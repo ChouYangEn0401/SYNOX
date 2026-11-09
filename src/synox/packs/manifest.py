@@ -194,6 +194,9 @@ def _check_commands(commands, strict: bool, problems: List[str]) -> List[dict]:
             problems.append(f"{where} 的 effect 只能是 READ、WRITE 或 DANGER")
         elif not effect and strict:
             problems.append(f"{where} 沒寫 effect（READ、WRITE 或 DANGER，一定要寫）")
+        for flag in ("ai", "confirm"):                    # ai: false＝不給 AI；confirm: true＝AI 呼叫前先送確認卡
+            if flag in c and not isinstance(c[flag], bool):
+                problems.append(f"{where} 的 {flag} 要是 true 或 false")
         fields = c.get("fields") or []
         if not isinstance(fields, list):
             problems.append(f"{where} 的 fields 要是清單")

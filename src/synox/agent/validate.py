@@ -144,6 +144,11 @@ def _meta(app, node) -> dict:
     return (getattr(app, "extras", {}) or {}).get("synox_tool_meta", {}).get(node.path, {})
 
 
+def wants_confirm(app, node) -> bool:
+    """kind=cli 的 commands[].confirm: true（synox_sdk 的 @tool(confirm=True)）：AI 呼叫前先送確認卡。"""
+    return _meta(app, node).get("confirm") is True
+
+
 def _user_dir(app, user) -> str:
     from synox.packs.loader import user_data_dir
     config = app.extras.get("synox_config") or app.config
