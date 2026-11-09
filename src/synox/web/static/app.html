@@ -654,7 +654,7 @@
       notes.forEach(function (f) { nl.appendChild(el("li", "muted", f.file + (f.line ? ":" + f.line : "") + " " + f.label + "：" + f.snippet)); });
       box.appendChild(nl);
     }
-    var env = s.env || {};
+    var env = s.upgrade ? {} : (s.env || {});   // 升級：看升級報告那一段（跟舊版比過要不要建）
     if (env.needed) {
       // runtime.python／node = auto：按確認之後才建（packs/envs.py）
       box.appendChild(el("p", "", "🧱 要建環境（按確認之後才建，要網路，最多 10 分鐘）："));
@@ -705,6 +705,18 @@
     if (!(upg.changes || []).length) { cl.appendChild(el("li", "muted", "宣告沒有變")); }
     box.appendChild(cl);
     if ((upg.files || []).length) { box.appendChild(el("p", "muted", "檔案：" + upg.files.join("、"))); }
+    var env = upg.env || {};
+    if (env.keep) {
+      box.appendChild(el("p", "muted", "🧱 環境：套件清單跟舊版一樣，沿用 data/envs/" + name + "/（不重建）"));
+    } else if (env.needed) {
+      box.appendChild(el("p", "", "🧱 " + (env.rebuild ? "要重建環境" : "要建環境") + "（按確認升級之後才建，要網路，最多 10 分鐘）：" +
+        (env.reason || "")));
+      var envList = el("ul");
+      (env.lines || []).forEach(function (t) { envList.appendChild(el("li", "", t)); });
+      (env.problems || []).forEach(function (t) { envList.appendChild(el("li", "", "⚠️ " + t)); });
+      box.appendChild(envList);
+      box.appendChild(el("p", "muted", "建失敗的話 pack 照樣升級好（不會退回），狀態會標「環境沒建好」，修好後可以重建。"));
+    }
     box.appendChild(el("p", "muted", "資料（data/、使用者資料夾）不會動；資料格式要不要轉換由 pack 自己負責。舊版會搬到 packs/_removed/，" +
       "要退回：python -m synox packs rollback " + name));
     if (upg.version_ok || !upg.can_force) { return null; }

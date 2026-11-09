@@ -1,5 +1,16 @@
 # Changelog
 
+## 未發佈（branch feat/sdk-upgrade-env-glue）
+
+### 修正
+- **升級之後照樣建環境**（P5 × P6 接縫）：以前升級 pack 不會建 `runtime.python`／`runtime.node` = `"auto"` 的環境，新版改了
+  `requires.pip`／`package-lock.json` 或剛改成 auto，升級完只剩 doctor 說對不上、要手動 `packs env rebuild`。現在升級報告
+  （終端機與網頁）多一段跟安裝報告一樣的「🧱 要建環境／要重建環境」清單（新版要環境，且舊版沒有、套件清單跟舊版不同、或現在的環境沒建好）；
+  套件清單沒變就寫「沿用」。確認升級後跟全新安裝一樣建：網頁在背景建、好了／失敗通知擁有者；`install --yes` 等它建完。
+  建失敗不退回升級（pack 已升級、doctor 說環境沒建好）。升級時終端機不再重複印安裝摘要的那段「要建環境」。
+- `packs rollback`：退回的舊版要環境、而 `data/envs/<name>/` 跟它對不上 → 提示重建（不自動建）。
+- 清掉 `packs/admin.py` 沒用到的 `import time`。測試 `tests/test_upgrade_env.py`（12 個；假的 JobRunner，不真的 pip／npm、不連網）。
+
 ## 未發佈（branch feat/sdk-p6-upgrade）
 
 ### 新增
