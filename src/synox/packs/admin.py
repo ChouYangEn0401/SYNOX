@@ -12,6 +12,8 @@ Web UI 設定頁、`python -m synox install <檔>`、`python -m synox packs lock
 
 zip 本身：不能有絕對路徑、`..`、磁碟代號、符號連結；檔名不能是 Windows 保留名（CON、NUL、COM1…）、
 不能有冒號（NTFS 資料流）或 Windows 不收的字元、結尾不能是空白或句點（_safe_parts，審查 B #E）；
+不能有雙向文字控制字元（U+202A–U+202E、U+2066–U+2069）或零寬字元（U+200B–U+200D、U+FEFF）；
+一段最多 MAX_PART 字、整條最多 MAX_REL_PATH 字；解壓縮時的 OSError 一律變成 PackAdminError（審查 C #C6，不再是網頁 500）；
 最多 MAX_FILES 個檔、解開最多 MAX_UNZIPPED。
 名字跟已經裝的 pack 一樣＝升級：比對、版本檢查、舊的搬到 _removed、退回都在 upgrade.py（install_staged 只裝新的）；
 升級完環境要建／重建（upgrade.env_change）也走這裡的 build_env。
@@ -61,6 +63,12 @@ class GateRefused(PackAdminError):
 WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} | \
     {f"{p}{n}" for p in ("COM", "LPT") for n in list("0123456789") + ["¹", "²", "³"]}
 _BAD_CHARS = re.compile(r'[<>:"|?*\x00-\x1f]')
+# 審查 C #C6：雙向文字控制字元（‮yp.a 在報告上會顯示成 a.py）與零寬字元（看不出來的兩個不同檔名）
+_INVISIBLE_CHARS = re.compile("[​-‍‪-‮⁦-⁩﻿]")
+# 審查 C #C6：太長的路徑在 Windows 解壓縮時會丟原生錯誤（網頁變成 500）；pack 不需要這麼深的路徑
+MAX_PART = 100                    # 一段（資料夾名或檔名）最多幾個字
+MAX_REL_PATH = 160                # pack 裡的相對路徑最多幾個字（暫存／安裝的資料夾還要再加上前面那一段）
+MAX_FULL_PATH = 255               # 解壓縮的完整路徑（Windows 傳統上限 260，留一點餘裕）
 
 
 def _safe_parts(name: str) -> List[str]:
@@ -70,6 +78,11 @@ def _safe_parts(name: str) -> List[str]:
     parts = [p for p in name.split("/") if p not in ("", ".")]
     if any(p == ".." for p in parts):
         raise PackAdminError(f"zip 裡有往上跳的路徑：{name}")
+    shown = name if len(name) <= 80 else name[:77] + "…"
+    if _INVISIBLE_CHARS.search(name):
+        raise PackAdminError(f"zip 裡的檔名有看不見的字元（雙向文字控制或零寬字元，報告上會顯示成別的名字）：{shown!r}")
+    if len("/".join(parts)) > MAX_REL_PATH or any(len(p) > MAX_PART for p in parts):
+        raise PackAdminError(f"zip 裡的路徑太長（一段最多 {MAX_PART} 字、整條最多 {MAX_REL_PATH} 字）：{shown}")
     for p in parts:                                     # 審查 B #E：防禦深度（Windows 解壓縮的怪名字）
         if ":" in p:
             raise PackAdminError(f"zip 裡的檔名有冒號（NTFS 資料流，例如 x.py::$DATA）：{name}")
@@ -131,6 +144,7 @@ def run_gates(folder: str, exec_bits=()) -> Tuple[Manifest, ScanReport, Dict[str
     report = scan(m, exec_bits)
     hashes = pack_lock.hash_files(folder)
     problems = report.problems(m) + pack_lock.check_integrity(m, hashes)
+    problems += envs.npm_source_problems(m)        # 審查 C #C8：npm 套件只准從 registry.npmjs.org 來
     too_old = synox_problem(m)                     # requires.synox：版本不合就不裝
     if too_old:
         problems.append(too_old)
@@ -270,9 +284,16 @@ def stage(blob: bytes, data_dir: str) -> Tuple[str, Dict]:
         try:
             for info, parts in files:
                 target = os.path.join(folder, *parts)
-                os.makedirs(os.path.dirname(target), exist_ok=True)
-                with z.open(info) as src, open(target, "wb") as dst:
-                    shutil.copyfileobj(src, dst)
+                if len(os.path.abspath(target)) > MAX_FULL_PATH:
+                    raise PackAdminError(f"zip 裡的路徑太長，這台解不開（{'/'.join(parts)[:80]}）："
+                                         "請 pack 作者把資料夾層數或檔名縮短")
+                try:
+                    os.makedirs(os.path.dirname(target), exist_ok=True)
+                    with z.open(info) as src, open(target, "wb") as dst:
+                        shutil.copyfileobj(src, dst)
+                except OSError as e:                      # 審查 C #C6：原生錯誤不要變成網頁 500
+                    raise PackAdminError(f"zip 裡的 {'/'.join(parts)[:80]} 解不開（{e.strerror or type(e).__name__}）："
+                                         "路徑太長或檔名這台不收，請 pack 作者改短／改名")
             m, report, hashes, problems = run_gates(folder, exec_bits)
         except Exception:
             shutil.rmtree(root, ignore_errors=True)
@@ -459,7 +480,12 @@ def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
     if refused:
         raise PackAdminError(refused)
     os.makedirs(packs_dir, exist_ok=True)
-    shutil.move(folder, target)
+    try:
+        shutil.move(folder, target)
+    except OSError as e:                                   # 審查 C #C6：例如 packs 資料夾的路徑比暫存的長
+        shutil.rmtree(target, ignore_errors=True)
+        raise PackAdminError(f"搬進 packs 資料夾失敗（{e.strerror or type(e).__name__}）：路徑可能太長；"
+                             "暫存那一份還在，可以重新按一次或請 pack 作者把路徑改短")
     shutil.rmtree(root, ignore_errors=True)
     fields = pack_tier.lock_fields(info, trust_publisher if info["tier"] == pack_tier.T2 else None)
     pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=target, trust=trust,

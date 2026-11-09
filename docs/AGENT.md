@@ -27,7 +27,7 @@
 | `src/synox/discord/` 其他 | `bots.py`（BotSpec、設定檢查；頻道型 `guilds`／`role_map`／`trigger`／`rate_per_minute`）、`events.py`（`parse_event` 私訊、`parse_room_event` 頻道）、`rest.py`（`DiscordChannel`）、`gateway.py`（`INTENTS`／`CHANNEL_INTENTS`、`on_ready`）、`__init__.py`（`install`、`DiscordEntry`、`RoomEntry`／`RoomReply`／`RoomThrottle`、`MultiHome`、配對）。見 [discord.md](discord.md) |
 | `src/synox/llm/` | `base.py`（`ChatAdapter`、`Message`、`Reply`、`ToolCall`、`ToolSpec`）、`easy_llm.py`（openai／anthropic／gemini／openai_compat，經 `ntu_easy_llm.agent`，lazy import）、`claude_code`、`fake`、`textproto`、`factory.make_adapter` |
 | `src/synox/vault/` | `vault.py`（Fernet＋每檔 scrypt、`*.json.enc`；`for_user(id)`＝伺服器版每人的保管箱，HKDF 衍生）、`keyring.py`（DPAPI 包住主金鑰 `data/.synox.key`） |
-| `src/synox/packs/` | `manifest.py`（pack.json v2 檢查＝第 1 關；`surfaces`／`data`（`_check_scope`、`default_data`、`cli_templates`）；`requires.synox`＝`synox_problem`、`requires.env`→`secret_env_names`、`fields[].kind`、`auth.fields`）、`secrets.py`（pack 的 secret：`PackSecrets`、`managed_fields`）、`scan.py`（ast 靜態掃描＝第 2 關；`_check_data_python`／`_check_data_cli`＝data 宣告的規則）、`lock.py`（`data/packs.lock`＝第 3 關；`trust`、`trust_of`）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`、`surface_policy`（沒有 channel＝private_only）、`shared_write_admin`、cli 代換與 `build_argv`）、`kit.py`（照位置填的指令）、`envs.py`（`runtime.python／node = "auto"`：`Builder.plan`／`build(m, jobs, on_done)` 建 `data/envs/<pack>/`、`python_of`／`node_of`／`node_env` 給 loader 代換、`env_problem` 給 loader／doctor；`set_factory` 換實作） |
+| `src/synox/packs/` | `manifest.py`（pack.json v2 檢查＝第 1 關；`surfaces`／`data`（`_check_scope`、`default_data`、`cli_templates`）；`requires.synox`＝`synox_problem`、`requires.env`→`secret_env_names`、`fields[].kind`、`auth.fields`）、`secrets.py`（pack 的 secret：`PackSecrets`、`managed_fields`）、`scan.py`（ast 靜態掃描＝第 2 關；`_check_data_python`／`_check_data_cli`＝data 宣告的規則；`ImportContext`＝import 的來源、`_fold`＝拼出來的字串，審查 C #C5）、`lock.py`（`data/packs.lock`＝第 3 關；`trust`、`trust_of`）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`、`surface_policy`（沒有 channel＝private_only）、`shared_write_admin`、cli 代換與 `build_argv`）、`kit.py`（照位置填的指令）、`envs.py`（`runtime.python／node = "auto"`：`Builder.plan`／`build(m, jobs, on_done)` 建 `data/envs/<pack>/`、`python_of`／`node_of`／`node_env` 給 loader 代換、`env_problem` 給 loader／doctor；`set_factory` 換實作） |
 | `src/synox/packs/mcp.py` | kind=mcp stdio（P4a）：`Session`（JSON-RPC over stdio、讀執行緒、`request`／`notify`）、`handshake`（initialize／initialized／tools/list）、`spawn`（Windows Job Object）、`McpPool`（每個 key 一個長駐程序、`reap()` 閒置回收、`close_all`；`clock`／`spawner` 可換）、`Scope`／`PerUserScope`／`SharedScope`（介面）、`shape_of`（inputSchema → fields）、`to_arguments`、`needs_confirm_of`、`render_result`、快取 `data/mcp/<pack>.tools.json`、`doctor_notes`、`Backend`／`StdioBackend`（連法）、`redact`、`install`（loader 叫，兩種連法共用） |
 | `src/synox/packs/mcp_http.py` | kind=mcp http（P4b）：`HttpSession`（Streamable HTTP：POST JSON-RPC、JSON／單次 SSE 回應、`Mcp-Session-Id`、不跟轉址、DELETE 收尾）、`HttpBackend`（Bearer token 或 OAuth）、`parse_sse`、`new_session`（測試換掉） |
 | `src/synox/packs/oauth.py` | 遠端 MCP 的 OAuth（選配）：`Flow`（PKCE＋state、貼回網址、換／更新 token 存 PackSecrets、`/<群組>_login／_code／_logout`）、`Listener`／`PasteListener`／`LoopbackListener`（只有介面，叫了就拒） |
@@ -164,6 +164,26 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     上傳的 zip 不解出 `__pycache__`、`synox-sdk zip` 不打包它、`check_integrity` 不比它；SYNOX 的子程序一律 `PYTHONDONTWRITEBYTECODE=1`
     （`loader.context_env`）。**測試的 T2 pack 一律用位元組造假檔頭（`tests/test_t2_trust.py` 的 `FAKE_EXE`），絕不執行任何執行檔**；
     開發機不跑第三方 exe／npm 套件是擁有者的政策（docs/security.md「信任層級」）。
+    **審查 C（feat/fix-round2、fix-round3）的不變量**——改這些地方之前先看 `tests/test_review_c.py`、`tests/test_review_c2.py`：
+    - **#C1 `{python}` 只准跑 pack 裡的 `.py`／`.pyw`／含 `__main__.py` 的資料夾**（`scan.script_target_problem`、`scan.argv_blocked`；
+      載入時 `loader.refuse_blocked_argv` 再查）。`ARCHIVE_EXT`（.pyz .pyzw .zip .whl .egg）是 opaque；`guessed_python` 把沒有副檔名、
+      ast 解析得過的檔當原始碼掃。不要放寬成「pack 裡的檔都行」。
+    - **#C2 子程序環境變數名的黑名單只在 `manifest.env_name_problem`**（第 1 關；`loader.cli_env`／mcp env 用同一張表再濾一次）；
+      子程序一律 `PYTHONNOUSERSITE=1`。**不要在 `{python}` 加 `-I`**（SDK pack 旁邊的 `synox_sdk.py` 會 import 不到）。
+    - **#C3 `{python} -m` 的 cwd 一定在 pack 裡**（`scan.cwd_inside_pack`，純字串判斷）。
+    - **#C4 UNC／裝置路徑（`//`、`\\`、`\\?\`、`\\.\`、`\??\`）在任何 realpath／exists／isfile 之前拒**：第 1 關 `manifest.unc_problems`
+      在 `validate()` 最前面；`agent/validate.inside`、`envs._network_path`、`scan.resolve_program` 都先看 `unc_like`。
+      新增「會碰檔案系統的檢查」時，順序一定在 `unc_problems` 之後。
+    - **#C5 掃描器的名單都是 `scan.py` 頂端的常數**（`NETWORK_MODULES`／`SUBPROCESS_MODULES`／`EXEC_MODULES`／`STAR_RISKY`／`NETWORK_CALLS`／
+      `NETWORK_PREFIXES`／`NETWORK_ATTRS`／`DYNAMIC_ATTRS`／`SYS_PATH_HOOKS`／`CONSTRUCTED_NAMES`）；來源不明的 import 用
+      `scan.ImportContext`（pack 資料夾＋`scan.pip_names(m)`；pip 名≠import 名的對照在 `PIP_IMPORT_NAMES`，SYNOX 自己的在 `SYNOX_MODULES`）；
+      拼字串用 `scan._fold`（只在 ast 上算字面字，**絕不 eval**）。`scan_source(rel, text)` 沒給 context＝只認標準函式庫與 SYNOX 自己的。
+      文件語氣永遠是「提醒不是門」。
+    - **#C6 zip 檔名**：`admin._safe_parts` 拒雙向文字控制與零寬字元、`MAX_PART`／`MAX_REL_PATH`；`stage` 的解壓縮與 `install_staged`
+      的搬移把 OSError 包成 `PackAdminError`（網頁不能出 500）。
+    - **#C7 建環境的子程序一律 `PIP_CONFIG_FILE=os.devnull`**（`envs.build_env`；pip 看到 devnull 就不讀任何設定檔）。不要換成空檔。
+    - **#C8 npm 只收 `envs.NPM_REGISTRY`**（`envs.npm_bad_sources`／`npm_source_problems`：`admin.run_gates` 拒裝、`VenvBuilder.plan` 拒建、
+      `tier.assess` 的 `npm_bad_sources` 給紅字）；`npm ci` 帶 `--registry=`。
 17. **巢狀參數的 schema 模式只給 MCP 工具、只給 AI**（Q6 方案 B）：pack.json `mcp.schema_tools` 列的工具，`mcp.shape_of(..., schema_mode=True)`
     用 `packs/mcp_schema.normalize` 正規化 inputSchema（白名單子集；`$ref`／`oneOf`／開放的 additionalProperties／路徑 format…＝不支援、
     `node.ai=False`、原因進 `shape.schema_problem` 與 doctor）。支援的話 `synox_tool_meta[path]["schema"]`＝正規化的 schema，
