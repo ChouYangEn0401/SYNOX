@@ -1,7 +1,8 @@
 """
-SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、時效…）＋ SYNOX 自己多的三塊。
+SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、時效…）＋ SYNOX 自己多的幾塊。
 
     {
+      "mode": "personal",                      personal（只有我，預設）｜server（一群人：帳號、角色、每人自己的資料）
       "bot_token": "123456:AAH…", "owner_id": 123456789,
       "llm":   {"kind": "openai_compat", "base_url": "https://…/v1", "api_key": "vault:llm_api_key",
                 "model": "…", "tools": true, "max_steps": 6, "max_tokens": 1024},
@@ -12,6 +13,8 @@ SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、�
 - 路徑一律相對於 SYNOX 資料夾（不管從哪裡啟動）：data_dir 沒寫就是 <SYNOX>/data。
 - api_key 可以直接寫，也可以寫 "vault:<名字>"：真正的值放在 data/secrets.json.enc（精靈就是這樣存的）。
 - 換 LLM 只改 llm 這一塊（invariant 2）。
+- mode：personal＝一個擁有者，資料是共用的一份；server＝陌生人傳訊息自動登記成訪客（GUEST），只看得到
+  pack.json access 允許的；擁有者／管理員用 /user_role 升級；vault 的 pack 資料每人一份（data/users/<id>/）。
 """
 
 from __future__ import annotations
@@ -26,10 +29,11 @@ from isdtelekit.host.config import BotConfig, ConfigError
 ROOT = os.environ.get("SYNOX_HOME") or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CONFIG_PATH = os.path.join(ROOT, "config.json")
 
-LLM_KINDS = ("openai_compat", "anthropic", "claude_code", "fake", "none")
+LLM_KINDS = ("openai", "anthropic", "gemini", "openai_compat", "claude_code", "fake", "none")
 DEFAULT_LLM = {"kind": "none", "max_steps": 6, "max_tokens": 1024}
 DEFAULT_VAULT = {"mode": "dpapi" if os.name == "nt" else "file"}
 DEFAULT_PACKS = {"enabled": "all", "disabled": []}
+MODES = ("personal", "server")
 
 
 @dataclass
@@ -37,7 +41,12 @@ class SynoxConfig(BotConfig):
     llm: dict = field(default_factory=lambda: dict(DEFAULT_LLM))
     vault: dict = field(default_factory=lambda: dict(DEFAULT_VAULT))
     packs: dict = field(default_factory=lambda: dict(DEFAULT_PACKS))
+    mode: str = "personal"
     root: str = ROOT
+
+    @property
+    def server(self) -> bool:
+        return self.mode == "server"
 
     @classmethod
     def from_dict(cls, raw: dict, *, require_token: bool = True, root: Optional[str] = None) -> "SynoxConfig":
@@ -51,9 +60,11 @@ class SynoxConfig(BotConfig):
         if vault.get("mode") not in ("dpapi", "file"):
             raise ConfigError("config.json 的 vault.mode 只能是 dpapi 或 file。")
         packs = {**DEFAULT_PACKS, **(raw.get("packs") or {})}
+        mode = parse_mode(raw.get("mode"))
         return cls(bot_token=base.bot_token, owner_id=base.owner_id,
                    poll_interval_seconds=base.poll_interval_seconds, data_dir=data_dir,
-                   stepup_minutes=base.stepup_minutes, raw=dict(raw), llm=llm, vault=vault, packs=packs, root=root)
+                   stepup_minutes=base.stepup_minutes, raw=dict(raw), llm=llm, vault=vault, packs=packs, mode=mode,
+                   root=root)
 
     @classmethod
     def load(cls, path: Optional[str] = None, *, require_token: bool = True,
@@ -75,6 +86,19 @@ class SynoxConfig(BotConfig):
         if name in (self.packs.get("disabled") or []):
             return False
         return enabled == "all" or name in (enabled or [])
+
+
+def parse_mode(value) -> str:
+    """config.json 的 mode：沒寫＝personal；大小寫、前後空白不計較；其他值丟 ConfigError。"""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return "personal"
+    mode = str(value).strip().lower()
+    if mode not in MODES:
+        raise ConfigError(f"config.json 的 mode 只能是 personal（只有我）或 server（一群人）（現在是 {value!r}）。")
+    return mode
+
+
+MODE_LABELS = {"personal": "只有我（個人版）", "server": "一群人（伺服器版）"}
 
 
 def redacted(raw: dict) -> dict:

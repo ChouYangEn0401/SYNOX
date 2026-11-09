@@ -5,7 +5,8 @@ pack.json 的格式與檢查（docs/pack-format.md 是人看的版本）。
       "name": "money", "title": "💰 記帳", "summary": "記一筆、看這個月、設預算",
       "version": "0.1.0", "kind": "python",
       "group": "money",                          指令群組（/money、/money_list…）；沒寫＝name
-      "access": "owner",                         owner（預設：只有你）｜everyone（任何傳訊息給 bot 的人）
+      "access": "owner",                         owner（預設：只有你）｜member（伺服器版的成員以上；個人版＝owner）
+                                                 ｜everyone（任何傳訊息給 bot 的人，伺服器版的訪客也算）
       "python": {"module": "pack"},              kind=python：資料夾裡的 pack.py，有 install(app, pack)
       "cli": {"argv": ["python", "-m", "x"], "cwd": ".", "commands": [...]},   kind=cli
       "auth": "oauth",                           kind=connector：oauth｜token｜caldav
@@ -25,6 +26,7 @@ from typing import List, Optional
 
 KINDS = ("python", "cli", "connector")
 AUTHS = ("oauth", "token", "caldav")
+ACCESS = ("owner", "member", "everyone")
 NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 GROUP_RE = re.compile(r"^[a-z][a-z0-9]{0,15}$")
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$")
@@ -78,8 +80,8 @@ def validate(raw: dict, folder: str) -> Manifest:
     if group and not GROUP_RE.match(group):
         problems.append(f"group {group!r} 只能用小寫英數字（16 字內）")
     access = raw.get("access", "owner")
-    if access not in ("owner", "everyone"):
-        problems.append("access 只能是 owner 或 everyone")
+    if access not in ACCESS:
+        problems.append("access 只能是 owner、member 或 everyone")
     storage = raw.get("storage", "plain")
     if storage not in ("vault", "plain"):
         problems.append("storage 只能是 vault 或 plain")

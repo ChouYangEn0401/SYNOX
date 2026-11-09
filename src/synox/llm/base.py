@@ -73,7 +73,7 @@ class ChatAdapter:
 
 
 def http_error(status: int, body: str = "") -> str:
-    """HTTP 狀態碼 → 一句人話（openai_compat、anthropic 共用）。"""
+    """HTTP 狀態碼 → 一句人話（easy_llm 的四種來源共用）。"""
     hint = {
         400: "請求被拒（400）：模型名稱或參數不對",
         401: "金鑰不對（401）",

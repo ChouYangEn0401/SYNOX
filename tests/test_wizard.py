@@ -99,6 +99,65 @@ def test_llm_settings():
     assert logic.llm_settings("claude_code")[0]["kind"] == "claude_code"
 
 
+def test_ai_page_helpers():
+    assert logic.CLAUDE_TITLE.startswith("預設：Claude")
+    assert list(logic.KEY_PROVIDERS) == ["openai", "anthropic", "gemini", "openai_compat"]
+    assert logic.provider_labels()[-1].startswith("相容端點")
+    assert logic.provider_by_label("Gemini") == "gemini" and logic.provider_by_label("???") == "openai"
+    assert logic.default_model("gemini") and logic.default_model("openai") and logic.default_model("x") == ""
+    assert logic.needs_base_url("openai_compat") and not logic.needs_base_url("anthropic")
+    found, text = logic.claude_status(lambda: "/usr/local/bin/claude")
+    assert found and "/usr/local/bin/claude" in text and logic.default_choice(found) == "claude_code"
+    found, text = logic.claude_status(lambda: None)
+    assert not found and "找不到" in text and logic.default_choice(found) == "keys"
+
+
+def test_ai_page_settings_per_provider():
+    llm, err = logic.llm_settings("keys", provider="gemini", api_key="g")
+    assert not err and llm == {"kind": "gemini", "api_key": "g", "model": logic.default_model("gemini")}
+    llm, err = logic.llm_settings("keys", provider="openai_compat", base_url="http://localhost:11434/v1",
+                                  model="qwen2.5")
+    assert not err and llm["kind"] == "openai_compat" and llm["api_key"] == "" and llm["tools"] is True
+    assert "網址" in logic.llm_settings("keys", provider="openai_compat", base_url="localhost", model="m")[1]
+    assert "模型" in logic.llm_settings("keys", provider="openai_compat", base_url="http://x/v1")[1]
+    assert "API key" in logic.llm_settings("keys", provider="anthropic")[1]
+    assert logic.llm_settings("keys", provider="openai", api_key="k", model=" my-model ")[0]["model"] == "my-model"
+
+
+def test_probe_llm_uses_adapter_probe():
+    class A:
+        def __init__(self, err):
+            self.err = err
+
+        def probe(self):
+            return self.err
+
+    assert logic.probe_llm({"kind": "none"}) is None
+    assert logic.probe_llm({"kind": "openai"}, make=lambda c: A(None)) is None
+    assert logic.probe_llm({"kind": "openai"}, make=lambda c: A("金鑰不對（401）")) == "金鑰不對（401）"
+    assert logic.probe_llm({"kind": "x"}, make=lambda c: None) == "不認得的 AI 來源。"
+
+    def boom(c):
+        from synox.llm.base import LLMError
+        raise LLMError("還沒安裝 ntu_easy_llm：…")
+    assert logic.probe_llm({"kind": "openai"}, make=boom).startswith("還沒安裝 ntu_easy_llm")
+    # 真的 make_adapter：相容端點沒填網址 → 中文錯誤，不丟例外
+    assert "網址" in logic.probe_llm({"kind": "openai_compat", "model": "m", "base_url": ""})
+
+
+def test_mode_page_and_build_config():
+    assert list(logic.MODE_CHOICES) == ["personal", "server"]
+    title, one, two = logic.mode_lines("server")
+    assert "伺服器版" in title and one and two
+    assert "config.json" in logic.ENGINEER_HINT and "config.example.json" in logic.ENGINEER_HINT
+    cfg = logic.build_config(TOKEN, 1, {"kind": "none"}, mode="server")
+    assert cfg["mode"] == "server"
+    assert logic.build_config(TOKEN, 1, {"kind": "none"}, existing={"mode": "server"})["mode"] == "server"
+    assert logic.build_config(TOKEN, 1, {"kind": "none"})["mode"] == "personal"
+    with pytest.raises(ValueError):
+        logic.build_config(TOKEN, 1, {"kind": "none"}, mode="cloud")
+
+
 def test_save_config_moves_key_to_vault(tmp_path):
     stored = {}
 
@@ -115,7 +174,7 @@ def test_save_config_moves_key_to_vault(tmp_path):
     assert "sk-secret" not in path.read_text(encoding="utf-8")
     assert data["owner_id"] == 4242 and data["packs"]["disabled"] == ["x"] and data["llm"]["max_steps"] == 6
     from synox.config import SynoxConfig
-    assert SynoxConfig.load(str(path)).llm["kind"] == "openai_compat"
+    assert SynoxConfig.load(str(path)).llm["kind"] == "openai" and data["mode"] == "personal"
 
 
 def test_save_config_real_vault(tmp_path):

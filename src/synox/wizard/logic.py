@@ -1,28 +1,92 @@
 """
-精靈不用畫面的那一半：把使用者在三頁裡選的東西變成 config.json（可以單獨測試）。
+精靈不用畫面的那一半：把使用者在四頁裡選的東西變成 config.json（可以單獨測試）。
 
-    llm = llm_settings("own", provider="openai", api_key="sk-…", model="gpt-4o-mini")
-    cfg = build_config(token, owner_id, llm)
-    save(path, cfg, api_key)          # 金鑰進保管箱（data/secrets.json.enc），config.json 只寫 "vault:llm_api_key"
+    mode = "personal"                                          第 1 頁：這台給誰用（personal｜server）
+    llm, err = llm_settings("keys", provider="openai", api_key="sk-…")     第 4 頁：AI
+    cfg = build_config(token, owner_id, llm, mode=mode)
+    save(path, cfg)                   # 金鑰進保管箱（data/secrets.json.enc），config.json 只寫 "vault:llm_api_key"
+
+AI 頁的三種選擇：claude_code（預設：這台電腦登入的 Claude Code）｜keys（其他金鑰來源：OpenAI、Anthropic、
+Gemini、相容端點）｜none（先不用 AI）。舊的 friend／own 仍然收（= keys）。
 """
 
 from __future__ import annotations
 
 import json
 import os
-from typing import Optional, Tuple
+from collections import OrderedDict
+from typing import Callable, Optional, Tuple
 
 from synox.llm.factory import VAULT_PREFIX
 
 SECRET_NAME = "llm_api_key"
 
-# ② 自己的 API key：哪一家 → (kind, base_url, 建議的模型)。模型名稱只是預填，使用者可以改，「測一下」會驗。
-PROVIDERS = {
-    "openai": ("openai_compat", "https://api.openai.com/v1", "gpt-4o-mini"),
-    "anthropic": ("anthropic", "https://api.anthropic.com", "claude-sonnet-4-5"),
-    "gemini": ("openai_compat", "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.0-flash"),
-}
-CHOICES = ("friend", "own", "claude_code", "none")
+# ── 第 1 頁：這台給誰用 ─────────────────────────────────────────────
+
+MODE_CHOICES = OrderedDict([
+    ("personal", ("只有我（個人版）",
+                  "只有你一個人用：只有配對的那個 Telegram 帳號用得到指令。",
+                  "資料都在這台電腦，筆記、記帳加密存一份。")),
+    ("server", ("一群人（伺服器版）",
+                "家人、同事、社團一起用：陌生人傳訊息會變成訪客，你（或你指定的管理員）決定誰能用什麼。",
+                "每個人的筆記、記帳各自加密存一份，別人看不到。")),
+])
+ENGINEER_HINT = "工程師？直接改 config.json（範例 config.example.json），不用精靈。"
+
+
+def mode_lines(mode: str) -> Tuple[str, str, str]:
+    """(標題, 說明一, 說明二)。"""
+    return MODE_CHOICES[mode]
+
+
+# ── 第 4 頁：AI ─────────────────────────────────────────────────────
+
+CLAUDE_TITLE = "預設：Claude（這台電腦登入的 Claude Code）"
+
+# 其他金鑰來源：代號 → (下拉選單上的字, config 的 llm.kind, 預填的模型, 要不要填網址)
+# 模型名稱只是預填，使用者可以改，「測一下」會驗。
+KEY_PROVIDERS = OrderedDict([
+    ("openai", ("OpenAI", "openai", "gpt-4.1-mini", False)),
+    ("anthropic", ("Anthropic API", "anthropic", "claude-sonnet-4-5", False)),
+    ("gemini", ("Gemini", "gemini", "gemini-2.5-flash", False)),
+    ("openai_compat", ("相容端點（公司閘道、Ollama）", "openai_compat", "llama3.1", True)),
+])
+PROVIDERS = KEY_PROVIDERS                       # 舊名
+CHOICES = ("claude_code", "keys", "none")
+
+
+def provider_labels() -> list:
+    return [v[0] for v in KEY_PROVIDERS.values()]
+
+
+def provider_by_label(label: str) -> str:
+    for code, v in KEY_PROVIDERS.items():
+        if v[0] == label:
+            return code
+    return label if label in KEY_PROVIDERS else "openai"
+
+
+def default_model(provider: str) -> str:
+    return KEY_PROVIDERS[provider][2] if provider in KEY_PROVIDERS else ""
+
+
+def needs_base_url(provider: str) -> bool:
+    return bool(KEY_PROVIDERS.get(provider, ("", "", "", False))[3])
+
+
+def claude_status(which: Optional[Callable[[], Optional[str]]] = None) -> Tuple[bool, str]:
+    """(找到了沒, 一句給畫面的狀態)。"""
+    if which is None:
+        from synox.llm.claude_code import find_claude
+        which = find_claude
+    path = which()
+    if path:
+        return True, f"✅ 找到了：{path}"
+    return False, "❌ 這台電腦找不到 Claude Code（claude）。要用它，先安裝並登入；或在下面填其他金鑰來源。"
+
+
+def default_choice(claude_found: bool) -> str:
+    return "claude_code" if claude_found else "keys"
 
 
 def llm_settings(choice: str, *, base_url: str = "", api_key: str = "", model: str = "",
@@ -32,28 +96,53 @@ def llm_settings(choice: str, *, base_url: str = "", api_key: str = "", model: s
         return {"kind": "none"}, ""
     if choice == "claude_code":
         return {"kind": "claude_code", "model": model.strip()}, ""
-    if choice == "friend":
-        if not base_url.strip().startswith(("http://", "https://")):
-            return {}, "AI 網址要以 http:// 或 https:// 開頭。"
-        if not model.strip():
-            return {}, "要填模型名稱（問給你網址的人）。"
-        return {"kind": "openai_compat", "base_url": base_url.strip(), "api_key": api_key.strip(),
-                "model": model.strip(), "tools": True}, ""
+    if choice == "friend":                         # 舊選項：朋友／公司給的網址＝相容端點
+        choice, provider = "keys", "openai_compat"
     if choice == "own":
-        if provider not in PROVIDERS:
-            return {}, f"不認得的服務 {provider}。"
-        if not api_key.strip():
-            return {}, "要貼上 API key。"
-        kind, url, suggested = PROVIDERS[provider]
-        out = {"kind": kind, "api_key": api_key.strip(), "model": model.strip() or suggested}
-        if kind == "openai_compat":
-            out["base_url"], out["tools"] = url, True
-        return out, ""
-    return {}, f"不認得的選項 {choice}。"
+        choice = "keys"
+    if choice != "keys":
+        return {}, f"不認得的選項 {choice}。"
+    if provider not in KEY_PROVIDERS:
+        return {}, f"不認得的服務 {provider}。"
+    _label, kind, suggested, wants_url = KEY_PROVIDERS[provider]
+    out = {"kind": kind, "api_key": api_key.strip(), "model": model.strip() or suggested}
+    if wants_url:
+        if not base_url.strip().startswith(("http://", "https://")):
+            return {}, "網址要以 http:// 或 https:// 開頭（例如 http://localhost:11434/v1）。"
+        if not model.strip():
+            return {}, "要填模型名稱（問給你網址的人；Ollama 就是你 pull 的那個名字）。"
+        out["base_url"], out["tools"] = base_url.strip(), True
+    elif not api_key.strip():
+        return {}, "要貼上 API key。"
+    return out, ""
 
 
-def build_config(token: str, owner_id: int, llm: dict, *, existing: Optional[dict] = None) -> dict:
+def probe_llm(llm: dict, make=None) -> Optional[str]:
+    """「測一下」：照 llm 那一塊做出 adapter，真的打一句。None＝通了，否則一句人話。"""
+    if (llm or {}).get("kind", "none") == "none":
+        return None
+    if make is None:
+        from synox.llm import make_adapter as make
+    try:
+        adapter = make({"llm": llm})
+    except Exception as e:                         # LLMError（設定不完整、沒裝 ntu_easy_llm）
+        return str(e)
+    if adapter is None:
+        return "不認得的 AI 來源。"
+    try:
+        return adapter.probe()
+    except Exception as e:
+        return f"測試失敗：{e}"
+
+
+def build_config(token: str, owner_id: int, llm: dict, *, existing: Optional[dict] = None,
+                 mode: Optional[str] = None) -> dict:
     cfg = dict(existing or {})
+    if mode is not None:
+        if mode not in MODE_CHOICES:
+            raise ValueError(f"mode must be one of {tuple(MODE_CHOICES)}")
+        cfg["mode"] = mode
+    cfg.setdefault("mode", "personal")
     cfg.update({"bot_token": token.strip(), "owner_id": int(owner_id)})
     cfg["llm"] = {"max_steps": 6, "max_tokens": 1024, **{k: v for k, v in llm.items()}}
     cfg.setdefault("vault", {"mode": "dpapi" if os.name == "nt" else "file"})

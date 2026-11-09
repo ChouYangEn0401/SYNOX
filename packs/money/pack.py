@@ -1,6 +1,6 @@
 """💰 記帳：/money <金額> <類別> [備註]、/money_list [筆數]、/money_month、/money_budget <金額>。
 
-資料經 pack.store（保管箱，密文 data/money.json.enc）：{"entries": [{amount, category, memo, at}], "budget": 數字或 null}。
+資料經 pack.store.of(user)（保管箱，密文；個人版 data/money.json.enc，伺服器版每人一份 data/users/<id>/money.json.enc）：{"entries": [{amount, category, memo, at}], "budget": 數字或 null}。
 記一筆讓這個月的總額超過預算時，回覆裡直接說。
 """
 
@@ -30,10 +30,9 @@ def month_total(data, key=None) -> float:
 
 def install(app, pack):
     g = pack.group
-    store = pack.store
 
-    def load():
-        data = store.load(None) or {}
+    def load(user):
+        data = pack.store.of(user).load(None) or {}
         return {**EMPTY, **data}
 
     def add(api, chat_id, user, values):
@@ -49,7 +48,7 @@ def install(app, pack):
             d.setdefault("budget", None)
             return month_total(d) - amount, month_total(d), d.get("budget")
 
-        before, after, budget = store.update(append, dict(EMPTY))
+        before, after, budget = pack.store.of(user).update(append, dict(EMPTY))
         memo = f"（{entry['memo']}）" if entry["memo"] else ""
         lines = [f"💰 記了：{entry['category']} {fmt(amount)} 元{memo}", f"這個月共 {fmt(after)} 元"]
         if budget:
@@ -63,7 +62,7 @@ def install(app, pack):
 
     def list_(api, chat_id, user, values):
         n = int(values.get("n") or 10)
-        entries = load()["entries"][-n:]
+        entries = load(user)["entries"][-n:]
         if not entries:
             api.send_message(chat_id, "💰 還沒有記帳。用 /money <金額> <類別> 記一筆。")
             return
@@ -74,7 +73,7 @@ def install(app, pack):
         api.send_message(chat_id, "\n".join(lines))
 
     def month(api, chat_id, user, values):
-        data = load()
+        data = load(user)
         key = month_key()
         by_cat = defaultdict(float)
         for e in data["entries"]:
@@ -102,7 +101,7 @@ def install(app, pack):
             d.setdefault("entries", [])
             return month_total(d)
 
-        total = store.update(set_budget, dict(EMPTY))
+        total = pack.store.of(user).update(set_budget, dict(EMPTY))
         if not amount:
             api.send_message(chat_id, "💰 預算拿掉了。")
             return

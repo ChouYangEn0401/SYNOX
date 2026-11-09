@@ -36,16 +36,11 @@ def make_adapter(config, vault=None, *, session=None) -> Optional[ChatAdapter]:
     if kind == "fake":
         from synox.llm.fake import FakeAdapter
         return FakeAdapter(llm.get("script"))
-    if kind == "openai_compat":
-        from synox.llm.openai_compat import OpenAICompatAdapter
-        return OpenAICompatAdapter(llm.get("base_url", ""), resolve_secret(llm.get("api_key", ""), vault),
-                                   llm.get("model", ""), tools=llm.get("tools", True), max_tokens=max_tokens,
-                                   session=session)
-    if kind == "anthropic":
-        from synox.llm.anthropic_api import AnthropicAdapter
-        return AnthropicAdapter(resolve_secret(llm.get("api_key", ""), vault), llm.get("model", ""),
-                                base_url=llm.get("base_url") or "https://api.anthropic.com",
-                                max_tokens=max_tokens, session=session)
+    if kind in ("openai", "anthropic", "gemini", "openai_compat"):     # API 金鑰的來源都經 ntu_easy_llm
+        from synox.llm.easy_llm import EasyLLMAdapter
+        return EasyLLMAdapter(kind, resolve_secret(llm.get("api_key", ""), vault), llm.get("model", ""),
+                              base_url=llm.get("base_url") or "", tools=llm.get("tools", True),
+                              max_tokens=max_tokens, session=session)
     if kind == "claude_code":
         from synox.llm.claude_code import ClaudeCodeAdapter
         workdir = os.path.join(config.data_dir, "claude_workspace") if hasattr(config, "data_dir") else ""
