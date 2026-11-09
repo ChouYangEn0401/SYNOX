@@ -2,9 +2,10 @@
 信任層級（SDK P7）：這個 pack 的程式，第 2 關的靜態掃描看得到多少。
 
     T0  只有宣告：connector、只登記的 mcp（遠端 MCP）——沒有程式在這台跑（有附程式檔第 2 關就拒）
-    T1  原始碼：pack 資料夾裡只有 .py（掃得到）與資料檔
+    T1  原始碼：pack 資料夾裡只有第 2 關掃得到的 .py 與純資料檔
     T2  二進位或外部相依（掃不到）：資料夾裡有掃不到內容的檔（scan.opaque_files：.exe .dll .bat .sh .so .pyc、
-        node_modules、MZ／ELF 檔頭…）、argv 指到 pack 外的程式（scan.externals：npx、git、絕對路徑、{python} -m 外部模組）、
+        別的語言的原始碼 .js .ts .rb .php .go…（scan.SOURCE_EXT）、node_modules、MZ／ELF 檔頭…）、
+        argv 指到 pack 外的程式（scan.externals：{node}、npx、node、git、絕對路徑、{python} -m 外部模組）、
         或 runtime auto 會裝套件（envs.all_pins：requires.pip、package-lock.json）
 
 T2 要多的：
@@ -26,7 +27,7 @@ from typing import List, Optional
 
 T0, T1, T2 = "T0", "T1", "T2"
 TIERS = (T0, T1, T2)
-TEXT = {T0: "T0 只有宣告（沒有程式在這台跑）", T1: "T1 原始碼（第 2 關掃得到）",
+TEXT = {T0: "T0 只有宣告（沒有程式在這台跑）", T1: "T1 原始碼（只有第 2 關掃得到的 .py 與純資料檔）",
         T2: "T2 二進位或外部相依（第 2 關掃不到）"}
 
 
@@ -42,8 +43,8 @@ def assess(m, report=None, exec_bits=()) -> dict:
         packages = envs.all_pins(m)
     except Exception:                                # pack.json 怪怪的：當作沒有套件（第 1 關會擋）
         packages = []
-    if getattr(m, "registered_only", False):
-        tier = T0
+    if getattr(m, "registered_only", False) or getattr(m, "mcp_http", False):
+        tier = T0                                    # 遠端 MCP（http）也是：這台不跑它的程式，附程式檔第 2 關就拒
     elif opaque or external or packages:
         tier = T2
     else:
@@ -69,7 +70,8 @@ def warning_lines(info: dict) -> List[str]:
     if runs:
         out.append("這個 pack 會執行：" + "、".join(runs[:20]) + ("…" if len(runs) > 20 else "") + "（掃不到內容）")
     for e in info.get("external") or []:
-        out.append(f"pack 外的程式 {e['program']} → {e['resolved']}（未鎖定執行環境：不在 packs.lock 的雜湊裡）")
+        kind = f"直譯器 {e['interpreter']}" if e.get("interpreter") else "pack 外的程式"
+        out.append(f"{kind} {e['program']} → {e['resolved']}（未鎖定執行環境：不在 packs.lock 的雜湊裡）")
     pkgs = info.get("packages") or []
     if pkgs:
         names = "、".join(f"{p['name']} {p['version']}" for p in pkgs[:30]) + ("…" if len(pkgs) > 30 else "")

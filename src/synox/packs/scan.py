@@ -12,14 +12,17 @@
     filesystem open(…)／pathlib.Path(…)／shutil、os.remove、os.rename… ：字面路徑是絕對的或有 ..  → filesystem:any；
                其他（路徑是變數、相對路徑）→ filesystem:own（pack 自己的檔案應該用 pack.path_of(user)／pack.path() 或 pack.store）
     exec       exec、eval、compile、__import__、importlib、ctypes、pickle.loads、marshal、getattr(x, "system")… → exec
-    env        os.environ、os.getenv：**只列出來給人看**（不算 capability，也不擋）
+    env        os.environ、os.getenv：**只列出來給人看**（不算 capability，也不擋）；讀 SYNOX 自己注入的協定變數
+               （SYNOX_ENV_OK：SYNOX_USER_DATA_DIR、SYNOX_CONFIRMED…，名字是字面字）不列；SYNOX_CONFIRM_TOKEN、SYNOX_SECRET_ENV 照列
     secret     pack.secret(…)：讀使用者在「連接」填的值（pack.json auth.fields）；只列出來，不算 capability
     binary     掃不到內容的檔（T2，P7；opaque_files）：.exe .dll .bat .cmd .ps1 .sh .so .dylib .node .wasm…、
+               別的語言的原始碼（SOURCE_EXT：.js .mjs .ts .rb .pl .php .lua .go .rs .java .cs .psm1 .bash…）、
                __pycache__ 裡的、.pyc／.pyd、檔頭是 MZ+PE／ELF／Mach-O（不管副檔名）、沒有副檔名但帶執行位元或 #! 開頭、
                node_modules（整個資料夾一筆） → exec；python、cli、mcp stdio 都看。報告的 opaque 列路徑、大小、sha256
   沒宣告對應的 capability ＝拒裝（列出檔名:行號）。舊的 pack 沒寫 capabilities＝什麼都沒宣告，所以掃描結果決定。
   .py 解析不了（語法錯）也拒裝：掃不到就不能說它安全。
-- cli：pack 裡附的 .py 照上面一樣掃；cli.argv 指到 pack 外的程式（git、npx、絕對路徑、{python} -m 外部模組）
+- cli：pack 裡附的 .py 照上面一樣掃；cli.argv 指到 pack 外的程式（git、npx、絕對路徑、{python} -m 外部模組、
+  {node}／node／deno／bun／ruby／perl／php 這類直譯器——出現在 argv 任何一段都算，INTERPRETERS）
   不擋，列一筆 external（報告的 external 有解析後的路徑）「未鎖定執行環境」；argv 樣板只能是字面字、單獨一段的 {欄位}、或 --k={欄位}（一段）；
   {欄位} 緊跟在一個 --旗標 後面當它的值 ＝拒（值會變成另一段，要寫成 --k={v}）；樣板裡用了沒宣告的欄位 ＝拒。
   （值本身以 - 開頭、有換行，是第 4 關在呼叫時擋。）
@@ -30,7 +33,7 @@
     cli    data=user   樣板不准 {data_dir}（只能 {user_data_dir}）；data=none 兩個都不准
 - mcp（只登記，沒有 transport）：沒有程式可以掃；tools_allow 一定不能是空的。附了程式檔 ＝拒。
 - mcp（transport=stdio，P4a）：pack 裡附的 .py 照 cli 一樣掃；mcp.argv／env 只能用系統代換（{python}、{pack_dir}…）；
-  data 規則同 cli（樣板）；argv 指到 **pack 外面的程式**（npx、node、絕對路徑…）不擋，但列一筆 external
+  data 規則同 cli（樣板）；argv 指到 **pack 外面的程式**（{node}、npx、node、絕對路徑…）不擋，但列一筆 external
   「未鎖定執行環境」：packs.lock 只鎖 pack 資料夾裡的檔，外面那支程式被換掉 SYNOX 不會發現。
 - mcp（transport=http，P4b）：遠端 MCP，這台不跑它的程式：同「只登記」，**只能是宣告**（附了程式檔＝拒）。
   信任等級 T0（只有宣告）：安裝報告逐一列 tools_allow 與每個工具的 effect 給安裝者確認（admin.mcp_report）；
@@ -70,11 +73,31 @@ FS_CALLS = ("os.remove", "os.unlink", "os.rename", "os.renames", "os.replace", "
             "os.makedirs", "os.mkdir", "os.chmod", "os.chown", "os.link", "os.symlink", "os.truncate")
 FS_PREFIXES = ("shutil.",)
 ENV_CALLS = ("os.getenv", "os.putenv", "os.unsetenv", "os.environ.get")
+ENV_READS = ("os.getenv", "os.environ.get")       # 只有「讀」才看白名單（putenv／unsetenv 照列）
+# SYNOX 自己注入給子程序的協定變數（不是密鑰）：讀這些不列 env。SYNOX_CONFIRM_TOKEN（一次性憑證）、
+# SYNOX_SECRET_ENV（密鑰的變數名）不在這裡，照列
+SYNOX_ENV_OK = ("SYNOX_USER_DATA_DIR", "SYNOX_TG_ID", "SYNOX_MODE", "SYNOX_PACK_DIR", "SYNOX_PACK_NAME", "SYNOX_CONFIRMED")
 DANGER_ATTRS = ("system", "popen", "exec", "eval", "spawnl", "spawnv", "execv", "execl", "startfile",
                 "__import__", "import_module", "loads", "Popen", "run", "call", "check_output")
 BINARY_EXT = (".pyc", ".pyo", ".pyd", ".dll", ".so", ".dylib", ".exe", ".com", ".bat", ".cmd", ".ps1", ".vbs",
               ".msi", ".scr", ".jar", ".sh", ".node", ".wasm", ".class")
-CODE_EXT = (".py",) + BINARY_EXT
+# 別的語言的原始碼（P7 補：擁有者 2026-11-09 決定）：第 2 關只讀得懂 .py，這些一律算「掃不到內容的檔」
+# → 要宣告 exec、算 T2、安裝要輸入 publisher。要加新的語言就往這裡加（小寫、含點）。
+SOURCE_EXT = (
+    ".js", ".mjs", ".cjs", ".jsx", ".ts", ".mts", ".cts", ".tsx", ".coffee",          # JavaScript／TypeScript
+    ".rb", ".pl", ".pm", ".php", ".lua", ".tcl", ".r", ".jl", ".dart",                 # 直譯語言
+    ".go", ".rs", ".java", ".kt", ".kts", ".scala", ".groovy", ".swift",                # 編譯語言
+    ".c", ".cc", ".cpp", ".cxx", ".h", ".hpp", ".m", ".cs", ".vb", ".fs", ".fsx",
+    ".ex", ".exs", ".erl", ".hs", ".ml", ".clj",
+    ".psm1", ".psd1", ".vbe", ".jse", ".wsf", ".wsh", ".hta", ".applescript", ".scpt",   # Windows／macOS 腳本
+    ".bash", ".zsh", ".fish", ".ksh", ".csh", ".awk",                                  # shell
+)
+OPAQUE_EXT = BINARY_EXT + tuple(e for e in SOURCE_EXT if e not in BINARY_EXT)
+CODE_EXT = (".py",) + OPAQUE_EXT
+# argv 裡出現就算「叫 pack 外的程式」的直譯器（{node} 是 SYNOX 的代換，但 node 本身在 pack 外、沒有鎖）
+# （argv[0] 本來就一律看；這張表是讓 cmd /c node …、env node … 這種後面才出現的也記一筆。可擴充）
+INTERPRETERS = ("node", "nodejs", "npx", "npm", "deno", "bun", "bunx", "ruby", "perl", "php", "ts-node",
+                "powershell", "pwsh", "wscript", "cscript", "osascript")
 # 檔頭（不看副檔名）：ELF、Mach-O（含 universal）；MZ 另外要對到 PE 簽名才算（避免文字檔剛好 MZ 開頭）
 _MAGIC = ((b"\x7fELF", "ELF 執行檔"), (b"\xfe\xed\xfa\xce", "Mach-O 執行檔"), (b"\xfe\xed\xfa\xcf", "Mach-O 執行檔"),
           (b"\xce\xfa\xed\xfe", "Mach-O 執行檔"), (b"\xcf\xfa\xed\xfe", "Mach-O 執行檔"),
@@ -259,6 +282,8 @@ def opaque_reason(folder: str, rel: str, exec_bits: Sequence[str] = ()) -> str:
         return "編譯過的 Python（.pyc／.pyd），看不到原始碼"
     if ext in BINARY_EXT:
         return f"執行檔／腳本（{ext}），第 2 關只看 .py"
+    if ext in SOURCE_EXT:
+        return f"別的語言的原始碼（{ext}），第 2 關只讀得懂 .py"
     magic = _magic_of(path)
     if magic:
         return f"{magic}（副檔名是 {ext or '沒有'}）"
@@ -321,6 +346,7 @@ class _Visitor(ast.NodeVisitor):
         self.lines = lines
         self.aliases: Dict[str, str] = {}
         self.findings: List[Finding] = []
+        self._env_ok: set = set()               # 讀 SYNOX 協定變數的 os.environ 節點（不列 env）
 
     def add(self, node, kind: str, detail: str = "") -> None:
         line = getattr(node, "lineno", 0)
@@ -373,10 +399,21 @@ class _Visitor(ast.NodeVisitor):
             self.add(node, "exec", "__builtins__")
         self.generic_visit(node)
 
+    def _synox_env(self, node) -> bool:
+        value = _literal_path(node) if node is not None else None
+        return value in SYNOX_ENV_OK
+
+    def visit_Subscript(self, node):
+        key = getattr(node.slice, "value", node.slice) if type(node.slice).__name__ == "Index" else node.slice
+        if self.dotted(node.value) == "os.environ" and self._synox_env(key):
+            self._env_ok.add(id(node.value))           # os.environ["SYNOX_USER_DATA_DIR"]：協定變數，不列
+        self.generic_visit(node)
+
     def visit_Attribute(self, node):
         name = self.dotted(node)
         if name == "os.environ":
-            self.add(node, "env", "os.environ")
+            if id(node) not in self._env_ok:
+                self.add(node, "env", "os.environ")
         elif name == "app.jobs" or name.endswith(".app.jobs"):
             self.add(node, "subprocess", "app.jobs（JobRunner 會開別的程式）")
         self.generic_visit(node)
@@ -404,6 +441,9 @@ class _Visitor(ast.NodeVisitor):
                 self.add(node, self._path_kind(node.args), f"{name}(…)")
             elif name in FS_CALLS or name.startswith(FS_PREFIXES):
                 self.add(node, self._path_kind(node.args), f"{name}(…)")
+            elif name in ENV_READS and node.args and self._synox_env(node.args[0]):
+                if isinstance(node.func, ast.Attribute):     # os.environ.get("SYNOX_MODE")：裡面那個 os.environ 也不列
+                    self._env_ok.add(id(node.func.value))
             elif name in ENV_CALLS:
                 self.add(node, "env", f"{name}(…)")
             elif name == "pack.secret" or name.endswith(".pack.secret"):
@@ -612,7 +652,18 @@ def _check_data_cli(m: Manifest) -> List[Finding]:
     return out
 
 
-_SYSTEM_PROGRAMS = ("{python}", "{node}")
+_SYSTEM_PROGRAMS = ("{python}",)              # {node} 不算：node 在 pack 外、沒鎖（P7 補）
+
+
+def interpreter_of(token: str) -> str:
+    """這段 argv 是不是直譯器（{node}、node、npx、deno、bun、ruby、perl、php…，含 .exe／完整路徑）：是回名字，不是回 ""。"""
+    if token == "{node}":
+        return "node"
+    base = os.path.basename(token.replace("\\", "/")).lower()
+    for suffix in (".exe", ".cmd", ".bat"):
+        if base.endswith(suffix):
+            base = base[: -len(suffix)]
+    return base if base in INTERPRETERS else ""
 
 
 def _program_argv(m: Manifest) -> List[str]:
@@ -630,9 +681,9 @@ def _module_inside(m: Manifest, module: str) -> bool:
 
 
 def external_programs(m: Manifest) -> List[str]:
-    """kind=cli 的 cli.argv、kind=mcp stdio 的 mcp.argv 裡指到 pack 外面的程式（樣板原文）：argv[0] 不是 {python}／{node}、
-    不是 ./ 開頭的 pack 內檔案（npx、node、git、uvx、絕對路徑…）；後面任何一段絕對路徑或 {pack_dir} 以外的 .. 路徑；
-    {python} -m <模組> 而那個模組不在 pack 資料夾裡（記成 "-m 模組"）。"""
+    """kind=cli 的 cli.argv、kind=mcp stdio 的 mcp.argv 裡指到 pack 外面的程式（樣板原文）：argv[0] 不是 {python}、
+    不是 ./ 開頭的 pack 內檔案（{node}、npx、node、git、uvx、絕對路徑…）；後面任何一段是直譯器（INTERPRETERS：
+    cmd /c node … 這種）、絕對路徑或 {pack_dir} 以外的 .. 路徑；{python} -m <模組> 而那個模組不在 pack 資料夾裡（記成 "-m 模組"）。"""
     out: List[str] = []
     argv = _program_argv(m)
     for i, token in enumerate(argv):
@@ -641,6 +692,8 @@ def external_programs(m: Manifest) -> List[str]:
         if i == 0:
             if token in _SYSTEM_PROGRAMS or inside:
                 continue
+            out.append(token)
+        elif interpreter_of(token) and not inside:
             out.append(token)
         elif token == "-m" and i == 1 and argv[0] == "{python}" and len(argv) > 2:
             if not _module_inside(m, argv[2]):
@@ -666,6 +719,14 @@ def resolve_program(token: str, m: Optional[Manifest] = None) -> str:
                 else f"這台 SYNOX 的 Python 找不到模組 {module}")
     if os.path.isabs(token) or re.match(r"^[A-Za-z]:", token):
         return token if os.path.exists(token) else f"{token}（這台不存在）"
+    if token == "{node}":                          # 照 loader 代換 {node} 的規則找（envs.node_of；只查路徑，不執行）
+        from synox.packs import envs
+        value = ((getattr(m, "runtime", {}) or {}).get("node") or "") if m is not None else ""
+        if value and value != envs.AUTO:
+            found = envs.node_of(m)
+            return found if os.path.exists(found) else f"{found}（這台不存在）"
+        found = envs.system_node(shutil.which)
+        return f"{found}（{{node}}＝這台系統的 node，版本沒有鎖住）" if found else "這台的 PATH 找不到 node（{node}）"
     if "{" in token:
         return f"{token}（樣板，執行時才代換）"
     found = shutil.which(token)
@@ -678,8 +739,14 @@ def resolve_program(token: str, m: Optional[Manifest] = None) -> str:
 def externals(m: Manifest) -> List[dict]:
     """[{"program", "resolved", "where", "note"}]：pack 外的程式＋解析後的路徑；不進 packs.lock 的雜湊。"""
     where = "mcp.argv" if m.kind == "mcp" else "cli.argv"
-    return [{"program": t, "resolved": resolve_program(t, m), "where": where, "note": "未鎖定執行環境"}
-            for t in external_programs(m)]
+    out = []
+    for t in external_programs(m):
+        e = {"program": t, "resolved": resolve_program(t, m), "where": where, "note": "未鎖定執行環境"}
+        interp = interpreter_of(t)
+        if interp:                                 # 直譯器：在 pack 外、版本沒鎖；掃描只查路徑，不執行它
+            e["interpreter"] = interp
+        out.append(e)
+    return out
 
 
 def _check_mcp_stdio(m: Manifest) -> List[Finding]:

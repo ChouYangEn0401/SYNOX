@@ -73,9 +73,12 @@ def test_node_mcp_tool_declaration_and_report():
         source = f.read()
     assert "internal_stats" in source and "internal_stats" not in m.mcp["tools_allow"]
     assert "require(" in source and re.findall(r"require\(\"([^\"]+)\"\)", source) == ["readline"]   # 只有標準函式庫
-    # 現在的判斷：.js 不在「掃不到內容的檔」清單、{node} 不算 pack 外的程式 → T1（docs/tools.md「信任層級」有寫）
+    # .js 是別的語言的原始碼（掃不到內容）、{node} 是 pack 外的直譯器 → T2，安裝要輸入 publisher（只查路徑，不執行 node）
     info = tier.assess(m, report)
-    assert info["tier"] in (tier.T1, tier.T2)
+    assert info["tier"] == tier.T2 and info["needs_publisher"]
+    assert [o["path"] for o in info["opaque"]] == ["server.js"] and "別的語言的原始碼" in info["opaque"][0]["why"]
+    assert [e["program"] for e in info["external"]] == ["{node}"] and info["external"][0]["interpreter"] == "node"
+    assert tier.confirm_problem(info, m, None) and tier.confirm_problem(info, m, "SYNOX examples") is None
 
 
 # ── any-language-cli：不用 SDK，照協定手寫 ───────────────────────────────
