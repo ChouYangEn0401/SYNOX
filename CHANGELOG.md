@@ -32,6 +32,9 @@
     （`envs.build_env`：只留 PATH、TEMP、使用者資料夾、代理設定…；`PIP_*`、`npm_config_*`、`PYTHONPATH` 不繼承）；pack 不能指定 index。
   - T2 安裝報告逐一標 pip 套件「有雜湊／沒有雜湊」，有沒寫的加紅字「版本釘選不等於來源可信」（`tier.hash_lines`）；
     `synox-sdk check` 同樣標。沒寫雜湊的 pack 環境指紋不變（不會害已建好的環境要重建）。
+- **#D 載入後檔案被換**：之前 cli pack 的完整性只在 `load_all` 驗一次，載入後到下次 reload 前 pack 裡的 `./script.py` 被換掉不會發現。
+  現在有鎖的 cli pack 每次叫子程序前（指令、AI、核准卡重跑、網頁面板）、mcp stdio 每次開子程序前再對一次鎖（`lock.LiveCheck`：
+  先比修改時間＋大小，不一樣才算 sha256；每 10 分鐘全部重算一次；多出來的檔也算）。對不上＝不執行、回一句人話、通知擁有者一次。
 
 ## 未發佈（branch feat/t2-source）
 

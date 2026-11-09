@@ -868,6 +868,11 @@ class StdioBackend(Backend):
         from synox.packs import loader
         m, config = self.m, self.config
         ph, env = ctx
+        changes = self.pack.tampered_since_load() if hasattr(self.pack, "tampered_since_load") else []
+        if changes:                                               # 審查 B #D：載入後檔案被換過＝不開子程序
+            logging.error("[MCP] %s changed after load, refusing to start: %s", m.name, changes)
+            loader._tamper_notice(self.app, config, m, changes)
+            raise McpError(loader.tampered_text(m, changes), fatal=True)
         if self.server:
             os.makedirs(ph["user_data_dir"], exist_ok=True)
         argv = []

@@ -13,6 +13,8 @@
   `python -m synox install <檔> --yes`、工程師的 `python -m synox packs lock --approve <name>`。
 - 載入時（loader.load_all）：有鎖的 pack 每個檔重算 sha256；**不符＝不載入**（報告裡是 tampered），
   用 app.home 通知擁有者一次（同樣的竄改只通知一次，記在 data/packs_tamper_notified.json）；doctor 也列出來。
+- 載入之後（審查 B #D）：有鎖的 cli pack 每次叫子程序前、mcp stdio 每次開子程序前再對一次（LiveCheck：
+  先比 stat，不一樣才算雜湊；每 FULL_EVERY 秒全部重算），不符＝不執行、通知擁有者。
 - 沒有鎖的 pack（出廠的、工程師直接放進 packs/ 的）照舊載入，報告與 doctor 標「未鎖定」——
   要鎖就 `python -m synox packs lock --approve <name>`。
 - 雜湊涵蓋 pack 資料夾裡的**每一個檔**（P7：含 __pycache__、node_modules、執行檔；`"hash_scope": "all"`）。
@@ -171,6 +173,89 @@ def verify(data_dir: str, name: str, folder: str) -> Tuple[str, List[str]]:
         return TAMPERED, [f"讀不了：{e}"]
     changes = diff(found.get("files") or {}, actual)
     return (TAMPERED, changes) if changes else (LOCKED, [])
+
+
+class LiveCheck:
+    """載入之後、每次叫 cli（或啟動 mcp stdio 子程序）之前再對一次鎖（審查 B #D：之前只在 load_all 驗一次，
+    載入後到下次 reload 之間 pack 裡的 ./script.py 被換掉不會發現）。
+
+    便宜的做法：列一次資料夾（os.scandir，Windows 上大小與修改時間跟著目錄列表回來），每個檔比 (修改時間, 大小, inode)；
+    跟上次驗過的一樣就不算雜湊，不一樣才重算 sha256 跟鎖比。第一次呼叫每個檔都算一次（載入時那次不算數：檔案可能在那之後就換了）。
+    每 FULL_EVERY 秒不管 stat 一不一樣全部重算一次（刻意把修改時間改回去的也抓得到）。
+    changes() → ["改了 x.py", "多了 y.py", "少了 z.py"]；空＝對得上。"""
+
+    FULL_EVERY = 600.0
+
+    def __init__(self, folder: str, expected: Dict[str, str], *, include_cache: bool = True, clock=None):
+        self.folder = folder
+        self.expected = dict(expected)
+        self.include_cache = include_cache
+        self._clock = clock or time.monotonic
+        self._ok: Dict[str, tuple] = {}          # 驗過、跟鎖一樣的檔 → 當時的 stat
+        self._last_full = None
+        self._lock = threading.Lock()
+
+    @staticmethod
+    def _sig(st) -> tuple:
+        # Windows 的 DirEntry.stat() 沒有 inode（0），兩邊都不比；其他系統比 inode（換成新檔就不一樣）
+        return (st.st_mtime_ns, st.st_size, 0 if os.name == "nt" else getattr(st, "st_ino", 0))
+
+    def _listing(self) -> Dict[str, tuple]:
+        out: Dict[str, tuple] = {}
+        stack = [("", self.folder)]
+        while stack:
+            prefix, path = stack.pop()
+            with os.scandir(path) as it:
+                for entry in it:
+                    rel = prefix + entry.name
+                    if entry.is_dir(follow_symlinks=False):
+                        if self.include_cache or entry.name != "__pycache__":
+                            stack.append((rel + "/", entry.path))
+                    elif entry.is_symlink() and entry.is_dir():
+                        continue                         # 連到資料夾的捷徑：os.walk（pack_files）也不進去
+                    else:
+                        out[rel] = self._sig(entry.stat())
+        return out
+
+    def changes(self) -> List[str]:
+        with self._lock:
+            now = self._clock()
+            if self._last_full is None or now - self._last_full >= self.FULL_EVERY:
+                self._ok.clear()
+                self._last_full = now
+            try:
+                listing = self._listing()
+            except OSError as e:
+                return [f"讀不了 pack 資料夾：{e}"]
+            out: List[str] = []
+            for rel in sorted(self.expected):
+                sig = listing.get(rel)
+                if sig is None:
+                    out.append(f"少了 {rel}")
+                    continue
+                if self._ok.get(rel) == sig:
+                    continue
+                path = os.path.join(self.folder, *rel.split("/"))
+                try:
+                    digest = sha256_file(path)
+                    after = self._sig(os.stat(path))
+                except OSError:
+                    out.append(f"讀不了 {rel}")
+                    continue
+                if digest != self.expected[rel]:
+                    out.append(f"改了 {rel}")
+                    self._ok.pop(rel, None)
+                elif after == sig:                   # 算雜湊的時候沒有被改：記住這個 stat
+                    self._ok[rel] = sig
+            out += [f"多了 {rel}" for rel in sorted(listing) if rel not in self.expected]
+            return out
+
+
+def live_check(record: Optional[dict], folder: str, clock=None) -> Optional[LiveCheck]:
+    """有鎖的 pack → LiveCheck（照這一筆鎖當時的算法：hash_scope=all 含 __pycache__）；沒鎖回 None。"""
+    if not isinstance(record, dict) or not isinstance(record.get("files"), dict):
+        return None
+    return LiveCheck(folder, record["files"], include_cache=record.get("hash_scope") == HASH_SCOPE_ALL, clock=clock)
 
 
 def check_integrity(manifest, hashes: Dict[str, str]) -> List[str]:
