@@ -26,7 +26,7 @@ from isdtelekit.host.config import BotConfig, ConfigError
 ROOT = os.environ.get("SYNOX_HOME") or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CONFIG_PATH = os.path.join(ROOT, "config.json")
 
-LLM_KINDS = ("openai_compat", "anthropic", "claude_code", "fake", "none")
+LLM_KINDS = ("openai", "anthropic", "gemini", "openai_compat", "claude_code", "fake", "none")
 DEFAULT_LLM = {"kind": "none", "max_steps": 6, "max_tokens": 1024}
 DEFAULT_VAULT = {"mode": "dpapi" if os.name == "nt" else "file"}
 DEFAULT_PACKS = {"enabled": "all", "disabled": []}
