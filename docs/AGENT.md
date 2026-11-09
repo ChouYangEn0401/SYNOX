@@ -147,7 +147,11 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     一筆 `inline: True` 的 external＋一個 `exec` finding）＋`envs.all_pins`。資料夾裡掃不到內容的檔
     要宣告 `exec`（第 2 關 `binary` finding）。argv 的分析在 `scan._argv_hits`（cli 是 cli.argv＋每個 command 的 argv 整條看；
     直譯器家族 `scan.family_of`：python／powershell／cmd／node／deno／shell／ruby／perl／php／lua／osascript／mshta／wsh）。
-    `cli.python`／`runtime.python` 的檔名、`..` 在第 1 關（`manifest.python_path_problems`）。T2 安裝一律要 `trust_publisher`＝pack.json `publisher`（`tier.confirm_problem`；
+    `cli.python`／`runtime.python` 的檔名、`..` 在第 1 關（`manifest.python_path_problems`）。
+    python 原始碼的繞法（審查 B #B）在 `scan._Visitor`：`DUNDER_ATTRS`、`DYNAMIC_NAMES`、`DYNAMIC_CALLS`、`DYNAMIC_ATTRS`、
+    `_dynamic_call`、`visit_Assign`（`x = os` 別名）；文件語氣一律是「提醒不是門」（docs/security.md「五關」）。
+    **放進 pack 的 `synox_sdk.py`（`src/synox/sdk/author.py`）不能用 `__dict__`／`vars()`／`handlers[k](…)`**（`test_single_file_matches_source`
+    要它不用宣告任何能力）；@tool 的宣告掛在 `fn.synox_tool_spec`，舊版的 `__dict__["__synox_tool__"]` 由 `synox.sdk._legacy_spec` 搬。T2 安裝一律要 `trust_publisher`＝pack.json `publisher`（`tier.confirm_problem`；
     `admin.install_staged`／`approve_installed`、`upgrade.upgrade_staged` 都過這裡；升級要不要重新確認看 `tier.reconfirm_reasons`）。
     鎖的欄位用 `tier.lock_fields` → `lock.approve(tier_fields=)`。執行期：`sandbox.required` 對 T2 一律 True、`sandbox.restricted_reason`
     對 T2 python pack 一律 owner_only（伺服器版）；個人版 `sandbox.t2_personal_note` 給 doctor。

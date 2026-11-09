@@ -137,7 +137,11 @@ pack.json 裡跟「誰能用、能做什麼」有關的欄位。全部都是**�
 | `subprocess` | 開別的程式（`subprocess`、`os.system`…）；MCP stdio 一定要 |
 | `filesystem:own` | 讀寫檔案（你自己的資料夾） |
 | `filesystem:any` | 讀寫 pack 以外、使用者資料夾以外的檔案（含 own） |
-| `exec` | 動態執行程式碼（`exec`、`eval`、`importlib`、`ctypes`、`pickle.loads`…），或 pack 裡有掃不到內容的檔（T2） |
+| `exec` | 動態執行程式碼（`exec`、`eval`、`importlib`、`ctypes`、`pickle.loads`…；`sys.modules`、`x.__class__`／`__dict__`／`__globals__` 這類 dunder 屬性、`getattr` 的屬性名不是字面字、`vars()`／`globals()`、`handlers[k]()` 這種看不出呼叫什麼的寫法也算），pack 裡有掃不到內容的檔（T2），或 argv 讓直譯器直接執行程式碼（`-c`、`-e`、`-Command`、`/c`…） |
+
+> 第 2 關攔的是直接寫出來的名字和常見的間接取用，**是提醒、不是門**：Python 太動態，掃描不保證抓得到每一種寫法。
+> python pack 在 SYNOX 程序裡跑，**個人版沒有任何隔離**；伺服器版第三方的 python pack 只給擁有者（PERM-8）。
+> 不想被算成 `exec`：用 `type(x)` 代替 `x.__class__`、`getattr(x, "名字")` 寫字面字、`f = handlers[k]` 先指給變數再呼叫。
 
 **宣告也決定誰看得到**：每個角色有能力上限，pack 的 `capabilities` 裝不下，那個角色就看不到整組指令（跟不存在一樣）。
 預設上限：訪客 `[]`、成員 `network`＋`filesystem:own`、管理員再加 `subprocess`；**`exec`、`filesystem:any` 只有擁有者**

@@ -11,7 +11,11 @@
     subprocess subprocess、os.system、os.popen、os.exec*、os.spawn*、app.jobs（SDK 的 JobRunner）  → subprocess
     filesystem open(…)／pathlib.Path(…)／shutil、os.remove、os.rename… ：字面路徑是絕對的或有 ..  → filesystem:any；
                其他（路徑是變數、相對路徑）→ filesystem:own（pack 自己的檔案應該用 pack.path_of(user)／pack.path() 或 pack.store）
-    exec       exec、eval、compile、__import__、importlib、ctypes、pickle.loads、marshal、getattr(x, "system")… → exec
+    exec       exec、eval、compile、__import__、importlib、ctypes、pickle.loads、marshal、getattr(x, "system")… → exec；
+               審查 B #B：sys.modules、dunder／frame 屬性（__class__、__subclasses__、__globals__、__dict__、__self__、
+               f_globals…，寫在字串裡也算）、getattr／vars／globals／locals／eval／compile 當值取用、getattr 屬性名不是字面字、
+               呼叫的對象看不出是什麼（handlers[k](…)、f()(…)、sys.modules['os'].system(…)、obj.popen(…)）→ exec。
+               **是提醒不是門**：攔直呼名與常見的間接取用，不保證每一種寫法都抓得到
     env        os.environ、os.getenv：**只列出來給人看**（不算 capability，也不擋）；讀 SYNOX 自己注入的協定變數
                （SYNOX_ENV_OK：SYNOX_USER_DATA_DIR、SYNOX_CONFIRMED…，名字是字面字）不列；SYNOX_CONFIRM_TOKEN、SYNOX_SECRET_ENV 照列
     secret     pack.secret(…)：讀使用者在「連接」填的值（pack.json auth.fields）；只列出來，不算 capability
@@ -81,6 +85,29 @@ ENV_READS = ("os.getenv", "os.environ.get")       # 只有「讀」才看白名�
 SYNOX_ENV_OK = ("SYNOX_USER_DATA_DIR", "SYNOX_TG_ID", "SYNOX_MODE", "SYNOX_PACK_DIR", "SYNOX_PACK_NAME", "SYNOX_CONFIRMED")
 DANGER_ATTRS = ("system", "popen", "exec", "eval", "spawnl", "spawnv", "execv", "execl", "startfile",
                 "__import__", "import_module", "loads", "Popen", "run", "call", "check_output")
+# 審查 B #B：ast 掃描的單行繞法。這些一律算 exec（「是提醒不是門」：攔直呼名與常見的間接取用，不保證全部抓得到）
+# dunder／frame 屬性：().__class__.__bases__[0].__subclasses__()、f.__globals__['os']、print.__self__（＝builtins）…
+DUNDER_ATTRS = ("__class__", "__bases__", "__base__", "__subclasses__", "__globals__", "__mro__", "__builtins__",
+                "__import__", "__dict__", "__code__", "__closure__", "__getattribute__", "__self__", "__loader__",
+                "__spec__", "__reduce__", "__reduce_ex__", "__defaults__", "__kwdefaults__", "__getattr__",
+                "__setattr__", "__delattr__", "__init_subclass__", "__traceback__",
+                "f_globals", "f_locals", "f_builtins", "f_back", "f_code", "gi_frame", "gi_code", "tb_frame",
+                "cr_frame", "ag_frame")
+# 這些名字只要出現（呼叫、當成值傳、放進清單…）就算 exec；getattr／setattr／delattr 第二個參數是字面字、
+# 又不是 dunder／DANGER_ATTRS 的，等於 x.attr，不算
+DYNAMIC_NAMES = ("getattr", "setattr", "delattr", "vars", "globals", "locals", "eval", "exec", "compile",
+                 "__import__", "breakpoint", "__builtins__", "__loader__", "__spec__")
+# 拿得到任何模組／任何物件的入口
+DYNAMIC_CALLS = ("sys.modules", "sys._getframe", "sys._current_frames", "inspect.currentframe", "inspect.stack",
+                 "inspect.getouterframes", "inspect.trace", "gc.get_objects", "gc.get_referrers", "gc.get_referents",
+                 "operator.attrgetter", "operator.methodcaller", "pydoc.locate", "types.FunctionType",
+                 "types.CodeType")
+# 呼叫的對象看不出是什麼模組（sys.modules['os'].system、[os][0].system、obj.system…）時，方法名是這些＝當作開程式／動態 import
+DYNAMIC_ATTRS = ("system", "popen", "startfile", "Popen", "check_output", "check_call", "getoutput", "getstatusoutput",
+                 "spawnl", "spawnle", "spawnlp", "spawnlpe", "spawnv", "spawnve", "spawnvp", "spawnvpe",
+                 "execl", "execle", "execlp", "execlpe", "execv", "execve", "execvp", "execvpe",
+                 "posix_spawn", "posix_spawnp", "fork", "forkpty", "__import__", "import_module", "load_module",
+                 "exec_module", "create_subprocess_exec", "create_subprocess_shell")
 BINARY_EXT = (".pyc", ".pyo", ".pyd", ".dll", ".so", ".dylib", ".exe", ".com", ".bat", ".cmd", ".ps1", ".vbs",
               ".msi", ".scr", ".jar", ".sh", ".node", ".wasm", ".class")
 # 別的語言的原始碼（P7 補：擁有者 2026-11-09 決定）：第 2 關只讀得懂 .py，這些一律算「掃不到內容的檔」
@@ -349,6 +376,7 @@ class _Visitor(ast.NodeVisitor):
         self.aliases: Dict[str, str] = {}
         self.findings: List[Finding] = []
         self._env_ok: set = set()               # 讀 SYNOX 協定變數的 os.environ 節點（不列 env）
+        self._handled: set = set()              # visit_Call 已經判斷過的 func 節點（visit_Name／visit_Attribute 不再列一次）
 
     def add(self, node, kind: str, detail: str = "") -> None:
         line = getattr(node, "lineno", 0)
@@ -384,6 +412,21 @@ class _Visitor(ast.NodeVisitor):
                 self.add(node, "env", f"from os import {a.name}")
             elif module == "pickle" and a.name in ("loads", "load", "Unpickler"):
                 self.add(node, "exec", f"from pickle import {a.name}")
+            elif full in DYNAMIC_CALLS:
+                self.add(node, "exec", f"from {module} import {a.name}（拿得到任何模組／物件）")
+        self.generic_visit(node)
+
+    def visit_Assign(self, node):
+        """x = os、run = subprocess：之後 x.system(…) 照 os.system 看（只追「名字＝匯入的模組／它的屬性」這種）。"""
+        if isinstance(node.value, (ast.Name, ast.Attribute)):
+            value = self.dotted(node.value)
+            root = node.value
+            while isinstance(root, ast.Attribute):
+                root = root.value
+            if value and isinstance(root, ast.Name) and root.id in self.aliases:
+                for target in node.targets:
+                    if isinstance(target, ast.Name):
+                        self.aliases[target.id] = value
         self.generic_visit(node)
 
     def dotted(self, node) -> str:
@@ -397,9 +440,17 @@ class _Visitor(ast.NodeVisitor):
         return ".".join([base] + list(reversed(parts)))
 
     def visit_Name(self, node):
-        if node.id == "__builtins__":
-            self.add(node, "exec", "__builtins__")
+        if id(node) not in self._handled and isinstance(node.ctx, ast.Load) and node.id in DYNAMIC_NAMES \
+                and node.id not in self.aliases:
+            self.add(node, "exec", f"{node.id}（動態取用：可以拿到任何模組或屬性）")
         self.generic_visit(node)
+
+    def visit_Constant(self, node):
+        # "{0.__globals__[os]}".format(f)、getattr 拼字串：字串裡直接寫 dunder 屬性名也算
+        if isinstance(node.value, str) and len(node.value) < 2000 and \
+                any(d in node.value for d in DUNDER_ATTRS if d.startswith("__")):
+            hit = next(d for d in DUNDER_ATTRS if d.startswith("__") and d in node.value)
+            self.add(node, "exec", f"字串裡有 {hit}（format／getattr 可以用字串取屬性）")
 
     def _synox_env(self, node) -> bool:
         value = _literal_path(node) if node is not None else None
@@ -411,13 +462,28 @@ class _Visitor(ast.NodeVisitor):
             self._env_ok.add(id(node.value))           # os.environ["SYNOX_USER_DATA_DIR"]：協定變數，不列
         self.generic_visit(node)
 
+    @staticmethod
+    def _proc_or_exec(name: str) -> str:
+        """這個完整名字是開程式／動態執行的函式嗎（拿來當值傳也算）：subprocess｜exec｜""。"""
+        if name in SUBPROCESS_CALLS or name.startswith(("os.exec", "os.spawn", "os.posix_spawn")):
+            return "subprocess"
+        if name in EXEC_CALLS or name in DYNAMIC_CALLS:
+            return "exec"
+        return ""
+
     def visit_Attribute(self, node):
         name = self.dotted(node)
-        if name == "os.environ":
+        if node.attr in DUNDER_ATTRS:
+            self.add(node, "exec", f".{node.attr}（dunder／frame 屬性：可以繞到 os、builtins）")
+        elif id(node) in self._handled:
+            pass
+        elif name == "os.environ":
             if id(node) not in self._env_ok:
                 self.add(node, "env", "os.environ")
         elif name == "app.jobs" or name.endswith(".app.jobs"):
             self.add(node, "subprocess", "app.jobs（JobRunner 會開別的程式）")
+        elif name and self._proc_or_exec(name):
+            self.add(node, self._proc_or_exec(name), f"{name}（當成值取用）")
         self.generic_visit(node)
 
     def _path_kind(self, args) -> str:
@@ -430,12 +496,41 @@ class _Visitor(ast.NodeVisitor):
                 return "filesystem:any"
         return "filesystem:own"
 
+    def _dynamic_call(self, node) -> bool:
+        """呼叫的對象掃描器解析不了（審查 B #B）：func 是 Subscript／Call／Lambda…（handlers[k](…)、f()(…)），
+        或 func 是屬性但前面不是匯入的模組、方法名又是開程式／動態 import 的（sys.modules['os'].system(…)、
+        [os][0].system(…)、obj.popen(…)）。保守地算 exec。回 True＝已經記了一筆。"""
+        func = node.func
+        if isinstance(func, ast.Name):
+            return False
+        if not isinstance(func, ast.Attribute):
+            kind = type(func).__name__
+            self.add(node, "exec", f"動態呼叫（呼叫的對象是 {kind}，掃描器看不出是什麼）")
+            return True
+        root = func
+        while isinstance(root, ast.Attribute):
+            root = root.value
+        imported = isinstance(root, ast.Name) and root.id in self.aliases
+        if func.attr in DYNAMIC_ATTRS and not imported:
+            self.add(node, "exec", f".{func.attr}(…)（呼叫的對象不是看得出來的模組：可能是動態取得的 os／subprocess）")
+            self._handled.add(id(func))
+            return True
+        return False
+
     def visit_Call(self, node):
         name = self.dotted(node.func)
-        if name:
+        if isinstance(node.func, ast.Name) and name in DYNAMIC_NAMES:
+            self._handled.add(id(node.func))            # 名字本身在這裡判斷（visit_Name 不再列一次）
+        elif isinstance(node.func, ast.Attribute) and name:
+            self._handled.add(id(node.func))
+        if self._dynamic_call(node):
+            pass
+        elif name:
             if name in EXEC_BUILTINS and name not in self.aliases:
                 self.add(node, "exec", f"{name}(…)")
-            elif name in EXEC_CALLS or name.startswith(EXEC_PREFIXES):
+            elif name in ("vars", "globals", "locals", "breakpoint") and name not in self.aliases:
+                self.add(node, "exec", f"{name}(…)（拿得到模組或物件的全部屬性）")
+            elif name in EXEC_CALLS or name.startswith(EXEC_PREFIXES) or name in DYNAMIC_CALLS:
                 self.add(node, "exec", f"{name}(…)")
             elif name in SUBPROCESS_CALLS or name.startswith(SUBPROCESS_PREFIXES):
                 self.add(node, "subprocess", f"{name}(…)")
@@ -450,9 +545,13 @@ class _Visitor(ast.NodeVisitor):
                 self.add(node, "env", f"{name}(…)")
             elif name == "pack.secret" or name.endswith(".pack.secret"):
                 self.add(node, "secret", "pack.secret(…)")
-            elif name in ("getattr", "setattr", "delattr") and name not in self.aliases and len(node.args) >= 2:
-                attr = _literal_path(node.args[1])
-                if attr is None or attr in DANGER_ATTRS or attr.startswith(("exec", "spawn", "__")):
+            elif name in ("getattr", "setattr", "delattr") and name not in self.aliases:
+                starred = any(isinstance(a, ast.Starred) for a in node.args) or node.keywords
+                second = node.args[1] if len(node.args) >= 2 and not starred else None
+                # 只收純字面字（f"{x}tem" 這種拼出來的不算字面字）
+                attr = second.value if isinstance(second, ast.Constant) and isinstance(second.value, str) else None
+                if attr is None or attr in DANGER_ATTRS or attr in DYNAMIC_ATTRS or \
+                        attr.startswith(("exec", "spawn", "__", "f_", "gi_", "tb_", "cr_")):
                     self.add(node, "exec", f"{name}(…, {attr!r})" if attr is not None else f"{name}(…, 變數)")
         self.generic_visit(node)
 

@@ -64,7 +64,9 @@ CONFIRM_TOKEN_RE = re.compile(r"^[A-Za-z0-9._:\-]{1,128}$")
 EXIT_OK, EXIT_ERROR = 0, 1
 
 _REGISTRY: List[Callable] = []
-_SPEC_ATTR = "__synox_tool__"
+# @tool 的宣告掛在函式的 synox_tool_spec 屬性（synox.sdk 的 init --from 也從這裡讀，不管 tool.py import 的是哪一份 SDK）。
+# 不用 fn.__dict__／vars()：SYNOX 第 2 關把它們算成 exec（放進 pack 的這支檔不用宣告任何能力）。
+# 舊版 SDK 掛的是 __dict__["__synox_tool__"]（synox.sdk._legacy_spec 照樣認得）
 _MCP_CONFIRM: Optional[str] = None     # MCP tools/call 進行中：_meta 帶的確認 token（"" ＝沒確認）；None＝不在 MCP 呼叫裡
 
 
@@ -125,12 +127,13 @@ def tool(effect: Any = None, summary: str = "", *, default: bool = False, ai: bo
     """把函式登記成工具。`@tool("READ")`、`@tool("WRITE", "記一筆")`；也可以 `@tool`（但 init 會因為沒寫 effect 拒絕）。
     default＝打 /<群組> 就是它；ai=False＝不給 AI（也不在 MCP 列出）；confirm=True＝AI 要呼叫時先送確認卡給人按。"""
     if callable(effect) and not isinstance(effect, str):
-        return tool()(effect)
+        register = tool()
+        return register(effect)
 
     def wrap(fn: Callable) -> Callable:
         spec = {"name": name or fn.__name__, "effect": effect, "summary": summary, "default": bool(default),
                 "ai": bool(ai), "confirm": bool(confirm)}
-        fn.__dict__[_SPEC_ATTR] = spec
+        fn.synox_tool_spec = spec
         if fn not in _REGISTRY:
             _REGISTRY.append(fn)
         return fn
@@ -144,9 +147,10 @@ def registered() -> List[Callable]:
 
 def _raw_spec(fn: Callable) -> Optional[dict]:
     try:
-        return vars(fn).get(_SPEC_ATTR)
-    except TypeError:
+        spec = getattr(fn, "synox_tool_spec", None)
+    except Exception:                    # 有些物件的屬性一讀就丟錯
         return None
+    return spec if isinstance(spec, dict) and "effect" in spec else None
 
 
 def _doc_parts(fn: Callable):
@@ -181,7 +185,7 @@ def _unwrap(annotation):
         ask = next((str(a) for a in args[1:] if isinstance(a, str)), "")
         origin = typing.get_origin(annotation)
     optional = False
-    union_type = vars(types).get("UnionType")      # Python 3.10+ 的 X | None
+    union_type = getattr(types, "UnionType", None)   # Python 3.10+ 的 X | None
     if origin is typing.Union or (union_type is not None and origin is union_type):
         args = [a for a in typing.get_args(annotation) if a is not type(None)]
         optional = len(args) < len(typing.get_args(annotation))
@@ -355,7 +359,8 @@ def _coerce(field: dict, value: Any) -> Any:
     if not isinstance(value, str):
         raise bad("要是文字")
     if kind == "path":
-        return field["_type"](value)
+        make_path = field["_type"]
+        return make_path(value)
     return value
 
 
@@ -373,7 +378,8 @@ def _call(spec: dict, values: Dict[str, Any]):
         missing = [f["ask"] for n, f in fields.items() if f["required"] and n not in kwargs]
         if missing:
             raise ToolError("usage", f"{spec['name']} 少了：{'、'.join(missing)}")
-        result = spec["fn"](**kwargs)
+        fn = spec["fn"]
+        result = fn(**kwargs)
     except ToolError as e:
         return error_envelope(e.code, e.message), EXIT_ERROR
     except Confirm as c:

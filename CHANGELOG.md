@@ -16,6 +16,16 @@
   - 直譯器要跑的程式在 pack 外（`{python} {data_dir}/x.py`、`C:/x.py`）算 pack 外的程式。
   - 修誤判：argv 後面的 `/c`、`/k` 這種 Windows 旗標不再被當成絕對路徑（`scan._looks_like_path`）。
   - 取捨：pack 外的 python 與 `{python} -m 外部模組` 算 T2＋publisher，但**不**要求 `exec`（跟 git、npx 一致；金流簿的 `../.venv` 照舊能裝）。
+- **#B 第 2 關的單行繞法**：`dotted()` 遇到非名字開頭的屬性鏈回空字串、什麼都不記，所以 `sys.modules['os'].system(…)`、
+  `().__class__.__bases__[0].__subclasses__()`、`f.__globals__['os']` 零 finding。現在都算 `exec`：`sys.modules`（含 `from sys import modules`）、
+  dunder／frame 屬性（`scan.DUNDER_ATTRS`，字串裡出現也算：`"{0.__globals__}".format`）、`getattr`／`vars`／`globals`／`locals`／`eval`／
+  `exec`／`compile`／`__import__` 當值取用、`getattr` 的屬性名不是純字面字（含 `*args`、f-string 拼的）、呼叫對象看不出是什麼
+  （`handlers[k](…)`、`f()(…)`、`(lambda: …)()`、`[os][0].system(…)`、沒匯入的 `obj.popen(…)`）、`inspect.currentframe`／`gc.get_objects`／
+  `operator.attrgetter` 這類入口。`x = os` 之後的 `x.system(…)`、`run = os.system` 也照追。
+  - 文件語氣改成「攔直呼名與常見的間接取用，是提醒不是門；個人版 python pack 在 SYNOX 程序內無任何隔離，伺服器版靠 PERM-8 只給擁有者」；
+    python pack 的安裝報告多一行同樣的提醒（`admin.PYTHON_SCAN_NOTE`，個人版也看得到）。
+  - SDK 單檔版（`author.py`）不再用 `fn.__dict__`／`vars()`／`spec["fn"](…)`：@tool 的宣告改掛 `fn.synox_tool_spec`；
+    `synox-sdk init --from` 認得舊版的 `__synox_tool__`（`synox.sdk._legacy_spec`）。`sdk/synox_sdk.py`、`examples/hello/synox_sdk.py` 重新產生。
 
 ## 未發佈（branch feat/t2-source）
 

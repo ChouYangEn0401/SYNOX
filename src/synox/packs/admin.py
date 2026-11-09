@@ -375,10 +375,17 @@ def format_tier(tier: dict) -> List[str]:
     return out
 
 
+# 審查 B #B：第 2 關對 python 是提醒不是門（個人版、伺服器版都適用）
+PYTHON_SCAN_NOTE = ("靜態掃描只攔得到直接寫出來的名字和常見的間接取用，是提醒、不是門：有心的人寫得出掃描看不出來的程式。"
+                    "python pack 在 SYNOX 程序裡跑，個人版沒有任何隔離（讀得到你全部的資料、保管箱解開的東西、整台電腦的檔案）；"
+                    "伺服器版第三方的 python pack 只給擁有者用（PERM-8）。")
+
+
 def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
     out = []
     if m.kind == "python":
         out.append("這是 python pack：它的程式會在 SYNOX 裡面、用你的 Windows 帳號權限執行。只裝你信得過的人給的。")
+        out.append(PYTHON_SCAN_NOTE)
     if m.kind == "cli":
         out.append("這是 cli pack：會在這台電腦上執行它指定的程式（那支程式本身掃描看不到）。")
     if m.mcp_http:
