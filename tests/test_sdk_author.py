@@ -103,8 +103,8 @@ def _tool_dir(tmp_path, name="demo", source=TOOL, single=True):
 
 def _run(folder, *args, stdin=None, env=None):
     full_env = {**os.environ, "PYTHONIOENCODING": "utf-8", **(env or {})}
-    return subprocess.run([sys.executable, str(folder / "tool.py"), *args], input=stdin, capture_output=True,
-                          text=True, encoding="utf-8", env=full_env, timeout=60)
+    return subprocess.run([sys.executable, "-X", "utf8", str(folder / "tool.py"), *args], input=stdin,
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", env=full_env, timeout=60)
 
 
 def _last(proc) -> dict:
@@ -458,8 +458,10 @@ def test_single_file_matches_source():
             assert f.read() == text, f"{rel} 過期了：跑 scripts/build_synox_sdk.py"
     findings = scan.scan_source("synox_sdk.py", text)
     assert not [f for f in findings if f.blocking or f.capability], findings  # 放進 pack 不用宣告任何能力
-    proc = subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "build_synox_sdk.py"), "--check"],
-                          capture_output=True, text=True, encoding="utf-8")
+    # 子程序印中文：一律 UTF-8（-X utf8＋PYTHONIOENCODING），不然 Windows 的 cp950 輸出會讓讀取執行緒解碼失敗
+    proc = subprocess.run([sys.executable, "-X", "utf8", os.path.join(ROOT, "scripts", "build_synox_sdk.py"), "--check"],
+                          capture_output=True, text=True, encoding="utf-8", errors="replace",
+                          env={**os.environ, "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1"})
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 

@@ -78,6 +78,40 @@ synox-sdk zip .                                                 → dist/hello-0
 
 SYNOX 把 `message` 直接回給使用者；沒有就把 `data` 攤平成幾行。`print()` 的 log 沒關係：SYNOX 只看**最後一行**。
 
+## 確認來回：看了資料才知道危險
+
+有些事要先看資料才知道要不要問人（「要刪 3 筆」）。寫法：
+
+```python
+from synox_sdk import Confirm, confirmed, tool
+
+@tool("WRITE")
+def purge(days: int):
+    """刪掉 days 天前的紀錄。"""
+    rows = old_rows(days)
+    key = digest(rows)                       # 選用：把「看到的那份資料」綁進確認
+    if not confirmed(key):
+        raise Confirm(f"要刪 {len(rows)} 筆", token=key)
+    delete(rows)
+    return f"刪了 {len(rows)} 筆"
+```
+
+1. 第一次呼叫：工具回 needs_confirm → SYNOX **不顯示結果**，送核准卡給下令的那個人（`⚠️ 要你確認才會做：/demo_purge days=7`，下面是你的 `summary`，[✅ 執行] [❌ 取消]）。
+   人自己打的指令、AI 呼叫的都一樣；AI 呼叫時這一輪就停在這裡（卡直接給人，不經 AI）。
+2. 按 ✅：SYNOX 驗過一次性的確認憑證（綁 pack／指令／參數雜湊／使用者、跟卡片同樣幾分鐘過期、用一次就沒了），
+   用**同一組參數、同一個 argv** 重跑一次，這一次子程序的環境有 `SYNOX_CONFIRMED=1`、`SYNOX_CONFIRM_TOKEN=<你給的 token>`，
+   `confirmed()` 回 True、`context().confirmed`／`context().confirm_token` 也看得到。
+3. 按 ❌、過期、參數對不上：不執行，回一句話。確認過的重跑又回 needs_confirm：SYNOX 不再出卡，回「工具又要求確認」。
+
+**為什麼不能偽造：** 「已確認」只來自 SYNOX 驗過憑證之後明寫的環境變數；其他每一次 SYNOX 都明寫 `SYNOX_CONFIRMED=0`，
+蓋過 pack.json 的 `cli.env` 和 SYNOX 自己的環境。重跑的 argv 跟第一次一樣，沒有 AI 能塞的 `--yes`。
+`token` 只收英數字與 `. _ : -`（128 字內），其他的當作沒給；沒給＝隨機一個（那就用 `confirmed()` 不帶參數）。
+
+**跟 `confirm=True` 的差別：** `@tool(confirm=True)`（pack.json `commands[].confirm`）是 AI 呼叫**之前**先送卡、不看資料；
+`Confirm` 是工具執行**中**看了資料才問，人打字也會問。兩個可以同時用：AI 呼叫會先出「AI 想執行」的卡，按了之後工具再出自己的卡。
+
+本機試：`synox-sdk run purge 7` 印出 SYNOX 會出的卡；`synox-sdk run purge 7 --confirmed` 當作按了 ✅（同一組參數帶 `SYNOX_CONFIRMED=1` 再跑）。
+
 ## serve()：同一組函式，兩種殼
 
 ```
@@ -94,6 +128,11 @@ python tool.py --mcp                                     → MCP stdio server
   工具裡 `print()` 的字會改送到 stderr，不會弄壞 JSON-RPC。`ai=False` 的工具不列出、叫不到。
   **effect 不由工具自述**：MCP 的回應裡沒有「這個工具安不安全」的標記；要在 SYNOX 裡用 MCP 工具，危險程度由裝的那一方在
   pack.json 的 `mcp.effects` 宣告（見 [pack-format.md](pack-format.md)）。
+  **Confirm 在 MCP**：`tools/call` 的 result 是 `isError: false`、`content` 一句「還沒做：要使用者確認才會做：…」，
+  另附 `structuredContent: {"needs_confirm": true, "summary": "…", "confirm_token": "…"}`。用戶端讓**人**確認之後，
+  用同一組 `arguments` 再叫一次，並帶 `params._meta["synox/confirm_token"]`＝那個 token，這一次 `confirmed()` 才是 True。
+  MCP 模式**不看** `SYNOX_CONFIRMED` 環境變數（server 長駐，環境變數不是「這一次」）。AI 只決定 `arguments`、碰不到 `_meta`；
+  一般的 MCP 用戶端不會帶 `_meta`，所以 Confirm 的工具在那裡只會停在「還沒做」（安全的預設）。SYNOX 連 MCP 是 P4 的事。
 
 ## secret() 與 context()
 
@@ -105,6 +144,7 @@ ctx = context()                  # 這一次是誰
 ctx.user_data_dir                # 這個人的資料夾（伺服器版每人一個）；你的檔放 <user_data_dir>/<pack_name>/
 ctx.tg_id, ctx.mode              # 下令的人的 Telegram id（字串）、personal｜server
 ctx.pack_dir, ctx.pack_name      # pack 資料夾、pack 名
+ctx.confirmed, ctx.confirm_token # 是不是人按過 ✅ 的重跑、當時 Confirm 給的 token（見「確認來回」）
 ```
 
 `secret` 要在 pack.json 宣告（使用者填、SYNOX 存進保管箱、叫你的工具時放進那個環境變數，**不會放進 argv**）：
@@ -114,7 +154,8 @@ ctx.pack_dir, ctx.pack_name      # pack 資料夾、pack 名
 ```
 
 `secret("api_key")` 和 `secret("WEATHER_API_KEY")` 都可以。SYNOX 叫工具時放這幾個環境變數：
-`SYNOX_USER_DATA_DIR`、`SYNOX_TG_ID`、`SYNOX_MODE`、`SYNOX_PACK_DIR`、`SYNOX_PACK_NAME`、`SYNOX_SECRET_ENV`（「欄位名=環境變數名」，只有名字）。
+`SYNOX_USER_DATA_DIR`、`SYNOX_TG_ID`、`SYNOX_MODE`、`SYNOX_PACK_DIR`、`SYNOX_PACK_NAME`、`SYNOX_SECRET_ENV`（「欄位名=環境變數名」，只有名字）、
+`SYNOX_CONFIRMED`（`1`＝按過 ✅ 的重跑，其他一律 `0`）、`SYNOX_CONFIRM_TOKEN`。
 不是從 SYNOX 叫的（自己在終端機跑）就都是空的——用 `synox-sdk run` 試跑會模擬。
 
 ## synox-sdk 指令
@@ -140,6 +181,7 @@ synox-sdk init <資料夾> --kind cli|python --name x             不用 @tool �
 **run** 照 SYNOX 的路走一次：欄位格式檢查 → 第 4 關（值以 `-` 開頭、換行、像密鑰的檔名、`path` 不在使用者資料夾裡、把 secret 當參數，都擋）
 → `{python}`／`{pack_dir}`／`{user_data_dir}`… 代換 → 子程序（環境變數照 SYNOX 拿掉像密鑰的、只留宣告的）→ 印出 SYNOX 會回什麼。
 secret 用你在終端機設好的環境變數（例如 `set WEATHER_API_KEY=…`）。`--typed`＝當作人自己打字（不跑第 4 關）。
+`--confirmed`＝工具回 needs_confirm 時當作按了 ✅（同一組參數帶 `SYNOX_CONFIRMED=1` 再跑一次）。
 結束碼：0＝工具回 ok、1＝工具回失敗、2＝SYNOX 不會讓它執行。
 
 ## 不用 Python 也可以
@@ -188,6 +230,6 @@ SDK 只是幫你產生 pack.json、印信封。SYNOX 跟工具的接口只有 CL
 
 ## 還沒做的
 
-- `Confirm` 的按鈕來回：SYNOX 現在只把 `summary` 顯示給人。按「確認」再呼叫一次（帶 `confirm_token`）之後再做；
-  現在要「先問人」請用 `effect="DANGER"` 或 `confirm=True`，由 SYNOX 的確認卡在呼叫**之前**擋。
+- SYNOX 端連 MCP server（kind=mcp）、在那裡帶 `_meta` 完成確認來回：P4。
+- 確認憑證放在記憶體：SYNOX 重開之後舊的卡按不動（要重新下指令）。
 - `synox-sdk` 這個指令要 `pip install -e .` 才會出現；`python -m synox.sdk` 一樣能用。
