@@ -4,6 +4,57 @@
 
 版本從 0.1.0 升到 0.2.0：pack 格式多了 surfaces／data／auth.fields／mcp／runtime auto／schema_tools 等欄位，SDK 產生的 pack 寫 `requires.synox: ">=0.2"`，舊版 SYNOX 會明說要先更新、不會載入。
 
+## 未發佈（branch feat/fix-round3：獨立安全驗證審查 C 的後半段，C5～C8）
+
+### 變更（安全）
+- **#C5 第 2 關掃描補強（改善項；仍是提醒不是門）**：審查 C 找到 24 個一行就零 finding 的寫法，現在：
+  - 名單補上底線私有模組與平台別名：`nt`、`posix`、`_winapi`、`_posixsubprocess`、`webbrowser`、`ProcessPoolExecutor`（subprocess）；
+    `_socket`、`_ssl`、`pip._vendor.requests`／`urllib3`（network）；`_ctypes`、`_pickle`、`pickle`、`shelve`、`_imp`、`pkgutil`、
+    `logging.config`、`runpy`、`zipimport`、`code`、`codeop`、`marshal`、`ctypes`、`pip`（exec）。
+  - `from os／sys／builtins／shutil… import *`（和上面任何一個模組）→ exec。
+  - 連網也看呼叫：`asyncio.open_connection`／`start_server`、`loop.create_connection(…)`、`socket.socket(…)`、`urllib.request.urlopen(…)`…
+  - 看不出對象的 `.eval／.exec／.compile／.loads／.LoadLibrary／.CreateProcess／.fork_exec／.subprocess_exec／.run_path／.resolve_name(…)` → exec；
+    `from 某套件 import eval`（不是標準函式庫）在 import 那一行和呼叫那一行都記（`from re import compile` 不算）。
+  - import 一個不在標準函式庫、不在 pack 裡、`requires.pip` 也沒宣告的模組 → exec（「來源不明的模組」；常見的 pip 名≠import 名
+    例如 PyYAML→yaml 有對照表）；改 `sys.path`／`sys.meta_path` → exec。
+  - 只用字面字拆開再組回來的名字（`"sys"+"tem"`、`"".join(…)`、`"%s" %`、`format`、`[::-1]`、`chr()`）是開程式／dunder 名，
+    或 `format` 的樣板是組出來的又取屬性 → exec。
+- **#C6 zip 路徑**：太深的路徑以前在 Windows 丟原生 `FileNotFoundError`、網頁變成 500；現在一段最多 100 字、整條最多 160 字、
+  解壓縮的任何 OSError 都變成一句人話。檔名有雙向文字控制字元（U+202A–U+202E、U+2066–U+2069）或零寬字元（U+200B–U+200D、U+FEFF）＝拒
+  （`‮yp.a` 在報告上會顯示成 `a.py`）。
+- **#C7 pip 設定檔**：`--isolated` 只跳過使用者的 pip 設定檔，全機與 venv 裡的 `pip.ini` 照讀；建環境的子程序加
+  `PIP_CONFIG_FILE=os.devnull`（pip 自己定義的「一個設定檔都不讀」）。不用 SYNOX 建的空檔：空檔只換掉環境變數那一層。
+- **#C8 npm 來源**：`package-lock.json` 的 `resolved` 只收 `https://registry.npmjs.org/`；`http://`、`file:`、`git+…`、別的 registry、
+  相對路徑＝安裝報告紅字、拒裝（已經裝好的舊 pack 重建環境時也擋，npm 不會被叫）；`npm ci` 固定 `--registry=https://registry.npmjs.org/`。
+
+### 文件
+- `docs/security.md` 新增「這套系統現在能保證什麼、不能保證什麼」（個人版自己用／伺服器版給朋友成員用／開放給不信任的第三方作者三種情境）；
+  掃描、pip、npm 那幾段照實更新。`docs/AGENT.md` 補 C1～C8 的不變量與地圖；`docs/pack-format.md` 補 pip／npm 的來源規則。
+
+### 測試
+- `tests/test_review_c2.py`（新）：每條新規則一個 ast 樣本字串、假 zip、假 JobRunner、假 lock 檔；不執行任何樣本、不跑 pip／npm。
+
+## 未發佈（branch feat/fix-round2：獨立安全驗證審查 C 的前半段，C1～C4）
+
+### 變更（安全）
+- **#C1（高）`{python}` 只准跑 pack 裡的 `.py`**：以前 `["{python}", "./run.txt"]`（或 `.pyw`、`.pyz`、`.zip`、沒有副檔名的檔）第 2 關零 finding、
+  整包 T1、不用 publisher，Python 卻照跑。現在 `{python}` 要跑的 pack 內檔案一定要是 `.py`／`.pyw` 或含 `__main__.py` 的資料夾，
+  其他＝拒（載入時也再查）；要跑哪支由欄位決定（`./{欄位}.py`）＝直接執行程式碼（exec、T2）。`.pyw` 當原始碼掃；
+  `.pyz`／`.pyzw`／`.zip`／`.whl`／`.egg` 算掃不到內容（exec、T2）；沒有副檔名、ast 解析得過的檔也當 `.py` 掃。
+- **#C2（中高）環境變數黑名單＋`PYTHONNOUSERSITE=1`**：以前 pack 能寫 `"env": {"PYTHONPATH": "C:/Users/Public/x"}`，讓合法的 Python
+  在 pack 開始前先跑那裡的 `sitecustomize.py`。現在 `cli.env`／`env`／`mcp.env`／`auth.fields[].env` 不收 `PYTHON*`
+  （`PYTHONIOENCODING`／`PYTHONUTF8`／`PYTHONUNBUFFERED` 除外，`PYTHONPATH` 只收 `{pack_dir}…`）、`NODE_OPTIONS`、`NODE_PATH`、`PATH`、
+  `PATHEXT`、`COMSPEC`、`SYSTEMROOT`、`LD_*`、`DYLD_*`、`PIP_*`、`npm_config_*`、`PERL5*`、`BASH_ENV`…（不分大小寫，載入時再濾一次）；
+  子程序一律 `PYTHONNOUSERSITE=1`。沒有加 `-I`（會讓 SDK pack 旁邊的 `synox_sdk.py` import 不到、`PYTHONIOENCODING` 失效）。
+- **#C3（中）`{python} -m` 的 cwd 一定在 pack 裡**：`-m` 先從 cwd 找模組，cwd 是 `{user_data_dir}` 時那裡同名的 `.py` 會先被載入。
+  現在 cwd 不是 `.`／`./子資料夾`／`{pack_dir}…` 就拒（載入時也拒）。
+- **#C4（中，Windows）UNC／裝置路徑在碰檔案系統前就拒**：以前 pack.json 寫 `\\主機\分享\python.exe`，第 2 關在你按確認**之前**就對它
+  `realpath`／`exists`，等於用你的帳號對那台主機連 SMB。現在第 1 關（`manifest.unc_problems`，在任何檔案檢查之前）拒
+  `\\…`、`//…`、`\\?\`、`\\.\`、`\??\`；`kind: path` 的值在 `realpath` 之前也拒。順手：`python.module` 只能是模組名字、`skill` 只能是 pack 裡的相對路徑。
+
+### 測試
+- `tests/test_review_c.py`（新，161 個）：只做 manifest／scan／loader 的判斷；UNC 測試把 realpath／exists 換成碰到就失敗的假貨。
+
 ## 未發佈（branch feat/fix-identity：獨立安全審查 A＋審查 B 的一項）
 
 ### 修正（安全）
