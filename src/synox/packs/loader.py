@@ -226,14 +226,21 @@ _PLACEHOLDER = re.compile(r"\{(\w+)\}")
 
 
 def cli_python(m: Manifest) -> str:
-    """pack.json 的 cli.python：絕對路徑｜"venv"（<pack 資料夾>/../.venv 的 python）｜沒寫＝SYNOX 自己的 Python。"""
+    """{python} 換成什麼，照順序：
+    1. cli.python：絕對路徑｜"venv"（<pack 資料夾>/../.venv 的 python）
+    2. runtime.python（Windows）／runtime.python_posix（其他）：相對於 pack 資料夾（或絕對路徑）
+    3. 都沒寫＝SYNOX 自己的 Python"""
     py = m.cli.get("python")
-    if not py:
-        return sys.executable
     if py == "venv":
         exe = os.path.join("Scripts", "python.exe") if os.name == "nt" else os.path.join("bin", "python")
         return os.path.normpath(os.path.join(m.folder, "..", ".venv", exe))
-    return py
+    if py:
+        return py
+    runtime = getattr(m, "runtime", {}) or {}
+    rel = runtime.get("python") if os.name == "nt" else (runtime.get("python_posix") or runtime.get("python"))
+    if rel:
+        return rel if os.path.isabs(rel) else os.path.normpath(os.path.join(m.folder, rel))
+    return sys.executable
 
 
 def user_data_dir(config, tg_id) -> str:
@@ -254,6 +261,30 @@ def placeholders(m: Manifest, config, user=None) -> Dict[str, str]:
 def substitute(text: str, values: Dict[str, str]) -> str:
     """{名字} → values[名字]（只換 values 有的；一次換完，換進來的字不會再被換）。"""
     return _PLACEHOLDER.sub(lambda mm: values.get(mm.group(1), mm.group(0)), str(text))
+
+
+def build_argv(template, values: Dict[str, str]) -> List[str]:
+    """樣板 → argv。{x} 換成值；值是空的那一段拿掉——只有「單獨一段的 {x}」才連前面那個字面的 --旗標 一起拿掉。
+
+    不用 SDK 的 service.build_argv：它看的是「已經換好的前一段」是不是 - 開頭，所以
+    ["--amount={amount}", "--date={date}"] 在 date 沒填時會把已經填好的 --amount=120 一起丟掉（金流簿的 add 就會壞）。"""
+    out: List[str] = []
+    literal_flag = False                       # out 的最後一段是樣板裡字面的 --旗標（不是換出來的）
+    for token in template:
+        token = str(token)
+        names = _PLACEHOLDER.findall(token)
+        if names and any(not str(values.get(n, "") or "").strip() for n in names):
+            if token == "{" + names[0] + "}" and len(names) == 1 and literal_flag:
+                out.pop()
+            literal_flag = False
+            continue
+        if names:
+            out.append(_PLACEHOLDER.sub(lambda mm: str(values.get(mm.group(1), "")).strip(), token))
+            literal_flag = False
+        else:
+            out.append(token)
+            literal_flag = token.startswith("-") and "=" not in token
+    return out
 
 
 def cli_prefix(m: Manifest, values: Dict[str, str]) -> List[str]:
@@ -299,7 +330,7 @@ def _install_cli(app, pack: Pack) -> None:
             cli = JsonCli(app.jobs, cli_prefix(m, ph), cwd=os.path.normpath(os.path.join(m.folder, cwd)), name=m.name,
                           timeout=float(m.cli.get("timeout", 120)), json_flag=m.cli.get("json_flag", "--json"),
                           env_extra=cli_env(m, ph) or None)
-            argv = service.build_argv(cmd.argv, {**values, **ph})
+            argv = build_argv(cmd.argv, {**values, **ph})
             timeout = {"timeout": cmd.timeout} if cmd.timeout else {}
             done = bridge._started()
 

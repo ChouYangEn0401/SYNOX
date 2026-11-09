@@ -20,6 +20,9 @@ pack.json 的格式與檢查（docs/pack-format.md 是人看的版本）。安�
 pack.json v2（架構 v1 §4；在上面之上加欄位，舊的 pack 照舊可讀）：
 
       "kind": "mcp",                             第四種：接一個 MCP 伺服器（這一版只登記、不連）
+      "runtime": {"python": "../.venv/Scripts/python.exe",      {python} 的另一種寫法：相對於 pack 資料夾，
+                  "python_posix": "../.venv/bin/python"},      照作業系統挑一個（cli.python 有寫就用 cli.python）
+      "env": {"HOME_DIR": "{user_data_dir}/x"},                子程序的環境變數（跟 cli.env 合併，cli.env 優先）
       "cli": {"python": "venv", "env": {"X": "{data_dir}"},
               "commands": [{"name": "add", "effect": "WRITE", "argv": ["add", "{text}"],
                             "fields": [{"name": "text"}, {"name": "file", "kind": "path"}]}]},
@@ -49,7 +52,7 @@ EFFECT_NAMES = ("READ", "WRITE", "DANGER")
 FIELD_KINDS = ("text", "path")
 # cli 的 argv／env 樣板裡 loader 會代換的名字（欄位不能取這些名字）
 RESERVED_PLACEHOLDERS = ("python", "pack_dir", "data_dir", "user_data_dir", "tg_id")
-V2_KEYS = ("capabilities", "publisher", "integrity", "mcp", "commands")
+V2_KEYS = ("capabilities", "publisher", "integrity", "mcp", "commands", "runtime", "env")
 ACCESS = ("owner", "member", "everyone")
 NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 GROUP_RE = re.compile(r"^[a-z][a-z0-9]{0,15}$")
@@ -90,6 +93,7 @@ class Manifest:
     integrity: Dict[str, str] = field(default_factory=dict)  # 檔名（/ 分隔）→ sha256
     auth_info: dict = field(default_factory=dict)            # {"type": …, "fields": …}（v0 的字串也轉成這個）
     mcp: dict = field(default_factory=dict)
+    runtime: dict = field(default_factory=dict)              # {"python": 相對路徑, "python_posix": …}
 
     @property
     def skill_path(self) -> str:
@@ -316,8 +320,20 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
                                    not (python == "venv" or os.path.isabs(python))):
             problems.append('cli.python 只能是絕對路徑或 "venv"（沒寫＝SYNOX 自己的 Python）')
         env = cli.get("env") or {}
-        if not isinstance(env, dict) or not all(isinstance(k, str) and isinstance(v, str) for k, v in env.items()):
-            problems.append("cli.env 要是 {名字: 字串}")
+        top_env = raw.get("env") or {}
+        for label, value in (("cli.env", env), ("env", top_env)):
+            if not isinstance(value, dict) or \
+                    not all(isinstance(k, str) and isinstance(v, str) for k, v in value.items()):
+                problems.append(f"{label} 要是 {{名字: 字串}}")
+        if isinstance(env, dict) and isinstance(top_env, dict):
+            cli["env"] = {**top_env, **env}             # 最上層的 env（金流簿的寫法）＋ cli.env，cli.env 優先
+    runtime = raw.get("runtime") or {}
+    if not isinstance(runtime, dict):
+        problems.append("runtime 要是物件")
+        runtime = {}
+    for key in ("python", "python_posix"):
+        if key in runtime and (not isinstance(runtime[key], str) or not runtime[key].strip()):
+            problems.append(f"runtime.{key} 要是路徑（相對於 pack 資料夾，或絕對路徑）")
     extra = _check_v2(raw, kind, problems)
     requires = raw.get("requires") or {}
     if not isinstance(requires, dict):
@@ -329,7 +345,8 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     return Manifest(name=name, title=raw["title"], summary=raw["summary"], version=version, kind=kind,
                     folder=folder, group=group, access=access, skill=skill, storage=storage,
                     python=dict(raw.get("python") or {}), cli=cli, auth="" if auth_type == "none" else auth_type,
-                    requires=dict(requires), web=web, raw=dict(raw), v2=v2, **extra)
+                    requires=dict(requires), web=web, raw=dict(raw), v2=v2,
+                    runtime={k: v for k, v in runtime.items() if k in ("python", "python_posix")}, **extra)
 
 
 def read(folder: str, strict: bool = False) -> Manifest:
