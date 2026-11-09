@@ -572,6 +572,12 @@ def run_command(folder: str, command: str, args: List[str], *, data_dir: Optiona
             return 2
     values = {k: gate4.normalize(kinds.get(k, "text"), v, choices.get(k, ())) for k, v in values.items()}
     ph = loader.placeholders(m, config)
+    for k, v in values.items():                                 # 跟 loader 的 submit 一樣：kind: path 要在資料夾裡
+        if kinds.get(k) == "path" and str(v or "").strip():
+            _full, problem = gate4.inside(ph["user_data_dir"], str(v).strip())
+            if problem:
+                say(f"❌ {k} 的路徑{problem}")
+                return 2
     if not os.path.isfile(ph["python"]):
         ph["python"] = sys.executable                          # runtime auto 的環境還沒建：用這個 Python
     argv = loader.cli_prefix(m, ph) + loader.build_argv(c["argv"], {**values, **ph})

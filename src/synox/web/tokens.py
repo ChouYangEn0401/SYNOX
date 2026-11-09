@@ -3,6 +3,9 @@
 
 - 登入連結：/web（Telegram）或精靈最後一頁產生 `http://127.0.0.1:<port>/login?t=<token>`。token 隨機（256 bit）、
   只能用一次、7 天、綁一個 Telegram id。data/web_tokens.json 只存 token 的 SHA-256（檔案被看到也拿不到能用的連結）。
+- 兌換要兩步（防 login CSRF：別人把**他的**登入連結塞給你，你的瀏覽器就登入成他）：GET 連結只顯示
+  「你將以 <名字> 登入」的確認頁（peek，不用掉）；按頁上的按鈕 POST（一次性表單 token＋綁這個瀏覽器的 cookie、
+  Origin 要是自己）才 redeem。見 web/server.py 的 login_page／login_post。
 - session：換到的 cookie（HttpOnly、SameSite=Lax）。記憶體一份＋data/web_sessions.json（同樣只存 SHA-256），
   重開 bot 不用重新登入；7 天過期。每個 session 一個 CSRF token（網頁送出改東西的請求要帶 X-SYNOX-CSRF）。
 """
@@ -51,11 +54,24 @@ class LoginTokens:
             jsonstore.save_json(self.path, data)
         return token
 
+    def peek(self, token: str) -> Optional[int]:
+        """看這個 token 是誰的（不用掉）：給登入確認頁顯示「你將以誰登入」。不對、過期 → None。"""
+        if not token or len(token) > 200:
+            return None
+        with self._lock:
+            found = self._load().get(digest(token))
+        if not isinstance(found, dict) or float(found.get("expires", 0)) <= self._clock():
+            return None
+        return int(found["tg_id"])
+
     def redeem(self, token: str) -> Optional[int]:
         """用掉一個 token：回 tg_id；不對、過期、用過 → None。"""
         if not token or len(token) > 200:
             return None
-        key = digest(token)
+        return self.redeem_digest(digest(token))
+
+    def redeem_digest(self, key: str) -> Optional[int]:
+        """同 redeem，但給的是 token 的 SHA-256（登入確認頁只在記憶體留雜湊，不留 token 本身）。"""
         with self._lock:
             data = self._load()
             found = data.pop(key, None)

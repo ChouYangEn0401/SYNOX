@@ -50,7 +50,9 @@
 ```
 
 - 也有 Telegram：其他照舊。
-- **只用 Discord**：`bot_token`、`owner_id` 可以拿掉；SYNOX 會用保留號段的號碼當擁有者。
+- **只用 Discord**：`bot_token`、`owner_id` 可以拿掉；SYNOX 會用保留號段的第一號（10^15）當擁有者。
+  **配對（第 4 步）或寫 `owner_user_id` 之前，私訊型 bot 誰的私訊都不收**（回一句「還沒配對」），
+  免得第一個來私訊的陌生人被當成擁有者；`doctor` 和啟動 log 會提醒。
 
 ### 3b. 多個 bot（選用）
 
@@ -214,9 +216,18 @@ Application、各自一個 token，config.json 改成 `bots` 寫法（**跟上�
 ## 身分與安全
 
 - 內部使用者 id 原本就是 Telegram id。Discord 的人在 `data/identities.json` 換成內部 id：
-  **新人一律發 10^15 以上的號碼**，不會撞到 Telegram id；號碼只增不減、永不重用，陌生人不會拿到別人留下的資料。
+  **10^15 保留給擁有者**（只用 Discord 時的 owner_id），**新人一律從 10^15+1 起發號**，不會撞到 Telegram id、
+  也不會撞到擁有者；號碼只增不減、永不重用，陌生人不會拿到別人留下的資料。
 - 只有在這台電腦上跑 `discord pair`（或在 config 寫 `channels.discord.owner_user_id`）才能把 Discord 帳號接到擁有者身上。
-- 陌生人私訊：個人版一律被擋；伺服器版自動登記成訪客（跟 Telegram 一樣）。
+  （2026-11 以前的版本有個洞：只用 Discord、還沒配對時，第一個陌生人會拿到 10^15＝擁有者。已修，見下面兩點。）
+- 只用 Discord、擁有者還沒接上：私訊型 bot 不收任何人的私訊、不發號碼（`discord pair` 本身另開一條連線，不受影響）。
+- 舊版的 `identities.json`：讀到時，對到 10^15 的 Discord 帳號會標成「待確認」並存回（分不出是配對來的還是陌生人）；
+  確認之前私訊一律不收，`doctor`、`/bot_status`、啟動 log 都會說是哪個帳號。是你本人就重跑 `discord pair`；
+  config 的 `owner_user_id` 指的是別的帳號時，SYNOX 會把那個陌生人移開（他下次來拿新號碼）並在 log 提醒檢查
+  `data/users/1000000000000000/`（伺服器版他可能留過資料）。
+- `identities.json` 壞掉（不是 JSON、格式不對）：**不會**當成空的重新發號；Discord 不開、`doctor` 說原因，
+  請從備份還原（或確定沒有人用過 Discord 再把檔案移開，所有人要重新配對）。
+- 陌生人私訊（擁有者已配對之後）：個人版一律被擋；伺服器版自動登記成訪客（跟 Telegram 一樣）。
 - token 只在保管箱（`data/secrets.json.enc`），不進 log、不進 git。
 
 ## 已知限制
@@ -226,6 +237,9 @@ Application、各自一個 token，config.json 改成 `bots` 寫法（**跟上�
   節流也是記憶體裡的，重開歸零。頻道型 bot 在 READY 之前（剛連上那一下）收到的 @ 不會回。
 - 頻道 AI 的共用記憶在記憶體，重開就清空；額度池記在檔案（重開還在）。遮罩是「多一層」：認得的 token 樣式之外、
   沒存在 SYNOX 裡的密碼認不出來——頻道裡結構上本來就沒有個人資料，才是主要的保護。
+- **確認卡按不動的情況（架構限制，先只說明）**：確認卡（AI 想做的危險動作、工具執行中才要你確認的 needs_confirm）的按鈕
+  綁在 AI 助理（agent 群組的 `ai_approve`）。所以 `ai: false` 的 bot、頻道型 bot、伺服器版的訪客按 ✅ 只會回沒有權限；
+  要確認的動作請到開著 AI 的私訊型 bot 或 Telegram 私訊做。`/bot_status` 與 `doctor` 會在受影響的 bot 底下寫出來。
 - 按鈕必須 3 秒內回應：指令沒回應按鈕時 SYNOX 會自動確認；超過 3 秒的指令按鈕會顯示「交互失敗」但動作照做。
 - 文字一律純文字（Telegram 的粗體等 HTML 格式在 Discord 會被拿掉）。
 - Telegram 一台電腦一支 bot；Discord 可以多個私訊型、頻道型 bot（`bots`）。不支援分片（bot 加進 2500 個以上伺服器才需要）。

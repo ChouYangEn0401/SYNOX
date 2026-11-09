@@ -168,6 +168,22 @@ def ai_word(spec: BotSpec) -> str:
     return "頻道 AI 設定錯誤" if channel_ai_problem(spec) else "AI 關"
 
 
+CARD_LIMIT = ("確認卡按不動：確認卡（AI 想做的危險動作、工具執行中要你確認的 needs_confirm）的按鈕綁在 AI 助理"
+              "（agent 群組的 ai_approve），這個 bot {why}，所以卡上的 ✅ 按了只會回沒有權限；"
+              "要確認的動作請到開著 AI 的私訊型 bot 或 Telegram 私訊做")
+GUEST_CARD_LIMIT = ("訪客按不了確認卡：確認卡的按鈕綁在 AI 助理（agent 群組，最低要成員），"
+                    "訪客打的指令如果執行中要確認（needs_confirm），卡出得來但按不動；要用請先升成成員")
+
+
+def card_limit(spec: BotSpec) -> str:
+    """這個 bot 上確認卡按不動的原因（""＝按得動）。架構限制，先只說明：按鈕綁在 agent.ai_approve。"""
+    if spec.surface == CHANNEL:
+        return CARD_LIMIT.format(why="是頻道型（頻道裡沒有 agent 群組，卡也不送進頻道）")
+    if not policy.bot_ai_enabled(spec):
+        return CARD_LIMIT.format(why="關了 AI（ai: false，agent 群組在這個 bot 上不存在）")
+    return ""
+
+
 def channel_line(spec: BotSpec) -> str:
     """頻道型 bot 的收訊設定（不含 token）。"""
     trigger = "被 @ 才回" if spec.trigger == "mention" else "訊息以 / 開頭才回"
@@ -194,6 +210,9 @@ def lines(spec: BotSpec, rep: dict, indent: str = "  ") -> List[str]:
         out += [f"{indent}  • {n}：{why}" for n, why in rep["hidden"]]
     if rep["not_opened"]:
         out.append(f"{indent}沒開給這個 bot：{'、'.join(rep['not_opened'])}")
+    limit = card_limit(spec)
+    if limit:
+        out.append(f"{indent}⚠️ {limit}")
     return out
 
 
@@ -215,6 +234,15 @@ def status_text(app, config) -> str:
         agent = (app.extras.get("discord_room_ai") or {}).get(spec.name)
         if agent is not None:                       # PERM-6：bot 一池的用量
             out.append(f"  {agent.pool.line()}")
+    notes = list(app.extras.get("discord_identity_notes") or [])
+    identities = app.extras.get("identities")
+    problem = discord.owner_problem(config, identities) if identities is not None else ""
+    if problem:                                     # 即時算（開著的時候跑了 discord pair 也對）
+        notes.insert(0, problem)
+    if notes:
+        out += ["", "身分："] + [f"  ⚠️ {n}" for n in notes]
+    if getattr(config, "mode", "personal") == "server":
+        out += ["", f"⚠️ {GUEST_CARD_LIMIT}"]
     return "\n".join(out)
 
 

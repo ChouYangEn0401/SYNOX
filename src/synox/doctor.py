@@ -72,6 +72,14 @@ def _discord_lines(config) -> tuple:
         except Exception:
             vault = None
     lines, bad = [], 0
+    from synox.identity import Identities, IdentityFileError
+    try:                                            # 只讀：舊檔也不遷移（doctor 不改檔）
+        problem = discord.owner_problem(config, Identities(config.path("identities.json"), readonly=True))
+    except IdentityFileError as e:
+        problem = str(e)
+    if problem:
+        lines.append(f"    ❌ 身分：{problem}")
+        bad += 1
     try:
         from synox.discord import scope
         infos = scope.from_manifests(config)
@@ -139,6 +147,9 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 f"　owner_id {'有填' if config.owner_id else '❌ 沒填'}")
             out(f"  模式：{config.mode}（{MODE_LABELS[config.mode]}）"
                 + ("　陌生人是訪客、vault 的資料每人一份 data/users/<id>/" if config.server else ""))
+            if config.server:                                  # 架構限制（只說明，不算問題）
+                from synox.discord.scope import GUEST_CARD_LIMIT
+                out(f"  ℹ️ {GUEST_CARD_LIMIT}")
             out(f"  llm：{r.get('llm', {'kind': 'none'})}")
             out(f"  packs：{config.packs}　vault：{config.vault}")
             web = config.web
