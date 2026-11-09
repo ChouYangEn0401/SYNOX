@@ -106,3 +106,88 @@ def test_report_marks_hashes_and_warns_when_missing(tmp_path):
     assert tier.PIN_NOT_SOURCE not in lines and any("requests 2.32.3（有雜湊）" in x for x in lines)
     text = "\n".join(admin.format_tier(admin.tier_of(loose, None)))     # 終端機的安裝報告（紅字那一段）
     assert "版本釘選不等於來源可信" in text and "🔴" in text
+
+
+# ── #D 載入後檔案被換：每次叫 cli 前再對一次鎖 ─────────────────────────────
+
+class Clock:
+    def __init__(self):
+        self.t = 1000.0
+
+    def __call__(self):
+        return self.t
+
+
+def _locked_folder(tmp_path):
+    from test_t2_trust import _raw, _write
+    folder = _write(str(tmp_path / "packs" / "bin"), _raw(publisher=None))
+    data = str(tmp_path / "data")
+    assert admin.approve_installed(folder, data)[2] == []
+    return folder, data
+
+
+def test_live_check_finds_changed_added_and_missing_files(tmp_path):
+    from synox.packs import lock
+    folder, data = _locked_folder(tmp_path)
+    live = lock.live_check(lock.entry(data, "bin"), folder)
+    assert live.changes() == [] and live.changes() == []
+    path = os.path.join(folder, "tool.py")
+    with open(path, "a", encoding="utf-8") as f:
+        f.write("# changed\n")
+    assert live.changes() == ["改了 tool.py"]
+    os.remove(path)
+    assert live.changes() == ["少了 tool.py"]
+    with open(os.path.join(folder, "json.py"), "w", encoding="utf-8") as f:   # 會蓋過標準函式庫的同名模組
+        f.write("x = 1\n")
+    assert "多了 json.py" in live.changes()
+
+
+def test_live_check_is_cheap_and_full_rehash_catches_reset_mtime(tmp_path, monkeypatch):
+    from synox.packs import lock
+    folder, data = _locked_folder(tmp_path)
+    clock = Clock()
+    live = lock.live_check(lock.entry(data, "bin"), folder, clock=clock)
+    assert live.changes() == []
+    hashed = []
+    real = lock.sha256_file
+    monkeypatch.setattr(lock, "sha256_file", lambda p: hashed.append(p) or real(p))
+    assert live.changes() == [] and hashed == []                    # stat 沒變：一個雜湊都不算
+    path = os.path.join(folder, "tool.py")
+    st = os.stat(path)
+    with open(path, "r+b") as f:                                     # 同樣大小、內容不同，再把修改時間改回去
+        data_bytes = f.read()
+        f.seek(0)
+        f.write(data_bytes.replace(b"True", b"Fals"))
+    os.utime(path, ns=(st.st_atime_ns, st.st_mtime_ns))
+    quick = live.changes()
+    clock.t += lock.LiveCheck.FULL_EVERY                             # 每 10 分鐘全部重算一次
+    assert "改了 tool.py" in live.changes()
+    assert quick in ([], ["改了 tool.py"])                           # 快速檢查不保證抓得到（Windows 沒有 inode）
+
+
+def test_cli_refuses_to_run_after_files_change(make_bot, owner, tmp_path, monkeypatch):
+    from isdtelekit.jobs import cli as jobs_cli
+
+    def boom(*a, **k):
+        raise AssertionError("不准執行 pack 的程式")
+    monkeypatch.setattr(jobs_cli.JsonCli, "call", boom)
+    monkeypatch.setattr(jobs_cli.JsonCli, "start", boom)
+    folder, _data = _locked_folder(tmp_path)
+    bot = make_bot(pack_dirs=(str(tmp_path / "packs"),))
+    item = next(i for i in bot.app.extras["synox_pack_report"].items if i.name == "bin")
+    assert item.status == "loaded" and item.lock == "locked"
+    with open(os.path.join(folder, "tool.py"), "w", encoding="utf-8") as f:
+        f.write("import os\nos.system('calc')\n")                    # 只寫字串，從來不執行
+    node = bot.app.registry.node("bin.run")
+    bot.say(owner, node.command)
+    texts = bot.texts(owner)
+    assert any("載入之後被改過" in t and "改了 tool.py" in t and "不執行" in t for t in texts), texts
+    assert any("跟安裝時核准的不一樣" in t for t in texts)               # 也通知擁有者
+
+
+def test_unlocked_pack_has_no_live_check(make_bot, tmp_path):
+    from test_t2_trust import _raw, _write
+    _write(str(tmp_path / "packs" / "bin"), _raw(publisher=None))
+    bot = make_bot(pack_dirs=(str(tmp_path / "packs"),))
+    pack = next(p for p in bot.app.extras["synox_packs"] if p.name == "bin")
+    assert pack.live is None and pack.tampered_since_load() == []

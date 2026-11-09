@@ -136,6 +136,16 @@ class Pack:
     cli_bridge: Any = field(repr=False, default=None)                       # kind=cli：ServiceBridge（測試用 wait()）
     secret_fields: List[dict] = field(default_factory=list, repr=False)     # auth.fields（SYNOX 收的那些；見 packs/secrets.py）
     secrets: Any = field(repr=False, default=None)                          # PackSecrets（保管箱的 pack_secrets）
+    live: Any = field(repr=False, default=None)                             # lock.LiveCheck（有鎖時；每次叫 cli 前再對一次）
+
+    def tampered_since_load(self) -> List[str]:
+        """載入之後檔案被改過嗎（審查 B #D）：有鎖的 pack 每次叫 cli／開 mcp stdio 子程序之前問；[]＝對得上（或沒鎖）。"""
+        if self.live is None:
+            return []
+        try:
+            return self.live.changes()
+        except Exception as e:                   # 對不了就不能說它沒被改
+            return [f"檢查失敗：{type(e).__name__}: {e}"]
 
     def secret(self, name: str, user=None) -> Optional[str]:
         """使用者在 Web UI「連接」填的值（pack.json auth.fields 的 name）；沒填回 None。
@@ -550,6 +560,15 @@ def _install_cli(app, pack: Pack) -> None:
         except Exception:
             logging.exception("[PACKS] reply to %s failed", chat_id)
 
+    def changed_files() -> str:
+        """載入之後 pack 的檔案被換過（跟 packs.lock 對不上）：回一句人話、通知擁有者一次（空字串＝可以跑）。"""
+        changes = pack.tampered_since_load()
+        if not changes:
+            return ""
+        logging.error("[PACKS] %s changed after load, refusing to run: %s", m.name, changes)
+        _tamper_notice(app, config, m, changes)
+        return tampered_text(m, changes)
+
     def make_submit(cmd: "service.ServiceCommand", stdin_template: Optional[str] = None):
         """stdin_template：pack.json commands[].stdin，例如 "{answers}"——這個欄位的內容走 stdin 給程式，
         不進 argv（日記正文、長文字；不會出現在程序清單與 log 的 argv 那一行）。"""
@@ -586,7 +605,7 @@ def _install_cli(app, pack: Pack) -> None:
 
         def submit(api, chat_id, user, values, _grant: str = ""):
             """_grant：只有核准卡按 ✅ 的重跑會給（kit.command、Forms、AI 都只傳四個參數，造不出來）。"""
-            blocked = not_connected(user)
+            blocked = not_connected(user) or changed_files()
             if blocked:
                 if _grant:
                     grants.discard(_grant)
@@ -645,7 +664,7 @@ def _install_cli(app, pack: Pack) -> None:
 
     def panel_route(c: dict):
         def fn(user):                          # Web UI 面板的 GET：在網頁的請求執行緒上跑（等它結束）
-            blocked = not_connected(user)
+            blocked = not_connected(user) or changed_files()
             if blocked:
                 return {"ok": False, "error": blocked}
             ph = placeholders(m, config, user)
@@ -690,6 +709,12 @@ def _install_cli(app, pack: Pack) -> None:
         positional = [n for n in kinds if f"{{{n}}}" in c.get("argv", [])]
         # commands[].confirm：AI 呼叫前先送確認卡（effect 照寫的算；agent/loop.py 看這個）
         meta[node.path] = {"argv": True, "positional": positional, "kinds": kinds, "confirm": c.get("confirm") is True}
+
+
+def tampered_text(m: Manifest, changes: List[str]) -> str:
+    listing = "、".join(changes[:5]) + ("…" if len(changes) > 5 else "")
+    return (f"⚠️ {m.title} 的檔案在載入之後被改過了（{listing}），跟安裝時核准的不一樣，為了安全這次不執行；已經通知擁有者。"
+            f"如果是擁有者自己改的，在電腦上跑 python -m synox packs lock --approve {m.name} 重新核准後重新載入。")
 
 
 def _install_connector(app, pack: Pack) -> None:
@@ -786,7 +811,9 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         pack = Pack(m, store, app, config.data_dir, config=config,
                     secret_fields=pack_secrets.managed_fields(m), secrets=secret_store)
         if item.lock == pack_lock.LOCKED:
-            pack.locked_files = dict((pack_lock.entry(config.data_dir, m.name) or {}).get("files") or {})
+            record = pack_lock.entry(config.data_dir, m.name) or {}
+            pack.locked_files = dict(record.get("files") or {})
+            pack.live = pack_lock.live_check(record, folder)
         group_rules = {**pack_group_policy(app, config, m, server), **surface_policy(m)}
         boxed_out = sandbox.restricted_reason(config, m)   # 要沙盒卻沒有真隔離 → 只給擁有者（PERM-7）
         boxed_out = boxed_out or trust_reason(config, m)   # 伺服器版第三方 python pack → 只給擁有者（PERM-8）

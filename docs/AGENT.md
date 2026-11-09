@@ -154,7 +154,9 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     要它不用宣告任何能力）；@tool 的宣告掛在 `fn.synox_tool_spec`，舊版的 `__dict__["__synox_tool__"]` 由 `synox.sdk._legacy_spec` 搬。
     pip 的來源（審查 B #C）：`requires.pip` 的 `--hash=sha256:` 用 `envs.PIP_LINE_RE`／`pin_hashes`（`pins` 照舊回 (名字, 版本)）；
     `VenvBuilder.plan` 的 pip 一律 `--isolated --index-url https://pypi.org/simple`，有雜湊加 `--require-hashes`；
-    `build` 給 `jobs.start(env=envs.build_env())`（白名單 `BUILD_ENV_KEEP`）。`tier.hash_lines` 給安裝報告。T2 安裝一律要 `trust_publisher`＝pack.json `publisher`（`tier.confirm_problem`；
+    `build` 給 `jobs.start(env=envs.build_env())`（白名單 `BUILD_ENV_KEEP`）。`tier.hash_lines` 給安裝報告。
+    載入後再對鎖（審查 B #D）：`load_all` 對有鎖的 pack 掛 `pack.live = lock.live_check(record, folder)`；`Pack.tampered_since_load()`
+    在 cli 的 `submit`／面板 route（`changed_files`）與 `mcp.StdioBackend.open` 前面問，對不上＝`loader.tampered_text`＋`_tamper_notice`、不執行。T2 安裝一律要 `trust_publisher`＝pack.json `publisher`（`tier.confirm_problem`；
     `admin.install_staged`／`approve_installed`、`upgrade.upgrade_staged` 都過這裡；升級要不要重新確認看 `tier.reconfirm_reasons`）。
     鎖的欄位用 `tier.lock_fields` → `lock.approve(tier_fields=)`。執行期：`sandbox.required` 對 T2 一律 True、`sandbox.restricted_reason`
     對 T2 python pack 一律 owner_only（伺服器版）；個人版 `sandbox.t2_personal_note` 給 doctor。
