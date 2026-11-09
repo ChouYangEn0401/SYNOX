@@ -11,7 +11,10 @@ from isdtelekit.core.registry import WRITE, Field
 
 from synox.packs import kit
 
-EMPTY = {"entries": [], "budget": None}
+def empty() -> dict:
+    """每次都給一份新的空資料。以前是模組層級的 EMPTY dict：dict(EMPTY) 是淺拷貝，第一筆會寫進共用的那個 list，
+    伺服器版第二個人的第一個檔會帶著前面每個人的第一筆（2026-11-10 SYNOXPacks 的整合測試抓到）。"""
+    return {"entries": [], "budget": None}
 
 
 def fmt(x) -> str:
@@ -33,7 +36,7 @@ def install(app, pack):
 
     def load(user):
         data = pack.store.of(user).load(None) or {}
-        return {**EMPTY, **data}
+        return {**empty(), **data}
 
     def add(api, chat_id, user, values):
         amount = float(values["amount"].replace(",", ""))
@@ -48,7 +51,7 @@ def install(app, pack):
             d.setdefault("budget", None)
             return month_total(d) - amount, month_total(d), d.get("budget")
 
-        before, after, budget = pack.store.of(user).update(append, dict(EMPTY))
+        before, after, budget = pack.store.of(user).update(append, empty())
         memo = f"（{entry['memo']}）" if entry["memo"] else ""
         lines = [f"💰 記了：{entry['category']} {fmt(amount)} 元{memo}", f"這個月共 {fmt(after)} 元"]
         if budget:
@@ -101,7 +104,7 @@ def install(app, pack):
             d.setdefault("entries", [])
             return month_total(d)
 
-        total = pack.store.of(user).update(set_budget, dict(EMPTY))
+        total = pack.store.of(user).update(set_budget, empty())
         if not amount:
             api.send_message(chat_id, "💰 預算拿掉了。")
             return

@@ -37,6 +37,7 @@ from isdtelekit.core import jsonstore
 from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 
 from synox.config import ROOT
+from synox.packs import kit, render
 from synox.packs import lock as pack_lock
 from synox.packs.manifest import Manifest, ManifestError, missing_requirements, read
 from synox.vault.vault import USERS_DIR
@@ -172,14 +173,27 @@ def group_policy(app, access: str, server: bool) -> dict:
 
 
 def discover(dirs=PACK_DIRS) -> List[str]:
-    folders = []
+    """dirs 的每一項：裝很多 pack 的資料夾（底下每個有 pack.json 的子資料夾算一個），或本身就是一個 pack（直接有 pack.json）。
+    同一個 pack 資料夾只算一次（config `packs.dirs` 跟內建的重複時）。"""
+    folders: List[str] = []
+    seen = set()
+
+    def add(folder: str) -> None:
+        key = os.path.normcase(os.path.realpath(folder))
+        if key not in seen:
+            seen.add(key)
+            folders.append(folder)
+
     for base in dirs:
         if not os.path.isdir(base):
+            continue
+        if os.path.isfile(os.path.join(base, "pack.json")):
+            add(base)
             continue
         for name in sorted(os.listdir(base)):
             folder = os.path.join(base, name)
             if os.path.isfile(os.path.join(folder, "pack.json")):
-                folders.append(folder)
+                add(folder)
     return folders
 
 
@@ -321,7 +335,9 @@ def _install_cli(app, pack: Pack) -> None:
         except Exception:
             logging.exception("[PACKS] reply to %s failed", chat_id)
 
-    def make_submit(cmd: "service.ServiceCommand"):
+    def make_submit(cmd: "service.ServiceCommand", stdin_template: Optional[str] = None):
+        """stdin_template：pack.json commands[].stdin，例如 "{answers}"——這個欄位的內容走 stdin 給程式，
+        不進 argv（日記正文、長文字；不會出現在程序清單與 log 的 argv 那一行）。"""
         def submit(api, chat_id, user, values):
             ph = placeholders(m, config, user)
             if getattr(config, "mode", "personal") == "server":
@@ -332,6 +348,8 @@ def _install_cli(app, pack: Pack) -> None:
                           env_extra=cli_env(m, ph) or None)
             argv = build_argv(cmd.argv, {**values, **ph})
             timeout = {"timeout": cmd.timeout} if cmd.timeout else {}
+            if stdin_template:
+                timeout["stdin"] = substitute(stdin_template, {**values, **ph})
             done = bridge._started()
 
             def finish(reply):
@@ -339,9 +357,8 @@ def _install_cli(app, pack: Pack) -> None:
                     if not reply.ok:
                         say(api, chat_id, f"❌ {cmd.name}：{reply.error}")
                         return
-                    ctx = service.ServiceContext(app, api, chat_id, user, values, reply)
                     try:
-                        text = service.default_render(ctx)
+                        text = render.render(reply.data)         # SYNOX 自己攤平 JSON（SDK 的只會印「N 筆」）
                     except Exception as e:
                         text = f"⚠️ 服務回了結果，但顯示的時候出錯：{e}"
                     if text:
@@ -385,8 +402,25 @@ def _install_cli(app, pack: Pack) -> None:
                                      effect=EFFECTS.get(str(c.get("effect", "read")).lower(), READ),
                                      background=bool(c.get("background")), default=bool(c.get("default")),
                                      timeout=c.get("timeout"))
-        node = app.forms.leaf(pack.group, cmd.name, make_submit(cmd), cmd.summary,
-                              fields=[service._no_dash(f) for f in fields], effect=cmd.effect, default=cmd.default)
+        safe_fields = [service._no_dash(f) for f in fields]
+        stdin_template = c.get("stdin") if isinstance(c.get("stdin"), str) else None
+        if any(f.fresh_code for f in fields):
+            # 要驗證碼的走 SDK Forms（碼永遠最後問、收到就驗）
+            node = app.forms.leaf(pack.group, cmd.name, make_submit(cmd, stdin_template), cmd.summary,
+                                  fields=safe_fields, effect=cmd.effect, default=cmd.default)
+        else:
+            # 其他的跟內建 pack 一樣「照位置填、key=value 補、選填不追問」：/moneybook 120 午餐 直接存
+            # （SDK Forms 會停下來問「要補充這些嗎？」，手機上多一輪、下一句指令還會把它打斷）。
+            # 照位置填幾個：pack.json 的 commands[].positional；沒寫＝必填的個數。
+            n_required = sum(1 for f in fields if f.required)
+            try:
+                n_pos = int(c.get("positional", n_required))
+            except (TypeError, ValueError):
+                n_pos = n_required
+            submit = make_submit(cmd, stdin_template)
+            node = kit.command(pack.group, cmd.name, lambda api, chat_id, user, values, _s=submit: _s(api, chat_id, user, values),
+                               cmd.summary, fields=safe_fields, positional=max(0, min(n_pos, len(safe_fields))),
+                               effect=cmd.effect, default=cmd.default)
         positional = [n for n in kinds if f"{{{n}}}" in c.get("argv", [])]
         meta[node.path] = {"argv": True, "positional": positional, "kinds": kinds}
 

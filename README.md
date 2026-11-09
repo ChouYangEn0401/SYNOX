@@ -88,6 +88,8 @@
 一個功能＝`packs/` 底下一個資料夾（`pack.json`、`SKILL.md`、`README.md`、`pack.py`）。把資料夾放進去、重開 bot，
 `/help` 就多一組，AI 也會自己學會怎麼用。格式與範例在 [docs/pack-format.md](docs/pack-format.md)。
 不想要某個 pack：`config.json` 的 `"packs": {"disabled": ["money"]}`。
+pack 放在別的地方（例如金流簿那個 repo 裡的 `synox-pack/`，它要用那個 repo 自己的 Python）：
+`"packs": {"dirs": ["C:/Users/你/Documents/記帳專案/synox-pack"]}`——每一項可以是一個 pack 的資料夾，或裝了很多 pack 的資料夾。
 
 ## 還沒有（v0 不做的）
 

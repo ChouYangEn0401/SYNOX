@@ -12,7 +12,7 @@
     "max_tokens": 1024
   },
   "vault": { "mode": "dpapi" },
-  "packs": { "enabled": "all", "disabled": [] },
+  "packs": { "enabled": "all", "disabled": [], "dirs": [] },
   "web": { "enabled": true, "port": 8830, "public_url": "" },
   "ai_member_monthly_usd": 2.0
 }
