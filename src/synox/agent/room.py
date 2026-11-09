@@ -37,31 +37,17 @@ from synox.agent.budget import POOL_EXHAUSTED, BotPool
 from synox.agent.loop import WEEKDAYS, AgentLoop, ai_decision, needs_card
 from synox.llm import textproto
 from synox.llm.base import ToolCall
+from synox.packs import kit
 
 DM_ONLY = "🔒 這個動作要到私訊做（頻道裡不送確認卡）。請私訊我再說一次。"
 MSG_TAG = "SYNOX-MSG"
 NAME_MAX = 32
-MASK = "***"
-
-TOKEN_PATTERNS = [
-    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"),
-    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/\-]{16,}=*"),
-    re.compile(r"\b[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{6,}\.[A-Za-z0-9_\-]{20,}\b"),   # Discord bot token、JWT
-    re.compile(r"\b\d{6,12}:[A-Za-z0-9_\-]{30,}\b"),                                  # Telegram bot token
-    re.compile(r"\bsk-[A-Za-z0-9_\-]{16,}"),                                          # OpenAI／Anthropic 類
-    re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})"),
-    re.compile(r"\bxox[abprs]-[A-Za-z0-9\-]{10,}"),
-    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
-    re.compile(r"\bAIza[0-9A-Za-z_\-]{30,}"),
-]
+MASK = kit.MASK
+TOKEN_PATTERNS = kit.TOKEN_PATTERNS          # 跟 log 遮罩同一份（packs/kit.py）
+mask_tokens = kit.mask_tokens
 
 
 # ── 洩漏防護 ─────────────────────────────────────────────────────────
-
-def mask_tokens(text: str) -> str:
-    for pattern in TOKEN_PATTERNS:
-        text = pattern.sub(MASK, text)
-    return text
 
 
 def _env_refs(value) -> Iterable[str]:
@@ -163,6 +149,10 @@ class RoomAgent(AgentLoop):
         self._local = threading.local()              # 這一輪的發話者（遮罩他的 pack secret 用；各執行緒各自的）
 
     # ── 換掉的點 ─────────────────────────────────────────────────────
+
+    def memory_key(self, chat_id: int, user=None):
+        """頻道 AI 的記憶是頻道的（同頻道所有人共用；PERM-6 的設計），不分人。"""
+        return chat_id
 
     def decision(self, user, node: Node, chat_id: int):
         if node is None or needs_dm(self.app, node):

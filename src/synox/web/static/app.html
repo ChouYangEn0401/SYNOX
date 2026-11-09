@@ -40,7 +40,8 @@
   header.top nav { display: flex; gap: 4px; flex: 1; }
   header.top nav a { text-decoration: none; color: var(--fg); padding: 6px 12px; border-radius: 8px; }
   header.top nav a.active { background: var(--accent); color: var(--accent-fg); }
-  header.top .who { font-size: 13px; color: var(--muted); }
+  header.top .who { font-size: 14px; font-weight: 600; color: var(--fg); padding: 4px 10px;
+                    border: 1px solid var(--line); border-radius: 8px; }
 
   main { padding: 16px; max-width: 1100px; margin: 0 auto; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px;
@@ -890,7 +891,8 @@
     me = d;
     $("nav").classList.remove("hidden");
     $("logout").classList.remove("hidden");
-    $("who").textContent = (d.username || d.id) + "（" + d.role + (d.owner ? "，擁有者" : "") + "）";
+    $("who").textContent = "目前登入：" + (d.username ? d.username + "（id " + d.id + "）" : "id " + d.id) +
+      "・" + d.role + (d.owner ? "，擁有者" : "");
     route();
   }).catch(function () { showLogin(); });
 })();

@@ -96,15 +96,48 @@ def test_locked_trust_decides(make_bot, tmp_path):
     assert "corep" in _ai_groups(bot, OTHER_ID) and "third" not in _ai_groups(bot, OTHER_ID)
 
 
-def test_bundled_core_even_if_locked_third_party(tmp_path):
+def test_bundled_core_unless_the_lock_says_otherwise(tmp_path):
+    """審查 A #5：有鎖時以鎖的 trust 為準；出廠的名字＋位置只在沒有鎖時算 core。"""
+    from synox.packs import admin
     cfg = SynoxConfig.from_dict({"owner_id": OWNER_ID, "data_dir": str(tmp_path / "data"), "mode": "server"},
                                 require_token=False, root=str(tmp_path))
     notes = read(os.path.join(loader.PACK_DIRS[0], "notes"))
     assert loader.is_bundled(notes)
-    lock.approve(cfg.data_dir, notes, None, OWNER_ID, via="cli")                     # 有人用預設 trust 鎖了出廠的
+    assert loader.python_trust(cfg, notes) == lock.CORE                             # 沒鎖：出廠的＝core
+    m, _report, problems = admin.approve_installed(notes.folder, cfg.data_dir, approved_by=OWNER_ID)
+    assert not problems and lock.trust_of(cfg.data_dir, "notes") == lock.CORE          # 第一次鎖出廠的：沿用 core
     assert loader.python_trust(cfg, notes) == lock.CORE and loader.trust_reason(cfg, notes) == ""
+    lock.approve(cfg.data_dir, notes, None, OWNER_ID, via="web")                     # 鎖記 third-party
+    assert loader.python_trust(cfg, notes) == lock.THIRD_PARTY                       # 以前：名字蓋過鎖＝core
     copy = read(_pack(tmp_path / "elsewhere", "notes"))                              # 同名但不在內建資料夾
     assert not loader.is_bundled(copy)
+
+
+def test_third_party_named_like_bundled_via_upgrade_is_not_core(tmp_path, monkeypatch):
+    """惡意作者把 pack 取名 notes、經升級流程裝進內建的 packs/：鎖是 third-party，不能被名字改成 core。"""
+    import io
+    import zipfile
+    from synox import sandbox
+    from synox.packs import admin, upgrade
+    packs, data = tmp_path / "packs", tmp_path / "data"
+    monkeypatch.setattr(loader, "PACK_DIRS", (str(packs),))                         # 這個資料夾當成內建的 packs/
+    factory = read(_pack(packs, "notes"))
+    cfg = SynoxConfig.from_dict({"owner_id": OWNER_ID, "data_dir": str(data), "mode": "server"},
+                                require_token=False, root=str(tmp_path))
+    assert loader.is_bundled(factory) and loader.python_trust(cfg, factory) == lock.CORE
+    evil = _pack(tmp_path / "evil", "notes", py=RUN_PY, version="0.2.0", publisher="someone-else")
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for name in os.listdir(evil):
+            z.write(os.path.join(evil, name), name)
+    token, _summary = admin.stage(buf.getvalue(), str(data))
+    upgrade.upgrade_staged(token, str(data), str(packs), approved_by=OWNER_ID, via="web")
+    installed = read(str(packs / "notes"))
+    assert installed.version == "0.2.0" and loader.is_bundled(installed)             # 名字、位置都像出廠的
+    assert lock.trust_of(str(data), "notes") == lock.THIRD_PARTY
+    assert loader.python_trust(cfg, installed) == lock.THIRD_PARTY                   # 以前：core
+    assert "只對擁有者開放" in loader.trust_reason(cfg, installed)
+    assert sandbox.trust_of(str(data), installed) == sandbox.THIRD_PARTY
 
 
 def test_personal_mode_unaffected(make_bot, tmp_path):

@@ -16,7 +16,8 @@ SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、�
     }
 - 多個 Discord bot：channels.discord.bots.<名字> = {"token": "vault:…", "surface": "dm", "packs": "all", "ai": true}
   （synox/discord/bots.py 解析與檢查；舊寫法＝bots.default）。
-- 只用 Discord 時 bot_token、owner_id 可以不填（owner_id 預設保留號段 10^15，pair-discord 把你的 Discord 帳號接上）。
+- 只用 Discord 時 bot_token、owner_id 可以不填（owner_id 預設保留號段 10^15，`discord pair` 把你的 Discord 帳號接上；
+  接上之前私訊型 bot 誰的私訊都不收，陌生人的號碼從 10^15+1 起，見 identity.py）。
 
 - 路徑一律相對於 SYNOX 資料夾（不管從哪裡啟動）：data_dir 沒寫就是 <SYNOX>/data。
 - api_key 可以直接寫，也可以寫 "vault:<名字>"：真正的值放在 data/secrets.json.enc（精靈就是這樣存的）。
@@ -72,7 +73,8 @@ class SynoxConfig(BotConfig):
     def from_dict(cls, raw: dict, *, require_token: bool = True, root: Optional[str] = None) -> "SynoxConfig":
         discord = (raw.get("channels") or {}).get("discord") if isinstance(raw.get("channels"), dict) else None
         if discord and raw.get("owner_id", raw.get("machine_owner_id")) in (None, ""):
-            # 只用 Discord、沒有 Telegram id：擁有者用保留號段的第一號，之後 pair-discord 把 Discord 帳號接上來
+            # 只用 Discord、沒有 Telegram id：擁有者用保留號段的第一號（BASE，identity.py 不會發給陌生人），
+            # 之後 discord pair／owner_user_id 把 Discord 帳號接上來；接上之前私訊型 bot 不收任何私訊
             from synox.identity import BASE
             raw = {**raw, "owner_id": BASE}
         from synox.discord.bots import parse as parse_discord_bots

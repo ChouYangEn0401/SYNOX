@@ -117,12 +117,12 @@ def test_room_ids_are_negative_monotonic_and_persist(tmp_path):
     person = ids.resolve("discord", "1")
     a = ids.resolve_room(DISCORD_ROOM, "200")
     b = ids.resolve_room(DISCORD_ROOM, "201")
-    assert person == BASE and a == -BASE and b == -(BASE + 1)
+    assert person == BASE + 1 and a == -BASE and b == -(BASE + 1)                # BASE 保留給擁有者
     assert ids.resolve_room(DISCORD_ROOM, "200") == a and ids.external(DISCORD_ROOM, b) == "201"
     assert ids.unbind(DISCORD_ROOM, "201")
     again = Identities(path)
     assert again.resolve_room(DISCORD_ROOM, "202") == -(BASE + 2)                 # 只增不減、不重用
-    assert again.resolve("discord", "2") == BASE + 1                              # 人的號段不受影響
+    assert again.resolve("discord", "2") == BASE + 2                              # 人的號段不受影響
 
 
 # ── 事件解析 ─────────────────────────────────────────────────────────

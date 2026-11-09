@@ -294,7 +294,9 @@ BUNDLED = ("money", "notes", "remind", "apple-reminders", "google-calendar", "no
 
 
 def is_bundled(m: Manifest) -> bool:
-    """出廠的：名字在 BUNDLED，而且資料夾就在內建的 packs/ 或 connectors/ 底下（packs.dirs 另外放的不算）。"""
+    """出廠的：名字在 BUNDLED，而且資料夾就在內建的 packs/ 或 connectors/ 底下（packs.dirs 另外放的不算）。
+    只看名字和位置，所以**只在沒有 packs.lock 那一筆時**拿來決定信任（python_trust、sandbox.trust_of）：
+    經安裝／升級流程進來的同名 pack 一定有鎖，以鎖記的 trust 為準（審查 A #5）。"""
     if m.name not in BUNDLED:
         return False
     parent = os.path.normcase(os.path.realpath(os.path.dirname(os.path.abspath(m.folder))))
@@ -302,11 +304,13 @@ def is_bundled(m: Manifest) -> bool:
 
 
 def python_trust(config, m: Manifest) -> str:
-    """kind=python 在伺服器版的信任：出廠＝core；有鎖＝擁有者安裝時選的（packs.lock 的 trust）；
-    沒有鎖（手動放進 packs/ 或 packs.dirs 的）＝third-party。"""
-    if is_bundled(m):
-        return pack_lock.CORE
-    return pack_lock.trust_of(getattr(config, "data_dir", "") or "", m.name) or pack_lock.THIRD_PARTY
+    """kind=python 在伺服器版的信任：有鎖＝packs.lock 的 trust（擁有者安裝時選的；舊鎖沒寫＝third-party）；
+    沒有鎖：出廠的＝core，其他（手動放進 packs/ 或 packs.dirs 的）＝third-party。
+    以前出廠的名字優先——第三方作者把 pack 取名 notes、經升級裝進 packs/，就被當成 core。"""
+    locked = pack_lock.trust_of(getattr(config, "data_dir", "") or "", m.name)
+    if locked is not None:
+        return locked
+    return pack_lock.CORE if is_bundled(m) else pack_lock.THIRD_PARTY
 
 
 def trust_reason(config, m: Manifest) -> str:
@@ -610,6 +614,15 @@ def _install_cli(app, pack: Pack) -> None:
                 os.makedirs(ph["user_data_dir"], exist_ok=True)
             values = {k: gate4.normalize(kinds_of.get(k, "text"), v, choices_of.get(k, ())) for k, v in values.items()}
             user_id = getattr(user, "tg_id", None)
+            for k, v in values.items():
+                # kind: path：人打字也要在這個人的資料夾裡（AI 那條第 4 關本來就查；typed_check 不知道是誰）
+                if kinds_of.get(k) == "path" and str(v or "").strip():
+                    _full, problem = gate4.inside(ph["user_data_dir"], str(v).strip())
+                    if problem:
+                        if _grant:
+                            grants.discard(_grant)
+                        say(api, chat_id, f"❌ {cmd.name}：{k} 的路徑{problem}。")
+                        return
             confirmed: Optional[str] = None
             if _grant:
                 confirmed = grants.redeem(_grant, m.name, cmd.name, values, user_id)

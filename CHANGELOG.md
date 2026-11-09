@@ -1,5 +1,35 @@
 # Changelog
 
+## 未發佈（branch feat/fix-identity：獨立安全審查 A＋審查 B 的一項）
+
+### 修正（安全）
+- **只用 Discord、還沒配對時，第一個陌生人會變成擁有者（高）**：擁有者 id 預設 10^15，身分檔也從 10^15 開始發號。
+  10^15 現在保留給擁有者，陌生人從 10^15+1 起；擁有者還沒接上 Discord 帳號時，私訊型 bot **誰的私訊都不收**（不發號碼，回一句「還沒配對」），
+  `doctor`／`/bot_status`／啟動 log 警告。舊的 `identities.json` 裡對到 10^15 的帳號標「待確認」，重新 `discord pair`（或 config 的
+  `owner_user_id` 對得上）才解除；`owner_user_id` 指別人時把那個陌生人移開並提醒。
+- **`identities.json` 壞掉不再靜默重新發號**：Discord 不開、`discord pair` 拒絕、`doctor` 說原因，原檔不動。
+- **Telegram 群組 `/ai` 繞過 private_only**：agent 群組加 private_only；AI 判斷工具帶真正的 chat_id；AI 記憶以（聊天, 人）為鍵；
+  核准卡一律送私訊（群組只留「卡已私訊給你」）。Discord 頻道 AI 的頻道共用記憶不變。
+- **人打字的 `kind: path` 沒檢查資料夾**：cli pack 的 submit 照下令的人跑 `inside()`（`synox-sdk run` 同步）。
+- **別人按你的核准卡會讓卡作廢**：先 take，不是本人只回「這不是你的按鈕」，不拿掉按鈕。
+- **pack 取名跟出廠的一樣就被當 core**：有 packs.lock 時一律照鎖的 trust；出廠名單只在沒有鎖時算數。出廠 pack 第一次鎖預設 core。
+- **網頁登入連結 login CSRF**：GET 只顯示「你將以 <名字> 登入」，按鈕 POST（一次性表單 token＋綁瀏覽器的 cookie＋同源）才登入；
+  網頁上方明顯顯示目前登入身分。`public_url` 是 https 時 cookie 加 `Secure`。
+- **log 洩漏**：AI 工具呼叫只在過了第 4 關後印「欄位名(長度)」，不印值；`[ROUTE]`／`[AGENT]` 行的 token 樣式一律 `***`（跟頻道 AI 遮罩同一份樣式）。
+- 保管箱衍生金鑰快取改成 LRU（最多 256 把），不再永遠變大。
+- （審查 B）短 secret（< 8 字）：存的時候網頁「連接」與 `connect` 警告太短；第 4 關對它自己那個 pack 的呼叫值也做子字串比對（4 字以上）。
+
+### 說明（架構限制，先不改）
+- 確認卡綁在 agent 群組：`ai: false` 的 bot、頻道型 bot、訪客按不了，`/bot_status`、`doctor` 寫出來。
+
+### 文件
+- `docs/discord.md`、`docs/security.md`：更正「只有 discord pair／owner_user_id 能接到擁有者」「使用者之間互相看不到」
+  「surfaces 沒有 channel 群組裡 SDK 自己擋」「人打字的 path」「cli 沒鎖仍算 core」等跟程式不符的說法。
+
+### 測試
+- `tests/test_review_a.py`（新）與 `test_discord.py`、`test_web.py`、`test_perm8.py`、`test_bot_scope.py`、`test_sdk_p2_secret.py` 增補；
+  每一項都有修之前會失敗的測試。全部 910 passed（dev 是 885）。
+
 ## 未發佈（branch feat/t2-source）
 
 ### 變更（安全）
