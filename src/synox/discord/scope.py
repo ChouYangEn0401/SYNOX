@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Tuple
 
 from synox import policy
-from synox.discord.bots import CHANNEL, BotSpec
+from synox.discord.bots import CHANNEL, BotSpec, channel_ai_problem
 
 
 @dataclass(frozen=True)
@@ -157,21 +157,35 @@ def head(spec: BotSpec) -> str:
     where = "頻道型" if spec.surface == CHANNEL else "私訊型"
     cap = f"上限「{policy.effect_label(spec.max_effect)}」" if spec.max_effect else "不設上限"
     packs = "全部 pack" if policy.bot_packs(spec) == "all" else "pack 清單"
-    ai = "AI 開" if policy.bot_ai_enabled(spec) else ("AI 關（頻道 AI 還沒做）" if spec.surface == CHANNEL else "AI 關")
-    return f"bot {spec.name}（{where}，{packs}，{cap}，{ai}）"
+    return f"bot {spec.name}（{where}，{packs}，{cap}，{ai_word(spec)}）"
+
+
+def ai_word(spec: BotSpec) -> str:
+    if spec.surface != CHANNEL:
+        return "AI 開" if policy.bot_ai_enabled(spec) else "AI 關"
+    if policy.channel_ai_enabled(spec):
+        return f"頻道 AI 開（整個 bot 每月 US${spec.pool_usd_month:.2f}）"
+    return "頻道 AI 設定錯誤" if channel_ai_problem(spec) else "AI 關"
 
 
 def channel_line(spec: BotSpec) -> str:
     """頻道型 bot 的收訊設定（不含 token）。"""
     trigger = "被 @ 才回" if spec.trigger == "mention" else "訊息以 / 開頭才回"
-    return (f"{len(spec.guilds)} 個伺服器、{spec.channel_count()} 個頻道；觸發：{trigger}；"
-            f"role_map {spec.role_map_count()} 筆（最多給到成員）；每人每頻道每分鐘 {spec.rate_per_minute} 則")
+    line = (f"{len(spec.guilds)} 個伺服器、{spec.channel_count()} 個頻道；觸發：{trigger}；"
+            f"role_map {spec.role_map_count()} 筆（最多給到成員）；每人每頻道每分鐘 {spec.rate_per_minute} 則、"
+            f"每頻道每分鐘 {spec.room_rate_per_minute} 則")
+    if policy.channel_ai_enabled(spec):
+        line += f"；頻道 AI 每人每分鐘 {spec.ai_rate_per_minute} 次、共用記憶 {spec.ai_history_turns} 輪"
+    return line
 
 
 def lines(spec: BotSpec, rep: dict, indent: str = "  ") -> List[str]:
     out = []
     if spec.surface == CHANNEL:
         out.append(f"{indent}收訊：{channel_line(spec)}")
+        problem = channel_ai_problem(spec)
+        if problem:
+            out.append(f"{indent}❌ 頻道 AI 沒有開：{problem}")
     eff = rep["effective"]
     shown = "、".join(n + (f"（{note}）" if note else "") for n, note in eff) if eff else "（沒有）"
     out.append(f"{indent}會出現：{shown}")
@@ -198,6 +212,9 @@ def status_text(app, config) -> str:
                  f"⚠️ {errors[spec.name]}" if spec.name in errors else
                  "⏸ 關著（enabled=false）" if spec.name not in active else "⚠️ 沒有開成")
         out += ["", f"{head(spec)}：{state}"] + lines(spec, report(spec, infos))
+        agent = (app.extras.get("discord_room_ai") or {}).get(spec.name)
+        if agent is not None:                       # PERM-6：bot 一池的用量
+            out.append(f"  {agent.pool.line()}")
     return "\n".join(out)
 
 

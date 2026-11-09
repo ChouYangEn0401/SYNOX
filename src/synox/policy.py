@@ -33,7 +33,9 @@
   - 只有 pack.json 的 surfaces 含 channel 且 data ≠ user 的 pack 存在（"bot_channel"，當作不存在＝「未知指令」，
     結構上洩不出個人資料）；內建指令只留 CHANNEL_BUILTINS（/help、/start、/exit），其他也當作不存在。
   - DANGER 永遠拒（不管 max_effect）；WRITE 要 max_effect=write、pack 的 data=shared、而且（有效）角色至少成員（"bot_effect"）。
-  - AI 當作關（PERM-6 才做頻道 AI）：agent 群組不存在、閒聊本來就因為 chat_id ≠ user 不回。
+  - agent 群組（/ai、/ai_usage…）在頻道永遠不存在；頻道 AI（PERM-6）不走 agent 群組，而是 RoomEntry 把
+    「被 @ 了但不是指令」的訊息交給 agent/room.py 的 RoomAgent（`channel_ai_enabled`：ai.enabled 而且有 pool）。
+    它的工具清單一樣問 decide(via=AI, bot=頻道型 bot)，所以只會有頻道看得到、effect < DANGER 的工具。
   - 有效角色：DiscordEntry 用 `using_role_floor(角色)` 帶進 Discord 身分組對應來的角色（role_map，已經封頂在成員）；
     decide 用 max(users.json 的角色, 那個角色) 判斷，**不寫回 users.json**（`effective_user` 回一個複本）。
 """
@@ -218,6 +220,12 @@ def run_as(bot, fn: Callable, *args, **kw):
         return fn(*args, **kw)
 
 
+def run_in_room(bot, floor, fn: Callable, *args, **kw):
+    """頻道 AI 那一輪（別的執行緒）：bot 與 role_map 來的角色都帶過去。"""
+    with using_bot(bot), using_role_floor(floor):
+        return fn(*args, **kw)
+
+
 def effect_rank(effect) -> int:
     e = str(effect or READ).strip().lower()
     return EFFECT_ORDER.index(e) if e in EFFECT_ORDER else len(EFFECT_ORDER)      # 不認得＝比危險還高（fail closed）
@@ -244,10 +252,19 @@ def is_channel_bot(bot) -> bool:
 
 
 def bot_ai_enabled(bot) -> bool:
+    """agent 群組（私訊裡的 AI）在這個 bot 上存在嗎。頻道型一律否（頻道 AI 看 channel_ai_enabled）。"""
     if is_channel_bot(bot):
-        return False                              # 頻道 AI 是 PERM-6：這一版頻道型 bot 一律當作 AI 關
+        return False
     ai = getattr(bot, "ai", None)
     return bool(ai.get("enabled", True)) if isinstance(ai, dict) else (ai is None or bool(ai))
+
+
+def channel_ai_enabled(bot) -> bool:
+    """頻道 AI（PERM-6）：頻道型 bot、ai.enabled、而且有大於 0 的 pool_usd_month（沒 pool＝設定錯誤，不開）。"""
+    if not is_channel_bot(bot):
+        return False
+    from synox.discord.bots import channel_ai_on
+    return channel_ai_on(bot)
 
 
 def pack_in_channel(manifest) -> bool:
@@ -321,6 +338,8 @@ def bot_scope(app, node: Node, bot) -> Optional[Decision]:
         return None
     top = node.path.split(".")[0]
     if top == AGENT_GROUP:
+        if is_channel_bot(bot):
+            return Decision(False, "bot_channel")          # 頻道 AI 不走 /ai（PERM-6：被 @ 的閒聊才走）
         return None if bot_ai_enabled(bot) else Decision(False, "bot_ai")
     pack = pack_of(app, node)
     if pack is not None and not pack_listed(bot, pack.name):
@@ -379,6 +398,7 @@ def decide(app, user, node: Node, *, via: str, chat_id: Optional[int] = None, bo
     app = _as_app(app)
     registry = app.registry
     bot = current_bot() if bot is None else bot
+    user = effective_user(app, user)              # role_map 來的角色（只有頻道裡會有）；訪客的 AI 判斷也照它
     if via == AI:
         if node.is_group or node.interactive or not node.ai:
             return Decision(False, "ai")
@@ -389,7 +409,6 @@ def decide(app, user, node: Node, *, via: str, chat_id: Optional[int] = None, bo
     blocked = bot_scope(app, node, bot)
     if blocked is not None:
         return blocked
-    user = effective_user(app, user)
     blocked = channel_write(app, user, node, bot)
     if blocked is not None:
         return blocked

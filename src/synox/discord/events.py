@@ -82,6 +82,18 @@ class RoomEvent:
     guild_id: str
     roles: List[str] = field(default_factory=list)   # 發話者在這個伺服器的身分組 id（member.roles）
     message_id: str = ""             # 觸發的那則訊息（回覆時引用它）
+    display_name: str = ""           # 發話者在這個伺服器的顯示名稱（頻道 AI 只當標籤用，PERM-6）
+    attachments: List[str] = field(default_factory=list)   # 附件的檔名（頻道 AI 只當資料，不下載）
+
+
+def display_name_of(d: dict) -> str:
+    """伺服器暱稱 → 全域顯示名稱 → 使用者名稱。"""
+    member = d.get("member") or {}
+    author = d.get("author") or member.get("user") or {}
+    for v in (member.get("nick"), author.get("global_name"), author.get("username")):
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return ""
 
 
 def strip_mention(text: str, bot_id) -> Optional[str]:
@@ -124,7 +136,9 @@ def parse_room_event(event: str, d: dict, *, spec, resolve: Callable[[str], int]
         room = resolve_room(channel_id)
         inbound = Inbound(DISCORD, user_id=uid, chat_id=room, text=text, username=author.get("username", ""),
                           sent_at=_epoch(d.get("timestamp")))
-        return RoomEvent(inbound, channel_id, guild_id, roles, str(d.get("id") or ""))
+        files = [str(a.get("filename") or "") for a in (d.get("attachments") or []) if isinstance(a, dict)]
+        return RoomEvent(inbound, channel_id, guild_id, roles, str(d.get("id") or ""),
+                         display_name_of(d), [f for f in files if f])
     if event == "INTERACTION_CREATE":
         if d.get("type") != COMPONENT:
             return None
