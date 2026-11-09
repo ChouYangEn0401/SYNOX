@@ -188,8 +188,8 @@ SYNOX 讀不到內容，也沒辦法替你判斷安不安全。T2 做的只有�
 | 層級 | 是什麼 | 例子 |
 |---|---|---|
 | T0 只有宣告 | 沒有程式在這台跑 | connector、只登記的 mcp（遠端 MCP，只寫 url） |
-| T1 原始碼 | pack 資料夾裡只有 `.py`（第 2 關掃得到）與資料檔 | `examples/hello`、出廠的 notes、money |
-| T2 二進位或外部相依 | 第 2 關掃不到 | 附 `.exe`／`.dll`／`.bat`／`.ps1`／`.sh`／`.so`／`.pyd`／`.pyc`、`node_modules/`、檔頭是 MZ+PE／ELF／Mach-O 的檔（不管副檔名）、沒有副檔名但帶執行位元或 `#!` 的檔；`cli.argv`／`mcp.argv` 指到 pack 外的程式（`npx`、`git`、絕對路徑、`{python} -m 外部模組`）；`runtime.python／node = auto` 會裝套件 |
+| T1 原始碼 | pack 資料夾裡只有第 2 關掃得到的 `.py` 與純資料檔 | `examples/hello`、出廠的 notes、money |
+| T2 二進位或外部相依 | 第 2 關掃不到 | 附 `.exe`／`.dll`／`.bat`／`.ps1`／`.sh`／`.so`／`.pyd`／`.pyc`、別的語言的原始碼（`.js`／`.ts`／`.rb`／`.php`／`.go`…，`scan.SOURCE_EXT`）、`node_modules/`、檔頭是 MZ+PE／ELF／Mach-O 的檔（不管副檔名）、沒有副檔名但帶執行位元或 `#!` 的檔；`cli.argv`／`mcp.argv` 指到 pack 外的程式（`{node}`、`node`／`npx`／`deno`／`bun`／`ruby`／`perl`／`php` 這類直譯器、`git`、絕對路徑、`{python} -m 外部模組`）；`runtime.python／node = auto` 會裝套件 |
 
 T2 多做的事（`src/synox/packs/tier.py`）：
 - **第 2 關**：pack 資料夾裡掃不到內容的檔一定要在 `capabilities` 宣告 `exec`，沒宣告就拒裝。掃描報告有「掃不到內容的檔案」清單：

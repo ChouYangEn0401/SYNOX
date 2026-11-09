@@ -45,7 +45,7 @@ packs/money/
 | `requires.config` | | `config.json` 要有的欄位；缺了就不載入（doctor 會說缺什麼） |
 | `requires.env` | | 要有的環境變數（清單或 `{名字: 說明}`）；缺了就不載入。kind=cli 時**這些名字也是子程序唯一看得到的密鑰**：SYNOX 叫工具時會把像密鑰的變數（`*_TOKEN`、`*_API_KEY`、`*_SECRET`、`*_PASSWORD`…）拿掉，只放行這裡（和 `auth.fields[].env`）列的 |
 | `requires.synox` | | SYNOX 最低版本，例如 `">=0.3"`（逗號接好幾個：`">=0.3,<1.0"`；只寫 `"0.3"`＝`>=0.3`）。寫錯＝pack.json 不合；這台的 SYNOX 不合＝**不載入**（狀態「SYNOX 版本不合」），doctor、`packs status`、安裝報告會說要哪一版、這台是哪一版 |
-| `requires.pip` | | 給人看的（v0 不會自動 pip install） |
+| `requires.pip` | | 要的 Python 套件。`runtime.python` 是 `"auto"`（只給 kind=cli）時，安裝會建 venv 照這份裝，每一項都要是 `名字==版本`（見下面「依賴與環境自動建置」）；沒有 `auto`＝SYNOX 不會幫你裝，只是給人看 |
 | `web.panel` | | Web UI 工具頁的面板：pack 資料夾裡的一個 `.html`（不能用 `..`、絕對路徑）。網頁在 `<iframe sandbox="allow-scripts allow-same-origin">` 裡掛 `/packs/<name>/panel`，只給看得到這個 pack 的人 |
 | `web.api` | | 面板能打的資料：`["GET /summary"]`（只支援 GET，名字小寫英數字）。pack 在 `install` 裡用 `pack.web_route("summary", fn)` 掛，`fn(user)` 回可以轉 JSON 的東西（**只回這個人自己的**：用 `pack.store.of(user)`）。沒宣告的 route 掛了也打不到 |
 
@@ -135,7 +135,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | `commands[].fields[].kind` | `text`（預設）｜`int`（整數，可有千分位逗號）｜`number`（數字）｜`bool`（是／否：`yes/no`、`true/false`、`1/0`、`是/否`…）｜`path`（值一定要在使用者自己的資料夾裡，第 4 關）｜`choice`（要寫 `choices: ["Red", "Blue"]`，大小寫不拘）。對 AI 的參數 schema 一律是字串；SYNOX 在交給程式**之前**照 kind 檢查（人打字與 AI 呼叫都會），不合回一句人話（例如「次數要是整數（例如 3）」）、不執行。交給程式的值整理過：`bool` → `true`／`false`、`int`／`number` 拿掉逗號、`choice` 換成 `choices` 裡的拼法 |
 | `cli.python` | `{python}` 換成什麼：絕對路徑｜`"venv"`（`<pack 資料夾>/../.venv` 的 python）｜沒寫＝看 `runtime`，再沒有＝SYNOX 自己的 Python |
 | `runtime.python`、`runtime.python_posix` | 另一種寫法（金流簿用的）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它。**`"auto"`**＝安裝時自動建 venv（見下面「依賴與環境自動建置」；跟 `cli.python` 不能同時寫） |
-| `runtime.node` | `{node}` 換成什麼：相對於 pack 資料夾（或絕對路徑）；**`"auto"`**＝系統的 node＋安裝時照 `package-lock.json` 裝套件；沒寫＝系統的 node |
+| `runtime.node` | **只給 kind=cli**（kind=mcp 寫了＝pack.json 不合；mcp 的 `{node}` 一律是系統的 node）。`{node}` 換成什麼：相對於 pack 資料夾（或絕對路徑）；**`"auto"`**＝系統的 node＋安裝時照 `package-lock.json` 裝套件；沒寫＝系統的 node。用到 `{node}` 的 pack 是 T2 |
 | `env`（最上層）、`cli.env` | 子程序多帶的環境變數；兩個合併，`cli.env` 優先。值可以用下面的代換。名字像密鑰的（`*_TOKEN`…）一樣會被拿掉，除非列在 `requires.env` |
 | `web.routes` | cli pack 的面板資料：`{"route": "command"}`；沒寫＝同名。對應的 command 要是 `READ`、沒有必填欄位 |
 
@@ -144,13 +144,15 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 第 2 關只讀得懂 `.py`。SYNOX 照「掃得到多少」把 pack 分三層（`src/synox/packs/tier.py`；說明與限制見 [security.md](security.md)「信任層級」）：
 
 - **T0** 只有宣告：connector、只登記的 mcp。
-- **T1** 原始碼：資料夾裡只有 `.py` 與資料檔。
+- **T1** 原始碼：資料夾裡只有第 2 關掃得到的 `.py` 與純資料檔。
 - **T2** 二進位或外部相依，只要有一項就是：
   - 資料夾裡有**掃不到內容的檔**：`.exe .dll .com .bat .cmd .ps1 .vbs .sh .so .dylib .pyd .pyc .pyo .jar .class .node .wasm .msi .scr`、
-    `node_modules/`、檔頭是 MZ+PE／ELF／Mach-O 的檔（副檔名寫什麼都一樣）、沒有副檔名但帶執行位元（zip 裡的 unix 權限）或 `#!` 開頭、
+    別的語言的原始碼（`.js .mjs .cjs .ts .tsx .jsx .rb .pl .php .lua .go .rs .java .kt .cs .psm1 .bash .zsh…`，完整清單是
+    `src/synox/packs/scan.py` 的 `SOURCE_EXT`）、`node_modules/`、檔頭是 MZ+PE／ELF／Mach-O 的檔（副檔名寫什麼都一樣）、沒有副檔名但帶執行位元（zip 裡的 unix 權限）或 `#!` 開頭、
     `__pycache__` 裡對不到同一層 `.py` 的編譯檔。→ **`capabilities` 一定要有 `exec`**，不然拒裝。
-  - `cli.argv`／`mcp.argv` 指到 **pack 外的程式**：`argv[0]` 不是 `{python}`／`{node}`／`./…`（例如 `npx`、`git`、`C:\…\x.exe`），
-    後面一段是絕對路徑或 `..`，或 `{python} -m 模組` 而模組不在 pack 裡。不擋，報告記解析後的路徑、標「未鎖定執行環境」。
+  - `cli.argv`／`mcp.argv` 指到 **pack 外的程式**：`argv[0]` 不是 `{python}`／`./…`（例如 `{node}`、`npx`、`git`、`C:\…\x.exe`），
+    後面一段是直譯器（`node`、`npx`、`deno`、`bun`、`ruby`、`perl`、`php`…）、絕對路徑或 `..`，或 `{python} -m 模組` 而模組不在 pack 裡。
+    不擋，報告記解析後的路徑（只查 PATH，不執行）、標「未鎖定執行環境」。
   - `runtime.python`／`runtime.node` = `"auto"`（會裝 `requires.pip`／`package-lock.json` 的套件）。
 
 T2 的安裝報告有紅字一段（會執行什麼、會裝哪些套件、外部程式解析到哪），**`pack.json` 一定要寫 `publisher`**，安裝者要明確輸入它：
@@ -289,7 +291,7 @@ def install(app, pack):
 ```
 
 - `{python}` 等代換見上面「kind=cli 的代換」；`./` 開頭的換成 pack 資料夾裡的路徑。
-- 每個 command 的填法跟內建的 python pack 一樣（2026-11-10 起）：**照位置填、`key=value` 補、選填的不追問**。
+- 每個 command 的填法跟內建的 python pack 一樣：**照位置填、`key=value` 補、選填的不追問**。
   `/moneybook 120 午餐` 直接存。`commands[].positional`＝前幾個欄位能照位置填（沒寫＝必填的個數；最後一個位置欄位吃掉剩下的字）；
   有驗證碼欄位（`fresh_code`）的 command 才走 SDK Forms（碼永遠最後問）。值以 `-` 開頭一律拒絕；loader 自己組 argv，
   因為開頭、env、cwd 要照「這一次是誰」代換。

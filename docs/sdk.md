@@ -244,11 +244,13 @@ SDK 只是幫你產生 pack.json、印信封。SYNOX 跟工具的接口只有 CL
 要給成員用，對方得選 `core`，或者把 pack 寫成 kind=cli（之後有沙盒可以包）。
 
 **附了執行檔或外部相依＝T2**（[pack-format.md](pack-format.md)「信任層級」）：pack 裡有 `.exe`／`.dll`／`.bat`／`.sh`／`.so`／`.pyc`、
-`node_modules/`、檔頭是執行檔的檔，或 `cli.argv` 叫 `npx`／`git` 這類 pack 外的程式，或 `runtime` 寫 `auto` 會裝套件。
+別的語言的原始碼（`.js`／`.ts`／`.rb`／`.php`／`.go`…）、`node_modules/`、檔頭是執行檔的檔，或 `cli.argv`／`mcp.argv` 叫 `{node}`／`npx`／`git`
+這類 pack 外的程式，或 `runtime` 寫 `auto` 會裝套件。
 這種 pack：`capabilities` 要宣告 `exec`（資料夾裡有掃不到內容的檔時）、`pack.json` **一定要寫 `publisher`**，
 對方安裝時要一字不差地輸入你的 publisher（`--trust-publisher "<publisher>"` 或網頁勾選＋輸入）。之後換 publisher、
 新增 exec、多附執行檔，對方升級時都會看到紅字、要重新輸入。伺服器版的 T2 pack 沒有真沙盒＝只有擁有者看得到。
-能用純 `.py` 寫完就別附執行檔：T1 的 pack 對方看得到你做什麼，T2 只能「信你」。`synox-sdk check` 會照樣列出掃不到內容的檔。
+能用純 `.py` 寫完就別附執行檔：T1 的 pack 對方看得到你做什麼，T2 只能「信你」。`synox-sdk check` 會印出信任層級、掃不到內容的檔、pack 外的程式、MCP 工具與 effect、`requires.pip` 有沒有釘死；
+T2 沒寫 `publisher` 會警告，而且結束碼不是 0（安裝時一定會被擋）。
 
 ## 還沒做的
 

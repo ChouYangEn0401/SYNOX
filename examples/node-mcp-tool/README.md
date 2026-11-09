@@ -23,9 +23,10 @@
   宣告了 `exec` 的 pack 只有擁有者看得到（角色能力上限，見 [docs/tools.md](../../docs/tools.md)「權限欄位」）。
 - **`publisher`**：給安裝的人看「信的是誰」。T2 的 pack 一定要寫，安裝時要一字不差地輸入它。
 
-> **注意（現在的 SYNOX 怎麼算這個範例）**：`synox-sdk check` 會過；信任層級目前算 **T1**——`.js` 不在「掃不到內容的檔」清單裡，
-> `{node}` 也不算 pack 外的程式。所以安裝時**不會**要你輸入 publisher。這跟「第 2 關讀不懂 .js」不一致，已回報給維護者決定
-> （見 [docs/tools.md](../../docs/tools.md)「信任層級」）。作者這邊照實宣告 `exec`、寫好 `publisher`，規則收緊時不用改。
+> **信任層級：T2**。`server.js` 是別的語言的原始碼（第 2 關讀不懂，算「掃不到內容的檔」），`{node}` 是 pack 外的直譯器
+> （報告記它解析到這台的哪裡、標「未鎖定執行環境」；掃描只查路徑，不執行 node）。所以 `capabilities` 一定要有 `exec`，
+> 安裝時要一字不差地輸入 publisher「SYNOX examples」（見 [docs/tools.md](../../docs/tools.md)「信任層級」）。
+> `synox-sdk check` 會過，並印出這些。
 >
 > `runtime.node` 目前只給 kind=cli 用（kind=mcp 寫了第 1 關會拒），所以這個範例沒有寫 `runtime`。
 
