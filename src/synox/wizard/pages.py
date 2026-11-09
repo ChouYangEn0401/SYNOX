@@ -276,8 +276,11 @@ class Wizard:
         tk, ttk = self.tk, self.ttk
         desk = tk.BooleanVar(value=True)
         auto = tk.BooleanVar(value=False)
+        packs = tk.BooleanVar(value=True)
         ttk.Checkbutton(self.body, text="在桌面放一個「SYNOX」捷徑", variable=desk).pack(anchor="w", pady=4)
         ttk.Checkbutton(self.body, text="開機後自動啟動 SYNOX（看得到的小視窗，隨時可以關）", variable=auto).pack(anchor="w")
+        ttk.Checkbutton(self.body, text="讓 .synoxpack 檔案點兩下就安裝（裝之前一樣會先檢查、給你按確認）",
+                        variable=packs).pack(anchor="w", pady=4)
         title, _one, _two = logic.mode_lines(self.mode)
         status = self.label(f"這台是：{title}。\n按「完成並開始」：寫好設定、打開 bot，手機會收到「我在了」。")
 
@@ -301,6 +304,12 @@ class Wizard:
                     shortcuts.disable_autostart()
             except OSError as e:
                 notes.append(f"開機自動啟動 ❌ {e}")
+            if packs.get():
+                try:
+                    shortcuts.register_synoxpack(ROOT)
+                    notes.append(".synoxpack 點兩下安裝 ✅")
+                except OSError as e:
+                    notes.append(f".synoxpack 點兩下安裝 ❌ {e}")
             start = os.path.join(ROOT, "Start.bat")
             subprocess.Popen(["cmd", "/c", start], cwd=ROOT, creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
             link = logic.web_login_link(self.config_path)

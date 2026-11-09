@@ -5,6 +5,8 @@
 - 開機自動啟動：啟動資料夾（shell:startup）放一個 SYNOX.cmd（ASCII＋CRLF：cmd.exe 用主控台字碼頁讀 .bat/.cmd）。
   SYNOX 資料夾的路徑有中文時 .cmd 寫不成 ASCII，改放一個 .lnk（WScript.Shell 吃 Unicode）。
 刪掉那個檔案就不會自動啟動了。
+- .synoxpack 點兩下就安裝（使用者在精靈完成頁勾的才做）：HKCU\Software\Classes 底下登記副檔名與 ProgID，
+  打開＝`<SYNOX>\Install-Pack.bat "%1"`（跑安全檢查、開網頁設定頁給人按確認）。只寫目前使用者，不要管理員權限。
 """
 
 from __future__ import annotations
@@ -14,6 +16,43 @@ import subprocess
 from typing import Optional
 
 STARTUP_NAME = "SYNOX"
+PACK_EXT = ".synoxpack"
+PACK_PROGID = "SYNOX.Pack"
+
+
+def synoxpack_keys(root: str):
+    """登記 .synoxpack 要寫的 HKCU 機碼：[(子機碼, 值名稱（"" ＝預設值）, 字串), …]。測試只驗這份清單。"""
+    bat = os.path.join(root, "Install-Pack.bat")
+    classes = "Software\\Classes"
+    return [
+        (f"{classes}\\{PACK_EXT}", "", PACK_PROGID),
+        (f"{classes}\\{PACK_EXT}", "Content Type", "application/zip"),
+        (f"{classes}\\{PACK_PROGID}", "", "SYNOX 功能包"),
+        (f"{classes}\\{PACK_PROGID}\\shell\\open", "", "用 SYNOX 安裝"),
+        (f"{classes}\\{PACK_PROGID}\\shell\\open\\command", "", f'"{bat}" "%1"'),
+    ]
+
+
+def register_synoxpack(root: str, writer=None) -> None:
+    """寫 HKCU（不要管理員權限）。writer(子機碼, 名稱, 值) 給測試換掉；預設用 winreg。"""
+    if writer is None:
+        import winreg
+
+        def writer(subkey, name, value):
+            with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, subkey, 0, winreg.KEY_SET_VALUE) as key:
+                winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
+    for subkey, name, value in synoxpack_keys(root):
+        writer(subkey, name, value)
+    _notify_shell()
+
+
+def _notify_shell() -> None:
+    """告訴檔案總管關聯改了（SHChangeNotify），不然圖示、開啟方式要登出才更新。失敗不要緊。"""
+    try:
+        import ctypes
+        ctypes.windll.shell32.SHChangeNotify(0x08000000, 0, None, None)
+    except Exception:
+        pass
 
 
 def _ps_quote(value: str) -> str:

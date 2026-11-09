@@ -201,6 +201,28 @@ def _check_commands(commands, strict: bool, problems: List[str]) -> List[dict]:
     return out
 
 
+def _cli_routes(web_raw: dict, api: List[str], commands: List[dict], problems: List[str]) -> Dict[str, str]:
+    """kind=cli 的面板資料：web.api 的每個 route 由一個 READ、沒有必填欄位的 command 回答
+    （web.routes 可以指定 {route: command}，沒寫＝同名）。"""
+    mapping = web_raw.get("routes") or {}
+    if not isinstance(mapping, dict):
+        problems.append("web.routes 要是 {route: command}")
+        mapping = {}
+    by_name = {c.get("name"): c for c in commands if isinstance(c, dict)}
+    out = {}
+    for route in api:
+        target = mapping.get(route, route)
+        c = by_name.get(target)
+        if c is None:
+            problems.append(f"web.api 的 {route} 沒有對應的 command（cli pack 用同名的 command 或 web.routes 指定）")
+        elif norm_effect(c.get("effect")) not in ("", "READ") or \
+                any(isinstance(f, dict) and f.get("required") for f in c.get("fields") or []):
+            problems.append(f"web.api 的 {route} 對應的 command {target} 要是 READ、而且沒有必填欄位")
+        else:
+            out[route] = target
+    return out
+
+
 def _check_v2(raw: dict, kind, problems: List[str]) -> dict:
     """v2 的欄位：capabilities、publisher、integrity、auth、mcp。回整理過的值。"""
     caps_raw = raw.get("capabilities")
@@ -339,6 +361,8 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     if not isinstance(requires, dict):
         problems.append("requires 要是物件")
     web = parse_web(raw.get("web"), folder, problems)
+    if kind == "cli" and web["api"] and isinstance(cli.get("commands"), list):
+        web["routes"] = _cli_routes(raw.get("web") or {}, web["api"], cli["commands"], problems)
     if problems:
         raise ManifestError("；".join(problems))
     auth_type = extra["auth_info"].get("type", "none")
