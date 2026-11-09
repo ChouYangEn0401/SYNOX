@@ -4,7 +4,7 @@
     允許 = SDK authorize（角色、owner_only、private_only、elevated、interactive）
          ∧ pack.capabilities ⊆ ceiling(role(user))        ← 這一版加的（擁有者不受限）
          ∧ node 所屬 pack ∈ bot.packs、effect ≤ bot.max_effect   ← PERM-4（bot：收到這則訊息的 Discord bot）
-         ∧ 頻道：surfaces／data                               ← PERM-2 才做
+         ∧ 頻道型 bot：pack.surfaces ∋ channel ∧ pack.data ≠ user；effect < DANGER；WRITE 只限 data=shared 且角色 ≥ 成員  ← PERM-5
 
 - **能力上限是「可見性」，不是攔 syscall**：角色的上限裝不下 pack 宣告的 capabilities → 那個 pack 對這個角色整組不存在
   （/help、選單、網頁、AI 工具清單都沒有；打了跟 owner_only 被拒一樣）。做法有兩層：
@@ -29,12 +29,20 @@
   「對這個人不存在」的（bot 範圍外的 pack、角色能力上限裝不下的 pack）一律回 reason="owner_only"，
   SDK dispatcher 就回跟不存在的指令一模一樣的「未知指令」，不洩漏它存在；打群組名（/money）也一樣（_hidden_from）。
   SDK 本身不改（vendor/ 照舊）。
+- **頻道（PERM-5）**：bot 是頻道型（surface=channel）＝這則訊息來自伺服器頻道。
+  - 只有 pack.json 的 surfaces 含 channel 且 data ≠ user 的 pack 存在（"bot_channel"，當作不存在＝「未知指令」，
+    結構上洩不出個人資料）；內建指令只留 CHANNEL_BUILTINS（/help、/start、/exit），其他也當作不存在。
+  - DANGER 永遠拒（不管 max_effect）；WRITE 要 max_effect=write、pack 的 data=shared、而且（有效）角色至少成員（"bot_effect"）。
+  - AI 當作關（PERM-6 才做頻道 AI）：agent 群組不存在、閒聊本來就因為 chat_id ≠ user 不回。
+  - 有效角色：DiscordEntry 用 `using_role_floor(角色)` 帶進 Discord 身分組對應來的角色（role_map，已經封頂在成員）；
+    decide 用 max(users.json 的角色, 那個角色) 判斷，**不寫回 users.json**（`effective_user` 回一個複本）。
 """
 
 from __future__ import annotations
 
 import contextlib
 import contextvars
+import dataclasses
 import logging
 from types import SimpleNamespace
 from typing import Callable, Dict, FrozenSet, Iterable, Optional
@@ -53,10 +61,13 @@ DEFAULT_SANDBOX = {"backend": "auto", "required_for": "third-party"}          # 
 HIDDEN_GROUPS = ("agent", "sudo")                                             # 不給 AI 當工具的內建群組
 AGENT_GROUP = "agent"
 EFFECT_ORDER = (READ, WRITE, DANGER)
-HIDDEN_REASONS = ("capability", "bot_pack", "bot_ai")                        # 對這個人／這個 bot 當作不存在
+HIDDEN_REASONS = ("capability", "bot_pack", "bot_ai", "bot_channel")         # 對這個人／這個 bot 當作不存在
+CHANNEL_SURFACE = "channel"
+CHANNEL_BUILTINS = ("help", "start", "exit")                                  # 頻道裡還在的內建指令
 _SDK_AUTHORIZE = "_synox_sdk_authorize"
 
 _current_bot: "contextvars.ContextVar[object]" = contextvars.ContextVar("synox_bot", default=None)
+_role_floor: "contextvars.ContextVar[object]" = contextvars.ContextVar("synox_role_floor", default=None)
 
 
 def _error(text: str) -> Exception:
@@ -228,9 +239,70 @@ def effect_ok(bot, effect) -> bool:
     return cap is None or effect_rank(effect) <= effect_rank(cap)
 
 
+def is_channel_bot(bot) -> bool:
+    return bot is not None and getattr(bot, "surface", None) == CHANNEL_SURFACE
+
+
 def bot_ai_enabled(bot) -> bool:
+    if is_channel_bot(bot):
+        return False                              # 頻道 AI 是 PERM-6：這一版頻道型 bot 一律當作 AI 關
     ai = getattr(bot, "ai", None)
     return bool(ai.get("enabled", True)) if isinstance(ai, dict) else (ai is None or bool(ai))
+
+
+def pack_in_channel(manifest) -> bool:
+    """這個 pack 能出現在頻道嗎：pack.json 的 surfaces 含 channel，而且資料不是每個人自己的（data ≠ user）。"""
+    surfaces = getattr(manifest, "surfaces", None) or ["dm"]
+    return CHANNEL_SURFACE in surfaces and getattr(manifest, "data", "none") != "user"
+
+
+def channel_effect_ok(bot, effect, data) -> bool:
+    """頻道型 bot 上這個 effect 可不可能放行（不看人）：DANGER 永遠不行；WRITE 要 max_effect=write 且 data=shared。"""
+    rank = effect_rank(effect)
+    if rank >= effect_rank(DANGER) or not effect_ok(bot, effect):
+        return False
+    return rank < effect_rank(WRITE) or data == "shared"
+
+
+# ── 有效角色（PERM-5：Discord 身分組 role_map，上限成員，不寫回）────────────
+
+def member_role(roles):
+    """角色階梯的「成員」（第二低那一級；只有一級時就是那一級）。"""
+    ladder = sorted(set(roles))
+    return ladder[1] if len(ladder) > 1 else ladder[0]
+
+
+def role_floor_from(roles, names: Iterable[str]):
+    """role_map 對到的角色名字（guest／member）→ 最高那一個，封頂在成員；沒有回 None。"""
+    by_name = {_role_name(r): r for r in set(roles)}
+    found = [by_name[n] for n in names if n in by_name]
+    if not found:
+        return None
+    return min(max(found), member_role(roles))
+
+
+@contextlib.contextmanager
+def using_role_floor(role):
+    """這段程式裡的權限判斷，角色至少算 role（role_map 來的；None＝不加）。"""
+    token = _role_floor.set(role)
+    try:
+        yield role
+    finally:
+        _role_floor.reset(token)
+
+
+def effective_user(app, user):
+    """這次請求用的角色：max(users.json 的角色, role_map 來的角色（封頂成員）)。回複本，不改 users.json 裡的那一個。"""
+    floor = _role_floor.get()
+    if floor is None or user is None or app.registry.is_owner(user):
+        return user
+    floor = min(floor, member_role(app.registry.roles))
+    if user.role >= floor:
+        return user
+    try:
+        return dataclasses.replace(user, role=floor)
+    except TypeError:                             # 不是 dataclass（測試的假物件）：照原本
+        return user
 
 
 def effect_label(effect) -> str:
@@ -247,13 +319,40 @@ def bot_scope(app, node: Node, bot) -> Optional[Decision]:
     """bot 範圍擋下來就回 Decision；放行回 None。bot=None＝不限制。"""
     if bot is None or node is None:
         return None
-    if node.path.split(".")[0] == AGENT_GROUP:
+    top = node.path.split(".")[0]
+    if top == AGENT_GROUP:
         return None if bot_ai_enabled(bot) else Decision(False, "bot_ai")
     pack = pack_of(app, node)
     if pack is not None and not pack_listed(bot, pack.name):
         return Decision(False, "bot_pack")
+    if is_channel_bot(bot):
+        if pack is None and top not in CHANNEL_BUILTINS:
+            return Decision(False, "bot_channel")
+        if pack is not None and not pack_in_channel(pack.manifest):
+            return Decision(False, "bot_channel")
+        if not node.is_group and effect_rank(node.effect) >= effect_rank(DANGER):
+            return Decision(False, "bot_effect", channel_refusal(node))
     if not node.is_group and not effect_ok(bot, node.effect):
         return Decision(False, "bot_effect", bot_refusal(bot, node))
+    return None
+
+
+def channel_refusal(node: Node) -> str:
+    if effect_rank(node.effect) >= effect_rank(DANGER):
+        return f"🔒 {node.command} 是「{effect_label(node.effect)}」的動作，頻道裡不能做；這個動作要到私訊做。"
+    return f"🔒 {node.command} 會改資料，頻道裡只有共用資料的 pack、成員以上才能做；要做這件事請到私訊。"
+
+
+def channel_write(app, user, node: Node, bot) -> Optional[Decision]:
+    """頻道型 bot 上的 WRITE：pack 的 data 要是 shared，而且（有效）角色至少成員。"""
+    if not is_channel_bot(bot) or node is None or node.is_group or effect_rank(node.effect) != effect_rank(WRITE):
+        return None
+    pack = pack_of(app, node)
+    data = getattr(pack.manifest, "data", "none") if pack is not None else "none"
+    if data != "shared":
+        return Decision(False, "bot_effect", channel_refusal(node))
+    if not app.registry.is_owner(user) and user.role < member_role(app.registry.roles):
+        return Decision(False, "bot_effect", channel_refusal(node))
     return None
 
 
@@ -264,7 +363,7 @@ def hidden(app, user, node: Node, bot=None) -> bool:
     blocked = bot_scope(app, node, current_bot() if bot is None else bot)
     if blocked is not None and blocked.reason in HIDDEN_REASONS:
         return True
-    return not capability_ok(app, user, pack_of(app, node))
+    return not capability_ok(app, effective_user(app, user), pack_of(app, node))
 
 
 def _sdk_authorize(registry):
@@ -288,6 +387,10 @@ def decide(app, user, node: Node, *, via: str, chat_id: Optional[int] = None, bo
         if not registry.is_owner(user) and user.role <= registry.lowest_role:
             return Decision(False, "ai")              # 訪客沒有 AI 工具：伺服器版的 AI 從成員開始
     blocked = bot_scope(app, node, bot)
+    if blocked is not None:
+        return blocked
+    user = effective_user(app, user)
+    blocked = channel_write(app, user, node, bot)
     if blocked is not None:
         return blocked
     if not capability_ok(app, user, pack_of(app, node)):

@@ -25,7 +25,8 @@ import time
 from typing import Callable, Optional
 
 GATEWAY_URL = "wss://gateway.discord.gg/?v=10&encoding=json"
-INTENTS = (1 << 12) | (1 << 15)        # DIRECT_MESSAGES | MESSAGE_CONTENT
+INTENTS = (1 << 12) | (1 << 15)        # DIRECT_MESSAGES | MESSAGE_CONTENT（私訊型 bot）
+CHANNEL_INTENTS = (1 << 0) | (1 << 9) | (1 << 15)   # GUILDS | GUILD_MESSAGES | MESSAGE_CONTENT（頻道型 bot，PERM-5）
 FATAL_CLOSE = {4004: "bot token 不對（4004）", 4010: "分片設定錯（4010）", 4011: "需要分片（4011）",
                4012: "Gateway 版本錯（4012）", 4013: "intents 數值不對（4013）",
                4014: "Developer Portal 沒開 Message Content intent（4014）"}
@@ -92,10 +93,12 @@ class Gateway:
     def __init__(self, token: str, on_dispatch: Callable[[str, dict], None], *, intents: int = INTENTS,
                  connect: Callable[[str], object] = WebSocketClientConn, url: str = GATEWAY_URL,
                  clock: Callable[[], float] = time.monotonic, rand: Callable[[], float] = random.random,
-                 backoff_max: float = 60.0, label: str = "discord"):
+                 backoff_max: float = 60.0, label: str = "discord",
+                 on_ready: Optional[Callable[[dict], None]] = None):
         self._token = token
         self.label = label                # log 用（多個 bot 時分得出是哪一條）
         self.on_dispatch = on_dispatch
+        self.on_ready = on_ready          # READY 時拿到 bot 自己（頻道型 bot 認 @ 要用它的 id）
         self.intents = intents
         self._connect = connect
         self.url = url
@@ -229,6 +232,11 @@ class Gateway:
             self.resume_url = d.get("resume_gateway_url")
             self.user = d.get("user") or {}
             logging.info("[DISCORD] %s connected as %s", self.label, self.user.get("username", "?"))
+            if self.on_ready is not None:
+                try:
+                    self.on_ready(self.user)
+                except Exception:
+                    logging.exception("[DISCORD] %s on_ready failed", self.label)
             return
         if event == "RESUMED":
             return
