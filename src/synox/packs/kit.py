@@ -25,8 +25,32 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 from isdtelekit.core.registry import Field, Group, Node, field_pattern
 
 
+MASK = "***"
+
+# 看起來是 token 的樣式（頻道 AI 的回覆遮罩 agent/room.py、log 的 [ROUTE]／[AGENT] 行都用這一份）
+TOKEN_PATTERNS = [
+    re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?-----END [A-Z ]*PRIVATE KEY-----"),
+    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/\-]{16,}=*"),
+    re.compile(r"\b[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{6,}\.[A-Za-z0-9_\-]{20,}\b"),   # Discord bot token、JWT
+    re.compile(r"\b\d{6,12}:[A-Za-z0-9_\-]{30,}\b"),                                  # Telegram bot token
+    re.compile(r"\bsk-[A-Za-z0-9_\-]{16,}"),                                          # OpenAI／Anthropic 類
+    re.compile(r"\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,})"),
+    re.compile(r"\bxox[abprs]-[A-Za-z0-9\-]{10,}"),
+    re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
+    re.compile(r"\bAIza[0-9A-Za-z_\-]{30,}"),
+]
+TOKEN_LOG_PREFIXES = ("[ROUTE]", "[AGENT]")       # 這幾種 log 行會帶人打的字或 AI 的參數：一律先遮 token 樣式
+
+
+def mask_tokens(text: str) -> str:
+    for pattern in TOKEN_PATTERNS:
+        text = pattern.sub(MASK, text)
+    return text
+
+
 class _RedactArgs(logging.Filter):
-    """把 log 裡「/指令 後面的字」換成 ***（SDK dispatcher 的 [ROUTE] 那一行會印人打的整句話）。"""
+    """把 log 裡「/指令 後面的字」換成 ***（SDK dispatcher 的 [ROUTE] 那一行會印人打的整句話）；
+    [ROUTE]／[AGENT] 開頭的行另外把看起來是 token 的片段換成 ***（審查 A #7：人把 token 貼在指令裡）。"""
 
     def __init__(self):
         super().__init__("synox-redact")
@@ -42,11 +66,13 @@ class _RedactArgs(logging.Filter):
 
     def redact(self, text: str) -> str:
         pattern = self._pattern
-        return pattern.sub(lambda m: m.group(1) + " ***", text) if pattern is not None else text
+        if pattern is not None:
+            text = pattern.sub(lambda m: m.group(1) + " ***", text)
+        if text.startswith(TOKEN_LOG_PREFIXES):
+            text = mask_tokens(text)
+        return text
 
     def filter(self, record: logging.LogRecord) -> bool:
-        if self._pattern is None:
-            return True
         try:
             message = record.getMessage()
         except Exception:
@@ -60,13 +86,18 @@ class _RedactArgs(logging.Filter):
 _REDACT = _RedactArgs()
 
 
+def install_log_redaction() -> None:
+    """把遮罩裝在 root logger 上（SDK 的 dispatcher 用 logging.info）。重複叫沒關係。"""
+    root = logging.getLogger()
+    if _REDACT not in root.filters:
+        root.addFilter(_REDACT)
+
+
 def redact_in_logs(command: str) -> None:
     """這個指令（例如 "/todoist_token"）後面跟的字不准出現在 log：裝在 root logger 上（SDK 的 dispatcher 用 logging.info）。
     給「參數是密鑰」的指令用；記得也設 ai=False，不讓密鑰經過 AI。"""
     _REDACT.add(command)
-    root = logging.getLogger()
-    if _REDACT not in root.filters:
-        root.addFilter(_REDACT)
+    install_log_redaction()
 
 
 def number(value: str) -> Optional[str]:

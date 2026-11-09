@@ -54,6 +54,8 @@ class AgentFallback:
 
 
 def install(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLoop]:
+    from synox.packs import kit
+    kit.install_log_redaction()                     # [ROUTE]／[AGENT] 行的 token 樣式一律遮掉（審查 A #7）
     registry = app.registry
     server = getattr(config, "mode", "personal") == "server"
     # private_only：群組裡打 /ai 不行（跟 /web 一樣）——AI 拿得到這個人的私人工具與記憶，不能在多人看得到的地方用
