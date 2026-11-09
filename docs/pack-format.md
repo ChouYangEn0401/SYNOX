@@ -70,7 +70,8 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | `commands[].effect` | cli 的每個 command：`READ`／`WRITE`／`DANGER`（大小寫都收）。`commands` 也可以放最上層（等於 `cli.commands`） |
 | `commands[].fields[].kind` | `text`（預設）｜`int`（整數，可有千分位逗號）｜`number`（數字）｜`bool`（是／否：`yes/no`、`true/false`、`1/0`、`是/否`…）｜`path`（值一定要在使用者自己的資料夾裡，第 4 關）｜`choice`（要寫 `choices: ["Red", "Blue"]`，大小寫不拘）。對 AI 的參數 schema 一律是字串；SYNOX 在交給程式**之前**照 kind 檢查（人打字與 AI 呼叫都會），不合回一句人話（例如「次數要是整數（例如 3）」）、不執行。交給程式的值整理過：`bool` → `true`／`false`、`int`／`number` 拿掉逗號、`choice` 換成 `choices` 裡的拼法 |
 | `cli.python` | `{python}` 換成什麼：絕對路徑｜`"venv"`（`<pack 資料夾>/../.venv` 的 python）｜沒寫＝看 `runtime`，再沒有＝SYNOX 自己的 Python |
-| `runtime.python`、`runtime.python_posix` | 另一種寫法（金流簿用的）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它 |
+| `runtime.python`、`runtime.python_posix` | 另一種寫法（金流簿用的）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它。**`"auto"`**＝安裝時自動建 venv（見下面「依賴與環境自動建置」；跟 `cli.python` 不能同時寫） |
+| `runtime.node` | `{node}` 換成什麼：相對於 pack 資料夾（或絕對路徑）；**`"auto"`**＝系統的 node＋安裝時照 `package-lock.json` 裝套件；沒寫＝系統的 node |
 | `env`（最上層）、`cli.env` | 子程序多帶的環境變數；兩個合併，`cli.env` 優先。值可以用下面的代換。名字像密鑰的（`*_TOKEN`…）一樣會被拿掉，除非列在 `requires.env` |
 | `web.routes` | cli pack 的面板資料：`{"route": "command"}`；沒寫＝同名。對應的 command 要是 `READ`、沒有必填欄位 |
 
@@ -80,7 +81,8 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 
 | 寫法 | 換成 |
 |---|---|
-| `{python}` | 上面 `cli.python`／`runtime` 決定的直譯器 |
+| `{python}` | 上面 `cli.python`／`runtime` 決定的直譯器（`auto`＝`data/envs/<pack>/venv` 的 python） |
+| `{node}` | `runtime.node` 決定的 node（`auto` 或沒寫＝系統的 node） |
 | `{pack_dir}` | pack 資料夾的絕對路徑 |
 | `{data_dir}` | SYNOX 的 `data/` |
 | `{user_data_dir}` | 伺服器版 `data/users/<tg_id>`（第一次用時建立）；個人版 `data/` |
@@ -89,6 +91,25 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 欄位不能取這幾個名字。使用者給的值只換一次（值裡寫 `{data_dir}` 不會被換）。
 沒填的選填欄位：`--k={v}` 那一段拿掉；單獨一段的 `{v}` 連同前面緊鄰的字面 `--旗標` 一起拿掉。
 樣板規則（第 2 關）：只能是字面字、單獨一段的 `{欄位}`、或 `--k={欄位}`；`["--k", "{v}"]` 這種分兩段的會被拒（要寫成 `--k={v}`）。
+
+### 依賴與環境自動建置（`runtime.python`／`runtime.node` = `"auto"`，只給 kind=cli）
+
+```json
+"runtime": {"python": "auto", "python_posix": "auto"},
+"requires": {"pip": ["requests==2.32.3", "idna==3.7"]}
+```
+
+- **Python**：安裝時在 `data/envs/<pack>/venv` 跑 `python -m venv`，再
+  `pip install --no-deps --only-binary=:all: -r requirements.txt`。`requires.pip` 每一項都要是 `名字==版本`
+  （`>=`、`~=`、萬用字元、extras、環境標記、網址、`-r`／`--index-url` 之類都算 pack.json 不合）；`--no-deps` 所以相依的套件也要自己列。
+  只裝現成的 wheel（不在這台電腦上跑套件的 setup.py）。
+- **Node**：pack 裡要有 `package.json`＋`package-lock.json`；複製到 `data/envs/<pack>/` 後 `npm ci --ignore-scripts`
+  （套件的安裝腳本一律不跑），裝進 `data/envs/<pack>/node_modules`；子程序拿到 `NODE_PATH` 指到那裡。系統沒有 node＝doctor 說缺、pack 不載入。
+- pack 資料夾本身不寫任何東西（`packs.lock` 的雜湊才對得上）。
+- **安裝流程**：第 2 關之後、按確認之前，報告多一段「🧱 要建環境：Python venv、裝 N 個套件：名稱 版本…」；按確認、pack 裝好之後才建
+  （經 JobRunner，整個最多 10 分鐘，log 在 `data/job_logs/`）。建失敗＝pack 照樣裝好，狀態 `missing`、doctor 標「環境沒建好」並說原因
+  （沒網路會直接說「連不上網路」）。重建：`python -m synox packs env rebuild <name>`。`requires.pip` 或 `package-lock.json` 改了也要重建（doctor 會說對不上）。
+- 建置的實作在 `src/synox/packs/envs.py`（`Builder.plan(m)`／`build(m, jobs, on_done)`；`set_factory` 可換實作）。
 
 經 AI 呼叫的一般 command 會**同步**跑完，印出來的結果（攤平成文字）交回 AI 當工具結果（包在每輪的分隔符裡），由 AI 轉述給人；
 人自己打的指令照舊在背景跑、結果直接回給人。`background: true` 的 command 兩條路都一樣：先回「開始了」，做完直接通知人（AI 只知道「開始了」）。
