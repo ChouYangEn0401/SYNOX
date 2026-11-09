@@ -185,3 +185,16 @@ def save(path: str, cfg: dict, vault_opener=None) -> dict:
         cfg["llm"]["api_key"] = VAULT_PREFIX + SECRET_NAME
     write_config(path, cfg)
     return cfg
+
+
+def web_login_link(config_path: str) -> str:
+    """完成頁用：擁有者的網頁介面一次性登入連結（web.enabled=false 或設定讀不了 → ""）。"""
+    try:
+        from synox.config import SynoxConfig
+        from synox.web import issue_owner_link
+        config = SynoxConfig.load(config_path, require_token=False)
+        if not config.web.get("enabled", True) or not config.owner_id:
+            return ""
+        return issue_owner_link(config)
+    except Exception:
+        return ""

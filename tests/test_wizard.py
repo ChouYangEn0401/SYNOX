@@ -208,3 +208,15 @@ def test_enable_autostart_writes_cmd(tmp_path):
 def test_shortcut_script():
     script = shortcuts.shortcut_script(r"C:\Users\x\Desktop\SYNOX.lnk", r"C:\it's\Start.bat", r"C:\it's")
     assert "WScript.Shell" in script and "'C:\\it''s\\Start.bat'" in script and "$s.Save()" in script
+
+
+def test_finish_page_web_link(tmp_path):
+    from synox.web.tokens import LoginTokens
+    path = tmp_path / "config.json"
+    logic.write_config(str(path), {"owner_id": 42, "llm": {"kind": "none"}, "vault": {"mode": "file"}})
+    link = logic.web_login_link(str(path))
+    assert link.startswith("http://127.0.0.1:8830/login?t=")
+    token = link.split("t=", 1)[1]
+    assert LoginTokens(str(tmp_path / "data" / "web_tokens.json")).redeem(token) == 42
+    logic.write_config(str(path), {"owner_id": 42, "web": {"enabled": False}})
+    assert logic.web_login_link(str(path)) == ""

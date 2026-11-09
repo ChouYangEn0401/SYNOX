@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>記帳面板</title>
+<style>
+  :root { --bg: #ffffff; --fg: #1d2330; --muted: #5d6675; --bar: #e6e9ef; --ok: #2f8a4e; --over: #c0392b; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #171b22; --fg: #e7eaf0; --muted: #9aa3b2; --bar: #2b313c; --ok: #4cbb72; --over: #e5675a; }
+  }
+  body { margin: 0; padding: 12px; background: var(--bg); color: var(--fg);
+         font: 15px/1.5 system-ui, "Microsoft JhengHei", "PingFang TC", sans-serif; }
+  .total { font-size: 28px; font-weight: 700; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .bar { height: 12px; background: var(--bar); border-radius: 6px; overflow: hidden; margin: 8px 0; }
+  .fill { height: 100%; width: 0; background: var(--ok); }
+  .fill.over { background: var(--over); }
+  ul { padding-left: 18px; margin: 6px 0 0; }
+</style>
+</head>
+<body>
+<div class="muted" id="month">這個月</div>
+<div class="total" id="total">…</div>
+<div class="bar"><div class="fill" id="fill"></div></div>
+<div class="muted" id="budget"></div>
+<ul id="cats"></ul>
+<script>
+(function () {
+  function fmt(n) { return Number(n).toLocaleString("zh-TW", { maximumFractionDigits: 2 }); }
+  fetch("/api/packs/money/summary", { credentials: "same-origin" })
+    .then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.json(); })
+    .then(function (d) {
+      document.getElementById("month").textContent = d.month + " 共花了";
+      document.getElementById("total").textContent = fmt(d.total) + " 元";
+      var fill = document.getElementById("fill");
+      var note = document.getElementById("budget");
+      if (d.budget) {
+        var pct = Math.min(100, Math.round(d.total / d.budget * 100));
+        fill.style.width = pct + "%";
+        if (d.total > d.budget) { fill.classList.add("over"); }
+        note.textContent = "預算 " + fmt(d.budget) + " 元，" +
+          (d.left >= 0 ? "還剩 " + fmt(d.left) + " 元" : "超過 " + fmt(-d.left) + " 元");
+      } else {
+        note.textContent = "還沒設預算（/money_budget 金額）";
+      }
+      var ul = document.getElementById("cats");
+      d.by_category.forEach(function (c) {
+        var li = document.createElement("li");
+        li.textContent = c.category + "：" + fmt(c.amount) + " 元";
+        ul.appendChild(li);
+      });
+    })
+    .catch(function (e) { document.getElementById("total").textContent = "讀不到（" + e.message + "）"; });
+})();
+</script>
+</body>
+</html>

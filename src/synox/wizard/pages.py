@@ -303,6 +303,10 @@ class Wizard:
                 notes.append(f"開機自動啟動 ❌ {e}")
             start = os.path.join(ROOT, "Start.bat")
             subprocess.Popen(["cmd", "/c", start], cwd=ROOT, creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+            link = logic.web_login_link(self.config_path)
+            if link:
+                notes.append("幾秒後會打開網頁介面（之後在 Telegram 打 /web 可以再拿登入連結）")
+                self.root.after(6000, lambda: webbrowser.open(link))
             status.configure(text="✅ 設定好了，bot 開起來了。\n" + "\n".join(notes) + "\n可以關掉這個視窗。")
             self.set_next("關閉", self.close)
 

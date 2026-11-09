@@ -26,5 +26,8 @@ synox = "synox.__main__:main"
 where = ["src", "vendor"]
 include = ["synox*", "isdtelekit*"]
 
+[tool.setuptools.package-data]
+synox = ["web/static/*.html"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

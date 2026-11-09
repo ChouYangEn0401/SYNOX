@@ -51,6 +51,10 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
                 + ("　陌生人是訪客、vault 的資料每人一份 data/users/<id>/" if config.server else ""))
             out(f"  llm：{r.get('llm', {'kind': 'none'})}")
             out(f"  packs：{config.packs}　vault：{config.vault}")
+            web = config.web
+            out("  網頁介面：" + (f"開，http://127.0.0.1:{web.get('port')}/（/web 拿登入連結）"
+                                + (f"　對外網址 {web.get('public_url')}" if web.get("public_url") else "")
+                                if web.get("enabled", True) else "關（web.enabled=false）"))
             problems += 0 if config.has_token else 1
         except Exception as e:
             out(f"• 設定：❌ {e}")

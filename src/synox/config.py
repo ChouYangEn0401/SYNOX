@@ -7,7 +7,9 @@ SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、�
       "llm":   {"kind": "openai_compat", "base_url": "https://…/v1", "api_key": "vault:llm_api_key",
                 "model": "…", "tools": true, "max_steps": 6, "max_tokens": 1024},
       "vault": {"mode": "dpapi"},              dpapi（Windows 預設）｜file（金鑰明文存在 data/.synox.key）
-      "packs": {"enabled": "all", "disabled": []}
+      "packs": {"enabled": "all", "disabled": []},
+      "web":   {"enabled": true, "port": 8830, "public_url": ""},   本機網頁介面（只綁 127.0.0.1）
+      "ai_member_monthly_usd": 2.0             伺服器版：每個成員每月的 AI 額度（美元）
     }
 
 - 路徑一律相對於 SYNOX 資料夾（不管從哪裡啟動）：data_dir 沒寫就是 <SYNOX>/data。
@@ -33,6 +35,8 @@ LLM_KINDS = ("openai", "anthropic", "gemini", "openai_compat", "claude_code", "f
 DEFAULT_LLM = {"kind": "none", "max_steps": 6, "max_tokens": 1024}
 DEFAULT_VAULT = {"mode": "dpapi" if os.name == "nt" else "file"}
 DEFAULT_PACKS = {"enabled": "all", "disabled": []}
+DEFAULT_WEB = {"enabled": True, "port": 8830, "public_url": ""}
+DEFAULT_MEMBER_USD = 2.0
 MODES = ("personal", "server")
 
 
@@ -43,6 +47,8 @@ class SynoxConfig(BotConfig):
     packs: dict = field(default_factory=lambda: dict(DEFAULT_PACKS))
     mode: str = "personal"
     root: str = ROOT
+    web: dict = field(default_factory=lambda: dict(DEFAULT_WEB))
+    ai_member_monthly_usd: float = DEFAULT_MEMBER_USD
 
     @property
     def server(self) -> bool:
@@ -61,10 +67,22 @@ class SynoxConfig(BotConfig):
             raise ConfigError("config.json 的 vault.mode 只能是 dpapi 或 file。")
         packs = {**DEFAULT_PACKS, **(raw.get("packs") or {})}
         mode = parse_mode(raw.get("mode"))
+        web = {**DEFAULT_WEB, **(raw.get("web") or {})}
+        try:
+            web["port"] = int(web.get("port") or 0)
+        except (TypeError, ValueError):
+            raise ConfigError("config.json 的 web.port 要是數字（例如 8830）。")
+        if not 0 <= web["port"] <= 65535:
+            raise ConfigError("config.json 的 web.port 要在 0–65535 之間。")
+        web["enabled"] = bool(web.get("enabled", True))
+        try:
+            member_usd = float(raw.get("ai_member_monthly_usd", DEFAULT_MEMBER_USD))
+        except (TypeError, ValueError):
+            raise ConfigError("config.json 的 ai_member_monthly_usd 要是數字（美元，例如 2.0）。")
         return cls(bot_token=base.bot_token, owner_id=base.owner_id,
                    poll_interval_seconds=base.poll_interval_seconds, data_dir=data_dir,
                    stepup_minutes=base.stepup_minutes, raw=dict(raw), llm=llm, vault=vault, packs=packs, mode=mode,
-                   root=root)
+                   root=root, web=web, ai_member_monthly_usd=max(0.0, member_usd))
 
     @classmethod
     def load(cls, path: Optional[str] = None, *, require_token: bool = True,

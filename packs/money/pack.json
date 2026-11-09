@@ -10,5 +10,6 @@
   "python": { "module": "pack" },
   "requires": { "pip": [], "config": [], "env": {} },
   "skill": "SKILL.md",
-  "storage": "vault"
+  "storage": "vault",
+  "web": { "panel": "panel.html", "api": ["GET /summary"] }
 }
