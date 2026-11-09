@@ -25,7 +25,10 @@
                        不准用 pack.path（全部人共用的資料夾；要 pack.path_of(user, ...)，PERM-8）
     python data=none   不准用 pack.store、pack.path（有存資料就要宣告 user 或 shared）
     cli    data=user   樣板不准 {data_dir}（只能 {user_data_dir}）；data=none 兩個都不准
-- mcp：沒有程式可以掃；tools_allow 一定不能是空的。附了程式檔 ＝拒。
+- mcp（只登記，沒有 transport）：沒有程式可以掃；tools_allow 一定不能是空的。附了程式檔 ＝拒。
+- mcp（transport=stdio，P4a）：pack 裡附的 .py 照 cli 一樣掃；mcp.argv／env 只能用系統代換（{python}、{pack_dir}…）；
+  data 規則同 cli（樣板）；argv 指到 **pack 外面的程式**（npx、node、絕對路徑…）不擋，但列一筆 external
+  「未鎖定執行環境」：packs.lock 只鎖 pack 資料夾裡的檔，外面那支程式被換掉 SYNOX 不會發現。
 - connector：只能是宣告，不准有任何程式檔（.py 或執行檔）。
 
 **這一關看得到的只有 pack 自己的原始碼**：它 import 的第三方套件做什麼、cli 叫的那支程式做什麼，掃不到。
@@ -69,11 +72,13 @@ CODE_EXT = (".py",) + BINARY_EXT
 
 # kind → 要宣告的 capability（"" ＝只列給人看、不擋）
 CAPABILITY_OF = {"network": "network", "subprocess": "subprocess", "filesystem:own": "filesystem:own",
-                 "filesystem:any": "filesystem:any", "exec": "exec", "binary": "exec", "env": "", "secret": ""}
+                 "filesystem:any": "filesystem:any", "exec": "exec", "binary": "exec", "env": "", "secret": "",
+                 "external": ""}
 LABELS = {"network": "連網", "subprocess": "開別的程式", "filesystem:own": "讀寫檔案",
           "filesystem:any": "讀寫 pack 以外的檔案", "exec": "動態執行程式碼", "binary": "掃不到的執行檔",
           "env": "讀環境變數（可能是密鑰）", "secret": "讀使用者在「連接」填的 secret", "argv": "argv 樣板不合規則", "code": "不該有程式檔",
-          "syntax": "程式解析不了", "mcp": "MCP 設定", "data": "資料歸屬（data）不合"}
+          "syntax": "程式解析不了", "mcp": "MCP 設定", "data": "資料歸屬（data）不合",
+          "external": "未鎖定執行環境（pack 外的程式）"}
 
 _PLACEHOLDER = re.compile(r"\{(\w+)\}")
 _FLAG_VALUE = re.compile(r"^--?[A-Za-z0-9][A-Za-z0-9_-]*=\{(\w+)\}$")
@@ -453,7 +458,8 @@ def _json_line(lines: Sequence[str], text: str, needle: str) -> int:
 
 
 def _check_data_cli(m: Manifest) -> List[Finding]:
-    from synox.packs.manifest import cli_templates
+    from synox.packs.manifest import cli_templates, mcp_templates
+    templates = mcp_templates(m.mcp) if m.kind == "mcp" else cli_templates(m.cli)
     banned = {"user": ("{data_dir}",), "none": ("{data_dir}", "{user_data_dir}")}.get(m.data, ())
     if not banned:
         return []
@@ -463,7 +469,7 @@ def _check_data_cli(m: Manifest) -> List[Finding]:
     except OSError:
         lines = []
     out = []
-    for where, text in cli_templates(m.cli):
+    for where, text in templates:
         for needle in banned:
             if needle not in text:
                 continue
@@ -476,10 +482,54 @@ def _check_data_cli(m: Manifest) -> List[Finding]:
     return out
 
 
+_SYSTEM_PROGRAMS = ("{python}", "{node}")
+
+
+def external_programs(m: Manifest) -> List[str]:
+    """kind=mcp stdio 的 argv 裡指到 pack 外面的程式（樣板原文）：argv[0] 不是 {python}／{node}、不是 ./ 開頭的
+    pack 內檔案（npx、node、uvx、絕對路徑…），以及後面任何一段絕對路徑或 {pack_dir} 以外的 .. 路徑。"""
+    out: List[str] = []
+    argv = [str(a) for a in (m.mcp or {}).get("argv") or []]
+    for i, token in enumerate(argv):
+        plain = token.replace("\\", "/")
+        inside = plain.startswith(("./", "{pack_dir}/")) and ".." not in plain.split("/")
+        if i == 0:
+            if token in _SYSTEM_PROGRAMS or inside:
+                continue
+            out.append(token)
+        elif not inside and (os.path.isabs(token) or re.match(r"^[A-Za-z]:", token) or ".." in plain.split("/")):
+            out.append(token)
+    return out
+
+
+def _check_mcp_stdio(m: Manifest) -> List[Finding]:
+    out = []
+    for i, token in enumerate((m.mcp or {}).get("argv") or []):
+        token = str(token)
+        bad = [n for n in _PLACEHOLDER.findall(token) if n not in RESERVED_PLACEHOLDERS]
+        rest = _PLACEHOLDER.sub("", token)
+        if bad or "{" in rest or "}" in rest:
+            out.append(Finding("pack.json", 0, "argv", f"mcp.argv[{i}] {token!r}",
+                               f"mcp.argv 只能用字面字和 {{python}}、{{pack_dir}} 這類系統代換（{token!r}）"))
+    for k, v in ((m.mcp or {}).get("env") or {}).items():
+        if [n for n in _PLACEHOLDER.findall(str(v)) if n not in RESERVED_PLACEHOLDERS]:
+            out.append(Finding("pack.json", 0, "argv", f"mcp.env.{k}", f"mcp.env.{k} 只能用系統代換（{v!r}）"))
+    for token in external_programs(m):
+        out.append(Finding("pack.json", 0, "external", token,
+                           f"argv 用了 pack 外的程式 {token}：packs.lock 只鎖 pack 資料夾裡的檔，這支被換掉不會發現"
+                           "（未鎖定執行環境）"))
+    return out
+
+
 def scan(m: Manifest) -> ScanReport:
     files = pack_files(m.folder)
     report = ScanReport(files=len(files))
     code = [f for f in files if f.lower().endswith(CODE_EXT)]
+    if m.kind == "mcp" and m.mcp_stdio:
+        report.findings += _scan_python_files(m, files)
+        report.findings += _check_mcp_stdio(m)
+        report.findings += _check_data_cli(m)
+        return report
     if m.kind in ("connector", "mcp"):
         report.findings += [Finding(f, 0, "code", f, f"kind={m.kind} 只能是宣告，不能附程式檔") for f in code]
         if m.kind == "mcp" and not (m.mcp.get("tools_allow") or []):

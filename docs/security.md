@@ -141,9 +141,18 @@ python pack 沙盒管不到，伺服器版改用信任決定給不給成員（PE
 舊的不刪，搬到 `packs/_removed/`、旁邊留當時的鎖；`python -m synox packs rollback <name>` 搬回來時，檔案跟當時的鎖對得上才把鎖改回，
 對不上（在 `_removed` 裡被改過）就不鎖、要你重新核准。`_removed` 的舊版本身不會載入。
 
+**kind=mcp stdio（P4a）**：五關照舊、規則同 cli。第 1 關要 `mcp.argv`、`capabilities` 一定有 `subprocess`（所以預設的角色上限下
+成員、訪客看不到，只有管理員以上）；第 2 關掃 pack 裡的 `.py`、`argv`／`env` 只能用系統代換、`data` 看樣板；`argv` 指到 **pack 外面的程式**
+（`npx`、`node`、絕對路徑…）不擋，但報告與 `doctor` 標「⚠️ 未鎖定執行環境」——`packs.lock` 只鎖 pack 資料夾裡的檔，那支程式被換掉 SYNOX
+不會發現（`npx` 這種每次去網路抓的更是）。只有 `tools_allow` 列的工具存在；**effect 只看 pack.json**（伺服器的 annotations 不算，
+沒寫＝DANGER）。工具的說明（description）是第三方的字：拿掉控制字元、截到 200 字才進 `/help` 與 AI 的工具說明，AI 看到的工具結果照樣包分隔符。
+程序模型：每個（pack, 使用者）一個長駐子程序（`packs/mcp.py` 的 `PerUserScope`），環境變數、secret 是那個人的；閒置 10 分鐘收、
+崩潰下次重啟、逾時／非 JSON 的輸出＝收掉並回一句人話；Windows 上每個子程序在自己的 Job Object（KILL_ON_JOB_CLOSE），SYNOX 結束就一起結束。
+「全部人共用一個程序」（`SharedScope`）只有介面：共用時別人的 secret、資料夾要每次帶，MCP 沒有標準欄位，等擁有者決定。
+
 ## 運行空間（沙盒，PERM-7）
 
-上面五關之外，kind=cli 的子程序每次叫之前都過 `src/synox/sandbox.py`：照 pack.json 的宣告算出這一次能碰什麼（grants），
+上面五關之外，kind=cli 的子程序每次叫之前（kind=mcp stdio 的長駐子程序每次啟動之前，`grants.timeout` 空的）都過 `src/synox/sandbox.py`：照 pack.json 的宣告算出這一次能碰什麼（grants），
 交給後端把 argv 包一層。**沙盒後端的真機驗證要在 Linux 伺服器上做，寫這一版的 Windows 電腦沒驗證過**——這裡只用假後端與
 「組出來的 argv」測過，bwrap／systemd-run／AppContainer 一次都沒真的跑。上線前在伺服器上照下面的清單試一次。
 
@@ -167,7 +176,7 @@ python pack 沙盒管不到，伺服器版改用信任決定給不給成員（PE
 `auto`：個人版、Windows＝none；Linux 伺服器版＝有 bwrap 用 bwrap，沒有就 systemd-run，都沒有＝none。明寫的後端在這台用不了
 （找不到 bwrap…）＝當作 none（fail closed），doctor 說原因。
 
-**要沙盒卻沒有真隔離**：`policy.sandbox.required_for`（`third-party` 預設｜`all`｜`none`）命中的 cli pack，在伺服器版又沒有真隔離的後端
+**要沙盒卻沒有真隔離**：`policy.sandbox.required_for`（`third-party` 預設｜`all`｜`none`）命中的 cli pack（與 mcp stdio pack），在伺服器版又沒有真隔離的後端
 （none、jobobject 不算）→ 那個 pack 整組只對擁有者可見（成員、管理員、訪客看不到、AI 工具清單也沒有），`doctor` 與 `packs status`
 寫原因。個人版不受影響。誰是 third-party：packs.lock 的 `trust`（之後安裝時由擁有者選）優先；還沒寫的，經安裝流程從檔案裝進來的
 （鎖的 via＝web／console）算 third-party，出廠的與 `packs lock --approve` 的算 core。python pack 在 SYNOX 程序裡跑，沙盒管不到，
@@ -185,6 +194,8 @@ InaccessiblePaths＋BindPaths 巢狀是否照預期；`--setenv=名字` 在那�
 - 裝 pack 的五關不是沙盒（見上面「五關」最後一段）；沒鎖的 pack（出廠的、手動放進 packs/ 的）不檢查雜湊。
 - 伺服器版 `trust: core` 的 python pack、出廠的 pack 都在程序裡跑，讀得到任何人的資料（PERM-8 只管「成員看不看得到」第三方的）。
 - 個人版與 Windows 預設沒有沙盒（後端 none）：cli 子程序跟 SYNOX 一樣看得到整台電腦。Linux 的 bwrap／systemd 後端還沒在真機驗證（見「運行空間」）。
+- kind=mcp stdio 的 `argv` 指到 pack 外面的程式（`npx`…）不在 packs.lock 裡（只標「未鎖定執行環境」）；MCP 伺服器長駐，
+  一個工具呼叫留下的狀態下一次呼叫看得到（同一個人；不同人是不同程序）。
 - 不防「在你的 Windows 帳號下跑的惡意程式」。
 - 不防 prompt injection 的全部情況：工具結果包在每輪隨機的分隔符裡、提示 AI「當資料、不當指令」，真正擋住危險動作的是確認卡（結構），不是提示。
 - `claude_code` 這個 AI 來源以 `--tools ""` 跑（Claude Code 自己不能動檔案），但它走的是你本機的 Claude Code 登入。

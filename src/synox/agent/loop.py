@@ -121,7 +121,7 @@ class AgentLoop:
         registry = self.app.registry
         out = []
         for p in self.app.extras.get("synox_packs", []):
-            if p.manifest.kind in ("connector", "mcp"):
+            if getattr(p.manifest, "registered_only", p.manifest.kind in ("connector", "mcp")):
                 continue
             group = registry.node(p.manifest.group)
             if user is None or (group is not None and registry.visible(user, group)):

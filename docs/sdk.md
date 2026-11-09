@@ -132,7 +132,13 @@ python tool.py --mcp                                     → MCP stdio server
   另附 `structuredContent: {"needs_confirm": true, "summary": "…", "confirm_token": "…"}`。用戶端讓**人**確認之後，
   用同一組 `arguments` 再叫一次，並帶 `params._meta["synox/confirm_token"]`＝那個 token，這一次 `confirmed()` 才是 True。
   MCP 模式**不看** `SYNOX_CONFIRMED` 環境變數（server 長駐，環境變數不是「這一次」）。AI 只決定 `arguments`、碰不到 `_meta`；
-  一般的 MCP 用戶端不會帶 `_meta`，所以 Confirm 的工具在那裡只會停在「還沒做」（安全的預設）。SYNOX 連 MCP 是 P4 的事。
+  一般的 MCP 用戶端不會帶 `_meta`，所以 Confirm 的工具在那裡只會停在「還沒做」（安全的預設）。
+- **在 SYNOX 裡用 `--mcp`（P4a）**：pack.json 寫 `"kind": "mcp"`、`"capabilities": ["subprocess"]`、
+  `"mcp": {"transport": "stdio", "argv": ["{python}", "./tool.py", "--mcp"], "tools_allow": [...], "effects": {...}}`
+  （把 `synox_sdk.py` 放在 tool.py 旁邊）。SYNOX 每個使用者開一個長駐的 server（第一次呼叫才開、閒置 10 分鐘收），
+  所以 `context()` 的 `tg_id`／`user_data_dir`、`secret()` 在 MCP 模式一樣是那個人的（程序啟動時的環境變數）。
+  `Confirm` 的確認來回 SYNOX 會帶 `_meta` 完成。細節見 [pack-format.md](pack-format.md)「`mcp`（stdio）」。
+  跟 kind=cli 比：cli 每次呼叫開一次程序（簡單、互不影響）；mcp 長駐（啟動慢的工具、要保持連線的工具比較快），但你的程式要能連續處理很多次呼叫。
 
 ## secret() 與 context()
 
@@ -230,6 +236,7 @@ SDK 只是幫你產生 pack.json、印信封。SYNOX 跟工具的接口只有 CL
 
 ## 還沒做的
 
-- SYNOX 端連 MCP server（kind=mcp）、在那裡帶 `_meta` 完成確認來回：P4。
+- SYNOX 端連 MCP server：P4a 做了 stdio；HTTP（遠端 MCP、OAuth）、巢狀物件／陣列參數（schema 模式）、
+  全部人共用一個 server 程序（`SharedScope`，只有介面）還沒做。
 - 確認憑證放在記憶體：SYNOX 重開之後舊的卡按不動（要重新下指令）。
 - `synox-sdk` 這個指令要 `pip install -e .` 才會出現；`python -m synox.sdk` 一樣能用。

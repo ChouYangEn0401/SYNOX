@@ -228,13 +228,17 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 lines.append(f"  ⚠️ {m.name} {m.version}：{no_env}  {rel}")
                 problems += 1
                 continue
-            state = "connector（只登記）" if m.kind in ("connector", "mcp") else ("✅" if enabled else "⏸ 停用")
+            state = "connector（只登記）" if m.registered_only else ("✅" if enabled else "⏸ 停用")
             lock_mark = "🔒" if lock_state == pack_lock.LOCKED else "未鎖定"
             lines.append(f"  {state} {m.name} {m.version}（{m.kind}，/{m.group}，{lock_mark}）  {rel}")
             if enabled:
                 note = secret_lookup(m)
                 if note:
                     lines.append(f"     {note}")
+                if m.mcp_stdio:                              # P4a：pack 外的程式、不支援的欄位、伺服器沒列的工具
+                    from synox.packs import mcp as pack_mcp
+                    for mcp_note in pack_mcp.doctor_notes(m, lock_dir):
+                        lines.append(f"     {mcp_note}")
                 boxed_out = sandbox.restricted_reason(config, m, box) if config is not None else ""
                 if boxed_out:
                     lines.append(f"     🔐 {boxed_out}")
