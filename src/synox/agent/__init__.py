@@ -61,6 +61,7 @@ def install(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLoop]:
     llm = getattr(config, "llm", {}) or {}
     loop: Optional[AgentLoop] = None
     desk = ApprovalDesk(app)
+    app.extras["synox_approval_desk"] = desk        # cli pack 的 needs_confirm 也用這張卡（packs/loader.py、packs/confirm.py）
     budget = MemberBudget(app, config) if server else None
     app.extras["synox_budget"] = budget
     if adapter is not None:

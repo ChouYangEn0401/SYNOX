@@ -110,6 +110,13 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
   （loop 包 nonce）；人打字的照舊丟 `app.tasks`。子程序環境照 SDK `clean_env` 拿掉像密鑰的變數，`keep_env` 只放 `manifest.secret_env_names(m)`
   （`requires.env`＋`auth.fields[].env`）——不要整包放行。`fields[].kind` 的格式檢查在 `validate.typed_check`（掛在 `Field.check`，經
   `kit.parse_args`，人打字與 AI 兩條路都跑），交給程式前 `validate.normalize`；AI 的 schema 一律字串。
+- 工具的確認來回（SDK P3，`packs/confirm.py`）：cli 工具回 `needs_confirm` → `submit` 的 `finish` 不顯示結果，`ConfirmGrants.issue`
+  發一次性憑證（綁 pack／指令／`args_hash`／tg_id、`timing.confirm_ttl` 過期）→ `ApprovalDesk.request(..., grant=, rerun=)` 出卡
+  （`app.extras["synox_approval_desk"]`）→ ✅：desk 先 BUTTON authorize，再 `rerun` ＝ `submit(..., _grant=)`（同一組原始參數，
+  不重新解析 argv）→ `redeem` 對得上才 `make_cli(confirmed=token)`。**`SYNOX_CONFIRMED`／`SYNOX_CONFIRM_TOKEN` 每次都明寫**
+  （`env_for`，蓋過 `cli.env`），名字加進 `keep_env`（`_TOKEN` 結尾會被 `clean_env` 拿掉）。`_grant` 只有 desk 的 rerun 給，
+  kit.command／Forms／AI 都只傳四個參數。經 AI：`CaptureApi.mark_carded()` → `call_tool` 回 carded、這一輪結束。
+  確認過的重跑又回 needs_confirm → `AGAIN`，不再出卡。`commands[].confirm`（AI 呼叫前的卡）不受影響，兩張卡可以先後出現。
 - pack 的 secret（`packs/secrets.py`）：`auth.type` token／file 的 `auth.fields` 由 SYNOX 收（`managed()`：kind=cli、或 python 原始碼有
   `.secret(`；`auth.managed` 可以強制），存保管箱 `pack_secrets`、鍵 `packs/<pack>/<field>`、伺服器版 `vault.for_user`。只有 Web UI
   `/api/pack-secrets/<name>`（CSRF＋Origin；個人版擁有者、伺服器版本人）與 `python -m synox connect` 能寫；**不加 Telegram 指令**。

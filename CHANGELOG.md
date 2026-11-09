@@ -1,5 +1,22 @@
 # Changelog
 
+## 未發佈（branch feat/sdk-p3）
+
+### 新增
+- **SDK P3 確認來回**：cli 工具執行中回 `needs_confirm`（`raise Confirm(summary, token=…)`）→ SYNOX 出核准卡給下令的人（why＝summary；
+  人打字與 AI 呼叫都走這條，AI 那一輪在卡送出時結束）→ 按 ✅ 用同一組參數重跑，子程序這一次才有 `SYNOX_CONFIRMED=1`、
+  `SYNOX_CONFIRM_TOKEN`＝工具給的 token。新檔 `src/synox/packs/confirm.py`：一次性憑證綁 pack／指令／參數雜湊／使用者、
+  跟卡片同樣的 `confirm_ttl` 過期、用一次（對不上也作廢）；❌ 作廢。其他每次都明寫 `SYNOX_CONFIRMED=0`（蓋過 `cli.env` 與 SYNOX 自己的環境）。
+  確認過的重跑又要確認 → 回一句話、不再出卡。`commands[].confirm`（AI 呼叫前的卡）照舊，兩者並存。
+- SDK：`confirmed(token="")`、`Context.confirmed`／`Context.confirm_token`；`--mcp` 的 Confirm 回 `isError: false`＋
+  `structuredContent.needs_confirm`，用戶端確認後帶 `params._meta["synox/confirm_token"]` 重叫才算確認（MCP 模式不看環境變數）。
+- `synox-sdk run … --confirmed`：本機模擬按 ✅。
+- 測試 `tests/test_sdk_p3_confirm.py`（13 個）。
+
+### 變更
+- `ApprovalDesk.request` 多 `grant`／`rerun`／`header`；`CaptureApi.mark_carded()`；`app.extras["synox_approval_desk"]`。
+- `tests/test_sdk_author.py` 的子程序一律 `-X utf8`＋`PYTHONIOENCODING=utf-8`＋`errors="replace"`（cp950 解碼警告）。
+
 ## 未發佈（branch feat/perm7）
 
 ### 新增

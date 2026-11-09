@@ -19,8 +19,13 @@ synox_sdk：寫一個 Python 函式，就是一個 SYNOX 工具（也是一個 M
       python tool.py --mcp                                 → MCP stdio server（JSON-RPC 2.0，給其他 AI 用戶端）
 - 函式回什麼：字串＝給人看的那句話；dict／list／數字＝data；`Ok(message, data)` 兩個都給；
   `raise ToolError(code, message)`＝失敗；`raise Confirm(summary)`（或 return）＝要確認（信封 needs_confirm）。
+- --mcp 模式的 Confirm：result 帶 structuredContent.needs_confirm；用戶端讓人確認後帶 _meta["synox/confirm_token"] 重叫。
+- 確認來回：`if not confirmed(): raise Confirm("要刪 3 筆")`。SYNOX 出卡給人，按 ✅ 用同一組參數重跑一次，
+  這一次 `confirmed()` 是 True（SYNOX 驗過一次性憑證才給 SYNOX_CONFIRMED=1；工具、AI、pack.json 都造不出來）。
+  `Confirm(summary, token=…)` 的 token 會在重跑時原樣送回：`confirmed(token=…)` 可以順便核對「資料還是剛剛那份」。
 - `secret(name)`：使用者在 SYNOX 工具頁「連接」填的值（pack.json 的 auth.fields；SYNOX 經環境變數給，不經 argv）。
-- `context()`：這一次是誰在用：user_data_dir、tg_id、mode、pack_dir、pack_name（SYNOX 經 SYNOX_* 環境變數給）。
+- `context()`：這一次是誰在用：user_data_dir、tg_id、mode、pack_dir、pack_name、confirmed、confirm_token
+  （SYNOX 經 SYNOX_* 環境變數給）。
 
 這個檔有兩份：`src/synox/sdk/author.py`（正本，`from synox.sdk import tool, serve`）與 `sdk/synox_sdk.py`
 （`scripts/build_synox_sdk.py` 從正本產生，可以直接複製進你的 repo）。
@@ -41,7 +46,7 @@ from contextlib import redirect_stdout
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
-__all__ = ["tool", "serve", "secret", "context", "Context", "ToolError", "Confirm", "Ok", "SpecError",
+__all__ = ["tool", "serve", "secret", "context", "confirmed", "Context", "ToolError", "Confirm", "Ok", "SpecError",
            "tool_spec", "commands_for", "run_cli", "run_mcp", "registered"]
 
 SDK_VERSION = "0.1.0"
@@ -52,10 +57,13 @@ NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 BOOL_TRUE = ("true", "yes", "y", "on", "1", "是", "對", "要", "開")
 BOOL_FALSE = ("false", "no", "n", "off", "0", "否", "不", "不要", "關")
 MCP_PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
+MCP_CONFIRM_META = "synox/confirm_token"   # MCP tools/call 的 params._meta：用戶端（不是 AI）確認過才帶
+CONFIRM_TOKEN_RE = re.compile(r"^[A-Za-z0-9._:\-]{1,128}$")
 EXIT_OK, EXIT_ERROR = 0, 1
 
 _REGISTRY: List[Callable] = []
 _SPEC_ATTR = "__synox_tool__"
+_MCP_CONFIRM: Optional[str] = None     # MCP tools/call 進行中：_meta 帶的確認 token（"" ＝沒確認）；None＝不在 MCP 呼叫裡
 
 
 # ── 結果與錯誤 ──────────────────────────────────────────────────────────
@@ -69,8 +77,10 @@ class ToolError(Exception):
 
 
 class Confirm(Exception):
-    """要人確認才做：`raise Confirm("要刪 3 筆")`（或 return）→ needs_confirm 信封。
-    這一版 SYNOX 只把 summary 顯示給人；按「確認」再呼叫一次的來回之後才做。"""
+    """要人確認才做：`if not confirmed(): raise Confirm("要刪 3 筆")`（或 return）→ needs_confirm 信封。
+    SYNOX 出核准卡（why＝summary）給下令的人；按 ✅ 用同一組參數重跑，這一次 confirmed() 是 True；按 ❌ 或過期就不跑。
+    token：重跑時 SYNOX 原樣送回（SYNOX_CONFIRM_TOKEN），例如放「要刪的那 3 筆」的雜湊，重跑時用 confirmed(token=…) 核對。
+    只收英數字與 . _ : -（128 字內）；其他的 SYNOX 當作沒給。沒給＝隨機一個。"""
 
     def __init__(self, summary: str, token: str = ""):
         super().__init__(summary)
@@ -498,7 +508,8 @@ def _mcp_text(envelope: dict) -> str:
     if not envelope.get("ok"):
         return str(envelope.get("error") or "失敗")
     if envelope.get("needs_confirm"):
-        return f"要使用者確認才會做：{envelope.get('summary')}"
+        return (f"還沒做：要使用者確認才會做：{envelope.get('summary')}\n"
+                "（請把這句話給使用者看；要等用戶端確認後帶 _meta 的 synox/confirm_token 重新呼叫，AI 不能自己確認）")
     parts = [envelope["message"]] if envelope.get("message") else []
     if envelope.get("data") is not None:
         parts.append(_dumps(envelope["data"]))
@@ -537,17 +548,31 @@ def _mcp_handle(msg: Any, specs: Dict[str, dict], info: dict) -> Optional[dict]:
         args = params.get("arguments") or {}
         if not isinstance(args, dict):
             return error(-32602, "arguments 要是物件")
-        with redirect_stdout(sys.stderr):                  # 工具自己 print 的字不能混進 JSON-RPC 的 stdout
-            envelope, _code = _call(spec, args)
-        return result({"content": [{"type": "text", "text": _mcp_text(envelope)}],
-                       "isError": not envelope.get("ok")})
+        meta = params.get("_meta") if isinstance(params.get("_meta"), dict) else {}
+        token = meta.get(MCP_CONFIRM_META)
+        global _MCP_CONFIRM
+        _MCP_CONFIRM = token if isinstance(token, str) and CONFIRM_TOKEN_RE.fullmatch(token) else ""   # MCP 模式不看環境變數
+        try:
+            with redirect_stdout(sys.stderr):              # 工具自己 print 的字不能混進 JSON-RPC 的 stdout
+                envelope, _code = _call(spec, args)
+        finally:
+            _MCP_CONFIRM = None
+        reply = {"content": [{"type": "text", "text": _mcp_text(envelope)}], "isError": not envelope.get("ok")}
+        if envelope.get("needs_confirm"):
+            reply["structuredContent"] = {"needs_confirm": True, "summary": envelope.get("summary", ""),
+                                          "confirm_token": envelope.get("confirm_token", "")}
+        return result(reply)
     return error(-32601, f"Method not found: {method}")
 
 
 def run_mcp(stdin=None, stdout=None, tools: Optional[Sequence[Callable]] = None, name: str = "",
             version: str = "") -> int:
     """MCP stdio server：一行一個 JSON-RPC 2.0 訊息。只做 initialize、ping、tools/list、tools/call。
-    ai=False 的工具不列出、不能呼叫。effect 不由這裡講（SYNOX 的 kind=mcp pack 由 pack.json 的 mcp.effects 決定）。"""
+    ai=False 的工具不列出、不能呼叫。effect 不由這裡講（SYNOX 的 kind=mcp pack 由 pack.json 的 mcp.effects 決定）。
+    工具回 Confirm：result 的 isError=false、content 一句「還沒做：要使用者確認…」、structuredContent=
+    {needs_confirm, summary, confirm_token}。用戶端讓人確認後，同一組 arguments 再呼叫一次並帶
+    params._meta["synox/confirm_token"]＝那個 token，這一次 confirmed() 才是 True。MCP 模式不看 SYNOX_CONFIRMED
+    環境變數（server 是長駐的，環境變數不是「這一次」）；AI 只決定 arguments、碰不到 _meta。"""
     stdin, stdout = stdin or sys.stdin, stdout or sys.stdout
     specs = {s["name"]: s for s in specs_for(tools) if s["ai"]}
     info = {"name": name or "synox-tool", "version": version or SDK_VERSION}
@@ -612,11 +637,14 @@ class Context:
     """這一次是誰在用（SYNOX 經環境變數給；不是從 SYNOX 叫的就都是空的，`synox-sdk run` 會模擬）。
 
     user_data_dir：這個人的資料夾（伺服器版每人一個；個人版是 SYNOX 的 data/）。自己的檔放 <user_data_dir>/<pack_name>/。
-    tg_id：下令的人的 Telegram id（字串）。mode：personal｜server。pack_dir：pack 資料夾。"""
+    tg_id：下令的人的 Telegram id（字串）。mode：personal｜server。pack_dir：pack 資料夾。
+    confirmed：這一次是人按過 ✅ 的重跑（見 confirmed()）。confirm_token：那時工具自己給的 Confirm token（沒確認＝空）。"""
 
-    def __init__(self, user_data_dir: str, tg_id: str, mode: str, pack_dir: str, pack_name: str):
+    def __init__(self, user_data_dir: str, tg_id: str, mode: str, pack_dir: str, pack_name: str,
+                 confirmed: bool = False, confirm_token: str = ""):
         self.user_data_dir, self.tg_id, self.mode = user_data_dir, tg_id, mode
         self.pack_dir, self.pack_name = pack_dir, pack_name
+        self.confirmed, self.confirm_token = bool(confirmed), confirm_token if confirmed else ""
 
     @property
     def inside_synox(self) -> bool:
@@ -624,9 +652,40 @@ class Context:
 
     def __repr__(self) -> str:
         return (f"Context(user_data_dir={self.user_data_dir!r}, tg_id={self.tg_id!r}, mode={self.mode!r}, "
-                f"pack_dir={self.pack_dir!r}, pack_name={self.pack_name!r})")
+                f"pack_dir={self.pack_dir!r}, pack_name={self.pack_name!r}, confirmed={self.confirmed!r})")
+
+
+def _confirm_state():
+    """(是否已確認, 工具的 token)。命令列殼：SYNOX 驗過才給的 SYNOX_CONFIRMED=1＋SYNOX_CONFIRM_TOKEN；
+    MCP 殼：這一次 tools/call 的 _meta（環境變數不算）。"""
+    if _MCP_CONFIRM is not None:
+        return bool(_MCP_CONFIRM), _MCP_CONFIRM
+    if _env("SYNOX_CONFIRMED") != "1":
+        return False, ""
+    return True, _env("SYNOX_CONFIRM_TOKEN")
+
+
+def confirmed(token: str = "") -> bool:
+    """這一次是不是人按過 ✅ 的重跑。token 有給＝還要是當初 Confirm(…, token=…) 給的那個（資料變了就不算）。
+
+        @tool("DANGER")
+        def purge(days: int):
+            rows = old_rows(days)
+            key = digest(rows)
+            if not confirmed(key):
+                raise Confirm(f"要刪 {len(rows)} 筆", token=key)
+            delete(rows)
+
+    「已確認」是 SYNOX 驗過一次性憑證（綁 pack／指令／參數／人、數分鐘過期、用一次）才放進環境變數的，
+    重跑的參數跟第一次一樣，沒有 AI 能塞的 --yes。不是從 SYNOX 叫的（自己在終端機跑）一律 False，
+    除非你自己設了 SYNOX_CONFIRMED=1（`synox-sdk run … --confirmed` 就是這樣模擬按 ✅）。"""
+    ok, given = _confirm_state()
+    if not ok:
+        return False
+    return not token or given == str(token)
 
 
 def context() -> Context:
+    ok, given = _confirm_state()
     return Context(_env("SYNOX_USER_DATA_DIR"), _env("SYNOX_TG_ID"), _env("SYNOX_MODE"), _env("SYNOX_PACK_DIR"),
-                   _env("SYNOX_PACK_NAME"))
+                   _env("SYNOX_PACK_NAME"), ok, given)
