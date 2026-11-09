@@ -229,7 +229,7 @@ def test_data_scope_inference(tmp_path):
 def test_trust_from_lock(tmp_path):
     cfg = _cfg(tmp_path)
     m = read(_cli_pack(str(tmp_path / "p"), "t1"))
-    assert sandbox.trust_of(cfg.data_dir, m) == "core"                   # 沒鎖（出廠／工程師放的）
+    assert sandbox.trust_of(cfg.data_dir, m) == "third-party"            # 沒鎖、手放的：跟 python pack 同一條（PERM-8）
     lock.approve(cfg.data_dir, m, None, OWNER_ID, via="cli", trust="core")
     assert sandbox.trust_of(cfg.data_dir, m) == "core"                   # packs lock --approve --trust core
     lock.approve(cfg.data_dir, m, None, OWNER_ID, via="cli")

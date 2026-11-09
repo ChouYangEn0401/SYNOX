@@ -1,5 +1,10 @@
 # Changelog
 
+## 未發佈（dev）
+
+### 變更
+- 沒有鎖的 kind=cli pack（手動放進 packs/ 或 packs.dirs）在伺服器版改算 third-party，跟 kind=python 同一條規則（PERM-8 之後統一）：只有出廠的算 core。要給成員用，擁有者核准時選 `--trust core`。
+
 ## 未發佈（branch feat/perm8）
 
 ### 新增
