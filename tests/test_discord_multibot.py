@@ -77,7 +77,8 @@ def test_bots_config_fields_and_defaults():
     assert (a.name, a.hub_name, a.vault_name, a.max_effect) == ("alpha", "discord:alpha", "discord_bot_token:alpha", None)
     assert b.token == "vault:discord_bot_token:bravo" and b.packs == ("notes",)       # 沒寫 token：照名字
     assert c.surface == "channel" and c.max_effect == "read" and c.packs == ("dict", "weather")
-    assert c.ai == {"enabled": True, "pool_usd_month": 5.0} and c.guilds["1"]["channels"] == ["2"]
+    assert c.ai["enabled"] and c.ai["pool_usd_month"] == 5.0 and c.guilds["1"]["channels"] == ["2"]
+    assert c.ai_persona == "p" and c.ai_history_turns == 6 and c.ai_rate_per_minute == 2   # PERM-6 的預設
     named_default = bot_specs.parse({"bots": {"default": {}}})[0]
     assert named_default.token == "vault:discord_bot_token" and not named_default.legacy
     assert bot_specs.find([a, b, c], None) is a and bot_specs.find([c, b], None) is b
