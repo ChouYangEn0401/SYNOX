@@ -138,7 +138,8 @@ class ScanReport:
         lines.append("  需要的能力：" + ("、".join(self.required_capabilities) or "（沒有）"))
         for f in self.findings:
             mark = "❌" if f.blocking or (f.capability and not m.allows(f.capability)) else ("⚠️" if not f.capability else "✅")
-            lines.append(f"  {mark} {f.where()}  {LABELS.get(f.kind, f.kind)}  {f.detail or f.snippet}")
+            text = f.detail if f.blocking or not f.snippet else f"{f.detail}　｜ {f.snippet}"
+            lines.append(f"  {mark} {f.where()}  {LABELS.get(f.kind, f.kind)}  {text}")
         problems = self.problems(m)
         lines.append("結論：" + ("✅ 這一關過了" if not problems else f"❌ 拒裝（{len(problems)} 個問題）"))
         return "\n".join(lines)

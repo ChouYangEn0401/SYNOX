@@ -19,6 +19,7 @@ llm = ["ntu_easy_llm>=0.5.0"]
 
 [project.scripts]
 synox = "synox.__main__:main"
+synox-sdk = "synox.sdk:main"
 
 # Two source roots: src/synox (ours) and vendor/isdtelekit (verbatim SDK copy).
 # `pip install -e .` makes both importable.

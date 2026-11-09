@@ -359,6 +359,21 @@ def _install_cli(app, pack: Pack) -> None:
             app.tasks.run(lambda: finish(cli.call(*argv, **timeout)), name=f"pack-{m.name}-{cmd.name}")
         return submit
 
+    def panel_route(c: dict):
+        def fn(user):                          # Web UI 面板的 GET：在網頁的請求執行緒上跑（等它結束）
+            ph = placeholders(m, config, user)
+            cwd = substitute(m.cli.get("cwd") or ".", ph)
+            cli = JsonCli(app.jobs, cli_prefix(m, ph), cwd=os.path.normpath(os.path.join(m.folder, cwd)),
+                          name=m.name, timeout=float(m.cli.get("timeout", 120)),
+                          json_flag=m.cli.get("json_flag", "--json"), env_extra=cli_env(m, ph) or None)
+            reply = cli.call(*build_argv(c.get("argv") or [], ph))
+            return reply.data if reply.ok else {"ok": False, "error": reply.error}
+        return fn
+
+    by_name = {c["name"]: c for c in m.commands}
+    for route, target in (m.web.get("routes") or {}).items():
+        pack.web_route(route, panel_route(by_name[target]))
+
     meta = app.extras.setdefault("synox_tool_meta", {})
     for c in m.commands:
         kinds = {f["name"]: f.get("kind", "text") for f in c.get("fields") or []}
