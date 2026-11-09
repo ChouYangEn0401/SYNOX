@@ -23,6 +23,9 @@ pack.json v2（架構 v1 §4；在上面之上加欄位，舊的 pack 照舊可�
       "kind": "mcp",                             第四種：接一個 MCP 伺服器（這一版只登記、不連）
       "runtime": {"python": "../.venv/Scripts/python.exe",      {python} 的另一種寫法：相對於 pack 資料夾，
                   "python_posix": "../.venv/bin/python"},      照作業系統挑一個（cli.python 有寫就用 cli.python）
+                 {"python": "auto", "node": "auto"}             auto＝安裝時建 data/envs/<pack>/（packs/envs.py）；
+                                                               python=auto 時 requires.pip 只能寫 名字==版本；
+                                                               node=auto 時 pack 裡要有 package.json＋package-lock.json
       "env": {"HOME_DIR": "{user_data_dir}/x"},                子程序的環境變數（跟 cli.env 合併，cli.env 優先）
       "cli": {"python": "venv", "env": {"X": "{data_dir}"},
               "commands": [{"name": "add", "effect": "WRITE", "argv": ["add", "{text}"],
@@ -53,7 +56,7 @@ EFFECT_NAMES = ("READ", "WRITE", "DANGER")
 FIELD_KINDS = ("text", "int", "number", "bool", "path", "choice")
 MAX_CHOICES = 50
 # cli 的 argv／env 樣板裡 loader 會代換的名字（欄位不能取這些名字）
-RESERVED_PLACEHOLDERS = ("python", "pack_dir", "data_dir", "user_data_dir", "tg_id")
+RESERVED_PLACEHOLDERS = ("python", "node", "pack_dir", "data_dir", "user_data_dir", "tg_id")
 V2_KEYS = ("capabilities", "publisher", "integrity", "mcp", "commands", "runtime", "env")
 ACCESS = ("owner", "member", "everyone")
 NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
@@ -436,9 +439,23 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     if not isinstance(runtime, dict):
         problems.append("runtime 要是物件")
         runtime = {}
-    for key in ("python", "python_posix"):
+    for key in ("python", "python_posix", "node"):
         if key in runtime and (not isinstance(runtime[key], str) or not runtime[key].strip()):
-            problems.append(f"runtime.{key} 要是路徑（相對於 pack 資料夾，或絕對路徑）")
+            problems.append(f"runtime.{key} 要是路徑（相對於 pack 資料夾，或絕對路徑）或 \"auto\"")
+    auto_py = any(runtime.get(k) == "auto" for k in ("python", "python_posix"))
+    if (auto_py or "node" in runtime) and kind != "cli":
+        problems.append("runtime.python=auto 和 runtime.node 只給 kind=cli 用")
+    if auto_py:
+        if cli.get("python"):
+            problems.append("runtime.python 是 auto 時不要再寫 cli.python（兩個都決定 {python}）")
+        from synox.packs.envs import pin_problems
+        problems += pin_problems((raw.get("requires") or {}).get("pip") if isinstance(raw.get("requires"), dict)
+                                 else None)
+    if runtime.get("node") == "auto":
+        missing = [f for f in ("package.json", "package-lock.json") if not os.path.isfile(os.path.join(folder, f))]
+        if missing:
+            problems.append("runtime.node 是 auto，pack 裡要有 " + "、".join(missing)
+                            + "（用 npm ci 照 package-lock.json 裝，版本固定）")
     extra = _check_v2(raw, kind, problems)
     requires = raw.get("requires") or {}
     if not isinstance(requires, dict):
@@ -455,7 +472,7 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
                     folder=folder, group=group, access=access, skill=skill, storage=storage,
                     python=dict(raw.get("python") or {}), cli=cli, auth="" if auth_type == "none" else auth_type,
                     requires=dict(requires), web=web, raw=dict(raw), v2=v2,
-                    runtime={k: v for k, v in runtime.items() if k in ("python", "python_posix")}, **extra)
+                    runtime={k: v for k, v in runtime.items() if k in ("python", "python_posix", "node")}, **extra)
 
 
 def read(folder: str, strict: bool = False) -> Manifest:

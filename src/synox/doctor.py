@@ -90,6 +90,7 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
             problems += 1
 
     # packs
+    from synox.packs import envs
     from synox.packs import lock as pack_lock
     from synox.packs.loader import PACK_DIRS, discover
     from synox.packs.manifest import ManifestError, read, synox_problem
@@ -118,6 +119,11 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
             too_old = synox_problem(m)               # requires.synox
             if too_old and enabled:
                 lines.append(f"  ⛔ {m.name} {m.version}：不會載入。{too_old}  {rel}")
+                problems += 1
+                continue
+            no_env = envs.env_problem(m, lock_dir) if enabled else None    # runtime.python／node = auto、沒有 node
+            if no_env:
+                lines.append(f"  ⚠️ {m.name} {m.version}：{no_env}  {rel}")
                 problems += 1
                 continue
             state = "connector（只登記）" if m.kind in ("connector", "mcp") else ("✅" if enabled else "⏸ 停用")

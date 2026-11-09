@@ -554,10 +554,33 @@ class WebUI:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:
             return _err(400, str(e))
+        env = self._start_env_build(name)
         report = self._reload()
         status = next((i for i in report.items if i.name == name), None)
         return _json(200, {"ok": True, "name": name, "status": status.status if status else "",
-                           "detail": status.detail if status else ""})
+                           "detail": status.detail if status else "", "env": env})
+
+    def _start_env_build(self, name: str) -> str:
+        """裝好之後建環境（runtime.python／node = auto）：在 JobRunner 上背景跑，好了重新載入、通知擁有者。
+        回 ""（不用建）｜"building"｜"failed: …"（叫不起來）。失敗不影響已經裝好的 pack。"""
+        from synox.packs.admin import PackAdminError, build_env
+
+        def done(result):
+            try:
+                self._reload()
+            except Exception:
+                logging.exception("[WEB] reload after env build failed")
+            text = (f"✅ pack {name} 的環境建好了，可以用了。" if result.ok
+                    else f"⚠️ pack {name} 裝好了，但環境沒建好：{result.detail}")
+            try:
+                self.app.notify_owner(text)
+            except Exception:
+                logging.exception("[WEB] env build notice failed")
+
+        try:
+            return "building" if build_env(name, self.config.data_dir, self.pack_dirs[0], self.app.jobs, done) else ""
+        except (PackAdminError, OSError) as e:
+            return f"failed: {e}"
 
     def pack_remove(self, user, data: dict) -> Resp:
         denied = self._owner_only(user)

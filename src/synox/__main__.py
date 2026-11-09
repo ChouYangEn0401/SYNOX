@@ -8,6 +8,7 @@ python -m synox <指令>
   stop      停掉正在跑的 bot（Stop.bat）
   install   裝一個 .synoxpack：安全管線第 1–3 關（--yes 在終端機直接核准；沒有 --yes 就開網頁設定頁給你按）
   packs     packs status（每個 pack 的鎖定狀態）｜packs lock --approve <name>（工程師：重跑 1、2 關、寫 packs.lock）
+            ｜packs env rebuild <name>（重建 runtime.python／node = auto 的環境，data/envs/<name>/）
   connect   connect <pack> [--user ID] [--clear]：把 pack 要的帳號存進保管箱（密碼用 getpass，不經聊天）
 """
 
@@ -145,7 +146,44 @@ def _open_browser(url: str) -> None:
     webbrowser.open(url)
 
 
-def cmd_install(args, *, is_up=web_is_up, open_url=None) -> int:
+def _job_runner(data_dir: str):
+    from isdtelekit.jobs.runner import JobRunner
+    return JobRunner(log_root=os.path.join(data_dir, "job_logs"))
+
+
+def _build_env_now(name: str, data_dir: str, packs_dir: str, jobs=None) -> bool:
+    """終端機：建 runtime.python／node = auto 的環境並等它結束（最多 10 分鐘）。不用建回 True；建失敗回 False
+    （pack 已經裝好，doctor 會標「環境沒建好」）。"""
+    import threading
+
+    from synox.packs import admin
+    box = []
+    done = threading.Event()
+
+    def finish(result):
+        box.append(result)
+        done.set()
+
+    try:
+        started = admin.build_env(name, data_dir, packs_dir, jobs or _job_runner(data_dir), finish)
+    except admin.PackAdminError as e:
+        print(f"❌ {e}")
+        return False
+    if not started:
+        return True
+    print("🧱 開始建環境（要網路，最多 10 分鐘）…")
+    if not done.wait(660) or not box:
+        print("❌ 建環境超過時間還沒結束。pack 已經裝好；之後跑 python -m synox packs env rebuild " + name)
+        return False
+    result = box[0]
+    if result.ok:
+        print(f"✅ {name} 的環境建好了（data/envs/{name}/）。")
+        return True
+    print(f"⚠️ pack 裝好了，但環境沒建好：{result.detail}")
+    return False
+
+
+def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
     from synox.packs import admin
     from synox.packs.loader import PACK_DIRS
     config = _config_quiet(args.config)
@@ -170,6 +208,7 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None) -> int:
             print(f"❌ {e}")
             return 2
         print(f"✅ 裝好了：{name}（已寫進 packs.lock）。SYNOX 開著的話到網頁設定頁按「重新載入全部」，或重開 SYNOX。")
+        _build_env_now(name, data_dir, args.packs_dir or PACK_DIRS[0], jobs)
         return 0
     web = (getattr(config, "web", None) or {}) if config is not None else {}
     port = int(web.get("port") or 0)
@@ -186,7 +225,7 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None) -> int:
     return 1
 
 
-def cmd_packs(args) -> int:
+def cmd_packs(args, *, jobs=None) -> int:
     from synox.packs import admin
     from synox.packs import lock as pack_lock
     from synox.packs.loader import PACK_DIRS, discover
@@ -199,6 +238,25 @@ def cmd_packs(args) -> int:
             found[read(folder).name] = folder
         except ManifestError:
             found.setdefault(os.path.basename(folder), folder)
+    if args.packs_cmd == "env":
+        name = args.name
+        if name not in found:
+            print(f"❌ 找不到叫 {name} 的 pack（有：{'、'.join(sorted(found)) or '沒有'}）")
+            return 2
+        from synox.packs import envs
+        try:
+            m = read(found[name])
+        except ManifestError as e:
+            print(f"❌ pack.json 不合：{e}")
+            return 2
+        if not envs.needs_env(m):
+            print(f"ℹ️ {name} 不用建環境（pack.json 的 runtime.python／runtime.node 沒有寫 auto）。")
+            return 0
+        print(envs.builder(data_dir).plan(m).text())
+        ok = _build_env_now(name, data_dir, os.path.dirname(found[name]), jobs)
+        if ok:
+            print("SYNOX 開著的話到網頁設定頁按「重新載入全部」，或重開 SYNOX。")
+        return 0 if ok else 2
     if args.packs_cmd == "lock":
         name = args.approve
         if name not in found:
@@ -274,6 +332,10 @@ def main(argv=None) -> int:
     psub.add_parser("status", help="每個 pack 鎖了沒、有沒有被改過")
     q = psub.add_parser("lock", help="重跑宣告檢查與靜態掃描，過了就寫 packs.lock")
     q.add_argument("--approve", required=True, metavar="NAME", help="pack 的名字")
+    q = psub.add_parser("env", help="pack 的環境（runtime.python／node = auto）")
+    esub = q.add_subparsers(dest="env_cmd", required=True)
+    e = esub.add_parser("rebuild", help="重建 data/envs/<name>/（要網路，最多 10 分鐘）")
+    e.add_argument("name", help="pack 的名字")
     p.set_defaults(dirs=None)
     p = sub.add_parser("connect", help="在這台電腦上設定一個 pack 的帳號（存進保管箱，密碼不經聊天）")
     p.add_argument("pack", help="pack 的名字，例如 apple-reminders")
