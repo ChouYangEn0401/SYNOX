@@ -8,6 +8,7 @@ AI 助理：
   /ai_budget     伺服器版、管理員：替某個人設每月 AI 額度（美元）
 
 誰能用：個人版只有擁有者（群組 agent 是 owner_only）；伺服器版成員以上（群組 role=成員，訪客看不到）。
+只能在私訊用（agent 群組 private_only）：Telegram 群組裡打 /ai、/ai_reset 一律被 SDK 擋（Discord 頻道 AI 另走 agent/room.py）。
 「這個人的自由文字要不要交給 AI」也問同一個 authorize（AgentFallback.accepts），不另外寫一套判斷。
 伺服器版成員有每月額度（agent/budget.py）；AI 拿到的工具只有 ai_decision 對「他」放行的（loop.ai_decision）。
 agent 群組本身不給 AI 當工具（HIDDEN_GROUPS）。
@@ -55,8 +56,9 @@ class AgentFallback:
 def install(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLoop]:
     registry = app.registry
     server = getattr(config, "mode", "personal") == "server"
+    # private_only：群組裡打 /ai 不行（跟 /web 一樣）——AI 拿得到這個人的私人工具與記憶，不能在多人看得到的地方用
     registry.ensure_group("agent", "🤖 AI 助理", "跟 AI 說人話，它替你按指令（危險的會先問你）", bare=True,
-                          **group_policy(app, "member", server))
+                          private_only=True, **group_policy(app, "member", server))
     g = registry.group("agent")
     llm = getattr(config, "llm", {}) or {}
     loop: Optional[AgentLoop] = None
@@ -101,7 +103,7 @@ def install(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLoop]:
                                              line("全部", s["total"])]))
 
     def cmd_reset(api, chat_id, user, args):
-        n = loop.reset(chat_id) if loop is not None else 0
+        n = loop.reset(chat_id, user) if loop is not None else 0
         api.send_message(chat_id, f"🤖 好，忘掉這裡的對話紀錄了（{n // 2} 輪）。")
 
     def cmd_approve(api, chat_id, user, args):

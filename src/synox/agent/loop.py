@@ -8,6 +8,8 @@ AI 助理的一輪（spec §5、§7）：
   排程裡包的指令都問它。
 - adapter 支援原生 tool-calling 就給工具；不支援就把工具說明寫進系統提示，從文字裡解析 JSON（textproto）。
 - 對話記憶：每個聊天只在記憶體留最近 history_turns 輪的「人話 → 最後回答」（不留工具的中間過程；重啟就沒了）。
+  鍵是 memory_key(chat_id, user)：私訊＝這個人；chat_id 不是這個人時＝(chat_id, 這個人)，群組裡不共用。
+- 核准卡一律送這個人的私訊（ApprovalDesk.request），不進群組。
 - 用量：adapter 回的 usage 累計到 data/llm_usage.json，/ai_usage 看。
 - 安全管線（架構 v1 §4）在這裡的兩關：第 4 關 `validate.check_call`（執行任何工具之前驗參數，不合就把一句話交回給 AI、
   不執行）；第 5 關 ai_decision＋核准卡＋額度，以及交回 AI 的每個工具結果包在每輪隨機的 ⟦SYNOX-TOOL-<nonce>⟧ 裡（delimit.py）。
@@ -97,22 +99,30 @@ class AgentLoop:
         self.desk = desk
         self.budget = budget                  # 伺服器版：MemberBudget（成員每月額度）；個人版 None
         self.usage = UsageBook(app.config.path("llm_usage.json"))
-        self.history: Dict[int, List[Message]] = defaultdict(list)
-        self._locks: Dict[int, threading.Lock] = defaultdict(threading.Lock)
+        self.history: Dict[object, List[Message]] = defaultdict(list)
+        self._locks: Dict[object, threading.Lock] = defaultdict(threading.Lock)
 
     # ── 記憶 ─────────────────────────────────────────────────────────
 
-    def remember(self, chat_id: int, said: str, answer: str) -> None:
-        h = self.history[chat_id]
+    def memory_key(self, chat_id: int, user=None):
+        """對話記憶的鍵：私訊＝chat_id（就是這個人）；chat_id 不是這個人（群組）＝(chat_id, 這個人)——
+        同一個群組裡的人不共用彼此的記憶（審查 A #2）。頻道 AI（agent/room.py）換成「頻道」本身。"""
+        uid = getattr(user, "tg_id", user)
+        if uid is None or uid == chat_id:
+            return chat_id
+        return (chat_id, uid)
+
+    def remember(self, chat_id: int, said: str, answer: str, user=None) -> None:
+        h = self.history[self.memory_key(chat_id, user)]
         h += [Message(USER, said), Message(ASSISTANT, answer)]
         del h[:max(0, len(h) - 2 * self.history_turns)]
 
-    def note(self, chat_id: int, text: str) -> None:
-        """核准卡按下之後記一筆（下一輪 AI 知道那件事做了沒）。"""
-        self.remember(chat_id, "（系統）確認卡的結果", text)
+    def note(self, chat_id: int, text: str, user=None) -> None:
+        """核准卡按下之後記一筆（下一輪 AI 知道那件事做了沒）。user：卡的主人（記進他自己的那份記憶）。"""
+        self.remember(chat_id, "（系統）確認卡的結果", text, user)
 
-    def reset(self, chat_id: int) -> int:
-        return len(self.history.pop(chat_id, []))
+    def reset(self, chat_id: int, user=None) -> int:
+        return len(self.history.pop(self.memory_key(chat_id, user), []))
 
     # ── 提示 ─────────────────────────────────────────────────────────
 
@@ -152,8 +162,9 @@ class AgentLoop:
     # ── 可換的幾個點（頻道 AI，agent/room.py 的 RoomAgent 換掉；私訊照這裡）────────
 
     def decision(self, user, node: Node, chat_id: int):
-        """這個節點給不給 AI（工具清單與每次呼叫都問這裡；就是 ai_decision）。"""
-        return ai_decision(self.app, user, node)
+        """這個節點給不給 AI（工具清單與每次呼叫都問這裡；就是 ai_decision）。
+        帶真正的 chat_id：群組裡 private_only 的工具不給（以前沒帶＝當成私訊）。"""
+        return ai_decision(self.app, user, node, chat_id=chat_id)
 
     def tools_for(self, user, chat_id: int):
         return tools_mod.build(self.app.registry, lambda n: self.decision(user, n, chat_id), self.app)
@@ -175,7 +186,7 @@ class AgentLoop:
         return text
 
     def run_turn(self, api, chat_id: int, user, text: str) -> None:
-        with self._locks[chat_id]:
+        with self._locks[self.memory_key(chat_id, user)]:
             stop = self.out_of_budget(user)
             if stop:
                 api.send_message(chat_id, stop)
@@ -200,13 +211,13 @@ class AgentLoop:
         native = bool(self.adapter.supports_tools)
         nonce = delimit.new_nonce()                 # 這一輪的分隔符（第 5 關）
         messages = [Message(SYSTEM, self.system_prompt(skills, tools, native, user, nonce))] + \
-            list(self.history[chat_id]) + [Message(USER, text)]
+            list(self.history[self.memory_key(chat_id, user)]) + [Message(USER, text)]
         typing = getattr(api, "typing", None)
         for step in range(self.max_steps):
             stop = self.out_of_budget(user) if step else ""
             if stop:
                 api.send_message(chat_id, stop)
-                self.remember(chat_id, text, "（額度用完，沒做完）")
+                self.remember(chat_id, text, "（額度用完，沒做完）", user)
                 return
             if callable(typing):
                 typing(chat_id)
@@ -227,14 +238,14 @@ class AgentLoop:
                     calls, said = [call], rest
             if not calls:
                 answer = self.say(api, chat_id, said.strip() or "（AI 沒有說話）")
-                self.remember(chat_id, text, answer)
+                self.remember(chat_id, text, answer, user)
                 return
             messages.append(Message(ASSISTANT, said if native else reply.text, tool_calls=calls if native else []))
             for call in calls:
                 logging.info("[AGENT] chat %s step %d → %s %s", chat_id, step + 1, call.name, call.args)
                 result, carded = self.call_tool(api, chat_id, user, call, skills)
                 if carded:
-                    self.remember(chat_id, text, self.carded_note(call.name))
+                    self.remember(chat_id, text, self.carded_note(call.name), user)
                     return
                 wrapped = delimit.wrap(result, nonce)
                 if native:
@@ -242,7 +253,7 @@ class AgentLoop:
                 else:
                     messages.append(Message(USER, textproto.result_message(call.name, wrapped)))
         api.send_message(chat_id, f"（做了 {self.max_steps} 步還沒做完，先停在這裡。可以換個說法再試。）")
-        self.remember(chat_id, text, "（步數用完，沒做完）")
+        self.remember(chat_id, text, "（步數用完，沒做完）", user)
 
     def call_tool(self, api, chat_id: int, user, call: ToolCall, skills) -> Tuple[str, bool]:
         """回 (給 AI 看的結果, 是否送了核准卡)。"""
