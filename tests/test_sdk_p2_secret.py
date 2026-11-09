@@ -12,7 +12,7 @@ import pytest
 
 from isdtelekit.users.roles import BasicRoles
 
-from conftest import OTHER_ID, OWNER_ID
+from conftest import OTHER_ID, OWNER_ID, trust_core
 
 from synox import doctor
 from synox.agent import validate as gate4
@@ -230,7 +230,9 @@ def test_personal_mode_only_owner_can_connect(make_bot, tmp_path):
 
 
 def test_server_mode_each_user_sets_their_own(make_bot, tmp_path):
-    bot = make_bot(raw={"mode": "server", **OPEN_POLICY}, pack_dirs=_cli_pack(tmp_path, access="member"))
+    dirs = _cli_pack(tmp_path, access="member")
+    trust_core(tmp_path / "data", str(tmp_path / "packs" / "echo"))      # 手放的 cli pack＝third-party（PERM-8），先核准成 core
+    bot = make_bot(raw={"mode": "server", **OPEN_POLICY}, pack_dirs=dirs)
     bot.make(OTHER_ID, BasicRoles.MEMBER)
     owner_c, member_c = _client(bot), _client(bot, OTHER_ID)
     assert member_c.post("/api/pack-secrets/echo", {"values": {"api_key": "member-key-0000"}})[0] == 200
@@ -354,7 +356,9 @@ def test_gate4_blocks_ai_sending_stored_secret(make_bot, owner, tmp_path):
 
 
 def test_gate4_ignores_non_secret_fields_and_other_users(make_bot, tmp_path):
-    bot = make_bot(raw={"mode": "server", **OPEN_POLICY}, pack_dirs=_cli_pack(tmp_path, access="member"))
+    dirs = _cli_pack(tmp_path, access="member")
+    trust_core(tmp_path / "data", str(tmp_path / "packs" / "echo"))      # 手放的 cli pack＝third-party（PERM-8），先核准成 core
+    bot = make_bot(raw={"mode": "server", **OPEN_POLICY}, pack_dirs=dirs)
     bot.make(OTHER_ID, BasicRoles.MEMBER)
     _client(bot, OTHER_ID).post("/api/pack-secrets/echo", {"values": {"api_key": "member-key-0000", "region": "tw"}})
     node = bot.app.registry.node("echo.add")

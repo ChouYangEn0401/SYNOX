@@ -353,11 +353,13 @@ def data_scope(m) -> str:
 
 def trust_of(data_dir: str, m) -> str:
     """core｜third-party。packs.lock 的 trust（安裝時擁有者選的；之後的階段寫）優先；
-    沒寫：經安裝流程從檔案裝進來的（lock 的 via＝web／console）＝third-party；出廠的、工程師自己放的＝core。"""
+    沒寫：經安裝流程從檔案裝進來的（lock 的 via＝web／console）＝third-party；出廠的＝core。
+    沒有鎖的（手動放進 packs/ 或 packs.dirs）：跟 kind=python 同一條規則（PERM-8）——不是出廠的就是 third-party。"""
     from synox.packs import lock as pack_lock
+    from synox.packs.loader import is_bundled
     found = pack_lock.entry(data_dir, m.name) if data_dir else None
     if not found:
-        return CORE
+        return CORE if is_bundled(m) else THIRD_PARTY
     if found.get("trust") in TRUSTS:
         return found["trust"]
     return THIRD_PARTY if found.get("via") in ("web", "console") else CORE
