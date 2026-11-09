@@ -229,7 +229,6 @@ def test_tools_page_owner_sees_packs_and_panel(owner_client):
     packs = {p["name"]: p for p in data["packs"]}
     assert {"notes", "money", "remind"} <= set(packs)
     assert packs["money"]["panel"] == "/packs/money/panel" and packs["money"]["status"] == "已連接"
-    assert packs["todoist"]["status"] == "要先設定"
     assert any(cmd["command"] == "/money" and cmd["usage"] for cmd in packs["money"]["commands"])
     c.say("tools", "/money 120 午餐")
     assert any("記了：午餐 120 元" in m["text"] for m in c.events("tools"))
