@@ -8,6 +8,7 @@ python -m synox <指令>
   stop      停掉正在跑的 bot（Stop.bat）
   install   裝一個 .synoxpack：安全管線第 1–3 關（--yes 在終端機直接核准；沒有 --yes 就開網頁設定頁給你按）
   packs     packs status（每個 pack 的鎖定狀態）｜packs lock --approve <name>（工程師：重跑 1、2 關、寫 packs.lock）
+  connect   connect <pack> [--user ID] [--clear]：把 pack 要的帳號存進保管箱（密碼用 getpass，不經聊天）
 """
 
 from __future__ import annotations
@@ -224,6 +225,26 @@ def cmd_packs(args) -> int:
     return 0
 
 
+def cmd_connect(args) -> int:
+    """把一個 pack 要的帳號（pack.json 的 auth.fields）存進保管箱；密碼用 getpass，不經聊天、不進 log。"""
+    from synox import connect
+    from synox.vault import KeyringError, VaultError, open_vault
+    try:
+        config = SynoxConfig.load(args.config or None, require_token=False)
+    except ConfigError as e:
+        print(f"❌ {e}")
+        return 2
+    try:
+        vault = open_vault(config)
+        return connect.run(args.pack, config, vault, user=args.user, clear=args.clear)
+    except (KeyringError, VaultError) as e:
+        print(f"❌ 保管箱打不開：{e}")
+        return 2
+    except (KeyboardInterrupt, EOFError):
+        print("\n（取消了，沒有存）")
+        return 1
+
+
 def main(argv=None) -> int:
     _utf8_console()
     parser = argparse.ArgumentParser(prog="python -m synox", description="SYNOX：你自己電腦上的 Telegram 小助手")
@@ -247,9 +268,13 @@ def main(argv=None) -> int:
     q = psub.add_parser("lock", help="重跑宣告檢查與靜態掃描，過了就寫 packs.lock")
     q.add_argument("--approve", required=True, metavar="NAME", help="pack 的名字")
     p.set_defaults(dirs=None)
+    p = sub.add_parser("connect", help="在這台電腦上設定一個 pack 的帳號（存進保管箱，密碼不經聊天）")
+    p.add_argument("pack", help="pack 的名字，例如 apple-reminders")
+    p.add_argument("--user", type=int, default=None, help="伺服器版：替哪個 Telegram id 設定（預設擁有者）")
+    p.add_argument("--clear", action="store_true", help="清掉存的帳號")
     args = parser.parse_args(argv)
     handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop,
-                "install": cmd_install, "packs": cmd_packs}
+                "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect}
     if args.cmd not in handlers:
         parser.print_help()
         return 1

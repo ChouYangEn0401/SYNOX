@@ -34,7 +34,8 @@
 | `src/synox/wizard/` | `pages.py`（tkinter 畫面：這台給誰用 → token → 配對 → AI → 完成）、`logic.py`（寫 config、mode、AI 頁的 helper、金鑰進保管箱）、`telegram_probe.py`（getMe、配對碼）、`shortcuts.py` |
 | `src/synox/doctor.py` | 健康檢查（不改任何檔、不產生金鑰） |
 | `packs/notes`、`packs/money`、`packs/remind` | 出廠 pack；remind 的程式在 `synox/schedule` |
-| `connectors/*` | `kind: connector` 的設計稿（只有 pack.json、SKILL.md、README；沒有連網程式） |
+| `connectors/*` | `kind: connector` 的設計稿（只有 pack.json、SKILL.md、README；沒有連網程式）；例外：`apple-reminders-caldav` 是 `kind: python`＋`capabilities: ["network"]` 的 CalDAV VTODO 用戶端（requests＋標準函式庫，README 有可行性結論） |
+| `src/synox/connect.py` | `python -m synox connect <pack>`（`Connect-Apple.bat`）：照 pack.json `auth.fields` 用 getpass 問帳密，存 `pack.store.of(user)` 的 key=`auth`（保管箱）。帳密不經聊天：Telegram 會留紀錄、`[ROUTE]` log 印指令全文 |
 | `Setup.bat`、`setup/bootstrap.ps1` | 一鍵安裝；`Start.bat`／`Stop.bat`／`Console.bat` |
 | `tests/` | pytest；`conftest.py` 的 `make_bot` 用真的 packs＋真的 Vault＋`FakeAdapter`＋SDK `BotHarness` |
 
@@ -118,7 +119,9 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 - 經 AI 呼叫、會丟到 `app.tasks` 背景回覆的指令（例如 kind=cli 的 service 指令）：AI 拿到的工具結果是空的，真正的回覆之後直接送給使用者。
 - 核准卡按下執行的結果直接給使用者，只在 AI 的紀錄留一句「已執行」，不會自動再開一輪讓 AI 接著做。
 - `Setup.bat` 的完整安裝路徑（winget、embeddable zip）沒有在任何一台陌生電腦上跑過；精靈的畫面沒有自動化測試（只測了 logic／probe／shortcuts）。
-- connector 只有設計稿（工具頁顯示「要先設定」，沒有「連接」按鈕）。
+- connector 只有設計稿（工具頁顯示「要先設定」，沒有「連接」按鈕）；Apple 提醒事項除外，但它的帳號只能在電腦上用 `Connect-Apple.bat` 設
+  （精靈／網頁沒有表單），而且還沒對真的伺服器跑過（測試全用假傳輸）。
+- `[ROUTE]` log 會印指令全文（SDK dispatcher），所以任何密碼都不能設計成「在聊天裡打」的指令。
 - 文字協定一次只解析一個工具呼叫。
 - 伺服器版：個人版的舊資料不會自動搬到擁有者的 `data/users/<id>/`；精靈的伺服器版沒有多問「誰是管理員」（擁有者之後用 `/user_role <id> admin`
   或網頁帳號頁）。成員的 AI 額度用 token × 單價估（`llm.price_in`／`price_out`，預設 3／15 美元每百萬 token），不是供應者的帳單。
