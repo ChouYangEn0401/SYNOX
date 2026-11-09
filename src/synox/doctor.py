@@ -171,6 +171,14 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
             out(f"• AI：❌ {e}")
             problems += 1
 
+    # 沙盒（synox/sandbox.py）：目前的後端、算不算真隔離
+    from synox import sandbox
+    box = sandbox.sandbox_for(config)
+    sandbox_text, bad = sandbox.doctor_line(config)
+    for line in sandbox_text.splitlines():
+        out(line)
+    problems += bad
+
     # packs
     from synox.packs import envs
     from synox.packs import lock as pack_lock
@@ -216,6 +224,9 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 note = secret_lookup(m)
                 if note:
                     lines.append(f"     {note}")
+                boxed_out = sandbox.restricted_reason(config, m, box) if config is not None else ""
+                if boxed_out:
+                    lines.append(f"     🔐 {boxed_out}")
         except ManifestError as e:
             lines.append(f"  ❌ {rel}：{e}")
             problems += 1
