@@ -398,7 +398,7 @@ class WebUI:
             if group is None or not registry.visible(user, group):
                 continue
             leaves = [n for n in group.walk() if not n.is_group and registry.visible(user, n)]
-            connector = pack.manifest.kind == "connector"
+            connector = pack.manifest.kind in ("connector", "mcp")
             packs_out.append({
                 "name": pack.name, "title": pack.manifest.title, "summary": pack.manifest.summary,
                 "kind": pack.manifest.kind, "version": pack.manifest.version,
