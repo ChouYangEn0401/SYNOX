@@ -17,9 +17,56 @@ node.fields 照樣設好：/help 的用法、AI 工具的參數 schema（agent/t
 
 from __future__ import annotations
 
+import logging
+import re
+import threading
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from isdtelekit.core.registry import Field, Group, Node, field_pattern
+
+
+class _RedactArgs(logging.Filter):
+    """把 log 裡「/指令 後面的字」換成 ***（SDK dispatcher 的 [ROUTE] 那一行會印人打的整句話）。"""
+
+    def __init__(self):
+        super().__init__("synox-redact")
+        self._commands: set = set()
+        self._lock = threading.Lock()
+        self._pattern: Optional["re.Pattern"] = None
+
+    def add(self, command: str) -> None:
+        with self._lock:
+            self._commands.add(command)
+            names = "|".join(re.escape(c) for c in sorted(self._commands, key=len, reverse=True))
+            self._pattern = re.compile(r"(" + names + r")(?:@\w+)?(?![\w])[^'\"\n]*")
+
+    def redact(self, text: str) -> str:
+        pattern = self._pattern
+        return pattern.sub(lambda m: m.group(1) + " ***", text) if pattern is not None else text
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if self._pattern is None:
+            return True
+        try:
+            message = record.getMessage()
+        except Exception:
+            return True
+        redacted = self.redact(message)
+        if redacted != message:
+            record.msg, record.args = redacted, None
+        return True
+
+
+_REDACT = _RedactArgs()
+
+
+def redact_in_logs(command: str) -> None:
+    """這個指令（例如 "/todoist_token"）後面跟的字不准出現在 log：裝在 root logger 上（SDK 的 dispatcher 用 logging.info）。
+    給「參數是密鑰」的指令用；記得也設 ai=False，不讓密鑰經過 AI。"""
+    _REDACT.add(command)
+    root = logging.getLogger()
+    if _REDACT not in root.filters:
+        root.addFilter(_REDACT)
 
 
 def number(value: str) -> Optional[str]:
