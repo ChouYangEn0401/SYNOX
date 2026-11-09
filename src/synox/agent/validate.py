@@ -18,6 +18,10 @@ agent/loop.py 在執行**任何**工具呼叫之前問 `check_call(app, node, ar
 打字的那一條（人自己打的 cli 指令）由 loader 掛的 `typed_check()` 做不需要「是誰」的那幾項；
 `kind: int｜number｜bool｜choice` 的格式也在 `typed_check()`（經 kit.parse_args，人打字與 AI 呼叫都會跑）。
 對 AI 的 schema 一律是字串（這一關要求值是字串，不因 kind 改變）。
+
+**schema 模式**（只有 MCP 工具，pack.json 的 mcp.schema_tools）走另一條：`check_schema_call()` 照那個工具正規化過的
+inputSchema 驗（packs/mcp_schema.check）：型別照 schema（整數、布林、陣列、物件），外加不能被 schema 放寬的硬限制——
+巢狀 ≤3 層、每個物件 ≤20 鍵、字串 ≤2000 字、陣列 ≤50 項、整包 ≤16 KB、不收 schema 沒列的鍵、每個字串都查 secret。
 """
 
 from __future__ import annotations
@@ -211,6 +215,50 @@ def check_call(app, node, args, user, tool: str = "") -> Optional[str]:
             if secret:
                 return no(f"欄位 {key} 看起來是{secret}，不收")
     return None
+
+
+SCHEMA_RUNNERS = "synox_schema_runners"
+
+
+def schema_of(app, node) -> Optional[dict]:
+    """schema 模式（巢狀參數，只給 AI）的節點回它正規化過的 schema；不是回 None。
+    要同時有 meta 的 schema 與 packs/mcp.py 的 install 掛的執行函式（runner）才算——只有 MCP 工具會有。"""
+    extras = getattr(app, "extras", None)
+    if not isinstance(extras, dict) or node is None:
+        return None
+    nested = _meta(app, node).get("schema")
+    if isinstance(nested, dict) and callable((extras.get(SCHEMA_RUNNERS) or {}).get(node.path)):
+        return nested
+    return None
+
+
+def schema_runner(app, node) -> Optional[Callable]:
+    return (getattr(app, "extras", {}) or {}).get(SCHEMA_RUNNERS, {}).get(node.path)
+
+
+def check_schema_call(app, node, args, user, tool: str = "") -> Tuple[Optional[dict], Optional[str]]:
+    """schema 模式的第 4 關：(整理過的參數, None)＝可以執行；(None, 給 AI 的一句話)＝不執行。
+    規則在 packs/mcp_schema.check（照 schema ＋ 不能被 schema 放寬的硬限制 ＋ 每個字串都查 secret）。"""
+    from synox.packs import mcp_schema
+    tool = tool or node.path.replace(".", "__")
+    nested = schema_of(app, node)
+    if nested is None:
+        return None, f"沒有執行 {tool}：這個工具不是 schema 模式。"
+    stored: list = []
+    if isinstance(args, dict) and mcp_schema.has_strings(args):
+        stored = _secrets_of(app, user)
+    clean, problem = mcp_schema.check(nested, args, stored)
+    if problem:
+        return None, f"沒有執行 {tool}：{problem}。改好再呼叫一次。"
+    return clean, None
+
+
+def _secrets_of(app, user) -> list:
+    from synox.packs import secrets as pack_secrets
+    store = pack_secrets.of(app)
+    if store is None:
+        return []
+    return store.secret_values(user)
 
 
 def _stored_secrets(app, user, args) -> list:
