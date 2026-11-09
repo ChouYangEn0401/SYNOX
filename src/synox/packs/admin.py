@@ -10,7 +10,9 @@ Web UI 設定頁、`python -m synox install <檔>`、`python -m synox packs lock
     install_staged(token, …)         再跑一次 1、2 關、確認檔案跟看報告時一樣 → 搬進 packs/ → 第 3 關：寫 packs.lock（誰、何時）
     build_env(name, …, jobs, on_done)  裝好之後才建環境（JobRunner、最多 10 分鐘）；失敗＝pack 已裝、doctor 標環境沒建好
 
-zip 本身：不能有絕對路徑、`..`、磁碟代號、符號連結；最多 MAX_FILES 個檔、解開最多 MAX_UNZIPPED。
+zip 本身：不能有絕對路徑、`..`、磁碟代號、符號連結；檔名不能是 Windows 保留名（CON、NUL、COM1…）、
+不能有冒號（NTFS 資料流）或 Windows 不收的字元、結尾不能是空白或句點（_safe_parts，審查 B #E）；
+最多 MAX_FILES 個檔、解開最多 MAX_UNZIPPED。
 名字跟已經裝的 pack 一樣＝升級：比對、版本檢查、舊的搬到 _removed、退回都在 upgrade.py（install_staged 只裝新的）；
 升級完環境要建／重建（upgrade.env_change）也走這裡的 build_env。
 python pack 的程式會在 SYNOX 裡面、用你的 Windows 帳號權限執行——摘要會明講。
@@ -55,6 +57,12 @@ class GateRefused(PackAdminError):
         self.summary = summary or {}
 
 
+# Windows 的保留裝置名（不分大小寫、加副檔名也算：nul.txt、COM1.py）；COM¹ 這種上標數字 Windows 也當成裝置
+WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} | \
+    {f"{p}{n}" for p in ("COM", "LPT") for n in list("0123456789") + ["¹", "²", "³"]}
+_BAD_CHARS = re.compile(r'[<>:"|?*\x00-\x1f]')
+
+
 def _safe_parts(name: str) -> List[str]:
     name = name.replace("\\", "/")
     if name.startswith("/") or re.match(r"^[A-Za-z]:", name):
@@ -62,6 +70,15 @@ def _safe_parts(name: str) -> List[str]:
     parts = [p for p in name.split("/") if p not in ("", ".")]
     if any(p == ".." for p in parts):
         raise PackAdminError(f"zip 裡有往上跳的路徑：{name}")
+    for p in parts:                                     # 審查 B #E：防禦深度（Windows 解壓縮的怪名字）
+        if ":" in p:
+            raise PackAdminError(f"zip 裡的檔名有冒號（NTFS 資料流，例如 x.py::$DATA）：{name}")
+        if _BAD_CHARS.search(p):
+            raise PackAdminError(f"zip 裡的檔名有 Windows 不收的字元（< > \" | ? * 或控制字元）：{name}")
+        if p != p.rstrip(" ."):
+            raise PackAdminError(f"zip 裡的檔名結尾是空白或句點（Windows 會默默拿掉，變成另一個檔）：{name}")
+        if p.split(".")[0].rstrip(" ").upper() in WINDOWS_RESERVED:
+            raise PackAdminError(f"zip 裡的檔名是 Windows 的保留裝置名（CON、NUL、COM1…）：{name}")
     return parts
 
 
@@ -375,10 +392,17 @@ def format_tier(tier: dict) -> List[str]:
     return out
 
 
+# 審查 B #B：第 2 關對 python 是提醒不是門（個人版、伺服器版都適用）
+PYTHON_SCAN_NOTE = ("靜態掃描只攔得到直接寫出來的名字和常見的間接取用，是提醒、不是門：有心的人寫得出掃描看不出來的程式。"
+                    "python pack 在 SYNOX 程序裡跑，個人版沒有任何隔離（讀得到你全部的資料、保管箱解開的東西、整台電腦的檔案）；"
+                    "伺服器版第三方的 python pack 只給擁有者用（PERM-8）。")
+
+
 def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
     out = []
     if m.kind == "python":
         out.append("這是 python pack：它的程式會在 SYNOX 裡面、用你的 Windows 帳號權限執行。只裝你信得過的人給的。")
+        out.append(PYTHON_SCAN_NOTE)
     if m.kind == "cli":
         out.append("這是 cli pack：會在這台電腦上執行它指定的程式（那支程式本身掃描看不到）。")
     if m.mcp_http:

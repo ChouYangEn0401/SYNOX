@@ -774,8 +774,10 @@ def effect_name(m, tool: str) -> str:
 
 def doctor_notes(m, data_dir: str) -> List[str]:
     """doctor 要印的：pack 外的程式（未鎖定執行環境）、不支援的欄位、伺服器沒列的工具、還沒連過。"""
-    from synox.packs.scan import external_programs
-    out = [f"⚠️ 未鎖定執行環境：argv 用了 pack 外的程式 {p}（packs.lock 不記它的雜湊）" for p in external_programs(m)]
+    from synox.packs.scan import externals
+    out = [f"⚠️ 未鎖定執行環境：argv 用了 pack 外的程式 {e['program']}（packs.lock 不記它的雜湊）"
+           if not e.get("inline") else f"⚠️ argv 直接執行程式碼：{e['resolved']}（第 2 關掃不到）"
+           for e in externals(m)]
     if getattr(m, "mcp_http", False):
         from urllib.parse import urlsplit
         out.append(f"ℹ️ 遠端 MCP：只連 {urlsplit(m.mcp.get('url', '')).netloc}（https，不跟著轉址）")
@@ -866,6 +868,11 @@ class StdioBackend(Backend):
         from synox.packs import loader
         m, config = self.m, self.config
         ph, env = ctx
+        changes = self.pack.tampered_since_load() if hasattr(self.pack, "tampered_since_load") else []
+        if changes:                                               # 審查 B #D：載入後檔案被換過＝不開子程序
+            logging.error("[MCP] %s changed after load, refusing to start: %s", m.name, changes)
+            loader._tamper_notice(self.app, config, m, changes)
+            raise McpError(loader.tampered_text(m, changes), fatal=True)
         if self.server:
             os.makedirs(ph["user_data_dir"], exist_ok=True)
         argv = []

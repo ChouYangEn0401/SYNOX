@@ -105,7 +105,7 @@ SYNOX 的靜態掃描（第 2 關）**只讀得懂 `.py`**。所以它照「看�
 |---|---|---|---|
 | **T0 只有宣告** | 遠端 MCP、只登記的 connector：沒有程式在這台跑 | 不能附程式檔（附了＝拒）。你只寫 pack.json | 報告逐一列出每個工具與 effect、請求與 token 會送到哪個主機。能信的只有這份宣告，對方伺服器做什麼看不到 |
 | **T1 原始碼** | pack 資料夾裡只有第 2 關掃得到的 `.py` 與純資料檔 | 程式用了什麼（連網、子程序、檔案、動態執行）都會被列出 `檔名:行號`，沒宣告就拒裝 | 看得到你的程式做什麼；按一次確認就裝 |
-| **T2 二進位或外部相依** | 附了執行檔或編譯檔（`.exe .dll .bat .cmd .ps1 .sh .so .dylib .pyd .pyc .jar .wasm…`、檔頭是 MZ／ELF／Mach-O 的檔、沒有副檔名但帶執行位元或 `#!` 開頭）、別的語言的原始碼（`.js .mjs .cjs .ts .tsx .jsx .rb .pl .php .lua .go .rs .java .kt .cs .psm1 .bash .zsh…`：SYNOX 讀不懂）、`node_modules/`、`cli.argv`／`mcp.argv` 叫 pack 外的程式（`{node}`、`node`、`npx`、`deno`、`bun`、`ruby`、`perl`、`php` 這類直譯器、`git`、絕對路徑、`{python} -m` 不在 pack 裡的模組）、或 `runtime` = `"auto"` 會裝套件 | 資料夾裡有掃不到內容的檔就**一定要宣告 `exec`**；**一定要寫 `publisher`**。升級時換 publisher、新增 `exec`、多附執行檔，裝的人都會看到紅字 | 報告有紅字一段：會執行什麼、會裝哪些套件、外部程式解析到這台的哪裡。要**一字不差地輸入你的 publisher** 才能裝。伺服器版的 T2 pack 沒有真的沙盒（Linux 的 bwrap／systemd）就只有擁有者看得到 |
+| **T2 二進位或外部相依** | 附了執行檔或編譯檔（`.exe .dll .bat .cmd .ps1 .sh .so .dylib .pyd .pyc .jar .wasm…`、檔頭是 MZ／ELF／Mach-O 的檔、沒有副檔名但帶執行位元或 `#!` 開頭）、別的語言的原始碼（`.js .mjs .cjs .ts .tsx .jsx .rb .pl .php .lua .go .rs .java .kt .cs .psm1 .bash .zsh…`：SYNOX 讀不懂）、`node_modules/`、`cli.argv`／`mcp.argv` 叫 pack 外的程式（`{node}`、`node`、`npx`、`deno`、`bun`、`ruby`、`perl`、`php` 這類直譯器、`git`、絕對路徑、`{python} -m` 不在 pack 裡的模組）、`{python}` 指到 pack 外的 Python（`cli.python`、`"venv"`、`runtime.python` 指到外面）、argv 讓直譯器直接執行一段程式碼（`{python} -c`、`powershell -Command`、`cmd /c`、`node -e`、`bash -c`…）、或 `runtime` = `"auto"` 會裝套件 | 資料夾裡有掃不到內容的檔、argv 直接執行程式碼，就**一定要宣告 `exec`**；**一定要寫 `publisher`**。升級時換 publisher、新增 `exec`、多附執行檔，裝的人都會看到紅字 | 報告有紅字一段：會執行什麼、會裝哪些套件、外部程式解析到這台的哪裡。要**一字不差地輸入你的 publisher** 才能裝。伺服器版的 T2 pack 沒有真的沙盒（Linux 的 bwrap／systemd）就只有擁有者看得到 |
 
 **T2 不是沙盒保證，只是讓裝的人知道他在信任誰。** `publisher` 現在只是 pack.json 裡的一個字串（還沒有簽章驗證），
 它證明不了檔案出自你；「明確輸入」是讓對方停下來想一次、事後在鎖裡查得到當時信了誰。
@@ -137,7 +137,11 @@ pack.json 裡跟「誰能用、能做什麼」有關的欄位。全部都是**�
 | `subprocess` | 開別的程式（`subprocess`、`os.system`…）；MCP stdio 一定要 |
 | `filesystem:own` | 讀寫檔案（你自己的資料夾） |
 | `filesystem:any` | 讀寫 pack 以外、使用者資料夾以外的檔案（含 own） |
-| `exec` | 動態執行程式碼（`exec`、`eval`、`importlib`、`ctypes`、`pickle.loads`…），或 pack 裡有掃不到內容的檔（T2） |
+| `exec` | 動態執行程式碼（`exec`、`eval`、`importlib`、`ctypes`、`pickle.loads`…；`sys.modules`、`x.__class__`／`__dict__`／`__globals__` 這類 dunder 屬性、`getattr` 的屬性名不是字面字、`vars()`／`globals()`、`handlers[k]()` 這種看不出呼叫什麼的寫法也算），pack 裡有掃不到內容的檔（T2），或 argv 讓直譯器直接執行程式碼（`-c`、`-e`、`-Command`、`/c`…） |
+
+> 第 2 關攔的是直接寫出來的名字和常見的間接取用，**是提醒、不是門**：Python 太動態，掃描不保證抓得到每一種寫法。
+> python pack 在 SYNOX 程序裡跑，**個人版沒有任何隔離**；伺服器版第三方的 python pack 只給擁有者（PERM-8）。
+> 不想被算成 `exec`：用 `type(x)` 代替 `x.__class__`、`getattr(x, "名字")` 寫字面字、`f = handlers[k]` 先指給變數再呼叫。
 
 **宣告也決定誰看得到**：每個角色有能力上限，pack 的 `capabilities` 裝不下，那個角色就看不到整組指令（跟不存在一樣）。
 預設上限：訪客 `[]`、成員 `network`＋`filesystem:own`、管理員再加 `subprocess`；**`exec`、`filesystem:any` 只有擁有者**
@@ -246,6 +250,8 @@ SDK：`@tool("WRITE", ai=False, confirm=True)`；cli 的 pack.json：`{"name": "
 - 使用者按確認安裝之後，SYNOX 在它自己的資料夾（不是你的 pack 資料夾）建 venv，跑
   `pip install --no-deps --only-binary=:all:`。
 - `requires.pip` **每一項都要是 `名字==版本`**：`>=`、`~=`、萬用字元、extras、網址、`-r`、`--index-url` 第 1 關都拒。
+  建議再加雜湊：`"requests==2.32.3 --hash=sha256:…"`（`pip hash <wheel 檔>` 或 PyPI 的檔案頁拿；每一項都要寫）。有寫就
+  `--require-hashes`；沒寫的話裝的人會在報告上看到紅字「版本釘選不等於來源可信」。來源一律 PyPI，pack 不能指定 index。
 - `--no-deps`：**相依的套件也要自己全部列出來、釘死版本**（上面的例子是示意，版本請自己確認）。
 - 只裝現成的 wheel：不在使用者電腦上跑套件的 setup.py。
 - Node：`"runtime": {"node": "auto"}`＋pack 裡放 `package.json` 與 `package-lock.json`；SYNOX 跑 `npm ci --ignore-scripts`（套件的安裝腳本一律不跑）。
@@ -302,10 +308,12 @@ synox-sdk init <資料夾> --kind cli --name x                    不用 @tool �
 | `surfaces` 有 `channel` 而 `data` 是 `user` | 每個人自己的資料不能出現在頻道 |
 | 欄位取名 `python`、`node`、`pack_dir`、`data_dir`、`user_data_dir`、`tg_id` | 這些是 SYNOX 的代換名，會被冒用 |
 | `requires.pip` 有沒釘死版本的（`>=`、`~=`、網址…）；`runtime.node: "auto"` 卻沒有 `package-lock.json`；kind=mcp 寫了 `runtime` | 裝的套件要可以重現、可以在報告裡列清楚 |
+| `cli.python`／`runtime.python` 的檔名不是 Python 直譯器（`python*`／`pypy*`），或有 `..`（只收 `../.venv/…`） | `{python}` 被當成「SYNOX 的 Python」看待；要叫別的程式就寫在 argv 第一段 |
 | MCP stdio 沒宣告 `subprocess` | 長駐子程序就是開別的程式 |
 | 遠端 MCP：網址是 `http://`、帶 `帳號:密碼@`、`#`、`{樣板}`；宣告 `subprocess`／`exec`／`filesystem:any`；寫了 `argv`、`env`、`headers` | token 只能走加密連線、只送到宣告的那個主機；這台不跑對方的程式 |
 | `requires.synox` 跟這台的版本不合 | 你用到的功能這版沒有 |
 | `.synoxpack` 超過 5 MB（解開 20 MB、300 個檔），或有絕對路徑、`..`、符號連結 | 防止解壓縮時寫到 pack 資料夾外面 |
+| zip 裡的檔名是 Windows 保留名（`CON`、`NUL`、`COM1`、`nul.txt`…）、有冒號（`x.py::$DATA`）、`< > " \| ? *`、結尾是空白或句點 | Windows 解壓縮時會變成裝置、資料流或另一個檔名，看到的跟裝進去的不一樣 |
 
 ### 安裝時（第 2 關：靜態掃描）
 
@@ -314,6 +322,7 @@ synox-sdk init <資料夾> --kind cli --name x                    不用 @tool �
 | `.py` 用了連網、子程序、檔案、動態執行，`capabilities` 卻沒宣告 | 讓裝的人在裝之前看到你要做什麼（報告列 `檔名:行號`） |
 | `.py` 解析不了（語法錯誤） | 掃不了就不能說它安全 |
 | pack 裡有執行檔、編譯檔、`node_modules/`，沒宣告 `exec` | 掃不到內容的東西要明說 |
+| argv 讓直譯器直接執行程式碼（`-c`、`-e`、`-Command`、`/c`…，寫在 `commands[].argv` 也算），沒宣告 `exec` | 那段程式碼第 2 關掃不到 |
 | argv 樣板把旗標和值分兩段（`["--city", "{city}"]`）、用了不認得的 `{…}` | 值一定要綁在同一段，才不會被拼成別的旗標 |
 | `data: "user"` 卻用 `{data_dir}`；`data: "none"` 卻用 `{user_data_dir}`／`{data_dir}` | 資料放錯地方會跨戶 |
 | 遠端 MCP 或 connector 附了程式檔 | 只能是宣告 |
