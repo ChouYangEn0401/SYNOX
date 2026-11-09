@@ -85,11 +85,15 @@
 
 ## 想加功能：丟一個 pack 進來
 
-一個功能＝`packs/` 底下一個資料夾（`pack.json`、`SKILL.md`、`README.md`、`pack.py`）。把資料夾放進去、重開 bot，
-`/help` 就多一組，AI 也會自己學會怎麼用。格式與範例在 [docs/pack-format.md](docs/pack-format.md)。
+一個功能＝一個 pack（一個資料夾：`pack.json`、`SKILL.md`、`README.md`、程式）。別人給你的 `.synoxpack`：在網頁設定頁上傳，
+或點兩下檔案；SYNOX 先檢查、把報告給你看，你按確認才裝。裝好 `/help` 就多一組，AI 也會自己學會怎麼用。
+
+**想自己寫工具接進來**（任何語言的命令列程式、MCP 伺服器、別人架好的遠端 MCP）：從 [docs/tools.md](docs/tools.md) 開始——
+怎麼選接入方式、十行入門、權限怎麼宣告、怎麼測試與打包；範例在 [examples/](examples/)。全部文件的索引：[docs/README.md](docs/README.md)。
+
 不想要某個 pack：`config.json` 的 `"packs": {"disabled": ["money"]}`。
-pack 放在別的地方（例如金流簿那個 repo 裡的 `synox-pack/`，它要用那個 repo 自己的 Python）：
-`"packs": {"dirs": ["C:/Users/你/Documents/記帳專案/synox-pack"]}`——每一項可以是一個 pack 的資料夾，或裝了很多 pack 的資料夾。
+pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的 Python）：
+`"packs": {"dirs": ["<你的資料夾>/synox-pack"]}`——每一項可以是一個 pack 的資料夾，或裝了很多 pack 的資料夾。
 
 ## 還沒有（v0 不做的）
 
