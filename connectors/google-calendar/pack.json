@@ -1,0 +1,13 @@
+{
+  "name": "google-calendar",
+  "title": "📅 Google 日曆",
+  "summary": "看行程、加行程（還沒接上）",
+  "version": "0.0.1",
+  "kind": "connector",
+  "group": "gcal",
+  "access": "owner",
+  "auth": "oauth",
+  "requires": { "pip": [], "config": [], "env": {} },
+  "skill": "SKILL.md",
+  "storage": "vault"
+}
