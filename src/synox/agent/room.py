@@ -164,6 +164,10 @@ class RoomAgent(AgentLoop):
 
     # ── 換掉的點 ─────────────────────────────────────────────────────
 
+    def memory_key(self, chat_id: int, user=None):
+        """頻道 AI 的記憶是頻道的（同頻道所有人共用；PERM-6 的設計），不分人。"""
+        return chat_id
+
     def decision(self, user, node: Node, chat_id: int):
         if node is None or needs_dm(self.app, node):
             return None
