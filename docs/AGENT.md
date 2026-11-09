@@ -44,7 +44,7 @@
 | `src/synox/doctor.py` | 健康檢查（不改任何檔、不產生金鑰） |
 | `packs/notes`、`packs/money`、`packs/remind` | 出廠 pack；remind 的程式在 `synox/schedule` |
 | `connectors/notion`、`todoist`、`google-calendar`、`apple-reminders-caldav` | **已接上**：`kind: python`＋`capabilities: ["network"]`，只用 requests＋標準函式庫；憑證存 `pack.store.of(user)`（vault）。Notion REST `2025-09-03`（`tests/test_notion.py`）；Todoist API v1（`pack.py` 的 `Client`，`tests/test_todoist.py`）；Google 日曆走 OAuth（PKCE，不開埠）；Apple 是通用 CalDAV VTODO 用戶端（README 有可行性結論）。測試都換成假的 HTTP |
-| `src/synox/connect.py` | `python -m synox connect <pack>`（`Connect-Apple.bat`）：照 pack.json `auth.fields` 用 getpass 問帳密，存 `pack.store.of(user)` 的 key=`auth`（保管箱）。帳密不經聊天：Telegram 會留紀錄、`[ROUTE]` log 印指令全文 |
+| `src/synox/connect.py` | `python -m synox connect <pack>`（`Connect-Apple.bat`）：照 pack.json `auth.fields` 用 getpass 問帳密，存進 `pack_secrets`（`src/synox/packs/secrets.py`，保管箱的鍵 `packs/<pack>/<field>`；跟 Web UI 工具頁「連接」表單是同一份）。帳密不經聊天：Telegram 會留紀錄、`[ROUTE]` log 印指令全文 |
 | `Setup.bat`、`setup/bootstrap.ps1` | 一鍵安裝；`Start.bat`／`Stop.bat`／`Console.bat` |
 | `tests/` | pytest；`conftest.py` 的 `make_bot` 用真的 packs＋真的 Vault＋`FakeAdapter`＋SDK `BotHarness` |
 
