@@ -585,6 +585,16 @@
       notes.forEach(function (f) { nl.appendChild(el("li", "muted", f.file + (f.line ? ":" + f.line : "") + " " + f.label + "：" + f.snippet)); });
       box.appendChild(nl);
     }
+    var env = s.env || {};
+    if (env.needed) {
+      // runtime.python／node = auto：按確認之後才建（packs/envs.py）
+      box.appendChild(el("p", "", "🧱 要建環境（按確認之後才建，要網路，最多 10 分鐘）："));
+      var el2 = el("ul");
+      (env.lines || []).forEach(function (t) { el2.appendChild(el("li", "", t)); });
+      (env.problems || []).forEach(function (t) { el2.appendChild(el("li", "", "⚠️ " + t)); });
+      box.appendChild(el2);
+      box.appendChild(el("p", "muted", "建失敗的話 pack 照樣裝好，狀態會標「環境沒建好」，修好後可以重建。"));
+    }
     var ul = el("ul");
     (s.warnings || []).forEach(function (w) { ul.appendChild(el("li", "", w)); });
     box.appendChild(ul);
@@ -601,7 +611,9 @@
         if (upg) { body.upgrade = true; body.allow_downgrade = !!(down && down.checked); }
         api("POST", "/api/packs/install", body).then(function (d) {
           $("pack-msg").textContent = (d.upgraded ? "升級好了：" + d.name + " " + d.from + " → " + d.to + "（舊的在 " + d.backup + "）"
-            : "裝好了：" + d.name) + "（" + (STATUS[d.status] || d.status) + (d.detail ? "：" + d.detail : "") + "）";
+            : "裝好了：" + d.name) + "（" + (STATUS[d.status] || d.status) + (d.detail ? "：" + d.detail : "") + "）" +
+            (d.env === "building" ? "。環境在背景建，好了會在 Telegram 通知你。" :
+              (d.env && d.env.indexOf("failed") === 0 ? "。環境沒建好：" + d.env.slice(8) : ""));
           box.classList.add("hidden");
           loadSettings();
         }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });

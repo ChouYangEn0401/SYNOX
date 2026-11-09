@@ -8,7 +8,8 @@
 
 安全管線（架構 v1 §4）在載入時做的是第 3 關：packs.lock 有記的 pack 每個檔重算 sha256，不符＝不載入
 （tampered）、通知擁有者一次；沒鎖的照舊載入（報告標 unlocked）。第 1、2 關在安裝時（packs/admin.py）。
-kind=cli 的 argv／env／cwd 樣板代換 {python}、{pack_dir}、{data_dir}、{user_data_dir}、{tg_id}（每次呼叫照下令的人）。
+kind=cli 的 argv／env／cwd 樣板代換 {python}、{node}、{pack_dir}、{data_dir}、{user_data_dir}、{tg_id}（每次呼叫照下令的人）。
+runtime.python／node = "auto" 的環境在安裝時建（packs/envs.py）；沒建好＝status missing、detail 說怎麼重建。
 
 群組（/help 的一頁）由 loader 依 pack.json 定義（title、summary、access），pack 只往裡面掛葉節點；
 access=owner（預設）＝整組只有機器擁有者看得到、用得到（別人打了跟不存在一樣）；
@@ -37,7 +38,7 @@ from isdtelekit.core import jsonstore
 from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 
 from synox.config import ROOT
-from synox.packs import kit, render
+from synox.packs import envs, kit, render
 from synox.packs import lock as pack_lock
 from synox.packs.manifest import (Manifest, ManifestError, missing_requirements, read, secret_env_names,
                                   synox_problem)
@@ -235,15 +236,16 @@ def _install_python(app, pack: Pack) -> None:
     module.install(app, pack)
 
 
-# ── kind=cli：樣板代換（{python}、{pack_dir}、{data_dir}、{user_data_dir}、{tg_id}） ─────────
+# ── kind=cli：樣板代換（{python}、{node}、{pack_dir}、{data_dir}、{user_data_dir}、{tg_id}） ─────────
 
 _PLACEHOLDER = re.compile(r"\{(\w+)\}")
 
 
-def cli_python(m: Manifest) -> str:
+def cli_python(m: Manifest, data_dir: Optional[str] = None) -> str:
     """{python} 換成什麼，照順序：
     1. cli.python：絕對路徑｜"venv"（<pack 資料夾>/../.venv 的 python）
-    2. runtime.python（Windows）／runtime.python_posix（其他）：相對於 pack 資料夾（或絕對路徑）
+    2. runtime.python（Windows）／runtime.python_posix（其他）："auto"＝data/envs/<pack>/venv（安裝時建，packs/envs.py）；
+       其他＝相對於 pack 資料夾（或絕對路徑）
     3. 都沒寫＝SYNOX 自己的 Python"""
     py = m.cli.get("python")
     if py == "venv":
@@ -251,6 +253,9 @@ def cli_python(m: Manifest) -> str:
         return os.path.normpath(os.path.join(m.folder, "..", ".venv", exe))
     if py:
         return py
+    auto = envs.python_of(m, data_dir)
+    if auto:
+        return auto
     runtime = getattr(m, "runtime", {}) or {}
     rel = runtime.get("python") if os.name == "nt" else (runtime.get("python_posix") or runtime.get("python"))
     if rel:
@@ -269,7 +274,8 @@ def placeholders(m: Manifest, config, user=None) -> Dict[str, str]:
     tg_id = getattr(user, "tg_id", None) if user is not None else None
     if tg_id is None:
         tg_id = getattr(config, "owner_id", None)
-    return {"python": cli_python(m), "pack_dir": m.folder, "data_dir": config.data_dir,
+    return {"python": cli_python(m, config.data_dir), "node": envs.node_of(m, config.data_dir),
+            "pack_dir": m.folder, "data_dir": config.data_dir,
             "user_data_dir": user_data_dir(config, tg_id), "tg_id": "" if tg_id is None else str(tg_id)}
 
 
@@ -313,7 +319,10 @@ def cli_prefix(m: Manifest, values: Dict[str, str]) -> List[str]:
 
 
 def cli_env(m: Manifest, values: Dict[str, str]) -> Dict[str, str]:
-    return {k: substitute(v, values) for k, v in (m.cli.get("env") or {}).items()}
+    """cli.env（代換過）；runtime.node=auto 再加 NODE_PATH＝data/envs/<pack>/node_modules（pack 自己寫的優先）。"""
+    out = envs.node_env(m, values.get("data_dir") or None)
+    out.update({k: substitute(v, values) for k, v in (m.cli.get("env") or {}).items()})
+    return out
 
 
 def _install_cli(app, pack: Pack) -> None:
@@ -494,6 +503,10 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         missing = missing_requirements(m, config)
         if missing:
             item.status, item.detail = "missing", f"缺 {missing}"
+            continue
+        no_env = envs.env_problem(m, config.data_dir)   # runtime.python／node=auto 的環境沒建好、沒有 node
+        if no_env:
+            item.status, item.detail = "missing", no_env
             continue
         if app.registry.node(m.group) is not None:
             item.status, item.detail = "error", f"群組 {m.group} 已經被別的 pack 用了"

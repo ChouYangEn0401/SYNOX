@@ -22,7 +22,7 @@ import zipfile
 from typing import Iterable
 
 SKIP_FILES = {".synox.key", "host.lock", "web_tokens.json", "web_sessions.json", "last_update_id"}
-SKIP_DIRS = {"web_uploads", "job_logs", "claude_workspace"}
+SKIP_DIRS = {"web_uploads", "job_logs", "claude_workspace", "envs"}   # envs：pack 的 venv／node_modules，可以重建
 MAX_BYTES = 512 * 1024 * 1024
 
 README = """SYNOX 備份（{date}）

@@ -18,12 +18,12 @@
 | Path | Role |
 |---|---|
 | `vendor/isdtelekit/` | ISDTeleKitSDK 的**原樣**複製（版本與 commit 在 `vendor/VERSION`）。不要改；要不同的行為就在 `src/synox` 寫轉接 |
-| `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜doctor｜stop｜install <檔> [--yes]｜packs status｜packs lock --approve <name>` |
+| `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜doctor｜stop｜install <檔> [--yes]｜packs status｜packs lock --approve <name>｜packs env rebuild <name>` |
 | `src/synox/app.py` | `build(config, home=, adapter=, vault=, config_path=)`：SDK `build_app` → basics/help → `packs.load_all` → `agent.install` → `schedule.install` → `web.install` |
 | `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`；路徑相對 SYNOX 資料夾（`ROOT`） |
 | `src/synox/llm/` | `base.py`（`ChatAdapter`、`Message`、`Reply`、`ToolCall`、`ToolSpec`）、`easy_llm.py`（openai／anthropic／gemini／openai_compat，經 `ntu_easy_llm.agent`，lazy import）、`claude_code`、`fake`、`textproto`、`factory.make_adapter` |
 | `src/synox/vault/` | `vault.py`（Fernet＋每檔 scrypt、`*.json.enc`；`for_user(id)`＝伺服器版每人的保管箱，HKDF 衍生）、`keyring.py`（DPAPI 包住主金鑰 `data/.synox.key`） |
-| `src/synox/packs/` | `manifest.py`（pack.json v2 檢查＝第 1 關；`requires.synox`＝`synox_problem`、`requires.env`→`secret_env_names`、`fields[].kind`）、`scan.py`（ast 靜態掃描＝第 2 關）、`lock.py`（`data/packs.lock`＝第 3 關）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`、cli 代換與 `build_argv`）、`kit.py`（照位置填的指令） |
+| `src/synox/packs/` | `manifest.py`（pack.json v2 檢查＝第 1 關；`requires.synox`＝`synox_problem`、`requires.env`→`secret_env_names`、`fields[].kind`）、`scan.py`（ast 靜態掃描＝第 2 關）、`lock.py`（`data/packs.lock`＝第 3 關）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`、cli 代換與 `build_argv`）、`kit.py`（照位置填的指令）、`envs.py`（`runtime.python／node = "auto"`：`Builder.plan`／`build(m, jobs, on_done)` 建 `data/envs/<pack>/`、`python_of`／`node_of`／`node_env` 給 loader 代換、`env_problem` 給 loader／doctor；`set_factory` 換實作） |
 | `src/synox/sdk/` | 給 pack 作者：JSON 信封、`Pack.load`、`init_pack`、`zip_pack`；`synox-sdk init｜check｜zip`（`python -m synox.sdk`）。說明 [sdk.md](sdk.md) |
 | `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`validate.py`（第 4 關呼叫驗證）、`delimit.py`（第 5 關工具結果分隔符）、`budget.py`（伺服器版成員每月額度）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
 | `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（30 秒、via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`、`/schedule_*`） |
@@ -64,6 +64,9 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 10. **裝別人的 pack 一律過五關**（docs/security.md「五關」）：宣告（`manifest.validate(strict=True)`）→ 靜態掃描（`scan.py`）→
     `packs.lock`（載入時雜湊不符＝不載）→ 呼叫前驗參數（`agent/validate.py`，AI 的每個工具呼叫）→ `ai_decision`＋核准卡＋分隔符。
     新的安裝路徑一律走 `packs/admin.py` 的 `stage`／`install_staged`，不要自己搬檔進 `packs/`。
+    pack 的依賴環境（`runtime.*` = `auto`）一律在**按確認之後**經 `admin.build_env`（JobRunner、最多 10 分鐘）建在 `data/envs/<pack>/`，
+    不寫進 pack 資料夾；pip 只裝 `==` 釘死的版本（`--no-deps --only-binary=:all:`）、npm 一律 `ci --ignore-scripts`。
+    **測試絕不真的 pip／npm install**：用假的 JobRunner（`tests/test_envs.py` 的 `FakeJobs`）與假的 which。
 
 另外：
 - pack 的群組由 loader 依 pack.json 定義（`loader.group_policy`）：`access: owner`（預設）＝整組 `owner_only`；`member`＝伺服器版 `role=MEMBER`、

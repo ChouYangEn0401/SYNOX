@@ -11,6 +11,21 @@
 - `python -m synox packs rollback <name>`：`_removed` 裡最近一份舊版搬回、鎖改回當時的（檔案對不上就不鎖）；現在那份搬到 `_removed`。
 - 移除的資料夾名多了版本（`<name>-<版本>-<時間>`），旁邊留 `.lock.json`，移除之後也能 rollback。測試 `tests/test_upgrade.py`（22 個）。
 
+## 未發佈（branch feat/sdk-p5-envs）
+
+### 新增
+- **依賴與環境自動建置**（SDK P5，`src/synox/packs/envs.py`）：kind=cli 的 `runtime.python` 可以寫 `"auto"`——安裝時在
+  `data/envs/<pack>/venv` 建 venv，`pip install --no-deps --only-binary=:all:` 裝 `requires.pip`（只收 `名字==版本`，其他寫法 pack.json 不合）；
+  新的 `runtime.node`（路徑或 `"auto"`）與代換 `{node}`：`auto`＝`npm ci --ignore-scripts` 照 pack 的 `package-lock.json` 裝進
+  `data/envs/<pack>/node_modules`（子程序拿到 `NODE_PATH`）。pack 資料夾不寫任何東西。
+- 安裝報告（終端機與網頁）在第 2 關之後多一段「🧱 要建環境：Python venv、裝 N 個套件：名稱 版本」；按確認、裝好之後才建
+  （JobRunner，整個最多 10 分鐘，log 進 `data/job_logs/`）。失敗不卡安裝：pack 已裝、狀態 `missing`，doctor 標「環境沒建好」並說原因；
+  沒網路說「連不上網路」、找不到版本說是哪個套件。網頁裝完會在背景建，好了／失敗都通知擁有者。
+- `python -m synox packs env rebuild <name>`：重建。`requires.pip`／`package-lock.json` 改了，doctor 會說環境對不上、要重建。
+  系統沒有 node（而 pack 用 `{node}`／`runtime.node`）＝doctor 說缺、不載入。
+- `Builder` 是可替換的介面（`envs.set_factory`；預設 `VenvBuilder`）。`node` 成為保留的代換名（欄位不能叫 node）。
+  備份略過 `data/envs/`（可以重建）。測試 `tests/test_envs.py`（36 個；假的 JobRunner 與 which，不真的 pip／npm、不連網）。
+
 ## 未發佈（branch feat/sdk-p0-fixes）
 
 ### 修正

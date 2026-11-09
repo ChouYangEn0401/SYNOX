@@ -6,8 +6,9 @@ Web UI 設定頁、`python -m synox install <檔>`、`python -m synox packs lock
 
     stage(blob, data_dir)            zip 檢查 → 解到 data/web_uploads/<token>/pack/ → 第 1 關（宣告，嚴格版）
                                      → 第 2 關（靜態掃描＋integrity 對檔）→ (token, 摘要＋掃描報告)；過不了丟 GateRefused
-    （給人看報告、按確認）
+    （給人看報告＋「要建環境」那一段（runtime.python／node = auto，packs/envs.py）、按確認）
     install_staged(token, …)         再跑一次 1、2 關、確認檔案跟看報告時一樣 → 搬進 packs/ → 第 3 關：寫 packs.lock（誰、何時）
+    build_env(name, …, jobs, on_done)  裝好之後才建環境（JobRunner、最多 10 分鐘）；失敗＝pack 已裝、doctor 標環境沒建好
 
 zip 本身：不能有絕對路徑、`..`、磁碟代號、符號連結；最多 MAX_FILES 個檔、解開最多 MAX_UNZIPPED。
 名字跟已經裝的 pack 一樣＝升級：比對、版本檢查、舊的搬到 _removed、退回都在 upgrade.py（install_staged 只裝新的）。python pack 的程式會在 SYNOX 裡面、用你的 Windows 帳號權限執行——摘要會明講。
@@ -27,7 +28,7 @@ import time
 import zipfile
 from typing import Dict, List, Optional, Tuple
 
-from synox.packs import loader
+from synox.packs import envs, loader
 from synox.packs import lock as pack_lock
 from synox.packs.manifest import Manifest, ManifestError, read, synox_problem
 from synox.packs.scan import ScanReport, scan
@@ -123,7 +124,35 @@ def summary_of(m: Manifest, report: ScanReport, hashes: Dict[str, str], problems
             "files": sorted(hashes)[:100], "panel": bool(m.web.get("panel")), "api": list(m.web.get("api", [])),
             "capabilities": list(m.capabilities), "integrity": bool(m.integrity),
             "scan": {**report.to_dict(m), "problems": problems, "ok": not problems},
-            "warnings": warnings_for(m, report)}
+            "warnings": warnings_for(m, report), "env": env_plan(m).to_dict()}
+
+
+def env_plan(m: Manifest, data_dir: Optional[str] = None) -> "envs.EnvPlan":
+    """第 2 關之後、確認之前的報告：要建什麼環境（runtime.python／node = auto）。只看、不跑。"""
+    return envs.builder(data_dir).plan(m)
+
+
+def build_env(name: str, data_dir: str, packs_dir: str, jobs, on_done) -> bool:
+    """裝好之後（或 packs env rebuild）：照 pack.json 建 data/envs/<name>/。經 jobs（JobRunner）在背景跑，
+    結束呼叫 on_done(BuildResult)。不用建回 False（on_done 不會被叫）。失敗不影響 pack 已經裝好：
+    loader／doctor 會標「環境沒建好」。"""
+    folder = os.path.join(packs_dir, name)
+    try:
+        m = read(folder)
+    except ManifestError as e:
+        raise PackAdminError(f"pack.json 不合：{e}")
+    if not envs.needs_env(m):
+        return False
+
+    def done(result):
+        if result.ok:
+            logging.info("[PACKS] env for %s built", name)
+        else:
+            logging.warning("[PACKS] env for %s failed: %s", name, result.detail)
+        on_done(result)
+
+    envs.builder(data_dir).build(m, jobs, done)
+    return True
 
 
 def stage(blob: bytes, data_dir: str) -> Tuple[str, Dict]:
@@ -219,6 +248,13 @@ def format_summary(summary: dict) -> str:
         lines += [f"  - {p}" for p in problems]
     else:
         lines.append("✅ 宣告檢查、靜態掃描都過了")
+    env = summary.get("env") or {}
+    if env.get("needed"):
+        lines.append("🧱 要建環境（按確認之後才建）：")
+        lines += [f"  · {line}" for line in env.get("lines") or []]
+        lines.append(f"  （要網路，最多 10 分鐘；建在 data/envs/{summary.get('name')}/；失敗的話 pack 照樣裝好，"
+                     f"doctor 會標「環境沒建好」）")
+        lines += [f"  ⚠️ {p}" for p in env.get("problems") or []]
     lines += [f"⚠️ {w}" for w in summary.get("warnings") or []]
     return "\n".join(lines)
 
