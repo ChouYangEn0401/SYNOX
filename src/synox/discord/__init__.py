@@ -1,30 +1,40 @@
 """
-Discord 通道（最小版：私訊收訊＋回覆＋按鈕）。
+Discord 通道（私訊收訊＋回覆＋按鈕；一個程序可以開好幾個 bot）。
 
-config.json：
-    "channels": {"discord": {"enabled": true, "bot_token": "vault:discord_bot_token"}}
+config.json（兩種寫法，見 synox/discord/bots.py）：
+    "channels": {"discord": {"enabled": true, "bot_token": "vault:discord_bot_token"}}          一個 bot（＝bots.default）
+    "channels": {"discord": {"bots": {"synox": {"surface": "dm"}, "helper": {"surface": "dm", "packs": ["dict"]}}}}
 
-- install(app, config, vault)：有開 Discord 就做出 DiscordChannel、把 app.home 換成 MultiHome（主動通知依對象走
-  Telegram 或 Discord）、在 on_start 登記 Gateway 迴圈到 app.hub（名字 "discord"，受監看、掛了自己退避重啟）。
+- install(app, config, vault)：每個私訊型 bot 一個 DiscordChannel（回覆用「收到訊息的那個 bot」的 token）和一條 Gateway
+  （on_start 登記到 app.hub：名字 "discord:<名字>"，舊寫法維持 "discord"；受監看、掛了自己退避重啟）；
+  app.home 換成 MultiHome（主動通知依對象走 Telegram 或 Discord；Discord 走這個人最近私訊過的 bot，沒有就第一個私訊型）。
   終端機模式不呼叫 on_start，所以不會連 Discord。
-- 身分：synox.identity（data/identities.json）。陌生的 Discord 帳號拿到保留號段的新 id（伺服器版＝訪客；個人版＝被拒）；
-  擁有者用 `python -m synox pair-discord`（私訊 bot 六位數配對碼）把自己的 Discord 帳號接到 owner_id。
+- surface=channel 的 bot：這一版不連線（頻道收訊是 PERM-5），原因記在 app.extras["discord_errors"]，啟動時、doctor 會說。
+- 身分：synox.identity（data/identities.json）。同一個 Discord 帳號對任何 bot 都是同一個內部 id。
+  陌生的 Discord 帳號拿到保留號段的新 id（伺服器版＝訪客；個人版＝被拒）；
+  擁有者用 `python -m synox discord pair`（私訊 bot 六位數配對碼）把自己的 Discord 帳號接到 owner_id。
 """
 
 from __future__ import annotations
 
 import logging
 import threading
-from typing import Optional
+from collections import OrderedDict
+from typing import Dict, List, Optional
 
+from isdtelekit.core.jsonstore import load_json, save_json
 from isdtelekit.host.app import telegram_api
 
+from synox.discord import bots as bot_specs
+from synox.discord.bots import CHANNEL, BotSpec
 from synox.discord.events import DISCORD, pairing_sender, parse_event
 from synox.discord.gateway import Gateway
 from synox.discord.rest import DiscordChannel
 from synox.identity import BASE, Identities
 
-VAULT_NAME = "discord_bot_token"
+VAULT_NAME = bot_specs.VAULT_BASE
+CHANNEL_NOT_YET = "頻道型 bot（surface: channel）這一版還不會連線：頻道收訊還沒做（PERM-5），現在只開私訊型 bot"
+_BY_MESSAGE = {"edit_message_text", "remove_buttons", "delete_message", "pin_message", "unpin_message"}
 
 
 def settings(config) -> dict:
@@ -33,64 +43,179 @@ def settings(config) -> dict:
     return d if isinstance(d, dict) else {}
 
 
+def specs(config) -> List[BotSpec]:
+    """要開的 bot（設定錯丟 ConfigError；SynoxConfig.from_dict 已先檢查過）。"""
+    return bot_specs.active(settings(config))
+
+
 def enabled(config) -> bool:
-    d = settings(config)
-    return bool(d.get("enabled", bool(d.get("bot_token"))))
+    return bool(specs(config))
 
 
-def bot_token(config, vault) -> str:
+def resolve_token(spec: BotSpec, vault) -> str:
     from synox.llm.factory import resolve_secret
-    return resolve_secret(settings(config).get("bot_token") or f"vault:{VAULT_NAME}", vault).strip()
+    return resolve_secret(spec.token, vault).strip()
+
+
+def find_spec(config, name: Optional[str] = None) -> Optional[BotSpec]:
+    return bot_specs.find(bot_specs.parse(settings(config)), name)
+
+
+def bot_token(config, vault, name: Optional[str] = None) -> str:
+    """某個 bot 的 token（name 沒給＝default／第一個私訊型）。找不到這個 bot 丟 LookupError。"""
+    spec = bot_specs.find(specs(config), name)
+    if spec is None:
+        raise LookupError(f"config.json 的 channels.discord 沒有開著、叫 {name} 的 bot" if name
+                          else "config.json 的 channels.discord 沒有私訊型的 bot")
+    return resolve_token(spec, vault)
+
+
+class DiscordBots:
+    """所有開著的私訊型 bot：名字 → DiscordChannel，記住「每個人最近私訊的是哪個 bot」（data/discord_last_bot.json）
+    和「哪則訊息是哪個 bot 送的」（之後改訊息、拿掉按鈕要用同一個 bot），給 MultiHome 挑主動通知走哪個。"""
+
+    MESSAGES_KEPT = 1000
+
+    def __init__(self, path: Optional[str] = None):
+        self.channels: "OrderedDict[str, DiscordChannel]" = OrderedDict()
+        self.path = path
+        self._lock = threading.Lock()
+        data = load_json(path, {}) if path else {}
+        self._last: Dict[int, str] = {}
+        for k, v in (data.items() if isinstance(data, dict) else ()):
+            try:
+                self._last[int(k)] = str(v)
+            except (TypeError, ValueError):
+                continue
+        self._sent: "OrderedDict[int, str]" = OrderedDict()
+
+    def add(self, name: str, channel: DiscordChannel) -> None:
+        self.channels[name] = channel
+
+    def first(self) -> Optional[DiscordChannel]:
+        return next(iter(self.channels.values()), None)
+
+    def saw_dm(self, uid: int, name: str) -> None:
+        with self._lock:
+            if self._last.get(int(uid)) == name:
+                return
+            self._last[int(uid)] = name
+            snapshot = {str(k): v for k, v in self._last.items()}
+        if self.path:
+            try:
+                save_json(self.path, snapshot)
+            except OSError:
+                logging.warning("[DISCORD] could not save %s", self.path)
+
+    def last_bot(self, uid) -> Optional[str]:
+        try:
+            return self._last.get(int(uid))
+        except (TypeError, ValueError):
+            return None
+
+    def sent_by(self, message_id, name: str) -> None:
+        try:
+            mid = int(message_id)
+        except (TypeError, ValueError):
+            return
+        if not mid:
+            return
+        with self._lock:
+            self._sent[mid] = name
+            while len(self._sent) > self.MESSAGES_KEPT:
+                self._sent.popitem(last=False)
+
+    def name_of(self, channel) -> Optional[str]:
+        return next((n for n, c in self.channels.items() if c is channel), None)
+
+    def pick(self, uid, message_id=None) -> Optional[DiscordChannel]:
+        """送給 uid 用哪個 bot：這則訊息是誰送的 → 這個人最近私訊的 → 第一個（config 順序的第一個私訊型）。"""
+        if message_id is not None:
+            try:
+                name = self._sent.get(int(message_id))
+            except (TypeError, ValueError):
+                name = None
+            if name in self.channels:
+                return self.channels[name]
+        name = self.last_bot(uid)
+        if name in self.channels:
+            return self.channels[name]
+        return self.first()
+
+    def can_reach(self, uid) -> bool:
+        return any(c.can_reach(uid) for c in self.channels.values())
 
 
 class MultiHome:
     """主動通知的管子：依收件人走 Telegram 或 Discord。
     - 保留號段的 id（只有 Discord 的人）→ Discord；
     - 其他 id → Telegram（有 token 時）；沒有 Telegram 但這個 id 接了 Discord（例如擁有者只用 Discord）→ Discord；
-    - 都不是 → 原本的 home（只記 log／測試的假管子）。"""
+    - 都不是 → 原本的 home（只記 log／測試的假管子）。
+    走 Discord 時挑哪個 bot：DiscordBots.pick（這個人最近私訊過的私訊型 bot，沒有就第一個）。"""
 
     channel_name = "multi"
 
-    def __init__(self, primary, discord: DiscordChannel):
+    def __init__(self, primary, discord):
         self.primary = primary
-        self.discord = discord
+        if isinstance(discord, DiscordChannel):           # 舊用法：只有一個 bot
+            one = DiscordBots()
+            one.add(bot_specs.DEFAULT, discord)
+            discord = one
+        self.bots: DiscordBots = discord
+
+    @property
+    def discord(self) -> Optional[DiscordChannel]:
+        return self.bots.first()
 
     @property
     def telegram_api(self):
         return telegram_api(self.primary)
 
-    def _pick(self, chat_id):
+    def _pick(self, chat_id, message_id=None):
         try:
             uid = int(chat_id)
         except (TypeError, ValueError):
             return self.primary
         if uid >= BASE:
-            return self.discord
+            return self.bots.pick(uid, message_id) or self.primary
         if self.telegram_api is not None:
             return self.primary
-        return self.discord if self.discord.can_reach(uid) else self.primary
+        return (self.bots.pick(uid, message_id) or self.primary) if self.bots.can_reach(uid) else self.primary
+
+    def _record(self, target, out):
+        if isinstance(target, DiscordChannel) and isinstance(out, dict) and out.get("ok"):
+            name = self.bots.name_of(target)
+            if name:
+                self.bots.sent_by((out.get("result") or {}).get("message_id"), name)
+        return out
 
     def send_message(self, chat_id, text, reply_markup=None, **kw):
-        return self._pick(chat_id).send_message(chat_id, text, reply_markup=reply_markup, **kw)
+        target = self._pick(chat_id)
+        return self._record(target, target.send_message(chat_id, text, reply_markup=reply_markup, **kw))
 
     def __getattr__(self, name):
-        if name.startswith("_") or name in ("primary", "discord"):
+        if name.startswith("_") or name in ("primary", "bots"):
             raise AttributeError(name)
 
         def call(chat_id=None, *a, **kw):
-            target = self._pick(chat_id) if chat_id is not None else self.primary
+            message_id = a[0] if (a and name in _BY_MESSAGE) else kw.get("message_id")
+            target = self._pick(chat_id, message_id) if chat_id is not None else self.primary
             fn = getattr(target, name, None)
-            return fn(chat_id, *a, **kw) if fn is not None else {"ok": False}
+            return self._record(target, fn(chat_id, *a, **kw)) if fn is not None else {"ok": False}
         return call
 
 
 class DiscordEntry:
-    """Gateway 事件 → Inbound → dispatcher.handle(DiscordChannel, …)。按鈕沒被回應的話自動默默確認（Discord 要 3 秒內回）。"""
+    """Gateway 事件 → Inbound → dispatcher.handle(DiscordChannel, …)。按鈕沒被回應的話自動默默確認（Discord 要 3 秒內回）。
+    channel 是「收到這個事件的 bot」：回覆一律用它的 token。"""
 
-    def __init__(self, dispatcher, identities: Identities, channel: DiscordChannel):
+    def __init__(self, dispatcher, identities: Identities, channel: DiscordChannel, *, name: str = bot_specs.DEFAULT,
+                 bots: Optional[DiscordBots] = None):
         self.dispatcher = dispatcher
         self.identities = identities
         self.channel = channel
+        self.name = name
+        self.bots = bots
 
     def on_dispatch(self, event: str, d: dict):
         parsed = parse_event(event, d, lambda ext: self.identities.resolve(DISCORD, ext))
@@ -98,6 +223,8 @@ class DiscordEntry:
             return None
         inbound, channel_id = parsed
         self.channel.remember_dm(inbound.user_id, channel_id)
+        if self.bots is not None:
+            self.bots.saw_dm(inbound.user_id, self.name)
         if inbound.button is None:
             return self.dispatcher.handle(self.channel, inbound)
         cq_id = inbound.button.cq_id
@@ -110,33 +237,63 @@ class DiscordEntry:
 
 
 def install(app, config, vault) -> Optional[DiscordChannel]:
-    if not enabled(config):
+    """開好每個私訊型 bot；回第一個的 DiscordChannel（一個都沒開成回 None）。"""
+    wanted = specs(config)
+    if not wanted:
         return None
     identities = Identities(config.path("identities.json"))
     app.extras["identities"] = identities
-    try:
-        token = bot_token(config, vault)
-    except Exception as e:                        # 保管箱沒有 token：其他通道照跑，doctor／log 說原因
-        logging.error("[DISCORD] %s", e)
-        app.extras["discord_error"] = str(e)
+    errors: Dict[str, str] = {}
+    app.extras["discord_errors"] = errors
+    bots = DiscordBots(config.path("discord_last_bot.json"))
+    entries: Dict[str, DiscordEntry] = {}
+    gateways = []
+    for spec in wanted:
+        if spec.surface == CHANNEL:
+            errors[spec.name] = CHANNEL_NOT_YET
+            logging.warning("[DISCORD] bot %s: %s", spec.name, CHANNEL_NOT_YET)
+            continue
+        try:
+            token = resolve_token(spec, vault)
+        except Exception as e:                    # 保管箱沒有 token：其他 bot、其他通道照跑，doctor／log 說原因
+            logging.error("[DISCORD] bot %s: %s", spec.name, e)
+            errors[spec.name] = str(e)
+            continue
+        if not token:
+            errors[spec.name] = ("channels.discord.bot_token 是空的" if spec.legacy
+                                 else f"bots.{spec.name}.token（{spec.token}）是空的")
+            continue
+        if any(token == t for _, t, _ in gateways):
+            errors[spec.name] = "跟另一個 bot 的 token 一樣（一個 bot 只能有一條連線）"
+            continue
+        channel = DiscordChannel(token, identities)
+        bots.add(spec.name, channel)
+        entry = DiscordEntry(app.dispatcher, identities, channel, name=spec.name, bots=bots)
+        entries[spec.name] = entry
+        gateways.append((spec, token, entry))
+    app.extras["discord_bots"] = bots
+    app.extras["discord_entries"] = entries
+    app.extras["discord_specs"] = {s.name: s for s in wanted}
+    if errors:
+        legacy_only = len(errors) == 1 and wanted[0].legacy
+        app.extras["discord_error"] = (next(iter(errors.values())) if legacy_only
+                                       else "；".join(f"bot {n}：{e}" for n, e in errors.items()))
+    if not gateways:
         return None
-    if not token:
-        app.extras["discord_error"] = "channels.discord.bot_token 是空的"
-        return None
-    channel = DiscordChannel(token, identities)
     owner_discord = str(settings(config).get("owner_user_id") or "").strip()
     if owner_discord and identities.lookup(DISCORD, owner_discord) is None:
         identities.bind(DISCORD, owner_discord, config.owner_id)
-    app.extras["discord"] = channel
-    app.home = MultiHome(app.home, channel)
-    entry = DiscordEntry(app.dispatcher, identities, channel)
-    app.extras["discord_entry"] = entry
+    first = bots.first()
+    app.extras["discord"] = first
+    app.extras["discord_entry"] = entries[gateways[0][0].name]
+    app.home = MultiHome(app.home, bots)
 
     def start(a):
-        a.hub.add(DISCORD, lambda: Gateway(token, entry.on_dispatch))
-        a.hub.get(DISCORD).start()
+        for spec, token, entry in gateways:
+            a.hub.add(spec.hub_name, lambda t=token, e=entry, n=spec.hub_name: Gateway(t, e.on_dispatch, label=n))
+            a.hub.get(spec.hub_name).start()
     app.on_start.insert(0, start)
-    return channel
+    return first
 
 
 # ── 擁有者配對（照 wizard/telegram_probe 的流程：私訊 bot 六位數字）────────────
@@ -173,14 +330,22 @@ def wait_for_pairing(token: str, code: str, *, timeout: float = 900.0, connect=N
     return found
 
 
-def pair_owner(config, vault, *, code: Optional[str] = None, out=print, **kw) -> int:
-    """python -m synox pair-discord：印出配對碼 → 等私訊 → 把那個 Discord 帳號接到 owner_id。"""
+def pair_owner(config, vault, *, code: Optional[str] = None, out=print, bot: Optional[str] = None, **kw) -> int:
+    """python -m synox discord pair [--bot 名字]：印出配對碼 → 等私訊 → 把那個 Discord 帳號接到 owner_id。
+    身分對所有 bot 共用，所以配對一次就好（用哪個私訊型 bot 都可以；沒指定＝default／第一個私訊型）。"""
     from synox.wizard.telegram_probe import new_pairing_code
     if not enabled(config):
         out("❌ config.json 還沒有開 Discord（channels.discord）。看 docs/discord.md。")
         return 2
+    spec = bot_specs.find(specs(config), bot)
+    if spec is None:
+        out(f"❌ config.json 的 channels.discord 沒有開著、叫 {bot} 的 bot。" if bot else "❌ 沒有私訊型的 bot 可以配對。")
+        return 2
+    if spec.surface == CHANNEL:
+        out(f"❌ bot {spec.name} 是頻道型的；配對要用私訊型的 bot（--bot 換一個）。")
+        return 2
     try:
-        token = bot_token(config, vault)
+        token = resolve_token(spec, vault)
     except Exception as e:
         out(f"❌ {e}")
         return 2

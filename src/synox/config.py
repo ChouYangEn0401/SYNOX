@@ -12,6 +12,8 @@ SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、�
       "ai_member_monthly_usd": 2.0,            伺服器版：每個成員每月的 AI 額度（美元）
       "channels": {"discord": {"enabled": true, "bot_token": "vault:discord_bot_token"}}   Discord 私訊（docs/discord.md）
     }
+- 多個 Discord bot：channels.discord.bots.<名字> = {"token": "vault:…", "surface": "dm", "packs": "all", "ai": true}
+  （synox/discord/bots.py 解析與檢查；舊寫法＝bots.default）。
 - 只用 Discord 時 bot_token、owner_id 可以不填（owner_id 預設保留號段 10^15，pair-discord 把你的 Discord 帳號接上）。
 
 - 路徑一律相對於 SYNOX 資料夾（不管從哪裡啟動）：data_dir 沒寫就是 <SYNOX>/data。
@@ -68,6 +70,8 @@ class SynoxConfig(BotConfig):
             # 只用 Discord、沒有 Telegram id：擁有者用保留號段的第一號，之後 pair-discord 把 Discord 帳號接上來
             from synox.identity import BASE
             raw = {**raw, "owner_id": BASE}
+        from synox.discord.bots import parse as parse_discord_bots
+        parse_discord_bots(discord)                   # 設定錯在這裡就講清楚（ConfigError）
         base = BotConfig.from_dict(raw, require_token=require_token)
         root = os.path.abspath(root or ROOT)
         data_dir = base.data_dir if os.path.isabs(base.data_dir) else os.path.join(root, base.data_dir)

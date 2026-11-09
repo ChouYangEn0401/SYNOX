@@ -1,4 +1,4 @@
-# Discord 通道：現況與設定（2026-11-09）
+# Discord 通道：現況與設定（2026-11-09，含多 bot）
 
 ## 現況（最小可用版）
 
@@ -10,7 +10,8 @@
 | 主動通知（提醒、排程、背景工作做完）送到 Discord | ✅ 只用 Discord 的人走 Discord；有 Telegram 的擁有者照舊走 Telegram |
 | 只有 Discord、沒有 Telegram 也能啟動 | ✅ |
 | 擁有者配對（私訊 bot 六位數字） | ✅ `python -m synox discord pair` |
-| 伺服器頻道（guild）裡的訊息 | ❌ 一律不讀不回（只做私訊） |
+| 一個 SYNOX 開好幾個私訊型 bot（各自的 token；回覆用收到訊息的那個 bot） | ✅ `channels.discord.bots`（見下面「多個 bot」） |
+| 伺服器頻道（guild）裡的訊息 | ❌ 一律不讀不回（只做私訊）；`surface: "channel"` 的 bot 設定看得懂但不會連線（PERM-5） |
 | 收附件（圖片、檔案） | ❌ |
 | 斜線指令選單（Discord 的 `/` 自動完成） | ❌ 指令照打字就能用 |
 
@@ -50,6 +51,43 @@
 - 也有 Telegram：其他照舊。
 - **只用 Discord**：`bot_token`、`owner_id` 可以拿掉；SYNOX 會用保留號段的號碼當擁有者。
 
+### 3b. 多個 bot（選用）
+
+想要好幾個 bot（例如一個什麼都能做的「SYNOX」、一個只開查詢 pack 的小幫手）：每個 bot 在 Developer Portal 各建一個
+Application、各自一個 token，config.json 改成 `bots` 寫法（**跟上面的 `bot_token` 寫法擇一**）：
+
+```json
+"channels": { "discord": { "bots": {
+  "synox":  { "token": "vault:discord_bot_token:synox",  "surface": "dm", "packs": "all", "ai": true },
+  "helper": { "token": "vault:discord_bot_token:helper", "surface": "dm", "packs": ["dict", "weather"], "max_effect": "read" }
+} } }
+```
+
+每個 bot 的 token 各存一次：
+
+```
+.venv\Scripts\python.exe -m synox discord token --bot synox
+.venv\Scripts\python.exe -m synox discord token --bot helper
+```
+
+| 欄位 | 意思 | 沒寫時 |
+|---|---|---|
+| `token` | 保管箱名字 `vault:…`（或 `env:環境變數`）；**不能**直接把 token 寫進檔案 | `vault:discord_bot_token:<名字>`（名字叫 `default` 時是 `vault:discord_bot_token`） |
+| `surface` | `dm`（私訊）／`channel`（伺服器頻道，這一版還不會連線） | `dm` |
+| `packs` | `"all"` 或 pack 名字清單 | `"all"` |
+| `max_effect` | 這個 bot 最多能做到 `read`／`write`／`danger` | 私訊型不設上限；頻道型 `read`（頻道型設 `danger` 會被拒） |
+| `ai` | `true`／`false` 或 `{"enabled": true, "pool_usd_month": 5}` | `true` |
+| `enabled` | `false`＝先不開這個 bot | `true` |
+
+- bot 名字只能小寫英文、數字、`-`、`_`；兩個 bot 不能用同一個 token。設定寫錯，啟動和 `doctor` 會直接說哪一格錯。
+- **`packs`、`max_effect` 這一版只記下來，還不會擋**（PERM-4 才生效）：現在每個私訊型 bot 能用的指令都一樣。
+- 同一個 Discord 帳號不管私訊哪個 bot 都是同一個人（同一份資料、同一個角色）；**配對一次就好**
+  （`discord pair` 預設用 `default` 或第一個私訊型 bot，也可以 `--bot <名字>`）。
+- 回覆一律由「收到訊息的那個 bot」送出。主動通知（提醒、排程、背景工作做完）走**這個人最近私訊過的 bot**，
+  沒私訊過就走設定裡第一個私訊型 bot（記在 `data/discord_last_bot.json`，重開也記得）。
+- 狀態頁每個 bot 一條連線，名字 `discord:<名字>`；舊的 `bot_token` 寫法維持叫 `discord`。
+- 舊寫法 `{"enabled": true, "bot_token": "vault:discord_bot_token"}` 照舊能用，等於只有一個叫 `default` 的私訊型 bot。
+
 ### 4. 配對（告訴 SYNOX 哪個 Discord 帳號是你）
 
 ```
@@ -72,7 +110,8 @@
 - 只做私訊；Gateway 收訊和指令處理在同一條執行緒，指令很慢時心跳會晚（AI 那一輪本來就丟背景，影響小）。
 - 按鈕必須 3 秒內回應：指令沒回應按鈕時 SYNOX 會自動確認；超過 3 秒的指令按鈕會顯示「交互失敗」但動作照做。
 - 文字一律純文字（Telegram 的粗體等 HTML 格式在 Discord 會被拿掉）。
-- 一台電腦一支 bot（跟 Telegram 一樣）；不支援分片（bot 加進 2500 個以上伺服器才需要）。
+- Telegram 一台電腦一支 bot；Discord 可以多個私訊型 bot（`bots`），頻道型還不行。不支援分片（bot 加進 2500 個以上伺服器才需要）。
+- 多個 bot 時，每個 bot 一條 Gateway 執行緒；bot 很多（十幾個以上）時注意 Discord 對同一個 IP 的連線頻率限制。
 - 測試全部用程式內的假 Gateway、假 HTTP；**還沒跟真的 Discord 連過**，第一次真連請擁有者在可以上網的地方試。
 
 ## 程式在哪
@@ -83,9 +122,11 @@
 | `src/synox/discord/events.py` | Gateway 事件 → Inbound（純函式） |
 | `src/synox/discord/rest.py` | `DiscordChannel`：回覆（REST v10，requests） |
 | `src/synox/discord/gateway.py` | Gateway 迴圈：hello／心跳／identify／resume／退避 |
-| `src/synox/discord/__init__.py` | `install`（接進 app、MultiHome 主動通知分流）、配對 |
+| `src/synox/discord/bots.py` | `channels.discord` → 每個 bot 的設定（BotSpec，解析與檢查；舊寫法＝bots.default） |
+| `src/synox/discord/__init__.py` | `install`（每個 bot 一個 DiscordChannel＋Gateway、MultiHome 主動通知分流與挑 bot）、配對 |
 | `vendor/isdtelekit/host/app.py` | **改了 vendor**：`telegram_api(home)`，讓 home 可以是多通道（建議回灌上游） |
-| `tests/test_discord.py` | 28 個測試 |
+| `tests/test_discord.py` | 28 個測試（單一 bot） |
+| `tests/test_discord_multibot.py` | 26 個測試（多 bot：設定解析、兩個 bot 同時收私訊、通知挑 bot、CLI、doctor） |
 
 ## 未做項目與原因
 
@@ -95,4 +136,5 @@
 | 精靈（Setup.bat）裡選 Discord | 同上，先等真機驗證過再放進給一般人的流程。 |
 | LINE | Messaging API 只能用 **webhook** 收訊：要一個公開 HTTPS 網址打進這台電腦（開埠或通道服務），違反「不開埠、不碰防火牆」。 |
 | Microsoft Teams | Bot Framework 一樣要公開 HTTPS 端點，還要 Azure Bot 註冊與租戶管理員核准，對個人使用太重。 |
-| Discord 斜線指令、附件、伺服器頻道 | 最小版先不做；伺服器頻道還要想清楚「誰的資料」與群組權限。 |
+| Discord 斜線指令、附件 | 最小版先不做。 |
+| 伺服器頻道（`surface: "channel"`）、bot 的 pack 範圍與上限真的生效 | 照權限規格分階段：PERM-4 bot 範圍、PERM-5 頻道收訊、PERM-6 頻道 AI。 |

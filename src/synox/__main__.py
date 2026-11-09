@@ -51,6 +51,9 @@ def cmd_run(args) -> int:
         print(f"⚠️ Discord 沒有開成：{app.extras.get('discord_error', '原因看 log')}")
         if not channels:
             return 2
+    elif app.extras.get("discord_errors"):
+        for name, err in app.extras["discord_errors"].items():
+            print(f"⚠️ Discord bot {name} 沒有開：{err}")
     print("✅ SYNOX 開始收訊息了。這個視窗可以縮小，但不要關；要停就按 Ctrl+C 或雙擊 Stop.bat。")
     if config.web.get("enabled", True):
         print(f"🌐 網頁介面：http://127.0.0.1:{config.web.get('port')}/ （在聊天裡打 /web 拿登入連結）")
@@ -404,21 +407,44 @@ def cmd_discord(args) -> int:
     except (KeyringError, VaultError) as e:
         print(f"❌ 保管箱打不開：{e}")
         return 2
+    from synox.discord import bots as bot_specs
+    name = (getattr(args, "bot", None) or "").strip() or None
     try:
         if args.discord_cmd == "token":
-            token = getpass.getpass("貼上 Discord bot token（畫面不會顯示）：").strip()
+            if name and not bot_specs.NAME_RE.match(name):
+                print(f"❌ bot 名字 {name!r} 不行：只能用小寫英文、數字、- 和 _。")
+                return 2
+            spec = discord.find_spec(config, name or bot_specs.DEFAULT)
+            if spec is None and not name and "bots" in discord.settings(config):
+                print("❌ config.json 用的是多個 bot 的寫法（channels.discord.bots）：加 --bot <名字> 指定存哪一個。")
+                return 2
+            if spec is not None and spec.legacy and spec.vault_name is None:
+                spec = None                       # 舊寫法把 token 直接寫在 config：照舊存到 discord_bot_token
+            if spec is not None and spec.vault_name is None:
+                print(f"❌ config.json 裡 bot {spec.name} 的 token 寫的是 {spec.token.split(':', 1)[0]}:…，不是保管箱；"
+                      "要改用保管箱就把它改成 \"vault:<名字>\" 再跑一次。")
+                return 2
+            vault_name = spec.vault_name if spec is not None else bot_specs.default_vault_name(name or bot_specs.DEFAULT)
+            label = f"bot {name} 的" if name else ""
+            token = getpass.getpass(f"貼上 Discord {label}bot token（畫面不會顯示）：").strip()
             if not token:
                 print("（沒有輸入，沒有存）")
                 return 1
-            vault.set_secret(discord.VAULT_NAME, token)
-            print(f"✅ 存進保管箱了。config.json 的 channels.discord.bot_token 寫 \"vault:{discord.VAULT_NAME}\"。")
+            vault.set_secret(vault_name, token)
+            if spec is not None:
+                print(f"✅ 存進保管箱了（{vault_name}），config.json 已經指到這裡。")
+            elif name and name != bot_specs.DEFAULT:
+                print(f"✅ 存進保管箱了。config.json 的 channels.discord.bots 加上 "
+                      f"\"{name}\": {{\"token\": \"vault:{vault_name}\", \"surface\": \"dm\"}}。")
+            else:
+                print(f"✅ 存進保管箱了。config.json 的 channels.discord.bot_token 寫 \"vault:{vault_name}\"。")
             return 0
         if args.discord_cmd == "pair":
-            return discord.pair_owner(config, vault)
+            return discord.pair_owner(config, vault, bot=name)
     except (KeyboardInterrupt, EOFError):
         print("\n（取消了）")
         return 1
-    print("用法：python -m synox discord token｜python -m synox discord pair")
+    print("用法：python -m synox discord token [--bot 名字]｜python -m synox discord pair [--bot 名字]")
     return 1
 
 
@@ -460,6 +486,8 @@ def main(argv=None) -> int:
     p.add_argument("--clear", action="store_true", help="清掉存的帳號")
     p = sub.add_parser("discord", help="Discord 通道：token（存 bot token 進保管箱）｜pair（擁有者配對）")
     p.add_argument("discord_cmd", choices=["token", "pair"])
+    p.add_argument("--bot", default="", metavar="NAME",
+                   help="哪個 bot（config.json 的 channels.discord.bots.<名字>）；不寫＝default（舊的單一 bot 寫法）")
     args = parser.parse_args(argv)
     handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop,
                 "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord}
