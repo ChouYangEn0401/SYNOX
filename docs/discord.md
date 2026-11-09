@@ -80,7 +80,17 @@ Application、各自一個 token，config.json 改成 `bots` 寫法（**跟上�
 | `enabled` | `false`＝先不開這個 bot | `true` |
 
 - bot 名字只能小寫英文、數字、`-`、`_`；兩個 bot 不能用同一個 token。設定寫錯，啟動和 `doctor` 會直接說哪一格錯。
-- **`packs`、`max_effect` 這一版只記下來，還不會擋**（PERM-4 才生效）：現在每個私訊型 bot 能用的指令都一樣。
+- **每個 bot 有自己的範圍**（`packs`、`max_effect`、`ai`）：
+  - 不在 `packs` 清單裡的 pack，對這個 bot **當作不存在**：/help 不列、打了回「未知指令」（跟真的沒有這個指令一模一樣，
+    不會透露它存在）、AI 的工具清單和系統提示也沒有它。同一個人私訊另一個開了這個 pack 的 bot 照常能用。
+  - 超過 `max_effect` 的指令（例如上限 `read` 的 bot 上的「記一筆」）：/help 不列，打了回「🔒 這個 bot 只開放「唯讀」以內的指令…」，
+    AI 也拿不到。內建指令（/help、/start…）不受 `packs` 影響，但一樣受 `max_effect`；AI 助理本身（/ai、直接打字）不受
+    `max_effect`，它能用的工具已經照這個 bot 的範圍過濾。
+  - `ai: false`：這個 bot 上沒有 AI（/ai 是未知指令，直接打字不會交給 AI）。
+  - 實際權限＝bot 範圍 ∩ 這個人的角色：bot 開了的 pack，不夠格的人照樣看不到。Telegram、網頁、終端機不受 bot 範圍影響。
+  - **`/bot_status`**（伺服器版管理員以上；個人版擁有者）：列每個 bot 會出現哪些 pack、「設定了但不會出現」的 pack 和原因
+    （清單寫了但沒裝／沒載入、指令全部超過 `max_effect`、connector 沒有指令），以及有裝但沒開給這個 bot 的 pack。
+    `python -m synox doctor` 每個 bot 底下也有同樣的資訊（doctor 不載入 pack 程式，所以 python pack 的指令效果要看 /bot_status）。
 - 同一個 Discord 帳號不管私訊哪個 bot 都是同一個人（同一份資料、同一個角色）；**配對一次就好**
   （`discord pair` 預設用 `default` 或第一個私訊型 bot，也可以 `--bot <名字>`）。
 - 回覆一律由「收到訊息的那個 bot」送出。主動通知（提醒、排程、背景工作做完）走**這個人最近私訊過的 bot**，
