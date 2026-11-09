@@ -7,8 +7,9 @@ bot 範圍報告（PERM-4）：每個 Discord bot 實際會出現哪些 pack，�
     rep = report(spec, infos)      # {"effective": [(名字, 備註)], "hidden": [(名字, 原因)], "not_opened": [名字]}
     lines(spec, rep)               # 給人看的幾行
 
-原因是一串可以加的檢查（REASONS：(spec, info) → 原因或 None，第一個說話的算）。這一版只有：
-pack 清單（沒載入／不是指令型）與 max_effect（指令全部超過上限）。PERM-2 之後在這裡加「surfaces 不含 channel」之類的。
+原因是一串可以加的檢查（REASONS：(spec, info) → 原因或 None，第一個說話的算）：
+pack 清單（沒載入／不是指令型）、頻道型 bot 的 surfaces／data（PERM-5：surfaces 沒有 channel、data=user 不進頻道）、
+max_effect（指令全部超過上限；頻道型另外 DANGER 永遠不行、WRITE 只限 data=shared）。
 這裡只算「bot」這一層；每個人實際看得到什麼還要再看他的角色（/help 看自己的）。
 """
 
@@ -27,6 +28,12 @@ class PackInfo:
     effects: Optional[Tuple[str, ...]] = None    # 每個指令的 effect（小寫）；None＝還不知道（doctor 看 python pack）
     loaded: bool = True                          # False：有裝但這次不會載入（停用、太舊、環境沒建好…）
     problem: str = ""                            # loaded=False 的原因
+    surfaces: Tuple[str, ...] = ("dm",)          # pack.json 的 surfaces（PERM-2）
+    data: str = "none"                           # pack.json 的 data（none｜user｜shared）
+
+
+def _decl(m) -> dict:
+    return {"surfaces": tuple(getattr(m, "surfaces", None) or ("dm",)), "data": getattr(m, "data", "none") or "none"}
 
 
 def from_app(app) -> Dict[str, PackInfo]:
@@ -35,7 +42,7 @@ def from_app(app) -> Dict[str, PackInfo]:
     for pack in app.extras.get("synox_packs", []):
         group = registry.node(pack.manifest.group) if pack.manifest.group else None
         effects = tuple(n.effect.lower() for n in group.walk() if not n.is_group) if group is not None else ()
-        out[pack.name] = PackInfo(pack.name, effects)
+        out[pack.name] = PackInfo(pack.name, effects, **_decl(pack.manifest))
     return out
 
 
@@ -59,14 +66,21 @@ def from_manifests(config) -> Dict[str, PackInfo]:
         except ManifestError:
             continue
         if not config.pack_enabled(m.name):
-            out[m.name] = PackInfo(m.name, loaded=False, problem="config.json 的 packs 把它停用了")
+            out[m.name] = PackInfo(m.name, loaded=False, problem="config.json 的 packs 把它停用了", **_decl(m))
             continue
         too_old = synox_problem(m)
         if too_old:
-            out[m.name] = PackInfo(m.name, loaded=False, problem=too_old)
+            out[m.name] = PackInfo(m.name, loaded=False, problem=too_old, **_decl(m))
             continue
-        out[m.name] = PackInfo(m.name, _manifest_effects(m))
+        out[m.name] = PackInfo(m.name, _manifest_effects(m), **_decl(m))
     return out
+
+
+def _effect_ok(spec: BotSpec, effect: str, info: Optional[PackInfo]) -> bool:
+    """這個 bot 上這個 effect 的指令會不會出現（頻道型另看 DANGER／WRITE 的頻道規則）。"""
+    if policy.is_channel_bot(spec):
+        return policy.channel_effect_ok(spec, effect, info.data if info is not None else "none")
+    return policy.effect_ok(spec, effect)
 
 
 # ── 不會出現的原因（依序檢查，第一個說話的算）────────────────────────
@@ -85,19 +99,32 @@ def _no_commands(spec: BotSpec, name: str, info: Optional[PackInfo]) -> Optional
     return None
 
 
+def _not_for_channel(spec: BotSpec, name: str, info: Optional[PackInfo]) -> Optional[str]:
+    """頻道型 bot（PERM-5）：pack.json 的 surfaces 沒有 channel、或 data=user → 頻道裡不存在。"""
+    if info is None or not policy.is_channel_bot(spec):
+        return None
+    if "channel" not in info.surfaces:
+        return 'pack.json 的 surfaces 沒有 "channel"（只能私訊用），頻道裡不會出現'
+    if info.data == "user":
+        return "資料是每個人自己的（data=user），不進頻道"
+    return None
+
+
 def _over_max_effect(spec: BotSpec, name: str, info: Optional[PackInfo]) -> Optional[str]:
     if info is None or not info.effects or spec.max_effect is None:
         return None
-    if any(policy.effect_ok(spec, e) for e in info.effects):
+    if any(_effect_ok(spec, e, info) for e in info.effects):
         return None
     worst = min(info.effects, key=policy.effect_rank)
+    if policy.is_channel_bot(spec) and policy.effect_ok(spec, worst):
+        return (f"指令都會改資料（最低也是「{policy.effect_label(worst)}」），頻道裡只有 data=shared 的 pack 能寫、"
+                "危險動作一律要到私訊")
     return (f"指令全部超過這個 bot 的上限「{policy.effect_label(spec.max_effect)}」"
             f"（最低也是「{policy.effect_label(worst)}」）")
 
 
 REASONS: List[Callable[[BotSpec, str, Optional[PackInfo]], Optional[str]]] = [
-    _not_loaded, _no_commands, _over_max_effect,
-    # PERM-2：surfaces 不含 channel（頻道型 bot）、data=user 不進頻道 …… 加在這裡
+    _not_loaded, _no_commands, _not_for_channel, _over_max_effect,
 ]
 
 
@@ -116,8 +143,10 @@ def report(spec: BotSpec, infos: Dict[str, PackInfo]) -> dict:
         if info is not None and info.effects is None and spec.max_effect is not None:
             note = "指令的效果要載入後才知道（/bot_status 看）"
         elif info is not None and info.effects:
-            over = sum(1 for e in info.effects if not policy.effect_ok(spec, e))
-            if over:
+            over = sum(1 for e in info.effects if not _effect_ok(spec, e, info))
+            if over and policy.is_channel_bot(spec):
+                note = f"{over} 個指令在頻道裡不會出現（超過上限「{policy.effect_label(spec.max_effect)}」或要到私訊做）"
+            elif over:
                 note = f"{over} 個指令超過上限「{policy.effect_label(spec.max_effect)}」，不會出現"
         effective.append((name, note))
     not_opened = [] if listed == "all" else [n for n in infos if n not in listed]
@@ -128,12 +157,21 @@ def head(spec: BotSpec) -> str:
     where = "頻道型" if spec.surface == CHANNEL else "私訊型"
     cap = f"上限「{policy.effect_label(spec.max_effect)}」" if spec.max_effect else "不設上限"
     packs = "全部 pack" if policy.bot_packs(spec) == "all" else "pack 清單"
-    ai = "AI 開" if policy.bot_ai_enabled(spec) else "AI 關"
+    ai = "AI 開" if policy.bot_ai_enabled(spec) else ("AI 關（頻道 AI 還沒做）" if spec.surface == CHANNEL else "AI 關")
     return f"bot {spec.name}（{where}，{packs}，{cap}，{ai}）"
+
+
+def channel_line(spec: BotSpec) -> str:
+    """頻道型 bot 的收訊設定（不含 token）。"""
+    trigger = "被 @ 才回" if spec.trigger == "mention" else "訊息以 / 開頭才回"
+    return (f"{len(spec.guilds)} 個伺服器、{spec.channel_count()} 個頻道；觸發：{trigger}；"
+            f"role_map {spec.role_map_count()} 筆（最多給到成員）；每人每頻道每分鐘 {spec.rate_per_minute} 則")
 
 
 def lines(spec: BotSpec, rep: dict, indent: str = "  ") -> List[str]:
     out = []
+    if spec.surface == CHANNEL:
+        out.append(f"{indent}收訊：{channel_line(spec)}")
     eff = rep["effective"]
     shown = "、".join(n + (f"（{note}）" if note else "") for n, note in eff) if eff else "（沒有）"
     out.append(f"{indent}會出現：{shown}")

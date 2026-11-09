@@ -1,4 +1,4 @@
-# Discord 通道：現況與設定（2026-11-09，含多 bot）
+# Discord 通道：現況與設定（2026-11-09，含多 bot、頻道型 bot）
 
 ## 現況（最小可用版）
 
@@ -11,7 +11,8 @@
 | 只有 Discord、沒有 Telegram 也能啟動 | ✅ |
 | 擁有者配對（私訊 bot 六位數字） | ✅ `python -m synox discord pair` |
 | 一個 SYNOX 開好幾個私訊型 bot（各自的 token；回覆用收到訊息的那個 bot） | ✅ `channels.discord.bots`（見下面「多個 bot」） |
-| 伺服器頻道（guild）裡的訊息 | ❌ 一律不讀不回（只做私訊）；`surface: "channel"` 的 bot 設定看得懂但不會連線（PERM-5） |
+| 伺服器頻道（guild）裡的訊息 | ✅ 只有**頻道型 bot**（`surface: "channel"`）收、只收設定列出的頻道、被 @（或以 / 開頭）才回；私訊型 bot 照舊只收私訊（見下面「3c. 頻道型 bot」） |
+| 頻道裡跟 AI 聊天 | ❌ 頻道型 bot 先當作 AI 關（PERM-6） |
 | 收附件（圖片、檔案） | ❌ |
 | 斜線指令選單（Discord 的 `/` 自動完成） | ❌ 指令照打字就能用 |
 
@@ -73,7 +74,7 @@ Application、各自一個 token，config.json 改成 `bots` 寫法（**跟上�
 | 欄位 | 意思 | 沒寫時 |
 |---|---|---|
 | `token` | 保管箱名字 `vault:…`（或 `env:環境變數`）；**不能**直接把 token 寫進檔案 | `vault:discord_bot_token:<名字>`（名字叫 `default` 時是 `vault:discord_bot_token`） |
-| `surface` | `dm`（私訊）／`channel`（伺服器頻道，這一版還不會連線） | `dm` |
+| `surface` | `dm`（私訊）／`channel`（伺服器頻道，見 3c） | `dm` |
 | `packs` | `"all"` 或 pack 名字清單 | `"all"` |
 | `max_effect` | 這個 bot 最多能做到 `read`／`write`／`danger` | 私訊型不設上限；頻道型 `read`（頻道型設 `danger` 會被拒） |
 | `ai` | `true`／`false` 或 `{"enabled": true, "pool_usd_month": 5}` | `true` |
@@ -89,7 +90,8 @@ Application、各自一個 token，config.json 改成 `bots` 寫法（**跟上�
   - `ai: false`：這個 bot 上沒有 AI（/ai 是未知指令，直接打字不會交給 AI）。
   - 實際權限＝bot 範圍 ∩ 這個人的角色：bot 開了的 pack，不夠格的人照樣看不到。Telegram、網頁、終端機不受 bot 範圍影響。
   - **`/bot_status`**（伺服器版管理員以上；個人版擁有者）：列每個 bot 會出現哪些 pack、「設定了但不會出現」的 pack 和原因
-    （清單寫了但沒裝／沒載入、指令全部超過 `max_effect`、connector 沒有指令），以及有裝但沒開給這個 bot 的 pack。
+    （清單寫了但沒裝／沒載入、頻道型 bot 上 pack.json 的 surfaces 沒有 channel 或 data=user、指令全部超過 `max_effect`、
+    connector 沒有指令），以及有裝但沒開給這個 bot 的 pack。頻道型 bot 另外列幾個伺服器／頻道、觸發方式、role_map 幾筆、節流。
     `python -m synox doctor` 每個 bot 底下也有同樣的資訊（doctor 不載入 pack 程式，所以 python pack 的指令效果要看 /bot_status）。
 - 同一個 Discord 帳號不管私訊哪個 bot 都是同一個人（同一份資料、同一個角色）；**配對一次就好**
   （`discord pair` 預設用 `default` 或第一個私訊型 bot，也可以 `--bot <名字>`）。
@@ -97,6 +99,69 @@ Application、各自一個 token，config.json 改成 `bots` 寫法（**跟上�
   沒私訊過就走設定裡第一個私訊型 bot（記在 `data/discord_last_bot.json`，重開也記得）。
 - 狀態頁每個 bot 一條連線，名字 `discord:<名字>`；舊的 `bot_token` 寫法維持叫 `discord`。
 - 舊寫法 `{"enabled": true, "bot_token": "vault:discord_bot_token"}` 照舊能用，等於只有一個叫 `default` 的私訊型 bot。
+
+### 3c. 頻道型 bot（在伺服器頻道裡回指令，選用）
+
+頻道型 bot 是**另外一個** bot（另一個 Application、另一個 token），專門在你指定的伺服器頻道裡回指令；
+私訊型 bot 不會因此開始讀頻道。
+
+**步驟（給一般使用者）**
+
+1. **建 bot**：照「1. 在 Discord Developer Portal 建 bot」再建一個 Application（例如叫 SYNOX 查詢），Bot 頁 **Reset Token** 複製 token。
+2. **要開的 intent**：Bot 頁 → Privileged Gateway Intents → 打開 **Message Content Intent** → Save Changes。
+   （SYNOX 連線時會要 `GUILDS`、`GUILD_MESSAGES`、`MESSAGE_CONTENT`；前兩個不用在網頁上開。
+   **不用**開 Server Members Intent、Presence Intent。）
+3. **邀進伺服器**：OAuth2 → URL Generator → Scopes 勾 `bot`；Bot Permissions 勾 **View Channels**、**Send Messages**、
+   **Read Message History** → 複製最下面的網址打開 → 選你的伺服器 → 授權。（只有伺服器管理員能邀。）
+4. **打開 Discord 的開發者模式**（才拿得到 id）：Discord 左下 ⚙️ 使用者設定 → 進階（Advanced）→ 打開 **開發者模式（Developer Mode）**。
+5. **取得 id**（都是一串數字）：
+   - 伺服器 id：左邊伺服器圖示按右鍵 → **複製伺服器 ID**。
+   - 頻道 id：頻道名稱按右鍵 → **複製頻道 ID**。
+   - 身分組 id（要用 `role_map` 才需要）：伺服器設定 → 身分組 → 身分組按右鍵（或「⋯」）→ **複製身分組 ID**。
+6. **存 token**：`.venv\Scripts\python.exe -m synox discord token --bot lookup`（`lookup` 換成你取的名字）。
+7. **改 config.json**（在 `bots` 裡加一個；數字換成你複製的 id）：
+
+```json
+"lookup": {
+  "token": "vault:discord_bot_token:lookup",
+  "surface": "channel",
+  "guilds": { "123456789012345678": {
+      "channels": ["234567890123456789"],
+      "role_map": { "345678901234567890": "member" } } },
+  "trigger": "mention",
+  "packs": ["dict", "weather"],
+  "max_effect": "read",
+  "rate_per_minute": 5
+}
+```
+
+8. 重開 SYNOX，`python -m synox doctor` 或私訊 SYNOX 打 `/bot_status` 看這個 bot 「收訊中」、會出現哪些 pack。
+   在那個頻道打 `@SYNOX查詢 /help` 試試。
+
+| 欄位（頻道型才有） | 意思 | 沒寫時 |
+|---|---|---|
+| `guilds` | 哪些伺服器的哪些頻道要收：`{"<伺服器 id>": {"channels": ["<頻道 id>", …], "role_map": {…}}}`；**沒列的頻道一律不讀不回** | 沒寫＝收不到訊息（doctor 會說） |
+| `role_map` | Discord 身分組 → SYNOX 角色（只能 `guest`／`member`） | 不對應 |
+| `trigger` | `"mention"`＝被 @ 才回（@ 那段字會去掉）；`"/"`＝訊息以 / 開頭才回 | `"mention"` |
+| `max_effect` | `read`／`write`（**不能** `danger`） | `read` |
+| `rate_per_minute` | 同一個人在同一個頻道每分鐘最多幾則；超過的**靜默略過**（log 記一行） | `5` |
+
+**頻道裡的規則（保守預設）**
+
+- 頻道裡的對話 id 是負號（像 Telegram 群組），所以只能私訊的指令在頻道裡自然不能用。
+- **只有 pack.json 寫了 `"surfaces": ["dm", "channel"]`、而且資料不是每個人自己的（`data` 不是 `user`）的 pack 會出現**；
+  其他 pack（例如記帳 money、記事、提醒）在頻道裡打了就是「未知指令」，不會透露它存在、也洩不出誰的資料。
+  內建指令在頻道裡只剩 /help、/start、/exit（/bot_status、/user_role 這類都是未知指令）。
+- **危險動作（DANGER）在頻道裡永遠不行**（設定寫 `danger` 會被拒；就算程式裡硬塞也照樣擋），回「這個動作要到私訊做」。
+- **寫入（WRITE）**：要 `max_effect: "write"`、pack 的 `data` 是 `shared`、而且發話者至少是成員；伺服器版 `data=shared` 的寫入本來就要管理員（PERM-2），兩條都要過。
+- **role_map**：發話者在那個伺服器有對應的身分組 → 這次請求的角色＝max(SYNOX 裡的角色, 對應的角色)，**最高只到成員**；
+  **不會寫回 users.json**（私訊時照舊是原本的角色）。管理員只能由擁有者用 `/user_role` 給。
+- 回覆一律由收到訊息的頻道型 bot 送回那個頻道，**引用並提及發話者那則訊息**（其他 @、@everyone 一律不解析）。
+- 按鈕**只有發話者能按**（別人按會看到只給他看的「只有發這個指令的人能按這些按鈕」）。
+- 有人在頻道裡開了一段問答（表單）時，別人說的話不會被當成他的回答。
+- 被 @ 了但不是指令（閒聊）：回一句「頻道裡只收指令；想聊天請私訊」——頻道 AI 還沒做（PERM-6）。
+- 其他 bot、自己、webhook 的訊息、只有附件沒有字的訊息、編輯過的訊息、其他頻道的訊息一律略過。
+- 頻道型 bot 不送主動通知（提醒、排程照樣走私訊型 bot）、不能拿來配對。
 
 ### 4. 配對（告訴 SYNOX 哪個 Discord 帳號是你）
 
@@ -117,10 +182,12 @@ Application、各自一個 token，config.json 改成 `bots` 寫法（**跟上�
 
 ## 已知限制
 
-- 只做私訊；Gateway 收訊和指令處理在同一條執行緒，指令很慢時心跳會晚（AI 那一輪本來就丟背景，影響小）。
+- Gateway 收訊和指令處理在同一條執行緒，指令很慢時心跳會晚（AI 那一輪本來就丟背景，影響小）。
+- 頻道型 bot：「只有發話者能按」記在記憶體（最近 1000 則）；SYNOX 重開之前送的按鈕在頻道裡就按不動了（要重打指令）。
+  節流也是記憶體裡的，重開歸零。頻道型 bot 在 READY 之前（剛連上那一下）收到的 @ 不會回。
 - 按鈕必須 3 秒內回應：指令沒回應按鈕時 SYNOX 會自動確認；超過 3 秒的指令按鈕會顯示「交互失敗」但動作照做。
 - 文字一律純文字（Telegram 的粗體等 HTML 格式在 Discord 會被拿掉）。
-- Telegram 一台電腦一支 bot；Discord 可以多個私訊型 bot（`bots`），頻道型還不行。不支援分片（bot 加進 2500 個以上伺服器才需要）。
+- Telegram 一台電腦一支 bot；Discord 可以多個私訊型、頻道型 bot（`bots`）。不支援分片（bot 加進 2500 個以上伺服器才需要）。
 - 多個 bot 時，每個 bot 一條 Gateway 執行緒；bot 很多（十幾個以上）時注意 Discord 對同一個 IP 的連線頻率限制。
 - 測試全部用程式內的假 Gateway、假 HTTP；**還沒跟真的 Discord 連過**，第一次真連請擁有者在可以上網的地方試。
 
@@ -128,15 +195,17 @@ Application、各自一個 token，config.json 改成 `bots` 寫法（**跟上�
 
 | 檔案 | 做什麼 |
 |---|---|
-| `src/synox/identity.py` | (通道, 外部 id) → 內部 id |
-| `src/synox/discord/events.py` | Gateway 事件 → Inbound（純函式） |
-| `src/synox/discord/rest.py` | `DiscordChannel`：回覆（REST v10，requests） |
+| `src/synox/identity.py` | (通道, 外部 id) → 內部 id；頻道 `resolve_room("discord-channel", …)` → 負號 id |
+| `src/synox/discord/events.py` | Gateway 事件 → Inbound（純函式；私訊 `parse_event`、頻道 `parse_room_event`） |
+| `src/synox/discord/rest.py` | `DiscordChannel`：回覆（REST v10，requests；負號 chat_id＝頻道、`reply_to` 引用） |
 | `src/synox/discord/gateway.py` | Gateway 迴圈：hello／心跳／identify／resume／退避 |
 | `src/synox/discord/bots.py` | `channels.discord` → 每個 bot 的設定（BotSpec，解析與檢查；舊寫法＝bots.default） |
-| `src/synox/discord/__init__.py` | `install`（每個 bot 一個 DiscordChannel＋Gateway、MultiHome 主動通知分流與挑 bot）、配對 |
+| `src/synox/discord/__init__.py` | `install`（每個 bot 一個 DiscordChannel＋Gateway、MultiHome 主動通知分流與挑 bot）、`RoomEntry`／`RoomReply`／`RoomThrottle`（頻道型）、配對 |
+| `src/synox/policy.py` | 頻道規則（`bot_scope`、`channel_write`）、role_map 的有效角色（`using_role_floor`、`effective_user`） |
 | `vendor/isdtelekit/host/app.py` | **改了 vendor**：`telegram_api(home)`，讓 home 可以是多通道（建議回灌上游） |
 | `tests/test_discord.py` | 28 個測試（單一 bot） |
 | `tests/test_discord_multibot.py` | 26 個測試（多 bot：設定解析、兩個 bot 同時收私訊、通知挑 bot、CLI、doctor） |
+| `tests/test_discord_channel.py` | 41 個測試（頻道型：負號 id、@ 觸發與去除、allowlist、role_map 封頂、max_effect／DANGER、data=user 未知指令、節流、按鈕、/bot_status、doctor） |
 
 ## 未做項目與原因
 
@@ -147,4 +216,5 @@ Application、各自一個 token，config.json 改成 `bots` 寫法（**跟上�
 | LINE | Messaging API 只能用 **webhook** 收訊：要一個公開 HTTPS 網址打進這台電腦（開埠或通道服務），違反「不開埠、不碰防火牆」。 |
 | Microsoft Teams | Bot Framework 一樣要公開 HTTPS 端點，還要 Azure Bot 註冊與租戶管理員核准，對個人使用太重。 |
 | Discord 斜線指令、附件 | 最小版先不做。 |
-| 伺服器頻道（`surface: "channel"`）、bot 的 pack 範圍與上限真的生效 | 照權限規格分階段：PERM-4 bot 範圍、PERM-5 頻道收訊、PERM-6 頻道 AI。 |
+| 頻道 AI（頻道裡跟 AI 聊、`persona`、`ai.pool_usd_month`） | PERM-6：AI 記憶 key＝頻道、公開版系統提示、額度池。這一版頻道型 bot 一律當作 AI 關。 |
+| Discord 原生斜線指令（Interactions 的 `/`）在頻道 | 要先向 Discord 登記指令；目前頻道裡用「@bot /指令」或打字以 / 開頭。 |

@@ -211,7 +211,7 @@ def test_stranger_notify_in_reserved_range_uses_their_bot(tmp_path):
 
 # ── 頻道型 bot、缺 token ─────────────────────────────────────────────
 
-def test_channel_bot_parsed_but_not_connected(tmp_path, monkeypatch):
+def test_channel_bot_without_guilds_is_not_connected(tmp_path, monkeypatch):
     lookup = {"token": "vault:discord_bot_token:lookup", "surface": "channel", "packs": ["dict"]}
     app, _, _ = make_app(tmp_path, two_bots(lookup=lookup),
                          secrets={"discord_bot_token:alpha": TOK_A, "discord_bot_token:bravo": TOK_B,
@@ -220,7 +220,7 @@ def test_channel_bot_parsed_but_not_connected(tmp_path, monkeypatch):
     monkeypatch.setattr("isdtelekit.host.supervisor.SupervisedChannel.start", lambda self: started.append(self.name))
     app.start(())
     assert "discord:lookup" not in started and len(started) == 2
-    assert "PERM-5" in app.extras["discord_errors"]["lookup"]
+    assert "guilds" in app.extras["discord_errors"]["lookup"]           # PERM-5：沒列頻道＝收不到，說原因
     assert app.extras["discord_specs"]["lookup"].max_effect == "read"
 
 
@@ -301,5 +301,5 @@ def test_doctor_lists_each_bot(tmp_path):
     assert "3 個 bot" in text
     assert any("bot alpha" in l and "✅" in l for l in lines)
     assert any("bot bravo" in l and "discord_bot_token:bravo" in l and "--bot bravo" in l for l in lines)
-    assert any("bot lookup" in l and "頻道型" in l and "PERM-5" in l for l in lines)
+    assert any("bot lookup" in l and "頻道型" in l and "guilds" in l for l in lines)      # 沒列頻道
     assert TOK_A not in text

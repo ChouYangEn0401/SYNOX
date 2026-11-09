@@ -93,10 +93,11 @@ def _discord_bot_line(spec, vault) -> tuple:
     packs = "全部 pack" if spec.packs == "all" else "pack：" + "、".join(spec.packs)
     where = "私訊型" if spec.surface != CHANNEL else "頻道型"
     cap = f"，上限 {spec.max_effect}" if spec.max_effect else ""
-    head = f"    bot {spec.name}（{where}，{packs}{cap}，AI {'開' if spec.ai.get('enabled') else '關'}，hub {spec.hub_name}）"
+    ai = "關（頻道 AI 還沒做）" if spec.surface == CHANNEL else ("開" if spec.ai.get("enabled") else "關")
+    head = f"    bot {spec.name}（{where}，{packs}{cap}，AI {ai}，hub {spec.hub_name}）"
     hint = "（python -m synox discord token" + (f" --bot {spec.name}" if not spec.legacy else "") + "）"
-    if spec.surface == CHANNEL:
-        return f"{head}：⚠️ {discord.CHANNEL_NOT_YET}", 0
+    if spec.surface == CHANNEL and not spec.channel_count():
+        return f"{head}：❌ {discord.NO_GUILDS}", 1
     if spec.token.startswith("vault:"):
         if vault is None:
             return f"{head}：❌ 保管箱還沒建立，token 不在{hint}", 1
