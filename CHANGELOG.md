@@ -26,6 +26,12 @@
     python pack 的安裝報告多一行同樣的提醒（`admin.PYTHON_SCAN_NOTE`，個人版也看得到）。
   - SDK 單檔版（`author.py`）不再用 `fn.__dict__`／`vars()`／`spec["fn"](…)`：@tool 的宣告改掛 `fn.synox_tool_spec`；
     `synox-sdk init --from` 認得舊版的 `__synox_tool__`（`synox.sdk._legacy_spec`）。`sdk/synox_sdk.py`、`examples/hello/synox_sdk.py` 重新產生。
+- **#C pip 自動安裝的來源**：之前只釘 `==版本`，沒有雜湊、沒有固定 index，子程序繼承 `PIP_INDEX_URL` 等環境變數。現在：
+  - `requires.pip` 可以寫 `"名字==版本 --hash=sha256:…"`（一個或幾個；要嘛每項都有、要嘛都沒有），有寫就 `--require-hashes`。
+  - pip 一律 `--isolated --index-url https://pypi.org/simple`；建環境的子程序（venv、pip、npm ci）用乾淨的環境變數
+    （`envs.build_env`：只留 PATH、TEMP、使用者資料夾、代理設定…；`PIP_*`、`npm_config_*`、`PYTHONPATH` 不繼承）；pack 不能指定 index。
+  - T2 安裝報告逐一標 pip 套件「有雜湊／沒有雜湊」，有沒寫的加紅字「版本釘選不等於來源可信」（`tier.hash_lines`）；
+    `synox-sdk check` 同樣標。沒寫雜湊的 pack 環境指紋不變（不會害已建好的環境要重建）。
 
 ## 未發佈（branch feat/t2-source）
 

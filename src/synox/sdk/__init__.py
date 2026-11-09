@@ -103,7 +103,7 @@ class PackCheck:
         """requires.pip 釘死了沒：{"items", "unpinned", "auto"}（auto＝runtime.python 是 auto，安裝會照它裝）。"""
         from synox.packs import envs
         items = [str(p) for p in ((getattr(self.manifest, "requires", {}) or {}).get("pip") or [])]
-        unpinned = [p for p in items if not envs.PIN_RE.match(p.strip())]
+        unpinned = [p for p in items if not envs.PIP_LINE_RE.match(p.strip())]
         runtime = getattr(self.manifest, "runtime", {}) or {}
         auto = any(runtime.get(k) == envs.AUTO for k in ("python", "python_posix"))
         return {"items": items, "unpinned": unpinned, "auto": auto}
@@ -120,10 +120,14 @@ class PackCheck:
         else:
             lines.append("  掃不到內容的檔案：（沒有）")
         for e in info.get("external") or []:
+            if e.get("inline"):
+                lines.append(f"  argv 直接執行程式碼：{e['resolved']}（要宣告 exec）")
+                continue
             kind = f"直譯器 {e['interpreter']}" if e.get("interpreter") else "pack 外的程式"
             lines.append(f"  {kind}：{e['program']} → {e['resolved']}（未鎖定執行環境，掃描不執行它）")
         for p in info.get("packages") or []:
-            lines.append(f"  會安裝的套件：{p['name']} {p['version']}（{p['source']}）")
+            mark = "" if p.get("source") != "pip" else ("，有雜湊" if p.get("hashed") else "，沒有雜湊：版本釘選不等於來源可信")
+            lines.append(f"  會安裝的套件：{p['name']} {p['version']}（{p['source']}{mark}）")
         publisher = (getattr(m, "publisher", "") or "").strip()
         if info["tier"] == pack_tier.T2:
             if publisher:
