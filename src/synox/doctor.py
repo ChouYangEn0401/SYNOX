@@ -147,6 +147,9 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 f"　owner_id {'有填' if config.owner_id else '❌ 沒填'}")
             out(f"  模式：{config.mode}（{MODE_LABELS[config.mode]}）"
                 + ("　陌生人是訪客、vault 的資料每人一份 data/users/<id>/" if config.server else ""))
+            if config.server:                                  # 架構限制（只說明，不算問題）
+                from synox.discord.scope import GUEST_CARD_LIMIT
+                out(f"  ℹ️ {GUEST_CARD_LIMIT}")
             out(f"  llm：{r.get('llm', {'kind': 'none'})}")
             out(f"  packs：{config.packs}　vault：{config.vault}")
             web = config.web
