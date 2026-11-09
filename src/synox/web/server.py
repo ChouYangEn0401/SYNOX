@@ -315,7 +315,10 @@ class WebUI:
                                     ("Content-Type", "text/plain; charset=utf-8")], b"OK"
 
     def _secure(self) -> str:
-        return ""
+        """對外網址是 https（反向代理＋TLS）：cookie 加 Secure，瀏覽器不會在明文 http 上送出 session。
+        只開本機 http://127.0.0.1 時不加（不然瀏覽器收不下 cookie）。"""
+        public = str((getattr(self.config, "web", {}) or {}).get("public_url") or "").strip().lower()
+        return "; Secure" if public.startswith("https://") else ""
 
     def _pack(self, name: str):
         return next((p for p in self.app.extras.get("synox_packs", []) if p.name == name), None)
@@ -375,7 +378,8 @@ class WebUI:
             return _err(400, "送來的 JSON 要是物件。")
         if path == "/api/logout":
             self.sessions.drop(_cookie(headers, COOKIE))
-            return _json(200, {"ok": True}, [("Set-Cookie", f"{COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0")])
+            return _json(200, {"ok": True}, [("Set-Cookie", f"{COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0"
+                                                            + self._secure())])
         if path == "/api/chats":
             chat = self.chats.new_chat(user.tg_id)
             return _json(200, {"id": chat["id"], "title": chat["title"]})
