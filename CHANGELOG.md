@@ -1,5 +1,20 @@
 # Changelog
 
+## 未發佈（branch feat/sdk-p0-fixes）
+
+### 修正
+- **AI 呼叫 cli pack 的指令拿到空結果**（G3）：經 AI 呼叫時改成同步跑完，結果（包每輪的 nonce 分隔符）交回 AI 轉述；
+  人自己打的指令照舊在背景跑、直接回覆。`background: true` 的指令不變（AI 只知道「開始了」）。
+- **cli pack 拿不到任何密鑰**（G1）：SDK 的 `clean_env` 會拿掉 `*_TOKEN`、`*_API_KEY`… 的環境變數，loader 沒傳 `keep_env`。
+  現在把 `requires.env`（之後 `auth.fields[].env` 也算）列的名字傳成 `keep_env`，只放行這些；其他像密鑰的照樣拿掉。vendor 沒改。
+
+### 新增
+- `pack.json` 的 `requires.synox`（例如 `">=0.3"`、`">=0.3,<1.0"`）：寫錯＝pack.json 不合；版本不合＝不載入（狀態 `incompatible`，
+  網頁「SYNOX 版本不合」），doctor、`python -m synox packs status`、安裝報告說要哪一版、這台是哪一版、該怎麼做。
+- `fields[].kind` 多了 `int`、`number`、`bool`、`choice`（配 `choices`）：AI 看到的 schema 仍是字串；交給程式前照 kind 檢查
+  （不合回人話、不執行），並整理成固定寫法（bool → true/false、去千分位、choice 換成宣告的拼法）。`choices` 比對改成不分大小寫。
+- `requires.env` 的名字要是合法的環境變數名（清單或物件都收）。測試 `tests/test_sdk_p0.py`（31 個；假的本機命令列程式，不連網、不開埠）。
+
 ## 未發佈（branch feat/connector-notion）
 
 ### 新增

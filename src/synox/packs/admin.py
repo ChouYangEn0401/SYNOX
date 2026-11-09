@@ -29,7 +29,7 @@ from typing import Dict, List, Optional, Tuple
 
 from synox.packs import loader
 from synox.packs import lock as pack_lock
-from synox.packs.manifest import Manifest, ManifestError, read
+from synox.packs.manifest import Manifest, ManifestError, read, synox_problem
 from synox.packs.scan import ScanReport, scan
 
 MAX_UPLOAD = 5 * 1024 * 1024
@@ -110,6 +110,9 @@ def run_gates(folder: str) -> Tuple[Manifest, ScanReport, Dict[str, str], List[s
     report = scan(m)
     hashes = pack_lock.hash_files(folder)
     problems = report.problems(m) + pack_lock.check_integrity(m, hashes)
+    too_old = synox_problem(m)                     # requires.synox：版本不合就不裝
+    if too_old:
+        problems.append(too_old)
     return m, report, hashes, problems
 
 

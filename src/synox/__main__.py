@@ -217,11 +217,18 @@ def cmd_packs(args) -> int:
         print(f"🔒 {name} 已鎖定（data/packs.lock）。之後檔案被改過就不會載入。")
         return 0
     marks = {pack_lock.LOCKED: "🔒 鎖定", pack_lock.UNLOCKED: "· 未鎖定", pack_lock.TAMPERED: "⚠️ 被改過"}
+    from synox.packs.manifest import synox_problem
     for name, folder in sorted(found.items()):
         state, changes = pack_lock.verify(data_dir, name, folder)
         print(f"{marks[state]}  {name}  {folder}")
         if changes:
             print("    " + "、".join(changes))
+        try:
+            too_old = synox_problem(read(folder))
+        except ManifestError:
+            too_old = None
+        if too_old:
+            print(f"    ⛔ 不會載入：{too_old}")
     return 0
 
 
