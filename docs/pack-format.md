@@ -128,7 +128,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | `publisher` | 發行者（給人看；沒寫會在報告裡提醒） |
 | `integrity.sha256` | `{"檔名": "64 個 16 進位字"}`，打包時算（`synox-sdk zip`）。有寫就每個檔都要對得上、也不能多出沒列的檔（`pack.json` 本身不算） |
 | `auth` | v0 的字串（`oauth`／`token`／`caldav`）照舊；v2 寫 `{"type": "none｜token｜oauth｜caldav｜file", "fields": [...]}`。`token`／`file` 的 `fields` 由 SYNOX 收，見下面「pack 的 secret」 |
-| `kind: "mcp"`＋`mcp` | `{"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}`。`tools_allow` 不能空，每個允許的工具都要有 effect（沒寫＝拒）。這一版只登記、不連；不能附程式檔 |
+| `kind: "mcp"`＋`mcp` | 只登記：`{"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}`（不連、不能附程式檔）。**真的連（P4a）**：`"transport": "stdio"`，見下面「`mcp`（stdio）」。兩種都是 `tools_allow` 不能空、每個允許的工具都要有 effect（沒寫＝拒） |
 | `commands[].effect` | cli 的每個 command：`READ`／`WRITE`／`DANGER`（大小寫都收）。`commands` 也可以放最上層（等於 `cli.commands`） |
 | `commands[].ai`、`commands[].confirm` | cli 的 command：`"ai": false`＝不給 AI 當工具；`"confirm": true`＝AI 呼叫前先送確認卡給人按（effect 照寫的算）。一定要是 true／false。synox_sdk 的 `@tool(ai=…, confirm=…)` 會產生。跟工具執行中回的 `needs_confirm`（下一列）並存 |
 | 回 `needs_confirm`（確認來回） | cli 工具最後一行印 `{"ok": true, "needs_confirm": true, "summary": "要刪 3 筆", "confirm_token": "…"}`（結束碼 0）→ SYNOX 出核准卡給下令的人（人打字、AI 呼叫都一樣），按 ✅ 用**同一組參數**重跑，那一次環境變數 `SYNOX_CONFIRMED=1`、`SYNOX_CONFIRM_TOKEN`＝你給的 `confirm_token`（只收英數字與 `. _ : -`、128 字內）；其他每一次都是 `SYNOX_CONFIRMED=0`（`cli.env` 寫了也會被蓋掉）。❌、過期、參數對不上＝不執行。任何語言都能用：自己讀這兩個環境變數。說明見 [sdk.md](sdk.md)「確認來回」 |
@@ -276,9 +276,50 @@ def install(app, pack):
 - 程式要做的事：子指令＋`--json`，最後一行印一個 JSON 物件，結束碼 0＝成功。**回 `{"message": "…"}` 或 `{"text": "…"}` 最好**，
   會原樣給使用者；其他結構由 SYNOX 攤平（`synox/packs/render.py`：dict 一行一個 key、list 一行一項、最多 25 行）。
 
+### `mcp`（stdio，P4a）
+
+接一個 **MCP 伺服器**（任何語言寫的，包括 [synox_sdk](sdk.md) 的 `serve()` 的 `--mcp`）。SYNOX 開子程序、用 stdin／stdout 講
+JSON-RPC 2.0（一行一個訊息），不開網路埠：
+
+```json
+{
+  "name": "notes-mcp", "title": "📝 筆記（MCP）", "summary": "…", "version": "0.1.0", "kind": "mcp",
+  "capabilities": ["subprocess"], "data": "user", "skill": "SKILL.md",
+  "mcp": {"transport": "stdio", "argv": ["{python}", "./server.py", "--mcp"],
+          "env": {"NOTES_DIR": "{user_data_dir}/notes-mcp"}, "cwd": ".", "timeout": 60, "start_timeout": 20,
+          "tools_allow": ["search", "add_note", "delete_note"],
+          "effects": {"search": "READ", "add_note": "WRITE", "delete_note": "DANGER"}}
+}
+```
+
+- `argv`、`env`、`cwd` 的代換跟 kind=cli 一樣（`{python}`、`{node}`、`{pack_dir}`、`{data_dir}`、`{user_data_dir}`、`{tg_id}`；
+  `./` 開頭＝pack 資料夾裡），SYNOX_* 環境變數、`auth.fields` 的 secret（只走環境變數）、像密鑰的環境變數拿掉（`requires.env`／
+  `auth.fields[].env` 例外）也都一樣。`capabilities` **一定要有 `subprocess`**（沒有＝pack.json 不合）——所以預設的角色上限下，
+  伺服器版只有管理員以上看得到（成員、訪客跟不存在一樣），要開給成員得在 `policy.roles` 給 member `subprocess`。
+- `timeout`：每次 `tools/call` 等幾秒（預設 60）；`start_timeout`：啟動＋`initialize`＋`tools/list` 等幾秒（預設 20）。
+- **只有 `tools_allow` 列的工具存在**：每個變成一個指令（`/<群組>_<工具名轉成小寫英數字與 _>`，例如 `getWeather` → `get_weather`），
+  伺服器列了別的也看不到、叫不到。**effect 只看 `effects`**：伺服器的 `annotations`（readOnlyHint 之類）一律不算；沒寫 effect 的當 `DANGER`。
+- 參數：第一次啟動時讀 `tools/list` 的 `inputSchema`（存在 `data/mcp/<pack>.tools.json`，之後載入先用存的）：`string`→`text`、
+  `integer`→`int`、`number`→`number`、`boolean`→`bool`、`enum`→`choice`；屬性名轉成小寫英數字與 `_`（`maxResults` → `max_results`），
+  送出時換回原名、轉成 JSON 型別。**巢狀 `object`／`array` 這一版不給**（`doctor` 列出來）；是必填的話整個工具不給 AI、人打也不能跑。
+  說明（`description` 第一段，截到 200 字）進 `/help` 與 AI 的工具說明。還沒啟動過時，指令只有一個 `args` 參數，第一次呼叫後換成真的欄位。
+  打字的填法跟 cli 一樣：必填的照位置填、其他 `key=value`。
+- **程序**：每個（pack, 使用者）一個長駐子程序，第一次呼叫才啟動、閒置 10 分鐘收掉、崩潰了下次呼叫重啟、SYNOX 關閉時全部收掉；
+  `auth.fields` 的值改了，下一次呼叫換新程序。逾時、印了非 JSON 的東西、中途結束 → 回一句人話（「超過 60 秒沒有回應，已經停掉」），
+  這個程序收掉，下次重啟；不會卡住 bot。伺服器的 stderr 寫進 `<user_data_dir>/logs/mcp-<pack>.log`（不給聊天）。
+- 呼叫走的路跟 cli 一樣：policy.decide（角色能力上限、surfaces、bot 範圍）→ 第 4 關驗參數 → `DANGER` 先出核准卡 → 結果包分隔符交回 AI。
+- **確認來回**：工具回 `structuredContent: {"needs_confirm": true, "summary": "…", "confirm_token": "…"}`（`isError: false`）→
+  SYNOX 出核准卡；按 ✅ 用同一組 `arguments`、`params._meta["synox/confirm_token"]`＝那個 token 再叫一次（一次性憑證、過期、
+  參數對不上＝不執行；AI 碰不到 `_meta`）。synox_sdk 的 `raise Confirm(…)` 就是這樣回。
+- 第 2 關：pack 裡的 `.py` 照一般規則掃；`argv` 指到 pack 外面的程式（`npx`、`node`、`uvx`、絕對路徑…）不擋，但報告與 `doctor`
+  標「⚠️ 未鎖定執行環境」：`packs.lock` 只鎖 pack 資料夾裡的檔，外面那支被換掉不會發現。`data` 的規則同 cli（看 `argv`／`env`／`cwd` 樣板）。
+- 沙盒（PERM-7）同 cli：`box.wrap(argv, env, cwd, grants)`；`grants.timeout` 是空的（程序壽命由 SYNOX 管）；`required_for` 命中又沒真隔離
+  ＝伺服器版只給擁有者。
+
 ### `connector`
 
 接外面的服務（Google 日曆、Notion…）。v0 **只登記**：一個群組、一個葉節點說「還沒接上」，不給 AI。
+只寫 `mcp.url`（沒有 `transport`）的 kind=mcp 也一樣只登記。
 `auth` 必填：`oauth`｜`token`｜`caldav`。設計寫在那個資料夾的 README。
 
 ## SKILL.md

@@ -5,6 +5,32 @@
 ### 變更
 - 沒有鎖的 kind=cli pack（手動放進 packs/ 或 packs.dirs）在伺服器版改算 third-party，跟 kind=python 同一條規則（PERM-8 之後統一）：只有出廠的算 core。要給成員用，擁有者核准時選 `--trust core`。
 
+## 未發佈（branch feat/sdk-p4a）
+
+### 新增
+- **SDK P4a：kind=mcp 真的連（stdio）**。pack.json `"mcp": {"transport": "stdio", "argv": [...], "env", "cwd", "timeout",
+  "start_timeout", "tools_allow", "effects"}`；代換、SYNOX_* 環境、secret 注入、clean_env 同 kind=cli。新檔 `src/synox/packs/mcp.py`：
+  - 協定子集（標準函式庫）：initialize → notifications/initialized → tools/list（分頁）→ tools/call；ping 兩邊都回，伺服器問別的回 -32601。
+  - 每個（pack, 使用者）一個長駐子程序（`McpPool`＋`PerUserScope`；`SharedScope` 只有介面），第一次呼叫才啟動、閒置 10 分鐘回收、
+    崩潰下次重啟、bot 關閉全收；Windows 上每個子程序放進 KILL_ON_JOB_CLOSE 的 Job Object；啟動前過 `sandbox.wrap(grants)`。
+  - 逾時、非 JSON 輸出、中途結束、啟動失敗都回一句人話並收掉那個程序（不卡住 bot）。
+  - `tools_allow` 的工具＝葉節點（名稱轉成合法指令）；說明與欄位來自 tools/list（快取 `data/mcp/<pack>.tools.json`）：
+    string／integer／number／boolean／enum → text／int／number／bool／choice；巢狀 object／array 不給（doctor 列出、必填的話整個工具不能用）。
+  - effect 只看 pack.json（工具的 annotations 不算，沒寫＝DANGER）；照舊走 policy.decide、第 4 關、DANGER 核准卡、nonce 分隔符。
+  - 確認來回：`structuredContent.needs_confirm` → 核准卡（P3 的一次性憑證）→ ✅ 以 `params._meta["synox/confirm_token"]` 重叫。
+- 第 1 關：stdio 要 `mcp.argv`、`capabilities` 要有 `subprocess`、不能同時寫 `url`；`data` 沒寫照 mcp 樣板推（同 cli）。
+- 第 2 關：mcp stdio 掃 pack 裡的 `.py`（同 cli）、`argv`／`env` 只能系統代換、data 規則同 cli；argv 指到 pack 外的程式 → 新的
+  非擋關 finding `external`「未鎖定執行環境」（報告與 doctor 都列）。
+- doctor：mcp stdio pack 列未鎖定執行環境、不支援的欄位、伺服器沒列的 allowed 工具、還沒連過。
+- 測試 `tests/test_mcp_stdio.py`（18 個）：假伺服器（崩潰、卡住、非 JSON）、SDK `serve --mcp` 真伺服器、閒置回收（假時鐘）、
+  崩潰重啟、逾時、tools_allow、effect、DANGER 卡、needs_confirm 來回（打字與 AI）、成員／訪客看不到、每人一個程序、沙盒 grants、關閉收程序。
+
+### 變更
+- `Manifest.mcp_stdio`／`registered_only`：只登記的（connector、只有 url 的 mcp）才是 status `connector`；mcp stdio 是 `loaded`，
+  SKILL 進 AI 的系統提示、網頁工具頁不標「要先設定」。
+- `sandbox.required()`（required_for）也看 mcp stdio（`runs_subprocess`）；`data_scope`／`grants_for` 認得 mcp 的樣板，mcp 的 `grants.timeout` 是 None。
+- 升級的「執行方式改了」多比 `mcp.transport`／`argv`／`cwd`／`env`。
+
 ## 未發佈（branch feat/perm8）
 
 ### 新增
