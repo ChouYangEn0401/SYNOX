@@ -29,6 +29,35 @@ def _sdk_line() -> str:
     return f"isdtelekit {version}{extra}"
 
 
+def _secret_lookup(config) -> Callable:
+    """pack 的 auth.fields（Web UI「連接」填的）還缺哪些 → 一句話（沒缺／不用回 ""）。
+    個人版看共用的保管箱；伺服器版看擁有者自己那一份（別人的各自在工具頁看）。保管箱的金鑰不存在就不開（不產生新的）。"""
+    from synox.packs import secrets as pack_secrets
+    store = None
+    if config is not None and os.path.exists(os.path.join(config.data_dir, ".synox.key")):
+        try:
+            from synox.vault import Vault
+            from synox.vault.keyring import read_key
+            store = pack_secrets.PackSecrets(Vault(read_key(os.path.join(config.data_dir, ".synox.key")),
+                                                   config.data_dir), server=bool(config.server))
+        except Exception:
+            store = None
+    owner = getattr(config, "owner_id", None) if config is not None else None
+
+    def lookup(m) -> str:
+        fields = pack_secrets.managed_fields(m)
+        if not fields:
+            return ""
+        if store is None:
+            return "⚠️ 要先連接（保管箱還沒建立或打不開）：" + "、".join(f["label"] for f in fields if f["required"])
+        if store.server and not owner:
+            return "• 伺服器版的連接每人各自在網頁工具頁設定"
+        missing = store.missing(m.name, fields, owner)
+        who = "（擁有者的）" if store.server else ""
+        return f"⚠️ 還沒連接{who}：缺 {'、'.join(missing)}（網頁工具頁按「連接」）" if missing else f"🔌 已連接{who}"
+    return lookup
+
+
 def run(offline: bool = False, config_path: str = "", out: Callable[[str], None] = print) -> int:
     problems = 0
     out(f"🩺 SYNOX {__version__} 健康檢查")
@@ -97,6 +126,7 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
     lock_dir = config.data_dir if config else os.path.join(ROOT, "data")
     locked = 0
     dirs = config.pack_dirs() if config else PACK_DIRS
+    secret_lookup = _secret_lookup(config)
     for extra in dirs[len(PACK_DIRS):]:
         if not os.path.isdir(extra):
             lines.append(f"  ⚠️ packs.dirs 列的資料夾不存在：{extra}")
@@ -123,6 +153,10 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
             state = "connector（只登記）" if m.kind in ("connector", "mcp") else ("✅" if enabled else "⏸ 停用")
             lock_mark = "🔒" if lock_state == pack_lock.LOCKED else "未鎖定"
             lines.append(f"  {state} {m.name} {m.version}（{m.kind}，/{m.group}，{lock_mark}）  {rel}")
+            if enabled:
+                note = secret_lookup(m)
+                if note:
+                    lines.append(f"     {note}")
         except ManifestError as e:
             lines.append(f"  ❌ {rel}：{e}")
             problems += 1
