@@ -144,6 +144,23 @@ def test_bot_status_lists_effective_and_hidden_packs(tmp_path):
     assert say(app, http, "alpha", "/bot_status", uid="4242")[0].startswith("未知指令")   # 個人版：只有擁有者
 
 
+def test_bot_status_and_doctor_explain_card_limit(tmp_path):
+    """審查 A #11：確認卡綁在 agent 群組，ai:false 的 bot（和頻道型、訪客）按不了——先在 /bot_status、doctor 說明。"""
+    app, http, _ = _app(tmp_path)
+    text = "\n".join(say(app, http, "alpha", "/bot_status"))
+    noai = text.split("bot noai")[1]
+    assert "確認卡按不動" in noai and "ai: false" in noai
+    assert "確認卡按不動" not in text.split("bot alpha")[1].split("bot bravo")[0]     # 開著 AI 的私訊型：按得動
+    channel = BotSpec(name="room", token="vault:x", surface="channel")
+    assert "頻道型" in scope.card_limit(channel)
+    from synox import doctor
+    (tmp_path / "doc" / "data").mkdir(parents=True)
+    cfg = _config_file(tmp_path / "doc", BOTS)
+    lines = []
+    doctor.run(offline=True, config_path=cfg, out=lines.append)
+    assert "確認卡按不動" in "\n".join(lines).split("bot noai（")[1]
+
+
 def test_report_effect_reason_is_extensible():
     spec = BotSpec(name="x", token="vault:x", packs=("w", "r", "c"), max_effect="read")
     infos = {"w": scope.PackInfo("w", ("write", "danger")), "r": scope.PackInfo("r", ("read", "write")),
