@@ -9,8 +9,10 @@ SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、�
       "vault": {"mode": "dpapi"},              dpapi（Windows 預設）｜file（金鑰明文存在 data/.synox.key）
       "packs": {"enabled": "all", "disabled": []},
       "web":   {"enabled": true, "port": 8830, "public_url": ""},   本機網頁介面（只綁 127.0.0.1）
-      "ai_member_monthly_usd": 2.0             伺服器版：每個成員每月的 AI 額度（美元）
+      "ai_member_monthly_usd": 2.0,            伺服器版：每個成員每月的 AI 額度（美元）
+      "channels": {"discord": {"enabled": true, "bot_token": "vault:discord_bot_token"}}   Discord 私訊（docs/discord.md）
     }
+- 只用 Discord 時 bot_token、owner_id 可以不填（owner_id 預設保留號段 10^15，pair-discord 把你的 Discord 帳號接上）。
 
 - 路徑一律相對於 SYNOX 資料夾（不管從哪裡啟動）：data_dir 沒寫就是 <SYNOX>/data。
 - api_key 可以直接寫，也可以寫 "vault:<名字>"：真正的值放在 data/secrets.json.enc（精靈就是這樣存的）。
@@ -54,8 +56,18 @@ class SynoxConfig(BotConfig):
     def server(self) -> bool:
         return self.mode == "server"
 
+    @property
+    def discord_enabled(self) -> bool:
+        from synox.discord import enabled
+        return enabled(self)
+
     @classmethod
     def from_dict(cls, raw: dict, *, require_token: bool = True, root: Optional[str] = None) -> "SynoxConfig":
+        discord = (raw.get("channels") or {}).get("discord") if isinstance(raw.get("channels"), dict) else None
+        if discord and raw.get("owner_id", raw.get("machine_owner_id")) in (None, ""):
+            # 只用 Discord、沒有 Telegram id：擁有者用保留號段的第一號，之後 pair-discord 把 Discord 帳號接上來
+            from synox.identity import BASE
+            raw = {**raw, "owner_id": BASE}
         base = BotConfig.from_dict(raw, require_token=require_token)
         root = os.path.abspath(root or ROOT)
         data_dir = base.data_dir if os.path.isabs(base.data_dir) else os.path.join(root, base.data_dir)
