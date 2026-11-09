@@ -138,6 +138,20 @@ def test_login_link_get_only_shows_who_and_needs_a_same_browser_post(make_bot, o
     assert confirm_login(ui, headers, body)[0] == 403                           # 表單 token 只能用一次
 
 
+def test_cookie_secure_only_behind_https(make_bot, owner):
+    """審查 A #8：public_url 是 https 時 cookie 加 Secure（HttpOnly、SameSite 照留）；本機 http 不加。"""
+    plain = Client(ui_of(make_bot()))
+    assert "Secure" not in plain.login(owner)
+    bot = make_bot(raw={"web": {"public_url": "https://synox.example.org/"}})
+    ui = ui_of(bot)
+    page = ui.handle("GET", f"/login?t={ui.tokens.issue(owner)}", {"Host": "synox.example.org"})
+    binder = next(v for k, v in page[1] if k == "Set-Cookie" and v.startswith("synox_login="))
+    assert "; Secure" in binder
+    status, headers, _ = confirm_login(ui, page[1], page[2], host="synox.example.org")
+    session = dict(headers)["Set-Cookie"]
+    assert status == 303 and "; Secure" in session and "HttpOnly" in session and "SameSite=Lax" in session
+
+
 def test_login_page_warns_when_switching_account(make_bot, owner):
     bot = make_bot()
     ui = ui_of(bot)
