@@ -109,6 +109,19 @@ def test_route_log_masks_token_like_text(make_bot, caplog):
     assert "***" in caplog.text
 
 
+# ── #9 保管箱的衍生金鑰快取有上限 ──────────────────────────────────────
+
+def test_vault_key_cache_is_bounded(tmp_path, monkeypatch):
+    from synox.vault import vault as vault_mod
+    monkeypatch.setattr(vault_mod, "CACHE_MAX", 5)
+    monkeypatch.setattr(vault_mod, "_derive", lambda key, salt, n, r, p: b"A" * 43 + b"=")   # 不跑 scrypt
+    v = vault_mod.Vault(b"k" * 32, str(tmp_path))
+    for i in range(20):                                                      # 每次存檔一個新 salt
+        v.save_json("x", {"i": i})
+    assert len(v._cache) == 5                                                # 以前：20 把，永不清除
+    assert v.load_json("x") == {"i": 19}                                    # 最近的那把還在、讀得回來
+
+
 # ── #3 人打字的 kind: path 也要在自己的資料夾裡 ──────────────────────────
 
 ECHO = "import json, sys\nprint(json.dumps({'ok': True, 'got': ' '.join(sys.argv[1:])}))\n"
