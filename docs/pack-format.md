@@ -133,8 +133,8 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | `commands[].ai`、`commands[].confirm` | cli 的 command：`"ai": false`＝不給 AI 當工具；`"confirm": true`＝AI 呼叫前先送確認卡給人按（effect 照寫的算）。一定要是 true／false。synox_sdk 的 `@tool(ai=…, confirm=…)` 會產生。跟工具執行中回的 `needs_confirm`（下一列）並存 |
 | 回 `needs_confirm`（確認來回） | cli 工具最後一行印 `{"ok": true, "needs_confirm": true, "summary": "要刪 3 筆", "confirm_token": "…"}`（結束碼 0）→ SYNOX 出核准卡給下令的人（人打字、AI 呼叫都一樣），按 ✅ 用**同一組參數**重跑，那一次環境變數 `SYNOX_CONFIRMED=1`、`SYNOX_CONFIRM_TOKEN`＝你給的 `confirm_token`（只收英數字與 `. _ : -`、128 字內）；其他每一次都是 `SYNOX_CONFIRMED=0`（`cli.env` 寫了也會被蓋掉）。❌、過期、參數對不上＝不執行。任何語言都能用：自己讀這兩個環境變數。說明見 [sdk.md](sdk.md)「確認來回」 |
 | `commands[].fields[].kind` | `text`（預設）｜`int`（整數，可有千分位逗號）｜`number`（數字）｜`bool`（是／否：`yes/no`、`true/false`、`1/0`、`是/否`…）｜`path`（值一定要在使用者自己的資料夾裡，第 4 關）｜`choice`（要寫 `choices: ["Red", "Blue"]`，大小寫不拘）。對 AI 的參數 schema 一律是字串；SYNOX 在交給程式**之前**照 kind 檢查（人打字與 AI 呼叫都會），不合回一句人話（例如「次數要是整數（例如 3）」）、不執行。交給程式的值整理過：`bool` → `true`／`false`、`int`／`number` 拿掉逗號、`choice` 換成 `choices` 裡的拼法 |
-| `cli.python` | `{python}` 換成什麼：絕對路徑｜`"venv"`（`<pack 資料夾>/../.venv` 的 python）｜沒寫＝看 `runtime`，再沒有＝SYNOX 自己的 Python |
-| `runtime.python`、`runtime.python_posix` | 另一種寫法（金流簿用的）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它。**`"auto"`**＝安裝時自動建 venv（見下面「依賴與環境自動建置」；跟 `cli.python` 不能同時寫） |
+| `cli.python` | `{python}` 換成什麼：絕對路徑｜`"venv"`（`<pack 資料夾>/../.venv` 的 python）｜沒寫＝看 `runtime`，再沒有＝SYNOX 自己的 Python。**一定要指到 Python 直譯器**（檔名 `python`、`python3`、`python3.12`、`pythonw`、`pypy3`…，可以有 `.exe`）、不能有 `..`；要叫別的程式請直接寫在 `cli.argv` 第一段（算 pack 外的程式、T2）。kind=mcp 寫了也照樣檢查 |
+| `runtime.python`、`runtime.python_posix` | 另一種寫法（金流簿用的）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它。**`"auto"`**＝安裝時自動建 venv（見下面「依賴與環境自動建置」；跟 `cli.python` 不能同時寫）。一樣要是 Python 直譯器的檔名；`..` 只收 `../.venv/Scripts/python.exe`、`../venv/bin/python` 這種「pack 旁邊的 venv」 |
 | `runtime.node` | **只給 kind=cli**（kind=mcp 寫了＝pack.json 不合；mcp 的 `{node}` 一律是系統的 node）。`{node}` 換成什麼：相對於 pack 資料夾（或絕對路徑）；**`"auto"`**＝系統的 node＋安裝時照 `package-lock.json` 裝套件；沒寫＝系統的 node。用到 `{node}` 的 pack 是 T2 |
 | `env`（最上層）、`cli.env` | 子程序多帶的環境變數；兩個合併，`cli.env` 優先。值可以用下面的代換。名字像密鑰的（`*_TOKEN`…）一樣會被拿掉，除非列在 `requires.env` |
 | `web.routes` | cli pack 的面板資料：`{"route": "command"}`；沒寫＝同名。對應的 command 要是 `READ`、沒有必填欄位 |
@@ -151,8 +151,14 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
     `src/synox/packs/scan.py` 的 `SOURCE_EXT`）、`node_modules/`、檔頭是 MZ+PE／ELF／Mach-O 的檔（副檔名寫什麼都一樣）、沒有副檔名但帶執行位元（zip 裡的 unix 權限）或 `#!` 開頭、
     `__pycache__` 裡對不到同一層 `.py` 的編譯檔。→ **`capabilities` 一定要有 `exec`**，不然拒裝。
   - `cli.argv`／`mcp.argv` 指到 **pack 外的程式**：`argv[0]` 不是 `{python}`／`./…`（例如 `{node}`、`npx`、`git`、`C:\…\x.exe`），
-    後面一段是直譯器（`node`、`npx`、`deno`、`bun`、`ruby`、`perl`、`php`…）、絕對路徑或 `..`，或 `{python} -m 模組` 而模組不在 pack 裡。
-    不擋，報告記解析後的路徑（只查 PATH，不執行）、標「未鎖定執行環境」。
+    後面一段是直譯器（`node`、`npx`、`deno`、`bun`、`ruby`、`perl`、`php`、`python3`、`cmd`、`bash`…）、看起來是檔案路徑
+    （`C:/…`、`/usr/bin/x`、`..`；`/c`、`/k` 這種 Windows 旗標不算）、直譯器要跑的程式在 pack 外（`{data_dir}/x.py`、`C:/x.py`），
+    或 `{python} -m 模組` 而模組不在 pack 裡。不擋，報告記解析後的路徑（只查 PATH，不執行）、標「未鎖定執行環境」。
+  - `{python}` 解析到 **pack 外的直譯器**：`cli.python` 是絕對路徑或 `"venv"`（`<pack>/../.venv`）、`runtime.python` 指到 pack 外。
+    SYNOX 自己的 Python、`runtime.python: "auto"` 建的 venv、pack 資料夾裡的不算。報告與鎖記解析後的路徑。
+  - argv 讓直譯器**直接執行一段程式碼**：`{python} -c`／`-i`／`-`／沒指定程式（讀 stdin）、`powershell -Command`／`-EncodedCommand`／
+    不是旗標的字、`cmd /c`／`/k`、`node -e`／`-p`／`-r`、`deno eval`、`bash -c`、`ruby -e`、`perl -e`、`php -r`、`osascript -e`，
+    或要跑哪支程式由欄位決定（`["{python}", "{script}"]`）。旗標寫在 `commands[].argv` 裡也算。→ **一定要宣告 `exec`**，不然拒裝。
   - `runtime.python`／`runtime.node` = `"auto"`（會裝 `requires.pip`／`package-lock.json` 的套件）。
 
 T2 的安裝報告有紅字一段（會執行什麼、會裝哪些套件、外部程式解析到哪），**`pack.json` 一定要寫 `publisher`**，安裝者要明確輸入它：
@@ -196,7 +202,7 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
 
 | 寫法 | 換成 |
 |---|---|
-| `{python}` | 上面 `cli.python`／`runtime` 決定的直譯器（`auto`＝`data/envs/<pack>/venv` 的 python） |
+| `{python}` | 上面 `cli.python`／`runtime` 決定的直譯器（`auto`＝`data/envs/<pack>/venv` 的 python；規則在 `envs.python_target`，第 2 關用同一份判斷它在不在 pack 外） |
 | `{node}` | `runtime.node` 決定的 node（`auto` 或沒寫＝系統的 node） |
 | `{pack_dir}` | pack 資料夾的絕對路徑 |
 | `{data_dir}` | SYNOX 的 `data/` |

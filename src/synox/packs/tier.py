@@ -5,7 +5,9 @@
     T1  原始碼：pack 資料夾裡只有第 2 關掃得到的 .py 與純資料檔
     T2  二進位或外部相依（掃不到）：資料夾裡有掃不到內容的檔（scan.opaque_files：.exe .dll .bat .sh .so .pyc、
         別的語言的原始碼 .js .ts .rb .php .go…（scan.SOURCE_EXT）、node_modules、MZ／ELF 檔頭…）、
-        argv 指到 pack 外的程式（scan.externals：{node}、npx、node、git、絕對路徑、{python} -m 外部模組）、
+        argv 指到 pack 外的程式（scan.externals：{node}、npx、node、git、絕對路徑、{python} -m 外部模組、
+        {python} 解析到 pack 外的直譯器（cli.python、"venv"、runtime.python 指到外面））、
+        argv 直接執行程式碼（{python} -c、powershell -Command、cmd /c、node -e…；scan.inline_code，另外要宣告 exec）、
         或 runtime auto 會裝套件（envs.all_pins：requires.pip、package-lock.json）
 
 T2 要多的：
@@ -70,6 +72,9 @@ def warning_lines(info: dict) -> List[str]:
     if runs:
         out.append("這個 pack 會執行：" + "、".join(runs[:20]) + ("…" if len(runs) > 20 else "") + "（掃不到內容）")
     for e in info.get("external") or []:
+        if e.get("inline"):
+            out.append(f"argv 直接執行程式碼：{e['resolved']}（{e.get('where', '')}；第 2 關掃不到這段程式碼）")
+            continue
         kind = f"直譯器 {e['interpreter']}" if e.get("interpreter") else "pack 外的程式"
         out.append(f"{kind} {e['program']} → {e['resolved']}（未鎖定執行環境：不在 packs.lock 的雜湊裡）")
     pkgs = info.get("packages") or []

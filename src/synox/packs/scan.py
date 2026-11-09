@@ -22,8 +22,10 @@
   沒宣告對應的 capability ＝拒裝（列出檔名:行號）。舊的 pack 沒寫 capabilities＝什麼都沒宣告，所以掃描結果決定。
   .py 解析不了（語法錯）也拒裝：掃不到就不能說它安全。
 - cli：pack 裡附的 .py 照上面一樣掃；cli.argv 指到 pack 外的程式（git、npx、絕對路徑、{python} -m 外部模組、
-  {node}／node／deno／bun／ruby／perl／php 這類直譯器——出現在 argv 任何一段都算，INTERPRETERS）
-  不擋，列一筆 external（報告的 external 有解析後的路徑）「未鎖定執行環境」；argv 樣板只能是字面字、單獨一段的 {欄位}、或 --k={欄位}（一段）；
+  {node}／node／deno／bun／ruby／perl／php 這類直譯器——出現在 argv 任何一段都算，INTERPRETERS；{python} 解析到 pack 外的直譯器，
+  envs.python_target）不擋，列一筆 external（報告的 external 有解析後的路徑）「未鎖定執行環境」；
+  argv 讓直譯器直接執行一段程式碼（-c、-e、-Command、/c…，inline_code；cli.argv＋command argv 整條看）→ exec；
+  argv 樣板只能是字面字、單獨一段的 {欄位}、或 --k={欄位}（一段）；
   {欄位} 緊跟在一個 --旗標 後面當它的值 ＝拒（值會變成另一段，要寫成 --k={v}）；樣板裡用了沒宣告的欄位 ＝拒。
   （值本身以 - 開頭、有換行，是第 4 關在呼叫時擋。）
 - data（pack.json 的 data 宣告，PERM-2；不合＝拒裝，列檔名:行號）：
@@ -653,17 +655,54 @@ def _check_data_cli(m: Manifest) -> List[Finding]:
 
 
 _SYSTEM_PROGRAMS = ("{python}",)              # {node} 不算：node 在 pack 外、沒鎖（P7 補）
+# {python} 本身不算 pack 外的程式，前提是它解析到 SYNOX 自己的直譯器、SYNOX 為這個 pack 建的 venv（runtime auto）
+# 或 pack 資料夾裡的；其他（cli.python 絕對路徑、"venv"＝pack 外的 .venv、runtime.python 指到外面）＝pack 外的直譯器，
+# 記一筆 external（解析後的路徑）＝T2（envs.python_target，審查 B #A）
+
+# Python 直譯器的檔名（argv 裡的 python、python3.12、pythonw、pypy3、py 啟動器；不含 .exe）
+_PY_NAME = re.compile(r"^(python|pypy)(\d+(\.\d+)*)?[tw]?$|^py$")
+SHELLS = ("bash", "sh", "zsh", "dash", "ksh", "fish", "csh", "tcsh", "busybox")
+# 直譯器家族：看它後面的旗標是不是「直接執行一段沒被掃描的程式碼」（-c、-e、-Command、/c…，_inline_flags）
+FAMILIES = {"powershell": "powershell", "pwsh": "powershell", "cmd": "cmd", "node": "node", "nodejs": "node",
+            "bun": "node", "deno": "deno", "ruby": "ruby", "perl": "perl", "php": "php", "lua": "lua",
+            "luajit": "lua", "osascript": "osascript", "mshta": "mshta", "wscript": "wsh", "cscript": "wsh"}
+
+
+def _base(token: str) -> str:
+    base = os.path.basename(token.replace("\\", "/")).lower()
+    for suffix in (".exe", ".cmd", ".bat", ".com"):
+        if base.endswith(suffix):
+            return base[: -len(suffix)]
+    return base
 
 
 def interpreter_of(token: str) -> str:
-    """這段 argv 是不是直譯器（{node}、node、npx、deno、bun、ruby、perl、php…，含 .exe／完整路徑）：是回名字，不是回 ""。"""
+    """這段 argv 是不是直譯器（{node}、node、npx、deno、bun、ruby、perl、php、python3、cmd、bash…，含 .exe／完整路徑）：
+    是回名字，不是回 ""。{python} 不算（它解析到哪裡另外看，envs.python_target）。"""
     if token == "{node}":
         return "node"
-    base = os.path.basename(token.replace("\\", "/")).lower()
-    for suffix in (".exe", ".cmd", ".bat"):
-        if base.endswith(suffix):
-            base = base[: -len(suffix)]
-    return base if base in INTERPRETERS else ""
+    if "{" in token:
+        return ""
+    base = _base(token)
+    if base in INTERPRETERS or base in SHELLS or base in ("cmd", "mshta") or _PY_NAME.match(base):
+        return base
+    return ""
+
+
+def family_of(token: str) -> str:
+    """直譯器家族（python｜powershell｜cmd｜node｜deno｜ruby｜perl｜php｜lua｜shell｜osascript｜mshta｜wsh）；不是回 ""。"""
+    if token == "{python}":
+        return "python"
+    if token == "{node}":
+        return "node"
+    if "{" in token:
+        return ""
+    base = _base(token)
+    if _PY_NAME.match(base):
+        return "python"
+    if base in SHELLS:
+        return "shell"
+    return FAMILIES.get(base, "")
 
 
 def _program_argv(m: Manifest) -> List[str]:
@@ -674,33 +713,272 @@ def _program_argv(m: Manifest) -> List[str]:
     return []
 
 
+def _sequences(m: Manifest) -> List[tuple]:
+    """真的會跑的整條 argv：[(在哪, argv)]。cli＝cli.argv＋每個 command 的 argv（-c 這種旗標可能寫在 command 裡）；
+    mcp stdio＝mcp.argv。"""
+    prefix = _program_argv(m)
+    if m.kind == "cli":
+        out = [(f"cli.argv＋command {c.get('name')}", prefix + [str(a) for a in c.get("argv") or []])
+               for c in m.commands if isinstance(c, dict)]
+        return out or [("cli.argv", prefix)]
+    return [("mcp.argv", prefix)] if prefix else []
+
+
 def _module_inside(m: Manifest, module: str) -> bool:
     top = module.split(".")[0]
     base = m.folder
-    return os.path.isfile(os.path.join(base, top + ".py")) or os.path.isdir(os.path.join(base, top))
+    return bool(top) and (os.path.isfile(os.path.join(base, top + ".py")) or os.path.isdir(os.path.join(base, top)))
+
+
+def _inside_token(token: str) -> bool:
+    plain = token.replace("\\", "/")
+    return plain.startswith(("./", "{pack_dir}/")) and ".." not in plain.split("/")
+
+
+def _looks_like_path(token: str) -> bool:
+    """argv 後面那幾段「看起來是檔案路徑」：磁碟代號（C:/…）、UNC（\\\\主機）、有兩層以上或有副檔名的 /絕對路徑、..，
+    或這台真的有這個檔。/c、/k、/s 這種 Windows 旗標不算（以前會被當成絕對路徑，審查 B #A(3)）。"""
+    plain = token.replace("\\", "/")
+    if re.match(r"^[A-Za-z]:/", plain) or plain.startswith("//") or ".." in plain.split("/"):
+        return True
+    if plain.startswith(("/", "~")):
+        rest = plain.lstrip("/~")
+        if "/" in rest or "." in rest:
+            return True
+        return os.path.exists(token)
+    return False
+
+
+def _script_problem(token: str) -> str:
+    """直譯器要跑的那支程式（第一個不是旗標的字）：""＝在 pack 裡或看不出來（相對路徑）；
+    "field"＝由使用者填的欄位決定；"outside"＝pack 外（絕對路徑、..、{data_dir}／{user_data_dir} 底下）。"""
+    if _inside_token(token):
+        return ""
+    names = _PLACEHOLDER.findall(token)
+    if any(n not in RESERVED_PLACEHOLDERS for n in names):
+        return "field"
+    if names or _looks_like_path(token):
+        return "outside"
+    return ""
+
+
+_PY_NOARG = set("bBdEhIOPqRsSuvVx")       # 不吃值的旗標
+_PY_VALUE = set("WXQ")                    # 吃一個值（同一段剩下的，或下一段）
+
+
+def _python_args(args: Sequence[str]):
+    """python 直譯器後面的旗標：一個一個 yield (種類, 字)；種類 inline｜module｜script｜odd。"""
+    i = 0
+    while i < len(args):
+        t = args[i]
+        if t == "--":
+            if i + 1 < len(args):
+                yield "script", args[i + 1]
+            return
+        if t in ("--version", "--help", "-?"):
+            i += 1
+            continue
+        if t.startswith("--check-hash-based-pycs"):
+            i += 1 if "=" in t else 2
+            continue
+        if t.startswith("--"):
+            yield "odd", t
+            return
+        if t == "-":
+            yield "inline", "-（從 stdin 讀程式碼）"
+            return
+        if t.startswith("-"):
+            j = 1
+            while j < len(t):
+                ch = t[j]
+                if ch == "c":
+                    yield "inline", t
+                    return
+                if ch == "i":
+                    yield "inline", f"{t}（互動模式：會執行 stdin 送進來的程式碼）"
+                    return
+                if ch == "m":
+                    yield "module", t[j + 1:] or (args[i + 1] if i + 1 < len(args) else "")
+                    return
+                if ch in _PY_VALUE:
+                    if not t[j + 1:]:
+                        i += 1
+                    break
+                if ch not in _PY_NOARG:
+                    yield "odd", t
+                    return
+                j += 1
+            i += 1
+            continue
+        yield "script", t
+        return
+    yield "inline", "（沒有指定程式：python 會從 stdin 讀程式碼）"
+
+
+_PS_VALUE = ("executionpolicy", "inputformat", "outputformat", "windowstyle", "configurationname", "workingdirectory",
+             "version", "psconsolefile", "settingsfile", "custompipename", "encodedarguments")
+
+
+def _powershell_args(args: Sequence[str]):
+    """powershell／pwsh：-Command／-c／-EncodedCommand／-e／-ec、或任何不是旗標的字（Windows PowerShell 5.1 會把它當指令）
+    ＝直接執行；只有 -File <檔> 是跑檔案。參數名照 PowerShell 的規則可以縮寫、不分大小寫，/ 開頭也收。"""
+    i = 0
+    while i < len(args):
+        t = args[i]
+        if t[:1] in ("-", "/") and len(t) > 1:
+            name = t[1:].split(":", 1)[0].lower()
+            if name.startswith("ex"):                       # -ExecutionPolicy Bypass
+                i += 2
+                continue
+            if "command".startswith(name) or "encodedcommand".startswith(name) or name in ("ec", "enc"):
+                yield "inline", t
+                return
+            if "file".startswith(name):
+                if i + 1 < len(args):
+                    yield "script", args[i + 1]
+                    return
+                yield "inline", t
+                return
+            if len(name) >= 2 and any(v.startswith(name) for v in _PS_VALUE):
+                i += 2
+                continue
+            i += 1
+            continue
+        yield "inline", f"{t}（不是旗標的字：PowerShell 會當成指令執行）"
+        return
+    yield "inline", "（沒有 -File：PowerShell 會執行 stdin 送進來的指令）"
+
+
+def _dash_cluster(t: str, letters: str) -> bool:
+    """單一個 - 開頭、只有英文字母、含 letters 其中一個（bash -lc、ruby -e、perl -E…）。"""
+    return len(t) > 1 and t[0] == "-" and t[1] != "-" and t[1:].isalpha() and any(ch in t[1:] for ch in letters)
+
+
+def _generic_args(args: Sequence[str], family: str):
+    """其他直譯器：旗標裡有「直接執行一段程式碼」的那一種＝inline；第一個不是旗標的字＝script；什麼都沒有＝讀 stdin。"""
+    eval_flags = {"node": ("-e", "--eval", "-p", "--print", "-pe", "-ep", "-i", "--interactive", "-r", "--require",
+                           "--import", "--loader", "--experimental-loader"),
+                  "php": ("-r", "-R", "-B", "-E", "-F", "-a")}.get(family, ())
+    letters = {"shell": "cs", "ruby": "e", "perl": "eE", "lua": "e", "osascript": "e"}.get(family, "")
+    for i, t in enumerate(args):
+        if family == "cmd" and t.lower().startswith(("/c", "/k", "/r")):
+            yield "inline", t
+            return
+        if family == "wsh" and t.lower().startswith(("//e:", "/e:")):
+            yield "inline", f"{t}（指定腳本引擎：任何副檔名的檔都會被當程式跑）"
+            return
+        if family == "deno" and not t.startswith("-"):
+            if t in ("eval", "repl"):
+                yield "inline", t
+                return
+            if t in ("run", "serve", "test", "task", "x"):
+                continue
+        if t == "-":
+            yield "inline", "-（從 stdin 讀程式碼）"
+            return
+        if t in eval_flags or any(t.startswith(f + "=") for f in eval_flags if f.startswith("--")):
+            yield "inline", t
+            return
+        if letters and _dash_cluster(t, letters):
+            yield "inline", t
+            return
+        if t.startswith("-"):
+            continue
+        if family in ("cmd", "mshta"):
+            continue
+        yield "script", t
+        return
+    if family in ("cmd", "mshta"):
+        yield "inline", "（cmd／mshta 會直接執行後面的指令字串）"
+        return
+    if family not in ("wsh", "deno"):
+        yield "inline", "（沒有指定程式：會從 stdin 讀程式碼）"
+
+
+def _interpreter_hits(m: Manifest, token: str, args: Sequence[str]):
+    """一個直譯器（token）跟它後面的字 → yield ("inline", 標籤, 說明)｜("external", 程式, "")。"""
+    family = family_of(token)
+    name = os.path.basename(token.replace("\\", "/")) or token
+    gen = _python_args(args) if family == "python" else \
+        _powershell_args(args) if family == "powershell" else _generic_args(args, family)
+    for kind, value in gen:
+        if kind in ("inline", "odd"):
+            why = "看不懂的旗標（可能直接執行程式碼）" if kind == "odd" else "直接執行一段沒被第 2 關掃描的程式碼"
+            yield "inline", f"{name} {value.split('（')[0].strip() or value}".strip(), f"{name} {value}：{why}"
+        elif kind == "module":
+            if not value or _PLACEHOLDER.search(value):
+                yield "inline", f"{name} -m {value}".strip(), f"{name} -m {value}：要跑的模組由欄位決定（掃不到）"
+            elif not _module_inside(m, value):
+                yield "external", f"-m {value}", ""
+        elif kind == "script":
+            problem = _script_problem(value)
+            if problem == "field":
+                yield "inline", f"{name} {value}", f"{name} {value}：要跑哪支程式由使用者填的欄位決定（掃不到）"
+            elif problem == "outside":
+                yield "external", value, ""
+
+
+def _argv_hits(m: Manifest) -> List[tuple]:
+    """全部 argv 的分析：[(kind, program, detail, where)]，kind＝external（pack 外的程式）｜inline（直接執行程式碼）；
+    同一個 program 只留第一筆。"""
+    out: List[tuple] = []
+    seen = set()
+
+    def add(kind, program, detail, where):
+        if (kind, program) not in seen:
+            seen.add((kind, program))
+            out.append((kind, program, detail, where))
+
+    for where, argv in _sequences(m):
+        for i, token in enumerate(argv):
+            inside = _inside_token(token)
+            if i == 0 and token not in _SYSTEM_PROGRAMS and not inside:
+                add("external", token, "", where)
+            elif i > 0 and interpreter_of(token) and not inside:
+                add("external", token, "", where)
+            elif i > 0 and not inside and _looks_like_path(token) and not _PLACEHOLDER.search(token):
+                add("external", token, "", where)
+            if family_of(token):                           # 直譯器（任何位置：env python -c …、cmd /c node …）
+                for hit in _interpreter_hits(m, token, argv[i + 1:]):
+                    add(hit[0], hit[1], hit[2], where)
+                if family_of(token) != "cmd":              # cmd /c 後面是另一條命令列：照樣往下看（cmd /c node …）
+                    break                                  # 後面的字是這個直譯器的參數，分析過了
+    return out
 
 
 def external_programs(m: Manifest) -> List[str]:
-    """kind=cli 的 cli.argv、kind=mcp stdio 的 mcp.argv 裡指到 pack 外面的程式（樣板原文）：argv[0] 不是 {python}、
-    不是 ./ 開頭的 pack 內檔案（{node}、npx、node、git、uvx、絕對路徑…）；後面任何一段是直譯器（INTERPRETERS：
-    cmd /c node … 這種）、絕對路徑或 {pack_dir} 以外的 .. 路徑；{python} -m <模組> 而那個模組不在 pack 資料夾裡（記成 "-m 模組"）。"""
-    out: List[str] = []
-    argv = _program_argv(m)
-    for i, token in enumerate(argv):
-        plain = token.replace("\\", "/")
-        inside = plain.startswith(("./", "{pack_dir}/")) and ".." not in plain.split("/")
-        if i == 0:
-            if token in _SYSTEM_PROGRAMS or inside:
-                continue
-            out.append(token)
-        elif interpreter_of(token) and not inside:
-            out.append(token)
-        elif token == "-m" and i == 1 and argv[0] == "{python}" and len(argv) > 2:
-            if not _module_inside(m, argv[2]):
-                out.append(f"-m {argv[2]}")
-        elif not inside and (os.path.isabs(token) or re.match(r"^[A-Za-z]:", token) or ".." in plain.split("/")):
-            out.append(token)
-    return out
+    """kind=cli（cli.argv＋每個 command 的 argv）、kind=mcp stdio（mcp.argv）裡指到 pack 外面的程式（樣板原文）：
+    argv[0] 不是 {python}、不是 ./ 開頭的 pack 內檔案（{node}、npx、node、git、uvx、絕對路徑…）；後面任何一段是直譯器
+    （INTERPRETERS：cmd /c node … 這種）、看起來是檔案路徑（_looks_like_path：C:/…、/usr/bin/x、..；/c 這種旗標不算）；
+    直譯器要跑的程式在 pack 外（{data_dir}/x.py、C:/x.py）；{python} -m <模組> 而那個模組不在 pack 資料夾裡（記成 "-m 模組"）。
+    {python} 本身解析到 pack 外（envs.python_target）另外記，見 externals()。"""
+    return [p for kind, p, _d, _w in _argv_hits(m) if kind == "external"]
+
+
+def inline_code(m: Manifest) -> List[tuple]:
+    """argv 裡「直譯器直接執行一段程式碼」：[(標籤, 說明, 在哪)]（{python} -c、powershell -Command、cmd /c、node -e、
+    bash -c…、要跑的程式由欄位決定）。這段程式碼第 2 關掃不到 → 要宣告 exec、算 T2。"""
+    return [(p, d, w) for kind, p, d, w in _argv_hits(m) if kind == "inline"]
+
+
+def _uses_python(m: Manifest) -> bool:
+    from synox.packs.manifest import cli_templates, mcp_templates
+    templates = mcp_templates(m.mcp) if m.kind == "mcp" else cli_templates(m.cli) if m.kind == "cli" else []
+    return any("{python}" in text for _w, text in templates)
+
+
+def python_external(m: Manifest) -> Optional[dict]:
+    """{python} 解析到 pack 外的直譯器（cli.python 絕對路徑、"venv"、runtime.python 指到外面）→ 一筆 external；
+    SYNOX 自己的、runtime auto 建的、pack 資料夾裡的 → None。只查路徑，不執行。"""
+    if m.kind not in ("cli", "mcp") or not _uses_python(m):
+        return None
+    from synox.packs import envs
+    path, origin, where = envs.python_target(m)
+    if origin != envs.PY_OUTSIDE:
+        return None
+    resolved = path if os.path.exists(path) else f"{path}（這台不存在）"
+    return {"program": "{python}", "resolved": resolved, "where": where, "note": "未鎖定執行環境",
+            "interpreter": "python"}
 
 
 def resolve_program(token: str, m: Optional[Manifest] = None) -> str:
@@ -736,17 +1014,38 @@ def resolve_program(token: str, m: Optional[Manifest] = None) -> str:
     return found + note
 
 
+INLINE_NOTE = "argv 直接執行程式碼（第 2 關掃不到）"
+
+
 def externals(m: Manifest) -> List[dict]:
-    """[{"program", "resolved", "where", "note"}]：pack 外的程式＋解析後的路徑；不進 packs.lock 的雜湊。"""
+    """[{"program", "resolved", "where", "note"}]：pack 外的程式＋解析後的路徑；不進 packs.lock 的雜湊。
+    {python} 解析到 pack 外的直譯器也一筆（program="{python}"，where＝決定它的欄位）；
+    argv 直接執行程式碼（{python} -c、powershell -Command…）一筆 inline=True（T2；第 2 關另外要求宣告 exec）。"""
     where = "mcp.argv" if m.kind == "mcp" else "cli.argv"
     out = []
+    py = python_external(m)
+    if py:
+        out.append(py)
     for t in external_programs(m):
         e = {"program": t, "resolved": resolve_program(t, m), "where": where, "note": "未鎖定執行環境"}
         interp = interpreter_of(t)
         if interp:                                 # 直譯器：在 pack 外、版本沒鎖；掃描只查路徑，不執行它
             e["interpreter"] = interp
         out.append(e)
+    for label, detail, at in inline_code(m):
+        out.append({"program": label, "resolved": detail, "where": at, "note": INLINE_NOTE, "inline": True})
     return out
+
+
+def _inline_findings(m: Manifest) -> List[Finding]:
+    return [Finding("pack.json", 0, "exec", label, f"{at}：{detail}（要宣告 exec；算 T2）")
+            for label, detail, at in inline_code(m)]
+
+
+def _external_findings(report_external: List[dict], label: str) -> List[Finding]:
+    return [Finding("pack.json", 0, "external", e["program"],
+                    f"{label} 用了 pack 外的程式 {e['program']}（→ {e['resolved']}）：packs.lock 只鎖 pack "
+                    "資料夾裡的檔，這支被換掉不會發現（未鎖定執行環境）") for e in report_external if not e.get("inline")]
 
 
 def _check_mcp_stdio(m: Manifest) -> List[Finding]:
@@ -761,10 +1060,8 @@ def _check_mcp_stdio(m: Manifest) -> List[Finding]:
     for k, v in ((m.mcp or {}).get("env") or {}).items():
         if [n for n in _PLACEHOLDER.findall(str(v)) if n not in RESERVED_PLACEHOLDERS]:
             out.append(Finding("pack.json", 0, "argv", f"mcp.env.{k}", f"mcp.env.{k} 只能用系統代換（{v!r}）"))
-    for token in external_programs(m):
-        out.append(Finding("pack.json", 0, "external", token,
-                           f"argv 用了 pack 外的程式 {token}：packs.lock 只鎖 pack 資料夾裡的檔，這支被換掉不會發現"
-                           "（未鎖定執行環境）"))
+    out += _external_findings(externals(m), "mcp.argv")
+    out += _inline_findings(m)
     return out
 
 
@@ -800,9 +1097,8 @@ def scan(m: Manifest, exec_bits: Sequence[str] = ()) -> ScanReport:
         for c in m.commands:
             report.findings += _check_command(c)
         report.findings += _check_data_cli(m)
-        report.findings += [Finding("pack.json", 0, "external", e["program"],
-                                    f"cli.argv 用了 pack 外的程式 {e['program']}（→ {e['resolved']}）：packs.lock 只鎖 pack "
-                                    "資料夾裡的檔，這支被換掉不會發現（未鎖定執行環境）") for e in report.external]
+        report.findings += _external_findings(report.external, "cli.argv")
+        report.findings += _inline_findings(m)
     return report
 
 

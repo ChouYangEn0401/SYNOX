@@ -1,5 +1,22 @@
 # Changelog
 
+## 未發佈（branch feat/fix-exec：獨立安全審查 B，pack 供應鏈／工具執行）
+
+### 變更（安全）
+- **#A `{python}` 不再一律當成「SYNOX 的 Python」**：之前 `cli.python` 只要絕對路徑、`runtime.python` 只要非空字串，第 2 關對
+  `argv[0] == {python}` 一律跳過——`cli.python` 指到 powershell.exe、argv `-Command echo …` 的 pack 會被判 T1、不用 publisher。現在：
+  - 第 1 關：`cli.python`／`runtime.python`／`python_posix` 的檔名一定是 Python 直譯器（`python*`／`pypy*`）、不准 `..`
+    （`runtime.python` 只收 `../.venv/…` 這種 pack 旁邊的 venv）；`cli.python` 不管 kind 都檢查（mcp stdio 也讀它）。
+  - `{python}` 解析到 SYNOX 自己的、`runtime.python: auto` 建的、pack 資料夾裡的以外（`cli.python` 絕對路徑、`"venv"`、
+    指到外面的 `runtime.python`）→ 記一筆 external（解析後的路徑、`interpreter: python`、未鎖定執行環境）＝T2、要 publisher、進鎖的 `t2.external`。
+    規則只在 `envs.python_target`（`loader.cli_python` 也用它）。
+  - argv 讓直譯器**直接執行一段程式碼**（`{python} -c`／`-i`／沒指定程式、`powershell -Command`／`-EncodedCommand`／不是旗標的字、
+    `cmd /c`、`node -e`、`deno eval`、`bash -c`、`ruby -e`、`perl -e`、`php -r`、`osascript -e`、要跑哪支由欄位決定…；
+    cli.argv＋每個 command 的 argv 整條看）→ 一定要宣告 `exec`、T2（`scan.inline_code`）。
+  - 直譯器要跑的程式在 pack 外（`{python} {data_dir}/x.py`、`C:/x.py`）算 pack 外的程式。
+  - 修誤判：argv 後面的 `/c`、`/k` 這種 Windows 旗標不再被當成絕對路徑（`scan._looks_like_path`）。
+  - 取捨：pack 外的 python 與 `{python} -m 外部模組` 算 T2＋publisher，但**不**要求 `exec`（跟 git、npx 一致；金流簿的 `../.venv` 照舊能裝）。
+
 ## 未發佈（branch feat/t2-source）
 
 ### 變更（安全）

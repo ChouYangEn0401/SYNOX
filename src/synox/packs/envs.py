@@ -123,6 +123,60 @@ def python_of(m, data_dir: Optional[str] = None) -> str:
     return venv_python(env_dir(data_dir, m.name)) if wants_python(m) else ""
 
 
+# {python} 的來源（python_target 的第二個值）：SYNOX 自己的直譯器｜SYNOX 為這個 pack 建的 venv（runtime auto）｜
+# pack 資料夾裡的｜pack 外面的（未鎖定執行環境：不在 packs.lock 的雜湊裡，掃描當作 pack 外的程式）
+PY_SYNOX, PY_AUTO, PY_PACK, PY_OUTSIDE = "synox", "auto", "pack", "outside"
+
+
+def _same_file(a: str, b: str) -> bool:
+    try:
+        return os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b))
+    except (OSError, ValueError):
+        return False
+
+
+def _inside_folder(path: str, folder: str) -> bool:
+    try:
+        base = os.path.normcase(os.path.realpath(folder))
+        target = os.path.normcase(os.path.realpath(path))
+        return os.path.commonpath([base, target]) == base and target != base
+    except (OSError, ValueError):                    # 不同磁碟機
+        return False
+
+
+def python_target(m, data_dir: Optional[str] = None) -> Tuple[str, str, str]:
+    """{python} 換成什麼：(路徑, 來源, 哪個欄位決定的)。loader.cli_python 與第 2 關（scan.externals）都用這裡，
+    兩邊不會算出不一樣的東西。照順序：
+    1. cli.python：絕對路徑｜"venv"（<pack 資料夾>/../.venv 的 python，pack 外面）
+    2. runtime.python（Windows）／runtime.python_posix（其他）："auto"＝data/envs/<pack>/venv；
+       其他＝相對於 pack 資料夾（或絕對路徑）
+    3. 都沒寫＝SYNOX 自己的 Python
+    來源：PY_SYNOX（就是 SYNOX 這支）｜PY_AUTO｜PY_PACK（在 pack 資料夾裡，跟著鎖）｜PY_OUTSIDE（其他任何地方）。"""
+    cli = getattr(m, "cli", {}) or {}
+    py = cli.get("python")
+    folder = getattr(m, "folder", "") or ""
+    if py == "venv":
+        exe = os.path.join("Scripts", "python.exe") if os.name == "nt" else os.path.join("bin", "python")
+        path, where = os.path.normpath(os.path.join(folder, "..", ".venv", exe)), "cli.python"
+    elif py:
+        path, where = str(py), "cli.python"
+    elif wants_python(m):
+        return venv_python(env_dir(data_dir, m.name)), PY_AUTO, "runtime.python"
+    else:
+        runtime = getattr(m, "runtime", {}) or {}
+        key = "python" if os.name == "nt" else ("python_posix" if runtime.get("python_posix") else "python")
+        rel = runtime.get(key)
+        if not rel:
+            return sys.executable, PY_SYNOX, ""
+        path = rel if os.path.isabs(rel) else os.path.normpath(os.path.join(folder, rel))
+        where = f"runtime.{key}"
+    if _same_file(path, sys.executable):
+        return path, PY_SYNOX, where
+    if folder and _inside_folder(path, folder):
+        return path, PY_PACK, where
+    return path, PY_OUTSIDE, where
+
+
 def system_node(which: Callable[[str], Optional[str]] = shutil.which) -> str:
     return which("node") or ""
 

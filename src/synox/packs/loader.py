@@ -405,21 +405,9 @@ def cli_python(m: Manifest, data_dir: Optional[str] = None) -> str:
     1. cli.python：絕對路徑｜"venv"（<pack 資料夾>/../.venv 的 python）
     2. runtime.python（Windows）／runtime.python_posix（其他）："auto"＝data/envs/<pack>/venv（安裝時建，packs/envs.py）；
        其他＝相對於 pack 資料夾（或絕對路徑）
-    3. 都沒寫＝SYNOX 自己的 Python"""
-    py = m.cli.get("python")
-    if py == "venv":
-        exe = os.path.join("Scripts", "python.exe") if os.name == "nt" else os.path.join("bin", "python")
-        return os.path.normpath(os.path.join(m.folder, "..", ".venv", exe))
-    if py:
-        return py
-    auto = envs.python_of(m, data_dir)
-    if auto:
-        return auto
-    runtime = getattr(m, "runtime", {}) or {}
-    rel = runtime.get("python") if os.name == "nt" else (runtime.get("python_posix") or runtime.get("python"))
-    if rel:
-        return rel if os.path.isabs(rel) else os.path.normpath(os.path.join(m.folder, rel))
-    return sys.executable
+    3. 都沒寫＝SYNOX 自己的 Python
+    （envs.python_target：第 2 關用同一份規則判斷它在不在 pack 外；pack 外的＝未鎖定執行環境、T2）"""
+    return envs.python_target(m, data_dir)[0]
 
 
 def user_data_dir(config, tg_id) -> str:
