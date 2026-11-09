@@ -48,6 +48,12 @@ sys.exit(reply_ok({"count": 3}, "共 3 筆"))        # 印信封、回結束碼
 - argv 樣板只能有字面字、**單獨一段**的 `{欄位}`、或 `--旗標={欄位}`（一段）。`["--city", "{city}"]` 會被拒：值要跟旗標黏成一段。
 - 每個 command 一定要寫 `effect`：`READ`（只看）、`WRITE`（改東西）、`DANGER`（刪、付錢…，AI 呼叫一律先送確認卡給人按）。
 - 欄位的值以 `-` 開頭、有換行、像密鑰的檔名（`.env`、`id_rsa`、`*.pem`…）都會在呼叫前被擋。欄位 `"kind": "path"` 的值一定要在使用者自己的資料夾裡。
+- 欄位可以標型別 `"kind"`：`int`、`number`、`bool`、`choice`（配 `"choices": [...]`）、`path`、`text`（預設）。SYNOX 先檢查格式再叫你的工具，
+  `bool` 一律傳 `true`／`false`，所以工具那邊不用自己解析「是／否」。
+- 工具要 API 金鑰之類的密鑰：放在環境變數，並寫進 `"requires": {"env": ["WEATHER_API_KEY"]}`。SYNOX 叫工具時會拿掉所有像密鑰的環境變數，
+  **只放行 `requires.env` 列的名字**（沒列＝工具看不到）。
+- 用到新版 SYNOX 才有的東西：寫 `"requires": {"synox": ">=0.3"}`，舊的 SYNOX 就不會載入它，並告訴使用者要更新。
+- AI 呼叫你的指令時會等它做完、把結果交給 AI 轉述；所以一般指令要在 `timeout` 內做完，很久的工作請標 `"background": true`。
 - 系統代換：`{python}`、`{pack_dir}`、`{data_dir}`、`{user_data_dir}`（伺服器版每人一個）、`{tg_id}`，argv、`env`、`cwd` 都可以用。
   Python 工具要用自己的 venv：`"cli": {"python": "venv"}`（＝`<pack>/../.venv`）或 `"runtime": {"python": "../.venv/Scripts/python.exe"}`（相對於 pack 資料夾）。
 

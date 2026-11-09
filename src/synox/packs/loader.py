@@ -39,7 +39,8 @@ from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 from synox.config import ROOT
 from synox.packs import kit, render
 from synox.packs import lock as pack_lock
-from synox.packs.manifest import Manifest, ManifestError, missing_requirements, read
+from synox.packs.manifest import (Manifest, ManifestError, missing_requirements, read, secret_env_names,
+                                  synox_problem)
 from synox.vault.vault import USERS_DIR
 
 PACK_DIRS = (os.path.join(ROOT, "packs"), os.path.join(ROOT, "connectors"))
@@ -142,7 +143,7 @@ class Pack:
 class PackStatus:
     name: str
     folder: str
-    status: str                 # loaded｜connector｜disabled｜invalid｜missing｜error｜tampered
+    status: str                 # loaded｜connector｜disabled｜invalid｜missing｜incompatible｜error｜tampered
     detail: str = ""
     kind: str = ""
     version: str = ""
@@ -318,7 +319,10 @@ def cli_env(m: Manifest, values: Dict[str, str]) -> Dict[str, str]:
 def _install_cli(app, pack: Pack) -> None:
     """每個 command 一個表單指令（SDK Forms）。不直接用 SDK service.install：argv 的開頭、env、cwd 要照
     「這一次是誰」代換（{tg_id}、{user_data_dir}），service.install 的 JsonCli 是裝的時候就固定的。
-    其他行為照 service.install：值以 - 開頭拒絕、一般指令丟 app.tasks、background 先回「開始了」。"""
+    其他行為照 service.install：值以 - 開頭拒絕、一般指令丟 app.tasks、background 先回「開始了」。
+    例外：經 AI 呼叫（api.via_ai）的一般指令同步跑完，結果交回 AI（不然 AI 拿到空的、結果直接跑去給使用者）。
+    fields[].kind（int｜number｜bool｜choice）在 Field.check 檢查、交給程式前 normalize；
+    requires.env 列的名字當 keep_env 給 JsonCli（其他看起來像密鑰的環境變數照樣拿掉）。"""
     from isdtelekit.jobs.cli import JsonCli
     from isdtelekit.packs import service
 
@@ -329,6 +333,15 @@ def _install_cli(app, pack: Pack) -> None:
     bridge = service.ServiceBridge()
     pack.cli_bridge = bridge
 
+    keep_env = secret_env_names(m)       # 子程序只看得到 requires.env／auth.fields[].env 列的密鑰名（其他照 JsonCli 拿掉）
+    by_name = {c["name"]: c for c in m.commands}
+
+    def make_cli(ph: Dict[str, str]) -> "JsonCli":
+        cwd = substitute(m.cli.get("cwd") or ".", ph)
+        return JsonCli(app.jobs, cli_prefix(m, ph), cwd=os.path.normpath(os.path.join(m.folder, cwd)), name=m.name,
+                       timeout=float(m.cli.get("timeout", 120)), json_flag=m.cli.get("json_flag", "--json"),
+                       env_extra=cli_env(m, ph) or None, keep_env=keep_env)
+
     def say(api, chat_id, text):
         try:
             api.send_message(chat_id, text)
@@ -338,14 +351,15 @@ def _install_cli(app, pack: Pack) -> None:
     def make_submit(cmd: "service.ServiceCommand", stdin_template: Optional[str] = None):
         """stdin_template：pack.json commands[].stdin，例如 "{answers}"——這個欄位的內容走 stdin 給程式，
         不進 argv（日記正文、長文字；不會出現在程序清單與 log 的 argv 那一行）。"""
+        kinds_of = {f["name"]: f.get("kind", "text") for f in by_name.get(cmd.name, {}).get("fields") or []}
+        choices_of = {f["name"]: tuple(f.get("choices") or ()) for f in by_name.get(cmd.name, {}).get("fields") or []}
+
         def submit(api, chat_id, user, values):
             ph = placeholders(m, config, user)
             if getattr(config, "mode", "personal") == "server":
                 os.makedirs(ph["user_data_dir"], exist_ok=True)
-            cwd = substitute(m.cli.get("cwd") or ".", ph)
-            cli = JsonCli(app.jobs, cli_prefix(m, ph), cwd=os.path.normpath(os.path.join(m.folder, cwd)), name=m.name,
-                          timeout=float(m.cli.get("timeout", 120)), json_flag=m.cli.get("json_flag", "--json"),
-                          env_extra=cli_env(m, ph) or None)
+            cli = make_cli(ph)
+            values = {k: gate4.normalize(kinds_of.get(k, "text"), v, choices_of.get(k, ())) for k, v in values.items()}
             argv = build_argv(cmd.argv, {**values, **ph})
             timeout = {"timeout": cmd.timeout} if cmd.timeout else {}
             if stdin_template:
@@ -370,6 +384,11 @@ def _install_cli(app, pack: Pack) -> None:
                 say(api, chat_id, f"⏳ {cmd.name} 開始了，做完通知你。")
                 cli.start(*argv, on_done=finish, **timeout)
                 return
+            if getattr(api, "via_ai", False) is True:
+                # 經 AI 呼叫（agent 的 CaptureApi）：同步跑完，回覆被攔下來當工具結果交回 AI
+                # （loop 再包 nonce 分隔符）。AI 那一輪本來就在 app.tasks 上，不會卡住收訊。
+                finish(cli.call(*argv, **timeout))
+                return
             typing = getattr(api, "typing", None)
             if callable(typing):
                 typing(chat_id)
@@ -379,15 +398,10 @@ def _install_cli(app, pack: Pack) -> None:
     def panel_route(c: dict):
         def fn(user):                          # Web UI 面板的 GET：在網頁的請求執行緒上跑（等它結束）
             ph = placeholders(m, config, user)
-            cwd = substitute(m.cli.get("cwd") or ".", ph)
-            cli = JsonCli(app.jobs, cli_prefix(m, ph), cwd=os.path.normpath(os.path.join(m.folder, cwd)),
-                          name=m.name, timeout=float(m.cli.get("timeout", 120)),
-                          json_flag=m.cli.get("json_flag", "--json"), env_extra=cli_env(m, ph) or None)
-            reply = cli.call(*build_argv(c.get("argv") or [], ph))
+            reply = make_cli(ph).call(*build_argv(c.get("argv") or [], ph))
             return reply.data if reply.ok else {"ok": False, "error": reply.error}
         return fn
 
-    by_name = {c["name"]: c for c in m.commands}
     for route, target in (m.web.get("routes") or {}).items():
         pack.web_route(route, panel_route(by_name[target]))
 
@@ -396,7 +410,7 @@ def _install_cli(app, pack: Pack) -> None:
         kinds = {f["name"]: f.get("kind", "text") for f in c.get("fields") or []}
         fields = [Field(f["name"], f.get("ask", f["name"]), required=bool(f.get("required")),
                         default=str(f.get("default", "")), choices=tuple(f.get("choices") or ()),
-                        check=gate4.typed_check(kinds.get(f["name"], "text")))
+                        check=gate4.typed_check(kinds.get(f["name"], "text"), tuple(f.get("choices") or ())))
                   for f in c.get("fields") or []]
         cmd = service.ServiceCommand(c["name"], c["argv"], c.get("summary", c["name"]), fields=fields,
                                      effect=EFFECTS.get(str(c.get("effect", "read")).lower(), READ),
@@ -472,6 +486,10 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         report.items.append(item)
         if not config.pack_enabled(m.name):
             item.status = "disabled"
+            continue
+        too_old = synox_problem(m)                 # requires.synox：版本不合就不載入
+        if too_old:
+            item.status, item.detail = "incompatible", too_old
             continue
         missing = missing_requirements(m, config)
         if missing:

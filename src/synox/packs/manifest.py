@@ -10,7 +10,8 @@ pack.json 的格式與檢查（docs/pack-format.md 是人看的版本）。安�
       "python": {"module": "pack"},              kind=python：資料夾裡的 pack.py，有 install(app, pack)
       "cli": {"argv": ["{python}", "./x.py"], "cwd": ".", "commands": [...]},   kind=cli
       "auth": "oauth",                           kind=connector：oauth｜token｜caldav（v2 寫成 {"type": …}）
-      "requires": {"pip": [], "config": [], "env": {}},
+      "requires": {"pip": [], "config": [], "env": {},  env：要有的環境變數（也是 cli 子程序唯一看得到的密鑰名）
+                   "synox": ">=0.3"},              synox：SYNOX 最低版本（不合＝不載入，doctor 說明）
       "skill": "SKILL.md",
       "storage": "vault",                        vault（pack.store 落地是密文）｜plain
       "web": {"panel": "panel.html",             選用：Web UI 工具頁的面板（pack 資料夾裡的一個 .html）
@@ -49,7 +50,8 @@ AUTHS = ("oauth", "token", "caldav")                       # v0 的 auth 字串�
 AUTH_TYPES = ("none", "token", "oauth", "caldav", "file")  # v2 的 auth.type
 CAPABILITIES = ("network", "subprocess", "filesystem:own", "filesystem:any", "exec")
 EFFECT_NAMES = ("READ", "WRITE", "DANGER")
-FIELD_KINDS = ("text", "path")
+FIELD_KINDS = ("text", "int", "number", "bool", "path", "choice")
+MAX_CHOICES = 50
 # cli 的 argv／env 樣板裡 loader 會代換的名字（欄位不能取這些名字）
 RESERVED_PLACEHOLDERS = ("python", "pack_dir", "data_dir", "user_data_dir", "tg_id")
 V2_KEYS = ("capabilities", "publisher", "integrity", "mcp", "commands", "runtime", "env")
@@ -61,6 +63,9 @@ VERSION_RE = re.compile(r"^\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 COMMAND_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 FIELD_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+# requires.synox：一個或幾個（逗號分隔）條件，例如 ">=0.3"、">=0.3,<1.0"；只寫版本＝>=
+_SPEC_RE = re.compile(r"^\s*(>=|<=|==|!=|>|<)?\s*(\d+(?:\.\d+){0,2})\s*$")
 
 
 class ManifestError(ValueError):
@@ -195,8 +200,15 @@ def _check_commands(commands, strict: bool, problems: List[str]) -> List[dict]:
                 continue
             if fname in RESERVED_PLACEHOLDERS:
                 problems.append(f"{where} 的欄位不能叫 {fname}（保留給 {{{fname}}} 代換）")
-            if f.get("kind", "text") not in FIELD_KINDS:
+            fkind = f.get("kind", "text")
+            if fkind not in FIELD_KINDS:
                 problems.append(f"{where} 的欄位 {fname} 的 kind 只能是 {'、'.join(FIELD_KINDS)}")
+            choices = f.get("choices")
+            if choices is not None and (not isinstance(choices, list) or not choices or len(choices) > MAX_CHOICES
+                                        or not all(isinstance(x, str) and x.strip() for x in choices)):
+                problems.append(f"{where} 的欄位 {fname} 的 choices 要是不空的字串清單（最多 {MAX_CHOICES} 個）")
+            elif fkind == "choice" and not choices:
+                problems.append(f"{where} 的欄位 {fname} 是 kind=choice，要寫 choices（可以選的值，字串清單）")
         out.append({**c, "effect": effect or "READ"})
     return out
 
@@ -286,6 +298,77 @@ def _check_v2(raw: dict, kind, problems: List[str]) -> dict:
             "integrity": integrity, "auth_info": auth_info, "mcp": mcp}
 
 
+def parse_spec(spec) -> List[tuple]:
+    """requires.synox 的字串 → [(運算子, (主, 次, 修))…]；寫錯丟 ValueError。"""
+    if not isinstance(spec, str) or not spec.strip():
+        raise ValueError("requires.synox 要是版本條件字串，例如 \">=0.3\"")
+    out = []
+    for part in spec.split(","):
+        m = _SPEC_RE.match(part)
+        if m is None:
+            raise ValueError(f"requires.synox 的 {part.strip()!r} 看不懂（寫成 >=0.3、<1.0 這樣，可以用逗號接好幾個）")
+        nums = [int(x) for x in m.group(2).split(".")]
+        out.append((m.group(1) or ">=", tuple(nums + [0] * (3 - len(nums)))))
+    return out
+
+
+def _version_tuple(text: str) -> tuple:
+    nums = re.match(r"^(\d+)(?:\.(\d+))?(?:\.(\d+))?", str(text or "0"))
+    return tuple(int(x or 0) for x in nums.groups()) if nums else (0, 0, 0)
+
+
+_OPS = {">=": lambda a, b: a >= b, ">": lambda a, b: a > b, "<=": lambda a, b: a <= b,
+        "<": lambda a, b: a < b, "==": lambda a, b: a == b, "!=": lambda a, b: a != b}
+
+
+def synox_problem(m: "Manifest", current: Optional[str] = None) -> Optional[str]:
+    """requires.synox 跟這台的 SYNOX 版本合不合；不合回一句給人看的話，合（或沒寫）回 None。"""
+    spec = (m.requires or {}).get("synox")
+    if not spec:
+        return None
+    if current is None:
+        from synox import __version__ as current
+    have = _version_tuple(current)
+    try:
+        clauses = parse_spec(spec)
+    except ValueError as e:
+        return str(e)
+    if all(_OPS[op](have, want) for op, want in clauses):
+        return None
+    too_old = any(op in (">=", ">", "==") and have < want for op, want in clauses)
+    hint = "先更新 SYNOX（重跑 Setup.bat 或 git pull）再用這個 pack" if too_old else         "這個 pack 還沒支援這一版的 SYNOX，請向 pack 的作者要新版"
+    return f"這個 pack 要 SYNOX {spec.strip()}，這台是 {current}：{hint}"
+
+
+def secret_env_names(m: "Manifest") -> List[str]:
+    """要讓 cli 子程序看得到的環境變數名字（requires.env＋auth.fields[].env）。
+    JsonCli 預設把 *_TOKEN、*_API_KEY 這類名字從子程序環境拿掉，只有這裡列的會放行。"""
+    names: List[str] = []
+    env = (m.requires or {}).get("env") or {}
+    names += [k for k in (env if isinstance(env, (dict, list)) else []) if isinstance(k, str)]
+    for f in (m.auth_info or {}).get("fields") or []:
+        if isinstance(f, dict) and isinstance(f.get("env"), str):
+            names.append(f["env"])
+    out: List[str] = []
+    for n in names:
+        if ENV_NAME_RE.match(n) and n not in out:
+            out.append(n)
+    return out
+
+
+def _check_requires(requires: dict, problems: List[str]) -> None:
+    env = requires.get("env")
+    if env is not None:
+        names = list(env) if isinstance(env, (dict, list)) else None
+        if names is None or not all(isinstance(n, str) and ENV_NAME_RE.match(n) for n in names):
+            problems.append("requires.env 要是環境變數名字的清單或物件（英數字、_）")
+    if "synox" in requires:
+        try:
+            parse_spec(requires["synox"])
+        except ValueError as e:
+            problems.append(str(e))
+
+
 def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     """raw（pack.json 的內容）→ Manifest；不合就丟 ManifestError（訊息說哪裡不對）。
 
@@ -360,6 +443,8 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     requires = raw.get("requires") or {}
     if not isinstance(requires, dict):
         problems.append("requires 要是物件")
+        requires = {}
+    _check_requires(requires, problems)
     web = parse_web(raw.get("web"), folder, problems)
     if kind == "cli" and web["api"] and isinstance(cli.get("commands"), list):
         web["routes"] = _cli_routes(raw.get("web") or {}, web["api"], cli["commands"], problems)
@@ -388,5 +473,6 @@ def read(folder: str, strict: bool = False) -> Manifest:
 def missing_requirements(m: Manifest, config) -> Optional[str]:
     """requires.config（config.json 要有的欄位）、requires.env（環境變數）缺了哪些；沒缺回 None。"""
     missing = [k for k in (m.requires.get("config") or []) if not config.get(k)]
-    missing += [f"環境變數 {k}" for k in (m.requires.get("env") or {}) if not os.environ.get(k)]
+    env = m.requires.get("env") or {}
+    missing += [f"環境變數 {k}" for k in (env if isinstance(env, (dict, list)) else []) if not os.environ.get(k)]
     return "、".join(missing) if missing else None
