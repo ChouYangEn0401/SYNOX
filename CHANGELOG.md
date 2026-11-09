@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.0
+
+版本從 0.1.0 升到 0.2.0：pack 格式多了 surfaces／data／auth.fields／mcp／runtime auto／schema_tools 等欄位，SDK 產生的 pack 寫 `requires.synox: ">=0.2"`，舊版 SYNOX 會明說要先更新、不會載入。
+
 ## 未發佈（branch feat/fix-identity：獨立安全審查 A＋審查 B 的一項）
 
 ### 修正（安全）

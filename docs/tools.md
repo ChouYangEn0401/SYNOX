@@ -271,7 +271,7 @@ SDK：`@tool("WRITE", ai=False, confirm=True)`；cli 的 pack.json：`{"name": "
 - 舊版不刪，搬到旁邊；使用者可以 `python -m synox packs rollback <pack 名>` 退回。
 - **資料不在 pack 資料夾裡**，升級、退回都不會動到資料。資料格式要不要轉換是你的事：在資料裡存一個 `schema` 版本號，
   新版讀到舊格式自己轉；退回的舊版要看得懂新版寫的資料（做不到就在 README 寫清楚「不能退回」）。
-- `requires.synox`（例如 `">=0.1"`）：這台的 SYNOX 版本不合就不裝、不載入，並說要哪一版。
+- `requires.synox`（例如 `">=0.2"`）：這台的 SYNOX 版本不合就不裝、不載入，並說要哪一版。
 
 ## 測試方法
 

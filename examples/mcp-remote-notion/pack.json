@@ -10,7 +10,7 @@
   "skill": "SKILL.md",
   "publisher": "SYNOX examples",
   "capabilities": ["network"],
-  "requires": { "synox": ">=0.1" },
+  "requires": { "synox": ">=0.2" },
   "auth": {
     "type": "oauth",
     "oauth": {
