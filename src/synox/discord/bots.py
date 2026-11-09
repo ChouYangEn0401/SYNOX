@@ -10,11 +10,16 @@ config.json 的 channels.discord → 一串 BotSpec（純函式，不連網；�
 
 - token：只收 "vault:<名字>" 或 "env:<名字>"（新寫法不准把 token 直接寫在檔案裡）；沒寫 → default 用
   vault:discord_bot_token，其他用 vault:discord_bot_token:<名字>（`python -m synox discord token --bot <名字>` 存的地方）。
-- surface：dm（私訊，預設）｜channel（伺服器頻道；這一版只解析、不連線，頻道收訊是 PERM-5）。
+- surface：dm（私訊，預設）｜channel（伺服器頻道，PERM-5：只收 guilds 列出的頻道、trigger 命中的訊息）。
 - packs："all" 或 pack 名字清單；max_effect：read｜write｜danger（沒寫：dm 不設上限、channel 是 read；channel 設 danger 一律拒）。
   synox/policy.py 的 decide 用它們擋（PERM-4）：清單外的 pack 對這個 bot 不存在，超過 max_effect 的指令被拒。
+- 頻道型才有的（PERM-5）：
+    guilds：{"<伺服器 id>": {"channels": ["<頻道 id>", …], "role_map": {"<Discord 身分組 id>": "member"}}}
+            role_map 的值只能是 guest 或 member（頻道裡的有效角色上限是 member；管理員只能用 /user_role 給）。
+    trigger："mention"（被 @ 才處理，預設）｜"/"（訊息以 / 開頭才處理）。
+    rate_per_minute：同一個人在同一個頻道每分鐘最多幾則（預設 5，超過的靜默略過）。
 - ai：true／false 或 {"enabled": …, "pool_usd_month": …}。關掉＝這個 bot 上沒有 AI（agent 群組不存在、打字不交給 AI）；
-  pool_usd_month 這一版只存起來（PERM-6）。
+  pool_usd_month 這一版只存起來（PERM-6）。頻道型 bot 這一版不管怎麼寫都當作關（頻道 AI 是 PERM-6）。
 - 兩個 bot 不能用同一個 token（同一個 bot 開兩條 Gateway 會互搶事件）。
 """
 
@@ -32,7 +37,12 @@ EFFECTS = ("read", "write", "danger")
 DEFAULT = "default"
 VAULT_BASE = "discord_bot_token"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
-BOT_KEYS = {"token", "surface", "packs", "max_effect", "ai", "guilds", "trigger", "persona", "enabled"}
+BOT_KEYS = {"token", "surface", "packs", "max_effect", "ai", "guilds", "trigger", "persona", "enabled",
+            "rate_per_minute"}
+TRIGGERS = ("mention", "/")
+ROLE_MAP_ROLES = ("guest", "member")             # 頻道裡 role_map 給得出的角色（上限 member）
+DEFAULT_RATE = 5
+ID_RE = re.compile(r"^[0-9]{1,25}$")
 
 
 @dataclass(frozen=True)
@@ -48,6 +58,26 @@ class BotSpec:
     persona: str = ""
     enabled: bool = True
     legacy: bool = False                         # 舊寫法來的（hub 名字維持 "discord"，狀態頁、指令照舊）
+    rate_per_minute: int = DEFAULT_RATE          # 頻道型：（頻道, 人）每分鐘幾則
+
+    @property
+    def is_channel(self) -> bool:
+        return self.surface == CHANNEL
+
+    def guild(self, guild_id) -> Optional[dict]:
+        """這個伺服器的設定（{"channels": [...], "role_map": {...}}）；沒列＝None。"""
+        g = self.guilds.get(str(guild_id or ""))
+        return g if isinstance(g, dict) else None
+
+    def allows(self, guild_id, channel_id) -> bool:
+        g = self.guild(guild_id)
+        return g is not None and str(channel_id or "") in g.get("channels", ())
+
+    def channel_count(self) -> int:
+        return sum(len(g.get("channels", ())) for g in self.guilds.values())
+
+    def role_map_count(self) -> int:
+        return sum(len(g.get("role_map", {})) for g in self.guilds.values())
 
     @property
     def hub_name(self) -> str:
@@ -90,6 +120,60 @@ def _ai(name: str, value) -> dict:
     return {"enabled": bool(value.get("enabled", True)), "pool_usd_month": pool}
 
 
+def _ids(name: str, where: str, value) -> List[str]:
+    if not isinstance(value, list) or not value:
+        raise _err(name, f"{where} 要是至少一個頻道 id 的清單（例如 [\"123456789012345678\"]）。")
+    out = []
+    for v in value:
+        s = str(v).strip() if isinstance(v, (str, int)) and not isinstance(v, bool) else ""
+        if not ID_RE.match(s):
+            raise _err(name, f"{where} 裡的 {v!r} 不是 Discord 的 id（一串數字；開發者模式下右鍵頻道「複製頻道 ID」）。")
+        out.append(s)
+    return out
+
+
+def _guilds(name: str, raw) -> dict:
+    """guilds → {伺服器 id: {"channels": (頻道 id…), "role_map": {身分組 id: "guest"|"member"}}}。"""
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        raise _err(name, 'guilds 要是 {"<伺服器 id>": {"channels": [...]}} 這樣的物件。')
+    out = {}
+    for gid, g in raw.items():
+        gid = str(gid).strip()
+        if not ID_RE.match(gid):
+            raise _err(name, f"guilds 的 {gid!r} 不是 Discord 伺服器的 id（一串數字；右鍵伺服器圖示「複製伺服器 ID」）。")
+        if not isinstance(g, dict):
+            raise _err(name, f'guilds.{gid} 要寫成 {{"channels": ["<頻道 id>"]}}。')
+        extra = sorted(set(g) - {"channels", "role_map"})
+        if extra:
+            raise _err(name, f"guilds.{gid} 不認得的欄位 {'、'.join(extra)}（只能有 channels、role_map）。")
+        channels = _ids(name, f"guilds.{gid}.channels", g.get("channels"))
+        role_map_raw = g.get("role_map") or {}
+        if not isinstance(role_map_raw, dict):
+            raise _err(name, f'guilds.{gid}.role_map 要寫成 {{"<身分組 id>": "member"}}。')
+        role_map = {}
+        for rid, role in role_map_raw.items():
+            rid = str(rid).strip()
+            if not ID_RE.match(rid):
+                raise _err(name, f"guilds.{gid}.role_map 的 {rid!r} 不是 Discord 身分組的 id（伺服器設定 → 身分組 → 右鍵「複製身分組 ID」）。")
+            r = str(role or "").strip().lower()
+            if r not in ROLE_MAP_ROLES:
+                raise _err(name, f"guilds.{gid}.role_map.{rid} 只能是 guest 或 member（現在是 {role!r}）："
+                                 "頻道裡靠 Discord 身分組最多拿到 member；管理員只能用 /user_role 給。")
+            role_map[rid] = r
+        out[gid] = {"channels": channels, "role_map": role_map}
+    return out
+
+
+def _rate(name: str, value) -> int:
+    if value is None:
+        return DEFAULT_RATE
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 120:
+        raise _err(name, f"rate_per_minute 要是 1 到 120 的整數（現在是 {value!r}）。")
+    return value
+
+
 def _one(name: str, raw) -> BotSpec:
     if not isinstance(name, str) or not NAME_RE.match(name):
         raise ConfigError(f"config.json 的 channels.discord.bots 裡的名字 {name!r} 不行：只能用小寫英文、數字、- 和 _（最多 32 字）。")
@@ -117,18 +201,22 @@ def _one(name: str, raw) -> BotSpec:
         max_effect = max_effect or "read"
         if max_effect == "danger":
             raise _err(name, "頻道型 bot 的 max_effect 不能是 danger（危險動作只能在私訊做）；最多 write。")
-    guilds = raw.get("guilds") or {}
-    if not isinstance(guilds, dict):
-        raise _err(name, 'guilds 要是 {"<伺服器 id>": {"channels": [...]}} 這樣的物件。')
-    if guilds and surface != CHANNEL:
-        raise _err(name, "guilds 只有 surface 是 channel 的 bot 才能寫。")
+    if surface != CHANNEL:
+        for key in ("guilds", "trigger", "rate_per_minute"):
+            if raw.get(key):
+                raise _err(name, f"{key} 只有 surface 是 channel 的 bot 才能寫。")
+    guilds = _guilds(name, raw.get("guilds"))
     trigger = raw.get("trigger") or "mention"
     persona = raw.get("persona") or ""
     if not isinstance(trigger, str) or not isinstance(persona, str):
         raise _err(name, "trigger、persona 要是文字。")
+    trigger = trigger.strip().lower()
+    if trigger not in TRIGGERS:
+        raise _err(name, f'trigger 只能是 "mention"（被 @ 才回）或 "/"（訊息以 / 開頭才回）（現在是 {raw.get("trigger")!r}）。')
     return BotSpec(name=name, token=token, surface=surface, packs=_packs(name, raw.get("packs")),
-                   max_effect=max_effect, ai=_ai(name, raw.get("ai")), guilds=dict(guilds), trigger=trigger,
-                   persona=persona, enabled=bool(raw.get("enabled", True)))
+                   max_effect=max_effect, ai=_ai(name, raw.get("ai")), guilds=guilds, trigger=trigger,
+                   persona=persona, enabled=bool(raw.get("enabled", True)),
+                   rate_per_minute=_rate(name, raw.get("rate_per_minute")))
 
 
 def parse(d) -> List[BotSpec]:

@@ -13,6 +13,12 @@ SDK 的內部使用者 id 就是 Telegram user id。其他通道（Discord…）
   不會撞到真的 Telegram id（目前遠小於 10^15），刪掉的對應也不會讓下一個陌生人繼承舊號碼的資料。
 - 只有 bind()（配對成功、擁有者在本機操作）能把外部帳號接到既有的內部 id（例如擁有者的 Telegram id）。
 - 一個內部 id 在同一個通道只接一個外部帳號；要換帳號得先 unbind。
+
+頻道（PERM-5）：Discord 伺服器頻道也要一個內部 id 當 chat_id，用 resolve_room：
+
+    room = ids.resolve_room("discord-channel", "1234567890")   # → -(10^15)、-(10^15+1)…（負號，只增不減）
+
+負號跟 Telegram 群組一致：SDK 的 private_only（chat_id ≠ user.tg_id）自然成立，群組裡的閒聊也自然不回。
 """
 
 from __future__ import annotations
@@ -40,6 +46,8 @@ class Identities:
         links = data.get("links") if isinstance(data.get("links"), dict) else {}
         self._links = {str(k): int(v) for k, v in links.items()}
         self._next = max([int(data.get("next") or BASE), BASE] + [v + 1 for v in self._links.values() if v >= BASE])
+        self._next_room = max([int(data.get("next_room") or BASE), BASE]
+                              + [-v + 1 for v in self._links.values() if v <= -BASE])
 
     @staticmethod
     def _key(channel: str, external) -> str:
@@ -49,7 +57,7 @@ class Identities:
         return f"{channel}:{external}"
 
     def _save(self) -> None:
-        save_json(self.path, {"next": self._next, "links": dict(self._links)})
+        save_json(self.path, {"next": self._next, "next_room": self._next_room, "links": dict(self._links)})
 
     def lookup(self, channel: str, external) -> Optional[int]:
         with self._lock:
@@ -66,6 +74,18 @@ class Identities:
             self._links[key] = uid
             self._save()
             return uid
+
+    def resolve_room(self, channel: str, external) -> int:
+        """頻道（不是人）→ 負號的內部 id：-(10^15)、-(10^15+1)…，只增不減、永不重用。已經有就回原本那個。"""
+        key = self._key(channel, external)
+        with self._lock:
+            if key in self._links:
+                return self._links[key]
+            room = -self._next_room
+            self._next_room += 1
+            self._links[key] = room
+            self._save()
+            return room
 
     def bind(self, channel: str, external, internal: int) -> None:
         """把外部帳號接到指定的內部 id（配對用）。這個內部 id 在這個通道已經接了別的帳號就拒絕。"""
