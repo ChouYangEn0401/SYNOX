@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The SYNOX authors
 """
 synox.sdk：給 pack 作者（寫工具的人）的小工具。工具是什麼都行（exe、npm、別的語言的程式），跟 SYNOX 的接口只有 CLI：
 子指令＋`--json`，**最後一行印一個 JSON 物件**，結束碼 0＝成功。這裡給三樣東西：

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The SYNOX authors
 """
 synox_sdk：寫一個 Python 函式，就是一個 SYNOX 工具（也是一個 MCP 工具）。只用標準函式庫、零相依。
 

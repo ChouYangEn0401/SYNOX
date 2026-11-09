@@ -112,3 +112,10 @@ pack 放在別的地方（例如金流簿那個 repo 裡的 `synox-pack/`，它�
 ```
 
 地圖與規則在 [docs/AGENT.md](docs/AGENT.md)；版本紀錄在 [CHANGELOG.md](CHANGELOG.md)。
+
+
+## 授權
+
+- **核心**：AGPL-3.0-or-later（[LICENSE](LICENSE)）。自己用、公司內部用、商用都可以；改了核心再架成網路服務給別人用，就要提供修改後的原始碼。
+- **工具 SDK 與範例**：Apache-2.0（[LICENSE-APACHE](LICENSE-APACHE)）。你用 SDK 寫的工具，授權由你決定，閉源、商用都可以。
+- 範圍、商業授權、貢獻者同意書與商標政策：[LICENSING.md](LICENSING.md)、[CONTRIBUTING.md](CONTRIBUTING.md)、[TRADEMARK.md](TRADEMARK.md)。

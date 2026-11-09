@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The SYNOX authors
 """👋 範例工具：算小費、打招呼（synox_sdk 的最小範例）。"""
 
 import math

@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 The SYNOX authors
 """從正本 src/synox/sdk/author.py 產生單檔版 synox_sdk.py（作者可以直接複製進自己的 repo，零相依）。
 
     .venv\\Scripts\\python.exe scripts\\build_synox_sdk.py            寫 sdk/synox_sdk.py 與 examples/hello/synox_sdk.py
