@@ -252,3 +252,32 @@ def test_c6_ordinary_unicode_names_still_ok(tmp_path):
     from test_review_b_supply import _zip_with
     token, _summary = admin.stage(_zip_with("說明/讀我.txt"), str(tmp_path / "data"))
     assert token
+
+
+# ── C7：pip 不讀任何設定檔（PIP_CONFIG_FILE＝os.devnull） ─────────────────
+
+def test_c7_build_env_points_pip_config_at_devnull():
+    from synox.packs import envs
+    env = envs.build_env({"PIP_CONFIG_FILE": "C:/ProgramData/evil/pip.ini", "PIP_EXTRA_INDEX_URL": "https://evil.invalid",
+                          "PATH": "C:/Windows"})
+    assert env["PIP_CONFIG_FILE"] == os.devnull
+    assert "PIP_EXTRA_INDEX_URL" not in env and env["PATH"] == "C:/Windows"
+
+
+def test_c7_pip_step_gets_devnull_config_from_fake_jobrunner(tmp_path, monkeypatch):
+    """假 JobRunner 只記 argv／env，不跑 pip。"""
+    from synox.packs import envs
+    from synox.packs.manifest import validate
+    from test_envs import _raw as env_raw, _write_pack
+    from test_review_b_supply import RecordingJobs
+    monkeypatch.setenv("PIP_CONFIG_FILE", "C:/evil/pip.ini")
+    envs.set_factory(lambda d: envs.VenvBuilder(d, python="PYTHON-EXE", which=lambda n: None))
+    try:
+        m = validate(env_raw(), _write_pack(str(tmp_path / "p")), strict=True)
+        jobs = RecordingJobs(tmp_path)
+        assert envs.builder(str(tmp_path / "data")).build_wait(m, jobs).ok
+    finally:
+        envs.set_factory(None)
+    pip_calls = [c for c in jobs.calls if "pip" in c["argv"]]
+    assert pip_calls and all(c["env"]["PIP_CONFIG_FILE"] == os.devnull for c in pip_calls)
+    assert "--isolated" in pip_calls[0]["argv"]
