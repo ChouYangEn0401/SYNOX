@@ -20,7 +20,8 @@
 | `vendor/isdtelekit/` | ISDTeleKitSDK 的**原樣**複製（版本與 commit 在 `vendor/VERSION`）。不要改；要不同的行為就在 `src/synox` 寫轉接 |
 | `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜doctor｜stop｜install <檔> [--yes]｜packs status｜packs lock --approve <name>｜packs env rebuild <name>` |
 | `src/synox/app.py` | `build(config, home=, adapter=, vault=, config_path=)`：SDK `build_app` → basics/help → `packs.load_all` → `agent.install` → `schedule.install` → `web.install` |
-| `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`；路徑相對 SYNOX 資料夾（`ROOT`） |
+| `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`／`policy`；路徑相對 SYNOX 資料夾（`ROOT`） |
+| `src/synox/policy.py` | `decide`（權限唯一交會點）、`parse_policy`（`policy.roles` 能力上限，第 1 關式檢查）、`group_policy_for`（loader 用）、`ceiling`／`fits` |
 | `src/synox/llm/` | `base.py`（`ChatAdapter`、`Message`、`Reply`、`ToolCall`、`ToolSpec`）、`easy_llm.py`（openai／anthropic／gemini／openai_compat，經 `ntu_easy_llm.agent`，lazy import）、`claude_code`、`fake`、`textproto`、`factory.make_adapter` |
 | `src/synox/vault/` | `vault.py`（Fernet＋每檔 scrypt、`*.json.enc`；`for_user(id)`＝伺服器版每人的保管箱，HKDF 衍生）、`keyring.py`（DPAPI 包住主金鑰 `data/.synox.key`） |
 | `src/synox/packs/` | `manifest.py`（pack.json v2 檢查＝第 1 關；`requires.synox`＝`synox_problem`、`requires.env`→`secret_env_names`、`fields[].kind`、`auth.fields`）、`secrets.py`（pack 的 secret：`PackSecrets`、`managed_fields`）、`scan.py`（ast 靜態掃描＝第 2 關）、`lock.py`（`data/packs.lock`＝第 3 關）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`、cli 代換與 `build_argv`）、`kit.py`（照位置填的指令）、`envs.py`（`runtime.python／node = "auto"`：`Builder.plan`／`build(m, jobs, on_done)` 建 `data/envs/<pack>/`、`python_of`／`node_of`／`node_env` 給 loader 代換、`env_problem` 給 loader／doctor；`set_factory` 換實作） |
@@ -46,7 +47,7 @@ SDK 的 12 條照用（只 vendor 了套件、沒有 vendor 文件；原文在 I
 權限沿樹只收緊、指令名由路徑產生、按鈕綁節點、核心不認識 Telegram、等待都有期限、表單、🔐 fail closed、
 jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯是參數）。SYNOX 多的（spec §7）：
 
-1. **AI 能不能用一個節點只有一個判斷**：`agent/loop.py` 的 `ai_decision(registry, user, node)`。工具清單、每次呼叫、
+1. **AI 能不能用一個節點只有一個判斷**：`agent/loop.py` 的 `ai_decision(app, user, node)`＝`policy.decide(via=AI)`。工具清單、每次呼叫、
    排程裡包的指令都問它。`effect=DANGER`（含 `Node.effect_of` 算出來的）、要 /sudo、有驗證碼欄位的 → 一律核准卡。
    驗證碼欄位不出現在工具 schema（`tools.schema` 跳過 `fresh_code`），核准後由人那一端照常問碼。
 2. **adapter 只會聊天**：`llm/*` 不 import registry、不拿 Telegram api。換 LLM 只改 `config.json` 的 `llm`。
@@ -68,9 +69,16 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     不寫進 pack 資料夾；pip 只裝 `==` 釘死的版本（`--no-deps --only-binary=:all:`）、npm 一律 `ci --ignore-scripts`。
     **測試絕不真的 pip／npm install**：用假的 JobRunner（`tests/test_envs.py` 的 `FakeJobs`）與假的 which。
 
+11. **權限的唯一交會點是 `src/synox/policy.py` 的 `decide(app, user, node, *, via, chat_id, bot=None)`**（PERM-1）：
+    SDK `authorize` ∧ pack.capabilities ⊆ 角色上限（`config.json` `policy.roles`；擁有者不受限）。新的權限條件（bot 範圍 PERM-4、
+    頻道 surfaces／data PERM-2）一律加在 decide，不要在呼叫端另寫判斷。上限的可見性由 loader 落實（`loader.pack_group_policy` →
+    `policy.group_policy_for`：群組門檻拉到裝得下的最低一級，都裝不下＝`owner_only`），所以 SDK 的 authorize／visible 自己就擋；
+    decide 再對這個人算一次（縱深）。`exec`、`filesystem:any` 不能寫進任何角色（`policy.parse_policy`，`SynoxConfig.from_dict` 呼叫）。
+    `bot` 現在只能是 None，給了別的一律拒（PERM-4 才接）。
+
 另外：
 - pack 的群組由 loader 依 pack.json 定義（`loader.group_policy`）：`access: owner`（預設）＝整組 `owner_only`；`member`＝伺服器版 `role=MEMBER`、
-  個人版 `owner_only`；`everyone`＝最低一級。agent 群組也用同一個規則（`member`）：個人版只有擁有者，伺服器版成員以上；
+  個人版 `owner_only`；`everyone`＝最低一級；再套角色能力上限（只會更嚴，見 invariant 11）。agent 群組也用同一個規則（`member`）：個人版只有擁有者，伺服器版成員以上；
   `AgentFallback.accepts` 問的是 `authorize(user, agent.ai)`，不另寫判斷。訪客（最低一級）在 `ai_decision` 一律沒有工具。
 - **每個人自己的資料一律 `pack.store.of(user)`**（notes、money）。伺服器版 → `data/users/<id>/`，vault 金鑰 HKDF(主金鑰, `user:<id>`)；
   個人版 → 共用的那一份。營運者仍讀得到（docs/security.md）；「營運者也看不到」的 SYNOX Node 是另一份規格，不在這裡做。

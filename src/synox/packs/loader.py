@@ -16,6 +16,8 @@ runtime.python／node = "auto" 的環境在安裝時建（packs/envs.py）；沒
 access=owner（預設）＝整組只有機器擁有者看得到、用得到（別人打了跟不存在一樣）；
 access=member＝伺服器版給「成員」以上（擁有者用 /user_role 升級），個人版等於 owner；
 access=everyone＝任何傳訊息給 bot 的人（伺服器版的訪客 GUEST 只看得到這種）。
+再套角色的能力上限（config.json policy.roles，synox/policy.py）：pack.json 的 capabilities 裝不下某一級的上限，
+那一級（以下）整組看不到；exec、filesystem:any 只有擁有者（pack_group_policy）。
 一個 pack 壞掉（pack.json 不合、install 丟例外）只跳過那一個，記在 LoadReport，doctor 會印出來。
 pack 拿到的 Pack 物件：.manifest、.store（storage=vault → 密文 data/<name>.json.enc；plain → data/<name>.json）、
 .path(...)（data/packs/<name>/... 給 pack 自己的檔案）、.group（指令群組的 Group handle）。
@@ -38,6 +40,7 @@ from typing import Any, Callable, Dict, List, Optional
 from isdtelekit.core import jsonstore
 from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 
+from synox import policy
 from synox.config import ROOT
 from synox.packs import envs, kit, render
 from synox.packs import secrets as pack_secrets
@@ -186,6 +189,13 @@ def group_policy(app, access: str, server: bool) -> dict:
         roles = app.users.roles
         return {"role": next_up(roles, min(roles)) or max(roles)}
     return {}
+
+
+def pack_group_policy(app, config, m: Manifest, server: bool) -> dict:
+    """group_policy（access）再套角色能力上限（synox/policy.py，PERM-1）：pack.json 的 capabilities 裝不下某個角色的上限
+    → 這一組對那個角色整組不可見（群組的最低角色拉到裝得下的那一級；哪一級都裝不下＝owner_only）。擁有者全部可見。
+    SDK 的 authorize／visible 因此自己就擋：/help、選單、網頁、人打字、AI 工具清單都是同一條。"""
+    return policy.group_policy_for(config, app.users.roles, m.capabilities, group_policy(app, m.access, server))
 
 
 def discover(dirs=PACK_DIRS) -> List[str]:
@@ -581,7 +591,7 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
                     secret_fields=pack_secrets.managed_fields(m), secrets=secret_store)
         if item.lock == pack_lock.LOCKED:
             pack.locked_files = dict((pack_lock.entry(config.data_dir, m.name) or {}).get("files") or {})
-        app.registry.define_group(m.group, m.title, m.summary, **group_policy(app, m.access, server))
+        app.registry.define_group(m.group, m.title, m.summary, **pack_group_policy(app, config, m, server))
         try:
             {"python": _install_python, "cli": _install_cli, "connector": _install_connector,
              "mcp": _install_mcp}[m.kind](app, pack)
