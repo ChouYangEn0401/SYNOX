@@ -111,3 +111,78 @@ def test_c1_existing_examples_still_t1(tmp_path):
     here = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     m, report, problems, info = _gate(os.path.join(here, "examples", "hello"))
     assert problems == [] and info["tier"] == tier.T1
+
+
+# ── C2：pack 寫的環境變數讓合法的直譯器先載入 pack 外的程式 ─────────────
+
+BAD_ENV = [("PYTHONPATH", "C:/Users/Public/x"), ("PYTHONPATH", "{data_dir}/x"), ("PYTHONPATH", "{user_data_dir}/x"),
+           ("PYTHONPATH", "{pack_dir}/../x"), ("PYTHONPATH", "{pack_dir}/lib;C:/x"), ("PYTHONHOME", "C:/x"),
+           ("PYTHONUSERBASE", "{user_data_dir}"), ("PYTHONSTARTUP", "{pack_dir}/x.py"), ("PythonPath", "C:/x"),
+           ("NODE_OPTIONS", "--require C:/x.js"), ("NODE_PATH", "C:/x"), ("PATH", "{user_data_dir}/bin"),
+           ("Path", "C:/x"), ("PATHEXT", ".PY"), ("COMSPEC", "C:/x.exe"), ("SYSTEMROOT", "C:/x"),
+           ("LD_PRELOAD", "/tmp/x.so"), ("DYLD_INSERT_LIBRARIES", "/tmp/x.dylib"), ("PIP_INDEX_URL", "https://evil"),
+           ("npm_config_registry", "https://evil"), ("PERL5OPT", "-Mx"), ("BASH_ENV", "/tmp/x"),
+           ("A=B", "x")]
+
+
+@pytest.mark.parametrize("key, value", BAD_ENV)
+@pytest.mark.parametrize("where", ["cli.env", "env"])
+def test_c2_repro_banned_env_names_refused_at_gate1(tmp_path, key, value, where):
+    """修之前：這些都 T1、零 finding（Python 啟動時會先 import PYTHONPATH 裡的 sitecustomize.py…）。"""
+    raw = _raw(caps=(), publisher=PUB)
+    if where == "cli.env":
+        raw["cli"]["env"] = {key: value}
+    else:
+        raw["env"] = {key: value}
+    folder = _write(str(tmp_path / "a"), raw)
+    with pytest.raises(ManifestError):
+        read(folder, strict=True)
+    with pytest.raises(ManifestError):                     # 載入時（非嚴格）也一樣：已經裝好的舊 pack 不載入
+        read(folder)
+
+
+@pytest.mark.parametrize("key, value", BAD_ENV[:12])
+def test_c2_banned_env_names_in_mcp_env(tmp_path, key, value):
+    raw = {"name": "mx", "title": "M", "summary": "s", "version": "0.1.0", "kind": "mcp", "skill": "SKILL.md",
+           "capabilities": ["subprocess"], "publisher": PUB,
+           "mcp": {"transport": "stdio", "argv": ["{python}", "./tool.py"], "env": {key: value},
+                   "tools_allow": ["a"], "effects": {"a": "READ"}}}
+    with pytest.raises(ManifestError):
+        read(_write(str(tmp_path / "m"), raw), strict=True)
+
+
+def test_c2_banned_env_name_in_auth_fields(tmp_path):
+    raw = _raw(caps=(), publisher=PUB, auth={"type": "token", "fields": [{"name": "k", "secret": True,
+                                                                           "env": "PYTHONPATH"}]})
+    with pytest.raises(ManifestError, match="PYTHONPATH"):
+        read(_write(str(tmp_path / "a"), raw), strict=True)
+
+
+@pytest.mark.parametrize("key, value", [("PYTHONIOENCODING", "utf-8"), ("PYTHONUTF8", "1"), ("PYTHONUNBUFFERED", "1"),
+                                        ("PYTHONPATH", "{pack_dir}"), ("PYTHONPATH", "{pack_dir}/lib"),
+                                        ("MONEYBOOK_HOME", "{user_data_dir}/moneybook"), ("HOME_DIR", "{data_dir}/x")])
+def test_c2_harmless_env_names_still_fine(tmp_path, key, value):
+    raw = _raw(caps=(), publisher=PUB)
+    raw["cli"]["env"] = {key: value}
+    m = read(_write(str(tmp_path / "a"), raw), strict=True)
+    assert key in loader.cli_env(m, loader.placeholders(m, _Config(str(tmp_path / "data"))))
+
+
+class _Config:
+    def __init__(self, data_dir):
+        self.data_dir, self.mode, self.owner_id = data_dir, "personal", 1
+
+
+def test_c2_loader_filters_banned_env_even_if_gate1_was_skipped(tmp_path):
+    """防禦深度：就算 manifest 被繞過（例如舊版寫的物件），cli_env 也不把 PYTHONPATH（pack 外）、NODE_OPTIONS 交給子程序。"""
+    m = read(_write(str(tmp_path / "a"), _raw(caps=(), publisher=PUB)), strict=True)
+    m.cli["env"] = {"PYTHONPATH": "C:/Users/Public/x", "NODE_OPTIONS": "--require x", "OK_NAME": "1"}
+    env = loader.cli_env(m, loader.placeholders(m, _Config(str(tmp_path / "data"))))
+    assert "PYTHONPATH" not in env and "NODE_OPTIONS" not in env and env["OK_NAME"] == "1"
+
+
+def test_c2_children_do_not_read_user_site(tmp_path):
+    m = read(_write(str(tmp_path / "a"), _raw(caps=(), publisher=PUB)), strict=True)
+    config = _Config(str(tmp_path / "data"))
+    env = loader.context_env(m, config, loader.placeholders(m, config))
+    assert env["PYTHONNOUSERSITE"] == "1" and env["PYTHONDONTWRITEBYTECODE"] == "1"

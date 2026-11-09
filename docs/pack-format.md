@@ -136,7 +136,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | `cli.python` | `{python}` 換成什麼：絕對路徑｜`"venv"`（`<pack 資料夾>/../.venv` 的 python）｜沒寫＝看 `runtime`，再沒有＝SYNOX 自己的 Python。**一定要指到 Python 直譯器**（檔名 `python`、`python3`、`python3.12`、`pythonw`、`pypy3`…，可以有 `.exe`）、不能有 `..`；要叫別的程式請直接寫在 `cli.argv` 第一段（算 pack 外的程式、T2）。kind=mcp 寫了也照樣檢查 |
 | `runtime.python`、`runtime.python_posix` | 另一種寫法（金流簿用的）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它。**`"auto"`**＝安裝時自動建 venv（見下面「依賴與環境自動建置」；跟 `cli.python` 不能同時寫）。一樣要是 Python 直譯器的檔名；`..` 只收 `../.venv/Scripts/python.exe`、`../venv/bin/python` 這種「pack 旁邊的 venv」 |
 | `runtime.node` | **只給 kind=cli**（kind=mcp 寫了＝pack.json 不合；mcp 的 `{node}` 一律是系統的 node）。`{node}` 換成什麼：相對於 pack 資料夾（或絕對路徑）；**`"auto"`**＝系統的 node＋安裝時照 `package-lock.json` 裝套件；沒寫＝系統的 node。用到 `{node}` 的 pack 是 T2 |
-| `env`（最上層）、`cli.env` | 子程序多帶的環境變數；兩個合併，`cli.env` 優先。值可以用下面的代換。名字像密鑰的（`*_TOKEN`…）一樣會被拿掉，除非列在 `requires.env` |
+| `env`（最上層）、`cli.env` | 子程序多帶的環境變數；兩個合併，`cli.env` 優先。值可以用下面的代換。名字像密鑰的（`*_TOKEN`…）一樣會被拿掉，除非列在 `requires.env`。名字只能用英數字和 `_`；**不收**會讓直譯器先載入別的程式的名字（審查 C #C2，`manifest.env_name_problem`，不分大小寫）：`PYTHON*`（只放行 `PYTHONIOENCODING`、`PYTHONUTF8`、`PYTHONUNBUFFERED`；`PYTHONPATH` 只收 `{pack_dir}` 或 `{pack_dir}/子資料夾`）、`NODE_OPTIONS`、`NODE_PATH`（`runtime.node: auto` 由 SYNOX 自己給）、`PATH`、`PATHEXT`、`COMSPEC`、`SYSTEMROOT`、`WINDIR`、`LD_*`、`DYLD_*`、`PIP_*`、`npm_config_*`、`PERL5*`、`RUBYLIB`／`RUBYOPT`、`BASH_ENV`、`JAVA_TOOL_OPTIONS`、`DOTNET_STARTUP_HOOKS`、`COR_*`…；`mcp.env`、`auth.fields[].env` 同一條。SYNOX 開子程序時另外明寫 `PYTHONNOUSERSITE=1`（不讀使用者層的 site-packages） |
 | `web.routes` | cli pack 的面板資料：`{"route": "command"}`；沒寫＝同名。對應的 command 要是 `READ`、沒有必填欄位 |
 
 ### 信任層級：T0／T1／T2（SDK P7）

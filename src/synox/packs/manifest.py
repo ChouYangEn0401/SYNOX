@@ -100,6 +100,56 @@ PYTHON_NAME_RE = re.compile(r"^(python|pypy)(\d+(\.\d+)*)?[tw]?(\.exe)?$", re.IG
 SIBLING_VENV_RE = re.compile(r"^\.\./\.?venv/(Scripts|bin)/[^/]+$")
 
 
+# 審查 C #C2：pack 寫的子程序環境變數（cli.env、最上層 env、mcp.env）不能用這些名字——它們會讓「合法的」直譯器
+# 在開始跑 pack 的程式之前，先載入 pack 外、沒鎖、沒掃過的程式碼（PYTHONPATH 的 sitecustomize.py／.pth、PYTHONHOME、
+# PYTHONSTARTUP、NODE_OPTIONS=--require、POSIX 的 PATH 換掉 argv[0] 找到的程式、LD_PRELOAD…）。
+# 不分大小寫（Windows 的環境變數名不分大小寫）。這是黑名單：擋常見的，不保證涵蓋每一種程式的每一個變數
+ENV_PYTHON_OK = ("PYTHONIOENCODING", "PYTHONUTF8", "PYTHONUNBUFFERED")
+ENV_BANNED = ("PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "COMSPEC", "NODE_OPTIONS", "NODE_PATH", "BASH_ENV", "ENV",
+              "PERL5LIB", "PERL5OPT", "PERLLIB", "RUBYLIB", "RUBYOPT", "PSMODULEPATH", "PHP_INI_SCAN_DIR",
+              "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS", "DOTNET_STARTUP_HOOKS", "LUA_PATH", "LUA_CPATH",
+              "LUA_INIT", "GCONV_PATH")
+ENV_BANNED_PREFIXES = ("PYTHON", "LD_", "DYLD_", "PIP_", "NPM_CONFIG_", "COR_", "CORECLR_")
+# PYTHONPATH 只收 pack 自己的資料夾（或底下的子資料夾）：{pack_dir} 或 {pack_dir}/lib，不能有 ..、;、:
+PYTHONPATH_OK_RE = re.compile(r"^\{pack_dir\}(/[A-Za-z0-9_.-]+)*/?$")
+
+
+def env_name_problem(name, value=None) -> str:
+    """pack 寫的環境變數名（與值）能不能給子程序：""＝可以；否則一句理由（審查 C #C2）。"""
+    if not isinstance(name, str) or not ENV_NAME_RE.match(name):
+        return f"環境變數名字 {name!r} 只能用英數字和 _（不能以數字開頭）"
+    upper = name.upper()
+    if upper == "PYTHONPATH":
+        text = str(value or "").replace("\\", "/")
+        if PYTHONPATH_OK_RE.match(text) and ".." not in text.split("/"):
+            return ""
+        return ("PYTHONPATH 只能指到 pack 自己的資料夾（{pack_dir} 或 {pack_dir}/子資料夾）："
+                "指到別處，Python 啟動時會先載入那裡沒鎖、沒掃過的程式（sitecustomize.py、.pth）")
+    if upper in ENV_PYTHON_OK:
+        return ""
+    if upper in ENV_BANNED or upper.startswith(ENV_BANNED_PREFIXES):
+        return (f"環境變數 {name} 不能由 pack 設定：它會讓 Python／Node／系統在跑 pack 的程式之前，"
+                "先載入 pack 外、沒鎖、沒掃過的程式（或換掉要跑的程式）")
+    return ""
+
+
+def env_problems(label: str, env) -> List[str]:
+    """{名字: 字串} 的每一個鍵都過 env_name_problem；回不合的說明。"""
+    if not isinstance(env, dict):
+        return []
+    out = []
+    for k, v in env.items():
+        why = env_name_problem(k, v)
+        if why:
+            out.append(f"{label}.{k}：{why}")
+    return out
+
+
+def safe_env(env: Dict[str, str]) -> Dict[str, str]:
+    """防禦深度（loader／mcp 開子程序前）：pack 寫的環境變數裡 env_name_problem 不收的一律拿掉。"""
+    return {k: v for k, v in (env or {}).items() if not env_name_problem(k, v)}
+
+
 def python_path_problems(label: str, value, *, relative_ok: bool) -> List[str]:
     """cli.python／runtime.python 的值：一定是 Python 直譯器的檔名、不准 ..（runtime 只收 ../.venv/…）。
     relative_ok=False（cli.python）：一定要絕對路徑或 "venv"。"""
@@ -351,6 +401,8 @@ def _check_auth_fields(auth: dict, problems: List[str]) -> None:
                 problems.append(f"auth.fields 的 {name}.env 要是環境變數名字（英數字、_）")
             elif env.upper() in envs:
                 problems.append(f"auth.fields 的 env {env} 重複了")
+            elif env_name_problem(env, "x"):
+                problems.append(f"auth.fields 的 {name}.env：{env_name_problem(env, 'x')}")
             else:
                 envs.add(env.upper())
         if f.get("kind") is not None and f.get("kind") not in ("text", "file"):
@@ -471,6 +523,8 @@ def _check_mcp_transport(mcp: dict, caps: List[str], problems: List[str], auth: 
                             not all(isinstance(k, str) and ENV_NAME_RE.match(k) and isinstance(v, str)
                                     for k, v in env.items())):
         problems.append("mcp.env 要是 {環境變數名字: 字串}")
+    else:
+        problems += env_problems("mcp.env", env)
     if mcp.get("cwd") is not None and not isinstance(mcp.get("cwd"), str):
         problems.append("mcp.cwd 要是字串（相對於 pack 資料夾）")
     for key in ("timeout", "start_timeout"):
@@ -774,6 +828,8 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
             if not isinstance(value, dict) or \
                     not all(isinstance(k, str) and isinstance(v, str) for k, v in value.items()):
                 problems.append(f"{label} 要是 {{名字: 字串}}")
+            else:
+                problems += env_problems(label, value)          # 審查 C #C2：PYTHONPATH、NODE_OPTIONS、PATH…
         if isinstance(env, dict) and isinstance(top_env, dict):
             cli["env"] = {**top_env, **env}             # 最上層的 env（金流簿的寫法）＋ cli.env，cli.env 優先
     # cli.python 不管 kind 都檢查：loader 代換 {python} 時 mcp stdio 也讀它（envs.python_target）

@@ -852,7 +852,8 @@ class StdioBackend(Backend):
         who = self.pool.scope.identity(user)
         ph = loader.placeholders(m, config, who)
         env = envs.node_env(m, config.data_dir)
-        env.update({k: loader.substitute(v, ph) for k, v in (m.mcp.get("env") or {}).items()})
+        # 審查 C #C2：PYTHONPATH（pack 外）、NODE_OPTIONS、PATH… 第 1 關就拒；這裡再濾一次（防禦深度）
+        env.update({k: loader.substitute(v, ph) for k, v in loader.safe_env(m.mcp.get("env") or {}).items()})
         env.update(loader.context_env(m, config, ph, pack.secret_fields))
         env.update(tool_confirm.env_for(None))      # MCP 模式的「已確認」只看 _meta，環境變數一律明寫 0
         if pack.secret_fields and pack.secrets is not None:

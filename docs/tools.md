@@ -309,6 +309,7 @@ synox-sdk init <資料夾> --kind cli --name x                    不用 @tool �
 | 欄位取名 `python`、`node`、`pack_dir`、`data_dir`、`user_data_dir`、`tg_id` | 這些是 SYNOX 的代換名，會被冒用 |
 | `requires.pip` 有沒釘死版本的（`>=`、`~=`、網址…）；`runtime.node: "auto"` 卻沒有 `package-lock.json`；kind=mcp 寫了 `runtime` | 裝的套件要可以重現、可以在報告裡列清楚 |
 | `cli.python`／`runtime.python` 的檔名不是 Python 直譯器（`python*`／`pypy*`），或有 `..`（只收 `../.venv/…`） | `{python}` 被當成「SYNOX 的 Python」看待；要叫別的程式就寫在 argv 第一段 |
+| `env`／`cli.env`／`mcp.env` 寫了 `PYTHON*`（`PYTHONIOENCODING`、`PYTHONUTF8`、`PYTHONUNBUFFERED` 除外；`PYTHONPATH` 只收 `{pack_dir}` 或 `{pack_dir}/子資料夾`）、`NODE_OPTIONS`、`NODE_PATH`、`PATH`、`PATHEXT`、`COMSPEC`、`SYSTEMROOT`、`LD_*`、`DYLD_*`、`PIP_*`、`npm_config_*`… | 這些會讓 Python／Node／系統在跑你的程式之前，先載入 pack 外、沒鎖、沒掃過的程式 |
 | MCP stdio 沒宣告 `subprocess` | 長駐子程序就是開別的程式 |
 | 遠端 MCP：網址是 `http://`、帶 `帳號:密碼@`、`#`、`{樣板}`；宣告 `subprocess`／`exec`／`filesystem:any`；寫了 `argv`、`env`、`headers` | token 只能走加密連線、只送到宣告的那個主機；這台不跑對方的程式 |
 | `requires.synox` 跟這台的版本不合 | 你用到的功能這版沒有 |
