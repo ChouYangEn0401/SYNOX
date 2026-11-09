@@ -18,7 +18,7 @@ from isdtelekit import build_app
 from isdtelekit.host.app import App
 from isdtelekit.packs import accounts, basics, help as help_pack, limits
 
-from synox import agent, schedule, web
+from synox import agent, discord, schedule, web
 from synox.config import SynoxConfig
 from synox.llm import make_adapter
 from synox.llm.base import LLMError
@@ -77,6 +77,7 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
             app.extras["llm_error"] = str(e)
             adapter = None
     agent.install(app, adapter, config)
+    discord.install(app, config, vault)      # 有開 Discord 才做事；要在 schedule/web 之前（它們用 app.home）
     schedule.install(app)
     web.install(app, config, vault, pack_dirs=pack_dirs, config_path=config_path)
     app.on_start.append(lambda a: a.notify_owner(GREETING))

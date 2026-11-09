@@ -37,17 +37,33 @@ def _utf8_console() -> None:
 def cmd_run(args) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     try:
-        config = SynoxConfig.load(args.config)
+        config = SynoxConfig.load(args.config or None, require_token=False)
+        channels = run_channels(config)
     except ConfigError as e:
         print(f"❌ {e}")
         return 2
     from synox.app import build
     app = build(config, config_path=os.path.abspath(args.config or CONFIG_PATH))
+    if config.discord_enabled and "discord" not in app.extras:
+        print(f"⚠️ Discord 沒有開成：{app.extras.get('discord_error', '原因看 log')}")
+        if not channels:
+            return 2
     print("✅ SYNOX 開始收訊息了。這個視窗可以縮小，但不要關；要停就按 Ctrl+C 或雙擊 Stop.bat。")
     if config.web.get("enabled", True):
-        print(f"🌐 網頁介面：http://127.0.0.1:{config.web.get('port')}/ （在 Telegram 打 /web 拿登入連結）")
-    app.run()
+        print(f"🌐 網頁介面：http://127.0.0.1:{config.web.get('port')}/ （在聊天裡打 /web 拿登入連結）")
+    app.run(channels)
     return 0
+
+
+def run_channels(config) -> tuple:
+    """要開哪些「SDK 自己管」的通道：有 Telegram token 就 telegram；Discord 由 synox.discord 在 on_start 自己登記。
+    兩個都沒有 → ConfigError（給人看的訊息）。"""
+    if config.has_token:
+        return ("telegram",)
+    if config.discord_enabled:
+        return ()
+    raise ConfigError("config.json 的 bot_token 還不是真的 Telegram token，也沒有開 Discord（channels.discord）。"
+                      "至少要有一個；只想在終端機試的話用 Console.bat。")
 
 
 def cmd_console(args) -> int:
@@ -252,6 +268,39 @@ def cmd_connect(args) -> int:
         return 1
 
 
+def cmd_discord(args) -> int:
+    """discord token：把 bot token 存進保管箱（getpass，不經聊天）｜discord pair：私訊配對碼，把你的 Discord 帳號接到擁有者。"""
+    import getpass
+
+    from synox import discord
+    from synox.vault import KeyringError, VaultError, open_vault
+    try:
+        config = SynoxConfig.load(args.config or None, require_token=False)
+        vault = open_vault(config)
+    except ConfigError as e:
+        print(f"❌ {e}")
+        return 2
+    except (KeyringError, VaultError) as e:
+        print(f"❌ 保管箱打不開：{e}")
+        return 2
+    try:
+        if args.discord_cmd == "token":
+            token = getpass.getpass("貼上 Discord bot token（畫面不會顯示）：").strip()
+            if not token:
+                print("（沒有輸入，沒有存）")
+                return 1
+            vault.set_secret(discord.VAULT_NAME, token)
+            print(f"✅ 存進保管箱了。config.json 的 channels.discord.bot_token 寫 \"vault:{discord.VAULT_NAME}\"。")
+            return 0
+        if args.discord_cmd == "pair":
+            return discord.pair_owner(config, vault)
+    except (KeyboardInterrupt, EOFError):
+        print("\n（取消了）")
+        return 1
+    print("用法：python -m synox discord token｜python -m synox discord pair")
+    return 1
+
+
 def main(argv=None) -> int:
     _utf8_console()
     parser = argparse.ArgumentParser(prog="python -m synox", description="SYNOX：你自己電腦上的 Telegram 小助手")
@@ -279,9 +328,11 @@ def main(argv=None) -> int:
     p.add_argument("pack", help="pack 的名字，例如 apple-reminders")
     p.add_argument("--user", type=int, default=None, help="伺服器版：替哪個 Telegram id 設定（預設擁有者）")
     p.add_argument("--clear", action="store_true", help="清掉存的帳號")
+    p = sub.add_parser("discord", help="Discord 通道：token（存 bot token 進保管箱）｜pair（擁有者配對）")
+    p.add_argument("discord_cmd", choices=["token", "pair"])
     args = parser.parse_args(argv)
     handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop,
-                "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect}
+                "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord}
     if args.cmd not in handlers:
         parser.print_help()
         return 1
