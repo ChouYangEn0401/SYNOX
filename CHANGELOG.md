@@ -25,6 +25,14 @@
 - `python -m synox connect <pack> [--user ID] [--clear]`＋`Connect-Apple.bat`：照 pack.json 的 `auth.fields` 把帳號存進保管箱
   （密碼用 getpass，不經聊天、不進 log）。
 
+## 未發佈（branch feat/connector-gcal）
+
+### 新增
+- **Google 日曆 connector**（`connectors/google-calendar`，kind=python、`capabilities: ["network"]`）：REST 直連 Calendar API v3，只用 requests。
+  `/gcal`、`/gcal_today`、`/gcal_week`、`/gcal_list`、`/gcal_rm`（DANGER）跟 SYNOXPacks 本機 `calendar` pack 同名同欄位；
+  連接 `/gcal_setup`、`/gcal_code`、`/gcal_token`、`/gcal_logout`、`/gcal_status`（前四個 ai=False）。
+  OAuth：電腦版用戶端＋PKCE＋state，loopback 轉址但**不開 listener**（使用者貼網址列回來）；憑證全在保管箱。測試 `tests/test_gcal.py`（假 HTTP）。
+
 ## 未發佈（branch feat/pack-security）
 
 ### 新增
