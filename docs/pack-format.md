@@ -227,6 +227,12 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
   `pip install --no-deps --only-binary=:all: -r requirements.txt`。`requires.pip` 每一項都要是 `名字==版本`
   （`>=`、`~=`、萬用字元、extras、環境標記、網址、`-r`／`--index-url` 之類都算 pack.json 不合）；`--no-deps` 所以相依的套件也要自己列。
   只裝現成的 wheel（不在這台電腦上跑套件的 setup.py）。
+  **雜湊（建議）**：每一項後面可以加 pip 的 `--hash=sha256:<64 個 16 進位字>`（一個或幾個，例如每個平台的 wheel 各一個）：
+  `"requests==2.32.3 --hash=sha256:…"`。有寫就 `pip install --require-hashes`，下載到的檔對不上就不裝；要嘛每一項都寫、要嘛都不寫
+  （混著寫＝pack.json 不合）。沒寫雜湊的，T2 安裝報告會紅字寫「版本釘選不等於來源可信」。
+  **來源固定 PyPI**：pip 一律 `--isolated --index-url https://pypi.org/simple`（不讀 pip.conf、`PIP_INDEX_URL`、`PIP_EXTRA_INDEX_URL`），
+  pack 不能指定 index；建環境的子程序只拿到乾淨的環境變數（`envs.BUILD_ENV_KEEP`：PATH、TEMP、使用者資料夾、代理設定…，
+  `PIP_*`、`npm_config_*`、`PYTHONPATH` 一律不繼承）。
 - **Node**：pack 裡要有 `package.json`＋`package-lock.json`；複製到 `data/envs/<pack>/` 後 `npm ci --ignore-scripts`
   （套件的安裝腳本一律不跑），裝進 `data/envs/<pack>/node_modules`；子程序拿到 `NODE_PATH` 指到那裡。系統沒有 node＝doctor 說缺、pack 不載入。
 - pack 資料夾本身不寫任何東西（`packs.lock` 的雜湊才對得上）。

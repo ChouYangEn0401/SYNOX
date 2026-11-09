@@ -170,8 +170,10 @@ def test_plan_lists_packages_and_argv(tmp_path):
     venv_step, pip_step = p.steps
     assert venv_step.argv == ["PYTHON-EXE", "-m", "venv", "--clear", os.path.join(env, "venv")]
     req = os.path.join(env, "requirements.txt")
-    assert pip_step.argv == [envs.venv_python(env), "-m", "pip", "install", "--no-deps", "--only-binary=:all:",
-                             "--disable-pip-version-check", "--no-input", "-r", req]
+    # 審查 B #C：--isolated（不讀 pip.conf／PIP_*）、來源固定 PyPI；沒寫 --hash 就沒有 --require-hashes
+    assert pip_step.argv == [envs.venv_python(env), "-m", "pip", "--isolated", "install", "--no-deps",
+                             "--only-binary=:all:", "--disable-pip-version-check", "--no-input",
+                             "--index-url", "https://pypi.org/simple", "-r", req]
     assert not os.path.exists(req)                             # plan 只看、不寫、不跑
     assert p.to_dict()["packages"] == [{"name": "requests", "version": "2.32.3"}, {"name": "idna", "version": "3.7"}]
 

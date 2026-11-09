@@ -250,6 +250,8 @@ SDK：`@tool("WRITE", ai=False, confirm=True)`；cli 的 pack.json：`{"name": "
 - 使用者按確認安裝之後，SYNOX 在它自己的資料夾（不是你的 pack 資料夾）建 venv，跑
   `pip install --no-deps --only-binary=:all:`。
 - `requires.pip` **每一項都要是 `名字==版本`**：`>=`、`~=`、萬用字元、extras、網址、`-r`、`--index-url` 第 1 關都拒。
+  建議再加雜湊：`"requests==2.32.3 --hash=sha256:…"`（`pip hash <wheel 檔>` 或 PyPI 的檔案頁拿；每一項都要寫）。有寫就
+  `--require-hashes`；沒寫的話裝的人會在報告上看到紅字「版本釘選不等於來源可信」。來源一律 PyPI，pack 不能指定 index。
 - `--no-deps`：**相依的套件也要自己全部列出來、釘死版本**（上面的例子是示意，版本請自己確認）。
 - 只裝現成的 wheel：不在使用者電腦上跑套件的 setup.py。
 - Node：`"runtime": {"node": "auto"}`＋pack 裡放 `package.json` 與 `package-lock.json`；SYNOX 跑 `npm ci --ignore-scripts`（套件的安裝腳本一律不跑）。

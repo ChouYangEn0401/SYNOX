@@ -212,7 +212,9 @@ T2 多做的事（`src/synox/packs/tier.py`）：
 - **packs.lock**：雜湊涵蓋 pack 資料夾裡的**每一個檔**（含 `__pycache__`、`node_modules`、執行檔），竄改一個 byte 就不載入。
   上傳的 zip 裡的 `__pycache__` 不解出來（Python 會 import 那裡的 `.pyc`）；SYNOX 開子程序時一律 `PYTHONDONTWRITEBYTECODE=1`。
   pack 資料夾**外**的程式不進雜湊：鎖裡記解析後的路徑（`t2.external`），報告標「未鎖定執行環境」——那支程式被換掉 SYNOX 不會發現。
-- **安裝**：報告多一段紅字「這個 pack 會執行：…（掃不到內容）」「會安裝 N 個套件（來自 runtime auto）：名稱 版本…」；
+- **安裝**：報告多一段紅字「這個 pack 會執行：…（掃不到內容）」「會安裝 N 個套件（來自 runtime auto）：名稱 版本…」，
+  pip 套件逐一標「有雜湊／沒有雜湊」，有沒寫的再加一行「版本釘選不等於來源可信」（`requires.pip` 可以寫 `--hash=sha256:…`，
+  有寫就 `--require-hashes`；pip 一律 `--isolated`、來源固定 PyPI、建環境的子程序用乾淨的環境變數，pack 不能指定 index）；
   安裝者要**明確輸入 pack.json 的 `publisher`**（網頁：勾選＋輸入，一字不差才能按確認；終端機：`--trust-publisher "<名字>"`），
   不是單純按 yes。沒寫 publisher 的 T2 pack 不能裝。輸入的名字與時間寫進 packs.lock 的 `trusted_publisher`、`trusted_at`。
 - **升級**：publisher 變了、新增 `exec`、可執行的東西變多（新的執行檔／外部程式）、或 T1 變 T2 → 紅字，要重新輸入發行者；
@@ -273,6 +275,8 @@ InaccessiblePaths＋BindPaths 巢狀是否照預期；`--setenv=名字` 在那�
 - 伺服器版 `trust: core` 的 python pack、出廠的 pack 都在程序裡跑，讀得到任何人的資料（PERM-8 只管「成員看不看得到」第三方的）。
 - 個人版與 Windows 預設沒有沙盒（後端 none）：cli 子程序跟 SYNOX 一樣看得到整台電腦。Linux 的 bwrap／systemd 後端還沒在真機驗證（見「運行空間」）。
 - T2 不是沙盒保證：掃不到內容的執行檔、npm 套件、外部程式做什麼，SYNOX 不知道，只列出來、要你確認發行者。
+  pip 套件沒寫 `--hash` 時只釘了版本：PyPI 上那個版本的檔被換掉、或名字被搶註，SYNOX 看不出來。npm 照 `package-lock.json`
+  的 `integrity` 驗，但 `resolved` 網址是 pack 寫的（可以指到 npm registry 以外），SYNOX 目前不檢查。
   `publisher` 沒有簽章驗證（ed25519 驗簽還沒做），任何人都能在 pack.json 寫任何名字；個人版的 T2 沒有沙盒。
   第三方的 exe／npm 套件不在開發機上跑是擁有者的政策，不是程式擋得住的。
 - 本機跑過留下的 `__pycache__`（對得到同一層 `.py` 的）不算掃不到內容的檔；手動放進 packs/ 的 pack 裡那種 `.pyc` 被換掉，

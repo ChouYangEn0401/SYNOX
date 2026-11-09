@@ -43,6 +43,19 @@ OK, FAILED, BUILDING = "ok", "failed", "building"
 NODE_FILES = ("package.json", "package-lock.json")
 # requires.pip 在 runtime.python=auto 時只接受「名字==版本」：沒有 extras、環境標記、網址、旗標
 PIN_RE = re.compile(r"^([A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?)==([0-9][0-9A-Za-z.+!_-]{0,63})$")
+# 審查 B #C：可以在後面加 pip 的雜湊（requirements 檔的寫法），一個或幾個：
+#   "requests==2.32.3 --hash=sha256:<64 個 16 進位字>"
+# 有雜湊的 pip 一律 --require-hashes（下載到的檔一定要對得上）；要嘛每一項都有、要嘛都沒有（pip 的雜湊模式要每一項都有）
+HASH_RE = re.compile(r"--hash=sha256:([0-9a-fA-F]{64})")
+PIP_LINE_RE = re.compile(r"^([A-Za-z0-9](?:[A-Za-z0-9._-]{0,98}[A-Za-z0-9])?)==([0-9][0-9A-Za-z.+!_-]{0,63})"
+                         r"((?:\s+--hash=sha256:[0-9a-fA-F]{64}){0,16})$")
+PYPI_INDEX = "https://pypi.org/simple"
+# 建環境的子程序只拿到這些環境變數（不繼承 PIP_INDEX_URL、PIP_EXTRA_INDEX_URL、PIP_CONFIG_FILE、npm_config_*、
+# PYTHONPATH、NODE_OPTIONS…）；代理設定是擁有者的網路設定，照留
+BUILD_ENV_KEEP = ("SYSTEMROOT", "SYSTEMDRIVE", "WINDIR", "COMSPEC", "PATHEXT", "PATH", "TEMP", "TMP", "TMPDIR",
+                  "HOME", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "LOCALAPPDATA", "APPDATA", "PROGRAMDATA",
+                  "LANG", "LC_ALL", "LC_CTYPE", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy",
+                  "https_proxy", "no_proxy", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE")
 OFFLINE_HINTS = ("NewConnectionError", "Failed to establish a new connection", "getaddrinfo failed",
                  "Temporary failure in name resolution", "Name or service not known", "No route to host",
                  "ConnectTimeoutError", "Read timed out", "ProxyError", "Network is unreachable",
@@ -57,20 +70,43 @@ def pin_problems(pip) -> List[str]:
         return []
     if not isinstance(pip, list):
         return ["requires.pip 要是清單"]
-    bad = [str(p) for p in pip if not isinstance(p, str) or not PIN_RE.match(p.strip())]
+    bad = [str(p) for p in pip if not isinstance(p, str) or not PIP_LINE_RE.match(p.strip())]
     if bad:
-        return ["runtime.python 是 auto 時，requires.pip 只能寫釘死的版本（名字==版本，例如 requests==2.32.3）："
-                + "、".join(bad[:10])]
+        return ["runtime.python 是 auto 時，requires.pip 只能寫釘死的版本（名字==版本，例如 requests==2.32.3；"
+                "可以再加 --hash=sha256:…）：" + "、".join(bad[:10])]
+    hashed = [bool(HASH_RE.search(p)) for p in pip]
+    if any(hashed) and not all(hashed):
+        missing = [str(p) for p, h in zip(pip, hashed) if not h]
+        return ["requires.pip 有的寫了 --hash、有的沒有：pip 的雜湊模式要每一項都有（缺：" + "、".join(missing[:10]) + "）"]
     return []
 
 
 def pins(m) -> List[Tuple[str, str]]:
-    """requires.pip → [(名字, 版本)]（已經過 manifest 檢查）。"""
+    """requires.pip → [(名字, 版本)]（已經過 manifest 檢查；雜湊另外用 pin_hashes 拿）。"""
     out = []
     for p in (m.requires or {}).get("pip") or []:
-        mm = PIN_RE.match(str(p).strip())
+        mm = PIP_LINE_RE.match(str(p).strip())
         if mm:
             out.append((mm.group(1), mm.group(2)))
+    return out
+
+
+def pin_hashes(m) -> Dict[str, List[str]]:
+    """requires.pip 寫的雜湊：{名字: [sha256（小寫）…]}；沒寫雜湊的名字不在裡面。"""
+    out: Dict[str, List[str]] = {}
+    for p in (m.requires or {}).get("pip") or []:
+        mm = PIP_LINE_RE.match(str(p).strip())
+        if mm and mm.group(3):
+            out[mm.group(1)] = [h.lower() for h in HASH_RE.findall(mm.group(3))]
+    return out
+
+
+def build_env(environ: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    """建環境的子程序用的乾淨環境：只留 BUILD_ENV_KEEP（PIP_*、npm_config_*、PYTHONPATH… 一律不繼承）。"""
+    source = os.environ if environ is None else environ
+    keep = {k.upper() for k in BUILD_ENV_KEEP}
+    out = {k: v for k, v in source.items() if k.upper() in keep or k in BUILD_ENV_KEEP}
+    out["PYTHONIOENCODING"] = "utf-8"
     return out
 
 
@@ -202,6 +238,9 @@ def spec_of(m) -> str:
     h = hashlib.sha256()
     if wants_python(m):
         h.update(("py:" + "\n".join(f"{n}=={v}" for n, v in pins(m))).encode("utf-8"))
+        hashes = pin_hashes(m)
+        if hashes:                                  # 沒寫雜湊的指紋跟以前一樣（不會害舊的環境要重建）
+            h.update(("hashes:" + json.dumps(hashes, sort_keys=True)).encode("utf-8"))
     if wants_node(m):
         try:
             with open(os.path.join(m.folder, "package-lock.json"), "rb") as f:
@@ -272,6 +311,7 @@ class EnvPlan:
     name: str
     python: bool = False
     packages: List[Tuple[str, str]] = field(default_factory=list)
+    hashes: Dict[str, List[str]] = field(default_factory=dict)   # requires.pip 寫的 --hash（名字 → sha256…）
     node: bool = False
     node_packages: int = 0
     steps: List[Step] = field(default_factory=list)
@@ -301,6 +341,7 @@ class EnvPlan:
     def to_dict(self) -> dict:
         return {"needed": self.needed, "python": self.python,
                 "packages": [{"name": n, "version": v} for n, v in self.packages],
+                "hashed": {n: n in self.hashes for n, _v in self.packages},
                 "node": self.node, "node_packages": self.node_packages, "lines": self.lines(),
                 "problems": list(self.problems), "text": self.text()}
 
@@ -367,8 +408,11 @@ def node_pins(folder: str) -> List[Tuple[str, str]]:
 
 
 def all_pins(m) -> List[dict]:
-    """runtime auto 會裝的套件：[{"name", "version", "source": "pip"|"npm"}]（T2 的安裝報告列這個）。"""
-    out = [{"name": n, "version": v, "source": "pip"} for n, v in pins(m)] if wants_python(m) else []
+    """runtime auto 會裝的套件：[{"name", "version", "source": "pip"|"npm"}]（T2 的安裝報告列這個）。
+    pip 的另外有 "hashed"（requires.pip 有沒有寫 --hash；沒有＝版本釘選不等於來源可信）。"""
+    hashes = pin_hashes(m) if wants_python(m) else {}
+    out = [{"name": n, "version": v, "source": "pip", "hashed": n in hashes} for n, v in pins(m)] \
+        if wants_python(m) else []
     if wants_node(m):
         out += [{"name": n, "version": v, "source": "npm"} for n, v in node_pins(m.folder)]
     return out
@@ -423,20 +467,25 @@ class VenvBuilder(Builder):
         if wants_python(m):
             p.python = True
             p.packages = pins(m)
+            p.hashes = pin_hashes(m)
             req = os.path.join(folder, "requirements.txt")
             py = venv_python(folder)
 
-            def write_req(req=req, items=p.packages):
+            def write_req(req=req, items=p.packages, hashes=p.hashes):
                 os.makedirs(os.path.dirname(req), exist_ok=True)
                 with open(req, "w", encoding="utf-8") as f:
-                    f.write("".join(f"{n}=={v}\n" for n, v in items))
+                    f.write("".join(f"{n}=={v}" + "".join(f" --hash=sha256:{h}" for h in hashes.get(n, ())) + "\n"
+                                    for n, v in items))
 
             p.steps.append(Step("建 Python venv", [self.python, "-m", "venv", "--clear", os.path.join(folder, "venv")],
                                 folder))
             if p.packages:
+                # --isolated：不讀 pip.conf／PIP_* 環境變數（pack 與這台的設定都不能換來源）；來源固定 PyPI；
+                # 有寫 --hash 就 --require-hashes（下載到的檔一定要對得上）
                 p.steps.append(Step(f"裝 {len(p.packages)} 個 Python 套件",
-                                    [py, "-m", "pip", "install", "--no-deps", "--only-binary=:all:",
-                                     "--disable-pip-version-check", "--no-input", "-r", req],
+                                    [py, "-m", "pip", "--isolated", "install", "--no-deps", "--only-binary=:all:",
+                                     "--disable-pip-version-check", "--no-input", "--index-url", PYPI_INDEX]
+                                    + (["--require-hashes"] if p.hashes else []) + ["-r", req],
                                     folder, prepare=write_req))
         if wants_node(m):
             p.node = True
@@ -505,7 +554,8 @@ class VenvBuilder(Builder):
                     except Exception as e:                       # on_done 一定要叫到
                         fail(f"{step.label}之後出錯：{e}")
 
-                jobs.start(f"env-{name}", step.argv, cwd=step.cwd, timeout=left, on_done=finished)
+                # 乾淨的環境變數（不繼承 PIP_INDEX_URL、npm_config_registry…；審查 B #C）
+                jobs.start(f"env-{name}", step.argv, cwd=step.cwd, timeout=left, on_done=finished, env=build_env())
             except OSError as e:
                 fail(f"{step.label}叫不起來：{e}")
 
