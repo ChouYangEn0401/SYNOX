@@ -1,3 +1,4 @@
+<!-- SPDX-License-Identifier: Apache-2.0 -->
 # ✅ Todoist：遠端 MCP 範例（kind=mcp、transport=http）
 
 > ⚠️ **這是範例，裡面的網址與工具名是佔位，要擁有者確認後才能用。**

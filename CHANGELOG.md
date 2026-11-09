@@ -1,5 +1,25 @@
 # Changelog
 
+## 未發佈（branch feat/sdk-p8）
+
+### 新增
+- **SDK P8：文件與範例**。新文件 `docs/tools.md`（給工具作者的總覽，不用讀程式碼）：三條接入路（cli 子程序、MCP stdio、遠端 MCP）
+  的決策表、信任層級 T0／T1／T2 對作者與裝的人各代表什麼、十行入門、權限欄位（access、capabilities、surfaces、data、effect、ai、confirm）
+  與常見組合、secret 與「連接」表單、確認來回、環境建置（runtime auto、requires.pip 釘死版本）、升級與版本、測試方法、作者自檢表（會被擋的寫法與原因）。
+- `docs/README.md`：文件索引，每份一行說明，標出給使用者／作者／維護者。
+- 範例 `examples/node-mcp-tool`：Node 標準函式庫手寫的 MCP stdio 伺服器（initialize／ping／tools/list／tools/call，沒有 npm 套件、
+  沒有 node_modules）；pack.json 示範 `transport: stdio`、`{node}`、`tools_allow`（伺服器多列的 `internal_stats` 不放行）、`effects`、
+  `capabilities: ["subprocess", "exec"]`＋`publisher`。測試只驗宣告與報告，不執行 Node。
+- 範例 `examples/any-language-cli`：只用 Python 標準函式庫、不 import SDK 的 cli 工具（備忘清單：list／add／clear），
+  README 寫完整的純文字協定（argv 樣板、SYNOX_* 環境變數、JSON 信封、確認來回），說明任何語言都能照寫。
+- `examples/hello/README.md`；範例的 README 與程式檔加 `SPDX-License-Identifier: Apache-2.0` 檔頭（含兩個 mcp-remote 範例的 README）。
+- 測試 `tests/test_examples.py`：`examples/*/pack.json` 每個都通過 `sdk.Pack.load`（第 1、2 關）、有 README／SKILL.md／publisher、
+  程式檔有 SPDX 檔頭；node-mcp-tool 的宣告與安裝報告（工具與 effect）；any-language-cli 不用 SDK、用 `run_command` 跑完確認來回；
+  給作者的文件沒有本機路徑或信箱、相對連結都存在。
+
+### 變更
+- README「想加功能」一節改指向 `docs/tools.md` 與 `docs/README.md`；`packs.dirs` 的例子改成 `<你的資料夾>` 佔位。
+
 ## 未發佈（branch feat/sdk-p7）
 
 ### 新增
