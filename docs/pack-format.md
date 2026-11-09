@@ -55,7 +55,7 @@ packs/money/
 `.synoxpack`＝一個 pack 資料夾壓成的 zip（`pack.json` 在最上層，或在唯一的那個資料夾裡）；`synox-sdk zip`／`scripts\pack_zip.py`
 會打包並算好 `integrity.sha256`（[sdk.md](sdk.md)）。裝的路有三條，都跑同一條安全管線（[security.md](security.md)「五關」）：
 Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Install-Pack.bat`）、`python -m synox install <檔> [--yes]`。
-檢查 zip（沒有絕對路徑、`..`、符號連結；5 MB／解開 20 MB／300 個檔以內）→ 第 1 關宣告 → 第 2 關靜態掃描 → 給人看報告 →
+檢查 zip（沒有絕對路徑、`..`、符號連結；檔名不能是 Windows 保留名（`CON`、`NUL`、`COM1`…，加副檔名也算）、不能有冒號（NTFS 資料流 `x.py::$DATA`）或 `< > " | ? *`、結尾不能是空白或句點；5 MB／解開 20 MB／300 個檔以內）→ 第 1 關宣告 → 第 2 關靜態掃描 → 給人看報告 →
 按確認 → 第 3 關寫 `data/packs.lock` → 搬進 `packs/`。移除＝搬到 `packs/_removed/<name>-<版本>-<時間>`（不刪），鎖的那一筆一起拿掉
 （旁邊留一份 `<那個資料夾>.lock.json`，`packs rollback` 用）。
 

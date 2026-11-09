@@ -185,6 +185,35 @@ def test_cli_refuses_to_run_after_files_change(make_bot, owner, tmp_path, monkey
     assert any("跟安裝時核准的不一樣" in t for t in texts)               # 也通知擁有者
 
 
+# ── #E zip 裡的 Windows 保留名、NTFS 資料流 ─────────────────────────────
+
+def _zip_with(extra_name):
+    from test_t2_trust import _raw
+    raw = _raw(publisher=None)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("pack.json", json.dumps(raw))
+        z.writestr("SKILL.md", "---\nname: bin\ndescription: d\n---\n")
+        z.writestr("tool.py", "print(1)\n")
+        z.writestr(extra_name, "x")
+    return buf.getvalue()
+
+
+@pytest.mark.parametrize("name", ["CON", "nul.txt", "lib/COM1.py", "Aux.json", "lpt9", "COM¹.txt", "con .txt",
+                                  "tool.py::$DATA", "a:b.py", "x.py.", "x.py ", "a?b.py", "a|b", "bad\x01.py"])
+def test_zip_refuses_windows_reserved_and_streams(tmp_path, name):
+    with pytest.raises(admin.PackAdminError):
+        admin.stage(_zip_with(name), str(tmp_path / "data"))
+    assert not os.path.isdir(os.path.join(str(tmp_path / "data"), "web_uploads")) or \
+        not os.listdir(os.path.join(str(tmp_path / "data"), "web_uploads"))
+
+
+@pytest.mark.parametrize("name", ["console.py", "lib/com10.py", "null.txt", "aux_data.json", "a.b.c.py", "CONTRIBUTING.md"])
+def test_zip_ordinary_names_still_ok(tmp_path, name):
+    token, _summary = admin.stage(_zip_with(name), str(tmp_path / "data"))
+    assert token
+
+
 def test_unlocked_pack_has_no_live_check(make_bot, tmp_path):
     from test_t2_trust import _raw, _write
     _write(str(tmp_path / "packs" / "bin"), _raw(publisher=None))
