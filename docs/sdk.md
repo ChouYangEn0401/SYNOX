@@ -54,8 +54,13 @@ sys.exit(reply_ok({"count": 3}, "共 3 筆"))        # 印信封、回結束碼
   **只放行 `requires.env` 列的名字**（沒列＝工具看不到）。
 - 用到新版 SYNOX 才有的東西：寫 `"requires": {"synox": ">=0.3"}`，舊的 SYNOX 就不會載入它，並告訴使用者要更新。
 - AI 呼叫你的指令時會等它做完、把結果交給 AI 轉述；所以一般指令要在 `timeout` 內做完，很久的工作請標 `"background": true`。
-- 系統代換：`{python}`、`{pack_dir}`、`{data_dir}`、`{user_data_dir}`（伺服器版每人一個）、`{tg_id}`，argv、`env`、`cwd` 都可以用。
+- 系統代換：`{python}`、`{node}`、`{pack_dir}`、`{data_dir}`、`{user_data_dir}`（伺服器版每人一個）、`{tg_id}`，argv、`env`、`cwd` 都可以用。
   Python 工具要用自己的 venv：`"cli": {"python": "venv"}`（＝`<pack>/../.venv`）或 `"runtime": {"python": "../.venv/Scripts/python.exe"}`（相對於 pack 資料夾）。
+- **要第三方套件、又不想叫使用者自己裝**：寫 `"runtime": {"python": "auto", "python_posix": "auto"}`＋
+  `"requires": {"pip": ["requests==2.32.3", "idna==3.7"]}`（一定要 `==` 釘死版本，相依的也要列，因為裝的時候用 `--no-deps`；只裝現成 wheel）。
+  Node 工具寫 `"runtime": {"node": "auto"}`、argv 用 `{node}`，pack 裡放 `package.json`＋`package-lock.json`（`npm ci --ignore-scripts`）。
+  使用者按確認安裝後 SYNOX 會在 `data/envs/<pack>/` 建好；失敗時 doctor 會說原因，修好後 `python -m synox packs env rebuild <pack>`。
+  格式細節見 [pack-format.md](pack-format.md)「依賴與環境自動建置」。
 
 ## 給它一頁面板
 
