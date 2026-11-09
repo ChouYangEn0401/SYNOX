@@ -6,6 +6,8 @@
   "kind": "python",
   "group": "remind",
   "access": "member",
+  "surfaces": ["dm"],
+  "data": "user",
   "order": 30,
   "python": { "module": "pack" },
   "requires": { "pip": [], "config": [], "env": {} },

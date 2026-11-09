@@ -125,7 +125,42 @@ def summary_of(m: Manifest, report: ScanReport, hashes: Dict[str, str], problems
             "files": sorted(hashes)[:100], "panel": bool(m.web.get("panel")), "api": list(m.web.get("api", [])),
             "capabilities": list(m.capabilities), "integrity": bool(m.integrity),
             "scan": {**report.to_dict(m), "problems": problems, "ok": not problems},
-            "warnings": warnings_for(m, report), "env": env_plan(m).to_dict()}
+            "warnings": warnings_for(m, report), "env": env_plan(m).to_dict(), **scope_of(m)}
+
+
+# ── 權限宣告與信任（PERM-2） ───────────────────────────────────────────
+
+SURFACE_TEXT = {"dm": "只能私訊", "channel": "私訊＋頻道（群組）"}
+DATA_TEXT = {"none": "不存資料", "user": "每個人自己一份", "shared": "大家共用一份"}
+TRUST_TEXT = {pack_lock.CORE: "核心（core）：信得過，跟出廠的一樣",
+              pack_lock.THIRD_PARTY: "第三方（third-party）：別人寫的，伺服器版限制比較多"}
+
+
+def scope_of(m: Manifest) -> dict:
+    """安裝報告的「在哪裡用、資料屬於誰、信任」那一段（trust 由擁有者在報告上選，預設 third-party）。"""
+    surfaces = list(m.surfaces)
+    return {"surfaces": surfaces, "surfaces_text": SURFACE_TEXT["channel" if "channel" in surfaces else "dm"],
+            "data": m.data, "data_text": DATA_TEXT.get(m.data, m.data), "data_declared": m.data_declared,
+            "trust_choices": [{"value": t, "text": TRUST_TEXT[t]} for t in pack_lock.TRUSTS],
+            "trust_default": pack_lock.DEFAULT_TRUST}
+
+
+def _trust(trust) -> str:
+    try:
+        return pack_lock.check_trust(trust)
+    except ValueError as e:
+        raise PackAdminError(str(e))
+
+
+def format_scope(summary: dict) -> List[str]:
+    """終端機的那一段（format_summary 用）。"""
+    if "data" not in summary:
+        return []
+    data = summary.get("data_text") or summary.get("data")
+    note = "" if summary.get("data_declared") else "（沒寫，照預設推的）"
+    return [f"🧭 在哪裡用：{summary.get('surfaces_text')}　資料：{data}{note}",
+            f"🔑 信任：預設 {summary.get('trust_default')}（終端機加 --trust core 改成核心；"
+            f"網頁在報告上選）"]
 
 
 def env_plan(m: Manifest, data_dir: Optional[str] = None) -> "envs.EnvPlan":
@@ -249,6 +284,7 @@ def format_summary(summary: dict) -> str:
         lines += [f"  - {p}" for p in problems]
     else:
         lines.append("✅ 宣告檢查、靜態掃描都過了")
+    lines += format_scope(summary)
     env = summary.get("env") or {}
     if env.get("needed"):
         lines.append("🧱 要建環境（按確認之後才建）：")
@@ -268,6 +304,10 @@ def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
         out.append("這是 cli pack：會在這台電腦上執行它指定的程式（那支程式本身掃描看不到）。")
     if m.access == "everyone":
         out.append("access 是 everyone：伺服器版裡任何傳訊息給 bot 的人都用得到。")
+    if "channel" in m.surfaces:
+        out.append("它宣告可以在頻道（群組）裡用：頻道裡的人都看得到它的回覆。")
+    if m.data == "shared":
+        out.append("它的資料是大家共用一份（data: shared）：伺服器版只有管理員能用它會寫入的指令。")
     labels = {"network": "連網", "subprocess": "開別的程式", "filesystem:own": "讀寫檔案",
               "filesystem:any": "讀寫 pack 以外的任何檔案", "exec": "動態執行程式碼"}
     if m.capabilities:
@@ -283,8 +323,11 @@ def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
 
 # ── 第 3 關＋安裝 ──────────────────────────────────────────────────────
 
-def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, via: str = "web") -> str:
-    """按了確認：再跑一次 1、2 關、檔案要跟看報告時一模一樣 → 搬進 packs/ → 寫 packs.lock。"""
+def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, via: str = "web",
+                   trust: Optional[str] = None) -> str:
+    """按了確認：再跑一次 1、2 關、檔案要跟看報告時一模一樣 → 搬進 packs/ → 寫 packs.lock。
+    trust：擁有者在報告上選的 core｜third-party（沒給＝third-party），寫進鎖。"""
+    trust = _trust(trust)
     root = _staged_root(token, data_dir)
     folder = os.path.join(root, "pack")
     m, report, hashes, problems = run_gates(folder)
@@ -306,18 +349,22 @@ def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
     os.makedirs(packs_dir, exist_ok=True)
     shutil.move(folder, target)
     shutil.rmtree(root, ignore_errors=True)
-    pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=target)
-    logging.info("[PACKS] installed %s %s (approved by %s via %s)", m.name, m.version, approved_by, via)
+    pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=target, trust=trust)
+    logging.info("[PACKS] installed %s %s (approved by %s via %s, trust %s)", m.name, m.version, approved_by, via,
+                 trust)
     return m.name
 
 
-def approve_installed(folder: str, data_dir: str, approved_by=None,
-                      via: str = "cli") -> Tuple[Manifest, ScanReport, List[str]]:
+def approve_installed(folder: str, data_dir: str, approved_by=None, via: str = "cli",
+                      trust: Optional[str] = None) -> Tuple[Manifest, ScanReport, List[str]]:
     """已經在 packs/ 裡的 pack（工程師自己放的、自己改過的）：跑 1、2 關，過了就寫 packs.lock。
-    回 (manifest, 報告, 拒裝理由)；有理由就沒有寫鎖。"""
+    trust 沒給＝沿用舊鎖的（沒有舊鎖＝third-party）。回 (manifest, 報告, 拒裝理由)；有理由就沒有寫鎖。"""
     m, report, hashes, problems = run_gates(folder)
+    if trust is None:
+        trust = pack_lock.trust_of(data_dir, m.name)
+    trust = _trust(trust)
     if not problems:
-        pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=folder)
+        pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=folder, trust=trust)
     return m, report, problems
 
 

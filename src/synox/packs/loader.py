@@ -27,6 +27,7 @@ data/users/<tg_id>/<name>.json(.enc)（vault 的金鑰由主金鑰＋id 用 HKDF
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import importlib.util
 import logging
@@ -196,6 +197,30 @@ def pack_group_policy(app, config, m: Manifest, server: bool) -> dict:
     → 這一組對那個角色整組不可見（群組的最低角色拉到裝得下的那一級；哪一級都裝不下＝owner_only）。擁有者全部可見。
     SDK 的 authorize／visible 因此自己就擋：/help、選單、網頁、人打字、AI 工具清單都是同一條。"""
     return policy.group_policy_for(config, app.users.roles, m.capabilities, group_policy(app, m.access, server))
+
+
+# ── 權限宣告（PERM-2）：surfaces、data=shared ───────────────────────────
+
+def surface_policy(m: Manifest) -> dict:
+    """pack.json 的 surfaces 沒有 channel（預設 ["dm"]）→ 整組 private_only：SDK authorize 自己擋群組／頻道。"""
+    return {} if "channel" in (getattr(m, "surfaces", None) or ["dm"]) else {"private_only": True}
+
+
+def shared_write_admin(app, m: Manifest, server: bool) -> int:
+    """data=shared 的 pack 在伺服器版：WRITE／DANGER 的葉節點最低角色拉到管理員（角色階梯最高那一級）。
+    群組定義、葉節點都掛好之後呼叫。回改了幾個節點。個人版、data 不是 shared 不動。"""
+    if not server or getattr(m, "data", "none") != "shared":
+        return 0
+    group = app.registry.node(m.group)
+    if group is None:
+        return 0
+    admin = max(app.registry.roles)
+    n = 0
+    for node in group.walk():
+        if not node.is_group and node.effect in (WRITE, DANGER) and node.own.role < admin:
+            node.own = dataclasses.replace(node.own, role=admin)
+            n += 1
+    return n
 
 
 def discover(dirs=PACK_DIRS) -> List[str]:
@@ -591,10 +616,12 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
                     secret_fields=pack_secrets.managed_fields(m), secrets=secret_store)
         if item.lock == pack_lock.LOCKED:
             pack.locked_files = dict((pack_lock.entry(config.data_dir, m.name) or {}).get("files") or {})
-        app.registry.define_group(m.group, m.title, m.summary, **pack_group_policy(app, config, m, server))
+        app.registry.define_group(m.group, m.title, m.summary,
+                                  **{**pack_group_policy(app, config, m, server), **surface_policy(m)})
         try:
             {"python": _install_python, "cli": _install_cli, "connector": _install_connector,
              "mcp": _install_mcp}[m.kind](app, pack)
+            shared_write_admin(app, m, server)
         except Exception as e:
             logging.exception("[PACKS] %s failed to install", m.name)
             _drop_group(app.registry, m.group)
