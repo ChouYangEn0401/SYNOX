@@ -23,7 +23,7 @@
 | `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`；路徑相對 SYNOX 資料夾（`ROOT`） |
 | `src/synox/llm/` | `base.py`（`ChatAdapter`、`Message`、`Reply`、`ToolCall`、`ToolSpec`）、`easy_llm.py`（openai／anthropic／gemini／openai_compat，經 `ntu_easy_llm.agent`，lazy import）、`claude_code`、`fake`、`textproto`、`factory.make_adapter` |
 | `src/synox/vault/` | `vault.py`（Fernet＋每檔 scrypt、`*.json.enc`；`for_user(id)`＝伺服器版每人的保管箱，HKDF 衍生）、`keyring.py`（DPAPI 包住主金鑰 `data/.synox.key`） |
-| `src/synox/packs/` | `manifest.py`（pack.json v2 檢查＝第 1 關）、`scan.py`（ast 靜態掃描＝第 2 關）、`lock.py`（`data/packs.lock`＝第 3 關）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`、cli 代換與 `build_argv`）、`kit.py`（照位置填的指令） |
+| `src/synox/packs/` | `manifest.py`（pack.json v2 檢查＝第 1 關；`requires.synox`＝`synox_problem`、`requires.env`→`secret_env_names`、`fields[].kind`）、`scan.py`（ast 靜態掃描＝第 2 關）、`lock.py`（`data/packs.lock`＝第 3 關）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`、cli 代換與 `build_argv`）、`kit.py`（照位置填的指令） |
 | `src/synox/sdk/` | 給 pack 作者：JSON 信封、`Pack.load`、`init_pack`、`zip_pack`；`synox-sdk init｜check｜zip`（`python -m synox.sdk`）。說明 [sdk.md](sdk.md) |
 | `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`validate.py`（第 4 關呼叫驗證）、`delimit.py`（第 5 關工具結果分隔符）、`budget.py`（伺服器版成員每月額度）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
 | `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（30 秒、via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`、`/schedule_*`） |
@@ -72,6 +72,12 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
   個人版 → 共用的那一份。營運者仍讀得到（docs/security.md）；「營運者也看不到」的 SYNOX Node 是另一份規格，不在這裡做。
 - 伺服器版才裝 SDK 的 `accounts`、`limits` pack（`app.install_server_packs`）；陌生人＝GUEST（SDK `UserManager`）。
 - 保管箱解不開時**丟 VaultError，絕不當成空的再蓋過去**；金鑰檔不見而 `data/` 已有 `*.json.enc` 時不產生新金鑰。
+- kind=cli（`loader._install_cli`）：經 AI 呼叫（`api.via_ai is True`，agent 的 `CaptureApi`）的一般指令**同步**跑、回覆被攔下來交回 AI
+  （loop 包 nonce）；人打字的照舊丟 `app.tasks`。子程序環境照 SDK `clean_env` 拿掉像密鑰的變數，`keep_env` 只放 `manifest.secret_env_names(m)`
+  （`requires.env`＋`auth.fields[].env`）——不要整包放行。`fields[].kind` 的格式檢查在 `validate.typed_check`（掛在 `Field.check`，經
+  `kit.parse_args`，人打字與 AI 兩條路都跑），交給程式前 `validate.normalize`；AI 的 schema 一律字串。
+- `requires.synox` 不合 → `PackStatus.status = "incompatible"`（不載入、不算 `LoadReport.ok` 的失敗）；doctor、`packs status`、安裝的第 1、2 關都用
+  `manifest.synox_problem` 那句人話。
 
 ## 跟 SDK 的差異／轉接（vendor 沒有改過）
 
@@ -116,7 +122,8 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 ## Known limitations / next steps
 
 - AI 對話紀錄只在記憶體（每個聊天最近 6 輪），重開就忘。
-- 經 AI 呼叫、會丟到 `app.tasks` 背景回覆的指令（例如 kind=cli 的 service 指令）：AI 拿到的工具結果是空的，真正的回覆之後直接送給使用者。
+- 經 AI 呼叫的 kind=cli 一般指令已改成同步（`api.via_ai`），結果交回 AI。仍然例外：`background: true` 的 cli 指令（AI 只拿到「開始了」，
+  結果之後直接送給使用者），以及 python pack 自己丟背景執行緒回覆的指令（同樣的問題，要 pack 自己看 `api.via_ai` 改成同步）。
 - 核准卡按下執行的結果直接給使用者，只在 AI 的紀錄留一句「已執行」，不會自動再開一輪讓 AI 接著做。
 - `Setup.bat` 的完整安裝路徑（winget、embeddable zip）沒有在任何一台陌生電腦上跑過；精靈的畫面沒有自動化測試（只測了 logic／probe／shortcuts）。
 - connector 全部接上了，但都只對假傳輸測過。網頁工具頁對 kind=python 一律顯示「已連接」，沒設憑證時要打各自的 `_status`；

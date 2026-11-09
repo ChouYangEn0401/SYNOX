@@ -92,7 +92,7 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
     # packs
     from synox.packs import lock as pack_lock
     from synox.packs.loader import PACK_DIRS, discover
-    from synox.packs.manifest import ManifestError, read
+    from synox.packs.manifest import ManifestError, read, synox_problem
     lines: List[str] = []
     lock_dir = config.data_dir if config else os.path.join(ROOT, "data")
     locked = 0
@@ -115,6 +115,11 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
                 problems += 1
                 continue
             locked += lock_state == pack_lock.LOCKED
+            too_old = synox_problem(m)               # requires.synox
+            if too_old and enabled:
+                lines.append(f"  ⛔ {m.name} {m.version}：不會載入。{too_old}  {rel}")
+                problems += 1
+                continue
             state = "connector（只登記）" if m.kind in ("connector", "mcp") else ("✅" if enabled else "⏸ 停用")
             lock_mark = "🔒" if lock_state == pack_lock.LOCKED else "未鎖定"
             lines.append(f"  {state} {m.name} {m.version}（{m.kind}，/{m.group}，{lock_mark}）  {rel}")

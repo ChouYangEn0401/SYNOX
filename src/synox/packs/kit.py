@@ -127,7 +127,7 @@ def parse_args(fields: Sequence[Field], args: Sequence[str], positional: Optiona
         value = values.get(f.name)
         if value is None:
             continue
-        if f.choices and value.lower() not in f.choices:
+        if f.choices and value.strip().lower() not in {c.lower() for c in f.choices}:
             errors.append(f"{f.ask} 只能是 {'/'.join(f.choices)}")
         elif f.check is not None and f.check(value):
             errors.append(f"{f.ask}{f.check(value)}")

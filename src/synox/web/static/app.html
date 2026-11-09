@@ -525,7 +525,7 @@
       .catch(function (e) { $("llm-msg").textContent = "❌ " + e.message; });
   });
 
-  var STATUS = { loaded: "可以用", connector: "還沒接上", disabled: "關掉了", invalid: "格式不對", missing: "缺東西", error: "壞了",
+  var STATUS = { loaded: "可以用", connector: "還沒接上", disabled: "關掉了", invalid: "格式不對", missing: "缺東西", incompatible: "SYNOX 版本不合", error: "壞了",
     tampered: "被改過了，沒有載入" };
   var LOCK = { locked: "🔒", unlocked: "", tampered: "⚠️" };
   function fillPacks(packs) {
