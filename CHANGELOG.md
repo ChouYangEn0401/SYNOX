@@ -1,5 +1,22 @@
 # Changelog
 
+## 未發佈（branch feat/llm-and-modes）
+
+### 新增
+- **個人版／伺服器版**：`config.json` 的 `"mode": "personal" | "server"`（沒寫＝personal，行為跟以前一樣）。
+  伺服器版：陌生人是訪客（GUEST），只看得到 `access: everyone` 的 pack；裝 SDK 的 `accounts`（`/me`、`/me_upgrade`、`/user_list`、`/user_role`）
+  與 `limits`（`/limit_*`）；新的 `access: member`（筆記、記帳改用它）；`pack.store.of(user)` 每人一份 `data/users/<id>/<pack>.json.enc`，
+  金鑰 HKDF(主金鑰, `user:<id>`)。營運者仍看得到（docs/security.md）。
+- **精靈**：第一頁「這台給誰用？」＋「工程師？直接改 config.json」；AI 頁改成「預設：Claude（這台電腦登入的 Claude Code）」在上、
+  「其他金鑰來源」（OpenAI／Anthropic API／Gemini／相容端點）在下、「先不用 AI」。
+- **AI 來源經 ntu_easy_llm**（擁有者的套件，0.5.0 的 `ntu_easy_llm.agent`）：新 kind `openai`、`gemini`；`anthropic`、`openai_compat` 也改走它。
+  選用相依（`pip install -e .[llm]`），沒裝時用 API 金鑰的來源會說怎麼裝，其他照常。
+- `doctor` 印模式、也檢查每個人的加密檔。
+
+### 拿掉
+- `src/synox/llm/openai_compat.py`、`anthropic_api.py`（換成 `easy_llm.py`）。
+
+
 ## 0.1.0 — 2026-11-09
 
 第一版，照設計規格 v0（`2026-11-09-synox-design.md`）。
