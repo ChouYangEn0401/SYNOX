@@ -571,7 +571,7 @@ class WebUI:
 
     def pack_secrets_save(self, user, name: str, data: dict) -> Resp:
         """{"values": {欄位: 值（空字串＝沿用原值）}, "clear": [欄位…]}。"""
-        from synox.packs.secrets import SecretError
+        from synox.packs.secrets import SecretError, short_warning
         pack, denied = self._secret_pack(user, name)
         if denied:
             return denied
@@ -581,7 +581,7 @@ class WebUI:
                 not all(isinstance(c, str) for c in clear):
             return _err(400, "values 要是 {欄位: 值}，clear 要是欄位名的清單。")
         try:
-            self._secret_store().update(pack.name, pack.secret_fields, values, user, clear=clear)
+            short = self._secret_store().update(pack.name, pack.secret_fields, values, user, clear=clear)
         except SecretError as e:
             return _err(400, str(e))
         logging.info("[WEB] %s saved secrets for pack %s (fields: %s)", user.tg_id, pack.name,
@@ -590,6 +590,9 @@ class WebUI:
         out["ok"] = True
         out["message"] = "✅ 已連接（存在保管箱，密文）。" if out["connected"] else \
             "存好了，還缺：" + "、".join(out["missing"])
+        if short:                                    # 存了，但太短的 secret 第 4 關保護不全：照實說
+            out["warning"] = short_warning(short)
+            out["message"] += "\n" + out["warning"]
         return _json(200, out)
 
     # ── 設定頁 ───────────────────────────────────────────────────────

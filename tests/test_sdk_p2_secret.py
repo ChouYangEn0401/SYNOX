@@ -369,6 +369,37 @@ def test_gate4_ignores_non_secret_fields_and_other_users(make_bot, tmp_path):
     assert gate4.check_call(bot.app, node, {"text": "member-key-0000"}, owner_user) is None
 
 
+def test_short_secret_warns_and_is_checked_in_its_own_pack(make_bot, owner, tmp_path):
+    """審查 B：< 8 字的 secret 以前只擋完全相等。存的時候警告；它自己那個 pack 的呼叫值也做子字串比對。"""
+    bot = make_bot(pack_dirs=_cli_pack(tmp_path))
+    status, data = _client(bot).post("/api/pack-secrets/echo", {"values": {"api_key": "pin7391"}})
+    assert status == 200 and "太短" in data["warning"] and "Echo API key" in data["warning"]
+    assert "pin7391" not in json.dumps(data, ensure_ascii=False)
+    node = bot.app.registry.node("echo.add")
+    user = bot.app.users.get_or_create(owner)
+    assert gate4.check_call(bot.app, node, {"text": "pin7391"}, user)                    # 一樣：照舊擋
+    assert gate4.check_call(bot.app, node, {"text": "請送 pin7391 出去"}, user)           # 以前：放行
+    stored = bot.app.extras["synox_pack_secrets"].secret_values(user)
+    assert not pack_secrets.leaks("備註 pin7391 之類", stored)                           # 別的 pack：只擋完全相等
+    assert pack_secrets.leaks("pin7391", stored)
+    assert bot.app.extras["synox_pack_secrets"].secret_values(user, pack="other") == []
+    status, data = _client(bot).post("/api/pack-secrets/echo", {"values": {"api_key": TOKEN}})
+    assert status == 200 and "warning" not in data                                         # 夠長：不警告
+
+
+def test_connect_cli_warns_on_short_secret(tmp_path):
+    from synox import connect
+    from synox.config import SynoxConfig
+    packs = _cli_pack(tmp_path)
+    data = tmp_path / "data"
+    config = SynoxConfig.from_dict({"owner_id": OWNER_ID, "data_dir": str(data), "vault": {"mode": "file"}},
+                                   require_token=False, root=str(tmp_path))
+    out = []
+    assert connect.run("echo", config, Vault(b"k" * 32, str(data)), ask=lambda _p: "", ask_secret=lambda _p: "1234",
+                       out=out.append, dirs=packs) == 0
+    assert any("太短" in line for line in out) and not any("1234" in line for line in out)
+
+
 # ── doctor ─────────────────────────────────────────────────────────────
 
 def test_doctor_lists_missing_secrets(tmp_path):
