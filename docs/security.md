@@ -9,6 +9,7 @@
 | `config.json` | Telegram bot token、你的 Telegram id、AI 設定 | **明文**（只靠 Windows 帳號的檔案權限）。AI 的金鑰不在這裡：精靈存進保管箱，這裡只寫 `vault:llm_api_key` |
 | `data/.synox.key` | 保管箱的主金鑰（32 bytes 隨機） | Windows：用 **DPAPI** 包起來，只有這台電腦的這個 Windows 帳號解得開。其他平台或 `vault.mode: file`：明文（會記警告） |
 | `data/notes.json.enc`、`data/money.json.enc`、`data/schedule.json.enc`、`data/secrets.json.enc` | 筆記、記帳、提醒、AI 金鑰 | **密文**：Fernet（AES-128-CBC＋HMAC-SHA256），每次存檔換新的 salt、檔案金鑰＝scrypt(主金鑰, salt)。被改過一個 byte 就解不開（會報錯，不會默默清空） |
+| `data/users/<Telegram id>/notes.json.enc`、`…/money.json.enc`（只有伺服器版） | 每個人自己的筆記、記帳 | **密文**，每個人一把金鑰：HKDF-SHA256(主金鑰, `user:<id>`) 衍生。A 的金鑰解不開 B 的檔 |
 | `data/users.json`、`data/llm_usage.json`、`data/host.lock`、`data/last_update_id`… | 誰傳過訊息、AI 用量、執行狀態 | 明文（沒有內容，只有 id、次數） |
 
 **硬碟被拷走、`data/` 被同步到雲端被看到**：拿到的是密文和 DPAPI 包住的金鑰，解不開（除非也能登入你的 Windows 帳號）。
@@ -25,16 +26,31 @@
 ## 用朋友／公司的 LLM
 
 - 公司看得到「你的問句＋AI 工具回傳的那幾行」，看不到你的資料庫、看不到 Telegram 聊天全文。
-- 要再保守：本機模型（Ollama、LM Studio），一樣選「朋友／公司給的 AI 網址」填 `http://localhost:11434/v1`，什麼都不出電腦。
+- 要再保守：本機模型（Ollama、LM Studio）：精靈的「其他金鑰來源」選「相容端點」填 `http://localhost:11434/v1`，什麼都不出電腦。
 
 ## 整個 SYNOX 架在別人（例如公司）的電腦上
 
 那就是「那台電腦的管理者看得到一切」：他能登入那個 Windows 帳號，DPAPI 就擋不住。
 加密在這個情況只防「資料庫檔案被偷走」，**防不了營運者**。不要把這種安排說成安全的。
 
+## 伺服器版（一群人用）：營運者看得到
+
+精靈第一頁選「一群人（伺服器版）」（`config.json` 的 `"mode": "server"`）時：
+
+- 每個人的筆記、記帳各存一份 `data/users/<Telegram id>/<pack>.json.enc`，金鑰由主金鑰＋那個人的 id 用 HKDF 衍生。
+  **使用者之間**互相看不到：程式只會用「正在講話的那個人」的金鑰去開他自己的資料夾，A 的金鑰也解不開 B 的檔。
+- **但架這台的人（營運者）看得到所有人的資料**：程式跑著的時候主金鑰就在記憶體裡，誰能登入這台電腦的那個 Windows 帳號
+  （或改程式、接除錯器），誰就能衍生出每個人的金鑰。這裡的加密防的是「檔案被拷走」，不是「防營運者」。
+  給別人用之前要跟他們講清楚：**你看得到他們存的東西**。
+- 「連營運者都看不到」的設計（SYNOX Node）是另一份規格，擁有者正在寫，這一版**沒有**做。
+- 個人版改成伺服器版時，原本的 `data/notes.json.enc`、`data/money.json.enc` **不會自動搬**到擁有者的 `data/users/<id>/`。
+
 ## 誰能用你的 bot
 
-- 只有安裝時配對的 Telegram 帳號（`owner_id`）。出廠 pack 都是 `access: owner`：別人傳 `/note`，回的跟「沒有這個指令」一模一樣。
+- 個人版：只有安裝時配對的 Telegram 帳號（`owner_id`）。出廠 pack 是 `access: owner`／`member`（個人版兩個都＝只有你）：
+  別人傳 `/note`，回的跟「沒有這個指令」一模一樣。
+- 伺服器版：陌生人傳訊息會自動登記成**訪客**，只看得到 `access: everyone` 的 pack；你（或你升成管理員的人）用 `/user_role <id> member`
+  讓他變成成員，才用得到 `access: member` 的 pack（筆記、記帳）。`access: owner` 的（提醒、排程、connector）仍然只有你。
 - AI 只聽你的（別人傳的人話不會送去 LLM）。
 - 危險的動作（刪光筆記、把危險指令排進排程）AI 不能直接做，一定先送確認卡，**你按了**才做；確認卡 10 分鐘過期、只能按一次、別人偽造按鈕無效。
 - 你的 Telegram 帳號被盜 = 對方能用你的 bot。SDK 有 `/sudo`（手機驗證器）的第二道門，但出廠的 pack 沒有用到；要用的話，

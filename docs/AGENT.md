@@ -5,7 +5,8 @@
 
 ## Commands
 
-- 安裝（開發）：`py -3.11 -m venv .venv` → `.venv\Scripts\python.exe -m pip install -e .[dev]`
+- 安裝（開發）：`py -3.11 -m venv .venv` → `.venv\Scripts\python.exe -m pip install -e .[dev]`；
+  用 API 金鑰的 AI 要再裝 ntu_easy_llm（見下面「ntu_easy_llm」）
 - 測試：`.venv\Scripts\python.exe -m pytest -q`（約 10 秒；不連網、不開埠、不開 Telegram、不叫 `claude`）
 - 終端機：`.venv\Scripts\python.exe -m synox console`（`--llm fake` 換假 AI；沒有 config.json 用示範設定）
 - 健康檢查：`.venv\Scripts\python.exe -m synox doctor --offline`
@@ -19,13 +20,13 @@
 | `vendor/isdtelekit/` | ISDTeleKitSDK 的**原樣**複製（版本與 commit 在 `vendor/VERSION`）。不要改；要不同的行為就在 `src/synox` 寫轉接 |
 | `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜doctor｜stop` |
 | `src/synox/app.py` | `build(config, home=, adapter=, vault=)`：SDK `build_app` → basics/help → `packs.load_all` → `agent.install` → `schedule.install` |
-| `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`llm`／`vault`／`packs`；路徑相對 SYNOX 資料夾（`ROOT`） |
-| `src/synox/llm/` | `base.py`（`ChatAdapter`、`Message`、`Reply`、`ToolCall`、`ToolSpec`）、`openai_compat`、`anthropic_api`、`claude_code`、`fake`、`textproto`、`factory.make_adapter` |
-| `src/synox/vault/` | `vault.py`（Fernet＋每檔 scrypt、`*.json.enc`）、`keyring.py`（DPAPI 包住主金鑰 `data/.synox.key`） |
-| `src/synox/packs/` | `manifest.py`（pack.json 檢查）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`）、`kit.py`（照位置填的指令） |
+| `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`；路徑相對 SYNOX 資料夾（`ROOT`） |
+| `src/synox/llm/` | `base.py`（`ChatAdapter`、`Message`、`Reply`、`ToolCall`、`ToolSpec`）、`easy_llm.py`（openai／anthropic／gemini／openai_compat，經 `ntu_easy_llm.agent`，lazy import）、`claude_code`、`fake`、`textproto`、`factory.make_adapter` |
+| `src/synox/vault/` | `vault.py`（Fernet＋每檔 scrypt、`*.json.enc`；`for_user(id)`＝伺服器版每人的保管箱，HKDF 衍生）、`keyring.py`（DPAPI 包住主金鑰 `data/.synox.key`） |
+| `src/synox/packs/` | `manifest.py`（pack.json 檢查）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`）、`kit.py`（照位置填的指令） |
 | `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
 | `src/synox/schedule/` | `store.py`、`runner.py`（30 秒、via=ROUTINE）、`commands.py`（`/remind_*`、`/schedule_*`） |
-| `src/synox/wizard/` | `pages.py`（tkinter 畫面）、`logic.py`（寫 config、金鑰進保管箱）、`telegram_probe.py`（getMe、配對碼）、`shortcuts.py` |
+| `src/synox/wizard/` | `pages.py`（tkinter 畫面：這台給誰用 → token → 配對 → AI → 完成）、`logic.py`（寫 config、mode、AI 頁的 helper、金鑰進保管箱）、`telegram_probe.py`（getMe、配對碼）、`shortcuts.py` |
 | `src/synox/doctor.py` | 健康檢查（不改任何檔、不產生金鑰） |
 | `packs/notes`、`packs/money`、`packs/remind` | 出廠 pack；remind 的程式在 `synox/schedule` |
 | `connectors/*` | `kind: connector` 的設計稿（只有 pack.json、SKILL.md、README；沒有連網程式） |
@@ -50,7 +51,11 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 8. **repo 裡沒有真名、token、Telegram id 或個人資料**；`config.json`、`data/` 在 `.gitignore`。範例一律佔位字。
 
 另外：
-- pack 的群組由 loader 依 pack.json 定義，`access: owner`（預設）＝整組 `owner_only`。v0 的 AI 也只給擁有者（`AgentFallback.accepts`）。
+- pack 的群組由 loader 依 pack.json 定義（`loader.group_policy`）：`access: owner`（預設）＝整組 `owner_only`；`member`＝伺服器版 `role=MEMBER`、
+  個人版 `owner_only`；`everyone`＝最低一級。v0 的 AI 只給擁有者（`AgentFallback.accepts`），伺服器版也一樣。
+- **每個人自己的資料一律 `pack.store.of(user)`**（notes、money）。伺服器版 → `data/users/<id>/`，vault 金鑰 HKDF(主金鑰, `user:<id>`)；
+  個人版 → 共用的那一份。營運者仍讀得到（docs/security.md）；「營運者也看不到」的 SYNOX Node 是另一份規格，不在這裡做。
+- 伺服器版才裝 SDK 的 `accounts`、`limits` pack（`app.install_server_packs`）；陌生人＝GUEST（SDK `UserManager`）。
 - 保管箱解不開時**丟 VaultError，絕不當成空的再蓋過去**；金鑰檔不見而 `data/` 已有 `*.json.enc` 時不產生新金鑰。
 
 ## 跟 SDK 的差異／轉接（vendor 沒有改過）
@@ -62,6 +67,34 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 | 核准卡的節點叫 `agent.ai_approve`（`/ai_approve`），不是 `agent.approve` | 群組 `agent` 是 bare（葉節點直接用自己的名字：`/ai`、`/ai_usage`），`approve` 會變成 `/approve`，跟 AI 無關的名字容易撞名 |
 | 排程（`synox/schedule`） | SDK D6 沒有排程。照 ClawBot `routines/runner.py`，只做每天 HH:MM 與某一天一次；沒有「連續失敗自動暫停」 |
 
+## 模式（`config.json` 的 `mode`）
+
+| | personal（預設） | server |
+|---|---|---|
+| 誰用得到 | 擁有者 | 擁有者＋被升級的人；陌生人是 GUEST，只看得到 `access: everyone` |
+| 帳號管理 | 沒有 | SDK `accounts`（`/me`、`/me_upgrade`、`/user_list`、`/user_role`）＋`limits`（`/limit_*`） |
+| pack 資料 | `data/<pack>.json.enc` 一份 | `data/users/<id>/<pack>.json.enc` 每人一份 |
+| 提醒、排程、AI | 擁有者 | 仍然只有擁有者（`access: owner`；排程的 store 沒有分人） |
+
+工程師模式：不跑精靈，照 `config.example.json` 寫 `config.json`（含 `mode`），`python -m synox run`。
+
+## ntu_easy_llm（擁有者的套件，LLM 那一層）
+
+- 用 API 金鑰的四種 kind（`openai`、`anthropic`、`gemini`、`openai_compat`）都經 `ntu_easy_llm.agent.chat`（0.5.0 起才有；舊的 `ask*` 沒有工具呼叫）。
+  `claude_code`、`fake`、`none` 不需要它。`easy_llm.py` 用到時才 import；沒裝 → `LLMError("還沒安裝 ntu_easy_llm：…")`。
+- **現在（還沒發佈）**：`pyproject.toml` 的選用組 `llm = ["ntu_easy_llm>=0.5.0"]`；開發機手動裝本機的 wheel：
+  `.venv\Scripts\python.exe -m pip install C:\Users\user\Documents\ntu_easy_llm\dist\ntu_easy_llm-0.5.0-py3-none-any.whl`
+  （它會一起裝 openai、anthropic、google-genai 三個 SDK——那是舊 API 要的；SYNOX 用的 `agent` 只用標準函式庫打 HTTP）。
+- **擁有者發佈 GitHub release 之後**：把 `pyproject.toml` 那一行換成（跟 ClawBot `requirements.txt` 同一種寫法）
+
+  ```
+  llm = ["ntu_easy_llm @ https://github.com/ChouYangEn0401/ntu_easy_llm/releases/download/ntu_easy_llm-0.5.0/ntu_easy_llm-0.5.0-py3-none-any.whl"]
+  ```
+
+  並把 `setup/bootstrap.ps1` 的 `pip install -e $Root` 改成 `pip install -e "$Root[llm]"`，一般使用者裝完就有。
+  **不要**寫成只有名字的 `ntu_easy_llm>=…` 給一般使用者裝：它不在 PyPI 上，萬一有人在 PyPI 註冊了同名套件，pip 會去裝那個。
+  `requirements.txt` 只用 ASCII（要加的話就是同一行網址，本身是 ASCII）。
+
 ## Known limitations / next steps
 
 - AI 對話紀錄只在記憶體（每個聊天最近 6 輪），重開就忘。
@@ -70,3 +103,5 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 - `Setup.bat` 的完整安裝路徑（winget、embeddable zip）沒有在任何一台陌生電腦上跑過；精靈的畫面沒有自動化測試（只測了 logic／probe／shortcuts）。
 - `/backup`（spec §6）沒做。connector 只有設計稿。
 - 文字協定一次只解析一個工具呼叫。
+- 伺服器版：個人版的舊資料不會自動搬到擁有者的 `data/users/<id>/`；提醒／排程沒有分人（仍是擁有者限定）；AI 仍只給擁有者；
+  精靈的伺服器版沒有多問「誰是管理員」（擁有者之後用 `/user_role <id> admin`）。
