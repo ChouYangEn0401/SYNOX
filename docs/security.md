@@ -302,7 +302,10 @@ InaccessiblePaths＋BindPaths 巢狀是否照預期；`--setenv=名字` 在那�
 - 個人版與 Windows 預設沒有沙盒（後端 none）：cli 子程序跟 SYNOX 一樣看得到整台電腦。Linux 的 bwrap／systemd 後端還沒在真機驗證（見「運行空間」）。
 - T2 不是沙盒保證：掃不到內容的執行檔、npm 套件、外部程式做什麼，SYNOX 不知道，只列出來、要你確認發行者。
   pip 套件沒寫 `--hash` 時只釘了版本：PyPI 上那個版本的檔被換掉、或名字被搶註，SYNOX 看不出來。npm 照 `package-lock.json`
-  的 `integrity` 驗，但 `resolved` 網址是 pack 寫的（可以指到 npm registry 以外），SYNOX 目前不檢查。
+  的 `integrity` 驗；`resolved` 網址只收 `https://registry.npmjs.org/`（審查 C #C8：`http://`、`file:`、`git+…`、別的 registry、
+  相對路徑、v1 lock 裡寫成網址的 version ＝安裝報告紅字列出來、拒裝；已經裝好的舊 pack 重建環境時也擋），`npm ci` 固定加
+  `--registry=https://registry.npmjs.org/`（`~/.npmrc` 的 registry 換不掉）。但 `integrity` 也是作者寫的、套件內容本身
+  SYNOX 不看——官方 registry 上的惡意套件一樣裝得進來，只是不會連到作者指定的主機。
   `publisher` 沒有簽章驗證（ed25519 驗簽還沒做），任何人都能在 pack.json 寫任何名字；個人版的 T2 沒有沙盒。
   第三方的 exe／npm 套件不在開發機上跑是擁有者的政策，不是程式擋得住的。
 - 本機跑過留下的 `__pycache__`（對得到同一層 `.py` 的）不算掃不到內容的檔；手動放進 packs/ 的 pack 裡那種 `.pyc` 被換掉，

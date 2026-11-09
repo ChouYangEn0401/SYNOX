@@ -281,3 +281,96 @@ def test_c7_pip_step_gets_devnull_config_from_fake_jobrunner(tmp_path, monkeypat
     pip_calls = [c for c in jobs.calls if "pip" in c["argv"]]
     assert pip_calls and all(c["env"]["PIP_CONFIG_FILE"] == os.devnull for c in pip_calls)
     assert "--isolated" in pip_calls[0]["argv"]
+
+
+# ── C8：package-lock 的 resolved 只收 https://registry.npmjs.org/ ─────────
+
+def _lock(packages=None, v1=None):
+    import json
+    if v1 is not None:
+        return json.dumps({"name": "tool", "lockfileVersion": 1, "dependencies": v1})
+    return json.dumps({"name": "tool", "lockfileVersion": 3, "packages": {"": {"name": "tool"}, **(packages or {})}})
+
+
+def _node_pack(tmp_path, tag, lock_text):
+    from test_envs import _write_pack
+    folder = _write_pack(str(tmp_path / tag), node=True)
+    with open(os.path.join(folder, "package-lock.json"), "w", encoding="utf-8") as f:
+        f.write(lock_text)
+    return folder
+
+
+GOOD = {"node_modules/left-pad": {"version": "1.3.0",
+                                  "resolved": "https://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz"},
+        "node_modules/@scope/x": {"version": "1.0.0",
+                                  "resolved": "https://registry.npmjs.org/@scope/x/-/x-1.0.0.tgz"},
+        "node_modules/y": {"version": "2.0.0"}}            # 沒寫 resolved：npm 照 --registry 找（固定官方）
+
+
+@pytest.mark.parametrize("resolved", [
+    "http://registry.npmjs.org/left-pad/-/left-pad-1.3.0.tgz",          # 明文
+    "https://registry.npmjs.org.evil.invalid/left-pad-1.3.0.tgz",       # 長得像
+    "https://registry.npmjs.org@evil.invalid/x.tgz",
+    "https://registry.npmjs.org:8443/x.tgz",
+    "https://registry.yarnpkg.com/left-pad/-/left-pad-1.3.0.tgz",       # 別的 registry 也不收
+    "https://evil.invalid/left-pad-1.3.0.tgz",
+    "file:../evil.tgz",
+    "git+ssh://git@github.com/evil/x.git#abc",
+    "../local-folder",
+])
+def test_c8_non_registry_sources_are_found(tmp_path, resolved):
+    from synox.packs import envs
+    folder = _node_pack(tmp_path, "p", _lock({**GOOD, "node_modules/bad": {"version": "1.0.0", "resolved": resolved}}))
+    assert envs.npm_bad_sources(folder) == [("bad", resolved)]
+
+
+def test_c8_registry_sources_pass(tmp_path):
+    from synox.packs import envs
+    assert envs.npm_bad_sources(_node_pack(tmp_path, "p", _lock(GOOD))) == []
+
+
+def test_c8_lockfile_v1_nested_and_git_versions(tmp_path):
+    from synox.packs import envs
+    v1 = {"a": {"version": "1.0.0", "resolved": "https://registry.npmjs.org/a/-/a-1.0.0.tgz",
+                "dependencies": {"b": {"version": "1.0.0", "resolved": "https://evil.invalid/b.tgz"}}},
+          "c": {"version": "github:evil/c#abc"}}
+    bad = envs.npm_bad_sources(_node_pack(tmp_path, "p", _lock(v1=v1)))
+    assert ("b", "https://evil.invalid/b.tgz") in bad and ("c", "github:evil/c#abc") in bad and len(bad) == 2
+
+
+def test_c8_bad_source_is_refused_at_install_with_red_line(tmp_path):
+    from synox.packs import admin, tier
+    from test_envs import _node_raw, _write_pack, _zip
+    folder = _write_pack(str(tmp_path / "src"), _node_raw(), node=True)
+    with open(os.path.join(folder, "package-lock.json"), "w", encoding="utf-8") as f:
+        f.write(_lock({"node_modules/left-pad": {"version": "1.3.0", "resolved": "https://evil.invalid/lp.tgz"}}))
+    with pytest.raises(admin.GateRefused) as e:
+        admin.stage(_zip(folder), str(tmp_path / "data"))
+    assert "registry.npmjs.org" in str(e.value) and "evil.invalid" in str(e.value)
+    red = e.value.summary["tier"]["warning_lines"]
+    assert any("不是從官方 registry" in line and "left-pad → https://evil.invalid/lp.tgz" in line for line in red)
+    assert tier.assess(admin.read(folder))["npm_bad_sources"] == [{"name": "left-pad",
+                                                                   "source": "https://evil.invalid/lp.tgz"}]
+
+
+def test_c8_rebuild_of_an_installed_pack_also_refuses(tmp_path):
+    """已經裝好的舊 pack 重建環境：plan 就擋，假 JobRunner 一次都不會被叫到（npm 不會跑）。"""
+    from synox.packs import envs
+    from synox.packs.manifest import validate
+    from test_envs import FakeJobs, _node_raw, which_all
+    folder = _node_pack(tmp_path, "p", _lock({"node_modules/x": {"version": "1.0.0", "resolved": "file:../x.tgz"}}))
+    m = validate(_node_raw(), folder, strict=True)
+    builder = envs.VenvBuilder(str(tmp_path / "data"), python="PYTHON-EXE", which=which_all)
+    jobs = FakeJobs(tmp_path)
+    result = builder.build_wait(m, jobs)
+    assert not result.ok and "registry.npmjs.org" in result.detail and jobs.calls == []
+
+
+def test_c8_npm_argv_pins_the_registry(tmp_path):
+    from synox.packs import envs
+    from synox.packs.manifest import validate
+    from test_envs import _node_raw, which_all
+    m = validate(_node_raw(), _node_pack(tmp_path, "p", _lock(GOOD)), strict=True)
+    plan = envs.VenvBuilder(str(tmp_path / "data"), python="PYTHON-EXE", which=which_all).plan(m)
+    assert plan.problems == []
+    assert "--registry=https://registry.npmjs.org/" in plan.steps[-1].argv

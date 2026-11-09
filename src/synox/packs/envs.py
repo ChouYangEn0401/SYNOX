@@ -8,7 +8,8 @@ pack 的依賴與環境自動建置（SDK P5）。kind=cli 的 pack.json 寫：
                             pip install --no-deps --only-binary=:all: -r requirements.txt；
                             requires.pip 只能寫「名字==版本」（釘死版本），其他寫法 pack.json 不合（manifest 檢查）。
   runtime.node   = "auto"   pack 裡要有 package.json＋package-lock.json；複製到 data/envs/<pack>/ 後
-                            npm ci --ignore-scripts（套件的安裝腳本一律不跑），裝進 data/envs/<pack>/node_modules。
+                            npm ci --ignore-scripts --registry=https://registry.npmjs.org/（套件的安裝腳本一律不跑），
+                            裝進 data/envs/<pack>/node_modules。lock 裡的 resolved 不是官方 registry ＝拒裝（npm_bad_sources，審查 C #C8）。
                             {node}＝系統的 node；子程序拿到 NODE_PATH 指到那個 node_modules。
                  = 路徑      相對於 pack 資料夾（或絕對路徑），跟 runtime.python 的規則一樣。
 
@@ -426,6 +427,78 @@ def node_pins(folder: str) -> List[Tuple[str, str]]:
     return sorted(out)
 
 
+# 審查 C #C8：npm 套件只准從官方 registry 來。package-lock.json 的 resolved 是 pack 作者寫的，可以指到任何主機
+# （http://、file:、git+ssh://、別的 registry）；npm ci 照它下載。沒寫 resolved 的項目 npm 照 --registry 找（我們固定成這個）
+NPM_REGISTRY = "https://registry.npmjs.org/"
+
+
+def _npm_source_ok(url: str) -> bool:
+    from urllib.parse import urlsplit
+    if not isinstance(url, str) or not url.startswith(NPM_REGISTRY):
+        return False
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return False
+    return parts.scheme == "https" and parts.netloc == "registry.npmjs.org" and "\\" not in url
+
+
+def npm_bad_sources(folder: str) -> List[Tuple[str, str]]:
+    """package-lock.json 裡不是 https://registry.npmjs.org/ 的來源：[(套件, 來源)]（只讀 JSON，不連網）。
+    v2/v3 看 packages 的 resolved；v1 看 dependencies（含巢狀）的 resolved，version 寫成網址／git 的也算。
+    lock 讀不了回 [("package-lock.json", "讀不了")]（讀不了就不能說來源是官方的）；沒寫 resolved 的不算（npm 照 --registry 找）。"""
+    try:
+        with open(os.path.join(folder, "package-lock.json"), "r", encoding="utf-8-sig") as f:
+            lock = json.load(f)
+    except OSError:
+        return []                                   # 沒有 lock：plan 另外說「pack 裡缺 package-lock.json」
+    except ValueError:
+        return [("package-lock.json", "不是合法的 JSON")]
+    if not isinstance(lock, dict):
+        return [("package-lock.json", "格式不對")]
+    out: List[Tuple[str, str]] = []
+    pkgs = lock.get("packages")
+    if isinstance(pkgs, dict):
+        for key, info in pkgs.items():
+            if not key or not isinstance(info, dict):
+                continue
+            name = key.split("node_modules/")[-1] or key
+            resolved = info.get("resolved")
+            if resolved is not None and not _npm_source_ok(resolved):
+                out.append((name, str(resolved)[:200]))
+            elif info.get("link") and resolved is None:
+                out.append((name, "link（連到別的資料夾）"))
+
+    def walk(deps):
+        for name, info in (deps or {}).items():
+            if not isinstance(info, dict):
+                continue
+            resolved = info.get("resolved")
+            version = str(info.get("version") or "")
+            if resolved is not None and not _npm_source_ok(resolved):
+                out.append((str(name), str(resolved)[:200]))
+            elif resolved is None and (":" in version or "/" in version):
+                out.append((str(name), version[:200]))
+            if isinstance(info.get("dependencies"), dict):
+                walk(info["dependencies"])
+
+    if not isinstance(pkgs, dict) and isinstance(lock.get("dependencies"), dict):
+        walk(lock["dependencies"])
+    return out
+
+
+def npm_source_problems(m) -> List[str]:
+    """runtime.node=auto 的 pack：lock 裡有不是官方 registry 的來源 → 拒裝的理由（一句）；沒有回 []。"""
+    if not wants_node(m):
+        return []
+    bad = npm_bad_sources(m.folder)
+    if not bad:
+        return []
+    listing = "、".join(f"{n} → {s}" for n, s in bad[:10]) + ("…" if len(bad) > 10 else "")
+    return [f"package-lock.json 有 {len(bad)} 個套件不是從 {NPM_REGISTRY} 下載（SYNOX 只裝官方 registry 的套件）："
+            f"{listing}；請 pack 作者用官方 registry 重新產生 package-lock.json"]
+
+
 def all_pins(m) -> List[dict]:
     """runtime auto 會裝的套件：[{"name", "version", "source": "pip"|"npm"}]（T2 的安裝報告列這個）。
     pip 的另外有 "hashed"（requires.pip 有沒有寫 --hash；沒有＝版本釘選不等於來源可信）。"""
@@ -517,13 +590,16 @@ class VenvBuilder(Builder):
             missing = [f for f in NODE_FILES if not os.path.isfile(os.path.join(m.folder, f))]
             if missing:
                 p.problems.append("pack 裡缺 " + "、".join(missing))
+            p.problems += npm_source_problems(m)       # 審查 C #C8：已經裝好的舊 pack 重建時也擋
 
             def copy_lock(src=m.folder, dst=folder):
                 os.makedirs(dst, exist_ok=True)
                 for f in NODE_FILES:
                     shutil.copyfile(os.path.join(src, f), os.path.join(dst, f))
 
-            p.steps.append(Step("裝 Node 套件", [npm or "npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund"],
+            # --registry：沒寫 resolved 的項目、~/.npmrc 的 registry 設定都換不掉來源（命令列的設定優先；#C8）
+            p.steps.append(Step("裝 Node 套件", [npm or "npm", "ci", "--ignore-scripts", "--no-audit", "--no-fund",
+                                               f"--registry={NPM_REGISTRY}"],
                                 folder, prepare=copy_lock))
         return p
 
