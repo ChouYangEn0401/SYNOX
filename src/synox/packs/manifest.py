@@ -12,7 +12,9 @@ pack.json 的格式與檢查（docs/pack-format.md 是人看的版本）。
       "auth": "oauth",                           kind=connector：oauth｜token｜caldav
       "requires": {"pip": [], "config": [], "env": {}},
       "skill": "SKILL.md",
-      "storage": "vault"                         vault（pack.store 落地是密文）｜plain
+      "storage": "vault",                        vault（pack.store 落地是密文）｜plain
+      "web": {"panel": "panel.html",             選用：Web UI 工具頁的面板（pack 資料夾裡的一個 .html）
+              "api": ["GET /summary"]}           面板能打的 GET /api/packs/<name>/<route>（pack 用 pack.web_route 掛）
     }
 """
 
@@ -29,6 +31,7 @@ AUTHS = ("oauth", "token", "caldav")
 ACCESS = ("owner", "member", "everyone")
 NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 GROUP_RE = re.compile(r"^[a-z][a-z0-9]{0,15}$")
+WEB_ROUTE_RE = re.compile(r"^GET /([a-z0-9][a-z0-9_-]{0,31})$")
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+([.-][0-9A-Za-z.-]+)?$")
 
 
@@ -52,11 +55,55 @@ class Manifest:
     cli: dict = field(default_factory=dict)
     auth: str = ""
     requires: dict = field(default_factory=dict)
+    web: dict = field(default_factory=dict)       # {"panel": "panel.html"|"", "api": ["summary", …]}（已檢查）
     raw: dict = field(default_factory=dict, repr=False)
 
     @property
     def skill_path(self) -> str:
         return os.path.join(self.folder, self.skill)
+
+    @property
+    def panel_path(self) -> str:
+        return os.path.join(self.folder, self.web["panel"]) if self.web.get("panel") else ""
+
+
+def _inside(folder: str, rel: str) -> bool:
+    base = os.path.realpath(folder)
+    target = os.path.realpath(os.path.join(folder, rel))
+    try:
+        return os.path.commonpath([base, target]) == base and target != base
+    except ValueError:                           # 不同磁碟機
+        return False
+
+
+def parse_web(raw, folder: str, problems: List[str]) -> dict:
+    """pack.json 的 web → {"panel": 相對路徑或 "", "api": [route…]}；不合的寫進 problems。"""
+    if raw in (None, {}):
+        return {"panel": "", "api": []}
+    if not isinstance(raw, dict):
+        problems.append("web 要是物件")
+        return {"panel": "", "api": []}
+    panel = raw.get("panel") or ""
+    if panel:
+        if not isinstance(panel, str) or not panel.lower().endswith(".html") or os.path.isabs(panel) \
+                or ".." in panel.replace("\\", "/").split("/") or not _inside(folder, panel):
+            problems.append("web.panel 要是 pack 資料夾裡的一個 .html（不能用 .. 或絕對路徑）")
+            panel = ""
+        elif not os.path.isfile(os.path.join(folder, panel)):
+            problems.append(f"找不到 web.panel 檔 {panel}")
+            panel = ""
+    routes = []
+    api = raw.get("api") or []
+    if not isinstance(api, list):
+        problems.append("web.api 要是清單，例如 [\"GET /summary\"]")
+        api = []
+    for item in api:
+        m = WEB_ROUTE_RE.match(str(item).strip()) if isinstance(item, str) else None
+        if m is None:
+            problems.append(f"web.api 的 {item!r} 要寫成 \"GET /名字\"（小寫英數字、-、_；只支援 GET）")
+        else:
+            routes.append(m.group(1))
+    return {"panel": panel, "api": routes}
 
 
 def validate(raw: dict, folder: str) -> Manifest:
@@ -103,12 +150,13 @@ def validate(raw: dict, folder: str) -> Manifest:
     requires = raw.get("requires") or {}
     if not isinstance(requires, dict):
         problems.append("requires 要是物件")
+    web = parse_web(raw.get("web"), folder, problems)
     if problems:
         raise ManifestError("；".join(problems))
     return Manifest(name=name, title=raw["title"], summary=raw["summary"], version=version, kind=kind,
                     folder=folder, group=group, access=access, skill=skill, storage=storage,
                     python=dict(raw.get("python") or {}), cli=dict(raw.get("cli") or {}), auth=raw.get("auth", ""),
-                    requires=dict(requires), raw=dict(raw))
+                    requires=dict(requires), web=web, raw=dict(raw))
 
 
 def read(folder: str) -> Manifest:

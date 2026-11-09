@@ -103,6 +103,14 @@ class Pack:
     store: PackStore
     app: Any = field(repr=False, default=None)
     data_dir: str = ""
+    web_routes: Dict[str, Callable] = field(default_factory=dict, repr=False)
+
+    def web_route(self, route: str, fn: Callable) -> None:
+        """Web UI 面板的資料：GET /api/packs/<name>/<route> → fn(user) 回可以轉 JSON 的東西。
+        route 一定要寫在 pack.json 的 web.api 裡（"GET /<route>"），沒寫的掛了也打不到。"""
+        if route not in self.manifest.web.get("api", []):
+            raise ValueError(f"{self.name}: web route {route!r} is not declared in pack.json web.api")
+        self.web_routes[route] = fn
 
     @property
     def name(self) -> str:

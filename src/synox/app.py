@@ -1,6 +1,6 @@
 """
 build()：SynoxConfig → isdtelekit.build_app → 基本指令（伺服器版多 accounts、limits）→ packs.load_all
-→ agent.install → schedule.install。
+→ agent.install → schedule.install → web.install（本機網頁介面）。
 
     config = SynoxConfig.load()
     app = build(config)
@@ -18,7 +18,7 @@ from isdtelekit import build_app
 from isdtelekit.host.app import App
 from isdtelekit.packs import accounts, basics, help as help_pack, limits
 
-from synox import agent, schedule
+from synox import agent, schedule, web
 from synox.config import SynoxConfig
 from synox.llm import make_adapter
 from synox.llm.base import LLMError
@@ -45,9 +45,11 @@ def install_server_packs(app) -> None:
     limits.install(app)
 
 
-def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_dirs=loader.PACK_DIRS) -> App:
+def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_dirs=loader.PACK_DIRS,
+          config_path: Optional[str] = None) -> App:
     app = build_app(config, home=home)
     app.extras["synox_config"] = config
+    app.extras["synox_pack_dirs"] = tuple(pack_dirs)
     if vault is _UNSET:
         try:
             vault = open_vault(config)
@@ -74,5 +76,6 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
             adapter = None
     agent.install(app, adapter, config)
     schedule.install(app)
+    web.install(app, config, vault, pack_dirs=pack_dirs, config_path=config_path)
     app.on_start.append(lambda a: a.notify_owner(GREETING))
     return app
