@@ -109,7 +109,7 @@ def test_skill_read_and_prompt(make_bot, owner):
     bot.talk(owner, "記帳怎麼用")
     calls = bot.app.extras["synox_agent"].adapter.calls
     system = calls[0][0][0].content
-    assert "- money：" in system and "- notes：" in system and "google-calendar" not in system
+    assert "- money：" in system and "- notes：" in system and "notion" not in system   # 只登記的 connector 不進提示
     assert "amount" in calls[1][0][-1].content and "記帳" in calls[1][0][-1].content
 
 

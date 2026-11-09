@@ -96,7 +96,8 @@ pack 放在別的地方（例如金流簿那個 repo 裡的 `synox-pack/`，它�
 - 多支 bot 分流、服務別人的角色商店、Remote Control／派工、AI 的情境（persona）與長期記憶。
 - 伺服器版：個人版的舊資料不會自動搬過去；「連架設的人都看不到」的版本（另一份規格）；網頁介面對外開放（要自己架反向代理＋TLS）。
 - 匯入 ClawBot 的資料；換電腦的匯出（備份綁這個 Windows 帳號）、還原按鈕；網頁看圖／下載檔案、網頁收提醒（提醒只走 Telegram）。
-- Google 日曆、Notion、Todoist、Apple 提醒事項：`connectors/` 裡只有設計稿，打 `/gcal` 之類的會說「還沒接上」。
+- Notion、Todoist、Apple 提醒事項：`connectors/` 裡只有設計稿，打 `/notion` 之類的會說「還沒接上」。
+  **Google 日曆已經接上**（`/gcal`，設定步驟見 [connectors/google-calendar/README.md](connectors/google-calendar/README.md)）。
 - macOS／Linux 的安裝器（程式本身跨平台，但 `Setup.bat` 只有 Windows）；打包成 .exe（之後用 PyInstaller）。
 - AI 的對話紀錄只放在記憶體（重開 bot 就忘了），每個聊天留最近 6 輪。
 
