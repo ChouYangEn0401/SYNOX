@@ -62,7 +62,7 @@ def load(path: str) -> Optional[Skill]:
 
 
 def from_packs(packs) -> List[Skill]:
-    """已載入的 pack（只登記的 connector／mcp 除外：還沒接，不放進 AI 的清單；mcp stdio 照放）。"""
+    """已載入的 pack（只登記的 connector／mcp 除外：還沒接，不放進 AI 的清單；mcp stdio／http 照放）。"""
     out = []
     for pack in packs:
         if getattr(pack.manifest, "registered_only", pack.manifest.kind in ("connector", "mcp")):

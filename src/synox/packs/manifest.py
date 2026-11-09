@@ -40,6 +40,10 @@ pack.json v2（架構 v1 §4；在上面之上加欄位，舊的 pack 照舊可�
       "mcp": {"transport": "stdio", "argv": ["{python}", "./server.py"],                 真的連（P4a，packs/mcp.py）：
               "env": {…}, "cwd": ".", "timeout": 60, "start_timeout": 20,                代換同 cli；每個（pack, 使用者）
               "tools_allow": ["search"], "effects": {"search": "READ"}}                  一個長駐子程序；要宣告 subprocess
+      "mcp": {"transport": "http", "url": "https://…/mcp", "timeout": 60,                遠端 MCP（P4b，packs/mcp_http.py）：
+              "bearer": "token", "tools_allow": […], "effects": {…}}                     url 一定 https；要宣告 network；
+                                                 auth.type=token 的 secret 欄位當 Authorization: Bearer；
+                                                 auth.type=oauth＋auth.oauth＝貼回網址的授權碼流程（packs/oauth.py）
 
 權限宣告（PERM-2；舊 pack 沒寫照舊相容，見 _check_scope）：
 
@@ -148,9 +152,19 @@ class Manifest:
         return self.kind == "mcp" and (self.mcp or {}).get("transport") == "stdio"
 
     @property
+    def mcp_http(self) -> bool:
+        """kind=mcp 而且 mcp.transport=http：遠端 MCP，真的會連（packs/mcp_http.py，P4b）。"""
+        return self.kind == "mcp" and (self.mcp or {}).get("transport") == "http"
+
+    @property
+    def mcp_connected(self) -> bool:
+        """kind=mcp 而且真的會連（stdio 或 http）。"""
+        return self.mcp_stdio or self.mcp_http
+
+    @property
     def registered_only(self) -> bool:
         """只登記、不連的：connector，與沒有 transport 的 mcp（只寫 url）。"""
-        return self.kind == "connector" or (self.kind == "mcp" and not self.mcp_stdio)
+        return self.kind == "connector" or (self.kind == "mcp" and not self.mcp_connected)
 
     def allows(self, capability: str) -> bool:
         """宣告了這個能力嗎（filesystem:any 包含 filesystem:own）。"""
@@ -319,17 +333,103 @@ def _check_auth_fields(auth: dict, problems: List[str]) -> None:
                 problems.append(f"auth.fields 的 {name}.{text} 要是 200 字內的字串")
 
 
-MCP_TRANSPORTS = ("stdio",)
+MCP_TRANSPORTS = ("stdio", "http")
+OAUTH_RECEIVERS = ("paste", "loopback")
 
 
-def _check_mcp_transport(mcp: dict, caps: List[str], problems: List[str]) -> None:
-    """mcp.transport：沒寫＝只登記（舊的寫法，只收 url）；"stdio"＝SYNOX 開一個子程序講 MCP（packs/mcp.py）。
+def check_https_url(url, label: str, problems: List[str]) -> str:
+    """遠端 MCP 用的網址：一定是 https、有主機、不帶帳密（user:pass@）、不帶 #、沒有 {樣板}。回主機（小寫，含埠）。"""
+    from urllib.parse import urlsplit
+    if not isinstance(url, str) or not url.strip():
+        problems.append(f"{label} 要是網址（https://…）")
+        return ""
+    if any(c in url for c in "{} \t\r\n"):
+        problems.append(f"{label} 不能有空白或 {{樣板}}（要寫死一個網址）")
+        return ""
+    try:
+        parts = urlsplit(url)
+        port = parts.port
+    except ValueError:
+        problems.append(f"{label} 看不懂：{url[:80]}")
+        return ""
+    if parts.scheme != "https":
+        problems.append(f"{label} 一定要是 https://（現在是 {parts.scheme or '沒寫'}://；不收明文 http，token 會被看到）")
+        return ""
+    if not parts.hostname:
+        problems.append(f"{label} 沒有主機名稱")
+        return ""
+    if parts.username is not None or parts.password is not None:
+        problems.append(f"{label} 不能把帳號密碼寫在網址裡（user:pass@）；token 用 auth.fields，SYNOX 會放在 Authorization 標頭")
+        return ""
+    if parts.fragment:
+        problems.append(f"{label} 不能有 #…")
+        return ""
+    return parts.hostname.lower() + (f":{port}" if port else "")
+
+
+def _check_mcp_http(mcp: dict, caps: List[str], auth: dict, problems: List[str]) -> None:
+    """transport=http（P4b，packs/mcp_http.py）：url 一定 https；capabilities 要有 network；沒有程式、沒有 argv。
+    auth.type=token：auth.fields 的一個 secret 欄位當 Bearer（mcp.bearer 指定，沒寫＝第一個 secret 欄位）；
+    auth.type=oauth：auth.oauth 的授權碼流程（貼回網址，預設 receiver=paste；loopback 只有介面，執行時拒）。"""
+    check_https_url(mcp.get("url"), "mcp.url", problems)
+    for key in ("argv", "env", "cwd", "start_timeout"):
+        if key in mcp:
+            problems.append(f"mcp.transport 是 http 就不要寫 mcp.{key}（遠端 MCP 沒有子程序）")
+    if "headers" in mcp:
+        problems.append("mcp.headers 不收：遠端 MCP 只送 SYNOX 自己的標頭，token 用 auth.fields")
+    value = mcp.get("timeout")
+    if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value <= 3600):
+        problems.append("mcp.timeout 要是 1～3600 的秒數")
+    if "network" not in caps:
+        problems.append("mcp.transport 是 http：SYNOX 會連到 mcp.url，capabilities 一定要宣告 network")
+    if "subprocess" in caps or "exec" in caps or "filesystem:any" in caps:
+        problems.append("mcp.transport 是 http 沒有程式在這台跑：capabilities 只要 network（不要 subprocess、exec、filesystem:any）")
+    kind = auth.get("type", "none")
+    if kind not in ("none", "token", "oauth"):
+        problems.append("mcp.transport 是 http：auth.type 只能是 none、token 或 oauth")
+    secret_names = [f.get("name") if isinstance(f, dict) else f for f in auth.get("fields") or []
+                    if (isinstance(f, dict) and f.get("secret")) or isinstance(f, str)]
+    bearer = mcp.get("bearer")
+    if bearer is not None and kind != "token":
+        problems.append("mcp.bearer 只給 auth.type=token 用")
+    if kind == "token":
+        if not secret_names:
+            problems.append("auth.type 是 token：auth.fields 要有一個 secret 欄位（它的值會當 Authorization: Bearer 送出）")
+        elif bearer is not None and bearer not in secret_names:
+            problems.append(f"mcp.bearer 要是 auth.fields 裡的一個 secret 欄位（{'、'.join(map(str, secret_names))}）")
+    oauth = auth.get("oauth")
+    if kind == "oauth":
+        if not isinstance(oauth, dict):
+            problems.append('auth.type 是 oauth：要寫 auth.oauth（{"authorize_url", "token_url", "client_id", "scope"}）')
+            return
+        for key in ("authorize_url", "token_url"):
+            check_https_url(oauth.get(key), f"auth.oauth.{key}", problems)
+        if not isinstance(oauth.get("client_id"), str) or not oauth["client_id"].strip():
+            problems.append("auth.oauth.client_id 要寫（事先在服務那邊登記的 public client）")
+        if oauth.get("scope") is not None and not isinstance(oauth.get("scope"), str):
+            problems.append("auth.oauth.scope 要是字串（空白分隔）")
+        if oauth.get("receiver", "paste") not in OAUTH_RECEIVERS:
+            problems.append(f"auth.oauth.receiver 只能是 {'、'.join(OAUTH_RECEIVERS)}（沒寫＝paste：使用者把網址列貼回來）")
+        redirect = oauth.get("redirect_uri")
+        if redirect is not None and (not isinstance(redirect, str) or
+                                     not re.match(r"^http://(127\.0\.0\.1|localhost)(:\d{1,5})?/", redirect)):
+            problems.append("auth.oauth.redirect_uri 只能是 http://127.0.0.1:<埠>/…（SYNOX 不開埠；瀏覽器轉過去打不開，使用者把網址貼回來）")
+    elif oauth is not None:
+        problems.append("auth.oauth 只給 auth.type=oauth 用")
+
+
+def _check_mcp_transport(mcp: dict, caps: List[str], problems: List[str], auth: Optional[dict] = None) -> None:
+    """mcp.transport：沒寫＝只登記（舊的寫法，只收 url）；"stdio"＝SYNOX 開一個子程序講 MCP（packs/mcp.py）；
+    "http"＝遠端 MCP（Streamable HTTP，packs/mcp_http.py，_check_mcp_http）。
     stdio 要 argv（字串清單，代換同 cli）、capabilities 要有 subprocess；env／cwd／timeout／start_timeout 選填。"""
     transport = mcp.get("transport")
     if transport is None:
         return
     if transport not in MCP_TRANSPORTS:
         problems.append(f"mcp.transport 只能是 {'、'.join(MCP_TRANSPORTS)}（沒寫＝只登記、不連）")
+        return
+    if transport == "http":
+        _check_mcp_http(mcp, caps, auth or {}, problems)
         return
     argv = mcp.get("argv")
     if not isinstance(argv, list) or not argv or not all(isinstance(a, str) and a for a in argv):
@@ -426,7 +526,7 @@ def _check_v2(raw: dict, kind, problems: List[str]) -> dict:
         if missing:
             problems.append(f"mcp.effects 沒寫這些工具的 effect：{'、'.join(missing)}（每個允許的工具都要寫）")
         mcp = {**mcp, "tools_allow": list(allow), "effects": {t: norm_effect(effects.get(t)) for t in allow}}
-        _check_mcp_transport(mcp, caps, problems)
+        _check_mcp_transport(mcp, caps, problems, auth_info)
     return {"capabilities": caps, "capabilities_declared": caps_raw is not None, "publisher": publisher,
             "integrity": integrity, "auth_info": auth_info, "mcp": mcp}
 

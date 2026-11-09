@@ -5,7 +5,8 @@
   kind=cli        pack.json 的 cli.argv＋cli.commands → isdtelekit.packs.service.install（會印 JSON 的命令列程式）
   kind=connector  只登記：一個群組、一個葉節點，說「還沒接上」（v0 不連外）
   kind=mcp        mcp.transport=stdio：packs/mcp.py（每個 (pack, 使用者) 一個長駐 MCP 子程序，tools_allow 的工具＝葉節點，
-                  effect 只看 pack.json）；沒寫 transport（只有 url）＝同 connector，只登記
+                  effect 只看 pack.json）；mcp.transport=http：遠端 MCP（packs/mcp_http.py，同一套工具→葉節點）；
+                  沒寫 transport（只有 url）＝同 connector，只登記
 
 安全管線（架構 v1 §4）在載入時做的是第 3 關：packs.lock 有記的 pack 每個檔重算 sha256，不符＝不載入
 （tampered）、通知擁有者一次；沒鎖的照舊載入（報告標 unlocked）。第 1、2 關在安裝時（packs/admin.py）。
@@ -712,10 +713,10 @@ def _install_connector(app, pack: Pack) -> None:
 
 
 def _install_mcp(app, pack: Pack) -> None:
-    """mcp.transport=stdio：真的連（packs/mcp.py：每個 (pack, 使用者) 一個長駐子程序、tools_allow 的工具變成葉節點）。
-    沒寫 transport（只有 url）：照舊只登記。"""
+    """mcp.transport=stdio／http：真的連（packs/mcp.py：每個 (pack, 使用者) 一條連線——stdio 是長駐子程序、
+    http 是遠端 MCP（packs/mcp_http.py）；tools_allow 的工具變成葉節點）。沒寫 transport（只有 url）：照舊只登記。"""
     m = pack.manifest
-    if m.mcp_stdio:
+    if m.mcp_connected:
         from synox.packs import mcp
         mcp.install(app, pack)
         return

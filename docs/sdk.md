@@ -139,6 +139,10 @@ python tool.py --mcp                                     → MCP stdio server
   所以 `context()` 的 `tg_id`／`user_data_dir`、`secret()` 在 MCP 模式一樣是那個人的（程序啟動時的環境變數）。
   `Confirm` 的確認來回 SYNOX 會帶 `_meta` 完成。細節見 [pack-format.md](pack-format.md)「`mcp`（stdio）」。
   跟 kind=cli 比：cli 每次呼叫開一次程序（簡單、互不影響）；mcp 長駐（啟動慢的工具、要保持連線的工具比較快），但你的程式要能連續處理很多次呼叫。
+- **接別人架好的遠端 MCP（P4b）**：不用寫程式，只寫 pack.json：`"capabilities": ["network"]`、
+  `"mcp": {"transport": "http", "url": "https://…", "tools_allow": [...], "effects": {...}}`，token 用 `auth.fields`（送成
+  `Authorization: Bearer`）或 `auth.type=oauth`（貼回網址的登入）。你的 SDK 工具本身這一版不提供 HTTP server
+  （`serve()` 只有 stdio）。細節見 [pack-format.md](pack-format.md)「`mcp`（http）」，範例在 `examples/mcp-remote-*`。
 
 ## secret() 與 context()
 
@@ -236,7 +240,8 @@ SDK 只是幫你產生 pack.json、印信封。SYNOX 跟工具的接口只有 CL
 
 ## 還沒做的
 
-- SYNOX 端連 MCP server：P4a 做了 stdio；HTTP（遠端 MCP、OAuth）、巢狀物件／陣列參數（schema 模式）、
+- SYNOX 端連 MCP server：P4a 做了 stdio、P4b 做了遠端 MCP（http，token 或 OAuth 貼回網址）；OAuth 的 loopback 收碼
+  （暫時開 127.0.0.1 埠）、動態註冊、伺服器主動推播（GET 長連線）、巢狀物件／陣列參數（schema 模式）、
   全部人共用一個 server 程序（`SharedScope`，只有介面）還沒做。
 - 確認憑證放在記憶體：SYNOX 重開之後舊的卡按不動（要重新下指令）。
 - `synox-sdk` 這個指令要 `pip install -e .` 才會出現；`python -m synox.sdk` 一樣能用。
