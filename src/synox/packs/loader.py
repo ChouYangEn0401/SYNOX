@@ -8,7 +8,8 @@
 
 安全管線（架構 v1 §4）在載入時做的是第 3 關：packs.lock 有記的 pack 每個檔重算 sha256，不符＝不載入
 （tampered）、通知擁有者一次；沒鎖的照舊載入（報告標 unlocked）。第 1、2 關在安裝時（packs/admin.py）。
-kind=cli 的 argv／env／cwd 樣板代換 {python}、{node}、{pack_dir}、{data_dir}、{user_data_dir}、{tg_id}（每次呼叫照下令的人）。
+kind=cli 的 argv／env／cwd 樣板代換 {python}、{node}、{pack_dir}、{data_dir}、{user_data_dir}、{tg_id}（每次呼叫照下令的人）；
+子程序另外拿到 SYNOX_USER_DATA_DIR／SYNOX_TG_ID／SYNOX_MODE／SYNOX_PACK_DIR／SYNOX_PACK_NAME／SYNOX_SECRET_ENV（context_env，給 synox_sdk）。
 runtime.python／node = "auto" 的環境在安裝時建（packs/envs.py）；沒建好＝status missing、detail 說怎麼重建。
 
 群組（/help 的一頁）由 loader 依 pack.json 定義（title、summary、access），pack 只往裡面掛葉節點；
@@ -338,6 +339,19 @@ def cli_env(m: Manifest, values: Dict[str, str]) -> Dict[str, str]:
     return out
 
 
+def context_env(m: Manifest, config, values: Dict[str, str], secret_fields=()) -> Dict[str, str]:
+    """synox_sdk 的 context()／secret() 讀的環境變數（每次呼叫照下令的人；蓋過 pack 自己寫的同名變數）：
+    SYNOX_USER_DATA_DIR、SYNOX_TG_ID、SYNOX_MODE（personal｜server）、SYNOX_PACK_DIR、SYNOX_PACK_NAME，
+    SYNOX_SECRET_ENV＝「auth 欄位名=環境變數名」逗號接起來（只有名字，值照舊只在那個環境變數裡）。"""
+    out = {"SYNOX_USER_DATA_DIR": values.get("user_data_dir", ""), "SYNOX_TG_ID": values.get("tg_id", ""),
+           "SYNOX_MODE": str(getattr(config, "mode", "personal") or "personal"),
+           "SYNOX_PACK_DIR": m.folder, "SYNOX_PACK_NAME": m.name}
+    pairs = [f"{f['name']}={f['env']}" for f in secret_fields or () if f.get("env")]
+    if pairs:
+        out["SYNOX_SECRET_ENV"] = ",".join(pairs)
+    return out
+
+
 def _install_cli(app, pack: Pack) -> None:
     """每個 command 一個表單指令（SDK Forms）。不直接用 SDK service.install：argv 的開頭、env、cwd 要照
     「這一次是誰」代換（{tg_id}、{user_data_dir}），service.install 的 JsonCli 是裝的時候就固定的。
@@ -361,6 +375,7 @@ def _install_cli(app, pack: Pack) -> None:
     def make_cli(ph: Dict[str, str], user=None) -> "JsonCli":
         cwd = substitute(m.cli.get("cwd") or ".", ph)
         env = cli_env(m, ph)
+        env.update(context_env(m, config, ph, pack.secret_fields))
         if pack.secret_fields and pack.secrets is not None:
             # auth.fields 有寫 env 的 secret：只走子程序環境（keep_env 放行這個名字），永遠不進 argv
             env.update(pack.secrets.env_for(m.name, pack.secret_fields, user))
@@ -466,7 +481,7 @@ def _install_cli(app, pack: Pack) -> None:
         if any(f.fresh_code for f in fields):
             # 要驗證碼的走 SDK Forms（碼永遠最後問、收到就驗）
             node = app.forms.leaf(pack.group, cmd.name, make_submit(cmd, stdin_template), cmd.summary,
-                                  fields=safe_fields, effect=cmd.effect, default=cmd.default)
+                                  fields=safe_fields, effect=cmd.effect, default=cmd.default, ai=c.get("ai") is not False)
         else:
             # 其他的跟內建 pack 一樣「照位置填、key=value 補、選填不追問」：/moneybook 120 午餐 直接存
             # （SDK Forms 會停下來問「要補充這些嗎？」，手機上多一輪、下一句指令還會把它打斷）。
@@ -479,9 +494,10 @@ def _install_cli(app, pack: Pack) -> None:
             submit = make_submit(cmd, stdin_template)
             node = kit.command(pack.group, cmd.name, lambda api, chat_id, user, values, _s=submit: _s(api, chat_id, user, values),
                                cmd.summary, fields=safe_fields, positional=max(0, min(n_pos, len(safe_fields))),
-                               effect=cmd.effect, default=cmd.default)
+                               effect=cmd.effect, default=cmd.default, ai=c.get("ai") is not False)
         positional = [n for n in kinds if f"{{{n}}}" in c.get("argv", [])]
-        meta[node.path] = {"argv": True, "positional": positional, "kinds": kinds}
+        # commands[].confirm：AI 呼叫前先送確認卡（effect 照寫的算；agent/loop.py 看這個）
+        meta[node.path] = {"argv": True, "positional": positional, "kinds": kinds, "confirm": c.get("confirm") is True}
 
 
 def _install_connector(app, pack: Pack) -> None:
