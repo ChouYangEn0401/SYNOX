@@ -124,7 +124,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 
 | 欄位 | 說明 |
 |---|---|
-| `capabilities` | 宣告要用的能力：`network`、`subprocess`、`filesystem:own`、`filesystem:any`（含 own）、`exec`。第 2 關的掃描看到用了、卻沒宣告 → **拒裝**。沒寫＝什麼都沒宣告（舊 pack 一樣，由掃描結果決定裝不裝得了） |
+| `capabilities` | 宣告要用的能力：`network`、`subprocess`、`filesystem:own`、`filesystem:any`（含 own）、`exec`。第 2 關的掃描看到用了、卻沒宣告 → **拒裝**。沒寫＝什麼都沒宣告（舊 pack 一樣，由掃描結果決定裝不裝得了）。`exec` 也包含：`sys.modules`、dunder 屬性（`x.__class__`、`__dict__`、`__globals__`…，用 `type(x)` 代替 `x.__class__`）、`getattr` 的屬性名不是字面字、`vars()`／`globals()`／`locals()`、呼叫對象看不出是什麼（`handlers[k](…)`、`f()(…)`：先指給一個變數再呼叫）。第 2 關攔的是直呼名與常見的間接取用，**是提醒不是門**；python pack 在 SYNOX 程序裡跑，個人版沒有任何隔離（[security.md](security.md)「五關」） |
 | `publisher` | 發行者（給人看；沒寫會在報告裡提醒）。**T2 pack 一定要寫**：安裝者要一字不差地輸入這個值才裝得了（見下面「信任層級」）；升級時換了一律紅字 |
 | `integrity.sha256` | `{"檔名": "64 個 16 進位字"}`，打包時算（`synox-sdk zip`）。有寫就每個檔都要對得上、也不能多出沒列的檔（`pack.json` 本身不算） |
 | `auth` | v0 的字串（`oauth`／`token`／`caldav`）照舊；v2 寫 `{"type": "none｜token｜oauth｜caldav｜file", "fields": [...]}`。`token`／`file` 的 `fields` 由 SYNOX 收，見下面「pack 的 secret」 |

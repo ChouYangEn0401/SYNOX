@@ -390,9 +390,22 @@ def load_tools(tool_path: str):
             sys.modules["synox_sdk"] = saved_sdk
     tools = []
     for value in vars(module).values():
+        if callable(value) and author._raw_spec(value) is None:
+            _legacy_spec(value)
         if callable(value) and author._raw_spec(value) is not None and value not in tools:
             tools.append(value)
     return module, tools
+
+
+def _legacy_spec(fn) -> None:
+    """舊版單檔 SDK 把 @tool 的宣告放在 fn.__dict__["__synox_tool__"]：搬到新的 synox_tool_spec 屬性（只在作者電腦上的
+    synox-sdk 裡做；放進 pack 的 synox_sdk.py 不碰 __dict__）。"""
+    try:
+        old = vars(fn).get("__synox_tool__")
+        if isinstance(old, dict):
+            fn.synox_tool_spec = old
+    except (TypeError, AttributeError):
+        pass
 
 
 def _skill_md(name: str, title: str, group: str, commands: List[dict]) -> str:
