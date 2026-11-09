@@ -143,6 +143,11 @@ python tool.py --mcp                                     → MCP stdio server
   `"mcp": {"transport": "http", "url": "https://…", "tools_allow": [...], "effects": {...}}`，token 用 `auth.fields`（送成
   `Authorization: Bearer`）或 `auth.type=oauth`（貼回網址的登入）。你的 SDK 工具本身這一版不提供 HTTP server
   （`serve()` 只有 stdio）。細節見 [pack-format.md](pack-format.md)「`mcp`（http）」，範例在 `examples/mcp-remote-*`。
+- **巢狀參數（schema 模式）**：MCP 工具的 `inputSchema` 有陣列、物件（例如一次加好幾個待辦），在 pack.json 寫
+  `"mcp": {…, "schema_tools": ["add-tasks"]}`，這些工具的參數照 schema 給 **AI**（保留整數、布林、陣列、物件），原型別送進 `arguments`。
+  人在聊天裡打不出巢狀：打字照舊只有平面欄位。schema 只能用簡單的子集（`type`、`properties`、`required`、`items`、`enum`、
+  長度與範圍、`pattern`）；用了 `$ref`、`oneOf`／`anyOf`、開放的 `additionalProperties`、路徑型 `format` 的工具不給 AI，`doctor` 寫原因。
+  硬上限：3 層、每個物件 20 鍵、字串 2000 字、陣列 50 項、整包 16 KB（schema 寫得再寬也一樣）。細節見 [pack-format.md](pack-format.md)「schema 模式」。
 
 ## secret() 與 context()
 
@@ -250,7 +255,7 @@ SDK 只是幫你產生 pack.json、印信封。SYNOX 跟工具的接口只有 CL
 - publisher 的簽章驗證（ed25519）：現在的 publisher 只是 pack.json 裡的一個字串，對方「明確輸入」它，但證明不了檔案出自你。
 
 - SYNOX 端連 MCP server：P4a 做了 stdio、P4b 做了遠端 MCP（http，token 或 OAuth 貼回網址）；OAuth 的 loopback 收碼
-  （暫時開 127.0.0.1 埠）、動態註冊、伺服器主動推播（GET 長連線）、巢狀物件／陣列參數（schema 模式）、
-  全部人共用一個 server 程序（`SharedScope`，只有介面）還沒做。
+  （暫時開 127.0.0.1 埠）、動態註冊、伺服器主動推播（GET 長連線）、
+  schema 模式不支援的構造（`$ref`、`oneOf`／`anyOf`／`allOf`）、全部人共用一個 server 程序（`SharedScope`，只有介面）還沒做。
 - 確認憑證放在記憶體：SYNOX 重開之後舊的卡按不動（要重新下指令）。
 - `synox-sdk` 這個指令要 `pip install -e .` 才會出現；`python -m synox.sdk` 一樣能用。

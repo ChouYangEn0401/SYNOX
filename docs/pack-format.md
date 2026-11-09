@@ -323,9 +323,25 @@ JSON-RPC 2.0（一行一個訊息），不開網路埠：
   伺服器列了別的也看不到、叫不到。**effect 只看 `effects`**：伺服器的 `annotations`（readOnlyHint 之類）一律不算；沒寫 effect 的當 `DANGER`。
 - 參數：第一次啟動時讀 `tools/list` 的 `inputSchema`（存在 `data/mcp/<pack>.tools.json`，之後載入先用存的）：`string`→`text`、
   `integer`→`int`、`number`→`number`、`boolean`→`bool`、`enum`→`choice`；屬性名轉成小寫英數字與 `_`（`maxResults` → `max_results`），
-  送出時換回原名、轉成 JSON 型別。**巢狀 `object`／`array` 這一版不給**（`doctor` 列出來）；是必填的話整個工具不給 AI、人打也不能跑。
+  送出時換回原名、轉成 JSON 型別。**巢狀 `object`／`array` 平面模式不給**（`doctor` 列出來）；是必填的話整個工具不給 AI、人打也不能跑
+  ——要給 AI 就把工具列進 `schema_tools`（下面「schema 模式」）。
   說明（`description` 第一段，截到 200 字）進 `/help` 與 AI 的工具說明。還沒啟動過時，指令只有一個 `args` 參數，第一次呼叫後換成真的欄位。
   打字的填法跟 cli 一樣：必填的照位置填、其他 `key=value`。
+- **schema 模式**（巢狀參數，stdio 與 http 都可以）：`"schema_tools": ["add-tasks", "create-pages"]`（一定要是 `tools_allow` 裡的工具）。
+  這些工具的 `inputSchema` 先在本地正規化，支援的話 **AI** 拿到保留型別的工具定義（整數、布林、陣列、物件），呼叫參數照 schema 驗過，
+  原樣（原型別、原屬性名）當 `tools/call` 的 `arguments`。**只給 AI**：人在聊天裡打不出巢狀，打字照舊只有平面欄位
+  （必填的是巢狀＝人打字不能用，會說「只能經 AI 呼叫」）。
+  - 支援的子集：`type`（單一型別，或 `["integer", "null"]` 這種加 null）、`properties`、`required`、`items`（單一 schema）、`enum`、
+    `minimum`／`maximum`／`exclusiveMinimum`／`exclusiveMaximum`、`minLength`／`maxLength`、`minItems`／`maxItems`、`pattern`，
+    以及只是說明的 `description`、`title`、`default`、`examples`、`format`、`$schema`、`$comment`…。
+  - **不支援＝這個工具不給 AI**（`doctor` 寫原因）：`$ref`／`$defs`、`oneOf`／`anyOf`／`allOf`／`not`、`if`／`then`、`patternProperties`、
+    `additionalProperties` 不是 `false`、沒寫 `type`、tuple 型的 `items`、`format` 看起來是路徑（path、file、dir、folder）、
+    屬性名不是 `[A-Za-z0-9_.-]{1,64}`、schema 比 3 層深、一個物件超過 20 個屬性、太長或有巢狀量詞的 `pattern`。
+    沒寫 `additionalProperties` 的物件 SYNOX 一律當成 `false`（schema 沒列的鍵不收）。
+  - 硬限制（schema 寫得再寬也一樣）：巢狀 ≤3 層（最外層的參數物件算 1，`{"tasks": [{"title": …}]}` 剛好 3）、每個物件 ≤20 鍵、
+    字串 ≤2000 字、陣列 ≤50 項、整包 JSON ≤16 KB、每個字串都不能等於或夾帶已存的 secret。
+  - effect、核准卡照舊：`DANGER` 的卡把參數一行一個列出來（`pages[1].title = 「第一頁」`，長字串截短並標原長度，超過 30 行才省略並說省了幾行）。
+  - 升級時 `schema_tools` 多了工具＝紅字。
 - **程序**：每個（pack, 使用者）一個長駐子程序，第一次呼叫才啟動、閒置 10 分鐘收掉、崩潰了下次呼叫重啟、SYNOX 關閉時全部收掉；
   `auth.fields` 的值改了，下一次呼叫換新程序。逾時、印了非 JSON 的東西、中途結束 → 回一句人話（「超過 60 秒沒有回應，已經停掉」），
   這個程序收掉，下次重啟；不會卡住 bot。伺服器的 stderr 寫進 `<user_data_dir>/logs/mcp-<pack>.log`（不給聊天）。

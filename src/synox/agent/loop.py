@@ -169,7 +169,7 @@ class AgentLoop:
     def _turn(self, api, chat_id: int, user, text: str) -> None:
         registry = self.app.registry
         skills = skills_mod.from_packs(self.visible_packs(user))
-        tools = tools_mod.build(registry, lambda n: ai_decision(self.app, user, n))
+        tools = tools_mod.build(registry, lambda n: ai_decision(self.app, user, n), self.app)
         if skills:
             tools.append(skills_mod.read_tool_spec(skills))
         native = bool(self.adapter.supports_tools)
@@ -234,6 +234,8 @@ class AgentLoop:
             return f"沒有 {call.name} 這個工具（或你不能用）。", False
         if not decision.allowed:
             return f"{node.command} 要先解鎖（/sudo），請使用者自己打。", False
+        if gate4.schema_of(self.app, node) is not None:          # schema 模式（巢狀參數，只有 MCP 工具）
+            return self.call_schema_tool(api, chat_id, user, node, call)
         problem = gate4.check_call(self.app, node, call.args, user, call.name)      # 第 4 關：執行前驗參數
         if problem:
             logging.warning("[AGENT] gate 4 rejected %s: %s", call.name, problem)
@@ -267,5 +269,33 @@ class AgentLoop:
             return f"執行出錯：{type(e).__name__}: {e}", False
         result = capture.close()
         if capture.carded:                      # 工具執行中要確認（needs_confirm）：卡已經給人了，這一輪停在這裡
+            return result, True
+        return result or "（做完了，沒有輸出）", False
+
+    def call_schema_tool(self, api, chat_id: int, user, node: Node, call: ToolCall) -> Tuple[str, bool]:
+        """schema 模式：第 4 關照 schema 驗（validate.check_schema_call），結構化參數原樣交給 MCP 後端（不轉 argv）。
+        風險等級、核准卡照舊（effect 來自 pack.json）；DANGER 的卡把巢狀參數一行一個列出來（mcp_schema.describe）。"""
+        from synox.packs import mcp_schema
+        args, problem = gate4.check_schema_call(self.app, node, call.args, user, call.name)
+        if problem:
+            logging.warning("[AGENT] gate 4 rejected %s: %s", call.name, problem)
+            return problem, False
+        runner = gate4.schema_runner(self.app, node)
+        if needs_card(node, []) or gate4.wants_confirm(self.app, node):
+            if self.desk is None:
+                return "這個動作要使用者確認，但確認卡沒有接上，所以不執行。", False
+            lines = mcp_schema.describe(gate4.schema_of(self.app, node), args)
+            self.desk.request(api, chat_id, user, node, [], lines=lines,
+                              run=lambda api2, chat2, clicker: runner(api2, chat2, clicker, args))
+            return "", True
+        capture = CaptureApi(api, chat_id)
+        try:
+            runner(capture, chat_id, user, args)
+        except Exception as e:
+            logging.exception("[AGENT] tool %s failed", call.name)
+            capture.close()
+            return f"執行出錯：{type(e).__name__}: {e}", False
+        result = capture.close()
+        if capture.carded:
             return result, True
         return result or "（做完了，沒有輸出）", False

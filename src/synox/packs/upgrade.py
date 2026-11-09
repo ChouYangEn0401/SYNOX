@@ -17,7 +17,8 @@ package-lock.json 跟舊版不同、或現在的 data/envs/<name>/ 對不上 →
 「改了什麼」：新增／移除的 command（cli 的 commands、mcp 的 tools_allow；python pack 的指令寫在程式裡，比不出來）；
 effect 變寬（READ→WRITE→DANGER）、capabilities 新增、執行方式（kind、runtime、cli.argv／python／cwd／env、python.module）
 或 auth 改動、access 變寬、多要密鑰環境變數、新加網頁面板、surfaces 多了 channel、data 變寬（none → user → shared）、
-trust（擁有者這次選的，跟舊鎖不同；不在 pack.json）、publisher 改了——這些 alert=True，畫面上用紅字標出來。
+trust（擁有者這次選的，跟舊鎖不同；不在 pack.json）、publisher 改了、mcp.schema_tools 多了工具（巢狀參數給 AI）
+——這些 alert=True，畫面上用紅字標出來。
 T2（SDK P7，packs/tier.py）：T1 → T2、新增 exec、可執行的東西變多、publisher 變了 → 紅字，而且要重新輸入發行者
 （report["tier"]["needs_publisher"]；upgrade_staged 的 trust_publisher）；都沒有＝沿用舊鎖的 trusted_publisher。
 
@@ -130,6 +131,10 @@ def diff_manifests(old: Manifest, new: Manifest) -> List[dict]:
                 continue
             wider = EFFECT_RANK.get(b, 2) > EFFECT_RANK.get(a, 2)
             add("effect", f"command {name} 的 effect {a} → {b}" + ("（變寬）" if wider else "（變窄）"), wider)
+    if old.kind == "mcp" or new.kind == "mcp":
+        old_nested = set((old.mcp or {}).get("schema_tools") or ())
+        for name in sorted(set((new.mcp or {}).get("schema_tools") or ()) - old_nested):
+            add("schema_mode", f"工具 {name} 改成 schema 模式（巢狀參數照 inputSchema 給 AI）", True)
     for cap in new.capabilities:
         if cap not in old.capabilities:
             add("capability_added", f"新增能力 {cap}", True)

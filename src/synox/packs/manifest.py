@@ -44,6 +44,9 @@ pack.json v2（架構 v1 §4；在上面之上加欄位，舊的 pack 照舊可�
               "bearer": "token", "tools_allow": […], "effects": {…}}                     url 一定 https；要宣告 network；
                                                  auth.type=token 的 secret 欄位當 Authorization: Bearer；
                                                  auth.type=oauth＋auth.oauth＝貼回網址的授權碼流程（packs/oauth.py）
+              "schema_tools": ["add-tasks"]                                              （stdio／http 都可以）schema 模式：
+                                                 這些工具的巢狀參數照 inputSchema 給 AI（只給 AI；packs/mcp_schema.py）；
+                                                 一定要是 tools_allow 裡的工具
 
 權限宣告（PERM-2；舊 pack 沒寫照舊相容，見 _check_scope）：
 
@@ -526,6 +529,15 @@ def _check_v2(raw: dict, kind, problems: List[str]) -> dict:
         if missing:
             problems.append(f"mcp.effects 沒寫這些工具的 effect：{'、'.join(missing)}（每個允許的工具都要寫）")
         mcp = {**mcp, "tools_allow": list(allow), "effects": {t: norm_effect(effects.get(t)) for t in allow}}
+        nested = mcp.get("schema_tools")
+        if nested is not None:
+            if not isinstance(nested, list) or not all(isinstance(t, str) and t for t in nested):
+                problems.append("mcp.schema_tools 要是工具名清單（這些工具的巢狀參數照 inputSchema 給 AI）")
+            else:
+                outside = [t for t in nested if t not in allow]
+                if outside:
+                    problems.append(f"mcp.schema_tools 只能列 tools_allow 裡的工具（{'、'.join(outside)} 不在裡面）")
+                mcp["schema_tools"] = [t for t in dict.fromkeys(nested) if t in allow]
         _check_mcp_transport(mcp, caps, problems, auth_info)
     return {"capabilities": caps, "capabilities_declared": caps_raw is not None, "publisher": publisher,
             "integrity": integrity, "auth_info": auth_info, "mcp": mcp}

@@ -35,15 +35,21 @@ class ApprovalDesk:
         self.on_done = on_done                # (chat_id, 一句話) → 記進 AI 的對話紀錄
 
     def request(self, api, chat_id: int, user, node, argv: List[str], why: str = "", *, grant: str = "",
-                rerun: Optional[Callable] = None, header: str = "⚠️ AI 想執行") -> None:
+                rerun: Optional[Callable] = None, header: str = "⚠️ AI 想執行", lines: Optional[List[str]] = None,
+                run: Optional[Callable] = None) -> None:
+        """lines＋run：schema 模式（巢狀參數）的卡——參數一行一個列在卡上，按 ✅ 叫 run(api, chat_id, 按的人)
+        （同一組結構化參數，不經 argv）。"""
         ttl = self.app.timing.confirm_ttl
         payload = {"path": node.path, "argv": list(argv), "chat_id": chat_id}
         if grant:
             payload.update(grant=grant, rerun=rerun)
+        if run is not None:
+            payload["run"] = run
         token = self.pending.put(payload, user.tg_id, ttl)
         shown = " ".join([node.command] + list(argv))
         minutes = max(1, int(ttl // 60))
-        text = (f"{header}：{shown}\n{node.summary}" + (f"\n{why}" if why else "") +
+        listed = ("\n參數：\n" + "\n".join(lines)) if lines else ""
+        text = (f"{header}：{shown}\n{node.summary}" + listed + (f"\n{why}" if why else "") +
                 f"\n（{minutes} 分鐘內有效；按 ✅ 才會執行）")
         api.send_message(chat_id, text, reply_markup={"inline_keyboard": [[
             {"text": "✅ 執行", "callback_data": f"{PREFIX}go:{token}"},
@@ -78,6 +84,8 @@ class ApprovalDesk:
             return
         if grant and callable(payload.get("rerun")):
             payload["rerun"](api, cb.chat_id, clicker, grant)     # 同一組參數重跑，帶一次性憑證（loader 驗）
+        elif callable(payload.get("run")):
+            payload["run"](api, cb.chat_id, clicker)              # schema 模式：同一組結構化參數
         else:
             node.fn(api, cb.chat_id, clicker, list(payload["argv"]))
         self._done(cb.chat_id, f"使用者按了 ✅，已執行 {shown}")
