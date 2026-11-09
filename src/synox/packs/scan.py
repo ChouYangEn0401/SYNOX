@@ -13,6 +13,7 @@
                其他（路徑是變數、相對路徑）→ filesystem:own（pack 自己的檔案應該用 pack.path() 或 pack.store）
     exec       exec、eval、compile、__import__、importlib、ctypes、pickle.loads、marshal、getattr(x, "system")… → exec
     env        os.environ、os.getenv：**只列出來給人看**（不算 capability，也不擋）
+    secret     pack.secret(…)：讀使用者在「連接」填的值（pack.json auth.fields）；只列出來，不算 capability
     binary     .pyc、.pyd、.dll、.exe… 掃不到的東西 → exec
   沒宣告對應的 capability ＝拒裝（列出檔名:行號）。舊的 pack 沒寫 capabilities＝什麼都沒宣告，所以掃描結果決定。
   .py 解析不了（語法錯）也拒裝：掃不到就不能說它安全。
@@ -62,10 +63,10 @@ CODE_EXT = (".py",) + BINARY_EXT
 
 # kind → 要宣告的 capability（"" ＝只列給人看、不擋）
 CAPABILITY_OF = {"network": "network", "subprocess": "subprocess", "filesystem:own": "filesystem:own",
-                 "filesystem:any": "filesystem:any", "exec": "exec", "binary": "exec", "env": ""}
+                 "filesystem:any": "filesystem:any", "exec": "exec", "binary": "exec", "env": "", "secret": ""}
 LABELS = {"network": "連網", "subprocess": "開別的程式", "filesystem:own": "讀寫檔案",
           "filesystem:any": "讀寫 pack 以外的檔案", "exec": "動態執行程式碼", "binary": "掃不到的執行檔",
-          "env": "讀環境變數（可能是密鑰）", "argv": "argv 樣板不合規則", "code": "不該有程式檔",
+          "env": "讀環境變數（可能是密鑰）", "secret": "讀使用者在「連接」填的 secret", "argv": "argv 樣板不合規則", "code": "不該有程式檔",
           "syntax": "程式解析不了", "mcp": "MCP 設定"}
 
 _PLACEHOLDER = re.compile(r"\{(\w+)\}")
@@ -264,6 +265,8 @@ class _Visitor(ast.NodeVisitor):
                 self.add(node, self._path_kind(node.args), f"{name}(…)")
             elif name in ENV_CALLS:
                 self.add(node, "env", f"{name}(…)")
+            elif name == "pack.secret" or name.endswith(".pack.secret"):
+                self.add(node, "secret", "pack.secret(…)")
             elif name in ("getattr", "setattr", "delattr") and name not in self.aliases and len(node.args) >= 2:
                 attr = _literal_path(node.args[1])
                 if attr is None or attr in DANGER_ATTRS or attr.startswith(("exec", "spawn", "__")):

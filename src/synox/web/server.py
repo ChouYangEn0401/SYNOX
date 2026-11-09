@@ -8,6 +8,9 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     GET  /login?t=<token>           一次性登入連結 → cookie session → 303 到 /#chat
     GET  /packs/<name>/panel        pack 的 web.panel（工具頁用 <iframe sandbox> 掛）
     GET  /api/pack-staged/<token>   `python -m synox install` 暫存好的 pack 的檢查報告（擁有者；網頁 ?pack=<token>#settings）
+    GET  /api/pack-secrets/<name>   工具頁「連接」：auth.fields 的狀態（有填、最後 4 碼；secret 的值永遠不回）
+    POST /api/pack-secrets/<name>   {"values": {欄位: 值}, "clear": [...]}：存進保管箱（空字串＝沿用原值）
+                                    個人版只有擁有者、伺服器版每人設自己的
     /api/...                        JSON；都要登入；改東西的（非 GET）都要 X-SYNOX-CSRF 等於 session 的 csrf，
                                     有 Origin 的話要跟 Host 一樣
 
@@ -275,6 +278,9 @@ class WebUI:
             m = re.match(r"^/api/packs/([a-z][a-z0-9_-]{0,31})/([a-z0-9][a-z0-9_-]{0,31})$", path)
             if m:
                 return self.pack_api(user, m.group(1), m.group(2))
+            m = re.match(r"^/api/pack-secrets/([a-z][a-z0-9_-]{0,31})$", path)
+            if m:
+                return self.pack_secrets_get(user, m.group(1))
             if path == "/api/settings":
                 return _json(200, self.settings(user))
             if path == "/api/accounts":
@@ -303,6 +309,9 @@ class WebUI:
             return self.save_llm(user, data)
         if path == "/api/settings/llm/test":
             return self.test_llm(user, data)
+        m = re.match(r"^/api/pack-secrets/([a-z][a-z0-9_-]{0,31})$", path)
+        if m:
+            return self.pack_secrets_save(user, m.group(1), data)
         if path == "/api/packs/install":
             return self.pack_install(user, data)
         if path == "/api/packs/remove":
@@ -403,12 +412,20 @@ class WebUI:
                 continue
             leaves = [n for n in group.walk() if not n.is_group and registry.visible(user, n)]
             connector = pack.manifest.kind in ("connector", "mcp")
-            packs_out.append({
+            row = {
                 "name": pack.name, "title": pack.manifest.title, "summary": pack.manifest.summary,
                 "kind": pack.manifest.kind, "version": pack.manifest.version,
                 "status": "要先設定" if connector else "已連接",
                 "panel": f"/packs/{pack.name}/panel" if pack.manifest.web.get("panel") else None,
-                "commands": [self._leaf_info(n) for n in leaves]})
+                "commands": [self._leaf_info(n) for n in leaves]}
+            fields = getattr(pack, "secret_fields", None) or []
+            if fields:                          # auth.fields 由 SYNOX 收：照這個人存了沒算狀態
+                store = self._secret_store()
+                missing = store.missing(pack.name, fields, user) if store is not None else [f["label"] for f in fields]
+                row["connect"] = self._can_connect(user)
+                row["missing"] = missing
+                row["status"] = "要先設定" if missing else "已連接"
+            packs_out.append(row)
         groups_out = []
         basics = [n for n in registry.root.children.values() if not n.is_group and registry.visible(user, n)]
         if basics:
@@ -432,6 +449,67 @@ class WebUI:
         if route not in pack.manifest.web.get("api", []) or fn is None:
             return _err(404, f"{name} 沒有宣告 GET /{route}。")
         return _json(200, fn(user))
+
+    # ── pack 的 secret（工具頁的「連接」） ────────────────────────────
+    # 個人版：只有擁有者；伺服器版：每個人設自己的（看得到這個 pack 的人）。值永遠不回傳（只回有填、最後 4 碼）。
+
+    def _secret_store(self):
+        from synox.packs import secrets as pack_secrets
+        return pack_secrets.of(self.app)
+
+    def _can_connect(self, user) -> bool:
+        return self.server_mode or self.is_owner(user)
+
+    def _secret_pack(self, user, name: str):
+        """(pack, 錯誤回應)。"""
+        pack = self._pack(name)
+        if pack is None or not self._pack_visible(user, pack):
+            return None, _err(404, "沒有這個 pack。")
+        if not getattr(pack, "secret_fields", None):
+            return None, _err(404, f"{name} 不用在這裡連接（沒有宣告 auth.fields，或 pack 自己有設定指令）。")
+        if not self._can_connect(user):
+            return None, _err(403, "只有擁有者能設定這台電腦的 pack 連接。")
+        store = self._secret_store()
+        if store is None or not store.available:
+            return None, _err(400, "保管箱沒有打開，secret 沒地方放（python -m synox doctor 看原因）。")
+        return pack, None
+
+    def _secret_view(self, user, pack) -> dict:
+        store = self._secret_store()
+        fields = store.status(pack.name, pack.secret_fields, user)
+        missing = store.missing(pack.name, pack.secret_fields, user)
+        return {"name": pack.name, "title": pack.manifest.title, "type": pack.manifest.auth_info.get("type", ""),
+                "fields": fields, "missing": missing, "connected": not missing,
+                "status": "要先設定" if missing else "已連接"}
+
+    def pack_secrets_get(self, user, name: str) -> Resp:
+        pack, denied = self._secret_pack(user, name)
+        if denied:
+            return denied
+        return _json(200, self._secret_view(user, pack))
+
+    def pack_secrets_save(self, user, name: str, data: dict) -> Resp:
+        """{"values": {欄位: 值（空字串＝沿用原值）}, "clear": [欄位…]}。"""
+        from synox.packs.secrets import SecretError
+        pack, denied = self._secret_pack(user, name)
+        if denied:
+            return denied
+        values = data.get("values") or {}
+        clear = data.get("clear") or []
+        if not isinstance(values, dict) or not isinstance(clear, list) or \
+                not all(isinstance(c, str) for c in clear):
+            return _err(400, "values 要是 {欄位: 值}，clear 要是欄位名的清單。")
+        try:
+            self._secret_store().update(pack.name, pack.secret_fields, values, user, clear=clear)
+        except SecretError as e:
+            return _err(400, str(e))
+        logging.info("[WEB] %s saved secrets for pack %s (fields: %s)", user.tg_id, pack.name,
+                     ",".join(sorted(k for k, v in values.items() if v)) or "-")
+        out = self._secret_view(user, pack)
+        out["ok"] = True
+        out["message"] = "✅ 已連接（存在保管箱，密文）。" if out["connected"] else \
+            "存好了，還缺：" + "、".join(out["missing"])
+        return _json(200, out)
 
     # ── 設定頁 ───────────────────────────────────────────────────────
 
