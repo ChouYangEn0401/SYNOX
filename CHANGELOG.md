@@ -1,6 +1,17 @@
 # Changelog
 
-## 未發佈（branch feat/llm-and-modes）
+## 未發佈（branch feat/web-ui）
+
+### 新增
+- **Web UI**（`src/synox/web/`，標準函式庫、只綁 127.0.0.1、預設埠 8830）：`/web` 一次性登入連結（7 天、只能用一次）→ cookie session；
+  對話頁（每人的對話紀錄、密文、每段 50 則；按鈕可以按、核准卡可以用）、工具頁（看得到的功能、每個指令一個執行框、pack 面板）、
+  設定頁（AI 來源、`.synoxpack` 上傳／移除／重新載入、伺服器版帳號表、加密備份下載）。`/web_off` 關掉。埠開不起來 bot 照常跑。
+- pack.json 的 `web.panel`／`web.api`、`pack.web_route()`；記帳的面板範例。
+- 備份：`synox/backup.py`（data/ 的 zip，用保管箱主金鑰加密）。
+- **伺服器版的成員**：AI（工具只有他能用的、每月額度 `ai_member_monthly_usd`、`/ai_budget`）、每人自己的提醒與排程。
+  提醒 pack 的 access 改成 `member`（個人版不變）。
+
+## branch feat/llm-and-modes（已合併）
 
 ### 新增
 - **個人版／伺服器版**：`config.json` 的 `"mode": "personal" | "server"`（沒寫＝personal，行為跟以前一樣）。

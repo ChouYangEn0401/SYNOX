@@ -19,13 +19,16 @@
 |---|---|
 | `vendor/isdtelekit/` | ISDTeleKitSDK 的**原樣**複製（版本與 commit 在 `vendor/VERSION`）。不要改；要不同的行為就在 `src/synox` 寫轉接 |
 | `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜doctor｜stop` |
-| `src/synox/app.py` | `build(config, home=, adapter=, vault=)`：SDK `build_app` → basics/help → `packs.load_all` → `agent.install` → `schedule.install` |
+| `src/synox/app.py` | `build(config, home=, adapter=, vault=, config_path=)`：SDK `build_app` → basics/help → `packs.load_all` → `agent.install` → `schedule.install` → `web.install` |
 | `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`；路徑相對 SYNOX 資料夾（`ROOT`） |
 | `src/synox/llm/` | `base.py`（`ChatAdapter`、`Message`、`Reply`、`ToolCall`、`ToolSpec`）、`easy_llm.py`（openai／anthropic／gemini／openai_compat，經 `ntu_easy_llm.agent`，lazy import）、`claude_code`、`fake`、`textproto`、`factory.make_adapter` |
 | `src/synox/vault/` | `vault.py`（Fernet＋每檔 scrypt、`*.json.enc`；`for_user(id)`＝伺服器版每人的保管箱，HKDF 衍生）、`keyring.py`（DPAPI 包住主金鑰 `data/.synox.key`） |
 | `src/synox/packs/` | `manifest.py`（pack.json 檢查）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`）、`kit.py`（照位置填的指令） |
-| `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
-| `src/synox/schedule/` | `store.py`、`runner.py`（30 秒、via=ROUTINE）、`commands.py`（`/remind_*`、`/schedule_*`） |
+| `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`budget.py`（伺服器版成員每月額度）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
+| `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（30 秒、via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`、`/schedule_*`） |
+| `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS）、`__init__.py`（`install`、`/web`、`/web_off`） |
+| `src/synox/packs/admin.py` | `.synoxpack` 上傳檢查／安裝／移除到 `packs/_removed/`／`reload()`（Web UI 設定頁用） |
+| `src/synox/backup.py` | `export_backup`／`read_backup`：data/ 的 zip 用保管箱主金鑰加密（`Vault.encrypt_bytes`） |
 | `src/synox/wizard/` | `pages.py`（tkinter 畫面：這台給誰用 → token → 配對 → AI → 完成）、`logic.py`（寫 config、mode、AI 頁的 helper、金鑰進保管箱）、`telegram_probe.py`（getMe、配對碼）、`shortcuts.py` |
 | `src/synox/doctor.py` | 健康檢查（不改任何檔、不產生金鑰） |
 | `packs/notes`、`packs/money`、`packs/remind` | 出廠 pack；remind 的程式在 `synox/schedule` |
@@ -47,12 +50,17 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 4. **安裝不需要使用者打任何指令**：Setup.bat 之後全部在視窗裡點。
 5. **沒有隱藏的背景程式**：Start.bat 開看得到的（最小化）視窗；開機自啟是使用者在精靈裡勾的。
 6. **.bat 只用 ASCII＋CRLF；.ps1 UTF-8 有 BOM＋CRLF；requirements.txt 只用 ASCII**。`.gitattributes` 的萬用規則放第一行（後面的規則才蓋得過它）。
-7. **測試不綁埠、不連網、不開 Telegram、不開 `claude`**；requests 用假的 session，`claude` 用假的 runner/which。
+7. **測試不綁埠、不連網、不開 Telegram、不開 `claude`**；requests 用假的 session，`claude` 用假的 runner/which；
+   Web UI 測 `WebUI.handle()`／`route()`，不開 `ThreadingHTTPServer`。
 8. **repo 裡沒有真名、token、Telegram id 或個人資料**；`config.json`、`data/` 在 `.gitignore`。範例一律佔位字。
+9. **Web UI 只綁 127.0.0.1**（`web/server.py` 的 `HOST`，不從 config 讀）；對外是營運者的反向代理＋TLS。每個 API 用 session 的那個人算權限，
+   非 GET 要 CSRF header；網頁的字一律 `textContent`，伺服器產生的 HTML 一律 escape；沒有外部資源、沒有 inline 事件（nonce CSP）。
+   網頁送出的指令與按鈕一律經 `dispatcher.handle`（同一個 authorize），按鈕的 callback_data 還要真的在那則訊息上。
 
 另外：
 - pack 的群組由 loader 依 pack.json 定義（`loader.group_policy`）：`access: owner`（預設）＝整組 `owner_only`；`member`＝伺服器版 `role=MEMBER`、
-  個人版 `owner_only`；`everyone`＝最低一級。v0 的 AI 只給擁有者（`AgentFallback.accepts`），伺服器版也一樣。
+  個人版 `owner_only`；`everyone`＝最低一級。agent 群組也用同一個規則（`member`）：個人版只有擁有者，伺服器版成員以上；
+  `AgentFallback.accepts` 問的是 `authorize(user, agent.ai)`，不另寫判斷。訪客（最低一級）在 `ai_decision` 一律沒有工具。
 - **每個人自己的資料一律 `pack.store.of(user)`**（notes、money）。伺服器版 → `data/users/<id>/`，vault 金鑰 HKDF(主金鑰, `user:<id>`)；
   個人版 → 共用的那一份。營運者仍讀得到（docs/security.md）；「營運者也看不到」的 SYNOX Node 是另一份規格，不在這裡做。
 - 伺服器版才裝 SDK 的 `accounts`、`limits` pack（`app.install_server_packs`）；陌生人＝GUEST（SDK `UserManager`）。
@@ -74,7 +82,10 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 | 誰用得到 | 擁有者 | 擁有者＋被升級的人；陌生人是 GUEST，只看得到 `access: everyone` |
 | 帳號管理 | 沒有 | SDK `accounts`（`/me`、`/me_upgrade`、`/user_list`、`/user_role`）＋`limits`（`/limit_*`） |
 | pack 資料 | `data/<pack>.json.enc` 一份 | `data/users/<id>/<pack>.json.enc` 每人一份 |
-| 提醒、排程、AI | 擁有者 | 仍然只有擁有者（`access: owner`；排程的 store 沒有分人） |
+| 提醒、排程 | 擁有者；`data/schedule.json.enc` | 成員以上；每人 `data/users/<id>/schedule.json.enc`，提醒送給建立的人，排程以他的身分跑（建立時 via=SCHEDULE 檢查裡面的指令） |
+| AI | 擁有者 | 成員以上；工具只有 `ai_decision` 對他放行的；每月額度 `ai_member_monthly_usd`（預設 2.0，`/ai_budget` 調），用量 `data/users/<id>/llm_usage.json` |
+| 網頁介面 | `/web`：擁有者 | `/web`：每個人（訪客也可以，看到的只有自己能用的）；帳號頁給擁有者／管理員 |
+| 舊資料 | — | 個人版的共用檔不會自動搬到 `data/users/<擁有者>/`（留著不動；改回個人版又會用它們） |
 
 工程師模式：不跑精靈，照 `config.example.json` 寫 `config.json`（含 `mode`），`python -m synox run`。
 
@@ -101,7 +112,11 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 - 經 AI 呼叫、會丟到 `app.tasks` 背景回覆的指令（例如 kind=cli 的 service 指令）：AI 拿到的工具結果是空的，真正的回覆之後直接送給使用者。
 - 核准卡按下執行的結果直接給使用者，只在 AI 的紀錄留一句「已執行」，不會自動再開一輪讓 AI 接著做。
 - `Setup.bat` 的完整安裝路徑（winget、embeddable zip）沒有在任何一台陌生電腦上跑過；精靈的畫面沒有自動化測試（只測了 logic／probe／shortcuts）。
-- `/backup`（spec §6）沒做。connector 只有設計稿。
+- connector 只有設計稿（工具頁顯示「要先設定」，沒有「連接」按鈕）。
 - 文字協定一次只解析一個工具呼叫。
-- 伺服器版：個人版的舊資料不會自動搬到擁有者的 `data/users/<id>/`；提醒／排程沒有分人（仍是擁有者限定）；AI 仍只給擁有者；
-  精靈的伺服器版沒有多問「誰是管理員」（擁有者之後用 `/user_role <id> admin`）。
+- 伺服器版：個人版的舊資料不會自動搬到擁有者的 `data/users/<id>/`；精靈的伺服器版沒有多問「誰是管理員」（擁有者之後用 `/user_role <id> admin`
+  或網頁帳號頁）。成員的 AI 額度用 token × 單價估（`llm.price_in`／`price_out`，預設 3／15 美元每百萬 token），不是供應者的帳單。
+- Web UI：主動通知（提醒、排程的結果、申請通知）仍然只走 Telegram（`app.home`），網頁對話頁只看得到在網頁上講的；圖片、檔案在網頁只顯示一行說明；
+  網頁與 Telegram 的私訊共用同一份 AI 對話記憶（chat_id 都是那個人的 id）；pack reload 拿不掉 pack 自己綁的按鈕前綴；
+  Telegram 指令選單在 reload 之後不會自動重設（重開 bot 才會）；設定頁改 AI 來源要重開 bot 才生效。
+- `/backup` 的 Telegram 指令與還原按鈕沒做（只有網頁下載＋`synox.backup.restore_cli`）；備份綁 DPAPI，換電腦解不開。
