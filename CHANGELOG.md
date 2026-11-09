@@ -1,5 +1,24 @@
 # Changelog
 
+## 未發佈（branch feat/perm8）
+
+### 新增
+- **PERM-8 伺服器版 python pack 信任**：`trust: third-party` 的 kind=python pack 在伺服器版整組只對擁有者可見（成員打了＝「未知指令」、
+  `/help`、AI 工具清單都沒有）；出廠的（`loader.BUNDLED`，在內建 `packs/`／`connectors/`）與擁有者安裝時選 `core` 的照常。
+  沒有鎖的（手動放進 `packs/` 或 `packs.dirs`）＝third-party。原因寫在 pack 清單的 detail、`doctor` 與 `packs status` 的 🔐 行。個人版不受影響。
+- 伺服器版沒鎖、不是出廠的 pack 載入前補跑一次第 2 關掃描：沒過＝新狀態 `rejected`、不載入（網頁顯示「掃描沒過，沒有載入」）；
+  `PackStatus.scan`＝passed｜failed。`doctor`、`packs status` 也列出來。
+- **`pack.path_of(user, …)`**：伺服器版 `data/users/<id>/<pack>/files/`、個人版 `data/<pack>/files/`；資料夾先建好；絕對路徑、`..`、
+  跑出資料夾一律丟 `PackPathError`；伺服器版一定要給 user。
+- 第 2 關：`data: user` 的 python pack 用 `pack.path(` ＝拒（提示改用 `path_of`）；`data: none` 用 `pack.path_of` 也拒。
+- 測試 `tests/test_perm8.py`（16 個）。
+
+### 變更
+- 伺服器版 `data: user` 的 pack 呼叫 `pack.path()`（全部人共用的 `data/packs/<name>/`）丟 `PackPathError`、說改用 `path_of`；個人版照舊。
+  `pack.path()` 也擋 `..` 逃逸。出廠 pack 與 4 個 connector 都沒有用 `pack.path`，不用改。
+- `python -m synox packs status`／`lock`／`env` 找 pack 時也看 config.json 的 `packs.dirs`。
+- 既有測試裡手放、要給成員看的 python pack 先用 `conftest.trust_core` 鎖成 core（test_policy、test_modes、test_perm2）。
+
 ## 未發佈（branch feat/perm7）
 
 ### 新增

@@ -13,6 +13,9 @@ kind=cli 的 argv／env／cwd 樣板代換 {python}、{node}、{pack_dir}、{dat
 runtime.python／node = "auto" 的環境在安裝時建（packs/envs.py）；沒建好＝status missing、detail 說怎麼重建。
 每次叫 cli 子程序都先過 synox/sandbox.py（PERM-7）：grants 從宣告算、後端包一層 argv（none＝原樣）；
 伺服器版 policy.sandbox.required_for 命中又沒有真隔離 → 那個 cli pack 整組 owner_only（detail 寫原因）。
+伺服器版 kind=python 的信任（PERM-8）：出廠的（BUNDLED）＝core；有鎖看 packs.lock 的 trust；沒鎖（手動放的）＝third-party。
+third-party 的 python pack 整組 owner_only（成員打了跟不存在一樣、AI 工具清單也沒有；detail 寫原因）。
+伺服器版沒鎖、不是出廠的 pack 載入前補跑一次第 2 關（scan.gate2），沒過＝status rejected、不載入。
 
 群組（/help 的一頁）由 loader 依 pack.json 定義（title、summary、access），pack 只往裡面掛葉節點；
 access=owner（預設）＝整組只有機器擁有者看得到、用得到（別人打了跟不存在一樣）；
@@ -22,7 +25,9 @@ access=everyone＝任何傳訊息給 bot 的人（伺服器版的訪客 GUEST �
 那一級（以下）整組看不到；exec、filesystem:any 只有擁有者（pack_group_policy）。
 一個 pack 壞掉（pack.json 不合、install 丟例外）只跳過那一個，記在 LoadReport，doctor 會印出來。
 pack 拿到的 Pack 物件：.manifest、.store（storage=vault → 密文 data/<name>.json.enc；plain → data/<name>.json）、
-.path(...)（data/packs/<name>/... 給 pack 自己的檔案）、.group（指令群組的 Group handle）。
+.path(...)（data/packs/<name>/... 全部人共用的檔案；伺服器版 data=user 的 pack 呼叫會丟 PackPathError）、
+.path_of(user, ...)（這個人自己的檔案：伺服器版 data/users/<id>/<name>/files/，個人版 data/<name>/files/；擋 .. 逃逸）、
+.group（指令群組的 Group handle）。
 **每個人自己的資料用 pack.store.of(user)**：個人版回同一份共用檔；伺服器版回這個人自己的
 data/users/<tg_id>/<name>.json(.enc)（vault 的金鑰由主金鑰＋id 用 HKDF 衍生，別人的檔解不開）。
 """
@@ -154,21 +159,75 @@ class Pack:
     def group(self):
         return self.app.registry.group(self.manifest.group)
 
+    @property
+    def server(self) -> bool:
+        return getattr(self.config if self.config is not None else getattr(self.app, "config", None),
+                       "mode", "personal") == "server"
+
     def path(self, *parts: str) -> str:
+        """data/packs/<name>/...：**全部人共用**的檔案（data=shared／none 的 pack 用）。
+        伺服器版 data=user 的 pack 呼叫會丟 PackPathError（那是跨戶的同一個資料夾）——改用 path_of(user, ...)。
+        個人版照舊可以用（相容）。"""
+        if self.server and getattr(self.manifest, "data", "none") == "user":
+            raise PackPathError(
+                f"{self.name}：data 是 user 的 pack 在伺服器版不能用 pack.path()（data/packs/{self.name}/ 是全部人共用的，"
+                f"會讀到別人的檔案）。改用 pack.path_of(user, ...)：每個人自己的 data/users/<id>/{self.name}/files/。")
         folder = os.path.join(self.data_dir, "packs", self.manifest.name)
         os.makedirs(folder, exist_ok=True)
-        return os.path.join(folder, *parts)
+        return _inside(folder, parts, "pack.path")
+
+    def path_of(self, user, *parts: str) -> str:
+        """這個人自己的檔案：伺服器版 data/users/<tg_id>/<name>/files/...；個人版 data/<name>/files/...。
+        資料夾會先建好；parts 是相對路徑（不准絕對路徑、不准用 .. 跑出這個資料夾，丟 PackPathError）。
+        user：有 tg_id 的使用者物件或 int；伺服器版一定要給（不給丟 PackPathError，不會拿到別人的）。"""
+        tg_id = user if isinstance(user, int) and not isinstance(user, bool) else getattr(user, "tg_id", None)
+        if isinstance(tg_id, bool) or not isinstance(tg_id, int):
+            if self.server:
+                raise PackPathError(f"{self.name}：pack.path_of(user, ...) 要給下令的人（有整數 tg_id 的使用者）")
+            tg_id = None
+        if self.server:
+            base = os.path.join(self.data_dir, USERS_DIR, str(tg_id))
+        else:
+            base = self.data_dir
+        folder = os.path.join(base, self.manifest.name, "files")
+        os.makedirs(folder, exist_ok=True)
+        return _inside(folder, parts, "pack.path_of")
+
+
+class PackPathError(ValueError):
+    """pack.path()／pack.path_of() 用錯：伺服器版 data=user 用了共用資料夾，或路徑想跑出 pack 自己的資料夾。"""
+
+
+def _inside(folder: str, parts, what: str) -> str:
+    """folder／parts…，但一定還在 folder 裡面（絕對路徑、..、磁碟機代號、連結跑出去都擋）。"""
+    for part in parts:
+        if not isinstance(part, str):
+            raise PackPathError(f"{what}：路徑每一段都要是字串（拿到 {type(part).__name__}）")
+        if os.path.isabs(part) or os.path.splitdrive(part)[0] or part.startswith(("/", "\\")):
+            raise PackPathError(f"{what}：不能用絕對路徑（{part!r}）")
+    target = os.path.normpath(os.path.join(folder, *parts))
+    root_real = os.path.realpath(folder)
+    target_real = os.path.realpath(target)
+    try:
+        inside = os.path.commonpath([os.path.normcase(root_real), os.path.normcase(target_real)]) == \
+            os.path.normcase(root_real)
+    except ValueError:                      # 不同磁碟機
+        inside = False
+    if not inside:
+        raise PackPathError(f"{what}：路徑跑出 pack 自己的資料夾了（{os.path.join(*parts) if parts else ''!r}）")
+    return target
 
 
 @dataclass
 class PackStatus:
     name: str
     folder: str
-    status: str                 # loaded｜connector｜disabled｜invalid｜missing｜incompatible｜error｜tampered
+    status: str                 # loaded｜connector｜disabled｜invalid｜missing｜incompatible｜error｜tampered｜rejected
     detail: str = ""
     kind: str = ""
     version: str = ""
     lock: str = ""              # locked｜unlocked｜tampered（packs.lock，第 3 關）
+    scan: str = ""              # 伺服器版沒鎖的 pack 載入時補跑第 2 關：passed｜failed（""＝沒掃，PERM-8）
 
 
 @dataclass
@@ -180,7 +239,7 @@ class LoadReport:
 
     @property
     def ok(self) -> bool:
-        return not any(i.status in ("invalid", "error", "tampered") for i in self.items)
+        return not any(i.status in ("invalid", "error", "tampered", "rejected") for i in self.items)
 
 
 def group_policy(app, access: str, server: bool) -> dict:
@@ -223,6 +282,52 @@ def shared_write_admin(app, m: Manifest, server: bool) -> int:
             node.own = dataclasses.replace(node.own, role=admin)
             n += 1
     return n
+
+
+# ── 伺服器版 python pack 的信任（PERM-8） ─────────────────────────────────
+
+# 出廠的 pack（repo 的 packs/、connectors/ 裡、名字在這張表上）＝core，不看 packs.lock
+BUNDLED = ("money", "notes", "remind", "apple-reminders", "google-calendar", "notion", "todoist")
+
+
+def is_bundled(m: Manifest) -> bool:
+    """出廠的：名字在 BUNDLED，而且資料夾就在內建的 packs/ 或 connectors/ 底下（packs.dirs 另外放的不算）。"""
+    if m.name not in BUNDLED:
+        return False
+    parent = os.path.normcase(os.path.realpath(os.path.dirname(os.path.abspath(m.folder))))
+    return parent in {os.path.normcase(os.path.realpath(d)) for d in PACK_DIRS}
+
+
+def python_trust(config, m: Manifest) -> str:
+    """kind=python 在伺服器版的信任：出廠＝core；有鎖＝擁有者安裝時選的（packs.lock 的 trust）；
+    沒有鎖（手動放進 packs/ 或 packs.dirs 的）＝third-party。"""
+    if is_bundled(m):
+        return pack_lock.CORE
+    return pack_lock.trust_of(getattr(config, "data_dir", "") or "", m.name) or pack_lock.THIRD_PARTY
+
+
+def trust_reason(config, m: Manifest) -> str:
+    """伺服器版、kind=python、trust=third-party → 一句話說為什麼只給擁有者（""＝不受影響；個人版永遠 ""）。"""
+    if getattr(config, "mode", "personal") != "server" or m.kind != "python":
+        return ""
+    if python_trust(config, m) != pack_lock.THIRD_PARTY:
+        return ""
+    locked = pack_lock.entry(getattr(config, "data_dir", "") or "", m.name) is not None
+    why = "安裝時信任選的是第三方（third-party）" if locked else "沒有 packs.lock（手動放進來的），當作第三方（third-party）"
+    return (f"只對擁有者開放：{why}；python pack 在 SYNOX 程序裡跑、沒有沙盒，伺服器版不給成員用"
+            f"（信得過就跑 python -m synox packs lock --approve {m.name} --trust core）")
+
+
+def unlocked_scan(config, m: Manifest, lock_state: str) -> "Optional[List[str]]":
+    """伺服器版沒有鎖、又不是出廠的 pack：載入前補跑一次第 2 關靜態掃描（安裝流程沒掃過它）。
+    回 None＝不用掃；[]＝過了；否則是拒絕的理由（不載入）。"""
+    if getattr(config, "mode", "personal") != "server" or lock_state != pack_lock.UNLOCKED or is_bundled(m):
+        return None
+    from synox.packs import scan as pack_scan
+    try:
+        return pack_scan.gate2(m).problems(m)
+    except Exception as e:                   # 掃不了就不能說它安全
+        return [f"掃描失敗：{type(e).__name__}: {e}"]
 
 
 def discover(dirs=PACK_DIRS) -> List[str]:
@@ -619,6 +724,14 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
             logging.error("[PACKS] %s tampered: %s", m.name, changes)
             _tamper_notice(app, config, m, changes)
             continue
+        problems = unlocked_scan(config, m, item.lock)    # 伺服器版沒鎖的：補第 2 關（PERM-8）
+        if problems is not None:
+            item.scan = "failed" if problems else "passed"
+        if problems:
+            item.status = "rejected"
+            item.detail = "沒有 packs.lock、載入時的第 2 關掃描沒過，沒有載入：" + "；".join(problems[:5])
+            logging.error("[PACKS] %s rejected by load-time scan: %s", m.name, problems)
+            continue
         server = getattr(config, "mode", "personal") == "server"
         store = PackStore(m.name, config.data_dir, vault if use_vault else None, per_user=server)
         pack = Pack(m, store, app, config.data_dir, config=config,
@@ -627,6 +740,7 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
             pack.locked_files = dict((pack_lock.entry(config.data_dir, m.name) or {}).get("files") or {})
         group_rules = {**pack_group_policy(app, config, m, server), **surface_policy(m)}
         boxed_out = sandbox.restricted_reason(config, m)   # 要沙盒卻沒有真隔離 → 只給擁有者（PERM-7）
+        boxed_out = boxed_out or trust_reason(config, m)   # 伺服器版第三方 python pack → 只給擁有者（PERM-8）
         if boxed_out:
             group_rules = {**group_rules, "owner_only": True}
             item.detail = boxed_out

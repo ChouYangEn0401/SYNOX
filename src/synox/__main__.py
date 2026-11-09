@@ -317,7 +317,8 @@ def cmd_packs(args, *, jobs=None) -> int:
     if args.packs_cmd == "rollback":
         return cmd_rollback(args, data_dir, config)
     found = {}
-    for folder in discover(args.dirs or PACK_DIRS):
+    default_dirs = config.pack_dirs() if config is not None and hasattr(config, "pack_dirs") else PACK_DIRS
+    for folder in discover(args.dirs or default_dirs):          # 內建的＋config.json 的 packs.dirs
         try:
             found[read(folder).name] = folder
         except ManifestError:
@@ -372,6 +373,20 @@ def cmd_packs(args, *, jobs=None) -> int:
             too_old = None
         if too_old:
             print(f"    ⛔ 不會載入：{too_old}")
+        if config is not None and not changes:          # PERM-8：伺服器版第三方 python pack、沒鎖的補掃
+            from synox.packs import loader as pack_loader
+            try:
+                m = read(folder)
+            except ManifestError:
+                continue
+            scan_problems = pack_loader.unlocked_scan(config, m, state)
+            if scan_problems:
+                print(f"    ❌ 沒有 packs.lock、第 2 關掃描沒過，不會載入：{'；'.join(scan_problems[:3])}")
+            elif scan_problems is not None:
+                print("    🔍 沒有 packs.lock：載入時補跑的第 2 關掃描過了")
+            reason = "" if scan_problems else pack_loader.trust_reason(config, m)
+            if reason:
+                print(f"    🔐 {reason}")
     return 0
 
 

@@ -12,7 +12,7 @@ from synox.config import SynoxConfig, parse_mode
 from synox.packs import loader
 from synox.vault import Vault, VaultError
 
-from conftest import OTHER_ID, enc_files
+from conftest import OTHER_ID, enc_files, trust_core
 
 STRANGER = 777
 
@@ -145,6 +145,7 @@ def _everyone_pack(base):
 
 def test_server_guest_sees_only_everyone_packs(make_bot, owner, tmp_path):
     extra = _everyone_pack(str(tmp_path / "extra"))
+    trust_core(tmp_path / "data", os.path.join(extra, "hello"))     # 手放的 python pack＝third-party（PERM-8）
     bot = make_bot(raw={"mode": "server"}, pack_dirs=loader.PACK_DIRS + (extra,))
     bot.say(STRANGER, "/start")
     guest = bot.app.users.get(STRANGER)

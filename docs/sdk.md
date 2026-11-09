@@ -169,10 +169,22 @@ SDK 只是幫你產生 pack.json、印信封。SYNOX 跟工具的接口只有 CL
 - 很久的工作標 `"background": true`；一般指令要在 `timeout` 內做完（AI 會等結果）。
 - 有網頁面板：`"web": {"panel": "panel.html", "api": ["GET /summary"]}`，`GET /summary` 由同名、`READ`、沒有必填欄位的 command 回答。
 
+## kind=python 的 pack：每個人的檔案
+
+`init --kind python` 的範本在 SYNOX 程序裡跑，拿到 `pack`。每個人自己的資料：
+
+- JSON 資料：`pack.store.of(user)`（伺服器版每人一份）。
+- 檔案：`pack.path_of(user, "x.txt")` → 伺服器版 `data/users/<id>/<pack>/files/x.txt`、個人版 `data/<pack>/files/x.txt`
+  （資料夾先建好；絕對路徑、`..` 跑出去丟 `PackPathError`）。
+- `pack.path("x.txt")`（`data/packs/<pack>/`）是**全部人共用**的：`"data": "user"` 的 pack 用它，`synox-sdk check`（第 2 關）會拒、
+  伺服器版呼叫也會丟錯——改用 `path_of`。
+
 ## 給別人裝
 
 把 `.synoxpack` 給對方。對方在 SYNOX 的網頁設定頁上傳，或點兩下檔案：SYNOX 跑宣告檢查與靜態掃描、把報告給他看，
 他按「確認安裝」才裝，並把每個檔的雜湊寫進 `data/packs.lock`；之後檔案被改過就不會載入。細節：[security.md](security.md) 的「五關」。
+安裝報告上對方選信任：伺服器版選 `third-party`（預設）的 kind=python pack 只有擁有者看得到（沒有沙盒，PERM-8）；
+要給成員用，對方得選 `core`，或者把 pack 寫成 kind=cli（之後有沙盒可以包）。
 
 ## 還沒做的
 

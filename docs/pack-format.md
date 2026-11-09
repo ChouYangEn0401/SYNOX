@@ -102,13 +102,19 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 - 第 1 關：`surfaces` 有 `channel` 但 `data` 是 `user` → 拒（每個人的資料不能出現在頻道；不是個人資料就寫 `shared` 或 `none`）。
 - 第 2 關（`scan.py`，不合＝拒裝，列 `檔名:行號`）：
   - python、`data: user`：不准裸用 `pack.store`（`pack.store.load`／`save`／`update`…是全部人共用的那一份）——要 `pack.store.of(user)`；
-    `pack.secret(name)` 一定要給 user（`pack.secret(name, user)`）。
-  - python、`data: none`：不准用 `pack.store`、`pack.path`（有存資料就宣告 `user` 或 `shared`）。
+    `pack.secret(name)` 一定要給 user（`pack.secret(name, user)`）；不准用 `pack.path(...)`（全部人共用的資料夾）——要 `pack.path_of(user, ...)`（PERM-8）。
+  - python、`data: none`：不准用 `pack.store`、`pack.path`、`pack.path_of`（有存資料就宣告 `user` 或 `shared`）。
   - cli、`data: user`：樣板不准 `{data_dir}`（只能 `{user_data_dir}`）；`data: none`：兩個都不准。錯誤列 `pack.json:行號`。
 - **`trust` 不在 pack.json**：安裝報告上擁有者選 `core`（跟出廠的一樣信得過）或 `third-party`（預設），寫進 `data/packs.lock`
   （網頁：報告上的下拉選單；終端機：`install <檔> --yes --trust core`；`packs lock --approve <name> [--trust …]` 沒給＝沿用舊鎖的）。
-  舊的鎖沒有 `trust`＝當作 `third-party`。伺服器版怎麼用 trust（第三方 python pack 只對擁有者可見…）是 PERM-8 的事，這一版只記下來。
-- 已知限制：`pack.path()` 還是全 pack 共用的 `data/packs/<name>/`（`data: user` 的 pack 用它在伺服器版會跨戶；PERM-8 加 `path_of(user)`）。
+  舊的鎖沒有 `trust`＝當作 `third-party`。
+- **伺服器版怎麼用 trust（PERM-8，個人版不受影響）**：
+  - kind=python 在 SYNOX 程序裡跑、沒有沙盒，所以 `trust: third-party` 的 python pack **只對擁有者可見**：成員打了跟不存在的指令一樣
+    （「未知指令」）、`/help` 與 AI 工具清單都沒有。`core`（擁有者安裝時選的）與出廠的照常。
+  - 出廠的＝內建 `packs/`、`connectors/` 裡的 notes、money、remind 與 4 個 connector（不看鎖）。
+  - **沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）＝`third-party`；而且載入前補跑一次第 2 關靜態掃描，
+    沒過＝狀態 `rejected`、不載入（理由列 `檔名:行號`）。信得過就 `python -m synox packs lock --approve <name> --trust core`。
+  - 為什麼只給擁有者，`doctor` 與 `packs status` 都會寫一行 🔐。kind=cli 的第三方 pack 另外看沙盒（PERM-7，`docs/security.md`）。
 
 ## pack.json v2（架構 v1 §4）
 
@@ -226,7 +232,10 @@ def install(app, pack):
 - `pack.store`：`load(default)`、`save(data)`、`update(fn, default)`（讀改寫整段持鎖）；`key=` 可以分好幾份。
 - **每個人自己的資料用 `pack.store.of(user)`**（同樣的 `load`／`save`／`update`）：個人版回共用的那一份；伺服器版（`mode: server`）回這個人自己的
   `data/users/<id>/` 那一份（vault 的金鑰由主金鑰＋id 用 HKDF 衍生）。直接用 `pack.store` 是整個 pack 共用的資料（例如設定）。
-- `pack.path("x.txt")`：`data/packs/<name>/x.txt`，pack 自己的檔案放這裡。
+- **每個人自己的檔案用 `pack.path_of(user, "x.txt")`**：伺服器版 `data/users/<id>/<name>/files/x.txt`；個人版 `data/<name>/files/x.txt`。
+  資料夾會先建好；不准絕對路徑、不准用 `..` 跑出那個資料夾（丟 `PackPathError`）；伺服器版一定要給 user。
+- `pack.path("x.txt")`：`data/packs/<name>/x.txt`，**全部人共用**的檔案（`data: shared`／設定）。伺服器版 `data: user` 的 pack 呼叫會丟
+  `PackPathError`（會跨戶），要改用 `path_of`；個人版照舊可以用（相容）。同樣擋 `..` 逃逸。
 - `effect`：`READ`（預設）／`WRITE`／`DANGER`。**DANGER 的指令 AI 一律要送確認卡**；`/help` 標 ⚠️。
 - `ai=False`：不給 AI 當工具（例如放寬安全的開關）。
 - 不要 import 別的 pack；共用的東西放 `synox`。
