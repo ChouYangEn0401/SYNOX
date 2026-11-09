@@ -52,7 +52,7 @@ __all__ = ["tool", "serve", "secret", "context", "confirmed", "Context", "ToolEr
            "tool_spec", "commands_for", "run_cli", "run_mcp", "registered"]
 
 SDK_VERSION = "0.1.0"
-SYNOX_REQUIRES = ">=0.1"               # 產生的 pack.json 的 requires.synox（SYNOX_* 環境變數、ai／confirm 從這版起）
+SYNOX_REQUIRES = ">=0.2"               # 產生的 pack.json 的 requires.synox（SYNOX_* 環境變數、ai／confirm 從這版起）
 EFFECTS = ("READ", "WRITE", "DANGER")
 RESERVED = ("python", "node", "pack_dir", "data_dir", "user_data_dir", "tg_id", "json", "mcp", "help")
 NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")

@@ -11,7 +11,7 @@
   "skill": "SKILL.md",
   "publisher": "SYNOX examples",
   "capabilities": ["filesystem:own"],
-  "requires": { "synox": ">=0.1" },
+  "requires": { "synox": ">=0.2" },
   "cli": {
     "argv": ["{python}", "./tool.py"],
     "cwd": ".",

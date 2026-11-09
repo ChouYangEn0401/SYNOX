@@ -11,7 +11,7 @@
   "skill": "SKILL.md",
   "publisher": "SYNOX examples",
   "capabilities": ["subprocess", "exec"],
-  "requires": { "synox": ">=0.1" },
+  "requires": { "synox": ">=0.2" },
   "mcp": {
     "transport": "stdio",
     "argv": ["{node}", "./server.js"],

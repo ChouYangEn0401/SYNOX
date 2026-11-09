@@ -8,7 +8,7 @@
   "publisher": "SYNOX examples",
   "capabilities": [],
   "requires": {
-    "synox": ">=0.1"
+    "synox": ">=0.2"
   },
   "cli": {
     "argv": [

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "synox"
-version = "0.1.0"
+version = "0.2.0"
 description = "SYNOX: a one-click Telegram agent host (ISDTeleKitSDK + pluggable LLM + skill packs + vault)"
 requires-python = ">=3.11"
 license = {text = "AGPL-3.0-or-later AND Apache-2.0"}   # 核心 AGPL、SDK 與範例 Apache，見 LICENSING.md
