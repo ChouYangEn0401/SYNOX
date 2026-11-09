@@ -288,6 +288,38 @@ class Builder:
         return box[0]
 
 
+def node_pins(folder: str) -> List[Tuple[str, str]]:
+    """package-lock.json 列的套件 [(名字, 版本)]（lockfile v2/v3 的 packages，或 v1 的 dependencies；只讀 JSON）。"""
+    try:
+        with open(os.path.join(folder, "package-lock.json"), "r", encoding="utf-8-sig") as f:
+            lock = json.load(f)
+    except (OSError, ValueError):
+        return []
+    if not isinstance(lock, dict):
+        return []
+    out: List[Tuple[str, str]] = []
+    pkgs = lock.get("packages")
+    if isinstance(pkgs, dict):
+        for key, info in pkgs.items():
+            if not key:
+                continue                            # "" 是專案自己
+            name = key.split("node_modules/")[-1]
+            version = info.get("version", "") if isinstance(info, dict) else ""
+            out.append((name, str(version or "?")))
+    elif isinstance(lock.get("dependencies"), dict):
+        for name, info in lock["dependencies"].items():
+            out.append((str(name), str((info or {}).get("version", "?") if isinstance(info, dict) else "?")))
+    return sorted(out)
+
+
+def all_pins(m) -> List[dict]:
+    """runtime auto 會裝的套件：[{"name", "version", "source": "pip"|"npm"}]（T2 的安裝報告列這個）。"""
+    out = [{"name": n, "version": v, "source": "pip"} for n, v in pins(m)] if wants_python(m) else []
+    if wants_node(m):
+        out += [{"name": n, "version": v, "source": "npm"} for n, v in node_pins(m.folder)]
+    return out
+
+
 def _count_lock_packages(folder: str) -> int:
     try:
         with open(os.path.join(folder, "package-lock.json"), "r", encoding="utf-8-sig") as f:

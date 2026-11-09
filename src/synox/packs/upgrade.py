@@ -17,7 +17,9 @@ package-lock.json 跟舊版不同、或現在的 data/envs/<name>/ 對不上 →
 「改了什麼」：新增／移除的 command（cli 的 commands、mcp 的 tools_allow；python pack 的指令寫在程式裡，比不出來）；
 effect 變寬（READ→WRITE→DANGER）、capabilities 新增、執行方式（kind、runtime、cli.argv／python／cwd／env、python.module）
 或 auth 改動、access 變寬、多要密鑰環境變數、新加網頁面板、surfaces 多了 channel、data 變寬（none → user → shared）、
-trust（擁有者這次選的，跟舊鎖不同；不在 pack.json）——這些 alert=True，畫面上用紅字標出來。
+trust（擁有者這次選的，跟舊鎖不同；不在 pack.json）、publisher 改了——這些 alert=True，畫面上用紅字標出來。
+T2（SDK P7，packs/tier.py）：T1 → T2、新增 exec、可執行的東西變多、publisher 變了 → 紅字，而且要重新輸入發行者
+（report["tier"]["needs_publisher"]；upgrade_staged 的 trust_publisher）；都沒有＝沿用舊鎖的 trusted_publisher。
 
 版本：新版本要是 semver（1.2.3、1.2.3-beta.1），而且要比裝著的大；一樣或比較小就拒絕，除非明確選「降級」（allow_downgrade）。
 
@@ -150,8 +152,27 @@ def diff_manifests(old: Manifest, new: Manifest) -> List[dict]:
         add("panel", "新加了網頁面板（跟 Web UI 同源）", True)
     if old.storage != new.storage:
         add("storage", f"資料存法 {old.storage} → {new.storage}", new.storage == "plain")
+    if (old.publisher or "") != (new.publisher or ""):
+        add("publisher", f"發行者 publisher {old.publisher or '（沒寫）'} → {new.publisher or '（沒寫）'}", True)
     out += scope_changes(old, new)
     return out
+
+
+def tier_change(old: Manifest, new: Manifest, old_lock: Optional[dict], info: dict) -> dict:
+    """升級的信任層級那一段（packs/tier.py）：{"tier", "old_tier", "reconfirm": [原因…], "needs_publisher",
+    "publisher", "warning_lines", "changes": [alert…]}。reconfirm 不是空的＝要重新輸入發行者（--trust-publisher）。"""
+    from synox.packs import tier as pack_tier
+    reasons = pack_tier.reconfirm_reasons(old_lock, old, new, info)
+    old_tier = (old_lock or {}).get("tier") or ""
+    changes = []
+    if info["tier"] == pack_tier.T2 and old_tier and old_tier != pack_tier.T2:
+        changes.append({"kind": "tier", "text": f"信任層級 {old_tier} → T2（新版會執行掃不到內容的東西）", "alert": True})
+    for r in reasons:
+        if not r.startswith("發行者變了"):           # 發行者的變化 diff_manifests 已經列了
+            changes.append({"kind": "t2", "text": r, "alert": True})
+    return {**info, "old_tier": old_tier, "reconfirm": reasons, "needs_publisher": bool(reasons),
+            "trusted_publisher": (old_lock or {}).get("trusted_publisher", ""),
+            "warning_lines": pack_tier.warning_lines(info) if reasons else [], "changes": changes}
 
 
 # ── 權限宣告與信任（PERM-2） ───────────────────────────────────────────
@@ -214,8 +235,10 @@ def env_change(old: Manifest, new: Manifest, data_dir: Optional[str]) -> dict:
 
 
 def report_for(old: Manifest, old_folder: str, new: Manifest, new_hashes: Dict[str, str],
-               data_dir: str, trust: Optional[str] = None) -> dict:
-    """trust：擁有者這次選的（None＝還沒選：報告只給 installed_trust，畫面自己比）。"""
+               data_dir: str, trust: Optional[str] = None, report=None) -> dict:
+    """trust：擁有者這次選的（None＝還沒選：報告只給 installed_trust，畫面自己比）。
+    report：新版的掃描報告（有就用它的掃不到內容清單；沒給現算）。"""
+    from synox.packs import tier as pack_tier
     status, message = compare_versions(old.version, new.version)
     try:
         old_hashes = pack_lock.hash_files(old_folder)
@@ -227,12 +250,15 @@ def report_for(old: Manifest, old_folder: str, new: Manifest, new_hashes: Dict[s
     moved = trust_change(installed_trust, trust)
     if moved:
         changes.append(moved)
+    t2 = tier_change(old, new, pack_lock.entry(data_dir, old.name), pack_tier.assess(new, report))
+    changes += t2["changes"]
     return {"name": new.name, "installed_version": old.version, "new_version": new.version,
             "version_status": status, "version_ok": status == UPGRADE, "version_message": message, "changes": changes,
             "can_force": status != UPGRADE and semver_key(new.version) is not None,   # 可以明確選「降級／重裝」
             "alerts": sum(1 for c in changes if c["alert"]), "files": pack_lock.diff(old_hashes, new_hashes)[:50],
             "installed_lock": lock_state, "env": env_change(old, new, data_dir),
-            "installed_trust": installed_trust, "trust": trust or installed_trust or pack_lock.DEFAULT_TRUST}
+            "installed_trust": installed_trust, "trust": trust or installed_trust or pack_lock.DEFAULT_TRUST,
+            "tier": t2}
 
 
 def installed_manifest(packs_dir: str, name: str) -> Optional[Tuple[Manifest, str]]:
@@ -259,7 +285,13 @@ def staged_upgrade(token: str, data_dir: str, packs_dir: str, trust: Optional[st
     if found is None:
         return None
     old, old_folder = found
-    return report_for(old, old_folder, new, pack_lock.hash_files(folder), data_dir, trust=trust)
+    from synox.packs.scan import scan
+    try:
+        exec_bits = admin.staged_meta(token, data_dir).get("exec_bits") or ()
+    except admin.PackAdminError:
+        exec_bits = ()
+    return report_for(old, old_folder, new, pack_lock.hash_files(folder), data_dir, trust=trust,
+                      report=scan(new, exec_bits))
 
 
 def format_upgrade(upg: dict) -> str:
@@ -277,9 +309,22 @@ def format_upgrade(upg: dict) -> str:
     if upg.get("trust"):
         lines.append(f"  🔑 信任：裝著的是 {upg.get('installed_trust') or '（未鎖定）'}，升級後 {upg['trust']}"
                      "（終端機 --trust 改）")
+    lines += format_tier_upgrade(upg.get("tier") or {})
     lines += format_env(upg.get("env") or {}, upg.get("name") or "")
     lines.append("  資料（data/、使用者資料夾）不會動；資料格式要不要轉換由 pack 自己負責。")
     return "\n".join(lines)
+
+
+def format_tier_upgrade(t2: dict) -> List[str]:
+    """升級報告的 T2 那一段：要重新確認發行者 → 紅字＋怎麼確認；沿用舊的確認 → 一行。"""
+    from synox.packs.admin import red
+    if t2.get("tier") != "T2":
+        return []
+    if not t2.get("needs_publisher"):
+        return [f"  🧩 T2：沿用之前確認過的發行者「{t2.get('trusted_publisher')}」（發行者、exec、可執行的東西都沒變多）"]
+    out = [red("  🔴 T2：要重新確認發行者——" + "；".join(t2.get("reconfirm") or []))]
+    out += [red(f"  🔴 {line}") for line in t2.get("warning_lines") or []]
+    return out
 
 
 def format_env(env: dict, name: str = "") -> List[str]:
@@ -357,15 +402,12 @@ def _verified_staged(token: str, data_dir: str):
     from synox.packs import admin
     root = admin._staged_root(token, data_dir)
     folder = os.path.join(root, "pack")
-    m, report, hashes, problems = admin.run_gates(folder)
+    meta = admin.staged_meta(token, data_dir)
+    m, report, hashes, problems = admin.run_gates(folder, meta.get("exec_bits") or ())
     if problems:
         raise admin.GateRefused("拒裝（安全檢查沒過）：" + "；".join(problems[:12]),
                                 admin.summary_of(m, report, hashes, problems))
-    try:
-        with open(os.path.join(root, admin.STAGED_META), "r", encoding="utf-8") as f:
-            reviewed = json.load(f).get("hashes") or {}
-    except (OSError, ValueError):
-        raise admin.PackAdminError("找不到這次上傳的檢查結果（重新上傳一次）")
+    reviewed = meta.get("hashes") or {}
     if reviewed != hashes:
         raise admin.PackAdminError("暫存的檔案在你看報告之後被改過了，不裝（重新上傳一次）："
                                    + "、".join(pack_lock.diff(reviewed, hashes)[:10]))
@@ -373,9 +415,12 @@ def _verified_staged(token: str, data_dir: str):
 
 
 def upgrade_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, via: str = "web",
-                   allow_downgrade: bool = False, now=None, trust: Optional[str] = None) -> dict:
+                   allow_downgrade: bool = False, now=None, trust: Optional[str] = None,
+                   trust_publisher: Optional[str] = None) -> dict:
     """按了「確認升級」：再檢查 → 版本要比較新（或 allow_downgrade）→ 舊的搬到 _removed → 新的搬進來 → 鎖換新。
     trust 沒給＝沿用舊鎖的（舊的沒鎖＝third-party）。
+    T2（packs/tier.py）：發行者變了、新增 exec、可執行的東西變多、或舊的沒確認過 → 一定要 trust_publisher（跟新版
+    pack.json 的 publisher 一字不差），不然丟錯；都沒有＝沿用舊鎖的 trusted_publisher。
     回 {"name", "from", "to", "backup", "report", "env"}；env＝report["env"]（needed＝要接著建環境：
     呼叫的人照全新安裝一樣叫 admin.build_env；建失敗不退回升級）。沒裝過同名的丟錯（用一般安裝）。"""
     from synox.packs import admin
@@ -386,11 +431,20 @@ def upgrade_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
     if found is None:
         raise admin.PackAdminError(f"還沒裝過 {m.name}，不是升級（用一般的「確認安裝」）")
     old, target = found
-    upg = report_for(old, target, m, hashes, data_dir, trust=trust)
+    upg = report_for(old, target, m, hashes, data_dir, trust=trust, report=report)
     trust = upg["trust"]
     if not upg["version_ok"] and not (allow_downgrade and upg["can_force"]):
         hint = "（真的要換，明確選「降級／重裝」）" if upg["can_force"] else ""
         raise admin.PackAdminError(f"不升級：{upg['version_message']}{hint}")
+    from synox.packs import tier as pack_tier
+    t2 = upg["tier"]
+    previous = pack_lock.entry(data_dir, m.name)
+    if t2["needs_publisher"] or (t2["tier"] == pack_tier.T2 and trust_publisher):
+        refused = pack_tier.confirm_problem(t2, m, trust_publisher)
+        if refused:
+            raise admin.PackAdminError("不升級：" + refused + "（" + "；".join(t2["reconfirm"]) + "）"
+                                       if t2["reconfirm"] else "不升級：" + refused)
+    fields = pack_tier.lock_fields(t2, trust_publisher if t2["tier"] == pack_tier.T2 else None, previous=previous)
     backup = archive(target, m.name, old.version, packs_dir, data_dir, now=now, reason="upgrade")
     try:
         shutil.move(folder, target)
@@ -404,7 +458,8 @@ def upgrade_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
             pass
         raise
     shutil.rmtree(root, ignore_errors=True)
-    pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=target, trust=trust)
+    pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=target, trust=trust,
+                      tier_fields=fields)
     logging.info("[PACKS] upgraded %s %s → %s (approved by %s via %s; old one in %s)",
                  m.name, old.version, m.version, approved_by, via, backup)
     return {"name": m.name, "from": old.version, "to": m.version, "backup": backup, "report": upg,
@@ -453,7 +508,7 @@ def rollback(name: str, packs_dir: str, data_dir: str, now=None) -> dict:
     old_lock = side.get("lock") if isinstance(side.get("lock"), dict) else None
     state = "unlocked"
     if old_lock is not None:
-        actual = pack_lock.hash_files(target)
+        actual = pack_lock.hashes_for(old_lock, target)
         if actual == (old_lock.get("files") or {}):
             pack_lock.restore(data_dir, name, {**old_lock, "restored_at":
                                                time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now))})

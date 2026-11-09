@@ -18,7 +18,7 @@
 | Path | Role |
 |---|---|
 | `vendor/isdtelekit/` | ISDTeleKitSDK 的**原樣**複製（版本與 commit 在 `vendor/VERSION`）。不要改；要不同的行為就在 `src/synox` 寫轉接 |
-| `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜doctor｜stop｜install <檔> [--yes]｜packs status｜packs lock --approve <name>｜packs env rebuild <name>` |
+| `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜doctor｜stop｜install <檔> [--yes] [--trust-publisher <名字>]｜packs status｜packs lock --approve <name> [--trust-publisher <名字>]｜packs env rebuild <name>` |
 | `src/synox/app.py` | `build(config, home=, adapter=, vault=, config_path=)`：SDK `build_app` → basics/help → `packs.load_all` → `agent.install` → `schedule.install` → `web.install` |
 | `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`／`policy`；路徑相對 SYNOX 資料夾（`ROOT`） |
 | `src/synox/policy.py` | `decide`（權限唯一交會點）、`parse_policy`（`policy.roles` 能力上限，第 1 關式檢查）、`group_policy_for`（loader 用）、`ceiling`／`fits`；bot 範圍 `bot_scope`／`using_bot`／`current_bot`／`run_as`；`install`（把 decide 接到 SDK 的 `registry.authorize`） |
@@ -32,7 +32,8 @@
 | `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`validate.py`（第 4 關呼叫驗證）、`delimit.py`（第 5 關工具結果分隔符）、`budget.py`（伺服器版成員每月額度）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
 | `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（30 秒、via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`、`/schedule_*`） |
 | `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS）、`__init__.py`（`install`、`/web`、`/web_off`） |
-| `src/synox/packs/admin.py` | `.synoxpack`：stage（zip 檢查＋第 1、2 關）→ install_staged（再驗一次＋第 3 關寫鎖）／移除到 `packs/_removed/`／`reload()`（Web UI、`synox install` 共用） |
+| `src/synox/packs/admin.py` | `.synoxpack`：stage（zip 檢查＋第 1、2 關；記 zip 的執行位元、不解出 `__pycache__`）→ install_staged（再驗一次＋T2 要 `trust_publisher`＋第 3 關寫鎖）／移除到 `packs/_removed/`／`reload()`（Web UI、`synox install` 共用）；`format_tier`／`red`＝T2 的紅字段 |
+| `src/synox/packs/tier.py` | 信任層級（SDK P7）：`assess`（T0／T1／T2＋掃不到內容的檔、外部程式、runtime auto 套件）、`warning_lines`、`confirm_problem`（publisher 一字不差）、`reconfirm_reasons`（升級）、`lock_fields` |
 | `src/synox/packs/upgrade.py` | 同名再裝＝升級：`staged_upgrade`（「改了什麼」、semver 版本檢查，權限變大的標 alert＝紅字）→ `upgrade_staged`（舊的搬到 `_removed/<name>-<版本>-<時間>`＋旁邊留舊鎖、鎖換新）；`rollback`（`python -m synox packs rollback <name>`）。資料不在 pack 資料夾，不動；資料 schema 升級由 pack 自己負責 |
 | `Install-Pack.bat`、`scripts/pack_zip.py` | 點兩下 `.synoxpack` 的落點（精靈勾了才在 HKCU 登記）；打包 |
 | `src/synox/backup.py` | `export_backup`／`read_backup`：data/ 的 zip 用保管箱主金鑰加密（`Vault.encrypt_bytes`） |
@@ -111,6 +112,18 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     所以 `kit.command` 不能用（它的 closure 會留舊欄位）——leaf 自己 `kit.parse_args(node.fields, …)`。確認來回用 `params._meta["synox/confirm_token"]`
     （`mcp.CONFIRM_META`），環境變數一律 `SYNOX_CONFIRMED=0`。**測試只開本機 Python 子程序（stdio 管線），不開埠、不連網**；
     假伺服器寫在 `tests/test_mcp_stdio.py`，真伺服器用 synox_sdk 的 `serve()` `--mcp`；閒置回收用 `pool.clock` 換假時鐘＋`pool.reap()`。
+
+15. **信任層級 T0／T1／T2 只在 `src/synox/packs/tier.py` 判斷**（SDK P7）：`tier.assess(m, report)`＝`scan.opaque_files`（掃不到內容的檔：
+    副檔名、MZ+PE／ELF／Mach-O 檔頭、無副檔名＋執行位元／`#!`、`node_modules/` 一筆、對不到原始碼的 `__pycache__`）＋`scan.externals`
+    （argv 指到 pack 外的程式，解析路徑只用 `shutil.which`／`PathFinder.find_spec`，**不執行**）＋`envs.all_pins`。資料夾裡掃不到內容的檔
+    要宣告 `exec`（第 2 關 `binary` finding）。T2 安裝一律要 `trust_publisher`＝pack.json `publisher`（`tier.confirm_problem`；
+    `admin.install_staged`／`approve_installed`、`upgrade.upgrade_staged` 都過這裡；升級要不要重新確認看 `tier.reconfirm_reasons`）。
+    鎖的欄位用 `tier.lock_fields` → `lock.approve(tier_fields=)`。執行期：`sandbox.required` 對 T2 一律 True、`sandbox.restricted_reason`
+    對 T2 python pack 一律 owner_only（伺服器版）；個人版 `sandbox.t2_personal_note` 給 doctor。
+    **packs.lock 雜湊每一個檔**（`lock.hash_files` 預設含 `__pycache__`，`"hash_scope": "all"`；舊鎖用 `lock.hashes_for` 照舊算法對）。
+    上傳的 zip 不解出 `__pycache__`、`synox-sdk zip` 不打包它、`check_integrity` 不比它；SYNOX 的子程序一律 `PYTHONDONTWRITEBYTECODE=1`
+    （`loader.context_env`）。**測試的 T2 pack 一律用位元組造假檔頭（`tests/test_t2_trust.py` 的 `FAKE_EXE`），絕不執行任何執行檔**；
+    開發機不跑第三方 exe／npm 套件是擁有者的政策（docs/security.md「信任層級」）。
 
 另外：
 - pack 的群組由 loader 依 pack.json 定義（`loader.group_policy`）：`access: owner`（預設）＝整組 `owner_only`；`member`＝伺服器版 `role=MEMBER`、

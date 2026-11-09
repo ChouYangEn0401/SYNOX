@@ -234,7 +234,16 @@ SDK 只是幫你產生 pack.json、印信封。SYNOX 跟工具的接口只有 CL
 安裝報告上對方選信任：伺服器版選 `third-party`（預設）的 kind=python pack 只有擁有者看得到（沒有沙盒，PERM-8）；
 要給成員用，對方得選 `core`，或者把 pack 寫成 kind=cli（之後有沙盒可以包）。
 
+**附了執行檔或外部相依＝T2**（[pack-format.md](pack-format.md)「信任層級」）：pack 裡有 `.exe`／`.dll`／`.bat`／`.sh`／`.so`／`.pyc`、
+`node_modules/`、檔頭是執行檔的檔，或 `cli.argv` 叫 `npx`／`git` 這類 pack 外的程式，或 `runtime` 寫 `auto` 會裝套件。
+這種 pack：`capabilities` 要宣告 `exec`（資料夾裡有掃不到內容的檔時）、`pack.json` **一定要寫 `publisher`**，
+對方安裝時要一字不差地輸入你的 publisher（`--trust-publisher "<publisher>"` 或網頁勾選＋輸入）。之後換 publisher、
+新增 exec、多附執行檔，對方升級時都會看到紅字、要重新輸入。伺服器版的 T2 pack 沒有真沙盒＝只有擁有者看得到。
+能用純 `.py` 寫完就別附執行檔：T1 的 pack 對方看得到你做什麼，T2 只能「信你」。`synox-sdk check` 會照樣列出掃不到內容的檔。
+
 ## 還沒做的
+
+- publisher 的簽章驗證（ed25519）：現在的 publisher 只是 pack.json 裡的一個字串，對方「明確輸入」它，但證明不了檔案出自你。
 
 - SYNOX 端連 MCP server：P4a 做了 stdio；HTTP（遠端 MCP、OAuth）、巢狀物件／陣列參數（schema 模式）、
   全部人共用一個 server 程序（`SharedScope`，只有介面）還沒做。

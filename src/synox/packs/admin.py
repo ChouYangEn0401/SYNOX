@@ -31,6 +31,7 @@ from typing import Dict, List, Optional, Tuple
 
 from synox.packs import envs, loader
 from synox.packs import lock as pack_lock
+from synox.packs import tier as pack_tier
 from synox.packs.manifest import Manifest, ManifestError, read, synox_problem
 from synox.packs.scan import ScanReport, scan
 
@@ -102,14 +103,15 @@ def staging_root(data_dir: str) -> str:
 
 # ── 第 1、2 關 ─────────────────────────────────────────────────────────
 
-def run_gates(folder: str) -> Tuple[Manifest, ScanReport, Dict[str, str], List[str]]:
+def run_gates(folder: str, exec_bits=()) -> Tuple[Manifest, ScanReport, Dict[str, str], List[str]]:
     """一個 pack 資料夾跑第 1 關（嚴格的宣告檢查）與第 2 關（靜態掃描＋integrity 對檔）。
-    回 (manifest, 掃描報告, 每個檔的 sha256, 拒裝理由)。pack.json 本身不合丟 PackAdminError。"""
+    回 (manifest, 掃描報告, 每個檔的 sha256, 拒裝理由)。pack.json 本身不合丟 PackAdminError。
+    exec_bits：zip 裡帶執行位元的檔（stage 記在 staged.json；掃不到內容的判斷要用）。"""
     try:
         m = read(folder, strict=True)
     except ManifestError as e:
         raise PackAdminError(f"pack.json 不合（第 1 關）：{e}")
-    report = scan(m)
+    report = scan(m, exec_bits)
     hashes = pack_lock.hash_files(folder)
     problems = report.problems(m) + pack_lock.check_integrity(m, hashes)
     too_old = synox_problem(m)                     # requires.synox：版本不合就不裝
@@ -125,7 +127,14 @@ def summary_of(m: Manifest, report: ScanReport, hashes: Dict[str, str], problems
             "files": sorted(hashes)[:100], "panel": bool(m.web.get("panel")), "api": list(m.web.get("api", [])),
             "capabilities": list(m.capabilities), "integrity": bool(m.integrity),
             "scan": {**report.to_dict(m), "problems": problems, "ok": not problems},
-            "warnings": warnings_for(m, report), "env": env_plan(m).to_dict(), **scope_of(m)}
+            "warnings": warnings_for(m, report), "env": env_plan(m).to_dict(), **scope_of(m),
+            "tier": tier_of(m, report)}
+
+
+def tier_of(m: Manifest, report: ScanReport) -> dict:
+    """安裝報告的信任層級那一段（packs/tier.py）：T2 有 warning_lines（紅字）與 needs_publisher。"""
+    info = pack_tier.assess(m, report)
+    return {**info, "warning_lines": pack_tier.warning_lines(info)}
 
 
 # ── 權限宣告與信任（PERM-2） ───────────────────────────────────────────
@@ -204,17 +213,20 @@ def stage(blob: bytes, data_dir: str) -> Tuple[str, Dict]:
         raise PackAdminError("不是 zip 檔（.synoxpack 要是 pack 資料夾壓成的 zip）")
     with z:
         files = _strip_root(_members(z))
+        # __pycache__ 不解出來（P7）：SYNOX 不用它，作者打包時本來就該排除；留著的話 Python 子程序會 import 那裡的 .pyc
+        files = [(i, p) for i, p in files if "__pycache__" not in p[:-1]]
         token = secrets.token_urlsafe(16)
         root = os.path.join(staging_root(data_dir), token)
         folder = os.path.join(root, "pack")
         os.makedirs(folder)
+        exec_bits = sorted("/".join(p) for i, p in files if (i.external_attr >> 16) & 0o111)
         try:
             for info, parts in files:
                 target = os.path.join(folder, *parts)
                 os.makedirs(os.path.dirname(target), exist_ok=True)
                 with z.open(info) as src, open(target, "wb") as dst:
                     shutil.copyfileobj(src, dst)
-            m, report, hashes, problems = run_gates(folder)
+            m, report, hashes, problems = run_gates(folder, exec_bits)
         except Exception:
             shutil.rmtree(root, ignore_errors=True)
             raise
@@ -225,8 +237,20 @@ def stage(blob: bytes, data_dir: str) -> Tuple[str, Dict]:
         listing = "；".join(problems[:12]) + ("…" if len(problems) > 12 else "")
         raise GateRefused(f"拒裝（安全檢查沒過）：{listing}", summary)
     with open(os.path.join(root, STAGED_META), "w", encoding="utf-8") as f:
-        json.dump({"name": m.name, "hashes": hashes, "summary": summary}, f, ensure_ascii=False)
+        json.dump({"name": m.name, "hashes": hashes, "summary": summary, "exec_bits": exec_bits}, f,
+                  ensure_ascii=False)
     return token, summary
+
+
+def staged_meta(token: str, data_dir: str) -> dict:
+    """暫存那一份的 staged.json（hashes、summary、exec_bits）；讀不了丟 PackAdminError。"""
+    root = _staged_root(token, data_dir)
+    try:
+        with open(os.path.join(root, STAGED_META), "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        raise PackAdminError("找不到這次上傳的檢查結果（重新上傳一次）")
+    return data if isinstance(data, dict) else {}
 
 
 def stage_file(path: str, data_dir: str) -> Tuple[str, Dict]:
@@ -285,6 +309,7 @@ def format_summary(summary: dict) -> str:
     else:
         lines.append("✅ 宣告檢查、靜態掃描都過了")
     lines += format_scope(summary)
+    lines += format_tier(summary.get("tier") or {})
     env = summary.get("env") or {}
     if env.get("needed"):
         lines.append("🧱 要建環境（按確認之後才建）：")
@@ -294,6 +319,29 @@ def format_summary(summary: dict) -> str:
         lines += [f"  ⚠️ {p}" for p in env.get("problems") or []]
     lines += [f"⚠️ {w}" for w in summary.get("warnings") or []]
     return "\n".join(lines)
+
+
+def red(text: str) -> str:
+    """終端機的紅字（不是終端機＝原樣，測試、log 看得到字）。"""
+    import sys
+    try:
+        tty = sys.stdout.isatty()
+    except (AttributeError, ValueError):
+        tty = False
+    return f"\033[31m{text}\033[0m" if tty else text
+
+
+def format_tier(tier: dict) -> List[str]:
+    """信任層級那一段：T2 用 🔴＋紅字；其他一行。"""
+    if not tier:
+        return []
+    if tier.get("tier") != pack_tier.T2:
+        return [f"🧩 信任層級：{tier.get('text') or tier.get('tier')}"]
+    out = [red(f"🔴 信任層級：{tier.get('text')}——T2 不是沙盒保證，只是讓你知道你在信任誰")]
+    out += [red(f"🔴 {line}") for line in tier.get("warning_lines") or []]
+    for o in tier.get("opaque") or []:
+        out.append(f"   · {o['path']}  {o['size']} bytes  sha256 {o['sha256']}  {o['why']}")
+    return out
 
 
 def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
@@ -324,21 +372,20 @@ def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
 # ── 第 3 關＋安裝 ──────────────────────────────────────────────────────
 
 def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, via: str = "web",
-                   trust: Optional[str] = None) -> str:
+                   trust: Optional[str] = None, trust_publisher: Optional[str] = None) -> str:
     """按了確認：再跑一次 1、2 關、檔案要跟看報告時一模一樣 → 搬進 packs/ → 寫 packs.lock。
-    trust：擁有者在報告上選的 core｜third-party（沒給＝third-party），寫進鎖。"""
+    trust：擁有者在報告上選的 core｜third-party（沒給＝third-party），寫進鎖。
+    trust_publisher：T2 pack（packs/tier.py）一定要給，而且跟 pack.json 的 publisher 一字不差；寫進鎖的
+    trusted_publisher／trusted_at。T0／T1 不用（給了也不記）。"""
     trust = _trust(trust)
     root = _staged_root(token, data_dir)
     folder = os.path.join(root, "pack")
-    m, report, hashes, problems = run_gates(folder)
+    meta = staged_meta(token, data_dir)
+    m, report, hashes, problems = run_gates(folder, meta.get("exec_bits") or ())
     if problems:
         raise GateRefused("拒裝（安全檢查沒過）：" + "；".join(problems[:12]),
                           summary_of(m, report, hashes, problems))
-    try:
-        with open(os.path.join(root, STAGED_META), "r", encoding="utf-8") as f:
-            reviewed = json.load(f).get("hashes") or {}
-    except (OSError, ValueError):
-        raise PackAdminError("找不到這次上傳的檢查結果（重新上傳一次）")
+    reviewed = meta.get("hashes") or {}
     if reviewed != hashes:
         raise PackAdminError("暫存的檔案在你看報告之後被改過了，不裝（重新上傳一次）："
                              + "、".join(pack_lock.diff(reviewed, hashes)[:10]))
@@ -346,26 +393,53 @@ def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
     if os.path.exists(target):                     # 同名＝升級：看過「改了什麼」再用 upgrade.upgrade_staged
         raise PackAdminError(f"已經裝了 {m.name}：這是升級，要先看「改了什麼」再按「確認升級」"
                              "（終端機：python -m synox install <檔> --yes 會自動走升級）。")
+    info = pack_tier.assess(m, report)
+    refused = pack_tier.confirm_problem(info, m, trust_publisher)        # T2：要明確輸入 publisher
+    if refused:
+        raise PackAdminError(refused)
     os.makedirs(packs_dir, exist_ok=True)
     shutil.move(folder, target)
     shutil.rmtree(root, ignore_errors=True)
-    pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=target, trust=trust)
-    logging.info("[PACKS] installed %s %s (approved by %s via %s, trust %s)", m.name, m.version, approved_by, via,
-                 trust)
+    fields = pack_tier.lock_fields(info, trust_publisher if info["tier"] == pack_tier.T2 else None)
+    pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=target, trust=trust,
+                      tier_fields=fields)
+    logging.info("[PACKS] installed %s %s (approved by %s via %s, trust %s, tier %s%s)", m.name, m.version,
+                 approved_by, via, trust, info["tier"],
+                 f", trusted publisher {fields.get('trusted_publisher')!r}" if fields.get("trusted_publisher") else "")
     return m.name
 
 
 def approve_installed(folder: str, data_dir: str, approved_by=None, via: str = "cli",
-                      trust: Optional[str] = None) -> Tuple[Manifest, ScanReport, List[str]]:
+                      trust: Optional[str] = None,
+                      trust_publisher: Optional[str] = None) -> Tuple[Manifest, ScanReport, List[str]]:
     """已經在 packs/ 裡的 pack（工程師自己放的、自己改過的）：跑 1、2 關，過了就寫 packs.lock。
-    trust 沒給＝沿用舊鎖的（沒有舊鎖＝third-party）。回 (manifest, 報告, 拒裝理由)；有理由就沒有寫鎖。"""
+    trust 沒給＝沿用舊鎖的（沒有舊鎖＝third-party）。回 (manifest, 報告, 拒裝理由)；有理由就沒有寫鎖。
+    T2：舊鎖確認過同一個 publisher、可執行的東西沒變多、沒新增 exec＝沿用；否則要 trust_publisher（一字不差），
+    不合的話理由放進回傳的清單（沒有寫鎖）。"""
     m, report, hashes, problems = run_gates(folder)
     if trust is None:
         trust = pack_lock.trust_of(data_dir, m.name)
     trust = _trust(trust)
-    if not problems:
-        pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=folder, trust=trust)
-    return m, report, problems
+    if problems:
+        return m, report, problems
+    info = pack_tier.assess(m, report)
+    previous = pack_lock.entry(data_dir, m.name)
+    typed = trust_publisher
+    if info["tier"] == pack_tier.T2 and not typed:
+        old_caps = (previous or {}).get("scan", {}).get("declared") or []
+        from types import SimpleNamespace
+        again = pack_tier.reconfirm_reasons(previous, SimpleNamespace(capabilities=old_caps), m, info)
+        if again:
+            refused = pack_tier.confirm_problem(info, m, None)
+            return m, report, [refused + "（" + "；".join(again) + "）"] if refused else again
+    else:
+        refused = pack_tier.confirm_problem(info, m, typed)
+        if refused:
+            return m, report, [refused]
+    fields = pack_tier.lock_fields(info, typed if info["tier"] == pack_tier.T2 else None, previous=previous)
+    pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=folder, trust=trust,
+                      tier_fields=fields)
+    return m, report, []
 
 
 def remove(name: str, packs_dir: str, now=None, data_dir: Optional[str] = None) -> str:

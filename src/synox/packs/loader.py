@@ -489,7 +489,9 @@ def context_env(m: Manifest, config, values: Dict[str, str], secret_fields=()) -
     SYNOX_SECRET_ENV＝「auth 欄位名=環境變數名」逗號接起來（只有名字，值照舊只在那個環境變數裡）。"""
     out = {"SYNOX_USER_DATA_DIR": values.get("user_data_dir", ""), "SYNOX_TG_ID": values.get("tg_id", ""),
            "SYNOX_MODE": str(getattr(config, "mode", "personal") or "personal"),
-           "SYNOX_PACK_DIR": m.folder, "SYNOX_PACK_NAME": m.name}
+           "SYNOX_PACK_DIR": m.folder, "SYNOX_PACK_NAME": m.name,
+           # P7：packs.lock 鎖每一個檔（含 __pycache__）；子程序的 python 不准在 pack 資料夾裡寫 .pyc
+           "PYTHONDONTWRITEBYTECODE": "1"}
     pairs = [f"{f['name']}={f['env']}" for f in secret_fields or () if f.get("env")]
     if pairs:
         out["SYNOX_SECRET_ENV"] = ",".join(pairs)
