@@ -53,7 +53,9 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
    排程裡包的指令都問它。`effect=DANGER`（含 `Node.effect_of` 算出來的）、要 /sudo、有驗證碼欄位的 → 一律核准卡。
    驗證碼欄位不出現在工具 schema（`tools.schema` 跳過 `fresh_code`），核准後由人那一端照常問碼。
 2. **adapter 只會聊天**：`llm/*` 不 import registry、不拿 Telegram api。換 LLM 只改 `config.json` 的 `llm`。
-3. **pack 不互相 import、不自己開檔**：資料經 `pack.store`（vault → 密文）；自己的檔案經 `pack.path()`。共用的放 `synox`（例如 `synox.packs.kit`）。
+3. **pack 不互相 import、不自己開檔**：資料經 `pack.store`（vault → 密文）；每個人的檔案經 `pack.path_of(user, …)`
+   （`data/users/<id>/<pack>/files/`，擋 `..`）；全部人共用的檔案經 `pack.path()`（伺服器版 `data: user` 的 pack 呼叫丟 `PackPathError`）。
+   共用的放 `synox`（例如 `synox.packs.kit`）。
 4. **安裝不需要使用者打任何指令**：Setup.bat 之後全部在視窗裡點。
 5. **沒有隱藏的背景程式**：Start.bat 開看得到的（最小化）視窗；開機自啟是使用者在精靈裡勾的。
 6. **.bat 只用 ASCII＋CRLF；.ps1 UTF-8 有 BOM＋CRLF；requirements.txt 只用 ASCII**。`.gitattributes` 的萬用規則放第一行（後面的規則才蓋得過它）。
@@ -93,13 +95,19 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     伺服器版 `policy.sandbox.required_for` 命中又沒有真隔離（`isolates`；none、jobobject 不算）→ loader 把那個 cli pack 的群組改 `owner_only`
     （`sandbox.restricted_reason`，doctor／packs status 寫原因）。真機驗證要在 Linux 伺服器上做（docs/security.md「運行空間」）。
 
+13. **伺服器版 python pack 看信任**（PERM-8）：`loader.python_trust`——出廠的（`loader.BUNDLED` 且在內建 `packs/`／`connectors/`）＝core、
+    有鎖＝`lock.trust_of`、沒鎖＝third-party；third-party 的 kind=python 群組 `owner_only`（`loader.trust_reason`，跟 PERM-7 的
+    `restricted_reason` 同一個出口：item.detail、doctor／packs status 的 🔐 行）。伺服器版沒鎖又不是出廠的 pack 載入前補跑第 2 關
+    （`loader.unlocked_scan`），沒過＝`rejected`、不載入。新加出廠 pack 要同時加進 `BUNDLED`。測試裡手放的 python pack 要給成員看，
+    先用 `conftest.trust_core(data_dir, folder)` 鎖成 core。個人版一律不受影響。
+
 另外：
 - pack 的群組由 loader 依 pack.json 定義（`loader.group_policy`）：`access: owner`（預設）＝整組 `owner_only`；`member`＝伺服器版 `role=MEMBER`、
   個人版 `owner_only`；`everyone`＝最低一級；再套角色能力上限（只會更嚴，見 invariant 11）。agent 群組也用同一個規則（`member`）：個人版只有擁有者，伺服器版成員以上；
   `AgentFallback.accepts` 問的是 `authorize(user, agent.ai)`，不另寫判斷。訪客（最低一級）在 `ai_decision` 一律沒有工具。
 - 權限宣告（PERM-2）：`surfaces` 沒有 `channel`（預設）→ `loader.surface_policy` 給群組 `private_only`；`data: shared` 的 WRITE／DANGER 葉節點
   在伺服器版由 `loader.shared_write_admin` 拉到角色階梯最高那一級（install 之後跑；個人版不動）。第 2 關照 `data` 檢查（`data: user` 不准裸 `pack.store`、
-  `pack.secret(name)` 不給 user、cli 不准 `{data_dir}`）。`trust`（core｜third-party）不在 pack.json：安裝報告上選、`lock.approve(trust=)` 寫進鎖，
+  `pack.secret(name)` 不給 user、`pack.path(` 要改 `pack.path_of(user, …)`（PERM-8）、cli 不准 `{data_dir}`）。`trust`（core｜third-party）不在 pack.json：安裝報告上選、`lock.approve(trust=)` 寫進鎖，
   舊鎖沒有＝third-party；升級沒給＝沿用舊鎖的。出廠 pack 與 connector 都宣告 `surfaces: ["dm"]`、`data: user`，新寫的 pack 也要寫。
   可見性的總判斷（`policy.decide`）是 PERM-1，不在這裡。
 - **每個人自己的資料一律 `pack.store.of(user)`**（notes、money）。伺服器版 → `data/users/<id>/`，vault 金鑰 HKDF(主金鑰, `user:<id>`)；

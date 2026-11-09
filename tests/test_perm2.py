@@ -9,6 +9,7 @@ import pytest
 from synox.packs import admin, loader, lock, upgrade
 from synox.packs.manifest import ManifestError, read, validate
 
+from conftest import trust_core
 from test_security import HELLO_PY, _write_pack, _zip_dir
 
 STORE_PY = ("def install(app, pack):\n"
@@ -207,6 +208,7 @@ def test_shared_write_needs_admin_on_server(make_bot, tmp_path):
     _scoped_pack(base, "board", data="shared")
     _scoped_pack(base, "diary", data="user")
     bot = make_bot(raw={"mode": "server"})
+    trust_core(bot.app.config.data_dir, str(base / "board"), str(base / "diary"))   # 手放的＝third-party（PERM-8）
     loader.load_all(bot.app, bot.app.config, None, dirs=[str(base)])
     reg = bot.app.registry
     admin_role = max(reg.roles)

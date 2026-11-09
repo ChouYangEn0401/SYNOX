@@ -10,7 +10,7 @@
     network    import／呼叫 requests、urllib、http.client、socket、ssl、ftplib、smtplib、websocket…  → 要宣告 network
     subprocess subprocess、os.system、os.popen、os.exec*、os.spawn*、app.jobs（SDK 的 JobRunner）  → subprocess
     filesystem open(…)／pathlib.Path(…)／shutil、os.remove、os.rename… ：字面路徑是絕對的或有 ..  → filesystem:any；
-               其他（路徑是變數、相對路徑）→ filesystem:own（pack 自己的檔案應該用 pack.path() 或 pack.store）
+               其他（路徑是變數、相對路徑）→ filesystem:own（pack 自己的檔案應該用 pack.path_of(user)／pack.path() 或 pack.store）
     exec       exec、eval、compile、__import__、importlib、ctypes、pickle.loads、marshal、getattr(x, "system")… → exec
     env        os.environ、os.getenv：**只列出來給人看**（不算 capability，也不擋）
     secret     pack.secret(…)：讀使用者在「連接」填的值（pack.json auth.fields）；只列出來，不算 capability
@@ -21,7 +21,8 @@
   {欄位} 緊跟在一個 --旗標 後面當它的值 ＝拒（值會變成另一段，要寫成 --k={v}）；樣板裡用了沒宣告的欄位 ＝拒。
   （值本身以 - 開頭、有換行，是第 4 關在呼叫時擋。）
 - data（pack.json 的 data 宣告，PERM-2；不合＝拒裝，列檔名:行號）：
-    python data=user   不准裸用 pack.store（load／save／update…；要 pack.store.of(user)），pack.secret(name) 一定要給 user
+    python data=user   不准裸用 pack.store（load／save／update…；要 pack.store.of(user)），pack.secret(name) 一定要給 user，
+                       不准用 pack.path（全部人共用的資料夾；要 pack.path_of(user, ...)，PERM-8）
     python data=none   不准用 pack.store、pack.path（有存資料就要宣告 user 或 shared）
     cli    data=user   樣板不准 {data_dir}（只能 {user_data_dir}）；data=none 兩個都不准
 - mcp：沒有程式可以掃；tools_allow 一定不能是空的。附了程式檔 ＝拒。
@@ -401,8 +402,12 @@ class _DataVisitor(ast.NodeVisitor):
         elif bare:
             self.add(node, "data 是 user：不能直接用 pack.store（load／save／update 是全部人共用的那一份），"
                            "要用 pack.store.of(user)")
-        elif self.data == "none" and _is_pack_attr(self.dotted(node), "path"):
-            self.add(node, 'data 是 none 卻用了 pack.path（有存檔案就要宣告 "data": "user" 或 "shared"）')
+        elif self.data == "none" and (_is_pack_attr(self.dotted(node), "path") or
+                                      _is_pack_attr(self.dotted(node), "path_of")):
+            self.add(node, f'data 是 none 卻用了 pack.{node.attr}（有存檔案就要宣告 "data": "user" 或 "shared"）')
+        elif self.data == "user" and _is_pack_attr(self.dotted(node), "path"):
+            self.add(node, "data 是 user：不能用 pack.path()（data/packs/<name>/ 是全部人共用的；伺服器版呼叫會丟錯），"
+                           "要用 pack.path_of(user, ...)（每個人自己的資料夾）")
         self.generic_visit(node)
 
     def visit_Call(self, node):

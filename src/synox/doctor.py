@@ -192,6 +192,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
     # packs
     from synox.packs import envs
     from synox.packs import lock as pack_lock
+    from synox.packs import loader
     from synox.packs.loader import PACK_DIRS, discover
     from synox.packs.manifest import ManifestError, read, synox_problem
     lines: List[str] = []
@@ -237,6 +238,16 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 boxed_out = sandbox.restricted_reason(config, m, box) if config is not None else ""
                 if boxed_out:
                     lines.append(f"     🔐 {boxed_out}")
+                if config is not None:                       # PERM-8：伺服器版第三方 python pack、沒鎖的補掃
+                    scan_problems = loader.unlocked_scan(config, m, lock_state)
+                    if scan_problems:
+                        lines.append(f"     ❌ 沒有 packs.lock、第 2 關掃描沒過，不會載入：{'；'.join(scan_problems[:3])}")
+                        problems += 1
+                    elif scan_problems is not None:
+                        lines.append("     🔍 沒有 packs.lock：載入時補跑的第 2 關掃描過了")
+                    trusted_out = "" if scan_problems else loader.trust_reason(config, m)
+                    if trusted_out:
+                        lines.append(f"     🔐 {trusted_out}")
         except ManifestError as e:
             lines.append(f"  ❌ {rel}：{e}")
             problems += 1

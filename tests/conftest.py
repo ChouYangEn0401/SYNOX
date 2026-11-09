@@ -50,5 +50,14 @@ def owner():
     return OWNER_ID
 
 
+def trust_core(data_dir, *folders):
+    """把 tmp 裡手放的 pack 鎖成 trust=core（擁有者安裝時選「核心」）：伺服器版沒鎖的 python pack＝third-party、
+    只給擁有者（PERM-8），測成員可見性的測試要先這樣核准。"""
+    from synox.packs import lock
+    from synox.packs.manifest import read
+    for folder in folders:
+        lock.approve(str(data_dir), read(folder), None, OWNER_ID, via="test", trust="core")
+
+
 def enc_files(bot):
     return sorted(f for f in os.listdir(bot.app.config.data_dir) if f.endswith(".json.enc"))
