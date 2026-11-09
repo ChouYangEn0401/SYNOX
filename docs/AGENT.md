@@ -36,6 +36,7 @@
 | `packs/notes`、`packs/money`、`packs/remind` | 出廠 pack；remind 的程式在 `synox/schedule` |
 | `connectors/notion` | **已接上**：`kind: python`＋`capabilities: ["network"]`，integration token 存 `pack.store.of(user)`（vault），Notion REST `2025-09-03`，只用 requests；測試 `tests/test_notion.py`（`new_session` 換假的 HTTP） |
 | `connectors/*`（其他） | `kind: connector` 的設計稿（只有 pack.json、SKILL.md、README；沒有連網程式） |
+| `connectors/*` | `kind: connector` 的設計稿（只有 pack.json、SKILL.md、README；沒有連網程式）；**`connectors/todoist` 例外**：`kind: python`＋`capabilities: ["network"]`，真的接 Todoist API v1（`pack.py` 的 `Client`；測試換 `pack.HTTP` 成假 session，`tests/test_todoist.py`） |
 | `Setup.bat`、`setup/bootstrap.ps1` | 一鍵安裝；`Start.bat`／`Stop.bat`／`Console.bat` |
 | `tests/` | pytest；`conftest.py` 的 `make_bot` 用真的 packs＋真的 Vault＋`FakeAdapter`＋SDK `BotHarness` |
 
@@ -121,6 +122,8 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 - `Setup.bat` 的完整安裝路徑（winget、embeddable zip）沒有在任何一台陌生電腦上跑過；精靈的畫面沒有自動化測試（只測了 logic／probe／shortcuts）。
 - connector：Notion 接上了（貼 token，`/notion_token`）；Google 日曆、Todoist、Apple 提醒事項仍是設計稿（工具頁顯示「要先設定」，沒有「連接」按鈕）。
   Notion 在網頁工具頁顯示「已連接」（kind=python 一律這樣），沒設 token 時要打 `/notion_status` 才知道；指令的參數是照空白切的，一次加的字只會是一段（換行變空白）。
+- connector 只有設計稿（工具頁顯示「要先設定」，沒有「連接」按鈕）。Todoist 已接（token 用 `/todoist_token` 在聊天裡貼，log 會遮；
+  Telegram 那則訊息要使用者自己刪；網頁沒有專用的 token 欄位；工具頁不分「有沒有貼 token」都顯示「已連接」；API 呼叫是同步的，逾時 15 秒）。
 - 文字協定一次只解析一個工具呼叫。
 - 伺服器版：個人版的舊資料不會自動搬到擁有者的 `data/users/<id>/`；精靈的伺服器版沒有多問「誰是管理員」（擁有者之後用 `/user_role <id> admin`
   或網頁帳號頁）。成員的 AI 額度用 token × 單價估（`llm.price_in`／`price_out`，預設 3／15 美元每百萬 token），不是供應者的帳單。
