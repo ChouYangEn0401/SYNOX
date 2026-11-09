@@ -64,6 +64,11 @@ def inside(root: str, candidate: str) -> Tuple[str, Optional[str]]:
         return "", "路徑不能空白"
     if _CONTROL.search(candidate):
         return "", "路徑不能有換行或控制字元"
+    plain = candidate.strip().replace("\\", "/")
+    if plain.startswith(("//", "/??/")):
+        # 審查 C #C4：\\主機\分享、//主機/…、\\?\、\\.\ —— realpath 這種路徑 Windows 就會對那台主機連 SMB，
+        # 一定要在碰檔案系統之前擋（只做字串判斷）
+        return "", "不能用網路路徑或裝置路徑（\\\\主機\\…）"
     root_real = os.path.realpath(root)
     full = candidate if os.path.isabs(candidate) else os.path.join(root, candidate)
     full_real = os.path.realpath(full)

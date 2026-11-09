@@ -6,7 +6,7 @@
 
 各種 kind 看什麼：
 
-- python：每一個 .py 用 ast 解析，列出
+- python：每一個 .py／.pyw（和沒有副檔名、ast.parse 得過的檔，審查 C #C1）用 ast 解析，列出
     network    import／呼叫 requests、urllib、http.client、socket、ssl、ftplib、smtplib、websocket…  → 要宣告 network
     subprocess subprocess、os.system、os.popen、os.exec*、os.spawn*、app.jobs（SDK 的 JobRunner）  → subprocess
     filesystem open(…)／pathlib.Path(…)／shutil、os.remove、os.rename… ：字面路徑是絕對的或有 ..  → filesystem:any；
@@ -21,7 +21,8 @@
     secret     pack.secret(…)：讀使用者在「連接」填的值（pack.json auth.fields）；只列出來，不算 capability
     binary     掃不到內容的檔（T2，P7；opaque_files）：.exe .dll .bat .cmd .ps1 .sh .so .dylib .node .wasm…、
                別的語言的原始碼（SOURCE_EXT：.js .mjs .ts .rb .pl .php .lua .go .rs .java .cs .psm1 .bash…）、
-               __pycache__ 裡的、.pyc／.pyd、檔頭是 MZ+PE／ELF／Mach-O（不管副檔名）、沒有副檔名但帶執行位元或 #! 開頭、
+               __pycache__ 裡的、.pyc／.pyd、壓縮檔（.pyz .pyzw .zip .whl .egg：Python 可以直接從裡面 import／執行）、
+               檔頭是 MZ+PE／ELF／Mach-O（不管副檔名）、沒有副檔名但帶執行位元或 #! 開頭、
                node_modules（整個資料夾一筆） → exec；python、cli、mcp stdio 都看。報告的 opaque 列路徑、大小、sha256
   沒宣告對應的 capability ＝拒裝（列出檔名:行號）。舊的 pack 沒寫 capabilities＝什麼都沒宣告，所以掃描結果決定。
   .py 解析不了（語法錯）也拒裝：掃不到就不能說它安全。
@@ -29,6 +30,9 @@
   {node}／node／deno／bun／ruby／perl／php 這類直譯器——出現在 argv 任何一段都算，INTERPRETERS；{python} 解析到 pack 外的直譯器，
   envs.python_target）不擋，列一筆 external（報告的 external 有解析後的路徑）「未鎖定執行環境」；
   argv 讓直譯器直接執行一段程式碼（-c、-e、-Command、/c…，inline_code；cli.argv＋command argv 整條看）→ exec；
+  {python} 要跑的 pack 內檔案不是 .py／.pyw（或含 __main__.py 的資料夾）＝拒（審查 C #C1：./run.txt、./app.pyz…
+  Python 照跑、第 2 關不看；script_target_problem）；
+  {python} -m 而 cli.cwd／mcp.cwd 不在 pack 裡＝拒（#C3：-m 的 sys.path[0] 是 cwd，{user_data_dir} 裡同名的 .py 會先被載入）；
   argv 樣板只能是字面字、單獨一段的 {欄位}、或 --k={欄位}（一段）；
   {欄位} 緊跟在一個 --旗標 後面當它的值 ＝拒（值會變成另一段，要寫成 --k={v}）；樣板裡用了沒宣告的欄位 ＝拒。
   （值本身以 - 開頭、有換行，是第 4 關在呼叫時擋。）
@@ -121,8 +125,13 @@ SOURCE_EXT = (
     ".psm1", ".psd1", ".vbe", ".jse", ".wsf", ".wsh", ".hta", ".applescript", ".scpt",   # Windows／macOS 腳本
     ".bash", ".zsh", ".fish", ".ksh", ".csh", ".awk",                                  # shell
 )
-OPAQUE_EXT = BINARY_EXT + tuple(e for e in SOURCE_EXT if e not in BINARY_EXT)
-CODE_EXT = (".py",) + OPAQUE_EXT
+# 審查 C #C1：Python 可以直接從這些壓縮檔 import 或執行（zipapp、sys.path 放 .whl／.zip／.egg），第 2 關看不到裡面
+ARCHIVE_EXT = (".pyz", ".pyzw", ".zip", ".whl", ".egg")
+OPAQUE_EXT = BINARY_EXT + tuple(e for e in SOURCE_EXT if e not in BINARY_EXT) + ARCHIVE_EXT
+# 第 2 關當 Python 原始碼掃的副檔名（.pyw：pythonw 跑的腳本；Windows 的 import 也會找 .pyw）
+PY_SOURCE_EXT = (".py", ".pyw")
+CODE_EXT = PY_SOURCE_EXT + OPAQUE_EXT
+MAX_GUESS_SOURCE = 1024 * 1024          # 沒有副檔名的檔：1 MB 以內才試著當 Python 解析（審查 C #C1）
 # argv 裡出現就算「叫 pack 外的程式」的直譯器（{node} 是 SYNOX 的代換，但 node 本身在 pack 外、沒有鎖）
 # （argv[0] 本來就一律看；這張表是讓 cmd /c node …、env node … 這種後面才出現的也記一筆。可擴充）
 INTERPRETERS = ("node", "nodejs", "npx", "npm", "deno", "bun", "bunx", "ruby", "perl", "php", "ts-node",
@@ -313,6 +322,8 @@ def opaque_reason(folder: str, rel: str, exec_bits: Sequence[str] = ()) -> str:
         return f"執行檔／腳本（{ext}），第 2 關只看 .py"
     if ext in SOURCE_EXT:
         return f"別的語言的原始碼（{ext}），第 2 關只讀得懂 .py"
+    if ext in ARCHIVE_EXT:
+        return f"壓縮檔（{ext}）：Python 可以直接從裡面 import 或執行（zipapp／wheel），第 2 關看不到內容"
     magic = _magic_of(path)
     if magic:
         return f"{magic}（副檔名是 {ext or '沒有'}）"
@@ -573,17 +584,51 @@ def scan_source(rel: str, text: str) -> List[Finding]:
     return out
 
 
-def _scan_python_files(m: Manifest, files: List[str]) -> List[Finding]:
-    out = []
+def is_python_source(rel: str) -> bool:
+    """.py／.pyw（不分大小寫）：第 2 關一定當 Python 原始碼掃（讀不了、語法錯＝拒裝）。"""
+    return rel.lower().endswith(PY_SOURCE_EXT)
+
+
+def guessed_python(folder: str, rel: str) -> Optional[str]:
+    """沒有副檔名的檔（審查 C #C1）：1 MB 以內、UTF-8、ast.parse 得過 → 回內容（當 Python 原始碼掃）；否則 None
+    （當資料：Python 的 import 不會載入沒有副檔名的檔；{python} 要跑它第 2 關另外擋，見 script_findings）。只讀不執行。"""
+    name = rel.rsplit("/", 1)[-1]
+    if os.path.splitext(name)[1] or PYCACHE in rel.split("/")[:-1]:
+        return None
+    path = os.path.join(folder, *rel.split("/"))
+    try:
+        if os.path.getsize(path) > MAX_GUESS_SOURCE:
+            return None
+        with open(path, "r", encoding="utf-8-sig") as fh:
+            text = fh.read()
+        ast.parse(text, filename=rel)
+    except (OSError, UnicodeDecodeError, SyntaxError, ValueError):
+        return None
+    return text
+
+
+def _python_texts(m: Manifest, files: List[str]):
+    """第 2 關要當 Python 掃的檔：yield (rel, 內容 或 None, 讀不了的原因)。"""
     for rel in files:
-        if rel.lower().endswith(".py"):
+        if is_python_source(rel):
             try:
                 with open(os.path.join(m.folder, rel), "r", encoding="utf-8-sig") as fh:
-                    text = fh.read()
+                    yield rel, fh.read(), ""
             except (OSError, UnicodeDecodeError) as e:
-                out.append(Finding(rel, 0, "syntax", "", f"讀不了：{e}"))
-                continue
-            out += scan_source(rel, text)
+                yield rel, None, str(e)
+            continue
+        text = guessed_python(m.folder, rel)
+        if text is not None:
+            yield rel, text, ""
+
+
+def _scan_python_files(m: Manifest, files: List[str]) -> List[Finding]:
+    out = []
+    for rel, text, error in _python_texts(m, files):
+        if text is None:
+            out.append(Finding(rel, 0, "syntax", "", f"讀不了：{error}"))
+            continue
+        out += scan_source(rel, text)
     return out
 
 
@@ -697,14 +742,12 @@ def _check_data_python(m: Manifest, files: List[str]) -> List[Finding]:
     if m.data not in ("user", "none"):
         return []
     out: List[Finding] = []
-    for rel in files:
-        if not rel.lower().endswith(".py"):
-            continue
+    for rel, text, _error in _python_texts(m, files):
         try:
-            with open(os.path.join(m.folder, rel), "r", encoding="utf-8-sig") as fh:
-                text = fh.read()
-            tree = ast.parse(text, filename=rel)
-        except (OSError, UnicodeDecodeError, SyntaxError):
+            tree = ast.parse(text, filename=rel) if text is not None else None
+        except (SyntaxError, ValueError):
+            tree = None
+        if tree is None:
             continue                                  # 讀不了／語法錯，_scan_python_files 已經擋了
         v = _DataVisitor(rel, text.splitlines(), m.data)
         v.visit(tree)
@@ -826,12 +869,56 @@ def _sequences(m: Manifest) -> List[tuple]:
 def _module_inside(m: Manifest, module: str) -> bool:
     top = module.split(".")[0]
     base = m.folder
-    return bool(top) and (os.path.isfile(os.path.join(base, top + ".py")) or os.path.isdir(os.path.join(base, top)))
+    return bool(top) and (any(os.path.isfile(os.path.join(base, top + ext)) for ext in PY_SOURCE_EXT)
+                          or os.path.isdir(os.path.join(base, top)))
 
 
 def _inside_token(token: str) -> bool:
     plain = token.replace("\\", "/")
     return plain.startswith(("./", "{pack_dir}/")) and ".." not in plain.split("/")
+
+
+def _cwd_template(m: Manifest) -> str:
+    holder = (m.mcp or {}) if m.kind == "mcp" else (m.cli or {})
+    return str(holder.get("cwd") or ".")
+
+
+def cwd_inside_pack(text: str) -> bool:
+    """cli.cwd／mcp.cwd 的樣板是不是 pack 資料夾（或底下的子資料夾）：.、./sub、{pack_dir}、{pack_dir}/sub。
+    有別的代換（{user_data_dir}、{data_dir}…）、絕對路徑、.. ＝不是（審查 C #C3）。只看字串。"""
+    plain = str(text).replace("\\", "/")
+    if plain.startswith("{pack_dir}"):
+        rest = plain[len("{pack_dir}"):]
+        if rest and not rest.startswith("/"):
+            return False
+        plain = rest.lstrip("/") or "."
+    if "{" in plain or "}" in plain or plain.startswith(("/", "~")) or re.match(r"^[A-Za-z]:", plain):
+        return False
+    return ".." not in plain.split("/")
+
+
+def _pack_rel(token: str) -> str:
+    """./x/y.py、{pack_dir}/x/y.py → x/y.py（呼叫前先確定 _inside_token）。"""
+    plain = token.replace("\\", "/")
+    rest = plain[len("{pack_dir}/"):] if plain.startswith("{pack_dir}/") else plain[2:]
+    return "/".join(p for p in rest.split("/") if p not in ("", "."))
+
+
+def script_target_problem(m: Manifest, token: str) -> str:
+    """{python} 要跑的、在 pack 裡的那支程式（審查 C #C1）：一定要是 .py／.pyw（第 2 關當原始碼掃），
+    或是裡面有 __main__.py 的資料夾。其他（./run.txt、./app.pyz、./app.zip、沒有副檔名的 ./run…）Python 照樣會執行，
+    第 2 關卻不會當程式碼看 → 回一句理由（擋）；合格回 ""。只查路徑，不執行。"""
+    rel = _pack_rel(token)
+    path = os.path.join(m.folder, *rel.split("/")) if rel else m.folder
+    if os.path.isdir(path):
+        if any(os.path.isfile(os.path.join(path, "__main__" + ext)) for ext in PY_SOURCE_EXT):
+            return ""
+        return (f"{{python}} 要跑的 {token} 是資料夾，但裡面沒有 __main__.py"
+                "（只有 .py 原始碼第 2 關看得到）")
+    if is_python_source(rel):
+        return ""
+    return (f"{{python}} 要跑的 {token} 不是 .py：Python 不看副檔名照樣會執行（.txt、.pyz／.zip 的 zipapp、"
+            "沒有副檔名的檔…），第 2 關卻不會把它當程式碼掃。請改成 .py 檔（或含 __main__.py 的資料夾）")
 
 
 def _looks_like_path(token: str) -> bool:
@@ -1005,16 +1092,27 @@ def _interpreter_hits(m: Manifest, token: str, args: Sequence[str]):
             why = "看不懂的旗標（可能直接執行程式碼）" if kind == "odd" else "直接執行一段沒被第 2 關掃描的程式碼"
             yield "inline", f"{name} {value.split('（')[0].strip() or value}".strip(), f"{name} {value}：{why}"
         elif kind == "module":
+            if family == "python" and not cwd_inside_pack(_cwd_template(m)):
+                yield "blocked", f"-m {value}", (
+                    f"{name} -m {value} 而 cwd 是 {_cwd_template(m)!r}：python -m 會先從 cwd 找模組，cwd 不在 pack 裡"
+                    "（例如 {user_data_dir}）時，那裡同名的 .py 會先被載入（沒鎖、沒掃過）。"
+                    "cwd 請用 pack 資料夾（\".\"），或改成 {python} ./tool.py")
             if not value or _PLACEHOLDER.search(value):
                 yield "inline", f"{name} -m {value}".strip(), f"{name} -m {value}：要跑的模組由欄位決定（掃不到）"
             elif not _module_inside(m, value):
                 yield "external", f"-m {value}", ""
         elif kind == "script":
             problem = _script_problem(value)
+            if problem == "" and _inside_token(value) and _PLACEHOLDER.search(_pack_rel(value)):
+                problem = "field"                  # ./{欄位}.py：要跑哪個檔由使用者決定（值可以帶 ..）
             if problem == "field":
                 yield "inline", f"{name} {value}", f"{name} {value}：要跑哪支程式由使用者填的欄位決定（掃不到）"
             elif problem == "outside":
                 yield "external", value, ""
+            elif family == "python" and _inside_token(value):
+                why = script_target_problem(m, value)
+                if why:
+                    yield "blocked", value, why
 
 
 def _argv_hits(m: Manifest) -> List[tuple]:
@@ -1075,7 +1173,11 @@ def python_external(m: Manifest) -> Optional[dict]:
     path, origin, where = envs.python_target(m)
     if origin != envs.PY_OUTSIDE:
         return None
-    resolved = path if os.path.exists(path) else f"{path}（這台不存在）"
+    from synox.packs.manifest import unc_like
+    if unc_like(path, strict=True):                 # 審查 C #C4：不碰網路路徑（第 1 關已經擋了；防禦深度）
+        resolved = f"{path}（// 開頭：可能是網路路徑，不查）"
+    else:
+        resolved = path if os.path.exists(path) else f"{path}（這台不存在）"
     return {"program": "{python}", "resolved": resolved, "where": where, "note": "未鎖定執行環境",
             "interpreter": "python"}
 
@@ -1084,6 +1186,10 @@ def resolve_program(token: str, m: Optional[Manifest] = None) -> str:
     """pack 外的程式解析到這台的哪裡（只查路徑，不執行）：絕對路徑原樣；"-m 模組"＝SYNOX 這支 Python 的 sys.path
     找得到的位置（不 import）；其他照 PATH 找（shutil.which）。找不到回一句話。"""
     import shutil
+
+    from synox.packs.manifest import unc_like
+    if unc_like(token, strict=True):                # 審查 C #C4：不 exists／which 網路路徑（會連 SMB）
+        return f"{token}（// 開頭：可能是網路路徑，不查）"
     if token.startswith("-m "):
         module = token[3:].strip()
         try:
@@ -1141,6 +1247,17 @@ def _inline_findings(m: Manifest) -> List[Finding]:
             for label, detail, at in inline_code(m)]
 
 
+def argv_blocked(m: Manifest) -> List[tuple]:
+    """argv 不管宣告什麼都不收的寫法：[(程式, 理由, 在哪)]（{python} 跑 pack 裡不是 .py 的檔，審查 C #C1；
+    {python} -m 而 cwd 不在 pack 裡，#C3）。
+    第 2 關記成 argv（擋）；loader 載入時也照這個拒（已經裝好的舊 pack）。"""
+    return [(p, d, w) for kind, p, d, w in _argv_hits(m) if kind == "blocked"]
+
+
+def _blocked_findings(m: Manifest) -> List[Finding]:
+    return [Finding("pack.json", 0, "argv", program, f"{at}：{detail}") for program, detail, at in argv_blocked(m)]
+
+
 def _external_findings(report_external: List[dict], label: str) -> List[Finding]:
     return [Finding("pack.json", 0, "external", e["program"],
                     f"{label} 用了 pack 外的程式 {e['program']}（→ {e['resolved']}）：packs.lock 只鎖 pack "
@@ -1161,6 +1278,7 @@ def _check_mcp_stdio(m: Manifest) -> List[Finding]:
             out.append(Finding("pack.json", 0, "argv", f"mcp.env.{k}", f"mcp.env.{k} 只能用系統代換（{v!r}）"))
     out += _external_findings(externals(m), "mcp.argv")
     out += _inline_findings(m)
+    out += _blocked_findings(m)
     return out
 
 
@@ -1198,6 +1316,7 @@ def scan(m: Manifest, exec_bits: Sequence[str] = ()) -> ScanReport:
         report.findings += _check_data_cli(m)
         report.findings += _external_findings(report.external, "cli.argv")
         report.findings += _inline_findings(m)
+        report.findings += _blocked_findings(m)
     return report
 
 

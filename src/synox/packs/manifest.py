@@ -91,6 +91,7 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 COMMAND_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 FIELD_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")              # python.module：pack 資料夾裡的 <名字>.py
 # requires.synox：一個或幾個（逗號分隔）條件，例如 ">=0.3"、">=0.3,<1.0"；只寫版本＝>=
 _SPEC_RE = re.compile(r"^\s*(>=|<=|==|!=|>|<)?\s*(\d+(?:\.\d+){0,2})\s*$")
 # {python} 一定要是 Python 直譯器（cli.python、runtime.python／python_posix 的檔名）：python、python3、python3.12、
@@ -98,6 +99,115 @@ _SPEC_RE = re.compile(r"^\s*(>=|<=|==|!=|>|<)?\s*(\d+(?:\.\d+){0,2})\s*$")
 PYTHON_NAME_RE = re.compile(r"^(python|pypy)(\d+(\.\d+)*)?[tw]?(\.exe)?$", re.IGNORECASE)
 # runtime.python 唯一收的 ..：「pack 旁邊的 venv」（跟 cli.python="venv" 一樣；金流簿 repo 的寫法）
 SIBLING_VENV_RE = re.compile(r"^\.\./\.?venv/(Scripts|bin)/[^/]+$")
+
+
+# 審查 C #C2：pack 寫的子程序環境變數（cli.env、最上層 env、mcp.env）不能用這些名字——它們會讓「合法的」直譯器
+# 在開始跑 pack 的程式之前，先載入 pack 外、沒鎖、沒掃過的程式碼（PYTHONPATH 的 sitecustomize.py／.pth、PYTHONHOME、
+# PYTHONSTARTUP、NODE_OPTIONS=--require、POSIX 的 PATH 換掉 argv[0] 找到的程式、LD_PRELOAD…）。
+# 不分大小寫（Windows 的環境變數名不分大小寫）。這是黑名單：擋常見的，不保證涵蓋每一種程式的每一個變數
+ENV_PYTHON_OK = ("PYTHONIOENCODING", "PYTHONUTF8", "PYTHONUNBUFFERED")
+ENV_BANNED = ("PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "COMSPEC", "NODE_OPTIONS", "NODE_PATH", "BASH_ENV", "ENV",
+              "PERL5LIB", "PERL5OPT", "PERLLIB", "RUBYLIB", "RUBYOPT", "PSMODULEPATH", "PHP_INI_SCAN_DIR",
+              "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS", "DOTNET_STARTUP_HOOKS", "LUA_PATH", "LUA_CPATH",
+              "LUA_INIT", "GCONV_PATH")
+ENV_BANNED_PREFIXES = ("PYTHON", "LD_", "DYLD_", "PIP_", "NPM_CONFIG_", "COR_", "CORECLR_")
+# PYTHONPATH 只收 pack 自己的資料夾（或底下的子資料夾）：{pack_dir} 或 {pack_dir}/lib，不能有 ..、;、:
+PYTHONPATH_OK_RE = re.compile(r"^\{pack_dir\}(/[A-Za-z0-9_.-]+)*/?$")
+
+
+# 審查 C #C4：UNC／裝置路徑（\\主機\分享、//主機/分享、\\?\、\\.\、\??\）。Windows 碰到這種路徑（realpath、exists、
+# isfile…）就會用目前的帳號對那台主機發 SMB 連線（NetNTLM 雜湊外洩）——而第 1、2 關在安裝者按確認之前就會跑。
+# 只看字串，不碰檔案系統。一段字的開頭，或 = ; , 空白、引號後面出現 // 都算（--file=\\主機\x 也是）
+# argv 裡的字：//主機/分享（要有第二個 /，所以 cscript 的 //E:jscript、//B 這種選項不算）、//?/、//./、/??/
+_UNC_RE = re.compile(r"(^|[=;,\s\"'])(//[^/]+/|/\?\?/)")
+
+
+def unc_like(text, strict: bool = False) -> bool:
+    """這段字裡有沒有 UNC／裝置路徑（反斜線、正斜線都算）。只做字串判斷。
+    strict=True（一定是路徑的欄位：cli.python、cwd、skill…）：// 開頭就算（\\\\主機 沒有分享名也一樣不碰）。"""
+    plain = str(text).replace("\\", "/")
+    if strict and plain.lstrip().startswith(("//", "/??/")):
+        return True
+    return bool(_UNC_RE.search(plain))
+
+
+def _unc_strings(raw: dict):
+    """pack.json 裡第 1、2 關會拿去當路徑用的字串：yield (在哪, 值, strict)。strict＝這個欄位一定是路徑
+    （cli.python、runtime、cwd、skill、python.module、web.panel、integrity 的檔名）；argv、env 的值是「一段字」。"""
+    def items(label, value, strict):
+        if isinstance(value, str):
+            yield label, value, strict
+        elif isinstance(value, list):
+            for i, v in enumerate(value):
+                yield from items(f"{label}[{i}]", v, strict)
+        elif isinstance(value, dict):
+            for k, v in value.items():
+                yield from items(f"{label}.{k}", v, strict)
+
+    def obj(value) -> dict:
+        return value if isinstance(value, dict) else {}
+
+    cli, mcp, runtime = obj(raw.get("cli")), obj(raw.get("mcp")), obj(raw.get("runtime"))
+    yield from items("skill", raw.get("skill"), True)
+    yield from items("python.module", obj(raw.get("python")).get("module"), True)
+    yield from items("cli.python", cli.get("python"), True)
+    yield from items("cli.cwd", cli.get("cwd"), True)
+    yield from items("mcp.cwd", mcp.get("cwd"), True)
+    for key in ("python", "python_posix", "node"):
+        yield from items(f"runtime.{key}", runtime.get(key), True)
+    yield from items("web.panel", obj(raw.get("web")).get("panel"), True)
+    for k in obj(obj(raw.get("integrity")).get("sha256")):
+        yield "integrity.sha256", str(k), True
+    yield from items("cli.argv", cli.get("argv"), False)
+    for i, c in enumerate(cli.get("commands") or raw.get("commands") or []):
+        if isinstance(c, dict):
+            yield from items(f"commands[{i}].argv", c.get("argv"), False)
+    yield from items("mcp.argv", mcp.get("argv"), False)
+    for label, env in (("env", raw.get("env")), ("cli.env", cli.get("env")), ("mcp.env", mcp.get("env"))):
+        yield from items(label, env, False)
+
+
+def unc_problems(raw: dict) -> List[str]:
+    """第 1 關最先跑（任何碰檔案系統的檢查之前）：pack.json 裡有 UNC／裝置路徑 → 每個一句理由。"""
+    return [f"{where} 不能用網路路徑或裝置路徑（\\\\主機\\…、//主機/…、\\\\?\\、\\\\.\\）：{value[:80]!r}"
+            "——光是檢查這種路徑，Windows 就會連到那台主機（審查 C #C4）"
+            for where, value, strict in _unc_strings(raw) if unc_like(value, strict=strict)]
+
+
+def env_name_problem(name, value=None) -> str:
+    """pack 寫的環境變數名（與值）能不能給子程序：""＝可以；否則一句理由（審查 C #C2）。"""
+    if not isinstance(name, str) or not ENV_NAME_RE.match(name):
+        return f"環境變數名字 {name!r} 只能用英數字和 _（不能以數字開頭）"
+    upper = name.upper()
+    if upper == "PYTHONPATH":
+        text = str(value or "").replace("\\", "/")
+        if PYTHONPATH_OK_RE.match(text) and ".." not in text.split("/"):
+            return ""
+        return ("PYTHONPATH 只能指到 pack 自己的資料夾（{pack_dir} 或 {pack_dir}/子資料夾）："
+                "指到別處，Python 啟動時會先載入那裡沒鎖、沒掃過的程式（sitecustomize.py、.pth）")
+    if upper in ENV_PYTHON_OK:
+        return ""
+    if upper in ENV_BANNED or upper.startswith(ENV_BANNED_PREFIXES):
+        return (f"環境變數 {name} 不能由 pack 設定：它會讓 Python／Node／系統在跑 pack 的程式之前，"
+                "先載入 pack 外、沒鎖、沒掃過的程式（或換掉要跑的程式）")
+    return ""
+
+
+def env_problems(label: str, env) -> List[str]:
+    """{名字: 字串} 的每一個鍵都過 env_name_problem；回不合的說明。"""
+    if not isinstance(env, dict):
+        return []
+    out = []
+    for k, v in env.items():
+        why = env_name_problem(k, v)
+        if why:
+            out.append(f"{label}.{k}：{why}")
+    return out
+
+
+def safe_env(env: Dict[str, str]) -> Dict[str, str]:
+    """防禦深度（loader／mcp 開子程序前）：pack 寫的環境變數裡 env_name_problem 不收的一律拿掉。"""
+    return {k: v for k, v in (env or {}).items() if not env_name_problem(k, v)}
 
 
 def python_path_problems(label: str, value, *, relative_ok: bool) -> List[str]:
@@ -351,6 +461,8 @@ def _check_auth_fields(auth: dict, problems: List[str]) -> None:
                 problems.append(f"auth.fields 的 {name}.env 要是環境變數名字（英數字、_）")
             elif env.upper() in envs:
                 problems.append(f"auth.fields 的 env {env} 重複了")
+            elif env_name_problem(env, "x"):
+                problems.append(f"auth.fields 的 {name}.env：{env_name_problem(env, 'x')}")
             else:
                 envs.add(env.upper())
         if f.get("kind") is not None and f.get("kind") not in ("text", "file"):
@@ -471,6 +583,8 @@ def _check_mcp_transport(mcp: dict, caps: List[str], problems: List[str], auth: 
                             not all(isinstance(k, str) and ENV_NAME_RE.match(k) and isinstance(v, str)
                                     for k, v in env.items())):
         problems.append("mcp.env 要是 {環境變數名字: 字串}")
+    else:
+        problems += env_problems("mcp.env", env)
     if mcp.get("cwd") is not None and not isinstance(mcp.get("cwd"), str):
         problems.append("mcp.cwd 要是字串（相對於 pack 資料夾）")
     for key in ("timeout", "start_timeout"):
@@ -724,6 +838,9 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     problems: List[str] = []
     if not isinstance(raw, dict):
         raise ManifestError("pack.json 最外層要是 {…} 物件")
+    unc = unc_problems(raw)                    # 審查 C #C4：在任何 isfile／realpath 之前
+    if unc:
+        raise ManifestError("；".join(unc[:5]))
     for key in ("name", "title", "summary", "version", "kind"):
         if not isinstance(raw.get(key), str) or not raw.get(key).strip():
             problems.append(f"少了 {key}")
@@ -746,11 +863,17 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     if storage not in ("vault", "plain"):
         problems.append("storage 只能是 vault 或 plain")
     skill = raw.get("skill", "SKILL.md")
-    if not isinstance(skill, str) or not os.path.isfile(os.path.join(folder, skill)):
+    if not isinstance(skill, str) or os.path.isabs(skill) or re.match(r"^[A-Za-z]:", skill) or \
+            ".." in skill.replace("\\", "/").split("/"):
+        problems.append(f"skill 要是 pack 資料夾裡的檔（相對路徑、不能有 ..）：{skill!r}")
+    elif not os.path.isfile(os.path.join(folder, skill)):
         problems.append(f"找不到 skill 檔 {skill}")
     if kind == "python":
         module = (raw.get("python") or {}).get("module", "pack")
-        if not os.path.isfile(os.path.join(folder, f"{module}.py")):
+        if not isinstance(module, str) or not MODULE_RE.match(module):
+            # 審查 C：以前 "../x" 會讓 loader 執行 pack 外的 x.py（第 2 關沒掃、鎖裡沒有）
+            problems.append(f"python.module 要是 pack 資料夾裡的模組名字（英數字、_；不能有路徑）：{module!r}")
+        elif not os.path.isfile(os.path.join(folder, f"{module}.py")):
             problems.append(f"kind=python 但找不到 {module}.py")
     v2 = any(k in raw for k in V2_KEYS) or isinstance(raw.get("auth"), dict)
     cli = raw.get("cli") or {}
@@ -774,6 +897,8 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
             if not isinstance(value, dict) or \
                     not all(isinstance(k, str) and isinstance(v, str) for k, v in value.items()):
                 problems.append(f"{label} 要是 {{名字: 字串}}")
+            else:
+                problems += env_problems(label, value)          # 審查 C #C2：PYTHONPATH、NODE_OPTIONS、PATH…
         if isinstance(env, dict) and isinstance(top_env, dict):
             cli["env"] = {**top_env, **env}             # 最上層的 env（金流簿的寫法）＋ cli.env，cli.env 優先
     # cli.python 不管 kind 都檢查：loader 代換 {python} 時 mcp stdio 也讀它（envs.python_target）

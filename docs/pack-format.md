@@ -136,7 +136,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | `cli.python` | `{python}` 換成什麼：絕對路徑｜`"venv"`（`<pack 資料夾>/../.venv` 的 python）｜沒寫＝看 `runtime`，再沒有＝SYNOX 自己的 Python。**一定要指到 Python 直譯器**（檔名 `python`、`python3`、`python3.12`、`pythonw`、`pypy3`…，可以有 `.exe`）、不能有 `..`；要叫別的程式請直接寫在 `cli.argv` 第一段（算 pack 外的程式、T2）。kind=mcp 寫了也照樣檢查 |
 | `runtime.python`、`runtime.python_posix` | 另一種寫法（金流簿用的）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它。**`"auto"`**＝安裝時自動建 venv（見下面「依賴與環境自動建置」；跟 `cli.python` 不能同時寫）。一樣要是 Python 直譯器的檔名；`..` 只收 `../.venv/Scripts/python.exe`、`../venv/bin/python` 這種「pack 旁邊的 venv」 |
 | `runtime.node` | **只給 kind=cli**（kind=mcp 寫了＝pack.json 不合；mcp 的 `{node}` 一律是系統的 node）。`{node}` 換成什麼：相對於 pack 資料夾（或絕對路徑）；**`"auto"`**＝系統的 node＋安裝時照 `package-lock.json` 裝套件；沒寫＝系統的 node。用到 `{node}` 的 pack 是 T2 |
-| `env`（最上層）、`cli.env` | 子程序多帶的環境變數；兩個合併，`cli.env` 優先。值可以用下面的代換。名字像密鑰的（`*_TOKEN`…）一樣會被拿掉，除非列在 `requires.env` |
+| `env`（最上層）、`cli.env` | 子程序多帶的環境變數；兩個合併，`cli.env` 優先。值可以用下面的代換。名字像密鑰的（`*_TOKEN`…）一樣會被拿掉，除非列在 `requires.env`。名字只能用英數字和 `_`；**不收**會讓直譯器先載入別的程式的名字（審查 C #C2，`manifest.env_name_problem`，不分大小寫）：`PYTHON*`（只放行 `PYTHONIOENCODING`、`PYTHONUTF8`、`PYTHONUNBUFFERED`；`PYTHONPATH` 只收 `{pack_dir}` 或 `{pack_dir}/子資料夾`）、`NODE_OPTIONS`、`NODE_PATH`（`runtime.node: auto` 由 SYNOX 自己給）、`PATH`、`PATHEXT`、`COMSPEC`、`SYSTEMROOT`、`WINDIR`、`LD_*`、`DYLD_*`、`PIP_*`、`npm_config_*`、`PERL5*`、`RUBYLIB`／`RUBYOPT`、`BASH_ENV`、`JAVA_TOOL_OPTIONS`、`DOTNET_STARTUP_HOOKS`、`COR_*`…；`mcp.env`、`auth.fields[].env` 同一條。SYNOX 開子程序時另外明寫 `PYTHONNOUSERSITE=1`（不讀使用者層的 site-packages） |
 | `web.routes` | cli pack 的面板資料：`{"route": "command"}`；沒寫＝同名。對應的 command 要是 `READ`、沒有必填欄位 |
 
 ### 信任層級：T0／T1／T2（SDK P7）
@@ -144,9 +144,12 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 第 2 關只讀得懂 `.py`。SYNOX 照「掃得到多少」把 pack 分三層（`src/synox/packs/tier.py`；說明與限制見 [security.md](security.md)「信任層級」）：
 
 - **T0** 只有宣告：connector、只登記的 mcp。
-- **T1** 原始碼：資料夾裡只有第 2 關掃得到的 `.py` 與純資料檔。
+- **T1** 原始碼：會被執行的只有第 2 關掃過的 `.py`／`.pyw`。`{python}` 要跑的 pack 內檔案**一定要是 `.py`／`.pyw`**
+  （或含 `__main__.py` 的資料夾）——`./run.txt`、`./app.pyz`、沒有副檔名的 `./run` 第 2 關一律拒（審查 C #C1）；
+  其他檔當資料（沒有副檔名、`ast` 解析得過的也當 `.py` 掃）。T1 不等於安全：掃描是提醒不是門。
 - **T2** 二進位或外部相依，只要有一項就是：
   - 資料夾裡有**掃不到內容的檔**：`.exe .dll .com .bat .cmd .ps1 .vbs .sh .so .dylib .pyd .pyc .pyo .jar .class .node .wasm .msi .scr`、
+    壓縮檔 `.pyz .pyzw .zip .whl .egg`（Python 可以直接從裡面 import 或執行）、
     別的語言的原始碼（`.js .mjs .cjs .ts .tsx .jsx .rb .pl .php .lua .go .rs .java .kt .cs .psm1 .bash .zsh…`，完整清單是
     `src/synox/packs/scan.py` 的 `SOURCE_EXT`）、`node_modules/`、檔頭是 MZ+PE／ELF／Mach-O 的檔（副檔名寫什麼都一樣）、沒有副檔名但帶執行位元（zip 裡的 unix 權限）或 `#!` 開頭、
     `__pycache__` 裡對不到同一層 `.py` 的編譯檔。→ **`capabilities` 一定要有 `exec`**，不然拒裝。
@@ -210,6 +213,9 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
 | `{tg_id}` | 下令的人的 Telegram id（排程、網頁也是那個人） |
 
 欄位不能取這幾個名字。使用者給的值只換一次（值裡寫 `{data_dir}` 不會被換）。
+**`{python} -m 模組` 時 `cli.cwd`（`mcp.cwd`）一定要在 pack 資料夾裡**（`.`、`./子資料夾`、`{pack_dir}…`；審查 C #C3）：
+`python -m` 會先從 cwd 找模組，cwd 是 `{user_data_dir}` 時，使用者資料夾裡同名的 `.py` 會先被載入（沒鎖、沒掃過）。
+資料要放使用者資料夾就用環境變數告訴程式（金流簿的 `MONEYBOOK_HOME` 寫法），或改成 `{python} ./tool.py`（腳本模式不受 cwd 影響）。
 子程序另外一定拿到這幾個環境變數（[synox_sdk](sdk.md) 的 `context()`／`secret()` 讀它們；蓋過 pack 自己寫的同名變數）：
 `SYNOX_USER_DATA_DIR`（＝`{user_data_dir}`）、`SYNOX_TG_ID`、`SYNOX_MODE`（`personal`｜`server`）、`SYNOX_PACK_DIR`、`SYNOX_PACK_NAME`、
 `SYNOX_SECRET_ENV`（`auth.fields` 的「欄位名=環境變數名」，逗號分隔；只有名字，值照舊只在那個環境變數裡）。
