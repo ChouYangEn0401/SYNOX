@@ -125,7 +125,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | 欄位 | 說明 |
 |---|---|
 | `capabilities` | 宣告要用的能力：`network`、`subprocess`、`filesystem:own`、`filesystem:any`（含 own）、`exec`。第 2 關的掃描看到用了、卻沒宣告 → **拒裝**。沒寫＝什麼都沒宣告（舊 pack 一樣，由掃描結果決定裝不裝得了） |
-| `publisher` | 發行者（給人看；沒寫會在報告裡提醒） |
+| `publisher` | 發行者（給人看；沒寫會在報告裡提醒）。**T2 pack 一定要寫**：安裝者要一字不差地輸入這個值才裝得了（見下面「信任層級」）；升級時換了一律紅字 |
 | `integrity.sha256` | `{"檔名": "64 個 16 進位字"}`，打包時算（`synox-sdk zip`）。有寫就每個檔都要對得上、也不能多出沒列的檔（`pack.json` 本身不算） |
 | `auth` | v0 的字串（`oauth`／`token`／`caldav`）照舊；v2 寫 `{"type": "none｜token｜oauth｜caldav｜file", "fields": [...]}`。`token`／`file` 的 `fields` 由 SYNOX 收，見下面「pack 的 secret」 |
 | `kind: "mcp"`＋`mcp` | 只登記：`{"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}`（不連、不能附程式檔）。**真的連（P4a）**：`"transport": "stdio"`，見下面「`mcp`（stdio）」。兩種都是 `tools_allow` 不能空、每個允許的工具都要有 effect（沒寫＝拒） |
@@ -138,6 +138,28 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | `runtime.node` | `{node}` 換成什麼：相對於 pack 資料夾（或絕對路徑）；**`"auto"`**＝系統的 node＋安裝時照 `package-lock.json` 裝套件；沒寫＝系統的 node |
 | `env`（最上層）、`cli.env` | 子程序多帶的環境變數；兩個合併，`cli.env` 優先。值可以用下面的代換。名字像密鑰的（`*_TOKEN`…）一樣會被拿掉，除非列在 `requires.env` |
 | `web.routes` | cli pack 的面板資料：`{"route": "command"}`；沒寫＝同名。對應的 command 要是 `READ`、沒有必填欄位 |
+
+### 信任層級：T0／T1／T2（SDK P7）
+
+第 2 關只讀得懂 `.py`。SYNOX 照「掃得到多少」把 pack 分三層（`src/synox/packs/tier.py`；說明與限制見 [security.md](security.md)「信任層級」）：
+
+- **T0** 只有宣告：connector、只登記的 mcp。
+- **T1** 原始碼：資料夾裡只有 `.py` 與資料檔。
+- **T2** 二進位或外部相依，只要有一項就是：
+  - 資料夾裡有**掃不到內容的檔**：`.exe .dll .com .bat .cmd .ps1 .vbs .sh .so .dylib .pyd .pyc .pyo .jar .class .node .wasm .msi .scr`、
+    `node_modules/`、檔頭是 MZ+PE／ELF／Mach-O 的檔（副檔名寫什麼都一樣）、沒有副檔名但帶執行位元（zip 裡的 unix 權限）或 `#!` 開頭、
+    `__pycache__` 裡對不到同一層 `.py` 的編譯檔。→ **`capabilities` 一定要有 `exec`**，不然拒裝。
+  - `cli.argv`／`mcp.argv` 指到 **pack 外的程式**：`argv[0]` 不是 `{python}`／`{node}`／`./…`（例如 `npx`、`git`、`C:\…\x.exe`），
+    後面一段是絕對路徑或 `..`，或 `{python} -m 模組` 而模組不在 pack 裡。不擋，報告記解析後的路徑、標「未鎖定執行環境」。
+  - `runtime.python`／`runtime.node` = `"auto"`（會裝 `requires.pip`／`package-lock.json` 的套件）。
+
+T2 的安裝報告有紅字一段（會執行什麼、會裝哪些套件、外部程式解析到哪），**`pack.json` 一定要寫 `publisher`**，安裝者要明確輸入它：
+網頁勾選「我信任這個發行者」並輸入名字、終端機 `python -m synox install <檔> --yes --trust-publisher "<publisher>"`。
+寫進 `packs.lock`：`tier`、`t2`（`opaque`：路徑／大小／sha256／原因、`external`、`packages`、`runs`）、`trusted_publisher`、`trusted_at`。
+升級時 publisher 變了、新增 `exec`、可執行的東西變多、或 T1 → T2：紅字、要重新輸入；其他沿用。
+伺服器版的 T2 pack 一定要真的沙盒（不管 trust），沒有＝只對擁有者可見。
+
+打包時別把 `__pycache__` 放進 zip（`synox-sdk zip` 本來就不放；放了 SYNOX 也不解出來）。packs.lock 的雜湊涵蓋 pack 資料夾裡的每一個檔。
 
 ### pack 的 secret（`auth.fields`）
 

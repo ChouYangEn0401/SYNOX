@@ -641,7 +641,8 @@ class WebUI:
             return self._pack_upgrade(user, data)
         try:                                                            # 再跑 1、2 關 → 第 3 關（packs.lock）
             name = install_staged(str(data.get("token") or ""), self.config.data_dir, self.pack_dirs[0],
-                                  approved_by=user.tg_id, via="web", trust=data.get("trust") or None)
+                                  approved_by=user.tg_id, via="web", trust=data.get("trust") or None,
+                                  trust_publisher=str(data.get("trust_publisher") or "") or None)
         except GateRefused as e:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:
@@ -682,7 +683,8 @@ class WebUI:
         try:
             done = upgrade_staged(str(data.get("token") or ""), self.config.data_dir, self.pack_dirs[0],
                                   approved_by=user.tg_id, via="web", allow_downgrade=bool(data.get("allow_downgrade")),
-                                  trust=data.get("trust") or None)
+                                  trust=data.get("trust") or None,
+                                  trust_publisher=str(data.get("trust_publisher") or "") or None)
         except GateRefused as e:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:

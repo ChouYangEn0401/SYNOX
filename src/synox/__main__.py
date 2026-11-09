@@ -237,7 +237,8 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
         who = getattr(config, "owner_id", None) or "console"
         try:
             name = admin.install_staged(token, data_dir, args.packs_dir or PACK_DIRS[0], approved_by=who,
-                                        via="console", trust=trust)          # 第 3 關：packs.lock
+                                        via="console", trust=trust,          # 第 3 關：packs.lock
+                                        trust_publisher=getattr(args, "trust_publisher", None) or None)
         except admin.PackAdminError as e:
             print(f"❌ {e}")
             return 2
@@ -254,7 +255,9 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
         print("   （網頁要先登入：在 Telegram 打 /web 拿登入連結。）")
         return 0
     print("ℹ️ 還沒裝。SYNOX 沒開（或網頁介面關著）：")
-    print(f'   • 在這裡核准：python -m synox install "{args.file}" --yes')
+    tier = summary.get("tier") or {}
+    extra = f' --trust-publisher "{tier.get("publisher")}"' if tier.get("needs_publisher") and tier.get("publisher") else ""
+    print(f'   • 在這裡核准：python -m synox install "{args.file}" --yes{extra}')
     print("   • 或開 SYNOX 之後，在網頁設定頁「裝一個 .synoxpack」選這個檔")
     return 1
 
@@ -273,7 +276,8 @@ def _upgrade_now(token: str, data_dir: str, packs_dir: str, config, args, jobs=N
     try:
         done = upgrade.upgrade_staged(token, data_dir, packs_dir, approved_by=who, via="console",
                                       allow_downgrade=getattr(args, "allow_downgrade", False),
-                                      trust=getattr(args, "trust", None) or None)
+                                      trust=getattr(args, "trust", None) or None,
+                                      trust_publisher=getattr(args, "trust_publisher", None) or None)
     except admin.PackAdminError as e:
         print(f"❌ {e}")
         return 2
@@ -350,7 +354,8 @@ def cmd_packs(args, *, jobs=None) -> int:
         try:
             m, report, problems = admin.approve_installed(found[name], data_dir,
                                                           approved_by=getattr(config, "owner_id", None) or "cli",
-                                                          trust=getattr(args, "trust", None) or None)
+                                                          trust=getattr(args, "trust", None) or None,
+                                                          trust_publisher=getattr(args, "trust_publisher", None) or None)
         except admin.PackAdminError as e:
             print(f"❌ {e}")
             return 2
@@ -486,6 +491,8 @@ def main(argv=None) -> int:
                    help="升級時新版本不比裝著的新（一樣或比較舊）也照換")
     p.add_argument("--trust", choices=["core", "third-party"], default=None,
                    help="信任：core（跟出廠的一樣）｜third-party（預設；升級沒給＝沿用裝著那一份的）")
+    p.add_argument("--trust-publisher", default=None, metavar="NAME",
+                   help="T2 pack（有掃不到內容的執行檔／外部相依）：明確輸入 pack.json 的 publisher 才裝")
     p.add_argument("--packs-dir", default="", help=argparse.SUPPRESS)
     p = sub.add_parser("packs", help="pack 的鎖定狀態、重新核准、退回上一版")
     psub = p.add_subparsers(dest="packs_cmd")
@@ -494,6 +501,8 @@ def main(argv=None) -> int:
     q.add_argument("--approve", required=True, metavar="NAME", help="pack 的名字")
     q.add_argument("--trust", choices=["core", "third-party"], default=None,
                    help="信任（沒給＝沿用舊鎖的，沒有舊鎖＝third-party）")
+    q.add_argument("--trust-publisher", default=None, metavar="NAME",
+                   help="T2 pack：明確輸入 pack.json 的 publisher（舊鎖確認過同一個、沒變多就不用）")
     q = psub.add_parser("rollback", help="把 packs/_removed/ 裡最近一份舊版搬回來、packs.lock 改回當時的")
     q.add_argument("name", help="pack 的名字")
     p.set_defaults(dirs=None, packs_dir="")
