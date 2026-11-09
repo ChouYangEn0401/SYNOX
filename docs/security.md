@@ -10,10 +10,29 @@
 | `data/.synox.key` | 保管箱的主金鑰（32 bytes 隨機） | Windows：用 **DPAPI** 包起來，只有這台電腦的這個 Windows 帳號解得開。其他平台或 `vault.mode: file`：明文（會記警告） |
 | `data/notes.json.enc`、`data/money.json.enc`、`data/schedule.json.enc`、`data/secrets.json.enc` | 筆記、記帳、提醒、AI 金鑰 | **密文**：Fernet（AES-128-CBC＋HMAC-SHA256），每次存檔換新的 salt、檔案金鑰＝scrypt(主金鑰, salt)。被改過一個 byte 就解不開（會報錯，不會默默清空） |
 | `data/users/<Telegram id>/notes.json.enc`、`…/money.json.enc`（只有伺服器版） | 每個人自己的筆記、記帳 | **密文**，每個人一把金鑰：HKDF-SHA256(主金鑰, `user:<id>`) 衍生。A 的金鑰解不開 B 的檔 |
-| `data/users.json`、`data/llm_usage.json`、`data/host.lock`、`data/last_update_id`… | 誰傳過訊息、AI 用量、執行狀態 | 明文（沒有內容，只有 id、次數） |
+| `data/users/<id>/schedule.json.enc`（只有伺服器版） | 每個人自己的提醒、排程 | **密文**，那個人的金鑰 |
+| `data/web_chats/<id>.json.enc` | 網頁對話頁的紀錄（每段最近 50 則） | **密文**，那個人的金鑰（個人版是擁有者的） |
+| `data/web_tokens.json`、`data/web_sessions.json` | 網頁登入連結、登入中的 session | 只存 SHA-256（檔案被看到也拿不到能用的連結或 cookie）；session 的 CSRF token 是明文 |
+| `data/users.json`、`data/llm_usage.json`、`data/users/<id>/llm_usage.json`、`data/ai_budgets.json`、`data/host.lock`、`data/last_update_id`… | 誰傳過訊息、AI 用量與額度、執行狀態 | 明文（沒有內容，只有 id、次數、金額） |
 
 **硬碟被拷走、`data/` 被同步到雲端被看到**：拿到的是密文和 DPAPI 包住的金鑰，解不開（除非也能登入你的 Windows 帳號）。
 **有人登入你的 Windows 帳號、或在你的帳號下跑程式**：DPAPI 擋不住，他看得到一切。這是 DPAPI 的設計，不是 bug。
+
+## 網頁介面（Web UI）
+
+- **只綁 `127.0.0.1`**（程式裡寫死，config 改不了）：同一台電腦以外的裝置連不到。預設埠 8830（`config.json` 的 `web.port`；
+  `web.enabled: false` 完全不開）。埠被占用時只記一行錯誤（說是哪個埠、改哪個設定），bot 其他功能照常。
+- **登入沒有密碼，連結就是鑰匙**：`/web` 給的連結隨機（256 bit）、只能用一次、7 天、綁一個 Telegram 帳號；
+  換到的 cookie 是 HttpOnly、SameSite=Lax，7 天過期。連結經過 Telegram（跟 bot 訊息一樣不是端對端加密），不要轉給別人。
+  擁有者 `/web_off`：關掉網頁介面、所有網頁 session 登出，到重開 bot 之前不再開。
+- 每個 API 都用登入的那個人算權限（同一個 `authorize`）：別人只看得到自己的對話、自己能用的工具；AI 來源、pack 裝卸、備份只有擁有者；
+  帳號頁只有伺服器版的擁有者／管理員。改東西的請求要帶每個 session 的 CSRF header，而且有 Origin 時要跟 Host 一樣。
+- 網頁本身：一頁、沒有外部資源（沒有 CDN）、每次回應一個 nonce 的 Content-Security-Policy、沒有 inline 事件、伺服器產生的字都 escape、
+  畫面上的字一律 `textContent`。pack 的面板放在 `<iframe sandbox="allow-scripts allow-same-origin">`：**同源**，所以面板跟 `pack.py` 一樣是
+  「你決定要不要信任」的程式碼——它能做你在網頁上能做的事。
+- **對外開放（例如伺服器版讓成員從手機用）是營運者自己的事**：SYNOX 不處理 TLS、不處理對外的身分驗證以外的防護。要對外就自己架
+  反向代理（或 CSP 的通道），**一定要加 TLS**（不然 cookie 與登入連結在網路上是明文），並把 `web.public_url` 設成對外網址（登入連結會用它）。
+  反向代理要把 Host 原樣轉過來（CSRF 的 Origin 檢查比對 Host）。不要把 8830 直接開到網路上。
 
 ## 會離開這台電腦的只有兩條
 
@@ -43,29 +62,38 @@
   （或改程式、接除錯器），誰就能衍生出每個人的金鑰。這裡的加密防的是「檔案被拷走」，不是「防營運者」。
   給別人用之前要跟他們講清楚：**你看得到他們存的東西**。
 - 「連營運者都看不到」的設計（SYNOX Node）是另一份規格，擁有者正在寫，這一版**沒有**做。
-- 個人版改成伺服器版時，原本的 `data/notes.json.enc`、`data/money.json.enc` **不會自動搬**到擁有者的 `data/users/<id>/`。
+- 個人版改成伺服器版時，原本的 `data/notes.json.enc`、`data/money.json.enc`、`data/schedule.json.enc` **不會自動搬**到擁有者的
+  `data/users/<id>/`（舊檔留著不動；改回個人版就又用它們）。個人版照舊用共用的那一份，不會強迫搬家。
+- 成員能用 AI：送出去的是**他自己**的那一句、他看得到的功能清單、他叫的工具回的那幾行；工具清單只有 `ai_decision` 對他放行的。
+  訪客沒有 AI。每個成員有每月額度（`ai_member_monthly_usd`，預設 US$2；token 換美元用 `llm.price_in`／`price_out`，是估的）。
+  營運者的 LLM 供應者看得到這些句子。
 
 ## 誰能用你的 bot
 
 - 個人版：只有安裝時配對的 Telegram 帳號（`owner_id`）。出廠 pack 是 `access: owner`／`member`（個人版兩個都＝只有你）：
   別人傳 `/note`，回的跟「沒有這個指令」一模一樣。
 - 伺服器版：陌生人傳訊息會自動登記成**訪客**，只看得到 `access: everyone` 的 pack；你（或你升成管理員的人）用 `/user_role <id> member`
-  讓他變成成員，才用得到 `access: member` 的 pack（筆記、記帳）。`access: owner` 的（提醒、排程、connector）仍然只有你。
-- AI 只聽你的（別人傳的人話不會送去 LLM）。
+  （或網頁設定頁的帳號表）讓他變成成員，才用得到 `access: member` 的 pack（筆記、記帳、提醒）與排程、AI。`access: owner` 的（connector）仍然只有你。
+- AI：個人版只聽你的；伺服器版成員以上（訪客的人話不會送去 LLM），有每月額度。
 - 危險的動作（刪光筆記、把危險指令排進排程）AI 不能直接做，一定先送確認卡，**你按了**才做；確認卡 10 分鐘過期、只能按一次、別人偽造按鈕無效。
 - 你的 Telegram 帳號被盜 = 對方能用你的 bot。SDK 有 `/sudo`（手機驗證器）的第二道門，但出廠的 pack 沒有用到；要用的話，
   把危險的指令標 `elevated=True` 並裝 SDK 的 `sudo` pack。
 
 ## 備份
 
-- v0 **還沒有** `/backup`。要備份就把整個 `data/` 資料夾複製走——但要知道：DPAPI 包住的金鑰**換電腦或換 Windows 帳號就解不開**，
-  所以這份備份只能在同一台電腦、同一個帳號還原。
-- 之後的 `/backup`（spec §6）：把 `data/` 打成一個用保管箱金鑰衍生的密碼加密的 zip，放到你指定的資料夾（OneDrive、Google Drive 同步資料夾）。
-- `vault.mode: file` 時金鑰是明文檔，備份 `data/` 就能在別台還原，但拿到備份的人也能解開。
+- Web UI 設定頁「下載備份」（只有擁有者）：`synox-backup-<日期>.zip`，裡面 `README.txt` 和 `data.zip.enc`——整個 `data/`
+  （不含主金鑰檔 `.synox.key`、`host.lock`、網頁登入 token／session、上傳暫存、job 紀錄）壓成 zip 後用**保管箱主金鑰**加密
+  （同一種 Fernet＋scrypt 格式）。程式在 `synox/backup.py`（`export_backup`／`read_backup`；還原 v1 還沒有按鈕，見 README.txt 的指令）。
+- **主金鑰被 DPAPI 綁在這台電腦、這個 Windows 帳號**：這份備份只能在同一台電腦、同一個帳號還原（防的是「備份檔被別人拿到」，
+  不是「換電腦」）。要能換電腦，得另外做「用口令加密」的匯出——還沒做。
+- `vault.mode: file` 時金鑰是明文檔，有 `data/.synox.key` 的人就能解開備份。
+- 也可以照舊把整個 `data/` 資料夾複製走（同樣只能在同一個帳號還原）。
 
 ## 沒有做的保護（誠實清單）
 
 - `config.json` 的 bot token 是明文。
+- Web UI 沒有 TLS（只在本機 127.0.0.1 用不需要）；對外開放要營運者自己加（見上面「網頁介面」）。
+- Web UI 的 pack 面板跟網頁同源；裝 pack 的安全管線只做了宣告檢查（沒有靜態掃描、沒有完整性鎖定）。
 - 不防「在你的 Windows 帳號下跑的惡意程式」。
 - 不防 prompt injection 的全部情況：工具結果裡的文字有提示 AI「當資料、不當指令」，真正擋住危險動作的是確認卡（結構），不是提示。
 - `claude_code` 這個 AI 來源以 `--tools ""` 跑（Claude Code 自己不能動檔案），但它走的是你本機的 Claude Code 登入。
