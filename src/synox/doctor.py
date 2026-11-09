@@ -72,6 +72,14 @@ def _discord_lines(config) -> tuple:
         except Exception:
             vault = None
     lines, bad = [], 0
+    from synox.identity import Identities, IdentityFileError
+    try:                                            # 只讀：舊檔也不遷移（doctor 不改檔）
+        problem = discord.owner_problem(config, Identities(config.path("identities.json"), readonly=True))
+    except IdentityFileError as e:
+        problem = str(e)
+    if problem:
+        lines.append(f"    ❌ 身分：{problem}")
+        bad += 1
     try:
         from synox.discord import scope
         infos = scope.from_manifests(config)

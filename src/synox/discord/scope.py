@@ -215,6 +215,13 @@ def status_text(app, config) -> str:
         agent = (app.extras.get("discord_room_ai") or {}).get(spec.name)
         if agent is not None:                       # PERM-6：bot 一池的用量
             out.append(f"  {agent.pool.line()}")
+    notes = list(app.extras.get("discord_identity_notes") or [])
+    identities = app.extras.get("identities")
+    problem = discord.owner_problem(config, identities) if identities is not None else ""
+    if problem:                                     # 即時算（開著的時候跑了 discord pair 也對）
+        notes.insert(0, problem)
+    if notes:
+        out += ["", "身分："] + [f"  ⚠️ {n}" for n in notes]
     return "\n".join(out)
 
 
