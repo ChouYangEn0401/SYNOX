@@ -30,7 +30,7 @@ class SynoxBot(BotHarness):
 
 @pytest.fixture
 def make_bot(tmp_path):
-    def factory(script=None, *, adapter=None, llm=None, raw=None, supports_tools=True):
+    def factory(script=None, *, adapter=None, llm=None, raw=None, supports_tools=True, pack_dirs=None):
         data = tmp_path / "data"
         cfg = {"owner_id": OWNER_ID, "data_dir": str(data), "vault": {"mode": "file"},
                "llm": llm or {"kind": "fake"}, **(raw or {})}
@@ -39,7 +39,8 @@ def make_bot(tmp_path):
         vault = Vault(b"k" * 32, str(data))
         if adapter is None and (llm or {}).get("kind") != "none":
             adapter = FakeAdapter(script, supports_tools=supports_tools)
-        app = build(config, home=api, adapter=adapter, vault=vault)
+        kw = {"pack_dirs": pack_dirs} if pack_dirs is not None else {}
+        app = build(config, home=api, adapter=adapter, vault=vault, **kw)
         return SynoxBot(app, api)
     return factory
 

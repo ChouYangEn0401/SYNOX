@@ -34,10 +34,10 @@ packs/money/
 | `version` | ✅ | `0.1.0` 這種 |
 | `kind` | ✅ | `python`｜`cli`｜`connector`（下面） |
 | `group` | | 指令群組，小寫英數字 16 字內；沒寫＝`name` 去掉 `-`、`_`。`group: money` → `/money`（主要動作）、`/money_list`… |
-| `access` | | `owner`（預設：只有安裝時配對的那個人，別人打了跟不存在一樣）｜`everyone` |
+| `access` | | `owner`（預設：只有安裝時配對的那個人，別人打了跟不存在一樣）｜`member`（伺服器版：成員以上；個人版＝`owner`）｜`everyone`（任何人，伺服器版的訪客也算） |
 | `order` | | `/help` 的排序（小的在前，預設 100） |
 | `skill` | | SKILL.md 的檔名（要存在） |
-| `storage` | | `vault`（`pack.store` 落地是密文 `data/<name>.json.enc`）｜`plain`（`data/<name>.json`，預設） |
+| `storage` | | `vault`（`pack.store` 落地是密文 `data/<name>.json.enc`；伺服器版 `pack.store.of(user)` 是 `data/users/<id>/<name>.json.enc`）｜`plain`（`data/<name>.json`，預設） |
 | `requires.config` | | `config.json` 要有的欄位；缺了就不載入（doctor 會說缺什麼） |
 | `requires.env` | | 要有的環境變數 |
 | `requires.pip` | | 給人看的（v0 不會自動 pip install） |
@@ -64,6 +64,8 @@ def install(app, pack):
 
 - `pack.group`：SDK 的 `Group`，`.leaf(...)` 或 `kit.command(...)` 都可以；要問答／驗證碼的用 `app.forms.leaf`（SDK Forms）。
 - `pack.store`：`load(default)`、`save(data)`、`update(fn, default)`（讀改寫整段持鎖）；`key=` 可以分好幾份。
+- **每個人自己的資料用 `pack.store.of(user)`**（同樣的 `load`／`save`／`update`）：個人版回共用的那一份；伺服器版（`mode: server`）回這個人自己的
+  `data/users/<id>/` 那一份（vault 的金鑰由主金鑰＋id 用 HKDF 衍生）。直接用 `pack.store` 是整個 pack 共用的資料（例如設定）。
 - `pack.path("x.txt")`：`data/packs/<name>/x.txt`，pack 自己的檔案放這裡。
 - `effect`：`READ`（預設）／`WRITE`／`DANGER`。**DANGER 的指令 AI 一律要送確認卡**；`/help` 標 ⚠️。
 - `ai=False`：不給 AI 當工具（例如放寬安全的開關）。

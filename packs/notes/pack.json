@@ -5,7 +5,7 @@
   "version": "0.1.0",
   "kind": "python",
   "group": "note",
-  "access": "owner",
+  "access": "member",
   "order": 10,
   "python": { "module": "pack" },
   "requires": { "pip": [], "config": [], "env": {} },

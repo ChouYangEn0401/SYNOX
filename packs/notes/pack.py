@@ -1,4 +1,7 @@
-"""📒 隨手記：/note <文字>、/note_list [關鍵字]、/note_rm <編號>、/note_clear。資料經 pack.store（保管箱，密文）。"""
+"""📒 隨手記：/note <文字>、/note_list [關鍵字]、/note_rm <編號>、/note_clear。
+
+資料經 pack.store.of(user)（保管箱，密文）：個人版一份共用檔；伺服器版每人一份 data/users/<id>/notes.json.enc。
+"""
 
 import time
 
@@ -9,20 +12,19 @@ from synox.packs import kit
 
 def install(app, pack):
     g = pack.group
-    store = pack.store
 
-    def items():
-        return (store.load({"items": []}) or {}).get("items", [])
+    def items(user):
+        return (pack.store.of(user).load({"items": []}) or {}).get("items", [])
 
     def add(api, chat_id, user, values):
         text = values["text"].strip()
-        count = store.update(lambda d: (d.setdefault("items", []).append({"text": text, "at": int(time.time())}),
+        count = pack.store.of(user).update(lambda d: (d.setdefault("items", []).append({"text": text, "at": int(time.time())}),
                                         len(d["items"]))[1], {"items": []})
         api.send_message(chat_id, f"📒 記下了（第 {count} 筆）：{text}")
 
     def list_(api, chat_id, user, values):
         kw = values.get("keyword", "").strip()
-        rows = [(i, it) for i, it in enumerate(items(), 1) if not kw or kw.lower() in it["text"].lower()]
+        rows = [(i, it) for i, it in enumerate(items(user), 1) if not kw or kw.lower() in it["text"].lower()]
         if not rows:
             api.send_message(chat_id, "📒 " + (f"沒有含「{kw}」的筆記。" if kw else "還沒有筆記。用 /note <文字> 記一筆。"))
             return
@@ -37,14 +39,14 @@ def install(app, pack):
             lst = d.setdefault("items", [])
             return lst.pop(n - 1) if 0 < n <= len(lst) else None
 
-        gone = store.update(drop, {"items": []})
+        gone = pack.store.of(user).update(drop, {"items": []})
         if gone is None:
             api.send_message(chat_id, f"❌ 沒有第 {n} 筆（/note_list 看編號）。")
             return
         api.send_message(chat_id, f"🗑 刪掉第 {n} 筆：{gone['text']}")
 
     def clear(api, chat_id, user, values):
-        count = store.update(lambda d: (len(d.get("items", [])), d.update(items=[]))[0], {"items": []})
+        count = pack.store.of(user).update(lambda d: (len(d.get("items", [])), d.update(items=[]))[0], {"items": []})
         api.send_message(chat_id, f"🗑 全部筆記都刪掉了（{count} 筆）。")
 
     kit.command(g, "add", add, "記一筆", default=True, effect=WRITE,

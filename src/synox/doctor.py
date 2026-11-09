@@ -12,7 +12,7 @@ import sys
 from typing import Callable, List
 
 from synox import __version__
-from synox.config import CONFIG_PATH, ROOT, SynoxConfig, redacted
+from synox.config import CONFIG_PATH, MODE_LABELS, ROOT, SynoxConfig, redacted
 
 
 def _sdk_line() -> str:
@@ -40,12 +40,15 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
     config = None
     if not os.path.exists(path):
         out(f"• 設定：⚠️ 還沒有 {os.path.basename(path)}（雙擊 Setup.bat 跑精靈）；以下用預設值檢查")
+        out(f"  模式：personal（{MODE_LABELS['personal']}，預設）")
     else:
         try:
             config = SynoxConfig.load(path, require_token=False)
             r = redacted(config.raw)
             out(f"• 設定：✅ {os.path.basename(path)}　bot_token {'格式正確' if config.has_token else '❌ 不是有效的 token'}"
                 f"　owner_id {'有填' if config.owner_id else '❌ 沒填'}")
+            out(f"  模式：{config.mode}（{MODE_LABELS[config.mode]}）"
+                + ("　陌生人是訪客、vault 的資料每人一份 data/users/<id>/" if config.server else ""))
             out(f"  llm：{r.get('llm', {'kind': 'none'})}")
             out(f"  packs：{config.packs}　vault：{config.vault}")
             problems += 0 if config.has_token else 1
@@ -104,10 +107,11 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
     data_dir = config.data_dir if config else os.path.join(ROOT, "data")
     key = os.path.join(data_dir, ".synox.key")
     encs = sorted(glob.glob(os.path.join(data_dir, "*.json.enc")))
+    user_encs = sorted(glob.glob(os.path.join(data_dir, "users", "*", "*.json.enc")))
     if not os.path.exists(key):
-        out(f"• 保管箱：還沒建立（第一次啟動時產生金鑰）；加密檔 {len(encs)} 個"
-            + ("　❌ 有加密檔卻沒有金鑰！" if encs else ""))
-        problems += 1 if encs else 0
+        out(f"• 保管箱：還沒建立（第一次啟動時產生金鑰）；加密檔 {len(encs) + len(user_encs)} 個"
+            + ("　❌ 有加密檔卻沒有金鑰！" if encs or user_encs else ""))
+        problems += 1 if encs or user_encs else 0
     else:
         from synox.vault.keyring import key_mode
         try:
@@ -120,8 +124,16 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
                     vault.load_json(os.path.basename(p)[:-len(".json.enc")])
                 except Exception:
                     bad.append(os.path.basename(p))
+            for p in user_encs:                        # 伺服器版：每人一個保管箱（HKDF 衍生的金鑰）
+                uid = os.path.basename(os.path.dirname(p))
+                try:
+                    vault.for_user(int(uid)).load_json(os.path.basename(p)[:-len(".json.enc")])
+                except Exception:
+                    bad.append(f"users/{uid}/{os.path.basename(p)}")
+            people = len({os.path.dirname(p) for p in user_encs})
             status = "✅ 全部解得開" if not bad else f"❌ 解不開：{'、'.join(bad)}"
-            out(f"• 保管箱：金鑰 {key_mode(key)}，加密檔 {len(encs)} 個，{status}")
+            extra = f"（另有 {people} 個人的個人資料 {len(user_encs)} 個）" if user_encs else ""
+            out(f"• 保管箱：金鑰 {key_mode(key)}，加密檔 {len(encs)} 個{extra}，{status}")
             problems += 1 if bad else 0
         except Exception as e:
             out(f"• 保管箱：❌ {e}")

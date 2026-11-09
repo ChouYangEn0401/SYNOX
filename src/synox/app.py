@@ -1,5 +1,6 @@
 """
-build()：SynoxConfig → isdtelekit.build_app → 基本指令 → packs.load_all → agent.install → schedule.install。
+build()：SynoxConfig → isdtelekit.build_app → 基本指令（伺服器版多 accounts、limits）→ packs.load_all
+→ agent.install → schedule.install。
 
     config = SynoxConfig.load()
     app = build(config)
@@ -15,7 +16,7 @@ from typing import Optional
 
 from isdtelekit import build_app
 from isdtelekit.host.app import App
-from isdtelekit.packs import basics, help as help_pack
+from isdtelekit.packs import accounts, basics, help as help_pack, limits
 
 from synox import agent, schedule
 from synox.config import SynoxConfig
@@ -33,6 +34,17 @@ def welcome(user) -> str:
             "按 /help 看我會什麼；也可以直接跟我說人話（例如「幫我記一筆 80 元咖啡」）。")
 
 
+def welcome_server(user) -> str:
+    return ("👋 嗨！這是一支 SYNOX 小助手。\n"
+            "按 /help 看你現在能用什麼；/me 看自己的帳號，/me_upgrade 請管理員讓你用更多功能。")
+
+
+def install_server_packs(app) -> None:
+    """伺服器版（mode=server）才裝：帳號（/me、/me_upgrade、/user_list、/user_role…）與限制（/limit_*）。"""
+    accounts.install(app)
+    limits.install(app)
+
+
 def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_dirs=loader.PACK_DIRS) -> App:
     app = build_app(config, home=home)
     app.extras["synox_config"] = config
@@ -44,8 +56,14 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
             app.extras["vault_error"] = str(e)
             vault = None
     app.extras["vault"] = vault
-    basics.install(app, welcome=welcome)
+    server = getattr(config, "mode", "personal") == "server"
+    if server:
+        basics.install(app, welcome=lambda u: welcome(u) if app.registry.is_owner(u) else welcome_server(u))
+    else:
+        basics.install(app, welcome=welcome)
     help_pack.install(app)
+    if server:
+        install_server_packs(app)
     loader.load_all(app, config, vault, dirs=pack_dirs)
     if adapter is _UNSET:
         try:
