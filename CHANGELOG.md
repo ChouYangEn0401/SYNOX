@@ -1,5 +1,16 @@
 # Changelog
 
+## 未發佈（branch feat/sdk-p6-upgrade）
+
+### 新增
+- **pack 升級**：同名的 pack 再裝＝升級（以前是拒裝、要先移除）。安裝報告多一段「改了什麼」：新增／移除的 command；
+  effect 變寬、新增 WRITE／DANGER command、capabilities 新增、執行方式（runtime、cli.argv…）或 auth 改動、多要密鑰、access 變寬、
+  新加面板一律紅字。版本要是 semver 且比裝著的新；一樣或比較舊會明講並拒絕，除非明確選降級（網頁勾選框、`--allow-downgrade`）。
+  確認後舊資料夾搬到 `packs/_removed/<name>-<版本>-<時間>`（旁邊留舊的鎖）、`packs.lock` 換新、重新載入。Web UI 設定頁按「確認升級」；
+  `python -m synox install <檔> --yes` 自動走升級。資料不在 pack 資料夾，不受影響；資料 schema 升級由 pack 自己負責（pack-format.md「升級」）。
+- `python -m synox packs rollback <name>`：`_removed` 裡最近一份舊版搬回、鎖改回當時的（檔案對不上就不鎖）；現在那份搬到 `_removed`。
+- 移除的資料夾名多了版本（`<name>-<版本>-<時間>`），旁邊留 `.lock.json`，移除之後也能 rollback。測試 `tests/test_upgrade.py`（22 個）。
+
 ## 未發佈（branch feat/sdk-p0-fixes）
 
 ### 修正

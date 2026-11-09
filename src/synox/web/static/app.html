@@ -51,6 +51,7 @@
   .badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); }
   .badge.ok { color: var(--ok); border-color: var(--ok); }
   .badge.warn { color: var(--danger); border-color: var(--danger); }
+  .alert { color: var(--danger); font-weight: 600; }
 
   /* 對話頁 */
   #view-chat { display: grid; grid-template-columns: 240px 1fr; gap: 14px; height: calc(100vh - 90px); }
@@ -587,13 +588,20 @@
     var ul = el("ul");
     (s.warnings || []).forEach(function (w) { ul.appendChild(el("li", "", w)); });
     box.appendChild(ul);
+    var upg = s.upgrade, down = null;
+    if (upg) { down = showUpgrade(box, upg, s.name); }
     var row = el("div", "row");
     if (canInstall && s.token) {
-      var ok = el("button", "primary", "確認安裝");
+      var ok = el("button", "primary", upg ? "確認升級" : "確認安裝");
       ok.type = "button";
+      if (upg && !upg.version_ok) { ok.disabled = true; }
+      if (down) { down.addEventListener("change", function () { ok.disabled = !down.checked; }); }
       ok.addEventListener("click", function () {
-        api("POST", "/api/packs/install", { token: s.token }).then(function (d) {
-          $("pack-msg").textContent = "裝好了：" + d.name + "（" + (STATUS[d.status] || d.status) + (d.detail ? "：" + d.detail : "") + "）";
+        var body = { token: s.token };
+        if (upg) { body.upgrade = true; body.allow_downgrade = !!(down && down.checked); }
+        api("POST", "/api/packs/install", body).then(function (d) {
+          $("pack-msg").textContent = (d.upgraded ? "升級好了：" + d.name + " " + d.from + " → " + d.to + "（舊的在 " + d.backup + "）"
+            : "裝好了：" + d.name) + "（" + (STATUS[d.status] || d.status) + (d.detail ? "：" + d.detail : "") + "）";
           box.classList.add("hidden");
           loadSettings();
         }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });
@@ -605,6 +613,27 @@
     no.addEventListener("click", function () { box.classList.add("hidden"); });
     row.appendChild(no);
     box.appendChild(row);
+  }
+  // 同名已經裝了＝升級：「改了什麼」（alert 的用紅字）、版本檢查；版本不對時回「降級」勾選框（沒勾不能按）
+  function showUpgrade(box, upg, name) {
+    box.appendChild(el("h3", "", "🔁 這是升級：改了什麼（" + upg.installed_version + " → " + upg.new_version + "）"));
+    box.appendChild(el("p", upg.version_ok ? "" : "alert", (upg.version_ok ? "✅ " : "⛔ ") + upg.version_message));
+    if (upg.installed_lock === "tampered") { box.appendChild(el("p", "alert", "⚠️ 裝著的那一份已經被改過（跟 packs.lock 不符）")); }
+    var cl = el("ul");
+    (upg.changes || []).forEach(function (c) { cl.appendChild(el("li", c.alert ? "alert" : "", (c.alert ? "🔴 " : "") + c.text)); });
+    if (!(upg.changes || []).length) { cl.appendChild(el("li", "muted", "宣告沒有變")); }
+    box.appendChild(cl);
+    if ((upg.files || []).length) { box.appendChild(el("p", "muted", "檔案：" + upg.files.join("、"))); }
+    box.appendChild(el("p", "muted", "資料（data/、使用者資料夾）不會動；資料格式要不要轉換由 pack 自己負責。舊版會搬到 packs/_removed/，" +
+      "要退回：python -m synox packs rollback " + name));
+    if (upg.version_ok || !upg.can_force) { return null; }
+    var lab = el("label", "alert");
+    var cb = el("input");
+    cb.type = "checkbox";
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(" 我知道，照樣換成這一版（降級／重裝）"));
+    box.appendChild(lab);
+    return cb;
   }
   function reviewFailed(e) {
     if (e.data && e.data.refused && e.data.refused.name) { showReview(e.data.refused, false); }

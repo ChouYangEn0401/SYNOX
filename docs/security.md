@@ -107,6 +107,12 @@
 它做的是「擋掉明顯的、逼作者把要做的事寫清楚、讓你在裝之前看到」，最後一道仍然是第 5 關的結構（核准卡）。
 出廠的 pack 與工程師直接放進 `packs/` 的 pack 沒有鎖（`doctor`／`packs status` 標「未鎖定」），照舊載入；要鎖就 `packs lock --approve`。
 
+**升級**（同名再裝）走同一條五關，另外跟裝著的那一份比對（`packs/upgrade.py`）：權限變大的地方——effect 變寬、新增 WRITE／DANGER
+的 command、新增 capabilities、執行方式（runtime、cli.argv…）或 auth 改了、多要密鑰、access 變寬、新加面板——在報告裡用紅字標出來，
+讓「更新時夾帶」看得到。版本要是 semver 且比裝著的新，一樣或比較舊要明確選降級才換（避免被換回有漏洞的舊版）。
+舊的不刪，搬到 `packs/_removed/`、旁邊留當時的鎖；`python -m synox packs rollback <name>` 搬回來時，檔案跟當時的鎖對得上才把鎖改回，
+對不上（在 `_removed` 裡被改過）就不鎖、要你重新核准。`_removed` 的舊版本身不會載入。
+
 ## 沒有做的保護（誠實清單）
 
 - `config.json` 的 bot token 是明文。
