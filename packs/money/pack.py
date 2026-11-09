@@ -115,3 +115,21 @@ def install(app, pack):
     kit.command(g, "month", month, "這個月花了多少（分類別）")
     kit.command(g, "budget", budget, "設每月預算（0＝拿掉）", effect=WRITE,
                 fields=[Field("amount", "金額", required=True, check=kit.number)])
+
+    def summary(user):
+        """Web UI 面板（panel.html）用：這個月的總額、預算、各類別。只回這個人自己的。"""
+        data = load(user)
+        key = month_key()
+        by_cat = defaultdict(float)
+        for e in data["entries"]:
+            if month_key(e["at"]) == key:
+                by_cat[e["category"]] += float(e["amount"])
+        total = sum(by_cat.values())
+        budget = float(data["budget"]) if data.get("budget") else None
+        return {"month": key, "total": round(total, 2), "budget": budget,
+                "left": round(budget - total, 2) if budget else None,
+                "by_category": [{"category": c, "amount": round(v, 2)}
+                                for c, v in sorted(by_cat.items(), key=lambda kv: -kv[1])]}
+
+    if hasattr(pack, "web_route"):
+        pack.web_route("summary", summary)

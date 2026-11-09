@@ -1,0 +1,651 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>SYNOX</title>
+<style nonce="{{NONCE}}">
+  :root {
+    --bg: #f4f5f8; --panel: #ffffff; --fg: #1d2330; --muted: #5d6675; --line: #dde1e8;
+    --accent: #2f6fe0; --accent-fg: #ffffff; --me: #d9e8ff; --bot: #ffffff; --note: #6b7280;
+    --danger: #c0392b; --ok: #2f8a4e; --radius: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #11141a; --panel: #1a1f28; --fg: #e7eaf0; --muted: #9aa3b2; --line: #2b313c;
+      --accent: #5b8ef0; --accent-fg: #0b0e13; --me: #24406e; --bot: #1f2530; --note: #9aa3b2;
+      --danger: #e5675a; --ok: #4cbb72;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 15px/1.5 system-ui, "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 1px solid var(--line); background: var(--panel); border-radius: 8px;
+           padding: 6px 12px; }
+  button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+  button.danger { color: var(--danger); }
+  button:disabled { opacity: .5; cursor: default; }
+  input, select, textarea { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+                            padding: 6px 10px; max-width: 100%; }
+  a { color: var(--accent); }
+  .hidden { display: none !important; }
+  .muted { color: var(--muted); font-size: 13px; }
+
+  header.top { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: var(--panel);
+               border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; flex-wrap: wrap; }
+  header.top .brand { font-weight: 700; letter-spacing: .08em; }
+  header.top nav { display: flex; gap: 4px; flex: 1; }
+  header.top nav a { text-decoration: none; color: var(--fg); padding: 6px 12px; border-radius: 8px; }
+  header.top nav a.active { background: var(--accent); color: var(--accent-fg); }
+  header.top .who { font-size: 13px; color: var(--muted); }
+
+  main { padding: 16px; max-width: 1100px; margin: 0 auto; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px;
+          margin-bottom: 14px; }
+  .card h2, .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); }
+  .badge.ok { color: var(--ok); border-color: var(--ok); }
+  .badge.warn { color: var(--danger); border-color: var(--danger); }
+
+  /* 對話頁 */
+  #view-chat { display: grid; grid-template-columns: 240px 1fr; gap: 14px; height: calc(100vh - 90px); }
+  #chat-side { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  #chat-list { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; }
+  #chat-list li { padding: 8px 10px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
+  #chat-list li.active { background: var(--panel); border-color: var(--line); }
+  #chat-list .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #chat-list .l { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #chat-main { display: flex; flex-direction: column; min-height: 0; background: var(--panel);
+               border: 1px solid var(--line); border-radius: var(--radius); }
+  #stream { flex: 1; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .msg { max-width: 80%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; word-break: break-word; }
+  .msg.me { align-self: flex-end; background: var(--me); }
+  .msg.bot { align-self: flex-start; background: var(--bot); border: 1px solid var(--line); }
+  .msg.note { align-self: center; background: transparent; color: var(--note); font-size: 13px; padding: 2px 8px; }
+  .msg .kb { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; white-space: normal; }
+  .msg .kb .kbrow { display: flex; gap: 6px; flex-wrap: wrap; }
+  .msg .kb button, .msg .kb a { flex: 1; text-align: center; }
+  #composer { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
+  #input { flex: 1; resize: none; min-height: 42px; max-height: 160px; }
+  .empty { color: var(--muted); text-align: center; margin: auto; }
+
+  /* 工具頁 */
+  .cmd { border-top: 1px solid var(--line); padding: 8px 0; }
+  .cmd code { font-weight: 600; }
+  .cmd form { display: flex; gap: 6px; margin-top: 6px; }
+  .cmd form input { flex: 1; min-width: 0; }
+  .result { white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 6px 10px; margin-top: 6px;
+            font-size: 14px; }
+  iframe.panel { width: 100%; height: 240px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+
+  /* 設定頁 */
+  label.f { display: block; margin: 8px 0 2px; font-size: 13px; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  .tablewrap { overflow-x: auto; }
+  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg);
+           padding: 8px 14px; border-radius: 8px; max-width: calc(100% - 32px); z-index: 5; }
+
+  @media (max-width: 720px) {
+    main { padding: 10px 16px; }
+    #view-chat { grid-template-columns: 1fr; height: auto; }
+    #chat-side { flex-direction: row; align-items: center; }
+    #chat-list { display: flex; gap: 6px; overflow-x: auto; }
+    #chat-list li { min-width: 120px; max-width: 160px; }
+    #chat-main { height: calc(100vh - 170px); }
+    .msg { max-width: 92%; }
+    .grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<header class="top">
+  <span class="brand">SYNOX</span>
+  <nav id="nav" class="hidden">
+    <a href="#chat" data-view="chat">對話</a>
+    <a href="#tools" data-view="tools">工具</a>
+    <a href="#settings" data-view="settings">設定</a>
+  </nav>
+  <span class="who" id="who"></span>
+  <button id="logout" class="hidden" type="button">登出</button>
+</header>
+
+<main>
+  <section id="view-login" class="hidden">
+    <div class="card">
+      <h2>請先登入</h2>
+      <p>在 Telegram 跟你的 SYNOX bot 打 <code>/web</code>，它會給你一個一次性的登入連結（7 天內有效、只能用一次）。</p>
+      <p class="muted">這個網頁只在跑 SYNOX 的那台電腦上打得開（127.0.0.1）。沒有密碼：連結就是鑰匙，不要轉給別人。</p>
+    </div>
+  </section>
+
+  <section id="view-chat" class="hidden">
+    <aside id="chat-side">
+      <button id="new-chat" class="primary" type="button">＋ 新對話</button>
+      <ul id="chat-list"></ul>
+    </aside>
+    <div id="chat-main">
+      <div id="stream"><div class="empty">選一段對話，或按「新對話」。</div></div>
+      <form id="composer">
+        <textarea id="input" rows="1" placeholder="打字跟 SYNOX 說，或打 /指令（Enter 送出，Shift+Enter 換行）"></textarea>
+        <button class="primary" type="submit">送出</button>
+      </form>
+    </div>
+  </section>
+
+  <section id="view-tools" class="hidden">
+    <p class="muted">你看得到、用得到的全部功能。每個指令旁邊的框可以直接執行（結果也會留在對話頁的「🧰 工具頁」）。</p>
+    <div id="tool-packs" class="grid"></div>
+    <h3>其他</h3>
+    <div id="tool-groups" class="grid"></div>
+  </section>
+
+  <section id="view-settings" class="hidden">
+    <div id="set-notowner" class="card hidden">
+      <h2>設定</h2>
+      <p>AI 來源、功能裝卸和備份只有擁有者能改。</p>
+      <p id="my-budget" class="muted"></p>
+    </div>
+
+    <div id="set-llm" class="card hidden">
+      <h2>🤖 AI 從哪裡來</h2>
+      <p class="muted" id="llm-now"></p>
+      <label class="f" for="llm-choice">來源</label>
+      <select id="llm-choice"></select>
+      <div id="llm-key-fields">
+        <label class="f" for="llm-key">API key（留空＝沿用原本的）</label>
+        <input id="llm-key" type="password" autocomplete="off" size="40">
+        <label class="f" for="llm-model">模型</label>
+        <input id="llm-model" type="text" size="30">
+        <div id="llm-url-wrap">
+          <label class="f" for="llm-url">網址（例如 http://localhost:11434/v1）</label>
+          <input id="llm-url" type="text" size="40">
+        </div>
+      </div>
+      <div class="row">
+        <button id="llm-test" type="button">測一下</button>
+        <button id="llm-save" class="primary" type="button">存起來</button>
+        <span id="llm-msg" class="muted"></span>
+      </div>
+    </div>
+
+    <div id="set-packs" class="card hidden">
+      <h2>🧩 功能（pack）</h2>
+      <div class="tablewrap"><table><thead><tr><th>名字</th><th>狀態</th><th>版本</th><th></th></tr></thead>
+        <tbody id="pack-rows"></tbody></table></div>
+      <div class="row">
+        <label class="f" for="pack-file">裝一個 .synoxpack（pack 資料夾壓成的 zip）</label>
+      </div>
+      <div class="row">
+        <input id="pack-file" type="file" accept=".synoxpack,.zip">
+        <button id="pack-upload" type="button">上傳並檢查</button>
+        <button id="pack-reload" type="button">重新載入全部</button>
+      </div>
+      <div id="pack-review" class="card hidden"></div>
+      <p id="pack-msg" class="muted"></p>
+    </div>
+
+    <div id="set-accounts" class="card hidden">
+      <h2>👥 帳號（伺服器版）</h2>
+      <div class="tablewrap"><table><thead><tr><th>id</th><th>名字</th><th>角色</th><th>今天訊息</th><th>本月 AI</th></tr></thead>
+        <tbody id="account-rows"></tbody></table></div>
+      <p id="account-msg" class="muted"></p>
+    </div>
+
+    <div id="set-backup" class="card hidden">
+      <h2>💾 備份</h2>
+      <p>下載整個 data 資料夾（筆記、記帳、提醒、使用者…），用這台電腦的保管箱金鑰加密。
+        <span class="muted">只有同一台電腦、同一個 Windows 帳號解得開。</span></p>
+      <button id="backup" type="button">下載備份</button>
+      <span id="backup-msg" class="muted"></span>
+    </div>
+  </section>
+</main>
+<div id="toast" class="hidden"></div>
+
+<script nonce="{{NONCE}}">
+(function () {
+  "use strict";
+  var me = null;
+  var current = null;          // 對話頁現在這段的 id
+  var rev = 0;                 // 這段已經畫到哪個 rev
+  var nodes = {};              // message id → DOM
+  var pollTimer = null;
+  var toolsRev = 0;
+
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) { e.className = cls; }
+    if (text !== undefined && text !== null) { e.textContent = String(text); }
+    return e;
+  }
+  function clear(node) { while (node.firstChild) { node.removeChild(node.firstChild); } }
+  function toast(text) {
+    var t = $("toast");
+    t.textContent = text;
+    t.classList.remove("hidden");
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(function () { t.classList.add("hidden"); }, 3500);
+  }
+
+  function api(method, path, body, raw) {
+    var opts = { method: method, credentials: "same-origin", headers: {} };
+    if (method !== "GET") {
+      opts.headers["X-SYNOX-CSRF"] = me ? me.csrf : "";
+      if (raw) {
+        opts.body = raw;
+        opts.headers["Content-Type"] = "application/zip";
+      } else {
+        opts.body = JSON.stringify(body || {});
+        opts.headers["Content-Type"] = "application/json";
+      }
+    }
+    return fetch(path, opts).then(function (r) {
+      if (r.status === 401) { showLogin(); throw new Error("請先登入"); }
+      var type = r.headers.get("Content-Type") || "";
+      if (type.indexOf("application/json") === 0) {
+        return r.json().then(function (d) {
+          if (!r.ok) { throw new Error(d.error || ("HTTP " + r.status)); }
+          return d;
+        });
+      }
+      if (!r.ok) { throw new Error("HTTP " + r.status); }
+      return r;
+    });
+  }
+
+  // ── 切換畫面 ──────────────────────────────────────────────────────
+  var VIEWS = ["login", "chat", "tools", "settings"];
+  function show(view) {
+    VIEWS.forEach(function (v) { $("view-" + v).classList.toggle("hidden", v !== view); });
+    Array.prototype.forEach.call(document.querySelectorAll("#nav a"), function (a) {
+      a.classList.toggle("active", a.getAttribute("data-view") === view);
+    });
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    if (view === "chat") { loadChats(); pollTimer = setInterval(poll, 2000); }
+    if (view === "tools") { loadTools(); }
+    if (view === "settings") { loadSettings(); }
+  }
+  function route() {
+    if (!me) { show("login"); return; }
+    var v = (location.hash || "#chat").slice(1);
+    show(VIEWS.indexOf(v) > 0 ? v : "chat");
+  }
+  function showLogin() {
+    me = null;
+    $("nav").classList.add("hidden");
+    $("logout").classList.add("hidden");
+    $("who").textContent = "";
+    show("login");
+  }
+
+  // ── 對話頁 ────────────────────────────────────────────────────────
+  function loadChats(selectId) {
+    return api("GET", "/api/chats").then(function (d) {
+      var list = $("chat-list");
+      clear(list);
+      var chats = d.chats.filter(function (c) { return c.id !== "tools"; });
+      var tools = d.chats.filter(function (c) { return c.id === "tools"; });
+      chats.concat(tools).forEach(function (c) {
+        var li = el("li");
+        li.appendChild(el("div", "t", c.title));
+        li.appendChild(el("div", "l", c.last || "（還沒有訊息）"));
+        li.setAttribute("data-id", c.id);
+        li.addEventListener("click", function () { openChat(c.id); });
+        list.appendChild(li);
+      });
+      var want = selectId || current || (chats[0] && chats[0].id);
+      if (want) { openChat(want, true); }
+      else { newChat(); }
+    }).catch(function (e) { toast(e.message); });
+  }
+  function markActive() {
+    Array.prototype.forEach.call(document.querySelectorAll("#chat-list li"), function (li) {
+      li.classList.toggle("active", li.getAttribute("data-id") === current);
+    });
+  }
+  function openChat(id, keep) {
+    if (current === id && keep && Object.keys(nodes).length) { markActive(); return; }
+    current = id; rev = 0; nodes = {};
+    var s = $("stream");
+    clear(s);
+    markActive();
+    poll();
+  }
+  function newChat() {
+    api("POST", "/api/chats", {}).then(function (d) { current = null; loadChats(d.id); })
+      .catch(function (e) { toast(e.message); });
+  }
+  function renderMessage(m, chat, after) {
+    var who = m.from === "me" ? "me" : (m.from === "note" ? "note" : "bot");
+    var box = el("div", "msg " + who);
+    box.appendChild(el("div", "text", m.text));
+    if (m.buttons && m.buttons.length) {
+      var kb = el("div", "kb");
+      m.buttons.forEach(function (row) {
+        var r = el("div", "kbrow");
+        row.forEach(function (b) {
+          if (b.url) {
+            if (!/^https?:\/\//.test(b.url)) { return; }
+            var a = el("a", "", b.text);
+            a.href = b.url; a.target = "_blank"; a.rel = "noopener noreferrer";
+            r.appendChild(a);
+          } else {
+            var btn = el("button", "", b.text);
+            btn.type = "button";
+            btn.addEventListener("click", function () {
+              var p = press(chat || current, m.id, b.data, btn);
+              if (after) { p.then(after); }
+            });
+            r.appendChild(btn);
+          }
+        });
+        kb.appendChild(r);
+      });
+      box.appendChild(kb);
+    }
+    return box;
+  }
+  function poll() {
+    if (!current || !me) { return; }
+    var id = current;
+    api("GET", "/api/chat/" + encodeURIComponent(id) + "/events?since=" + rev).then(function (d) {
+      if (id !== current) { return; }
+      var s = $("stream");
+      var empty = s.querySelector(".empty");
+      d.messages.forEach(function (m) {
+        var node = renderMessage(m);
+        if (nodes[m.id]) { s.replaceChild(node, nodes[m.id]); }
+        else { if (empty) { s.removeChild(empty); empty = null; } s.appendChild(node); s.scrollTop = s.scrollHeight; }
+        nodes[m.id] = node;
+      });
+      if (!Object.keys(nodes).length && !empty) { s.appendChild(el("div", "empty", "還沒有訊息。打字，或打 /help 看指令。")); }
+      rev = Math.max(rev, d.rev);
+    }).catch(function () {});
+  }
+  function send(text) {
+    if (!current) { return Promise.resolve(); }
+    return api("POST", "/api/chat/" + encodeURIComponent(current) + "/send", { text: text })
+      .then(function () { poll(); setTimeout(poll, 700); })
+      .catch(function (e) { toast(e.message); });
+  }
+  function press(chat, messageId, data, btn) {
+    if (btn) { btn.disabled = true; }
+    return api("POST", "/api/chat/" + encodeURIComponent(chat) + "/press", { message_id: messageId, data: data })
+      .then(function () { poll(); setTimeout(poll, 700); })
+      .catch(function (e) { toast(e.message); if (btn) { btn.disabled = false; } });
+  }
+  $("new-chat").addEventListener("click", newChat);
+  $("composer").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var input = $("input");
+    var text = input.value.trim();
+    if (!text) { return; }
+    input.value = "";
+    send(text);
+  });
+  $("input").addEventListener("keydown", function (ev) {
+    if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) {
+      ev.preventDefault();
+      $("composer").requestSubmit ? $("composer").requestSubmit() : $("composer").dispatchEvent(new Event("submit"));
+    }
+  });
+
+  // ── 工具頁 ────────────────────────────────────────────────────────
+  function commandBlock(c) {
+    var box = el("div", "cmd");
+    var head = el("div");
+    head.appendChild(el("code", "", c.command));
+    if (c.usage) { head.appendChild(document.createTextNode(" " + c.usage)); }
+    box.appendChild(head);
+    box.appendChild(el("div", "muted", c.summary + (c.effect === "danger" ? "（危險：會先問你）" : "")));
+    var form = el("form");
+    var input = el("input");
+    input.type = "text"; input.placeholder = c.usage || "（不用參數，直接按執行）";
+    var btn = el("button", "", "執行"); btn.type = "submit";
+    form.appendChild(input); form.appendChild(btn);
+    var out = el("div", "result hidden");
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var text = (c.command + " " + input.value).trim();
+      btn.disabled = true;
+      var since = toolsRev;
+      api("POST", "/api/chat/tools/send", { text: text }).then(function (d) {
+        return new Promise(function (ok) { setTimeout(ok, 500); }).then(function () {
+          return api("GET", "/api/chat/tools/events?since=" + since);
+        });
+      }).then(function (d) {
+        toolsRev = d.rev;
+        clear(out);
+        out.classList.remove("hidden");
+        var replies = d.messages.filter(function (m) { return m.from !== "me"; });
+        if (!replies.length) { out.textContent = "（送出了；回覆可能要等一下，到對話頁的「🧰 工具頁」看）"; }
+        replies.forEach(function (m) { out.appendChild(renderToolReply(m)); });
+      }).catch(function (e) { toast(e.message); }).then(function () { btn.disabled = false; });
+    });
+    box.appendChild(form);
+    box.appendChild(out);
+    return box;
+  }
+  function renderToolReply(m) {
+    return renderMessage(m, "tools", function () { toast("按了；結果在對話頁的「🧰 工具頁」"); });
+  }
+  function loadTools() {
+    api("GET", "/api/chat/tools/events?since=0").then(function (d) { toolsRev = d.rev; }).catch(function () {});
+    api("GET", "/api/tools").then(function (d) {
+      var packs = $("tool-packs"), groups = $("tool-groups");
+      clear(packs); clear(groups);
+      d.packs.forEach(function (p) {
+        var card = el("div", "card");
+        var h = el("h3", "", p.title + " ");
+        var badge = el("span", "badge " + (p.status === "已連接" ? "ok" : "warn"), p.status);
+        h.appendChild(badge);
+        card.appendChild(h);
+        card.appendChild(el("div", "muted", p.summary + "（" + p.name + " " + p.version + "）"));
+        if (p.panel) {
+          var frame = el("iframe", "panel");
+          frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
+          frame.setAttribute("title", p.title + " 面板");
+          frame.src = p.panel;
+          card.appendChild(frame);
+        }
+        p.commands.forEach(function (c) { card.appendChild(commandBlock(c)); });
+        packs.appendChild(card);
+      });
+      if (!d.packs.length) { packs.appendChild(el("p", "muted", "你現在沒有可以用的功能；請管理員替你開。")); }
+      d.groups.forEach(function (g) {
+        var card = el("div", "card");
+        card.appendChild(el("h3", "", g.title));
+        if (g.summary) { card.appendChild(el("div", "muted", g.summary)); }
+        g.commands.forEach(function (c) { card.appendChild(commandBlock(c)); });
+        groups.appendChild(card);
+      });
+    }).catch(function (e) { toast(e.message); });
+  }
+
+  // ── 設定頁 ────────────────────────────────────────────────────────
+  var llmChoices = [];
+  function selectedChoice() { return llmChoices[Number($("llm-choice").value)] || {}; }
+  function syncLlmFields() {
+    var c = selectedChoice();
+    $("llm-key-fields").classList.toggle("hidden", c.choice !== "keys");
+    $("llm-url-wrap").classList.toggle("hidden", !c.needs_url);
+    if (c.model && !$("llm-model").value) { $("llm-model").value = c.model; }
+  }
+  function llmBody() {
+    var c = selectedChoice();
+    return { choice: c.choice, provider: c.provider || "", api_key: $("llm-key").value,
+             model: $("llm-model").value, base_url: $("llm-url").value };
+  }
+  function loadSettings() {
+    api("GET", "/api/settings").then(function (d) {
+      $("set-notowner").classList.toggle("hidden", d.owner);
+      ["set-llm", "set-packs", "set-backup"].forEach(function (id) { $(id).classList.toggle("hidden", !d.owner); });
+      $("set-accounts").classList.toggle("hidden", !d.accounts);
+      $("my-budget").textContent = d.ai_budget ?
+        "這個月的 AI 額度：用了約 US$" + d.ai_budget.used.toFixed(2) + "／US$" + Number(d.ai_budget.limit).toFixed(2) : "";
+      if (d.owner) { fillLlm(d); fillPacks(d.packs || []); }
+      if (d.accounts) { loadAccounts(); }
+    }).catch(function (e) { toast(e.message); });
+  }
+  function fillLlm(d) {
+    llmChoices = d.llm_choices || [];
+    var sel = $("llm-choice");
+    clear(sel);
+    var pick = 0;
+    llmChoices.forEach(function (c, i) {
+      var o = el("option", "", c.label);
+      o.value = String(i);
+      sel.appendChild(o);
+      var kind = c.choice === "keys" ? c.provider : c.choice;
+      if (kind === d.llm.kind) { pick = i; }
+    });
+    sel.value = String(pick);
+    $("llm-model").value = d.llm.model || "";
+    $("llm-url").value = d.llm.base_url || "";
+    $("llm-key").value = "";
+    $("llm-now").textContent = "現在：" + d.llm.kind + (d.llm.model ? "（" + d.llm.model + "）" : "") +
+      (d.llm.has_key ? "，有金鑰" : "");
+    syncLlmFields();
+  }
+  $("llm-choice").addEventListener("change", function () { $("llm-model").value = ""; syncLlmFields(); });
+  $("llm-test").addEventListener("click", function () {
+    $("llm-msg").textContent = "測試中…";
+    api("POST", "/api/settings/llm/test", llmBody()).then(function (d) { $("llm-msg").textContent = d.message; })
+      .catch(function (e) { $("llm-msg").textContent = "❌ " + e.message; });
+  });
+  $("llm-save").addEventListener("click", function () {
+    api("POST", "/api/settings/llm", llmBody()).then(function (d) { $("llm-msg").textContent = d.message; loadSettings(); })
+      .catch(function (e) { $("llm-msg").textContent = "❌ " + e.message; });
+  });
+
+  var STATUS = { loaded: "可以用", connector: "還沒接上", disabled: "關掉了", invalid: "格式不對", missing: "缺東西", error: "壞了" };
+  function fillPacks(packs) {
+    var body = $("pack-rows");
+    clear(body);
+    packs.forEach(function (p) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "", p.name));
+      tr.appendChild(el("td", "", (STATUS[p.status] || p.status) + (p.detail ? "：" + p.detail : "")));
+      tr.appendChild(el("td", "", p.version || ""));
+      var td = el("td");
+      if (p.removable) {
+        var b = el("button", "danger", "移除");
+        b.type = "button";
+        b.addEventListener("click", function () {
+          if (!confirm("移除 " + p.name + "？（會搬到 packs/_removed/，不會刪掉）")) { return; }
+          api("POST", "/api/packs/remove", { name: p.name }).then(function (d) {
+            $("pack-msg").textContent = "搬到 " + d.moved_to; loadSettings();
+          }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });
+        });
+        td.appendChild(b);
+      }
+      tr.appendChild(td);
+      body.appendChild(tr);
+    });
+  }
+  $("pack-upload").addEventListener("click", function () {
+    var f = $("pack-file").files[0];
+    if (!f) { toast("先選一個 .synoxpack 檔"); return; }
+    f.arrayBuffer().then(function (buf) { return api("POST", "/api/packs/upload", null, buf); }).then(function (s) {
+      var box = $("pack-review");
+      clear(box);
+      box.classList.remove("hidden");
+      box.appendChild(el("h3", "", s.title + "（" + s.name + " " + s.version + "）"));
+      box.appendChild(el("p", "", s.summary));
+      box.appendChild(el("p", "muted", "種類 " + s.kind + "，誰能用 " + s.access + "，資料 " + s.storage +
+        (s.panel ? "，有網頁面板" : "") + "；" + s.files.length + " 個檔案"));
+      var ul = el("ul");
+      s.warnings.forEach(function (w) { ul.appendChild(el("li", "", w)); });
+      box.appendChild(ul);
+      var ok = el("button", "primary", "確認安裝");
+      ok.type = "button";
+      ok.addEventListener("click", function () {
+        api("POST", "/api/packs/install", { token: s.token }).then(function (d) {
+          $("pack-msg").textContent = "裝好了：" + d.name + "（" + (STATUS[d.status] || d.status) + (d.detail ? "：" + d.detail : "") + "）";
+          box.classList.add("hidden");
+          loadSettings();
+        }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });
+      });
+      var no = el("button", "", "不要裝");
+      no.type = "button";
+      no.addEventListener("click", function () { box.classList.add("hidden"); });
+      var row = el("div", "row"); row.appendChild(ok); row.appendChild(no);
+      box.appendChild(row);
+    }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });
+  });
+  $("pack-reload").addEventListener("click", function () {
+    api("POST", "/api/packs/reload", {}).then(function (d) {
+      $("pack-msg").textContent = d.ok ? "重新載入好了。" : "重新載入了，但有 pack 有問題（看上面的狀態）。";
+      loadSettings();
+    }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });
+  });
+
+  function loadAccounts() {
+    api("GET", "/api/accounts").then(function (d) {
+      var body = $("account-rows");
+      clear(body);
+      d.users.forEach(function (u) {
+        var tr = el("tr");
+        tr.appendChild(el("td", "", u.id));
+        tr.appendChild(el("td", "", (u.username || "") + (u.owner ? "（擁有者）" : "") + (u.pending ? "（申請中）" : "")));
+        var td = el("td");
+        if (u.owner) { td.textContent = u.role; }
+        else {
+          var sel = el("select");
+          d.roles.forEach(function (r) { var o = el("option", "", r); o.value = r; sel.appendChild(o); });
+          sel.value = u.role;
+          sel.addEventListener("change", function () {
+            api("POST", "/api/accounts/role", { id: u.id, role: sel.value }).then(function (r) {
+              $("account-msg").textContent = r.message; loadAccounts();
+            }).catch(function (e) { $("account-msg").textContent = "❌ " + e.message; loadAccounts(); });
+          });
+          td.appendChild(sel);
+        }
+        tr.appendChild(td);
+        tr.appendChild(el("td", "", u.messages_limit !== undefined ? (u.messages_today + "／" + u.messages_limit) : "—"));
+        tr.appendChild(el("td", "", u.ai_limit_usd !== undefined ?
+          ("US$" + Number(u.ai_month_usd).toFixed(2) + "／" + Number(u.ai_limit_usd).toFixed(2)) : "—"));
+        body.appendChild(tr);
+      });
+    }).catch(function (e) { $("account-msg").textContent = "❌ " + e.message; });
+  }
+
+  $("backup").addEventListener("click", function () {
+    $("backup-msg").textContent = "打包中…";
+    api("POST", "/api/backup", {}).then(function (r) {
+      var cd = r.headers.get("Content-Disposition") || "";
+      var m = /filename="([^"]+)"/.exec(cd);
+      return r.blob().then(function (blob) {
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = m ? m[1] : "synox-backup.zip";
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+        $("backup-msg").textContent = "下載了 " + a.download;
+      });
+    }).catch(function (e) { $("backup-msg").textContent = "❌ " + e.message; });
+  });
+
+  $("logout").addEventListener("click", function () {
+    api("POST", "/api/logout", {}).then(showLogin, showLogin);
+  });
+  window.addEventListener("hashchange", route);
+
+  api("GET", "/api/me").then(function (d) {
+    me = d;
+    $("nav").classList.remove("hidden");
+    $("logout").classList.remove("hidden");
+    $("who").textContent = (d.username || d.id) + "（" + d.role + (d.owner ? "，擁有者" : "") + "）";
+    route();
+  }).catch(function () { showLogin(); });
+})();
+</script>
+</body>
+</html>
