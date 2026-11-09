@@ -1,13 +1,26 @@
 {
   "name": "google-calendar",
   "title": "📅 Google 日曆",
-  "summary": "看行程、加行程（還沒接上）",
-  "version": "0.0.1",
-  "kind": "connector",
+  "summary": "看今天／這週、加行程、刪行程（直接連你的 Google 日曆）",
+  "version": "0.1.0",
+  "kind": "python",
   "group": "gcal",
   "access": "owner",
-  "auth": "oauth",
-  "requires": { "pip": [], "config": [], "env": {} },
+  "order": 35,
+  "python": { "module": "pack" },
+  "capabilities": ["network"],
+  "publisher": "SYNOX",
+  "auth": {
+    "type": "oauth",
+    "fields": ["client_id", "client_secret"],
+    "oauth": {
+      "flow": "authorization_code+pkce, loopback redirect without a listener (paste the URL back)",
+      "redirect_uri": "http://127.0.0.1:47231/",
+      "scopes": ["https://www.googleapis.com/auth/calendar.events"],
+      "scopes_readonly": ["https://www.googleapis.com/auth/calendar.events.readonly"]
+    }
+  },
+  "requires": { "pip": ["requests"], "config": [], "env": {} },
   "skill": "SKILL.md",
   "storage": "vault"
 }

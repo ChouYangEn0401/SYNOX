@@ -82,9 +82,9 @@ def test_loader_report_and_isolation(make_bot, tmp_path):
 
 def test_connector_leaf(make_bot, owner):
     bot = make_bot()
-    bot.say(owner, "/gcal")
+    bot.say(owner, "/notion")
     assert "還沒接上" in bot.last(owner)
-    leaf = bot.app.registry.node("gcal.status")
+    leaf = bot.app.registry.node("notion.status")
     assert leaf is not None and leaf.ai is False
 
 
