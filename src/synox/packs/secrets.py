@@ -12,6 +12,9 @@ pack 的 secret（pack.json 的 auth.fields[]）：使用者在 Web UI 工具頁
 - 誰拿得到：kind=cli → 有寫 env 的欄位放進子程序環境（JsonCli 的 keep_env 放行那個名字），**絕不放進 argv**；
   kind=python → pack.secret(name, user=None)。值永遠不回給網頁（只回「有填」與最後 4 碼）。
 - 第 4 關（agent/validate.py）：AI 帶的欄位值等於（或夾著）任何一個已存的 secret ＝拒，不執行。
+  「夾著」只對 8 字以上的 secret 做；短的（4–7 字）只在**它自己那個 pack 的工具**的呼叫值裡做子字串比對，
+  對其他 pack 只擋完全相等（不然 4 位數 PIN 會讓所有含那串數字的一般值都被擋）。存短 secret 時網頁與
+  connect 指令會警告「太短無法完整保護」（short_warning）。
 
 哪些 pack 由 SYNOX 管（managed）：auth.type 是 token／file、有 fields，而且
   kind=cli、真的會連的 kind=mcp（stdio：放進子程序環境；http：當 Authorization: Bearer，P4b），
@@ -115,6 +118,28 @@ def last4(value: str) -> str:
     return v[-4:] if len(v) >= 8 else ""
 
 
+SHORT_SECRET = 8           # 比這短的 secret：第 4 關只能擋「完全相等」（夾在別的字裡太容易誤傷一般字）
+SHORT_SUBSTRING_MIN = 4    # 短 secret 在「它自己那個 pack 的呼叫值」裡也做子字串比對，但至少要這麼長
+SHORT_WARNING = ("⚠️ {labels} 太短（不到 {n} 個字），SYNOX 沒辦法完整保護：AI 把它夾在別的字裡送給其他工具時認不出來。"
+                 "可以的話換一組長一點的。")
+
+
+def short_labels(fields: List[dict], values: Dict[str, str]) -> List[str]:
+    """這次要存的 secret 裡太短的（label）：給網頁「連接」與 connect 指令警告用。"""
+    by_name = {f["name"]: f for f in fields}
+    out = []
+    for name, value in (values or {}).items():
+        f = by_name.get(name)
+        if f is not None and f.get("secret") and f.get("kind") != "file" and isinstance(value, str) \
+                and 0 < len(value.strip()) < SHORT_SECRET:
+            out.append(f["label"])
+    return out
+
+
+def short_warning(labels: List[str]) -> str:
+    return SHORT_WARNING.format(labels="、".join(labels), n=SHORT_SECRET) if labels else ""
+
+
 def check_value(field: dict, value) -> Optional[str]:
     """網頁送來的一個值合不合；不合回一句話。"""
     if not isinstance(value, str):
@@ -161,8 +186,9 @@ class PackSecrets:
         return entry.get("value") if isinstance(entry, dict) else None
 
     def update(self, pack: str, fields: List[dict], values: Dict[str, str], user=None,
-               clear=()) -> None:
-        """values：{欄位: 值}，空字串＝沿用原值；clear：要刪掉的欄位。先全部檢查過才寫。"""
+               clear=()) -> List[str]:
+        """values：{欄位: 值}，空字串＝沿用原值；clear：要刪掉的欄位。先全部檢查過才寫。
+        回這次存的 secret 裡太短（< SHORT_SECRET 字）的 label（呼叫的人照 short_warning 提醒；照樣存）。"""
         by_name = {f["name"]: f for f in fields}
         for name in list(values) + list(clear):
             if name not in by_name:
@@ -183,6 +209,7 @@ class PackSecrets:
                     continue
                 data[key(pack, name)] = {"value": value, "secret": by_name[name]["secret"], "saved": int(time.time())}
             vault.save_json(VAULT_NAME, data)
+        return short_labels(fields, values)
 
     def status(self, pack: str, fields: List[dict], user=None) -> List[dict]:
         """給網頁看的：每個欄位「有填」、最後 4 碼（secret 永遠不回值；不是 secret 的回值）。"""
@@ -227,8 +254,9 @@ class PackSecrets:
                 out[f["env"]] = entry["value"]
         return out
 
-    def secret_values(self, user=None) -> List[str]:
-        """這個人存的全部 secret 值（第 4 關比對用；不是 secret 的欄位不算）。讀不到回 []。"""
+    def secret_values(self, user=None, pack: Optional[str] = None) -> List[str]:
+        """這個人存的全部 secret 值（第 4 關比對用；不是 secret 的欄位不算）。讀不到回 []。
+        pack：只要這個 pack 的（短 secret 的子字串比對只對它自己的呼叫做）。"""
         if self.vault is None:
             return []
         try:
@@ -238,21 +266,29 @@ class PackSecrets:
         except Exception:
             logging.exception("[SECRETS] could not read pack secrets for the gate-4 check")
             return []
-        return [e["value"] for e in data.values()
-                if isinstance(e, dict) and e.get("secret") and isinstance(e.get("value"), str) and e["value"].strip()]
+        prefix = key(pack, "") if pack else ""
+        return [e["value"] for k, e in data.items()
+                if (not prefix or str(k).startswith(prefix))
+                and isinstance(e, dict) and e.get("secret") and isinstance(e.get("value"), str) and e["value"].strip()]
 
 
 def of(app) -> Optional[PackSecrets]:
     return (getattr(app, "extras", {}) or {}).get("synox_pack_secrets")
 
 
-def leaks(value: str, secrets: List[str]) -> bool:
-    """AI 帶的值是不是已存的 secret（一樣，或 8 字以上的 secret 夾在裡面）。"""
+def leaks(value: str, secrets: List[str], own: Optional[List[str]] = None) -> bool:
+    """AI 帶的值是不是已存的 secret：一樣，或 8 字以上的 secret 夾在裡面。
+    own：這個工具「自己那個 pack」的 secret——短的（4–7 字）也做子字串比對（只對自己的 pack 做，
+    不然 4 位數 PIN 之類會把所有含那串數字的一般值都擋掉）。"""
     v = (value or "").strip()
     if not v:
         return False
     for s in secrets:
         s = s.strip()
-        if v == s or (len(s) >= 8 and s in v):
+        if v == s or (len(s) >= SHORT_SECRET and s in v):
+            return True
+    for s in own or ():
+        s = s.strip()
+        if len(s) >= SHORT_SUBSTRING_MIN and s in v:
             return True
     return False
