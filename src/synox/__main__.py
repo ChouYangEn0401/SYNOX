@@ -169,9 +169,9 @@ def _job_runner(data_dir: str):
     return JobRunner(log_root=os.path.join(data_dir, "job_logs"))
 
 
-def _build_env_now(name: str, data_dir: str, packs_dir: str, jobs=None) -> bool:
+def _build_env_now(name: str, data_dir: str, packs_dir: str, jobs=None, what: str = "裝好了") -> bool:
     """終端機：建 runtime.python／node = auto 的環境並等它結束（最多 10 分鐘）。不用建回 True；建失敗回 False
-    （pack 已經裝好，doctor 會標「環境沒建好」）。"""
+    （pack 已經裝好／升級好，doctor 會標「環境沒建好」）。what：失敗訊息裡 pack 的狀態（裝好了｜升級好了）。"""
     import threading
 
     from synox.packs import admin
@@ -191,13 +191,13 @@ def _build_env_now(name: str, data_dir: str, packs_dir: str, jobs=None) -> bool:
         return True
     print("🧱 開始建環境（要網路，最多 10 分鐘）…")
     if not done.wait(660) or not box:
-        print("❌ 建環境超過時間還沒結束。pack 已經裝好；之後跑 python -m synox packs env rebuild " + name)
+        print(f"❌ 建環境超過時間還沒結束。pack 已經{what}；之後跑 python -m synox packs env rebuild " + name)
         return False
     result = box[0]
     if result.ok:
         print(f"✅ {name} 的環境建好了（data/envs/{name}/）。")
         return True
-    print(f"⚠️ pack 裝好了，但環境沒建好：{result.detail}")
+    print(f"⚠️ pack {what}，但環境沒建好：{result.detail}")
     return False
 
 
@@ -216,15 +216,19 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
     except admin.PackAdminError as e:
         print(f"❌ {e}")
         return 2
-    print(admin.format_summary(summary))
     packs_dir = args.packs_dir or PACK_DIRS[0]
-    upg = _print_upgrade(token, data_dir, packs_dir)                     # 同名已經裝了＝升級：「改了什麼」
+    upg = _staged_upgrade(token, data_dir, packs_dir)                    # 同名已經裝了＝升級：「改了什麼」
+    # 升級時「要不要建環境」看升級報告那一段（跟舊版比過），安裝摘要的那一段就不印，免得兩段說法不一樣
+    print(admin.format_summary(summary if upg is None else {**summary, "env": {}}))
+    if upg is not None:
+        from synox.packs import upgrade as pack_upgrade
+        print(pack_upgrade.format_upgrade(upg))
     if upg is not None and not upg["version_ok"] and not (getattr(args, "allow_downgrade", False)
                                                           and upg["can_force"]):
         print("❌ 不升級（版本要比裝著的新；真的要降級／重裝同一版，加 --allow-downgrade）")
         return 2
     if args.yes and upg is not None:
-        return _upgrade_now(token, data_dir, packs_dir, config, args)
+        return _upgrade_now(token, data_dir, packs_dir, config, args, jobs=jobs)
     if args.yes:
         who = getattr(config, "owner_id", None) or "console"
         try:
@@ -251,18 +255,15 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
     return 1
 
 
-def _print_upgrade(token: str, data_dir: str, packs_dir: str):
+def _staged_upgrade(token: str, data_dir: str, packs_dir: str):
     from synox.packs import admin, upgrade
     try:
-        upg = upgrade.staged_upgrade(token, data_dir, packs_dir)
+        return upgrade.staged_upgrade(token, data_dir, packs_dir)
     except admin.PackAdminError:
         return None
-    if upg is not None:
-        print(upgrade.format_upgrade(upg))
-    return upg
 
 
-def _upgrade_now(token: str, data_dir: str, packs_dir: str, config, args) -> int:
+def _upgrade_now(token: str, data_dir: str, packs_dir: str, config, args, jobs=None) -> int:
     from synox.packs import admin, upgrade
     who = getattr(config, "owner_id", None) or "console"
     try:
@@ -274,6 +275,8 @@ def _upgrade_now(token: str, data_dir: str, packs_dir: str, config, args) -> int
     print(f"✅ 升級好了：{done['name']} {done['from']} → {done['to']}（已寫進 packs.lock；"
           f"舊的在 {done['backup']}，要退回：python -m synox packs rollback {done['name']}）。"
           "SYNOX 開著的話到網頁設定頁按「重新載入全部」，或重開 SYNOX。")
+    if (done.get("env") or {}).get("needed"):                            # 跟全新安裝一樣：等它建完；失敗不退回升級
+        _build_env_now(done["name"], data_dir, packs_dir, jobs, what="升級好了")
     return 0
 
 
@@ -291,6 +294,8 @@ def cmd_rollback(args, data_dir: str, config) -> int:
                  "mismatch": "⚠️ 檔案跟當時的鎖對不上，沒有鎖；檢查過再 python -m synox packs lock --approve "
                              + done["name"]}[done["lock"]]
     print(f"↩️ 退回了：{done['name']} 現在是 {done['version']}（{lock_note}）。")
+    if done.get("env"):                                                  # 舊版要的環境對不上：只提示，不自動建
+        print(f"   ⚠️ 舊版的環境：{done['env']}")
     if done["archived"]:
         print(f"   原本裝著的那份搬到 {done['archived']}")
     print("   資料（data/、使用者資料夾）沒有動。SYNOX 開著的話到網頁設定頁按「重新載入全部」，或重開 SYNOX。")
