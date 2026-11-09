@@ -47,9 +47,47 @@ packs/money/
 面板範例：`packs/money/panel.html`（這個月的總額＋預算條，打 `GET /api/packs/money/summary`）。
 面板是 pack 自己的 HTML，跟 `pack.py` 一樣是你決定要不要信任的程式碼：它跟 Web UI 同源，能做你在網頁上能做的事。
 
-`.synoxpack`＝一個 pack 資料夾壓成的 zip（`pack.json` 在最上層，或在唯一的那個資料夾裡）。Web UI 設定頁可以上傳：
-檢查 zip（沒有絕對路徑、`..`、符號連結；5 MB／解開 20 MB／300 個檔以內）與 `pack.json` → 給人看摘要 → 按確認才搬進 `packs/`。
-移除＝搬到 `packs/_removed/<name>-<時間>`（不刪）。架構 v1 §4 的安全管線這一版只做了第 1 關（宣告檢查）。
+`.synoxpack`＝一個 pack 資料夾壓成的 zip（`pack.json` 在最上層，或在唯一的那個資料夾裡）；`synox-sdk zip`／`scripts\pack_zip.py`
+會打包並算好 `integrity.sha256`（[sdk.md](sdk.md)）。裝的路有三條，都跑同一條安全管線（[security.md](security.md)「五關」）：
+Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Install-Pack.bat`）、`python -m synox install <檔> [--yes]`。
+檢查 zip（沒有絕對路徑、`..`、符號連結；5 MB／解開 20 MB／300 個檔以內）→ 第 1 關宣告 → 第 2 關靜態掃描 → 給人看報告 →
+按確認 → 第 3 關寫 `data/packs.lock` → 搬進 `packs/`。移除＝搬到 `packs/_removed/<name>-<時間>`（不刪），鎖的那一筆一起拿掉。
+
+## pack.json v2（架構 v1 §4）
+
+在上面之上加的欄位；**舊的 pack 照舊能讀**。有任何一個 v2 欄位（`capabilities`、`publisher`、`integrity`、`mcp`、
+`commands`、`runtime`、最上層 `env`、物件形式的 `auth`）就當 v2，cli 的每個 command 一定要寫 `effect`。
+從網頁或 `synox install` 裝的時候一律用嚴格版（不管 v0 或 v2，cli 的 `effect` 都要寫）。
+
+| 欄位 | 說明 |
+|---|---|
+| `capabilities` | 宣告要用的能力：`network`、`subprocess`、`filesystem:own`、`filesystem:any`（含 own）、`exec`。第 2 關的掃描看到用了、卻沒宣告 → **拒裝**。沒寫＝什麼都沒宣告（舊 pack 一樣，由掃描結果決定裝不裝得了） |
+| `publisher` | 發行者（給人看；沒寫會在報告裡提醒） |
+| `integrity.sha256` | `{"檔名": "64 個 16 進位字"}`，打包時算（`synox-sdk zip`）。有寫就每個檔都要對得上、也不能多出沒列的檔（`pack.json` 本身不算） |
+| `auth` | v0 的字串（`oauth`／`token`／`caldav`）照舊；v2 寫 `{"type": "none｜token｜oauth｜caldav｜file", "fields": [...]}` |
+| `kind: "mcp"`＋`mcp` | `{"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}`。`tools_allow` 不能空，每個允許的工具都要有 effect（沒寫＝拒）。這一版只登記、不連；不能附程式檔 |
+| `commands[].effect` | cli 的每個 command：`READ`／`WRITE`／`DANGER`（大小寫都收）。`commands` 也可以放最上層（等於 `cli.commands`） |
+| `commands[].fields[].kind` | `text`（預設）｜`path`：值一定要在使用者自己的資料夾裡（第 4 關） |
+| `cli.python` | `{python}` 換成什麼：絕對路徑｜`"venv"`（`<pack 資料夾>/../.venv` 的 python）｜沒寫＝看 `runtime`，再沒有＝SYNOX 自己的 Python |
+| `runtime.python`、`runtime.python_posix` | 另一種寫法（金流簿用的）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它 |
+| `env`（最上層）、`cli.env` | 子程序多帶的環境變數；兩個合併，`cli.env` 優先。值可以用下面的代換 |
+| `web.routes` | cli pack 的面板資料：`{"route": "command"}`；沒寫＝同名。對應的 command 要是 `READ`、沒有必填欄位 |
+
+### kind=cli 的代換
+
+`cli.argv`、每個 command 的 `argv`、`env`（最上層與 `cli.env`）、`cli.cwd` 裡的這幾個字，**每一次呼叫**照下令的人換掉：
+
+| 寫法 | 換成 |
+|---|---|
+| `{python}` | 上面 `cli.python`／`runtime` 決定的直譯器 |
+| `{pack_dir}` | pack 資料夾的絕對路徑 |
+| `{data_dir}` | SYNOX 的 `data/` |
+| `{user_data_dir}` | 伺服器版 `data/users/<tg_id>`（第一次用時建立）；個人版 `data/` |
+| `{tg_id}` | 下令的人的 Telegram id（排程、網頁也是那個人） |
+
+欄位不能取這幾個名字。使用者給的值只換一次（值裡寫 `{data_dir}` 不會被換）。
+沒填的選填欄位：`--k={v}` 那一段拿掉；單獨一段的 `{v}` 連同前面緊鄰的字面 `--旗標` 一起拿掉。
+樣板規則（第 2 關）：只能是字面字、單獨一段的 `{欄位}`、或 `--k={欄位}`；`["--k", "{v}"]` 這種分兩段的會被拒（要寫成 `--k={v}`）。
 
 ## 三種 kind
 
@@ -105,8 +143,9 @@ def install(app, pack):
 }
 ```
 
-- `{python}` 換成 SYNOX 自己的 Python；`./` 開頭的換成 pack 資料夾裡的路徑。
-- 每個 command 交給 SDK 的 `isdtelekit.packs.service.install`：表單、背景執行、值以 `-` 開頭一律拒絕（不讓人塞旗標）。
+- `{python}` 等代換見上面「kind=cli 的代換」；`./` 開頭的換成 pack 資料夾裡的路徑。
+- 每個 command 是一個 SDK Forms 表單指令（行為照 SDK `service.install`：背景執行、值以 `-` 開頭一律拒絕）；
+  loader 自己組 argv，因為開頭、env、cwd 要照「這一次是誰」代換。
 - 程式要做的事：子指令＋`--json`，最後一行印一個 JSON 物件，結束碼 0＝成功；`{"message": "…"}` 會直接回給使用者。
 
 ### `connector`
