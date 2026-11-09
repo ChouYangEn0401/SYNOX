@@ -186,3 +186,55 @@ def test_c2_children_do_not_read_user_site(tmp_path):
     config = _Config(str(tmp_path / "data"))
     env = loader.context_env(m, config, loader.placeholders(m, config))
     assert env["PYTHONNOUSERSITE"] == "1" and env["PYTHONDONTWRITEBYTECODE"] == "1"
+
+
+# ── C3：{python} -m X ＋ cwd 在使用者資料夾 ─────────────────────────────
+
+@pytest.mark.parametrize("cwd", ["{user_data_dir}", "{data_dir}/x", "{user_data_dir}/moneybook", "C:/Users/Public",
+                                 "..", "{pack_dir}/..", "{pack_dir}x"])
+def test_c3_repro_dash_m_with_cwd_outside_pack_is_refused(tmp_path, cwd):
+    """修之前：T1、零 finding；python -m tool 的 sys.path[0] 是 cwd，使用者資料夾裡的 tool.py 會先被載入。"""
+    raw = _raw(caps=(), publisher=PUB, argv=["{python}", "-m", "tool"])
+    raw["cli"]["cwd"] = cwd
+    raw["data"] = "shared" if "{data_dir}" in cwd else "user" if "{user_data_dir}" in cwd else "none"
+    m = read(_write(str(tmp_path / "a"), raw), strict=True)
+    report = pack_scan.scan(m)
+    assert any(f.kind == "argv" and "-m" in f.detail for f in report.findings), report.findings
+    assert report.problems(m)
+    with pytest.raises(ManifestError, match="cwd"):
+        loader.refuse_blocked_argv(m)
+
+
+@pytest.mark.parametrize("cwd", [None, ".", "./sub", "{pack_dir}", "{pack_dir}/sub"])
+def test_c3_dash_m_with_cwd_in_pack_is_fine(tmp_path, cwd):
+    raw = _raw(caps=(), publisher=PUB, argv=["{python}", "-m", "tool"])
+    if cwd is not None:
+        raw["cli"]["cwd"] = cwd
+    m = read(_write(str(tmp_path / "a"), raw, {"sub/x.txt": "x"}), strict=True)
+    assert not [f for f in pack_scan.scan(m).findings if f.kind == "argv"]
+    loader.refuse_blocked_argv(m)
+
+
+def test_c3_script_mode_with_cwd_in_user_folder_is_still_fine(tmp_path):
+    """{python} ./tool.py：sys.path[0] 是腳本所在的資料夾（pack 裡），cwd 在哪都不影響 import。"""
+    raw = _raw(caps=(), publisher=PUB, argv=["{python}", "./tool.py"], data="user")
+    raw["cli"]["cwd"] = "{user_data_dir}"
+    m = read(_write(str(tmp_path / "a"), raw), strict=True)
+    assert pack_scan.scan(m).problems(m) == []
+
+
+def test_c3_mcp_stdio_dash_m_cwd(tmp_path):
+    raw = {"name": "mx", "title": "M", "summary": "s", "version": "0.1.0", "kind": "mcp", "skill": "SKILL.md",
+           "capabilities": ["subprocess"], "publisher": PUB, "data": "user",
+           "mcp": {"transport": "stdio", "argv": ["{python}", "-m", "tool"], "cwd": "{user_data_dir}",
+                   "tools_allow": ["a"], "effects": {"a": "READ"}}}
+    m = read(_write(str(tmp_path / "m"), raw), strict=True)
+    assert any(f.kind == "argv" for f in pack_scan.scan(m).findings)
+
+
+def test_c3_moneybook_convention_unchanged(tmp_path):
+    """金流簿：{python} -m moneybook、cwd "."（pack 資料夾）→ 照舊（T2，因為 ../.venv 在 pack 外），沒有新的擋。"""
+    here = os.path.dirname(os.path.abspath(__file__))
+    m = read(os.path.join(here, "fixtures", "moneybook_pack"), strict=True)
+    assert pack_scan.argv_blocked(m) == []
+    loader.refuse_blocked_argv(m)

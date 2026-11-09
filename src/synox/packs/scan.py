@@ -32,6 +32,7 @@
   argv 讓直譯器直接執行一段程式碼（-c、-e、-Command、/c…，inline_code；cli.argv＋command argv 整條看）→ exec；
   {python} 要跑的 pack 內檔案不是 .py／.pyw（或含 __main__.py 的資料夾）＝拒（審查 C #C1：./run.txt、./app.pyz…
   Python 照跑、第 2 關不看；script_target_problem）；
+  {python} -m 而 cli.cwd／mcp.cwd 不在 pack 裡＝拒（#C3：-m 的 sys.path[0] 是 cwd，{user_data_dir} 裡同名的 .py 會先被載入）；
   argv 樣板只能是字面字、單獨一段的 {欄位}、或 --k={欄位}（一段）；
   {欄位} 緊跟在一個 --旗標 後面當它的值 ＝拒（值會變成另一段，要寫成 --k={v}）；樣板裡用了沒宣告的欄位 ＝拒。
   （值本身以 - 開頭、有換行，是第 4 關在呼叫時擋。）
@@ -877,6 +878,25 @@ def _inside_token(token: str) -> bool:
     return plain.startswith(("./", "{pack_dir}/")) and ".." not in plain.split("/")
 
 
+def _cwd_template(m: Manifest) -> str:
+    holder = (m.mcp or {}) if m.kind == "mcp" else (m.cli or {})
+    return str(holder.get("cwd") or ".")
+
+
+def cwd_inside_pack(text: str) -> bool:
+    """cli.cwd／mcp.cwd 的樣板是不是 pack 資料夾（或底下的子資料夾）：.、./sub、{pack_dir}、{pack_dir}/sub。
+    有別的代換（{user_data_dir}、{data_dir}…）、絕對路徑、.. ＝不是（審查 C #C3）。只看字串。"""
+    plain = str(text).replace("\\", "/")
+    if plain.startswith("{pack_dir}"):
+        rest = plain[len("{pack_dir}"):]
+        if rest and not rest.startswith("/"):
+            return False
+        plain = rest.lstrip("/") or "."
+    if "{" in plain or "}" in plain or plain.startswith(("/", "~")) or re.match(r"^[A-Za-z]:", plain):
+        return False
+    return ".." not in plain.split("/")
+
+
 def _pack_rel(token: str) -> str:
     """./x/y.py、{pack_dir}/x/y.py → x/y.py（呼叫前先確定 _inside_token）。"""
     plain = token.replace("\\", "/")
@@ -1072,6 +1092,11 @@ def _interpreter_hits(m: Manifest, token: str, args: Sequence[str]):
             why = "看不懂的旗標（可能直接執行程式碼）" if kind == "odd" else "直接執行一段沒被第 2 關掃描的程式碼"
             yield "inline", f"{name} {value.split('（')[0].strip() or value}".strip(), f"{name} {value}：{why}"
         elif kind == "module":
+            if family == "python" and not cwd_inside_pack(_cwd_template(m)):
+                yield "blocked", f"-m {value}", (
+                    f"{name} -m {value} 而 cwd 是 {_cwd_template(m)!r}：python -m 會先從 cwd 找模組，cwd 不在 pack 裡"
+                    "（例如 {user_data_dir}）時，那裡同名的 .py 會先被載入（沒鎖、沒掃過）。"
+                    "cwd 請用 pack 資料夾（\".\"），或改成 {python} ./tool.py")
             if not value or _PLACEHOLDER.search(value):
                 yield "inline", f"{name} -m {value}".strip(), f"{name} -m {value}：要跑的模組由欄位決定（掃不到）"
             elif not _module_inside(m, value):
@@ -1215,7 +1240,8 @@ def _inline_findings(m: Manifest) -> List[Finding]:
 
 
 def argv_blocked(m: Manifest) -> List[tuple]:
-    """argv 不管宣告什麼都不收的寫法：[(程式, 理由, 在哪)]（{python} 跑 pack 裡不是 .py 的檔，審查 C #C1）。
+    """argv 不管宣告什麼都不收的寫法：[(程式, 理由, 在哪)]（{python} 跑 pack 裡不是 .py 的檔，審查 C #C1；
+    {python} -m 而 cwd 不在 pack 裡，#C3）。
     第 2 關記成 argv（擋）；loader 載入時也照這個拒（已經裝好的舊 pack）。"""
     return [(p, d, w) for kind, p, d, w in _argv_hits(m) if kind == "blocked"]
 

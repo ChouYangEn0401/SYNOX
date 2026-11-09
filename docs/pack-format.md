@@ -213,6 +213,9 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
 | `{tg_id}` | 下令的人的 Telegram id（排程、網頁也是那個人） |
 
 欄位不能取這幾個名字。使用者給的值只換一次（值裡寫 `{data_dir}` 不會被換）。
+**`{python} -m 模組` 時 `cli.cwd`（`mcp.cwd`）一定要在 pack 資料夾裡**（`.`、`./子資料夾`、`{pack_dir}…`；審查 C #C3）：
+`python -m` 會先從 cwd 找模組，cwd 是 `{user_data_dir}` 時，使用者資料夾裡同名的 `.py` 會先被載入（沒鎖、沒掃過）。
+資料要放使用者資料夾就用環境變數告訴程式（金流簿的 `MONEYBOOK_HOME` 寫法），或改成 `{python} ./tool.py`（腳本模式不受 cwd 影響）。
 子程序另外一定拿到這幾個環境變數（[synox_sdk](sdk.md) 的 `context()`／`secret()` 讀它們；蓋過 pack 自己寫的同名變數）：
 `SYNOX_USER_DATA_DIR`（＝`{user_data_dir}`）、`SYNOX_TG_ID`、`SYNOX_MODE`（`personal`｜`server`）、`SYNOX_PACK_DIR`、`SYNOX_PACK_NAME`、
 `SYNOX_SECRET_ENV`（`auth.fields` 的「欄位名=環境變數名」，逗號分隔；只有名字，值照舊只在那個環境變數裡）。

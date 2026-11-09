@@ -324,6 +324,7 @@ synox-sdk init <資料夾> --kind cli --name x                    不用 @tool �
 | `.py` 解析不了（語法錯誤） | 掃不了就不能說它安全 |
 | pack 裡有執行檔、編譯檔、`node_modules/`，沒宣告 `exec` | 掃不到內容的東西要明說 |
 | argv 讓直譯器直接執行程式碼（`-c`、`-e`、`-Command`、`/c`…，寫在 `commands[].argv` 也算），沒宣告 `exec` | 那段程式碼第 2 關掃不到 |
+| `{python}` 要跑的 pack 內檔案不是 `.py`／`.pyw`（`./run.txt`、`./app.pyz`、沒有副檔名的 `./run`）；`{python} -m 模組` 而 `cwd` 不在 pack 資料夾（例如 `{user_data_dir}`） | Python 不看副檔名照樣執行、第 2 關卻不會掃；`-m` 會先從 cwd 找模組，使用者資料夾裡同名的檔會先被載入 |
 | argv 樣板把旗標和值分兩段（`["--city", "{city}"]`）、用了不認得的 `{…}` | 值一定要綁在同一段，才不會被拼成別的旗標 |
 | `data: "user"` 卻用 `{data_dir}`；`data: "none"` 卻用 `{user_data_dir}`／`{data_dir}` | 資料放錯地方會跨戶 |
 | 遠端 MCP 或 connector 附了程式檔 | 只能是宣告 |
