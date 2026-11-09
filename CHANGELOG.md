@@ -1,5 +1,21 @@
 # Changelog
 
+## 未發佈（branch feat/perm2）
+
+### 新增
+- **pack.json 權限宣告**（PERM-2）：`surfaces`（`["dm"]`／`["dm", "channel"]`，預設 `["dm"]`）與 `data`（`none`／`user`／`shared`；沒寫照預設推：
+  python 有寫 storage＝user、cli 看樣板用 `{user_data_dir}` 還是 `{data_dir}`）。第 1 關檢查格式，`channel`＋`data: user` 拒。舊 pack 照舊能用。
+- 第 2 關新規則（列檔名:行號）：`data: user` 的 python pack 不准裸用 `pack.store`（`load`／`save`／`update`，要 `pack.store.of(user)`）、
+  `pack.secret(name)` 一定要給 user；cli 樣板不准 `{data_dir}`（只能 `{user_data_dir}`）；`data: none` 不准用 `pack.store`／`pack.path`／資料夾代換。
+- loader：`surfaces` 沒有 `channel` 的 pack 整組 `private_only`（群組裡打了 SDK 回「請私訊」）；`data: shared` 的 WRITE／DANGER 指令在伺服器版只有管理員。
+- 安裝報告多「在哪裡用、資料屬於誰」與 **trust** 選項（`core`／`third-party`，預設 third-party）：網頁下拉選單、終端機 `--trust`，寫進 `packs.lock`
+  （也記當時的 surfaces／data）；舊的鎖沒有 trust＝third-party。`packs lock --approve` 沒給 `--trust`＝沿用舊鎖的。
+- 升級比對：`surfaces` 多了 channel、`data` 變寬（none → user → shared）、trust 跟舊鎖不同 → 紅字；升級沒選 trust＝沿用。
+- 出廠 notes、money、remind 與 4 個 connector、`tests/fixtures` 的範例都標上 `surfaces: ["dm"]`、`data`；全部過新掃描（零違規）。`synox-sdk init` 產生的 pack.json 也寫好（python＝user、cli＝none）。
+
+### 改變
+- 出廠 pack 現在只能私訊用（以前 Telegram 群組裡也能打 `/note`）。測試 `tests/test_perm2.py`（45 個，439 → 484 passed）。
+
 ## 未發佈（branch feat/sdk-upgrade-env-glue）
 
 ### 修正

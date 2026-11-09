@@ -19,6 +19,8 @@ packs/money/
   "version": "0.1.0", "kind": "python",
   "group": "money",
   "access": "owner",
+  "surfaces": ["dm"],
+  "data": "user",
   "order": 20,
   "python": { "module": "pack" },
   "requires": { "pip": [], "config": [], "env": {} },
@@ -35,6 +37,8 @@ packs/money/
 | `kind` | ✅ | `python`｜`cli`｜`connector`（下面） |
 | `group` | | 指令群組，小寫英數字 16 字內；沒寫＝`name` 去掉 `-`、`_`。`group: money` → `/money`（主要動作）、`/money_list`… |
 | `access` | | `owner`（預設：只有安裝時配對的那個人，別人打了跟不存在一樣）｜`member`（伺服器版：成員以上；個人版＝`owner`）｜`everyone`（任何人，伺服器版的訪客也算） |
+| `surfaces` | | 在哪裡能用：`["dm"]`（預設：只能私訊，群組／頻道裡打了 SDK 回「請私訊」）｜`["dm", "channel"]`（也能在頻道用）。一定要有 `dm`。見下面「權限宣告」 |
+| `data` | | 資料屬於誰：`none`｜`user`（每個人自己一份）｜`shared`（大家共用一份）。沒寫照預設推（下面「權限宣告」）；第 2 關照它檢查程式 |
 | `order` | | `/help` 的排序（小的在前，預設 100） |
 | `skill` | | SKILL.md 的檔名（要存在） |
 | `storage` | | `vault`（`pack.store` 落地是密文 `data/<name>.json.enc`；伺服器版 `pack.store.of(user)` 是 `data/users/<id>/<name>.json.enc`）｜`plain`（`data/<name>.json`，預設） |
@@ -62,7 +66,8 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 - 新增／移除的 command（cli 的 `commands`、mcp 的 `tools_allow`；python pack 的指令寫在程式裡，比不出來，看檔案差異與掃描報告）
 - **紅字（醒目）**：effect 變寬（`READ` → `WRITE` → `DANGER`）、新增 `WRITE`／`DANGER` 的 command、`capabilities` 新增、
   執行方式改了（`kind`、`runtime`、`cli.argv`／`python`／`cwd`／`env`、`python.module`、`mcp.url`）、`auth` 改了、
-  多要密鑰環境變數、`access` 變寬、新加網頁面板、`storage` 從 `vault` 改成 `plain`
+  多要密鑰環境變數、`access` 變寬、新加網頁面板、`storage` 從 `vault` 改成 `plain`、`surfaces` 多了 `channel`、
+  `data` 變寬（`none` → `user` → `shared`）、這次選的 `trust` 跟裝著那一份的鎖不一樣（不管哪個方向；升級沒選＝沿用舊的）
 - 一般字：移除 command、effect 變窄、不再要某個能力；還有每個檔改了／多了／少了
 
 **版本**：新的 `version` 要是 semver（`1.2.3`、`1.2.3-beta.1`），而且要比裝著的大。一樣或比較小 → 明講並拒絕，
@@ -84,6 +89,26 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 **資料不在 pack 資料夾裡**（`data/<name>.json.enc`／`data/<name>.json`、伺服器版 `data/users/<id>/`、cli 的 `{user_data_dir}/<name>/`），
 升級、退回都不會動到資料。**資料格式（schema）要不要升級是 pack 自己的事**：建議在資料裡存一個 `schema` 版本號，
 新版程式讀到舊格式就自己轉換；退回到舊版時舊程式要能看得懂（或至少不弄壞）新版寫的資料——做不到就在 SKILL.md／README 寫清楚「不能退回」。
+
+### 權限宣告：`surfaces`、`data`、安裝時選的 `trust`
+
+舊的 pack 沒寫照舊能用（照下面的預設）；出廠的 notes、money、remind 與 4 個 connector 都寫了 `"surfaces": ["dm"], "data": "user"`。
+
+| | 值 | 沒寫的預設 | 效果 |
+|---|---|---|---|
+| `surfaces` | `["dm"]`｜`["dm", "channel"]` | `["dm"]` | 沒有 `channel` → loader 定義群組時加 `private_only`（SDK `authorize` 自己擋群組／頻道） |
+| `data` | `none`｜`user`｜`shared` | python：有寫 `storage`＝`user`，沒寫＝`none`；cli：樣板（argv、env、cwd、stdin）用了 `{user_data_dir}`＝`user`、只用 `{data_dir}`＝`shared`、都沒有＝`none`；connector／mcp＝`none` | 第 2 關的規則（下面）；`shared` 的 `WRITE`／`DANGER` 指令在**伺服器版**最低角色自動拉到管理員（擁有者不受影響） |
+
+- 第 1 關：`surfaces` 有 `channel` 但 `data` 是 `user` → 拒（每個人的資料不能出現在頻道；不是個人資料就寫 `shared` 或 `none`）。
+- 第 2 關（`scan.py`，不合＝拒裝，列 `檔名:行號`）：
+  - python、`data: user`：不准裸用 `pack.store`（`pack.store.load`／`save`／`update`…是全部人共用的那一份）——要 `pack.store.of(user)`；
+    `pack.secret(name)` 一定要給 user（`pack.secret(name, user)`）。
+  - python、`data: none`：不准用 `pack.store`、`pack.path`（有存資料就宣告 `user` 或 `shared`）。
+  - cli、`data: user`：樣板不准 `{data_dir}`（只能 `{user_data_dir}`）；`data: none`：兩個都不准。錯誤列 `pack.json:行號`。
+- **`trust` 不在 pack.json**：安裝報告上擁有者選 `core`（跟出廠的一樣信得過）或 `third-party`（預設），寫進 `data/packs.lock`
+  （網頁：報告上的下拉選單；終端機：`install <檔> --yes --trust core`；`packs lock --approve <name> [--trust …]` 沒給＝沿用舊鎖的）。
+  舊的鎖沒有 `trust`＝當作 `third-party`。伺服器版怎麼用 trust（第三方 python pack 只對擁有者可見…）是 PERM-8 的事，這一版只記下來。
+- 已知限制：`pack.path()` 還是全 pack 共用的 `data/packs/<name>/`（`data: user` 的 pack 用它在伺服器版會跨戶；PERM-8 加 `path_of(user)`）。
 
 ## pack.json v2（架構 v1 §4）
 

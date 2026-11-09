@@ -217,7 +217,8 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
         print(f"❌ {e}")
         return 2
     packs_dir = args.packs_dir or PACK_DIRS[0]
-    upg = _staged_upgrade(token, data_dir, packs_dir)                    # 同名已經裝了＝升級：「改了什麼」
+    trust = getattr(args, "trust", None) or None                         # PERM-2：core｜third-party（寫進 packs.lock）
+    upg = _staged_upgrade(token, data_dir, packs_dir, trust)             # 同名已經裝了＝升級：「改了什麼」
     # 升級時「要不要建環境」看升級報告那一段（跟舊版比過），安裝摘要的那一段就不印，免得兩段說法不一樣
     print(admin.format_summary(summary if upg is None else {**summary, "env": {}}))
     if upg is not None:
@@ -233,11 +234,11 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
         who = getattr(config, "owner_id", None) or "console"
         try:
             name = admin.install_staged(token, data_dir, args.packs_dir or PACK_DIRS[0], approved_by=who,
-                                        via="console")                       # 第 3 關：packs.lock
+                                        via="console", trust=trust)          # 第 3 關：packs.lock
         except admin.PackAdminError as e:
             print(f"❌ {e}")
             return 2
-        print(f"✅ 裝好了：{name}（已寫進 packs.lock）。SYNOX 開著的話到網頁設定頁按「重新載入全部」，或重開 SYNOX。")
+        print(f"✅ 裝好了：{name}（已寫進 packs.lock，信任 {trust or 'third-party'}）。SYNOX 開著的話到網頁設定頁按「重新載入全部」，或重開 SYNOX。")
         _build_env_now(name, data_dir, args.packs_dir or PACK_DIRS[0], jobs)
         return 0
     web = (getattr(config, "web", None) or {}) if config is not None else {}
@@ -255,10 +256,10 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
     return 1
 
 
-def _staged_upgrade(token: str, data_dir: str, packs_dir: str):
+def _staged_upgrade(token: str, data_dir: str, packs_dir: str, trust=None):
     from synox.packs import admin, upgrade
     try:
-        return upgrade.staged_upgrade(token, data_dir, packs_dir)
+        return upgrade.staged_upgrade(token, data_dir, packs_dir, trust=trust)
     except admin.PackAdminError:
         return None
 
@@ -268,7 +269,8 @@ def _upgrade_now(token: str, data_dir: str, packs_dir: str, config, args, jobs=N
     who = getattr(config, "owner_id", None) or "console"
     try:
         done = upgrade.upgrade_staged(token, data_dir, packs_dir, approved_by=who, via="console",
-                                      allow_downgrade=getattr(args, "allow_downgrade", False))
+                                      allow_downgrade=getattr(args, "allow_downgrade", False),
+                                      trust=getattr(args, "trust", None) or None)
     except admin.PackAdminError as e:
         print(f"❌ {e}")
         return 2
@@ -343,7 +345,8 @@ def cmd_packs(args, *, jobs=None) -> int:
             return 2
         try:
             m, report, problems = admin.approve_installed(found[name], data_dir,
-                                                          approved_by=getattr(config, "owner_id", None) or "cli")
+                                                          approved_by=getattr(config, "owner_id", None) or "cli",
+                                                          trust=getattr(args, "trust", None) or None)
         except admin.PackAdminError as e:
             print(f"❌ {e}")
             return 2
@@ -440,12 +443,16 @@ def main(argv=None) -> int:
     p.add_argument("--yes", action="store_true", help="看完報告直接在終端機核准（同名已裝＝升級）")
     p.add_argument("--allow-downgrade", action="store_true",
                    help="升級時新版本不比裝著的新（一樣或比較舊）也照換")
+    p.add_argument("--trust", choices=["core", "third-party"], default=None,
+                   help="信任：core（跟出廠的一樣）｜third-party（預設；升級沒給＝沿用裝著那一份的）")
     p.add_argument("--packs-dir", default="", help=argparse.SUPPRESS)
     p = sub.add_parser("packs", help="pack 的鎖定狀態、重新核准、退回上一版")
     psub = p.add_subparsers(dest="packs_cmd")
     psub.add_parser("status", help="每個 pack 鎖了沒、有沒有被改過")
     q = psub.add_parser("lock", help="重跑宣告檢查與靜態掃描，過了就寫 packs.lock")
     q.add_argument("--approve", required=True, metavar="NAME", help="pack 的名字")
+    q.add_argument("--trust", choices=["core", "third-party"], default=None,
+                   help="信任（沒給＝沿用舊鎖的，沒有舊鎖＝third-party）")
     q = psub.add_parser("rollback", help="把 packs/_removed/ 裡最近一份舊版搬回來、packs.lock 改回當時的")
     q.add_argument("name", help="pack 的名字")
     p.set_defaults(dirs=None, packs_dir="")

@@ -6,6 +6,8 @@
   "kind": "python",
   "group": "applerem",
   "access": "owner",
+  "surfaces": ["dm"],
+  "data": "user",
   "order": 60,
   "python": { "module": "pack" },
   "capabilities": ["network"],

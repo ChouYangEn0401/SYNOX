@@ -669,6 +669,7 @@
     box.appendChild(ul);
     var upg = s.upgrade, down = null;
     if (upg) { down = showUpgrade(box, upg, s.name); }
+    var trust = canInstall && s.token ? showScope(box, s, upg) : null;
     var row = el("div", "row");
     if (canInstall && s.token) {
       var ok = el("button", "primary", upg ? "確認升級" : "確認安裝");
@@ -678,6 +679,7 @@
       ok.addEventListener("click", function () {
         var body = { token: s.token };
         if (upg) { body.upgrade = true; body.allow_downgrade = !!(down && down.checked); }
+        if (trust) { body.trust = trust.value; }
         api("POST", "/api/packs/install", body).then(function (d) {
           $("pack-msg").textContent = (d.upgraded ? "升級好了：" + d.name + " " + d.from + " → " + d.to + "（舊的在 " + d.backup + "）"
             : "裝好了：" + d.name) + "（" + (STATUS[d.status] || d.status) + (d.detail ? "：" + d.detail : "") + "）" +
@@ -727,6 +729,32 @@
     lab.appendChild(document.createTextNode(" 我知道，照樣換成這一版（降級／重裝）"));
     box.appendChild(lab);
     return cb;
+  }
+  // PERM-2：在哪裡用、資料屬於誰（pack.json），信任（擁有者選，寫進 packs.lock）；升級時跟裝著那一份不同就紅字
+  function showScope(box, s, upg) {
+    if (!s.trust_choices) { return null; }
+    box.appendChild(el("p", "", "🧭 在哪裡用：" + (s.surfaces_text || "") + "　資料：" + (s.data_text || s.data || "") +
+      (s.data_declared ? "" : "（沒寫，照預設推的）")));
+    var lab = el("label", "", "🔑 信任：");
+    var sel = el("select");
+    var current = upg ? (upg.installed_trust || "") : "";
+    s.trust_choices.forEach(function (c) {
+      var o = el("option", "", c.text);
+      o.value = c.value;
+      sel.appendChild(o);
+    });
+    sel.value = current || s.trust_default;
+    lab.appendChild(sel);
+    box.appendChild(lab);
+    var note = el("p", "alert", "");
+    box.appendChild(note);
+    function check() {
+      note.textContent = (upg && sel.value !== (current || "")) ?
+        "🔴 信任 " + (current || "（未鎖定）") + " → " + sel.value : "";
+    }
+    sel.addEventListener("change", check);
+    check();
+    return sel;
   }
   function reviewFailed(e) {
     if (e.data && e.data.refused && e.data.refused.name) { showReview(e.data.refused, false); }

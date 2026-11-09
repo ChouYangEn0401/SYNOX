@@ -6,6 +6,8 @@
   "kind": "cli",
   "group": "moneybook",
   "access": "member",
+  "surfaces": ["dm"],
+  "data": "user",
   "order": 20,
   "skill": "SKILL.md",
   "storage": "plain",

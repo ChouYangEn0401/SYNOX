@@ -16,6 +16,8 @@
 - 沒有鎖的 pack（出廠的、工程師直接放進 packs/ 的）照舊載入，報告與 doctor 標「未鎖定」——
   要鎖就 `python -m synox packs lock --approve <name>`。
 - `__pycache__` 不算（loader 自己從原始碼編譯，不讀那裡的 .pyc）。
+- trust（PERM-2）：`"trust": "core"｜"third-party"`，擁有者在安裝報告上選（預設 third-party），跟著每一筆鎖；
+  也記當時的 `surfaces`／`data`。**舊的鎖沒有 trust**＝當作 third-party（`trust_of`）；沒有鎖＝None（出廠、手放的，由呼叫的人決定）。
 """
 
 from __future__ import annotations
@@ -36,6 +38,27 @@ NOTIFIED_FILE = "packs_tamper_notified.json"
 _LOCK = threading.Lock()
 
 LOCKED, UNLOCKED, TAMPERED = "locked", "unlocked", "tampered"
+CORE, THIRD_PARTY = "core", "third-party"
+TRUSTS = (CORE, THIRD_PARTY)
+DEFAULT_TRUST = THIRD_PARTY
+
+
+def check_trust(trust) -> str:
+    """None／"" → 預設 third-party；core｜third-party 原樣；其他丟 ValueError。"""
+    if trust in (None, ""):
+        return DEFAULT_TRUST
+    if trust not in TRUSTS:
+        raise ValueError(f"trust 只能是 {'、'.join(TRUSTS)}（現在是 {trust!r}）")
+    return trust
+
+
+def trust_of(data_dir: str, name: str) -> "Optional[str]":
+    """packs.lock 記的 trust；舊的鎖沒寫＝third-party；沒有鎖＝None。"""
+    found = entry(data_dir, name)
+    if found is None:
+        return None
+    value = found.get("trust")
+    return value if value in TRUSTS else DEFAULT_TRUST
 
 
 def lock_path(data_dir: str) -> str:
@@ -71,12 +94,16 @@ def entry(data_dir: str, name: str) -> Optional[dict]:
 
 
 def approve(data_dir: str, manifest, report, approved_by, *, via: str, hashes: Optional[Dict[str, str]] = None,
-            folder: Optional[str] = None, now: Optional[float] = None) -> dict:
-    """寫（或換掉）這個 pack 的鎖。hashes 沒給就現算 folder（預設 manifest.folder）。"""
+            folder: Optional[str] = None, now: Optional[float] = None, trust: Optional[str] = None) -> dict:
+    """寫（或換掉）這個 pack 的鎖。hashes 沒給就現算 folder（預設 manifest.folder）。
+    trust：core｜third-party（沒給＝third-party；不認得丟 ValueError）。"""
+    trust = check_trust(trust)
     hashes = dict(hashes) if hashes is not None else hash_files(folder or manifest.folder)
     record = {"name": manifest.name, "version": manifest.version, "kind": manifest.kind,
               "publisher": getattr(manifest, "publisher", ""), "files": hashes,
               "scan": report.summary(manifest) if report is not None else {},
+              "trust": trust, "surfaces": list(getattr(manifest, "surfaces", ["dm"])),
+              "data": getattr(manifest, "data", "none"),
               "approved_by": approved_by, "via": via,
               "approved_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now))}
     with _LOCK:
