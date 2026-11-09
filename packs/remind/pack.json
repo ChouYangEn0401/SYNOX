@@ -1,0 +1,14 @@
+{
+  "name": "remind",
+  "title": "⏰ 提醒",
+  "summary": "每天幾點提醒你一件事，或指定哪一天提醒一次",
+  "version": "0.1.0",
+  "kind": "python",
+  "group": "remind",
+  "access": "owner",
+  "order": 30,
+  "python": { "module": "pack" },
+  "requires": { "pip": [], "config": [], "env": {} },
+  "skill": "SKILL.md",
+  "storage": "plain"
+}

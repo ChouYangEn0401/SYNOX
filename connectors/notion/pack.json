@@ -1,0 +1,13 @@
+{
+  "name": "notion",
+  "title": "🗂 Notion",
+  "summary": "查頁面、加一筆到資料庫（還沒接上）",
+  "version": "0.0.1",
+  "kind": "connector",
+  "group": "notion",
+  "access": "owner",
+  "auth": "oauth",
+  "requires": { "pip": [], "config": [], "env": {} },
+  "skill": "SKILL.md",
+  "storage": "vault"
+}

@@ -1,0 +1,13 @@
+{
+  "name": "apple-reminders",
+  "title": "🍎 Apple 提醒事項",
+  "summary": "看、加 iPhone 的提醒事項（還沒接上）",
+  "version": "0.0.1",
+  "kind": "connector",
+  "group": "applerem",
+  "access": "owner",
+  "auth": "caldav",
+  "requires": { "pip": [], "config": [], "env": {} },
+  "skill": "SKILL.md",
+  "storage": "vault"
+}

@@ -1,0 +1,14 @@
+{
+  "name": "money",
+  "title": "💰 記帳",
+  "summary": "記一筆、看這個月、設預算（加密存在這台電腦）",
+  "version": "0.1.0",
+  "kind": "python",
+  "group": "money",
+  "access": "owner",
+  "order": 20,
+  "python": { "module": "pack" },
+  "requires": { "pip": [], "config": [], "env": {} },
+  "skill": "SKILL.md",
+  "storage": "vault"
+}
