@@ -16,6 +16,22 @@
 - `docs/security.md`「運行空間」一節（含伺服器上要驗的清單）。**沙盒後端只驗證了組出來的 argv，真機驗證要在 Linux 伺服器上做。**
 - 測試 `tests/test_sandbox.py`（16 個，全用假後端／假 kernel32）。
 
+## 未發佈（branch feat/perm4）
+
+### 新增
+- **PERM-4 bot 範圍**：Discord 每個 bot 的 `packs`、`max_effect`、`ai` 真的生效。`policy.decide` 的 `bot` 參數改成照 bot 設定判斷
+  （原本給了就一律拒）：pack 不在清單＝對這個 bot 不存在、effect 超過 `max_effect`＝拒（會說上限）、`ai: false`＝沒有 AI。
+- 每個 bot 的收訊在 `policy.using_bot(spec)` 裡進 dispatcher（`DiscordEntry`），AI 那一輪的執行緒也帶著（`policy.run_as`），
+  所以打字、/help、群組選單、按鈕、核准卡、AI 工具清單與系統提示都照收訊的 bot 過濾。Telegram／網頁／終端機不受影響。
+- **`/bot_status`**（伺服器版管理員以上；個人版擁有者；有設定 Discord 才有）：每個 bot 會出現的 pack、「設定了但不會出現」的 pack 與原因
+  （沒載入、connector 沒指令、指令全部超過上限；原因清單 `discord/scope.py` 的 `REASONS` 可擴充，PERM-2 加 surfaces）、沒開給它的 pack。
+- `python -m synox doctor` 每個 bot 底下列同樣的範圍資訊（只讀 pack.json）。
+
+### 變更
+- `policy.install(app)`：`app.registry.authorize` 改走 `decide`（SDK 本身沒改）。**能力上限造成的隱藏改回「未知指令」**
+  （PERM-1 時成員打 subprocess pack 的指令回「沒有權限」），跟 owner_only、bot 範圍外一致，不洩漏存在。
+- 測試：新增 `tests/test_bot_scope.py`（9 個）；`tests/test_policy.py` 兩個改成新行為（未知指令、bot 範圍生效）。
+
 ## 未發佈（branch feat/sdk-p1-author）
 
 ### 新增
