@@ -45,8 +45,10 @@ def install_server_packs(app) -> None:
     limits.install(app)
 
 
-def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_dirs=loader.PACK_DIRS,
+def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_dirs=None,
           config_path: Optional[str] = None) -> App:
+    if pack_dirs is None:                      # 沒指定＝內建的 packs/、connectors/ ＋ config.json 的 packs.dirs
+        pack_dirs = config.pack_dirs() if hasattr(config, "pack_dirs") else loader.PACK_DIRS
     app = build_app(config, home=home)
     app.extras["synox_config"] = config
     app.extras["synox_pack_dirs"] = tuple(pack_dirs)
