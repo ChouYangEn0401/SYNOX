@@ -35,7 +35,7 @@ DEFAULT_ROLES: Dict[str, tuple] = {
     "member": ("network", "filesystem:own"),
     "admin": ("network", "filesystem:own", "subprocess"),
 }
-DEFAULT_SANDBOX = {"backend": "auto", "required_for": "third-party"}          # PERM-7 才用；這一版只保留預設值
+DEFAULT_SANDBOX = {"backend": "auto", "required_for": "third-party"}          # 細節與其他預設值見 synox/sandbox.py
 HIDDEN_GROUPS = ("agent", "sudo")                                             # 不給 AI 當工具的內建群組
 
 
@@ -82,7 +82,12 @@ def parse_policy(raw) -> dict:
     sandbox_raw = raw.get("sandbox") or {}
     if not isinstance(sandbox_raw, dict):
         raise _error("config.json 的 policy.sandbox 要是一個 {…} 物件。")
-    return {"roles": roles, "sandbox": {**DEFAULT_SANDBOX, **sandbox_raw}}
+    from synox.sandbox import parse_settings
+    try:
+        sandbox = parse_settings({**DEFAULT_SANDBOX, **sandbox_raw})
+    except ValueError as e:
+        raise _error(f"config.json 的 {e}")
+    return {"roles": roles, "sandbox": sandbox}
 
 
 def roles_of(config) -> Dict[str, FrozenSet[str]]:

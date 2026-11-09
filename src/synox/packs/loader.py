@@ -11,6 +11,8 @@
 kind=cli 的 argv／env／cwd 樣板代換 {python}、{node}、{pack_dir}、{data_dir}、{user_data_dir}、{tg_id}（每次呼叫照下令的人）；
 子程序另外拿到 SYNOX_USER_DATA_DIR／SYNOX_TG_ID／SYNOX_MODE／SYNOX_PACK_DIR／SYNOX_PACK_NAME／SYNOX_SECRET_ENV（context_env，給 synox_sdk）。
 runtime.python／node = "auto" 的環境在安裝時建（packs/envs.py）；沒建好＝status missing、detail 說怎麼重建。
+每次叫 cli 子程序都先過 synox/sandbox.py（PERM-7）：grants 從宣告算、後端包一層 argv（none＝原樣）；
+伺服器版 policy.sandbox.required_for 命中又沒有真隔離 → 那個 cli pack 整組 owner_only（detail 寫原因）。
 
 群組（/help 的一頁）由 loader 依 pack.json 定義（title、summary、access），pack 只往裡面掛葉節點；
 access=owner（預設）＝整組只有機器擁有者看得到、用得到（別人打了跟不存在一樣）；
@@ -41,7 +43,7 @@ from typing import Any, Callable, Dict, List, Optional
 from isdtelekit.core import jsonstore
 from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 
-from synox import policy
+from synox import policy, sandbox
 from synox.config import ROOT
 from synox.packs import envs, kit, render
 from synox.packs import secrets as pack_secrets
@@ -408,13 +410,20 @@ def _install_cli(app, pack: Pack) -> None:
     by_name = {c["name"]: c for c in m.commands}
 
     def make_cli(ph: Dict[str, str], user=None) -> "JsonCli":
-        cwd = substitute(m.cli.get("cwd") or ".", ph)
+        cwd = os.path.normpath(os.path.join(m.folder, substitute(m.cli.get("cwd") or ".", ph)))
         env = cli_env(m, ph)
         env.update(context_env(m, config, ph, pack.secret_fields))
         if pack.secret_fields and pack.secrets is not None:
             # auth.fields 有寫 env 的 secret：只走子程序環境（keep_env 放行這個名字），永遠不進 argv
             env.update(pack.secrets.env_for(m.name, pack.secret_fields, user))
-        return JsonCli(app.jobs, cli_prefix(m, ph), cwd=os.path.normpath(os.path.join(m.folder, cwd)), name=m.name,
+        # 運行空間（synox/sandbox.py，PERM-7）：照宣告算範圍，交給後端包一層（none＝原樣）
+        box = sandbox.sandbox_for(config)
+        grants = sandbox.grants_for(m, config, ph, pass_env=keep_env)
+        if box.name != "none":
+            for folder in grants.write:            # 要掛進去的可寫資料夾得先存在
+                os.makedirs(folder, exist_ok=True)
+        prefix, env = box.wrap(cli_prefix(m, ph), env, cwd, grants)
+        return JsonCli(app.jobs, prefix, cwd=cwd, name=m.name,
                        timeout=float(m.cli.get("timeout", 120)), json_flag=m.cli.get("json_flag", "--json"),
                        env_extra=env or None, keep_env=keep_env)
 
@@ -616,8 +625,12 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
                     secret_fields=pack_secrets.managed_fields(m), secrets=secret_store)
         if item.lock == pack_lock.LOCKED:
             pack.locked_files = dict((pack_lock.entry(config.data_dir, m.name) or {}).get("files") or {})
-        app.registry.define_group(m.group, m.title, m.summary,
-                                  **{**pack_group_policy(app, config, m, server), **surface_policy(m)})
+        group_rules = {**pack_group_policy(app, config, m, server), **surface_policy(m)}
+        boxed_out = sandbox.restricted_reason(config, m)   # 要沙盒卻沒有真隔離 → 只給擁有者（PERM-7）
+        if boxed_out:
+            group_rules = {**group_rules, "owner_only": True}
+            item.detail = boxed_out
+        app.registry.define_group(m.group, m.title, m.summary, **group_rules)
         try:
             {"python": _install_python, "cli": _install_cli, "connector": _install_connector,
              "mcp": _install_mcp}[m.kind](app, pack)

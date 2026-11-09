@@ -22,6 +22,7 @@
 | `src/synox/app.py` | `build(config, home=, adapter=, vault=, config_path=)`：SDK `build_app` → basics/help → `packs.load_all` → `agent.install` → `schedule.install` → `web.install` |
 | `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`／`policy`；路徑相對 SYNOX 資料夾（`ROOT`） |
 | `src/synox/policy.py` | `decide`（權限唯一交會點）、`parse_policy`（`policy.roles` 能力上限，第 1 關式檢查）、`group_policy_for`（loader 用）、`ceiling`／`fits` |
+| `src/synox/sandbox.py` | 運行空間（PERM-7）：`Sandbox.wrap(argv, env, cwd, grants)`、`Grants`、後端 none／jobobject／bwrap／systemd／appcontainer（介面）、`set_factory`／`sandbox_for`、`grants_for`、`data_scope`（推斷集中處）、`trust_of`、`restricted_reason`、`doctor_line`；jobobject 的 launcher（`python -I sandbox.py jobobject …`） |
 | `src/synox/llm/` | `base.py`（`ChatAdapter`、`Message`、`Reply`、`ToolCall`、`ToolSpec`）、`easy_llm.py`（openai／anthropic／gemini／openai_compat，經 `ntu_easy_llm.agent`，lazy import）、`claude_code`、`fake`、`textproto`、`factory.make_adapter` |
 | `src/synox/vault/` | `vault.py`（Fernet＋每檔 scrypt、`*.json.enc`；`for_user(id)`＝伺服器版每人的保管箱，HKDF 衍生）、`keyring.py`（DPAPI 包住主金鑰 `data/.synox.key`） |
 | `src/synox/packs/` | `manifest.py`（pack.json v2 檢查＝第 1 關；`surfaces`／`data`（`_check_scope`、`default_data`、`cli_templates`）；`requires.synox`＝`synox_problem`、`requires.env`→`secret_env_names`、`fields[].kind`、`auth.fields`）、`secrets.py`（pack 的 secret：`PackSecrets`、`managed_fields`）、`scan.py`（ast 靜態掃描＝第 2 關；`_check_data_python`／`_check_data_cli`＝data 宣告的規則）、`lock.py`（`data/packs.lock`＝第 3 關；`trust`、`trust_of`）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`、`surface_policy`（沒有 channel＝private_only）、`shared_write_admin`、cli 代換與 `build_argv`）、`kit.py`（照位置填的指令）、`envs.py`（`runtime.python／node = "auto"`：`Builder.plan`／`build(m, jobs, on_done)` 建 `data/envs/<pack>/`、`python_of`／`node_of`／`node_env` 給 loader 代換、`env_problem` 給 loader／doctor；`set_factory` 換實作） |
@@ -75,6 +76,13 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     `policy.group_policy_for`：群組門檻拉到裝得下的最低一級，都裝不下＝`owner_only`），所以 SDK 的 authorize／visible 自己就擋；
     decide 再對這個人算一次（縱深）。`exec`、`filesystem:any` 不能寫進任何角色（`policy.parse_policy`，`SynoxConfig.from_dict` 呼叫）。
     `bot` 現在只能是 None，給了別的一律拒（PERM-4 才接）。
+
+12. **cli 子程序一律過 `src/synox/sandbox.py`**（PERM-7）：`loader._install_cli` 的 `make_cli` 用 `sandbox.grants_for`（宣告 → 讀／寫／網路／資源）
+    算範圍、`sandbox.sandbox_for(config).wrap(argv, env, cwd, grants)` 包 argv；wrap 回的 argv 一定以原 argv 結尾（JsonCli 在後面接子指令）。
+    後端 none／jobobject／bwrap／systemd／appcontainer（只有介面）；換實作用 `sandbox.set_factory`（測試一律給假後端，**不真的跑
+    bwrap／systemd-run／AppContainer，jobobject 用假 kernel32**）。「資料屬於誰」的推斷只在 `sandbox.data_scope`（PERM-2 的 `data` 欄位優先）。
+    伺服器版 `policy.sandbox.required_for` 命中又沒有真隔離（`isolates`；none、jobobject 不算）→ loader 把那個 cli pack 的群組改 `owner_only`
+    （`sandbox.restricted_reason`，doctor／packs status 寫原因）。真機驗證要在 Linux 伺服器上做（docs/security.md「運行空間」）。
 
 另外：
 - pack 的群組由 loader 依 pack.json 定義（`loader.group_policy`）：`access: owner`（預設）＝整組 `owner_only`；`member`＝伺服器版 `role=MEMBER`、
