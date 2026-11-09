@@ -144,9 +144,12 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 第 2 關只讀得懂 `.py`。SYNOX 照「掃得到多少」把 pack 分三層（`src/synox/packs/tier.py`；說明與限制見 [security.md](security.md)「信任層級」）：
 
 - **T0** 只有宣告：connector、只登記的 mcp。
-- **T1** 原始碼：資料夾裡只有第 2 關掃得到的 `.py` 與純資料檔。
+- **T1** 原始碼：會被執行的只有第 2 關掃過的 `.py`／`.pyw`。`{python}` 要跑的 pack 內檔案**一定要是 `.py`／`.pyw`**
+  （或含 `__main__.py` 的資料夾）——`./run.txt`、`./app.pyz`、沒有副檔名的 `./run` 第 2 關一律拒（審查 C #C1）；
+  其他檔當資料（沒有副檔名、`ast` 解析得過的也當 `.py` 掃）。T1 不等於安全：掃描是提醒不是門。
 - **T2** 二進位或外部相依，只要有一項就是：
   - 資料夾裡有**掃不到內容的檔**：`.exe .dll .com .bat .cmd .ps1 .vbs .sh .so .dylib .pyd .pyc .pyo .jar .class .node .wasm .msi .scr`、
+    壓縮檔 `.pyz .pyzw .zip .whl .egg`（Python 可以直接從裡面 import 或執行）、
     別的語言的原始碼（`.js .mjs .cjs .ts .tsx .jsx .rb .pl .php .lua .go .rs .java .kt .cs .psm1 .bash .zsh…`，完整清單是
     `src/synox/packs/scan.py` 的 `SOURCE_EXT`）、`node_modules/`、檔頭是 MZ+PE／ELF／Mach-O 的檔（副檔名寫什麼都一樣）、沒有副檔名但帶執行位元（zip 裡的 unix 權限）或 `#!` 開頭、
     `__pycache__` 裡對不到同一層 `.py` 的編譯檔。→ **`capabilities` 一定要有 `exec`**，不然拒裝。

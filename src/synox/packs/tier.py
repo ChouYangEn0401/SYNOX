@@ -2,8 +2,10 @@
 信任層級（SDK P7）：這個 pack 的程式，第 2 關的靜態掃描看得到多少。
 
     T0  只有宣告：connector、只登記的 mcp（遠端 MCP）——沒有程式在這台跑（有附程式檔第 2 關就拒）
-    T1  原始碼：pack 資料夾裡只有第 2 關掃得到的 .py 與純資料檔
+    T1  原始碼：會被執行的只有第 2 關掃過的 .py／.pyw（{python} 只准跑 pack 裡的 .py，審查 C #C1）；
+        其他檔第 2 關當資料（沒有副檔名、ast 解析得過的也當 .py 掃）。掃描是提醒不是門：T1 不等於「安全」
     T2  二進位或外部相依（掃不到）：資料夾裡有掃不到內容的檔（scan.opaque_files：.exe .dll .bat .sh .so .pyc、
+        .pyz .zip .whl .egg、
         別的語言的原始碼 .js .ts .rb .php .go…（scan.SOURCE_EXT）、node_modules、MZ／ELF 檔頭…）、
         argv 指到 pack 外的程式（scan.externals：{node}、npx、node、git、絕對路徑、{python} -m 外部模組、
         {python} 解析到 pack 外的直譯器（cli.python、"venv"、runtime.python 指到外面））、
@@ -29,7 +31,7 @@ from typing import List, Optional
 
 T0, T1, T2 = "T0", "T1", "T2"
 TIERS = (T0, T1, T2)
-TEXT = {T0: "T0 只有宣告（沒有程式在這台跑）", T1: "T1 原始碼（只有第 2 關掃得到的 .py 與純資料檔）",
+TEXT = {T0: "T0 只有宣告（沒有程式在這台跑）", T1: "T1 原始碼（會執行的只有第 2 關掃過的 .py）",
         T2: "T2 二進位或外部相依（第 2 關掃不到）"}
 
 

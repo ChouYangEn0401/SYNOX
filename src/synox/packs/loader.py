@@ -501,6 +501,15 @@ def context_env(m: Manifest, config, values: Dict[str, str], secret_fields=()) -
     return out
 
 
+def refuse_blocked_argv(m: Manifest) -> None:
+    """載入時再看一次 argv（審查 C）：第 2 關一定擋的寫法（{python} 跑 pack 裡不是 .py 的檔…，scan.argv_blocked）
+    → 丟 ManifestError、不載入。已經裝好、鎖住的舊 pack 不會重跑第 2 關，這裡補上。只查路徑，不執行。"""
+    from synox.packs import scan as pack_scan
+    blocked = pack_scan.argv_blocked(m)
+    if blocked:
+        raise ManifestError("；".join(f"{at}：{detail}" for _p, detail, at in blocked[:3]))
+
+
 def _install_cli(app, pack: Pack) -> None:
     """每個 command 一個表單指令（SDK Forms）。不直接用 SDK service.install：argv 的開頭、env、cwd 要照
     「這一次是誰」代換（{tg_id}、{user_data_dir}），service.install 的 JsonCli 是裝的時候就固定的。
@@ -516,6 +525,7 @@ def _install_cli(app, pack: Pack) -> None:
     from synox.agent import validate as gate4
 
     m = pack.manifest
+    refuse_blocked_argv(m)
     config = pack.config if pack.config is not None else app.config
     bridge = service.ServiceBridge()
     pack.cli_bridge = bridge
@@ -746,6 +756,8 @@ def _install_mcp(app, pack: Pack) -> None:
     m = pack.manifest
     if m.mcp_connected:
         from synox.packs import mcp
+        if m.mcp_stdio:
+            refuse_blocked_argv(m)
         mcp.install(app, pack)
         return
     allow = "、".join(m.mcp.get("tools_allow") or [])
