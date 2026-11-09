@@ -265,4 +265,7 @@ class AgentLoop:
             logging.exception("[AGENT] tool %s failed", call.name)
             capture.close()
             return f"執行出錯：{type(e).__name__}: {e}", False
-        return capture.close() or "（做完了，沒有輸出）", False
+        result = capture.close()
+        if capture.carded:                      # 工具執行中要確認（needs_confirm）：卡已經給人了，這一輪停在這裡
+            return result, True
+        return result or "（做完了，沒有輸出）", False

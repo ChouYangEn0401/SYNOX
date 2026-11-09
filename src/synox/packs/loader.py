@@ -51,6 +51,7 @@ from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 from synox import policy, sandbox
 from synox.config import ROOT
 from synox.packs import envs, kit, render
+from synox.packs import confirm as tool_confirm
 from synox.packs import secrets as pack_secrets
 from synox.packs import lock as pack_lock
 from synox.packs.manifest import (Manifest, ManifestError, missing_requirements, read, secret_env_names,
@@ -499,6 +500,8 @@ def _install_cli(app, pack: Pack) -> None:
     「這一次是誰」代換（{tg_id}、{user_data_dir}），service.install 的 JsonCli 是裝的時候就固定的。
     其他行為照 service.install：值以 - 開頭拒絕、一般指令丟 app.tasks、background 先回「開始了」。
     例外：經 AI 呼叫（api.via_ai）的一般指令同步跑完，結果交回 AI（不然 AI 拿到空的、結果直接跑去給使用者）。
+    工具回 needs_confirm（SDK P3）：不顯示結果，出核准卡；按 ✅ 用同一組參數重跑，子程序這次才拿到
+    SYNOX_CONFIRMED=1／SYNOX_CONFIRM_TOKEN（packs/confirm.py；其他時候一律明寫 0／空）。
     fields[].kind（int｜number｜bool｜choice）在 Field.check 檢查、交給程式前 normalize；
     requires.env 列的名字當 keep_env 給 JsonCli（其他看起來像密鑰的環境變數照樣拿掉）。"""
     from isdtelekit.jobs.cli import JsonCli
@@ -511,13 +514,18 @@ def _install_cli(app, pack: Pack) -> None:
     bridge = service.ServiceBridge()
     pack.cli_bridge = bridge
 
-    keep_env = secret_env_names(m)       # 子程序只看得到 requires.env／auth.fields[].env 列的密鑰名（其他照 JsonCli 拿掉）
+    # 子程序只看得到 requires.env／auth.fields[].env 列的密鑰名（其他照 JsonCli 拿掉）；
+    # SYNOX_CONFIRM_TOKEN 名字像密鑰，但值是 SYNOX 自己每次明寫的（packs/confirm.py），要留著
+    keep_env = list(secret_env_names(m)) + list(tool_confirm.ENV_NAMES)
     by_name = {c["name"]: c for c in m.commands}
+    grants = tool_confirm.grants_of(app)
+    nodes: Dict[str, Any] = {}           # 指令名 → 節點（needs_confirm 出卡要用；節點在 submit 之後才掛）
 
-    def make_cli(ph: Dict[str, str], user=None) -> "JsonCli":
+    def make_cli(ph: Dict[str, str], user=None, confirmed: Optional[str] = None) -> "JsonCli":
         cwd = os.path.normpath(os.path.join(m.folder, substitute(m.cli.get("cwd") or ".", ph)))
         env = cli_env(m, ph)
         env.update(context_env(m, config, ph, pack.secret_fields))
+        env.update(tool_confirm.env_for(confirmed))      # 「已確認」只有這裡給（蓋過 cli.env）
         if pack.secret_fields and pack.secrets is not None:
             # auth.fields 有寫 env 的 secret：只走子程序環境（keep_env 放行這個名字），永遠不進 argv
             env.update(pack.secrets.env_for(m.name, pack.secret_fields, user))
@@ -555,17 +563,56 @@ def _install_cli(app, pack: Pack) -> None:
         不進 argv（日記正文、長文字；不會出現在程序清單與 log 的 argv 那一行）。"""
         kinds_of = {f["name"]: f.get("kind", "text") for f in by_name.get(cmd.name, {}).get("fields") or []}
         choices_of = {f["name"]: tuple(f.get("choices") or ()) for f in by_name.get(cmd.name, {}).get("fields") or []}
+        via_stdin = set(_PLACEHOLDER.findall(stdin_template or ""))
 
-        def submit(api, chat_id, user, values):
+        def ask_confirm(api, chat_id, user, raw_values, values, envelope, again: bool) -> None:
+            """工具回 needs_confirm：出核准卡（why＝工具的 summary），按 ✅ 用同一組參數帶一次性憑證重跑。"""
+            if again:                                   # 已經確認過的重跑又要確認：不再出卡（不會無限來回）
+                say(api, chat_id, tool_confirm.AGAIN.format(name=cmd.name))
+                return
+            desk = app.extras.get("synox_approval_desk")
+            node = nodes.get(cmd.name)
+            if desk is None or node is None:
+                say(api, chat_id, tool_confirm.NO_DESK.format(name=cmd.name))
+                return
+            gid = grants.issue(m.name, cmd.name, values, getattr(user, "tg_id", None),
+                               tool_confirm.tool_token(envelope), app.timing.confirm_ttl)
+            shown = [f"{k}={str(v)[:60]}" for k, v in raw_values.items() if k not in via_stdin and str(v).strip()]
+
+            def rerun(api2, chat2, clicker, grant):
+                submit(api2, chat2, clicker, raw_values, _grant=grant)
+
+            try:
+                desk.request(api, chat_id, user, node, shown, tool_confirm.summary_of(envelope), grant=gid,
+                             rerun=rerun, header="⚠️ 要你確認才會做")
+            except Exception:
+                grants.discard(gid)
+                raise
+            mark = getattr(type(api), "mark_carded", None)     # 經 AI（CaptureApi）：這一輪停在這裡
+            if callable(mark):
+                mark(api)
+
+        def submit(api, chat_id, user, values, _grant: str = ""):
+            """_grant：只有核准卡按 ✅ 的重跑會給（kit.command、Forms、AI 都只傳四個參數，造不出來）。"""
             blocked = not_connected(user)
             if blocked:
+                if _grant:
+                    grants.discard(_grant)
                 say(api, chat_id, blocked)
                 return
+            raw_values = dict(values)
             ph = placeholders(m, config, user)
             if getattr(config, "mode", "personal") == "server":
                 os.makedirs(ph["user_data_dir"], exist_ok=True)
-            cli = make_cli(ph, user)
             values = {k: gate4.normalize(kinds_of.get(k, "text"), v, choices_of.get(k, ())) for k, v in values.items()}
+            user_id = getattr(user, "tg_id", None)
+            confirmed: Optional[str] = None
+            if _grant:
+                confirmed = grants.redeem(_grant, m.name, cmd.name, values, user_id)
+                if confirmed is None:                   # 過期、用過、參數或人對不上：不執行
+                    say(api, chat_id, tool_confirm.EXPIRED)
+                    return
+            cli = make_cli(ph, user, confirmed)
             argv = build_argv(cmd.argv, {**values, **ph})
             timeout = {"timeout": cmd.timeout} if cmd.timeout else {}
             if stdin_template:
@@ -576,6 +623,9 @@ def _install_cli(app, pack: Pack) -> None:
                 try:
                     if not reply.ok:
                         say(api, chat_id, f"❌ {cmd.name}：{reply.error}")
+                        return
+                    if tool_confirm.is_needs_confirm(reply.data):
+                        ask_confirm(api, chat_id, user, raw_values, values, reply.data, again=confirmed is not None)
                         return
                     try:
                         text = render.render(reply.data)         # SYNOX 自己攤平 JSON（SDK 的只會印「N 筆」）
@@ -644,6 +694,7 @@ def _install_cli(app, pack: Pack) -> None:
             node = kit.command(pack.group, cmd.name, lambda api, chat_id, user, values, _s=submit: _s(api, chat_id, user, values),
                                cmd.summary, fields=safe_fields, positional=max(0, min(n_pos, len(safe_fields))),
                                effect=cmd.effect, default=cmd.default, ai=c.get("ai") is not False)
+        nodes[cmd.name] = node
         positional = [n for n in kinds if f"{{{n}}}" in c.get("argv", [])]
         # commands[].confirm：AI 呼叫前先送確認卡（effect 照寫的算；agent/loop.py 看這個）
         meta[node.path] = {"argv": True, "positional": positional, "kinds": kinds, "confirm": c.get("confirm") is True}

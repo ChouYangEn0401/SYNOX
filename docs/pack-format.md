@@ -130,7 +130,8 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | `auth` | v0 的字串（`oauth`／`token`／`caldav`）照舊；v2 寫 `{"type": "none｜token｜oauth｜caldav｜file", "fields": [...]}`。`token`／`file` 的 `fields` 由 SYNOX 收，見下面「pack 的 secret」 |
 | `kind: "mcp"`＋`mcp` | `{"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}`。`tools_allow` 不能空，每個允許的工具都要有 effect（沒寫＝拒）。這一版只登記、不連；不能附程式檔 |
 | `commands[].effect` | cli 的每個 command：`READ`／`WRITE`／`DANGER`（大小寫都收）。`commands` 也可以放最上層（等於 `cli.commands`） |
-| `commands[].ai`、`commands[].confirm` | cli 的 command：`"ai": false`＝不給 AI 當工具；`"confirm": true`＝AI 呼叫前先送確認卡給人按（effect 照寫的算）。一定要是 true／false。synox_sdk 的 `@tool(ai=…, confirm=…)` 會產生 |
+| `commands[].ai`、`commands[].confirm` | cli 的 command：`"ai": false`＝不給 AI 當工具；`"confirm": true`＝AI 呼叫前先送確認卡給人按（effect 照寫的算）。一定要是 true／false。synox_sdk 的 `@tool(ai=…, confirm=…)` 會產生。跟工具執行中回的 `needs_confirm`（下一列）並存 |
+| 回 `needs_confirm`（確認來回） | cli 工具最後一行印 `{"ok": true, "needs_confirm": true, "summary": "要刪 3 筆", "confirm_token": "…"}`（結束碼 0）→ SYNOX 出核准卡給下令的人（人打字、AI 呼叫都一樣），按 ✅ 用**同一組參數**重跑，那一次環境變數 `SYNOX_CONFIRMED=1`、`SYNOX_CONFIRM_TOKEN`＝你給的 `confirm_token`（只收英數字與 `. _ : -`、128 字內）；其他每一次都是 `SYNOX_CONFIRMED=0`（`cli.env` 寫了也會被蓋掉）。❌、過期、參數對不上＝不執行。任何語言都能用：自己讀這兩個環境變數。說明見 [sdk.md](sdk.md)「確認來回」 |
 | `commands[].fields[].kind` | `text`（預設）｜`int`（整數，可有千分位逗號）｜`number`（數字）｜`bool`（是／否：`yes/no`、`true/false`、`1/0`、`是/否`…）｜`path`（值一定要在使用者自己的資料夾裡，第 4 關）｜`choice`（要寫 `choices: ["Red", "Blue"]`，大小寫不拘）。對 AI 的參數 schema 一律是字串；SYNOX 在交給程式**之前**照 kind 檢查（人打字與 AI 呼叫都會），不合回一句人話（例如「次數要是整數（例如 3）」）、不執行。交給程式的值整理過：`bool` → `true`／`false`、`int`／`number` 拿掉逗號、`choice` 換成 `choices` 裡的拼法 |
 | `cli.python` | `{python}` 換成什麼：絕對路徑｜`"venv"`（`<pack 資料夾>/../.venv` 的 python）｜沒寫＝看 `runtime`，再沒有＝SYNOX 自己的 Python |
 | `runtime.python`、`runtime.python_posix` | 另一種寫法（金流簿用的）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它。**`"auto"`**＝安裝時自動建 venv（見下面「依賴與環境自動建置」；跟 `cli.python` 不能同時寫） |

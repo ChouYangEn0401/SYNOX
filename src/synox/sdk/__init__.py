@@ -10,7 +10,8 @@ synox.sdk：給 pack 作者（寫工具的人）的小工具。工具是什麼�
                                             "confirm_token": "…", "message": "…"}                           結束碼 0
 
    SYNOX 把 message 直接回給使用者；沒有 message 就把 data 的簡單欄位列出來。失敗回「❌ <error>」。
-   reply_confirm：這一版 SYNOX 只把 summary 顯示給人（「要確認」的按鈕來回還沒做，見 docs/sdk.md）。
+   reply_confirm：SYNOX 出核准卡（why＝summary）；按 ✅ 用同一組參數重跑，那一次環境變數有 SYNOX_CONFIRMED=1、
+   SYNOX_CONFIRM_TOKEN＝這裡給的 token（SYNOX 驗過一次性憑證才給；見 docs/sdk.md「確認來回」）。
    每個函式都印出來並回結束碼：`sys.exit(reply_ok({...}))`。
 
 2. 檢查與打包：`Pack.load(dir)` 跑安全管線第 1、2 關（宣告＋靜態掃描），`zip_pack(dir)` 打成 `.synoxpack`（算好
@@ -40,7 +41,7 @@ from dataclasses import dataclass
 from typing import Any, List, Optional
 
 from synox.sdk import author
-from synox.sdk.author import (Confirm, Context, Ok, SpecError, ToolError, confirm_envelope, context,  # noqa: F401
+from synox.sdk.author import (Confirm, Context, Ok, SpecError, ToolError, confirm_envelope, confirmed, context,  # noqa: F401
                               error_envelope, ok_envelope, secret, serve, tool)
 
 EXIT_OK, EXIT_ERROR = 0, 1
@@ -419,9 +420,11 @@ class _LocalSecrets:
 
 
 def run_command(folder: str, command: str, args: List[str], *, data_dir: Optional[str] = None,
-                as_ai: bool = True, out=None) -> int:
+                as_ai: bool = True, confirmed: bool = False, out=None) -> int:
     """照 SYNOX 的 loader 跑一次 kind=cli 的指令：照位置填／key=value → 欄位格式（typed_check）→ 第 4 關（check_call）
     → 代換 argv／env／cwd → 子程序 → 讀最後一行 JSON，印出 SYNOX 會怎麼顯示。
+    工具回 needs_confirm：印出 SYNOX 會出的確認卡；confirmed=True（--confirmed）＝當作按了 ✅，用同一組參數帶
+    SYNOX_CONFIRMED=1／SYNOX_CONFIRM_TOKEN 再跑一次。
     回 0＝工具回 ok、1＝工具回失敗、2＝SYNOX 不會讓它執行（參數不合、少必填、secret 沒設）。"""
     import subprocess
     import tempfile
@@ -503,23 +506,45 @@ def run_command(folder: str, command: str, args: List[str], *, data_dir: Optiona
     env.update({k: v for k, v in env_secrets.items() if v})
     cwd = os.path.normpath(os.path.join(m.folder, loader.substitute(m.cli.get("cwd") or ".", ph)))
     stdin = loader.substitute(c["stdin"], {**values, **ph}) if isinstance(c.get("stdin"), str) else None
-    say("▶ " + " ".join(json.dumps(a, ensure_ascii=False) if (" " in a or not a) else a for a in argv))
-    try:
-        proc = subprocess.run(argv, cwd=cwd, env=clean_env(env, keep=secret_env_names(m)), input=stdin,
-                              capture_output=True, text=True, encoding="utf-8", errors="replace",
-                              timeout=float(c.get("timeout") or m.cli.get("timeout", 120)))
-    except (OSError, subprocess.TimeoutExpired) as e:
-        say(f"❌ 叫不起來：{e}")
-        return 1
-    if proc.stderr.strip():
-        say("（stderr）" + proc.stderr.strip()[-1500:])
-    reply = last_json(proc.stdout)
+    from synox.packs import confirm as tool_confirm
+    keep = list(secret_env_names(m)) + list(tool_confirm.ENV_NAMES)
+
+    def run_once(confirm_token: Optional[str]):
+        """回 (結束碼, reply)；叫不起來或沒有 JSON 回 (1, None)。"""
+        say("▶ " + " ".join(json.dumps(a, ensure_ascii=False) if (" " in a or not a) else a for a in argv)
+            + ("　（SYNOX_CONFIRMED=1：當作按了 ✅ 的重跑）" if confirm_token is not None else ""))
+        try:
+            proc = subprocess.run(argv, cwd=cwd, env=clean_env({**env, **tool_confirm.env_for(confirm_token)}, keep=keep),
+                                  input=stdin, capture_output=True, text=True, encoding="utf-8", errors="replace",
+                                  timeout=float(c.get("timeout") or m.cli.get("timeout", 120)))
+        except (OSError, subprocess.TimeoutExpired) as e:
+            say(f"❌ 叫不起來：{e}")
+            return 1, None
+        if proc.stderr.strip():
+            say("（stderr）" + proc.stderr.strip()[-1500:])
+        reply = last_json(proc.stdout)
+        if reply is None:
+            say(f"❌ 沒有回 JSON（結束碼 {proc.returncode}）：{' '.join(proc.stdout.split())[-300:] or '沒有輸出'}")
+            return 1, None
+        say("◀ " + json.dumps(reply, ensure_ascii=False))
+        return proc.returncode, reply
+
+    code, reply = run_once(None)
     if reply is None:
-        say(f"❌ 沒有回 JSON（結束碼 {proc.returncode}）：{' '.join(proc.stdout.split())[-300:] or '沒有輸出'}")
         return 1
-    say("◀ " + json.dumps(reply, ensure_ascii=False))
-    if proc.returncode != 0 or reply.get("ok", True) is False:
-        say(f"SYNOX 會回：❌ {command}：{reply.get('reason') or reply.get('error') or reply.get('message') or f'結束碼 {proc.returncode}'}")
+    if code == 0 and reply.get("ok", True) is not False and tool_confirm.is_needs_confirm(reply):
+        say(f"SYNOX 會出確認卡：{tool_confirm.summary_of(reply)}　[✅ 執行] [❌ 取消]")
+        if not confirmed:
+            say("（按 ✅ 之後 SYNOX 用同一組參數重跑，這一次 confirmed() 是 True；本機模擬：加 --confirmed）")
+            return 0
+        code, reply = run_once(tool_confirm.tool_token(reply))
+        if reply is None:
+            return 1
+        if code == 0 and tool_confirm.is_needs_confirm(reply):
+            say("SYNOX 會回：" + tool_confirm.AGAIN.format(name=command))
+            return 1
+    if code != 0 or reply.get("ok", True) is False:
+        say(f"SYNOX 會回：❌ {command}：{reply.get('reason') or reply.get('error') or reply.get('message') or f'結束碼 {code}'}")
         return 1
     say("SYNOX 會回：" + (render.render(reply) or "（沒有輸出）"))
     return 0
@@ -547,6 +572,7 @@ def main(argv=None) -> int:
     p.add_argument("--pack", default=".", help="pack 資料夾（預設：現在的資料夾）")
     p.add_argument("--data", default="", help="當作 SYNOX data/ 的資料夾（預設：暫存資料夾）")
     p.add_argument("--typed", action="store_true", help="當作人自己打字（不跑 AI 呼叫才有的第 4 關檢查）")
+    p.add_argument("--confirmed", action="store_true", help="工具要確認時當作按了 ✅（同一組參數帶 SYNOX_CONFIRMED=1 重跑）")
     p = sub.add_parser("check", help="跑 SYNOX 安裝時的宣告檢查與靜態掃描")
     p.add_argument("folder")
     p = sub.add_parser("zip", help="打成 dist/<name>-<version>.synoxpack")
@@ -572,7 +598,8 @@ def main(argv=None) -> int:
             print(check.format())
             return 0 if check.ok else 2
         if args.cmd == "run":
-            return run_command(args.pack, args.command, args.args, data_dir=args.data or None, as_ai=not args.typed)
+            return run_command(args.pack, args.command, args.args, data_dir=args.data or None, as_ai=not args.typed,
+                               confirmed=args.confirmed)
         if args.cmd == "zip":
             path = zip_pack(args.folder, args.out or None)
             print(f"📦 {path}")
