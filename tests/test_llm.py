@@ -1,15 +1,22 @@
-"""adapter：requests 換成假的 session（不連網），claude 換成假的 runner／which（不開子程序）。"""
+"""adapter：requests 換成假的 session（不連網；經 ntu_easy_llm.agent 的 session=），claude 換成假的 runner／which（不開子程序）。"""
 
 import json
 import subprocess
 
 import pytest
 
-from synox.llm.anthropic_api import AnthropicAdapter
 from synox.llm.base import ASSISTANT, SYSTEM, TOOL, USER, LLMError, Message, ToolCall, ToolSpec
 from synox.llm.claude_code import NOT_FOUND, ClaudeCodeAdapter, flatten
 from synox.llm.factory import make_adapter, resolve_secret
-from synox.llm.openai_compat import OpenAICompatAdapter
+from synox.llm.easy_llm import MISSING, EasyLLMAdapter
+
+
+def OpenAICompatAdapter(base_url, api_key="", model="", *, tools=True, session=None):
+    return EasyLLMAdapter("openai_compat", api_key, model, base_url=base_url, tools=tools, session=session)
+
+
+def AnthropicAdapter(api_key, model, *, session=None):
+    return EasyLLMAdapter("anthropic", api_key, model, session=session)
 
 SPEC = ToolSpec("money__add", "記一筆", {"type": "object", "properties": {"amount": {"type": "string"}}})
 
@@ -72,7 +79,7 @@ def test_anthropic_wire_and_parse():
     reply = a.chat(msgs, [SPEC])
     assert reply.text == "我來記" and reply.tool_calls[0].args == {"amount": "8"} and reply.usage["input"] == 20
     url, body, headers = s.sent[0]
-    assert url.endswith("/v1/messages") and headers["x-api-key"] == "k" and body["system"] == "sys"
+    assert url == "https://api.anthropic.com/v1/messages" and headers["x-api-key"] == "k" and body["system"] == "sys"
     assert body["tools"][0]["input_schema"]["properties"] == {"amount": {"type": "string"}}
     assert [b["tool_use_id"] for b in body["messages"][2]["content"]] == ["x1", "x2"]   # 兩個結果併成一則 user
     with pytest.raises(LLMError):
@@ -129,3 +136,47 @@ def test_factory_kinds_and_secrets(tmp_path):
     with pytest.raises(LLMError):
         resolve_secret("vault:missing", v)
     assert make_adapter({"llm": {"kind": "anthropic", "api_key": "k", "model": "m"}}).kind == "anthropic"
+
+
+def test_openai_and_gemini_kinds_use_their_endpoints():
+    s = Session(Resp({"choices": [{"message": {"content": "好"}}], "usage": {"prompt_tokens": 1, "completion_tokens": 1}}))
+    a = make_adapter({"llm": {"kind": "openai", "api_key": "k", "model": "gpt-x"}}, session=s)
+    assert a.chat([Message(USER, "hi")]).text == "好" and a.name.startswith("OpenAI")
+    assert s.sent[-1][0] == "https://api.openai.com/v1/chat/completions"
+    g = make_adapter({"llm": {"kind": "gemini", "api_key": "k", "model": "gemini-x"}}, session=s)
+    g.chat([Message(USER, "hi")])
+    assert s.sent[-1][0].startswith("https://generativelanguage.googleapis.com/") and g.supports_tools
+    with pytest.raises(LLMError) as e:
+        make_adapter({"llm": {"kind": "openai", "api_key": "", "model": "m"}}, session=s).chat([Message(USER, "x")])
+    assert "API key" in str(e.value)
+
+
+def test_errors_are_chinese():
+    from ntu_easy_llm.agent import LLMConnectionError
+    class Down:
+        def post(self, *a, **kw):
+            raise OSError("refused")
+    a = OpenAICompatAdapter("http://localhost:11434/v1", "", "llama", session=Down())
+    assert "連不到 http://localhost:11434/v1" in a.probe()
+    assert "格式看不懂" in OpenAICompatAdapter("https://x/v1", "k", "m", session=Session(Resp({"x": 1}))).probe()
+    assert "429" in OpenAICompatAdapter("https://x/v1", "k", "m", session=Session(Resp({}, 429))).probe()
+    with pytest.raises(LLMError):
+        EasyLLMAdapter("openai_compat", "k", "m", base_url="")
+    assert LLMConnectionError
+
+
+def test_missing_ntu_easy_llm_says_how_to_install(monkeypatch):
+    import builtins
+    real = builtins.__import__
+
+    def fake_import(name, *a, **kw):
+        if name == "ntu_easy_llm" or name.startswith("ntu_easy_llm."):
+            raise ImportError("no module")
+        return real(name, *a, **kw)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    a = EasyLLMAdapter("openai", "k", "m", session=Session(Resp({})))
+    assert a.probe() == MISSING and MISSING.startswith("還沒安裝 ntu_easy_llm：")
+    with pytest.raises(LLMError) as e:
+        a.chat([Message(USER, "hi")])
+    assert "還沒安裝 ntu_easy_llm" in str(e.value)
