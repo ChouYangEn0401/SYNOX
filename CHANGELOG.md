@@ -30,6 +30,49 @@
 - `tests/test_review_a.py`（新）與 `test_discord.py`、`test_web.py`、`test_perm8.py`、`test_bot_scope.py`、`test_sdk_p2_secret.py` 增補；
   每一項都有修之前會失敗的測試。全部 910 passed（dev 是 885）。
 
+## 未發佈（branch feat/fix-exec：獨立安全審查 B，pack 供應鏈／工具執行）
+
+### 變更（安全）
+- **#A `{python}` 不再一律當成「SYNOX 的 Python」**：之前 `cli.python` 只要絕對路徑、`runtime.python` 只要非空字串，第 2 關對
+  `argv[0] == {python}` 一律跳過——`cli.python` 指到 powershell.exe、argv `-Command echo …` 的 pack 會被判 T1、不用 publisher。現在：
+  - 第 1 關：`cli.python`／`runtime.python`／`python_posix` 的檔名一定是 Python 直譯器（`python*`／`pypy*`）、不准 `..`
+    （`runtime.python` 只收 `../.venv/…` 這種 pack 旁邊的 venv）；`cli.python` 不管 kind 都檢查（mcp stdio 也讀它）。
+  - `{python}` 解析到 SYNOX 自己的、`runtime.python: auto` 建的、pack 資料夾裡的以外（`cli.python` 絕對路徑、`"venv"`、
+    指到外面的 `runtime.python`）→ 記一筆 external（解析後的路徑、`interpreter: python`、未鎖定執行環境）＝T2、要 publisher、進鎖的 `t2.external`。
+    規則只在 `envs.python_target`（`loader.cli_python` 也用它）。
+  - argv 讓直譯器**直接執行一段程式碼**（`{python} -c`／`-i`／沒指定程式、`powershell -Command`／`-EncodedCommand`／不是旗標的字、
+    `cmd /c`、`node -e`、`deno eval`、`bash -c`、`ruby -e`、`perl -e`、`php -r`、`osascript -e`、要跑哪支由欄位決定…；
+    cli.argv＋每個 command 的 argv 整條看）→ 一定要宣告 `exec`、T2（`scan.inline_code`）。
+  - 直譯器要跑的程式在 pack 外（`{python} {data_dir}/x.py`、`C:/x.py`）算 pack 外的程式。
+  - 修誤判：argv 後面的 `/c`、`/k` 這種 Windows 旗標不再被當成絕對路徑（`scan._looks_like_path`）。
+  - 取捨：pack 外的 python 與 `{python} -m 外部模組` 算 T2＋publisher，但**不**要求 `exec`（跟 git、npx 一致；金流簿的 `../.venv` 照舊能裝）。
+- **#B 第 2 關的單行繞法**：`dotted()` 遇到非名字開頭的屬性鏈回空字串、什麼都不記，所以 `sys.modules['os'].system(…)`、
+  `().__class__.__bases__[0].__subclasses__()`、`f.__globals__['os']` 零 finding。現在都算 `exec`：`sys.modules`（含 `from sys import modules`）、
+  dunder／frame 屬性（`scan.DUNDER_ATTRS`，字串裡出現也算：`"{0.__globals__}".format`）、`getattr`／`vars`／`globals`／`locals`／`eval`／
+  `exec`／`compile`／`__import__` 當值取用、`getattr` 的屬性名不是純字面字（含 `*args`、f-string 拼的）、呼叫對象看不出是什麼
+  （`handlers[k](…)`、`f()(…)`、`(lambda: …)()`、`[os][0].system(…)`、沒匯入的 `obj.popen(…)`）、`inspect.currentframe`／`gc.get_objects`／
+  `operator.attrgetter` 這類入口。`x = os` 之後的 `x.system(…)`、`run = os.system` 也照追。
+  - 文件語氣改成「攔直呼名與常見的間接取用，是提醒不是門；個人版 python pack 在 SYNOX 程序內無任何隔離，伺服器版靠 PERM-8 只給擁有者」；
+    python pack 的安裝報告多一行同樣的提醒（`admin.PYTHON_SCAN_NOTE`，個人版也看得到）。
+  - SDK 單檔版（`author.py`）不再用 `fn.__dict__`／`vars()`／`spec["fn"](…)`：@tool 的宣告改掛 `fn.synox_tool_spec`；
+    `synox-sdk init --from` 認得舊版的 `__synox_tool__`（`synox.sdk._legacy_spec`）。`sdk/synox_sdk.py`、`examples/hello/synox_sdk.py` 重新產生。
+- **#C pip 自動安裝的來源**：之前只釘 `==版本`，沒有雜湊、沒有固定 index，子程序繼承 `PIP_INDEX_URL` 等環境變數。現在：
+  - `requires.pip` 可以寫 `"名字==版本 --hash=sha256:…"`（一個或幾個；要嘛每項都有、要嘛都沒有），有寫就 `--require-hashes`。
+  - pip 一律 `--isolated --index-url https://pypi.org/simple`；建環境的子程序（venv、pip、npm ci）用乾淨的環境變數
+    （`envs.build_env`：只留 PATH、TEMP、使用者資料夾、代理設定…；`PIP_*`、`npm_config_*`、`PYTHONPATH` 不繼承）；pack 不能指定 index。
+  - T2 安裝報告逐一標 pip 套件「有雜湊／沒有雜湊」，有沒寫的加紅字「版本釘選不等於來源可信」（`tier.hash_lines`）；
+    `synox-sdk check` 同樣標。沒寫雜湊的 pack 環境指紋不變（不會害已建好的環境要重建）。
+- **#D 載入後檔案被換**：之前 cli pack 的完整性只在 `load_all` 驗一次，載入後到下次 reload 前 pack 裡的 `./script.py` 被換掉不會發現。
+  現在有鎖的 cli pack 每次叫子程序前（指令、AI、核准卡重跑、網頁面板）、mcp stdio 每次開子程序前再對一次鎖（`lock.LiveCheck`：
+  先比修改時間＋大小，不一樣才算 sha256；每 10 分鐘全部重算一次；多出來的檔也算）。對不上＝不執行、回一句人話、通知擁有者一次。
+- **#E zip 檔名（防禦深度）**：`admin._safe_parts` 另外拒收 Windows 保留裝置名（`CON`、`PRN`、`AUX`、`NUL`、`COM0-9`、`LPT0-9`、
+  `COM¹`…，加副檔名也算）、含冒號的檔名（NTFS 資料流 `foo.py::$DATA`）、`< > " | ? *` 與控制字元、結尾是空白或句點的檔名。
+
+### 測試
+- `tests/test_review_b_exec.py`（#A）、`tests/test_review_b_scan.py`（#B）、`tests/test_review_b_supply.py`（#C／#D／#E）：
+  全部不連網、不開埠、不執行任何樣本（直譯器旗標只組判斷；ast 樣本只解析；pip／npm 用假的 JobRunner；cli 子程序被換成會丟錯的假貨）。
+  `tests/test_envs.py` 的 pip argv 斷言跟著 #C 更新。
+
 ## 未發佈（branch feat/t2-source）
 
 ### 變更（安全）

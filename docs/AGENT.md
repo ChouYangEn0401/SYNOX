@@ -142,8 +142,21 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     假伺服器在 `tests/test_mcp_http.py`；不連網、不開埠。
 16. **信任層級 T0／T1／T2 只在 `src/synox/packs/tier.py` 判斷**（SDK P7）：`tier.assess(m, report)`＝`scan.opaque_files`（掃不到內容的檔：
     副檔名、MZ+PE／ELF／Mach-O 檔頭、無副檔名＋執行位元／`#!`、`node_modules/` 一筆、對不到原始碼的 `__pycache__`）＋`scan.externals`
-    （argv 指到 pack 外的程式，解析路徑只用 `shutil.which`／`PathFinder.find_spec`，**不執行**）＋`envs.all_pins`。資料夾裡掃不到內容的檔
-    要宣告 `exec`（第 2 關 `binary` finding）。T2 安裝一律要 `trust_publisher`＝pack.json `publisher`（`tier.confirm_problem`；
+    （argv 指到 pack 外的程式，解析路徑只用 `shutil.which`／`PathFinder.find_spec`，**不執行**；`{python}` 解析到 pack 外＝
+    `scan.python_external`，規則只在 `envs.python_target`，`loader.cli_python` 也用它；argv 直譯器直接執行程式碼＝`scan.inline_code`，
+    一筆 `inline: True` 的 external＋一個 `exec` finding）＋`envs.all_pins`。資料夾裡掃不到內容的檔
+    要宣告 `exec`（第 2 關 `binary` finding）。argv 的分析在 `scan._argv_hits`（cli 是 cli.argv＋每個 command 的 argv 整條看；
+    直譯器家族 `scan.family_of`：python／powershell／cmd／node／deno／shell／ruby／perl／php／lua／osascript／mshta／wsh）。
+    `cli.python`／`runtime.python` 的檔名、`..` 在第 1 關（`manifest.python_path_problems`）。
+    python 原始碼的繞法（審查 B #B）在 `scan._Visitor`：`DUNDER_ATTRS`、`DYNAMIC_NAMES`、`DYNAMIC_CALLS`、`DYNAMIC_ATTRS`、
+    `_dynamic_call`、`visit_Assign`（`x = os` 別名）；文件語氣一律是「提醒不是門」（docs/security.md「五關」）。
+    **放進 pack 的 `synox_sdk.py`（`src/synox/sdk/author.py`）不能用 `__dict__`／`vars()`／`handlers[k](…)`**（`test_single_file_matches_source`
+    要它不用宣告任何能力）；@tool 的宣告掛在 `fn.synox_tool_spec`，舊版的 `__dict__["__synox_tool__"]` 由 `synox.sdk._legacy_spec` 搬。
+    pip 的來源（審查 B #C）：`requires.pip` 的 `--hash=sha256:` 用 `envs.PIP_LINE_RE`／`pin_hashes`（`pins` 照舊回 (名字, 版本)）；
+    `VenvBuilder.plan` 的 pip 一律 `--isolated --index-url https://pypi.org/simple`，有雜湊加 `--require-hashes`；
+    `build` 給 `jobs.start(env=envs.build_env())`（白名單 `BUILD_ENV_KEEP`）。`tier.hash_lines` 給安裝報告。
+    載入後再對鎖（審查 B #D）：`load_all` 對有鎖的 pack 掛 `pack.live = lock.live_check(record, folder)`；`Pack.tampered_since_load()`
+    在 cli 的 `submit`／面板 route（`changed_files`）與 `mcp.StdioBackend.open` 前面問，對不上＝`loader.tampered_text`＋`_tamper_notice`、不執行。T2 安裝一律要 `trust_publisher`＝pack.json `publisher`（`tier.confirm_problem`；
     `admin.install_staged`／`approve_installed`、`upgrade.upgrade_staged` 都過這裡；升級要不要重新確認看 `tier.reconfirm_reasons`）。
     鎖的欄位用 `tier.lock_fields` → `lock.approve(tier_fields=)`。執行期：`sandbox.required` 對 T2 一律 True、`sandbox.restricted_reason`
     對 T2 python pack 一律 owner_only（伺服器版）；個人版 `sandbox.t2_personal_note` 給 doctor。

@@ -55,7 +55,7 @@ packs/money/
 `.synoxpack`＝一個 pack 資料夾壓成的 zip（`pack.json` 在最上層，或在唯一的那個資料夾裡）；`synox-sdk zip`／`scripts\pack_zip.py`
 會打包並算好 `integrity.sha256`（[sdk.md](sdk.md)）。裝的路有三條，都跑同一條安全管線（[security.md](security.md)「五關」）：
 Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Install-Pack.bat`）、`python -m synox install <檔> [--yes]`。
-檢查 zip（沒有絕對路徑、`..`、符號連結；5 MB／解開 20 MB／300 個檔以內）→ 第 1 關宣告 → 第 2 關靜態掃描 → 給人看報告 →
+檢查 zip（沒有絕對路徑、`..`、符號連結；檔名不能是 Windows 保留名（`CON`、`NUL`、`COM1`…，加副檔名也算）、不能有冒號（NTFS 資料流 `x.py::$DATA`）或 `< > " | ? *`、結尾不能是空白或句點；5 MB／解開 20 MB／300 個檔以內）→ 第 1 關宣告 → 第 2 關靜態掃描 → 給人看報告 →
 按確認 → 第 3 關寫 `data/packs.lock` → 搬進 `packs/`。移除＝搬到 `packs/_removed/<name>-<版本>-<時間>`（不刪），鎖的那一筆一起拿掉
 （旁邊留一份 `<那個資料夾>.lock.json`，`packs rollback` 用）。
 
@@ -124,7 +124,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 
 | 欄位 | 說明 |
 |---|---|
-| `capabilities` | 宣告要用的能力：`network`、`subprocess`、`filesystem:own`、`filesystem:any`（含 own）、`exec`。第 2 關的掃描看到用了、卻沒宣告 → **拒裝**。沒寫＝什麼都沒宣告（舊 pack 一樣，由掃描結果決定裝不裝得了） |
+| `capabilities` | 宣告要用的能力：`network`、`subprocess`、`filesystem:own`、`filesystem:any`（含 own）、`exec`。第 2 關的掃描看到用了、卻沒宣告 → **拒裝**。沒寫＝什麼都沒宣告（舊 pack 一樣，由掃描結果決定裝不裝得了）。`exec` 也包含：`sys.modules`、dunder 屬性（`x.__class__`、`__dict__`、`__globals__`…，用 `type(x)` 代替 `x.__class__`）、`getattr` 的屬性名不是字面字、`vars()`／`globals()`／`locals()`、呼叫對象看不出是什麼（`handlers[k](…)`、`f()(…)`：先指給一個變數再呼叫）。第 2 關攔的是直呼名與常見的間接取用，**是提醒不是門**；python pack 在 SYNOX 程序裡跑，個人版沒有任何隔離（[security.md](security.md)「五關」） |
 | `publisher` | 發行者（給人看；沒寫會在報告裡提醒）。**T2 pack 一定要寫**：安裝者要一字不差地輸入這個值才裝得了（見下面「信任層級」）；升級時換了一律紅字 |
 | `integrity.sha256` | `{"檔名": "64 個 16 進位字"}`，打包時算（`synox-sdk zip`）。有寫就每個檔都要對得上、也不能多出沒列的檔（`pack.json` 本身不算） |
 | `auth` | v0 的字串（`oauth`／`token`／`caldav`）照舊；v2 寫 `{"type": "none｜token｜oauth｜caldav｜file", "fields": [...]}`。`token`／`file` 的 `fields` 由 SYNOX 收，見下面「pack 的 secret」 |
@@ -133,8 +133,8 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | `commands[].ai`、`commands[].confirm` | cli 的 command：`"ai": false`＝不給 AI 當工具；`"confirm": true`＝AI 呼叫前先送確認卡給人按（effect 照寫的算）。一定要是 true／false。synox_sdk 的 `@tool(ai=…, confirm=…)` 會產生。跟工具執行中回的 `needs_confirm`（下一列）並存 |
 | 回 `needs_confirm`（確認來回） | cli 工具最後一行印 `{"ok": true, "needs_confirm": true, "summary": "要刪 3 筆", "confirm_token": "…"}`（結束碼 0）→ SYNOX 出核准卡給下令的人（人打字、AI 呼叫都一樣），按 ✅ 用**同一組參數**重跑，那一次環境變數 `SYNOX_CONFIRMED=1`、`SYNOX_CONFIRM_TOKEN`＝你給的 `confirm_token`（只收英數字與 `. _ : -`、128 字內）；其他每一次都是 `SYNOX_CONFIRMED=0`（`cli.env` 寫了也會被蓋掉）。❌、過期、參數對不上＝不執行。任何語言都能用：自己讀這兩個環境變數。說明見 [sdk.md](sdk.md)「確認來回」 |
 | `commands[].fields[].kind` | `text`（預設）｜`int`（整數，可有千分位逗號）｜`number`（數字）｜`bool`（是／否：`yes/no`、`true/false`、`1/0`、`是/否`…）｜`path`（值一定要在使用者自己的資料夾裡，第 4 關）｜`choice`（要寫 `choices: ["Red", "Blue"]`，大小寫不拘）。對 AI 的參數 schema 一律是字串；SYNOX 在交給程式**之前**照 kind 檢查（人打字與 AI 呼叫都會），不合回一句人話（例如「次數要是整數（例如 3）」）、不執行。交給程式的值整理過：`bool` → `true`／`false`、`int`／`number` 拿掉逗號、`choice` 換成 `choices` 裡的拼法 |
-| `cli.python` | `{python}` 換成什麼：絕對路徑｜`"venv"`（`<pack 資料夾>/../.venv` 的 python）｜沒寫＝看 `runtime`，再沒有＝SYNOX 自己的 Python |
-| `runtime.python`、`runtime.python_posix` | 另一種寫法（金流簿用的）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它。**`"auto"`**＝安裝時自動建 venv（見下面「依賴與環境自動建置」；跟 `cli.python` 不能同時寫） |
+| `cli.python` | `{python}` 換成什麼：絕對路徑｜`"venv"`（`<pack 資料夾>/../.venv` 的 python）｜沒寫＝看 `runtime`，再沒有＝SYNOX 自己的 Python。**一定要指到 Python 直譯器**（檔名 `python`、`python3`、`python3.12`、`pythonw`、`pypy3`…，可以有 `.exe`）、不能有 `..`；要叫別的程式請直接寫在 `cli.argv` 第一段（算 pack 外的程式、T2）。kind=mcp 寫了也照樣檢查 |
+| `runtime.python`、`runtime.python_posix` | 另一種寫法（金流簿用的）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它。**`"auto"`**＝安裝時自動建 venv（見下面「依賴與環境自動建置」；跟 `cli.python` 不能同時寫）。一樣要是 Python 直譯器的檔名；`..` 只收 `../.venv/Scripts/python.exe`、`../venv/bin/python` 這種「pack 旁邊的 venv」 |
 | `runtime.node` | **只給 kind=cli**（kind=mcp 寫了＝pack.json 不合；mcp 的 `{node}` 一律是系統的 node）。`{node}` 換成什麼：相對於 pack 資料夾（或絕對路徑）；**`"auto"`**＝系統的 node＋安裝時照 `package-lock.json` 裝套件；沒寫＝系統的 node。用到 `{node}` 的 pack 是 T2 |
 | `env`（最上層）、`cli.env` | 子程序多帶的環境變數；兩個合併，`cli.env` 優先。值可以用下面的代換。名字像密鑰的（`*_TOKEN`…）一樣會被拿掉，除非列在 `requires.env` |
 | `web.routes` | cli pack 的面板資料：`{"route": "command"}`；沒寫＝同名。對應的 command 要是 `READ`、沒有必填欄位 |
@@ -151,8 +151,14 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
     `src/synox/packs/scan.py` 的 `SOURCE_EXT`）、`node_modules/`、檔頭是 MZ+PE／ELF／Mach-O 的檔（副檔名寫什麼都一樣）、沒有副檔名但帶執行位元（zip 裡的 unix 權限）或 `#!` 開頭、
     `__pycache__` 裡對不到同一層 `.py` 的編譯檔。→ **`capabilities` 一定要有 `exec`**，不然拒裝。
   - `cli.argv`／`mcp.argv` 指到 **pack 外的程式**：`argv[0]` 不是 `{python}`／`./…`（例如 `{node}`、`npx`、`git`、`C:\…\x.exe`），
-    後面一段是直譯器（`node`、`npx`、`deno`、`bun`、`ruby`、`perl`、`php`…）、絕對路徑或 `..`，或 `{python} -m 模組` 而模組不在 pack 裡。
-    不擋，報告記解析後的路徑（只查 PATH，不執行）、標「未鎖定執行環境」。
+    後面一段是直譯器（`node`、`npx`、`deno`、`bun`、`ruby`、`perl`、`php`、`python3`、`cmd`、`bash`…）、看起來是檔案路徑
+    （`C:/…`、`/usr/bin/x`、`..`；`/c`、`/k` 這種 Windows 旗標不算）、直譯器要跑的程式在 pack 外（`{data_dir}/x.py`、`C:/x.py`），
+    或 `{python} -m 模組` 而模組不在 pack 裡。不擋，報告記解析後的路徑（只查 PATH，不執行）、標「未鎖定執行環境」。
+  - `{python}` 解析到 **pack 外的直譯器**：`cli.python` 是絕對路徑或 `"venv"`（`<pack>/../.venv`）、`runtime.python` 指到 pack 外。
+    SYNOX 自己的 Python、`runtime.python: "auto"` 建的 venv、pack 資料夾裡的不算。報告與鎖記解析後的路徑。
+  - argv 讓直譯器**直接執行一段程式碼**：`{python} -c`／`-i`／`-`／沒指定程式（讀 stdin）、`powershell -Command`／`-EncodedCommand`／
+    不是旗標的字、`cmd /c`／`/k`、`node -e`／`-p`／`-r`、`deno eval`、`bash -c`、`ruby -e`、`perl -e`、`php -r`、`osascript -e`，
+    或要跑哪支程式由欄位決定（`["{python}", "{script}"]`）。旗標寫在 `commands[].argv` 裡也算。→ **一定要宣告 `exec`**，不然拒裝。
   - `runtime.python`／`runtime.node` = `"auto"`（會裝 `requires.pip`／`package-lock.json` 的套件）。
 
 T2 的安裝報告有紅字一段（會執行什麼、會裝哪些套件、外部程式解析到哪），**`pack.json` 一定要寫 `publisher`**，安裝者要明確輸入它：
@@ -196,7 +202,7 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
 
 | 寫法 | 換成 |
 |---|---|
-| `{python}` | 上面 `cli.python`／`runtime` 決定的直譯器（`auto`＝`data/envs/<pack>/venv` 的 python） |
+| `{python}` | 上面 `cli.python`／`runtime` 決定的直譯器（`auto`＝`data/envs/<pack>/venv` 的 python；規則在 `envs.python_target`，第 2 關用同一份判斷它在不在 pack 外） |
 | `{node}` | `runtime.node` 決定的 node（`auto` 或沒寫＝系統的 node） |
 | `{pack_dir}` | pack 資料夾的絕對路徑 |
 | `{data_dir}` | SYNOX 的 `data/` |
@@ -221,6 +227,12 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
   `pip install --no-deps --only-binary=:all: -r requirements.txt`。`requires.pip` 每一項都要是 `名字==版本`
   （`>=`、`~=`、萬用字元、extras、環境標記、網址、`-r`／`--index-url` 之類都算 pack.json 不合）；`--no-deps` 所以相依的套件也要自己列。
   只裝現成的 wheel（不在這台電腦上跑套件的 setup.py）。
+  **雜湊（建議）**：每一項後面可以加 pip 的 `--hash=sha256:<64 個 16 進位字>`（一個或幾個，例如每個平台的 wheel 各一個）：
+  `"requests==2.32.3 --hash=sha256:…"`。有寫就 `pip install --require-hashes`，下載到的檔對不上就不裝；要嘛每一項都寫、要嘛都不寫
+  （混著寫＝pack.json 不合）。沒寫雜湊的，T2 安裝報告會紅字寫「版本釘選不等於來源可信」。
+  **來源固定 PyPI**：pip 一律 `--isolated --index-url https://pypi.org/simple`（不讀 pip.conf、`PIP_INDEX_URL`、`PIP_EXTRA_INDEX_URL`），
+  pack 不能指定 index；建環境的子程序只拿到乾淨的環境變數（`envs.BUILD_ENV_KEEP`：PATH、TEMP、使用者資料夾、代理設定…，
+  `PIP_*`、`npm_config_*`、`PYTHONPATH` 一律不繼承）。
 - **Node**：pack 裡要有 `package.json`＋`package-lock.json`；複製到 `data/envs/<pack>/` 後 `npm ci --ignore-scripts`
   （套件的安裝腳本一律不跑），裝進 `data/envs/<pack>/node_modules`；子程序拿到 `NODE_PATH` 指到那裡。系統沒有 node＝doctor 說缺、pack 不載入。
 - pack 資料夾本身不寫任何東西（`packs.lock` 的雜湊才對得上）。

@@ -93,6 +93,33 @@ FIELD_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 # requires.synox：一個或幾個（逗號分隔）條件，例如 ">=0.3"、">=0.3,<1.0"；只寫版本＝>=
 _SPEC_RE = re.compile(r"^\s*(>=|<=|==|!=|>|<)?\s*(\d+(?:\.\d+){0,2})\s*$")
+# {python} 一定要是 Python 直譯器（cli.python、runtime.python／python_posix 的檔名）：python、python3、python3.12、
+# pythonw、python3.13t、pypy3（可以有 .exe）。要叫別的程式就直接寫在 argv[0]（算 pack 外的程式、T2）
+PYTHON_NAME_RE = re.compile(r"^(python|pypy)(\d+(\.\d+)*)?[tw]?(\.exe)?$", re.IGNORECASE)
+# runtime.python 唯一收的 ..：「pack 旁邊的 venv」（跟 cli.python="venv" 一樣；金流簿 repo 的寫法）
+SIBLING_VENV_RE = re.compile(r"^\.\./\.?venv/(Scripts|bin)/[^/]+$")
+
+
+def python_path_problems(label: str, value, *, relative_ok: bool) -> List[str]:
+    """cli.python／runtime.python 的值：一定是 Python 直譯器的檔名、不准 ..（runtime 只收 ../.venv/…）。
+    relative_ok=False（cli.python）：一定要絕對路徑或 "venv"。"""
+    if not isinstance(value, str) or not value.strip():
+        return []                                         # 型別錯另外講
+    if value == "venv" and not relative_ok:
+        return []
+    if relative_ok and value == "auto":
+        return []
+    plain = value.replace("\\", "/")
+    out = []
+    if not relative_ok and not os.path.isabs(value):
+        return ['cli.python 只能是絕對路徑或 "venv"（沒寫＝SYNOX 自己的 Python）']
+    if ".." in plain.split("/") and not (relative_ok and SIBLING_VENV_RE.match(plain)):
+        out.append(f"{label} 不能用 .. 跑出 pack 資料夾（{value!r}；"
+                   "只收 ../.venv/Scripts/python.exe 這種「pack 旁邊的 venv」，會算 pack 外的程式、T2）")
+    if not PYTHON_NAME_RE.match(plain.rsplit("/", 1)[-1]):
+        out.append(f"{label} 要指到 Python 直譯器（檔名是 python…／pypy…，現在是 {value!r}）；"
+                   "要叫別的程式請直接寫在 argv 的第一段（會算 pack 外的程式、T2，要輸入 publisher 才裝）")
+    return out
 
 
 class ManifestError(ValueError):
@@ -741,10 +768,6 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
             problems.append("kind=cli 要有 cli.commands（至少一個子指令）")
         else:
             cli["commands"] = _check_commands(cli["commands"], strict or v2, problems)
-        python = cli.get("python")
-        if python is not None and (not isinstance(python, str) or
-                                   not (python == "venv" or os.path.isabs(python))):
-            problems.append('cli.python 只能是絕對路徑或 "venv"（沒寫＝SYNOX 自己的 Python）')
         env = cli.get("env") or {}
         top_env = raw.get("env") or {}
         for label, value in (("cli.env", env), ("env", top_env)):
@@ -753,6 +776,13 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
                 problems.append(f"{label} 要是 {{名字: 字串}}")
         if isinstance(env, dict) and isinstance(top_env, dict):
             cli["env"] = {**top_env, **env}             # 最上層的 env（金流簿的寫法）＋ cli.env，cli.env 優先
+    # cli.python 不管 kind 都檢查：loader 代換 {python} 時 mcp stdio 也讀它（envs.python_target）
+    python = cli.get("python")
+    if python is not None and (not isinstance(python, str) or
+                               not (python == "venv" or os.path.isabs(python))):
+        problems.append('cli.python 只能是絕對路徑或 "venv"（沒寫＝SYNOX 自己的 Python）')
+    elif python is not None:
+        problems += python_path_problems("cli.python", python, relative_ok=False)
     runtime = raw.get("runtime") or {}
     if not isinstance(runtime, dict):
         problems.append("runtime 要是物件")
@@ -760,6 +790,8 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     for key in ("python", "python_posix", "node"):
         if key in runtime and (not isinstance(runtime[key], str) or not runtime[key].strip()):
             problems.append(f"runtime.{key} 要是路徑（相對於 pack 資料夾，或絕對路徑）或 \"auto\"")
+        elif key in runtime and key != "node":
+            problems += python_path_problems(f"runtime.{key}", runtime[key], relative_ok=True)
     auto_py = any(runtime.get(k) == "auto" for k in ("python", "python_posix"))
     if (auto_py or "node" in runtime) and kind != "cli":
         problems.append("runtime.python=auto 和 runtime.node 只給 kind=cli 用")
