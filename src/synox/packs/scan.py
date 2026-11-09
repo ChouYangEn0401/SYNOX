@@ -1173,7 +1173,11 @@ def python_external(m: Manifest) -> Optional[dict]:
     path, origin, where = envs.python_target(m)
     if origin != envs.PY_OUTSIDE:
         return None
-    resolved = path if os.path.exists(path) else f"{path}（這台不存在）"
+    from synox.packs.manifest import unc_like
+    if unc_like(path, strict=True):                 # 審查 C #C4：不碰網路路徑（第 1 關已經擋了；防禦深度）
+        resolved = f"{path}（// 開頭：可能是網路路徑，不查）"
+    else:
+        resolved = path if os.path.exists(path) else f"{path}（這台不存在）"
     return {"program": "{python}", "resolved": resolved, "where": where, "note": "未鎖定執行環境",
             "interpreter": "python"}
 
@@ -1182,6 +1186,10 @@ def resolve_program(token: str, m: Optional[Manifest] = None) -> str:
     """pack 外的程式解析到這台的哪裡（只查路徑，不執行）：絕對路徑原樣；"-m 模組"＝SYNOX 這支 Python 的 sys.path
     找得到的位置（不 import）；其他照 PATH 找（shutil.which）。找不到回一句話。"""
     import shutil
+
+    from synox.packs.manifest import unc_like
+    if unc_like(token, strict=True):                # 審查 C #C4：不 exists／which 網路路徑（會連 SMB）
+        return f"{token}（// 開頭：可能是網路路徑，不查）"
     if token.startswith("-m "):
         module = token[3:].strip()
         try:
