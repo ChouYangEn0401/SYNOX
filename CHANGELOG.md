@@ -16,6 +16,15 @@
   `_token`／`_logout`（ai=False）。寫法與欄位跟 SYNOXPacks 的 `todo` pack 一樣。token 在保管箱（伺服器版每人一份）。
 - `synox.packs.kit.redact_in_logs("/指令")`：那個指令後面的字在 log（SDK 的 `[ROUTE]` 行）換成 `***`。
 
+## 未發佈（branch feat/connector-apple）
+
+### 新增
+- `connectors/apple-reminders-caldav` 從設計稿變成真的 pack（`kind: python`、`capabilities: ["network"]`，只用 requests＋標準函式庫）：
+  `/applerem`、`/applerem_lists`、`/applerem_add`、`/applerem_done`、`/applerem_status`、`/applerem_logout`；自己解析／產生最小的 VTODO。
+  研究結論：iCloud 升級過（iOS 13 起）的提醒事項 Apple 不經 CalDAV 提供；建議 iPhone 接別家 CalDAV 帳號（見該資料夾 README）。
+- `python -m synox connect <pack> [--user ID] [--clear]`＋`Connect-Apple.bat`：照 pack.json 的 `auth.fields` 把帳號存進保管箱
+  （密碼用 getpass，不經聊天、不進 log）。
+
 ## 未發佈（branch feat/pack-security）
 
 ### 新增
