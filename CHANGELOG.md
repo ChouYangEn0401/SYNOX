@@ -26,6 +26,28 @@
   T2 補原始碼與直譯器，拿掉「.js 目前算 T1」的說明。`docs/AGENT.md`：connect.py 存進 pack_secrets（跟「連接」表單同一份）。
   `docs/security.md`、`docs/sdk.md`、`examples/node-mcp-tool/README.md` 同步。
 
+## 未發佈（branch feat/perm6）
+
+### 新增
+- **PERM-6：Discord 頻道 AI**。頻道型 bot 設 `ai: {"enabled": true, "pool_usd_month": 5, "persona": "…"}` 時，被 @（或 trigger 命中）
+  但不是指令的訊息交給 AI（新檔 `src/synox/agent/room.py` 的 `RoomAgent`，AgentLoop 的子類別）。
+  - 工具清單沿用 `policy.decide(via=AI, bot=頻道型)`：只有頻道看得到、data ≠ user、effect ≤ max_effect（永遠 < DANGER）的工具；
+    要核准卡的工具一律不給，叫到了回「🔒 這個動作要到私訊做」，不送卡到頻道（執行中才要確認的也攔下）。
+  - 記憶 key＝頻道負號 id，同頻道所有人共用最近 `ai.history_turns` 輪（預設 6）；公開頻道版系統提示＋persona；
+    訊息包在 `⟦SYNOX-MSG-<nonce>⟧` 裡，@提及、附件檔名、連結當資料，顯示名稱只當標籤。
+  - 費用：`agent/budget.py` 新增 `BotPool`（`data/bot_pools/<名字>/llm_usage.json`），整個 bot 一池、不算個人額度；用完回一句話、
+    整個 bot 的頻道 AI 停到下個月。`/bot_status` 列這個月用量。
+  - 節流：新增 `room_rate_per_minute`（頻道整體，預設 20）與 `ai.rate_per_minute`（AI 每人每分鐘，預設 2）。
+  - 回覆送出前遮罩已存 secret 與 token 樣式（`room.redact_reply`）。
+  - `RoomEvent` 多了 `display_name`、`attachments`（檔名）。
+- 測試 `tests/test_discord_room_ai.py`（29 個；假 Gateway、假 HTTP、假 AI，不連網、不開埠）。
+
+### 變更
+- 頻道型 bot 沒寫 `ai`＝關；`ai.enabled: true` 但沒有 `pool_usd_month`（或是 0）＝設定錯誤，頻道 AI 不開，doctor 與 `/bot_status` 用 ❌ 說明（doctor 算一個問題）。
+- `ai` 裡不認得的欄位改成設定錯誤。
+- `policy.decide`：via=AI 的訪客判斷改用有效角色（role_map 對到成員的人，在頻道裡才有 AI 工具）；agent 群組在頻道型 bot 上改回 `bot_channel`（一樣當作不存在）。
+- `AgentLoop` 抽出 `decision`／`tools_for`／`out_of_budget`／`say`／`carded_note` 幾個可換的點（私訊行為不變）。
+
 ## 未發佈（branch feat/sdk-p8）
 
 ### 新增

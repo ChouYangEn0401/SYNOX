@@ -149,11 +149,36 @@ class AgentLoop:
 
     # ── 一輪 ─────────────────────────────────────────────────────────
 
+    # ── 可換的幾個點（頻道 AI，agent/room.py 的 RoomAgent 換掉；私訊照這裡）────────
+
+    def decision(self, user, node: Node, chat_id: int):
+        """這個節點給不給 AI（工具清單與每次呼叫都問這裡；就是 ai_decision）。"""
+        return ai_decision(self.app, user, node)
+
+    def tools_for(self, user, chat_id: int):
+        return tools_mod.build(self.app.registry, lambda n: self.decision(user, n, chat_id), self.app)
+
+    def out_of_budget(self, user) -> str:
+        """額度用完回給人看的一句話；還有額度回 ""。"""
+        if self.budget is not None and self.budget.exhausted(user):
+            from synox.agent.budget import EXHAUSTED
+            return EXHAUSTED
+        return ""
+
+    def carded_note(self, tool: str) -> str:
+        """這一輪停在核准卡時記進對話記憶的一句。"""
+        return f"（已送出確認卡：{tool}，等使用者按）"
+
+    def say(self, api, chat_id: int, text: str) -> str:
+        """送出 AI 的回答；回實際送出的字（記進對話記憶的就是這個）。"""
+        api.send_message(chat_id, text)
+        return text
+
     def run_turn(self, api, chat_id: int, user, text: str) -> None:
         with self._locks[chat_id]:
-            if self.budget is not None and self.budget.exhausted(user):
-                from synox.agent.budget import EXHAUSTED
-                api.send_message(chat_id, EXHAUSTED)
+            stop = self.out_of_budget(user)
+            if stop:
+                api.send_message(chat_id, stop)
                 return
             self._turn(api, chat_id, user, text)
 
@@ -169,7 +194,7 @@ class AgentLoop:
     def _turn(self, api, chat_id: int, user, text: str) -> None:
         registry = self.app.registry
         skills = skills_mod.from_packs(self.visible_packs(user))
-        tools = tools_mod.build(registry, lambda n: ai_decision(self.app, user, n), self.app)
+        tools = self.tools_for(user, chat_id)
         if skills:
             tools.append(skills_mod.read_tool_spec(skills))
         native = bool(self.adapter.supports_tools)
@@ -178,9 +203,9 @@ class AgentLoop:
             list(self.history[chat_id]) + [Message(USER, text)]
         typing = getattr(api, "typing", None)
         for step in range(self.max_steps):
-            if step and self.budget is not None and self.budget.exhausted(user):
-                from synox.agent.budget import EXHAUSTED
-                api.send_message(chat_id, EXHAUSTED)
+            stop = self.out_of_budget(user) if step else ""
+            if stop:
+                api.send_message(chat_id, stop)
                 self.remember(chat_id, text, "（額度用完，沒做完）")
                 return
             if callable(typing):
@@ -201,8 +226,7 @@ class AgentLoop:
                 if call is not None:
                     calls, said = [call], rest
             if not calls:
-                answer = said.strip() or "（AI 沒有說話）"
-                api.send_message(chat_id, answer)
+                answer = self.say(api, chat_id, said.strip() or "（AI 沒有說話）")
                 self.remember(chat_id, text, answer)
                 return
             messages.append(Message(ASSISTANT, said if native else reply.text, tool_calls=calls if native else []))
@@ -210,7 +234,7 @@ class AgentLoop:
                 logging.info("[AGENT] chat %s step %d → %s %s", chat_id, step + 1, call.name, call.args)
                 result, carded = self.call_tool(api, chat_id, user, call, skills)
                 if carded:
-                    self.remember(chat_id, text, f"（已送出確認卡：{call.name}，等使用者按）")
+                    self.remember(chat_id, text, self.carded_note(call.name))
                     return
                 wrapped = delimit.wrap(result, nonce)
                 if native:
@@ -229,7 +253,7 @@ class AgentLoop:
                 return problem, False
             return skills_mod.read_skill(skills, (call.args or {}).get("name", "")), False
         node = tools_mod.node_for(registry, call.name)
-        decision = ai_decision(self.app, user, node) if node is not None else None
+        decision = self.decision(user, node, chat_id) if node is not None else None
         if decision is None:
             return f"沒有 {call.name} 這個工具（或你不能用）。", False
         if not decision.allowed:
@@ -246,7 +270,7 @@ class AgentLoop:
                 found = node.inner(argv)
             except Exception:
                 return f"看不懂 {node.command} 裡要排的指令。", False
-            if found is not None and ai_decision(self.app, user, found[0]) is None:
+            if found is not None and self.decision(user, found[0], chat_id) is None:
                 return f"{found[0].command} 不是你能用的工具，不能替使用者排；要排請他自己打。", False
         if node.fields:
             _values, missing, errors = kit.parse_args(node.fields, argv, positional=0)

@@ -119,6 +119,17 @@ WRITE／DANGER 指令在伺服器版只有管理員（以上）能用。安裝�
 store／secret），cli 子程序照樣能讀寫整個檔案系統——第 2 關只擋「看得出來的跨戶寫法」。真的隔離是沙盒（PERM-7，下面）；
 python pack 沙盒管不到，伺服器版改用信任決定給不給成員（PERM-8，下面）。
 
+**Discord 頻道 AI（PERM-6）**：頻道型 bot 開了 `ai.enabled`＋`ai.pool_usd_month` 才有，預設關。保護分三層：
+1. **結構**：工具清單還是 `policy.decide(via=AI, bot=頻道型)`，只有 surfaces 含 channel、data ≠ user、effect ≤ max_effect 的指令；
+   要核准卡的（DANGER、/sudo、驗證碼、包著別的指令、confirm）一律拿掉，叫到了回「要到私訊做」，**卡片不進頻道**（工具執行中才要確認也一樣攔下）。
+   所以 AI 在頻道裡碰不到任何人的保管箱資料或私人 pack；對話記憶 key 是頻道（不是人），私訊的記憶不會混進來。
+2. **提示**：公開頻道版系統提示（多人看得到、不提私事、不知道的請對方私訊）；每則訊息包在 `⟦SYNOX-MSG-<nonce>⟧` 裡，
+   @提及、附件檔名、連結都是資料；發話者顯示名稱只是標籤（去掉換行與括號記號、最多 32 字），不代表身分。這是提示層，不是邊界。
+3. **送出前遮罩**（`agent/room.py` 的 `redact_reply`）：保管箱 secrets.json 的每個值、發話者的 pack secret、config `env:` 指到的值（8 字以上，
+   `mcp.redact`），加上 token 樣式（Discord／Telegram bot token、`sk-`、`ghp_`、`xox?-`、`AKIA`、`AIza`、JWT、`Bearer`、私鑰區塊）→ `***`。
+   認不出沒存在 SYNOX 的密碼——主要靠第 1 層。
+費用：整個 bot 一池（`data/bot_pools/<名字>/`），不算進個人額度；用完整個 bot 的頻道 AI 停。濫用：（頻道, 人）、（頻道）整體、AI 每人每分鐘三層節流。
+
 **伺服器版 python pack 的信任（PERM-8）**：kind=python 在 SYNOX 程序裡跑，拿得到 `app`（等於能讀任何人的資料），沒有沙盒可以包。
 所以伺服器版 `trust: third-party` 的 python pack **整組只對擁有者可見**：成員／管理員／訪客打了跟不存在的指令一樣（「未知指令」）、
 `/help`、網頁、AI 工具清單都沒有（loader 把群組設成 owner_only，SDK authorize 與 `policy.decide` 同一條擋）。照常給成員的只有：
