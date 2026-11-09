@@ -65,7 +65,7 @@ def from_packs(packs) -> List[Skill]:
     """已載入的 pack（connector 除外：v0 還沒接，不放進 AI 的清單）。"""
     out = []
     for pack in packs:
-        if pack.manifest.kind == "connector":
+        if pack.manifest.kind in ("connector", "mcp"):
             continue
         skill = load(pack.manifest.skill_path)
         if skill is not None:

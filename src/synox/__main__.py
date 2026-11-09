@@ -6,6 +6,8 @@ python -m synox <指令>
   wizard    安裝精靈（tkinter 視窗；Setup.bat 最後一步）
   doctor    健康檢查（--offline 不實際打 AI）
   stop      停掉正在跑的 bot（Stop.bat）
+  install   裝一個 .synoxpack：安全管線第 1–3 關（--yes 在終端機直接核准；沒有 --yes 就開網頁設定頁給你按）
+  packs     packs status（每個 pack 的鎖定狀態）｜packs lock --approve <name>（工程師：重跑 1、2 關、寫 packs.lock）
 """
 
 from __future__ import annotations
@@ -111,6 +113,117 @@ def cmd_stop(args) -> int:
     return 0
 
 
+def _config_quiet(path: str):
+    """install／packs 用：有 config.json 就讀（不要 token），沒有就 None（用預設的 data/）。"""
+    path = path or CONFIG_PATH
+    try:
+        return SynoxConfig.load(path, require_token=False) if os.path.exists(path) else None
+    except ConfigError:
+        return None
+
+
+def _data_dir(config) -> str:
+    from synox.config import ROOT
+    return config.data_dir if config is not None else os.path.join(ROOT, "data")
+
+
+def web_is_up(port: int) -> bool:
+    """本機的 SYNOX 網頁介面有沒有在聽（只「連」127.0.0.1，不開埠）。"""
+    import socket
+    if not port:
+        return False
+    try:
+        with socket.create_connection(("127.0.0.1", int(port)), timeout=0.5):
+            return True
+    except OSError:
+        return False
+
+
+def _open_browser(url: str) -> None:
+    import webbrowser
+    webbrowser.open(url)
+
+
+def cmd_install(args, *, is_up=web_is_up, open_url=None) -> int:
+    from synox.packs import admin
+    from synox.packs.loader import PACK_DIRS
+    config = _config_quiet(args.config)
+    data_dir = _data_dir(config)
+    try:
+        token, summary = admin.stage_file(args.file, data_dir)            # 第 1、2 關
+    except admin.GateRefused as e:
+        if e.summary:
+            print(admin.format_summary(e.summary))
+        print(f"❌ {e}")
+        return 2
+    except admin.PackAdminError as e:
+        print(f"❌ {e}")
+        return 2
+    print(admin.format_summary(summary))
+    if args.yes:
+        who = getattr(config, "owner_id", None) or "console"
+        try:
+            name = admin.install_staged(token, data_dir, args.packs_dir or PACK_DIRS[0], approved_by=who,
+                                        via="console")                       # 第 3 關：packs.lock
+        except admin.PackAdminError as e:
+            print(f"❌ {e}")
+            return 2
+        print(f"✅ 裝好了：{name}（已寫進 packs.lock）。SYNOX 開著的話到網頁設定頁按「重新載入全部」，或重開 SYNOX。")
+        return 0
+    web = (getattr(config, "web", None) or {}) if config is not None else {}
+    port = int(web.get("port") or 0)
+    if config is not None and web.get("enabled", True) and is_up(port):
+        url = f"http://127.0.0.1:{port}/?pack={token}#settings"
+        (open_url or _open_browser)(url)
+        print("🌐 已經打開網頁設定頁：看完報告，按「確認安裝」才會裝。")
+        print(f"   {url}")
+        print("   （網頁要先登入：在 Telegram 打 /web 拿登入連結。）")
+        return 0
+    print("ℹ️ 還沒裝。SYNOX 沒開（或網頁介面關著）：")
+    print(f'   • 在這裡核准：python -m synox install "{args.file}" --yes')
+    print("   • 或開 SYNOX 之後，在網頁設定頁「裝一個 .synoxpack」選這個檔")
+    return 1
+
+
+def cmd_packs(args) -> int:
+    from synox.packs import admin
+    from synox.packs import lock as pack_lock
+    from synox.packs.loader import PACK_DIRS, discover
+    from synox.packs.manifest import ManifestError, read
+    config = _config_quiet(args.config)
+    data_dir = _data_dir(config)
+    found = {}
+    for folder in discover(args.dirs or PACK_DIRS):
+        try:
+            found[read(folder).name] = folder
+        except ManifestError:
+            found.setdefault(os.path.basename(folder), folder)
+    if args.packs_cmd == "lock":
+        name = args.approve
+        if name not in found:
+            print(f"❌ 找不到叫 {name} 的 pack（有：{'、'.join(sorted(found)) or '沒有'}）")
+            return 2
+        try:
+            m, report, problems = admin.approve_installed(found[name], data_dir,
+                                                          approved_by=getattr(config, "owner_id", None) or "cli")
+        except admin.PackAdminError as e:
+            print(f"❌ {e}")
+            return 2
+        print(report.format(m))
+        if problems:
+            print("❌ 沒有鎖定（先修好上面的問題）")
+            return 2
+        print(f"🔒 {name} 已鎖定（data/packs.lock）。之後檔案被改過就不會載入。")
+        return 0
+    marks = {pack_lock.LOCKED: "🔒 鎖定", pack_lock.UNLOCKED: "· 未鎖定", pack_lock.TAMPERED: "⚠️ 被改過"}
+    for name, folder in sorted(found.items()):
+        state, changes = pack_lock.verify(data_dir, name, folder)
+        print(f"{marks[state]}  {name}  {folder}")
+        if changes:
+            print("    " + "、".join(changes))
+    return 0
+
+
 def main(argv=None) -> int:
     _utf8_console()
     parser = argparse.ArgumentParser(prog="python -m synox", description="SYNOX：你自己電腦上的 Telegram 小助手")
@@ -124,8 +237,19 @@ def main(argv=None) -> int:
     p = sub.add_parser("doctor", help="健康檢查")
     p.add_argument("--offline", action="store_true", help="不實際打 AI")
     sub.add_parser("stop", help="停掉正在跑的 bot")
+    p = sub.add_parser("install", help="裝一個 .synoxpack（安全檢查 → 核准 → 裝）")
+    p.add_argument("file", help=".synoxpack 檔")
+    p.add_argument("--yes", action="store_true", help="看完報告直接在終端機核准")
+    p.add_argument("--packs-dir", default="", help=argparse.SUPPRESS)
+    p = sub.add_parser("packs", help="pack 的鎖定狀態、重新核准")
+    psub = p.add_subparsers(dest="packs_cmd")
+    psub.add_parser("status", help="每個 pack 鎖了沒、有沒有被改過")
+    q = psub.add_parser("lock", help="重跑宣告檢查與靜態掃描，過了就寫 packs.lock")
+    q.add_argument("--approve", required=True, metavar="NAME", help="pack 的名字")
+    p.set_defaults(dirs=None)
     args = parser.parse_args(argv)
-    handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop}
+    handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop,
+                "install": cmd_install, "packs": cmd_packs}
     if args.cmd not in handlers:
         parser.print_help()
         return 1

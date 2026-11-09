@@ -4,6 +4,11 @@
   kind=python     import 資料夾裡的 pack.py，呼叫 install(app, pack)
   kind=cli        pack.json 的 cli.argv＋cli.commands → isdtelekit.packs.service.install（會印 JSON 的命令列程式）
   kind=connector  只登記：一個群組、一個葉節點，說「還沒接上」（v0 不連外）
+  kind=mcp        同上（pack.json v2；tools_allow／effects 已宣告，這一版不連）
+
+安全管線（架構 v1 §4）在載入時做的是第 3 關：packs.lock 有記的 pack 每個檔重算 sha256，不符＝不載入
+（tampered）、通知擁有者一次；沒鎖的照舊載入（報告標 unlocked）。第 1、2 關在安裝時（packs/admin.py）。
+kind=cli 的 argv／env／cwd 樣板代換 {python}、{pack_dir}、{data_dir}、{user_data_dir}、{tg_id}（每次呼叫照下令的人）。
 
 群組（/help 的一頁）由 loader 依 pack.json 定義（title、summary、access），pack 只往裡面掛葉節點；
 access=owner（預設）＝整組只有機器擁有者看得到、用得到（別人打了跟不存在一樣）；
@@ -18,9 +23,11 @@ data/users/<tg_id>/<name>.json(.enc)（vault 的金鑰由主金鑰＋id 用 HKDF
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import logging
 import os
+import re
 import sys
 import threading
 from dataclasses import dataclass, field
@@ -30,6 +37,7 @@ from isdtelekit.core import jsonstore
 from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 
 from synox.config import ROOT
+from synox.packs import lock as pack_lock
 from synox.packs.manifest import Manifest, ManifestError, missing_requirements, read
 from synox.vault.vault import USERS_DIR
 
@@ -104,6 +112,9 @@ class Pack:
     app: Any = field(repr=False, default=None)
     data_dir: str = ""
     web_routes: Dict[str, Callable] = field(default_factory=dict, repr=False)
+    config: Any = field(repr=False, default=None)
+    locked_files: Dict[str, str] = field(default_factory=dict, repr=False)   # packs.lock 記的 sha256（有鎖時）
+    cli_bridge: Any = field(repr=False, default=None)                       # kind=cli：ServiceBridge（測試用 wait()）
 
     def web_route(self, route: str, fn: Callable) -> None:
         """Web UI 面板的資料：GET /api/packs/<name>/<route> → fn(user) 回可以轉 JSON 的東西。
@@ -130,10 +141,11 @@ class Pack:
 class PackStatus:
     name: str
     folder: str
-    status: str                 # loaded｜connector｜disabled｜invalid｜missing｜error
+    status: str                 # loaded｜connector｜disabled｜invalid｜missing｜error｜tampered
     detail: str = ""
     kind: str = ""
     version: str = ""
+    lock: str = ""              # locked｜unlocked｜tampered（packs.lock，第 3 關）
 
 
 @dataclass
@@ -145,7 +157,7 @@ class LoadReport:
 
     @property
     def ok(self) -> bool:
-        return not any(i.status in ("invalid", "error") for i in self.items)
+        return not any(i.status in ("invalid", "error", "tampered") for i in self.items)
 
 
 def group_policy(app, access: str, server: bool) -> dict:
@@ -174,7 +186,7 @@ def discover(dirs=PACK_DIRS) -> List[str]:
 def _order(folder: str) -> tuple:
     try:
         m = read(folder)
-        return (0 if m.kind != "connector" else 1, int(m.raw.get("order", 100)), m.name)
+        return (0 if m.kind not in ("connector", "mcp") else 1, int(m.raw.get("order", 100)), m.name)
     except (ManifestError, ValueError, TypeError):
         return (2, 0, folder)
 
@@ -189,48 +201,194 @@ def _drop_group(registry, group: str) -> None:
 
 
 def _install_python(app, pack: Pack) -> None:
+    """從原始碼編譯、執行 pack.py（不讀 __pycache__ 的 .pyc：那裡的檔不在 packs.lock 的雜湊裡）。
+    有鎖時，編譯的那一份 bytes 再對一次雜湊（檢查完到執行之間被換掉也抓得到）。"""
     m = pack.manifest
     module_name = m.python.get("module", "pack")
     path = os.path.join(m.folder, f"{module_name}.py")
+    with open(path, "rb") as f:
+        source = f.read()
+    expected = pack.locked_files.get(f"{module_name}.py")
+    if expected and hashlib.sha256(source).hexdigest() != expected:
+        raise ManifestError(f"{module_name}.py 跟 packs.lock 記的不一樣（剛剛被改過？）")
     spec = importlib.util.spec_from_file_location(f"synox_pack_{m.name.replace('-', '_')}", path)
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
-    spec.loader.exec_module(module)
+    exec(compile(source, path, "exec"), module.__dict__)
     if not callable(getattr(module, "install", None)):
         raise ManifestError(f"{module_name}.py 沒有 install(app, pack)")
     module.install(app, pack)
 
 
-def _cli_argv(m: Manifest) -> List[str]:
-    out = []
-    for part in m.cli["argv"]:
-        part = str(part)
-        if part == "{python}":
-            part = sys.executable
-        elif part.startswith("./") or part.startswith(".\\"):
-            part = os.path.join(m.folder, part[2:])
-        out.append(part)
+# ── kind=cli：樣板代換（{python}、{pack_dir}、{data_dir}、{user_data_dir}、{tg_id}） ─────────
+
+_PLACEHOLDER = re.compile(r"\{(\w+)\}")
+
+
+def cli_python(m: Manifest) -> str:
+    """{python} 換成什麼，照順序：
+    1. cli.python：絕對路徑｜"venv"（<pack 資料夾>/../.venv 的 python）
+    2. runtime.python（Windows）／runtime.python_posix（其他）：相對於 pack 資料夾（或絕對路徑）
+    3. 都沒寫＝SYNOX 自己的 Python"""
+    py = m.cli.get("python")
+    if py == "venv":
+        exe = os.path.join("Scripts", "python.exe") if os.name == "nt" else os.path.join("bin", "python")
+        return os.path.normpath(os.path.join(m.folder, "..", ".venv", exe))
+    if py:
+        return py
+    runtime = getattr(m, "runtime", {}) or {}
+    rel = runtime.get("python") if os.name == "nt" else (runtime.get("python_posix") or runtime.get("python"))
+    if rel:
+        return rel if os.path.isabs(rel) else os.path.normpath(os.path.join(m.folder, rel))
+    return sys.executable
+
+
+def user_data_dir(config, tg_id) -> str:
+    """伺服器版：data/users/<tg_id>；個人版：data。"""
+    if getattr(config, "mode", "personal") == "server" and tg_id is not None:
+        return os.path.join(config.data_dir, USERS_DIR, str(tg_id))
+    return config.data_dir
+
+
+def placeholders(m: Manifest, config, user=None) -> Dict[str, str]:
+    tg_id = getattr(user, "tg_id", None) if user is not None else None
+    if tg_id is None:
+        tg_id = getattr(config, "owner_id", None)
+    return {"python": cli_python(m), "pack_dir": m.folder, "data_dir": config.data_dir,
+            "user_data_dir": user_data_dir(config, tg_id), "tg_id": "" if tg_id is None else str(tg_id)}
+
+
+def substitute(text: str, values: Dict[str, str]) -> str:
+    """{名字} → values[名字]（只換 values 有的；一次換完，換進來的字不會再被換）。"""
+    return _PLACEHOLDER.sub(lambda mm: values.get(mm.group(1), mm.group(0)), str(text))
+
+
+def build_argv(template, values: Dict[str, str]) -> List[str]:
+    """樣板 → argv。{x} 換成值；值是空的那一段拿掉——只有「單獨一段的 {x}」才連前面那個字面的 --旗標 一起拿掉。
+
+    不用 SDK 的 service.build_argv：它看的是「已經換好的前一段」是不是 - 開頭，所以
+    ["--amount={amount}", "--date={date}"] 在 date 沒填時會把已經填好的 --amount=120 一起丟掉（金流簿的 add 就會壞）。"""
+    out: List[str] = []
+    literal_flag = False                       # out 的最後一段是樣板裡字面的 --旗標（不是換出來的）
+    for token in template:
+        token = str(token)
+        names = _PLACEHOLDER.findall(token)
+        if names and any(not str(values.get(n, "") or "").strip() for n in names):
+            if token == "{" + names[0] + "}" and len(names) == 1 and literal_flag:
+                out.pop()
+            literal_flag = False
+            continue
+        if names:
+            out.append(_PLACEHOLDER.sub(lambda mm: str(values.get(mm.group(1), "")).strip(), token))
+            literal_flag = False
+        else:
+            out.append(token)
+            literal_flag = token.startswith("-") and "=" not in token
     return out
 
 
+def cli_prefix(m: Manifest, values: Dict[str, str]) -> List[str]:
+    out = []
+    for part in m.cli["argv"]:
+        part = str(part)
+        if part.startswith("./") or part.startswith(".\\"):
+            part = os.path.join(m.folder, part[2:])
+        out.append(substitute(part, values))
+    return out
+
+
+def cli_env(m: Manifest, values: Dict[str, str]) -> Dict[str, str]:
+    return {k: substitute(v, values) for k, v in (m.cli.get("env") or {}).items()}
+
+
 def _install_cli(app, pack: Pack) -> None:
+    """每個 command 一個表單指令（SDK Forms）。不直接用 SDK service.install：argv 的開頭、env、cwd 要照
+    「這一次是誰」代換（{tg_id}、{user_data_dir}），service.install 的 JsonCli 是裝的時候就固定的。
+    其他行為照 service.install：值以 - 開頭拒絕、一般指令丟 app.tasks、background 先回「開始了」。"""
     from isdtelekit.jobs.cli import JsonCli
     from isdtelekit.packs import service
 
+    from synox.agent import validate as gate4
+
     m = pack.manifest
-    cwd = m.cli.get("cwd") or "."
-    cli = JsonCli(app.jobs, _cli_argv(m), cwd=os.path.normpath(os.path.join(m.folder, cwd)), name=m.name,
-                  timeout=float(m.cli.get("timeout", 120)), json_flag=m.cli.get("json_flag", "--json"))
-    commands = []
-    for c in m.cli["commands"]:
+    config = pack.config if pack.config is not None else app.config
+    bridge = service.ServiceBridge()
+    pack.cli_bridge = bridge
+
+    def say(api, chat_id, text):
+        try:
+            api.send_message(chat_id, text)
+        except Exception:
+            logging.exception("[PACKS] reply to %s failed", chat_id)
+
+    def make_submit(cmd: "service.ServiceCommand"):
+        def submit(api, chat_id, user, values):
+            ph = placeholders(m, config, user)
+            if getattr(config, "mode", "personal") == "server":
+                os.makedirs(ph["user_data_dir"], exist_ok=True)
+            cwd = substitute(m.cli.get("cwd") or ".", ph)
+            cli = JsonCli(app.jobs, cli_prefix(m, ph), cwd=os.path.normpath(os.path.join(m.folder, cwd)), name=m.name,
+                          timeout=float(m.cli.get("timeout", 120)), json_flag=m.cli.get("json_flag", "--json"),
+                          env_extra=cli_env(m, ph) or None)
+            argv = build_argv(cmd.argv, {**values, **ph})
+            timeout = {"timeout": cmd.timeout} if cmd.timeout else {}
+            done = bridge._started()
+
+            def finish(reply):
+                try:
+                    if not reply.ok:
+                        say(api, chat_id, f"❌ {cmd.name}：{reply.error}")
+                        return
+                    ctx = service.ServiceContext(app, api, chat_id, user, values, reply)
+                    try:
+                        text = service.default_render(ctx)
+                    except Exception as e:
+                        text = f"⚠️ 服務回了結果，但顯示的時候出錯：{e}"
+                    if text:
+                        say(api, chat_id, text)
+                finally:
+                    done.set()
+
+            if cmd.background:
+                say(api, chat_id, f"⏳ {cmd.name} 開始了，做完通知你。")
+                cli.start(*argv, on_done=finish, **timeout)
+                return
+            typing = getattr(api, "typing", None)
+            if callable(typing):
+                typing(chat_id)
+            app.tasks.run(lambda: finish(cli.call(*argv, **timeout)), name=f"pack-{m.name}-{cmd.name}")
+        return submit
+
+    def panel_route(c: dict):
+        def fn(user):                          # Web UI 面板的 GET：在網頁的請求執行緒上跑（等它結束）
+            ph = placeholders(m, config, user)
+            cwd = substitute(m.cli.get("cwd") or ".", ph)
+            cli = JsonCli(app.jobs, cli_prefix(m, ph), cwd=os.path.normpath(os.path.join(m.folder, cwd)),
+                          name=m.name, timeout=float(m.cli.get("timeout", 120)),
+                          json_flag=m.cli.get("json_flag", "--json"), env_extra=cli_env(m, ph) or None)
+            reply = cli.call(*build_argv(c.get("argv") or [], ph))
+            return reply.data if reply.ok else {"ok": False, "error": reply.error}
+        return fn
+
+    by_name = {c["name"]: c for c in m.commands}
+    for route, target in (m.web.get("routes") or {}).items():
+        pack.web_route(route, panel_route(by_name[target]))
+
+    meta = app.extras.setdefault("synox_tool_meta", {})
+    for c in m.commands:
+        kinds = {f["name"]: f.get("kind", "text") for f in c.get("fields") or []}
         fields = [Field(f["name"], f.get("ask", f["name"]), required=bool(f.get("required")),
-                        default=str(f.get("default", "")), choices=tuple(f.get("choices") or ()))
+                        default=str(f.get("default", "")), choices=tuple(f.get("choices") or ()),
+                        check=gate4.typed_check(kinds.get(f["name"], "text")))
                   for f in c.get("fields") or []]
-        commands.append(service.ServiceCommand(c["name"], c["argv"], c.get("summary", c["name"]), fields=fields,
-                                               effect=EFFECTS.get(c.get("effect", "read"), READ),
-                                               background=bool(c.get("background")), default=bool(c.get("default")),
-                                               timeout=c.get("timeout")))
-    service.install(app, cli, commands, group=m.group, title=m.title, summary=m.summary)
+        cmd = service.ServiceCommand(c["name"], c["argv"], c.get("summary", c["name"]), fields=fields,
+                                     effect=EFFECTS.get(str(c.get("effect", "read")).lower(), READ),
+                                     background=bool(c.get("background")), default=bool(c.get("default")),
+                                     timeout=c.get("timeout"))
+        node = app.forms.leaf(pack.group, cmd.name, make_submit(cmd), cmd.summary,
+                              fields=[service._no_dash(f) for f in fields], effect=cmd.effect, default=cmd.default)
+        positional = [n for n in kinds if f"{{{n}}}" in c.get("argv", [])]
+        meta[node.path] = {"argv": True, "positional": positional, "kinds": kinds}
 
 
 def _install_connector(app, pack: Pack) -> None:
@@ -241,6 +399,29 @@ def _install_connector(app, pack: Pack) -> None:
                                   f"接法的設計寫在 connectors/{os.path.basename(m.folder)}/README.md。")
 
     pack.group.leaf("status", status, "還沒接上（打了看說明）", default=True, ai=False)
+
+
+def _install_mcp(app, pack: Pack) -> None:
+    m = pack.manifest
+    allow = "、".join(m.mcp.get("tools_allow") or [])
+
+    def status(api, chat_id, user, args):
+        api.send_message(chat_id, f"🔌 {m.title} 是 MCP 連接器，這一版只登記、還沒接上。\n允許的工具：{allow}")
+
+    pack.group.leaf("status", status, "還沒接上（打了看說明）", default=True, ai=False)
+
+
+def _tamper_notice(app, config, m: Manifest, changes: List[str]) -> None:
+    """竄改只通知擁有者一次（同一份差異）。"""
+    try:
+        fp = pack_lock.fingerprint(changes, pack_lock.hash_files(m.folder))
+        if not pack_lock.first_notice(config.data_dir, m.name, fp):
+            return
+        listing = "\n".join(f"• {c}" for c in changes[:20])
+        app.notify_owner(f"⚠️ pack「{m.title}」（{m.name}）的檔案跟安裝時核准的不一樣，這次沒有載入：\n{listing}\n"
+                         f"如果是你自己改的，在電腦上跑 python -m synox packs lock --approve {m.name} 重新核准。")
+    except Exception:
+        logging.exception("[PACKS] tamper notice for %s failed", m.name)
 
 
 def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
@@ -269,18 +450,27 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         if use_vault and vault is None:
             item.status, item.detail = "error", "這個 pack 要保管箱（storage=vault），但保管箱沒有打開"
             continue
+        item.lock, changes = pack_lock.verify(config.data_dir, m.name, folder)
+        if item.lock == pack_lock.TAMPERED:
+            item.status, item.detail = "tampered", "檔案跟核准時不一樣：" + "、".join(changes[:10])
+            logging.error("[PACKS] %s tampered: %s", m.name, changes)
+            _tamper_notice(app, config, m, changes)
+            continue
         server = getattr(config, "mode", "personal") == "server"
         store = PackStore(m.name, config.data_dir, vault if use_vault else None, per_user=server)
-        pack = Pack(m, store, app, config.data_dir)
+        pack = Pack(m, store, app, config.data_dir, config=config)
+        if item.lock == pack_lock.LOCKED:
+            pack.locked_files = dict((pack_lock.entry(config.data_dir, m.name) or {}).get("files") or {})
         app.registry.define_group(m.group, m.title, m.summary, **group_policy(app, m.access, server))
         try:
-            {"python": _install_python, "cli": _install_cli, "connector": _install_connector}[m.kind](app, pack)
+            {"python": _install_python, "cli": _install_cli, "connector": _install_connector,
+             "mcp": _install_mcp}[m.kind](app, pack)
         except Exception as e:
             logging.exception("[PACKS] %s failed to install", m.name)
             _drop_group(app.registry, m.group)
             item.status, item.detail = "error", f"{type(e).__name__}: {e}"
             continue
-        if m.kind == "connector":
+        if m.kind in ("connector", "mcp"):
             item.status = "connector"
         packs.append(pack)
     app.extras["synox_pack_report"] = report
