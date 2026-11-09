@@ -34,6 +34,8 @@ pack.json v2（架構 v1 §4；在上面之上加欄位，舊的 pack 照舊可�
       "publisher": "…",
       "integrity": {"sha256": {"pack.py": "<64 hex>", …}},      打包時算（scripts/pack_zip.py）；有寫就要對得上
       "auth": {"type": "none|token|oauth|caldav|file", "fields": [...]},
+               fields[]：{"name", "label", "secret": true, "env": "X_API_KEY", "kind": "text|file", "required"}；
+               token／file 的由 SYNOX 收（Web UI「連接」→ 保管箱；見 packs/secrets.py），"managed": "synox"|"pack" 可以強制
       "mcp": {"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}
 
 validate(raw, folder, strict=True) 是安裝時用的嚴格版（cli 的每個 command 一定要寫 effect）；
@@ -238,6 +240,47 @@ def _cli_routes(web_raw: dict, api: List[str], commands: List[dict], problems: L
     return out
 
 
+def _check_auth_fields(auth: dict, problems: List[str]) -> None:
+    """auth.fields[]：字串（欄位名）或 {"name", "label", "secret", "env", "kind": text|file, "required"}；
+    auth.managed：synox｜pack（沒寫＝SYNOX 自己判斷，見 packs/secrets.py）。"""
+    managed = auth.get("managed")
+    if managed is not None and managed not in ("synox", "pack"):
+        problems.append('auth.managed 只能是 "synox" 或 "pack"')
+    fields = auth.get("fields")
+    if fields is None:
+        return
+    if not isinstance(fields, list):
+        problems.append("auth.fields 要是清單")
+        return
+    seen, envs = set(), set()
+    for i, f in enumerate(fields):
+        if isinstance(f, str):
+            f = {"name": f}
+        if not isinstance(f, dict) or not isinstance(f.get("name"), str) or not FIELD_RE.match(f["name"]):
+            problems.append(f"auth.fields[{i}] 的 name 要是小寫英數字、_（32 字內）")
+            continue
+        name = f["name"]
+        if name in seen:
+            problems.append(f"auth.fields 的 {name} 重複了")
+        seen.add(name)
+        env = f.get("env")
+        if env is not None:
+            if not isinstance(env, str) or not ENV_NAME_RE.match(env):
+                problems.append(f"auth.fields 的 {name}.env 要是環境變數名字（英數字、_）")
+            elif env.upper() in envs:
+                problems.append(f"auth.fields 的 env {env} 重複了")
+            else:
+                envs.add(env.upper())
+        if f.get("kind") is not None and f.get("kind") not in ("text", "file"):
+            problems.append(f"auth.fields 的 {name}.kind 只能是 text 或 file")
+        for flag in ("secret", "required"):
+            if f.get(flag) is not None and not isinstance(f.get(flag), bool):
+                problems.append(f"auth.fields 的 {name}.{flag} 要是 true 或 false")
+        for text in ("label", "ask", "help"):
+            if f.get(text) is not None and (not isinstance(f.get(text), str) or len(f[text]) > 200):
+                problems.append(f"auth.fields 的 {name}.{text} 要是 200 字內的字串")
+
+
 def _check_v2(raw: dict, kind, problems: List[str]) -> dict:
     """v2 的欄位：capabilities、publisher、integrity、auth、mcp。回整理過的值。"""
     caps_raw = raw.get("capabilities")
@@ -274,6 +317,7 @@ def _check_v2(raw: dict, kind, problems: List[str]) -> dict:
         auth_info.setdefault("type", "none")
         if auth_info["type"] not in AUTH_TYPES:
             problems.append(f"auth.type 只能是 {'、'.join(AUTH_TYPES)}")
+        _check_auth_fields(auth_info, problems)
     elif isinstance(auth, str) and auth:
         auth_info = {"type": auth}
     else:

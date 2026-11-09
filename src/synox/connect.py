@@ -11,6 +11,9 @@ python -m synox connect <pack>：在這台電腦上把一個 pack 要的帳號�
 跟 pack 自己讀的是同一份（storage=vault → 密文；伺服器版是那個人自己的 data/users/<id>/）。
 
 --user <id>：伺服器版替哪個人設（預設擁有者）。--clear：清掉存的帳號。
+
+SYNOX 收的 secret（packs/secrets.py 的 managed：kind=cli、或 python pack 有用 pack.secret）改存保管箱的
+pack_secrets（鍵 packs/<pack>/<field>），跟 Web UI 工具頁「連接」是同一份；留空＝沿用原值，kind=file 的欄位問檔案路徑。
 """
 
 from __future__ import annotations
@@ -19,6 +22,7 @@ import getpass
 import os
 from typing import Callable, Optional
 
+from synox.packs import secrets as pack_secrets
 from synox.packs.loader import PackStore, discover
 from synox.packs.manifest import ManifestError, read
 
@@ -54,6 +58,9 @@ def run(name: str, config, vault, *, user: Optional[int] = None, clear: bool = F
     if m is None:
         out(f"❌ 找不到叫 {name} 的 pack。")
         return 2
+    managed = pack_secrets.managed_fields(m)
+    if managed:
+        return _run_managed(m, managed, config, vault, user, clear, ask, ask_secret, out)
     fields = auth_fields(m)
     if not fields:
         out(f"❌ {m.name} 的 pack.json 沒有 auth.fields，不需要（也不能）在這裡設定帳號。")
@@ -87,4 +94,44 @@ def run(name: str, config, vault, *, user: Optional[int] = None, clear: bool = F
         values[f["name"]] = value
     store.save(values, key=AUTH_KEY)
     out(f"✅ 存好了。到 Telegram 打 /{m.group}_status 測試連線。")
+    return 0
+
+
+def _run_managed(m, fields, config, vault, user, clear, ask, ask_secret, out) -> int:
+    server = getattr(config, "mode", "personal") == "server"
+    tg_id = user if user is not None else getattr(config, "owner_id", None)
+    if server and not isinstance(tg_id, int):
+        out("❌ 伺服器版要指定替誰設定：--user <Telegram id>")
+        return 2
+    store = pack_secrets.PackSecrets(vault, server=server)
+    who = tg_id if server else None
+    try:
+        if clear:
+            store.update(m.name, fields, {}, who, clear=[f["name"] for f in fields])
+            out(f"🗑 {m.title}：已清掉存的 secret。")
+            return 0
+        out(f"🔐 {m.title}：會加密存在這台電腦的保管箱（{pack_secrets.VAULT_NAME}.json.enc；跟網頁「連接」同一份）。")
+        current = {row["name"]: row for row in store.status(m.name, fields, who)}
+        values = {}
+        for f in fields:
+            had = current[f["name"]]["set"]
+            keep = "（留空＝沿用原本的）" if had else ""
+            if f["kind"] == "file":
+                path = ask(f"{f['label']}：檔案路徑{keep}：").strip().strip('"')
+                if path:
+                    with open(path, "r", encoding="utf-8-sig") as fh:
+                        values[f["name"]] = fh.read()
+            elif f["secret"]:
+                values[f["name"]] = ask_secret(f"{f['label']}（輸入時不會顯示）{keep}：") or ""
+            else:
+                values[f["name"]] = ask(f"{f['label']}{keep}：") or ""
+        store.update(m.name, fields, values, who)
+        missing = store.missing(m.name, fields, who)
+    except (pack_secrets.SecretError, OSError) as e:
+        out(f"❌ {e}")
+        return 1
+    if missing:
+        out(f"⚠️ 存了，但還缺：{'、'.join(missing)}")
+        return 1
+    out("✅ 存好了（已連接）。")
     return 0

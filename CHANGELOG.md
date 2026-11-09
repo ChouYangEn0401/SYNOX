@@ -26,6 +26,23 @@
 - `Builder` 是可替換的介面（`envs.set_factory`；預設 `VenvBuilder`）。`node` 成為保留的代換名（欄位不能叫 node）。
   備份略過 `data/envs/`（可以重建）。測試 `tests/test_envs.py`（36 個；假的 JobRunner 與 which，不真的 pip／npm、不連網）。
 
+## 未發佈（branch feat/sdk-p2-secret）
+
+### 新增
+- **pack 的 secret**（pack.json `auth.fields[]`，`auth.type` 是 `token`／`file`；oauth 這一版不做）：
+  `{"name", "label", "secret": true, "env": "TODOIST_API_KEY", "kind": "text|file", "required"}`。
+  - 存保管箱 `pack_secrets`（鍵 `packs/<pack>/<field>`）；伺服器版每人一份（`vault.for_user`）。
+  - Web UI 工具頁每個 pack 的「🔌 連接」：secret 用密碼框、**永遠不回傳值**（只回「有填」與最後 4 碼）、留空沿用原值、`kind: file` 可上傳；
+    `GET/POST /api/pack-secrets/<name>` 走既有的 CSRF 與 Origin 檢查；個人版只有擁有者、伺服器版每人設自己的。Telegram 不收。
+  - `python -m synox connect <pack>` 對這類 pack 寫同一份（secret 用 getpass、file 問路徑）。
+  - kind=cli：只有寫了 `env` 的欄位放進子程序環境（同時列進 `keep_env`），**絕不進 argv**；必填的沒填＝回「到網頁工具頁按『連接』」、不執行。
+  - kind=python：`pack.secret(name, user=None)`（伺服器版一定要給 user；沒宣告的名字丟 KeyError）。掃描器把 `pack.secret` 列成「讀使用者填的 secret」，不算 capability。
+  - 第 4 關：AI 帶的欄位值等於（或夾著 8 字以上的）這個人已存的 secret ＝拒，不執行。
+  - 工具頁狀態照這個人存了沒：「要先設定」→「已連接」；doctor 列出還缺哪些（伺服器版看擁有者那一份）。
+  - pack.json 第 1 關檢查 `auth.fields`（名字、env、kind、secret／required 是布林）與 `auth.managed`（`synox`｜`pack`）。
+- 內建 connector（notion／todoist／google-calendar／apple-reminders）沒呼叫 `pack.secret`，不算 SYNOX 收：照舊用自己的 token 指令，行為不變。
+- 測試 `tests/test_sdk_p2_secret.py`（21 個；假的本機命令列程式，不連網、不開埠）。
+
 ## 未發佈（branch feat/sdk-p0-fixes）
 
 ### 修正
