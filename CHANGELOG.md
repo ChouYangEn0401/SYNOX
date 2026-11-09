@@ -1,5 +1,21 @@
 # Changelog
 
+## 未發佈（branch feat/perm7）
+
+### 新增
+- **PERM-7 沙盒介面**：新檔 `src/synox/sandbox.py`。`Sandbox.wrap(argv, env, cwd, grants) -> (argv', env')`，`set_factory` 換實作（仿 `packs/envs.py`）。
+  後端：`none`（原樣，個人版預設）、`jobobject`（Windows 只限資源：Job Object 記憶體上限／程序數，經 `python -I sandbox.py jobobject` launcher，設不起來就不跑）、
+  `bwrap`（Linux，只組 argv：系統唯讀、grants.read 唯讀、grants.write 可寫、`--unshare-pid`、沒 network 就 `--unshare-net`、前面接 prlimit）、
+  `systemd`（只組 `systemd-run --pipe --wait` 的 --property；環境變數只給名字）、`appcontainer`（只有介面，NotImplementedError）。
+- loader 的 `make_cli` 每次都過沙盒：grants 從宣告算（data=user → `<user_data_dir>/<pack>/` 可寫；pack 資料夾、`data/envs/<pack>/` 唯讀；
+  沒有 network capability → 斷網）。pack.json 的 `data` 欄位（PERM-2）還沒合進來，推斷集中在 `sandbox.data_scope`。
+- config.json `policy.sandbox`：`backend`（auto｜none｜jobobject｜bwrap｜systemd｜appcontainer）、`required_for`（third-party｜all｜none）、
+  `mem_mb`（1024）、`max_procs`（64）、`systemd_scope`（system｜user）；寫錯讀設定時就拒。`auto`＝個人版、Windows 是 none，Linux 伺服器版 bwrap→systemd→none。
+- 伺服器版 `required_for` 命中的 cli pack 沒有真隔離後端（none、jobobject 不算）→ 只對擁有者可見；third-party＝packs.lock 的 `trust`，
+  還沒寫的看鎖的 via（web／console＝從檔案裝的）。doctor 多一行「沙盒：後端…；真隔離：是／否」，被限制的 pack 寫原因。
+- `docs/security.md`「運行空間」一節（含伺服器上要驗的清單）。**沙盒後端只驗證了組出來的 argv，真機驗證要在 Linux 伺服器上做。**
+- 測試 `tests/test_sandbox.py`（16 個，全用假後端／假 kernel32）。
+
 ## 未發佈（branch feat/sdk-p1-author）
 
 ### 新增
