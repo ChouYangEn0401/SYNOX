@@ -1,5 +1,17 @@
 # Changelog
 
+## 未發佈（branch feat/sdk-p1-author）
+
+### 新增
+- **SDK P1 作者端：寫函式就是工具**（`src/synox/sdk/author.py`；單檔版 `sdk/synox_sdk.py` 由 `scripts/build_synox_sdk.py` 產生、零相依）。
+  `@tool(effect, summary, default, ai, confirm)`：型別註記→fields（int／float／bool／str／Path／Literal／Optional）、docstring→summary 與欄位說明。
+  `serve()`：子指令＋`--json` 印信封；`--mcp` 是 MCP stdio server（initialize／ping／tools/list／tools/call，inputSchema 由型別註記產生）。
+  `secret()`、`context()`、`ToolError`、`Ok`、`Confirm`（needs_confirm 信封；按鈕來回之後做）。
+- `synox-sdk init --from tool.py`（產生 pack.json＋SKILL.md、沒寫 effect 拒產、重跑只重產 cli.commands）、`synox-sdk run <指令>`（本機照 loader 代換＋第 4 關試跑）。
+- loader 給 cli 子程序 `SYNOX_USER_DATA_DIR`／`SYNOX_TG_ID`／`SYNOX_MODE`／`SYNOX_PACK_DIR`／`SYNOX_PACK_NAME`／`SYNOX_SECRET_ENV`。
+- pack.json cli 的 `commands[].ai`（false＝不給 AI）、`commands[].confirm`（true＝AI 呼叫前先送確認卡）。
+- `docs/sdk.md` 改寫成「十行」教學；範例 `examples/hello/`。測試 `tests/test_sdk_author.py`。
+
 ## 未發佈（branch feat/sdk-upgrade-env-glue）
 
 ### 修正

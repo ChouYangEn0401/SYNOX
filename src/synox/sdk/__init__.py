@@ -19,7 +19,12 @@ synox.sdk：給 pack 作者（寫工具的人）的小工具。工具是什麼�
 3. 範本：`init_pack(dir, kind, name, title)` 產生 pack.json、SKILL.md、README.md、panel.html（＋python 的 pack.py、
    cli 的範例工具 tool.py）。
 
-命令列：`synox-sdk init <資料夾> --kind cli --name x --title "…"`｜`synox-sdk check <資料夾>`｜`synox-sdk zip <資料夾>`
+4. 作者端（synox.sdk.author，單檔版 sdk/synox_sdk.py）：`@tool`、`serve()`、`secret()`、`context()`、`ToolError`、`Confirm`。
+   `init_from(tool.py, …)` 從 @tool 函式產生 pack.json＋SKILL.md；`run_command(資料夾, 指令, 參數)` 本機試跑
+   （照 loader 的代換與第 4 關驗參數，不用開 SYNOX）。
+
+命令列：`synox-sdk init <資料夾> --kind cli --name x --title "…"`｜`synox-sdk init --from tool.py --name x --title "…"`｜
+`synox-sdk check <資料夾>`｜`synox-sdk zip <資料夾>`｜`synox-sdk run <指令> [參數…] [--pack 資料夾]`
 （沒有 synox-sdk 指令時：`python -m synox.sdk …`）。
 """
 
@@ -34,6 +39,10 @@ import zipfile
 from dataclasses import dataclass
 from typing import Any, List, Optional
 
+from synox.sdk import author
+from synox.sdk.author import (Confirm, Context, Ok, SpecError, ToolError, confirm_envelope, context,  # noqa: F401
+                              error_envelope, ok_envelope, secret, serve, tool)
+
 EXIT_OK, EXIT_ERROR = 0, 1
 
 
@@ -41,24 +50,6 @@ def _emit(obj: dict, out=None) -> None:
     stream = out or sys.stdout
     stream.write(json.dumps(obj, ensure_ascii=False) + "\n")
     stream.flush()
-
-
-def ok_envelope(data: Any = None, message: str = "") -> dict:
-    out = {"ok": True}
-    if message:
-        out["message"] = str(message)
-    if data is not None:
-        out["data"] = data
-    return out
-
-
-def error_envelope(code: str, message: str) -> dict:
-    return {"ok": False, "error": str(message), "code": str(code)}
-
-
-def confirm_envelope(summary: str, token: str) -> dict:
-    return {"ok": True, "needs_confirm": True, "summary": str(summary), "confirm_token": str(token),
-            "message": f"{summary}\n（要確認才會做）"}
 
 
 def reply_ok(data: Any = None, message: str = "", *, out=None) -> int:
@@ -262,6 +253,277 @@ def init_pack(folder: str, kind: str, name: str, title: str) -> List[str]:
     return written
 
 
+# ── 單檔版 synox_sdk.py ────────────────────────────────────────────────
+
+SINGLE_FILE_NAME = "synox_sdk.py"
+SINGLE_FILE_HEADER = ("# synox_sdk.py：SYNOX 工具 SDK 的單檔版（只用標準函式庫，可以直接複製進你的 repo）。\n"
+                      "# 由 scripts/build_synox_sdk.py 從 src/synox/sdk/author.py 產生；要改請改正本再重產，不要直接改這個檔。\n")
+
+
+def single_file_source() -> str:
+    """單檔版的內容＝說明兩行＋author.py 原文（換行一律 \\n）。"""
+    with open(author.__file__, "r", encoding="utf-8") as f:
+        text = f.read()
+    return SINGLE_FILE_HEADER + text.replace("\r\n", "\n")
+
+
+def write_single_file(path: str) -> None:
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(single_file_source())
+
+
+# ── init --from tool.py ────────────────────────────────────────────────
+
+@dataclass
+class InitResult:
+    folder: str
+    written: List[str]
+    notes: List[str]
+    check: Optional[PackCheck] = None
+
+
+def load_tools(tool_path: str):
+    """在這個程序裡 import 作者的 tool.py（不跑 `if __name__ == "__main__"` 那段），回 (模組, [@tool 函式…])。
+    tool.py 旁邊沒有 synox_sdk.py 時，`import synox_sdk` 暫時指到 synox.sdk.author。"""
+    import importlib.util
+    tool_path = os.path.abspath(tool_path)
+    if not os.path.isfile(tool_path):
+        raise ValueError(f"找不到 {tool_path}")
+    tool_dir = os.path.dirname(tool_path)
+    saved_sdk = sys.modules.get("synox_sdk")
+    if saved_sdk is None and not os.path.isfile(os.path.join(tool_dir, SINGLE_FILE_NAME)):
+        sys.modules["synox_sdk"] = author
+    mod_name = "_synox_author_tool_" + os.path.splitext(os.path.basename(tool_path))[0]
+    sys.path.insert(0, tool_dir)
+    try:
+        spec = importlib.util.spec_from_file_location(mod_name, tool_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+    except SystemExit as e:
+        raise ValueError(f"載入 {os.path.basename(tool_path)} 時程式結束了（{e}）：serve() 要放在 if __name__ == \"__main__\": 底下")
+    except Exception as e:
+        raise ValueError(f"載入 {os.path.basename(tool_path)} 失敗：{type(e).__name__}: {e}")
+    finally:
+        sys.path.remove(tool_dir)
+        if saved_sdk is None:
+            sys.modules.pop("synox_sdk", None)
+        else:
+            sys.modules["synox_sdk"] = saved_sdk
+    tools = []
+    for value in vars(module).values():
+        if callable(value) and author._raw_spec(value) is not None and value not in tools:
+            tools.append(value)
+    return module, tools
+
+
+def _skill_md(name: str, title: str, group: str, commands: List[dict]) -> str:
+    lines = [f"---\nname: {name}\ndescription: 使用者想要……的時候使用（改成什麼時候該用 {title}）。\n---\n",
+             f"# {title}\n", "## 什麼時候用"]
+    for c in commands:
+        if c.get("ai") is False:
+            continue
+        params = "、".join(f"{f['name']}（{f['ask']}{'，必填' if f.get('required') else ''}）" for f in c.get("fields", []))
+        lines.append(f"- 「……」→ `{group}__{c['name']}`：{c['summary'].rstrip('。.')}" + (f"。參數：{params}" if params else ""))
+    lines += ["", "## 注意", "- 參數名就是欄位名；值一律是字串（SYNOX 會先檢查格式）。", "- （寫下 AI 該注意的事：什麼時候要先問使用者、哪些不要做。）", ""]
+    return "\n".join(lines)
+
+
+def _merge_commands(old: List[dict], new: List[dict]) -> List[dict]:
+    """重跑 init --from：指令照函式重產，作者手動加的鍵（stdin、background、positional、timeout…）留著。"""
+    generated = ("name", "effect", "summary", "argv", "fields", "default", "ai", "confirm")
+    old_by = {c.get("name"): c for c in old if isinstance(c, dict)}
+    out = []
+    for c in new:
+        extra = {k: v for k, v in old_by.get(c["name"], {}).items() if k not in generated}
+        out.append({**c, **extra})
+    return out
+
+
+def init_from(tool_path: str, name: str, title: str = "", folder: Optional[str] = None) -> InitResult:
+    """從 tool.py 的 @tool 函式產生 kind=cli 的 pack：pack.json（cli.commands、fields、requires.synox；capabilities 空著）
+    ＋SKILL.md 骨架（已經有就不蓋）。pack.json 已經有＝只重產 cli.commands（其他照舊）。
+    宣告不合（沒寫 effect…）丟 ValueError，什麼都不寫。"""
+    from synox.packs.manifest import NAME_RE
+    if not NAME_RE.match(name or ""):
+        raise ValueError("name 只能用小寫英數字、-、_（32 字內，英文字母開頭）")
+    tool_path = os.path.abspath(tool_path)
+    module, tools = load_tools(tool_path)
+    try:
+        commands = author.commands_for(tools)
+    except SpecError as e:
+        raise ValueError(f"{os.path.basename(tool_path)} 的 @tool 宣告不合，沒有產生 pack：\n{e}")
+    folder = os.path.abspath(folder or os.path.dirname(tool_path))
+    os.makedirs(folder, exist_ok=True)
+    title = title or name
+    group = name.replace("-", "").replace("_", "")[:16]
+    rel = os.path.relpath(tool_path, folder).replace(os.sep, "/")
+    notes: List[str] = []
+    if rel.startswith("../"):
+        notes.append(f"⚠️ {os.path.basename(tool_path)} 不在 pack 資料夾裡：可以在這台跑，但 synox-sdk zip 不會把它打包進去")
+    written: List[str] = []
+    manifest_path = os.path.join(folder, "pack.json")
+    doc = (module.__doc__ or "").strip().splitlines()
+    if os.path.exists(manifest_path):
+        with open(manifest_path, "r", encoding="utf-8-sig") as f:
+            raw = json.load(f)
+        cli = raw.setdefault("cli", {})
+        cli["commands"] = _merge_commands(cli.get("commands") or [], commands)
+        notes.append("pack.json 已經有了：只重產 cli.commands（其他欄位沒動）")
+    else:
+        raw = {"name": name, "title": title, "summary": (doc[0] if doc else f"{title}（改成你的說明）"),
+               "version": "0.1.0", "kind": "cli", "skill": "SKILL.md", "publisher": "", "capabilities": [],
+               "requires": {"synox": author.SYNOX_REQUIRES},
+               "cli": {"argv": ["{python}", "./" + rel], "cwd": ".", "json_flag": "--json", "timeout": 60,
+                       "commands": commands}}
+    with open(manifest_path, "w", encoding="utf-8", newline="\n") as f:
+        f.write(json.dumps(raw, ensure_ascii=False, indent=2) + "\n")
+    written.append("pack.json")
+    skill_path = os.path.join(folder, "SKILL.md")
+    if not os.path.exists(skill_path):
+        with open(skill_path, "w", encoding="utf-8", newline="\n") as f:
+            f.write(_skill_md(name, title, group, commands))
+        written.append("SKILL.md")
+    with open(tool_path, "r", encoding="utf-8-sig") as f:
+        uses_single = "synox_sdk" in f.read()
+    sdk_copy = os.path.join(os.path.dirname(tool_path), SINGLE_FILE_NAME)
+    if uses_single and not os.path.exists(sdk_copy):
+        write_single_file(sdk_copy)
+        written.append(os.path.relpath(sdk_copy, folder).replace(os.sep, "/"))
+    check = None
+    try:
+        check = Pack.load(folder)
+    except ValueError as e:
+        notes.append(f"❌ pack.json 檢查沒過：{e}")
+    if check is not None:
+        needed = sorted({f.capability for f in check.report.undeclared(check.manifest)})
+        if needed:
+            notes.append(f"🔍 掃描看到程式用了：{'、'.join(needed)}——確認是你要的，再寫進 pack.json 的 capabilities（不然拒裝）")
+        else:
+            notes.append("capabilities 先空著：程式要連網、開別的程式、讀寫檔案時要寫進去（synox-sdk check 會說缺什麼）")
+        if not raw.get("publisher"):
+            notes.append("publisher 空著：填上你的名字（給安裝的人看）")
+    return InitResult(folder, written, notes, check)
+
+
+# ── run：本機試跑一個指令 ───────────────────────────────────────────────
+
+class _LocalSecrets:
+    """synox-sdk run 用：「保管箱裡的 secret」＝作者自己在這個終端機設好的那幾個環境變數。"""
+
+    def __init__(self, values: List[str]):
+        self._values = values
+
+    def secret_values(self, user=None) -> List[str]:
+        return list(self._values)
+
+
+def run_command(folder: str, command: str, args: List[str], *, data_dir: Optional[str] = None,
+                as_ai: bool = True, out=None) -> int:
+    """照 SYNOX 的 loader 跑一次 kind=cli 的指令：照位置填／key=value → 欄位格式（typed_check）→ 第 4 關（check_call）
+    → 代換 argv／env／cwd → 子程序 → 讀最後一行 JSON，印出 SYNOX 會怎麼顯示。
+    回 0＝工具回 ok、1＝工具回失敗、2＝SYNOX 不會讓它執行（參數不合、少必填、secret 沒設）。"""
+    import subprocess
+    import tempfile
+    from types import SimpleNamespace
+
+    from isdtelekit.core.registry import Field
+    from isdtelekit.jobs.cli import clean_env, last_json
+    from isdtelekit.packs import service
+
+    from synox.agent import validate as gate4
+    from synox.packs import kit, loader, render
+    from synox.packs import secrets as pack_secrets
+    from synox.packs.manifest import ManifestError, read, secret_env_names
+
+    def say(text: str) -> None:
+        (out or sys.stdout).write(text + "\n")
+
+    try:
+        m = read(os.path.abspath(folder), strict=True)
+    except ManifestError as e:
+        raise ValueError(str(e))
+    if m.kind != "cli":
+        raise ValueError(f"{m.name} 是 kind={m.kind}；run 只跑 kind=cli 的 pack")
+    by_name = {c["name"]: c for c in m.commands}
+    c = by_name.get(command)
+    if c is None:
+        raise ValueError(f"{m.name} 沒有 {command} 這個指令（有：{'、'.join(by_name)}）")
+    specs = c.get("fields") or []
+    kinds = {f["name"]: f.get("kind", "text") for f in specs}
+    choices = {f["name"]: tuple(f.get("choices") or ()) for f in specs}
+    fields = tuple(Field(f["name"], f.get("ask", f["name"]), required=bool(f.get("required")),
+                         default=str(f.get("default", "")), choices=choices[f["name"]],
+                         check=gate4.typed_check(kinds[f["name"]], choices[f["name"]])) for f in specs)
+    fields = tuple(service._no_dash(f) for f in fields)           # 跟 loader 一樣：值以 - 開頭一律拒
+    n_required = sum(1 for f in fields if f.required)
+    try:
+        n_pos = int(c.get("positional", n_required))
+    except (TypeError, ValueError):
+        n_pos = n_required
+    values, missing, errors = kit.parse_args(fields, args, max(0, min(n_pos, len(fields))))
+    if errors:
+        say("❌ " + "；".join(errors))
+        return 2
+    if missing:
+        say(f"❌ 少了：{'、'.join(f.ask for f in missing)}（用法：{kit.usage_of(fields, n_pos)}）")
+        return 2
+    data_dir = os.path.abspath(data_dir or os.path.join(tempfile.gettempdir(), "synox-sdk-run", m.name))
+    os.makedirs(data_dir, exist_ok=True)
+    config = SimpleNamespace(data_dir=data_dir, mode="personal", owner_id=0)
+    auth_fields = pack_secrets.fields_of(m)
+    env_secrets = {f["env"]: os.environ.get(f["env"], "") for f in auth_fields if f["env"]}
+    absent = [f["label"] for f in auth_fields if f["required"] and f["env"] and not env_secrets.get(f["env"])]
+    if absent:
+        say(f"🔌 要先連接：缺 {'、'.join(absent)}。本機試跑請先設環境變數 "
+            f"{'、'.join(f['env'] for f in auth_fields if f['env'] and not env_secrets.get(f['env']))}")
+        return 2
+    if as_ai:                                                   # 第 4 關：AI 呼叫時 SYNOX 在執行前做的檢查
+        group = m.group or m.name.replace("-", "").replace("_", "")[:16]
+        node = SimpleNamespace(fields=fields, path=f"{group}.{command}")
+        stored = [v for f in auth_fields if f["secret"] for v in [env_secrets.get(f["env"], "")] if v]
+        app = SimpleNamespace(config=config, extras={
+            "synox_config": config, "synox_pack_secrets": _LocalSecrets(stored),
+            "synox_tool_meta": {node.path: {"argv": True, "kinds": kinds,
+                                            "positional": [n for n in kinds if f"{{{n}}}" in c.get("argv", [])]}}})
+        problem = gate4.check_call(app, node, dict(values), SimpleNamespace(tg_id=0), f"{group}__{command}")
+        if problem:
+            say(f"❌ 第 4 關：{problem}")
+            return 2
+    values = {k: gate4.normalize(kinds.get(k, "text"), v, choices.get(k, ())) for k, v in values.items()}
+    ph = loader.placeholders(m, config)
+    if not os.path.isfile(ph["python"]):
+        ph["python"] = sys.executable                          # runtime auto 的環境還沒建：用這個 Python
+    argv = loader.cli_prefix(m, ph) + loader.build_argv(c["argv"], {**values, **ph})
+    json_flag = m.cli.get("json_flag", "--json")
+    if json_flag:
+        argv.append(json_flag)
+    env = loader.cli_env(m, ph)
+    env.update(loader.context_env(m, config, ph, auth_fields))
+    env.update({k: v for k, v in env_secrets.items() if v})
+    cwd = os.path.normpath(os.path.join(m.folder, loader.substitute(m.cli.get("cwd") or ".", ph)))
+    stdin = loader.substitute(c["stdin"], {**values, **ph}) if isinstance(c.get("stdin"), str) else None
+    say("▶ " + " ".join(json.dumps(a, ensure_ascii=False) if (" " in a or not a) else a for a in argv))
+    try:
+        proc = subprocess.run(argv, cwd=cwd, env=clean_env(env, keep=secret_env_names(m)), input=stdin,
+                              capture_output=True, text=True, encoding="utf-8", errors="replace",
+                              timeout=float(c.get("timeout") or m.cli.get("timeout", 120)))
+    except (OSError, subprocess.TimeoutExpired) as e:
+        say(f"❌ 叫不起來：{e}")
+        return 1
+    if proc.stderr.strip():
+        say("（stderr）" + proc.stderr.strip()[-1500:])
+    reply = last_json(proc.stdout)
+    if reply is None:
+        say(f"❌ 沒有回 JSON（結束碼 {proc.returncode}）：{' '.join(proc.stdout.split())[-300:] or '沒有輸出'}")
+        return 1
+    say("◀ " + json.dumps(reply, ensure_ascii=False))
+    if proc.returncode != 0 or reply.get("ok", True) is False:
+        say(f"SYNOX 會回：❌ {command}：{reply.get('reason') or reply.get('error') or reply.get('message') or f'結束碼 {proc.returncode}'}")
+        return 1
+    say("SYNOX 會回：" + (render.render(reply) or "（沒有輸出）"))
+    return 0
+
+
 # ── 命令列 ─────────────────────────────────────────────────────────────
 
 def main(argv=None) -> int:
@@ -270,13 +532,20 @@ def main(argv=None) -> int:
             stream.reconfigure(encoding="utf-8", errors="replace")
         except Exception:
             pass
-    parser = argparse.ArgumentParser(prog="synox-sdk", description="SYNOX pack 作者的工具：產生、檢查、打包")
+    parser = argparse.ArgumentParser(prog="synox-sdk", description="SYNOX pack 作者的工具：產生、檢查、試跑、打包")
     sub = parser.add_subparsers(dest="cmd")
-    p = sub.add_parser("init", help="產生一個新的 pack 資料夾")
-    p.add_argument("folder")
+    p = sub.add_parser("init", help="產生一個新的 pack 資料夾；--from tool.py＝從 @tool 函式產生 pack.json")
+    p.add_argument("folder", nargs="?", default="", help="pack 資料夾（--from 時預設＝tool.py 所在的資料夾）")
+    p.add_argument("--from", dest="source", default="", help="用 synox_sdk 的 @tool 寫的 Python 檔")
     p.add_argument("--kind", choices=KINDS, default="cli")
     p.add_argument("--name", required=True)
     p.add_argument("--title", default="")
+    p = sub.add_parser("run", help="本機試跑一個指令（照 SYNOX 的代換與參數檢查，不用開 SYNOX）")
+    p.add_argument("command")
+    p.add_argument("args", nargs="*", help="跟在 Telegram 打的一樣：照位置填，或 key=value")
+    p.add_argument("--pack", default=".", help="pack 資料夾（預設：現在的資料夾）")
+    p.add_argument("--data", default="", help="當作 SYNOX data/ 的資料夾（預設：暫存資料夾）")
+    p.add_argument("--typed", action="store_true", help="當作人自己打字（不跑 AI 呼叫才有的第 4 關檢查）")
     p = sub.add_parser("check", help="跑 SYNOX 安裝時的宣告檢查與靜態掃描")
     p.add_argument("folder")
     p = sub.add_parser("zip", help="打成 dist/<name>-<version>.synoxpack")
@@ -284,7 +553,16 @@ def main(argv=None) -> int:
     p.add_argument("--out", default="", help="輸出資料夾（預設 ./dist）")
     args = parser.parse_args(argv)
     try:
+        if args.cmd == "init" and args.source:
+            result = init_from(args.source, args.name, args.title, args.folder or None)
+            print(f"✅ {result.folder}：寫了 {'、'.join(result.written)}")
+            for note in result.notes:
+                print(f"  {note}")
+            return 0
         if args.cmd == "init":
+            if not args.folder:
+                print("❌ 要給資料夾（或用 --from tool.py）")
+                return 2
             written = init_pack(args.folder, args.kind, args.name, args.title or args.name)
             print(f"✅ 寫了 {len(written)} 個檔：{'、'.join(written) or '（都已經存在，沒動）'}")
             return 0
@@ -292,6 +570,8 @@ def main(argv=None) -> int:
             check = Pack.load(args.folder)
             print(check.format())
             return 0 if check.ok else 2
+        if args.cmd == "run":
+            return run_command(args.pack, args.command, args.args, data_dir=args.data or None, as_ai=not args.typed)
         if args.cmd == "zip":
             path = zip_pack(args.folder, args.out or None)
             print(f"📦 {path}")
