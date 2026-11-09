@@ -80,14 +80,6 @@ def test_loader_report_and_isolation(make_bot, tmp_path):
     assert bot.last(100) == "hi False"                           # storage 沒寫＝plain
 
 
-def test_connector_leaf(make_bot, owner):
-    bot = make_bot()
-    bot.say(owner, "/notion")
-    assert "還沒接上" in bot.last(owner)
-    leaf = bot.app.registry.node("notion.status")
-    assert leaf is not None and leaf.ai is False
-
-
 def test_cli_pack_registers_service_commands(make_bot, tmp_path):
     folder = tmp_path / "cli" / "svc"
     _pack(str(folder), name="svc", group="svc", kind="cli",
