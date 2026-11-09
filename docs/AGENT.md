@@ -27,6 +27,7 @@
 | `src/synox/llm/` | `base.py`（`ChatAdapter`、`Message`、`Reply`、`ToolCall`、`ToolSpec`）、`easy_llm.py`（openai／anthropic／gemini／openai_compat，經 `ntu_easy_llm.agent`，lazy import）、`claude_code`、`fake`、`textproto`、`factory.make_adapter` |
 | `src/synox/vault/` | `vault.py`（Fernet＋每檔 scrypt、`*.json.enc`；`for_user(id)`＝伺服器版每人的保管箱，HKDF 衍生）、`keyring.py`（DPAPI 包住主金鑰 `data/.synox.key`） |
 | `src/synox/packs/` | `manifest.py`（pack.json v2 檢查＝第 1 關；`surfaces`／`data`（`_check_scope`、`default_data`、`cli_templates`）；`requires.synox`＝`synox_problem`、`requires.env`→`secret_env_names`、`fields[].kind`、`auth.fields`）、`secrets.py`（pack 的 secret：`PackSecrets`、`managed_fields`）、`scan.py`（ast 靜態掃描＝第 2 關；`_check_data_python`／`_check_data_cli`＝data 宣告的規則）、`lock.py`（`data/packs.lock`＝第 3 關；`trust`、`trust_of`）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`、`surface_policy`（沒有 channel＝private_only）、`shared_write_admin`、cli 代換與 `build_argv`）、`kit.py`（照位置填的指令）、`envs.py`（`runtime.python／node = "auto"`：`Builder.plan`／`build(m, jobs, on_done)` 建 `data/envs/<pack>/`、`python_of`／`node_of`／`node_env` 給 loader 代換、`env_problem` 給 loader／doctor；`set_factory` 換實作） |
+| `src/synox/packs/mcp.py` | kind=mcp stdio（P4a）：`Session`（JSON-RPC over stdio、讀執行緒、`request`／`notify`）、`handshake`（initialize／initialized／tools/list）、`spawn`（Windows Job Object）、`McpPool`（每個 key 一個長駐程序、`reap()` 閒置回收、`close_all`；`clock`／`spawner` 可換）、`Scope`／`PerUserScope`／`SharedScope`（介面）、`shape_of`（inputSchema → fields）、`to_arguments`、`needs_confirm_of`、`render_result`、快取 `data/mcp/<pack>.tools.json`、`doctor_notes`、`install`（loader 叫） |
 | `src/synox/sdk/` | 給 pack 作者：JSON 信封、`Pack.load`、`init_pack`、`zip_pack`；`synox-sdk init｜check｜zip`（`python -m synox.sdk`）。說明 [sdk.md](sdk.md) |
 | `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`validate.py`（第 4 關呼叫驗證）、`delimit.py`（第 5 關工具結果分隔符）、`budget.py`（伺服器版成員每月額度）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
 | `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（30 秒、via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`、`/schedule_*`） |
@@ -100,6 +101,16 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     `restricted_reason` 同一個出口：item.detail、doctor／packs status 的 🔐 行）。伺服器版沒鎖又不是出廠的 pack 載入前補跑第 2 關
     （`loader.unlocked_scan`），沒過＝`rejected`、不載入。新加出廠 pack 要同時加進 `BUNDLED`。測試裡手放的 python pack 要給成員看，
     先用 `conftest.trust_core(data_dir, folder)` 鎖成 core。個人版一律不受影響。
+
+14. **kind=mcp stdio 的程序一律經 `packs/mcp.py` 的 `McpPool`**（P4a）：每個 `Scope.key(pack, user)` 一個長駐子程序（預設
+    `PerUserScope`＝(pack, tg_id)；`SharedScope` 只有介面，擁有者還沒決定伺服器版要共用還是一人一個，**不要偷偷改成共用**）。
+    第一次呼叫才啟動（載入時不開程序）、`IDLE_SECONDS` 閒置回收、死掉的下次呼叫重開、`app.on_stop` 全收；env 指紋（含 secret）變了換新程序。
+    啟動照 kind=cli：`loader.placeholders`／`substitute`／`context_env`、`secrets.env_for`、`clean_env(keep=secret_env_names＋confirm.ENV_NAMES)`、
+    `sandbox.grants_for`＋`box.wrap`（`grants.timeout=None`）。`tools_allow` 外的工具不掛節點；**effect 只看 `mcp.effects`**
+    （`mcp.effect_name`，沒寫＝DANGER；工具的 annotations 不看）。節點的 fields／summary 在每次新程序讀完 `tools/list` 時更新（`learned`），
+    所以 `kit.command` 不能用（它的 closure 會留舊欄位）——leaf 自己 `kit.parse_args(node.fields, …)`。確認來回用 `params._meta["synox/confirm_token"]`
+    （`mcp.CONFIRM_META`），環境變數一律 `SYNOX_CONFIRMED=0`。**測試只開本機 Python 子程序（stdio 管線），不開埠、不連網**；
+    假伺服器寫在 `tests/test_mcp_stdio.py`，真伺服器用 synox_sdk 的 `serve()` `--mcp`；閒置回收用 `pool.clock` 換假時鐘＋`pool.reap()`。
 
 另外：
 - pack 的群組由 loader 依 pack.json 定義（`loader.group_policy`）：`access: owner`（預設）＝整組 `owner_only`；`member`＝伺服器版 `role=MEMBER`、
@@ -186,6 +197,9 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 - `[ROUTE]` log 會印指令全文（SDK dispatcher），所以任何密碼都不能設計成「在聊天裡打」的指令（Notion／Todoist 的 token 指令靠 `redact_in_logs` 遮罩）。
 - Google 日曆：連接只有指令（`/gcal_setup`、貼網址列回來），網頁沒有「連接」按鈕；只用主要日曆；`/gcal_rm` 的編號是最近一次列表；沒有改行程。
 - 文字協定一次只解析一個工具呼叫。
+- kind=mcp：只做 stdio（HTTP／遠端 MCP、OAuth 沒做）；巢狀 object／array 參數不給（doctor 列出）；還沒啟動過的 MCP 工具第一次只有 `args`
+  一個參數（讀完 tools/list 才換成真的欄位，同一輪 AI 的 schema 是舊的、但第 4 關已經用新欄位）；`SharedScope` 沒做；
+  沙盒後端包長駐程序（bwrap／systemd-run `--pipe`）沒在 Linux 真機驗過。
 - 伺服器版：個人版的舊資料不會自動搬到擁有者的 `data/users/<id>/`；精靈的伺服器版沒有多問「誰是管理員」（擁有者之後用 `/user_role <id> admin`
   或網頁帳號頁）。成員的 AI 額度用 token × 單價估（`llm.price_in`／`price_out`，預設 3／15 美元每百萬 token），不是供應者的帳單。
 - Web UI：主動通知（提醒、排程的結果、申請通知）仍然只走 Telegram（`app.home`），網頁對話頁只看得到在網頁上講的；圖片、檔案在網頁只顯示一行說明；

@@ -1,5 +1,5 @@
 """
-運行空間（沙盒，PERM-7）：kind=cli 的子程序在什麼範圍裡跑。
+運行空間（沙盒，PERM-7）：kind=cli 的子程序（與 kind=mcp stdio 的長駐子程序，P4a）在什麼範圍裡跑。
 
     box = sandbox_for(config)                      可替換（set_factory）；預設照 config.json policy.sandbox.backend 挑
     argv2, env2 = box.wrap(argv, env, cwd, grants)  loader 的 make_cli 每次呼叫都過這裡
@@ -331,7 +331,18 @@ def _templates(m) -> List[str]:
         out += [str(x) for x in c.get("argv") or []]
         if isinstance(c.get("stdin"), str):
             out.append(c["stdin"])
+    mcp = getattr(m, "mcp", {}) or {}
+    if getattr(m, "kind", "") == "mcp" and isinstance(mcp, dict):     # kind=mcp stdio（P4a）
+        out += [str(x) for x in mcp.get("argv") or []]
+        out.append(str(mcp.get("cwd") or ""))
+        out += [str(v) for v in (mcp.get("env") or {}).values()] if isinstance(mcp.get("env"), dict) else []
     return out
+
+
+def runs_subprocess(m) -> bool:
+    """SYNOX 會替這個 pack 開子程序：kind=cli，或 kind=mcp 的 transport=stdio（沙盒、required_for 都看這個）。"""
+    kind = getattr(m, "kind", "")
+    return kind == "cli" or (kind == "mcp" and ((getattr(m, "mcp", {}) or {}).get("transport") == "stdio"))
 
 
 def data_scope(m) -> str:
@@ -341,7 +352,7 @@ def data_scope(m) -> str:
     declared = (getattr(m, "raw", {}) or {}).get("data")
     if declared in DATA_SCOPES:
         return declared
-    if getattr(m, "kind", "") == "cli":
+    if getattr(m, "kind", "") in ("cli", "mcp"):
         text = "\n".join(_templates(m))
         if "{user_data_dir}" in text:
             return "user"
@@ -366,8 +377,9 @@ def trust_of(data_dir: str, m) -> str:
 
 
 def required(config, m) -> bool:
-    """policy.sandbox.required_for 命中這個 pack 嗎（只看 kind=cli：python pack 在程序裡跑，沙盒管不到，見 PERM-8）。"""
-    if getattr(m, "kind", "") != "cli":
+    """policy.sandbox.required_for 命中這個 pack 嗎（只看 SYNOX 會開子程序的：kind=cli、kind=mcp stdio；
+    python pack 在程序裡跑，沙盒管不到，見 PERM-8）。"""
+    if not runs_subprocess(m):
         return False
     rule = settings_of(config).get("required_for", "third-party")
     if rule == "all":
@@ -409,6 +421,8 @@ def grants_for(m, config, ph: Dict[str, str], *, pass_env: Sequence[str] = ()) -
         timeout = float(timeout)
     except (TypeError, ValueError):
         timeout = 120.0
+    if getattr(m, "kind", "") == "mcp":
+        timeout = None            # MCP 伺服器是長駐的：壽命由 packs/mcp.py 管（閒置回收），每次呼叫的逾時也在那裡
     return Grants(read=tuple(os.path.normpath(p) for p in read), write=tuple(os.path.normpath(p) for p in write),
                   network="network" in (getattr(m, "capabilities", None) or ()),
                   mem_mb=settings.get("mem_mb") or None, procs=settings.get("max_procs") or None,

@@ -20,7 +20,7 @@ pack.json 的格式與檢查（docs/pack-format.md 是人看的版本）。安�
 
 pack.json v2（架構 v1 §4；在上面之上加欄位，舊的 pack 照舊可讀）：
 
-      "kind": "mcp",                             第四種：接一個 MCP 伺服器（這一版只登記、不連）
+      "kind": "mcp",                             第四種：接一個 MCP 伺服器（mcp.transport=stdio 才連；只寫 url＝只登記）
       "runtime": {"python": "../.venv/Scripts/python.exe",      {python} 的另一種寫法：相對於 pack 資料夾，
                   "python_posix": "../.venv/bin/python"},      照作業系統挑一個（cli.python 有寫就用 cli.python）
                  {"python": "auto", "node": "auto"}             auto＝安裝時建 data/envs/<pack>/（packs/envs.py）；
@@ -36,14 +36,18 @@ pack.json v2（架構 v1 §4；在上面之上加欄位，舊的 pack 照舊可�
       "auth": {"type": "none|token|oauth|caldav|file", "fields": [...]},
                fields[]：{"name", "label", "secret": true, "env": "X_API_KEY", "kind": "text|file", "required"}；
                token／file 的由 SYNOX 收（Web UI「連接」→ 保管箱；見 packs/secrets.py），"managed": "synox"|"pack" 可以強制
-      "mcp": {"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}
+      "mcp": {"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}        只登記（不連）
+      "mcp": {"transport": "stdio", "argv": ["{python}", "./server.py"],                 真的連（P4a，packs/mcp.py）：
+              "env": {…}, "cwd": ".", "timeout": 60, "start_timeout": 20,                代換同 cli；每個（pack, 使用者）
+              "tools_allow": ["search"], "effects": {"search": "READ"}}                  一個長駐子程序；要宣告 subprocess
 
 權限宣告（PERM-2；舊 pack 沒寫照舊相容，見 _check_scope）：
 
       "surfaces": ["dm"] | ["dm", "channel"]     在哪裡能用；沒寫＝["dm"]（只能私訊：loader 加 private_only）
       "data": "none" | "user" | "shared"          資料屬於誰；沒寫：python 有寫 storage＝user、沒寫＝none；
                                                  cli 樣板用了 {user_data_dir}＝user、只用 {data_dir}＝shared、都沒有＝none；
-                                                 connector／mcp＝none。第 2 關（scan.py）照它檢查程式；
+                                                 mcp stdio 照 mcp.argv／env／cwd 的樣板推（同 cli）；
+                                                 connector、只登記的 mcp＝none。第 2 關（scan.py）照它檢查程式；
                                                  shared 的 WRITE／DANGER 指令在伺服器版只有管理員（loader）
       trust（core｜third-party）不在 pack.json：安裝時擁有者在報告上選，寫進 packs.lock（lock.py）
 
@@ -137,6 +141,16 @@ class Manifest:
     @property
     def commands(self) -> List[dict]:
         return list(self.cli.get("commands") or [])
+
+    @property
+    def mcp_stdio(self) -> bool:
+        """kind=mcp 而且 mcp.transport=stdio：真的會連（packs/mcp.py）。"""
+        return self.kind == "mcp" and (self.mcp or {}).get("transport") == "stdio"
+
+    @property
+    def registered_only(self) -> bool:
+        """只登記、不連的：connector，與沒有 transport 的 mcp（只寫 url）。"""
+        return self.kind == "connector" or (self.kind == "mcp" and not self.mcp_stdio)
 
     def allows(self, capability: str) -> bool:
         """宣告了這個能力嗎（filesystem:any 包含 filesystem:own）。"""
@@ -305,6 +319,53 @@ def _check_auth_fields(auth: dict, problems: List[str]) -> None:
                 problems.append(f"auth.fields 的 {name}.{text} 要是 200 字內的字串")
 
 
+MCP_TRANSPORTS = ("stdio",)
+
+
+def _check_mcp_transport(mcp: dict, caps: List[str], problems: List[str]) -> None:
+    """mcp.transport：沒寫＝只登記（舊的寫法，只收 url）；"stdio"＝SYNOX 開一個子程序講 MCP（packs/mcp.py）。
+    stdio 要 argv（字串清單，代換同 cli）、capabilities 要有 subprocess；env／cwd／timeout／start_timeout 選填。"""
+    transport = mcp.get("transport")
+    if transport is None:
+        return
+    if transport not in MCP_TRANSPORTS:
+        problems.append(f"mcp.transport 只能是 {'、'.join(MCP_TRANSPORTS)}（沒寫＝只登記、不連）")
+        return
+    argv = mcp.get("argv")
+    if not isinstance(argv, list) or not argv or not all(isinstance(a, str) and a for a in argv):
+        problems.append("mcp.transport 是 stdio 要寫 mcp.argv（啟動 MCP 伺服器的命令列，字串清單，例如 [\"{python}\", \"./server.py\"]）")
+    if mcp.get("url"):
+        problems.append("mcp.transport 是 stdio 就不要寫 mcp.url（兩種連法只能選一種）")
+    env = mcp.get("env")
+    if env is not None and (not isinstance(env, dict) or
+                            not all(isinstance(k, str) and ENV_NAME_RE.match(k) and isinstance(v, str)
+                                    for k, v in env.items())):
+        problems.append("mcp.env 要是 {環境變數名字: 字串}")
+    if mcp.get("cwd") is not None and not isinstance(mcp.get("cwd"), str):
+        problems.append("mcp.cwd 要是字串（相對於 pack 資料夾）")
+    for key in ("timeout", "start_timeout"):
+        value = mcp.get(key)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value <= 3600):
+            problems.append(f"mcp.{key} 要是 1～3600 的秒數")
+    if "subprocess" not in caps:
+        problems.append("mcp.transport 是 stdio：SYNOX 會開一個子程序跑 MCP 伺服器，capabilities 一定要宣告 subprocess")
+
+
+def mcp_templates(mcp: dict) -> List[tuple]:
+    """kind=mcp stdio 會被代換的樣板：[(在哪, 字串)…]（mcp.argv、mcp.env、mcp.cwd）。"""
+    out: List[tuple] = []
+    if not isinstance(mcp, dict):
+        return out
+    for i, token in enumerate(mcp.get("argv") or []):
+        out.append((f"mcp.argv[{i}]", str(token)))
+    env = mcp.get("env") or {}
+    if isinstance(env, dict):
+        out += [(f"mcp.env.{k}", str(v)) for k, v in env.items()]
+    if isinstance(mcp.get("cwd"), str):
+        out.append(("mcp.cwd", mcp["cwd"]))
+    return out
+
+
 def _check_v2(raw: dict, kind, problems: List[str]) -> dict:
     """v2 的欄位：capabilities、publisher、integrity、auth、mcp。回整理過的值。"""
     caps_raw = raw.get("capabilities")
@@ -365,6 +426,7 @@ def _check_v2(raw: dict, kind, problems: List[str]) -> dict:
         if missing:
             problems.append(f"mcp.effects 沒寫這些工具的 effect：{'、'.join(missing)}（每個允許的工具都要寫）")
         mcp = {**mcp, "tools_allow": list(allow), "effects": {t: norm_effect(effects.get(t)) for t in allow}}
+        _check_mcp_transport(mcp, caps, problems)
     return {"capabilities": caps, "capabilities_declared": caps_raw is not None, "publisher": publisher,
             "integrity": integrity, "auth_info": auth_info, "mcp": mcp}
 
@@ -468,8 +530,8 @@ def default_data(raw: dict, kind, cli: dict) -> str:
     只用 {data_dir}＝shared、都沒有＝none（兩個都用＝user，第 2 關會要作者明寫 shared）；其他＝none。"""
     if kind == "python":
         return "user" if "storage" in raw else "none"
-    if kind == "cli":
-        texts = [t for _w, t in cli_templates(cli)]
+    if kind in ("cli", "mcp"):
+        texts = [t for _w, t in (cli_templates(cli) if kind == "cli" else mcp_templates(raw.get("mcp") or {}))]
         if any("{user_data_dir}" in t for t in texts):
             return "user"
         if any("{data_dir}" in t for t in texts):
@@ -512,7 +574,8 @@ def _check_scope(raw: dict, kind, cli: dict, problems: List[str]) -> dict:
 
 
 def _data_hint(kind) -> str:
-    return {"python": "python pack 寫了 storage", "cli": "cli 樣板用了 {user_data_dir}"}.get(kind, "")
+    return {"python": "python pack 寫了 storage", "cli": "cli 樣板用了 {user_data_dir}",
+            "mcp": "mcp 樣板用了 {user_data_dir}"}.get(kind, "")
 
 
 def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
