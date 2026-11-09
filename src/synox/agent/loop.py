@@ -256,7 +256,7 @@ class AgentLoop:
                 return "參數不對：" + "；".join(errors), False
             if missing:
                 return "缺必填參數：" + "、".join(f"{f.name}（{f.ask}）" for f in missing) + "。先問使用者。", False
-        if needs_card(node, argv):
+        if needs_card(node, argv) or gate4.wants_confirm(self.app, node):
             if self.desk is None:
                 return "這個動作要使用者確認，但確認卡沒有接上，所以不執行。", False
             self.desk.request(api, chat_id, user, node, argv)

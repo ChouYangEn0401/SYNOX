@@ -99,6 +99,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | `auth` | v0 的字串（`oauth`／`token`／`caldav`）照舊；v2 寫 `{"type": "none｜token｜oauth｜caldav｜file", "fields": [...]}`。`token`／`file` 的 `fields` 由 SYNOX 收，見下面「pack 的 secret」 |
 | `kind: "mcp"`＋`mcp` | `{"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}`。`tools_allow` 不能空，每個允許的工具都要有 effect（沒寫＝拒）。這一版只登記、不連；不能附程式檔 |
 | `commands[].effect` | cli 的每個 command：`READ`／`WRITE`／`DANGER`（大小寫都收）。`commands` 也可以放最上層（等於 `cli.commands`） |
+| `commands[].ai`、`commands[].confirm` | cli 的 command：`"ai": false`＝不給 AI 當工具；`"confirm": true`＝AI 呼叫前先送確認卡給人按（effect 照寫的算）。一定要是 true／false。synox_sdk 的 `@tool(ai=…, confirm=…)` 會產生 |
 | `commands[].fields[].kind` | `text`（預設）｜`int`（整數，可有千分位逗號）｜`number`（數字）｜`bool`（是／否：`yes/no`、`true/false`、`1/0`、`是/否`…）｜`path`（值一定要在使用者自己的資料夾裡，第 4 關）｜`choice`（要寫 `choices: ["Red", "Blue"]`，大小寫不拘）。對 AI 的參數 schema 一律是字串；SYNOX 在交給程式**之前**照 kind 檢查（人打字與 AI 呼叫都會），不合回一句人話（例如「次數要是整數（例如 3）」）、不執行。交給程式的值整理過：`bool` → `true`／`false`、`int`／`number` 拿掉逗號、`choice` 換成 `choices` 裡的拼法 |
 | `cli.python` | `{python}` 換成什麼：絕對路徑｜`"venv"`（`<pack 資料夾>/../.venv` 的 python）｜沒寫＝看 `runtime`，再沒有＝SYNOX 自己的 Python |
 | `runtime.python`、`runtime.python_posix` | 另一種寫法（金流簿用的）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它。**`"auto"`**＝安裝時自動建 venv（見下面「依賴與環境自動建置」；跟 `cli.python` 不能同時寫） |
@@ -147,6 +148,9 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
 | `{tg_id}` | 下令的人的 Telegram id（排程、網頁也是那個人） |
 
 欄位不能取這幾個名字。使用者給的值只換一次（值裡寫 `{data_dir}` 不會被換）。
+子程序另外一定拿到這幾個環境變數（[synox_sdk](sdk.md) 的 `context()`／`secret()` 讀它們；蓋過 pack 自己寫的同名變數）：
+`SYNOX_USER_DATA_DIR`（＝`{user_data_dir}`）、`SYNOX_TG_ID`、`SYNOX_MODE`（`personal`｜`server`）、`SYNOX_PACK_DIR`、`SYNOX_PACK_NAME`、
+`SYNOX_SECRET_ENV`（`auth.fields` 的「欄位名=環境變數名」，逗號分隔；只有名字，值照舊只在那個環境變數裡）。
 沒填的選填欄位：`--k={v}` 那一段拿掉；單獨一段的 `{v}` 連同前面緊鄰的字面 `--旗標` 一起拿掉。
 樣板規則（第 2 關）：只能是字面字、單獨一段的 `{欄位}`、或 `--k={欄位}`；`["--k", "{v}"]` 這種分兩段的會被拒（要寫成 `--k={v}`）。
 
