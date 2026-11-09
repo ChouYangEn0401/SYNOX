@@ -5,6 +5,8 @@
   "version": "0.1.0",
   "kind": "python",
   "access": "owner",
+  "surfaces": ["dm"],
+  "data": "none",
   "python": { "module": "pack" },
   "skill": "SKILL.md"
 }

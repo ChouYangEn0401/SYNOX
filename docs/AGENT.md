@@ -23,7 +23,7 @@
 | `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`；路徑相對 SYNOX 資料夾（`ROOT`） |
 | `src/synox/llm/` | `base.py`（`ChatAdapter`、`Message`、`Reply`、`ToolCall`、`ToolSpec`）、`easy_llm.py`（openai／anthropic／gemini／openai_compat，經 `ntu_easy_llm.agent`，lazy import）、`claude_code`、`fake`、`textproto`、`factory.make_adapter` |
 | `src/synox/vault/` | `vault.py`（Fernet＋每檔 scrypt、`*.json.enc`；`for_user(id)`＝伺服器版每人的保管箱，HKDF 衍生）、`keyring.py`（DPAPI 包住主金鑰 `data/.synox.key`） |
-| `src/synox/packs/` | `manifest.py`（pack.json v2 檢查＝第 1 關；`requires.synox`＝`synox_problem`、`requires.env`→`secret_env_names`、`fields[].kind`、`auth.fields`）、`secrets.py`（pack 的 secret：`PackSecrets`、`managed_fields`）、`scan.py`（ast 靜態掃描＝第 2 關）、`lock.py`（`data/packs.lock`＝第 3 關）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`、cli 代換與 `build_argv`）、`kit.py`（照位置填的指令）、`envs.py`（`runtime.python／node = "auto"`：`Builder.plan`／`build(m, jobs, on_done)` 建 `data/envs/<pack>/`、`python_of`／`node_of`／`node_env` 給 loader 代換、`env_problem` 給 loader／doctor；`set_factory` 換實作） |
+| `src/synox/packs/` | `manifest.py`（pack.json v2 檢查＝第 1 關；`surfaces`／`data`（`_check_scope`、`default_data`、`cli_templates`）；`requires.synox`＝`synox_problem`、`requires.env`→`secret_env_names`、`fields[].kind`、`auth.fields`）、`secrets.py`（pack 的 secret：`PackSecrets`、`managed_fields`）、`scan.py`（ast 靜態掃描＝第 2 關；`_check_data_python`／`_check_data_cli`＝data 宣告的規則）、`lock.py`（`data/packs.lock`＝第 3 關；`trust`、`trust_of`）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`、`surface_policy`（沒有 channel＝private_only）、`shared_write_admin`、cli 代換與 `build_argv`）、`kit.py`（照位置填的指令）、`envs.py`（`runtime.python／node = "auto"`：`Builder.plan`／`build(m, jobs, on_done)` 建 `data/envs/<pack>/`、`python_of`／`node_of`／`node_env` 給 loader 代換、`env_problem` 給 loader／doctor；`set_factory` 換實作） |
 | `src/synox/sdk/` | 給 pack 作者：JSON 信封、`Pack.load`、`init_pack`、`zip_pack`；`synox-sdk init｜check｜zip`（`python -m synox.sdk`）。說明 [sdk.md](sdk.md) |
 | `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`validate.py`（第 4 關呼叫驗證）、`delimit.py`（第 5 關工具結果分隔符）、`budget.py`（伺服器版成員每月額度）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
 | `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（30 秒、via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`、`/schedule_*`） |
@@ -72,6 +72,11 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 - pack 的群組由 loader 依 pack.json 定義（`loader.group_policy`）：`access: owner`（預設）＝整組 `owner_only`；`member`＝伺服器版 `role=MEMBER`、
   個人版 `owner_only`；`everyone`＝最低一級。agent 群組也用同一個規則（`member`）：個人版只有擁有者，伺服器版成員以上；
   `AgentFallback.accepts` 問的是 `authorize(user, agent.ai)`，不另寫判斷。訪客（最低一級）在 `ai_decision` 一律沒有工具。
+- 權限宣告（PERM-2）：`surfaces` 沒有 `channel`（預設）→ `loader.surface_policy` 給群組 `private_only`；`data: shared` 的 WRITE／DANGER 葉節點
+  在伺服器版由 `loader.shared_write_admin` 拉到角色階梯最高那一級（install 之後跑；個人版不動）。第 2 關照 `data` 檢查（`data: user` 不准裸 `pack.store`、
+  `pack.secret(name)` 不給 user、cli 不准 `{data_dir}`）。`trust`（core｜third-party）不在 pack.json：安裝報告上選、`lock.approve(trust=)` 寫進鎖，
+  舊鎖沒有＝third-party；升級沒給＝沿用舊鎖的。出廠 pack 與 connector 都宣告 `surfaces: ["dm"]`、`data: user`，新寫的 pack 也要寫。
+  可見性的總判斷（`policy.decide`）是 PERM-1，不在這裡。
 - **每個人自己的資料一律 `pack.store.of(user)`**（notes、money）。伺服器版 → `data/users/<id>/`，vault 金鑰 HKDF(主金鑰, `user:<id>`)；
   個人版 → 共用的那一份。營運者仍讀得到（docs/security.md）；「營運者也看不到」的 SYNOX Node 是另一份規格，不在這裡做。
 - 伺服器版才裝 SDK 的 `accounts`、`limits` pack（`app.install_server_packs`）；陌生人＝GUEST（SDK `UserManager`）。

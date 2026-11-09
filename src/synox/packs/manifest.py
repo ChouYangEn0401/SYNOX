@@ -38,6 +38,15 @@ pack.json v2（架構 v1 §4；在上面之上加欄位，舊的 pack 照舊可�
                token／file 的由 SYNOX 收（Web UI「連接」→ 保管箱；見 packs/secrets.py），"managed": "synox"|"pack" 可以強制
       "mcp": {"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}
 
+權限宣告（PERM-2；舊 pack 沒寫照舊相容，見 _check_scope）：
+
+      "surfaces": ["dm"] | ["dm", "channel"]     在哪裡能用；沒寫＝["dm"]（只能私訊：loader 加 private_only）
+      "data": "none" | "user" | "shared"          資料屬於誰；沒寫：python 有寫 storage＝user、沒寫＝none；
+                                                 cli 樣板用了 {user_data_dir}＝user、只用 {data_dir}＝shared、都沒有＝none；
+                                                 connector／mcp＝none。第 2 關（scan.py）照它檢查程式；
+                                                 shared 的 WRITE／DANGER 指令在伺服器版只有管理員（loader）
+      trust（core｜third-party）不在 pack.json：安裝時擁有者在報告上選，寫進 packs.lock（lock.py）
+
 validate(raw, folder, strict=True) 是安裝時用的嚴格版（cli 的每個 command 一定要寫 effect）；
 載入時 strict=False：舊的 pack（沒寫 effect＝READ）照舊能用。v2 的 pack（有任何 v2 欄位）一律嚴格。
 """
@@ -61,6 +70,8 @@ MAX_CHOICES = 50
 RESERVED_PLACEHOLDERS = ("python", "node", "pack_dir", "data_dir", "user_data_dir", "tg_id")
 V2_KEYS = ("capabilities", "publisher", "integrity", "mcp", "commands", "runtime", "env")
 ACCESS = ("owner", "member", "everyone")
+SURFACES = ("dm", "channel")
+DATA_SCOPES = ("none", "user", "shared")
 NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 GROUP_RE = re.compile(r"^[a-z][a-z0-9]{0,15}$")
 WEB_ROUTE_RE = re.compile(r"^GET /([a-z0-9][a-z0-9_-]{0,31})$")
@@ -104,6 +115,16 @@ class Manifest:
     auth_info: dict = field(default_factory=dict)            # {"type": …, "fields": …}（v0 的字串也轉成這個）
     mcp: dict = field(default_factory=dict)
     runtime: dict = field(default_factory=dict)              # {"python": 相對路徑, "python_posix": …}
+    # ── 權限宣告（PERM-2） ──
+    surfaces: List[str] = field(default_factory=lambda: ["dm"])   # ["dm"]｜["dm", "channel"]
+    surfaces_declared: bool = False
+    data: str = "none"                                        # none｜user｜shared（沒寫照 default_data 推）
+    data_declared: bool = False
+
+    @property
+    def channel_ok(self) -> bool:
+        """宣告可以在頻道（群組）裡用。"""
+        return "channel" in self.surfaces
 
     @property
     def skill_path(self) -> str:
@@ -416,6 +437,81 @@ def _check_requires(requires: dict, problems: List[str]) -> None:
             problems.append(str(e))
 
 
+# ── 權限宣告：surfaces、data（PERM-2） ─────────────────────────────────
+
+def cli_templates(cli: dict) -> List[tuple]:
+    """kind=cli 會被代換的每一段樣板：[(在哪, 字串)…]（cli.argv、cli.env（已含最上層 env）、cli.cwd、
+    commands[].argv、commands[].stdin）。"""
+    out: List[tuple] = []
+    for i, token in enumerate(cli.get("argv") or []):
+        out.append((f"cli.argv[{i}]", str(token)))
+    env = cli.get("env") or {}
+    if isinstance(env, dict):
+        out += [(f"env.{k}", str(v)) for k, v in env.items()]
+    if isinstance(cli.get("cwd"), str):
+        out.append(("cli.cwd", cli["cwd"]))
+    for c in cli.get("commands") or []:
+        if not isinstance(c, dict):
+            continue
+        name = c.get("name")
+        out += [(f"command {name} argv[{i}]", str(t)) for i, t in enumerate(c.get("argv") or [])]
+        if isinstance(c.get("stdin"), str):
+            out.append((f"command {name} stdin", c["stdin"]))
+    return out
+
+
+def default_data(raw: dict, kind, cli: dict) -> str:
+    """沒寫 data 時的預設：python 有寫 storage＝user（沒寫＝none）；cli 樣板用了 {user_data_dir}＝user、
+    只用 {data_dir}＝shared、都沒有＝none（兩個都用＝user，第 2 關會要作者明寫 shared）；其他＝none。"""
+    if kind == "python":
+        return "user" if "storage" in raw else "none"
+    if kind == "cli":
+        texts = [t for _w, t in cli_templates(cli)]
+        if any("{user_data_dir}" in t for t in texts):
+            return "user"
+        if any("{data_dir}" in t for t in texts):
+            return "shared"
+    return "none"
+
+
+def _check_scope(raw: dict, kind, cli: dict, problems: List[str]) -> dict:
+    """surfaces（["dm"]｜["dm", "channel"]，沒寫＝["dm"]）、data（none｜user｜shared，沒寫照 default_data）。"""
+    surfaces_raw = raw.get("surfaces")
+    surfaces = ["dm"]
+    if surfaces_raw is not None:
+        if not isinstance(surfaces_raw, list) or not surfaces_raw or \
+                not all(isinstance(s, str) for s in surfaces_raw):
+            problems.append('surfaces 要是清單：["dm"] 或 ["dm", "channel"]')
+        else:
+            bad = [s for s in surfaces_raw if s not in SURFACES]
+            if bad:
+                problems.append(f"surfaces 不認得 {'、'.join(bad)}（只能是 dm、channel）")
+            elif "dm" not in surfaces_raw:
+                problems.append('surfaces 一定要有 "dm"（["dm"] 或 ["dm", "channel"]）')
+            elif len(set(surfaces_raw)) != len(surfaces_raw):
+                problems.append("surfaces 有重複")
+            else:
+                surfaces = [s for s in SURFACES if s in surfaces_raw]
+    data_raw = raw.get("data")
+    if data_raw is None:
+        data = default_data(raw, kind, cli)
+    elif data_raw not in DATA_SCOPES:
+        problems.append("data 只能是 none、user 或 shared")
+        data = "none"
+    else:
+        data = data_raw
+    if "channel" in surfaces and data == "user":
+        hint = "" if data_raw is not None else f"（沒寫 data，照預設推成 user：{_data_hint(kind)}）"
+        problems.append('surfaces 有 "channel" 但 data 是 user：每個人自己的資料不能在頻道裡用'
+                        f'（要嘛拿掉 channel，要嘛資料不是個人的就寫 "data": "shared" 或 "none"）{hint}')
+    return {"surfaces": surfaces, "surfaces_declared": surfaces_raw is not None,
+            "data": data, "data_declared": data_raw is not None}
+
+
+def _data_hint(kind) -> str:
+    return {"python": "python pack 寫了 storage", "cli": "cli 樣板用了 {user_data_dir}"}.get(kind, "")
+
+
 def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     """raw（pack.json 的內容）→ Manifest；不合就丟 ManifestError（訊息說哪裡不對）。
 
@@ -501,6 +597,7 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
             problems.append("runtime.node 是 auto，pack 裡要有 " + "、".join(missing)
                             + "（用 npm ci 照 package-lock.json 裝，版本固定）")
     extra = _check_v2(raw, kind, problems)
+    extra.update(_check_scope(raw, kind, cli, problems))
     requires = raw.get("requires") or {}
     if not isinstance(requires, dict):
         problems.append("requires 要是物件")

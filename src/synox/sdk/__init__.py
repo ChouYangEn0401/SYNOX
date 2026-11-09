@@ -228,7 +228,8 @@ def init_pack(folder: str, kind: str, name: str, title: str) -> List[str]:
         raise ValueError("name 只能用小寫英數字、-、_（32 字內，英文字母開頭）")
     os.makedirs(folder, exist_ok=True)
     manifest = {"name": name, "title": title, "summary": f"{title}（用 synox-sdk init 產生，改成你的說明）",
-                "version": "0.1.0", "kind": kind, "access": "owner", "skill": "SKILL.md",
+                "version": "0.1.0", "kind": kind, "access": "owner", "surfaces": ["dm"],
+                "data": "user" if kind == "python" else "none", "skill": "SKILL.md",
                 "publisher": "", "capabilities": [],
                 "web": {"panel": "panel.html", "api": ["GET /summary"]}}
     files = {}
