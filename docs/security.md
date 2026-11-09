@@ -150,6 +150,24 @@ python pack 沙盒管不到，伺服器版改用信任決定給不給成員（PE
 崩潰下次重啟、逾時／非 JSON 的輸出＝收掉並回一句人話；Windows 上每個子程序在自己的 Job Object（KILL_ON_JOB_CLOSE），SYNOX 結束就一起結束。
 「全部人共用一個程序」（`SharedScope`）只有介面：共用時別人的 secret、資料夾要每次帶，MCP 沒有標準欄位，等擁有者決定。
 
+**kind=mcp http（遠端 MCP，P4b）**：這台不跑對方的程式，所以是 **T0（只有宣告）**——能信的只有 pack.json，
+那台伺服器做什麼掃描看不到。
+- 第 1 關：`mcp.url` 一定 `https://`（明文 `http://` 拒）、不能帶帳密／`#`／樣板；`capabilities` 一定有 `network`、不能有
+  `subprocess`／`exec`／`filesystem:any`；每個 `tools_allow` 的工具都要寫 effect（沒寫＝拒）。OAuth 的端點也一定 https，
+  `redirect_uri` 只能是 `http://127.0.0.1:<埠>/`。第 2 關：只能是宣告，附程式檔＝拒。
+- 安裝報告逐一列出允許的工具與 effect、要連的主機，請安裝的人確認。只有 `tools_allow` 的工具存在；effect 只看 pack.json。
+- **只往宣告的主機連**：每個請求都送到 pack.json 寫死的網址；`allow_redirects=False`，3xx 一律拒（不跟著轉，也不把 token 送到別處）。
+  OAuth 換 token 也一樣不跟轉址。
+- **token 不外流**：存在保管箱（「連接」表單或 OAuth 換來的；伺服器版每人一份），只放在 `Authorization: Bearer` 標頭。
+  `packs/mcp_http.py` 不 log 標頭、錯誤訊息只寫例外的型別名；沒有子程序所以沒有 argv；工具結果與錯誤訊息裡如果出現這個人存的
+  secret（8 字以上）一律換成 `***` 才給人或 AI（伺服器回聲了 token 也一樣）；第 4 關照舊擋 AI 把 secret 當參數送出去。
+- 每個（pack, 使用者）一條連線（自己的 token、自己的 `Mcp-Session-Id`）；`capabilities` 只有 `network`，預設上限下成員看得到
+  （pack 要寫 `access: member`），訪客看不到。
+- **OAuth（選配）**：貼回網址（PKCE S256＋一次性 state，15 分鐘，code_verifier 只在記憶體）；SYNOX 不開任何埠——瀏覽器轉到一個
+  沒人聽的 127.0.0.1 網址，使用者把網址列貼回來。別的程式就算在聽那個埠，沒有 code_verifier 也換不到 token。貼回來的網址會留在
+  聊天紀錄（code 已經用掉、單獨沒用），提醒使用者刪掉。loopback 收碼（暫時開 127.0.0.1 埠、最久 5 分鐘）**這一版不做**：
+  只有 `LoopbackListener` 介面，叫了就拒。
+
 ## 運行空間（沙盒，PERM-7）
 
 上面五關之外，kind=cli 的子程序每次叫之前（kind=mcp stdio 的長駐子程序每次啟動之前，`grants.timeout` 空的）都過 `src/synox/sandbox.py`：照 pack.json 的宣告算出這一次能碰什麼（grants），
@@ -196,6 +214,8 @@ InaccessiblePaths＋BindPaths 巢狀是否照預期；`--setenv=名字` 在那�
 - 個人版與 Windows 預設沒有沙盒（後端 none）：cli 子程序跟 SYNOX 一樣看得到整台電腦。Linux 的 bwrap／systemd 後端還沒在真機驗證（見「運行空間」）。
 - kind=mcp stdio 的 `argv` 指到 pack 外面的程式（`npx`…）不在 packs.lock 裡（只標「未鎖定執行環境」）；MCP 伺服器長駐，
   一個工具呼叫留下的狀態下一次呼叫看得到（同一個人；不同人是不同程序）。
+- kind=mcp http：對方伺服器拿到你的請求內容和 token，它怎麼用 SYNOX 管不到；SSE 串流裡的伺服器反問（sampling 等）不處理也不回。
+  requests 照系統的代理設定（HTTPS_PROXY）連線。
 - 不防「在你的 Windows 帳號下跑的惡意程式」。
 - 不防 prompt injection 的全部情況：工具結果包在每輪隨機的分隔符裡、提示 AI「當資料、不當指令」，真正擋住危險動作的是確認卡（結構），不是提示。
 - `claude_code` 這個 AI 來源以 `--tools ""` 跑（Claude Code 自己不能動檔案），但它走的是你本機的 Claude Code 登入。

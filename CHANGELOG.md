@@ -5,6 +5,33 @@
 ### 變更
 - 沒有鎖的 kind=cli pack（手動放進 packs/ 或 packs.dirs）在伺服器版改算 third-party，跟 kind=python 同一條規則（PERM-8 之後統一）：只有出廠的算 core。要給成員用，擁有者核准時選 `--trust core`。
 
+## 未發佈（branch feat/sdk-p4b）
+
+### 新增
+- **SDK P4b：遠端 MCP（kind=mcp、`mcp.transport: "http"`）**。新檔 `src/synox/packs/mcp_http.py`：Streamable HTTP——每個 JSON-RPC
+  訊息 POST 到 `mcp.url`，回應收 `application/json` 或 `text/event-stream`（只讀這次的串流、找到自己那個 id 就停；通知、伺服器反問不處理）；
+  `Mcp-Session-Id`、`MCP-Protocol-Version` 標頭；session 過期（404）自動重新 initialize 再試一次；閒置回收／關閉時 DELETE。
+  只往宣告的主機連：`allow_redirects=False`、3xx 一律拒。HTTP 用 requests，測試換 `mcp_http.new_session`。
+- 認證：`auth.type=token` 的 secret 欄位（`mcp.bearer`，沒寫＝第一個）以 `Authorization: Bearer` 送出（網頁「連接」表單、保管箱、
+  伺服器版每人一份）；token 不 log、沒有 argv、結果與錯誤訊息裡出現會遮成 `***`（stdio 也套用）。
+- **OAuth 授權碼流程（選配、預設關）**：新檔 `src/synox/packs/oauth.py`。`auth.type=oauth`＋`auth.oauth`（authorize_url、token_url、
+  client_id、scope、redirect_uri、receiver）→ `/<群組>_login`／`_code`／`_logout`（私訊、不給 AI）：PKCE S256＋一次性 state、
+  貼回瀏覽器網址列（SYNOX 不開埠）、帶 `resource`、refresh token 自動換新。`receiver: "loopback"`（暫時開 127.0.0.1 埠）只有
+  `LoopbackListener` 介面，叫了就拒。
+- 第 1 關：http 的 `url` 一定 https、不帶帳密／#／樣板；`capabilities` 一定有 `network`、不能有 subprocess／exec／filesystem:any；
+  不能寫 argv／env／cwd／headers；OAuth 端點一定 https、redirect_uri 只能 127.0.0.1。第 2 關：http 型只能是宣告。
+- 安裝報告（終端機與網頁）：kind=mcp 逐一列出 `tools_allow` 與每個工具的 effect、要連的主機、信任 T0（只有宣告），請安裝者確認。
+- 範例 `examples/mcp-remote-notion`（OAuth）、`examples/mcp-remote-todoist`（token）：網址與工具名是佔位（`*.example.invalid`），README 標明要擁有者確認。
+  `connectors/notion`、`connectors/todoist` 的 REST 實作不動。
+- 測試 `tests/test_mcp_http.py`（16 個）：假 HTTP 傳輸跑 initialize→list→call（JSON、SSE 兩種）、轉址被拒、session 過期重連、
+  token 不外洩（log／結果／AI／錯誤）、http:// 被第 1 關拒、tools_allow 外被擋、DANGER 卡、needs_confirm 的 `_meta`、
+  成員能用／訪客看不到、每人自己的 token 與連線、OAuth 貼回網址（state 不符、只能用一次）、loopback 拒、範例 pack 過關。
+
+### 變更
+- `packs/mcp.py` 的 `install()` 拆成共用部分＋連法（`Backend`：`StdioBackend`、`HttpBackend`），不重複兩份。
+- `Manifest.mcp_http`／`mcp_connected`；`registered_only` 只剩 connector 與沒有 transport 的 mcp。doctor 對 http 型也列 MCP 的提示。
+- `secrets.managed()`：真的會連的 kind=mcp（stdio、http）的 `auth.fields` 也由 SYNOX 收（工具頁有「連接」）。
+
 ## 未發佈（branch feat/sdk-p4a）
 
 ### 新增
