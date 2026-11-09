@@ -15,7 +15,13 @@
   用 app.home 通知擁有者一次（同樣的竄改只通知一次，記在 data/packs_tamper_notified.json）；doctor 也列出來。
 - 沒有鎖的 pack（出廠的、工程師直接放進 packs/ 的）照舊載入，報告與 doctor 標「未鎖定」——
   要鎖就 `python -m synox packs lock --approve <name>`。
-- `__pycache__` 不算（loader 自己從原始碼編譯，不讀那裡的 .pyc）。
+- 雜湊涵蓋 pack 資料夾裡的**每一個檔**（P7：含 __pycache__、node_modules、執行檔；`"hash_scope": "all"`）。
+  P7 以前寫的鎖沒有 hash_scope：照當時的算法（跳過 __pycache__）對檔，不會因為升級 SYNOX 就全部變成被改過。
+  SYNOX 開 cli／mcp 子程序時一律 PYTHONDONTWRITEBYTECODE=1，自己不會在 pack 資料夾裡產生 __pycache__。
+  pack 資料夾**外**的程式（cli.argv 的 npx、git、絕對路徑、{python} -m 外部模組）不進雜湊：鎖裡的 t2.external
+  記解析後的路徑，報告標「未鎖定執行環境」。
+- T2（P7，packs/tier.py）：`"tier": "T0|T1|T2"`；T2 另外有 `"t2": {"opaque", "external", "packages", "runs"}`、
+  `"trusted_publisher"`（安裝者明確輸入的 pack.json publisher）、`"trusted_at"`。
 - trust（PERM-2）：`"trust": "core"｜"third-party"`，擁有者在安裝報告上選（預設 third-party），跟著每一筆鎖；
   也記當時的 `surfaces`／`data`。**舊的鎖沒有 trust**＝當作 third-party（`trust_of`）；沒有鎖＝None（出廠、手放的，由呼叫的人決定）。
 """
@@ -73,9 +79,20 @@ def sha256_file(path: str) -> str:
     return h.hexdigest()
 
 
-def hash_files(folder: str) -> Dict[str, str]:
-    """pack 資料夾 → {相對路徑: sha256}（跳過 __pycache__）。"""
-    return {rel: sha256_file(os.path.join(folder, *rel.split("/"))) for rel in pack_files(folder)}
+HASH_SCOPE_ALL = "all"
+
+
+def hash_files(folder: str, include_cache: bool = True) -> Dict[str, str]:
+    """pack 資料夾 → {相對路徑: sha256}：**每一個檔**（含 __pycache__、node_modules、執行檔；P7）。
+    include_cache=False 是舊的算法（跳過 __pycache__），只給 P7 以前寫的鎖對檔用（hashes_for）。"""
+    return {rel: sha256_file(os.path.join(folder, *rel.split("/")))
+            for rel in pack_files(folder, include_cache=include_cache)}
+
+
+def hashes_for(record: Optional[dict], folder: str) -> Dict[str, str]:
+    """照這一筆鎖當時的算法重算：hash_scope=all（P7 之後）＝每個檔；舊的鎖＝跳過 __pycache__。"""
+    scope_all = isinstance(record, dict) and record.get("hash_scope") == HASH_SCOPE_ALL
+    return hash_files(folder, include_cache=scope_all)
 
 
 def load(data_dir: str) -> dict:
@@ -94,18 +111,23 @@ def entry(data_dir: str, name: str) -> Optional[dict]:
 
 
 def approve(data_dir: str, manifest, report, approved_by, *, via: str, hashes: Optional[Dict[str, str]] = None,
-            folder: Optional[str] = None, now: Optional[float] = None, trust: Optional[str] = None) -> dict:
-    """寫（或換掉）這個 pack 的鎖。hashes 沒給就現算 folder（預設 manifest.folder）。
-    trust：core｜third-party（沒給＝third-party；不認得丟 ValueError）。"""
+            folder: Optional[str] = None, now: Optional[float] = None, trust: Optional[str] = None,
+            tier_fields: Optional[dict] = None) -> dict:
+    """寫（或換掉）這個 pack 的鎖。hashes 沒給就現算 folder（預設 manifest.folder）；一律是每個檔（hash_scope=all）。
+    trust：core｜third-party（沒給＝third-party；不認得丟 ValueError）。
+    tier_fields：tier.lock_fields 的結果（tier、t2、trusted_publisher、trusted_at）；沒給＝照檔案現算 tier（不寫確認）。"""
     trust = check_trust(trust)
     hashes = dict(hashes) if hashes is not None else hash_files(folder or manifest.folder)
+    if tier_fields is None:
+        from synox.packs import tier as pack_tier
+        tier_fields = pack_tier.lock_fields(pack_tier.assess(manifest, report), None)
     record = {"name": manifest.name, "version": manifest.version, "kind": manifest.kind,
-              "publisher": getattr(manifest, "publisher", ""), "files": hashes,
+              "publisher": getattr(manifest, "publisher", ""), "files": hashes, "hash_scope": HASH_SCOPE_ALL,
               "scan": report.summary(manifest) if report is not None else {},
               "trust": trust, "surfaces": list(getattr(manifest, "surfaces", ["dm"])),
               "data": getattr(manifest, "data", "none"),
               "approved_by": approved_by, "via": via,
-              "approved_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now))}
+              "approved_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now)), **tier_fields}
     with _LOCK:
         data = load(data_dir)
         data["packs"][manifest.name] = record
@@ -144,7 +166,7 @@ def verify(data_dir: str, name: str, folder: str) -> Tuple[str, List[str]]:
     if found is None:
         return UNLOCKED, []
     try:
-        actual = hash_files(folder)
+        actual = hashes_for(found, folder)
     except OSError as e:
         return TAMPERED, [f"讀不了：{e}"]
     changes = diff(found.get("files") or {}, actual)
@@ -156,7 +178,8 @@ def check_integrity(manifest, hashes: Dict[str, str]) -> List[str]:
     declared = getattr(manifest, "integrity", {}) or {}
     if not declared:
         return []
-    actual = {k: v for k, v in hashes.items() if k != "pack.json"}
+    # __pycache__ 不是作者打包的東西（synox-sdk zip 不放、安裝不解出來）：不跟 integrity 比；packs.lock 照樣鎖它
+    actual = {k: v for k, v in hashes.items() if k != "pack.json" and "__pycache__" not in k.split("/")[:-1]}
     problems = [f"integrity：{c}" for c in diff(declared, actual)]
     return problems
 

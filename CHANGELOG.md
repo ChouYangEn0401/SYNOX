@@ -1,5 +1,31 @@
 # Changelog
 
+## 未發佈（branch feat/sdk-p7）
+
+### 新增
+- **SDK P7：T2 信任（二進位與外部相依）**。新檔 `src/synox/packs/tier.py`：T0 只有宣告（connector、只登記的 mcp）、T1 原始碼、
+  T2 二進位或外部相依（第 2 關掃不到）。**T2 不是沙盒保證，只是讓你知道你在信任誰**（docs/security.md「信任層級」）。
+  - 第 2 關（`scan.opaque_files`）：pack 資料夾裡的 `.exe .dll .bat .cmd .ps1 .sh .so .dylib .pyd .pyc .node .wasm…`、檔頭是 MZ+PE／ELF／
+    Mach-O 的檔（不管副檔名）、沒有副檔名但帶執行位元（zip 的 unix 權限）或 `#!`、`node_modules/`（一筆）、對不到原始碼的 `__pycache__`
+    → 一定要宣告 `exec`，否則拒裝；python、cli、mcp stdio 都看（以前只看 python pack 的副檔名）。報告多「掃不到內容的檔案」：路徑、大小、sha256。
+  - `cli.argv` 指到 pack 外的程式（`npx`、`git`、絕對路徑、`{python} -m 外部模組`）也列 external「未鎖定執行環境」＋解析後的路徑
+    （只查 PATH／sys.path，不執行），跟 mcp stdio 一樣；不進雜湊。
+  - 安裝報告（終端機、網頁、`admin.summary_of` 的 `tier`）：T2 紅字「這個 pack 會執行：…（掃不到內容）」「會安裝 N 個套件（來自 runtime auto）：名稱 版本」；
+    安裝者要明確輸入 pack.json 的 `publisher`：網頁勾選＋輸入（一字不差才能按）、終端機 `install --yes --trust-publisher "<名字>"`、
+    `packs lock --approve <name> --trust-publisher "<名字>"`。沒寫 publisher 的 T2 pack 不能裝。packs.lock 記 `tier`、`t2`、`trusted_publisher`、`trusted_at`。
+  - 升級：publisher 變了（任何 pack 都紅字）、T2 新增 exec、可執行的東西變多、T1 → T2 → 紅字、要重新輸入發行者；沒變就沿用上次的確認。
+  - 執行期：伺服器版的 T2 pack 一定要真隔離（`sandbox.required` 對 T2 一律命中，不管 trust、required_for），沒有＝只對擁有者可見；
+    T2 python pack 沙盒包不到，伺服器版一律只給擁有者。個人版照用，doctor 每個 T2 pack 提醒一行（`sandbox.t2_personal_note`）。
+  - `envs.node_pins`／`envs.all_pins`：package-lock.json 與 requires.pip 的套件清單（只讀 JSON）。
+- 測試 `tests/test_t2_trust.py`（37 個）：假執行檔一律是位元組造的檔頭，絕不執行。
+
+### 變更
+- **packs.lock 雜湊涵蓋每一個檔**（含 `__pycache__`、`node_modules`、執行檔），新鎖寫 `"hash_scope": "all"`；舊鎖（沒有 hash_scope）
+  照當時的算法對檔（`lock.hashes_for`），升級 SYNOX 不會讓已裝的 pack 變成被改過。
+- 上傳的 `.synoxpack` 裡的 `__pycache__` 不解出來；`synox-sdk zip` 不打包 `__pycache__`；`integrity` 不跟 `__pycache__` 比。
+- SYNOX 開的 cli／mcp 子程序一律 `PYTHONDONTWRITEBYTECODE=1`（`loader.context_env`），不會自己在 pack 資料夾裡產生 `.pyc`。
+- `tests/test_envs.py`、`tests/test_upgrade_env.py`：runtime auto 的 pack 是 T2，測試補 `publisher` 與 `trust_publisher`。
+
 ## 未發佈（dev）
 
 ### 變更

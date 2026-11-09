@@ -29,6 +29,8 @@ grants（Grants）從 pack.json 的宣告算（grants_for）：
 
 真隔離＝bwrap／systemd（而且這台電腦找得到那個程式）。policy.sandbox.required_for（預設 "third-party"）命中的 cli pack，
 在伺服器版又沒有真隔離 → 只對擁有者可見（loader 把群組改成 owner_only，doctor 說明原因）。個人版不受影響。
+T2 pack（SDK P7，packs/tier.py：掃不到內容的執行檔／外部程式／runtime auto 套件）一定命中，不管 trust、required_for；
+T2 的 python pack 在程序裡跑、包不到，伺服器版一律只給擁有者。個人版的 T2 照用，doctor 提醒（t2_personal_note）。
 這支檔只用標準函式庫（jobobject 的 launcher 用 python -I 直接跑這個檔）。
 **沙盒後端的真機驗證要在 Linux 伺服器上做；寫這一版的 Windows 電腦只驗證了組出來的 argv。**
 """
@@ -381,6 +383,8 @@ def required(config, m) -> bool:
     python pack 在程序裡跑，沙盒管不到，見 PERM-8）。"""
     if not runs_subprocess(m):
         return False
+    if is_t2(m):                     # SDK P7：T2（掃不到內容的執行檔／外部相依）一定命中，不管 trust、required_for
+        return True
     rule = settings_of(config).get("required_for", "third-party")
     if rule == "all":
         return True
@@ -389,16 +393,44 @@ def required(config, m) -> bool:
     return trust_of(getattr(config, "data_dir", ""), m) == THIRD_PARTY
 
 
+def is_t2(m) -> bool:
+    """T2（packs/tier.py）：pack 資料夾裡有掃不到內容的檔、argv 指到 pack 外的程式、或 runtime auto 會裝套件。"""
+    if getattr(m, "registered_only", False) or not getattr(m, "folder", ""):
+        return False
+    from synox.packs import tier as pack_tier
+    return pack_tier.is_t2(m)
+
+
 def restricted_reason(config, m, box: Optional[Sandbox] = None) -> str:
-    """伺服器版、required_for 命中、又沒有真隔離 → 一句話說為什麼只給擁有者（""＝不受影響）。"""
-    if mode_of(config) != "server" or not required(config, m):
+    """伺服器版、required_for 命中（T2 一定命中）、又沒有真隔離 → 一句話說為什麼只給擁有者（""＝不受影響）。
+    T2 的 python pack 在 SYNOX 程序裡跑、沙盒包不到 → 伺服器版一律只給擁有者（不管 trust）。"""
+    if mode_of(config) != "server":
+        return ""
+    if getattr(m, "kind", "") == "python" and is_t2(m):
+        return ("只對擁有者開放：這是 T2 python pack（附了掃不到內容的執行檔／編譯檔），在 SYNOX 程序裡跑、"
+                "沙盒包不到；伺服器版不給成員用（不管 trust 怎麼選）")
+    if not required(config, m):
         return ""
     box = box if box is not None else sandbox_for(config)
     if box.isolates:
         return ""
     why = f"（{box.problem}）" if box.problem else ""
+    if is_t2(m):
+        return (f"只對擁有者開放：這是 T2 pack（會執行掃不到內容的東西），一定要沙盒（不管 trust、required_for），"
+                f"但目前的後端是 {box.name}{why}，不算真隔離（要 bwrap 或 systemd）")
     return (f"只對擁有者開放：policy.sandbox.required_for={settings_of(config).get('required_for')} 要求沙盒，"
             f"但目前的後端是 {box.name}{why}，不算真隔離（要 bwrap 或 systemd）")
+
+
+def t2_personal_note(config, m) -> str:
+    """個人版的 T2 pack：照用，doctor 提醒一句（伺服器版、不是 T2 回 ""）。"""
+    if mode_of(config) == "server" or not is_t2(m):
+        return ""
+    from synox.packs import tier as pack_tier
+    runs = pack_tier.assess(m)["runs"]
+    what = "、".join(runs[:5]) if runs else "runtime auto 的套件"
+    return (f"T2：會執行掃不到內容的東西（{what}）；個人版沒有沙盒，它用你的 Windows 帳號權限跑——"
+            "只裝你信得過的發行者給的")
 
 
 def grants_for(m, config, ph: Dict[str, str], *, pass_env: Sequence[str] = ()) -> Grants:

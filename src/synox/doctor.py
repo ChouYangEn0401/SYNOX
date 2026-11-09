@@ -242,6 +242,9 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 boxed_out = sandbox.restricted_reason(config, m, box) if config is not None else ""
                 if boxed_out:
                     lines.append(f"     🔐 {boxed_out}")
+                t2_note = sandbox.t2_personal_note(config, m) if config is not None else ""
+                if t2_note:                                  # SDK P7：個人版的 T2 照用，只提醒
+                    lines.append(f"     ⚠️ {t2_note}")
                 if config is not None:                       # PERM-8：伺服器版第三方 python pack、沒鎖的補掃
                     scan_problems = loader.unlocked_scan(config, m, lock_state)
                     if scan_problems:

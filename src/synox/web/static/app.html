@@ -670,16 +670,23 @@
     var upg = s.upgrade, down = null;
     if (upg) { down = showUpgrade(box, upg, s.name); }
     var trust = canInstall && s.token ? showScope(box, s, upg) : null;
+    var pub = showTier(box, s, upg, canInstall && s.token);
     var row = el("div", "row");
     if (canInstall && s.token) {
       var ok = el("button", "primary", upg ? "確認升級" : "確認安裝");
       ok.type = "button";
-      if (upg && !upg.version_ok) { ok.disabled = true; }
-      if (down) { down.addEventListener("change", function () { ok.disabled = !down.checked; }); }
+      var refresh = function () {
+        var versionOk = !(upg && !upg.version_ok) || !!(down && down.checked);
+        ok.disabled = !versionOk || (pub && !pub.ready());
+      };
+      if (down) { down.addEventListener("change", refresh); }
+      if (pub) { pub.onchange(refresh); }
+      refresh();
       ok.addEventListener("click", function () {
         var body = { token: s.token };
         if (upg) { body.upgrade = true; body.allow_downgrade = !!(down && down.checked); }
         if (trust) { body.trust = trust.value; }
+        if (pub) { body.trust_publisher = pub.value(); }
         api("POST", "/api/packs/install", body).then(function (d) {
           $("pack-msg").textContent = (d.upgraded ? "升級好了：" + d.name + " " + d.from + " → " + d.to + "（舊的在 " + d.backup + "）"
             : "裝好了：" + d.name) + "（" + (STATUS[d.status] || d.status) + (d.detail ? "：" + d.detail : "") + "）" +
@@ -763,6 +770,45 @@
     sel.addEventListener("change", check);
     check();
     return sel;
+  }
+  // SDK P7：信任層級。T2（有掃不到內容的執行檔、外部程式、runtime auto 的套件）：紅字＋勾選＋輸入 publisher
+  //（一字不差才能按確認）；升級時只有發行者變了／新增 exec／可執行的東西變多才要重新確認
+  function showTier(box, s, upg, canInstall) {
+    var t = upg ? (upg.tier || {}) : (s.tier || {});
+    if (!t.tier) { return null; }
+    if (t.tier !== "T2") { box.appendChild(el("p", "muted", "🧩 信任層級：" + (t.text || t.tier))); return null; }
+    if (upg && !t.needs_publisher) {
+      box.appendChild(el("p", "muted", "🧩 T2：沿用之前確認過的發行者「" + (t.trusted_publisher || "") + "」"));
+      return null;
+    }
+    box.appendChild(el("p", "alert", "🔴 信任層級：" + (t.text || "T2") + "——T2 不是沙盒保證，只是讓你知道你在信任誰"));
+    if (upg && (t.reconfirm || []).length) {
+      box.appendChild(el("p", "alert", "🔴 要重新確認發行者：" + t.reconfirm.join("；")));
+    }
+    var ul = el("ul");
+    var lines = (s.tier && s.tier.warning_lines) || t.warning_lines || [];
+    lines.forEach(function (w) { ul.appendChild(el("li", "alert", "🔴 " + w)); });
+    (t.opaque || []).forEach(function (o) {
+      ul.appendChild(el("li", "muted", o.path + "　" + o.size + " bytes　sha256 " + o.sha256 + "　" + o.why));
+    });
+    box.appendChild(ul);
+    if (!canInstall || !t.publisher) { return null; }
+    var lab = el("label", "alert");
+    var cb = el("input");
+    cb.type = "checkbox";
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(" 我知道這個 pack 會執行掃不到內容的東西，我信任發行者："));
+    var input = el("input");
+    input.type = "text";
+    input.placeholder = "輸入 " + t.publisher;
+    input.setAttribute("autocomplete", "off");
+    lab.appendChild(input);
+    box.appendChild(lab);
+    return {
+      ready: function () { return cb.checked && input.value.trim() === t.publisher.trim(); },
+      value: function () { return cb.checked ? input.value.trim() : ""; },
+      onchange: function (fn) { cb.addEventListener("change", fn); input.addEventListener("input", fn); }
+    };
   }
   function reviewFailed(e) {
     if (e.data && e.data.refused && e.data.refused.name) { showReview(e.data.refused, false); }
