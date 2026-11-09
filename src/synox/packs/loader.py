@@ -610,6 +610,15 @@ def _install_cli(app, pack: Pack) -> None:
                 os.makedirs(ph["user_data_dir"], exist_ok=True)
             values = {k: gate4.normalize(kinds_of.get(k, "text"), v, choices_of.get(k, ())) for k, v in values.items()}
             user_id = getattr(user, "tg_id", None)
+            for k, v in values.items():
+                # kind: path：人打字也要在這個人的資料夾裡（AI 那條第 4 關本來就查；typed_check 不知道是誰）
+                if kinds_of.get(k) == "path" and str(v or "").strip():
+                    _full, problem = gate4.inside(ph["user_data_dir"], str(v).strip())
+                    if problem:
+                        if _grant:
+                            grants.discard(_grant)
+                        say(api, chat_id, f"❌ {cmd.name}：{k} 的路徑{problem}。")
+                        return
             confirmed: Optional[str] = None
             if _grant:
                 confirmed = grants.redeem(_grant, m.name, cmd.name, values, user_id)

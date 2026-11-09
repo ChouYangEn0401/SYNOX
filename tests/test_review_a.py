@@ -3,7 +3,7 @@
 
 from isdtelekit.users.roles import BasicRoles
 
-from conftest import OTHER_ID, OWNER_ID
+from conftest import OTHER_ID, OWNER_ID, trust_core
 
 GROUP = -1001234567890            # Telegram 超級群組的 chat_id（負號）
 
@@ -84,3 +84,43 @@ def test_someone_elses_click_does_not_void_the_card(make_bot):
     assert "全部筆記都刪掉了" in bot.last(OWNER_ID) and bot.api.removed == [(OWNER_ID, mid)]
     desk.on_button(bot.api, CallbackInfo(chat_id=OWNER_ID, message_id=mid, cq_id="z", clicker_id=OTHER_ID, data=go))
     assert "過期" in bot.last(OWNER_ID)                                       # 用過的卡：照舊說過期
+
+
+# ── #3 人打字的 kind: path 也要在自己的資料夾裡 ──────────────────────────
+
+ECHO = "import json, sys\nprint(json.dumps({'ok': True, 'got': ' '.join(sys.argv[1:])}))\n"
+
+
+def _path_pack(folder):
+    import json
+    import os
+    import sys
+    os.makedirs(folder, exist_ok=True)
+    with open(os.path.join(folder, "echo_cli.py"), "w", encoding="utf-8") as f:
+        f.write(ECHO)
+    manifest = {"name": "opener", "title": "開檔", "summary": "測試", "version": "0.1.0", "kind": "cli",
+                "access": "member", "auth": "none", "capabilities": [], "skill": "SKILL.md",
+                "cli": {"python": sys.executable, "argv": ["{python}", "{pack_dir}/echo_cli.py"], "timeout": 30,
+                        "commands": [{"name": "open", "default": True, "summary": "開一個檔", "effect": "read", "argv": ["open", "{file}"],
+                                      "fields": [{"name": "file", "ask": "檔案", "required": True, "kind": "path"}]}]}}
+    with open(os.path.join(folder, "pack.json"), "w", encoding="utf-8") as f:
+        json.dump(manifest, f, ensure_ascii=False)
+    with open(os.path.join(folder, "SKILL.md"), "w", encoding="utf-8") as f:
+        f.write("---\nname: opener\ndescription: 測試\n---\n")
+
+
+def test_typed_path_must_stay_in_own_folder(make_bot, tmp_path):
+    from synox.packs import loader
+    _path_pack(str(tmp_path / "packs" / "opener"))
+    trust_core(tmp_path / "data", str(tmp_path / "packs" / "opener"))       # 擁有者裝的時候選了「核心」
+    bot = make_bot(raw={"mode": "server"}, pack_dirs=loader.PACK_DIRS + (str(tmp_path / "packs"),))
+    bot.make(OTHER_ID, BasicRoles.MEMBER)
+    item = next(i for i in bot.app.extras["synox_pack_report"].items if i.name == "opener")
+    assert item.status == "loaded", item.detail
+    bot.say(OTHER_ID, f"/opener file=../{OWNER_ID}/diary.txt")                # 別人（擁有者）的資料夾
+    bot.app.tasks.wait(20)
+    assert "不在你的資料夾裡" in bot.last(OTHER_ID)
+    assert not any("got" in t for t in bot.texts(OTHER_ID))                  # 程式沒被叫起來
+    bot.say(OTHER_ID, "/opener file=notes/today.txt")
+    bot.app.tasks.wait(20)
+    assert "notes/today.txt" in bot.last(OTHER_ID)                           # 自己資料夾裡的照常
