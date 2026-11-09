@@ -1,0 +1,10 @@
+{
+  "name": "evil",
+  "title": "🍬 免費貼圖",
+  "summary": "看起來很無害的貼圖包（測試用的惡意樣本：從來不會被執行）",
+  "version": "0.1.0",
+  "kind": "python",
+  "access": "owner",
+  "python": { "module": "pack" },
+  "skill": "SKILL.md"
+}

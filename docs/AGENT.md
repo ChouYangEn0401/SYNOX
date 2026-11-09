@@ -18,16 +18,18 @@
 | Path | Role |
 |---|---|
 | `vendor/isdtelekit/` | ISDTeleKitSDK 的**原樣**複製（版本與 commit 在 `vendor/VERSION`）。不要改；要不同的行為就在 `src/synox` 寫轉接 |
-| `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜doctor｜stop` |
+| `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜doctor｜stop｜install <檔> [--yes]｜packs status｜packs lock --approve <name>` |
 | `src/synox/app.py` | `build(config, home=, adapter=, vault=, config_path=)`：SDK `build_app` → basics/help → `packs.load_all` → `agent.install` → `schedule.install` → `web.install` |
 | `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`；路徑相對 SYNOX 資料夾（`ROOT`） |
 | `src/synox/llm/` | `base.py`（`ChatAdapter`、`Message`、`Reply`、`ToolCall`、`ToolSpec`）、`easy_llm.py`（openai／anthropic／gemini／openai_compat，經 `ntu_easy_llm.agent`，lazy import）、`claude_code`、`fake`、`textproto`、`factory.make_adapter` |
 | `src/synox/vault/` | `vault.py`（Fernet＋每檔 scrypt、`*.json.enc`；`for_user(id)`＝伺服器版每人的保管箱，HKDF 衍生）、`keyring.py`（DPAPI 包住主金鑰 `data/.synox.key`） |
-| `src/synox/packs/` | `manifest.py`（pack.json 檢查）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`）、`kit.py`（照位置填的指令） |
-| `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`budget.py`（伺服器版成員每月額度）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
+| `src/synox/packs/` | `manifest.py`（pack.json v2 檢查＝第 1 關）、`scan.py`（ast 靜態掃描＝第 2 關）、`lock.py`（`data/packs.lock`＝第 3 關）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`、cli 代換與 `build_argv`）、`kit.py`（照位置填的指令） |
+| `src/synox/sdk/` | 給 pack 作者：JSON 信封、`Pack.load`、`init_pack`、`zip_pack`；`synox-sdk init｜check｜zip`（`python -m synox.sdk`）。說明 [sdk.md](sdk.md) |
+| `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`validate.py`（第 4 關呼叫驗證）、`delimit.py`（第 5 關工具結果分隔符）、`budget.py`（伺服器版成員每月額度）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
 | `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（30 秒、via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`、`/schedule_*`） |
 | `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS）、`__init__.py`（`install`、`/web`、`/web_off`） |
-| `src/synox/packs/admin.py` | `.synoxpack` 上傳檢查／安裝／移除到 `packs/_removed/`／`reload()`（Web UI 設定頁用） |
+| `src/synox/packs/admin.py` | `.synoxpack`：stage（zip 檢查＋第 1、2 關）→ install_staged（再驗一次＋第 3 關寫鎖）／移除到 `packs/_removed/`／`reload()`（Web UI、`synox install` 共用） |
+| `Install-Pack.bat`、`scripts/pack_zip.py` | 點兩下 `.synoxpack` 的落點（精靈勾了才在 HKCU 登記）；打包 |
 | `src/synox/backup.py` | `export_backup`／`read_backup`：data/ 的 zip 用保管箱主金鑰加密（`Vault.encrypt_bytes`） |
 | `src/synox/wizard/` | `pages.py`（tkinter 畫面：這台給誰用 → token → 配對 → AI → 完成）、`logic.py`（寫 config、mode、AI 頁的 helper、金鑰進保管箱）、`telegram_probe.py`（getMe、配對碼）、`shortcuts.py` |
 | `src/synox/doctor.py` | 健康檢查（不改任何檔、不產生金鑰） |
@@ -56,6 +58,10 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 9. **Web UI 只綁 127.0.0.1**（`web/server.py` 的 `HOST`，不從 config 讀）；對外是營運者的反向代理＋TLS。每個 API 用 session 的那個人算權限，
    非 GET 要 CSRF header；網頁的字一律 `textContent`，伺服器產生的 HTML 一律 escape；沒有外部資源、沒有 inline 事件（nonce CSP）。
    網頁送出的指令與按鈕一律經 `dispatcher.handle`（同一個 authorize），按鈕的 callback_data 還要真的在那則訊息上。
+
+10. **裝別人的 pack 一律過五關**（docs/security.md「五關」）：宣告（`manifest.validate(strict=True)`）→ 靜態掃描（`scan.py`）→
+    `packs.lock`（載入時雜湊不符＝不載）→ 呼叫前驗參數（`agent/validate.py`，AI 的每個工具呼叫）→ `ai_decision`＋核准卡＋分隔符。
+    新的安裝路徑一律走 `packs/admin.py` 的 `stage`／`install_staged`，不要自己搬檔進 `packs/`。
 
 另外：
 - pack 的群組由 loader 依 pack.json 定義（`loader.group_policy`）：`access: owner`（預設）＝整組 `owner_only`；`member`＝伺服器版 `role=MEMBER`、

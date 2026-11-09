@@ -7,6 +7,7 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     GET  /                          app.html（每次回應一個 nonce 的 CSP；沒有 inline 事件、沒有外部資源）
     GET  /login?t=<token>           一次性登入連結 → cookie session → 303 到 /#chat
     GET  /packs/<name>/panel        pack 的 web.panel（工具頁用 <iframe sandbox> 掛）
+    GET  /api/pack-staged/<token>   `python -m synox install` 暫存好的 pack 的檢查報告（擁有者；網頁 ?pack=<token>#settings）
     /api/...                        JSON；都要登入；改東西的（非 GET）都要 X-SYNOX-CSRF 等於 session 的 csrf，
                                     有 Origin 的話要跟 Host 一樣
 
@@ -268,6 +269,9 @@ class WebUI:
                 return self.events(user, m.group(1), (query.get("since") or ["0"])[0])
             if path == "/api/tools":
                 return _json(200, self.tools(user))
+            m = re.match(r"^/api/pack-staged/([A-Za-z0-9_-]{8,64})$", path)
+            if m:
+                return self.pack_staged(user, m.group(1))
             m = re.match(r"^/api/packs/([a-z][a-z0-9_-]{0,31})/([a-z0-9][a-z0-9_-]{0,31})$", path)
             if m:
                 return self.pack_api(user, m.group(1), m.group(2))
@@ -398,7 +402,7 @@ class WebUI:
             if group is None or not registry.visible(user, group):
                 continue
             leaves = [n for n in group.walk() if not n.is_group and registry.visible(user, n)]
-            connector = pack.manifest.kind == "connector"
+            connector = pack.manifest.kind in ("connector", "mcp")
             packs_out.append({
                 "name": pack.name, "title": pack.manifest.title, "summary": pack.manifest.summary,
                 "kind": pack.manifest.kind, "version": pack.manifest.version,
@@ -449,7 +453,7 @@ class WebUI:
         report = self.app.extras.get("synox_pack_report")
         user_dir = os.path.realpath(self.pack_dirs[0]) if self.pack_dirs else ""
         out["packs"] = [{"name": i.name, "status": i.status, "detail": i.detail, "kind": i.kind,
-                         "version": i.version,
+                         "version": i.version, "lock": getattr(i, "lock", ""),
                          "removable": bool(user_dir) and os.path.realpath(os.path.dirname(i.folder)) == user_dir}
                         for i in (report.items if report else [])]
         out["vault"] = self.vault is not None
@@ -516,22 +520,38 @@ class WebUI:
         denied = self._owner_only(user)
         if denied:
             return denied
-        from synox.packs.admin import PackAdminError, stage
+        from synox.packs.admin import GateRefused, PackAdminError, stage
         try:
-            _token, summary = stage(body, self.config.data_dir)
+            _token, summary = stage(body, self.config.data_dir)        # 安全管線第 1、2 關
+        except GateRefused as e:
+            return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:
             return _err(400, str(e))
         return _json(200, summary)
+
+    def pack_staged(self, user, token: str) -> Resp:
+        """`python -m synox install` 已經暫存好、跑過 1、2 關的那一份：網頁拿報告給人看、按確認。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from synox.packs.admin import PackAdminError, staged_summary
+        try:
+            return _json(200, staged_summary(token, self.config.data_dir))
+        except PackAdminError as e:
+            return _err(404, str(e))
 
     def pack_install(self, user, data: dict) -> Resp:
         denied = self._owner_only(user)
         if denied:
             return denied
-        from synox.packs.admin import PackAdminError, install_staged
+        from synox.packs.admin import GateRefused, PackAdminError, install_staged
         if not self.pack_dirs:
             return _err(400, "沒有可以裝 pack 的資料夾。")
-        try:
-            name = install_staged(str(data.get("token") or ""), self.config.data_dir, self.pack_dirs[0])
+        try:                                                            # 再跑 1、2 關 → 第 3 關（packs.lock）
+            name = install_staged(str(data.get("token") or ""), self.config.data_dir, self.pack_dirs[0],
+                                  approved_by=user.tg_id, via="web")
+        except GateRefused as e:
+            return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:
             return _err(400, str(e))
         report = self._reload()
@@ -548,7 +568,7 @@ class WebUI:
         if not NAME_RE.match(name) or not self.pack_dirs:
             return _err(400, "pack 名字不對。")
         try:
-            dest = remove(name, self.pack_dirs[0])
+            dest = remove(name, self.pack_dirs[0], data_dir=self.config.data_dir)
         except PackAdminError as e:
             return _err(400, str(e))
         self._reload()
