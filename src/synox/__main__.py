@@ -39,8 +39,10 @@ def cmd_run(args) -> int:
         print(f"❌ {e}")
         return 2
     from synox.app import build
-    app = build(config)
+    app = build(config, config_path=os.path.abspath(args.config or CONFIG_PATH))
     print("✅ SYNOX 開始收訊息了。這個視窗可以縮小，但不要關；要停就按 Ctrl+C 或雙擊 Stop.bat。")
+    if config.web.get("enabled", True):
+        print(f"🌐 網頁介面：http://127.0.0.1:{config.web.get('port')}/ （在 Telegram 打 /web 拿登入連結）")
     app.run()
     return 0
 

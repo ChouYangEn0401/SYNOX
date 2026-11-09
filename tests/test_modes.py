@@ -161,6 +161,7 @@ def test_server_guest_sees_only_everyone_packs(make_bot, owner, tmp_path):
     # 升成成員之後就能用 notes（access: member），而且是自己的一份
     bot.say(owner, f"/user_role {STRANGER} member")
     member = bot.app.users.get(STRANGER)
-    assert registry.visible(member, registry.node("note")) and not registry.visible(member, registry.node("remind"))
+    assert registry.visible(member, registry.node("note")) and registry.visible(member, registry.node("remind"))
+    assert not registry.visible(member, registry.node("gcal"))         # connector（access: owner）仍然只有擁有者
     bot.say(STRANGER, "/note 我的")
     assert os.path.isfile(os.path.join(bot.app.config.data_dir, "users", str(STRANGER), "notes.json.enc"))

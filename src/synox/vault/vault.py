@@ -77,6 +77,10 @@ class Vault:
                 found = self._users[tg_id] = Vault(user_key(self._key, tg_id), folder)
             return found
 
+    def at(self, folder: str) -> "Vault":
+        """同一把金鑰、換一個資料夾（例如網頁對話紀錄 data/web_chats/<id>.json.enc 用那個人的金鑰）。"""
+        return Vault(self._key, folder)
+
     # ── 路徑 ─────────────────────────────────────────────────────────
 
     def path(self, name: str) -> str:
@@ -98,14 +102,20 @@ class Vault:
         return Fernet(key)
 
     def encrypt(self, data: Any) -> bytes:
+        return self.encrypt_bytes(json.dumps(data, ensure_ascii=False).encode("utf-8"))
+
+    def encrypt_bytes(self, plain: bytes, **extra) -> bytes:
+        """任意 bytes → 同一種兩行格式（備份 zip 用）。extra 寫進 header（例如 payload="zip"）。"""
         salt = os.urandom(16)
         header = {"synox_vault": FORMAT, "kdf": "scrypt", **KDF_PARAMS,
-                  "salt": base64.b64encode(salt).decode("ascii"), "saved": int(time.time())}
-        plain = json.dumps(data, ensure_ascii=False).encode("utf-8")
-        token = self._fernet(salt, **KDF_PARAMS).encrypt(plain)
+                  "salt": base64.b64encode(salt).decode("ascii"), "saved": int(time.time()), **extra}
+        token = self._fernet(salt, **KDF_PARAMS).encrypt(bytes(plain))
         return json.dumps(header).encode("ascii") + b"\n" + token + b"\n"
 
     def decrypt(self, blob: bytes, where: str = "保管箱檔案") -> Any:
+        return json.loads(self.decrypt_bytes(blob, where).decode("utf-8"))
+
+    def decrypt_bytes(self, blob: bytes, where: str = "保管箱檔案") -> bytes:
         try:
             head, token = blob.strip().split(b"\n", 1)
             header = json.loads(head.decode("ascii"))
@@ -118,10 +128,9 @@ class Vault:
         except (ValueError, KeyError, TypeError, UnicodeDecodeError) as e:
             raise VaultError(f"{where} 的格式不對（{e}），可能被改過或不是 SYNOX 的檔案。")
         try:
-            plain = self._fernet(salt, n, r, p).decrypt(token.strip())
+            return self._fernet(salt, n, r, p).decrypt(token.strip())
         except InvalidToken:
             raise VaultError(f"{where} 解不開：金鑰不對（換了電腦或 Windows 帳號？）或檔案被改過。")
-        return json.loads(plain.decode("utf-8"))
 
     # ── 檔案 ─────────────────────────────────────────────────────────
 

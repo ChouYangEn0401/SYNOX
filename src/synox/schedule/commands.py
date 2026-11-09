@@ -16,6 +16,7 @@ from typing import List, Optional, Tuple
 from isdtelekit.core.registry import SCHEDULE, WRITE, Field, Node
 
 from synox.packs import kit
+from synox.packs.loader import group_policy
 from synox.schedule.store import ScheduleStore
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
@@ -36,7 +37,10 @@ def check_date(value: str) -> Optional[str]:
 def store_for(app) -> ScheduleStore:
     store = app.extras.get("synox_schedule_store")
     if store is None:
-        store = app.extras["synox_schedule_store"] = ScheduleStore(app.config.data_dir, app.extras.get("vault"))
+        config = app.extras.get("synox_config")
+        server = getattr(config, "mode", "personal") == "server"
+        store = app.extras["synox_schedule_store"] = ScheduleStore(app.config.data_dir, app.extras.get("vault"),
+                                                                   per_user=server)
     return store
 
 
@@ -50,14 +54,15 @@ def install_remind(app, group) -> None:
     store = store_for(app)
 
     def add(api, chat_id, user, values):
-        item = store.add("remind", values["time"], user.tg_id, text=values["text"].strip(),
-                         date=values.get("date", ""))
-        n = len(store.items("remind"))
+        mine = store.of(user)
+        item = mine.add("remind", values["time"], user.tg_id, text=values["text"].strip(),
+                        date=values.get("date", ""))
+        n = len(mine.items("remind"))
         api.send_message(chat_id, f"⏰ 好，{_when(item)} 提醒你：{item['text']}（第 {n} 個）\n"
                                   "（提醒只有 bot 開著時才會送出）")
 
     def list_(api, chat_id, user, values):
-        items = store.items("remind")
+        items = store.of(user).items("remind")
         if not items:
             api.send_message(chat_id, "⏰ 還沒有提醒。用 /remind_add 08:00 吃藥 加一個。")
             return
@@ -65,7 +70,7 @@ def install_remind(app, group) -> None:
         api.send_message(chat_id, "\n".join(lines))
 
     def rm(api, chat_id, user, values):
-        gone = store.remove_nth("remind", int(values["n"]))
+        gone = store.of(user).remove_nth("remind", int(values["n"]))
         if gone is None:
             api.send_message(chat_id, f"❌ 沒有第 {values['n']} 個（/remind_list 看編號）。")
             return
@@ -90,7 +95,11 @@ SCHEDULE_FIELDS = (Field("time", "時間 HH:MM", required=True, check=kit.hhmm),
 def install_schedule(app) -> None:
     registry = app.registry
     store = store_for(app)
-    registry.ensure_group("schedule", "🗓 排程指令", "每天幾點自動替你執行一個指令", owner_only=True)
+    config = app.extras.get("synox_config")
+    server = getattr(config, "mode", "personal") == "server"
+    # 個人版：只有擁有者；伺服器版：成員以上，每個人排自己的（建立時以他的身分 via=SCHEDULE 檢查裡面那個指令）
+    registry.ensure_group("schedule", "🗓 排程指令", "每天幾點自動替你執行一個指令",
+                          **group_policy(app, "member", server))
     g = registry.group("schedule")
 
     def wraps(args: List[str]) -> Optional[Tuple[Node, List[str]]]:
@@ -113,12 +122,12 @@ def install_schedule(app) -> None:
         if not decision.allowed:
             api.send_message(chat_id, f"❌ {inner.command} 不能排進排程：{decision.message}")
             return
-        item = store.add("command", values["time"], user.tg_id, command=values["command"].strip(),
-                         date=values.get("date", ""))
+        item = store.of(user).add("command", values["time"], user.tg_id, command=values["command"].strip(),
+                                  date=values.get("date", ""))
         api.send_message(chat_id, f"🗓 好，{_when(item)} 替你執行：{item['command']}\n（只有 bot 開著時才會執行）")
 
     def list_(api, chat_id, user, values):
-        items = store.items("command")
+        items = store.of(user).items("command")
         if not items:
             api.send_message(chat_id, "🗓 還沒有排程。例：/schedule_add 21:00 /money_month")
             return
@@ -126,7 +135,7 @@ def install_schedule(app) -> None:
         api.send_message(chat_id, "\n".join(lines))
 
     def rm(api, chat_id, user, values):
-        gone = store.remove_nth("command", int(values["n"]))
+        gone = store.of(user).remove_nth("command", int(values["n"]))
         if gone is None:
             api.send_message(chat_id, f"❌ 沒有第 {values['n']} 個（/schedule_list 看編號）。")
             return
