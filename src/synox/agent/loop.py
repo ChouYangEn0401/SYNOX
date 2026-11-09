@@ -11,6 +11,7 @@ AI 助理的一輪（spec §5、§7）：
   鍵是 memory_key(chat_id, user)：私訊＝這個人；chat_id 不是這個人時＝(chat_id, 這個人)，群組裡不共用。
 - 核准卡一律送這個人的私訊（ApprovalDesk.request），不進群組。
 - 用量：adapter 回的 usage 累計到 data/llm_usage.json，/ai_usage 看。
+- log：工具呼叫只印名字；過了第 4 關才印參數的「欄位名(長度)」，值永遠不進 log（arg_shape）。
 - 安全管線（架構 v1 §4）在這裡的兩關：第 4 關 `validate.check_call`（執行任何工具之前驗參數，不合就把一句話交回給 AI、
   不執行）；第 5 關 ai_decision＋核准卡＋額度，以及交回 AI 的每個工具結果包在每輪隨機的 ⟦SYNOX-TOOL-<nonce>⟧ 裡（delimit.py）。
 """
@@ -47,6 +48,19 @@ def ai_decision(app, user, node: Node, *, chat_id: Optional[int] = None, bot=Non
     判斷本身全在 synox/policy.py 的 decide：群組／interactive／ai=False／agent、sudo 群組／訪客、角色能力上限、authorize。"""
     decision = policy.decide(app, user, node, via=AI, chat_id=user.tg_id if chat_id is None else chat_id, bot=bot)
     return decision if decision.allowed or decision.needs_sudo else None
+
+
+def arg_shape(args) -> str:
+    """log 用：只印欄位名與長度（值可能是 secret、個人資料），例如 "amount(2), memo(12)"。"""
+    if not isinstance(args, dict):
+        return f"（{type(args).__name__}）"
+    if not args:
+        return "（沒有參數）"
+    parts = []
+    for key, value in list(args.items())[:20]:
+        size = len(value) if isinstance(value, (str, list, dict)) else (0 if value is None else 1)
+        parts.append(f"{str(key)[:40]}({size})")
+    return ", ".join(parts) + ("…" if len(args) > 20 else "")
 
 
 def needs_card(node: Node, argv: List[str]) -> bool:
@@ -242,7 +256,7 @@ class AgentLoop:
                 return
             messages.append(Message(ASSISTANT, said if native else reply.text, tool_calls=calls if native else []))
             for call in calls:
-                logging.info("[AGENT] chat %s step %d → %s %s", chat_id, step + 1, call.name, call.args)
+                logging.info("[AGENT] chat %s step %d → %s", chat_id, step + 1, call.name)   # 參數值不進 log
                 result, carded = self.call_tool(api, chat_id, user, call, skills)
                 if carded:
                     self.remember(chat_id, text, self.carded_note(call.name), user)
@@ -275,6 +289,7 @@ class AgentLoop:
         if problem:
             logging.warning("[AGENT] gate 4 rejected %s: %s", call.name, problem)
             return problem, False
+        logging.info("[AGENT] %s passed gate 4: %s", call.name, arg_shape(call.args))
         argv = tools_mod.to_argv(node, call.args)
         if node.wraps is not None:
             try:
@@ -315,6 +330,7 @@ class AgentLoop:
         if problem:
             logging.warning("[AGENT] gate 4 rejected %s: %s", call.name, problem)
             return problem, False
+        logging.info("[AGENT] %s passed gate 4 (schema): %s", call.name, arg_shape(args))
         runner = gate4.schema_runner(self.app, node)
         if needs_card(node, []) or gate4.wants_confirm(self.app, node):
             if self.desk is None:

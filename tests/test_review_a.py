@@ -86,6 +86,29 @@ def test_someone_elses_click_does_not_void_the_card(make_bot):
     assert "過期" in bot.last(OWNER_ID)                                       # 用過的卡：照舊說過期
 
 
+# ── #7 log 不印參數值、[ROUTE] 不印 token ─────────────────────────────
+
+def test_agent_log_has_no_argument_values(make_bot, caplog):
+    import logging
+    caplog.set_level(logging.INFO)
+    bot = make_bot([{"tool": "money__add", "args": {"amount": "80", "bogus": "hunter2-secret-value"}},
+                    {"tool": "money__add", "args": {"amount": "81", "category": "咖啡櫃檯密語"}}, "好"])
+    bot.talk(OWNER_ID, "記一筆")
+    text = caplog.text
+    assert "hunter2-secret-value" not in text                                # 第 4 關擋下的：以前先印了值
+    assert "咖啡櫃檯密語" not in text and "category(6)" in text                # 過了第 4 關：只印欄位名(長度)
+
+
+def test_route_log_masks_token_like_text(make_bot, caplog):
+    import logging
+    caplog.set_level(logging.INFO)
+    bot = make_bot()
+    token = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2"
+    bot.say(OWNER_ID, f"/note 我的 token 是 {token}")
+    assert "[ROUTE]" in caplog.text and token not in caplog.text
+    assert "***" in caplog.text
+
+
 # ── #3 人打字的 kind: path 也要在自己的資料夾裡 ──────────────────────────
 
 ECHO = "import json, sys\nprint(json.dumps({'ok': True, 'got': ' '.join(sys.argv[1:])}))\n"
