@@ -34,7 +34,8 @@
 | `src/synox/wizard/` | `pages.py`（tkinter 畫面：這台給誰用 → token → 配對 → AI → 完成）、`logic.py`（寫 config、mode、AI 頁的 helper、金鑰進保管箱）、`telegram_probe.py`（getMe、配對碼）、`shortcuts.py` |
 | `src/synox/doctor.py` | 健康檢查（不改任何檔、不產生金鑰） |
 | `packs/notes`、`packs/money`、`packs/remind` | 出廠 pack；remind 的程式在 `synox/schedule` |
-| `connectors/*` | `kind: connector` 的設計稿（只有 pack.json、SKILL.md、README；沒有連網程式） |
+| `connectors/notion` | **已接上**：`kind: python`＋`capabilities: ["network"]`，integration token 存 `pack.store.of(user)`（vault），Notion REST `2025-09-03`，只用 requests；測試 `tests/test_notion.py`（`new_session` 換假的 HTTP） |
+| `connectors/*`（其他） | `kind: connector` 的設計稿（只有 pack.json、SKILL.md、README；沒有連網程式） |
 | `Setup.bat`、`setup/bootstrap.ps1` | 一鍵安裝；`Start.bat`／`Stop.bat`／`Console.bat` |
 | `tests/` | pytest；`conftest.py` 的 `make_bot` 用真的 packs＋真的 Vault＋`FakeAdapter`＋SDK `BotHarness` |
 
@@ -118,7 +119,8 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 - 經 AI 呼叫、會丟到 `app.tasks` 背景回覆的指令（例如 kind=cli 的 service 指令）：AI 拿到的工具結果是空的，真正的回覆之後直接送給使用者。
 - 核准卡按下執行的結果直接給使用者，只在 AI 的紀錄留一句「已執行」，不會自動再開一輪讓 AI 接著做。
 - `Setup.bat` 的完整安裝路徑（winget、embeddable zip）沒有在任何一台陌生電腦上跑過；精靈的畫面沒有自動化測試（只測了 logic／probe／shortcuts）。
-- connector 只有設計稿（工具頁顯示「要先設定」，沒有「連接」按鈕）。
+- connector：Notion 接上了（貼 token，`/notion_token`）；Google 日曆、Todoist、Apple 提醒事項仍是設計稿（工具頁顯示「要先設定」，沒有「連接」按鈕）。
+  Notion 在網頁工具頁顯示「已連接」（kind=python 一律這樣），沒設 token 時要打 `/notion_status` 才知道；指令的參數是照空白切的，一次加的字只會是一段（換行變空白）。
 - 文字協定一次只解析一個工具呼叫。
 - 伺服器版：個人版的舊資料不會自動搬到擁有者的 `data/users/<id>/`；精靈的伺服器版沒有多問「誰是管理員」（擁有者之後用 `/user_role <id> admin`
   或網頁帳號頁）。成員的 AI 額度用 token × 單價估（`llm.price_in`／`price_out`，預設 3／15 美元每百萬 token），不是供應者的帳單。
