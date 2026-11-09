@@ -10,7 +10,7 @@ from isdtelekit.core.registry import AI, TYPED, CommandRegistry
 from isdtelekit.host.config import ConfigError
 from isdtelekit.users.roles import BasicRoles
 
-from conftest import OTHER_ID, OWNER_ID
+from conftest import OTHER_ID, OWNER_ID, trust_core
 
 from synox import policy
 from synox.agent import tools as tools_mod
@@ -51,6 +51,7 @@ def _dirs(tmp_path):
     _pack(base, "anyfs", ["filesystem:any"])
     _pack(base, "pub", [], access="everyone")
     _pack(base, "pubnet", ["network"], access="everyone")
+    trust_core(tmp_path / "data", *(os.path.join(base, n) for n in ("plain", "net", "sub", "anyfs", "pub", "pubnet")))
     return (base,)
 
 
