@@ -121,12 +121,48 @@
 舊的不刪，搬到 `packs/_removed/`、旁邊留當時的鎖；`python -m synox packs rollback <name>` 搬回來時，檔案跟當時的鎖對得上才把鎖改回，
 對不上（在 `_removed` 裡被改過）就不鎖、要你重新核准。`_removed` 的舊版本身不會載入。
 
+## 運行空間（沙盒，PERM-7）
+
+上面五關之外，kind=cli 的子程序每次叫之前都過 `src/synox/sandbox.py`：照 pack.json 的宣告算出這一次能碰什麼（grants），
+交給後端把 argv 包一層。**沙盒後端的真機驗證要在 Linux 伺服器上做，寫這一版的 Windows 電腦沒驗證過**——這裡只用假後端與
+「組出來的 argv」測過，bwrap／systemd-run／AppContainer 一次都沒真的跑。上線前在伺服器上照下面的清單試一次。
+
+**grants 怎麼算**（`sandbox.grants_for`）：
+- 可寫：資料屬於使用者（data=user）→ `<user_data_dir>/<pack>/`（伺服器版＝`data/users/<id>/<pack>/`）；共用（data=shared）→
+  `data/packs/<pack>/`；沒有資料（data=none）→ 不能寫 SYNOX 的任何資料夾。pack.json 的 `data` 欄位（PERM-2）還沒合進來，
+  沒寫就推斷：樣板有 `{user_data_dir}` → user、有 `{data_dir}` → shared、都沒有 → none（推斷只在 `sandbox.data_scope` 一個函式）。
+- 唯讀：pack 資料夾、`data/envs/<pack>/`、Python 本身。其他 SYNOX 資料（別人的 `data/users/`、保管箱、config）不在裡面。
+- 網路：capabilities 沒有 `network` → 斷網。資源：`policy.sandbox.mem_mb`（預設 1024）、`max_procs`（預設 64）、cli.timeout。
+
+**後端**（config.json `policy.sandbox.backend`，預設 `auto`）：
+
+| 後端 | 在哪 | 做什麼 | 算真隔離 |
+|---|---|---|---|
+| `none` | 都可以 | 原樣通過。個人版、Windows 的 `auto` 都是這個 | 否 |
+| `jobobject` | Windows | 先跑 `python -I sandbox.py jobobject`，它把自己放進 Job Object（記憶體上限、程序數、launcher 結束整組關），再叫原程式；設不起來就不跑 | 否（檔案、網路不限制） |
+| `bwrap` | Linux（建議） | bubblewrap：系統資料夾唯讀、grants.read 唯讀、grants.write 可寫、`--unshare-pid`、沒 network 就 `--unshare-net`；前面接 `prlimit`（setrlimit 的 RLIMIT_AS／RLIMIT_NPROC，找不到 prlimit 就不限，doctor 說） | 是 |
+| `systemd` | Linux 替代 | `systemd-run --pipe --wait`：MemoryMax、TasksMax、RuntimeMaxSec、PrivateNetwork＋IPAddressDeny、ProtectSystem=strict、InaccessiblePaths＝SYNOX 的 data，再用 BindReadOnlyPaths／BindPaths 開回 grants；環境變數用 `--setenv=名字`（值不進 argv） | 是 |
+| `appcontainer` | Windows（未來） | 只有介面，`wrap` 丟 NotImplementedError。之後要做：CreateAppContainerProfile＋SECURITY_CAPABILITIES 開程序、對 grants 的資料夾加 ACL、沒 network 就不給 internetClient | （未實作） |
+
+`auto`：個人版、Windows＝none；Linux 伺服器版＝有 bwrap 用 bwrap，沒有就 systemd-run，都沒有＝none。明寫的後端在這台用不了
+（找不到 bwrap…）＝當作 none（fail closed），doctor 說原因。
+
+**要沙盒卻沒有真隔離**：`policy.sandbox.required_for`（`third-party` 預設｜`all`｜`none`）命中的 cli pack，在伺服器版又沒有真隔離的後端
+（none、jobobject 不算）→ 那個 pack 整組只對擁有者可見（成員、管理員、訪客看不到、AI 工具清單也沒有），`doctor` 與 `packs status`
+寫原因。個人版不受影響。誰是 third-party：packs.lock 的 `trust`（之後安裝時由擁有者選）優先；還沒寫的，經安裝流程從檔案裝進來的
+（鎖的 via＝web／console）算 third-party，出廠的與 `packs lock --approve` 的算 core。python pack 在 SYNOX 程序裡跑，沙盒管不到（PERM-8）。
+
+**伺服器上要驗的**（還沒做）：bwrap 能在 SYNOX 的帳號下開 user namespace；斷網真的斷（`curl` 失敗）；讀不到別人的 `data/users/<id>/`；
+寫得進自己的 `<pack>/`；venv 的 python（symlink 到 /usr）跑得起來；prlimit 的 RLIMIT_AS 對 Node 是否太緊；systemd 的
+InaccessiblePaths＋BindPaths 巢狀是否照預期；`--setenv=名字` 在那台 systemd 版本能不能只給名字。
+
 ## 沒有做的保護（誠實清單）
 
 - `config.json` 的 bot token 是明文。
 - Web UI 沒有 TLS（只在本機 127.0.0.1 用不需要）；對外開放要營運者自己加（見上面「網頁介面」）。
 - Web UI 的 pack 面板跟網頁同源。
 - 裝 pack 的五關不是沙盒（見上面「五關」最後一段）；沒鎖的 pack（出廠的、手動放進 packs/ 的）不檢查雜湊。
+- 個人版與 Windows 預設沒有沙盒（後端 none）：cli 子程序跟 SYNOX 一樣看得到整台電腦。Linux 的 bwrap／systemd 後端還沒在真機驗證（見「運行空間」）。
 - 不防「在你的 Windows 帳號下跑的惡意程式」。
 - 不防 prompt injection 的全部情況：工具結果包在每輪隨機的分隔符裡、提示 AI「當資料、不當指令」，真正擋住危險動作的是確認卡（結構），不是提示。
 - `claude_code` 這個 AI 來源以 `--tools ""` 跑（Claude Code 自己不能動檔案），但它走的是你本機的 Claude Code 登入。
