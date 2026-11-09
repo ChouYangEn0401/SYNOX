@@ -46,6 +46,38 @@
 - SYNOX 開的 cli／mcp 子程序一律 `PYTHONDONTWRITEBYTECODE=1`（`loader.context_env`），不會自己在 pack 資料夾裡產生 `.pyc`。
 - `tests/test_envs.py`、`tests/test_upgrade_env.py`：runtime auto 的 pack 是 T2，測試補 `publisher` 與 `trust_publisher`。
 
+## 未發佈（branch feat/perm5）
+
+### 新增
+- **PERM-5 Discord 頻道收訊**：`surface: "channel"` 的 bot 真的連線了。只收 `guilds[<伺服器>].channels` 列出的頻道；
+  `trigger: "mention"`（被 @ 才回，@ 那段字去掉；預設）或 `"/"`（以 / 開頭才回）；其他頻道、沒觸發的、其他 bot／自己／webhook、
+  只有附件、編輯過的訊息一律略過。私訊型 bot 照舊只收私訊。頻道型 bot 的 Gateway 要 `GUILDS | GUILD_MESSAGES | MESSAGE_CONTENT`。
+- 頻道的內部 id：`data/identities.json` 新通道名 `discord-channel`，發負號 id（-(10^15+n)，只增不減），跟 Telegram 群組一樣是負的，
+  只能私訊的指令（private_only）在頻道自然不能用。
+- **頻道裡的權限（保守預設）**：只有 pack.json `surfaces` 含 `channel` 且 `data` 不是 `user` 的 pack 存在，其他（記帳、記事、提醒…）
+  是「未知指令」；內建指令只留 /help、/start、/exit。`max_effect` 預設 `read`；`write` 只限 `data=shared` 且發話者至少成員；
+  DANGER 在頻道永遠不行（設定拒、decide 也拒），回「這個動作要到私訊做」。頻道型 bot 一律當作 AI 關（頻道 AI 是 PERM-6）。
+- `role_map`：Discord 身分組 → `guest`／`member`；這次請求的有效角色＝max(SYNOX 角色, 對應角色)，最高到成員，**不寫回 users.json**；
+  寫 `admin` 會被設定檢查拒（管理員只能用 /user_role 給）。
+- 回覆用收到訊息的那個 bot 送回那個頻道，引用並提及發話者（其他 @ 不解析）；按鈕只有發話者能按；頻道裡別人的問答不會被插嘴。
+- 頻道節流：（頻道, 人）每分鐘 `rate_per_minute` 則（預設 5），超過靜默略過、log 一行；每個 bot 照舊可 `enabled: false`。
+- `/bot_status`、doctor：頻道型 bot 多一行「幾個伺服器／頻道、觸發方式、role_map 幾筆、節流」，pack 不會出現的原因多了
+  「surfaces 沒有 channel」「data=user 不進頻道」「頻道裡只有 data=shared 能寫」；不印 token。
+- 測試 `tests/test_discord_channel.py`（41 個，全部假 Gateway／假 HTTP）。
+
+### 怎麼在 Discord 開頻道 bot（給一般使用者，詳見 docs/discord.md「3c」）
+1. Developer Portal 另建一個 Application → Bot 頁 Reset Token 複製；Privileged Gateway Intents 打開 **Message Content Intent**（其他不用開）。
+2. OAuth2 → URL Generator 勾 `bot`，權限勾 View Channels、Send Messages、Read Message History → 開網址把 bot 邀進你的伺服器。
+3. Discord 使用者設定 → 進階 → 打開**開發者模式**；右鍵伺服器圖示「複製伺服器 ID」、右鍵頻道「複製頻道 ID」、
+   伺服器設定 → 身分組 → 右鍵「複製身分組 ID」（要用 role_map 才需要）。
+4. `python -m synox discord token --bot <名字>` 存 token；config.json 的 `channels.discord.bots` 加一個 `"surface": "channel"`、
+   `"guilds": {"<伺服器 id>": {"channels": ["<頻道 id>"]}}` 的 bot；重開後 `/bot_status` 看「收訊中」，在頻道打 `@bot /help`。
+
+### 變更
+- `surface: "channel"` 但沒列任何頻道的 bot：不連線，原因「沒有列任何伺服器／頻道（guilds）」（以前一律說 PERM-5 還沒做）。
+- `guilds` 的格式現在會檢查（id 要是數字、`channels` 不能空、只能有 `channels`／`role_map`）；`trigger`、`rate_per_minute`
+  只有頻道型能寫。`Gateway` 多 `on_ready`；`DiscordChannel.send_message` 多 `reply_to`。
+
 ## 未發佈（dev）
 
 ### 變更

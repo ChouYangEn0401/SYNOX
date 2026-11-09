@@ -23,7 +23,8 @@
 | `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`／`policy`；路徑相對 SYNOX 資料夾（`ROOT`） |
 | `src/synox/policy.py` | `decide`（權限唯一交會點）、`parse_policy`（`policy.roles` 能力上限，第 1 關式檢查）、`group_policy_for`（loader 用）、`ceiling`／`fits`；bot 範圍 `bot_scope`／`using_bot`／`current_bot`／`run_as`；`install`（把 decide 接到 SDK 的 `registry.authorize`） |
 | `src/synox/sandbox.py` | 運行空間（PERM-7）：`Sandbox.wrap(argv, env, cwd, grants)`、`Grants`、後端 none／jobobject／bwrap／systemd／appcontainer（介面）、`set_factory`／`sandbox_for`、`grants_for`、`data_scope`（推斷集中處）、`trust_of`、`restricted_reason`、`doctor_line`；jobobject 的 launcher（`python -I sandbox.py jobobject …`） |
-| `src/synox/discord/scope.py` | bot 範圍報告：`/bot_status`（`install`）、`report`／`lines`（doctor 也用）、`REASONS`（不會出現的原因，可擴充） |
+| `src/synox/discord/scope.py` | bot 範圍報告：`/bot_status`（`install`）、`report`／`lines`（doctor 也用）、`REASONS`（不會出現的原因，可擴充）、`channel_line`（頻道型的收訊設定） |
+| `src/synox/discord/` 其他 | `bots.py`（BotSpec、設定檢查；頻道型 `guilds`／`role_map`／`trigger`／`rate_per_minute`）、`events.py`（`parse_event` 私訊、`parse_room_event` 頻道）、`rest.py`（`DiscordChannel`）、`gateway.py`（`INTENTS`／`CHANNEL_INTENTS`、`on_ready`）、`__init__.py`（`install`、`DiscordEntry`、`RoomEntry`／`RoomReply`／`RoomThrottle`、`MultiHome`、配對）。見 [discord.md](discord.md) |
 | `src/synox/llm/` | `base.py`（`ChatAdapter`、`Message`、`Reply`、`ToolCall`、`ToolSpec`）、`easy_llm.py`（openai／anthropic／gemini／openai_compat，經 `ntu_easy_llm.agent`，lazy import）、`claude_code`、`fake`、`textproto`、`factory.make_adapter` |
 | `src/synox/vault/` | `vault.py`（Fernet＋每檔 scrypt、`*.json.enc`；`for_user(id)`＝伺服器版每人的保管箱，HKDF 衍生）、`keyring.py`（DPAPI 包住主金鑰 `data/.synox.key`） |
 | `src/synox/packs/` | `manifest.py`（pack.json v2 檢查＝第 1 關；`surfaces`／`data`（`_check_scope`、`default_data`、`cli_templates`）；`requires.synox`＝`synox_problem`、`requires.env`→`secret_env_names`、`fields[].kind`、`auth.fields`）、`secrets.py`（pack 的 secret：`PackSecrets`、`managed_fields`）、`scan.py`（ast 靜態掃描＝第 2 關；`_check_data_python`／`_check_data_cli`＝data 宣告的規則）、`lock.py`（`data/packs.lock`＝第 3 關；`trust`、`trust_of`）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`、`surface_policy`（沒有 channel＝private_only）、`shared_write_admin`、cli 代換與 `build_argv`）、`kit.py`（照位置填的指令）、`envs.py`（`runtime.python／node = "auto"`：`Builder.plan`／`build(m, jobs, on_done)` 建 `data/envs/<pack>/`、`python_of`／`node_of`／`node_env` 給 loader 代換、`env_problem` 給 loader／doctor；`set_factory` 換實作） |
@@ -90,7 +91,14 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     `capability`／`bot_pack`／`bot_ai` 對 SDK 一律回 `owner_only`，所以 dispatcher、/help、按鈕都回「未知指令」、不洩漏存在
     （PERM-1 時能力上限造成的隱藏回「沒有權限」，現在也是未知指令）。vendor/ 的 SDK 沒有改；要看 SDK 本身的結果用
     `CommandRegistry.authorize(registry, …)`。`/bot_status`、doctor 的範圍報告在 `src/synox/discord/scope.py`（不會出現的原因是
-    `REASONS` 一串檢查，PERM-2 的 surfaces 加在那裡）。
+    `REASONS` 一串檢查；頻道型的 surfaces／data 原因是 `_not_for_channel`，排在 `_over_max_effect` 前面）。
+    **頻道（PERM-5）**：bot 是頻道型（`surface=channel`）＝這則來自伺服器頻道。`bot_scope` 加：surfaces 沒 channel 或 data=user 的 pack、
+    `CHANNEL_BUILTINS`（help／start／exit）以外的內建指令＝`bot_channel`（當作不存在）；DANGER 一律 `bot_effect`；`channel_write`：
+    WRITE 要 data=shared 且有效角色 ≥ 成員。`bot_ai_enabled` 對頻道型一律 False（PERM-6 才開）。role_map 的角色由 `RoomEntry` 用
+    `policy.using_role_floor` 帶進來，`effective_user` 回複本（max、封頂成員），**不寫回 users.json、不改 vendor**。
+    頻道的 chat_id 是負號（`Identities.resolve_room("discord-channel", …)`，-(10^15+n)），所以 SDK 的 private_only 與
+    「群組閒聊不回」自然成立。頻道收訊在 `discord/__init__.py` 的 `RoomEntry`（allowlist、trigger、節流、只有發話者能按按鈕、
+    別人的問答不插嘴）與 `RoomReply`（回到那個頻道、引用發話者）；解析在 `events.parse_room_event`（純函式）。
 
 12. **cli 子程序一律過 `src/synox/sandbox.py`**（PERM-7）：`loader._install_cli` 的 `make_cli` 用 `sandbox.grants_for`（宣告 → 讀／寫／網路／資源）
     算範圍、`sandbox.sandbox_for(config).wrap(argv, env, cwd, grants)` 包 argv；wrap 回的 argv 一定以原 argv 結尾（JsonCli 在後面接子指令）。
