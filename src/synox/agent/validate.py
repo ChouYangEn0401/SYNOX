@@ -16,6 +16,7 @@ agent/loop.py 在執行**任何**工具呼叫之前問 `check_call(app, node, ar
 
 不合 → 回一句短短的中文（交回給 AI 當工具結果，讓它自己改），**不執行**。合 → None。
 打字的那一條（人自己打的 cli 指令）由 loader 掛的 `typed_check()` 做不需要「是誰」的那幾項；
+`kind: path` 的 `inside()` 要知道是誰，在 loader 的 submit 裡照下令的人再查一次（人打字、核准卡重跑都會走到）；
 `kind: int｜number｜bool｜choice` 的格式也在 `typed_check()`（經 kit.parse_args，人打字與 AI 呼叫都會跑）。
 對 AI 的 schema 一律是字串（這一關要求值是字串，不因 kind 改變）。
 
