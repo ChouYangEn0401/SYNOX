@@ -238,3 +238,91 @@ def test_c3_moneybook_convention_unchanged(tmp_path):
     m = read(os.path.join(here, "fixtures", "moneybook_pack"), strict=True)
     assert pack_scan.argv_blocked(m) == []
     loader.refuse_blocked_argv(m)
+
+
+# ── C4：UNC／裝置路徑在安裝者按確認之前就被碰 ─────────────────────────────
+
+UNC = [r"\\attacker\share\python.exe", "//attacker/share/python.exe", r"\\?\C:\x\python.exe",
+       r"\\.\pipe\python.exe", r"\??\UNC\attacker\s\python.exe", r"\/attacker/share/python.exe"]
+
+
+@pytest.fixture
+def no_network_paths(monkeypatch):
+    """碰到 UNC 路徑的 realpath／exists／isfile／isdir／stat 一律讓測試失敗（真的不連網：只是攔下來）。"""
+    from synox.packs.manifest import unc_like
+    for mod, name in ((os.path, "realpath"), (os.path, "exists"), (os.path, "isfile"), (os.path, "isdir"),
+                      (os, "stat")):
+        real = getattr(mod, name)
+
+        def guard(p, *a, _real=real, _name=name, **k):
+            if isinstance(p, str) and unc_like(p):
+                raise AssertionError(f"{_name} 碰了網路路徑：{p}")
+            return _real(p, *a, **k)
+        monkeypatch.setattr(mod, name, guard)
+
+
+def _c4_raw(**over):
+    raw = _raw(caps=(), publisher=PUB)
+    for k, v in over.items():
+        if k.startswith("cli_"):
+            raw["cli"][k[4:]] = v
+        else:
+            raw[k] = v
+    return raw
+
+
+@pytest.mark.parametrize("path", UNC)
+@pytest.mark.parametrize("field", ["cli_python", "runtime", "argv0", "argv1", "flag", "env", "cwd", "skill"])
+def test_c4_repro_unc_refused_at_gate1_without_touching_it(tmp_path, no_network_paths, path, field):
+    """修之前：第 1 關放行，第 2 關在報告出來之前就 realpath／exists 它（Windows 會連 SMB）。"""
+    raw = {"cli_python": lambda: _c4_raw(cli_python=path),
+           "runtime": lambda: _c4_raw(runtime={"python": path}),
+           "argv0": lambda: _c4_raw(cli_argv=[path, "x"]),
+           "argv1": lambda: _c4_raw(cli_argv=["{python}", path]),
+           "flag": lambda: _c4_raw(cli_argv=["{python}", "./tool.py", "--file=" + path]),
+           "env": lambda: _c4_raw(env={"X_DIR": path}),
+           "cwd": lambda: _c4_raw(cli_cwd=path),
+           "skill": lambda: _c4_raw(skill=path)}[field]()
+    folder = _write(str(tmp_path / "a"), raw)
+    with pytest.raises(ManifestError, match="網路路徑"):
+        read(folder, strict=True)
+
+
+@pytest.mark.parametrize("path", UNC[:3])
+def test_c4_unc_in_mcp_argv_and_python_module(tmp_path, no_network_paths, path):
+    raw = {"name": "mx", "title": "M", "summary": "s", "version": "0.1.0", "kind": "mcp", "skill": "SKILL.md",
+           "capabilities": ["subprocess"], "publisher": PUB,
+           "mcp": {"transport": "stdio", "argv": [path], "tools_allow": ["a"], "effects": {"a": "READ"}}}
+    with pytest.raises(ManifestError, match="網路路徑"):
+        read(_write(str(tmp_path / "m"), raw), strict=True)
+    raw = {"name": "py", "title": "P", "summary": "s", "version": "0.1.0", "kind": "python", "skill": "SKILL.md",
+           "python": {"module": path}}
+    with pytest.raises(ManifestError, match="網路路徑"):
+        read(_write(str(tmp_path / "p"), raw), strict=True)
+
+
+@pytest.mark.parametrize("path", UNC + [r"\\attacker\x", " //attacker/x"])
+def test_c4_member_typed_path_refused_before_realpath(tmp_path, no_network_paths, path):
+    from synox.agent import validate as gate4
+    full, error = gate4.inside(str(tmp_path), path)
+    assert full == "" and "網路路徑" in error
+    full, error = gate4.inside(str(tmp_path), "notes/a.txt")           # 一般路徑照舊
+    assert error is None
+
+
+def test_c4_urls_are_not_unc():
+    from synox.packs.manifest import unc_like
+    assert not unc_like("--url=https://example.com/x") and not unc_like("https://a//b") and not unc_like("C:/x//y")
+    assert unc_like(r"--file=\\h\s") and unc_like("a;//h/s") and unc_like(r"\\?\C:\x")
+
+
+def test_c4_python_module_and_skill_must_stay_in_pack(tmp_path):
+    """python.module "../x" 以前會讓 loader 執行 pack 外的 x.py（第 2 關沒掃、鎖裡沒有）；skill 也不能讀 pack 外的檔。"""
+    raw = {"name": "py", "title": "P", "summary": "s", "version": "0.1.0", "kind": "python", "skill": "SKILL.md",
+           "python": {"module": "../outside"}}
+    folder = _write(str(tmp_path / "p" / "pack"), raw, {"../outside.py": "def install(app, pack): pass\n"})
+    with pytest.raises(ManifestError, match="python.module"):
+        read(folder, strict=True)
+    raw = _c4_raw(skill="../SKILL.md")
+    with pytest.raises(ManifestError, match="skill"):
+        read(_write(str(tmp_path / "s"), raw), strict=True)

@@ -91,6 +91,7 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 COMMAND_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 FIELD_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")              # python.module：pack 資料夾裡的 <名字>.py
 # requires.synox：一個或幾個（逗號分隔）條件，例如 ">=0.3"、">=0.3,<1.0"；只寫版本＝>=
 _SPEC_RE = re.compile(r"^\s*(>=|<=|==|!=|>|<)?\s*(\d+(?:\.\d+){0,2})\s*$")
 # {python} 一定要是 Python 直譯器（cli.python、runtime.python／python_posix 的檔名）：python、python3、python3.12、
@@ -112,6 +113,65 @@ ENV_BANNED = ("PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "COMSPEC", "NODE_OPTION
 ENV_BANNED_PREFIXES = ("PYTHON", "LD_", "DYLD_", "PIP_", "NPM_CONFIG_", "COR_", "CORECLR_")
 # PYTHONPATH 只收 pack 自己的資料夾（或底下的子資料夾）：{pack_dir} 或 {pack_dir}/lib，不能有 ..、;、:
 PYTHONPATH_OK_RE = re.compile(r"^\{pack_dir\}(/[A-Za-z0-9_.-]+)*/?$")
+
+
+# 審查 C #C4：UNC／裝置路徑（\\主機\分享、//主機/分享、\\?\、\\.\、\??\）。Windows 碰到這種路徑（realpath、exists、
+# isfile…）就會用目前的帳號對那台主機發 SMB 連線（NetNTLM 雜湊外洩）——而第 1、2 關在安裝者按確認之前就會跑。
+# 只看字串，不碰檔案系統。一段字的開頭，或 = ; , 空白、引號後面出現 // 都算（--file=\\主機\x 也是）
+# argv 裡的字：//主機/分享（要有第二個 /，所以 cscript 的 //E:jscript、//B 這種選項不算）、//?/、//./、/??/
+_UNC_RE = re.compile(r"(^|[=;,\s\"'])(//[^/]+/|/\?\?/)")
+
+
+def unc_like(text, strict: bool = False) -> bool:
+    """這段字裡有沒有 UNC／裝置路徑（反斜線、正斜線都算）。只做字串判斷。
+    strict=True（一定是路徑的欄位：cli.python、cwd、skill…）：// 開頭就算（\\\\主機 沒有分享名也一樣不碰）。"""
+    plain = str(text).replace("\\", "/")
+    if strict and plain.lstrip().startswith(("//", "/??/")):
+        return True
+    return bool(_UNC_RE.search(plain))
+
+
+def _unc_strings(raw: dict):
+    """pack.json 裡第 1、2 關會拿去當路徑用的字串：yield (在哪, 值, strict)。strict＝這個欄位一定是路徑
+    （cli.python、runtime、cwd、skill、python.module、web.panel、integrity 的檔名）；argv、env 的值是「一段字」。"""
+    def items(label, value, strict):
+        if isinstance(value, str):
+            yield label, value, strict
+        elif isinstance(value, list):
+            for i, v in enumerate(value):
+                yield from items(f"{label}[{i}]", v, strict)
+        elif isinstance(value, dict):
+            for k, v in value.items():
+                yield from items(f"{label}.{k}", v, strict)
+
+    def obj(value) -> dict:
+        return value if isinstance(value, dict) else {}
+
+    cli, mcp, runtime = obj(raw.get("cli")), obj(raw.get("mcp")), obj(raw.get("runtime"))
+    yield from items("skill", raw.get("skill"), True)
+    yield from items("python.module", obj(raw.get("python")).get("module"), True)
+    yield from items("cli.python", cli.get("python"), True)
+    yield from items("cli.cwd", cli.get("cwd"), True)
+    yield from items("mcp.cwd", mcp.get("cwd"), True)
+    for key in ("python", "python_posix", "node"):
+        yield from items(f"runtime.{key}", runtime.get(key), True)
+    yield from items("web.panel", obj(raw.get("web")).get("panel"), True)
+    for k in obj(obj(raw.get("integrity")).get("sha256")):
+        yield "integrity.sha256", str(k), True
+    yield from items("cli.argv", cli.get("argv"), False)
+    for i, c in enumerate(cli.get("commands") or raw.get("commands") or []):
+        if isinstance(c, dict):
+            yield from items(f"commands[{i}].argv", c.get("argv"), False)
+    yield from items("mcp.argv", mcp.get("argv"), False)
+    for label, env in (("env", raw.get("env")), ("cli.env", cli.get("env")), ("mcp.env", mcp.get("env"))):
+        yield from items(label, env, False)
+
+
+def unc_problems(raw: dict) -> List[str]:
+    """第 1 關最先跑（任何碰檔案系統的檢查之前）：pack.json 裡有 UNC／裝置路徑 → 每個一句理由。"""
+    return [f"{where} 不能用網路路徑或裝置路徑（\\\\主機\\…、//主機/…、\\\\?\\、\\\\.\\）：{value[:80]!r}"
+            "——光是檢查這種路徑，Windows 就會連到那台主機（審查 C #C4）"
+            for where, value, strict in _unc_strings(raw) if unc_like(value, strict=strict)]
 
 
 def env_name_problem(name, value=None) -> str:
@@ -778,6 +838,9 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     problems: List[str] = []
     if not isinstance(raw, dict):
         raise ManifestError("pack.json 最外層要是 {…} 物件")
+    unc = unc_problems(raw)                    # 審查 C #C4：在任何 isfile／realpath 之前
+    if unc:
+        raise ManifestError("；".join(unc[:5]))
     for key in ("name", "title", "summary", "version", "kind"):
         if not isinstance(raw.get(key), str) or not raw.get(key).strip():
             problems.append(f"少了 {key}")
@@ -800,11 +863,17 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     if storage not in ("vault", "plain"):
         problems.append("storage 只能是 vault 或 plain")
     skill = raw.get("skill", "SKILL.md")
-    if not isinstance(skill, str) or not os.path.isfile(os.path.join(folder, skill)):
+    if not isinstance(skill, str) or os.path.isabs(skill) or re.match(r"^[A-Za-z]:", skill) or \
+            ".." in skill.replace("\\", "/").split("/"):
+        problems.append(f"skill 要是 pack 資料夾裡的檔（相對路徑、不能有 ..）：{skill!r}")
+    elif not os.path.isfile(os.path.join(folder, skill)):
         problems.append(f"找不到 skill 檔 {skill}")
     if kind == "python":
         module = (raw.get("python") or {}).get("module", "pack")
-        if not os.path.isfile(os.path.join(folder, f"{module}.py")):
+        if not isinstance(module, str) or not MODULE_RE.match(module):
+            # 審查 C：以前 "../x" 會讓 loader 執行 pack 外的 x.py（第 2 關沒掃、鎖裡沒有）
+            problems.append(f"python.module 要是 pack 資料夾裡的模組名字（英數字、_；不能有路徑）：{module!r}")
+        elif not os.path.isfile(os.path.join(folder, f"{module}.py")):
             problems.append(f"kind=python 但找不到 {module}.py")
     v2 = any(k in raw for k in V2_KEYS) or isinstance(raw.get("auth"), dict)
     cli = raw.get("cli") or {}
