@@ -14,10 +14,13 @@
     exec       exec、eval、compile、__import__、importlib、ctypes、pickle.loads、marshal、getattr(x, "system")… → exec
     env        os.environ、os.getenv：**只列出來給人看**（不算 capability，也不擋）
     secret     pack.secret(…)：讀使用者在「連接」填的值（pack.json auth.fields）；只列出來，不算 capability
-    binary     .pyc、.pyd、.dll、.exe… 掃不到的東西 → exec
+    binary     掃不到內容的檔（T2，P7；opaque_files）：.exe .dll .bat .cmd .ps1 .sh .so .dylib .node .wasm…、
+               __pycache__ 裡的、.pyc／.pyd、檔頭是 MZ+PE／ELF／Mach-O（不管副檔名）、沒有副檔名但帶執行位元或 #! 開頭、
+               node_modules（整個資料夾一筆） → exec；python、cli、mcp stdio 都看。報告的 opaque 列路徑、大小、sha256
   沒宣告對應的 capability ＝拒裝（列出檔名:行號）。舊的 pack 沒寫 capabilities＝什麼都沒宣告，所以掃描結果決定。
   .py 解析不了（語法錯）也拒裝：掃不到就不能說它安全。
-- cli：pack 裡附的 .py 照上面一樣掃；argv 樣板只能是字面字、單獨一段的 {欄位}、或 --k={欄位}（一段）；
+- cli：pack 裡附的 .py 照上面一樣掃；cli.argv 指到 pack 外的程式（git、npx、絕對路徑、{python} -m 外部模組）
+  不擋，列一筆 external（報告的 external 有解析後的路徑）「未鎖定執行環境」；argv 樣板只能是字面字、單獨一段的 {欄位}、或 --k={欄位}（一段）；
   {欄位} 緊跟在一個 --旗標 後面當它的值 ＝拒（值會變成另一段，要寫成 --k={v}）；樣板裡用了沒宣告的欄位 ＝拒。
   （值本身以 - 開頭、有換行，是第 4 關在呼叫時擋。）
 - data（pack.json 的 data 宣告，PERM-2；不合＝拒裝，列檔名:行號）：
@@ -70,8 +73,14 @@ ENV_CALLS = ("os.getenv", "os.putenv", "os.unsetenv", "os.environ.get")
 DANGER_ATTRS = ("system", "popen", "exec", "eval", "spawnl", "spawnv", "execv", "execl", "startfile",
                 "__import__", "import_module", "loads", "Popen", "run", "call", "check_output")
 BINARY_EXT = (".pyc", ".pyo", ".pyd", ".dll", ".so", ".dylib", ".exe", ".com", ".bat", ".cmd", ".ps1", ".vbs",
-              ".msi", ".scr", ".jar", ".sh")
+              ".msi", ".scr", ".jar", ".sh", ".node", ".wasm", ".class")
 CODE_EXT = (".py",) + BINARY_EXT
+# 檔頭（不看副檔名）：ELF、Mach-O（含 universal）；MZ 另外要對到 PE 簽名才算（避免文字檔剛好 MZ 開頭）
+_MAGIC = ((b"\x7fELF", "ELF 執行檔"), (b"\xfe\xed\xfa\xce", "Mach-O 執行檔"), (b"\xfe\xed\xfa\xcf", "Mach-O 執行檔"),
+          (b"\xce\xfa\xed\xfe", "Mach-O 執行檔"), (b"\xcf\xfa\xed\xfe", "Mach-O 執行檔"),
+          (b"\xca\xfe\xba\xbe", "Mach-O／Java 編譯檔"))
+NODE_MODULES = "node_modules"
+PYCACHE = "__pycache__"
 
 # kind → 要宣告的 capability（"" ＝只列給人看、不擋）
 CAPABILITY_OF = {"network": "network", "subprocess": "subprocess", "filesystem:own": "filesystem:own",
@@ -116,6 +125,10 @@ class Finding:
 class ScanReport:
     findings: List[Finding] = field(default_factory=list)
     files: int = 0
+    # 掃不到內容的檔案（T2）：[{"path", "size", "sha256", "why"}]；node_modules 整個資料夾算一筆（path 以 / 結尾）
+    opaque: List[dict] = field(default_factory=list)
+    # pack 外的程式（未鎖定執行環境）：[{"program", "resolved", "where", "note"}]；不進 packs.lock 的雜湊
+    external: List[dict] = field(default_factory=list)
 
     @property
     def required_capabilities(self) -> List[str]:
@@ -133,7 +146,8 @@ class ScanReport:
 
     def to_dict(self, m: Optional[Manifest] = None) -> dict:
         out = {"files": self.files, "findings": [f.to_dict() for f in self.findings],
-               "required_capabilities": self.required_capabilities}
+               "required_capabilities": self.required_capabilities,
+               "opaque": [dict(o) for o in self.opaque], "external": [dict(e) for e in self.external]}
         if m is not None:
             out["declared_capabilities"] = list(m.capabilities)
             out["undeclared"] = sorted({f.capability for f in self.undeclared(m)})
@@ -144,7 +158,7 @@ class ScanReport:
     def summary(self, m: Manifest) -> dict:
         """packs.lock 裡記的那一小段。"""
         return {"files": self.files, "findings": len(self.findings), "required": self.required_capabilities,
-                "declared": list(m.capabilities)}
+                "declared": list(m.capabilities), "opaque": len(self.opaque), "external": len(self.external)}
 
     def format(self, m: Manifest) -> str:
         """給終端機看的報告。"""
@@ -155,20 +169,133 @@ class ScanReport:
             mark = "❌" if f.blocking or (f.capability and not m.allows(f.capability)) else ("⚠️" if not f.capability else "✅")
             text = f.detail if f.blocking or not f.snippet else f"{f.detail}　｜ {f.snippet}"
             lines.append(f"  {mark} {f.where()}  {LABELS.get(f.kind, f.kind)}  {text}")
+        if self.opaque:
+            lines.append(f"  掃不到內容的檔案（{len(self.opaque)} 個；T2，要宣告 exec）：")
+            lines += [f"    · {o['path']}  {o['size']} bytes  sha256 {o['sha256'][:16]}…  {o['why']}" for o in self.opaque]
+        if self.external:
+            lines.append("  pack 外的程式（未鎖定執行環境，不在 packs.lock 的雜湊裡）：")
+            lines += [f"    · {e['program']} → {e['resolved']}" for e in self.external]
         problems = self.problems(m)
         lines.append("結論：" + ("✅ 這一關過了" if not problems else f"❌ 拒裝（{len(problems)} 個問題）"))
         return "\n".join(lines)
 
 
-def pack_files(folder: str) -> List[str]:
-    """pack 資料夾裡的全部檔案（相對路徑，/ 分隔，排序）；跳過 __pycache__（loader 不從那裡載入）。"""
+def pack_files(folder: str, include_cache: bool = False) -> List[str]:
+    """pack 資料夾裡的全部檔案（相對路徑，/ 分隔，排序）。include_cache=False 跳過 __pycache__（舊的鎖這樣算）；
+    T2（P7）之後的鎖、掃不到內容的清單都用 include_cache=True：子程序的 python 會 import 那裡的 .pyc。"""
     out = []
     for base, dirs, files in os.walk(folder):
-        dirs[:] = sorted(d for d in dirs if d != "__pycache__")
+        dirs[:] = sorted(d for d in dirs if include_cache or d != PYCACHE)
         for name in files:
             rel = os.path.relpath(os.path.join(base, name), folder).replace(os.sep, "/")
             out.append(rel)
     return sorted(out)
+
+
+# ── 掃不到內容的檔案（T2，SDK P7） ─────────────────────────────────────
+
+def _sha256(path: str) -> str:
+    import hashlib
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _magic_of(path: str) -> str:
+    """看檔頭（只讀前面幾個 byte，不執行）：PE（MZ＋PE 簽名）、ELF、Mach-O → 說明；不是回 ""。"""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(64)
+            if head[:2] == b"MZ":
+                if len(head) >= 64:
+                    offset = int.from_bytes(head[60:64], "little")
+                    if 0 < offset < 16 * 1024 * 1024:
+                        f.seek(offset)
+                        if f.read(4) == b"PE\x00\x00":
+                            return "Windows 執行檔（MZ／PE 標頭）"
+                return ""
+            for magic, why in _MAGIC:
+                if head.startswith(magic):
+                    return why
+            return ""
+    except OSError:
+        return ""
+
+
+def _shebang(path: str) -> bool:
+    try:
+        with open(path, "rb") as f:
+            return f.read(2) == b"#!"
+    except OSError:
+        return False
+
+
+def _exec_bit(path: str) -> bool:
+    if os.name == "nt":                          # Windows 的 st_mode 執行位元是照副檔名猜的，不可信
+        return False
+    try:
+        return bool(os.stat(path).st_mode & 0o111)
+    except OSError:
+        return False
+
+
+def opaque_reason(folder: str, rel: str, exec_bits: Sequence[str] = ()) -> str:
+    """這個檔掃不掃得到內容；掃不到回一句原因（""＝是原始碼或資料，第 2 關看得到或不會被執行）。"""
+    path = os.path.join(folder, *rel.split("/"))
+    parts = rel.split("/")
+    name = parts[-1]
+    ext = os.path.splitext(name)[1].lower()
+    if PYCACHE in parts[:-1]:
+        # 對得到同一層 .py 原始碼的快取（本機跑過產生的）不算：原始碼第 2 關掃過了。上傳的 zip 裡的 __pycache__
+        # admin.stage 根本不解出來；對不到原始碼的 .pyc＝Python 照樣會 import，掃不到
+        parent = parts[:parts.index(PYCACHE)]
+        source = os.path.join(folder, *(parent + [name.split(".")[0] + ".py"]))
+        if ext in (".pyc", ".pyo") and os.path.isfile(source):
+            return ""
+        return "__pycache__ 裡對不到原始碼的編譯檔，看不到內容"
+    if ext in (".pyc", ".pyo", ".pyd"):
+        return "編譯過的 Python（.pyc／.pyd），看不到原始碼"
+    if ext in BINARY_EXT:
+        return f"執行檔／腳本（{ext}），第 2 關只看 .py"
+    magic = _magic_of(path)
+    if magic:
+        return f"{magic}（副檔名是 {ext or '沒有'}）"
+    if not ext and (rel in set(exec_bits) or _exec_bit(path)):
+        return "沒有副檔名、帶執行位元的檔"
+    if not ext and _shebang(path):
+        return "沒有副檔名、#! 開頭的腳本"
+    return ""
+
+
+def opaque_files(folder: str, exec_bits: Sequence[str] = ()) -> List[dict]:
+    """pack 資料夾裡掃不到內容的東西：[{"path", "size", "sha256", "why"}]（只讀檔頭與算雜湊，不執行任何東西）。
+    node_modules 整個資料夾算一筆：path 以 / 結尾、size＝總和、sha256＝「相對路徑 雜湊」逐行排序後再算一次、
+    why 寫有幾個檔。exec_bits：zip 裡帶執行位元的檔（admin.stage 記的；Windows 解壓縮後看不到）。"""
+    import hashlib
+    out: List[dict] = []
+    groups: Dict[str, List[str]] = {}
+    for rel in pack_files(folder, include_cache=True):
+        parts = rel.split("/")
+        if NODE_MODULES in parts[:-1]:
+            root = "/".join(parts[:parts.index(NODE_MODULES) + 1]) + "/"
+            groups.setdefault(root, []).append(rel)
+            continue
+        why = opaque_reason(folder, rel, exec_bits)
+        if why:
+            path = os.path.join(folder, *parts)
+            out.append({"path": rel, "size": os.path.getsize(path), "sha256": _sha256(path), "why": why})
+    for root, rels in groups.items():
+        listing, size = [], 0
+        for rel in sorted(rels):
+            path = os.path.join(folder, *rel.split("/"))
+            size += os.path.getsize(path)
+            listing.append(f"{rel} {_sha256(path)}")
+        digest = hashlib.sha256("\n".join(listing).encode("utf-8")).hexdigest()
+        out.append({"path": root, "size": size, "sha256": digest,
+                    "why": f"node_modules（{len(rels)} 個檔：npm 套件，第 2 關不看）"})
+    return sorted(out, key=lambda o: o["path"])
 
 
 # ── python 原始碼 ───────────────────────────────────────────────────────
@@ -488,11 +615,26 @@ def _check_data_cli(m: Manifest) -> List[Finding]:
 _SYSTEM_PROGRAMS = ("{python}", "{node}")
 
 
+def _program_argv(m: Manifest) -> List[str]:
+    if m.kind == "mcp":
+        return [str(a) for a in (m.mcp or {}).get("argv") or []]
+    if m.kind == "cli":
+        return [str(a) for a in (m.cli or {}).get("argv") or []]
+    return []
+
+
+def _module_inside(m: Manifest, module: str) -> bool:
+    top = module.split(".")[0]
+    base = m.folder
+    return os.path.isfile(os.path.join(base, top + ".py")) or os.path.isdir(os.path.join(base, top))
+
+
 def external_programs(m: Manifest) -> List[str]:
-    """kind=mcp stdio 的 argv 裡指到 pack 外面的程式（樣板原文）：argv[0] 不是 {python}／{node}、不是 ./ 開頭的
-    pack 內檔案（npx、node、uvx、絕對路徑…），以及後面任何一段絕對路徑或 {pack_dir} 以外的 .. 路徑。"""
+    """kind=cli 的 cli.argv、kind=mcp stdio 的 mcp.argv 裡指到 pack 外面的程式（樣板原文）：argv[0] 不是 {python}／{node}、
+    不是 ./ 開頭的 pack 內檔案（npx、node、git、uvx、絕對路徑…）；後面任何一段絕對路徑或 {pack_dir} 以外的 .. 路徑；
+    {python} -m <模組> 而那個模組不在 pack 資料夾裡（記成 "-m 模組"）。"""
     out: List[str] = []
-    argv = [str(a) for a in (m.mcp or {}).get("argv") or []]
+    argv = _program_argv(m)
     for i, token in enumerate(argv):
         plain = token.replace("\\", "/")
         inside = plain.startswith(("./", "{pack_dir}/")) and ".." not in plain.split("/")
@@ -500,9 +642,44 @@ def external_programs(m: Manifest) -> List[str]:
             if token in _SYSTEM_PROGRAMS or inside:
                 continue
             out.append(token)
+        elif token == "-m" and i == 1 and argv[0] == "{python}" and len(argv) > 2:
+            if not _module_inside(m, argv[2]):
+                out.append(f"-m {argv[2]}")
         elif not inside and (os.path.isabs(token) or re.match(r"^[A-Za-z]:", token) or ".." in plain.split("/")):
             out.append(token)
     return out
+
+
+def resolve_program(token: str, m: Optional[Manifest] = None) -> str:
+    """pack 外的程式解析到這台的哪裡（只查路徑，不執行）：絕對路徑原樣；"-m 模組"＝SYNOX 這支 Python 的 sys.path
+    找得到的位置（不 import）；其他照 PATH 找（shutil.which）。找不到回一句話。"""
+    import shutil
+    if token.startswith("-m "):
+        module = token[3:].strip()
+        try:
+            from importlib.machinery import PathFinder
+            spec = PathFinder.find_spec(module.split(".")[0])
+        except (ImportError, ValueError):
+            spec = None
+        where = (spec.origin or (list(spec.submodule_search_locations or [])[:1] or [""])[0]) if spec else ""
+        return (f"{where}（照 SYNOX 這支 Python 的 sys.path；runtime 指到別的 Python 時以那支為準）" if where
+                else f"這台 SYNOX 的 Python 找不到模組 {module}")
+    if os.path.isabs(token) or re.match(r"^[A-Za-z]:", token):
+        return token if os.path.exists(token) else f"{token}（這台不存在）"
+    if "{" in token:
+        return f"{token}（樣板，執行時才代換）"
+    found = shutil.which(token)
+    if not found:
+        return f"這台的 PATH 找不到 {token}"
+    note = "（npx 會在執行時從網路抓套件，版本沒有鎖住）" if os.path.basename(token).lower().startswith("npx") else ""
+    return found + note
+
+
+def externals(m: Manifest) -> List[dict]:
+    """[{"program", "resolved", "where", "note"}]：pack 外的程式＋解析後的路徑；不進 packs.lock 的雜湊。"""
+    where = "mcp.argv" if m.kind == "mcp" else "cli.argv"
+    return [{"program": t, "resolved": resolve_program(t, m), "where": where, "note": "未鎖定執行環境"}
+            for t in external_programs(m)]
 
 
 def _check_mcp_stdio(m: Manifest) -> List[Finding]:
@@ -524,23 +701,30 @@ def _check_mcp_stdio(m: Manifest) -> List[Finding]:
     return out
 
 
-def scan(m: Manifest) -> ScanReport:
+def _binary_findings(opaque: List[dict]) -> List[Finding]:
+    return [Finding(o["path"], 0, "binary", o["path"], f"掃不到內容：{o['why']}（{o['size']} bytes）") for o in opaque]
+
+
+def scan(m: Manifest, exec_bits: Sequence[str] = ()) -> ScanReport:
+    """exec_bits：zip 裡帶執行位元的檔（admin.stage 記的）；沒給＝只看檔案本身。"""
     files = pack_files(m.folder)
-    report = ScanReport(files=len(files))
-    code = [f for f in files if f.lower().endswith(CODE_EXT)]
+    report = ScanReport(files=len(pack_files(m.folder, include_cache=True)))
+    report.opaque = opaque_files(m.folder, exec_bits)
+    report.external = externals(m)
     if m.kind == "mcp" and m.mcp_stdio:
+        report.findings += _binary_findings(report.opaque)
         report.findings += _scan_python_files(m, files)
         report.findings += _check_mcp_stdio(m)
         report.findings += _check_data_cli(m)
         return report
     if m.kind in ("connector", "mcp"):
+        opaque = {o["path"] for o in report.opaque}
+        code = sorted({f for f in files if f.lower().endswith(CODE_EXT)} | opaque)
         report.findings += [Finding(f, 0, "code", f, f"kind={m.kind} 只能是宣告，不能附程式檔") for f in code]
         if m.kind == "mcp" and not (m.mcp.get("tools_allow") or []):
             report.findings.append(Finding("pack.json", 0, "mcp", "mcp.tools_allow", "mcp.tools_allow 不能是空的"))
         return report
-    if m.kind == "python":
-        report.findings += [Finding(f, 0, "binary", f, "掃不到的執行檔／編譯過的程式") for f in files
-                            if f.lower().endswith(BINARY_EXT)]
+    report.findings += _binary_findings(report.opaque)
     report.findings += _scan_python_files(m, files)
     if m.kind == "python":
         report.findings += _check_data_python(m, files)
@@ -549,6 +733,9 @@ def scan(m: Manifest) -> ScanReport:
         for c in m.commands:
             report.findings += _check_command(c)
         report.findings += _check_data_cli(m)
+        report.findings += [Finding("pack.json", 0, "external", e["program"],
+                                    f"cli.argv 用了 pack 外的程式 {e['program']}（→ {e['resolved']}）：packs.lock 只鎖 pack "
+                                    "資料夾裡的檔，這支被換掉不會發現（未鎖定執行環境）") for e in report.external]
     return report
 
 

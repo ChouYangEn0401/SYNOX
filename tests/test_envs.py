@@ -66,9 +66,12 @@ def _fake_which():
     envs.set_factory(None)
 
 
+PUB = "Tool Co"            # runtime auto 會裝套件＝T2（SDK P7）：安裝要明確輸入 publisher
+
+
 def _raw(**over):
     raw = {"name": "tool", "title": "工具", "summary": "測試用", "version": "0.1.0", "kind": "cli",
-           "capabilities": ["subprocess"], "skill": "SKILL.md",
+           "capabilities": ["subprocess"], "skill": "SKILL.md", "publisher": PUB,
            "runtime": {"python": "auto", "python_posix": "auto"},
            "requires": {"pip": list(PINS)},
            "cli": {"argv": ["{python}", "{pack_dir}/tool.py"],
@@ -342,7 +345,7 @@ def test_install_report_then_build_failure_keeps_pack(tmp_path):
     text = admin.format_summary(summary)
     assert "🧱 要建環境（按確認之後才建）" in text and "requests 2.32.3" in text
     assert not os.path.exists(os.path.join(data, "envs"))              # 確認之前什麼都沒建
-    name = admin.install_staged(token, data, packs, approved_by=OWNER_ID, via="console")
+    name = admin.install_staged(token, data, packs, approved_by=OWNER_ID, via="console", trust_publisher=PUB)
     jobs = FakeJobs(tmp_path, [("failed", "getaddrinfo failed\n")])
     results = []
     assert admin.build_env(name, data, packs, jobs, results.append) is True
@@ -376,7 +379,7 @@ def test_cli_install_yes_builds_env_and_failure_still_installs(tmp_path, capsys)
     packs = tmp_path / "packs"
     cfg = _config(tmp_path, packs)
     jobs = FakeJobs(tmp_path, [("succeeded", ""), ("failed", "ERROR: No matching distribution found for idna==3.7")])
-    args = argparse.Namespace(config=cfg, file=str(blob), yes=True, packs_dir=str(packs))
+    args = argparse.Namespace(config=cfg, file=str(blob), yes=True, packs_dir=str(packs), trust_publisher=PUB)
     assert cli.cmd_install(args, jobs=jobs) == 0
     out = capsys.readouterr().out
     assert "要建環境" in out and "✅ 裝好了：tool" in out and "環境沒建好：找不到套件 idna==3.7" in out
@@ -435,7 +438,7 @@ def test_web_install_starts_env_build_and_notifies(make_bot, owner, tmp_path):
     status, _h, body = c.raw("POST", "/api/packs/upload", _zip(_write_pack(str(tmp_path / "src"))))
     summary = json.loads(body)
     assert status == 200 and summary["env"]["needed"], summary
-    status, data = c.post("/api/packs/install", {"token": summary["token"]})
+    status, data = c.post("/api/packs/install", {"token": summary["token"], "trust_publisher": PUB})
     assert status == 200 and data["name"] == "tool" and data["env"] == "building" and done == ["tool"]
     assert data["status"] == "missing" and "環境沒建好" in data["detail"]
     assert any("環境沒建好" in t for t in bot.texts(owner))             # 通知了擁有者

@@ -114,14 +114,16 @@ def zip_pack(folder: str, out_dir: Optional[str] = None) -> str:
     folder = os.path.abspath(folder)
     with open(os.path.join(folder, "pack.json"), "r", encoding="utf-8-sig") as f:
         raw = json.load(f)
-    raw["integrity"] = {"sha256": {k: v for k, v in sorted(check.hashes.items()) if k != "pack.json"}}
+    # __pycache__ 不打包（P7：SYNOX 安裝時也不解出來；本機跑過留下的快取不是 pack 的一部分）
+    hashes = {k: v for k, v in sorted(check.hashes.items()) if "__pycache__" not in k.split("/")[:-1]}
+    raw["integrity"] = {"sha256": {k: v for k, v in hashes.items() if k != "pack.json"}}
     out_dir = out_dir or os.path.join(os.getcwd(), "dist")
     os.makedirs(out_dir, exist_ok=True)
     target = os.path.join(out_dir, f"{m.name}-{m.version}.synoxpack")
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("pack.json", json.dumps(raw, ensure_ascii=False, indent=2) + "\n")
-        for rel in sorted(check.hashes):
+        for rel in sorted(hashes):
             if rel != "pack.json":
                 z.write(os.path.join(folder, *rel.split("/")), rel)
     with open(target, "wb") as f:
