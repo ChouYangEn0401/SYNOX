@@ -450,12 +450,14 @@ def approve_installed(folder: str, data_dir: str, approved_by=None, via: str = "
                       trust: Optional[str] = None,
                       trust_publisher: Optional[str] = None) -> Tuple[Manifest, ScanReport, List[str]]:
     """已經在 packs/ 裡的 pack（工程師自己放的、自己改過的）：跑 1、2 關，過了就寫 packs.lock。
-    trust 沒給＝沿用舊鎖的（沒有舊鎖＝third-party）。回 (manifest, 報告, 拒裝理由)；有理由就沒有寫鎖。
+    trust 沒給＝沿用舊鎖的（沒有舊鎖：出廠的＝core，其他＝third-party）。回 (manifest, 報告, 拒裝理由)；有理由就沒有寫鎖。
     T2：舊鎖確認過同一個 publisher、可執行的東西沒變多、沒新增 exec＝沿用；否則要 trust_publisher（一字不差），
     不合的話理由放進回傳的清單（沒有寫鎖）。"""
     m, report, hashes, problems = run_gates(folder)
     if trust is None:
         trust = pack_lock.trust_of(data_dir, m.name)
+    if trust is None and loader.is_bundled(m):
+        trust = pack_lock.CORE          # 出廠的 pack 第一次鎖：沿用沒鎖時的 core（有鎖之後信任只看鎖）
     trust = _trust(trust)
     if problems:
         return m, report, problems
