@@ -74,7 +74,7 @@ def test_stdin_field_goes_to_stdin_not_argv(make_bot, owner, tmp_path):
     bot.app.tasks.wait(20)
     joined = "\n".join(bot.texts())
     assert "--date=2026-11-10" in joined
-    assert "stdin: 今天很好 很長的一段話" in joined                    # 內容有送到（經 stdin 印回來）
+    assert "stdin：今天很好 很長的一段話" in joined                    # 內容有送到（經 stdin 印回來；render 用全形冒號）
     argv_line = next(t for t in joined.splitlines() if t.startswith("argv_text"))
     assert "answers" not in argv_line and "今天很好" not in argv_line      # 沒進 argv
 

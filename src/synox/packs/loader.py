@@ -37,7 +37,7 @@ from isdtelekit.core import jsonstore
 from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 
 from synox.config import ROOT
-from synox.packs import kit
+from synox.packs import kit, render
 from synox.packs import lock as pack_lock
 from synox.packs.manifest import Manifest, ManifestError, missing_requirements, read
 from synox.vault.vault import USERS_DIR
@@ -357,9 +357,8 @@ def _install_cli(app, pack: Pack) -> None:
                     if not reply.ok:
                         say(api, chat_id, f"❌ {cmd.name}：{reply.error}")
                         return
-                    ctx = service.ServiceContext(app, api, chat_id, user, values, reply)
                     try:
-                        text = service.default_render(ctx)
+                        text = render.render(reply.data)         # SYNOX 自己攤平 JSON（SDK 的只會印「N 筆」）
                     except Exception as e:
                         text = f"⚠️ 服務回了結果，但顯示的時候出錯：{e}"
                     if text:

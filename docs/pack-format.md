@@ -144,9 +144,14 @@ def install(app, pack):
 ```
 
 - `{python}` 等代換見上面「kind=cli 的代換」；`./` 開頭的換成 pack 資料夾裡的路徑。
-- 每個 command 是一個 SDK Forms 表單指令（行為照 SDK `service.install`：背景執行、值以 `-` 開頭一律拒絕）；
-  loader 自己組 argv，因為開頭、env、cwd 要照「這一次是誰」代換。
-- 程式要做的事：子指令＋`--json`，最後一行印一個 JSON 物件，結束碼 0＝成功；`{"message": "…"}` 會直接回給使用者。
+- 每個 command 的填法跟內建的 python pack 一樣（2026-11-10 起）：**照位置填、`key=value` 補、選填的不追問**。
+  `/moneybook 120 午餐` 直接存。`commands[].positional`＝前幾個欄位能照位置填（沒寫＝必填的個數；最後一個位置欄位吃掉剩下的字）；
+  有驗證碼欄位（`fresh_code`）的 command 才走 SDK Forms（碼永遠最後問）。值以 `-` 開頭一律拒絕；loader 自己組 argv，
+  因為開頭、env、cwd 要照「這一次是誰」代換。
+- `commands[].stdin`：`"{answers}"` 這種樣板——那個欄位的內容走 **stdin** 給程式、不進 argv（長文字、日記正文；不會出現在
+  程序清單與 log 的 argv 那一行）。程式那端從 stdin 讀。
+- 程式要做的事：子指令＋`--json`，最後一行印一個 JSON 物件，結束碼 0＝成功。**回 `{"message": "…"}` 或 `{"text": "…"}` 最好**，
+  會原樣給使用者；其他結構由 SYNOX 攤平（`synox/packs/render.py`：dict 一行一個 key、list 一行一項、最多 25 行）。
 
 ### `connector`
 
