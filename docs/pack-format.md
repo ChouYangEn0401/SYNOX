@@ -65,7 +65,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | `capabilities` | 宣告要用的能力：`network`、`subprocess`、`filesystem:own`、`filesystem:any`（含 own）、`exec`。第 2 關的掃描看到用了、卻沒宣告 → **拒裝**。沒寫＝什麼都沒宣告（舊 pack 一樣，由掃描結果決定裝不裝得了） |
 | `publisher` | 發行者（給人看；沒寫會在報告裡提醒） |
 | `integrity.sha256` | `{"檔名": "64 個 16 進位字"}`，打包時算（`synox-sdk zip`）。有寫就每個檔都要對得上、也不能多出沒列的檔（`pack.json` 本身不算） |
-| `auth` | v0 的字串（`oauth`／`token`／`caldav`）照舊；v2 寫 `{"type": "none｜token｜oauth｜caldav｜file", "fields": [...]}` |
+| `auth` | v0 的字串（`oauth`／`token`／`caldav`）照舊；v2 寫 `{"type": "none｜token｜oauth｜caldav｜file", "fields": [...]}`。`token`／`file` 的 `fields` 由 SYNOX 收，見下面「pack 的 secret」 |
 | `kind: "mcp"`＋`mcp` | `{"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}`。`tools_allow` 不能空，每個允許的工具都要有 effect（沒寫＝拒）。這一版只登記、不連；不能附程式檔 |
 | `commands[].effect` | cli 的每個 command：`READ`／`WRITE`／`DANGER`（大小寫都收）。`commands` 也可以放最上層（等於 `cli.commands`） |
 | `commands[].fields[].kind` | `text`（預設）｜`int`（整數，可有千分位逗號）｜`number`（數字）｜`bool`（是／否：`yes/no`、`true/false`、`1/0`、`是/否`…）｜`path`（值一定要在使用者自己的資料夾裡，第 4 關）｜`choice`（要寫 `choices: ["Red", "Blue"]`，大小寫不拘）。對 AI 的參數 schema 一律是字串；SYNOX 在交給程式**之前**照 kind 檢查（人打字與 AI 呼叫都會），不合回一句人話（例如「次數要是整數（例如 3）」）、不執行。交給程式的值整理過：`bool` → `true`／`false`、`int`／`number` 拿掉逗號、`choice` 換成 `choices` 裡的拼法 |
@@ -73,6 +73,33 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | `runtime.python`、`runtime.python_posix` | 另一種寫法（金流簿用的）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它 |
 | `env`（最上層）、`cli.env` | 子程序多帶的環境變數；兩個合併，`cli.env` 優先。值可以用下面的代換。名字像密鑰的（`*_TOKEN`…）一樣會被拿掉，除非列在 `requires.env` |
 | `web.routes` | cli pack 的面板資料：`{"route": "command"}`；沒寫＝同名。對應的 command 要是 `READ`、沒有必填欄位 |
+
+### pack 的 secret（`auth.fields`）
+
+pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**SYNOX 收、SYNOX 存**，pack 自己不用寫設定指令：
+
+```json
+"auth": {"type": "token",
+         "fields": [{"name": "api_key", "label": "Todoist API token", "secret": true, "env": "TODOIST_API_KEY",
+                     "help": "Todoist 設定 → 整合 → 開發者"}]}
+```
+
+| 欄位 | 說明 |
+|---|---|
+| `name` | 小寫英數字、`_`。保管箱裡的鍵是 `packs/<pack>/<name>` |
+| `label`（或 `ask`）、`help` | 表單上給人看的字 |
+| `secret` | `true`＝密碼框、**永遠不回傳值**（網頁只看到「有填」與最後 4 碼），第 4 關會擋 AI 把它當參數送出。`false`（預設）的值會回給表單 |
+| `env` | kind=cli：這個值放進子程序的這個環境變數（也自動列進 `keep_env`）。**絕不放進 argv**。沒寫 env 的欄位 cli 拿不到 |
+| `kind` | `text`（預設，不能換行）｜`file`（上傳一個文字檔，例如 service account JSON；最多 32000 字）。`auth.type: "file"` 時預設 `file` |
+| `required` | 預設 `true`。必填的沒填＝工具頁顯示「要先設定」，cli 指令回「到網頁工具頁按『連接』」、不執行 |
+
+- 只做 `auth.type` 是 `token`／`file`（`oauth` 這一版不做）。
+- 怎麼填：Web UI 工具頁那個 pack 的「🔌 連接」（留空＝沿用原值）；或在電腦上 `python -m synox connect <pack>`（同一份）。
+  **Telegram 不收**（聊天紀錄留在 Telegram 的伺服器上）。個人版只有擁有者能設；伺服器版每個人設自己的（`vault.for_user`）。
+- 怎麼拿：kind=cli 從環境變數讀；kind=python 用 `pack.secret("api_key", user)`（伺服器版一定要給 user）。
+- 哪些 pack 算「SYNOX 收」：kind=cli 一律；kind=python 要原始碼有呼叫 `pack.secret(...)`。`"auth": {"managed": "pack"}`＝pack 自己管
+  （例如內建 connector 的 `/todoist_token`），`"managed": "synox"`＝一定 SYNOX 收。內建的 notion／todoist／google-calendar／apple-reminders
+  都還是自己的指令，不受影響。
 
 ### kind=cli 的代換
 

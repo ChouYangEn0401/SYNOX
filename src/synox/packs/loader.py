@@ -38,6 +38,7 @@ from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 
 from synox.config import ROOT
 from synox.packs import kit, render
+from synox.packs import secrets as pack_secrets
 from synox.packs import lock as pack_lock
 from synox.packs.manifest import (Manifest, ManifestError, missing_requirements, read, secret_env_names,
                                   synox_problem)
@@ -117,6 +118,18 @@ class Pack:
     config: Any = field(repr=False, default=None)
     locked_files: Dict[str, str] = field(default_factory=dict, repr=False)   # packs.lock 記的 sha256（有鎖時）
     cli_bridge: Any = field(repr=False, default=None)                       # kind=cli：ServiceBridge（測試用 wait()）
+    secret_fields: List[dict] = field(default_factory=list, repr=False)     # auth.fields（SYNOX 收的那些；見 packs/secrets.py）
+    secrets: Any = field(repr=False, default=None)                          # PackSecrets（保管箱的 pack_secrets）
+
+    def secret(self, name: str, user=None) -> Optional[str]:
+        """使用者在 Web UI「連接」填的值（pack.json auth.fields 的 name）；沒填回 None。
+        伺服器版每人一份：一定要給 user（下令的人），不給丟 SecretError（不會拿別人的）。
+        沒宣告的名字丟 KeyError。值只給程式用：不要印出來、不要放進回覆或 log。"""
+        if not any(f["name"] == name for f in self.secret_fields):
+            raise KeyError(f"{self.name}: auth.fields 沒有宣告 {name!r}")
+        if self.secrets is None:
+            raise pack_secrets.SecretError("保管箱沒有打開，讀不到 secret。")
+        return self.secrets.get(self.name, name, user)
 
     def web_route(self, route: str, fn: Callable) -> None:
         """Web UI 面板的資料：GET /api/packs/<name>/<route> → fn(user) 回可以轉 JSON 的東西。
@@ -336,11 +349,27 @@ def _install_cli(app, pack: Pack) -> None:
     keep_env = secret_env_names(m)       # 子程序只看得到 requires.env／auth.fields[].env 列的密鑰名（其他照 JsonCli 拿掉）
     by_name = {c["name"]: c for c in m.commands}
 
-    def make_cli(ph: Dict[str, str]) -> "JsonCli":
+    def make_cli(ph: Dict[str, str], user=None) -> "JsonCli":
         cwd = substitute(m.cli.get("cwd") or ".", ph)
+        env = cli_env(m, ph)
+        if pack.secret_fields and pack.secrets is not None:
+            # auth.fields 有寫 env 的 secret：只走子程序環境（keep_env 放行這個名字），永遠不進 argv
+            env.update(pack.secrets.env_for(m.name, pack.secret_fields, user))
         return JsonCli(app.jobs, cli_prefix(m, ph), cwd=os.path.normpath(os.path.join(m.folder, cwd)), name=m.name,
                        timeout=float(m.cli.get("timeout", 120)), json_flag=m.cli.get("json_flag", "--json"),
-                       env_extra=cli_env(m, ph) or None, keep_env=keep_env)
+                       env_extra=env or None, keep_env=keep_env)
+
+    def not_connected(user) -> str:
+        """必填的 secret 還沒填：回一句話（空字串＝可以跑）。"""
+        if not pack.secret_fields:
+            return ""
+        if pack.secrets is None or not pack.secrets.available:
+            return f"🔌 {m.title} 要先連接，但保管箱沒有打開（python -m synox doctor 看原因）。"
+        missing = pack.secrets.missing(m.name, pack.secret_fields, user)
+        if not missing:
+            return ""
+        return (f"🔌 {m.title} 還沒連接：缺 {'、'.join(missing)}。"
+                f"到網頁介面的工具頁，按這個 pack 的「連接」填（/web 拿登入連結；為了安全，不在聊天裡收）。")
 
     def say(api, chat_id, text):
         try:
@@ -355,10 +384,14 @@ def _install_cli(app, pack: Pack) -> None:
         choices_of = {f["name"]: tuple(f.get("choices") or ()) for f in by_name.get(cmd.name, {}).get("fields") or []}
 
         def submit(api, chat_id, user, values):
+            blocked = not_connected(user)
+            if blocked:
+                say(api, chat_id, blocked)
+                return
             ph = placeholders(m, config, user)
             if getattr(config, "mode", "personal") == "server":
                 os.makedirs(ph["user_data_dir"], exist_ok=True)
-            cli = make_cli(ph)
+            cli = make_cli(ph, user)
             values = {k: gate4.normalize(kinds_of.get(k, "text"), v, choices_of.get(k, ())) for k, v in values.items()}
             argv = build_argv(cmd.argv, {**values, **ph})
             timeout = {"timeout": cmd.timeout} if cmd.timeout else {}
@@ -397,8 +430,11 @@ def _install_cli(app, pack: Pack) -> None:
 
     def panel_route(c: dict):
         def fn(user):                          # Web UI 面板的 GET：在網頁的請求執行緒上跑（等它結束）
+            blocked = not_connected(user)
+            if blocked:
+                return {"ok": False, "error": blocked}
             ph = placeholders(m, config, user)
-            reply = make_cli(ph).call(*build_argv(c.get("argv") or [], ph))
+            reply = make_cli(ph, user).call(*build_argv(c.get("argv") or [], ph))
             return reply.data if reply.ok else {"ok": False, "error": reply.error}
         return fn
 
@@ -475,6 +511,8 @@ def _tamper_notice(app, config, m: Manifest, changes: List[str]) -> None:
 def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
     report = LoadReport()
     packs: List[Pack] = app.extras.setdefault("synox_packs", [])
+    secret_store = pack_secrets.PackSecrets(vault, server=getattr(config, "mode", "personal") == "server")
+    app.extras["synox_pack_secrets"] = secret_store
     for folder in sorted(discover(dirs), key=_order):
         try:
             m = read(folder)
@@ -510,7 +548,8 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
             continue
         server = getattr(config, "mode", "personal") == "server"
         store = PackStore(m.name, config.data_dir, vault if use_vault else None, per_user=server)
-        pack = Pack(m, store, app, config.data_dir, config=config)
+        pack = Pack(m, store, app, config.data_dir, config=config,
+                    secret_fields=pack_secrets.managed_fields(m), secrets=secret_store)
         if item.lock == pack_lock.LOCKED:
             pack.locked_files = dict((pack_lock.entry(config.data_dir, m.name) or {}).get("files") or {})
         app.registry.define_group(m.group, m.title, m.summary, **group_policy(app, m.access, server))
