@@ -20,6 +20,10 @@
 - cli：pack 裡附的 .py 照上面一樣掃；argv 樣板只能是字面字、單獨一段的 {欄位}、或 --k={欄位}（一段）；
   {欄位} 緊跟在一個 --旗標 後面當它的值 ＝拒（值會變成另一段，要寫成 --k={v}）；樣板裡用了沒宣告的欄位 ＝拒。
   （值本身以 - 開頭、有換行，是第 4 關在呼叫時擋。）
+- data（pack.json 的 data 宣告，PERM-2；不合＝拒裝，列檔名:行號）：
+    python data=user   不准裸用 pack.store（load／save／update…；要 pack.store.of(user)），pack.secret(name) 一定要給 user
+    python data=none   不准用 pack.store、pack.path（有存資料就要宣告 user 或 shared）
+    cli    data=user   樣板不准 {data_dir}（只能 {user_data_dir}）；data=none 兩個都不准
 - mcp：沒有程式可以掃；tools_allow 一定不能是空的。附了程式檔 ＝拒。
 - connector：只能是宣告，不准有任何程式檔（.py 或執行檔）。
 
@@ -30,6 +34,7 @@
 from __future__ import annotations
 
 import ast
+import json
 import os
 import re
 from dataclasses import dataclass, field
@@ -67,7 +72,7 @@ CAPABILITY_OF = {"network": "network", "subprocess": "subprocess", "filesystem:o
 LABELS = {"network": "連網", "subprocess": "開別的程式", "filesystem:own": "讀寫檔案",
           "filesystem:any": "讀寫 pack 以外的檔案", "exec": "動態執行程式碼", "binary": "掃不到的執行檔",
           "env": "讀環境變數（可能是密鑰）", "secret": "讀使用者在「連接」填的 secret", "argv": "argv 樣板不合規則", "code": "不該有程式檔",
-          "syntax": "程式解析不了", "mcp": "MCP 設定"}
+          "syntax": "程式解析不了", "mcp": "MCP 設定", "data": "資料歸屬（data）不合"}
 
 _PLACEHOLDER = re.compile(r"\{(\w+)\}")
 _FLAG_VALUE = re.compile(r"^--?[A-Za-z0-9][A-Za-z0-9_-]*=\{(\w+)\}$")
@@ -77,7 +82,7 @@ _FLAG_VALUE = re.compile(r"^--?[A-Za-z0-9][A-Za-z0-9_-]*=\{(\w+)\}$")
 class Finding:
     file: str
     line: int
-    kind: str                   # network｜subprocess｜filesystem:own｜filesystem:any｜exec｜binary｜env｜argv｜code｜syntax｜mcp
+    kind: str                   # network｜subprocess｜filesystem:own｜filesystem:any｜exec｜binary｜env｜argv｜code｜syntax｜mcp｜data
     snippet: str
     detail: str = ""
 
@@ -88,7 +93,7 @@ class Finding:
     @property
     def blocking(self) -> bool:
         """不管宣告了什麼都擋（樣板不合、connector 有程式、解析不了）。"""
-        return self.kind in ("argv", "code", "syntax", "mcp")
+        return self.kind in ("argv", "code", "syntax", "mcp", "data")
 
     def where(self) -> str:
         return f"{self.file}:{self.line}" if self.line else self.file
@@ -353,6 +358,119 @@ def _check_command(c: dict) -> List[Finding]:
     return out
 
 
+# ── data 宣告（PERM-2） ─────────────────────────────────────────────────
+
+STORE_OK_ATTRS = ("of", "encrypted", "per_user", "name")   # pack.store.<這些> 不算裸用
+
+
+def _is_pack_attr(dotted: str, attr: str) -> bool:
+    return dotted == f"pack.{attr}" or dotted.endswith(f".pack.{attr}")
+
+
+class _DataVisitor(ast.NodeVisitor):
+    """data=user／none 的 python pack：找 pack.store、pack.path、pack.secret 的用法（只讀 ast）。"""
+
+    def __init__(self, rel: str, lines: Sequence[str], data: str):
+        self.rel, self.lines, self.data = rel, lines, data
+        self.findings: List[Finding] = []
+        self._ok_store: set = set()         # pack.store.of(…) 那種的 pack.store 節點（不算裸用）
+
+    def add(self, node, detail: str) -> None:
+        line = getattr(node, "lineno", 0)
+        snippet = self.lines[line - 1].strip()[:120] if 0 < line <= len(self.lines) else ""
+        self.findings.append(Finding(self.rel, line, "data", snippet, detail))
+
+    @staticmethod
+    def dotted(node) -> str:
+        parts = []
+        while isinstance(node, ast.Attribute):
+            parts.append(node.attr)
+            node = node.value
+        if not isinstance(node, ast.Name):
+            return ""
+        return ".".join([node.id] + list(reversed(parts)))
+
+    def visit_Attribute(self, node):
+        inner = node.value
+        if node.attr in STORE_OK_ATTRS and isinstance(inner, ast.Attribute) and \
+                _is_pack_attr(self.dotted(inner), "store") and (self.data != "none" or node.attr != "of"):
+            self._ok_store.add(id(inner))       # data=none：只有 encrypted 這種看屬性的不算（of 也是存資料）
+        bare = _is_pack_attr(self.dotted(node), "store") and id(node) not in self._ok_store
+        if bare and self.data == "none":
+            self.add(node, 'data 是 none 卻用了 pack.store（有存資料就要宣告 "data": "user" 或 "shared"）')
+        elif bare:
+            self.add(node, "data 是 user：不能直接用 pack.store（load／save／update 是全部人共用的那一份），"
+                           "要用 pack.store.of(user)")
+        elif self.data == "none" and _is_pack_attr(self.dotted(node), "path"):
+            self.add(node, 'data 是 none 卻用了 pack.path（有存檔案就要宣告 "data": "user" 或 "shared"）')
+        self.generic_visit(node)
+
+    def visit_Call(self, node):
+        if self.data == "user" and _is_pack_attr(self.dotted(node.func), "secret"):
+            if len(node.args) < 2 and not any(k.arg == "user" for k in node.keywords):
+                self.add(node, "data 是 user：pack.secret(name) 一定要給 user（pack.secret(name, user)），不然拿到的不是這個人的")
+        self.generic_visit(node)
+
+
+def _check_data_python(m: Manifest, files: List[str]) -> List[Finding]:
+    if m.data not in ("user", "none"):
+        return []
+    out: List[Finding] = []
+    for rel in files:
+        if not rel.lower().endswith(".py"):
+            continue
+        try:
+            with open(os.path.join(m.folder, rel), "r", encoding="utf-8-sig") as fh:
+                text = fh.read()
+            tree = ast.parse(text, filename=rel)
+        except (OSError, UnicodeDecodeError, SyntaxError):
+            continue                                  # 讀不了／語法錯，_scan_python_files 已經擋了
+        v = _DataVisitor(rel, text.splitlines(), m.data)
+        v.visit(tree)
+        seen = set()
+        for f in v.findings:
+            if (f.line, f.detail) not in seen:
+                seen.add((f.line, f.detail))
+                out.append(f)
+    return out
+
+
+def _json_line(lines: Sequence[str], text: str, needle: str) -> int:
+    """pack.json 裡這段樣板在第幾行（找不到回 0）。"""
+    escaped = json.dumps(text, ensure_ascii=False)[1:-1]
+    for i, line in enumerate(lines, 1):
+        if escaped in line and needle in line:
+            return i
+    for i, line in enumerate(lines, 1):
+        if needle in line:
+            return i
+    return 0
+
+
+def _check_data_cli(m: Manifest) -> List[Finding]:
+    from synox.packs.manifest import cli_templates
+    banned = {"user": ("{data_dir}",), "none": ("{data_dir}", "{user_data_dir}")}.get(m.data, ())
+    if not banned:
+        return []
+    try:
+        with open(os.path.join(m.folder, "pack.json"), "r", encoding="utf-8-sig") as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        lines = []
+    out = []
+    for where, text in cli_templates(m.cli):
+        for needle in banned:
+            if needle not in text:
+                continue
+            if m.data == "user":
+                detail = (f"{where} 用了 {{data_dir}}，但 data 是 user：每個人的資料要放 {{user_data_dir}}"
+                          "（{data_dir} 是全部人共用的；真的是共用資料就寫 \"data\": \"shared\"）")
+            else:
+                detail = f'{where} 用了 {needle}，但 data 是 none（有存資料就要宣告 "data": "user" 或 "shared"）'
+            out.append(Finding("pack.json", _json_line(lines, text, needle), "data", text[:120], detail))
+    return out
+
+
 def scan(m: Manifest) -> ScanReport:
     files = pack_files(m.folder)
     report = ScanReport(files=len(files))
@@ -366,10 +484,13 @@ def scan(m: Manifest) -> ScanReport:
         report.findings += [Finding(f, 0, "binary", f, "掃不到的執行檔／編譯過的程式") for f in files
                             if f.lower().endswith(BINARY_EXT)]
     report.findings += _scan_python_files(m, files)
+    if m.kind == "python":
+        report.findings += _check_data_python(m, files)
     if m.kind == "cli":
         report.findings += _check_prefix(m)
         for c in m.commands:
             report.findings += _check_command(c)
+        report.findings += _check_data_cli(m)
     return report
 
 

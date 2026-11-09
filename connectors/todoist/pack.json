@@ -6,6 +6,8 @@
   "kind": "python",
   "group": "todoist",
   "access": "owner",
+  "surfaces": ["dm"],
+  "data": "user",
   "order": 60,
   "python": { "module": "pack" },
   "publisher": "SYNOX",
