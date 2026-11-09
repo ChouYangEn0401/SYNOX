@@ -71,9 +71,15 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 按「確認升級」（終端機 `python -m synox install <檔> --yes`）：再驗一次 → 舊資料夾搬到 `packs/_removed/<name>-<舊版本>-<時間>`
 （旁邊留舊的鎖）→ 新的搬進 `packs/` → `packs.lock` 換成新的一筆 → 重新載入。
 
+**環境**（`runtime.python`／`runtime.node` = `"auto"`）：新版要環境，而且（舊版不用環境、或 `requires.pip`／`package-lock.json`
+跟舊版不同、或現在的 `data/envs/<name>/` 沒建好／對不上）→ 升級報告多一段跟安裝報告一樣的「🧱 要建環境／要重建環境」清單；
+確認升級之後跟全新安裝一樣建（網頁：背景建，好了／失敗都通知擁有者；終端機 `--yes`：等它建完）。建失敗**不退回升級**：
+新版已經裝好，狀態 `missing`、doctor 說原因，修好後 `python -m synox packs env rebuild <name>`。套件清單沒變＝報告寫「沿用」、不重建。
+
 **退回**：`python -m synox packs rollback <name>`：`_removed` 裡這個 pack 最近一份（升級或移除時搬走的）搬回 `packs/<name>`，
 `packs.lock` 改回當時核准的那一筆（檔案跟當時的鎖對不上就不鎖，要你 `packs lock --approve`）。現在裝著的那份搬到 `_removed`；
 退回時搬走的那份下次退回會跳過，所以連退兩次＝再往前一版。要回到新版就重新裝那個 `.synoxpack`。
+舊版要環境、而 `data/envs/<name>/` 跟它對不上（例如升級時已經重建成新版的套件）→ 退回後會提示跑 `packs env rebuild <name>`，**不自動建**。
 
 **資料不在 pack 資料夾裡**（`data/<name>.json.enc`／`data/<name>.json`、伺服器版 `data/users/<id>/`、cli 的 `{user_data_dir}/<name>/`），
 升級、退回都不會動到資料。**資料格式（schema）要不要升級是 pack 自己的事**：建議在資料裡存一個 `schema` 版本號，
@@ -160,7 +166,8 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
 - pack 資料夾本身不寫任何東西（`packs.lock` 的雜湊才對得上）。
 - **安裝流程**：第 2 關之後、按確認之前，報告多一段「🧱 要建環境：Python venv、裝 N 個套件：名稱 版本…」；按確認、pack 裝好之後才建
   （經 JobRunner，整個最多 10 分鐘，log 在 `data/job_logs/`）。建失敗＝pack 照樣裝好，狀態 `missing`、doctor 標「環境沒建好」並說原因
-  （沒網路會直接說「連不上網路」）。重建：`python -m synox packs env rebuild <name>`。`requires.pip` 或 `package-lock.json` 改了也要重建（doctor 會說對不上）。
+  （沒網路會直接說「連不上網路」）。重建：`python -m synox packs env rebuild <name>`。`requires.pip` 或 `package-lock.json` 改了也要重建（doctor 會說對不上）；
+  經「升級」裝進來的新版會自動建／重建（見上面「升級」）。
 - 建置的實作在 `src/synox/packs/envs.py`（`Builder.plan(m)`／`build(m, jobs, on_done)`；`set_factory` 可換實作）。
 
 經 AI 呼叫的一般 command 會**同步**跑完，印出來的結果（攤平成文字）交回 AI 當工具結果（包在每輪的分隔符裡），由 AI 轉述給人；

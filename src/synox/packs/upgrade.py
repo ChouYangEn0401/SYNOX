@@ -7,7 +7,12 @@ pack 升級與退回（SDK P6）。同名的 pack 再裝一次＝升級：
     upgrade_staged(token, …)           再跑一次 1、2 關、檔案跟看報告時一樣、版本要比裝著的新
                                        → 舊資料夾搬到 packs/_removed/<name>-<版本>-<時間>（旁邊留一份舊的鎖）
                                        → 新的搬進 packs/ → 第 3 關：packs.lock 換成新的
-    rollback(name, …)                  `python -m synox packs rollback <name>`：_removed 裡最近一份搬回、鎖改回舊的
+                                       → （呼叫的人）環境要建／重建就跟全新安裝一樣 admin.build_env
+    rollback(name, …)                  `python -m synox packs rollback <name>`：_removed 裡最近一份搬回、鎖改回舊的；
+                                       舊版的環境對不上就提示重建（不自動建）
+
+環境（runtime.python／node = auto）：報告裡的 env（env_change）＝新版要環境，而且舊版不用環境、或 requires.pip／
+package-lock.json 跟舊版不同、或現在的 data/envs/<name>/ 對不上 → 確認升級後建（失敗不退回升級，doctor 會說）。
 
 「改了什麼」：新增／移除的 command（cli 的 commands、mcp 的 tools_allow；python pack 的指令寫在程式裡，比不出來）；
 effect 變寬（READ→WRITE→DANGER）、capabilities 新增、執行方式（kind、runtime、cli.argv／python／cwd／env、python.module）
@@ -145,6 +150,33 @@ def diff_manifests(old: Manifest, new: Manifest) -> List[dict]:
     return out
 
 
+def env_change(old: Manifest, new: Manifest, data_dir: Optional[str]) -> dict:
+    """升級時環境（runtime.python／node = auto，packs/envs.py）要不要建／重建——跟安裝報告的「要建環境」同一份清單
+    （EnvPlan.to_dict），另外加：
+      needed   確認升級之後要建：新版要環境，而且（舊版不用環境｜requires.pip／package-lock.json 跟舊版不同｜
+               現在的 data/envs/<name>/ 沒建好或對不上新版）
+      rebuild  data/envs/<name>/ 已經有東西（重建）；reason 一句人話；keep＝新版要環境、但沿用現在的（不用重建）
+    只看、不跑。"""
+    from synox.packs import envs
+    out = envs.builder(data_dir).plan(new).to_dict()
+    needed, reason = False, ""
+    if envs.needs_env(new):
+        state = envs.read_state(data_dir, new.name)
+        if not envs.needs_env(old):
+            needed, reason = True, "舊版不用建環境，新版要"
+        elif envs.spec_of(old) != envs.spec_of(new):
+            needed, reason = True, "套件清單（requires.pip／package-lock.json）跟舊版不同"
+        elif state.get("state") != envs.OK or state.get("spec") != envs.spec_of(new):
+            needed, reason = True, "現在的環境沒建好或跟 pack.json 對不上"
+        rebuild = needed and bool(state)
+    else:
+        rebuild = False
+    out.update(needed=needed, rebuild=rebuild, reason=reason, keep=envs.needs_env(new) and not needed)
+    if not needed:
+        out["text"] = ""
+    return out
+
+
 def report_for(old: Manifest, old_folder: str, new: Manifest, new_hashes: Dict[str, str],
                data_dir: str) -> dict:
     status, message = compare_versions(old.version, new.version)
@@ -154,11 +186,11 @@ def report_for(old: Manifest, old_folder: str, new: Manifest, new_hashes: Dict[s
         old_hashes = {}
     lock_state, _changes = pack_lock.verify(data_dir, old.name, old_folder)
     changes = diff_manifests(old, new)
-    return {"installed_version": old.version, "new_version": new.version, "version_status": status,
-            "version_ok": status == UPGRADE, "version_message": message, "changes": changes,
+    return {"name": new.name, "installed_version": old.version, "new_version": new.version,
+            "version_status": status, "version_ok": status == UPGRADE, "version_message": message, "changes": changes,
             "can_force": status != UPGRADE and semver_key(new.version) is not None,   # 可以明確選「降級／重裝」
             "alerts": sum(1 for c in changes if c["alert"]), "files": pack_lock.diff(old_hashes, new_hashes)[:50],
-            "installed_lock": lock_state}
+            "installed_lock": lock_state, "env": env_change(old, new, data_dir)}
 
 
 def installed_manifest(packs_dir: str, name: str) -> Optional[Tuple[Manifest, str]]:
@@ -200,8 +232,24 @@ def format_upgrade(upg: dict) -> str:
     files = upg.get("files") or []
     if files:
         lines.append("  檔案：" + "、".join(files[:20]) + ("…" if len(files) > 20 else ""))
+    lines += format_env(upg.get("env") or {}, upg.get("name") or "")
     lines.append("  資料（data/、使用者資料夾）不會動；資料格式要不要轉換由 pack 自己負責。")
     return "\n".join(lines)
+
+
+def format_env(env: dict, name: str = "") -> List[str]:
+    """升級報告的環境那一段（跟安裝報告 admin.format_summary 的「🧱 要建環境」同一個樣子）。"""
+    where = f"data/envs/{name}/" if name else "data/envs/<pack>/"
+    if env.get("keep"):
+        return [f"  🧱 環境：套件清單跟舊版一樣，沿用 {where}（不重建）"]
+    if not env.get("needed"):
+        return []
+    head = "要重建環境" if env.get("rebuild") else "要建環境"
+    lines = [f"  🧱 {head}（按確認升級之後才建）：" + (env.get("reason") or "")]
+    lines += [f"    · {line}" for line in env.get("lines") or []]
+    lines.append(f"    （要網路，最多 10 分鐘；建在 {where}；失敗的話 pack 照樣升級好，doctor 會標「環境沒建好」）")
+    lines += [f"    ⚠️ {p}" for p in env.get("problems") or []]
+    return lines
 
 
 # ── 搬到 _removed、退回 ────────────────────────────────────────────────
@@ -282,7 +330,8 @@ def _verified_staged(token: str, data_dir: str):
 def upgrade_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, via: str = "web",
                    allow_downgrade: bool = False, now=None) -> dict:
     """按了「確認升級」：再檢查 → 版本要比較新（或 allow_downgrade）→ 舊的搬到 _removed → 新的搬進來 → 鎖換新。
-    回 {"name", "from", "to", "backup", "report"}。沒裝過同名的丟錯（用一般安裝）。"""
+    回 {"name", "from", "to", "backup", "report", "env"}；env＝report["env"]（needed＝要接著建環境：
+    呼叫的人照全新安裝一樣叫 admin.build_env；建失敗不退回升級）。沒裝過同名的丟錯（用一般安裝）。"""
     from synox.packs import admin
     root, folder, m, report, hashes = _verified_staged(token, data_dir)
     found = installed_manifest(packs_dir, m.name)
@@ -309,13 +358,16 @@ def upgrade_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
     pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=target)
     logging.info("[PACKS] upgraded %s %s → %s (approved by %s via %s; old one in %s)",
                  m.name, old.version, m.version, approved_by, via, backup)
-    return {"name": m.name, "from": old.version, "to": m.version, "backup": backup, "report": upg}
+    return {"name": m.name, "from": old.version, "to": m.version, "backup": backup, "report": upg,
+            "env": upg["env"]}
 
 
 def rollback(name: str, packs_dir: str, data_dir: str, now=None) -> dict:
     """_removed 裡這個 pack 最近一份（升級或移除時搬走的；退回時搬走的那份跳過）搬回 packs/<name>、鎖改回當時的。
-    現在裝著的那份先搬到 _removed（reason=rollback）。回 {"name", "version", "restored_from", "archived", "lock"}；
-    lock：restored（鎖改回了）｜unlocked（當時就沒鎖）｜mismatch（檔案跟當時的鎖不符：沒鎖，要重新核准）。"""
+    現在裝著的那份先搬到 _removed（reason=rollback）。回 {"name", "version", "restored_from", "archived", "lock", "env"}；
+    lock：restored（鎖改回了）｜unlocked（當時就沒鎖）｜mismatch（檔案跟當時的鎖不符：沒鎖，要重新核准）；
+    env：舊版要環境、data/envs/<name>/ 卻跟它對不上（例如升級時重建成新版的套件）→ 一句人話（含重建指令）；
+    沒問題或不用環境 → None。不自動重建（退回通常是新版出事，先讓人決定）。"""
     from synox.packs import admin
     if not name or not re.match(r"^[a-z][a-z0-9_-]{0,31}$", name):
         raise admin.PackAdminError("pack 名字不對")
@@ -362,6 +414,15 @@ def rollback(name: str, packs_dir: str, data_dir: str, now=None) -> dict:
             state = "mismatch"
     else:
         pack_lock.remove(data_dir, name)
-    logging.info("[PACKS] rolled back %s to %s (lock %s)", name, restored.version, state)
+    env = None
+    try:
+        from synox.packs import envs
+        back = read(target)
+        if envs.needs_env(back):                   # 舊版要環境：data/envs/<name>/ 可能是新版建的 → 只提示，不自動建
+            env = envs.env_problem(back, data_dir)
+    except ManifestError:
+        pass
+    logging.info("[PACKS] rolled back %s to %s (lock %s%s)", name, restored.version, state,
+                 "; env needs rebuild" if env else "")
     return {"name": name, "version": restored.version, "restored_from": pick["path"], "archived": archived,
-            "lock": state}
+            "lock": state, "env": env}

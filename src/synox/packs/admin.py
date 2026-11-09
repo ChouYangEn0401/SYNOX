@@ -11,7 +11,9 @@ Web UI 設定頁、`python -m synox install <檔>`、`python -m synox packs lock
     build_env(name, …, jobs, on_done)  裝好之後才建環境（JobRunner、最多 10 分鐘）；失敗＝pack 已裝、doctor 標環境沒建好
 
 zip 本身：不能有絕對路徑、`..`、磁碟代號、符號連結；最多 MAX_FILES 個檔、解開最多 MAX_UNZIPPED。
-名字跟已經裝的 pack 一樣＝升級：比對、版本檢查、舊的搬到 _removed、退回都在 upgrade.py（install_staged 只裝新的）。python pack 的程式會在 SYNOX 裡面、用你的 Windows 帳號權限執行——摘要會明講。
+名字跟已經裝的 pack 一樣＝升級：比對、版本檢查、舊的搬到 _removed、退回都在 upgrade.py（install_staged 只裝新的）；
+升級完環境要建／重建（upgrade.env_change）也走這裡的 build_env。
+python pack 的程式會在 SYNOX 裡面、用你的 Windows 帳號權限執行——摘要會明講。
 """
 
 from __future__ import annotations
@@ -24,7 +26,6 @@ import re
 import secrets
 import shutil
 import stat
-import time
 import zipfile
 from typing import Dict, List, Optional, Tuple
 
