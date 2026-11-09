@@ -58,7 +58,54 @@ def _secret_lookup(config) -> Callable:
     return lookup
 
 
-def run(offline: bool = False, config_path: str = "", out: Callable[[str], None] = print) -> int:
+def _discord_lines(config) -> tuple:
+    """每個 Discord bot 一行：名字、場合、pack 範圍、token 在不在。回 (行, 有幾個要處理的)。不連 Discord、不產生金鑰。"""
+    from synox import discord
+    from synox.discord.bots import CHANNEL
+    vault = None
+    key = os.path.join(config.data_dir, ".synox.key")
+    if os.path.exists(key):
+        try:
+            from synox.vault import Vault
+            from synox.vault.keyring import read_key
+            vault = Vault(read_key(key), config.data_dir)
+        except Exception:
+            vault = None
+    lines, bad = [], 0
+    for spec in discord.specs(config):
+        packs = "全部 pack" if spec.packs == "all" else "pack：" + "、".join(spec.packs)
+        where = "私訊型" if spec.surface != CHANNEL else "頻道型"
+        cap = f"，上限 {spec.max_effect}" if spec.max_effect else ""
+        head = f"    bot {spec.name}（{where}，{packs}{cap}，AI {'開' if spec.ai.get('enabled') else '關'}，hub {spec.hub_name}）"
+        if spec.surface == CHANNEL:
+            lines.append(f"{head}：⚠️ {discord.CHANNEL_NOT_YET}")
+            continue
+        if spec.token.startswith("vault:"):
+            if vault is None:
+                lines.append(f"{head}：❌ 保管箱還沒建立，token 不在（python -m synox discord token"
+                             + (f" --bot {spec.name}" if not spec.legacy else "") + "）")
+                bad += 1
+                continue
+            try:
+                has = bool((vault.secret(spec.vault_name) or "").strip())
+            except Exception:
+                has = False
+            if not has:
+                lines.append(f"{head}：❌ 保管箱裡沒有 {spec.vault_name}（python -m synox discord token"
+                             + (f" --bot {spec.name}" if not spec.legacy else "") + "）")
+                bad += 1
+                continue
+            lines.append(f"{head}：✅ token 在保管箱")
+        elif spec.token.startswith("env:"):
+            ok = bool(os.environ.get(spec.token[4:], "").strip())
+            lines.append(f"{head}：" + ("✅ token 從環境變數讀" if ok else f"❌ 環境變數 {spec.token[4:]} 是空的"))
+            bad += 0 if ok else 1
+        else:
+            lines.append(f"{head}：⚠️ token 直接寫在 config.json（建議改用保管箱：python -m synox discord token）")
+    return lines, bad
+
+
+def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] = print) -> int:
     problems = 0
     out(f"🩺 SYNOX {__version__} 健康檢查")
     out(f"• Python：{platform.python_version()}（{sys.executable}）")
@@ -85,7 +132,11 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
                                 + (f"　對外網址 {web.get('public_url')}" if web.get("public_url") else "")
                                 if web.get("enabled", True) else "關（web.enabled=false）"))
             if config.discord_enabled:
-                out("  Discord：開（私訊；token 放保管箱，見 docs/discord.md）")
+                bot_lines, bad = _discord_lines(config)
+                out(f"  Discord：開（{len(bot_lines)} 個 bot；token 放保管箱，見 docs/discord.md）")
+                for line in bot_lines:
+                    out(line)
+                problems += bad
             problems += 0 if (config.has_token or config.discord_enabled) else 1
         except Exception as e:
             out(f"• 設定：❌ {e}")
