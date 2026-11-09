@@ -313,6 +313,7 @@ synox-sdk init <資料夾> --kind cli --name x                    不用 @tool �
 | 遠端 MCP：網址是 `http://`、帶 `帳號:密碼@`、`#`、`{樣板}`；宣告 `subprocess`／`exec`／`filesystem:any`；寫了 `argv`、`env`、`headers` | token 只能走加密連線、只送到宣告的那個主機；這台不跑對方的程式 |
 | `requires.synox` 跟這台的版本不合 | 你用到的功能這版沒有 |
 | `.synoxpack` 超過 5 MB（解開 20 MB、300 個檔），或有絕對路徑、`..`、符號連結 | 防止解壓縮時寫到 pack 資料夾外面 |
+| zip 裡的檔名是 Windows 保留名（`CON`、`NUL`、`COM1`、`nul.txt`…）、有冒號（`x.py::$DATA`）、`< > " \| ? *`、結尾是空白或句點 | Windows 解壓縮時會變成裝置、資料流或另一個檔名，看到的跟裝進去的不一樣 |
 
 ### 安裝時（第 2 關：靜態掃描）
 

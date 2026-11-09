@@ -35,6 +35,13 @@
 - **#D 載入後檔案被換**：之前 cli pack 的完整性只在 `load_all` 驗一次，載入後到下次 reload 前 pack 裡的 `./script.py` 被換掉不會發現。
   現在有鎖的 cli pack 每次叫子程序前（指令、AI、核准卡重跑、網頁面板）、mcp stdio 每次開子程序前再對一次鎖（`lock.LiveCheck`：
   先比修改時間＋大小，不一樣才算 sha256；每 10 分鐘全部重算一次；多出來的檔也算）。對不上＝不執行、回一句人話、通知擁有者一次。
+- **#E zip 檔名（防禦深度）**：`admin._safe_parts` 另外拒收 Windows 保留裝置名（`CON`、`PRN`、`AUX`、`NUL`、`COM0-9`、`LPT0-9`、
+  `COM¹`…，加副檔名也算）、含冒號的檔名（NTFS 資料流 `foo.py::$DATA`）、`< > " | ? *` 與控制字元、結尾是空白或句點的檔名。
+
+### 測試
+- `tests/test_review_b_exec.py`（#A）、`tests/test_review_b_scan.py`（#B）、`tests/test_review_b_supply.py`（#C／#D／#E）：
+  全部不連網、不開埠、不執行任何樣本（直譯器旗標只組判斷；ast 樣本只解析；pip／npm 用假的 JobRunner；cli 子程序被換成會丟錯的假貨）。
+  `tests/test_envs.py` 的 pip argv 斷言跟著 #C 更新。
 
 ## 未發佈（branch feat/t2-source）
 
