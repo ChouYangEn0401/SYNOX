@@ -1,5 +1,22 @@
 # Changelog
 
+## 未發佈（branch feat/schema-mode）
+
+### 新增
+- **巢狀參數的 schema 模式（工具 SDK Q6 方案 B）**。pack.json `mcp.schema_tools`（一定要在 `tools_allow` 裡）列的 MCP 工具，
+  inputSchema 的整數、布林、陣列、物件照型別給 **AI**，原樣送進 `tools/call` 的 `arguments`；人打字照舊只有平面欄位。
+  - 新檔 `src/synox/packs/mcp_schema.py`：`normalize`（白名單子集；`$ref`／`oneOf`／`anyOf`／`allOf`／開放的 additionalProperties／
+    路徑型 format／太深／超過 20 個屬性／危險的 pattern＝不支援，工具不給 AI，doctor 寫原因）、`check`（照 schema＋硬限制 3 層、
+    20 鍵、2000 字、50 項、16 KB、未列的鍵、每個字串查 secret）、`tool_schema`（給 LLM 的定義）、`describe`（核准卡的參數行）。
+  - 第 4 關：`validate.check_schema_call`／`schema_of`；`agent/loop.py` 的 `call_schema_tool`；`tools.build(..., app)` 給保留型別的定義；
+    文字協定的系統提示附上非字串參數的 JSON 型別。
+  - 核准卡（`ApprovalDesk.request(lines=, run=)`）：DANGER 與 needs_confirm 都把結構化參數一行一個列出來，按 ✅ 用同一組參數、執行前再驗一次。
+  - 升級報告：`schema_tools` 多了工具＝紅字。
+- 測試 `tests/test_schema_mode.py`（43 個，假 stdio 伺服器，不連網、不開埠）。
+
+### 變更
+- 平面模式不支援的巢狀欄位，doctor 的說明改成「要在 pack.json 的 mcp.schema_tools 列這個工具」。
+
 ## 未發佈（branch feat/sdk-p7）
 
 ### 新增

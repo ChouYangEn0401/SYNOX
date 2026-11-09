@@ -23,6 +23,14 @@ _NAME_KEYS = ("tool", "name", "tool_name", "function")
 _ARGS_KEYS = ("args", "arguments", "parameters", "input")
 
 
+def _shape(prop) -> str:
+    """不是字串的參數（schema 模式的 MCP 工具：整數、布林、陣列、物件）把 JSON Schema 附上，模型才知道要給什麼型別。"""
+    if not isinstance(prop, dict) or prop.get("type") in (None, "string"):
+        return ""
+    text = json.dumps(prop, ensure_ascii=False)
+    return f"（JSON 型別：{text if len(text) <= 400 else text[:399] + '…'}）"
+
+
 def system_snippet(tools: Sequence[ToolSpec]) -> str:
     lines = ["## 怎麼使用工具",
              "要用工具時，整則回覆只能是一個 JSON 物件，前後不要有任何其他文字：",
@@ -32,7 +40,7 @@ def system_snippet(tools: Sequence[ToolSpec]) -> str:
     for t in tools:
         props = (t.parameters or {}).get("properties") or {}
         required = set((t.parameters or {}).get("required") or [])
-        params = "、".join(f"{k}{'（必填）' if k in required else ''}：{v.get('description', '')}"
+        params = "、".join(f"{k}{'（必填）' if k in required else ''}：{v.get('description', '')}{_shape(v)}"
                           for k, v in props.items()) or "（沒有參數）"
         lines.append(f"- {t.name}：{t.description}\n  參數：{params}")
     return "\n".join(lines)
