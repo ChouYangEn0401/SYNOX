@@ -92,8 +92,9 @@ class Gateway:
     def __init__(self, token: str, on_dispatch: Callable[[str, dict], None], *, intents: int = INTENTS,
                  connect: Callable[[str], object] = WebSocketClientConn, url: str = GATEWAY_URL,
                  clock: Callable[[], float] = time.monotonic, rand: Callable[[], float] = random.random,
-                 backoff_max: float = 60.0):
+                 backoff_max: float = 60.0, label: str = "discord"):
         self._token = token
+        self.label = label                # log 用（多個 bot 時分得出是哪一條）
         self.on_dispatch = on_dispatch
         self.intents = intents
         self._connect = connect
@@ -140,11 +141,11 @@ class Gateway:
                     raise GatewayFatal(f"Discord 拒絕連線：{FATAL_CLOSE[c.code]}")
                 if c.code in NO_RESUME_CLOSE:
                     self.session_id = self.seq = None
-                logging.warning("[DISCORD] gateway closed (%s); reconnecting", c.code)
+                logging.warning("[DISCORD] %s gateway closed (%s); reconnecting", self.label, c.code)
             except (OSError, ValueError) as e:
                 if self._stop.is_set():
                     break
-                logging.warning("[DISCORD] gateway error: %s; reconnecting", type(e).__name__)
+                logging.warning("[DISCORD] %s gateway error: %s; reconnecting", self.label, type(e).__name__)
             if self._stop.is_set():
                 break
             if self._healthy:
@@ -227,11 +228,11 @@ class Gateway:
             self.session_id = d.get("session_id")
             self.resume_url = d.get("resume_gateway_url")
             self.user = d.get("user") or {}
-            logging.info("[DISCORD] connected as %s", self.user.get("username", "?"))
+            logging.info("[DISCORD] %s connected as %s", self.label, self.user.get("username", "?"))
             return
         if event == "RESUMED":
             return
         try:
             self.on_dispatch(event, d)
         except Exception:
-            logging.exception("[DISCORD] handling %s failed", event)
+            logging.exception("[DISCORD] %s handling %s failed", self.label, event)
