@@ -21,6 +21,18 @@ from conftest import OTHER_ID
 GUEST_ID = 777
 
 
+def form_of(body: bytes) -> str:
+    return re.search(rb'name="f" value="([^"]+)"', body).group(1).decode()
+
+
+def confirm_login(ui, page_headers, page_body, host="127.0.0.1:8830", extra=None):
+    """按確認頁的「登入」：帶確認頁發的 synox_login cookie 與表單 token，從同一個 Origin POST。"""
+    binder = next(v for k, v in page_headers if k == "Set-Cookie" and v.startswith("synox_login=")).split(";")[0]
+    headers = {"Host": host, "Origin": f"http://{host}", "Cookie": binder,
+               "Content-Type": "application/x-www-form-urlencoded", **(extra or {})}
+    return ui.handle("POST", "/login", headers, f"f={form_of(page_body)}".encode())
+
+
 class Client:
     """假瀏覽器：記 cookie、帶 CSRF。"""
 
@@ -31,7 +43,9 @@ class Client:
         self.host = host
 
     def login(self, tg_id):
-        status, headers, _ = self.ui.handle("GET", f"/login?t={self.ui.tokens.issue(tg_id)}", {"Host": self.host})
+        status, headers, body = self.ui.handle("GET", f"/login?t={self.ui.tokens.issue(tg_id)}", {"Host": self.host})
+        assert status == 200                                            # 確認頁（還沒登入）
+        status, headers, _ = confirm_login(self.ui, headers, body, host=self.host)
         assert status == 303
         cookie = dict(headers)["Set-Cookie"]
         self.cookie = cookie.split(";")[0]
@@ -88,13 +102,49 @@ def test_login_link_is_one_time_and_sets_safe_cookie(make_bot, owner):
     with open(ui.tokens.path, encoding="utf-8") as f:
         stored = json.load(f)
     assert token not in json.dumps(stored) and digest(token) in stored           # 檔案裡只有雜湊
-    status, headers, _ = ui.handle("GET", f"/login?t={token}", {})
+    page = ui.handle("GET", f"/login?t={token}", {"Host": "127.0.0.1:8830"})
+    assert page[0] == 200
+    status, headers, _ = confirm_login(ui, page[1], page[2])
     h = dict(headers)
     assert status == 303 and h["Location"] == "/#chat"
     assert "HttpOnly" in h["Set-Cookie"] and "SameSite=Lax" in h["Set-Cookie"]
     status, _h, body = ui.handle("GET", f"/login?t={token}", {})                # 第二次用：不行
     assert status == 403 and "用過了".encode() in body
     assert ui.handle("GET", "/login?t=nope", {})[0] == 403
+
+
+def test_login_link_get_only_shows_who_and_needs_a_same_browser_post(make_bot, owner):
+    """審查 A #6（login CSRF）：別人把他的登入連結塞給你 → GET 不會讓你登入成他；先看到「你將以 <名字> 登入」。"""
+    bot = make_bot()
+    ui = ui_of(bot)
+    bot.app.users.get_or_create(GUEST_ID, "mallory")
+    token = ui.tokens.issue(GUEST_ID)
+    status, headers, body = ui.handle("GET", f"/login?t={token}", {"Host": "127.0.0.1:8830"})
+    assert status == 200 and "mallory".encode() in body and "你將以".encode() in body
+    assert not any(v.startswith("synox_session=") for k, v in headers if k == "Set-Cookie")   # 還沒登入
+    assert ui.tokens.peek(token) == GUEST_ID                                    # 連結還沒用掉
+    binder = next(v for k, v in headers if k == "Set-Cookie" and v.startswith("synox_login="))
+    assert "SameSite=Strict" in binder and "HttpOnly" in binder
+    f = form_of(body)
+    post = {"Host": "127.0.0.1:8830", "Content-Type": "application/x-www-form-urlencoded"}
+    assert ui.handle("POST", "/login", post, f"f={f}".encode())[0] == 403            # 沒有這個瀏覽器的 cookie
+    assert ui.handle("POST", "/login", {**post, "Origin": "https://evil.example", "Cookie": binder.split(";")[0]},
+                     f"f={f}".encode())[0] == 403                                  # 跨站送出
+    assert ui.handle("POST", "/login", {**post, "Sec-Fetch-Site": "cross-site", "Cookie": binder.split(";")[0]},
+                     f"f={f}".encode())[0] == 403
+    assert ui.tokens.peek(token) == GUEST_ID                                    # 擋下的都沒有用掉連結
+    status, headers, _ = confirm_login(ui, headers, body)                       # 本人在同一個瀏覽器按「登入」
+    assert status == 303
+    assert confirm_login(ui, headers, body)[0] == 403                           # 表單 token 只能用一次
+
+
+def test_login_page_warns_when_switching_account(make_bot, owner):
+    bot = make_bot()
+    ui = ui_of(bot)
+    c = Client(ui)
+    c.login(owner)
+    status, _h, body = c.raw("GET", f"/login?t={ui.tokens.issue(GUEST_ID)}")
+    assert status == 200 and "現在登入的是".encode() in body and f"id {owner}".encode() in body
 
 
 def test_login_token_expires_after_seven_days(tmp_path):
@@ -414,7 +464,8 @@ def test_web_command_gives_link(make_bot, owner):
     bot.say(owner, "/web")
     link = re.search(r"http://127\.0\.0\.1:8830/login\?t=(\S+)", bot.last(owner))
     assert link
-    assert ui_of(bot).handle("GET", f"/login?t={link.group(1)}", {})[0] == 303
+    page = ui_of(bot).handle("GET", f"/login?t={link.group(1)}", {"Host": "127.0.0.1:8830"})
+    assert page[0] == 200 and confirm_login(ui_of(bot), page[1], page[2])[0] == 303
     bot.say(GUEST_ID, "/web")                                                 # 個人版：別人沒有
     assert "login" not in bot.last(GUEST_ID)
 
