@@ -197,3 +197,58 @@ def test_c5f_ordinary_string_building_is_fine():
     src = ("a = 'hello ' + 'world'\nb = ', '.join(['x', 'y'])\nc = 'n=%d' % 3\n"
            "d = 'Hi {name}'.format(name='x')\ne = ('Hi {} ' + 'there').format('x')\nf = f'{a}-{b}'\n")
     assert _kinds(src) == set()
+
+
+# ── C6：zip 裡超長路徑、看不見的字元 ──────────────────────────────────
+
+def _staged_left(tmp_path):
+    root = os.path.join(str(tmp_path / "data"), "web_uploads")
+    return os.path.isdir(root) and os.listdir(root)
+
+
+@pytest.mark.parametrize("name", [
+    "/".join(["d" * 40] * 8) + "/x.txt",          # 很深的路徑（以前 Windows 丟 FileNotFoundError → 網頁 500）
+    "a" * 101 + ".txt",                           # 一段太長
+])
+def test_c6_long_paths_are_refused_cleanly(tmp_path, name):
+    from synox.packs import admin
+    from test_review_b_supply import _zip_with
+    with pytest.raises(admin.PackAdminError) as e:
+        admin.stage(_zip_with(name), str(tmp_path / "data"))
+    assert "太長" in str(e.value)
+    assert not _staged_left(tmp_path)
+
+
+@pytest.mark.parametrize("name", ["\u202eyp.a", "a\u202d.py", "lib/\u2066x.py", "x\u2069.txt", "to\u200bol.py",
+                                  "\u200cx.py", "x\u200d.txt", "\ufeffx.py", "a\u202a.txt", "a\u202c.txt",
+                                  "\u2067a.txt", "\u2068a.txt", "a\u202b.txt"])
+def test_c6_bidi_and_zero_width_names_are_refused(tmp_path, name):
+    from synox.packs import admin
+    from test_review_b_supply import _zip_with
+    with pytest.raises(admin.PackAdminError) as e:
+        admin.stage(_zip_with(name), str(tmp_path / "data"))
+    assert "看不見的字元" in str(e.value)
+    assert not _staged_left(tmp_path)
+
+
+def test_c6_os_error_while_extracting_becomes_a_clean_refusal(tmp_path, monkeypatch):
+    from synox.packs import admin
+    from test_review_b_supply import _zip_with
+    real_open = open
+
+    def fake_open(path, mode="r", *a, **k):
+        if "wb" in mode and str(path).endswith("deep.txt"):
+            raise FileNotFoundError(2, "No such file or directory")
+        return real_open(path, mode, *a, **k)
+    monkeypatch.setattr("builtins.open", fake_open)
+    with pytest.raises(admin.PackAdminError) as e:
+        admin.stage(_zip_with("lib/deep.txt"), str(tmp_path / "data"))
+    assert "解不開" in str(e.value)
+    assert not _staged_left(tmp_path)
+
+
+def test_c6_ordinary_unicode_names_still_ok(tmp_path):
+    from synox.packs import admin
+    from test_review_b_supply import _zip_with
+    token, _summary = admin.stage(_zip_with("說明/讀我.txt"), str(tmp_path / "data"))
+    assert token
