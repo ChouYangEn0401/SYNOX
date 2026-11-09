@@ -6,10 +6,14 @@
   kind=connector  只登記：一個群組、一個葉節點，說「還沒接上」（v0 不連外）
 
 群組（/help 的一頁）由 loader 依 pack.json 定義（title、summary、access），pack 只往裡面掛葉節點；
-access=owner（預設）＝整組只有機器擁有者看得到、用得到（別人打了跟不存在一樣）。
+access=owner（預設）＝整組只有機器擁有者看得到、用得到（別人打了跟不存在一樣）；
+access=member＝伺服器版給「成員」以上（擁有者用 /user_role 升級），個人版等於 owner；
+access=everyone＝任何傳訊息給 bot 的人（伺服器版的訪客 GUEST 只看得到這種）。
 一個 pack 壞掉（pack.json 不合、install 丟例外）只跳過那一個，記在 LoadReport，doctor 會印出來。
 pack 拿到的 Pack 物件：.manifest、.store（storage=vault → 密文 data/<name>.json.enc；plain → data/<name>.json）、
 .path(...)（data/packs/<name>/... 給 pack 自己的檔案）、.group（指令群組的 Group handle）。
+**每個人自己的資料用 pack.store.of(user)**：個人版回同一份共用檔；伺服器版回這個人自己的
+data/users/<tg_id>/<name>.json(.enc)（vault 的金鑰由主金鑰＋id 用 HKDF 衍生，別人的檔解不開）。
 """
 
 from __future__ import annotations
@@ -20,26 +24,46 @@ import os
 import sys
 import threading
 from dataclasses import dataclass, field
-from typing import Any, Callable, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from isdtelekit.core import jsonstore
 from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 
 from synox.config import ROOT
 from synox.packs.manifest import Manifest, ManifestError, missing_requirements, read
+from synox.vault.vault import USERS_DIR
 
 PACK_DIRS = (os.path.join(ROOT, "packs"), os.path.join(ROOT, "connectors"))
 EFFECTS = {"read": READ, "write": WRITE, "danger": DANGER}
 
 
 class PackStore:
-    """pack 的資料：load/save 一份 JSON。storage=vault 時落地是密文（Vault），否則 SDK 的 jsonstore。"""
+    """pack 的資料：load/save 一份 JSON。storage=vault 時落地是密文（Vault），否則 SDK 的 jsonstore。
 
-    def __init__(self, name: str, data_dir: str, vault=None):
+    per_user=True（伺服器版）：of(user) 給每個人一份自己的 store；False（個人版）：of(user) 就是自己。"""
+
+    def __init__(self, name: str, data_dir: str, vault=None, *, per_user: bool = False):
         self.name = name
         self._data_dir = data_dir
         self._vault = vault
+        self.per_user = per_user
         self.lock = threading.RLock()           # 讀改寫同一份資料時用（update() 已經包好）
+        self._scoped: Dict[int, "PackStore"] = {}
+
+    def of(self, user) -> "PackStore":
+        """這個人的資料（user：有 tg_id 的使用者物件，或直接給 int）。個人版回共用的那一份。"""
+        if not self.per_user:
+            return self
+        tg_id = user if isinstance(user, int) and not isinstance(user, bool) else getattr(user, "tg_id", None)
+        if not isinstance(tg_id, int) or isinstance(tg_id, bool):
+            raise ValueError("pack.store.of(user) needs a user with an integer tg_id")
+        with self.lock:
+            found = self._scoped.get(tg_id)
+            if found is None:
+                folder = os.path.join(self._data_dir, USERS_DIR, str(tg_id))
+                vault = self._vault.for_user(tg_id) if self._vault is not None else None
+                found = self._scoped[tg_id] = PackStore(self.name, folder, vault)
+            return found
 
     @property
     def encrypted(self) -> bool:
@@ -114,6 +138,17 @@ class LoadReport:
     @property
     def ok(self) -> bool:
         return not any(i.status in ("invalid", "error") for i in self.items)
+
+
+def group_policy(app, access: str, server: bool) -> dict:
+    """pack.json 的 access → define_group 的權限。member 在個人版等於 owner（個人版沒有成員）。"""
+    if access == "owner" or (access == "member" and not server):
+        return {"owner_only": True}
+    if access == "member":
+        from isdtelekit.users.roles import next_up
+        roles = app.users.roles
+        return {"role": next_up(roles, min(roles)) or max(roles)}
+    return {}
 
 
 def discover(dirs=PACK_DIRS) -> List[str]:
@@ -226,8 +261,10 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         if use_vault and vault is None:
             item.status, item.detail = "error", "這個 pack 要保管箱（storage=vault），但保管箱沒有打開"
             continue
-        pack = Pack(m, PackStore(m.name, config.data_dir, vault if use_vault else None), app, config.data_dir)
-        app.registry.define_group(m.group, m.title, m.summary, owner_only=(m.access == "owner"))
+        server = getattr(config, "mode", "personal") == "server"
+        store = PackStore(m.name, config.data_dir, vault if use_vault else None, per_user=server)
+        pack = Pack(m, store, app, config.data_dir)
+        app.registry.define_group(m.group, m.title, m.summary, **group_policy(app, m.access, server))
         try:
             {"python": _install_python, "cli": _install_cli, "connector": _install_connector}[m.kind](app, pack)
         except Exception as e:
