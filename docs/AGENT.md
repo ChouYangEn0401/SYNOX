@@ -32,7 +32,7 @@
 | `src/synox/packs/mcp_http.py` | kind=mcp http（P4b）：`HttpSession`（Streamable HTTP：POST JSON-RPC、JSON／單次 SSE 回應、`Mcp-Session-Id`、不跟轉址、DELETE 收尾）、`HttpBackend`（Bearer token 或 OAuth）、`parse_sse`、`new_session`（測試換掉） |
 | `src/synox/packs/oauth.py` | 遠端 MCP 的 OAuth（選配）：`Flow`（PKCE＋state、貼回網址、換／更新 token 存 PackSecrets、`/<群組>_login／_code／_logout`）、`Listener`／`PasteListener`／`LoopbackListener`（只有介面，叫了就拒） |
 | `src/synox/sdk/` | 給 pack 作者：JSON 信封、`Pack.load`、`init_pack`、`zip_pack`；`synox-sdk init｜check｜zip`（`python -m synox.sdk`）。說明 [sdk.md](sdk.md) |
-| `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`validate.py`（第 4 關呼叫驗證）、`delimit.py`（第 5 關工具結果分隔符）、`budget.py`（伺服器版成員每月額度）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
+| `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`validate.py`（第 4 關呼叫驗證）、`delimit.py`（第 5 關工具結果分隔符）、`budget.py`（伺服器版成員每月額度；`BotPool` 頻道型 bot 一池）、`room.py`（頻道 AI：`RoomAgent`、`redact_reply`）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
 | `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（30 秒、via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`、`/schedule_*`） |
 | `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS）、`__init__.py`（`install`、`/web`、`/web_off`） |
 | `src/synox/packs/admin.py` | `.synoxpack`：stage（zip 檢查＋第 1、2 關；記 zip 的執行位元、不解出 `__pycache__`）→ install_staged（再驗一次＋T2 要 `trust_publisher`＋第 3 關寫鎖）／移除到 `packs/_removed/`／`reload()`（Web UI、`synox install` 共用）；`format_tier`／`red`＝T2 的紅字段 |
@@ -94,11 +94,20 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     `REASONS` 一串檢查；頻道型的 surfaces／data 原因是 `_not_for_channel`，排在 `_over_max_effect` 前面）。
     **頻道（PERM-5）**：bot 是頻道型（`surface=channel`）＝這則來自伺服器頻道。`bot_scope` 加：surfaces 沒 channel 或 data=user 的 pack、
     `CHANNEL_BUILTINS`（help／start／exit）以外的內建指令＝`bot_channel`（當作不存在）；DANGER 一律 `bot_effect`；`channel_write`：
-    WRITE 要 data=shared 且有效角色 ≥ 成員。`bot_ai_enabled` 對頻道型一律 False（PERM-6 才開）。role_map 的角色由 `RoomEntry` 用
+    WRITE 要 data=shared 且有效角色 ≥ 成員。`bot_ai_enabled` 對頻道型一律 False（agent 群組在頻道永遠 `bot_channel`）。role_map 的角色由 `RoomEntry` 用
     `policy.using_role_floor` 帶進來，`effective_user` 回複本（max、封頂成員），**不寫回 users.json、不改 vendor**。
     頻道的 chat_id 是負號（`Identities.resolve_room("discord-channel", …)`，-(10^15+n)），所以 SDK 的 private_only 與
     「群組閒聊不回」自然成立。頻道收訊在 `discord/__init__.py` 的 `RoomEntry`（allowlist、trigger、節流、只有發話者能按按鈕、
     別人的問答不插嘴）與 `RoomReply`（回到那個頻道、引用發話者）；解析在 `events.parse_room_event`（純函式）。
+    **頻道 AI（PERM-6）**：`RoomEntry` 收到 dispatcher 的 `Route(IGNORED, reason="group")`（被 @ 但不是指令）時，`policy.channel_ai_enabled`
+    （`bots.channel_ai_on`：ai.enabled 且 pool_usd_month > 0；沒 pool＝`bots.channel_ai_problem`，doctor／/bot_status 列 ❌）才交給
+    `agent/room.py` 的 `RoomAgent`（AgentLoop 子類別，在 `policy.run_in_room(bot, floor, …)` 裡跑）。它只換 AgentLoop 的幾個點：
+    `decision`（`ai_decision(bot=頻道型, chat_id=頻道)`，再拿掉 `room.needs_dm` 的：DANGER／wraps／needs_card／confirm——**工具判斷仍只有
+    decide 一個**）、`call_tool`（要卡的回 `DM_ONLY`、`_NoCardApi` 攔住執行中才出的卡）、`system_prompt`（公開頻道版＋persona）、
+    `out_of_budget`／`_record`（`budget.BotPool`，整個 bot 一池，不碰個人額度）、`say`（`room.redact_reply`：`mcp.redact`＋`TOKEN_PATTERNS`）。
+    記憶 key＝頻道負號 id（`history_turns`＝`ai.history_turns`）。節流：（頻道, 人）、（頻道）`room_rate_per_minute`、AI 的（頻道, 人）
+    `ai.rate_per_minute`。`policy.decide` 現在先算 `effective_user` 再做 via=AI 的訪客判斷（role_map 對到成員的人才有工具）。
+    私訊的 AgentLoop 行為不變（新加的 `decision`／`tools_for`／`out_of_budget`／`say`／`carded_note` 預設就是原本的做法）。
 
 12. **cli 子程序一律過 `src/synox/sandbox.py`**（PERM-7）：`loader._install_cli` 的 `make_cli` 用 `sandbox.grants_for`（宣告 → 讀／寫／網路／資源）
     算範圍、`sandbox.sandbox_for(config).wrap(argv, env, cwd, grants)` 包 argv；wrap 回的 argv 一定以原 argv 結尾（JsonCli 在後面接子指令）。

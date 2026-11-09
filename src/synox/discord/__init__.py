@@ -16,6 +16,9 @@ config.json（兩種寫法，見 synox/discord/bots.py）：
   按鈕只有發話者能按；（頻道, 人）每分鐘 rate_per_minute 則，超過靜默略過；Discord 身分組照 role_map 給這次請求的有效角色
   （上限成員，不寫回 users.json）。頻道裡能用什麼由 policy.decide 決定（pack 的 surfaces／data、DANGER 永遠拒、WRITE 限 shared）。
   頻道型 bot 不加進 DiscordBots（主動通知只走私訊型 bot）。
+- 頻道 AI（PERM-6）：被 @ 了但不是指令的訊息，bot 開了頻道 AI（ai.enabled＋pool_usd_month）就交給 agent/room.py 的
+  RoomAgent（記憶 key＝頻道、公開版系統提示、bot 一池的額度、送出前遮罩 secret）；沒開就回 CHAT_IN_DM。
+  節流三層：（頻道, 人）rate_per_minute、（頻道）room_rate_per_minute（預設 20）、AI 另外（頻道, 人）ai.rate_per_minute（預設 2）。
 - 身分：synox.identity（data/identities.json）。同一個 Discord 帳號對任何 bot 都是同一個內部 id。
   陌生的 Discord 帳號拿到保留號段的新 id（伺服器版＝訪客；個人版＝被拒）；
   擁有者用 `python -m synox discord pair`（私訊 bot 六位數配對碼）把自己的 Discord 帳號接到 owner_id。
@@ -335,7 +338,7 @@ class RoomEntry:
     SPEAKERS_KEPT = 1000
 
     def __init__(self, dispatcher, identities: Identities, channel: DiscordChannel, *, name: str, spec: BotSpec,
-                 clock: Callable[[], float] = time.monotonic):
+                 clock: Callable[[], float] = time.monotonic, agent=None, tasks=None):
         self.dispatcher = dispatcher
         self.identities = identities
         self.channel = channel
@@ -343,6 +346,10 @@ class RoomEntry:
         self.spec = spec
         self.bot_id: Optional[str] = None
         self.throttle = RoomThrottle(spec.rate_per_minute, clock)
+        self.room_throttle = RoomThrottle(spec.room_rate_per_minute, clock)      # （頻道）整體，PERM-6
+        self.ai_throttle = RoomThrottle(spec.ai_rate_per_minute, clock)          # 頻道 AI：（頻道, 人），比指令嚴
+        self.agent = agent                         # agent/room.py 的 RoomAgent（頻道 AI 沒開＝None）
+        self.tasks = tasks                         # AI 那一輪丟到這裡（app.tasks），不卡收訊的執行緒
         self._speakers: "OrderedDict[int, int]" = OrderedDict()
         self._lock = threading.Lock()
 
@@ -401,14 +408,35 @@ class RoomEntry:
             logging.info("[DISCORD] %s throttled: room %s user %s (over %s/min)", self.name, inbound.chat_id,
                          inbound.user_id, self.throttle.limit)
             return None
+        if not self.room_throttle.allow(inbound.chat_id, 0):
+            logging.info("[DISCORD] %s throttled: room %s (over %s/min for the whole channel)", self.name,
+                         inbound.chat_id, self.room_throttle.limit)
+            return None
         if self._someone_elses_conversation(inbound):
             logging.info("[DISCORD] %s ignored: room %s has another user's conversation", self.name, inbound.chat_id)
             return None
         api = RoomReply(self.channel, inbound.chat_id, ev.message_id, inbound.user_id, self._record)
         route = self._handle(api, inbound, floor)
-        if getattr(route, "reason", None) == "group":            # 被 @ 了但不是指令：頻道 AI 還沒做（PERM-6）
-            api.send_message(inbound.chat_id, CHAT_IN_DM)
+        if getattr(route, "reason", None) == "group":            # 被 @ 了但不是指令 → 頻道 AI（PERM-6）或提示
+            self._chat(api, inbound, ev, floor)
         return route
+
+    def _chat(self, api, inbound, ev, floor) -> None:
+        if self.agent is None:
+            api.send_message(inbound.chat_id, CHAT_IN_DM)
+            return
+        if not self.ai_throttle.allow(inbound.chat_id, inbound.user_id):
+            logging.info("[DISCORD] %s AI throttled: room %s user %s (over %s/min)", self.name, inbound.chat_id,
+                         inbound.user_id, self.ai_throttle.limit)
+            return
+        user = self.dispatcher.user_manager.get_or_create(inbound.user_id)
+        text = inbound.text or ""
+        run = lambda: policy.run_in_room(self.spec, floor, self.agent.run_room, api, inbound.chat_id, user, text,  # noqa: E731
+                                         name=ev.display_name or inbound.username, attachments=ev.attachments)
+        if self.tasks is not None:
+            self.tasks.run(run, name="room-ai-turn")
+        else:
+            run()
 
     def _button(self, inbound, floor):
         cb = inbound.button
@@ -458,7 +486,12 @@ def install(app, config, vault) -> Optional[DiscordChannel]:
             continue
         channel = DiscordChannel(token, identities)
         if spec.surface == CHANNEL:                 # 不加進 bots：主動通知只走私訊型
-            entry = RoomEntry(app.dispatcher, identities, channel, name=spec.name, spec=spec)
+            from synox.agent import room as room_ai
+            problem = bot_specs.channel_ai_problem(spec)
+            if problem:
+                logging.warning("[DISCORD] bot %s: %s", spec.name, problem)
+            entry = RoomEntry(app.dispatcher, identities, channel, name=spec.name, spec=spec,
+                              agent=room_ai.install_for(app, spec), tasks=app.tasks)
         else:
             bots.add(spec.name, channel)
             entry = DiscordEntry(app.dispatcher, identities, channel, name=spec.name, bots=bots, spec=spec)

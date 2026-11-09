@@ -81,6 +81,11 @@ def _discord_lines(config) -> tuple:
         line, wrong = _discord_bot_line(spec, vault)
         lines.append(line)
         bad += wrong
+        from synox.discord.bots import channel_ai_problem
+        if channel_ai_problem(spec):                # PERM-6：頻道 AI 開了卻沒有 pool（下面 scope.lines 列原因）
+            bad += 1
+            if scope is None:
+                lines.append(f"      ❌ 頻道 AI 沒有開：{channel_ai_problem(spec)}")
         if scope is not None:                       # PERM-4：這個 bot 會出現哪些 pack、設定了卻不會出現的原因
             lines.extend(scope.lines(spec, scope.report(spec, infos), indent="      "))
     return lines, bad
@@ -93,8 +98,8 @@ def _discord_bot_line(spec, vault) -> tuple:
     packs = "全部 pack" if spec.packs == "all" else "pack：" + "、".join(spec.packs)
     where = "私訊型" if spec.surface != CHANNEL else "頻道型"
     cap = f"，上限 {spec.max_effect}" if spec.max_effect else ""
-    ai = "關（頻道 AI 還沒做）" if spec.surface == CHANNEL else ("開" if spec.ai.get("enabled") else "關")
-    head = f"    bot {spec.name}（{where}，{packs}{cap}，AI {ai}，hub {spec.hub_name}）"
+    from synox.discord.scope import ai_word
+    head = f"    bot {spec.name}（{where}，{packs}{cap}，{ai_word(spec)}，hub {spec.hub_name}）"
     hint = "（python -m synox discord token" + (f" --bot {spec.name}" if not spec.legacy else "") + "）"
     if spec.surface == CHANNEL and not spec.channel_count():
         return f"{head}：❌ {discord.NO_GUILDS}", 1

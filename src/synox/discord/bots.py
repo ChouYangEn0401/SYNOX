@@ -18,8 +18,14 @@ config.json 的 channels.discord → 一串 BotSpec（純函式，不連網；�
             role_map 的值只能是 guest 或 member（頻道裡的有效角色上限是 member；管理員只能用 /user_role 給）。
     trigger："mention"（被 @ 才處理，預設）｜"/"（訊息以 / 開頭才處理）。
     rate_per_minute：同一個人在同一個頻道每分鐘最多幾則（預設 5，超過的靜默略過）。
-- ai：true／false 或 {"enabled": …, "pool_usd_month": …}。關掉＝這個 bot 上沒有 AI（agent 群組不存在、打字不交給 AI）；
-  pool_usd_month 這一版只存起來（PERM-6）。頻道型 bot 這一版不管怎麼寫都當作關（頻道 AI 是 PERM-6）。
+    room_rate_per_minute：同一個頻道（所有人加起來）每分鐘最多幾則（預設 20，PERM-6）。
+- ai：true／false 或 {"enabled": …, "pool_usd_month": …}。關掉＝這個 bot 上沒有 AI（agent 群組不存在、打字不交給 AI）。
+  私訊型沒寫＝開；pool_usd_month 對私訊型不用（照個人額度）。
+- 頻道 AI（PERM-6，只有頻道型）：ai = {"enabled": true, "pool_usd_month": 5, "persona": "…",
+  "history_turns": 6, "rate_per_minute": 2}。頻道型沒寫 ai＝關。pool_usd_month 是整個 bot 每月一池（美元，> 0）；
+  enabled 是 true 卻沒有 pool＝設定錯誤，頻道 AI 不啟用（channel_ai_problem 說原因，doctor／/bot_status 列出來）。
+  history_turns：頻道共用的對話記憶留幾輪（預設 6）；rate_per_minute：AI 每人每分鐘幾次（預設 2，比指令嚴）。
+  persona：附加進公開頻道版系統提示的角色設定（沒寫就用 bot 的 persona 欄位）。
 - 兩個 bot 不能用同一個 token（同一個 bot 開兩條 Gateway 會互搶事件）。
 """
 
@@ -38,10 +44,14 @@ DEFAULT = "default"
 VAULT_BASE = "discord_bot_token"
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
 BOT_KEYS = {"token", "surface", "packs", "max_effect", "ai", "guilds", "trigger", "persona", "enabled",
-            "rate_per_minute"}
+            "rate_per_minute", "room_rate_per_minute"}
+AI_KEYS = {"enabled", "pool_usd_month", "persona", "history_turns", "rate_per_minute"}
 TRIGGERS = ("mention", "/")
 ROLE_MAP_ROLES = ("guest", "member")             # 頻道裡 role_map 給得出的角色（上限 member）
 DEFAULT_RATE = 5
+DEFAULT_ROOM_RATE = 20                           # 頻道（所有人）每分鐘
+DEFAULT_AI_RATE = 2                              # 頻道 AI：每人每分鐘
+DEFAULT_AI_HISTORY = 6                           # 頻道 AI：共用記憶幾輪
 ID_RE = re.compile(r"^[0-9]{1,25}$")
 
 
@@ -59,10 +69,27 @@ class BotSpec:
     enabled: bool = True
     legacy: bool = False                         # 舊寫法來的（hub 名字維持 "discord"，狀態頁、指令照舊）
     rate_per_minute: int = DEFAULT_RATE          # 頻道型：（頻道, 人）每分鐘幾則
+    room_rate_per_minute: int = DEFAULT_ROOM_RATE   # 頻道型：（頻道）每分鐘幾則
 
     @property
     def is_channel(self) -> bool:
         return self.surface == CHANNEL
+
+    @property
+    def ai_persona(self) -> str:
+        return str(self.ai.get("persona") or self.persona or "").strip()
+
+    @property
+    def ai_history_turns(self) -> int:
+        return int(self.ai.get("history_turns") or DEFAULT_AI_HISTORY)
+
+    @property
+    def ai_rate_per_minute(self) -> int:
+        return int(self.ai.get("rate_per_minute") or DEFAULT_AI_RATE)
+
+    @property
+    def pool_usd_month(self) -> Optional[float]:
+        return self.ai.get("pool_usd_month")
 
     def guild(self, guild_id) -> Optional[dict]:
         """這個伺服器的設定（{"channels": [...], "role_map": {...}}）；沒列＝None。"""
@@ -104,20 +131,58 @@ def _packs(name: str, value) -> Union[str, Tuple[str, ...]]:
     raise _err(name, 'packs 要寫 "all" 或 pack 名字的清單（例如 ["dict", "weather"]）。')
 
 
-def _ai(name: str, value) -> dict:
+def _small_int(name: str, where: str, value, default: int, top: int) -> int:
+    if value is None:
+        return default
+    if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= top:
+        raise _err(name, f"{where} 要是 1 到 {top} 的整數（現在是 {value!r}）。")
+    return value
+
+
+def _ai(name: str, value, channel: bool = False) -> dict:
+    """頻道型沒寫 ai＝關（頻道 AI 要明講、而且要有 pool）；私訊型沒寫＝開。"""
     if value is None or isinstance(value, bool):
-        return {"enabled": True if value is None else value, "pool_usd_month": None}
+        return {"enabled": (not channel) if value is None else value, "pool_usd_month": None}
     if not isinstance(value, dict):
         raise _err(name, 'ai 要寫 true／false 或 {"enabled": true, "pool_usd_month": 5}。')
+    unknown = sorted(set(value) - AI_KEYS)
+    if unknown:
+        raise _err(name, f"ai 裡不認得的欄位 {'、'.join(unknown)}（可以用：{'、'.join(sorted(AI_KEYS))}）。")
     pool = value.get("pool_usd_month")
     if pool is not None:
+        if isinstance(pool, bool):
+            raise _err(name, "ai.pool_usd_month 要是數字（美元）。")
         try:
             pool = float(pool)
         except (TypeError, ValueError):
             raise _err(name, "ai.pool_usd_month 要是數字（美元）。")
         if pool < 0:
             raise _err(name, "ai.pool_usd_month 不能是負的。")
-    return {"enabled": bool(value.get("enabled", True)), "pool_usd_month": pool}
+    persona = value.get("persona") or ""
+    if not isinstance(persona, str):
+        raise _err(name, "ai.persona 要是文字。")
+    return {"enabled": bool(value.get("enabled", True)), "pool_usd_month": pool, "persona": persona.strip(),
+            "history_turns": _small_int(name, "ai.history_turns", value.get("history_turns"), DEFAULT_AI_HISTORY, 50),
+            "rate_per_minute": _small_int(name, "ai.rate_per_minute", value.get("rate_per_minute"),
+                                          DEFAULT_AI_RATE, 60)}
+
+
+def channel_ai_problem(spec: BotSpec) -> str:
+    """頻道型 bot 想開頻道 AI 但設定不對的原因（""＝沒問題，或根本沒想開）。有原因＝頻道 AI 不啟用。"""
+    if spec.surface != CHANNEL or not spec.ai.get("enabled"):
+        return ""
+    pool = spec.pool_usd_month
+    if pool is None:
+        return ("ai.enabled 是 true 但沒有設 ai.pool_usd_month（整個 bot 每月的 AI 額度，美元），"
+                "頻道 AI 不會啟用；例如 \"ai\": {\"enabled\": true, \"pool_usd_month\": 5}")
+    if pool <= 0:
+        return "ai.pool_usd_month 是 0，頻道 AI 不會啟用（要開請設大於 0 的美元數）"
+    return ""
+
+
+def channel_ai_on(spec: BotSpec) -> bool:
+    """頻道型 bot 的頻道 AI 開著嗎：ai.enabled 而且有大於 0 的 pool。"""
+    return spec.surface == CHANNEL and bool(spec.ai.get("enabled")) and not channel_ai_problem(spec)
 
 
 def _ids(name: str, where: str, value) -> List[str]:
@@ -202,7 +267,7 @@ def _one(name: str, raw) -> BotSpec:
         if max_effect == "danger":
             raise _err(name, "頻道型 bot 的 max_effect 不能是 danger（危險動作只能在私訊做）；最多 write。")
     if surface != CHANNEL:
-        for key in ("guilds", "trigger", "rate_per_minute"):
+        for key in ("guilds", "trigger", "rate_per_minute", "room_rate_per_minute"):
             if raw.get(key):
                 raise _err(name, f"{key} 只有 surface 是 channel 的 bot 才能寫。")
     guilds = _guilds(name, raw.get("guilds"))
@@ -214,9 +279,11 @@ def _one(name: str, raw) -> BotSpec:
     if trigger not in TRIGGERS:
         raise _err(name, f'trigger 只能是 "mention"（被 @ 才回）或 "/"（訊息以 / 開頭才回）（現在是 {raw.get("trigger")!r}）。')
     return BotSpec(name=name, token=token, surface=surface, packs=_packs(name, raw.get("packs")),
-                   max_effect=max_effect, ai=_ai(name, raw.get("ai")), guilds=guilds, trigger=trigger,
-                   persona=persona, enabled=bool(raw.get("enabled", True)),
-                   rate_per_minute=_rate(name, raw.get("rate_per_minute")))
+                   max_effect=max_effect, ai=_ai(name, raw.get("ai"), surface == CHANNEL), guilds=guilds,
+                   trigger=trigger, persona=persona, enabled=bool(raw.get("enabled", True)),
+                   rate_per_minute=_rate(name, raw.get("rate_per_minute")),
+                   room_rate_per_minute=_small_int(name, "room_rate_per_minute", raw.get("room_rate_per_minute"),
+                                                   DEFAULT_ROOM_RATE, 600))
 
 
 def parse(d) -> List[BotSpec]:
