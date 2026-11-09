@@ -63,3 +63,24 @@ def test_card_goes_to_dm_not_group(make_bot):
     desk.request(bot.api, GROUP, owner, bot.app.registry.node("note.clear"), [])
     assert any(b.startswith("agent_ok:go:") for b in bot.buttons(OWNER_ID))
     assert not bot.buttons(GROUP) and "私訊給你" in bot.last(GROUP)
+
+
+# ── #4 別人按你的核准卡：不拿掉按鈕、卡還能用 ──────────────────────────
+
+def test_someone_elses_click_does_not_void_the_card(make_bot):
+    from isdtelekit.core.channel import CallbackInfo
+    bot = make_bot(raw={"mode": "server"})
+    bot.make(OTHER_ID, BasicRoles.MEMBER)
+    desk = bot.app.extras["synox_approval_desk"]
+    owner = bot.app.users.get_or_create(OWNER_ID)
+    bot.say(OWNER_ID, "/note 留著")
+    desk.request(bot.api, OWNER_ID, owner, bot.app.registry.node("note.clear"), [])
+    go = next(b for b in bot.buttons(OWNER_ID) if b.startswith("agent_ok:go:"))
+    mid = bot.api.sent[-1].message_id
+    desk.on_button(bot.api, CallbackInfo(chat_id=OWNER_ID, message_id=mid, cq_id="x", clicker_id=OTHER_ID, data=go))
+    assert bot.api.removed == [] and bot.answers()[-1] == "這不是你的按鈕。"       # 以前：先拿掉按鈕再說過期
+    assert go in bot.buttons(OWNER_ID)
+    desk.on_button(bot.api, CallbackInfo(chat_id=OWNER_ID, message_id=mid, cq_id="y", clicker_id=OWNER_ID, data=go))
+    assert "全部筆記都刪掉了" in bot.last(OWNER_ID) and bot.api.removed == [(OWNER_ID, mid)]
+    desk.on_button(bot.api, CallbackInfo(chat_id=OWNER_ID, message_id=mid, cq_id="z", clicker_id=OTHER_ID, data=go))
+    assert "過期" in bot.last(OWNER_ID)                                       # 用過的卡：照舊說過期
