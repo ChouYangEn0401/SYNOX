@@ -113,12 +113,24 @@
 **權限宣告（PERM-2）**：`surfaces` 沒有 `channel`（預設）＝整組 `private_only`，群組／頻道裡打了 SDK 自己擋；`data: shared` 的
 WRITE／DANGER 指令在伺服器版只有管理員（以上）能用。安裝報告上擁有者選 `trust`（`core`／`third-party`，預設 third-party），跟鎖一起記在
 `data/packs.lock`；升級時換了 trust 一律紅字。這些是**宣告與可見性**，不是隔離：python pack 在程序裡照樣拿得到 `app`（可以讀任何人的
-store／secret），cli 子程序照樣能讀寫整個檔案系統——第 2 關只擋「看得出來的跨戶寫法」。真的隔離是之後的沙盒（PERM-7）與 PERM-8。
+store／secret），cli 子程序照樣能讀寫整個檔案系統——第 2 關只擋「看得出來的跨戶寫法」。真的隔離是沙盒（PERM-7，下面）；
+python pack 沙盒管不到，伺服器版改用信任決定給不給成員（PERM-8，下面）。
+
+**伺服器版 python pack 的信任（PERM-8）**：kind=python 在 SYNOX 程序裡跑，拿得到 `app`（等於能讀任何人的資料），沒有沙盒可以包。
+所以伺服器版 `trust: third-party` 的 python pack **整組只對擁有者可見**：成員／管理員／訪客打了跟不存在的指令一樣（「未知指令」）、
+`/help`、網頁、AI 工具清單都沒有（loader 把群組設成 owner_only，SDK authorize 與 `policy.decide` 同一條擋）。照常給成員的只有：
+出廠的（內建 `packs/`、`connectors/` 裡的 notes、money、remind 與 4 個 connector，不看鎖）、擁有者安裝時選 `trust: core` 的。
+**沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）＝third-party，而且載入前補跑一次第 2 關掃描（安裝流程沒掃過它），
+沒過＝狀態 `rejected`、不載入。原因在 `doctor`、`packs status`、網頁的 pack 清單寫一行。個人版不受影響（沒有成員）。
+另外 `pack.path()`（`data/packs/<name>/`，全部人共用）在伺服器版 `data: user` 的 pack 呼叫會丟錯，要用 `pack.path_of(user, …)`
+（`data/users/<id>/<name>/files/`，擋 `..` 逃逸）；第 2 關也擋 `data: user` 的 python pack 用 `pack.path(`。
+這仍然是**可見性**，不是隔離：擁有者自己選 core 的 pack 照樣在程序裡、讀得到全部資料——不認識的作者就別選 core。
 
 這五關**不是沙盒**：第 2 關只看得到 pack 自己的原始碼——它 import 的第三方套件做什麼、cli pack 叫的那支程式做什麼，掃不到；
 能逃過 ast 的寫法（例如把程式碼藏在資料檔裡再讀出來執行，需要 `exec`／`compile` 之類，會被看到；但 `getattr` 拼字串、C 擴充等不保證都抓得到）。
 它做的是「擋掉明顯的、逼作者把要做的事寫清楚、讓你在裝之前看到」，最後一道仍然是第 5 關的結構（核准卡）。
 出廠的 pack 與工程師直接放進 `packs/` 的 pack 沒有鎖（`doctor`／`packs status` 標「未鎖定」），照舊載入；要鎖就 `packs lock --approve`。
+（伺服器版：手放的、沒鎖的 pack 載入前補跑第 2 關，沒過不載入；python 的當作 third-party，見上面 PERM-8。）
 
 **升級**（同名再裝）走同一條五關，另外跟裝著的那一份比對（`packs/upgrade.py`）：權限變大的地方——effect 變寬、新增 WRITE／DANGER
 的 command、新增 capabilities、執行方式（runtime、cli.argv…）或 auth 改了、多要密鑰、access 變寬、新加面板——在報告裡用紅字標出來，
@@ -155,7 +167,8 @@ store／secret），cli 子程序照樣能讀寫整個檔案系統——第 2 �
 **要沙盒卻沒有真隔離**：`policy.sandbox.required_for`（`third-party` 預設｜`all`｜`none`）命中的 cli pack，在伺服器版又沒有真隔離的後端
 （none、jobobject 不算）→ 那個 pack 整組只對擁有者可見（成員、管理員、訪客看不到、AI 工具清單也沒有），`doctor` 與 `packs status`
 寫原因。個人版不受影響。誰是 third-party：packs.lock 的 `trust`（之後安裝時由擁有者選）優先；還沒寫的，經安裝流程從檔案裝進來的
-（鎖的 via＝web／console）算 third-party，出廠的與 `packs lock --approve` 的算 core。python pack 在 SYNOX 程序裡跑，沙盒管不到（PERM-8）。
+（鎖的 via＝web／console）算 third-party，出廠的與 `packs lock --approve` 的算 core。python pack 在 SYNOX 程序裡跑，沙盒管不到，
+改看信任（上面 PERM-8；注意：python 沒鎖＝third-party，cli 沒鎖仍算 core，兩邊的規則目前不一樣）。
 
 **伺服器上要驗的**（還沒做）：bwrap 能在 SYNOX 的帳號下開 user namespace；斷網真的斷（`curl` 失敗）；讀不到別人的 `data/users/<id>/`；
 寫得進自己的 `<pack>/`；venv 的 python（symlink 到 /usr）跑得起來；prlimit 的 RLIMIT_AS 對 Node 是否太緊；systemd 的
@@ -167,6 +180,7 @@ InaccessiblePaths＋BindPaths 巢狀是否照預期；`--setenv=名字` 在那�
 - Web UI 沒有 TLS（只在本機 127.0.0.1 用不需要）；對外開放要營運者自己加（見上面「網頁介面」）。
 - Web UI 的 pack 面板跟網頁同源。
 - 裝 pack 的五關不是沙盒（見上面「五關」最後一段）；沒鎖的 pack（出廠的、手動放進 packs/ 的）不檢查雜湊。
+- 伺服器版 `trust: core` 的 python pack、出廠的 pack 都在程序裡跑，讀得到任何人的資料（PERM-8 只管「成員看不看得到」第三方的）。
 - 個人版與 Windows 預設沒有沙盒（後端 none）：cli 子程序跟 SYNOX 一樣看得到整台電腦。Linux 的 bwrap／systemd 後端還沒在真機驗證（見「運行空間」）。
 - 不防「在你的 Windows 帳號下跑的惡意程式」。
 - 不防 prompt injection 的全部情況：工具結果包在每輪隨機的分隔符裡、提示 AI「當資料、不當指令」，真正擋住危險動作的是確認卡（結構），不是提示。
