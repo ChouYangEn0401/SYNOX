@@ -1,0 +1,36 @@
+{
+  "name": "notion-mcp",
+  "title": "🗂 Notion（遠端 MCP 範例）",
+  "summary": "示範：用 kind=mcp transport=http 接 Notion 的遠端 MCP（OAuth 貼回網址）。網址與工具名是佔位，要擁有者確認。",
+  "version": "0.1.0",
+  "kind": "mcp",
+  "group": "notionmcp",
+  "access": "owner",
+  "surfaces": ["dm"],
+  "skill": "SKILL.md",
+  "publisher": "SYNOX examples",
+  "capabilities": ["network"],
+  "requires": { "synox": ">=0.1" },
+  "auth": {
+    "type": "oauth",
+    "oauth": {
+      "authorize_url": "https://notion-mcp.example.invalid/authorize",
+      "token_url": "https://notion-mcp.example.invalid/token",
+      "client_id": "REPLACE-WITH-REGISTERED-CLIENT-ID",
+      "scope": "",
+      "receiver": "paste"
+    }
+  },
+  "mcp": {
+    "transport": "http",
+    "url": "https://notion-mcp.example.invalid/mcp",
+    "timeout": 60,
+    "tools_allow": ["search", "fetch", "create-pages", "update-page"],
+    "effects": {
+      "search": "READ",
+      "fetch": "READ",
+      "create-pages": "WRITE",
+      "update-page": "DANGER"
+    }
+  }
+}

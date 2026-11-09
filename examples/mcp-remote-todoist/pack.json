@@ -1,0 +1,34 @@
+{
+  "name": "todoist-mcp",
+  "title": "✅ Todoist（遠端 MCP 範例）",
+  "summary": "示範：用 kind=mcp transport=http 接 Todoist 的遠端 MCP（API token 當 Bearer）。網址與工具名是佔位，要擁有者確認。",
+  "version": "0.1.0",
+  "kind": "mcp",
+  "group": "todoistmcp",
+  "access": "member",
+  "surfaces": ["dm"],
+  "skill": "SKILL.md",
+  "publisher": "SYNOX examples",
+  "capabilities": ["network"],
+  "requires": { "synox": ">=0.1" },
+  "auth": {
+    "type": "token",
+    "fields": [
+      { "name": "token", "label": "Todoist API token", "secret": true,
+        "help": "Todoist 設定 → 整合 → 開發者 → API token" }
+    ]
+  },
+  "mcp": {
+    "transport": "http",
+    "url": "https://todoist-mcp.example.invalid/mcp",
+    "bearer": "token",
+    "timeout": 60,
+    "tools_allow": ["find-tasks", "add-tasks", "complete-tasks", "delete-object"],
+    "effects": {
+      "find-tasks": "READ",
+      "add-tasks": "WRITE",
+      "complete-tasks": "WRITE",
+      "delete-object": "DANGER"
+    }
+  }
+}

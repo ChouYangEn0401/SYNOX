@@ -733,6 +733,14 @@
   // PERM-2：在哪裡用、資料屬於誰（pack.json），信任（擁有者選，寫進 packs.lock）；升級時跟裝著那一份不同就紅字
   function showScope(box, s, upg) {
     if (!s.trust_choices) { return null; }
+    var mcp = s.mcp || {};
+    if (mcp.tools) {   // P4b：kind=mcp 逐一列允許的工具與 effect（遠端 MCP 是 T0：只有宣告可信）
+      box.appendChild(el("p", "", "🔌 MCP：" + (mcp.transport || "") + (mcp.host ? "，連到 " + mcp.host : "") +
+        (mcp.trust_level ? "，信任 " + mcp.trust_level : "") + "；只允許下面這 " + mcp.tools.length + " 個工具（請逐一確認）："));
+      var tl = el("ul");
+      mcp.tools.forEach(function (t) { tl.appendChild(el("li", "", t.name + "：" + t.effect + "（" + t.effect_text + "）")); });
+      box.appendChild(tl);
+    }
     box.appendChild(el("p", "", "🧭 在哪裡用：" + (s.surfaces_text || "") + "　資料：" + (s.data_text || s.data || "") +
       (s.data_declared ? "" : "（沒寫，照預設推的）")));
     var lab = el("label", "", "🔑 信任：");

@@ -29,6 +29,9 @@
 - mcp（transport=stdio，P4a）：pack 裡附的 .py 照 cli 一樣掃；mcp.argv／env 只能用系統代換（{python}、{pack_dir}…）；
   data 規則同 cli（樣板）；argv 指到 **pack 外面的程式**（npx、node、絕對路徑…）不擋，但列一筆 external
   「未鎖定執行環境」：packs.lock 只鎖 pack 資料夾裡的檔，外面那支程式被換掉 SYNOX 不會發現。
+- mcp（transport=http，P4b）：遠端 MCP，這台不跑它的程式：同「只登記」，**只能是宣告**（附了程式檔＝拒）。
+  信任等級 T0（只有宣告）：安裝報告逐一列 tools_allow 與每個工具的 effect 給安裝者確認（admin.mcp_report）；
+  沒寫 effect 的工具第 1 關就拒；url 一定 https（第 1 關）。
 - connector：只能是宣告，不准有任何程式檔（.py 或執行檔）。
 
 **這一關看得到的只有 pack 自己的原始碼**：它 import 的第三方套件做什麼、cli 叫的那支程式做什麼，掃不到。

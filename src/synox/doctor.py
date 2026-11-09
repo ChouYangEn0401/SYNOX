@@ -235,7 +235,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 note = secret_lookup(m)
                 if note:
                     lines.append(f"     {note}")
-                if m.mcp_stdio:                              # P4a：pack 外的程式、不支援的欄位、伺服器沒列的工具
+                if m.mcp_connected:                          # P4a／P4b：pack 外的程式、不支援的欄位、伺服器沒列的工具
                     from synox.packs import mcp as pack_mcp
                     for mcp_note in pack_mcp.doctor_notes(m, lock_dir):
                         lines.append(f"     {mcp_note}")

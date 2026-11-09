@@ -125,7 +125,37 @@ def summary_of(m: Manifest, report: ScanReport, hashes: Dict[str, str], problems
             "files": sorted(hashes)[:100], "panel": bool(m.web.get("panel")), "api": list(m.web.get("api", [])),
             "capabilities": list(m.capabilities), "integrity": bool(m.integrity),
             "scan": {**report.to_dict(m), "problems": problems, "ok": not problems},
-            "warnings": warnings_for(m, report), "env": env_plan(m).to_dict(), **scope_of(m)}
+            "warnings": warnings_for(m, report), "env": env_plan(m).to_dict(), "mcp": mcp_report(m), **scope_of(m)}
+
+
+EFFECT_TEXT = {"READ": "只讀", "WRITE": "會寫入", "DANGER": "危險（每次都要你按核准）"}
+
+
+def mcp_report(m: Manifest) -> dict:
+    """kind=mcp 的那一段：連法、連到哪、允許的每一個工具與它的 effect（安裝者逐一確認；沒寫 effect 的第 1 關就拒了）。
+    http（遠端 MCP）是 T0：這台不跑它的程式，能信的只有這份宣告。不是 mcp 回 {}。"""
+    if m.kind != "mcp":
+        return {}
+    from urllib.parse import urlsplit
+    mcp = m.mcp or {}
+    transport = mcp.get("transport") or ""
+    auth = (m.auth_info or {}).get("type", "none")
+    tools = [{"name": t, "effect": (mcp.get("effects") or {}).get(t) or "DANGER",
+              "effect_text": EFFECT_TEXT.get((mcp.get("effects") or {}).get(t) or "DANGER", "")}
+             for t in mcp.get("tools_allow") or []]
+    return {"transport": transport or "（只登記）", "host": urlsplit(mcp.get("url") or "").netloc if mcp.get("url") else "",
+            "trust_level": "T0（只有宣告）" if transport == "http" else "", "auth": auth, "tools": tools}
+
+
+def format_mcp(summary: dict) -> List[str]:
+    mcp = summary.get("mcp") or {}
+    if not mcp:
+        return []
+    where = f"，連到 {mcp['host']}" if mcp.get("host") else ""
+    level = f"，信任 {mcp['trust_level']}" if mcp.get("trust_level") else ""
+    lines = [f"🔌 MCP：{mcp.get('transport')}{where}{level}；只允許下面這 {len(mcp.get('tools') or [])} 個工具（請逐一確認）："]
+    lines += [f"  · {t['name']}：{t['effect']}（{t['effect_text']}）" for t in mcp.get("tools") or []]
+    return lines
 
 
 # ── 權限宣告與信任（PERM-2） ───────────────────────────────────────────
@@ -284,6 +314,7 @@ def format_summary(summary: dict) -> str:
         lines += [f"  - {p}" for p in problems]
     else:
         lines.append("✅ 宣告檢查、靜態掃描都過了")
+    lines += format_mcp(summary)
     lines += format_scope(summary)
     env = summary.get("env") or {}
     if env.get("needed"):
@@ -302,6 +333,12 @@ def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
         out.append("這是 python pack：它的程式會在 SYNOX 裡面、用你的 Windows 帳號權限執行。只裝你信得過的人給的。")
     if m.kind == "cli":
         out.append("這是 cli pack：會在這台電腦上執行它指定的程式（那支程式本身掃描看不到）。")
+    if m.mcp_http:
+        from urllib.parse import urlsplit
+        out.append(f"這是遠端 MCP（T0，只有宣告）：你的請求和 token 會送到 {urlsplit(m.mcp.get('url', '')).netloc}；"
+                   "那台伺服器做什麼掃描看不到。只會用上面列的工具，effect 照這份宣告（不照伺服器自己說的）。")
+    elif m.mcp_stdio:
+        out.append("這是 MCP（stdio）pack：會在這台電腦上開一個長駐的子程序跑它的 MCP 伺服器。")
     if m.access == "everyone":
         out.append("access 是 everyone：伺服器版裡任何傳訊息給 bot 的人都用得到。")
     if "channel" in m.surfaces:

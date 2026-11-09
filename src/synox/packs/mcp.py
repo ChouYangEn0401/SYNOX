@@ -28,6 +28,11 @@ SharedScope（全部人共用一個程序）只有介面、還沒做：伺服器
 呼叫仍走 policy.decide、第 4 關（validate.check_call）、DANGER 核准卡、結果包 nonce 分隔符（agent/loop.py）。
 工具回 structuredContent.needs_confirm → 核准卡（packs/confirm.py 的一次性憑證）→ 按 ✅ 用同一組參數、
 params._meta["synox/confirm_token"]＝工具給的 token 重叫一次（AI 碰不到 _meta）。
+
+**連法（Backend）**：上面這些（工具→指令、欄位、effect、policy、第 4 關、核准卡、needs_confirm、結果遮掉 secret）
+是 install() 的共用部分，不管怎麼連。連法只管「這個人怎麼連」與「開一條還沒 initialize 的連線」：
+StdioBackend（這支檔案，子程序）、HttpBackend（packs/mcp_http.py，遠端 MCP、Streamable HTTP，P4b）。
+池、閒置回收、handshake、tools/list 快取兩種共用。
 """
 
 from __future__ import annotations
@@ -64,12 +69,14 @@ _COMMAND_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 
 
 class McpError(Exception):
-    """給人看的一句話。fatal=True：這個程序不能再用了（逾時、壞 JSON、結束了、寫不進去）→ 收掉，下次呼叫重啟。"""
+    """給人看的一句話。fatal=True：這個程序／連線不能再用了（逾時、壞 JSON、結束了、寫不進去）→ 收掉，下次呼叫重啟。
+    retry=True（只有 http 的連線過期）：收掉之後馬上重新連一次再試。"""
 
-    def __init__(self, message: str, *, fatal: bool = False):
+    def __init__(self, message: str, *, fatal: bool = False, retry: bool = False):
         super().__init__(message)
         self.message = str(message)
-        self.fatal = fatal
+        self.fatal = fatal or retry
+        self.retry = retry
 
 
 def _snip(text: str, n: int = 80) -> str:
@@ -735,6 +742,9 @@ def doctor_notes(m, data_dir: str) -> List[str]:
     """doctor 要印的：pack 外的程式（未鎖定執行環境）、不支援的欄位、伺服器沒列的工具、還沒連過。"""
     from synox.packs.scan import external_programs
     out = [f"⚠️ 未鎖定執行環境：argv 用了 pack 外的程式 {p}（packs.lock 不記它的雜湊）" for p in external_programs(m)]
+    if getattr(m, "mcp_http", False):
+        from urllib.parse import urlsplit
+        out.append(f"ℹ️ 遠端 MCP：只連 {urlsplit(m.mcp.get('url', '')).netloc}（https，不跟著轉址）")
     cached = load_cache(data_dir, m)
     allow = list((m.mcp or {}).get("tools_allow") or [])
     if cached is None:
@@ -756,29 +766,134 @@ def doctor_notes(m, data_dir: str) -> List[str]:
     return out
 
 
+def redact(text: str, secrets: List[str]) -> str:
+    """把這個人存的 secret（8 字以上）從要給人／AI 看的字裡遮掉（伺服器回聲了 token 也不外流）。"""
+    for s in sorted({s.strip() for s in secrets if isinstance(s, str) and len(s.strip()) >= 8}, key=len, reverse=True):
+        text = text.replace(s, "***")
+    return text
+
+
+# ── 連法（transport）：stdio 的子程序；http 在 packs/mcp_http.py ────────────
+
+class Backend:
+    """install() 的共用部分（工具→指令、欄位、policy、第 4 關、核准卡、needs_confirm）不管連法；連法只負責：
+    plan(user) → (ctx, 指紋)：這個人要怎麼連（stdio＝代換與環境；http＝token）；指紋變了換一條新連線。
+    open(user, ctx) → 還沒 initialize 的 session（有 request／notify／close／alive／busy／last_used）。
+    not_connected(user) → 還不能連的原因（""＝可以）。commands(group) → 這種連法自己的指令（http 的 OAuth 登入）。"""
+    start_failed = "工具伺服器啟動失敗"
+    again = "（下一次呼叫會重新啟動工具伺服器）"
+
+    def plan(self, user) -> Tuple[Any, str]:              # pragma: no cover - 介面
+        raise NotImplementedError
+
+    def open(self, user, ctx):                            # pragma: no cover - 介面
+        raise NotImplementedError
+
+    def not_connected(self, user) -> str:
+        return ""
+
+    def commands(self, group, taken: List[str]) -> None:
+        return None
+
+
+class StdioBackend(Backend):
+    """transport=stdio（P4a）：每個 (pack, 使用者) 一個長駐子程序，照 kind=cli 的代換、環境、沙盒。"""
+
+    def __init__(self, app, pack, config, pool: "McpPool"):
+        from synox.packs import confirm as tool_confirm
+        from synox.packs.manifest import secret_env_names
+        self.app, self.pack, self.config, self.pool = app, pack, config, pool
+        self.m = pack.manifest
+        self.keep_env = list(secret_env_names(self.m)) + list(tool_confirm.ENV_NAMES)
+        self.server = getattr(config, "mode", "personal") == "server"
+
+    def plan(self, user):
+        """這個人的 ((placeholders, 要加的 env), 指紋)。"""
+        from synox.packs import confirm as tool_confirm
+        from synox.packs import envs, loader
+        m, config, pack = self.m, self.config, self.pack
+        who = self.pool.scope.identity(user)
+        ph = loader.placeholders(m, config, who)
+        env = envs.node_env(m, config.data_dir)
+        env.update({k: loader.substitute(v, ph) for k, v in (m.mcp.get("env") or {}).items()})
+        env.update(loader.context_env(m, config, ph, pack.secret_fields))
+        env.update(tool_confirm.env_for(None))      # MCP 模式的「已確認」只看 _meta，環境變數一律明寫 0
+        if pack.secret_fields and pack.secrets is not None:
+            env.update(pack.secrets.env_for(m.name, pack.secret_fields, who))
+        digest = hashlib.sha256(json.dumps([sorted(env.items()), sorted(ph.items())], ensure_ascii=False)
+                                .encode("utf-8")).hexdigest()
+        return (ph, env), digest
+
+    def open(self, user, ctx) -> Session:
+        from isdtelekit.jobs.cli import clean_env
+
+        from synox import sandbox
+        from synox.packs import loader
+        m, config = self.m, self.config
+        ph, env = ctx
+        if self.server:
+            os.makedirs(ph["user_data_dir"], exist_ok=True)
+        argv = []
+        for part in m.mcp["argv"]:
+            part = str(part)
+            if part.startswith(("./", ".\\")):
+                part = os.path.join(m.folder, part[2:])
+            argv.append(loader.substitute(part, ph))
+        cwd = os.path.normpath(os.path.join(m.folder, loader.substitute(m.mcp.get("cwd") or ".", ph)))
+        box = sandbox.sandbox_for(config)                         # PERM-7：照宣告算範圍，交給後端包一層
+        g = sandbox.grants_for(m, config, ph, pass_env=self.keep_env)
+        if box.name != "none":
+            for folder in g.write:
+                os.makedirs(folder, exist_ok=True)
+        argv2, env2 = box.wrap(argv, env, cwd, g)
+        log_path = os.path.join(ph["user_data_dir"], "logs", f"mcp-{m.name}.log")
+        try:
+            proc = self.pool.spawner(argv2, env=clean_env(env2, keep=self.keep_env), cwd=cwd, log_path=log_path)
+        except (OSError, ValueError) as e:
+            raise McpError(f"工具伺服器叫不起來：{e}", fatal=True)
+        return Session(proc, name=f"{m.name}-{ph.get('tg_id') or 'x'}", clock=self.pool.clock)
+
+    def not_connected(self, user) -> str:
+        return missing_secrets(self.pack, user)
+
+
+def missing_secrets(pack, user) -> str:
+    """auth.fields（「連接」表單）還沒填齊的話，一句給人看的話；填齊了或不用填回 ""。"""
+    m = pack.manifest
+    if not pack.secret_fields:
+        return ""
+    if pack.secrets is None or not pack.secrets.available:
+        return f"🔌 {m.title} 要先連接，但保管箱沒有打開（python -m synox doctor 看原因）。"
+    missing = pack.secrets.missing(m.name, pack.secret_fields, user)
+    if not missing:
+        return ""
+    return (f"🔌 {m.title} 還沒連接：缺 {'、'.join(missing)}。"
+            f"到網頁介面的工具頁，按這個 pack 的「連接」填（/web 拿登入連結；為了安全，不在聊天裡收）。")
+
+
 # ── 裝進 app（loader._install_mcp 叫） ─────────────────────────────────
 
 def install(app, pack) -> None:
     from isdtelekit.core.registry import DANGER, READ, WRITE, Field
-    from isdtelekit.jobs.cli import clean_env
 
-    from synox import sandbox
     from synox.agent import validate as gate4
     from synox.packs import confirm as tool_confirm
-    from synox.packs import envs, kit, loader
-    from synox.packs.manifest import secret_env_names
+    from synox.packs import kit
 
     m = pack.manifest
     config = pack.config if pack.config is not None else app.config
     pool = pool_of(app)
     grants_book = tool_confirm.grants_of(app)
-    keep_env = list(secret_env_names(m)) + list(tool_confirm.ENV_NAMES)
     allow: List[str] = list(m.mcp.get("tools_allow") or [])
     commands = unique_identifiers(allow)
     effects = {"READ": READ, "WRITE": WRITE, "DANGER": DANGER}
     call_timeout = float(m.mcp.get("timeout") or DEFAULT_TIMEOUT)
     start_timeout = float(m.mcp.get("start_timeout") or DEFAULT_START_TIMEOUT)
-    server = getattr(config, "mode", "personal") == "server"
+    if m.mcp_http:
+        from synox.packs import mcp_http
+        backend: Backend = mcp_http.HttpBackend(app, pack, config, pool)
+    else:
+        backend = StdioBackend(app, pack, config, pool)
     meta = app.extras.setdefault("synox_tool_meta", {})
     cached = load_cache(config.data_dir, m) or {}
     shapes: Dict[str, ToolShape] = {t: shape_of(t, commands[t], cached.get(t)) for t in allow}
@@ -819,65 +934,32 @@ def install(app, pack) -> None:
             apply(tool)
         save_cache(config.data_dir, m, listed)
 
-    def plan(user) -> Tuple[Dict[str, str], Dict[str, str], str]:
-        """這個人的 (placeholders, 要加的 env, 指紋)。"""
-        who = pool.scope.identity(user)
-        ph = loader.placeholders(m, config, who)
-        env = envs.node_env(m, config.data_dir)
-        env.update({k: loader.substitute(v, ph) for k, v in (m.mcp.get("env") or {}).items()})
-        env.update(loader.context_env(m, config, ph, pack.secret_fields))
-        env.update(tool_confirm.env_for(None))      # MCP 模式的「已確認」只看 _meta，環境變數一律明寫 0
-        if pack.secret_fields and pack.secrets is not None:
-            env.update(pack.secrets.env_for(m.name, pack.secret_fields, who))
-        digest = hashlib.sha256(json.dumps([sorted(env.items()), sorted(ph.items())], ensure_ascii=False)
-                                .encode("utf-8")).hexdigest()
-        return ph, env, digest
-
-    def start(user, ph: Dict[str, str], env: Dict[str, str]) -> Session:
-        if server:
-            os.makedirs(ph["user_data_dir"], exist_ok=True)
-        argv = []
-        for part in m.mcp["argv"]:
-            part = str(part)
-            if part.startswith(("./", ".\\")):
-                part = os.path.join(m.folder, part[2:])
-            argv.append(loader.substitute(part, ph))
-        cwd = os.path.normpath(os.path.join(m.folder, loader.substitute(m.mcp.get("cwd") or ".", ph)))
-        box = sandbox.sandbox_for(config)                         # PERM-7：照宣告算範圍，交給後端包一層
-        g = sandbox.grants_for(m, config, ph, pass_env=keep_env)
-        if box.name != "none":
-            for folder in g.write:
-                os.makedirs(folder, exist_ok=True)
-        argv2, env2 = box.wrap(argv, env, cwd, g)
-        log_path = os.path.join(ph["user_data_dir"], "logs", f"mcp-{m.name}.log")
-        try:
-            proc = pool.spawner(argv2, env=clean_env(env2, keep=keep_env), cwd=cwd, log_path=log_path)
-        except (OSError, ValueError) as e:
-            raise McpError(f"工具伺服器叫不起來：{e}", fatal=True)
-        session = Session(proc, name=f"{m.name}-{ph.get('tg_id') or 'x'}", clock=pool.clock)
+    def start(user, ctx) -> Any:
+        session = backend.open(user, ctx)
         try:
             listed = handshake(session, start_timeout)
         except McpError as e:
             session.close(grace=0)
-            raise McpError(f"工具伺服器啟動失敗：{e.message}", fatal=True)
+            raise McpError(f"{backend.start_failed}：{e.message}", fatal=True)
         learned(listed)
         return session
 
-    def session_for(user) -> Tuple[Hashable, Session]:
+    def session_for(user) -> Tuple[Hashable, Any]:
         key = pool.scope.key(m.name, user)
-        ph, env, digest = plan(user)
-        return key, pool.session(key, lambda: start(user, ph, env), digest)
+        ctx, digest = backend.plan(user)
+        return key, pool.session(key, lambda: start(user, ctx), digest)
 
-    def not_connected(user) -> str:
-        if not pack.secret_fields:
-            return ""
-        if pack.secrets is None or not pack.secrets.available:
-            return f"🔌 {m.title} 要先連接，但保管箱沒有打開（python -m synox doctor 看原因）。"
-        missing = pack.secrets.missing(m.name, pack.secret_fields, user)
-        if not missing:
-            return ""
-        return (f"🔌 {m.title} 還沒連接：缺 {'、'.join(missing)}。"
-                f"到網頁介面的工具頁，按這個 pack 的「連接」填（/web 拿登入連結；為了安全，不在聊天裡收）。")
+    def hidden(user) -> List[str]:
+        """這個人存的 secret 值（給人／AI 看的字裡要遮掉）。"""
+        store = pack.secrets
+        if store is None or not getattr(store, "available", False):
+            return []
+        try:
+            return store.secret_values(user)
+        except Exception:
+            return []
+
+    not_connected = backend.not_connected
 
     def dispatch(api, chat_id, work: Callable[[], None], cmd: str) -> None:
         if getattr(api, "via_ai", False) is True:     # 經 AI：同步做完，結果交回 AI（loop 包 nonce 分隔符）
@@ -949,30 +1031,40 @@ def install(app, pack) -> None:
             params: Dict[str, Any] = {"name": tool, "arguments": arguments}
             if token is not None:
                 params["_meta"] = {CONFIRM_META: token}
-            key = None
-            try:
-                key, session = session_for(user)
-                result = session.request("tools/call", params, call_timeout)
-            except McpError as e:
-                if e.fatal and key is not None:
-                    pool.drop(key)
-                again = "（下一次呼叫會重新啟動工具伺服器）" if e.fatal else ""
-                say(api, chat_id, f"❌ {m.title}／{cmd}：{e.message}{again}")
-                return
+            result = None
+            for attempt in (1, 2):                     # http 的連線過期（404＋Mcp-Session-Id）：重新 initialize 再試一次
+                key = None
+                try:
+                    key, session = session_for(user)
+                    result = session.request("tools/call", params, call_timeout)
+                    break
+                except McpError as e:
+                    if e.fatal and key is not None:
+                        pool.drop(key)
+                    if e.retry and attempt == 1:
+                        continue
+                    again = backend.again if e.fatal else ""
+                    say(api, chat_id, redact(f"❌ {m.title}／{cmd}：{e.message}{again}", hidden(user)))
+                    return
             envelope = needs_confirm_of(result)
             if envelope is not None:
                 ask_confirm(api, chat_id, user, raw_values, values, envelope, again=token is not None)
                 return
             ok, text = render_result(result)
+            text = redact(text, hidden(user))
             say(api, chat_id, text if ok and text else (f"❌ {cmd}：{text or '工具回報失敗'}" if not ok else "（做完了，沒有輸出）"))
 
         def typed(api, chat_id, user, args: List[str]) -> None:
             shape = shapes[tool]
             if not shape.known:                        # 還不知道參數：先啟動一次讀 tools/list（失敗的不會留在池裡）
+                blocked = not_connected(user)
+                if blocked:
+                    say(api, chat_id, blocked)
+                    return
                 try:
                     session_for(user)
                 except McpError as e:
-                    say(api, chat_id, f"❌ {m.title}／{cmd}：{e.message}（下一次呼叫會重新啟動工具伺服器）")
+                    say(api, chat_id, redact(f"❌ {m.title}／{cmd}：{e.message}{backend.again}", hidden(user)))
                     return
             node = nodes[tool]
             fields = tuple(node.fields)
@@ -996,9 +1088,11 @@ def install(app, pack) -> None:
                                effect=effects.get(effect_name(m, tool), DANGER))
         nodes[tool] = node
         apply(tool)
+    backend.commands(pack.group, list(commands.values()))
 
 
-__all__ = ["CONFIRM_META", "FieldSpec", "McpError", "McpPool", "PerUserScope", "Proc", "SCOPES", "Scope", "Session",
+__all__ = ["Backend", "CONFIRM_META", "FieldSpec", "McpError", "McpPool", "PerUserScope", "Proc", "SCOPES", "Scope",
+           "Session", "StdioBackend", "missing_secrets", "redact",
            "SharedScope", "ToolShape", "doctor_notes", "effect_name", "handshake", "install", "load_cache",
            "needs_confirm_of", "pool_of", "render_result", "shape_of", "spawn", "to_arguments", "to_identifier",
            "unique_identifiers"]
