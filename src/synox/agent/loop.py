@@ -1,7 +1,7 @@
 """
 AI 助理的一輪（spec §5、§7）：
 
-    人話 → adapter.chat(訊息, 工具) → 工具呼叫 → ai_decision（authorize via=AI）
+    人話 → adapter.chat(訊息, 工具) → 工具呼叫 → ai_decision（＝synox/policy.py 的 decide via=AI）
          → 危險的：送核准卡，這一輪結束 → 其他：用 CaptureApi 執行，結果回餵 → 最多 max_steps 步 → 回答
 
 - **AI 能不能用一個節點只有一個判斷：ai_decision()**（invariant 1，照 ClawBot invariant 12）。工具清單、每次呼叫、
@@ -23,8 +23,9 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 from isdtelekit.core import jsonstore
-from isdtelekit.core.registry import AI, DANGER, CommandRegistry, Node
+from isdtelekit.core.registry import AI, DANGER, Node
 
+from synox import policy
 from synox.agent import delimit
 from synox.agent import skills as skills_mod
 from synox.agent import tools as tools_mod
@@ -34,19 +35,15 @@ from synox.llm import textproto
 from synox.llm.base import ASSISTANT, SYSTEM, TOOL, USER, ChatAdapter, LLMError, Message, ToolCall
 from synox.packs import kit
 
-HIDDEN_GROUPS = ("agent", "sudo")
+HIDDEN_GROUPS = policy.HIDDEN_GROUPS
 WEEKDAYS = "一二三四五六日"
 
 
-def ai_decision(registry: CommandRegistry, user, node: Node):
-    """None：這個節點不給 AI；否則回 authorize(使用者, node, AI) 的結果（放行，或只差 /sudo）。"""
-    if node.is_group or node.interactive or not node.ai:
-        return None
-    if node.path.split(".")[0] in HIDDEN_GROUPS:
-        return None
-    if not registry.is_owner(user) and user.role <= registry.lowest_role:
-        return None                       # 訪客（最低一級）沒有 AI 工具：伺服器版的 AI 從成員開始
-    decision = registry.authorize(user, node, AI, user.tg_id)
+def ai_decision(app, user, node: Node, *, chat_id: Optional[int] = None, bot=None):
+    """None：這個節點不給 AI；否則回 policy.decide(via=AI) 的結果（放行，或只差 /sudo）。
+    app：SYNOX 的 app（有 pack 與設定的能力上限）；也收裸的 CommandRegistry（測試用，沒有 pack、預設上限）。
+    判斷本身全在 synox/policy.py 的 decide：群組／interactive／ai=False／agent、sudo 群組／訪客、角色能力上限、authorize。"""
+    decision = policy.decide(app, user, node, via=AI, chat_id=user.tg_id if chat_id is None else chat_id, bot=bot)
     return decision if decision.allowed or decision.needs_sudo else None
 
 
@@ -172,7 +169,7 @@ class AgentLoop:
     def _turn(self, api, chat_id: int, user, text: str) -> None:
         registry = self.app.registry
         skills = skills_mod.from_packs(self.visible_packs(user))
-        tools = tools_mod.build(registry, lambda n: ai_decision(registry, user, n))
+        tools = tools_mod.build(registry, lambda n: ai_decision(self.app, user, n))
         if skills:
             tools.append(skills_mod.read_tool_spec(skills))
         native = bool(self.adapter.supports_tools)
@@ -232,7 +229,7 @@ class AgentLoop:
                 return problem, False
             return skills_mod.read_skill(skills, (call.args or {}).get("name", "")), False
         node = tools_mod.node_for(registry, call.name)
-        decision = ai_decision(registry, user, node) if node is not None else None
+        decision = ai_decision(self.app, user, node) if node is not None else None
         if decision is None:
             return f"沒有 {call.name} 這個工具（或你不能用）。", False
         if not decision.allowed:
@@ -247,7 +244,7 @@ class AgentLoop:
                 found = node.inner(argv)
             except Exception:
                 return f"看不懂 {node.command} 裡要排的指令。", False
-            if found is not None and ai_decision(registry, user, found[0]) is None:
+            if found is not None and ai_decision(self.app, user, found[0]) is None:
                 return f"{found[0].command} 不是你能用的工具，不能替使用者排；要排請他自己打。", False
         if node.fields:
             _values, missing, errors = kit.parse_args(node.fields, argv, positional=0)

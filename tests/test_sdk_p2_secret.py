@@ -25,6 +25,10 @@ from test_web import Client, ui_of
 
 TOKEN = "tdk_live_0123456789abcdef"
 
+# 回音 pack 宣告 subprocess；角色能力上限（PERM-1）預設只有 admin 有。這幾個測的是 secret 不是上限，所以把 subprocess 開給每一級。
+_ALL_SUB = ["network", "filesystem:own", "subprocess"]
+OPEN_POLICY = {"policy": {"roles": {r: {"capabilities": _ALL_SUB} for r in ("guest", "member", "admin")}}}
+
 ECHO = r'''
 import json, os, sys
 print(json.dumps({"ok": True, "argv_text": " ".join(sys.argv[1:]),
@@ -218,7 +222,7 @@ def test_connect_needs_csrf_and_same_origin(make_bot, tmp_path):
 
 
 def test_personal_mode_only_owner_can_connect(make_bot, tmp_path):
-    bot = make_bot(pack_dirs=_cli_pack(tmp_path, access="everyone"))
+    bot = make_bot(raw=OPEN_POLICY, pack_dirs=_cli_pack(tmp_path, access="everyone"))
     other = _client(bot, OTHER_ID)
     status, _ = other.post("/api/pack-secrets/echo", {"values": {"api_key": TOKEN}})
     assert status == 403
@@ -226,7 +230,7 @@ def test_personal_mode_only_owner_can_connect(make_bot, tmp_path):
 
 
 def test_server_mode_each_user_sets_their_own(make_bot, tmp_path):
-    bot = make_bot(raw={"mode": "server"}, pack_dirs=_cli_pack(tmp_path, access="member"))
+    bot = make_bot(raw={"mode": "server", **OPEN_POLICY}, pack_dirs=_cli_pack(tmp_path, access="member"))
     bot.make(OTHER_ID, BasicRoles.MEMBER)
     owner_c, member_c = _client(bot), _client(bot, OTHER_ID)
     assert member_c.post("/api/pack-secrets/echo", {"values": {"api_key": "member-key-0000"}})[0] == 200
@@ -350,7 +354,7 @@ def test_gate4_blocks_ai_sending_stored_secret(make_bot, owner, tmp_path):
 
 
 def test_gate4_ignores_non_secret_fields_and_other_users(make_bot, tmp_path):
-    bot = make_bot(raw={"mode": "server"}, pack_dirs=_cli_pack(tmp_path, access="member"))
+    bot = make_bot(raw={"mode": "server", **OPEN_POLICY}, pack_dirs=_cli_pack(tmp_path, access="member"))
     bot.make(OTHER_ID, BasicRoles.MEMBER)
     _client(bot, OTHER_ID).post("/api/pack-secrets/echo", {"values": {"api_key": "member-key-0000", "region": "tw"}})
     node = bot.app.registry.node("echo.add")

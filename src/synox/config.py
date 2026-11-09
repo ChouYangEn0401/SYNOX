@@ -10,7 +10,9 @@ SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、�
       "packs": {"enabled": "all", "disabled": []},
       "web":   {"enabled": true, "port": 8830, "public_url": ""},   本機網頁介面（只綁 127.0.0.1）
       "ai_member_monthly_usd": 2.0,            伺服器版：每個成員每月的 AI 額度（美元）
-      "channels": {"discord": {"enabled": true, "bot_token": "vault:discord_bot_token"}}   Discord 私訊（docs/discord.md）
+      "channels": {"discord": {"enabled": true, "bot_token": "vault:discord_bot_token"}},  Discord 私訊（docs/discord.md）
+      "policy": {"roles": {"member": {"capabilities": ["network", "filesystem:own"]}, …}}  角色能力上限（synox/policy.py；
+                                               沒寫＝預設；exec、filesystem:any 不能給任何角色）
     }
 - 只用 Discord 時 bot_token、owner_id 可以不填（owner_id 預設保留號段 10^15，pair-discord 把你的 Discord 帳號接上）。
 
@@ -29,6 +31,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from isdtelekit.host.config import BotConfig, ConfigError
+
+from synox.policy import parse_policy
 
 ROOT = os.environ.get("SYNOX_HOME") or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CONFIG_PATH = os.path.join(ROOT, "config.json")
@@ -51,6 +55,7 @@ class SynoxConfig(BotConfig):
     root: str = ROOT
     web: dict = field(default_factory=lambda: dict(DEFAULT_WEB))
     ai_member_monthly_usd: float = DEFAULT_MEMBER_USD
+    policy: dict = field(default_factory=lambda: parse_policy(None))     # 角色能力上限（synox/policy.py）
 
     @property
     def server(self) -> bool:
@@ -91,10 +96,11 @@ class SynoxConfig(BotConfig):
             member_usd = float(raw.get("ai_member_monthly_usd", DEFAULT_MEMBER_USD))
         except (TypeError, ValueError):
             raise ConfigError("config.json 的 ai_member_monthly_usd 要是數字（美元，例如 2.0）。")
+        policy = parse_policy(raw.get("policy"))      # exec／filesystem:any 寫進任何角色＝拒（第 1 關式檢查）
         return cls(bot_token=base.bot_token, owner_id=base.owner_id,
                    poll_interval_seconds=base.poll_interval_seconds, data_dir=data_dir,
                    stepup_minutes=base.stepup_minutes, raw=dict(raw), llm=llm, vault=vault, packs=packs, mode=mode,
-                   root=root, web=web, ai_member_monthly_usd=max(0.0, member_usd))
+                   root=root, web=web, ai_member_monthly_usd=max(0.0, member_usd), policy=policy)
 
     @classmethod
     def load(cls, path: Optional[str] = None, *, require_token: bool = True,
