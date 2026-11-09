@@ -20,6 +20,7 @@ from typing import Optional
 from isdtelekit.core.dispatcher import FALLBACK, Route
 from isdtelekit.core.registry import DANGER, ROUTINE, TYPED, WRITE
 
+from synox import policy
 from synox.agent.approve import PREFIX, ApprovalDesk
 from synox.agent.budget import EXHAUSTED, MemberBudget
 from synox.agent.loop import AgentLoop, ai_decision
@@ -45,7 +46,9 @@ class AgentFallback:
 
     def handle(self, api, inbound, user, text: str, age: float) -> Route:
         route = self.app.dispatcher.log_route(inbound, text, Route(FALLBACK, "agent.ai"))
-        self.app.tasks.run(lambda: self.loop.run_turn(api, inbound.chat_id, user, text), name="agent-turn")
+        bot = policy.current_bot()                   # 收訊的 bot：AI 那一輪在別的執行緒，要帶過去（工具清單照它過濾）
+        self.app.tasks.run(lambda: policy.run_as(bot, self.loop.run_turn, api, inbound.chat_id, user, text),
+                           name="agent-turn")
         return route
 
 
@@ -74,7 +77,8 @@ def install(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLoop]:
         if not args:
             api.send_message(chat_id, "跟我說人話就好，例如：/ai 幫我記一筆 80 元咖啡\n（私訊裡直接打字也可以）")
             return
-        app.tasks.run(lambda: loop.run_turn(api, chat_id, user, " ".join(args)), name="agent-turn")
+        bot = policy.current_bot()
+        app.tasks.run(lambda: policy.run_as(bot, loop.run_turn, api, chat_id, user, " ".join(args)), name="agent-turn")
 
     def line(label, b):
         return f"{label}：{b.get('calls', 0)} 次，輸入 {b.get('input', 0):,} / 輸出 {b.get('output', 0):,} token"

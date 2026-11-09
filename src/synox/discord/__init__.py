@@ -9,6 +9,8 @@ config.json（兩種寫法，見 synox/discord/bots.py）：
   （on_start 登記到 app.hub：名字 "discord:<名字>"，舊寫法維持 "discord"；受監看、掛了自己退避重啟）；
   app.home 換成 MultiHome（主動通知依對象走 Telegram 或 Discord；Discord 走這個人最近私訊過的 bot，沒有就第一個私訊型）。
   終端機模式不呼叫 on_start，所以不會連 Discord。
+- bot 範圍（PERM-4）：每個 bot 的收訊在 policy.using_bot(spec) 裡進 dispatcher，decide、/help、群組選單、按鈕、
+  AI 工具清單都照那個 bot 的 packs／max_effect／ai 過濾（synox/policy.py）；/bot_status 列每個 bot 的有效 pack（scope.py）。
 - surface=channel 的 bot：這一版不連線（頻道收訊是 PERM-5），原因記在 app.extras["discord_errors"]，啟動時、doctor 會說。
 - 身分：synox.identity（data/identities.json）。同一個 Discord 帳號對任何 bot 都是同一個內部 id。
   陌生的 Discord 帳號拿到保留號段的新 id（伺服器版＝訪客；個人版＝被拒）；
@@ -25,6 +27,7 @@ from typing import Dict, List, Optional
 from isdtelekit.core.jsonstore import load_json, save_json
 from isdtelekit.host.app import telegram_api
 
+from synox import policy
 from synox.discord import bots as bot_specs
 from synox.discord.bots import CHANNEL, BotSpec
 from synox.discord.events import DISCORD, pairing_sender, parse_event
@@ -46,6 +49,11 @@ def settings(config) -> dict:
 def specs(config) -> List[BotSpec]:
     """要開的 bot（設定錯丟 ConfigError；SynoxConfig.from_dict 已先檢查過）。"""
     return bot_specs.active(settings(config))
+
+
+def all_specs(config) -> List[BotSpec]:
+    """設定裡寫的每個 bot（含關著的），給 /bot_status、doctor 列。"""
+    return bot_specs.parse(settings(config))
 
 
 def enabled(config) -> bool:
@@ -207,15 +215,22 @@ class MultiHome:
 
 class DiscordEntry:
     """Gateway 事件 → Inbound → dispatcher.handle(DiscordChannel, …)。按鈕沒被回應的話自動默默確認（Discord 要 3 秒內回）。
-    channel 是「收到這個事件的 bot」：回覆一律用它的 token。"""
+    channel 是「收到這個事件的 bot」：回覆一律用它的 token。
+    spec 是這個 bot 的設定（PERM-4）：dispatcher.handle 在 policy.using_bot(spec) 裡跑，所以 decide、/help、
+    群組選單、按鈕、AI 工具清單都照這個 bot 的 packs／max_effect／ai 過濾。spec=None＝不限制。"""
 
     def __init__(self, dispatcher, identities: Identities, channel: DiscordChannel, *, name: str = bot_specs.DEFAULT,
-                 bots: Optional[DiscordBots] = None):
+                 bots: Optional[DiscordBots] = None, spec: Optional[BotSpec] = None):
         self.dispatcher = dispatcher
         self.identities = identities
         self.channel = channel
         self.name = name
         self.bots = bots
+        self.spec = spec
+
+    def _handle(self, inbound):
+        with policy.using_bot(self.spec):
+            return self.dispatcher.handle(self.channel, inbound)
 
     def on_dispatch(self, event: str, d: dict):
         parsed = parse_event(event, d, lambda ext: self.identities.resolve(DISCORD, ext))
@@ -226,10 +241,10 @@ class DiscordEntry:
         if self.bots is not None:
             self.bots.saw_dm(inbound.user_id, self.name)
         if inbound.button is None:
-            return self.dispatcher.handle(self.channel, inbound)
+            return self._handle(inbound)
         cq_id = inbound.button.cq_id
         try:
-            return self.dispatcher.handle(self.channel, inbound)
+            return self._handle(inbound)
         finally:
             if not self.channel.take_answered(cq_id):
                 self.channel.answer_callback_query(cq_id)
@@ -237,7 +252,9 @@ class DiscordEntry:
 
 
 def install(app, config, vault) -> Optional[DiscordChannel]:
-    """開好每個私訊型 bot；回第一個的 DiscordChannel（一個都沒開成回 None）。"""
+    """開好每個私訊型 bot；回第一個的 DiscordChannel（一個都沒開成回 None）。有設定 Discord 就掛 /bot_status。"""
+    from synox.discord import scope
+    scope.install(app, config)
     wanted = specs(config)
     if not wanted:
         return None
@@ -268,7 +285,7 @@ def install(app, config, vault) -> Optional[DiscordChannel]:
             continue
         channel = DiscordChannel(token, identities)
         bots.add(spec.name, channel)
-        entry = DiscordEntry(app.dispatcher, identities, channel, name=spec.name, bots=bots)
+        entry = DiscordEntry(app.dispatcher, identities, channel, name=spec.name, bots=bots, spec=spec)
         entries[spec.name] = entry
         gateways.append((spec, token, entry))
     app.extras["discord_bots"] = bots

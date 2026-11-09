@@ -18,7 +18,7 @@ from isdtelekit import build_app
 from isdtelekit.host.app import App
 from isdtelekit.packs import accounts, basics, help as help_pack, limits
 
-from synox import agent, discord, schedule, web
+from synox import agent, discord, policy, schedule, web
 from synox.config import SynoxConfig
 from synox.llm import make_adapter
 from synox.llm.base import LLMError
@@ -50,6 +50,7 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
     if pack_dirs is None:                      # 沒指定＝內建的 packs/、connectors/ ＋ config.json 的 packs.dirs
         pack_dirs = config.pack_dirs() if hasattr(config, "pack_dirs") else loader.PACK_DIRS
     app = build_app(config, home=home)
+    policy.install(app)                        # SDK 的 authorize 改走 synox/policy.py 的 decide（能力上限、bot 範圍）
     app.extras["synox_config"] = config
     app.extras["synox_pack_dirs"] = tuple(pack_dirs)
     if vault is _UNSET:
