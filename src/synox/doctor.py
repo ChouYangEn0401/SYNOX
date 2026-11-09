@@ -90,20 +90,30 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
             problems += 1
 
     # packs
+    from synox.packs import lock as pack_lock
     from synox.packs.loader import PACK_DIRS, discover
     from synox.packs.manifest import ManifestError, read
     lines: List[str] = []
+    lock_dir = config.data_dir if config else os.path.join(ROOT, "data")
+    locked = 0
     for folder in discover(PACK_DIRS):
         rel = os.path.relpath(folder, ROOT)
         try:
             m = read(folder)
             enabled = config.pack_enabled(m.name) if config else True
-            state = "connector（只登記）" if m.kind == "connector" else ("✅" if enabled else "⏸ 停用")
-            lines.append(f"  {state} {m.name} {m.version}（{m.kind}，/{m.group}）  {rel}")
+            lock_state, changes = pack_lock.verify(lock_dir, m.name, folder)    # 第 3 關（packs.lock）
+            if lock_state == pack_lock.TAMPERED:
+                lines.append(f"  ❌ {m.name} {m.version}：檔案跟核准時不一樣，不會載入（{'、'.join(changes[:6])}）  {rel}")
+                problems += 1
+                continue
+            locked += lock_state == pack_lock.LOCKED
+            state = "connector（只登記）" if m.kind in ("connector", "mcp") else ("✅" if enabled else "⏸ 停用")
+            lock_mark = "🔒" if lock_state == pack_lock.LOCKED else "未鎖定"
+            lines.append(f"  {state} {m.name} {m.version}（{m.kind}，/{m.group}，{lock_mark}）  {rel}")
         except ManifestError as e:
             lines.append(f"  ❌ {rel}：{e}")
             problems += 1
-    out(f"• packs：{len(lines)} 個")
+    out(f"• packs：{len(lines)} 個（packs.lock 鎖定 {locked} 個；python -m synox packs status 看細節）")
     for line in lines:
         out(line)
 
