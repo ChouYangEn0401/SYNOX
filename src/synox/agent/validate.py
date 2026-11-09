@@ -13,7 +13,9 @@ agent/loop.py 在執行**任何**工具呼叫之前問 `check_call(app, node, ar
   像密鑰的檔名（.env、id_rsa、*.pem、*.key、credentials*、*.pfx…）一律拒；kind=cli 的其他單段值也看檔名。
 
 不合 → 回一句短短的中文（交回給 AI 當工具結果，讓它自己改），**不執行**。合 → None。
-打字的那一條（人自己打的 cli 指令）由 loader 掛的 `typed_check()` 做不需要「是誰」的那幾項。
+打字的那一條（人自己打的 cli 指令）由 loader 掛的 `typed_check()` 做不需要「是誰」的那幾項；
+`kind: int｜number｜bool｜choice` 的格式也在 `typed_check()`（經 kit.parse_args，人打字與 AI 呼叫都會跑）。
+對 AI 的 schema 一律是字串（這一關要求值是字串，不因 kind 改變）。
 """
 
 from __future__ import annotations
@@ -77,10 +79,55 @@ def _value_problem(value: str, *, argv: bool) -> Optional[str]:
     return None
 
 
-def typed_check(kind: str = "text") -> Callable[[str], Optional[str]]:
-    """kind=cli 的欄位在「人打字」那一條也跑的檢查（不需要知道是誰的那幾項）。"""
+_INT = re.compile(r"^[+-]?\d{1,18}$")
+BOOL_TRUE = ("true", "yes", "y", "on", "1", "是", "對", "要", "開")
+BOOL_FALSE = ("false", "no", "n", "off", "0", "否", "不", "不要", "關")
+
+
+def kind_problem(kind: str, value: str, choices=()) -> Optional[str]:
+    """照 pack.json 的 fields[].kind 檢查格式（int｜number｜bool｜choice；text、path 這裡不管）。
+    不合回一句人話（接在欄位說明後面，例如「次數要是整數（例如 3）」），合回 None。"""
+    v = (value or "").strip()
+    if kind == "int":
+        return None if _INT.match(v.replace(",", "")) else "要是整數（例如 3）"
+    if kind == "number":
+        try:
+            n = float(v.replace(",", ""))
+        except ValueError:
+            return "要是數字（例如 12.5）"
+        return None if n == n and n not in (float("inf"), float("-inf")) else "要是數字（例如 12.5）"
+    if kind == "bool":
+        return None if v.lower() in BOOL_TRUE + BOOL_FALSE else "要是 是／否（yes／no、true／false 都可以）"
+    if kind == "choice":
+        if v.lower() in {str(c).lower() for c in choices}:
+            return None
+        return f"只能是 {'／'.join(str(c) for c in choices)}"
+    return None
+
+
+def normalize(kind: str, value: str, choices=()) -> str:
+    """檢查過的值整理成固定寫法再交給工具：bool → "true"／"false"；int、number 去掉千分位逗號；
+    choice 換成 pack.json 裡寫的那個拼法（大小寫）。其他原樣。"""
+    v = (value or "").strip()
+    if kind == "bool":
+        return "true" if v.lower() in BOOL_TRUE else "false" if v.lower() in BOOL_FALSE else value
+    if kind in ("int", "number"):
+        return v.replace(",", "")
+    if kind == "choice":
+        for c in choices:
+            if str(c).lower() == v.lower():
+                return str(c)
+    return value
+
+
+def typed_check(kind: str = "text", choices=()) -> Callable[[str], Optional[str]]:
+    """kind=cli 的欄位在「人打字」與「AI 呼叫」兩條路都跑的檢查（不需要知道是誰的那幾項）：
+    長度／控制字元、像密鑰的檔名、以及 int／number／bool／choice 的格式。"""
     def check(value: str) -> Optional[str]:
         problem = _value_problem(value or "", argv=True)
+        if problem:
+            return problem
+        problem = kind_problem(kind, value, choices)
         if problem:
             return problem
         if kind == "path" or not re.search(r"\s", value or ""):
