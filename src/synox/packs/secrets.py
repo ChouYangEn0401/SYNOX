@@ -14,7 +14,8 @@ pack 的 secret（pack.json 的 auth.fields[]）：使用者在 Web UI 工具頁
 - 第 4 關（agent/validate.py）：AI 帶的欄位值等於（或夾著）任何一個已存的 secret ＝拒，不執行。
 
 哪些 pack 由 SYNOX 管（managed）：auth.type 是 token／file、有 fields，而且
-  kind=cli，或 kind=python 的原始碼有呼叫 `.secret(…)`（pack.secret）；`auth.managed` 可以明講
+  kind=cli、真的會連的 kind=mcp（stdio：放進子程序環境；http：當 Authorization: Bearer，P4b），
+  或 kind=python 的原始碼有呼叫 `.secret(…)`（pack.secret）；`auth.managed` 可以明講
   "synox"（一定管）或 "pack"（pack 自己管，例如內建 connector 的 /todoist_token）。
 內建的 connector（notion／todoist／google-calendar／apple-reminders）都沒有呼叫 pack.secret，所以不受影響。
 """
@@ -99,7 +100,7 @@ def managed(m) -> bool:
     flag = (getattr(m, "auth_info", None) or {}).get("managed")
     if flag == "pack" or not fields_of(m):
         return False
-    if flag == "synox" or m.kind == "cli":
+    if flag == "synox" or m.kind == "cli" or getattr(m, "mcp_connected", False):
         return True
     return m.kind == "python" and _uses_pack_secret(m.folder)
 

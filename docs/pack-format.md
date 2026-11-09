@@ -128,7 +128,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | `publisher` | 發行者（給人看；沒寫會在報告裡提醒） |
 | `integrity.sha256` | `{"檔名": "64 個 16 進位字"}`，打包時算（`synox-sdk zip`）。有寫就每個檔都要對得上、也不能多出沒列的檔（`pack.json` 本身不算） |
 | `auth` | v0 的字串（`oauth`／`token`／`caldav`）照舊；v2 寫 `{"type": "none｜token｜oauth｜caldav｜file", "fields": [...]}`。`token`／`file` 的 `fields` 由 SYNOX 收，見下面「pack 的 secret」 |
-| `kind: "mcp"`＋`mcp` | 只登記：`{"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}`（不連、不能附程式檔）。**真的連（P4a）**：`"transport": "stdio"`，見下面「`mcp`（stdio）」。兩種都是 `tools_allow` 不能空、每個允許的工具都要有 effect（沒寫＝拒） |
+| `kind: "mcp"`＋`mcp` | 只登記：`{"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}`（不連、不能附程式檔）。**真的連**：`"transport": "stdio"`（P4a，見下面「`mcp`（stdio）」）或 `"transport": "http"`（遠端 MCP，P4b，見「`mcp`（http）」）。兩種都是 `tools_allow` 不能空、每個允許的工具都要有 effect（沒寫＝拒） |
 | `commands[].effect` | cli 的每個 command：`READ`／`WRITE`／`DANGER`（大小寫都收）。`commands` 也可以放最上層（等於 `cli.commands`） |
 | `commands[].ai`、`commands[].confirm` | cli 的 command：`"ai": false`＝不給 AI 當工具；`"confirm": true`＝AI 呼叫前先送確認卡給人按（effect 照寫的算）。一定要是 true／false。synox_sdk 的 `@tool(ai=…, confirm=…)` 會產生。跟工具執行中回的 `needs_confirm`（下一列）並存 |
 | 回 `needs_confirm`（確認來回） | cli 工具最後一行印 `{"ok": true, "needs_confirm": true, "summary": "要刪 3 筆", "confirm_token": "…"}`（結束碼 0）→ SYNOX 出核准卡給下令的人（人打字、AI 呼叫都一樣），按 ✅ 用**同一組參數**重跑，那一次環境變數 `SYNOX_CONFIRMED=1`、`SYNOX_CONFIRM_TOKEN`＝你給的 `confirm_token`（只收英數字與 `. _ : -`、128 字內）；其他每一次都是 `SYNOX_CONFIRMED=0`（`cli.env` 寫了也會被蓋掉）。❌、過期、參數對不上＝不執行。任何語言都能用：自己讀這兩個環境變數。說明見 [sdk.md](sdk.md)「確認來回」 |
@@ -315,6 +315,48 @@ JSON-RPC 2.0（一行一個訊息），不開網路埠：
   標「⚠️ 未鎖定執行環境」：`packs.lock` 只鎖 pack 資料夾裡的檔，外面那支被換掉不會發現。`data` 的規則同 cli（看 `argv`／`env`／`cwd` 樣板）。
 - 沙盒（PERM-7）同 cli：`box.wrap(argv, env, cwd, grants)`；`grants.timeout` 是空的（程序壽命由 SYNOX 管）；`required_for` 命中又沒真隔離
   ＝伺服器版只給擁有者。
+
+### `mcp`（http：遠端 MCP，P4b）
+
+接一個**別人架在網路上的 MCP 伺服器**（Streamable HTTP）。這台不跑它的程式，pack 只有宣告（不能附程式檔）：
+
+```json
+{
+  "name": "todoist-mcp", "title": "✅ Todoist（MCP）", "summary": "…", "version": "0.1.0", "kind": "mcp",
+  "capabilities": ["network"], "access": "member", "skill": "SKILL.md",
+  "auth": {"type": "token", "fields": [{"name": "token", "label": "API token", "secret": true}]},
+  "mcp": {"transport": "http", "url": "https://mcp.example.com/mcp", "bearer": "token", "timeout": 60,
+          "tools_allow": ["find-tasks", "add-tasks", "delete-object"],
+          "effects": {"find-tasks": "READ", "add-tasks": "WRITE", "delete-object": "DANGER"}}
+}
+```
+
+範例（網址與工具名是佔位，要確認）：`examples/mcp-remote-notion`（OAuth）、`examples/mcp-remote-todoist`（token）。
+
+- **第 1 關**：`url` 一定 `https://`（`http://` 拒）、有主機、不能有 `user:pass@`、`#`、`{樣板}`；`capabilities` 一定有 `network`，
+  不能有 `subprocess`／`exec`／`filesystem:any`；不能寫 `argv`／`env`／`cwd`／`start_timeout`／`headers`。
+  `tools_allow` 不能空、**每個工具都要寫 effect（沒寫＝拒）**。
+- **第 2 關**：只能是宣告（附 `.py` 或執行檔＝拒）。信任等級 **T0（只有宣告）**：安裝報告逐一列出 `tools_allow` 的每個工具與 effect，
+  請安裝的人確認；也寫明「請求與 token 會送到哪個主機」。
+- **只往宣告的主機連**：每個 JSON-RPC 訊息 POST 到 `url`（`Accept: application/json, text/event-stream`）；**不跟著轉址**
+  （伺服器回 3xx 一律拒，訊息會說它想轉到哪）。
+- **回應**：`application/json`（一個物件）或 `text/event-stream`（只讀這一次 POST 的串流、找到自己那個 id 的回應就停；
+  夾在裡面的通知、伺服器反問不處理；不開 GET 長連線、不續傳）。`initialize` 回了 `Mcp-Session-Id` 就之後每個請求都帶，
+  也帶 `MCP-Protocol-Version`。帶了 session id 卻回 404＝伺服器那邊過期 → 自動重新 initialize、再試一次。閒置 10 分鐘或 SYNOX 關閉時
+  送 `DELETE` 結束 session。
+- **token**：`auth.type=token` → `auth.fields` 的 secret 欄位（`mcp.bearer` 指定，沒寫＝第一個 secret 欄位），網頁「連接」表單填、
+  存保管箱（伺服器版每人一份）；送出時只放 `Authorization: Bearer …`。不寫 log、沒有 argv、結果與錯誤訊息裡出現會遮成 `***`。
+  `auth.type=none`＝不帶 token。換了 token，下一次呼叫換一條新連線。
+- **OAuth（選配，預設關）**：`auth.type=oauth`＋`auth.oauth`：
+  `{"authorize_url": "https://…", "token_url": "https://…", "client_id": "…", "scope": "…", "redirect_uri": "http://127.0.0.1:47232/", "receiver": "paste"}`。
+  會多三個指令（只收私訊、不給 AI）：`/<群組>_login` 給登入連結（PKCE S256＋一次性 state，15 分鐘）→ 瀏覽器最後轉到
+  `redirect_uri` 顯示「無法連上」（**SYNOX 不開埠**）→ 使用者把網址列整串用 `/<群組>_code <貼上>` 傳回 → 換 token 存保管箱
+  （快過期自動用 refresh token 換）；`/<群組>_logout` 拿掉。授權與換 token 都帶 `resource`＝`mcp.url`。`client_id` 要事先登記
+  （這一版不做動態註冊與 metadata 探索）。`receiver: "loopback"`（SYNOX 暫時開 127.0.0.1 隨機埠收一次、最久 5 分鐘）**只有介面**：
+  這一版叫它一律拒（`packs/oauth.py` 的 `LoopbackListener`）。
+- 工具→指令、參數（inputSchema → fields、快取）、effect 只看 pack.json、policy／第 4 關／DANGER 核准卡／分隔符、`needs_confirm`
+  確認來回（`_meta["synox/confirm_token"]`），全部跟 stdio 一樣。每個（pack, 使用者）一條連線，第一次呼叫才連。
+- 角色：`capabilities` 只有 `network`，預設上限下成員看得到（`access` 要寫 `member`）、訪客看不到。
 
 ### `connector`
 
