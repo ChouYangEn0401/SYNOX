@@ -81,12 +81,85 @@ class PackCheck:
 
     @property
     def ok(self) -> bool:
-        return not self.problems
+        """沒有「安裝一定會被擋」的問題（synox-sdk check 的結束碼 0）。"""
+        return not self.blockers
+
+    @property
+    def tier(self) -> dict:
+        """信任層級（packs/tier.py）：{"tier": "T0|T1|T2", "text", "opaque", "external", "packages", "runs", …}。"""
+        from synox.packs import tier as pack_tier
+        return pack_tier.assess(self.manifest, self.report)
+
+    @property
+    def blockers(self) -> List[str]:
+        """安裝一定會被擋的問題：第 1、2 關的拒裝理由＋T2 沒寫 publisher（安裝時 confirm_problem 一定拒）。"""
+        from synox.packs import tier as pack_tier
+        out = list(self.problems)
+        if self.tier["tier"] == pack_tier.T2 and not (getattr(self.manifest, "publisher", "") or "").strip():
+            out.append("這是 T2 pack，pack.json 沒寫 publisher：安裝時一定會被擋（請補上 \"publisher\": \"你的名字或組織\"）")
+        return out
+
+    def pip_status(self) -> dict:
+        """requires.pip 釘死了沒：{"items", "unpinned", "auto"}（auto＝runtime.python 是 auto，安裝會照它裝）。"""
+        from synox.packs import envs
+        items = [str(p) for p in ((getattr(self.manifest, "requires", {}) or {}).get("pip") or [])]
+        unpinned = [p for p in items if not envs.PIN_RE.match(p.strip())]
+        runtime = getattr(self.manifest, "runtime", {}) or {}
+        auto = any(runtime.get(k) == envs.AUTO for k in ("python", "python_posix"))
+        return {"items": items, "unpinned": unpinned, "auto": auto}
+
+    def trust_lines(self) -> List[str]:
+        """check 多印的那一段：信任層級、掃不到內容的檔、pack 外的程式、publisher、MCP 工具與 effect、requires.pip。"""
+        from synox.packs import admin, tier as pack_tier
+        m, info = self.manifest, self.tier
+        lines = ["", f"🧩 信任層級：{info['text']}"]
+        opaque = info.get("opaque") or []
+        if opaque:
+            lines.append(f"  掃不到內容的檔案（{len(opaque)} 個；要宣告 exec）：")
+            lines += [f"    · {o['path']}  {o['why']}" for o in opaque]
+        else:
+            lines.append("  掃不到內容的檔案：（沒有）")
+        for e in info.get("external") or []:
+            kind = f"直譯器 {e['interpreter']}" if e.get("interpreter") else "pack 外的程式"
+            lines.append(f"  {kind}：{e['program']} → {e['resolved']}（未鎖定執行環境，掃描不執行它）")
+        for p in info.get("packages") or []:
+            lines.append(f"  會安裝的套件：{p['name']} {p['version']}（{p['source']}）")
+        publisher = (getattr(m, "publisher", "") or "").strip()
+        if info["tier"] == pack_tier.T2:
+            if publisher:
+                lines.append(f"  publisher：{publisher}（T2：安裝的人要一字不差地輸入它）")
+            else:
+                lines.append("  ⚠️ T2 沒寫 publisher：安裝時一定會被擋（pack.json 補上 \"publisher\"）")
+        else:
+            lines.append(f"  publisher：{publisher or '（沒寫）'}")
+        mcp = admin.mcp_report(m)
+        if mcp:
+            tools = mcp.get("tools") or []
+            lines.append(f"🔌 MCP 工具（{len(tools)} 個，只有這些會掛上）：" +
+                         ("、".join(f"{t['name']}（{t['effect']}）" for t in tools) or "（沒有）"))
+        pip = self.pip_status()
+        if not pip["items"]:
+            lines.append("📦 requires.pip：（沒寫）")
+        elif not pip["unpinned"]:
+            lines.append(f"📦 requires.pip：都釘死了（{'、'.join(pip['items'])}）")
+        else:
+            why = ("runtime.python 是 auto：安裝會被擋" if pip["auto"]
+                   else "runtime.python 不是 auto：SYNOX 不會裝它，只是給人看")
+            lines.append(f"📦 ⚠️ requires.pip 沒釘死（要寫 名字==版本）：{'、'.join(pip['unpinned'])}（{why}）")
+        blockers = self.blockers
+        if blockers:
+            lines.append(f"❌ 安裝一定會被擋（{len(blockers)} 個問題）：")
+            lines += [f"  · {b}" for b in blockers]
+        elif info["tier"] == pack_tier.T2:
+            lines.append(f"✅ 可以裝（T2：安裝時要輸入 publisher「{publisher}」）")
+        else:
+            lines.append("✅ 可以裝")
+        return lines
 
     def format(self) -> str:
         text = self.report.format(self.manifest)
         extra = [p for p in self.problems if p.startswith("integrity")]
-        return text + ("".join(f"\n❌ {p}" for p in extra))
+        return text + ("".join(f"\n❌ {p}" for p in extra)) + "\n".join([""] + self.trust_lines())
 
 
 class Pack:
@@ -577,7 +650,7 @@ def main(argv=None) -> int:
     p.add_argument("--data", default="", help="當作 SYNOX data/ 的資料夾（預設：暫存資料夾）")
     p.add_argument("--typed", action="store_true", help="當作人自己打字（不跑 AI 呼叫才有的第 4 關檢查）")
     p.add_argument("--confirmed", action="store_true", help="工具要確認時當作按了 ✅（同一組參數帶 SYNOX_CONFIRMED=1 重跑）")
-    p = sub.add_parser("check", help="跑 SYNOX 安裝時的宣告檢查與靜態掃描")
+    p = sub.add_parser("check", help="跑 SYNOX 安裝時的宣告檢查與靜態掃描，印信任層級 T0／T1／T2；安裝一定會被擋時結束碼 2")
     p.add_argument("folder")
     p = sub.add_parser("zip", help="打成 dist/<name>-<version>.synoxpack")
     p.add_argument("folder")

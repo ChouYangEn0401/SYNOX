@@ -1,5 +1,31 @@
 # Changelog
 
+## 未發佈（branch feat/t2-source）
+
+### 變更（安全）
+- **別的語言的原始碼一律算「掃不到內容的檔」（P7 補，擁有者 2026-11-09 決定）**：第 2 關只讀得懂 `.py`，
+  `.js .mjs .cjs .ts .tsx .jsx .rb .pl .php .lua .go .rs .java .kt .cs .psm1 .bash .zsh…`（`scan.SOURCE_EXT`，可擴充）
+  → 一定要宣告 `exec`、算 T2、安裝要一字不差輸入 publisher。之前 `examples/node-mcp-tool`（server.js）被判成 T1、不用輸入 publisher。
+  已裝的這類 pack 升級／重新核准時會因「舊的那一份沒有確認過發行者」要求輸入一次。
+- **直譯器算 pack 外的程式**：`cli.argv`／`mcp.argv` 的 `{node}`（不再當系統代換略過）、以及任何一段是 `node`、`npx`、`deno`、`bun`、
+  `ruby`、`perl`、`php`…（`scan.INTERPRETERS`）→ external 記解析路徑（`{node}` 照 loader 的規則找；只查 PATH，不執行）、
+  多一個 `interpreter` 欄位、標「未鎖定執行環境」。
+- 遠端 MCP（`transport: http`）的信任層級改成 **T0**（之前誤算成 T1；文件與安裝報告本來就寫 T0）。
+- 第 2 關讀 SYNOX 自己注入的協定變數（`SYNOX_USER_DATA_DIR`、`SYNOX_TG_ID`、`SYNOX_MODE`、`SYNOX_PACK_DIR`、`SYNOX_PACK_NAME`、
+  `SYNOX_CONFIRMED`，名字是字面字）不再標⚠️「可能是密鑰」；`SYNOX_CONFIRM_TOKEN`、`SYNOX_SECRET_ENV` 照列。
+
+### 新增
+- `synox-sdk check` 多印一段：信任層級 T0／T1／T2、掃不到內容的檔案清單、pack 外的程式／直譯器與解析路徑、publisher
+  （T2 沒寫＝⚠️ 安裝時一定會被擋）、MCP 工具與 effect、`requires.pip` 有沒有釘死。有「安裝一定會被擋」的問題（第 1、2 關拒裝、
+  T2 沒寫 publisher）結束碼 2。`PackCheck.tier`／`blockers`／`pip_status()`。
+- 測試 `tests/test_t2_source.py`（61 個）；`tests/test_examples.py` 改成斷言 node-mcp-tool 是 T2。
+
+### 文件
+- `docs/pack-format.md`：`requires.pip` 那列改成跟「依賴與環境自動建置」一致；`runtime.node` 註明只給 kind=cli；
+  拿掉 command 填法那段的日期；信任層級補別的語言原始碼與直譯器。`docs/tools.md`：T1＝「第 2 關掃得到的 .py 與純資料檔」，
+  T2 補原始碼與直譯器，拿掉「.js 目前算 T1」的說明。`docs/AGENT.md`：connect.py 存進 pack_secrets（跟「連接」表單同一份）。
+  `docs/security.md`、`docs/sdk.md`、`examples/node-mcp-tool/README.md` 同步。
+
 ## 未發佈（branch feat/sdk-p8）
 
 ### 新增

@@ -54,7 +54,7 @@ pack 是一個資料夾，壓成 zip 就是 `.synoxpack`：
 | 參數格式 | `fields[].kind` | 工具的 `inputSchema` | 同左 |
 | 危險程度（effect） | 每個 command 的 `effect` | `mcp.effects`（伺服器自述的不算） | 同左 |
 | 一定要的 `capabilities` | 看程式做什麼 | `subprocess` | `network`（不能有 `subprocess`、`exec`、`filesystem:any`） |
-| 信任層級（通常） | T1（只有 `.py`）／T2（附執行檔） | 同左 | T0（只有宣告） |
+| 信任層級（通常） | T1（只有 `.py`）／T2（附執行檔、別的語言的原始碼、叫 `{node}` 這類直譯器） | 同左 | T0（只有宣告） |
 | 伺服器版預設誰看得到 | 看 `access` 與 `capabilities` | 管理員以上（因為 `subprocess`） | 成員以上（寫 `"access": "member"`） |
 | 第三方套件 | `runtime.python`／`runtime.node` = `"auto"` | 不支援 `runtime`（見下面「環境建置」） | — |
 | 本機試跑 | `synox-sdk run` | 手動餵 JSON-RPC（見 [examples/node-mcp-tool](../examples/node-mcp-tool/)） | 沒有本機試跑 |
@@ -104,16 +104,17 @@ SYNOX 的靜態掃描（第 2 關）**只讀得懂 `.py`**。所以它照「看�
 | 層級 | 是什麼 | 對作者 | 對裝的人 |
 |---|---|---|---|
 | **T0 只有宣告** | 遠端 MCP、只登記的 connector：沒有程式在這台跑 | 不能附程式檔（附了＝拒）。你只寫 pack.json | 報告逐一列出每個工具與 effect、請求與 token 會送到哪個主機。能信的只有這份宣告，對方伺服器做什麼看不到 |
-| **T1 原始碼** | pack 資料夾裡只有 `.py` 與資料檔 | 程式用了什麼（連網、子程序、檔案、動態執行）都會被列出 `檔名:行號`，沒宣告就拒裝 | 看得到你的程式做什麼；按一次確認就裝 |
-| **T2 二進位或外部相依** | 附了執行檔或編譯檔（`.exe .dll .bat .cmd .ps1 .sh .so .dylib .pyd .pyc .jar .wasm…`、檔頭是 MZ／ELF／Mach-O 的檔、沒有副檔名但帶執行位元或 `#!` 開頭）、`node_modules/`、`cli.argv`／`mcp.argv` 叫 pack 外的程式（`npx`、`git`、絕對路徑、`{python} -m` 不在 pack 裡的模組）、或 `runtime` = `"auto"` 會裝套件 | 資料夾裡有掃不到內容的檔就**一定要宣告 `exec`**；**一定要寫 `publisher`**。升級時換 publisher、新增 `exec`、多附執行檔，裝的人都會看到紅字 | 報告有紅字一段：會執行什麼、會裝哪些套件、外部程式解析到這台的哪裡。要**一字不差地輸入你的 publisher** 才能裝。伺服器版的 T2 pack 沒有真的沙盒（Linux 的 bwrap／systemd）就只有擁有者看得到 |
+| **T1 原始碼** | pack 資料夾裡只有第 2 關掃得到的 `.py` 與純資料檔 | 程式用了什麼（連網、子程序、檔案、動態執行）都會被列出 `檔名:行號`，沒宣告就拒裝 | 看得到你的程式做什麼；按一次確認就裝 |
+| **T2 二進位或外部相依** | 附了執行檔或編譯檔（`.exe .dll .bat .cmd .ps1 .sh .so .dylib .pyd .pyc .jar .wasm…`、檔頭是 MZ／ELF／Mach-O 的檔、沒有副檔名但帶執行位元或 `#!` 開頭）、別的語言的原始碼（`.js .mjs .cjs .ts .tsx .jsx .rb .pl .php .lua .go .rs .java .kt .cs .psm1 .bash .zsh…`：SYNOX 讀不懂）、`node_modules/`、`cli.argv`／`mcp.argv` 叫 pack 外的程式（`{node}`、`node`、`npx`、`deno`、`bun`、`ruby`、`perl`、`php` 這類直譯器、`git`、絕對路徑、`{python} -m` 不在 pack 裡的模組）、或 `runtime` = `"auto"` 會裝套件 | 資料夾裡有掃不到內容的檔就**一定要宣告 `exec`**；**一定要寫 `publisher`**。升級時換 publisher、新增 `exec`、多附執行檔，裝的人都會看到紅字 | 報告有紅字一段：會執行什麼、會裝哪些套件、外部程式解析到這台的哪裡。要**一字不差地輸入你的 publisher** 才能裝。伺服器版的 T2 pack 沒有真的沙盒（Linux 的 bwrap／systemd）就只有擁有者看得到 |
 
 **T2 不是沙盒保證，只是讓裝的人知道他在信任誰。** `publisher` 現在只是 pack.json 裡的一個字串（還沒有簽章驗證），
 它證明不了檔案出自你；「明確輸入」是讓對方停下來想一次、事後在鎖裡查得到當時信了誰。
 
 能用純 `.py` 寫完就別附執行檔。用別的語言寫、又想讓別人放心裝，就把原始碼公開，讓對方自己編。
 
-> 目前的判斷：`.js` 這類「SYNOX 讀不懂、但也不在上面清單裡」的原始碼檔，現在算資料檔（T1），`{node}` 也不算 pack 外的程式。
-> 用 Node 寫的工具請照實宣告 `exec`、寫好 `publisher`（[examples/node-mcp-tool](../examples/node-mcp-tool/) 就是這樣寫），規則收緊時不用改。
+> 用 Node（或任何 `.py` 以外的語言）寫的工具一律是 T2：照實宣告 `exec`、寫好 `publisher`
+> （[examples/node-mcp-tool](../examples/node-mcp-tool/) 就是這樣寫）。`synox-sdk check .` 會印出信任層級、掃不到內容的檔案清單，
+> T2 沒寫 `publisher` 會警告並以非 0 結束（安裝時一定會被擋）。
 
 ## 權限欄位
 
