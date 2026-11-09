@@ -1,5 +1,22 @@
 # Changelog
 
+## 未發佈（branch feat/perm1）
+
+### 新增
+- **PERM-1 policy 層**：新檔 `src/synox/policy.py`，權限的唯一交會點 `decide(app, user, node, *, via, chat_id, bot=None)`
+  ＝SDK `authorize` ∧ pack.capabilities ⊆ 這個人角色的能力上限（擁有者不受限）。`agent/loop.py` 的 `ai_decision` 改成呼叫
+  `decide(via=AI)`（AI 能不能用一個節點仍只有一個判斷；原本的群組／interactive／ai=False／agent、sudo／訪客規則搬進 decide）。
+  `ai_decision` 第一個參數改收 app（仍收裸的 `CommandRegistry`，當作沒有 pack、預設上限）。
+- **config.json `policy.roles`**（沒寫＝預設）：guest `[]`、member `["network","filesystem:own"]`、admin 再加 `"subprocess"`。
+  `exec`、`filesystem:any` 寫進任何角色＝讀設定時就拒（ConfigError）；不認得的角色／能力、寫 `owner`、上限不是一級比一級寬也拒。
+  `policy.sandbox` 只保留預設值（PERM-7 才用）。
+- **loader 依上限決定可見性**（`loader.pack_group_policy` → `policy.group_policy_for`）：pack 的 capabilities 裝不下某一級的上限，
+  群組門檻拉到裝得下的那一級；哪一級都裝不下（exec、filesystem:any）＝`owner_only`。所以 /help、選單、網頁、人打字、AI 工具清單同一條擋。
+  個人版也套（陌生人看不到要 network 的 `access: everyone` pack）。`decide` 對這個人再算一次（縱深）。
+- `bot` 參數先留介面：None＝不限制；給了別的（PERM-4 之前）一律拒（fail closed）。
+- 測試 `tests/test_policy.py`（26 個）。`tests/test_sdk_p2_secret.py` 的三個測試用 subprocess 回音 pack 給成員／訪客用，改成在設定裡把
+  subprocess 開給每一級（測的是 secret，不是上限）。
+
 ## 未發佈（branch feat/sdk-upgrade-env-glue）
 
 ### 修正
