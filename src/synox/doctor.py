@@ -55,7 +55,9 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
             out("  網頁介面：" + (f"開，http://127.0.0.1:{web.get('port')}/（/web 拿登入連結）"
                                 + (f"　對外網址 {web.get('public_url')}" if web.get("public_url") else "")
                                 if web.get("enabled", True) else "關（web.enabled=false）"))
-            problems += 0 if config.has_token else 1
+            if config.discord_enabled:
+                out("  Discord：開（私訊；token 放保管箱，見 docs/discord.md）")
+            problems += 0 if (config.has_token or config.discord_enabled) else 1
         except Exception as e:
             out(f"• 設定：❌ {e}")
             problems += 1

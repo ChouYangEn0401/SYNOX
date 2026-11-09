@@ -1,3 +1,5 @@
 # SYNOX runtime dependencies (ASCII only: pip reads this file in the console codepage)
 requests>=2.28
 cryptography>=41
+# Discord channel gateway (pure Python; imported only when Discord is enabled)
+websocket-client>=1.6

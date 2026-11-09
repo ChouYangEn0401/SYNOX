@@ -60,6 +60,14 @@ class LogOnlyChannel:
         return lambda *a, **kw: {"ok": True}
 
 
+def telegram_api(home) -> Optional[BotAPI]:
+    """home 裡的 Telegram BotAPI：home 本身是 BotAPI，或是包了好幾個通道的 home（屬性 telegram_api）。都不是回 None。"""
+    if isinstance(home, BotAPI):
+        return home
+    inner = getattr(home, "telegram_api", None)
+    return inner if isinstance(inner, BotAPI) else None
+
+
 class TaskTracker:
     """handler 丟到背景做、但「馬上就會回覆」的工作（例如呼叫服務的 CLI）：
 
@@ -167,9 +175,9 @@ class App:
     def start(self, channels: Sequence[str] = (TELEGRAM,)) -> None:
         """開始收訊但不等（run() 用它；測試或要自己管主迴圈的程式也可以直接用）。"""
         if TELEGRAM in channels:
-            if not isinstance(self.home, BotAPI):
+            api = telegram_api(self.home)
+            if api is None:
                 raise SystemExit("要收 Telegram 需要 config.json 的 bot_token。")
-            api = self.home
             self.hub.add(TELEGRAM, lambda: Poller(api, self.telegram, offset_path=self.config.path("last_update_id"),
                                                   poll_interval_seconds=self.config.poll_interval_seconds))
             self.hub.get(TELEGRAM).start()
@@ -196,9 +204,10 @@ class App:
 
     def sync_menus(self) -> dict:
         """重設每個人的 Telegram 指令選單（有 token 時）。"""
-        if not isinstance(self.home, BotAPI):
+        api = telegram_api(self.home)
+        if api is None:
             return {"default": 0, "users": 0, "failed": 0}
-        return telegram_menu.sync_menus(self.home, self.registry, self.users, self.owner_id)
+        return telegram_menu.sync_menus(api, self.registry, self.users, self.owner_id)
 
     def run_console(self, user_id: Optional[int] = None) -> None:
         """在終端機直接跟 bot 講話（不用 Telegram、不用 token）。見 host/console.py。"""
