@@ -86,6 +86,14 @@ def approve(data_dir: str, manifest, report, approved_by, *, via: str, hashes: O
     return record
 
 
+def restore(data_dir: str, name: str, record: dict) -> None:
+    """`packs rollback`：把搬走時留下的那一筆鎖原樣放回（呼叫的人先確認過檔案對得上）。"""
+    with _LOCK:
+        data = load(data_dir)
+        data["packs"][name] = dict(record)
+        jsonstore.save_json(lock_path(data_dir), data)
+
+
 def remove(data_dir: str, name: str) -> bool:
     with _LOCK:
         data = load(data_dir)
