@@ -1,4 +1,5 @@
 {
+  "mode": "personal",
   "bot_token": "123456789:REPLACE-WITH-THE-TOKEN-FROM-BOTFATHER",
   "owner_id": 123456789,
   "llm": {

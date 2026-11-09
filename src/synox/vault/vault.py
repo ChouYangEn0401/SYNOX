@@ -12,6 +12,10 @@
 每次存檔換一個新 salt；檔案金鑰 = scrypt(master_key, salt)。header 被改、密文被改、金鑰不對，
 一律丟 VaultError——**不會**默默當成空的再蓋過去（那會把使用者的資料洗掉）。
 寫入是暫存檔 + os.replace（跟 SDK 的 jsonstore 同一套），寫到一半被砍掉時舊檔仍完整。
+
+伺服器版（config mode=server）每個人一個保管箱：vault.for_user(tg_id) → 資料夾 data/users/<tg_id>/，
+主金鑰換成 HKDF-SHA256(master_key, salt="synox-user-v1", info="user:<tg_id>")。A 的保管箱解不開 B 的檔
+（金鑰不同 → VaultError）；但跑著的程式拿得到主金鑰，所以**營運者仍然讀得到**（見 docs/security.md）。
 """
 
 from __future__ import annotations
@@ -24,16 +28,26 @@ import time
 from typing import Any, Dict, Optional
 
 from cryptography.fernet import Fernet, InvalidToken
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
 FORMAT = 1
 SUFFIX = ".json.enc"
 KDF_PARAMS = {"n": 2 ** 14, "r": 8, "p": 1}
 _REPLACE_RETRIES = 5
+USER_SALT = b"synox-user-v1"
+USERS_DIR = "users"
 
 
 class VaultError(Exception):
     """解不開（金鑰不對、檔案被改過、格式不對）。訊息是給人看的。"""
+
+
+def user_key(master_key: bytes, tg_id: int) -> bytes:
+    """一個使用者的主金鑰：HKDF-SHA256(master_key, salt=USER_SALT, info="user:<tg_id>")，32 bytes。"""
+    return HKDF(algorithm=hashes.SHA256(), length=32, salt=USER_SALT,
+                info=f"user:{int(tg_id)}".encode("ascii")).derive(master_key)
 
 
 def _derive(master_key: bytes, salt: bytes, n: int, r: int, p: int) -> bytes:
@@ -50,6 +64,18 @@ class Vault:
         self.data_dir = data_dir
         self._cache: Dict[tuple, bytes] = {}
         self._lock = threading.RLock()
+        self._users: Dict[int, "Vault"] = {}
+
+    def for_user(self, tg_id: int) -> "Vault":
+        """這個人自己的保管箱（data/users/<tg_id>/，金鑰由主金鑰＋id 用 HKDF 衍生）。同一個人回同一個物件。"""
+        if isinstance(tg_id, bool) or not isinstance(tg_id, int):
+            raise ValueError(f"tg_id must be an int, got {tg_id!r}")
+        with self._lock:
+            found = self._users.get(tg_id)
+            if found is None:
+                folder = os.path.join(self.data_dir, USERS_DIR, str(tg_id))
+                found = self._users[tg_id] = Vault(user_key(self._key, tg_id), folder)
+            return found
 
     # ── 路徑 ─────────────────────────────────────────────────────────
 
