@@ -1,13 +1,17 @@
 {
   "name": "notion",
   "title": "🗂 Notion",
-  "summary": "查頁面、加一筆到資料庫（還沒接上）",
-  "version": "0.0.1",
-  "kind": "connector",
+  "summary": "搜尋、讀頁面、加頁面／資料庫一列、改欄位（用你自己的 integration token）",
+  "version": "0.1.0",
+  "kind": "python",
   "group": "notion",
   "access": "owner",
-  "auth": "oauth",
-  "requires": { "pip": [], "config": [], "env": {} },
+  "order": 60,
+  "publisher": "SYNOX（出廠）",
+  "capabilities": ["network"],
+  "auth": { "type": "token", "fields": [{ "name": "token", "ask": "Notion internal integration token（ntn_…）", "secret": true }] },
+  "python": { "module": "pack" },
+  "requires": { "pip": ["requests"], "config": [], "env": {} },
   "skill": "SKILL.md",
   "storage": "vault"
 }

@@ -1,5 +1,14 @@
 # Changelog
 
+## 未發佈（branch feat/connector-notion）
+
+### 新增
+- **Notion connector 接上了**（`connectors/notion`，`kind: python`、`capabilities: ["network"]`）：`/notion` 搜尋、`/notion_read`、
+  `/notion_dbs`、`/notion_rows`、`/notion_row`（資料庫加一列，`props=欄位:值; …`）、`/notion_new`、`/notion_append`、
+  `/notion_set`（DANGER：AI 要做先出核准卡）；`/notion_token`（私訊、不給 AI；token 進保管箱 `data/notion.json.enc`）、
+  `/notion_status`、`/notion_logout`。Notion REST `2025-09-03`，只用 requests；log 裡長得像 Notion token 的字遮成 `ntn_***`。
+  測試 `tests/test_notion.py` 用假的 HTTP 傳輸，五關各走一次。
+
 ## 未發佈（branch feat/pack-security）
 
 ### 新增
