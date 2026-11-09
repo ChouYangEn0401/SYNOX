@@ -242,6 +242,8 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
   與 venv 裡的設定檔都不讀（`--isolated` 只跳過使用者的那一份；審查 C #C7）。
 - **Node**：pack 裡要有 `package.json`＋`package-lock.json`；複製到 `data/envs/<pack>/` 後 `npm ci --ignore-scripts`
   （套件的安裝腳本一律不跑），裝進 `data/envs/<pack>/node_modules`；子程序拿到 `NODE_PATH` 指到那裡。系統沒有 node＝doctor 說缺、pack 不載入。
+  **只收官方 registry**：`package-lock.json` 每個 `resolved` 都要是 `https://registry.npmjs.org/…`，其他來源（`http://`、`file:`、
+  `git+…`、別的 registry）＝拒裝（審查 C #C8）；`npm ci` 固定 `--registry=https://registry.npmjs.org/`。
 - pack 資料夾本身不寫任何東西（`packs.lock` 的雜湊才對得上）。
 - **安裝流程**：第 2 關之後、按確認之前，報告多一段「🧱 要建環境：Python venv、裝 N 個套件：名稱 版本…」；按確認、pack 裝好之後才建
   （經 JobRunner，整個最多 10 分鐘，log 在 `data/job_logs/`）。建失敗＝pack 照樣裝好，狀態 `missing`、doctor 標「環境沒建好」並說原因

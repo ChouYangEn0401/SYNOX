@@ -253,7 +253,8 @@ def test_build_node_uses_npm_ci_ignore_scripts_outside_pack(tmp_path):
     assert result.ok, result.detail
     env = os.path.join(data, "envs", "tool")
     assert jobs.calls == [{"name": "env-tool", "argv": [r"C:\fake\npm.cmd", "ci", "--ignore-scripts", "--no-audit",
-                                                        "--no-fund"], "cwd": env, "timeout": jobs.calls[0]["timeout"]}]
+                                                        "--no-fund", "--registry=https://registry.npmjs.org/"],
+                           "cwd": env, "timeout": jobs.calls[0]["timeout"]}]
     assert os.path.isfile(os.path.join(env, "package-lock.json")) and os.path.isfile(os.path.join(env, "package.json"))
     assert not os.path.exists(os.path.join(folder, "node_modules"))    # 不裝進 pack 資料夾（雜湊才對得上）
     assert envs.env_problem(m, data, which=which_all) is None

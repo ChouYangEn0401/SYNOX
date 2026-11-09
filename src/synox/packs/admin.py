@@ -144,6 +144,7 @@ def run_gates(folder: str, exec_bits=()) -> Tuple[Manifest, ScanReport, Dict[str
     report = scan(m, exec_bits)
     hashes = pack_lock.hash_files(folder)
     problems = report.problems(m) + pack_lock.check_integrity(m, hashes)
+    problems += envs.npm_source_problems(m)        # 審查 C #C8：npm 套件只准從 registry.npmjs.org 來
     too_old = synox_problem(m)                     # requires.synox：版本不合就不裝
     if too_old:
         problems.append(too_old)

@@ -54,8 +54,13 @@ def assess(m, report=None, exec_bits=()) -> dict:
     else:
         tier = T1
     runs = [o["path"] for o in opaque] + [e["program"] for e in external]
+    try:                                             # 審查 C #C8：package-lock 的 resolved 不是官方 registry（拒裝；報告紅字）
+        npm_bad = [{"name": n, "source": s} for n, s in envs.npm_bad_sources(m.folder)] if envs.wants_node(m) else []
+    except Exception:
+        npm_bad = []
     return {"tier": tier, "text": TEXT[tier], "opaque": opaque, "external": external, "packages": packages,
-            "runs": runs, "publisher": getattr(m, "publisher", "") or "", "needs_publisher": tier == T2}
+            "runs": runs, "publisher": getattr(m, "publisher", "") or "", "needs_publisher": tier == T2,
+            "npm_bad_sources": npm_bad}
 
 
 def is_t2(m) -> bool:
@@ -100,6 +105,10 @@ def warning_lines(info: dict) -> List[str]:
         names = "、".join(f"{p['name']} {p['version']}" for p in pkgs[:30]) + ("…" if len(pkgs) > 30 else "")
         out.append(f"會安裝 {len(pkgs)} 個套件（來自 runtime auto）：{names}")
         out += hash_lines(pkgs)
+    bad = info.get("npm_bad_sources") or []
+    if bad:
+        listing = "、".join(f"{b['name']} → {b['source']}" for b in bad[:10]) + ("…" if len(bad) > 10 else "")
+        out.append(f"npm 套件不是從官方 registry（registry.npmjs.org）下載：{listing}——拒裝")
     publisher = info.get("publisher") or ""
     if publisher:
         out.append(f"要裝就明確輸入發行者「{publisher}」（終端機 --trust-publisher \"{publisher}\"；網頁勾選後輸入）——"
