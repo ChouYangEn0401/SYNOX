@@ -12,8 +12,9 @@ config.json 的 channels.discord → 一串 BotSpec（純函式，不連網；�
   vault:discord_bot_token，其他用 vault:discord_bot_token:<名字>（`python -m synox discord token --bot <名字>` 存的地方）。
 - surface：dm（私訊，預設）｜channel（伺服器頻道；這一版只解析、不連線，頻道收訊是 PERM-5）。
 - packs："all" 或 pack 名字清單；max_effect：read｜write｜danger（沒寫：dm 不設上限、channel 是 read；channel 設 danger 一律拒）。
-  這兩個這一版只存起來（PERM-4 才用來擋）。
-- ai：true／false 或 {"enabled": …, "pool_usd_month": …}。
+  synox/policy.py 的 decide 用它們擋（PERM-4）：清單外的 pack 對這個 bot 不存在，超過 max_effect 的指令被拒。
+- ai：true／false 或 {"enabled": …, "pool_usd_month": …}。關掉＝這個 bot 上沒有 AI（agent 群組不存在、打字不交給 AI）；
+  pool_usd_month 這一版只存起來（PERM-6）。
 - 兩個 bot 不能用同一個 token（同一個 bot 開兩條 Gateway 會互搶事件）。
 """
 

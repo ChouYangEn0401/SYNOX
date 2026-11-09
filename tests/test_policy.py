@@ -6,7 +6,7 @@ import os
 
 import pytest
 
-from isdtelekit.core.registry import AI, REFUSED, TYPED
+from isdtelekit.core.registry import AI, TYPED, CommandRegistry
 from isdtelekit.host.config import ConfigError
 from isdtelekit.users.roles import BasicRoles
 
@@ -131,8 +131,8 @@ def test_member_cannot_see_subprocess_pack_owner_can(make_bot, tmp_path):
     bot = _server(make_bot, tmp_path)
     assert _visible(bot, OTHER_ID) == {"plain", "net", "pub", "pubnet"}
     assert _visible(bot, OWNER_ID) == {"plain", "net", "sub", "anyfs", "pub", "pubnet"}
-    bot.say(OTHER_ID, "/sub")                               # 群組門檻拉到 admin：跟成員打管理員指令一樣
-    assert bot.last(OTHER_ID) == REFUSED
+    bot.say(OTHER_ID, "/sub")                               # PERM-4：能力上限造成的隱藏也回未知指令（不洩漏存在）
+    assert bot.last(OTHER_ID).startswith("未知指令")
     bot.say(OTHER_ID, "/anyfs")                             # 哪一級都裝不下＝owner_only：當作沒有這個指令
     assert bot.last(OTHER_ID).startswith("未知指令")
     assert bot.app.extras.get("ran", []) == []
@@ -201,20 +201,29 @@ def test_decide_checks_ceiling_even_if_group_policy_is_loose(make_bot, tmp_path)
     pack.manifest.capabilities = ["exec"]
     node = bot.app.registry.node("net.run")
     member = bot.app.users.get(OTHER_ID)
-    assert bot.app.registry.authorize(member, node, TYPED, OTHER_ID).allowed      # SDK 單獨看會放行
+    sdk = CommandRegistry.authorize                                               # SDK 單獨看會放行
+    assert sdk(bot.app.registry, member, node, TYPED, OTHER_ID).allowed
     d = policy.decide(bot.app, member, node, via=TYPED, chat_id=OTHER_ID)
     assert not d.allowed and d.reason == "capability"
+    assert bot.app.registry.authorize(member, node, TYPED, OTHER_ID).reason == "owner_only"   # SDK 看到的＝不存在
     assert ai_decision(bot.app, member, node) is None
     assert policy.decide(bot.app, bot.app.users.get(OWNER_ID), node, via=AI, chat_id=OWNER_ID).allowed
 
 
-def test_bot_scope_is_fail_closed_until_perm4(make_bot, tmp_path):
+def test_bot_scope_is_applied_by_decide(make_bot, tmp_path):
+    from synox.discord.bots import BotSpec
     bot = _server(make_bot, tmp_path)
     owner = bot.app.users.get(OWNER_ID)
     node = bot.app.registry.node("plain.run")
     assert policy.decide(bot.app, owner, node, via=TYPED, chat_id=OWNER_ID).allowed
-    d = policy.decide(bot.app, owner, node, via=TYPED, chat_id=OWNER_ID, bot=object())
-    assert not d.allowed and d.reason == "bot"
+    only_net = BotSpec(name="n", token="vault:x", packs=("net",))
+    d = policy.decide(bot.app, owner, node, via=TYPED, chat_id=OWNER_ID, bot=only_net)
+    assert not d.allowed and d.reason == "bot_pack"                               # 擁有者也一樣：bot 範圍不看人
+    assert policy.decide(bot.app, owner, bot.app.registry.node("net.run"), via=TYPED, chat_id=OWNER_ID,
+                         bot=only_net).allowed
+    with policy.using_bot(only_net):                                              # 沒直接傳：用收訊的那個 bot
+        assert policy.decide(bot.app, owner, node, via=TYPED, chat_id=OWNER_ID).reason == "bot_pack"
+    assert policy.current_bot() is None
 
 
 def test_group_policy_for_only_tightens():
