@@ -56,7 +56,7 @@ from synox.packs import envs, kit, render
 from synox.packs import confirm as tool_confirm
 from synox.packs import secrets as pack_secrets
 from synox.packs import lock as pack_lock
-from synox.packs.manifest import (Manifest, ManifestError, missing_requirements, read, secret_env_names,
+from synox.packs.manifest import (Manifest, ManifestError, missing_requirements, read, safe_env, secret_env_names,
                                   synox_problem)
 from synox.vault.vault import USERS_DIR
 
@@ -482,7 +482,8 @@ def cli_prefix(m: Manifest, values: Dict[str, str]) -> List[str]:
 def cli_env(m: Manifest, values: Dict[str, str]) -> Dict[str, str]:
     """cli.env（代換過）；runtime.node=auto 再加 NODE_PATH＝data/envs/<pack>/node_modules（pack 自己寫的優先）。"""
     out = envs.node_env(m, values.get("data_dir") or None)
-    out.update({k: substitute(v, values) for k, v in (m.cli.get("env") or {}).items()})
+    # 審查 C #C2：PYTHONPATH（pack 外）、NODE_OPTIONS、PATH… 第 1 關就拒；這裡再濾一次（防禦深度）
+    out.update({k: substitute(v, values) for k, v in safe_env(m.cli.get("env") or {}).items()})
     return out
 
 
@@ -494,11 +495,23 @@ def context_env(m: Manifest, config, values: Dict[str, str], secret_fields=()) -
            "SYNOX_MODE": str(getattr(config, "mode", "personal") or "personal"),
            "SYNOX_PACK_DIR": m.folder, "SYNOX_PACK_NAME": m.name,
            # P7：packs.lock 鎖每一個檔（含 __pycache__）；子程序的 python 不准在 pack 資料夾裡寫 .pyc
-           "PYTHONDONTWRITEBYTECODE": "1"}
+           "PYTHONDONTWRITEBYTECODE": "1",
+           # 審查 C #C2：子程序的 python 不讀使用者層的 site-packages（%APPDATA%\Python、~/.local 裡的 .pth 會在
+           # 啟動時執行，不在鎖裡）；SYNOX／runtime auto 的 venv 本來就不讀，這裡讓系統 Python 也一樣
+           "PYTHONNOUSERSITE": "1"}
     pairs = [f"{f['name']}={f['env']}" for f in secret_fields or () if f.get("env")]
     if pairs:
         out["SYNOX_SECRET_ENV"] = ",".join(pairs)
     return out
+
+
+def refuse_blocked_argv(m: Manifest) -> None:
+    """載入時再看一次 argv（審查 C）：第 2 關一定擋的寫法（{python} 跑 pack 裡不是 .py 的檔…，scan.argv_blocked）
+    → 丟 ManifestError、不載入。已經裝好、鎖住的舊 pack 不會重跑第 2 關，這裡補上。只查路徑，不執行。"""
+    from synox.packs import scan as pack_scan
+    blocked = pack_scan.argv_blocked(m)
+    if blocked:
+        raise ManifestError("；".join(f"{at}：{detail}" for _p, detail, at in blocked[:3]))
 
 
 def _install_cli(app, pack: Pack) -> None:
@@ -516,6 +529,7 @@ def _install_cli(app, pack: Pack) -> None:
     from synox.agent import validate as gate4
 
     m = pack.manifest
+    refuse_blocked_argv(m)
     config = pack.config if pack.config is not None else app.config
     bridge = service.ServiceBridge()
     pack.cli_bridge = bridge
@@ -746,6 +760,8 @@ def _install_mcp(app, pack: Pack) -> None:
     m = pack.manifest
     if m.mcp_connected:
         from synox.packs import mcp
+        if m.mcp_stdio:
+            refuse_blocked_argv(m)
         mcp.install(app, pack)
         return
     allow = "、".join(m.mcp.get("tools_allow") or [])

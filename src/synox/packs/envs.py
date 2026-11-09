@@ -164,7 +164,14 @@ def python_of(m, data_dir: Optional[str] = None) -> str:
 PY_SYNOX, PY_AUTO, PY_PACK, PY_OUTSIDE = "synox", "auto", "pack", "outside"
 
 
+def _network_path(path: str) -> bool:
+    """UNC／裝置路徑（審查 C #C4）：不 realpath 它（Windows 會對那台主機連 SMB）。第 1 關已經擋了，這裡是防禦深度。"""
+    return str(path).replace("\\", "/").startswith(("//", "/??/"))
+
+
 def _same_file(a: str, b: str) -> bool:
+    if _network_path(a) or _network_path(b):
+        return False
     try:
         return os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b))
     except (OSError, ValueError):
@@ -172,6 +179,8 @@ def _same_file(a: str, b: str) -> bool:
 
 
 def _inside_folder(path: str, folder: str) -> bool:
+    if _network_path(path):
+        return False
     try:
         base = os.path.normcase(os.path.realpath(folder))
         target = os.path.normcase(os.path.realpath(path))
