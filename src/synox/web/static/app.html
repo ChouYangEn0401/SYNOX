@@ -251,7 +251,7 @@
       var type = r.headers.get("Content-Type") || "";
       if (type.indexOf("application/json") === 0) {
         return r.json().then(function (d) {
-          if (!r.ok) { throw new Error(d.error || ("HTTP " + r.status)); }
+          if (!r.ok) { var err = new Error(d.error || ("HTTP " + r.status)); err.data = d; throw err; }
           return d;
         });
       }
@@ -270,7 +270,7 @@
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     if (view === "chat") { loadChats(); pollTimer = setInterval(poll, 2000); }
     if (view === "tools") { loadTools(); }
-    if (view === "settings") { loadSettings(); }
+    if (view === "settings") { loadSettings(); openStaged(); }
   }
   function route() {
     if (!me) { show("login"); return; }
@@ -525,13 +525,15 @@
       .catch(function (e) { $("llm-msg").textContent = "❌ " + e.message; });
   });
 
-  var STATUS = { loaded: "可以用", connector: "還沒接上", disabled: "關掉了", invalid: "格式不對", missing: "缺東西", error: "壞了" };
+  var STATUS = { loaded: "可以用", connector: "還沒接上", disabled: "關掉了", invalid: "格式不對", missing: "缺東西", error: "壞了",
+    tampered: "被改過了，沒有載入" };
+  var LOCK = { locked: "🔒", unlocked: "", tampered: "⚠️" };
   function fillPacks(packs) {
     var body = $("pack-rows");
     clear(body);
     packs.forEach(function (p) {
       var tr = el("tr");
-      tr.appendChild(el("td", "", p.name));
+      tr.appendChild(el("td", "", (LOCK[p.lock] ? LOCK[p.lock] + " " : "") + p.name));
       tr.appendChild(el("td", "", (STATUS[p.status] || p.status) + (p.detail ? "：" + p.detail : "")));
       tr.appendChild(el("td", "", p.version || ""));
       var td = el("td");
@@ -550,20 +552,43 @@
       body.appendChild(tr);
     });
   }
-  $("pack-upload").addEventListener("click", function () {
-    var f = $("pack-file").files[0];
-    if (!f) { toast("先選一個 .synoxpack 檔"); return; }
-    f.arrayBuffer().then(function (buf) { return api("POST", "/api/packs/upload", null, buf); }).then(function (s) {
-      var box = $("pack-review");
-      clear(box);
-      box.classList.remove("hidden");
-      box.appendChild(el("h3", "", s.title + "（" + s.name + " " + s.version + "）"));
-      box.appendChild(el("p", "", s.summary));
-      box.appendChild(el("p", "muted", "種類 " + s.kind + "，誰能用 " + s.access + "，資料 " + s.storage +
-        (s.panel ? "，有網頁面板" : "") + "；" + s.files.length + " 個檔案"));
-      var ul = el("ul");
-      s.warnings.forEach(function (w) { ul.appendChild(el("li", "", w)); });
-      box.appendChild(ul);
+  var CAP = { network: "連網", subprocess: "開別的程式", "filesystem:own": "讀寫檔案",
+    "filesystem:any": "讀寫 pack 以外的檔案", exec: "動態執行程式碼" };
+  function capList(list) {
+    return (list && list.length) ? list.map(function (c) { return CAP[c] || c; }).join("、") : "（沒有）";
+  }
+  // 安全管線第 1、2 關的結果（掃描報告）；canInstall＝過了，可以按確認（第 3 關在伺服器寫 packs.lock）
+  function showReview(s, canInstall) {
+    var box = $("pack-review");
+    clear(box);
+    box.classList.remove("hidden");
+    box.appendChild(el("h3", "", s.title + "（" + s.name + " " + s.version + "）"));
+    box.appendChild(el("p", "", s.summary));
+    box.appendChild(el("p", "muted", "種類 " + s.kind + "，誰能用 " + s.access + "，資料 " + s.storage +
+      (s.panel ? "，有網頁面板" : "") + "；" + (s.files || []).length + " 個檔案" +
+      (s.publisher ? "；發行者 " + s.publisher : "") + (s.integrity ? "；有打包時的雜湊" : "")));
+    var scan = s.scan || {};
+    box.appendChild(el("p", "", "宣告要：" + capList(scan.declared_capabilities) + "　掃描看到要：" +
+      capList(scan.required_capabilities)));
+    if ((scan.problems || []).length) {
+      box.appendChild(el("p", "", "❌ 拒裝：安全檢查沒過"));
+      var bad = el("ul");
+      scan.problems.forEach(function (p) { bad.appendChild(el("li", "", p)); });
+      box.appendChild(bad);
+    } else {
+      box.appendChild(el("p", "", "✅ 宣告檢查、靜態掃描都過了"));
+    }
+    var notes = (scan.findings || []).filter(function (f) { return !f.capability || f.kind === "env"; });
+    if (notes.length) {
+      var nl = el("ul");
+      notes.forEach(function (f) { nl.appendChild(el("li", "muted", f.file + (f.line ? ":" + f.line : "") + " " + f.label + "：" + f.snippet)); });
+      box.appendChild(nl);
+    }
+    var ul = el("ul");
+    (s.warnings || []).forEach(function (w) { ul.appendChild(el("li", "", w)); });
+    box.appendChild(ul);
+    var row = el("div", "row");
+    if (canInstall && s.token) {
       var ok = el("button", "primary", "確認安裝");
       ok.type = "button";
       ok.addEventListener("click", function () {
@@ -573,13 +598,32 @@
           loadSettings();
         }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });
       });
-      var no = el("button", "", "不要裝");
-      no.type = "button";
-      no.addEventListener("click", function () { box.classList.add("hidden"); });
-      var row = el("div", "row"); row.appendChild(ok); row.appendChild(no);
-      box.appendChild(row);
-    }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });
+      row.appendChild(ok);
+    }
+    var no = el("button", "", canInstall ? "不要裝" : "關掉");
+    no.type = "button";
+    no.addEventListener("click", function () { box.classList.add("hidden"); });
+    row.appendChild(no);
+    box.appendChild(row);
+  }
+  function reviewFailed(e) {
+    if (e.data && e.data.refused && e.data.refused.name) { showReview(e.data.refused, false); }
+    $("pack-msg").textContent = "❌ " + e.message;
+  }
+  $("pack-upload").addEventListener("click", function () {
+    var f = $("pack-file").files[0];
+    if (!f) { toast("先選一個 .synoxpack 檔"); return; }
+    f.arrayBuffer().then(function (buf) { return api("POST", "/api/packs/upload", null, buf); })
+      .then(function (s) { showReview(s, true); }).catch(reviewFailed);
   });
+  // python -m synox install <檔>（或點兩下 .synoxpack）暫存好之後開的網址：/?pack=<token>#settings
+  var stagedToken = (/[?&]pack=([A-Za-z0-9_-]{8,64})/.exec(location.search) || [])[1];
+  function openStaged() {
+    if (!stagedToken || !me || !me.owner) { return; }
+    var t = stagedToken;
+    stagedToken = "";
+    api("GET", "/api/pack-staged/" + t).then(function (s) { showReview(s, true); }).catch(reviewFailed);
+  }
   $("pack-reload").addEventListener("click", function () {
     api("POST", "/api/packs/reload", {}).then(function (d) {
       $("pack-msg").textContent = d.ok ? "重新載入好了。" : "重新載入了，但有 pack 有問題（看上面的狀態）。";
