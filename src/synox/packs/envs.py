@@ -101,12 +101,22 @@ def pin_hashes(m) -> Dict[str, List[str]]:
     return out
 
 
+# 審查 C #C7：pip 的 --isolated 只跳過「使用者」設定檔與 PIP_* 環境變數，全機（C:\ProgramData\pip\pip.ini、
+# /etc/pip.conf）與 venv 裡的 pip.ini 照讀（extra-index-url、find-links、trusted-host 會加上去）。
+# PIP_CONFIG_FILE＝os.devnull（Windows 是 "nul"）是 pip 自己定義的開關：看到它就**一個設定檔都不讀**
+# （pip/_internal/configuration.py 的 _load_config_files）。不用「SYNOX 建的空檔」：空檔只換掉 ENV 那一層，
+# 全機與 venv 的設定檔仍然會讀。
+PIP_NO_CONFIG = os.devnull
+
+
 def build_env(environ: Optional[Dict[str, str]] = None) -> Dict[str, str]:
-    """建環境的子程序用的乾淨環境：只留 BUILD_ENV_KEEP（PIP_*、npm_config_*、PYTHONPATH… 一律不繼承）。"""
+    """建環境的子程序用的乾淨環境：只留 BUILD_ENV_KEEP（PIP_*、npm_config_*、PYTHONPATH… 一律不繼承），
+    再加 PIP_CONFIG_FILE＝os.devnull（pip 不讀任何設定檔，#C7）。"""
     source = os.environ if environ is None else environ
     keep = {k.upper() for k in BUILD_ENV_KEEP}
     out = {k: v for k, v in source.items() if k.upper() in keep or k in BUILD_ENV_KEEP}
     out["PYTHONIOENCODING"] = "utf-8"
+    out["PIP_CONFIG_FILE"] = PIP_NO_CONFIG
     return out
 
 

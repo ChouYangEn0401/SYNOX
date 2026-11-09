@@ -89,7 +89,10 @@ def test_build_subprocess_env_is_clean(tmp_path, monkeypatch):
     for call in jobs.calls:
         env = call["env"]
         assert env is not None and env.get("PYTHONIOENCODING") == "utf-8"
-        assert not [k for k in env if k.upper().startswith(("PIP_", "NPM_CONFIG", "PYTHONPATH"))], env
+        # PIP_CONFIG_FILE 只能是 SYNOX 自己放的 os.devnull（審查 C #C7：pip 一個設定檔都不讀）
+        assert env.get("PIP_CONFIG_FILE") == os.devnull
+        assert not [k for k in env if k.upper().startswith(("PIP_", "NPM_CONFIG", "PYTHONPATH"))
+                    and k != "PIP_CONFIG_FILE"], env
         if "PATH" in os.environ:
             assert env.get("PATH") == os.environ["PATH"]
 

@@ -228,7 +228,11 @@ T2 多做的事（`src/synox/packs/tier.py`）：
   pack 資料夾**外**的程式不進雜湊：鎖裡記解析後的路徑（`t2.external`），報告標「未鎖定執行環境」——那支程式被換掉 SYNOX 不會發現。
 - **安裝**：報告多一段紅字「這個 pack 會執行：…（掃不到內容）」「會安裝 N 個套件（來自 runtime auto）：名稱 版本…」，
   pip 套件逐一標「有雜湊／沒有雜湊」，有沒寫的再加一行「版本釘選不等於來源可信」（`requires.pip` 可以寫 `--hash=sha256:…`，
-  有寫就 `--require-hashes`；pip 一律 `--isolated`、來源固定 PyPI、建環境的子程序用乾淨的環境變數，pack 不能指定 index）；
+  有寫就 `--require-hashes`；pip 一律 `--isolated`、來源固定 PyPI、建環境的子程序用乾淨的環境變數，pack 不能指定 index；
+  另外子程序帶 `PIP_CONFIG_FILE=os.devnull`（Windows 是 `nul`）——`--isolated` 只跳過**使用者**的 pip 設定檔，全機的
+  `C:\ProgramData\pip\pip.ini`／`/etc/pip.conf` 和 venv 裡的 `pip.ini` 照讀（`extra-index-url`、`find-links` 會加上去）；
+  `PIP_CONFIG_FILE` 設成 devnull 是 pip 自己定義的「一個設定檔都不讀」開關（審查 C #C7）。不用「SYNOX 建一個空檔」：空檔只換掉
+  環境變數那一層，全機與 venv 的設定檔還是會讀）；
   安裝者要**明確輸入 pack.json 的 `publisher`**（網頁：勾選＋輸入，一字不差才能按確認；終端機：`--trust-publisher "<名字>"`），
   不是單純按 yes。沒寫 publisher 的 T2 pack 不能裝。輸入的名字與時間寫進 packs.lock 的 `trusted_publisher`、`trusted_at`。
 - **升級**：publisher 變了、新增 `exec`、可執行的東西變多（新的執行檔／外部程式）、或 T1 變 T2 → 紅字，要重新輸入發行者；
