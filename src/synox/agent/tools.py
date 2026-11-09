@@ -6,6 +6,7 @@
 - 參數＝node.fields → JSON schema（全部 string；required 照 Field.required）。**驗證碼欄位（fresh_code）不給**——
   驗證碼永遠不經 AI（spec §7.1）。沒有 fields 但有 usage 的節點給一個 `args` 字串參數。
 - 哪些節點給 AI：由呼叫端傳入的 decide(node)（loop.ai_decision）決定，這裡不自己判斷——AI 能不能用一個節點只有一個判斷。
+- schema 寫 additionalProperties: false 與 maxLength；真正擋的是第 4 關 agent/validate.py（模型不一定照 schema）。
 - 工具參數 → 指令參數（argv）：每個欄位變成一個 `key=value` 片段（kit.parse_args 與 SDK 的 parse_fields 都認得）。
 """
 
@@ -15,6 +16,7 @@ from typing import Callable, Dict, List, Optional
 
 from isdtelekit.core.registry import DANGER, CommandRegistry, Node
 
+from synox.agent.validate import MAX_LEN
 from synox.llm.base import ToolSpec
 
 SEP = "__"
@@ -38,12 +40,12 @@ def schema(node: Node) -> dict:
                 continue
             desc = f.ask + (f"（可選：{'/'.join(f.choices)}）" if f.choices else "") + \
                 (f"（預設 {f.default}）" if f.default else "")
-            props[f.name] = {"type": "string", "description": desc}
+            props[f.name] = {"type": "string", "description": desc, "maxLength": MAX_LEN}
             if f.required:
                 required.append(f.name)
     elif node.usage:
-        props["args"] = {"type": "string", "description": f"參數，格式：{node.usage}"}
-    out = {"type": "object", "properties": props}
+        props["args"] = {"type": "string", "description": f"參數，格式：{node.usage}", "maxLength": MAX_LEN}
+    out = {"type": "object", "properties": props, "additionalProperties": False}
     if required:
         out["required"] = required
     return out
