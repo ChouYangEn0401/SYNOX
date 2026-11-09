@@ -23,7 +23,11 @@ SharedScope（全部人共用一個程序）只有介面、還沒做：伺服器
 **工具 → 指令**：tools_allow 的每一個工具在載入時就掛成群組底下的葉節點（沒列的工具不存在，伺服器列了也一樣）；
 指令名＝工具名轉成合法指令（小寫英數字、_）。說明、欄位來自 tools/list（第一次啟動時讀，存 data/mcp/<pack>.tools.json，
 之後載入先用存的）：inputSchema 的 string→text、integer→int、number→number、boolean→bool、enum→choice；
-巢狀 object／array 暫不給（doctor 列出來；是必填的話這個工具不給 AI、人打也不能跑）。
+巢狀 object／array 平面模式不給（doctor 列出來；是必填的話這個工具不給 AI、人打也不能跑）。
+**schema 模式**（pack.json 的 mcp.schema_tools 列的工具；packs/mcp_schema.py）：inputSchema 正規化過、支援的話，
+AI 拿到保留型別的 tool 定義，第 4 關照 schema 驗（validate.check_schema_call），結構化參數原樣當 tools/call 的 arguments
+（app.extras["synox_schema_runners"][節點路徑] 是入口，不是指令）；不支援（$ref、oneOf…）＝這個工具不給 AI，doctor 說原因。
+人打字照舊只有平面欄位（必填的是巢狀＝人打字不能用）。
 **effect 一律來自 pack.json 的 mcp.effects**（工具自述的 annotations 不算），沒寫的當 DANGER。
 呼叫仍走 policy.decide、第 4 關（validate.check_call）、DANGER 核准卡、結果包 nonce 分隔符（agent/loop.py）。
 工具回 structuredContent.needs_confirm → 核准卡（packs/confirm.py 的一次性憑證）→ 按 ✅ 用同一組參數、
@@ -37,6 +41,7 @@ StdioBackend（這支檔案，子程序）、HttpBackend（packs/mcp_http.py，�
 
 from __future__ import annotations
 
+import copy
 import hashlib
 import itertools
 import json
@@ -580,6 +585,15 @@ class ToolShape:
     callable: bool = True       # 有不支援的必填欄位＝False
     known: bool = False         # 讀過 tools/list 了
     missing: bool = False       # 讀過了，伺服器卻沒有這個工具
+    schema_mode: bool = False   # pack.json 的 mcp.schema_tools 有它
+    schema: Optional[dict] = None   # schema 模式而且 inputSchema 支援：正規化過的（packs/mcp_schema.py）
+    schema_problem: str = ""        # schema 模式但不支援的原因（這個工具不給 AI）
+    info: List[str] = field(default_factory=list)   # doctor 的 ℹ️
+
+    @property
+    def nested(self) -> bool:
+        """這個工具走 schema 模式（AI 的參數照 schema、結構化交給伺服器）。"""
+        return self.schema is not None
 
 
 def clean_text(text: Any, limit: int) -> str:
@@ -600,8 +614,28 @@ def _json_type(p: dict) -> str:
 _KINDS = {"string": "text", "integer": "int", "number": "number", "boolean": "bool"}
 
 
-def shape_of(tool: str, command: str, spec: Optional[dict]) -> ToolShape:
-    """tools/list 的一項（或 None＝還不知道）→ ToolShape。"""
+def shape_of(tool: str, command: str, spec: Optional[dict], schema_mode: bool = False) -> ToolShape:
+    """tools/list 的一項（或 None＝還不知道）→ ToolShape。schema_mode（mcp.schema_tools 有它）：另外正規化 inputSchema，
+    支援就走 schema 模式（只給 AI），不支援的話這個工具不給 AI、原因進 doctor。平面欄位（人打字用）照舊算。"""
+    shape = _flat_shape(tool, command, spec)
+    shape.schema_mode = schema_mode
+    if not schema_mode or not shape.known:
+        return shape
+    from synox.packs import mcp_schema
+    raw = spec.get("inputSchema") if isinstance(spec, dict) else None
+    nested, problem = mcp_schema.normalize(raw if raw is not None else {"type": "object", "properties": {}})
+    if nested is None:
+        shape.schema_problem = problem or "不支援"
+        shape.notes.append(f"{tool}：schema 模式不支援這個 inputSchema（{shape.schema_problem}），不給 AI")
+        return shape
+    shape.schema = nested
+    shape.notes = [n for n in shape.notes if "不支援" not in n and "超過" not in n]
+    shape.info.append(f"{tool}：schema 模式（巢狀參數照 inputSchema 只給 AI）"
+                      + ("；有必填的巢狀參數，人打字不能用" if not shape.callable else "；人打字只能用平面欄位"))
+    return shape
+
+
+def _flat_shape(tool: str, command: str, spec: Optional[dict]) -> ToolShape:
     shape = ToolShape(tool, command)
     if spec is None:
         shape.summary = f"MCP 工具 {tool}（第一次用時會啟動工具伺服器、讀參數說明）"
@@ -632,7 +666,7 @@ def shape_of(tool: str, command: str, spec: Optional[dict]) -> ToolShape:
             choices = tuple(str(v) for v in values)
         if not kind:
             what = _json_type(p) or "沒寫型別"
-            shape.notes.append(f"{tool}.{prop}：{what} 欄位這一版不支援（巢狀物件／陣列要等 schema 模式），不給 AI"
+            shape.notes.append(f"{tool}.{prop}：{what} 欄位平面模式不支援（巢狀物件／陣列要在 pack.json 的 mcp.schema_tools 列這個工具），不給 AI"
                                + ("；它是必填的，所以整個工具不能用" if is_required else ""))
             if is_required:
                 shape.callable = False
@@ -751,6 +785,7 @@ def doctor_notes(m, data_dir: str) -> List[str]:
         out.append("ℹ️ 還沒連過（第一次呼叫才啟動、讀工具清單）")
         return out
     names = unique_identifiers(allow)
+    nested = set((m.mcp or {}).get("schema_tools") or ())
     for tool in allow:
         if tool not in cached:
             try:
@@ -761,8 +796,8 @@ def doctor_notes(m, data_dir: str) -> List[str]:
             if tool not in listed:
                 out.append(f"⚠️ tools_allow 的 {tool}：伺服器上次的 tools/list 沒有這個工具")
             continue
-        for note in shape_of(tool, names[tool], cached[tool]).notes:
-            out.append(f"⚠️ {note}")
+        shape = shape_of(tool, names[tool], cached[tool], tool in nested)
+        out += [f"⚠️ {note}" for note in shape.notes] + [f"ℹ️ {note}" for note in shape.info]
     return out
 
 
@@ -895,8 +930,10 @@ def install(app, pack) -> None:
     else:
         backend = StdioBackend(app, pack, config, pool)
     meta = app.extras.setdefault("synox_tool_meta", {})
+    runners = app.extras.setdefault(gate4.SCHEMA_RUNNERS, {})
+    nested_tools = set(m.mcp.get("schema_tools") or ())
     cached = load_cache(config.data_dir, m) or {}
-    shapes: Dict[str, ToolShape] = {t: shape_of(t, commands[t], cached.get(t)) for t in allow}
+    shapes: Dict[str, ToolShape] = {t: shape_of(t, commands[t], cached.get(t), t in nested_tools) for t in allow}
     nodes: Dict[str, Any] = {}
     pack.mcp_shapes = shapes                     # 測試、doctor 看得到
 
@@ -921,12 +958,16 @@ def install(app, pack) -> None:
         node.ai = shape.callable and not shape.missing
         meta[node.path] = {"argv": False, "positional": [], "kinds": {f.name: f.kind for f in shape.fields},
                            "confirm": False}
+        if shape.schema_mode and shape.known:     # schema 模式：支援就照 schema 給 AI；不支援就不給 AI
+            node.ai = shape.nested and not shape.missing
+            if shape.nested:
+                meta[node.path]["schema"] = shape.schema
 
     def learned(listed: Dict[str, dict]) -> None:
         """一個新程序讀到 tools/list：更新每個葉節點的說明與欄位，存快取。"""
         for tool in allow:
             spec = listed.get(tool)
-            shape = shape_of(tool, commands[tool], spec)
+            shape = shape_of(tool, commands[tool], spec, tool in nested_tools)
             if spec is None:
                 shape.known, shape.missing = True, True
                 shape.summary = f"MCP 工具 {tool}（伺服器沒有提供這個工具）"
@@ -973,7 +1014,8 @@ def install(app, pack) -> None:
     def make(tool: str):
         cmd = commands[tool]
 
-        def ask_confirm(api, chat_id, user, raw_values, values, envelope, again: bool) -> None:
+        def ask_confirm(api, chat_id, user, raw_values, values, envelope, again: bool,
+                        structured: Optional[dict] = None) -> None:
             if again:                                  # 確認過的重叫又要確認：不再出卡
                 say(api, chat_id, tool_confirm.AGAIN.format(name=cmd))
                 return
@@ -984,14 +1026,19 @@ def install(app, pack) -> None:
                 return
             gid = grants_book.issue(m.name, cmd, values, getattr(user, "tg_id", None),
                                     tool_confirm.tool_token(envelope), app.timing.confirm_ttl)
-            shown = [f"{k}={str(v)[:60]}" for k, v in raw_values.items() if str(v).strip()]
+            if structured is not None:
+                from synox.packs import mcp_schema
+                shown, lines = [], mcp_schema.describe(shapes[tool].schema, structured)
+            else:
+                shown = [f"{k}={str(v)[:60]}" for k, v in raw_values.items() if str(v).strip()]
+                lines = None
 
             def rerun(api2, chat2, clicker, grant):
-                dispatch(api2, chat2, lambda: call(api2, chat2, clicker, raw_values, grant), cmd)
+                dispatch(api2, chat2, lambda: call(api2, chat2, clicker, raw_values, grant, structured), cmd)
 
             try:
                 desk.request(api, chat_id, user, node, shown, tool_confirm.summary_of(envelope), grant=gid,
-                             rerun=rerun, header="⚠️ 要你確認才會做")
+                             rerun=rerun, header="⚠️ 要你確認才會做", lines=lines)
             except Exception:
                 grants_book.discard(gid)
                 raise
@@ -999,8 +1046,10 @@ def install(app, pack) -> None:
             if callable(mark):
                 mark(api)
 
-        def call(api, chat_id, user, raw_values: Dict[str, str], grant: str = "") -> None:
-            """grant：只有核准卡按 ✅ 的重叫會給（指令、AI 都造不出來）。"""
+        def call(api, chat_id, user, raw_values: Dict[str, str], grant: str = "",
+                 structured: Optional[dict] = None) -> None:
+            """grant：只有核准卡按 ✅ 的重叫會給（指令、AI 都造不出來）。
+            structured：schema 模式（只有 AI 那條路、核准卡的重跑會給）——巢狀參數原樣當 arguments，不經平面欄位。"""
             blocked = not_connected(user)
             if blocked:
                 if grant:
@@ -1011,12 +1060,25 @@ def install(app, pack) -> None:
             if shape.missing:
                 say(api, chat_id, f"❌ {cmd}：MCP 伺服器沒有提供 {tool} 這個工具（pack.json 有允許，但伺服器的清單裡沒有）。")
                 return
-            if not shape.callable:
-                say(api, chat_id, f"❌ {cmd}：這個工具有這一版還不支援的必填參數（巢狀物件／陣列），不能用。")
+            if structured is not None:
+                if not shape.nested:                  # 工具清單換過了，這個工具不再是 schema 模式
+                    say(api, chat_id, f"❌ {cmd}：這個工具的參數格式變了，請重新跟 AI 說一次。")
+                    return
+                from synox.packs import mcp_schema
+                clean, problem = mcp_schema.check(shape.schema, structured, hidden(user))   # 再驗一次（卡片到按下之間 schema 可能換了）
+                if problem:
+                    say(api, chat_id, f"❌ {cmd}：參數不對（{problem}）")
+                    return
+                structured = clean
+                values: Dict[str, Any] = mcp_schema.digest_values(structured)
+            elif not shape.callable:
+                say(api, chat_id, f"❌ {cmd}：這個工具的參數是巢狀結構（物件／陣列），只能經 AI 呼叫，聊天裡打不出來。"
+                    if shape.nested else f"❌ {cmd}：這個工具有平面模式不支援的必填參數（巢狀物件／陣列），不能用。")
                 return
-            kinds = {f.name: (f.kind, f.choices) for f in shape.fields}
-            values = {k: gate4.normalize(kinds.get(k, ("text", ()))[0], v, kinds.get(k, ("text", ()))[1])
-                      for k, v in raw_values.items()}
+            else:
+                kinds = {f.name: (f.kind, f.choices) for f in shape.fields}
+                values = {k: gate4.normalize(kinds.get(k, ("text", ()))[0], v, kinds.get(k, ("text", ()))[1])
+                          for k, v in raw_values.items()}
             token: Optional[str] = None
             if grant:
                 token = grants_book.redeem(grant, m.name, cmd, values, getattr(user, "tg_id", None))
@@ -1024,7 +1086,7 @@ def install(app, pack) -> None:
                     say(api, chat_id, tool_confirm.EXPIRED)
                     return
             try:
-                arguments = to_arguments(shape, values)
+                arguments = copy.deepcopy(structured) if structured is not None else to_arguments(shape, values)
             except ValueError as e:
                 say(api, chat_id, f"❌ {cmd}：參數不對（{e}）")
                 return
@@ -1048,7 +1110,8 @@ def install(app, pack) -> None:
                     return
             envelope = needs_confirm_of(result)
             if envelope is not None:
-                ask_confirm(api, chat_id, user, raw_values, values, envelope, again=token is not None)
+                ask_confirm(api, chat_id, user, raw_values, values, envelope, again=token is not None,
+                            structured=structured)
                 return
             ok, text = render_result(result)
             text = redact(text, hidden(user))
@@ -1081,12 +1144,19 @@ def install(app, pack) -> None:
         def leaf(api, chat_id, user, args):
             dispatch(api, chat_id, lambda: typed(api, chat_id, user, list(args)), cmd)
 
-        return leaf
+        def nested(api, chat_id, user, arguments: dict):
+            """schema 模式的入口（agent/loop.py 驗過第 4 關之後叫；核准卡按 ✅ 也是）。不是指令，人打字到不了。"""
+            dispatch(api, chat_id, lambda: call(api, chat_id, user, {}, structured=arguments), cmd)
+
+        return leaf, nested
 
     for tool in allow:
-        node = pack.group.leaf(commands[tool], make(tool), shapes[tool].summary,
+        leaf, nested = make(tool)
+        node = pack.group.leaf(commands[tool], leaf, shapes[tool].summary,
                                effect=effects.get(effect_name(m, tool), DANGER))
         nodes[tool] = node
+        if tool in nested_tools:
+            runners[node.path] = nested
         apply(tool)
     backend.commands(pack.group, list(commands.values()))
 

@@ -142,6 +142,15 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     上傳的 zip 不解出 `__pycache__`、`synox-sdk zip` 不打包它、`check_integrity` 不比它；SYNOX 的子程序一律 `PYTHONDONTWRITEBYTECODE=1`
     （`loader.context_env`）。**測試的 T2 pack 一律用位元組造假檔頭（`tests/test_t2_trust.py` 的 `FAKE_EXE`），絕不執行任何執行檔**；
     開發機不跑第三方 exe／npm 套件是擁有者的政策（docs/security.md「信任層級」）。
+17. **巢狀參數的 schema 模式只給 MCP 工具、只給 AI**（Q6 方案 B）：pack.json `mcp.schema_tools` 列的工具，`mcp.shape_of(..., schema_mode=True)`
+    用 `packs/mcp_schema.normalize` 正規化 inputSchema（白名單子集；`$ref`／`oneOf`／開放的 additionalProperties／路徑 format…＝不支援、
+    `node.ai=False`、原因進 `shape.schema_problem` 與 doctor）。支援的話 `synox_tool_meta[path]["schema"]`＝正規化的 schema，
+    `app.extras["synox_schema_runners"][path]`＝`install()` 的結構化入口；**兩個都要有才算 schema 模式**（`validate.schema_of`），
+    所以 python／cli pack 寫 meta 也開不了。AI 那條：`loop.call_schema_tool` → `validate.check_schema_call`（`mcp_schema.check`：
+    照 schema＋硬限制 3 層／20 鍵／2000 字／50 項／16 KB／未列的鍵／每個字串查 secret）→ DANGER／confirm 出卡（`desk.request(lines=, run=)`，
+    卡上是 `mcp_schema.describe`）→ runner（同 `call()`，`structured=` 原樣當 arguments，進去前再驗一次）。`tools.build(..., app)` 才會給
+    schema 模式的定義（`mcp_schema.tool_schema`）。**人打字的路徑不碰 schema**：leaf 照舊 `kit.parse_args(node.fields)`，必填是巢狀＝拒。
+    硬限制是常數（`mcp_schema.MAX_*`），不要讓 pack.json 或 schema 放寬。測試在 `tests/test_schema_mode.py`（假 stdio 伺服器）。
 
 另外：
 - pack 的群組由 loader 依 pack.json 定義（`loader.group_policy`）：`access: owner`（預設）＝整組 `owner_only`；`member`＝伺服器版 `role=MEMBER`、
@@ -228,7 +237,8 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 - `[ROUTE]` log 會印指令全文（SDK dispatcher），所以任何密碼都不能設計成「在聊天裡打」的指令（Notion／Todoist 的 token 指令靠 `redact_in_logs` 遮罩）。
 - Google 日曆：連接只有指令（`/gcal_setup`、貼網址列回來），網頁沒有「連接」按鈕；只用主要日曆；`/gcal_rm` 的編號是最近一次列表；沒有改行程。
 - 文字協定一次只解析一個工具呼叫。
-- kind=mcp：stdio（P4a）與遠端 http（P4b，token／OAuth 貼回網址）；OAuth loopback、動態註冊、GET 長連線串流沒做；巢狀 object／array 參數不給（doctor 列出）；還沒啟動過的 MCP 工具第一次只有 `args`
+- kind=mcp：stdio（P4a）與遠端 http（P4b，token／OAuth 貼回網址）；OAuth loopback、動態註冊、GET 長連線串流沒做；巢狀 object／array 參數只有列進 `mcp.schema_tools` 的工具給 AI（schema 模式，
+  `$ref`／`oneOf` 之類不支援、人打字打不出巢狀），其他的不給（doctor 列出）；還沒啟動過的 MCP 工具第一次只有 `args`
   一個參數（讀完 tools/list 才換成真的欄位，同一輪 AI 的 schema 是舊的、但第 4 關已經用新欄位）；`SharedScope` 沒做；
   沙盒後端包長駐程序（bwrap／systemd-run `--pipe`）沒在 Linux 真機驗過。
 - 伺服器版：個人版的舊資料不會自動搬到擁有者的 `data/users/<id>/`；精靈的伺服器版沒有多問「誰是管理員」（擁有者之後用 `/user_role <id> admin`

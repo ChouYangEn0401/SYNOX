@@ -150,6 +150,17 @@ python pack 沙盒管不到，伺服器版改用信任決定給不給成員（PE
 崩潰下次重啟、逾時／非 JSON 的輸出＝收掉並回一句人話；Windows 上每個子程序在自己的 Job Object（KILL_ON_JOB_CLOSE），SYNOX 結束就一起結束。
 「全部人共用一個程序」（`SharedScope`）只有介面：共用時別人的 secret、資料夾要每次帶，MCP 沒有標準欄位，等擁有者決定。
 
+**MCP 的巢狀參數（schema 模式，`mcp.schema_tools`）**：第 4 關多一條路，規則在 `packs/mcp_schema.py`。
+- 只有 MCP 工具能開（要 `packs/mcp.py` 的 install 掛的入口＋正規化過的 schema 兩個都在），**只給 AI**；人打字的路徑照舊只有平面欄位。
+- schema 是第三方給的，先在本地正規化，只收白名單子集；`$ref`、`oneOf`／`anyOf`／`allOf`、開放的 `additionalProperties`、路徑型 `format`、
+  可能災難性回溯的 `pattern`（巢狀量詞、超過 200 字）一律不支援＝工具不給 AI，doctor 寫原因。沒寫 `additionalProperties` 當成 `false`。
+- AI 的參數照 schema 驗型別（布林不算整數、3.0 算整數 3），外加**不能被 schema 放寬**的硬限制：3 層、每個物件 20 鍵、字串 2000 字、
+  陣列 50 項、整包 16 KB、schema 沒列的鍵拒、NUL 拒、整數 ±2^53。**每一個字串**（不管多深）都做 P2 的 secret 比對（一樣或 8 字以上夾帶）。
+- 參數不會變成命令列，所以「開頭 `-`」「另一個欄位名=」這兩條跟平面 MCP 工具一樣不適用；路徑型欄位直接不開（沒有 `inside()` 可套）。
+- effect 仍然只看 pack.json；`DANGER` 的核准卡把每個值列出來（截短但標原長度，超過 30 行才省略並寫省了幾行），按 ✅ 用同一組參數、
+  執行前再驗一次；needs_confirm 的一次性憑證綁「排序過的整包 JSON」。工具結果照樣包 nonce 分隔符。
+- 升級時 `schema_tools` 多了工具＝紅字（AI 能送的參數變多了）。
+
 **kind=mcp http（遠端 MCP，P4b）**：這台不跑對方的程式，所以是 **T0（只有宣告）**——能信的只有 pack.json，
 那台伺服器做什麼掃描看不到。
 - 第 1 關：`mcp.url` 一定 `https://`（明文 `http://` 拒）、不能帶帳密／`#`／樣板；`capabilities` 一定有 `network`、不能有
