@@ -7,15 +7,24 @@
 各種 kind 看什麼：
 
 - python：每一個 .py／.pyw（和沒有副檔名、ast.parse 得過的檔，審查 C #C1）用 ast 解析，列出
-    network    import／呼叫 requests、urllib、http.client、socket、ssl、ftplib、smtplib、websocket…  → 要宣告 network
-    subprocess subprocess、os.system、os.popen、os.exec*、os.spawn*、app.jobs（SDK 的 JobRunner）  → subprocess
+    network    import／呼叫 requests、urllib、http.client、socket、_socket、ssl、ftplib、smtplib、websocket、
+               pip._vendor.requests…；也看呼叫（審查 C #C5）：asyncio.open_connection／start_server、
+               loop.create_connection(…)、socket.socket(…)、urllib.request.urlopen(…)…  → 要宣告 network
+    subprocess subprocess、os.system、os.popen、os.exec*、os.spawn*、app.jobs（SDK 的 JobRunner）、
+               nt／posix（os 的平台模組）、_winapi、_posixsubprocess、webbrowser、ProcessPoolExecutor  → subprocess
     filesystem open(…)／pathlib.Path(…)／shutil、os.remove、os.rename… ：字面路徑是絕對的或有 ..  → filesystem:any；
                其他（路徑是變數、相對路徑）→ filesystem:own（pack 自己的檔案應該用 pack.path_of(user)／pack.path() 或 pack.store）
     exec       exec、eval、compile、__import__、importlib、ctypes、pickle.loads、marshal、getattr(x, "system")… → exec；
                審查 B #B：sys.modules、dunder／frame 屬性（__class__、__subclasses__、__globals__、__dict__、__self__、
                f_globals…，寫在字串裡也算）、getattr／vars／globals／locals／eval／compile 當值取用、getattr 屬性名不是字面字、
                呼叫的對象看不出是什麼（handlers[k](…)、f()(…)、sys.modules['os'].system(…)、obj.popen(…)）→ exec。
-               **是提醒不是門**：攔直呼名與常見的間接取用，不保證每一種寫法都抓得到
+               審查 C #C5：_ctypes、_pickle、pickle、shelve、pkgutil、logging.config、runpy、zipimport、pip…；
+               from <os／sys／builtins…> import *；obj.eval／exec／compile／loads／LoadLibrary／CreateProcess／fork_exec／
+               subprocess_exec(…)；from X import eval 這種換掉內建名字的匯入（標準函式庫的 from re import compile 不算）；
+               改 sys.path／sys.meta_path；import 一個不在標準函式庫、不在 pack 裡、requires.pip 也沒宣告的模組
+               （來源不明，ImportContext）；只用字面字拆開再組回來的名字（"sys"+"tem"、"".join(…)、"%s" %、format、
+               [::-1]、chr()）是開程式／dunder 名、或 format 的樣板是組出來的又取屬性 → exec。
+               **是提醒不是門**：攔直呼名與常見的間接取用，不保證每一種寫法都抓得到（有心藏的作者一定寫得出掃不到的程式）
     env        os.environ、os.getenv：**只列出來給人看**（不算 capability，也不擋）；讀 SYNOX 自己注入的協定變數
                （SYNOX_ENV_OK：SYNOX_USER_DATA_DIR、SYNOX_CONFIRMED…，名字是字面字）不列；SYNOX_CONFIRM_TOKEN、SYNOX_SECRET_ENV 照列
     secret     pack.secret(…)：讀使用者在「連接」填的值（pack.json auth.fields）；只列出來，不算 capability
@@ -65,11 +74,35 @@ from typing import Dict, List, Optional, Sequence
 
 from synox.packs.manifest import RESERVED_PLACEHOLDERS, Manifest
 
+# 審查 C #C5：補上底線私有模組與平台別名（nt＝Windows 的 posix、_winapi、_socket、_pickle、_ctypes…）、
+# pip 自帶的 requests／urllib3（SYNOX 的 venv 一定有 pip）、logging.config（dictConfig 的 '()' 工廠字串、listen() 開埠）
 NETWORK_MODULES = ("requests", "urllib", "urllib2", "urllib3", "http", "httpx", "aiohttp", "socket", "ssl",
                    "ftplib", "smtplib", "poplib", "imaplib", "telnetlib", "websocket", "websockets", "xmlrpc",
-                   "asyncio.open_connection", "socketserver", "paramiko", "grpc")
-SUBPROCESS_MODULES = ("subprocess", "pty", "multiprocessing", "isdtelekit.jobs", "asyncio.subprocess")
-EXEC_MODULES = ("ctypes", "cffi", "marshal", "importlib", "builtins", "runpy", "code", "codeop", "imp")
+                   "asyncio.open_connection", "asyncio.start_server", "asyncio.open_unix_connection",
+                   "asyncio.start_unix_server", "asyncio.streams", "socketserver", "paramiko", "grpc",
+                   "_socket", "_ssl", "nntplib", "pip._vendor.requests", "pip._vendor.urllib3")
+SUBPROCESS_MODULES = ("subprocess", "pty", "multiprocessing", "isdtelekit.jobs", "asyncio.subprocess",
+                      "nt", "posix", "_winapi", "_posixsubprocess", "_multiprocessing", "webbrowser",
+                      "concurrent.futures.process", "concurrent.futures.ProcessPoolExecutor")
+EXEC_MODULES = ("ctypes", "cffi", "marshal", "importlib", "builtins", "runpy", "code", "codeop", "imp",
+                "_ctypes", "_pickle", "pickle", "shelve", "dill", "cloudpickle", "_imp", "_frozen_importlib",
+                "_frozen_importlib_external", "zipimport", "pkgutil", "pydoc", "logging.config", "pip",
+                "setuptools._vendor", "_xxsubinterpreters", "_interpreters")
+# `from X import *`：名字全進來、掃描器追不到它們是什麼 → 這些模組（和上面三張表的）一律 exec（#C5）
+STAR_RISKY = ("os", "sys", "builtins", "shutil", "io", "pathlib", "inspect", "gc", "operator", "types", "functools",
+              "codecs", "tempfile", "glob", "posixpath", "ntpath")
+# 連網也看呼叫（#C5）：asyncio 的連線 API 不用 import socket 就能連；完整名字或這些前綴
+NETWORK_CALLS = ("asyncio.open_connection", "asyncio.start_server", "asyncio.open_unix_connection",
+                 "asyncio.start_unix_server", "socket.socket", "socket.create_connection", "socket.create_server",
+                 "socket.fromfd", "socket.socketpair", "http.client.HTTPConnection", "http.client.HTTPSConnection",
+                 "urllib.request.urlopen", "urllib.request.urlretrieve", "urllib.request.build_opener",
+                 "urllib.request.OpenerDirector", "ssl.wrap_socket")
+NETWORK_PREFIXES = ("socket.", "_socket.", "ssl.", "_ssl.", "http.client.", "urllib.request.", "asyncio.streams.",
+                    "xmlrpc.client.", "ftplib.", "smtplib.", "poplib.", "imaplib.", "telnetlib.")
+# 呼叫的對象看不出是什麼（loop.create_connection、obj.urlopen…）時，方法名是這些＝連網
+NETWORK_ATTRS = ("open_connection", "start_server", "create_connection", "create_server", "create_datagram_endpoint",
+                 "create_unix_connection", "create_unix_server", "sock_connect", "urlopen", "urlretrieve",
+                 "HTTPConnection", "HTTPSConnection")
 SUBPROCESS_CALLS = ("os.system", "os.popen", "os.startfile", "os.fork", "os.forkpty", "asyncio.create_subprocess_exec",
                     "asyncio.create_subprocess_shell")
 SUBPROCESS_PREFIXES = ("os.exec", "os.spawn", "os.posix_spawn", "subprocess.", "pty.", "multiprocessing.")
@@ -105,13 +138,36 @@ DYNAMIC_NAMES = ("getattr", "setattr", "delattr", "vars", "globals", "locals", "
 DYNAMIC_CALLS = ("sys.modules", "sys._getframe", "sys._current_frames", "inspect.currentframe", "inspect.stack",
                  "inspect.getouterframes", "inspect.trace", "gc.get_objects", "gc.get_referrers", "gc.get_referents",
                  "operator.attrgetter", "operator.methodcaller", "pydoc.locate", "types.FunctionType",
-                 "types.CodeType")
+                 "types.CodeType", "pkgutil.resolve_name", "pkgutil.get_importer", "inspect.getmodule")
+# 改了之後 import 會從別的地方載入程式（#C5）：取用就算 exec；sys.path 是 insert／append／extend／指定才算
+SYS_PATH_HOOKS = ("sys.meta_path", "sys.path_hooks", "sys.path_importer_cache")
+SYS_PATH_EDITS = ("sys.path.insert", "sys.path.append", "sys.path.extend", "sys.path.__setitem__")
 # 呼叫的對象看不出是什麼模組（sys.modules['os'].system、[os][0].system、obj.system…）時，方法名是這些＝當作開程式／動態 import
 DYNAMIC_ATTRS = ("system", "popen", "startfile", "Popen", "check_output", "check_call", "getoutput", "getstatusoutput",
                  "spawnl", "spawnle", "spawnlp", "spawnlpe", "spawnv", "spawnve", "spawnvp", "spawnvpe",
                  "execl", "execle", "execlp", "execlpe", "execv", "execve", "execvp", "execvpe",
                  "posix_spawn", "posix_spawnp", "fork", "forkpty", "__import__", "import_module", "load_module",
-                 "exec_module", "create_subprocess_exec", "create_subprocess_shell")
+                 "exec_module", "create_subprocess_exec", "create_subprocess_shell",
+                 # 審查 C #C5：inspect.getmodule(len).eval(…)、_ctypes.LoadLibrary、_winapi.CreateProcess、
+                 # _posixsubprocess.fork_exec、loop.subprocess_exec、pkgutil.resolve_name、runpy.run_path…
+                 "eval", "exec", "compile", "loads", "LoadLibrary", "LoadLibraryA", "LoadLibraryW", "LoadLibraryEx",
+                 "CreateProcess", "CreateProcessA", "CreateProcessW", "ShellExecute", "ShellExecuteW", "WinExec",
+                 "fork_exec", "subprocess_exec", "subprocess_shell", "run_path", "run_module", "resolve_name",
+                 "dictConfig", "fileConfig")
+# 拆字串／+／join／format 組出來的字串是這些名字（或含 dunder）＝當作動態屬性（#C5）
+CONSTRUCTED_NAMES = frozenset(DANGER_ATTRS + DYNAMIC_ATTRS + DYNAMIC_NAMES + (
+    "os", "sys", "builtins", "subprocess", "ctypes", "socket", "importlib", "nt", "posix", "pickle", "marshal",
+    "_winapi", "_posixsubprocess", "_socket", "_ctypes", "runpy", "modules"))
+# 不在標準函式庫、也不在 pack 裡、requires.pip 也沒宣告的模組＝來源不明（#C5，exec）；這些是 SYNOX 自己的，算認得
+SYNOX_MODULES = ("synox", "isdtelekit", "synox_sdk", "__main__", "__future__")
+# requires.pip 的套件名跟 import 名不一樣的常見例子（小寫的 pip 名 → import 名）；名字一樣的不用寫
+PIP_IMPORT_NAMES = {"pyyaml": ("yaml",), "beautifulsoup4": ("bs4",), "pillow": ("PIL",),
+                    "python-dateutil": ("dateutil",), "scikit-learn": ("sklearn",), "opencv-python": ("cv2",),
+                    "opencv-python-headless": ("cv2",), "attrs": ("attr", "attrs"), "pyserial": ("serial",),
+                    "python-dotenv": ("dotenv",), "protobuf": ("google",), "pyjwt": ("jwt",),
+                    "pycryptodome": ("Crypto",), "google-api-python-client": ("googleapiclient",),
+                    "python-telegram-bot": ("telegram",), "discord.py": ("discord",), "pymupdf": ("fitz",),
+                    "typing-extensions": ("typing_extensions",), "msgpack-python": ("msgpack",)}
 BINARY_EXT = (".pyc", ".pyo", ".pyd", ".dll", ".so", ".dylib", ".exe", ".com", ".bat", ".cmd", ".ps1", ".vbs",
               ".msi", ".scr", ".jar", ".sh", ".node", ".wasm", ".class")
 # 別的語言的原始碼（P7 補：擁有者 2026-11-09 決定）：第 2 關只讀得懂 .py，這些一律算「掃不到內容的檔」
@@ -379,15 +435,205 @@ def _escapes(path: str) -> bool:
     return p.startswith("/") or p.startswith("~") or bool(re.match(r"^[A-Za-z]:", p)) or ".." in p.split("/")
 
 
+# ── 組出來的字串（審查 C #C5(f)） ─────────────────────────────────────────
+
+_FOLD_MAX = 2000
+_STR_METHODS = ("lower", "upper", "strip", "lstrip", "rstrip", "swapcase", "title", "capitalize", "casefold",
+                "replace", "decode", "removeprefix", "removesuffix")
+
+
+def _fold(node, depth: int = 0) -> Optional[str]:
+    """只用字面字組出來的字串（"sys"+"tem"、"".join([...])、"%s" % "x"、"{}{}".format(…)、f"{'a'}b"、
+    "metsys"[::-1]、chr(115)…）→ 算出結果；有任何一段不是字面字 → None。只在 ast 上算，不執行程式。"""
+    if depth > 30:
+        return None
+    d = depth + 1
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, str):
+            return node.value
+        if isinstance(node.value, bytes):
+            return node.value.decode("latin-1")
+        return None
+    if isinstance(node, ast.BinOp):
+        left = _fold(node.left, d)
+        if isinstance(node.op, ast.Add):
+            right = _fold(node.right, d)
+            return (left + right)[:_FOLD_MAX] if left is not None and right is not None else None
+        if isinstance(node.op, ast.Mult) and left is not None and isinstance(node.right, ast.Constant) \
+                and isinstance(node.right.value, int) and 0 <= node.right.value <= 64:
+            return (left * node.right.value)[:_FOLD_MAX]
+        if isinstance(node.op, ast.Mod) and left is not None:
+            items = node.right.elts if isinstance(node.right, ast.Tuple) else [node.right]
+            values = [_fold(e, d) for e in items]
+            if all(v is not None for v in values):
+                try:
+                    return (left % tuple(values))[:_FOLD_MAX]
+                except (TypeError, ValueError, KeyError):
+                    return None
+        return None
+    if isinstance(node, ast.JoinedStr):
+        out = []
+        for part in node.values:
+            if isinstance(part, ast.FormattedValue):
+                if part.format_spec is not None:
+                    return None
+                value = _fold(part.value, d)
+            else:
+                value = _fold(part, d)
+            if value is None:
+                return None
+            out.append(value)
+        return "".join(out)[:_FOLD_MAX]
+    if isinstance(node, ast.Subscript):
+        base = _fold(node.value, d)
+        sl = node.slice
+        if base is None:
+            return None
+        if isinstance(sl, ast.Slice):
+            bounds = []
+            for b in (sl.lower, sl.upper, sl.step):
+                if b is None:
+                    bounds.append(None)
+                elif isinstance(b, ast.Constant) and isinstance(b.value, int):
+                    bounds.append(b.value)
+                elif isinstance(b, ast.UnaryOp) and isinstance(b.op, ast.USub) and \
+                        isinstance(b.operand, ast.Constant) and isinstance(b.operand.value, int):
+                    bounds.append(-b.operand.value)
+                else:
+                    return None
+            if bounds[2] == 0:
+                return None
+            return base[slice(*bounds)]
+        if isinstance(sl, ast.Constant) and isinstance(sl.value, int) and -len(base) <= sl.value < len(base):
+            return base[sl.value]
+        return None
+    if isinstance(node, ast.Call) and not node.keywords:
+        func = node.func
+        if isinstance(func, ast.Name):
+            if func.id == "chr" and len(node.args) == 1 and isinstance(node.args[0], ast.Constant) \
+                    and isinstance(node.args[0].value, int) and 0 <= node.args[0].value < 0x110000:
+                return chr(node.args[0].value)
+            if func.id in ("str", "reversed") and len(node.args) == 1:
+                value = _fold(node.args[0], d)
+                return value[::-1] if value is not None and func.id == "reversed" else value
+            return None
+        if not isinstance(func, ast.Attribute):
+            return None
+        base = _fold(func.value, d)
+        if base is None:
+            return None
+        if func.attr == "join" and len(node.args) == 1:
+            arg = node.args[0]
+            if isinstance(arg, (ast.List, ast.Tuple)):
+                values = [_fold(e, d) for e in arg.elts]
+                return base.join(values)[:_FOLD_MAX] if all(v is not None for v in values) else None
+            value = _fold(arg, d)                       # "".join("system")、"".join(reversed("metsys"))
+            return base.join(value)[:_FOLD_MAX] if value is not None else None
+        if func.attr == "format":
+            values = [_fold(a, d) for a in node.args]
+            if all(v is not None for v in values):
+                try:
+                    return base.format(*values)[:_FOLD_MAX]
+                except (IndexError, KeyError, ValueError, AttributeError):
+                    return None
+            return None
+        if func.attr in _STR_METHODS:
+            values = [_fold(a, d) for a in node.args]
+            if all(v is not None for v in values):
+                try:
+                    return getattr(base, func.attr)(*values)[:_FOLD_MAX] if func.attr != "decode" else base
+                except (TypeError, ValueError, AttributeError):
+                    return None
+        return None
+    return None
+
+
+_FIELD_ACCESS = re.compile(r"\{[^{}]*[.\[][^{}]*\}")
+
+
+def _suspicious_text(value: str) -> str:
+    """組出來的字串可疑嗎：是開程式／動態取用的名字、或含 dunder 屬性名 → 回那個名字；不可疑回 ""。"""
+    if value in CONSTRUCTED_NAMES:
+        return value
+    return next((d for d in DUNDER_ATTRS if d.startswith("__") and d in value), "")
+
+
+# ── import 的來源（審查 C #C5(e)） ───────────────────────────────────────
+
+def _norm_pkg(name: str) -> str:
+    return re.sub(r"[-_.]+", "_", name).lower()
+
+
+def pip_names(m: Manifest) -> List[str]:
+    """requires.pip 宣告的套件名（不管 runtime；只取名字那一段）。"""
+    out = []
+    pip = (getattr(m, "requires", {}) or {}).get("pip") or []
+    for p in pip if isinstance(pip, list) else []:
+        mm = re.match(r"^\s*([A-Za-z0-9][A-Za-z0-9._-]*)", str(p))
+        if mm:
+            out.append(mm.group(1))
+    return out
+
+
+@dataclass
+class ImportContext:
+    """第 2 關判斷「這個 import 從哪裡來」用的：pack 資料夾＋requires.pip 的套件名。"""
+    folder: str = ""
+    pip: Sequence[str] = ()
+
+    def _pip_modules(self) -> set:
+        out = set()
+        for name in self.pip:
+            low = name.lower()
+            out.add(_norm_pkg(name))
+            for prefix in ("python-", "py-"):
+                if low.startswith(prefix):
+                    out.add(_norm_pkg(low[len(prefix):]))
+            out.update(_norm_pkg(x) for x in PIP_IMPORT_NAMES.get(low, ()))
+        return out
+
+    def local(self, top: str, rel: str) -> bool:
+        """pack 資料夾（或 import 它的那個檔所在的資料夾）裡有 top.py／top.pyw／top 資料夾（.pyd／.so 本來就是 opaque）。"""
+        if not self.folder or not top:
+            return False
+        bases = {self.folder}
+        if "/" in rel:
+            bases.add(os.path.join(self.folder, *rel.split("/")[:-1]))
+        for base in bases:
+            if os.path.isdir(os.path.join(base, top)):
+                return True
+            try:
+                names = os.listdir(base)
+            except OSError:
+                continue
+            if any(n.split(".")[0] == top and os.path.splitext(n)[1].lower() in PY_SOURCE_EXT + (".pyd", ".so")
+                   for n in names):
+                return True
+        return False
+
+    def known(self, top: str, rel: str) -> bool:
+        import sys
+        if top in SYNOX_MODULES or top in getattr(sys, "stdlib_module_names", ()):
+            return True
+        return _norm_pkg(top) in self._pip_modules() or self.local(top, rel)
+
+
+def _stdlib(top: str) -> bool:
+    import sys
+    return top in getattr(sys, "stdlib_module_names", ())
+
+
 class _Visitor(ast.NodeVisitor):
 
-    def __init__(self, rel: str, lines: Sequence[str]):
+    def __init__(self, rel: str, lines: Sequence[str], context: Optional[ImportContext] = None):
         self.rel = rel
         self.lines = lines
+        self.context = context or ImportContext()
         self.aliases: Dict[str, str] = {}
         self.findings: List[Finding] = []
         self._env_ok: set = set()               # 讀 SYNOX 協定變數的 os.environ 節點（不列 env）
         self._handled: set = set()              # visit_Call 已經判斷過的 func 節點（visit_Name／visit_Attribute 不再列一次）
+        self._folded: set = set()               # 已經當成「組出來的字串」記過的節點（裡面那幾段不再記）
 
     def add(self, node, kind: str, detail: str = "") -> None:
         line = getattr(node, "lineno", 0)
@@ -400,22 +646,45 @@ class _Visitor(ast.NodeVisitor):
                 return kind
         return None
 
+    def _unknown_module(self, node, module: str, text: str) -> None:
+        """#C5(e)：不在標準函式庫、不在 pack 裡、requires.pip 也沒宣告 → exec（來源不明：可能是 sys.path 塞進來的）。"""
+        top = module.split(".")[0]
+        if top and not self.context.known(top, self.rel):
+            self.add(node, "exec", f"{text}：{top} 不是標準函式庫、不在 pack 裡、requires.pip 也沒宣告（來源不明的模組）")
+
+    def _trusted_alias(self, name: str) -> bool:
+        """名字是從標準函式庫裡沒列風險的模組匯入的（from re import compile）→ 不當成內建的 compile／eval。"""
+        target = self.aliases.get(name, "")
+        top = target.split(".")[0]
+        return bool(top) and _stdlib(top) and top not in ("builtins",) and not self._module_kind(target)
+
     def visit_Import(self, node):
         for a in node.names:
             self.aliases[a.asname or a.name.split(".")[0]] = a.name if a.asname else a.name.split(".")[0]
             kind = self._module_kind(a.name)
             if kind:
                 self.add(node, kind, f"import {a.name}")
+            else:
+                self._unknown_module(node, a.name, f"import {a.name}")
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node):
         module = "." * node.level + (node.module or "")
+        if node.level == 0 and module and not self._module_kind(module) and \
+                not any(self._module_kind(f"{module}.{a.name}") for a in node.names):
+            self._unknown_module(node, module, f"from {module} import …")
         for a in node.names:
             full = f"{module}.{a.name}" if module else a.name
             self.aliases[a.asname or a.name] = full
             kind = self._module_kind(module) or self._module_kind(full)
+            if a.name == "*" and node.level == 0 and (kind or module.split(".")[0] in STAR_RISKY):
+                self.add(node, "exec", f"from {module} import *（名字全部進來，掃描器追不到它們是什麼）")
             if kind:
                 self.add(node, kind, f"from {module} import {a.name}")
+            elif (a.name in DYNAMIC_NAMES + EXEC_BUILTINS or (a.asname or "") in DYNAMIC_NAMES + EXEC_BUILTINS) \
+                    and not self._trusted_alias(a.asname or a.name):
+                self.add(node, "exec", f"from {module} import {a.name}"
+                                       f"{' as ' + a.asname if a.asname else ''}（換掉 {a.asname or a.name} 的來源）")
             elif module == "os" and a.name in ("system", "popen", "startfile") or \
                     module == "os" and a.name.startswith(("exec", "spawn", "posix_spawn")):
                 self.add(node, "subprocess", f"from os import {a.name}")
@@ -438,6 +707,7 @@ class _Visitor(ast.NodeVisitor):
                 for target in node.targets:
                     if isinstance(target, ast.Name):
                         self.aliases[target.id] = value
+        self._assign_sys_path(node.targets)
         self.generic_visit(node)
 
     def dotted(self, node) -> str:
@@ -452,9 +722,47 @@ class _Visitor(ast.NodeVisitor):
 
     def visit_Name(self, node):
         if id(node) not in self._handled and isinstance(node.ctx, ast.Load) and node.id in DYNAMIC_NAMES \
-                and node.id not in self.aliases:
+                and (node.id not in self.aliases or not self._trusted_alias(node.id)):
             self.add(node, "exec", f"{node.id}（動態取用：可以拿到任何模組或屬性）")
         self.generic_visit(node)
+
+    def _constructed(self, node) -> None:
+        """#C5(f)：拆字串／+／join／format 組出名字（"sys"+"tem"、"".join(…)、("{0.__cl"+"ass__}")…）＝動態屬性。"""
+        if id(node) in self._folded:
+            return
+        value = _fold(node)
+        if value is None:
+            return
+        hit = _suspicious_text(value)
+        if hit:
+            self.add(node, "exec", f"組出來的字串是／含 {hit!r}（拆字串、+、join、format 拼名字：當作動態屬性）")
+            self._folded.update(id(n) for n in ast.walk(node))
+
+    def visit_BinOp(self, node):
+        self._constructed(node)
+        self.generic_visit(node)
+
+    def visit_JoinedStr(self, node):
+        self._constructed(node)
+        self.generic_visit(node)
+
+    def _format_template(self, node) -> None:
+        """("{0." + name + "}").format(x)：樣板不是單純的字面字、又取屬性／索引 → exec（format 可以讀任何屬性）。"""
+        func = node.func
+        if not (isinstance(func, ast.Attribute) and func.attr in ("format", "format_map")) or \
+                isinstance(func.value, ast.Constant):
+            return
+        if not isinstance(func.value, (ast.BinOp, ast.JoinedStr, ast.Call, ast.Subscript)):
+            return
+        value = _fold(func.value)
+        if value is not None:
+            if _FIELD_ACCESS.search(value):
+                self.add(node, "exec", "format 的樣板是組出來的，而且會取屬性／索引（可以讀到任何屬性）")
+            return
+        pieces = [n.value for n in ast.walk(func.value) if isinstance(n, ast.Constant) and isinstance(n.value, str)]
+        # 樣板有一段「{ 打開了卻沒在這段關上」（欄位名是變數拼的）或本來就取屬性／索引
+        if any(re.search(r"\{[^{}]*$", p) or _FIELD_ACCESS.search(p) for p in pieces):
+            self.add(node, "exec", "format 的樣板有一段不是字面字（看不出會取什麼屬性）")
 
     def visit_Constant(self, node):
         # "{0.__globals__[os]}".format(f)、getattr 拼字串：字串裡直接寫 dunder 屬性名也算
@@ -471,15 +779,18 @@ class _Visitor(ast.NodeVisitor):
         key = getattr(node.slice, "value", node.slice) if type(node.slice).__name__ == "Index" else node.slice
         if self.dotted(node.value) == "os.environ" and self._synox_env(key):
             self._env_ok.add(id(node.value))           # os.environ["SYNOX_USER_DATA_DIR"]：協定變數，不列
+        self._constructed(node)                        # "metsys"[::-1]
         self.generic_visit(node)
 
     @staticmethod
     def _proc_or_exec(name: str) -> str:
-        """這個完整名字是開程式／動態執行的函式嗎（拿來當值傳也算）：subprocess｜exec｜""。"""
+        """這個完整名字是開程式／動態執行／連網的函式嗎（拿來當值傳也算）：subprocess｜exec｜network｜""。"""
         if name in SUBPROCESS_CALLS or name.startswith(("os.exec", "os.spawn", "os.posix_spawn")):
             return "subprocess"
-        if name in EXEC_CALLS or name in DYNAMIC_CALLS:
+        if name in EXEC_CALLS or name in DYNAMIC_CALLS or name in SYS_PATH_HOOKS:
             return "exec"
+        if name in NETWORK_CALLS:
+            return "network"
         return ""
 
     def visit_Attribute(self, node):
@@ -526,9 +837,25 @@ class _Visitor(ast.NodeVisitor):
             self.add(node, "exec", f".{func.attr}(…)（呼叫的對象不是看得出來的模組：可能是動態取得的 os／subprocess）")
             self._handled.add(id(func))
             return True
+        if func.attr in NETWORK_ATTRS and not imported:     # loop.create_connection(…)、loop.start_server(…)（#C5）
+            self.add(node, "network", f".{func.attr}(…)（看起來是連網的 API）")
+            self._handled.add(id(func))
+            return True
         return False
 
+    def _assign_sys_path(self, targets) -> None:
+        for t in targets:
+            inner = t.value if isinstance(t, ast.Subscript) else t
+            if self.dotted(inner) in ("sys.path",) + SYS_PATH_HOOKS:
+                self.add(t, "exec", f"改 {self.dotted(inner)}（之後的 import 會從別的地方載入程式）")
+
+    def visit_AugAssign(self, node):
+        self._assign_sys_path([node.target])
+        self.generic_visit(node)
+
     def visit_Call(self, node):
+        self._constructed(node)
+        self._format_template(node)
         name = self.dotted(node.func)
         if isinstance(node.func, ast.Name) and name in DYNAMIC_NAMES:
             self._handled.add(id(node.func))            # 名字本身在這裡判斷（visit_Name 不再列一次）
@@ -545,6 +872,10 @@ class _Visitor(ast.NodeVisitor):
                 self.add(node, "exec", f"{name}(…)")
             elif name in SUBPROCESS_CALLS or name.startswith(SUBPROCESS_PREFIXES):
                 self.add(node, "subprocess", f"{name}(…)")
+            elif name in NETWORK_CALLS or name.startswith(NETWORK_PREFIXES):
+                self.add(node, "network", f"{name}(…)")
+            elif name in SYS_PATH_EDITS:
+                self.add(node, "exec", f"{name}(…)（之後的 import 會從別的地方載入程式）")
             elif name in OPEN_CALLS or name in ("Path", "PurePath") and self.aliases.get(name, "").startswith("pathlib"):
                 self.add(node, self._path_kind(node.args), f"{name}(…)")
             elif name in FS_CALLS or name.startswith(FS_PREFIXES):
@@ -567,12 +898,16 @@ class _Visitor(ast.NodeVisitor):
         self.generic_visit(node)
 
 
-def scan_source(rel: str, text: str) -> List[Finding]:
+def scan_source(rel: str, text: str, context: Optional[ImportContext] = None) -> List[Finding]:
+    """一個 .py 的 findings。context：pack 資料夾＋requires.pip（判斷 import 的來源）；沒給＝沒有 pack 可以對，
+    標準函式庫與 SYNOX 自己的以外的 import 都算來源不明（保守）。"""
     try:
         tree = ast.parse(text, filename=rel)
-    except SyntaxError as e:
-        return [Finding(rel, e.lineno or 0, "syntax", (e.text or "").strip()[:120], f"語法錯誤：{e.msg}")]
-    v = _Visitor(rel, text.splitlines())
+    except (SyntaxError, ValueError) as e:
+        line = getattr(e, "lineno", 0) or 0
+        return [Finding(rel, line, "syntax", (getattr(e, "text", "") or "").strip()[:120],
+                        f"語法錯誤：{getattr(e, 'msg', e)}")]
+    v = _Visitor(rel, text.splitlines(), context)
     v.visit(tree)
     seen = set()
     out = []
@@ -624,11 +959,12 @@ def _python_texts(m: Manifest, files: List[str]):
 
 def _scan_python_files(m: Manifest, files: List[str]) -> List[Finding]:
     out = []
+    context = ImportContext(m.folder, pip_names(m))
     for rel, text, error in _python_texts(m, files):
         if text is None:
             out.append(Finding(rel, 0, "syntax", "", f"讀不了：{error}"))
             continue
-        out += scan_source(rel, text)
+        out += scan_source(rel, text, context)
     return out
 
 
