@@ -172,14 +172,27 @@ def group_policy(app, access: str, server: bool) -> dict:
 
 
 def discover(dirs=PACK_DIRS) -> List[str]:
-    folders = []
+    """dirs 的每一項：裝很多 pack 的資料夾（底下每個有 pack.json 的子資料夾算一個），或本身就是一個 pack（直接有 pack.json）。
+    同一個 pack 資料夾只算一次（config `packs.dirs` 跟內建的重複時）。"""
+    folders: List[str] = []
+    seen = set()
+
+    def add(folder: str) -> None:
+        key = os.path.normcase(os.path.realpath(folder))
+        if key not in seen:
+            seen.add(key)
+            folders.append(folder)
+
     for base in dirs:
         if not os.path.isdir(base):
+            continue
+        if os.path.isfile(os.path.join(base, "pack.json")):
+            add(base)
             continue
         for name in sorted(os.listdir(base)):
             folder = os.path.join(base, name)
             if os.path.isfile(os.path.join(folder, "pack.json")):
-                folders.append(folder)
+                add(folder)
     return folders
 
 

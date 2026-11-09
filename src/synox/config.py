@@ -105,6 +105,20 @@ class SynoxConfig(BotConfig):
             return False
         return enabled == "all" or name in (enabled or [])
 
+    def pack_dirs(self) -> tuple:
+        """要掃哪些資料夾找 pack：SYNOX 自己的 packs/、connectors/，再加 config.json `packs.dirs` 列的。
+        `packs.dirs` 的每一項可以是「裡面有很多 pack 的資料夾」，也可以直接是「一個 pack 的資料夾」（裡面就有 pack.json）——
+        後者是為了把別的 repo 裡的 pack 原地接進來（例如金流簿的 `<記帳專案>/synox-pack`，它的 {python} 要指向那個 repo 的 .venv，
+        所以不能複製進 packs/）。相對路徑以 SYNOX 資料夾為準；不存在的資料夾略過（doctor 會提）。"""
+        extra = []
+        for item in (self.packs.get("dirs") or []):
+            if not isinstance(item, str) or not item.strip():
+                continue
+            path = item if os.path.isabs(item) else os.path.join(self.root, item)
+            extra.append(os.path.normpath(path))
+        from synox.packs.loader import PACK_DIRS      # 延後 import：loader 也 import config
+        return tuple(PACK_DIRS) + tuple(extra)
+
 
 def parse_mode(value) -> str:
     """config.json 的 mode：沒寫＝personal；大小寫、前後空白不計較；其他值丟 ConfigError。"""

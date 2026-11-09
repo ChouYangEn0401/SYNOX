@@ -96,8 +96,16 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
     lines: List[str] = []
     lock_dir = config.data_dir if config else os.path.join(ROOT, "data")
     locked = 0
-    for folder in discover(PACK_DIRS):
-        rel = os.path.relpath(folder, ROOT)
+    dirs = config.pack_dirs() if config else PACK_DIRS
+    for extra in dirs[len(PACK_DIRS):]:
+        if not os.path.isdir(extra):
+            lines.append(f"  ⚠️ packs.dirs 列的資料夾不存在：{extra}")
+            problems += 1
+    for folder in discover(dirs):
+        try:
+            rel = os.path.relpath(folder, ROOT)
+        except ValueError:                       # 不同磁碟機
+            rel = folder
         try:
             m = read(folder)
             enabled = config.pack_enabled(m.name) if config else True
