@@ -1,0 +1,15 @@
+{
+  "bot_token": "123456789:REPLACE-WITH-THE-TOKEN-FROM-BOTFATHER",
+  "owner_id": 123456789,
+  "llm": {
+    "kind": "none",
+    "base_url": "",
+    "api_key": "",
+    "model": "",
+    "tools": true,
+    "max_steps": 6,
+    "max_tokens": 1024
+  },
+  "vault": { "mode": "dpapi" },
+  "packs": { "enabled": "all", "disabled": [] }
+}
