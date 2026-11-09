@@ -10,7 +10,7 @@ Web UI 設定頁、`python -m synox install <檔>`、`python -m synox packs lock
     install_staged(token, …)         再跑一次 1、2 關、確認檔案跟看報告時一樣 → 搬進 packs/ → 第 3 關：寫 packs.lock（誰、何時）
 
 zip 本身：不能有絕對路徑、`..`、磁碟代號、符號連結；最多 MAX_FILES 個檔、解開最多 MAX_UNZIPPED。
-名字跟已經裝的 pack 一樣 → 不裝（先移除舊的）。python pack 的程式會在 SYNOX 裡面、用你的 Windows 帳號權限執行——摘要會明講。
+名字跟已經裝的 pack 一樣＝升級：比對、版本檢查、舊的搬到 _removed、退回都在 upgrade.py（install_staged 只裝新的）。python pack 的程式會在 SYNOX 裡面、用你的 Windows 帳號權限執行——摘要會明講。
 """
 
 from __future__ import annotations
@@ -263,8 +263,9 @@ def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
         raise PackAdminError("暫存的檔案在你看報告之後被改過了，不裝（重新上傳一次）："
                              + "、".join(pack_lock.diff(reviewed, hashes)[:10]))
     target = os.path.join(packs_dir, m.name)
-    if os.path.exists(target):
-        raise PackAdminError(f"已經有叫 {m.name} 的 pack 了；要換新版先移除舊的。")
+    if os.path.exists(target):                     # 同名＝升級：看過「改了什麼」再用 upgrade.upgrade_staged
+        raise PackAdminError(f"已經裝了 {m.name}：這是升級，要先看「改了什麼」再按「確認升級」"
+                             "（終端機：python -m synox install <檔> --yes 會自動走升級）。")
     os.makedirs(packs_dir, exist_ok=True)
     shutil.move(folder, target)
     shutil.rmtree(root, ignore_errors=True)
@@ -284,16 +285,17 @@ def approve_installed(folder: str, data_dir: str, approved_by=None,
 
 
 def remove(name: str, packs_dir: str, now=None, data_dir: Optional[str] = None) -> str:
-    """packs/<name> → packs/_removed/<name>-<時間>（不刪，搬走）；packs.lock 的那一筆拿掉。回搬到哪。"""
+    """packs/<name> → packs/_removed/<name>-<版本>-<時間>（不刪，搬走；旁邊留當時的鎖，`packs rollback` 能放回）；
+    packs.lock 的那一筆拿掉。回搬到哪。"""
+    from synox.packs import upgrade
     if not name or not re.match(r"^[a-z][a-z0-9_-]{0,31}$", name):
         raise PackAdminError("pack 名字不對")
     folder = os.path.join(packs_dir, name)
     if not os.path.isfile(os.path.join(folder, "pack.json")):
         raise PackAdminError(f"packs/ 裡沒有 {name}（出廠的 connector 設計稿不能從這裡移除）")
-    dest_root = os.path.join(packs_dir, REMOVED)
-    os.makedirs(dest_root, exist_ok=True)
-    dest = os.path.join(dest_root, f"{name}-{time.strftime('%Y%m%d-%H%M%S', time.localtime(now))}")
-    shutil.move(folder, dest)
+    installed = upgrade.installed_manifest(packs_dir, name)
+    dest = upgrade.archive(folder, name, installed[0].version if installed else "", packs_dir, data_dir,
+                           now=now, reason="remove")
     if data_dir:
         pack_lock.remove(data_dir, name)
     return dest

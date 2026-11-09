@@ -52,7 +52,32 @@ packs/money/
 會打包並算好 `integrity.sha256`（[sdk.md](sdk.md)）。裝的路有三條，都跑同一條安全管線（[security.md](security.md)「五關」）：
 Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Install-Pack.bat`）、`python -m synox install <檔> [--yes]`。
 檢查 zip（沒有絕對路徑、`..`、符號連結；5 MB／解開 20 MB／300 個檔以內）→ 第 1 關宣告 → 第 2 關靜態掃描 → 給人看報告 →
-按確認 → 第 3 關寫 `data/packs.lock` → 搬進 `packs/`。移除＝搬到 `packs/_removed/<name>-<時間>`（不刪），鎖的那一筆一起拿掉。
+按確認 → 第 3 關寫 `data/packs.lock` → 搬進 `packs/`。移除＝搬到 `packs/_removed/<name>-<版本>-<時間>`（不刪），鎖的那一筆一起拿掉
+（旁邊留一份 `<那個資料夾>.lock.json`，`packs rollback` 用）。
+
+### 升級（同名再裝一次）
+
+已經裝了同名的 pack，再裝＝**升級**（`src/synox/packs/upgrade.py`）。一樣先跑第 1、2 關，報告多一段「改了什麼」：
+
+- 新增／移除的 command（cli 的 `commands`、mcp 的 `tools_allow`；python pack 的指令寫在程式裡，比不出來，看檔案差異與掃描報告）
+- **紅字（醒目）**：effect 變寬（`READ` → `WRITE` → `DANGER`）、新增 `WRITE`／`DANGER` 的 command、`capabilities` 新增、
+  執行方式改了（`kind`、`runtime`、`cli.argv`／`python`／`cwd`／`env`、`python.module`、`mcp.url`）、`auth` 改了、
+  多要密鑰環境變數、`access` 變寬、新加網頁面板、`storage` 從 `vault` 改成 `plain`
+- 一般字：移除 command、effect 變窄、不再要某個能力；還有每個檔改了／多了／少了
+
+**版本**：新的 `version` 要是 semver（`1.2.3`、`1.2.3-beta.1`），而且要比裝著的大。一樣或比較小 → 明講並拒絕，
+除非明確選「降級／重裝」（網頁勾選框；終端機 `--allow-downgrade`）。新版本不是 semver（例如 `1.2.3.4`）一律不升級。
+
+按「確認升級」（終端機 `python -m synox install <檔> --yes`）：再驗一次 → 舊資料夾搬到 `packs/_removed/<name>-<舊版本>-<時間>`
+（旁邊留舊的鎖）→ 新的搬進 `packs/` → `packs.lock` 換成新的一筆 → 重新載入。
+
+**退回**：`python -m synox packs rollback <name>`：`_removed` 裡這個 pack 最近一份（升級或移除時搬走的）搬回 `packs/<name>`，
+`packs.lock` 改回當時核准的那一筆（檔案跟當時的鎖對不上就不鎖，要你 `packs lock --approve`）。現在裝著的那份搬到 `_removed`；
+退回時搬走的那份下次退回會跳過，所以連退兩次＝再往前一版。要回到新版就重新裝那個 `.synoxpack`。
+
+**資料不在 pack 資料夾裡**（`data/<name>.json.enc`／`data/<name>.json`、伺服器版 `data/users/<id>/`、cli 的 `{user_data_dir}/<name>/`），
+升級、退回都不會動到資料。**資料格式（schema）要不要升級是 pack 自己的事**：建議在資料裡存一個 `schema` 版本號，
+新版程式讀到舊格式就自己轉換；退回到舊版時舊程式要能看得懂（或至少不弄壞）新版寫的資料——做不到就在 SKILL.md／README 寫清楚「不能退回」。
 
 ## pack.json v2（架構 v1 §4）
 

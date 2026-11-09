@@ -7,7 +7,9 @@ python -m synox <指令>
   doctor    健康檢查（--offline 不實際打 AI）
   stop      停掉正在跑的 bot（Stop.bat）
   install   裝一個 .synoxpack：安全管線第 1–3 關（--yes 在終端機直接核准；沒有 --yes 就開網頁設定頁給你按）
+            同名已經裝了＝升級：先印「改了什麼」，版本要比較新（--allow-downgrade 才能降級／重裝同版）
   packs     packs status（每個 pack 的鎖定狀態）｜packs lock --approve <name>（工程師：重跑 1、2 關、寫 packs.lock）
+            ｜packs rollback <name>（_removed 裡最近一份舊版搬回、鎖改回）
   connect   connect <pack> [--user ID] [--clear]：把 pack 要的帳號存進保管箱（密碼用 getpass，不經聊天）
 """
 
@@ -177,6 +179,14 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None) -> int:
         print(f"❌ {e}")
         return 2
     print(admin.format_summary(summary))
+    packs_dir = args.packs_dir or PACK_DIRS[0]
+    upg = _print_upgrade(token, data_dir, packs_dir)                     # 同名已經裝了＝升級：「改了什麼」
+    if upg is not None and not upg["version_ok"] and not (getattr(args, "allow_downgrade", False)
+                                                          and upg["can_force"]):
+        print("❌ 不升級（版本要比裝著的新；真的要降級／重裝同一版，加 --allow-downgrade）")
+        return 2
+    if args.yes and upg is not None:
+        return _upgrade_now(token, data_dir, packs_dir, config, args)
     if args.yes:
         who = getattr(config, "owner_id", None) or "console"
         try:
@@ -202,6 +212,52 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None) -> int:
     return 1
 
 
+def _print_upgrade(token: str, data_dir: str, packs_dir: str):
+    from synox.packs import admin, upgrade
+    try:
+        upg = upgrade.staged_upgrade(token, data_dir, packs_dir)
+    except admin.PackAdminError:
+        return None
+    if upg is not None:
+        print(upgrade.format_upgrade(upg))
+    return upg
+
+
+def _upgrade_now(token: str, data_dir: str, packs_dir: str, config, args) -> int:
+    from synox.packs import admin, upgrade
+    who = getattr(config, "owner_id", None) or "console"
+    try:
+        done = upgrade.upgrade_staged(token, data_dir, packs_dir, approved_by=who, via="console",
+                                      allow_downgrade=getattr(args, "allow_downgrade", False))
+    except admin.PackAdminError as e:
+        print(f"❌ {e}")
+        return 2
+    print(f"✅ 升級好了：{done['name']} {done['from']} → {done['to']}（已寫進 packs.lock；"
+          f"舊的在 {done['backup']}，要退回：python -m synox packs rollback {done['name']}）。"
+          "SYNOX 開著的話到網頁設定頁按「重新載入全部」，或重開 SYNOX。")
+    return 0
+
+
+def cmd_rollback(args, data_dir: str, config) -> int:
+    from synox.packs import admin, upgrade
+    from synox.packs.loader import PACK_DIRS
+    packs_dir = args.packs_dir or PACK_DIRS[0]
+    try:
+        done = upgrade.rollback(args.name, packs_dir, data_dir)
+    except admin.PackAdminError as e:
+        print(f"❌ {e}")
+        return 2
+    lock_note = {"restored": "packs.lock 改回當時核准的那一筆",
+                 "unlocked": "當時就沒有鎖（未鎖定）；要鎖：python -m synox packs lock --approve " + done["name"],
+                 "mismatch": "⚠️ 檔案跟當時的鎖對不上，沒有鎖；檢查過再 python -m synox packs lock --approve "
+                             + done["name"]}[done["lock"]]
+    print(f"↩️ 退回了：{done['name']} 現在是 {done['version']}（{lock_note}）。")
+    if done["archived"]:
+        print(f"   原本裝著的那份搬到 {done['archived']}")
+    print("   資料（data/、使用者資料夾）沒有動。SYNOX 開著的話到網頁設定頁按「重新載入全部」，或重開 SYNOX。")
+    return 0
+
+
 def cmd_packs(args) -> int:
     from synox.packs import admin
     from synox.packs import lock as pack_lock
@@ -209,6 +265,8 @@ def cmd_packs(args) -> int:
     from synox.packs.manifest import ManifestError, read
     config = _config_quiet(args.config)
     data_dir = _data_dir(config)
+    if args.packs_cmd == "rollback":
+        return cmd_rollback(args, data_dir, config)
     found = {}
     for folder in discover(args.dirs or PACK_DIRS):
         try:
@@ -316,14 +374,18 @@ def main(argv=None) -> int:
     sub.add_parser("stop", help="停掉正在跑的 bot")
     p = sub.add_parser("install", help="裝一個 .synoxpack（安全檢查 → 核准 → 裝）")
     p.add_argument("file", help=".synoxpack 檔")
-    p.add_argument("--yes", action="store_true", help="看完報告直接在終端機核准")
+    p.add_argument("--yes", action="store_true", help="看完報告直接在終端機核准（同名已裝＝升級）")
+    p.add_argument("--allow-downgrade", action="store_true",
+                   help="升級時新版本不比裝著的新（一樣或比較舊）也照換")
     p.add_argument("--packs-dir", default="", help=argparse.SUPPRESS)
-    p = sub.add_parser("packs", help="pack 的鎖定狀態、重新核准")
+    p = sub.add_parser("packs", help="pack 的鎖定狀態、重新核准、退回上一版")
     psub = p.add_subparsers(dest="packs_cmd")
     psub.add_parser("status", help="每個 pack 鎖了沒、有沒有被改過")
     q = psub.add_parser("lock", help="重跑宣告檢查與靜態掃描，過了就寫 packs.lock")
     q.add_argument("--approve", required=True, metavar="NAME", help="pack 的名字")
-    p.set_defaults(dirs=None)
+    q = psub.add_parser("rollback", help="把 packs/_removed/ 裡最近一份舊版搬回來、packs.lock 改回當時的")
+    q.add_argument("name", help="pack 的名字")
+    p.set_defaults(dirs=None, packs_dir="")
     p = sub.add_parser("connect", help="在這台電腦上設定一個 pack 的帳號（存進保管箱，密碼不經聊天）")
     p.add_argument("pack", help="pack 的名字，例如 apple-reminders")
     p.add_argument("--user", type=int, default=None, help="伺服器版：替哪個 Telegram id 設定（預設擁有者）")

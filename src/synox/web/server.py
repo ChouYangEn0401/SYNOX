@@ -527,7 +527,19 @@ class WebUI:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:
             return _err(400, str(e))
-        return _json(200, summary)
+        return _json(200, self._with_upgrade(summary))
+
+    def _with_upgrade(self, summary: dict) -> dict:
+        """同名的已經裝了：摘要多一段 upgrade（「改了什麼」、版本檢查；見 packs/upgrade.py）。"""
+        from synox.packs.admin import PackAdminError
+        from synox.packs.upgrade import staged_upgrade
+        if not self.pack_dirs or not summary.get("token"):
+            return summary
+        try:
+            upg = staged_upgrade(summary["token"], self.config.data_dir, self.pack_dirs[0])
+        except PackAdminError:
+            upg = None
+        return {**summary, "upgrade": upg} if upg else summary
 
     def pack_staged(self, user, token: str) -> Resp:
         """`python -m synox install` 已經暫存好、跑過 1、2 關的那一份：網頁拿報告給人看、按確認。"""
@@ -536,7 +548,7 @@ class WebUI:
             return denied
         from synox.packs.admin import PackAdminError, staged_summary
         try:
-            return _json(200, staged_summary(token, self.config.data_dir))
+            return _json(200, self._with_upgrade(staged_summary(token, self.config.data_dir)))
         except PackAdminError as e:
             return _err(404, str(e))
 
@@ -547,6 +559,8 @@ class WebUI:
         from synox.packs.admin import GateRefused, PackAdminError, install_staged
         if not self.pack_dirs:
             return _err(400, "沒有可以裝 pack 的資料夾。")
+        if data.get("upgrade"):
+            return self._pack_upgrade(user, data)
         try:                                                            # 再跑 1、2 關 → 第 3 關（packs.lock）
             name = install_staged(str(data.get("token") or ""), self.config.data_dir, self.pack_dirs[0],
                                   approved_by=user.tg_id, via="web")
@@ -558,6 +572,23 @@ class WebUI:
         status = next((i for i in report.items if i.name == name), None)
         return _json(200, {"ok": True, "name": name, "status": status.status if status else "",
                            "detail": status.detail if status else ""})
+
+    def _pack_upgrade(self, user, data: dict) -> Resp:
+        """看過「改了什麼」按了「確認升級」：舊的搬到 _removed、新的搬進來、鎖換新、重新載入。"""
+        from synox.packs.admin import GateRefused, PackAdminError
+        from synox.packs.upgrade import upgrade_staged
+        try:
+            done = upgrade_staged(str(data.get("token") or ""), self.config.data_dir, self.pack_dirs[0],
+                                  approved_by=user.tg_id, via="web", allow_downgrade=bool(data.get("allow_downgrade")))
+        except GateRefused as e:
+            return _json(400, {"error": str(e), "refused": e.summary})
+        except PackAdminError as e:
+            return _err(400, str(e))
+        report = self._reload()
+        status = next((i for i in report.items if i.name == done["name"]), None)
+        return _json(200, {"ok": True, "name": done["name"], "upgraded": True, "from": done["from"], "to": done["to"],
+                           "backup": os.path.relpath(done["backup"], os.path.dirname(self.pack_dirs[0])),
+                           "status": status.status if status else "", "detail": status.detail if status else ""})
 
     def pack_remove(self, user, data: dict) -> Resp:
         denied = self._owner_only(user)
