@@ -4,6 +4,31 @@
 
 版本從 0.1.0 升到 0.2.0：pack 格式多了 surfaces／data／auth.fields／mcp／runtime auto／schema_tools 等欄位，SDK 產生的 pack 寫 `requires.synox: ">=0.2"`，舊版 SYNOX 會明說要先更新、不會載入。
 
+## 未發佈（branch feat/isolation：容器隔離 S0–S2，只組指令、還沒真機驗證）
+
+擁有者 2026-11-10 的決定：作者「建議提供」容器（不強制）；伺服器版第三方／T2 pack 選了容器才開給成員；Linux 優先 rootless podman、
+也支援 Docker；這台開發機不跑任何容器／VM（全部用假後端），真機驗證寫成 `docs/handoff/container-verification.md`。
+調查與做法：`docs/discussions/2026-11-10-isolation-howto.md`。
+
+### 新增
+- **pack.json `runtime.container`**（kind=cli、mcp stdio；`packs/container.py`）：`image` 一定帶 `@sha256:` digest（白名單 registry、
+  不收 localhost／IP／網址）或 pack 裡的 `dockerfile`＋帶 digest 的 `base`；`network` 要跟 capabilities 一致；`resources` 只能調低；
+  `mounts` 只能改容器裡的路徑；`user` 不能是 root；`privileged`、`cap_add`、`devices`、`volumes`、`network_mode`、`args`… 一律拒（第 1 關）。
+  第 2 關掃 Dockerfile（單一 FROM＝base、ADD 網址、RUN --network、COPY --from 沒 digest、ONBUILD 拒；RUN 下載東西列出來）。
+- **容器後端 `ContainerSandbox`**（podman／docker；`src/synox/sandbox.py`）：只組 `run --rm -i --pull=never --network none --read-only
+  --tmpfs /tmp:noexec --cap-drop ALL --security-opt no-new-privileges --pids-limit --memory --memory-swap`、podman `--userns=keep-id`／
+  docker `--user`、只掛 pack（唯讀）與那一格資料夾、`--env 名字`（值不進 argv）。`policy.sandbox.engine`：`auto`（podman → docker）｜
+  `podman`｜`docker`，只用 which 偵測。容器裡的路徑：`{pack_dir}`→`/pack`、`{user_data_dir}`→`/data/user`、`{python}`→`python3`。
+  kind=cli 與 mcp stdio 都走同一條（`sandbox.box_for`）。
+- **安裝報告「🧱 執行環境」**（終端機、網頁）：這台的引擎、pack 提供的容器、選「用容器／不用」；`install --runtime container|host`、
+  `packs lock --runtime`、`packs runtime <name> container|host`；記進 packs.lock 的 `runtime`（跟 trust 並列）。
+  升級：容器 → 不用、network false → true、映像換了＝紅字。
+- **伺服器版**：第三方／T2 的 cli、mcp stdio pack 選了容器、引擎找得到 → 算真隔離、給成員；找不到引擎 → 照舊只給擁有者，原因寫在
+  doctor／packs status。doctor 多一行「容器引擎」（只看 PATH，不執行）。
+
+### 還沒做
+- SYNOX 自己拉映像／build（S3）、MCP 長駐容器的收尾（S4）、installer 偵測（S6）、VM 後端（S7）。容器後端沒在真機跑過。
+
 ## 未發佈（branch feat/fix-connect：真機測試前的兩個小修）
 
 ### 修正

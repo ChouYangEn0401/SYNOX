@@ -671,6 +671,7 @@
     var upg = s.upgrade, down = null;
     if (upg) { down = showUpgrade(box, upg, s.name); }
     var trust = canInstall && s.token ? showScope(box, s, upg) : null;
+    var runtime = canInstall && s.token ? showRuntime(box, s, upg) : null;
     var pub = showTier(box, s, upg, canInstall && s.token);
     var row = el("div", "row");
     if (canInstall && s.token) {
@@ -687,6 +688,7 @@
         var body = { token: s.token };
         if (upg) { body.upgrade = true; body.allow_downgrade = !!(down && down.checked); }
         if (trust) { body.trust = trust.value; }
+        if (runtime) { body.runtime = runtime.value; }
         if (pub) { body.trust_publisher = pub.value(); }
         api("POST", "/api/packs/install", body).then(function (d) {
           $("pack-msg").textContent = (d.upgraded ? "升級好了：" + d.name + " " + d.from + " → " + d.to + "（舊的在 " + d.backup + "）"
@@ -767,6 +769,42 @@
     function check() {
       note.textContent = (upg && sel.value !== (current || "")) ?
         "🔴 信任 " + (current || "（未鎖定）") + " → " + sel.value : "";
+    }
+    sel.addEventListener("change", check);
+    check();
+    return sel;
+  }
+  // S2：執行環境（用容器／不用）。引擎只看 PATH（伺服器沒有執行 podman／docker）；pack 沒提供容器就只有「不用」
+  function showRuntime(box, s, upg) {
+    var rt = s.runtime || {};
+    if (!rt.applies) { return null; }
+    var engines = Object.keys(rt.engines || {}).map(function (k) { return k + (rt.engines[k] ? " ✅" : " —"); }).join("、");
+    box.appendChild(el("p", "", "🧱 執行環境：這台的容器引擎 " + engines + "（只看 PATH，沒有執行）"));
+    var c = rt.container || {};
+    if (!rt.offered) {
+      box.appendChild(el("p", "muted", "這個 pack 沒有提供容器：只能直接在這台跑（伺服器版的第三方／T2 pack 要 bwrap／systemd 才給成員）"));
+      return null;
+    }
+    box.appendChild(el("p", "muted", "提供的容器：" + (c.run_image || "") + "，network: " + (c.network ? "true" : "false") +
+      "。映像的內容 SYNOX 不看；執行時不會自己拉映像，要事先照 digest 拉好。"));
+    var lab = el("label", "", "要怎麼跑：");
+    var sel = el("select");
+    (rt.choices || []).forEach(function (ch) {
+      var o = el("option", "", ch.text);
+      o.value = ch.value;
+      sel.appendChild(o);
+    });
+    var current = upg ? (upg.installed_runtime || "") : "";
+    sel.value = current || rt.default || "host";
+    lab.appendChild(sel);
+    box.appendChild(lab);
+    var note = el("p", "alert", "");
+    box.appendChild(note);
+    function check() {
+      var noEngine = !Object.keys(rt.engines || {}).some(function (k) { return rt.engines[k]; });
+      note.textContent = (sel.value === "container" && noEngine) ?
+        "⚠️ 這台找不到 podman／docker：選了容器也會先退回直接跑，裝好引擎後自動改用容器" :
+        ((current === "container" && sel.value !== "container") ? "🔴 執行環境 容器 → 直接在這台跑" : "");
     }
     sel.addEventListener("change", check);
     check();
