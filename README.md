@@ -101,6 +101,7 @@ pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的
 - 伺服器版：個人版的舊資料不會自動搬過去；「連架設的人都看不到」的版本（另一份規格）；網頁介面對外開放（要自己架反向代理＋TLS）。
 - 匯入 ClawBot 的資料；換電腦的匯出（備份綁這個 Windows 帳號）、還原按鈕；網頁看圖／下載檔案、網頁收提醒（提醒只走 Telegram）。
 - connector：Notion、Todoist、Google 日曆、Apple 提醒事項都做好了（設定步驟見各自 `connectors/*/README.md`），但都只用假傳輸測過，還沒對真的服務跑過。
+  到另一台電腦用真的帳號測（含 Discord）：[docs/handoff/](docs/handoff/README.md)（教學＋煙霧測試 `scripts/smoke_real.py`）。
   Apple 提醒事項要注意：iCloud 升級過的提醒事項 Apple 不開放 CalDAV，見 `connectors/apple-reminders-caldav/README.md`。
 - macOS／Linux 的安裝器（程式本身跨平台，但 `Setup.bat` 只有 Windows）；打包成 .exe（之後用 PyInstaller）。
 - AI 的對話紀錄只放在記憶體（重開 bot 就忘了），每個聊天留最近 6 輪。
