@@ -1,0 +1,12 @@
+SYNOX
+Copyright 2026 ChouYangEn and the SYNOX Team
+
+SYNOX was created by ChouYangEn (GitHub: ChouYangEn0401), who is the
+Founding Maintainer of the project. See GOVERNANCE.md.
+
+This product includes software licensed under:
+  - GNU Affero General Public License v3.0 or later (core)   see LICENSE
+  - Apache License 2.0 (tool SDK and examples)               see LICENSE-APACHE
+
+Redistributions, forks and derived works must keep this NOTICE file and the
+copyright notices in the source files, as required by both licenses.

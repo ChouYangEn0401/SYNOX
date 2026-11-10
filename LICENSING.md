@@ -20,13 +20,14 @@ Apache-2.0 的檔案開頭都有 `SPDX-License-Identifier: Apache-2.0`。沒有�
 
 **你想在不受 AGPL 限制的情況下使用或散布核心**（例如放進閉源產品）：需要向著作權人取得另外的商業授權。請見 [CONTRIBUTING.md](CONTRIBUTING.md) 的聯絡方式。
 
-## 著作權與商標
+## 著作權、署名與商標
+
+- 著作權署名：**ChouYangEn and the SYNOX Team**。創始者的地位與署名保留方式見 [GOVERNANCE.md](GOVERNANCE.md)、[NOTICE](NOTICE)。
 
 - 著作權屬於各貢獻者；專案維護者依 [CONTRIBUTING.md](CONTRIBUTING.md) 的貢獻者同意書取得再授權的權利，才能同時提供開源授權與商業授權。
 - 「SYNOX」這個名稱與標誌不在授權範圍內，使用規則見 [TRADEMARK.md](TRADEMARK.md)。
 
 ## 還沒決定、需要擁有者補上的事
 
-- `vendor/isdtelekit/` 的授權：它是擁有者自己的上游函式庫，請在上游 repo 加上授權（建議 Apache-2.0 或與核心一致），再把這份文件的對應列改成確定的授權。
-- 著作權人的署名：目前檔案頭寫「The SYNOX authors」，請擁有者決定要寫個人姓名或組織名。
+- `vendor/isdtelekit/` 的授權：它是創始者自己的上游函式庫，請在上游 repo 加上授權（建議 Apache-2.0 或與核心一致），再把這份文件的對應列改成確定的授權。
 - 這份文件不是法律意見。收費、簽商業合約或要註冊商標之前，請找懂開源授權的人看過。
