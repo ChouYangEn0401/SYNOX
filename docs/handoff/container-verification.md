@@ -1,12 +1,12 @@
 # 交接：容器隔離與 Linux 沙盒的真機驗證
 
-狀態：**待驗證**（2026-11-10 寫；分支 `feat/isolation`）
+狀態：**待驗證**（2026-11-10 寫；已合併進 `dev` 與 `main`）
 為什麼要這份：寫程式的那台 Windows 開發機**不跑任何容器、VM**（擁有者的規定），容器後端（S0–S2）和原本的 bwrap／systemd 後端
 （PERM-7）都只比對過「SYNOX 組出來的指令字串」。這份是帶到**另一台機器**（學校實驗室的 Linux 優先；Windows＋Docker Desktop 其次）
 真的跑一次的清單。背景與每個旗標防什麼：[`docs/discussions/2026-11-10-isolation-howto.md`](../discussions/2026-11-10-isolation-howto.md)。
 
 開始之前（擁有者做）：
-1. 把分支帶過去：在開發機 `git push origin feat/isolation`（或 `git bundle create isolation.bundle dev..feat/isolation` 用隨身碟帶）。
+1. 程式已經在 GitHub 的 `dev` 分支（也在 `main`），那台機器 `git clone` 後 `git checkout dev` 即可。
 2. 那台機器要有：Python 3.10 以上、git、podman（建議）或 Docker；Linux 的話另外 `bubblewrap`、`systemd`（多半內建）、`util-linux`（prlimit）。
 3. 把下面「給那台 Claude 的 prompt」整段貼過去。
 
@@ -15,11 +15,11 @@
 ## 1. 給那台機器上的 Claude 的 prompt（整段貼上）
 
 ```
-你在一台用來做驗證的機器上（不是擁有者的開發機）。任務：驗證 SYNOX 分支 feat/isolation 的「容器後端」與「Linux 沙盒後端」
+你在一台用來做驗證的機器上（不是擁有者的開發機）。任務：驗證 SYNOX 的 dev 分支 的「容器後端」與「Linux 沙盒後端」
 真的有隔離效果，結果寫成紀錄回報。只驗證、不改 SYNOX 的程式、不合併任何分支。
 
 準備
-1. git clone（或 fetch）SYNOX，git checkout feat/isolation。建 venv：python3 -m venv .venv && .venv/bin/pip install -e . pytest
+1. git clone（或 fetch）SYNOX，git checkout dev。建 venv：python3 -m venv .venv && .venv/bin/pip install -e . pytest
 2. 先跑一次單元測試確認環境：.venv/bin/python -m pytest -q（應該全過；記下 passed 數）。
 3. 讀 docs/handoff/container-verification.md 的第 2 節以後，照清單逐項做。
 
