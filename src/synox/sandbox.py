@@ -26,18 +26,26 @@ grants（Grants）從 pack.json 的宣告算（grants_for）：
   ProtectSystem=strict、InaccessiblePaths＝SYNOX 的 data、BindReadOnlyPaths／BindPaths 開回 grants）。
   環境變數用 --setenv=名字（只有名字，值由 systemd-run 從自己的環境拿：密鑰不進 argv）。
 - appcontainer（Windows，未來）：只有介面，wrap 丟 NotImplementedError（說明見 docs/security.md）。
+- container（S1，每個 pack 自己的）：pack.json 有 runtime.container（packs/container.py 第 1 關）、packs.lock 的
+  runtime.mode=container（安裝時擁有者選）、這台找得到引擎（policy.sandbox.engine：auto＝podman → docker；只用 which）
+  → ContainerSandbox 組 `podman|docker run --rm -i --pull=never --network none --read-only --cap-drop ALL …`。
+  box_for(config, m) 決定這一次用哪個：選了容器又有引擎＝容器，否則照上面的 backend（找不到引擎時 doctor 說原因）。
+  代換用 view_for(box, ph)：容器裡 {pack_dir}＝/pack、{user_data_dir}＝/data/user、{data_dir}＝/data/shared、{python}＝python3。
+  set_engine_which／set_container_factory 給測試換（**測試絕不執行 podman／docker**）。
 
-真隔離＝bwrap／systemd（而且這台電腦找得到那個程式）。policy.sandbox.required_for（預設 "third-party"）命中的 cli pack，
+真隔離＝bwrap／systemd／container（而且這台電腦找得到那個程式）。policy.sandbox.required_for（預設 "third-party"）命中的 cli pack，
 在伺服器版又沒有真隔離 → 只對擁有者可見（loader 把群組改成 owner_only，doctor 說明原因）。個人版不受影響。
 T2 pack（SDK P7，packs/tier.py：掃不到內容的執行檔／外部程式／runtime auto 套件）一定命中，不管 trust、required_for；
 T2 的 python pack 在程序裡跑、包不到，伺服器版一律只給擁有者。個人版的 T2 照用，doctor 提醒（t2_personal_note）。
 這支檔只用標準函式庫（jobobject 的 launcher 用 python -I 直接跑這個檔）。
 **沙盒後端的真機驗證要在 Linux 伺服器上做；寫這一版的 Windows 電腦只驗證了組出來的 argv。**
+（容器的清單：docs/handoff/container-verification.md）
 """
 
 from __future__ import annotations
 
 import os
+import secrets
 import shutil
 import subprocess
 import sys
@@ -45,12 +53,15 @@ from dataclasses import dataclass
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 BACKENDS = ("auto", "none", "jobobject", "bwrap", "systemd", "appcontainer")
-REAL_ISOLATION = ("bwrap", "systemd", "appcontainer")
+REAL_ISOLATION = ("bwrap", "systemd", "container", "appcontainer")
 REQUIRED_FOR = ("third-party", "all", "none")
 CORE, THIRD_PARTY = "core", "third-party"
 TRUSTS = (CORE, THIRD_PARTY)
 DATA_SCOPES = ("none", "user", "shared")
-DEFAULTS = {"backend": "auto", "required_for": "third-party", "mem_mb": 1024, "max_procs": 64}
+ENGINES = ("podman", "docker")                      # 容器引擎（auto 的順序：rootless podman 優先，擁有者 Q2）
+ENGINE_SETTINGS = ("auto",) + ENGINES
+RUNTIME_MODES = ("container", "host")                # packs.lock 的 runtime.mode：安裝時擁有者選的
+DEFAULTS = {"backend": "auto", "required_for": "third-party", "mem_mb": 1024, "max_procs": 64, "engine": "auto"}
 
 # bwrap：放進沙盒的系統資料夾（唯讀；不存在就跳過）
 SYSTEM_RO = ("/usr", "/bin", "/sbin", "/lib", "/lib32", "/lib64", "/etc/alternatives", "/etc/ld.so.cache",
@@ -223,6 +234,148 @@ class SystemdSandbox(Sandbox):
         return f"systemd（systemd-run {self.scope} 服務：cgroup 記憶體／程序數、唯讀系統、沒宣告 network 就斷網）"
 
 
+CONTAINER_TMPFS = "/tmp:rw,noexec,nosuid,nodev,size=64m"
+CONTAINER_HOME = "/tmp"
+NOBODY = "65534:65534"
+_MOUNT_BAD = (",", '"', "\n", "\r", "\x00")          # --mount 是逗號分隔的 key=value：本機路徑有這些字就不掛（不猜跳脫）
+
+
+class ContainerSandbox(Sandbox):
+    """pack 自己的容器（S1；pack.json runtime.container、packs.lock runtime.mode=container）：只組 argv，**不執行引擎**。
+
+        <podman|docker> run --rm -i --pull=never --name synox-<pack>-<tg_id>-<亂數> --label synox.pack=<pack>
+          --network none（沒宣告 network） --read-only --tmpfs /tmp:… --cap-drop ALL --security-opt no-new-privileges
+          --pids-limit N --memory Nm --memory-swap Nm [--cpus X]
+          podman：--userns=keep-id（＝SYNOX 帳號的 uid，非 root）｜docker：--user <uid>:<gid>（Windows：65534:65534）
+          --mount type=bind,source=<pack 資料夾>,target=/pack,readonly
+          --mount type=bind,source=<grants.write>,target=/data/user/<pack>（或 /data/shared/packs/<pack>）
+          --workdir <cwd 在容器裡的路徑> --env HOME=/tmp --env 名字…（只有名字，值由引擎從 SYNOX 的環境拿）
+          <image@sha256:…> <原本的 argv（loader 已經用 view() 換成容器裡的路徑）>
+
+    絕對不加：--privileged、--network host、docker.sock、--cap-add、--device（第 1 關也不收這些欄位）。
+    grants.read 裡 pack 資料夾以外的（data/envs、SYNOX 的 Python）不掛：容器用映像自己的 Python。
+    which／uid／nonce 可以換（測試）。**真機驗證見 docs/handoff/container-verification.md**。"""
+    name = "container"
+    isolates = True
+
+    def __init__(self, engine: str = "podman", spec: Optional[dict] = None, *, image: str = "", pack: str = "",
+                 pack_dir: str = "", scope: str = "none", which: Callable[[str], Optional[str]] = shutil.which,
+                 platform: str = sys.platform, uid: Optional[int] = None, gid: Optional[int] = None,
+                 nonce: Optional[Callable[[], str]] = None):
+        if engine not in ENGINES:
+            raise ValueError(f"容器引擎只能是 {'、'.join(ENGINES)}")
+        self.engine = engine
+        self.spec = dict(spec or {})
+        self.image = image or self.spec.get("image", "")
+        self.pack = pack
+        self.pack_dir = pack_dir
+        self.scope = scope
+        self.which = which
+        self.platform = platform
+        self.uid = uid
+        self.gid = gid
+        self.nonce = nonce
+        mounts = self.spec.get("mounts") or {}
+        self.mount_pack = mounts.get("pack", "/pack")
+        self.mount_user = mounts.get("user_data", "/data/user")
+        self.mount_shared = mounts.get("shared_data", "/data/shared")
+
+    def available(self) -> bool:
+        return bool(self.which(self.engine))
+
+    def view(self, ph: Dict[str, str]) -> Dict[str, str]:
+        """loader.placeholders → 容器裡的路徑（{pack_dir}、{user_data_dir}、{data_dir}、{python}、{node}）。"""
+        return {**ph, "pack_dir": self.mount_pack, "user_data_dir": self.mount_user, "data_dir": self.mount_shared,
+                "python": self.spec.get("python", "python3"), "node": self.spec.get("node", "node")}
+
+    def write_target(self) -> str:
+        """grants.write（data=user：<user_data_dir>/<pack>；shared：<data_dir>/packs/<pack>）在容器裡的路徑。"""
+        if self.scope == "shared":
+            return f"{self.mount_shared}/packs/{self.pack}"
+        return f"{self.mount_user}/{self.pack}"
+
+    def _container_path(self, host: str, grants: Grants) -> str:
+        """本機路徑（cwd）→ 容器裡的路徑；不在掛進來的資料夾裡＝pack 的路徑。"""
+        pairs = [(self.pack_dir, self.mount_pack)] + [(w, self.write_target()) for w in grants.write]
+        for base, target in pairs:
+            if not base:
+                continue
+            try:
+                rel = os.path.relpath(os.path.normpath(host), os.path.normpath(base))
+            except ValueError:                    # 不同磁碟機
+                continue
+            if rel == ".":
+                return target
+            if not rel.startswith(".."):
+                return target + "/" + rel.replace(os.sep, "/")
+        return self.mount_pack
+
+    def _user_args(self) -> List[str]:
+        user = self.spec.get("user", "nonroot")
+        if user != "nonroot":
+            return ["--user", user]
+        if self.engine == "podman":
+            return ["--userns=keep-id"]                    # rootless：容器裡就是 SYNOX 帳號的 uid（不是 root）
+        if self.platform.startswith("win"):
+            return ["--user", NOBODY]
+        uid = self.uid if self.uid is not None else getattr(os, "getuid", lambda: 65534)()
+        gid = self.gid if self.gid is not None else getattr(os, "getgid", lambda: 65534)()
+        return ["--user", NOBODY if not uid else f"{uid}:{gid}"]   # SYNOX 用 root 跑時退回 nobody
+
+    @staticmethod
+    def _mount(source: str, target: str, readonly: bool) -> List[str]:
+        if any(c in source for c in _MOUNT_BAD):
+            raise ValueError(f"容器後端掛不了這個資料夾（路徑裡有逗號、引號或換行）：{source!r}；"
+                             "把 SYNOX 的資料夾搬到沒有這些字的路徑")
+        return ["--mount", f"type=bind,source={source},target={target}" + (",readonly" if readonly else "")]
+
+    def limits(self, grants: Grants) -> Tuple[Optional[int], Optional[int], Optional[float]]:
+        """(記憶體 MB, 程序數, CPU)：pack 寫的只能比 policy.sandbox 小（取小的）。"""
+        res = self.spec.get("resources") or {}
+        mem = [v for v in (grants.mem_mb, res.get("mem_mb")) if v]
+        pids = [v for v in (grants.procs, res.get("pids")) if v]
+        return (min(mem) if mem else None), (min(pids) if pids else None), res.get("cpus")
+
+    def wrap(self, argv, env, cwd, grants):
+        env = dict(env or {})
+        nonce = self.nonce() if self.nonce else secrets.token_hex(4)
+        who = "".join(c for c in str(env.get("SYNOX_TG_ID") or "x") if c.isalnum()) or "x"
+        out = [self.which(self.engine) or self.engine, "run", "--rm", "-i", "--pull=never",
+               "--name", f"synox-{self.pack or 'pack'}-{who}-{nonce}", "--label", f"synox.pack={self.pack}"]
+        if not grants.network:
+            out += ["--network", "none"]
+        out += ["--read-only", "--tmpfs", CONTAINER_TMPFS, "--cap-drop", "ALL",
+                "--security-opt", "no-new-privileges"]
+        mem, pids, cpus = self.limits(grants)
+        if pids:
+            out += ["--pids-limit", str(int(pids))]
+        if mem:
+            out += ["--memory", f"{int(mem)}m", "--memory-swap", f"{int(mem)}m"]
+        if cpus:
+            out += ["--cpus", f"{float(cpus):g}"]
+        out += self._user_args()
+        if self.pack_dir:
+            out += self._mount(os.path.normpath(self.pack_dir), self.mount_pack, True)
+        for w in grants.write:
+            out += self._mount(os.path.normpath(w), self.write_target(), False)
+        out += ["--workdir", self._container_path(cwd, grants), "--env", f"HOME={CONTAINER_HOME}"]
+        allow = self.spec.get("env_passthrough")
+        names: List[str] = []
+        for n in tuple(sorted(env)) + tuple(n for n in grants.pass_env if allow is None or n in allow):
+            if n not in names and n != "HOME":
+                names.append(n)
+        for n in names:
+            out += ["--env", n]                            # 只有名字：值由引擎從自己的環境拿（不進 argv）
+        out.append(self.image)
+        return out + [str(a) for a in argv], env
+
+    def describe(self) -> str:
+        how = "rootless podman：容器裡是 SYNOX 帳號的 uid" if self.engine == "podman" else \
+            "docker：daemon 是 root 時，能叫 docker 的帳號等於 root"
+        return (f"container（{self.engine}；{how}；斷網、唯讀根目錄、--cap-drop ALL、只掛 pack 與自己那一格資料夾；"
+                f"映像 {self.image[:60] or '（沒有）'}）")
+
+
 APPCONTAINER_TODO = ("appcontainer 後端還沒做（只有介面）：Windows 上要用 CreateAppContainerProfile＋"
                      "SECURITY_CAPABILITIES 開程序、對 grants 的資料夾加 ACL，見 docs/security.md「沙盒」的未來項目。")
 
@@ -259,6 +412,8 @@ def parse_settings(raw) -> dict:
             raise ValueError(f"policy.sandbox.{key} 要是 0 以上的整數（0＝不限）。")
     if out.get("systemd_scope", "system") not in ("system", "user"):
         raise ValueError("policy.sandbox.systemd_scope 只能是 system 或 user。")
+    if out["engine"] not in ENGINE_SETTINGS:
+        raise ValueError(f"policy.sandbox.engine 只能是 {'、'.join(ENGINE_SETTINGS)}（現在是 {out['engine']!r}）。")
     return out
 
 
@@ -275,10 +430,36 @@ def mode_of(config) -> str:
     return str(getattr(config, "mode", "personal") or "personal")
 
 
+def pick_engine(settings: dict, which: Callable[[str], Optional[str]] = shutil.which) -> str:
+    """policy.sandbox.engine → 這台找得到的容器引擎名字（""＝沒有）。auto：podman（rootless 優先）→ docker。
+    **只用 which 看 PATH，不執行引擎**（不知道是不是 rootless、daemon 有沒有開——doctor 照實說）。"""
+    wanted = settings.get("engine", "auto")
+    for engine in (ENGINES if wanted == "auto" else (wanted,)):
+        if which(engine):
+            return engine
+    return ""
+
+
+def engines_text(settings: dict) -> str:
+    wanted = settings.get("engine", "auto")
+    return "podman 或 docker" if wanted == "auto" else wanted
+
+
 def resolve(settings: dict, mode: str = "personal", *, platform: str = sys.platform,
-            which: Callable[[str], Optional[str]] = shutil.which) -> Sandbox:
+            which: Callable[[str], Optional[str]] = shutil.which, container: Optional[dict] = None) -> Sandbox:
     """設定 → 後端。auto：個人版、Windows＝none；Linux 伺服器版＝bwrap，沒有就 systemd，都沒有＝none。
-    明寫的後端用不了（找不到 bwrap…）＝none，problem 寫原因（fail closed：真隔離＝否，第三方 pack 只給擁有者）。"""
+    明寫的後端用不了（找不到 bwrap…）＝none，problem 寫原因（fail closed：真隔離＝否，第三方 pack 只給擁有者）。
+    container（container_target 的結果：這個 pack 有 runtime.container、擁有者選了容器）：先照 policy.sandbox.engine
+    找引擎（auto：podman → docker；任何平台都可以，Windows 是使用者自己裝的 Docker Desktop）→ ContainerSandbox；
+    找不到引擎＝退回上面的規則（Linux 伺服器版：bwrap → systemd → none），problem 寫「選了容器但找不到引擎」。"""
+    if container is not None:
+        engine = pick_engine(settings, which)
+        if engine:
+            return container_box(engine, container, which=which, platform=platform)
+        host = resolve(settings, mode, platform=platform, which=which)
+        note = f"選了容器，但這台找不到 {engines_text(settings)}：改用 {host.name}"
+        host.problem = note + (f"；{host.problem}" if host.problem else "")
+        return host
     backend = settings.get("backend", "auto")
     linux = platform.startswith("linux")
     if backend == "auto":
@@ -318,6 +499,120 @@ def set_factory(factory: Optional[Callable[[object], Sandbox]]) -> None:
 
 def sandbox_for(config) -> Sandbox:
     return _factory(config)
+
+
+# ── 每個 pack 自己的容器（S1／S2） ──────────────────────────────────────
+
+def container_spec(m) -> Optional[dict]:
+    """pack.json 的 runtime.container（第 1 關整理過的）；沒寫回 None。"""
+    spec = (getattr(m, "runtime", None) or {}).get("container")
+    return spec if isinstance(spec, dict) else None
+
+
+def runtime_mode(config, m) -> str:
+    """container｜host：packs.lock 的 runtime.mode（安裝時擁有者選的；packs runtime 可以改）。
+    沒有 runtime.container、沒有鎖、鎖裡沒寫＝host。"""
+    if container_spec(m) is None:
+        return "host"
+    data_dir = getattr(config, "data_dir", "") if config is not None else ""
+    if not data_dir:
+        return "host"
+    from synox.packs import lock as pack_lock
+    found = pack_lock.entry(data_dir, m.name) or {}
+    mode = (found.get("runtime") or {}).get("mode") if isinstance(found.get("runtime"), dict) else None
+    return "container" if mode == "container" else "host"
+
+
+def container_target(config, m) -> Optional[dict]:
+    """這個 pack 要在容器裡跑嗎：有 runtime.container 而且擁有者選了容器 → {spec, image, pack, pack_dir, scope}；否則 None。"""
+    spec = container_spec(m)
+    if spec is None or runtime_mode(config, m) != "container":
+        return None
+    from synox.packs import container as pack_container
+    return {"spec": spec, "image": pack_container.image_ref(m, spec), "pack": m.name, "pack_dir": m.folder,
+            "scope": data_scope(m)}
+
+
+def container_box(engine: str, target: dict, *, which: Callable[[str], Optional[str]] = shutil.which,
+                  platform: str = sys.platform) -> "ContainerSandbox":
+    return ContainerSandbox(engine, target["spec"], image=target.get("image", ""), pack=target.get("pack", ""),
+                            pack_dir=target.get("pack_dir", ""), scope=target.get("scope", "none"), which=which,
+                            platform=platform)
+
+
+def default_container_factory(config, target: dict, engine: str) -> Sandbox:
+    return container_box(engine, target, which=_engine_which)
+
+
+_engine_which: Callable[[str], Optional[str]] = shutil.which
+_container_factory: Callable[[object, dict, str], Sandbox] = default_container_factory
+
+
+def set_engine_which(which: Optional[Callable[[str], Optional[str]]]) -> None:
+    """換掉「找容器引擎」的 which（測試給假的；None＝shutil.which）。只看 PATH，不執行引擎。"""
+    global _engine_which
+    _engine_which = which or shutil.which
+
+
+def set_container_factory(factory: Optional[Callable[[object, dict, str], Sandbox]]) -> None:
+    """換掉容器後端的建法（測試給記錄 argv 的假後端；None＝ContainerSandbox）。factory(config, target, engine)。"""
+    global _container_factory
+    _container_factory = factory or default_container_factory
+
+
+def box_for(config, m, host: Optional[Sandbox] = None) -> Sandbox:
+    """這個 pack 這一次用哪個後端：選了容器、這台找得到引擎 → 容器；否則 host（sandbox_for(config)，或呼叫的人給的）。
+    loader 的 make_cli、mcp 的 StdioBackend、restricted_reason 都用這個。"""
+    target = container_target(config, m)
+    if target is not None:
+        engine = pick_engine(settings_of(config), _engine_which)
+        if engine:
+            return _container_factory(config, target, engine)
+    return host if host is not None else sandbox_for(config)
+
+
+def container_problem(config, m) -> str:
+    """選了容器卻用不了的原因（""＝沒問題或沒選容器）。"""
+    if container_target(config, m) is None:
+        return ""
+    settings = settings_of(config)
+    if pick_engine(settings, _engine_which):
+        return ""
+    return f"選了容器，但這台找不到 {engines_text(settings)}（policy.sandbox.engine={settings.get('engine')}）"
+
+
+def view_for(box: Sandbox, ph: Dict[str, str]) -> Dict[str, str]:
+    """代換用的值：容器後端＝容器裡的路徑（{pack_dir}→/pack…）；其他後端原樣。"""
+    view = getattr(box, "view", None)
+    return view(ph) if callable(view) else ph
+
+
+def runtime_note(config, m) -> str:
+    """doctor／packs status 的一行（沒有 runtime.container 回 ""）。"""
+    if container_spec(m) is None:
+        return ""
+    if runtime_mode(config, m) != "container":
+        return (f"🧱 這個 pack 有提供容器，目前選「不用容器」（python -m synox packs runtime {m.name} container 改用容器）")
+    problem = container_problem(config, m)
+    if problem:
+        return f"🧱 ⚠️ {problem}：退回這台的沙盒後端"
+    engine = pick_engine(settings_of(config), _engine_which)
+    from synox.packs import container as pack_container
+    return f"🧱 容器（{engine}）：{pack_container.image_ref(m)[:90]}"
+
+
+def engines_line(config) -> str:
+    """doctor：這台找得到哪些容器引擎（只用 which 看 PATH，**不執行引擎**；rootless 與否、daemon 開了沒都不知道）。"""
+    settings = settings_of(config)
+    found = []
+    for engine in ENGINES:
+        path = _engine_which(engine)
+        found.append(f"{engine} ✅（{path}）" if path else f"{engine} —（PATH 上沒有）")
+    chosen = pick_engine(settings, _engine_which)
+    tail = f"會用 {chosen}" if chosen else "選了容器的 pack 會退回沙盒後端"
+    note = "；docker 的 daemon 是 root：能叫 docker 的帳號等於 root" if chosen == "docker" else ""
+    return (f"• 容器引擎（engine={settings.get('engine')}）：{'、'.join(found)}；{tail}"
+            f"（只看 PATH，沒有執行引擎{note}）")
 
 
 # ── 從宣告算 grants ───────────────────────────────────────────────────────
@@ -411,15 +706,19 @@ def restricted_reason(config, m, box: Optional[Sandbox] = None) -> str:
                 "沙盒包不到；伺服器版不給成員用（不管 trust 怎麼選）")
     if not required(config, m):
         return ""
-    box = box if box is not None else sandbox_for(config)
+    box = box_for(config, m, host=box)            # 選了容器、引擎找得到 → 容器（算真隔離）
     if box.isolates:
         return ""
-    why = f"（{box.problem}）" if box.problem else ""
+    problems = [p for p in (container_problem(config, m), box.problem) if p]
+    why = f"（{'；'.join(problems)}）" if problems else ""
+    hint = ""
+    if container_spec(m) is not None and runtime_mode(config, m) != "container":
+        hint = f"；這個 pack 有提供容器：python -m synox packs runtime {m.name} container 改用容器就能給成員"
     if is_t2(m):
         return (f"只對擁有者開放：這是 T2 pack（會執行掃不到內容的東西），一定要沙盒（不管 trust、required_for），"
-                f"但目前的後端是 {box.name}{why}，不算真隔離（要 bwrap 或 systemd）")
+                f"但目前的後端是 {box.name}{why}，不算真隔離（要 bwrap、systemd 或容器）{hint}")
     return (f"只對擁有者開放：policy.sandbox.required_for={settings_of(config).get('required_for')} 要求沙盒，"
-            f"但目前的後端是 {box.name}{why}，不算真隔離（要 bwrap 或 systemd）")
+            f"但目前的後端是 {box.name}{why}，不算真隔離（要 bwrap、systemd 或容器）{hint}")
 
 
 def t2_personal_note(config, m) -> str:
@@ -473,7 +772,9 @@ def doctor_line(config) -> Tuple[str, int]:
         line += f"\n  ⚠️ {box.problem}"
         bad += settings.get("backend") != "auto"          # 明寫的後端用不了才算問題；auto 找不到只是提醒
     if mode_of(config) == "server" and not box.isolates and settings.get("required_for") != "none":
-        line += "\n  ⚠️ 伺服器版沒有真隔離：要沙盒的 cli pack 只對擁有者開放（Linux 裝 bubblewrap 後 backend 寫 auto 或 bwrap）"
+        line += ("\n  ⚠️ 伺服器版沒有真隔離：要沙盒的 cli pack 只對擁有者開放（Linux 裝 bubblewrap 後 backend 寫 auto 或 bwrap；"
+                 "或 pack 有提供容器、安裝時選「用容器」、這台有 podman／docker）")
+    line += "\n" + engines_line(config)
     return line, bad
 
 
