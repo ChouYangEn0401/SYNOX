@@ -7,6 +7,8 @@
   驗證碼永遠不經 AI（spec §7.1）。沒有 fields 但有 usage 的節點給一個 `args` 字串參數。
 - 哪些節點給 AI：由呼叫端傳入的 decide(node)（loop.ai_decision）決定，這裡不自己判斷——AI 能不能用一個節點只有一個判斷。
 - schema 寫 additionalProperties: false 與 maxLength；真正擋的是第 4 關 agent/validate.py（模型不一定照 schema）。
+- **schema 模式**（只有 MCP 工具，pack.json 的 mcp.schema_tools；packs/mcp_schema.py）：參數不是平面字串，
+  而是那個工具正規化過的 inputSchema（保留整數、布林、陣列、物件），呼叫時整包結構化參數交給 MCP 後端，不轉成 argv。
 - 工具參數 → 指令參數（argv）：每個欄位變成一個 `key=value` 片段（kit.parse_args 與 SDK 的 parse_fields 都認得）。
 """
 
@@ -31,7 +33,11 @@ def node_for(registry: CommandRegistry, name: str) -> Optional[Node]:
     return None if node is None or node.is_group else node
 
 
-def schema(node: Node) -> dict:
+def schema(node: Node, app=None) -> dict:
+    nested = schema_mode(app, node)
+    if nested is not None:
+        from synox.packs import mcp_schema
+        return mcp_schema.tool_schema(nested)
     props: Dict[str, dict] = {}
     required: List[str] = []
     if node.fields:
@@ -60,8 +66,16 @@ def description(node: Node) -> str:
     return " ".join(parts)
 
 
-def build(registry: CommandRegistry, decide: Callable[[Node], object]) -> List[ToolSpec]:
-    return [ToolSpec(tool_name(n), description(n), schema(n)) for n in registry.leaves() if decide(n) is not None]
+def schema_mode(app, node: Node) -> Optional[dict]:
+    """這個節點是 schema 模式的話回它正規化過的 schema（只有 packs/mcp.py 的 install 會標），否則 None。"""
+    if app is None:
+        return None
+    from synox.agent.validate import schema_of
+    return schema_of(app, node)
+
+
+def build(registry: CommandRegistry, decide: Callable[[Node], object], app=None) -> List[ToolSpec]:
+    return [ToolSpec(tool_name(n), description(n), schema(n, app)) for n in registry.leaves() if decide(n) is not None]
 
 
 def to_argv(node: Node, args: dict) -> List[str]:

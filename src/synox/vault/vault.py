@@ -25,6 +25,7 @@ import json
 import os
 import threading
 import time
+from collections import OrderedDict
 from typing import Any, Dict, Optional
 
 from cryptography.fernet import Fernet, InvalidToken
@@ -38,6 +39,7 @@ KDF_PARAMS = {"n": 2 ** 14, "r": 8, "p": 1}
 _REPLACE_RETRIES = 5
 USER_SALT = b"synox-user-v1"
 USERS_DIR = "users"
+CACHE_MAX = 256                       # 衍生金鑰的快取（每個 Vault 物件）最多幾把
 
 
 class VaultError(Exception):
@@ -62,7 +64,7 @@ class Vault:
             raise ValueError("vault master key must be at least 32 bytes")
         self._key = bytes(master_key)
         self.data_dir = data_dir
-        self._cache: Dict[tuple, bytes] = {}
+        self._cache: "OrderedDict[tuple, bytes]" = OrderedDict()
         self._lock = threading.RLock()
         self._users: Dict[int, "Vault"] = {}
 
@@ -94,11 +96,17 @@ class Vault:
     # ── 加解密 ───────────────────────────────────────────────────────
 
     def _fernet(self, salt: bytes, n: int, r: int, p: int) -> Fernet:
+        """scrypt 很慢，衍生出的金鑰照 (salt, 參數) 快取。每次存檔都換新 salt，所以快取是 LRU、最多 CACHE_MAX 把
+        （以前永不清除：程式開越久、存越多次，記憶體裡的衍生金鑰就越多）。"""
         cache_key = (salt, n, r, p)
         with self._lock:
             key = self._cache.get(cache_key)
-            if key is None:
+            if key is not None:
+                self._cache.move_to_end(cache_key)
+            else:
                 key = self._cache[cache_key] = _derive(self._key, salt, n, r, p)
+                while len(self._cache) > CACHE_MAX:
+                    self._cache.popitem(last=False)
         return Fernet(key)
 
     def encrypt(self, data: Any) -> bytes:
@@ -170,3 +178,13 @@ class Vault:
             secrets = self.load_json("secrets", {}) or {}
             secrets[name] = value
             self.save_json("secrets", secrets)
+
+    def delete_secret(self, name: str) -> bool:
+        """刪掉一個值；本來就沒有回 False（不動檔案）。"""
+        with self._lock:
+            secrets = self.load_json("secrets", {}) or {}
+            if name not in secrets:
+                return False
+            del secrets[name]
+            self.save_json("secrets", secrets)
+            return True

@@ -28,6 +28,10 @@ class CaptureApi:
         self._lines: List[str] = []
         self._open = True
         self._lock = threading.Lock()
+        self.carded = False                 # 執行中送了確認卡（工具回 needs_confirm）：這一輪 AI 就停在這裡
+
+    def mark_carded(self) -> None:
+        self.carded = True
 
     @property
     def channel_name(self) -> str:

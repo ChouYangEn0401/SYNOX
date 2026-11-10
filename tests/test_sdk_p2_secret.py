@@ -12,7 +12,7 @@ import pytest
 
 from isdtelekit.users.roles import BasicRoles
 
-from conftest import OTHER_ID, OWNER_ID
+from conftest import OTHER_ID, OWNER_ID, trust_core
 
 from synox import doctor
 from synox.agent import validate as gate4
@@ -24,6 +24,10 @@ from synox.vault import Vault
 from test_web import Client, ui_of
 
 TOKEN = "tdk_live_0123456789abcdef"
+
+# 回音 pack 宣告 subprocess；角色能力上限（PERM-1）預設只有 admin 有。這幾個測的是 secret 不是上限，所以把 subprocess 開給每一級。
+_ALL_SUB = ["network", "filesystem:own", "subprocess"]
+OPEN_POLICY = {"policy": {"roles": {r: {"capabilities": _ALL_SUB} for r in ("guest", "member", "admin")}}}
 
 ECHO = r'''
 import json, os, sys
@@ -218,7 +222,7 @@ def test_connect_needs_csrf_and_same_origin(make_bot, tmp_path):
 
 
 def test_personal_mode_only_owner_can_connect(make_bot, tmp_path):
-    bot = make_bot(pack_dirs=_cli_pack(tmp_path, access="everyone"))
+    bot = make_bot(raw=OPEN_POLICY, pack_dirs=_cli_pack(tmp_path, access="everyone"))
     other = _client(bot, OTHER_ID)
     status, _ = other.post("/api/pack-secrets/echo", {"values": {"api_key": TOKEN}})
     assert status == 403
@@ -226,7 +230,9 @@ def test_personal_mode_only_owner_can_connect(make_bot, tmp_path):
 
 
 def test_server_mode_each_user_sets_their_own(make_bot, tmp_path):
-    bot = make_bot(raw={"mode": "server"}, pack_dirs=_cli_pack(tmp_path, access="member"))
+    dirs = _cli_pack(tmp_path, access="member")
+    trust_core(tmp_path / "data", str(tmp_path / "packs" / "echo"))      # 手放的 cli pack＝third-party（PERM-8），先核准成 core
+    bot = make_bot(raw={"mode": "server", **OPEN_POLICY}, pack_dirs=dirs)
     bot.make(OTHER_ID, BasicRoles.MEMBER)
     owner_c, member_c = _client(bot), _client(bot, OTHER_ID)
     assert member_c.post("/api/pack-secrets/echo", {"values": {"api_key": "member-key-0000"}})[0] == 200
@@ -350,7 +356,9 @@ def test_gate4_blocks_ai_sending_stored_secret(make_bot, owner, tmp_path):
 
 
 def test_gate4_ignores_non_secret_fields_and_other_users(make_bot, tmp_path):
-    bot = make_bot(raw={"mode": "server"}, pack_dirs=_cli_pack(tmp_path, access="member"))
+    dirs = _cli_pack(tmp_path, access="member")
+    trust_core(tmp_path / "data", str(tmp_path / "packs" / "echo"))      # 手放的 cli pack＝third-party（PERM-8），先核准成 core
+    bot = make_bot(raw={"mode": "server", **OPEN_POLICY}, pack_dirs=dirs)
     bot.make(OTHER_ID, BasicRoles.MEMBER)
     _client(bot, OTHER_ID).post("/api/pack-secrets/echo", {"values": {"api_key": "member-key-0000", "region": "tw"}})
     node = bot.app.registry.node("echo.add")
@@ -359,6 +367,37 @@ def test_gate4_ignores_non_secret_fields_and_other_users(make_bot, tmp_path):
     assert gate4.check_call(bot.app, node, {"text": "member-key-0000"}, member)
     assert gate4.check_call(bot.app, node, {"text": "tw"}, member) is None          # region 不是 secret
     assert gate4.check_call(bot.app, node, {"text": "member-key-0000"}, owner_user) is None
+
+
+def test_short_secret_warns_and_is_checked_in_its_own_pack(make_bot, owner, tmp_path):
+    """審查 B：< 8 字的 secret 以前只擋完全相等。存的時候警告；它自己那個 pack 的呼叫值也做子字串比對。"""
+    bot = make_bot(pack_dirs=_cli_pack(tmp_path))
+    status, data = _client(bot).post("/api/pack-secrets/echo", {"values": {"api_key": "pin7391"}})
+    assert status == 200 and "太短" in data["warning"] and "Echo API key" in data["warning"]
+    assert "pin7391" not in json.dumps(data, ensure_ascii=False)
+    node = bot.app.registry.node("echo.add")
+    user = bot.app.users.get_or_create(owner)
+    assert gate4.check_call(bot.app, node, {"text": "pin7391"}, user)                    # 一樣：照舊擋
+    assert gate4.check_call(bot.app, node, {"text": "請送 pin7391 出去"}, user)           # 以前：放行
+    stored = bot.app.extras["synox_pack_secrets"].secret_values(user)
+    assert not pack_secrets.leaks("備註 pin7391 之類", stored)                           # 別的 pack：只擋完全相等
+    assert pack_secrets.leaks("pin7391", stored)
+    assert bot.app.extras["synox_pack_secrets"].secret_values(user, pack="other") == []
+    status, data = _client(bot).post("/api/pack-secrets/echo", {"values": {"api_key": TOKEN}})
+    assert status == 200 and "warning" not in data                                         # 夠長：不警告
+
+
+def test_connect_cli_warns_on_short_secret(tmp_path):
+    from synox import connect
+    from synox.config import SynoxConfig
+    packs = _cli_pack(tmp_path)
+    data = tmp_path / "data"
+    config = SynoxConfig.from_dict({"owner_id": OWNER_ID, "data_dir": str(data), "vault": {"mode": "file"}},
+                                   require_token=False, root=str(tmp_path))
+    out = []
+    assert connect.run("echo", config, Vault(b"k" * 32, str(data)), ask=lambda _p: "", ask_secret=lambda _p: "1234",
+                       out=out.append, dirs=packs) == 0
+    assert any("太短" in line for line in out) and not any("1234" in line for line in out)
 
 
 # ── doctor ─────────────────────────────────────────────────────────────

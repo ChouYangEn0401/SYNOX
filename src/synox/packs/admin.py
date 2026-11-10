@@ -7,10 +7,15 @@ Web UI 設定頁、`python -m synox install <檔>`、`python -m synox packs lock
     stage(blob, data_dir)            zip 檢查 → 解到 data/web_uploads/<token>/pack/ → 第 1 關（宣告，嚴格版）
                                      → 第 2 關（靜態掃描＋integrity 對檔）→ (token, 摘要＋掃描報告)；過不了丟 GateRefused
     （給人看報告＋「要建環境」那一段（runtime.python／node = auto，packs/envs.py）、按確認）
-    install_staged(token, …)         再跑一次 1、2 關、確認檔案跟看報告時一樣 → 搬進 packs/ → 第 3 關：寫 packs.lock（誰、何時）
+    install_staged(token, …)         再跑一次 1、2 關、確認檔案跟看報告時一樣 → 搬進 packs/ → 第 3 關：寫 packs.lock（誰、何時、
+                                     trust、runtime：用容器／不用，S2；報告的「🧱 執行環境」＝runtime_report）
     build_env(name, …, jobs, on_done)  裝好之後才建環境（JobRunner、最多 10 分鐘）；失敗＝pack 已裝、doctor 標環境沒建好
 
-zip 本身：不能有絕對路徑、`..`、磁碟代號、符號連結；最多 MAX_FILES 個檔、解開最多 MAX_UNZIPPED。
+zip 本身：不能有絕對路徑、`..`、磁碟代號、符號連結；檔名不能是 Windows 保留名（CON、NUL、COM1…）、
+不能有冒號（NTFS 資料流）或 Windows 不收的字元、結尾不能是空白或句點（_safe_parts，審查 B #E）；
+不能有雙向文字控制字元（U+202A–U+202E、U+2066–U+2069）或零寬字元（U+200B–U+200D、U+FEFF）；
+一段最多 MAX_PART 字、整條最多 MAX_REL_PATH 字；解壓縮時的 OSError 一律變成 PackAdminError（審查 C #C6，不再是網頁 500）；
+最多 MAX_FILES 個檔、解開最多 MAX_UNZIPPED。
 名字跟已經裝的 pack 一樣＝升級：比對、版本檢查、舊的搬到 _removed、退回都在 upgrade.py（install_staged 只裝新的）；
 升級完環境要建／重建（upgrade.env_change）也走這裡的 build_env。
 python pack 的程式會在 SYNOX 裡面、用你的 Windows 帳號權限執行——摘要會明講。
@@ -31,6 +36,7 @@ from typing import Dict, List, Optional, Tuple
 
 from synox.packs import envs, loader
 from synox.packs import lock as pack_lock
+from synox.packs import tier as pack_tier
 from synox.packs.manifest import Manifest, ManifestError, read, synox_problem
 from synox.packs.scan import ScanReport, scan
 
@@ -54,6 +60,18 @@ class GateRefused(PackAdminError):
         self.summary = summary or {}
 
 
+# Windows 的保留裝置名（不分大小寫、加副檔名也算：nul.txt、COM1.py）；COM¹ 這種上標數字 Windows 也當成裝置
+WINDOWS_RESERVED = {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"} | \
+    {f"{p}{n}" for p in ("COM", "LPT") for n in list("0123456789") + ["¹", "²", "³"]}
+_BAD_CHARS = re.compile(r'[<>:"|?*\x00-\x1f]')
+# 審查 C #C6：雙向文字控制字元（‮yp.a 在報告上會顯示成 a.py）與零寬字元（看不出來的兩個不同檔名）
+_INVISIBLE_CHARS = re.compile("[​-‍‪-‮⁦-⁩﻿]")
+# 審查 C #C6：太長的路徑在 Windows 解壓縮時會丟原生錯誤（網頁變成 500）；pack 不需要這麼深的路徑
+MAX_PART = 100                    # 一段（資料夾名或檔名）最多幾個字
+MAX_REL_PATH = 160                # pack 裡的相對路徑最多幾個字（暫存／安裝的資料夾還要再加上前面那一段）
+MAX_FULL_PATH = 255               # 解壓縮的完整路徑（Windows 傳統上限 260，留一點餘裕）
+
+
 def _safe_parts(name: str) -> List[str]:
     name = name.replace("\\", "/")
     if name.startswith("/") or re.match(r"^[A-Za-z]:", name):
@@ -61,6 +79,20 @@ def _safe_parts(name: str) -> List[str]:
     parts = [p for p in name.split("/") if p not in ("", ".")]
     if any(p == ".." for p in parts):
         raise PackAdminError(f"zip 裡有往上跳的路徑：{name}")
+    shown = name if len(name) <= 80 else name[:77] + "…"
+    if _INVISIBLE_CHARS.search(name):
+        raise PackAdminError(f"zip 裡的檔名有看不見的字元（雙向文字控制或零寬字元，報告上會顯示成別的名字）：{shown!r}")
+    if len("/".join(parts)) > MAX_REL_PATH or any(len(p) > MAX_PART for p in parts):
+        raise PackAdminError(f"zip 裡的路徑太長（一段最多 {MAX_PART} 字、整條最多 {MAX_REL_PATH} 字）：{shown}")
+    for p in parts:                                     # 審查 B #E：防禦深度（Windows 解壓縮的怪名字）
+        if ":" in p:
+            raise PackAdminError(f"zip 裡的檔名有冒號（NTFS 資料流，例如 x.py::$DATA）：{name}")
+        if _BAD_CHARS.search(p):
+            raise PackAdminError(f"zip 裡的檔名有 Windows 不收的字元（< > \" | ? * 或控制字元）：{name}")
+        if p != p.rstrip(" ."):
+            raise PackAdminError(f"zip 裡的檔名結尾是空白或句點（Windows 會默默拿掉，變成另一個檔）：{name}")
+        if p.split(".")[0].rstrip(" ").upper() in WINDOWS_RESERVED:
+            raise PackAdminError(f"zip 裡的檔名是 Windows 的保留裝置名（CON、NUL、COM1…）：{name}")
     return parts
 
 
@@ -102,16 +134,18 @@ def staging_root(data_dir: str) -> str:
 
 # ── 第 1、2 關 ─────────────────────────────────────────────────────────
 
-def run_gates(folder: str) -> Tuple[Manifest, ScanReport, Dict[str, str], List[str]]:
+def run_gates(folder: str, exec_bits=()) -> Tuple[Manifest, ScanReport, Dict[str, str], List[str]]:
     """一個 pack 資料夾跑第 1 關（嚴格的宣告檢查）與第 2 關（靜態掃描＋integrity 對檔）。
-    回 (manifest, 掃描報告, 每個檔的 sha256, 拒裝理由)。pack.json 本身不合丟 PackAdminError。"""
+    回 (manifest, 掃描報告, 每個檔的 sha256, 拒裝理由)。pack.json 本身不合丟 PackAdminError。
+    exec_bits：zip 裡帶執行位元的檔（stage 記在 staged.json；掃不到內容的判斷要用）。"""
     try:
         m = read(folder, strict=True)
     except ManifestError as e:
         raise PackAdminError(f"pack.json 不合（第 1 關）：{e}")
-    report = scan(m)
+    report = scan(m, exec_bits)
     hashes = pack_lock.hash_files(folder)
     problems = report.problems(m) + pack_lock.check_integrity(m, hashes)
+    problems += envs.npm_source_problems(m)        # 審查 C #C8：npm 套件只准從 registry.npmjs.org 來
     too_old = synox_problem(m)                     # requires.synox：版本不合就不裝
     if too_old:
         problems.append(too_old)
@@ -125,7 +159,136 @@ def summary_of(m: Manifest, report: ScanReport, hashes: Dict[str, str], problems
             "files": sorted(hashes)[:100], "panel": bool(m.web.get("panel")), "api": list(m.web.get("api", [])),
             "capabilities": list(m.capabilities), "integrity": bool(m.integrity),
             "scan": {**report.to_dict(m), "problems": problems, "ok": not problems},
-            "warnings": warnings_for(m, report), "env": env_plan(m).to_dict()}
+            "warnings": warnings_for(m, report), "env": env_plan(m).to_dict(), "mcp": mcp_report(m), **scope_of(m),
+            "tier": tier_of(m, report), "runtime": runtime_report(m)}
+
+
+# ── 執行環境：用容器／不用（S2） ─────────────────────────────────────────
+
+RUNTIME_TEXT = {"container": "用容器（建議）：在 podman／docker 的容器裡跑，只看得到自己的 pack 與資料夾",
+                "host": "不用容器：直接在這台跑（伺服器版有 bwrap／systemd 就用它們）"}
+
+
+def runtime_report(m: Manifest) -> dict:
+    """安裝報告的「🧱 執行環境」：這台找得到哪些容器引擎（只用 which，不執行）、pack 有沒有提供容器、可以選什麼。"""
+    from synox import sandbox
+    from synox.packs import container as pack_container
+    info = pack_container.summary(m)
+    engines = {e: bool(sandbox._engine_which(e)) for e in sandbox.ENGINES}
+    offered = bool(info)
+    choices = [{"value": v, "text": RUNTIME_TEXT[v]} for v in (("container", "host") if offered else ("host",))]
+    return {"offered": offered, "container": info, "engines": engines, "choices": choices,
+            "default": "container" if offered else "host",
+            "applies": m.kind == "cli" or m.mcp_stdio}
+
+
+def offers_container(m: Manifest) -> bool:
+    return bool((m.runtime or {}).get("container"))
+
+
+def check_runtime(m: Manifest, runtime: Optional[str]) -> str:
+    """擁有者選的 runtime（None＝照預設：有提供容器＝container）→ container｜host；不合丟 PackAdminError。"""
+    if runtime in (None, ""):
+        return "container" if (m.runtime or {}).get("container") else "host"
+    if runtime not in pack_lock.RUNTIME_MODES:
+        raise PackAdminError(f"runtime 只能是 {'、'.join(pack_lock.RUNTIME_MODES)}（現在是 {runtime!r}）")
+    if runtime == "container" and not (m.runtime or {}).get("container"):
+        raise PackAdminError(f"{m.name} 的 pack.json 沒有提供容器（runtime.container），只能選 host（不用容器）")
+    return runtime
+
+
+def format_runtime(summary: dict) -> List[str]:
+    """終端機的「🧱 執行環境」那一段。"""
+    rt = summary.get("runtime") or {}
+    if not rt or not rt.get("applies"):
+        return []
+    engines = "、".join(f"{e} {'✅' if ok else '—'}" for e, ok in (rt.get("engines") or {}).items())
+    lines = [f"🧱 執行環境：這台的容器引擎 {engines}（只看 PATH，沒有執行）"]
+    info = rt.get("container") or {}
+    if not rt.get("offered"):
+        lines.append("  這個 pack 沒有提供容器（runtime.container）：只能直接在這台跑"
+                     "（伺服器版的第三方／T2 pack 要 bwrap／systemd 才給成員）")
+        return lines
+    res = info.get("resources") or {}
+    limits = "、".join(f"{k}={v}" for k, v in res.items()) or "照 policy.sandbox"
+    lines.append(f"  這個 pack 提供容器：{info.get('run_image')}，network: {str(info.get('network')).lower()}，"
+                 f"上限 {limits}" + (f"（Dockerfile {info.get('dockerfile')}）" if info.get("dockerfile") else ""))
+    lines.append("  映像的內容 SYNOX 不看（跟 pip／npm 套件一樣）；執行時不會自己拉映像（--pull=never），要事先照 digest 拉好")
+    lines.append("  要怎麼跑：預設「用容器」（終端機 --runtime container｜host；網頁在報告上選）")
+    if not any((rt.get("engines") or {}).values()):
+        lines.append("  ⚠️ 這台找不到 podman／docker：選了容器也會先退回直接跑（doctor 會說），裝好引擎後自動改用容器")
+    return lines
+
+
+EFFECT_TEXT = {"READ": "只讀", "WRITE": "會寫入", "DANGER": "危險（每次都要你按核准）"}
+
+
+def mcp_report(m: Manifest) -> dict:
+    """kind=mcp 的那一段：連法、連到哪、允許的每一個工具與它的 effect（安裝者逐一確認；沒寫 effect 的第 1 關就拒了）。
+    http（遠端 MCP）是 T0：這台不跑它的程式，能信的只有這份宣告。不是 mcp 回 {}。"""
+    if m.kind != "mcp":
+        return {}
+    from urllib.parse import urlsplit
+    mcp = m.mcp or {}
+    transport = mcp.get("transport") or ""
+    auth = (m.auth_info or {}).get("type", "none")
+    tools = [{"name": t, "effect": (mcp.get("effects") or {}).get(t) or "DANGER",
+              "effect_text": EFFECT_TEXT.get((mcp.get("effects") or {}).get(t) or "DANGER", "")}
+             for t in mcp.get("tools_allow") or []]
+    return {"transport": transport or "（只登記）", "host": urlsplit(mcp.get("url") or "").netloc if mcp.get("url") else "",
+            "trust_level": "T0（只有宣告）" if transport == "http" else "", "auth": auth, "tools": tools}
+
+
+def format_mcp(summary: dict) -> List[str]:
+    mcp = summary.get("mcp") or {}
+    if not mcp:
+        return []
+    where = f"，連到 {mcp['host']}" if mcp.get("host") else ""
+    level = f"，信任 {mcp['trust_level']}" if mcp.get("trust_level") else ""
+    lines = [f"🔌 MCP：{mcp.get('transport')}{where}{level}；只允許下面這 {len(mcp.get('tools') or [])} 個工具（請逐一確認）："]
+    lines += [f"  · {t['name']}：{t['effect']}（{t['effect_text']}）" for t in mcp.get("tools") or []]
+    return lines
+
+
+def tier_of(m: Manifest, report: ScanReport) -> dict:
+    """安裝報告的信任層級那一段（packs/tier.py）：T2 有 warning_lines（紅字）與 needs_publisher。"""
+    info = pack_tier.assess(m, report)
+    return {**info, "warning_lines": pack_tier.warning_lines(info)}
+
+
+# ── 權限宣告與信任（PERM-2） ───────────────────────────────────────────
+
+SURFACE_TEXT = {"dm": "只能私訊", "channel": "私訊＋頻道（群組）"}
+DATA_TEXT = {"none": "不存資料", "user": "每個人自己一份", "shared": "大家共用一份"}
+TRUST_TEXT = {pack_lock.CORE: "核心（core）：信得過，跟出廠的一樣",
+              pack_lock.THIRD_PARTY: "第三方（third-party）：別人寫的，伺服器版限制比較多"}
+
+
+def scope_of(m: Manifest) -> dict:
+    """安裝報告的「在哪裡用、資料屬於誰、信任」那一段（trust 由擁有者在報告上選，預設 third-party）。"""
+    surfaces = list(m.surfaces)
+    return {"surfaces": surfaces, "surfaces_text": SURFACE_TEXT["channel" if "channel" in surfaces else "dm"],
+            "data": m.data, "data_text": DATA_TEXT.get(m.data, m.data), "data_declared": m.data_declared,
+            "trust_choices": [{"value": t, "text": TRUST_TEXT[t]} for t in pack_lock.TRUSTS],
+            "trust_default": pack_lock.DEFAULT_TRUST}
+
+
+def _trust(trust) -> str:
+    try:
+        return pack_lock.check_trust(trust)
+    except ValueError as e:
+        raise PackAdminError(str(e))
+
+
+def format_scope(summary: dict) -> List[str]:
+    """終端機的那一段（format_summary 用）。"""
+    if "data" not in summary:
+        return []
+    data = summary.get("data_text") or summary.get("data")
+    note = "" if summary.get("data_declared") else "（沒寫，照預設推的）"
+    return [f"🧭 在哪裡用：{summary.get('surfaces_text')}　資料：{data}{note}",
+            f"🔑 信任：預設 {summary.get('trust_default')}（終端機加 --trust core 改成核心；"
+            f"網頁在報告上選）"]
 
 
 def env_plan(m: Manifest, data_dir: Optional[str] = None) -> "envs.EnvPlan":
@@ -169,17 +332,27 @@ def stage(blob: bytes, data_dir: str) -> Tuple[str, Dict]:
         raise PackAdminError("不是 zip 檔（.synoxpack 要是 pack 資料夾壓成的 zip）")
     with z:
         files = _strip_root(_members(z))
+        # __pycache__ 不解出來（P7）：SYNOX 不用它，作者打包時本來就該排除；留著的話 Python 子程序會 import 那裡的 .pyc
+        files = [(i, p) for i, p in files if "__pycache__" not in p[:-1]]
         token = secrets.token_urlsafe(16)
         root = os.path.join(staging_root(data_dir), token)
         folder = os.path.join(root, "pack")
         os.makedirs(folder)
+        exec_bits = sorted("/".join(p) for i, p in files if (i.external_attr >> 16) & 0o111)
         try:
             for info, parts in files:
                 target = os.path.join(folder, *parts)
-                os.makedirs(os.path.dirname(target), exist_ok=True)
-                with z.open(info) as src, open(target, "wb") as dst:
-                    shutil.copyfileobj(src, dst)
-            m, report, hashes, problems = run_gates(folder)
+                if len(os.path.abspath(target)) > MAX_FULL_PATH:
+                    raise PackAdminError(f"zip 裡的路徑太長，這台解不開（{'/'.join(parts)[:80]}）："
+                                         "請 pack 作者把資料夾層數或檔名縮短")
+                try:
+                    os.makedirs(os.path.dirname(target), exist_ok=True)
+                    with z.open(info) as src, open(target, "wb") as dst:
+                        shutil.copyfileobj(src, dst)
+                except OSError as e:                      # 審查 C #C6：原生錯誤不要變成網頁 500
+                    raise PackAdminError(f"zip 裡的 {'/'.join(parts)[:80]} 解不開（{e.strerror or type(e).__name__}）："
+                                         "路徑太長或檔名這台不收，請 pack 作者改短／改名")
+            m, report, hashes, problems = run_gates(folder, exec_bits)
         except Exception:
             shutil.rmtree(root, ignore_errors=True)
             raise
@@ -190,8 +363,20 @@ def stage(blob: bytes, data_dir: str) -> Tuple[str, Dict]:
         listing = "；".join(problems[:12]) + ("…" if len(problems) > 12 else "")
         raise GateRefused(f"拒裝（安全檢查沒過）：{listing}", summary)
     with open(os.path.join(root, STAGED_META), "w", encoding="utf-8") as f:
-        json.dump({"name": m.name, "hashes": hashes, "summary": summary}, f, ensure_ascii=False)
+        json.dump({"name": m.name, "hashes": hashes, "summary": summary, "exec_bits": exec_bits}, f,
+                  ensure_ascii=False)
     return token, summary
+
+
+def staged_meta(token: str, data_dir: str) -> dict:
+    """暫存那一份的 staged.json（hashes、summary、exec_bits）；讀不了丟 PackAdminError。"""
+    root = _staged_root(token, data_dir)
+    try:
+        with open(os.path.join(root, STAGED_META), "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        raise PackAdminError("找不到這次上傳的檢查結果（重新上傳一次）")
+    return data if isinstance(data, dict) else {}
 
 
 def stage_file(path: str, data_dir: str) -> Tuple[str, Dict]:
@@ -249,6 +434,10 @@ def format_summary(summary: dict) -> str:
         lines += [f"  - {p}" for p in problems]
     else:
         lines.append("✅ 宣告檢查、靜態掃描都過了")
+    lines += format_mcp(summary)
+    lines += format_scope(summary)
+    lines += format_tier(summary.get("tier") or {})
+    lines += format_runtime(summary)
     env = summary.get("env") or {}
     if env.get("needed"):
         lines.append("🧱 要建環境（按確認之後才建）：")
@@ -260,14 +449,54 @@ def format_summary(summary: dict) -> str:
     return "\n".join(lines)
 
 
+def red(text: str) -> str:
+    """終端機的紅字（不是終端機＝原樣，測試、log 看得到字）。"""
+    import sys
+    try:
+        tty = sys.stdout.isatty()
+    except (AttributeError, ValueError):
+        tty = False
+    return f"\033[31m{text}\033[0m" if tty else text
+
+
+def format_tier(tier: dict) -> List[str]:
+    """信任層級那一段：T2 用 🔴＋紅字；其他一行。"""
+    if not tier:
+        return []
+    if tier.get("tier") != pack_tier.T2:
+        return [f"🧩 信任層級：{tier.get('text') or tier.get('tier')}"]
+    out = [red(f"🔴 信任層級：{tier.get('text')}——T2 不是沙盒保證，只是讓你知道你在信任誰")]
+    out += [red(f"🔴 {line}") for line in tier.get("warning_lines") or []]
+    for o in tier.get("opaque") or []:
+        out.append(f"   · {o['path']}  {o['size']} bytes  sha256 {o['sha256']}  {o['why']}")
+    return out
+
+
+# 審查 B #B：第 2 關對 python 是提醒不是門（個人版、伺服器版都適用）
+PYTHON_SCAN_NOTE = ("靜態掃描只攔得到直接寫出來的名字和常見的間接取用，是提醒、不是門：有心的人寫得出掃描看不出來的程式。"
+                    "python pack 在 SYNOX 程序裡跑，個人版沒有任何隔離（讀得到你全部的資料、保管箱解開的東西、整台電腦的檔案）；"
+                    "伺服器版第三方的 python pack 只給擁有者用（PERM-8）。")
+
+
 def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
     out = []
     if m.kind == "python":
         out.append("這是 python pack：它的程式會在 SYNOX 裡面、用你的 Windows 帳號權限執行。只裝你信得過的人給的。")
+        out.append(PYTHON_SCAN_NOTE)
     if m.kind == "cli":
         out.append("這是 cli pack：會在這台電腦上執行它指定的程式（那支程式本身掃描看不到）。")
+    if m.mcp_http:
+        from urllib.parse import urlsplit
+        out.append(f"這是遠端 MCP（T0，只有宣告）：你的請求和 token 會送到 {urlsplit(m.mcp.get('url', '')).netloc}；"
+                   "那台伺服器做什麼掃描看不到。只會用上面列的工具，effect 照這份宣告（不照伺服器自己說的）。")
+    elif m.mcp_stdio:
+        out.append("這是 MCP（stdio）pack：會在這台電腦上開一個長駐的子程序跑它的 MCP 伺服器。")
     if m.access == "everyone":
         out.append("access 是 everyone：伺服器版裡任何傳訊息給 bot 的人都用得到。")
+    if "channel" in m.surfaces:
+        out.append("它宣告可以在頻道（群組）裡用：頻道裡的人都看得到它的回覆。")
+    if m.data == "shared":
+        out.append("它的資料是大家共用一份（data: shared）：伺服器版只有管理員能用它會寫入的指令。")
     labels = {"network": "連網", "subprocess": "開別的程式", "filesystem:own": "讀寫檔案",
               "filesystem:any": "讀寫 pack 以外的任何檔案", "exec": "動態執行程式碼"}
     if m.capabilities:
@@ -283,19 +512,24 @@ def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
 
 # ── 第 3 關＋安裝 ──────────────────────────────────────────────────────
 
-def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, via: str = "web") -> str:
-    """按了確認：再跑一次 1、2 關、檔案要跟看報告時一模一樣 → 搬進 packs/ → 寫 packs.lock。"""
+def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, via: str = "web",
+                   trust: Optional[str] = None, trust_publisher: Optional[str] = None,
+                   runtime: Optional[str] = None) -> str:
+    """按了確認：再跑一次 1、2 關、檔案要跟看報告時一模一樣 → 搬進 packs/ → 寫 packs.lock。
+    trust：擁有者在報告上選的 core｜third-party（沒給＝third-party），寫進鎖。
+    trust_publisher：T2 pack（packs/tier.py）一定要給，而且跟 pack.json 的 publisher 一字不差；寫進鎖的
+    trusted_publisher／trusted_at。T0／T1 不用（給了也不記）。
+    runtime：container｜host（S2；沒給＝有提供容器就 container），寫進鎖的 runtime（跟 trust 並列）。"""
+    trust = _trust(trust)
     root = _staged_root(token, data_dir)
     folder = os.path.join(root, "pack")
-    m, report, hashes, problems = run_gates(folder)
+    meta = staged_meta(token, data_dir)
+    m, report, hashes, problems = run_gates(folder, meta.get("exec_bits") or ())
     if problems:
         raise GateRefused("拒裝（安全檢查沒過）：" + "；".join(problems[:12]),
                           summary_of(m, report, hashes, problems))
-    try:
-        with open(os.path.join(root, STAGED_META), "r", encoding="utf-8") as f:
-            reviewed = json.load(f).get("hashes") or {}
-    except (OSError, ValueError):
-        raise PackAdminError("找不到這次上傳的檢查結果（重新上傳一次）")
+    runtime = check_runtime(m, runtime)
+    reviewed = meta.get("hashes") or {}
     if reviewed != hashes:
         raise PackAdminError("暫存的檔案在你看報告之後被改過了，不裝（重新上傳一次）："
                              + "、".join(pack_lock.diff(reviewed, hashes)[:10]))
@@ -303,22 +537,66 @@ def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
     if os.path.exists(target):                     # 同名＝升級：看過「改了什麼」再用 upgrade.upgrade_staged
         raise PackAdminError(f"已經裝了 {m.name}：這是升級，要先看「改了什麼」再按「確認升級」"
                              "（終端機：python -m synox install <檔> --yes 會自動走升級）。")
+    info = pack_tier.assess(m, report)
+    refused = pack_tier.confirm_problem(info, m, trust_publisher)        # T2：要明確輸入 publisher
+    if refused:
+        raise PackAdminError(refused)
     os.makedirs(packs_dir, exist_ok=True)
-    shutil.move(folder, target)
+    try:
+        shutil.move(folder, target)
+    except OSError as e:                                   # 審查 C #C6：例如 packs 資料夾的路徑比暫存的長
+        shutil.rmtree(target, ignore_errors=True)
+        raise PackAdminError(f"搬進 packs 資料夾失敗（{e.strerror or type(e).__name__}）：路徑可能太長；"
+                             "暫存那一份還在，可以重新按一次或請 pack 作者把路徑改短")
     shutil.rmtree(root, ignore_errors=True)
-    pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=target)
-    logging.info("[PACKS] installed %s %s (approved by %s via %s)", m.name, m.version, approved_by, via)
+    fields = pack_tier.lock_fields(info, trust_publisher if info["tier"] == pack_tier.T2 else None)
+    pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=target, trust=trust,
+                      tier_fields=fields, runtime=runtime if offers_container(m) else None)
+    logging.info("[PACKS] installed %s %s (approved by %s via %s, trust %s, runtime %s, tier %s%s)", m.name, m.version,
+                 approved_by, via, trust, runtime, info["tier"],
+                 f", trusted publisher {fields.get('trusted_publisher')!r}" if fields.get("trusted_publisher") else "")
     return m.name
 
 
-def approve_installed(folder: str, data_dir: str, approved_by=None,
-                      via: str = "cli") -> Tuple[Manifest, ScanReport, List[str]]:
+def approve_installed(folder: str, data_dir: str, approved_by=None, via: str = "cli",
+                      trust: Optional[str] = None, trust_publisher: Optional[str] = None,
+                      runtime: Optional[str] = None) -> Tuple[Manifest, ScanReport, List[str]]:
     """已經在 packs/ 裡的 pack（工程師自己放的、自己改過的）：跑 1、2 關，過了就寫 packs.lock。
-    回 (manifest, 報告, 拒裝理由)；有理由就沒有寫鎖。"""
+    trust 沒給＝沿用舊鎖的（沒有舊鎖：出廠的＝core，其他＝third-party）。回 (manifest, 報告, 拒裝理由)；有理由就沒有寫鎖。
+    T2：舊鎖確認過同一個 publisher、可執行的東西沒變多、沒新增 exec＝沿用；否則要 trust_publisher（一字不差），
+    不合的話理由放進回傳的清單（沒有寫鎖）。"""
     m, report, hashes, problems = run_gates(folder)
-    if not problems:
-        pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=folder)
-    return m, report, problems
+    if trust is None:
+        trust = pack_lock.trust_of(data_dir, m.name)
+    if trust is None and loader.is_bundled(m):
+        trust = pack_lock.CORE          # 出廠的 pack 第一次鎖：沿用沒鎖時的 core（有鎖之後信任只看鎖）
+    trust = _trust(trust)
+    if problems:
+        return m, report, problems
+    info = pack_tier.assess(m, report)
+    previous = pack_lock.entry(data_dir, m.name)
+    typed = trust_publisher
+    if info["tier"] == pack_tier.T2 and not typed:
+        old_caps = (previous or {}).get("scan", {}).get("declared") or []
+        from types import SimpleNamespace
+        again = pack_tier.reconfirm_reasons(previous, SimpleNamespace(capabilities=old_caps), m, info)
+        if again:
+            refused = pack_tier.confirm_problem(info, m, None)
+            return m, report, [refused + "（" + "；".join(again) + "）"] if refused else again
+    else:
+        refused = pack_tier.confirm_problem(info, m, typed)
+        if refused:
+            return m, report, [refused]
+    fields = pack_tier.lock_fields(info, typed if info["tier"] == pack_tier.T2 else None, previous=previous)
+    if runtime is None:                    # 沒給＝沿用舊鎖的（沒有舊鎖＝不寫，當作 host；packs runtime 可以改）
+        runtime = pack_lock.runtime_mode(data_dir, m.name)
+        if runtime == "container" and not offers_container(m):
+            runtime = "host"
+    else:
+        runtime = check_runtime(m, runtime)
+    pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=folder, trust=trust,
+                      tier_fields=fields, runtime=runtime if offers_container(m) else None)
+    return m, report, []
 
 
 def remove(name: str, packs_dir: str, now=None, data_dir: Optional[str] = None) -> str:

@@ -10,6 +10,9 @@ DiscordChannel：SDK 的 Channel 介面，用 Discord REST API（v10，requests�
 - inline_keyboard → Discord 按鈕元件（custom_id = callback_data；有 url 的變連結按鈕）；最多 5 列 × 5 顆。
 - answer_callback_query：有字＝只給按的人看的小訊息（ephemeral），沒字＝默默確認（type 6）。
 - 429 照 retry_after 等一次（最多 5 秒）再試；其他錯誤回 {"ok": False, "error": …}。token 不進 log。
+- 頻道（PERM-5）：chat_id 是負號＝伺服器頻道的內部 id（identity.resolve_room）；收訊時 remember_room 記下 Discord 頻道 id，
+  沒記到就用 identities 找回（"discord-channel"）。送到頻道不開私訊。send_message(reply_to=訊息 id) 會引用那則訊息
+  （並提及它的作者；其他 @ 一律不解析，不會 @everyone）。
 """
 
 from __future__ import annotations
@@ -23,7 +26,7 @@ from typing import Any, Dict, List, Optional
 
 from isdtelekit.core.richtext import plain
 
-from synox.discord.events import DISCORD
+from synox.discord.events import DISCORD, DISCORD_ROOM
 
 API_ROOT = "https://discord.com/api/v10"
 TEXT_MAX = 2000
@@ -75,6 +78,7 @@ class DiscordChannel:
         self.api_root = api_root.rstrip("/")
         self._sleep = sleep
         self._dm: Dict[int, str] = {}
+        self._rooms: Dict[int, str] = {}
         self._answered: set = set()
         self._lock = threading.Lock()
 
@@ -125,11 +129,22 @@ class DiscordChannel:
             with self._lock:
                 self._dm[int(uid)] = str(channel_id)
 
+    def remember_room(self, room: int, channel_id: str) -> None:
+        if channel_id:
+            with self._lock:
+                self._rooms[int(room)] = str(channel_id)
+
     def dm_channel(self, chat_id) -> Optional[str]:
+        """chat_id → 要送去的 Discord 頻道 id（私訊頻道，或負號＝伺服器頻道）。"""
         try:
             uid = int(chat_id)
         except (TypeError, ValueError):
             return None
+        if uid < 0:
+            with self._lock:
+                if uid in self._rooms:
+                    return self._rooms[uid]
+            return self.identities.external(DISCORD_ROOM, uid) if self.identities is not None else None
         with self._lock:
             if uid in self._dm:
                 return self._dm[uid]
@@ -148,13 +163,15 @@ class DiscordChannel:
         except (TypeError, ValueError):
             return False
         with self._lock:
-            if uid in self._dm:
+            if uid in self._dm or uid in self._rooms:
                 return True
+        if uid < 0:
+            return False                              # 頻道不是「人」：主動通知不往頻道送
         return self.identities.external(DISCORD, uid) is not None
 
     # ── Channel ──────────────────────────────────────────────────────
 
-    def send_message(self, chat_id, text, reply_markup=None, quiet=False, link_preview=True, **kw):
+    def send_message(self, chat_id, text, reply_markup=None, quiet=False, link_preview=True, reply_to=None, **kw):
         cid = self.dm_channel(chat_id)
         if not cid:
             return {"ok": False, "error": "no discord dm for this user"}
@@ -162,6 +179,9 @@ class DiscordChannel:
         out: Dict[str, Any] = {"ok": False}
         for i, part in enumerate(parts):
             body: Dict[str, Any] = {"content": part, "allowed_mentions": {"parse": []}}
+            if i == 0 and reply_to:
+                body["message_reference"] = {"message_id": str(reply_to), "fail_if_not_exists": False}
+                body["allowed_mentions"] = {"parse": [], "replied_user": True}   # 提及發話者，其他 @ 不解析
             if i == len(parts) - 1 and reply_markup:
                 body["components"] = components(reply_markup)
             if quiet:

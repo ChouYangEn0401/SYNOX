@@ -17,7 +17,7 @@ GUEST_ID = 777
 
 def _tool_groups(bot, user):
     registry = bot.app.registry
-    specs = tools_mod.build(registry, lambda n: ai_decision(registry, user, n))
+    specs = tools_mod.build(registry, lambda n: ai_decision(bot.app, user, n))
     return {s.name.split("__")[0] for s in specs}
 
 

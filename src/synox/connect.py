@@ -125,7 +125,9 @@ def _run_managed(m, fields, config, vault, user, clear, ask, ask_secret, out) ->
                 values[f["name"]] = ask_secret(f"{f['label']}（輸入時不會顯示）{keep}：") or ""
             else:
                 values[f["name"]] = ask(f"{f['label']}{keep}：") or ""
-        store.update(m.name, fields, values, who)
+        short = store.update(m.name, fields, values, who)
+        if short:
+            out(pack_secrets.short_warning(short))
         missing = store.missing(m.name, fields, who)
     except (pack_secrets.SecretError, OSError) as e:
         out(f"❌ {e}")
