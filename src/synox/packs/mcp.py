@@ -846,15 +846,17 @@ class StdioBackend(Backend):
 
     def plan(self, user):
         """這個人的 ((placeholders, 要加的 env), 指紋)。"""
+        from synox import sandbox
         from synox.packs import confirm as tool_confirm
         from synox.packs import envs, loader
         m, config, pack = self.m, self.config, self.pack
         who = self.pool.scope.identity(user)
         ph = loader.placeholders(m, config, who)
+        view = sandbox.view_for(sandbox.box_for(config, m), ph)      # 選了容器：容器裡的路徑（S1）
         env = envs.node_env(m, config.data_dir)
         # 審查 C #C2：PYTHONPATH（pack 外）、NODE_OPTIONS、PATH… 第 1 關就拒；這裡再濾一次（防禦深度）
-        env.update({k: loader.substitute(v, ph) for k, v in loader.safe_env(m.mcp.get("env") or {}).items()})
-        env.update(loader.context_env(m, config, ph, pack.secret_fields))
+        env.update({k: loader.substitute(v, view) for k, v in loader.safe_env(m.mcp.get("env") or {}).items()})
+        env.update(loader.context_env(m, config, view, pack.secret_fields))
         env.update(tool_confirm.env_for(None))      # MCP 模式的「已確認」只看 _meta，環境變數一律明寫 0
         if pack.secret_fields and pack.secrets is not None:
             env.update(pack.secrets.env_for(m.name, pack.secret_fields, who))
@@ -876,14 +878,15 @@ class StdioBackend(Backend):
             raise McpError(loader.tampered_text(m, changes), fatal=True)
         if self.server:
             os.makedirs(ph["user_data_dir"], exist_ok=True)
+        box = sandbox.box_for(config, m)                          # PERM-7：照宣告算範圍，交給後端包一層（選了容器＝容器）
+        view = sandbox.view_for(box, ph)
         argv = []
         for part in m.mcp["argv"]:
             part = str(part)
             if part.startswith(("./", ".\\")):
-                part = os.path.join(m.folder, part[2:])
-            argv.append(loader.substitute(part, ph))
+                part = loader.pack_path(m, view, part[2:])
+            argv.append(loader.substitute(part, view))
         cwd = os.path.normpath(os.path.join(m.folder, loader.substitute(m.mcp.get("cwd") or ".", ph)))
-        box = sandbox.sandbox_for(config)                         # PERM-7：照宣告算範圍，交給後端包一層
         g = sandbox.grants_for(m, config, ph, pass_env=self.keep_env)
         if box.name != "none":
             for folder in g.write:
