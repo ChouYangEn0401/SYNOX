@@ -102,19 +102,19 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 - 第 1 關：`surfaces` 有 `channel` 但 `data` 是 `user` → 拒（每個人的資料不能出現在頻道；不是個人資料就寫 `shared` 或 `none`）。
 - 第 2 關（`scan.py`，不合＝拒裝，列 `檔名:行號`）：
   - python、`data: user`：不准裸用 `pack.store`（`pack.store.load`／`save`／`update`…是全部人共用的那一份）——要 `pack.store.of(user)`；
-    `pack.secret(name)` 一定要給 user（`pack.secret(name, user)`）；不准用 `pack.path(...)`（全部人共用的資料夾）——要 `pack.path_of(user, ...)`（PERM-8）。
+    `pack.secret(name)` 一定要給 user（`pack.secret(name, user)`）；不准用 `pack.path(...)`（全部人共用的資料夾）——要 `pack.path_of(user, ...)`。
   - python、`data: none`：不准用 `pack.store`、`pack.path`、`pack.path_of`（有存資料就宣告 `user` 或 `shared`）。
   - cli、`data: user`：樣板不准 `{data_dir}`（只能 `{user_data_dir}`）；`data: none`：兩個都不准。錯誤列 `pack.json:行號`。
 - **`trust` 不在 pack.json**：安裝報告上擁有者選 `core`（跟出廠的一樣信得過）或 `third-party`（預設），寫進 `data/packs.lock`
   （網頁：報告上的下拉選單；終端機：`install <檔> --yes --trust core`；`packs lock --approve <name> [--trust …]` 沒給＝沿用舊鎖的）。
   舊的鎖沒有 `trust`＝當作 `third-party`。
-- **伺服器版怎麼用 trust（PERM-8，個人版不受影響）**：
+- **伺服器版怎麼用 trust（個人版不受影響）**：
   - kind=python 在 SYNOX 程序裡跑、沒有沙盒，所以 `trust: third-party` 的 python pack **只對擁有者可見**：成員打了跟不存在的指令一樣
     （「未知指令」）、`/help` 與 AI 工具清單都沒有。`core`（擁有者安裝時選的）與出廠的照常。
   - 出廠的＝內建 `packs/`、`connectors/` 裡的 notes、money、remind 與 4 個 connector（不看鎖）。
   - **沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）＝`third-party`；而且載入前補跑一次第 2 關靜態掃描，
     沒過＝狀態 `rejected`、不載入（理由列 `檔名:行號`）。信得過就 `python -m synox packs lock --approve <name> --trust core`。
-  - 為什麼只給擁有者，`doctor` 與 `packs status` 都會寫一行 🔐。kind=cli 的第三方 pack 另外看沙盒（PERM-7，`docs/security.md`）。
+  - 為什麼只給擁有者，`doctor` 與 `packs status` 都會寫一行 🔐。kind=cli 的第三方 pack 另外看沙盒（見 `docs/security.md`「運行空間（沙盒）」）。
 
 ## pack.json v2（架構 v1 §4）
 
@@ -128,7 +128,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | `publisher` | 發行者（給人看；沒寫會在報告裡提醒）。**T2 pack 一定要寫**：安裝者要一字不差地輸入這個值才裝得了（見下面「信任層級」）；升級時換了一律紅字 |
 | `integrity.sha256` | `{"檔名": "64 個 16 進位字"}`，打包時算（`synox-sdk zip`）。有寫就每個檔都要對得上、也不能多出沒列的檔（`pack.json` 本身不算） |
 | `auth` | v0 的字串（`oauth`／`token`／`caldav`）照舊；v2 寫 `{"type": "none｜token｜oauth｜caldav｜file", "fields": [...]}`。`token`／`file` 的 `fields` 由 SYNOX 收，見下面「pack 的 secret」 |
-| `kind: "mcp"`＋`mcp` | 只登記：`{"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}`（不連、不能附程式檔）。**真的連**：`"transport": "stdio"`（P4a，見下面「`mcp`（stdio）」）或 `"transport": "http"`（遠端 MCP，P4b，見「`mcp`（http）」）。兩種都是 `tools_allow` 不能空、每個允許的工具都要有 effect（沒寫＝拒） |
+| `kind: "mcp"`＋`mcp` | 只登記：`{"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}`（不連、不能附程式檔）。**真的連**：`"transport": "stdio"`（見下面「`mcp`（stdio）」）或 `"transport": "http"`（遠端 MCP，見「`mcp`（http）」）。兩種都是 `tools_allow` 不能空、每個允許的工具都要有 effect（沒寫＝拒） |
 | `commands[].effect` | cli 的每個 command：`READ`／`WRITE`／`DANGER`（大小寫都收）。`commands` 也可以放最上層（等於 `cli.commands`） |
 | `commands[].ai`、`commands[].confirm` | cli 的 command：`"ai": false`＝不給 AI 當工具；`"confirm": true`＝AI 呼叫前先送確認卡給人按（effect 照寫的算）。一定要是 true／false。synox_sdk 的 `@tool(ai=…, confirm=…)` 會產生。跟工具執行中回的 `needs_confirm`（下一列）並存 |
 | 回 `needs_confirm`（確認來回） | cli 工具最後一行印 `{"ok": true, "needs_confirm": true, "summary": "要刪 3 筆", "confirm_token": "…"}`（結束碼 0）→ SYNOX 出核准卡給下令的人（人打字、AI 呼叫都一樣），按 ✅ 用**同一組參數**重跑，那一次環境變數 `SYNOX_CONFIRMED=1`、`SYNOX_CONFIRM_TOKEN`＝你給的 `confirm_token`（只收英數字與 `. _ : -`、128 字內）；其他每一次都是 `SYNOX_CONFIRMED=0`（`cli.env` 寫了也會被蓋掉）。❌、過期、參數對不上＝不執行。任何語言都能用：自己讀這兩個環境變數。說明見 [sdk.md](sdk.md)「確認來回」 |
@@ -136,16 +136,16 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | `cli.python` | `{python}` 換成什麼：絕對路徑｜`"venv"`（`<pack 資料夾>/../.venv` 的 python）｜沒寫＝看 `runtime`，再沒有＝SYNOX 自己的 Python。**一定要指到 Python 直譯器**（檔名 `python`、`python3`、`python3.12`、`pythonw`、`pypy3`…，可以有 `.exe`）、不能有 `..`；要叫別的程式請直接寫在 `cli.argv` 第一段（算 pack 外的程式、T2）。kind=mcp 寫了也照樣檢查 |
 | `runtime.python`、`runtime.python_posix` | 另一種寫法（放在自己 repo 裡、用那個 repo 的 venv 的外部 pack 常用）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它。**`"auto"`**＝安裝時自動建 venv（見下面「依賴與環境自動建置」；跟 `cli.python` 不能同時寫）。一樣要是 Python 直譯器的檔名；`..` 只收 `../.venv/Scripts/python.exe`、`../venv/bin/python` 這種「pack 旁邊的 venv」 |
 | `runtime.node` | **只給 kind=cli**（kind=mcp 寫了＝pack.json 不合；mcp 的 `{node}` 一律是系統的 node）。`{node}` 換成什麼：相對於 pack 資料夾（或絕對路徑）；**`"auto"`**＝系統的 node＋安裝時照 `package-lock.json` 裝套件；沒寫＝系統的 node。用到 `{node}` 的 pack 是 T2 |
-| `env`（最上層）、`cli.env` | 子程序多帶的環境變數；兩個合併，`cli.env` 優先。值可以用下面的代換。名字像密鑰的（`*_TOKEN`…）一樣會被拿掉，除非列在 `requires.env`。名字只能用英數字和 `_`；**不收**會讓直譯器先載入別的程式的名字（審查 C #C2，`manifest.env_name_problem`，不分大小寫）：`PYTHON*`（只放行 `PYTHONIOENCODING`、`PYTHONUTF8`、`PYTHONUNBUFFERED`；`PYTHONPATH` 只收 `{pack_dir}` 或 `{pack_dir}/子資料夾`）、`NODE_OPTIONS`、`NODE_PATH`（`runtime.node: auto` 由 SYNOX 自己給）、`PATH`、`PATHEXT`、`COMSPEC`、`SYSTEMROOT`、`WINDIR`、`LD_*`、`DYLD_*`、`PIP_*`、`npm_config_*`、`PERL5*`、`RUBYLIB`／`RUBYOPT`、`BASH_ENV`、`JAVA_TOOL_OPTIONS`、`DOTNET_STARTUP_HOOKS`、`COR_*`…；`mcp.env`、`auth.fields[].env` 同一條。SYNOX 開子程序時另外明寫 `PYTHONNOUSERSITE=1`（不讀使用者層的 site-packages） |
+| `env`（最上層）、`cli.env` | 子程序多帶的環境變數；兩個合併，`cli.env` 優先。值可以用下面的代換。名字像密鑰的（`*_TOKEN`…）一樣會被拿掉，除非列在 `requires.env`。名字只能用英數字和 `_`；**不收**會讓直譯器先載入別的程式的名字（`manifest.env_name_problem`，不分大小寫）：`PYTHON*`（只放行 `PYTHONIOENCODING`、`PYTHONUTF8`、`PYTHONUNBUFFERED`；`PYTHONPATH` 只收 `{pack_dir}` 或 `{pack_dir}/子資料夾`）、`NODE_OPTIONS`、`NODE_PATH`（`runtime.node: auto` 由 SYNOX 自己給）、`PATH`、`PATHEXT`、`COMSPEC`、`SYSTEMROOT`、`WINDIR`、`LD_*`、`DYLD_*`、`PIP_*`、`npm_config_*`、`PERL5*`、`RUBYLIB`／`RUBYOPT`、`BASH_ENV`、`JAVA_TOOL_OPTIONS`、`DOTNET_STARTUP_HOOKS`、`COR_*`…；`mcp.env`、`auth.fields[].env` 同一條。SYNOX 開子程序時另外明寫 `PYTHONNOUSERSITE=1`（不讀使用者層的 site-packages） |
 | `web.routes` | cli pack 的面板資料：`{"route": "command"}`；沒寫＝同名。對應的 command 要是 `READ`、沒有必填欄位 |
 
-### 信任層級：T0／T1／T2（SDK P7）
+### 信任層級：T0／T1／T2
 
 第 2 關只讀得懂 `.py`。SYNOX 照「掃得到多少」把 pack 分三層（`src/synox/packs/tier.py`；說明與限制見 [security.md](security.md)「信任層級」）：
 
 - **T0** 只有宣告：connector、只登記的 mcp。
 - **T1** 原始碼：會被執行的只有第 2 關掃過的 `.py`／`.pyw`。`{python}` 要跑的 pack 內檔案**一定要是 `.py`／`.pyw`**
-  （或含 `__main__.py` 的資料夾）——`./run.txt`、`./app.pyz`、沒有副檔名的 `./run` 第 2 關一律拒（審查 C #C1）；
+  （或含 `__main__.py` 的資料夾）——`./run.txt`、`./app.pyz`、沒有副檔名的 `./run` 第 2 關一律拒；
   其他檔當資料（沒有副檔名、`ast` 解析得過的也當 `.py` 掃）。T1 不等於安全：掃描是提醒不是門。
 - **T2** 二進位或外部相依，只要有一項就是：
   - 資料夾裡有**掃不到內容的檔**：`.exe .dll .com .bat .cmd .ps1 .vbs .sh .so .dylib .pyd .pyc .pyo .jar .class .node .wasm .msi .scr`、
@@ -213,7 +213,7 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
 | `{tg_id}` | 下令的人的 Telegram id（排程、網頁也是那個人） |
 
 欄位不能取這幾個名字。使用者給的值只換一次（值裡寫 `{data_dir}` 不會被換）。
-**`{python} -m 模組` 時 `cli.cwd`（`mcp.cwd`）一定要在 pack 資料夾裡**（`.`、`./子資料夾`、`{pack_dir}…`；審查 C #C3）：
+**`{python} -m 模組` 時 `cli.cwd`（`mcp.cwd`）一定要在 pack 資料夾裡**（`.`、`./子資料夾`、`{pack_dir}…`）：
 `python -m` 會先從 cwd 找模組，cwd 是 `{user_data_dir}` 時，使用者資料夾裡同名的 `.py` 會先被載入（沒鎖、沒掃過）。
 資料要放使用者資料夾就用環境變數告訴程式（例如 `"env": {"MYTOOL_HOME": "{user_data_dir}/mytool"}`），或改成 `{python} ./tool.py`（腳本模式不受 cwd 影響）。
 子程序另外一定拿到這幾個環境變數（[synox_sdk](sdk.md) 的 `context()`／`secret()` 讀它們；蓋過 pack 自己寫的同名變數）：
@@ -239,11 +239,11 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
   **來源固定 PyPI**：pip 一律 `--isolated --index-url https://pypi.org/simple`（不讀 pip.conf、`PIP_INDEX_URL`、`PIP_EXTRA_INDEX_URL`），
   pack 不能指定 index；建環境的子程序只拿到乾淨的環境變數（`envs.BUILD_ENV_KEEP`：PATH、TEMP、使用者資料夾、代理設定…，
   `PIP_*`、`npm_config_*`、`PYTHONPATH` 一律不繼承），再加 `PIP_CONFIG_FILE=os.devnull`：pip 連全機（`C:\ProgramData\pip\pip.ini`）
-  與 venv 裡的設定檔都不讀（`--isolated` 只跳過使用者的那一份；審查 C #C7）。
+  與 venv 裡的設定檔都不讀（`--isolated` 只跳過使用者的那一份）。
 - **Node**：pack 裡要有 `package.json`＋`package-lock.json`；複製到 `data/envs/<pack>/` 後 `npm ci --ignore-scripts`
   （套件的安裝腳本一律不跑），裝進 `data/envs/<pack>/node_modules`；子程序拿到 `NODE_PATH` 指到那裡。系統沒有 node＝doctor 說缺、pack 不載入。
   **只收官方 registry**：`package-lock.json` 每個 `resolved` 都要是 `https://registry.npmjs.org/…`，其他來源（`http://`、`file:`、
-  `git+…`、別的 registry）＝拒裝（審查 C #C8）；`npm ci` 固定 `--registry=https://registry.npmjs.org/`。
+  `git+…`、別的 registry）＝拒裝；`npm ci` 固定 `--registry=https://registry.npmjs.org/`。
 - pack 資料夾本身不寫任何東西（`packs.lock` 的雜湊才對得上）。
 - **安裝流程**：第 2 關之後、按確認之前，報告多一段「🧱 要建環境：Python venv、裝 N 個套件：名稱 版本…」；按確認、pack 裝好之後才建
   （經 JobRunner，整個最多 10 分鐘，log 在 `data/job_logs/`）。建失敗＝pack 照樣裝好，狀態 `missing`、doctor 標「環境沒建好」並說原因
@@ -321,7 +321,7 @@ def install(app, pack):
 - 程式要做的事：子指令＋`--json`，最後一行印一個 JSON 物件，結束碼 0＝成功。**回 `{"message": "…"}` 或 `{"text": "…"}` 最好**，
   會原樣給使用者；其他結構由 SYNOX 攤平（`synox/packs/render.py`：dict 一行一個 key、list 一行一項、最多 25 行）。
 
-### `mcp`（stdio，P4a）
+### `mcp`（stdio）
 
 接一個 **MCP 伺服器**（任何語言寫的，包括 [synox_sdk](sdk.md) 的 `serve()` 的 `--mcp`）。SYNOX 開子程序、用 stdin／stdout 講
 JSON-RPC 2.0（一行一個訊息），不開網路埠：
@@ -374,10 +374,10 @@ JSON-RPC 2.0（一行一個訊息），不開網路埠：
   參數對不上＝不執行；AI 碰不到 `_meta`）。synox_sdk 的 `raise Confirm(…)` 就是這樣回。
 - 第 2 關：pack 裡的 `.py` 照一般規則掃；`argv` 指到 pack 外面的程式（`npx`、`node`、`uvx`、絕對路徑…）不擋，但報告與 `doctor`
   標「⚠️ 未鎖定執行環境」：`packs.lock` 只鎖 pack 資料夾裡的檔，外面那支被換掉不會發現。`data` 的規則同 cli（看 `argv`／`env`／`cwd` 樣板）。
-- 沙盒（PERM-7）同 cli：`box.wrap(argv, env, cwd, grants)`；`grants.timeout` 是空的（程序壽命由 SYNOX 管）；`required_for` 命中又沒真隔離
+- 沙盒同 cli：`box.wrap(argv, env, cwd, grants)`；`grants.timeout` 是空的（程序壽命由 SYNOX 管）；`required_for` 命中又沒真隔離
   ＝伺服器版只給擁有者。
 
-### `mcp`（http：遠端 MCP，P4b）
+### `mcp`（http：遠端 MCP）
 
 接一個**別人架在網路上的 MCP 伺服器**（Streamable HTTP）。這台不跑它的程式，pack 只有宣告（不能附程式檔）：
 
