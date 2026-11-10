@@ -41,6 +41,9 @@
 .venv\Scripts\python.exe -m synox discord token        （貼上 token，畫面不會顯示）
 ```
 
+不用了要刪掉：`.venv\Scripts\python.exe -m synox discord token --clear`（多個 bot 加 `--bot <名字>`）。
+這只是從保管箱刪掉；**舊 token 本身還能用**，要真正作廢到 Developer Portal → 你的 Application → Bot → **Reset Token**。
+
 ### 3. 改 config.json
 
 加上這一段（token 不寫在檔案裡，只寫保管箱的名字）：

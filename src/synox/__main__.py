@@ -416,7 +416,8 @@ def cmd_connect(args) -> int:
 
 
 def cmd_discord(args) -> int:
-    """discord token：把 bot token 存進保管箱（getpass，不經聊天）｜discord pair：私訊配對碼，把你的 Discord 帳號接到擁有者。"""
+    """discord token：把 bot token 存進保管箱（getpass，不經聊天）；加 --clear＝從保管箱刪掉｜
+    discord pair：私訊配對碼，把你的 Discord 帳號接到擁有者。"""
     import getpass
 
     from synox import discord
@@ -449,6 +450,17 @@ def cmd_discord(args) -> int:
                 return 2
             vault_name = spec.vault_name if spec is not None else bot_specs.default_vault_name(name or bot_specs.DEFAULT)
             label = f"bot {name} 的" if name else ""
+            if getattr(args, "clear", False):
+                if not vault.delete_secret(vault_name):
+                    print(f"（保管箱裡本來就沒有 Discord {label}bot token（{vault_name}），沒有動任何東西）")
+                    return 0
+                print(f"🗑 已從保管箱刪掉 Discord {label}bot token（{vault_name}）。\n"
+                      "⚠️ 這只是這台電腦不再存它，舊 token 本身還能用：要真正作廢，到 Discord Developer Portal → "
+                      "你的應用程式 → Bot → 按 Reset Token。")
+                if spec is not None:
+                    print(f"config.json 還指著 \"vault:{vault_name}\"：在重新存一個 token（python -m synox discord token"
+                          f"{' --bot ' + name if name else ''}）或從 config.json 拿掉之前，這個 bot 開不起來。")
+                return 0
             token = getpass.getpass(f"貼上 Discord {label}bot token（畫面不會顯示）：").strip()
             if not token:
                 print("（沒有輸入，沒有存）")
@@ -463,11 +475,14 @@ def cmd_discord(args) -> int:
                 print(f"✅ 存進保管箱了。config.json 的 channels.discord.bot_token 寫 \"vault:{vault_name}\"。")
             return 0
         if args.discord_cmd == "pair":
+            if getattr(args, "clear", False):
+                print("❌ --clear 只給 discord token 用（刪掉存的 bot token）。")
+                return 2
             return discord.pair_owner(config, vault, bot=name)
     except (KeyboardInterrupt, EOFError):
         print("\n（取消了）")
         return 1
-    print("用法：python -m synox discord token [--bot 名字]｜python -m synox discord pair [--bot 名字]")
+    print("用法：python -m synox discord token [--bot 名字] [--clear]｜python -m synox discord pair [--bot 名字]")
     return 1
 
 
@@ -519,6 +534,8 @@ def main(argv=None) -> int:
     p.add_argument("discord_cmd", choices=["token", "pair"])
     p.add_argument("--bot", default="", metavar="NAME",
                    help="哪個 bot（config.json 的 channels.discord.bots.<名字>）；不寫＝default（舊的單一 bot 寫法）")
+    p.add_argument("--clear", action="store_true",
+                   help="discord token --clear：從保管箱刪掉這個 bot 的 token（要作廢舊 token 還是要到 Developer Portal 按 Reset Token）")
     args = parser.parse_args(argv)
     handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop,
                 "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord}
