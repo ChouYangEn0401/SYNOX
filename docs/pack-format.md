@@ -134,7 +134,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | 回 `needs_confirm`（確認來回） | cli 工具最後一行印 `{"ok": true, "needs_confirm": true, "summary": "要刪 3 筆", "confirm_token": "…"}`（結束碼 0）→ SYNOX 出核准卡給下令的人（人打字、AI 呼叫都一樣），按 ✅ 用**同一組參數**重跑，那一次環境變數 `SYNOX_CONFIRMED=1`、`SYNOX_CONFIRM_TOKEN`＝你給的 `confirm_token`（只收英數字與 `. _ : -`、128 字內）；其他每一次都是 `SYNOX_CONFIRMED=0`（`cli.env` 寫了也會被蓋掉）。❌、過期、參數對不上＝不執行。任何語言都能用：自己讀這兩個環境變數。說明見 [sdk.md](sdk.md)「確認來回」 |
 | `commands[].fields[].kind` | `text`（預設）｜`int`（整數，可有千分位逗號）｜`number`（數字）｜`bool`（是／否：`yes/no`、`true/false`、`1/0`、`是/否`…）｜`path`（值一定要在使用者自己的資料夾裡，第 4 關）｜`choice`（要寫 `choices: ["Red", "Blue"]`，大小寫不拘）。對 AI 的參數 schema 一律是字串；SYNOX 在交給程式**之前**照 kind 檢查（人打字與 AI 呼叫都會），不合回一句人話（例如「次數要是整數（例如 3）」）、不執行。交給程式的值整理過：`bool` → `true`／`false`、`int`／`number` 拿掉逗號、`choice` 換成 `choices` 裡的拼法 |
 | `cli.python` | `{python}` 換成什麼：絕對路徑｜`"venv"`（`<pack 資料夾>/../.venv` 的 python）｜沒寫＝看 `runtime`，再沒有＝SYNOX 自己的 Python。**一定要指到 Python 直譯器**（檔名 `python`、`python3`、`python3.12`、`pythonw`、`pypy3`…，可以有 `.exe`）、不能有 `..`；要叫別的程式請直接寫在 `cli.argv` 第一段（算 pack 外的程式、T2）。kind=mcp 寫了也照樣檢查 |
-| `runtime.python`、`runtime.python_posix` | 另一種寫法（金流簿用的）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它。**`"auto"`**＝安裝時自動建 venv（見下面「依賴與環境自動建置」；跟 `cli.python` 不能同時寫）。一樣要是 Python 直譯器的檔名；`..` 只收 `../.venv/Scripts/python.exe`、`../venv/bin/python` 這種「pack 旁邊的 venv」 |
+| `runtime.python`、`runtime.python_posix` | 另一種寫法（放在自己 repo 裡、用那個 repo 的 venv 的外部 pack 常用）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它。**`"auto"`**＝安裝時自動建 venv（見下面「依賴與環境自動建置」；跟 `cli.python` 不能同時寫）。一樣要是 Python 直譯器的檔名；`..` 只收 `../.venv/Scripts/python.exe`、`../venv/bin/python` 這種「pack 旁邊的 venv」 |
 | `runtime.node` | **只給 kind=cli**（kind=mcp 寫了＝pack.json 不合；mcp 的 `{node}` 一律是系統的 node）。`{node}` 換成什麼：相對於 pack 資料夾（或絕對路徑）；**`"auto"`**＝系統的 node＋安裝時照 `package-lock.json` 裝套件；沒寫＝系統的 node。用到 `{node}` 的 pack 是 T2 |
 | `env`（最上層）、`cli.env` | 子程序多帶的環境變數；兩個合併，`cli.env` 優先。值可以用下面的代換。名字像密鑰的（`*_TOKEN`…）一樣會被拿掉，除非列在 `requires.env`。名字只能用英數字和 `_`；**不收**會讓直譯器先載入別的程式的名字（審查 C #C2，`manifest.env_name_problem`，不分大小寫）：`PYTHON*`（只放行 `PYTHONIOENCODING`、`PYTHONUTF8`、`PYTHONUNBUFFERED`；`PYTHONPATH` 只收 `{pack_dir}` 或 `{pack_dir}/子資料夾`）、`NODE_OPTIONS`、`NODE_PATH`（`runtime.node: auto` 由 SYNOX 自己給）、`PATH`、`PATHEXT`、`COMSPEC`、`SYSTEMROOT`、`WINDIR`、`LD_*`、`DYLD_*`、`PIP_*`、`npm_config_*`、`PERL5*`、`RUBYLIB`／`RUBYOPT`、`BASH_ENV`、`JAVA_TOOL_OPTIONS`、`DOTNET_STARTUP_HOOKS`、`COR_*`…；`mcp.env`、`auth.fields[].env` 同一條。SYNOX 開子程序時另外明寫 `PYTHONNOUSERSITE=1`（不讀使用者層的 site-packages） |
 | `web.routes` | cli pack 的面板資料：`{"route": "command"}`；沒寫＝同名。對應的 command 要是 `READ`、沒有必填欄位 |
@@ -215,7 +215,7 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
 欄位不能取這幾個名字。使用者給的值只換一次（值裡寫 `{data_dir}` 不會被換）。
 **`{python} -m 模組` 時 `cli.cwd`（`mcp.cwd`）一定要在 pack 資料夾裡**（`.`、`./子資料夾`、`{pack_dir}…`；審查 C #C3）：
 `python -m` 會先從 cwd 找模組，cwd 是 `{user_data_dir}` 時，使用者資料夾裡同名的 `.py` 會先被載入（沒鎖、沒掃過）。
-資料要放使用者資料夾就用環境變數告訴程式（金流簿的 `MONEYBOOK_HOME` 寫法），或改成 `{python} ./tool.py`（腳本模式不受 cwd 影響）。
+資料要放使用者資料夾就用環境變數告訴程式（例如 `"env": {"MYTOOL_HOME": "{user_data_dir}/mytool"}`），或改成 `{python} ./tool.py`（腳本模式不受 cwd 影響）。
 子程序另外一定拿到這幾個環境變數（[synox_sdk](sdk.md) 的 `context()`／`secret()` 讀它們；蓋過 pack 自己寫的同名變數）：
 `SYNOX_USER_DATA_DIR`（＝`{user_data_dir}`）、`SYNOX_TG_ID`、`SYNOX_MODE`（`personal`｜`server`）、`SYNOX_PACK_DIR`、`SYNOX_PACK_NAME`、
 `SYNOX_SECRET_ENV`（`auth.fields` 的「欄位名=環境變數名」，逗號分隔；只有名字，值照舊只在那個環境變數裡）。
@@ -313,7 +313,7 @@ def install(app, pack):
 
 - `{python}` 等代換見上面「kind=cli 的代換」；`./` 開頭的換成 pack 資料夾裡的路徑。
 - 每個 command 的填法跟內建的 python pack 一樣：**照位置填、`key=value` 補、選填的不追問**。
-  `/moneybook 120 午餐` 直接存。`commands[].positional`＝前幾個欄位能照位置填（沒寫＝必填的個數；最後一個位置欄位吃掉剩下的字）；
+  例如記帳 pack 的 `/mybook 120 午餐` 直接存。`commands[].positional`＝前幾個欄位能照位置填（沒寫＝必填的個數；最後一個位置欄位吃掉剩下的字）；
   有驗證碼欄位（`fresh_code`）的 command 才走 SDK Forms（碼永遠最後問）。值以 `-` 開頭一律拒絕；loader 自己組 argv，
   因為開頭、env、cwd 要照「這一次是誰」代換。
 - `commands[].stdin`：`"{answers}"` 這種樣板——那個欄位的內容走 **stdin** 給程式、不進 argv（長文字、日記正文；不會出現在
