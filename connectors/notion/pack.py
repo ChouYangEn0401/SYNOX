@@ -14,7 +14,10 @@
 
 「頁面」「資料庫」可以給 Notion 網址、32 字的 id，或標題（用搜尋找最像的那一個）。
 
-token 只存在保管箱：pack.store.of(user)（storage=vault → data/notion.json.enc，密文）；不寫 config.json、不寫 log。
+token 只存在保管箱（storage=vault → 密文）；不寫 config.json、不寫 log。認兩個位置（token_of）：
+  1. key="auth"（data/notion.auth.json.enc）：`python -m synox connect notion` 存的（照 pack.json 的 auth.fields）——優先；
+  2. 預設那一份（data/notion.json.enc）：/notion_token 存的（舊使用者的 token 在這裡，照樣認）。
+/notion_token 存新的時會把 1 清掉（最後設的那個才算數）；/notion_logout 兩個都清；/notion_status 說是哪一份。
 [ROUTE] log 那一行會印使用者打的字，所以 install 時在 root logger 掛一個濾網，把長得像 Notion token 的字遮掉。
 
 只用 requests；不開埠、不讀環境變數、不碰 pack 以外的檔案。測試換掉 new_session（假的 HTTP 傳輸，不連網）。
@@ -43,6 +46,23 @@ RICH_TEXT_MAX = 2000               # Notion 一段 rich_text 最多 2000 字
 TOKEN_RE = re.compile(r"\b(?:ntn|secret)_[A-Za-z0-9]{20,}")
 ID_RE = re.compile(r"([0-9a-fA-F]{8})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{4})-?([0-9a-fA-F]{12})")
 HELP_SHARE = "（Notion 那邊要先把頁面或資料庫分享給你的 integration：頁面右上角 ⋯ → 連接 → 選它）"
+
+AUTH_KEY = "auth"                  # python -m synox connect notion 存的位置（synox/connect.py 的 AUTH_KEY）
+SOURCES = {"connect": "python -m synox connect notion 設定的那一份",
+           "notion_token": "/notion_token 設定的那一份"}
+
+
+def _dict(value) -> dict:
+    return value if isinstance(value, dict) else {}
+
+
+def token_of(store) -> Tuple[str, str]:
+    """(token, 來源)；來源是 SOURCES 的鍵，沒有 token 回 ("", "")。connect 存的優先，再來是 /notion_token 存的。"""
+    for source, key in (("connect", AUTH_KEY), ("notion_token", None)):
+        token = _dict(store.load(None, key=key)).get("token")
+        if isinstance(token, str) and token.strip():
+            return token.strip(), source
+    return "", ""
 
 
 def new_session():
@@ -376,12 +396,8 @@ def install(app, pack):
     g = pack.group
     _install_redaction()
 
-    def stored(user) -> dict:
-        data = pack.store.of(user).load({}) or {}
-        return data if isinstance(data, dict) else {}
-
     def client(user) -> Notion:
-        token = stored(user).get("token")
+        token, _ = token_of(pack.store.of(user))
         if not token:
             raise NotionError("還沒設定 Notion。先在私訊打 /notion_token，照說明貼上 integration token。")
         return Notion(token)
@@ -527,7 +543,11 @@ def install(app, pack):
             api.send_message(chat_id, f"❌ 沒有存：{e}")
             return
         workspace = ((me.get("bot") or {}).get("workspace_name") or "") if isinstance(me, dict) else ""
-        pack.store.of(user).save({"token": token, "bot": me.get("name") or "", "workspace": workspace})
+        store = pack.store.of(user)
+        with store.lock:
+            store.save({"token": token, "bot": me.get("name") or "", "workspace": workspace})
+            if _dict(store.load(None, key=AUTH_KEY)).get("token"):
+                store.save({}, key=AUTH_KEY)      # connect 存的那份優先：不清掉的話新的這個會被蓋住
         api.send_message(chat_id, f"✅ 接上 Notion 了（integration：{me.get('name') or '?'}"
                                   f"{'，工作區：' + workspace if workspace else ''}）。token 已加密存在這台電腦。\n"
                                   "⚠️ 請把剛剛貼 token 的那則訊息刪掉（長按 → 刪除 → 也替對方刪除）。\n"
@@ -552,20 +572,24 @@ def install(app, pack):
                                   "打 /cancel 取消。")
 
     def status(api, chat_id, user, args):
-        data = stored(user)
-        if not data.get("token"):
+        token, source = token_of(pack.store.of(user))
+        if not token:
             api.send_message(chat_id, "🗂 Notion 還沒設定。私訊打 /notion_token 開始。")
             return
         try:
-            me = Notion(data["token"]).me()
+            me = Notion(token).me()
             ok = f"✅ 連得上（integration：{me.get('name') or '?'}）"
         except NotionError as e:
             ok = f"❌ {e}"
-        api.send_message(chat_id, f"🗂 Notion：{ok}\ntoken 存在保管箱（密文），結尾 …{data['token'][-4:]}")
+        api.send_message(chat_id, f"🗂 Notion：{ok}\ntoken 存在保管箱（密文），用的是{SOURCES[source]}，結尾 …{token[-4:]}")
 
     def logout(api, chat_id, user, args):
-        had = bool(stored(user).get("token"))
-        pack.store.of(user).save({})
+        store = pack.store.of(user)
+        with store.lock:
+            had = bool(token_of(store)[0])
+            store.save({})
+            if store.load(None, key=AUTH_KEY) is not None:
+                store.save({}, key=AUTH_KEY)
         api.send_message(chat_id, ("🗂 token 拿掉了。" if had else "🗂 本來就沒有設定 token。")
                          + "要徹底停用，也到 notion.so/profile/integrations 把那個 integration 刪掉。")
 

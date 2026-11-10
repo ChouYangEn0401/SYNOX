@@ -1,0 +1,27 @@
+{
+  "name": "node-mcp-tool",
+  "title": "🎲 Node MCP 範例",
+  "summary": "示範：用 Node 標準函式庫手寫的 MCP stdio 伺服器（數字數、擲骰子），kind=mcp transport=stdio。",
+  "version": "0.1.0",
+  "kind": "mcp",
+  "group": "nodemcp",
+  "access": "owner",
+  "surfaces": ["dm"],
+  "data": "none",
+  "skill": "SKILL.md",
+  "publisher": "SYNOX examples",
+  "capabilities": ["subprocess", "exec"],
+  "requires": { "synox": ">=0.2" },
+  "mcp": {
+    "transport": "stdio",
+    "argv": ["{node}", "./server.js"],
+    "cwd": ".",
+    "timeout": 30,
+    "start_timeout": 20,
+    "tools_allow": ["count_words", "roll_dice"],
+    "effects": {
+      "count_words": "READ",
+      "roll_dice": "READ"
+    }
+  }
+}

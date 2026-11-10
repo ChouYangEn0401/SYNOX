@@ -58,7 +58,76 @@ def _secret_lookup(config) -> Callable:
     return lookup
 
 
-def run(offline: bool = False, config_path: str = "", out: Callable[[str], None] = print) -> int:
+def _discord_lines(config) -> tuple:
+    """每個 Discord bot 一行：名字、場合、pack 範圍、token 在不在；下面接這個 bot 會出現的 pack 與
+    「設定了但不會出現」的原因（只讀 pack.json）。回 (行, 有幾個要處理的)。不連 Discord、不產生金鑰。"""
+    from synox import discord
+    vault = None
+    key = os.path.join(config.data_dir, ".synox.key")
+    if os.path.exists(key):
+        try:
+            from synox.vault import Vault
+            from synox.vault.keyring import read_key
+            vault = Vault(read_key(key), config.data_dir)
+        except Exception:
+            vault = None
+    lines, bad = [], 0
+    from synox.identity import Identities, IdentityFileError
+    try:                                            # 只讀：舊檔也不遷移（doctor 不改檔）
+        problem = discord.owner_problem(config, Identities(config.path("identities.json"), readonly=True))
+    except IdentityFileError as e:
+        problem = str(e)
+    if problem:
+        lines.append(f"    ❌ 身分：{problem}")
+        bad += 1
+    try:
+        from synox.discord import scope
+        infos = scope.from_manifests(config)
+    except Exception:                               # 範圍報告出錯不該讓 doctor 整段掛掉
+        scope, infos = None, {}
+    for spec in discord.specs(config):
+        line, wrong = _discord_bot_line(spec, vault)
+        lines.append(line)
+        bad += wrong
+        from synox.discord.bots import channel_ai_problem
+        if channel_ai_problem(spec):                # PERM-6：頻道 AI 開了卻沒有 pool（下面 scope.lines 列原因）
+            bad += 1
+            if scope is None:
+                lines.append(f"      ❌ 頻道 AI 沒有開：{channel_ai_problem(spec)}")
+        if scope is not None:                       # PERM-4：這個 bot 會出現哪些 pack、設定了卻不會出現的原因
+            lines.extend(scope.lines(spec, scope.report(spec, infos), indent="      "))
+    return lines, bad
+
+
+def _discord_bot_line(spec, vault) -> tuple:
+    """一個 bot 的那一行（場合、pack 範圍、token 在不在）→ (行, 0 或 1)。"""
+    from synox import discord
+    from synox.discord.bots import CHANNEL
+    packs = "全部 pack" if spec.packs == "all" else "pack：" + "、".join(spec.packs)
+    where = "私訊型" if spec.surface != CHANNEL else "頻道型"
+    cap = f"，上限 {spec.max_effect}" if spec.max_effect else ""
+    from synox.discord.scope import ai_word
+    head = f"    bot {spec.name}（{where}，{packs}{cap}，{ai_word(spec)}，hub {spec.hub_name}）"
+    hint = "（python -m synox discord token" + (f" --bot {spec.name}" if not spec.legacy else "") + "）"
+    if spec.surface == CHANNEL and not spec.channel_count():
+        return f"{head}：❌ {discord.NO_GUILDS}", 1
+    if spec.token.startswith("vault:"):
+        if vault is None:
+            return f"{head}：❌ 保管箱還沒建立，token 不在{hint}", 1
+        try:
+            has = bool((vault.secret(spec.vault_name) or "").strip())
+        except Exception:
+            has = False
+        if not has:
+            return f"{head}：❌ 保管箱裡沒有 {spec.vault_name}{hint}", 1
+        return f"{head}：✅ token 在保管箱", 0
+    if spec.token.startswith("env:"):
+        ok = bool(os.environ.get(spec.token[4:], "").strip())
+        return f"{head}：" + ("✅ token 從環境變數讀" if ok else f"❌ 環境變數 {spec.token[4:]} 是空的"), 0 if ok else 1
+    return f"{head}：⚠️ token 直接寫在 config.json（建議改用保管箱：python -m synox discord token）", 0
+
+
+def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] = print) -> int:
     problems = 0
     out(f"🩺 SYNOX {__version__} 健康檢查")
     out(f"• Python：{platform.python_version()}（{sys.executable}）")
@@ -78,6 +147,9 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
                 f"　owner_id {'有填' if config.owner_id else '❌ 沒填'}")
             out(f"  模式：{config.mode}（{MODE_LABELS[config.mode]}）"
                 + ("　陌生人是訪客、vault 的資料每人一份 data/users/<id>/" if config.server else ""))
+            if config.server:                                  # 架構限制（只說明，不算問題）
+                from synox.discord.scope import GUEST_CARD_LIMIT
+                out(f"  ℹ️ {GUEST_CARD_LIMIT}")
             out(f"  llm：{r.get('llm', {'kind': 'none'})}")
             out(f"  packs：{config.packs}　vault：{config.vault}")
             web = config.web
@@ -85,7 +157,13 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
                                 + (f"　對外網址 {web.get('public_url')}" if web.get("public_url") else "")
                                 if web.get("enabled", True) else "關（web.enabled=false）"))
             if config.discord_enabled:
-                out("  Discord：開（私訊；token 放保管箱，見 docs/discord.md）")
+                bot_lines, bad = _discord_lines(config)
+                from synox import discord as _dc
+                out(f"  Discord：開（{len(_dc.specs(config))} 個 bot；token 放保管箱，見 docs/discord.md；"
+                    "啟動後 /bot_status 看各 bot 實際的 pack）")
+                for line in bot_lines:
+                    out(line)
+                problems += bad
             problems += 0 if (config.has_token or config.discord_enabled) else 1
         except Exception as e:
             out(f"• 設定：❌ {e}")
@@ -120,9 +198,18 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
             out(f"• AI：❌ {e}")
             problems += 1
 
+    # 沙盒（synox/sandbox.py）：目前的後端、算不算真隔離
+    from synox import sandbox
+    box = sandbox.sandbox_for(config)
+    sandbox_text, bad = sandbox.doctor_line(config)
+    for line in sandbox_text.splitlines():
+        out(line)
+    problems += bad
+
     # packs
     from synox.packs import envs
     from synox.packs import lock as pack_lock
+    from synox.packs import loader
     from synox.packs.loader import PACK_DIRS, discover
     from synox.packs.manifest import ManifestError, read, synox_problem
     lines: List[str] = []
@@ -158,13 +245,36 @@ def run(offline: bool = False, config_path: str = "", out: Callable[[str], None]
                 lines.append(f"  ⚠️ {m.name} {m.version}：{no_env}  {rel}")
                 problems += 1
                 continue
-            state = "connector（只登記）" if m.kind in ("connector", "mcp") else ("✅" if enabled else "⏸ 停用")
+            state = "connector（只登記）" if m.registered_only else ("✅" if enabled else "⏸ 停用")
             lock_mark = "🔒" if lock_state == pack_lock.LOCKED else "未鎖定"
             lines.append(f"  {state} {m.name} {m.version}（{m.kind}，/{m.group}，{lock_mark}）  {rel}")
             if enabled:
                 note = secret_lookup(m)
                 if note:
                     lines.append(f"     {note}")
+                if m.mcp_connected:                          # P4a／P4b：pack 外的程式、不支援的欄位、伺服器沒列的工具
+                    from synox.packs import mcp as pack_mcp
+                    for mcp_note in pack_mcp.doctor_notes(m, lock_dir):
+                        lines.append(f"     {mcp_note}")
+                boxed_out = sandbox.restricted_reason(config, m, box) if config is not None else ""
+                if boxed_out:
+                    lines.append(f"     🔐 {boxed_out}")
+                runtime_note = sandbox.runtime_note(config, m) if config is not None else ""
+                if runtime_note:                             # S2：用容器／不用、引擎找不找得到（只用 which）
+                    lines.append(f"     {runtime_note}")
+                t2_note = sandbox.t2_personal_note(config, m) if config is not None else ""
+                if t2_note:                                  # SDK P7：個人版的 T2 照用，只提醒
+                    lines.append(f"     ⚠️ {t2_note}")
+                if config is not None:                       # PERM-8：伺服器版第三方 python pack、沒鎖的補掃
+                    scan_problems = loader.unlocked_scan(config, m, lock_state)
+                    if scan_problems:
+                        lines.append(f"     ❌ 沒有 packs.lock、第 2 關掃描沒過，不會載入：{'；'.join(scan_problems[:3])}")
+                        problems += 1
+                    elif scan_problems is not None:
+                        lines.append("     🔍 沒有 packs.lock：載入時補跑的第 2 關掃描過了")
+                    trusted_out = "" if scan_problems else loader.trust_reason(config, m)
+                    if trusted_out:
+                        lines.append(f"     🔐 {trusted_out}")
         except ManifestError as e:
             lines.append(f"  ❌ {rel}：{e}")
             problems += 1

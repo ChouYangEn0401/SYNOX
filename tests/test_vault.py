@@ -11,7 +11,7 @@ def test_round_trip_and_ciphertext(tmp_path):
     v.save_json("money", {"entries": [{"category": "午餐", "amount": 120}]})
     assert v.load_json("money") == {"entries": [{"category": "午餐", "amount": 120}]}
     raw = (tmp_path / "money.json.enc").read_bytes()
-    assert "午餐".encode("utf-8") not in raw and b"120" not in raw.split(b"\n", 1)[1]
+    assert "午餐".encode("utf-8") not in raw and b"amount" not in raw
     assert raw.startswith(b'{"synox_vault": 1, "kdf": "scrypt"')
 
 

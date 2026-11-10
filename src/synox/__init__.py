@@ -9,7 +9,7 @@ SYNOX：ISDTeleKitSDK（vendor/isdtelekit）＋可換的 LLM adapter＋skill pac
 import os
 import sys
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 # vendor/isdtelekit 是 SDK 的原樣複製（scripts/vendor_sdk.py）。`pip install -e .` 已經讓它可以 import；
 # 沒裝、直接從原始碼跑（例如 PYTHONPATH=src）時，補上 vendor/ 這一層。

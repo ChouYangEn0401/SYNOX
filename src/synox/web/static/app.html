@@ -40,7 +40,8 @@
   header.top nav { display: flex; gap: 4px; flex: 1; }
   header.top nav a { text-decoration: none; color: var(--fg); padding: 6px 12px; border-radius: 8px; }
   header.top nav a.active { background: var(--accent); color: var(--accent-fg); }
-  header.top .who { font-size: 13px; color: var(--muted); }
+  header.top .who { font-size: 14px; font-weight: 600; color: var(--fg); padding: 4px 10px;
+                    border: 1px solid var(--line); border-radius: 8px; }
 
   main { padding: 16px; max-width: 1100px; margin: 0 auto; }
   .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px;
@@ -596,7 +597,7 @@
   });
 
   var STATUS = { loaded: "可以用", connector: "還沒接上", disabled: "關掉了", invalid: "格式不對", missing: "缺東西", incompatible: "SYNOX 版本不合", error: "壞了",
-    tampered: "被改過了，沒有載入" };
+    tampered: "被改過了，沒有載入", rejected: "掃描沒過，沒有載入" };
   var LOCK = { locked: "🔒", unlocked: "", tampered: "⚠️" };
   function fillPacks(packs) {
     var body = $("pack-rows");
@@ -669,15 +670,26 @@
     box.appendChild(ul);
     var upg = s.upgrade, down = null;
     if (upg) { down = showUpgrade(box, upg, s.name); }
+    var trust = canInstall && s.token ? showScope(box, s, upg) : null;
+    var runtime = canInstall && s.token ? showRuntime(box, s, upg) : null;
+    var pub = showTier(box, s, upg, canInstall && s.token);
     var row = el("div", "row");
     if (canInstall && s.token) {
       var ok = el("button", "primary", upg ? "確認升級" : "確認安裝");
       ok.type = "button";
-      if (upg && !upg.version_ok) { ok.disabled = true; }
-      if (down) { down.addEventListener("change", function () { ok.disabled = !down.checked; }); }
+      var refresh = function () {
+        var versionOk = !(upg && !upg.version_ok) || !!(down && down.checked);
+        ok.disabled = !versionOk || (pub && !pub.ready());
+      };
+      if (down) { down.addEventListener("change", refresh); }
+      if (pub) { pub.onchange(refresh); }
+      refresh();
       ok.addEventListener("click", function () {
         var body = { token: s.token };
         if (upg) { body.upgrade = true; body.allow_downgrade = !!(down && down.checked); }
+        if (trust) { body.trust = trust.value; }
+        if (runtime) { body.runtime = runtime.value; }
+        if (pub) { body.trust_publisher = pub.value(); }
         api("POST", "/api/packs/install", body).then(function (d) {
           $("pack-msg").textContent = (d.upgraded ? "升級好了：" + d.name + " " + d.from + " → " + d.to + "（舊的在 " + d.backup + "）"
             : "裝好了：" + d.name) + "（" + (STATUS[d.status] || d.status) + (d.detail ? "：" + d.detail : "") + "）" +
@@ -727,6 +739,115 @@
     lab.appendChild(document.createTextNode(" 我知道，照樣換成這一版（降級／重裝）"));
     box.appendChild(lab);
     return cb;
+  }
+  // PERM-2：在哪裡用、資料屬於誰（pack.json），信任（擁有者選，寫進 packs.lock）；升級時跟裝著那一份不同就紅字
+  function showScope(box, s, upg) {
+    if (!s.trust_choices) { return null; }
+    var mcp = s.mcp || {};
+    if (mcp.tools) {   // P4b：kind=mcp 逐一列允許的工具與 effect（遠端 MCP 是 T0：只有宣告可信）
+      box.appendChild(el("p", "", "🔌 MCP：" + (mcp.transport || "") + (mcp.host ? "，連到 " + mcp.host : "") +
+        (mcp.trust_level ? "，信任 " + mcp.trust_level : "") + "；只允許下面這 " + mcp.tools.length + " 個工具（請逐一確認）："));
+      var tl = el("ul");
+      mcp.tools.forEach(function (t) { tl.appendChild(el("li", "", t.name + "：" + t.effect + "（" + t.effect_text + "）")); });
+      box.appendChild(tl);
+    }
+    box.appendChild(el("p", "", "🧭 在哪裡用：" + (s.surfaces_text || "") + "　資料：" + (s.data_text || s.data || "") +
+      (s.data_declared ? "" : "（沒寫，照預設推的）")));
+    var lab = el("label", "", "🔑 信任：");
+    var sel = el("select");
+    var current = upg ? (upg.installed_trust || "") : "";
+    s.trust_choices.forEach(function (c) {
+      var o = el("option", "", c.text);
+      o.value = c.value;
+      sel.appendChild(o);
+    });
+    sel.value = current || s.trust_default;
+    lab.appendChild(sel);
+    box.appendChild(lab);
+    var note = el("p", "alert", "");
+    box.appendChild(note);
+    function check() {
+      note.textContent = (upg && sel.value !== (current || "")) ?
+        "🔴 信任 " + (current || "（未鎖定）") + " → " + sel.value : "";
+    }
+    sel.addEventListener("change", check);
+    check();
+    return sel;
+  }
+  // S2：執行環境（用容器／不用）。引擎只看 PATH（伺服器沒有執行 podman／docker）；pack 沒提供容器就只有「不用」
+  function showRuntime(box, s, upg) {
+    var rt = s.runtime || {};
+    if (!rt.applies) { return null; }
+    var engines = Object.keys(rt.engines || {}).map(function (k) { return k + (rt.engines[k] ? " ✅" : " —"); }).join("、");
+    box.appendChild(el("p", "", "🧱 執行環境：這台的容器引擎 " + engines + "（只看 PATH，沒有執行）"));
+    var c = rt.container || {};
+    if (!rt.offered) {
+      box.appendChild(el("p", "muted", "這個 pack 沒有提供容器：只能直接在這台跑（伺服器版的第三方／T2 pack 要 bwrap／systemd 才給成員）"));
+      return null;
+    }
+    box.appendChild(el("p", "muted", "提供的容器：" + (c.run_image || "") + "，network: " + (c.network ? "true" : "false") +
+      "。映像的內容 SYNOX 不看；執行時不會自己拉映像，要事先照 digest 拉好。"));
+    var lab = el("label", "", "要怎麼跑：");
+    var sel = el("select");
+    (rt.choices || []).forEach(function (ch) {
+      var o = el("option", "", ch.text);
+      o.value = ch.value;
+      sel.appendChild(o);
+    });
+    var current = upg ? (upg.installed_runtime || "") : "";
+    sel.value = current || rt.default || "host";
+    lab.appendChild(sel);
+    box.appendChild(lab);
+    var note = el("p", "alert", "");
+    box.appendChild(note);
+    function check() {
+      var noEngine = !Object.keys(rt.engines || {}).some(function (k) { return rt.engines[k]; });
+      note.textContent = (sel.value === "container" && noEngine) ?
+        "⚠️ 這台找不到 podman／docker：選了容器也會先退回直接跑，裝好引擎後自動改用容器" :
+        ((current === "container" && sel.value !== "container") ? "🔴 執行環境 容器 → 直接在這台跑" : "");
+    }
+    sel.addEventListener("change", check);
+    check();
+    return sel;
+  }
+  // SDK P7：信任層級。T2（有掃不到內容的執行檔、外部程式、runtime auto 的套件）：紅字＋勾選＋輸入 publisher
+  //（一字不差才能按確認）；升級時只有發行者變了／新增 exec／可執行的東西變多才要重新確認
+  function showTier(box, s, upg, canInstall) {
+    var t = upg ? (upg.tier || {}) : (s.tier || {});
+    if (!t.tier) { return null; }
+    if (t.tier !== "T2") { box.appendChild(el("p", "muted", "🧩 信任層級：" + (t.text || t.tier))); return null; }
+    if (upg && !t.needs_publisher) {
+      box.appendChild(el("p", "muted", "🧩 T2：沿用之前確認過的發行者「" + (t.trusted_publisher || "") + "」"));
+      return null;
+    }
+    box.appendChild(el("p", "alert", "🔴 信任層級：" + (t.text || "T2") + "——T2 不是沙盒保證，只是讓你知道你在信任誰"));
+    if (upg && (t.reconfirm || []).length) {
+      box.appendChild(el("p", "alert", "🔴 要重新確認發行者：" + t.reconfirm.join("；")));
+    }
+    var ul = el("ul");
+    var lines = (s.tier && s.tier.warning_lines) || t.warning_lines || [];
+    lines.forEach(function (w) { ul.appendChild(el("li", "alert", "🔴 " + w)); });
+    (t.opaque || []).forEach(function (o) {
+      ul.appendChild(el("li", "muted", o.path + "　" + o.size + " bytes　sha256 " + o.sha256 + "　" + o.why));
+    });
+    box.appendChild(ul);
+    if (!canInstall || !t.publisher) { return null; }
+    var lab = el("label", "alert");
+    var cb = el("input");
+    cb.type = "checkbox";
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(" 我知道這個 pack 會執行掃不到內容的東西，我信任發行者："));
+    var input = el("input");
+    input.type = "text";
+    input.placeholder = "輸入 " + t.publisher;
+    input.setAttribute("autocomplete", "off");
+    lab.appendChild(input);
+    box.appendChild(lab);
+    return {
+      ready: function () { return cb.checked && input.value.trim() === t.publisher.trim(); },
+      value: function () { return cb.checked ? input.value.trim() : ""; },
+      onchange: function (fn) { cb.addEventListener("change", fn); input.addEventListener("input", fn); }
+    };
   }
   function reviewFailed(e) {
     if (e.data && e.data.refused && e.data.refused.name) { showReview(e.data.refused, false); }
@@ -808,7 +929,8 @@
     me = d;
     $("nav").classList.remove("hidden");
     $("logout").classList.remove("hidden");
-    $("who").textContent = (d.username || d.id) + "（" + d.role + (d.owner ? "，擁有者" : "") + "）";
+    $("who").textContent = "目前登入：" + (d.username ? d.username + "（id " + d.id + "）" : "id " + d.id) +
+      "・" + d.role + (d.owner ? "，擁有者" : "");
     route();
   }).catch(function () { showLogin(); });
 })();

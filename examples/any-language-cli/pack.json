@@ -1,0 +1,27 @@
+{
+  "name": "any-language-cli",
+  "title": "📋 備忘清單（不用 SDK）",
+  "summary": "示範：kind=cli 的工具只要印 JSON 信封就好，不一定要用 SDK。記一筆、看清單、全部刪掉（要確認）。",
+  "version": "0.1.0",
+  "kind": "cli",
+  "group": "anylang",
+  "access": "owner",
+  "surfaces": ["dm"],
+  "data": "user",
+  "skill": "SKILL.md",
+  "publisher": "SYNOX examples",
+  "capabilities": ["filesystem:own"],
+  "requires": { "synox": ">=0.2" },
+  "cli": {
+    "argv": ["{python}", "./tool.py"],
+    "cwd": ".",
+    "json_flag": "--json",
+    "timeout": 30,
+    "commands": [
+      { "name": "list", "effect": "READ", "default": true, "summary": "看清單", "argv": ["list"] },
+      { "name": "add", "effect": "WRITE", "summary": "記一筆", "argv": ["add", "--text={text}"],
+        "fields": [{ "name": "text", "ask": "要記什麼", "required": true }] },
+      { "name": "clear", "effect": "WRITE", "summary": "全部刪掉（工具會先要你確認）", "argv": ["clear"] }
+    ]
+  }
+}
