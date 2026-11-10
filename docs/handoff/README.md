@@ -6,6 +6,7 @@
 |---|---|---|
 | [real-service-testing.md](real-service-testing.md) | 準備那台電腦、Notion／Todoist／Google 日曆／Apple 提醒事項的憑證與設定、跑煙霧測試、錯誤排除、清理、回報格式、安全守則 | 1 |
 | [discord-handoff.md](discord-handoff.md) | Discord 從零到上線：建 bot、intent、邀請、id、存 token、配對、config 範例（私訊型、頻道型、多 bot、頻道 AI）、排查、D1–D18 測試清單、已知限制 | 2 |
+| [container-verification.md](container-verification.md) | 容器隔離（podman／Docker）與 Linux 沙盒（bwrap／systemd）的真機驗證：給那台 Claude 的 prompt、探針 pack、C／M／B 檢查清單（每項：做什麼、預期、失敗代表什麼） | 另一條線（Linux 實驗室） |
 | [`scripts/smoke_real.py`](../../scripts/smoke_real.py) | 煙霧測試：用各 connector 自己的程式逐一試唯讀操作；`--write` 才做一個建立後立刻刪掉的小寫入（要輸入 yes）；最後印一段可貼進部署測試板的摘要 | 照第 1 份第 3 節跑 |
 
 最短路徑：
