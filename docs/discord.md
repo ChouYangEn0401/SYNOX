@@ -12,7 +12,7 @@
 | 擁有者配對（私訊 bot 六位數字） | ✅ `python -m synox discord pair` |
 | 一個 SYNOX 開好幾個私訊型 bot（各自的 token；回覆用收到訊息的那個 bot） | ✅ `channels.discord.bots`（見下面「多個 bot」） |
 | 伺服器頻道（guild）裡的訊息 | ✅ 只有**頻道型 bot**（`surface: "channel"`）收、只收設定列出的頻道、被 @（或以 / 開頭）才回；私訊型 bot 照舊只收私訊（見下面「3c. 頻道型 bot」） |
-| 頻道裡跟 AI 聊天 | ✅ 選用（PERM-6）：頻道型 bot 設 `ai: {"enabled": true, "pool_usd_month": 5}` 才開；見 3d「頻道 AI」 |
+| 頻道裡跟 AI 聊天 | ✅ 選用：頻道型 bot 設 `ai: {"enabled": true, "pool_usd_month": 5}` 才開；見 3d「頻道 AI」 |
 | 收附件（圖片、檔案） | ❌ |
 | 斜線指令選單（Discord 的 `/` 自動完成） | ❌ 指令照打字就能用 |
 
@@ -156,7 +156,7 @@ Application、各自一個 token，config.json 改成 `bots` 寫法（**跟上�
   其他 pack（例如記帳 money、記事、提醒）在頻道裡打了就是「未知指令」，不會透露它存在、也洩不出誰的資料。
   內建指令在頻道裡只剩 /help、/start、/exit（/bot_status、/user_role 這類都是未知指令）。
 - **危險動作（DANGER）在頻道裡永遠不行**（設定寫 `danger` 會被拒；就算程式裡硬塞也照樣擋），回「這個動作要到私訊做」。
-- **寫入（WRITE）**：要 `max_effect: "write"`、pack 的 `data` 是 `shared`、而且發話者至少是成員；伺服器版 `data=shared` 的寫入本來就要管理員（PERM-2），兩條都要過。
+- **寫入（WRITE）**：要 `max_effect: "write"`、pack 的 `data` 是 `shared`、而且發話者至少是成員；伺服器版 `data=shared` 的寫入本來就要管理員，兩條都要過。
 - **role_map**：發話者在那個伺服器有對應的身分組 → 這次請求的角色＝max(SYNOX 裡的角色, 對應的角色)，**最高只到成員**；
   **不會寫回 users.json**（私訊時照舊是原本的角色）。管理員只能由擁有者用 `/user_role` 給。
 - 回覆一律由收到訊息的頻道型 bot 送回那個頻道，**引用並提及發話者那則訊息**（其他 @、@everyone 一律不解析）。
@@ -166,7 +166,7 @@ Application、各自一個 token，config.json 改成 `bots` 寫法（**跟上�
 - 其他 bot、自己、webhook 的訊息、只有附件沒有字的訊息、編輯過的訊息、其他頻道的訊息一律略過。
 - 頻道型 bot 不送主動通知（提醒、排程照樣走私訊型 bot）、不能拿來配對。
 
-### 3d. 頻道 AI（在頻道裡跟 AI 聊，選用，PERM-6）
+### 3d. 頻道 AI（在頻道裡跟 AI 聊，選用）
 
 在頻道型 bot 的設定裡加 `ai`（**一定要有 `pool_usd_month`**）：
 
