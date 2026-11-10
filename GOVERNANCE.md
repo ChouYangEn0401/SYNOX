@@ -13,7 +13,7 @@
 
 ## SYNOX Team
 
-團隊成員（SYNOX Team）是持續貢獻並被維護者邀請的人，擁有 repo 的寫入權限與一般技術決策的投票權。成員名單記在 `MAINTAINERS.md`（待補）。團隊成員依 `CONTRIBUTING.md` 簽署貢獻者同意書。
+團隊成員（SYNOX Team）是持續貢獻並被維護者邀請的人，擁有 repo 的寫入權限與一般技術決策的投票權。成員名單記在 `MAINTAINERS.md`。團隊成員依 `CONTRIBUTING.md` 簽署貢獻者同意書。
 
 ## 一般決策
 
