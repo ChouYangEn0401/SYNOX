@@ -21,8 +21,8 @@
 | | 內容 |
 |---|---|
 | **現在做得到** | 每個人的筆記、記帳、密鑰各自用不同的金鑰加密，SYNOX 的程式只會開「正在講話的那個人」的資料。成員能看到哪些功能、AI 能叫哪些工具，照角色（訪客／成員／管理員／擁有者）和 pack 宣告的能力限制。別人寫的 python pack（third-party）只有你（擁有者）看得到；掃不到內容的 T2 pack 在沒有真沙盒時也只有你看得到。AI 的危險動作要本人按確認卡，別人按不了你的卡。 |
-| **現在做不到** | **你（營運者）看得到所有人的資料**：程式在跑的時候主金鑰在記憶體裡，能登入這台電腦的人就能解開每個人的檔——這是防「檔案被偷」，不是防你。**沙盒後端（bwrap／systemd）只在 Linux 伺服器上設計、還沒在真機驗證過**；Windows 上沒有可用的沙盒。你自己標成 core 的 pack、出廠的 pack 都在程序裡跑，讀得到任何人的資料。**公開頻道／AI 的提示注入風險仍然存在**：別人在頻道裡、網頁裡、工具結果裡寫的字可能騙 AI；SYNOX 靠「AI 能叫的工具範圍很小」和「危險動作要確認卡」把傷害壓低，不是靠 AI 不會被騙。 |
-| **建議** | 一開始就跟成員講清楚：**「我看得到你們存的東西」**。不要把陌生人寫的 pack 標成 core。真的要給成員用 cli／mcp 的第三方 pack，等 Linux 沙盒在伺服器上照「運行空間」那段的清單驗過再開。頻道 AI 預設關著，要開就把工具範圍留小。 |
+| **現在做不到** | **你（營運者）看得到所有人的資料**：程式在跑的時候主金鑰在記憶體裡，能登入這台電腦的人就能解開每個人的檔——這是防「檔案被偷」，不是防你。**沙盒後端（bwrap／systemd）與容器後端（podman／docker）只組好指令、還沒在真機驗證過**；Windows 上沒有可用的沙盒。你自己標成 core 的 pack、出廠的 pack 都在程序裡跑，讀得到任何人的資料。**公開頻道／AI 的提示注入風險仍然存在**：別人在頻道裡、網頁裡、工具結果裡寫的字可能騙 AI；SYNOX 靠「AI 能叫的工具範圍很小」和「危險動作要確認卡」把傷害壓低，不是靠 AI 不會被騙。 |
+| **建議** | 一開始就跟成員講清楚：**「我看得到你們存的東西」**。不要把陌生人寫的 pack 標成 core。真的要給成員用 cli／mcp 的第三方 pack，等 Linux 沙盒或容器在伺服器上照 `docs/handoff/container-verification.md` 的清單驗過再開。頻道 AI 預設關著，要開就把工具範圍留小。 |
 
 ### 情境三：開放給不信任的第三方 pack 作者（讓陌生人上傳 pack 給你裝）
 
@@ -274,7 +274,7 @@ T2 多做的事（`src/synox/packs/tier.py`）：
   不是單純按 yes。沒寫 publisher 的 T2 pack 不能裝。輸入的名字與時間寫進 packs.lock 的 `trusted_publisher`、`trusted_at`。
 - **升級**：publisher 變了、新增 `exec`、可執行的東西變多（新的執行檔／外部程式）、或 T1 變 T2 → 紅字，要重新輸入發行者；
   都沒有就沿用上次的確認。`packs lock --approve` 同一條規則。
-- **執行期**：伺服器版的 T2 pack **一定要真隔離**（bwrap／systemd），不管 `trust` 選 core 還是 third-party、不管
+- **執行期**：伺服器版的 T2 pack **一定要真隔離**（bwrap／systemd，或選了容器而且這台有 podman／docker），不管 `trust` 選 core 還是 third-party、不管
   `policy.sandbox.required_for`；沒有＝整組只對擁有者可見（沿用 PERM-7 的機制）。T2 的 python pack 在 SYNOX 程序裡跑、
   沙盒包不到，伺服器版一律只給擁有者。個人版照用，`doctor` 每個 T2 pack 提醒一行。
 
@@ -307,17 +307,32 @@ T2 多做的事（`src/synox/packs/tier.py`）：
 | `bwrap` | Linux（建議） | bubblewrap：系統資料夾唯讀、grants.read 唯讀、grants.write 可寫、`--unshare-pid`、沒 network 就 `--unshare-net`；前面接 `prlimit`（setrlimit 的 RLIMIT_AS／RLIMIT_NPROC，找不到 prlimit 就不限，doctor 說） | 是 |
 | `systemd` | Linux 替代 | `systemd-run --pipe --wait`：MemoryMax、TasksMax、RuntimeMaxSec、PrivateNetwork＋IPAddressDeny、ProtectSystem=strict、InaccessiblePaths＝SYNOX 的 data，再用 BindReadOnlyPaths／BindPaths 開回 grants；環境變數用 `--setenv=名字`（值不進 argv） | 是 |
 | `appcontainer` | Windows（未來） | 只有介面，`wrap` 丟 NotImplementedError。之後要做：CreateAppContainerProfile＋SECURITY_CAPABILITIES 開程序、對 grants 的資料夾加 ACL、沒 network 就不給 internetClient | （未實作） |
+| **container**（每個 pack 自己的） | 任何平台（Linux：podman／Docker Engine；Windows：使用者自己裝的 Docker Desktop） | pack.json 有 `runtime.container`、安裝時擁有者選「用容器」（記在 packs.lock 的 `runtime`）、這台找得到引擎（`policy.sandbox.engine`：`auto`＝podman → docker，**只用 which 看 PATH**）→ `podman/docker run --rm -i --pull=never --network none（沒宣告 network） --read-only --tmpfs /tmp:noexec --cap-drop ALL --security-opt no-new-privileges --pids-limit --memory --memory-swap`、podman `--userns=keep-id`／docker `--user <uid>`、只掛 pack 資料夾（唯讀）與 grants 的那一格可寫資料夾、`--env 名字`（值不進 argv）、映像一定 `@sha256:`。選了容器卻找不到引擎＝退回上面的後端，doctor 說原因 | 是 |
 
 `auto`：個人版、Windows＝none；Linux 伺服器版＝有 bwrap 用 bwrap，沒有就 systemd-run，都沒有＝none。明寫的後端在這台用不了
-（找不到 bwrap…）＝當作 none（fail closed），doctor 說原因。
+（找不到 bwrap…）＝當作 none（fail closed），doctor 說原因。**選了容器的 pack 先看容器**（podman → docker），找不到引擎才照這個順序。
+
+**容器的誠實保證與限制**（S0–S2，`docs/discussions/2026-11-10-isolation-howto.md`）：
+- **保證（指令層面）**：SYNOX 組出來的指令一定帶上面那一整組旗標、一定不帶 `--privileged`、`--network host`、`docker.sock`、
+  `--cap-add`、`--device`（第 1 關也不收這些欄位；`mounts` 只能改容器裡的路徑，本機要掛什麼由 SYNOX 照 `data` 算）。
+  映像一定指名 digest，執行時不會自己去網路抓（`--pull=never`）。
+- **還沒證明的**：這些旗標在真的 podman／Docker 上是否都生效——**這台開發機一次都沒跑過容器**，只比對組出來的字串；
+  驗證清單在 `docs/handoff/container-verification.md`。rootless 的記憶體／程序數上限要 cgroup v2，v1 上會被忽略。
+- **擋不住的**：容器跟主機共用 Linux 核心，打核心漏洞的程式穿得過（要擋就要 VM，還沒做）；宣告了 `network` 的 pack 在容器裡
+  可以連外；映像的內容 SYNOX 不看（跟 pip／npm 套件一樣，只保證跑的是 digest 那一份）；**rootful Docker 的 daemon 是 root，
+  能叫 docker 的帳號（docker 群組）等於 root**——伺服器建議 rootless podman。
+- **還沒做**：SYNOX 自己拉映像／用 Dockerfile 建映像（S3，現在由營運者照 digest 先拉好）；MCP 長駐容器在 SYNOX 結束時用名字
+  `stop`（S4；Windows 上 Job Object 包的是 docker 用戶端，不是容器本身）；installer 偵測（S6）；VM 後端（S7）。
 
 **要沙盒卻沒有真隔離**：`policy.sandbox.required_for`（`third-party` 預設｜`all`｜`none`）命中的 cli pack（與 mcp stdio pack），在伺服器版又沒有真隔離的後端
-（none、jobobject 不算）→ 那個 pack 整組只對擁有者可見（成員、管理員、訪客看不到、AI 工具清單也沒有），`doctor` 與 `packs status`
-寫原因。個人版不受影響。誰是 third-party：packs.lock 的 `trust`（安裝時由擁有者選）優先；很舊、沒寫 trust 的鎖：經安裝流程從檔案裝進來的
+（none、jobobject 不算；bwrap、systemd、container 算）→ 那個 pack 整組只對擁有者可見（成員、管理員、訪客看不到、AI 工具清單也沒有），`doctor` 與 `packs status`
+寫原因。**選了容器、引擎找得到＝算真隔離**：伺服器版第三方／T2 的 cli、mcp stdio pack 這樣就能給成員（擁有者 2026-11-10 的決定 Q1：
+作者「建議提供」容器，不強制；沒提供或選不用容器，照舊要 bwrap／systemd，沒有就只給擁有者）；T2 的 python pack 仍然只給擁有者
+（在 SYNOX 程序裡跑，容器包不到）。個人版不受影響。誰是 third-party：packs.lock 的 `trust`（安裝時由擁有者選）優先；很舊、沒寫 trust 的鎖：經安裝流程從檔案裝進來的
 （鎖的 via＝web／console）算 third-party，其他算 core；**沒有鎖**：出廠的（名字＋位置）算 core，其他（手動放進 packs/、packs.dirs）算
 third-party。python pack 在 SYNOX 程序裡跑，沙盒管不到，改看信任（上面 PERM-8）；兩邊現在是同一條規則：有鎖看鎖、沒鎖只有出廠的算 core。
 
-**伺服器上要驗的**（還沒做）：bwrap 能在 SYNOX 的帳號下開 user namespace；斷網真的斷（`curl` 失敗）；讀不到別人的 `data/users/<id>/`；
+**伺服器上要驗的**（還沒做；逐項清單與給那台 Claude 的 prompt：`docs/handoff/container-verification.md`）：bwrap 能在 SYNOX 的帳號下開 user namespace；斷網真的斷（`curl` 失敗）；讀不到別人的 `data/users/<id>/`；
 寫得進自己的 `<pack>/`；venv 的 python（symlink 到 /usr）跑得起來；prlimit 的 RLIMIT_AS 對 Node 是否太緊；systemd 的
 InaccessiblePaths＋BindPaths 巢狀是否照預期；`--setenv=名字` 在那台 systemd 版本能不能只給名字。
 
@@ -337,6 +352,9 @@ InaccessiblePaths＋BindPaths 巢狀是否照預期；`--setenv=名字` 在那�
   python pack 的程式載入時就進了記憶體，之後才 import 的同資料夾模組要等下次載入才驗。
 - 伺服器版 `trust: core` 的 python pack、出廠的 pack 都在程序裡跑，讀得到任何人的資料（PERM-8 只管「成員看不看得到」第三方的）。
 - 個人版與 Windows 預設沒有沙盒（後端 none）：cli 子程序跟 SYNOX 一樣看得到整台電腦。Linux 的 bwrap／systemd 後端還沒在真機驗證（見「運行空間」）。
+- 容器後端（S0–S2）只驗證過「組出來的指令」，沒在真的 podman／Docker 上跑過；共用核心（核心漏洞穿得過）；映像內容不看；
+  rootful Docker 的 docker 群組等於 root；SYNOX 不替你拉映像、不 build（S3）；Windows 上 SYNOX 掛掉時容器可能還活著（S4）。
+  `kind: path` 的欄位值是本機路徑，容器裡看不到（容器模式下這種欄位要改用 `{user_data_dir}` 底下的相對路徑，S4 之後再處理）。
 - T2 不是沙盒保證：掃不到內容的執行檔、npm 套件、外部程式做什麼，SYNOX 不知道，只列出來、要你確認發行者。
   pip 套件沒寫 `--hash` 時只釘了版本：PyPI 上那個版本的檔被換掉、或名字被搶註，SYNOX 看不出來。npm 照 `package-lock.json`
   的 `integrity` 驗；`resolved` 網址只收 `https://registry.npmjs.org/`（審查 C #C8：`http://`、`file:`、`git+…`、別的 registry、

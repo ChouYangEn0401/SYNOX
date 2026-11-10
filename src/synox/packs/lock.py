@@ -26,6 +26,9 @@
   `"trusted_publisher"`（安裝者明確輸入的 pack.json publisher）、`"trusted_at"`。
 - trust（PERM-2）：`"trust": "core"｜"third-party"`，擁有者在安裝報告上選（預設 third-party），跟著每一筆鎖；
   也記當時的 `surfaces`／`data`。**舊的鎖沒有 trust**＝當作 third-party（`trust_of`）；沒有鎖＝None（出廠、手放的，由呼叫的人決定）。
+- runtime（S2，容器）：`"runtime": {"mode": "container"|"host", "image", "digest", "dockerfile_sha256", "base", "network",
+  "chosen_by", "chosen_at"}`，跟 trust 並列，擁有者在安裝報告上選（pack.json 有 runtime.container 時預設 container）；
+  `packs runtime <name> container|host` 只改這一塊。沒寫＝host（sandbox.runtime_mode）。
 """
 
 from __future__ import annotations
@@ -112,13 +115,63 @@ def entry(data_dir: str, name: str) -> Optional[dict]:
     return found if isinstance(found, dict) else None
 
 
+RUNTIME_MODES = ("container", "host")
+
+
+def runtime_record(manifest, mode: str, chosen_by, *, now: Optional[float] = None,
+                   folder: Optional[str] = None) -> dict:
+    """packs.lock 的 runtime 區塊（S2）：擁有者選的 mode（container｜host）＋當時 pack.json 宣告的容器
+    （image、digest、dockerfile 的 sha256、base、network）＋誰、何時選的。沒有 runtime.container 一律 host。
+    folder：pack 現在的資料夾（安裝時從暫存搬進 packs/ 之後，manifest.folder 還是暫存的路徑）。"""
+    from synox.packs import container as pack_container
+    if mode not in RUNTIME_MODES:
+        raise ValueError(f"runtime 只能是 {'、'.join(RUNTIME_MODES)}（現在是 {mode!r}）")
+    if folder and folder != getattr(manifest, "folder", folder):
+        import dataclasses
+        manifest = dataclasses.replace(manifest, folder=folder)
+    info = pack_container.summary(manifest)
+    if not info:
+        mode = "host"
+    record = {"mode": mode, "chosen_by": chosen_by, "chosen_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now))}
+    if info:
+        image = info.get("image") or ""
+        record.update(image=info.get("run_image", ""), digest=image.rsplit("@", 1)[-1] if "@" in image else "",
+                      dockerfile_sha256=info.get("dockerfile_sha256", ""), base=info.get("base", ""),
+                      network=bool(info.get("network")))
+    return record
+
+
+def runtime_mode(data_dir: str, name: str) -> Optional[str]:
+    """鎖裡記的 runtime.mode；沒有鎖或沒寫回 None。"""
+    found = entry(data_dir, name) or {}
+    rt = found.get("runtime")
+    return rt.get("mode") if isinstance(rt, dict) and rt.get("mode") in RUNTIME_MODES else None
+
+
+def set_runtime(data_dir: str, manifest, mode: str, chosen_by, now: Optional[float] = None) -> dict:
+    """`python -m synox packs runtime <name> container|host`：只改這一筆鎖的 runtime（檔案雜湊、trust 都不動）。
+    沒有鎖丟 KeyError（先 packs lock --approve）。"""
+    record = runtime_record(manifest, mode, chosen_by, now=now)
+    with _LOCK:
+        data = load(data_dir)
+        found = data["packs"].get(manifest.name)
+        if not isinstance(found, dict):
+            raise KeyError(manifest.name)
+        found["runtime"] = record
+        jsonstore.save_json(lock_path(data_dir), data)
+    return record
+
+
 def approve(data_dir: str, manifest, report, approved_by, *, via: str, hashes: Optional[Dict[str, str]] = None,
             folder: Optional[str] = None, now: Optional[float] = None, trust: Optional[str] = None,
-            tier_fields: Optional[dict] = None) -> dict:
+            tier_fields: Optional[dict] = None, runtime: Optional[str] = None) -> dict:
     """寫（或換掉）這個 pack 的鎖。hashes 沒給就現算 folder（預設 manifest.folder）；一律是每個檔（hash_scope=all）。
     trust：core｜third-party（沒給＝third-party；不認得丟 ValueError）。
-    tier_fields：tier.lock_fields 的結果（tier、t2、trusted_publisher、trusted_at）；沒給＝照檔案現算 tier（不寫確認）。"""
+    tier_fields：tier.lock_fields 的結果（tier、t2、trusted_publisher、trusted_at）；沒給＝照檔案現算 tier（不寫確認）。
+    runtime：container｜host（S2；擁有者在安裝報告上選的）；沒給＝不寫（舊的寫法；sandbox 當作 host）。"""
     trust = check_trust(trust)
+    runtime_block = (runtime_record(manifest, runtime, approved_by, now=now, folder=folder)
+                     if runtime is not None else None)
     hashes = dict(hashes) if hashes is not None else hash_files(folder or manifest.folder)
     if tier_fields is None:
         from synox.packs import tier as pack_tier
@@ -130,6 +183,8 @@ def approve(data_dir: str, manifest, report, approved_by, *, via: str, hashes: O
               "data": getattr(manifest, "data", "none"),
               "approved_by": approved_by, "via": via,
               "approved_at": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(now)), **tier_fields}
+    if runtime_block is not None:
+        record["runtime"] = runtime_block
     with _LOCK:
         data = load(data_dir)
         data["packs"][manifest.name] = record

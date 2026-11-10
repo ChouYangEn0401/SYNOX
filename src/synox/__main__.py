@@ -238,11 +238,16 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
         try:
             name = admin.install_staged(token, data_dir, args.packs_dir or PACK_DIRS[0], approved_by=who,
                                         via="console", trust=trust,          # 第 3 關：packs.lock
-                                        trust_publisher=getattr(args, "trust_publisher", None) or None)
+                                        trust_publisher=getattr(args, "trust_publisher", None) or None,
+                                        runtime=getattr(args, "runtime", None) or None)
         except admin.PackAdminError as e:
             print(f"❌ {e}")
             return 2
-        print(f"✅ 裝好了：{name}（已寫進 packs.lock，信任 {trust or 'third-party'}）。SYNOX 開著的話到網頁設定頁按「重新載入全部」，或重開 SYNOX。")
+        from synox.packs import lock as pack_lock
+        mode = pack_lock.runtime_mode(data_dir, name)
+        runtime_text = {"container": "，用容器", "host": "，不用容器"}.get(mode or "", "")
+        print(f"✅ 裝好了：{name}（已寫進 packs.lock，信任 {trust or 'third-party'}{runtime_text}）。"
+              "SYNOX 開著的話到網頁設定頁按「重新載入全部」，或重開 SYNOX。")
         _build_env_now(name, data_dir, args.packs_dir or PACK_DIRS[0], jobs)
         return 0
     web = (getattr(config, "web", None) or {}) if config is not None else {}
@@ -277,7 +282,8 @@ def _upgrade_now(token: str, data_dir: str, packs_dir: str, config, args, jobs=N
         done = upgrade.upgrade_staged(token, data_dir, packs_dir, approved_by=who, via="console",
                                       allow_downgrade=getattr(args, "allow_downgrade", False),
                                       trust=getattr(args, "trust", None) or None,
-                                      trust_publisher=getattr(args, "trust_publisher", None) or None)
+                                      trust_publisher=getattr(args, "trust_publisher", None) or None,
+                                      runtime=getattr(args, "runtime", None) or None)
     except admin.PackAdminError as e:
         print(f"❌ {e}")
         return 2
@@ -355,7 +361,8 @@ def cmd_packs(args, *, jobs=None) -> int:
             m, report, problems = admin.approve_installed(found[name], data_dir,
                                                           approved_by=getattr(config, "owner_id", None) or "cli",
                                                           trust=getattr(args, "trust", None) or None,
-                                                          trust_publisher=getattr(args, "trust_publisher", None) or None)
+                                                          trust_publisher=getattr(args, "trust_publisher", None) or None,
+                                                          runtime=getattr(args, "runtime", None) or None)
         except admin.PackAdminError as e:
             print(f"❌ {e}")
             return 2
@@ -365,6 +372,8 @@ def cmd_packs(args, *, jobs=None) -> int:
             return 2
         print(f"🔒 {name} 已鎖定（data/packs.lock）。之後檔案被改過就不會載入。")
         return 0
+    if args.packs_cmd == "runtime":
+        return cmd_packs_runtime(args, found, data_dir, config)
     marks = {pack_lock.LOCKED: "🔒 鎖定", pack_lock.UNLOCKED: "· 未鎖定", pack_lock.TAMPERED: "⚠️ 被改過"}
     from synox.packs.manifest import synox_problem
     for name, folder in sorted(found.items()):
@@ -392,6 +401,42 @@ def cmd_packs(args, *, jobs=None) -> int:
             reason = "" if scan_problems else pack_loader.trust_reason(config, m)
             if reason:
                 print(f"    🔐 {reason}")
+            from synox import sandbox
+            note = sandbox.runtime_note(config, m)               # S2：用容器／不用、引擎找不找得到
+            if note:
+                print(f"    {note}")
+    return 0
+
+
+def cmd_packs_runtime(args, found: dict, data_dir: str, config) -> int:
+    """`packs runtime <name> container|host`：只改 packs.lock 的 runtime（擁有者在這台電腦上跑才改得了）。"""
+    from synox import sandbox
+    from synox.packs import admin
+    from synox.packs import lock as pack_lock
+    from synox.packs.manifest import ManifestError, read
+    name = args.name
+    if name not in found:
+        print(f"❌ 找不到叫 {name} 的 pack（有：{'、'.join(sorted(found)) or '沒有'}）")
+        return 2
+    try:
+        m = read(found[name])
+        mode = admin.check_runtime(m, args.mode)
+    except ManifestError as e:
+        print(f"❌ pack.json 不合：{e}")
+        return 2
+    except admin.PackAdminError as e:
+        print(f"❌ {e}")
+        return 2
+    state, _changes = pack_lock.verify(data_dir, name, found[name])
+    if state != pack_lock.LOCKED:
+        print(f"❌ {name} 沒有鎖（或檔案被改過）：先 python -m synox packs lock --approve {name}")
+        return 2
+    pack_lock.set_runtime(data_dir, m, mode, getattr(config, "owner_id", None) or "cli")
+    print(f"🧱 {name}：{'用容器' if mode == 'container' else '不用容器'}（已寫進 packs.lock）。"
+          "SYNOX 開著的話到網頁設定頁按「重新載入全部」，或重開 SYNOX。")
+    note = sandbox.runtime_note(config, m) if config is not None else ""
+    if note:
+        print(f"   {note}")
     return 0
 
 
@@ -508,6 +553,8 @@ def main(argv=None) -> int:
                    help="信任：core（跟出廠的一樣）｜third-party（預設；升級沒給＝沿用裝著那一份的）")
     p.add_argument("--trust-publisher", default=None, metavar="NAME",
                    help="T2 pack（有掃不到內容的執行檔／外部相依）：明確輸入 pack.json 的 publisher 才裝")
+    p.add_argument("--runtime", choices=["container", "host"], default=None,
+                   help="用容器（pack 有提供 runtime.container 時的預設）｜host（不用容器；升級沒給＝沿用）")
     p.add_argument("--packs-dir", default="", help=argparse.SUPPRESS)
     p = sub.add_parser("packs", help="pack 的鎖定狀態、重新核准、退回上一版")
     psub = p.add_subparsers(dest="packs_cmd")
@@ -518,6 +565,11 @@ def main(argv=None) -> int:
                    help="信任（沒給＝沿用舊鎖的，沒有舊鎖＝third-party）")
     q.add_argument("--trust-publisher", default=None, metavar="NAME",
                    help="T2 pack：明確輸入 pack.json 的 publisher（舊鎖確認過同一個、沒變多就不用）")
+    q.add_argument("--runtime", choices=["container", "host"], default=None,
+                   help="用容器｜不用（沒給＝沿用舊鎖的）")
+    q = psub.add_parser("runtime", help="改用容器／不用容器跑（只改 packs.lock 的 runtime）")
+    q.add_argument("name", help="pack 的名字")
+    q.add_argument("mode", choices=["container", "host"])
     q = psub.add_parser("rollback", help="把 packs/_removed/ 裡最近一份舊版搬回來、packs.lock 改回當時的")
     q.add_argument("name", help="pack 的名字")
     p.set_defaults(dirs=None, packs_dir="")

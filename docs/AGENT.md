@@ -18,11 +18,11 @@
 | Path | Role |
 |---|---|
 | `vendor/isdtelekit/` | ISDTeleKitSDK 的**原樣**複製（版本與 commit 在 `vendor/VERSION`）。不要改；要不同的行為就在 `src/synox` 寫轉接 |
-| `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜doctor｜stop｜install <檔> [--yes] [--trust-publisher <名字>]｜packs status｜packs lock --approve <name> [--trust-publisher <名字>]｜packs env rebuild <name>` |
+| `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜doctor｜stop｜install <檔> [--yes] [--trust-publisher <名字>]｜packs status｜packs lock --approve <name> [--trust-publisher <名字>] [--runtime container|host]｜packs runtime <name> container|host｜packs env rebuild <name>`（install 也收 `--runtime`） |
 | `src/synox/app.py` | `build(config, home=, adapter=, vault=, config_path=)`：SDK `build_app` → basics/help → `packs.load_all` → `agent.install` → `schedule.install` → `web.install` |
 | `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`／`policy`；路徑相對 SYNOX 資料夾（`ROOT`） |
 | `src/synox/policy.py` | `decide`（權限唯一交會點）、`parse_policy`（`policy.roles` 能力上限，第 1 關式檢查）、`group_policy_for`（loader 用）、`ceiling`／`fits`；bot 範圍 `bot_scope`／`using_bot`／`current_bot`／`run_as`；`install`（把 decide 接到 SDK 的 `registry.authorize`） |
-| `src/synox/sandbox.py` | 運行空間（PERM-7）：`Sandbox.wrap(argv, env, cwd, grants)`、`Grants`、後端 none／jobobject／bwrap／systemd／appcontainer（介面）、`set_factory`／`sandbox_for`、`grants_for`、`data_scope`（推斷集中處）、`trust_of`、`restricted_reason`、`doctor_line`；jobobject 的 launcher（`python -I sandbox.py jobobject …`） |
+| `src/synox/sandbox.py` | 運行空間（PERM-7）：`Sandbox.wrap(argv, env, cwd, grants)`、`Grants`、後端 none／jobobject／bwrap／systemd／container（每個 pack 自己的，S1）／appcontainer（介面）、`set_factory`／`sandbox_for`、`box_for`／`view_for`／`set_engine_which`／`set_container_factory`、`grants_for`、`data_scope`（推斷集中處）、`trust_of`、`restricted_reason`、`doctor_line`；jobobject 的 launcher（`python -I sandbox.py jobobject …`） |
 | `src/synox/discord/scope.py` | bot 範圍報告：`/bot_status`（`install`）、`report`／`lines`（doctor 也用）、`REASONS`（不會出現的原因，可擴充）、`channel_line`（頻道型的收訊設定） |
 | `src/synox/discord/` 其他 | `bots.py`（BotSpec、設定檢查；頻道型 `guilds`／`role_map`／`trigger`／`rate_per_minute`）、`events.py`（`parse_event` 私訊、`parse_room_event` 頻道）、`rest.py`（`DiscordChannel`）、`gateway.py`（`INTENTS`／`CHANNEL_INTENTS`、`on_ready`）、`__init__.py`（`install`、`DiscordEntry`、`RoomEntry`／`RoomReply`／`RoomThrottle`、`MultiHome`、配對）。見 [discord.md](discord.md) |
 | `src/synox/llm/` | `base.py`（`ChatAdapter`、`Message`、`Reply`、`ToolCall`、`ToolSpec`）、`easy_llm.py`（openai／anthropic／gemini／openai_compat，經 `ntu_easy_llm.agent`，lazy import）、`claude_code`、`fake`、`textproto`、`factory.make_adapter` |
@@ -115,6 +115,12 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     bwrap／systemd-run／AppContainer，jobobject 用假 kernel32**）。「資料屬於誰」的推斷只在 `sandbox.data_scope`（PERM-2 的 `data` 欄位優先）。
     伺服器版 `policy.sandbox.required_for` 命中又沒有真隔離（`isolates`；none、jobobject 不算）→ loader 把那個 cli pack 的群組改 `owner_only`
     （`sandbox.restricted_reason`，doctor／packs status 寫原因）。真機驗證要在 Linux 伺服器上做（docs/security.md「運行空間」）。
+    **容器（S0–S2）**：pack.json `runtime.container` 的第 1 關、Dockerfile 的第 2 關在 `packs/container.py`；後端 `ContainerSandbox`
+    （podman／docker，只組 argv）。每個 pack 用哪個後端一律問 `sandbox.box_for(config, m)`（packs.lock 的 `runtime.mode`＝container、
+    `pick_engine` 用 which 找得到引擎 → 容器；否則 `sandbox_for(config)`），代換用 `sandbox.view_for(box, ph)`（容器裡的路徑），
+    grants 仍用本機的 ph。測試換引擎偵測用 `sandbox.set_engine_which`、換容器後端用 `sandbox.set_container_factory`——
+    **這台開發機絕不執行 podman／docker、不 pull、不 build**；真機清單 `docs/handoff/container-verification.md`。
+    安裝時的選擇：`admin.runtime_report`／`check_runtime`、`lock.runtime_record`／`set_runtime`、升級 `upgrade.runtime_choice`。
 
 13. **伺服器版 python pack 看信任**（PERM-8）：`loader.python_trust`——出廠的（`loader.BUNDLED` 且在內建 `packs/`／`connectors/`）＝core、
     有鎖＝`lock.trust_of`、沒鎖＝third-party；third-party 的 kind=python 群組 `owner_only`（`loader.trust_reason`，跟 PERM-7 的
