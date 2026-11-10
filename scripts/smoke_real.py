@@ -228,16 +228,12 @@ class Smoke:
         s = "notion"
         m, mod = self.module(s)
         store = self.store(m)
-        token = (store.load({}) or {}).get("token")
-        if not token:
-            other = (store.load(None, key="auth") or {}).get("token")
-            if other:
-                token = other
-                self.add(s, "token 存的位置", FAIL, "token 是用 python -m synox connect notion 存的，/notion 指令讀不到那一份",
-                         "改在 Console.bat 打 /notion_token 存一次（這一項是 SYNOX 的已知問題，見交接文件）")
+        token, source = mod.token_of(store)          # 跟 /notion 讀同一套：connect 存的優先，再來 /notion_token 存的
+        if token:
+            self.add(s, "token 存的位置", OK, f"用的是{mod.SOURCES[source]}")
         token = self.keep_secret(token) or self.secret_input("Notion integration token（ntn_ 開頭）")
         if not token:
-            self.missing(s, "先在 Console.bat 打 /notion_token 設定（或這次直接輸入）")
+            self.missing(s, "先在 Console.bat 打 /notion_token（或 python -m synox connect notion）設定，或這次直接輸入")
             return
         nc = mod.Notion(token, self.http)
 
