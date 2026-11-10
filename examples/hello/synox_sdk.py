@@ -1,7 +1,7 @@
 # synox_sdk.py：SYNOX 工具 SDK 的單檔版（只用標準函式庫，可以直接複製進你的 repo）。
 # 由 scripts/build_synox_sdk.py 從 src/synox/sdk/author.py 產生；要改請改正本再重產，不要直接改這個檔。
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 The SYNOX authors
+# Copyright 2026 ChouYangEn and the SYNOX Team
 """
 synox_sdk：寫一個 Python 函式，就是一個 SYNOX 工具（也是一個 MCP 工具）。只用標準函式庫、零相依。
 

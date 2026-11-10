@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Copyright 2026 The SYNOX authors
+# Copyright 2026 ChouYangEn and the SYNOX Team
 """📋 備忘清單：kind=cli 的工具「不一定要用 SDK」的範例。
 
 只用 Python 標準函式庫，**沒有 import synox_sdk**：自己讀 argv、自己讀 SYNOX 給的環境變數、自己印 JSON 信封。

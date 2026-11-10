@@ -1,6 +1,6 @@
 # 商標與名稱
 
-「SYNOX」這個名稱、標誌與相關外觀，屬於專案維護者，**不包含在 AGPL 或 Apache 授權之內**。
+「SYNOX」這個名稱、標誌與相關外觀，屬於創始維護者 ChouYangEn（見 [GOVERNANCE.md](GOVERNANCE.md)），**不包含在 AGPL 或 Apache 授權之內**。
 
 你可以：
 
