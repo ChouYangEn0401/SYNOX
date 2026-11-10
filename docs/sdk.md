@@ -133,13 +133,13 @@ python tool.py --mcp                                     → MCP stdio server
   用同一組 `arguments` 再叫一次，並帶 `params._meta["synox/confirm_token"]`＝那個 token，這一次 `confirmed()` 才是 True。
   MCP 模式**不看** `SYNOX_CONFIRMED` 環境變數（server 長駐，環境變數不是「這一次」）。AI 只決定 `arguments`、碰不到 `_meta`；
   一般的 MCP 用戶端不會帶 `_meta`，所以 Confirm 的工具在那裡只會停在「還沒做」（安全的預設）。
-- **在 SYNOX 裡用 `--mcp`（P4a）**：pack.json 寫 `"kind": "mcp"`、`"capabilities": ["subprocess"]`、
+- **在 SYNOX 裡用 `--mcp`**：pack.json 寫 `"kind": "mcp"`、`"capabilities": ["subprocess"]`、
   `"mcp": {"transport": "stdio", "argv": ["{python}", "./tool.py", "--mcp"], "tools_allow": [...], "effects": {...}}`
   （把 `synox_sdk.py` 放在 tool.py 旁邊）。SYNOX 每個使用者開一個長駐的 server（第一次呼叫才開、閒置 10 分鐘收），
   所以 `context()` 的 `tg_id`／`user_data_dir`、`secret()` 在 MCP 模式一樣是那個人的（程序啟動時的環境變數）。
   `Confirm` 的確認來回 SYNOX 會帶 `_meta` 完成。細節見 [pack-format.md](pack-format.md)「`mcp`（stdio）」。
   跟 kind=cli 比：cli 每次呼叫開一次程序（簡單、互不影響）；mcp 長駐（啟動慢的工具、要保持連線的工具比較快），但你的程式要能連續處理很多次呼叫。
-- **接別人架好的遠端 MCP（P4b）**：不用寫程式，只寫 pack.json：`"capabilities": ["network"]`、
+- **接別人架好的遠端 MCP**：不用寫程式，只寫 pack.json：`"capabilities": ["network"]`、
   `"mcp": {"transport": "http", "url": "https://…", "tools_allow": [...], "effects": {...}}`，token 用 `auth.fields`（送成
   `Authorization: Bearer`）或 `auth.type=oauth`（貼回網址的登入）。你的 SDK 工具本身這一版不提供 HTTP server
   （`serve()` 只有 stdio）。細節見 [pack-format.md](pack-format.md)「`mcp`（http）」，範例在 `examples/mcp-remote-*`。
@@ -240,7 +240,7 @@ SDK 只是幫你產生 pack.json、印信封。SYNOX 跟工具的接口只有 CL
 
 把 `.synoxpack` 給對方。對方在 SYNOX 的網頁設定頁上傳，或點兩下檔案：SYNOX 跑宣告檢查與靜態掃描、把報告給他看，
 他按「確認安裝」才裝，並把每個檔的雜湊寫進 `data/packs.lock`；之後檔案被改過就不會載入。細節：[security.md](security.md) 的「五關」。
-安裝報告上對方選信任：伺服器版選 `third-party`（預設）的 kind=python pack 只有擁有者看得到（沒有沙盒，PERM-8）；
+安裝報告上對方選信任：伺服器版選 `third-party`（預設）的 kind=python pack 只有擁有者看得到（沒有沙盒）；
 要給成員用，對方得選 `core`，或者把 pack 寫成 kind=cli（之後有沙盒可以包）。
 
 **附了執行檔或外部相依＝T2**（[pack-format.md](pack-format.md)「信任層級」）：pack 裡有 `.exe`／`.dll`／`.bat`／`.sh`／`.so`／`.pyc`、
@@ -256,7 +256,7 @@ T2 沒寫 `publisher` 會警告，而且結束碼不是 0（安裝時一定會�
 
 - publisher 的簽章驗證（ed25519）：現在的 publisher 只是 pack.json 裡的一個字串，對方「明確輸入」它，但證明不了檔案出自你。
 
-- SYNOX 端連 MCP server：P4a 做了 stdio、P4b 做了遠端 MCP（http，token 或 OAuth 貼回網址）；OAuth 的 loopback 收碼
+- SYNOX 端連 MCP server：已支援 stdio 與遠端 MCP（http，token 或 OAuth 貼回網址）；OAuth 的 loopback 收碼
   （暫時開 127.0.0.1 埠）、動態註冊、伺服器主動推播（GET 長連線）、
   schema 模式不支援的構造（`$ref`、`oneOf`／`anyOf`／`allOf`）、全部人共用一個 server 程序（`SharedScope`，只有介面）還沒做。
 - 確認憑證放在記憶體：SYNOX 重開之後舊的卡按不動（要重新下指令）。
