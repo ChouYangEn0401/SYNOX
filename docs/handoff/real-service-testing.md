@@ -413,7 +413,7 @@ SYNOX 真機煙霧測試（唯讀）　2026-11-12 14:03
 | Todoist | `/todoist_logout` |
 | Google 日曆 | `/gcal_logout`（也會請 Google 收回授權） |
 | Apple | `/applerem_logout`，或 `.venv\Scripts\python.exe -m synox connect apple-reminders --clear` |
-| Discord | 目前**沒有**刪除指令：把 `config.json` 的 `channels` 拿掉，並到 Portal Reset Token 讓舊的失效（見下表） |
+| Discord | `.venv\Scripts\python.exe -m synox discord token --clear`（多個 bot 加 `--bot <名字>`），再把 `config.json` 的 `channels` 拿掉；只刪保管箱不會讓舊 token 失效，還要到 Portal Reset Token（見下表） |
 
 測試機不再用 SYNOX 的話：關掉所有 SYNOX 視窗，**直接刪掉整個 SYNOX 資料夾**（含 `data`）最乾淨。
 

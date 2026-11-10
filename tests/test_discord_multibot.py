@@ -268,6 +268,32 @@ def test_cli_token_with_bot_and_legacy(tmp_path, monkeypatch, capsys):
     assert _vault(legacy).secret("discord_bot_token") == "pasted.legacy"
 
 
+def test_cli_token_clear(tmp_path, monkeypatch, capsys):
+    from synox.__main__ import main
+    cfg = _config_file(tmp_path, two_bots())
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": "pasted.bravo")
+    assert main(["--config", cfg, "discord", "token", "--bot", "bravo"]) == 0
+    assert main(["--config", cfg, "discord", "token", "--bot", "alpha"]) == 0
+    capsys.readouterr()
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": pytest.fail("--clear 不該問 token"))
+    assert main(["--config", cfg, "discord", "token", "--bot", "bravo", "--clear"]) == 0
+    out = capsys.readouterr().out
+    assert "刪掉" in out and "Reset Token" in out and "pasted.bravo" not in out
+    assert _vault(tmp_path).secret("discord_bot_token:bravo") is None
+    assert _vault(tmp_path).secret("discord_bot_token:alpha") == "pasted.bravo"     # 別的 bot 不動
+    assert main(["--config", cfg, "discord", "token", "--bot", "bravo", "--clear"]) == 0
+    assert "本來就沒有" in capsys.readouterr().out
+    assert main(["--config", cfg, "discord", "token", "--clear"]) == 2               # 多 bot 寫法要指定 --bot
+    assert main(["--config", cfg, "discord", "pair", "--clear"]) == 2
+    legacy = tmp_path / "legacy"
+    legacy.mkdir()
+    cfg2 = _config_file(legacy, {"enabled": True, "bot_token": "vault:discord_bot_token"})
+    monkeypatch.setattr("getpass.getpass", lambda prompt="": "pasted.legacy")
+    assert main(["--config", cfg2, "discord", "token"]) == 0
+    assert main(["--config", cfg2, "discord", "token", "--clear"]) == 0
+    assert _vault(legacy).secret("discord_bot_token") is None
+
+
 def test_pair_with_bot_uses_that_token(tmp_path):
     app, _, _ = make_app(tmp_path, two_bots(), owner_discord=None)
     seen = []

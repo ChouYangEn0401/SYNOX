@@ -14,6 +14,11 @@
   其他內建 connector 查過：Apple 提醒事項本來就讀 `auth`（一致）；Todoist、Google 日曆的 `auth.fields` 是純字串，
   connect 不收（會說「沒有 auth.fields」），只能用 `/todoist_token`、`/gcal_setup`，沒有兩份不一致的問題。
 
+### 新增
+- **`python -m synox discord token --clear [--bot 名字]`**：從保管箱刪掉那個 bot 的 token（以前存了就刪不掉）。
+  只刪這台電腦存的那份，會提醒到 Developer Portal 按 Reset Token 才能真正作廢舊 token；config.json 還指著它時也會說。
+  本來就沒有＝說一聲、不動檔案。保管箱多一個 `Vault.delete_secret`。docs/discord.md、交接文件跟著改。
+
 ## 未發佈（branch feat/fix-round3：獨立安全驗證審查 C 的後半段，C5～C8）
 
 ### 變更（安全）
