@@ -1,5 +1,5 @@
 """
-用 API 金鑰的 AI 來源：都經擁有者自己的套件 ntu_easy_llm（0.5.0 起的 `ntu_easy_llm.agent`）。
+用 API 金鑰的 AI 來源：都經創始維護者的套件 ntu_easy_llm（0.5.0 起的 `ntu_easy_llm.agent`）。
 
     {"kind": "openai",        "api_key": "vault:llm_api_key", "model": "gpt-4.1-mini"}
     {"kind": "anthropic",     "api_key": "vault:llm_api_key", "model": "claude-sonnet-4-5"}

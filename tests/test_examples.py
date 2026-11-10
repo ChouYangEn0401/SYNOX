@@ -122,7 +122,7 @@ def test_any_language_cli_round_trip(tmp_path):
 
 AUTHOR_DOCS = [os.path.join(ROOT, "docs", "tools.md"), os.path.join(ROOT, "docs", "README.md")] + [
     os.path.join(EXAMPLES, n, f) for n in ("hello", "any-language-cli", "node-mcp-tool") for f in ("README.md", "SKILL.md")]
-PRIVATE = re.compile(r"[A-Za-z]:[\\/]Users[\\/]|/home/\w|[\w.+-]+@[\w-]+\.(?:com|net|org|tw)\b", re.I)
+PRIVATE = re.compile(r"[A-Za-z]:[\\/]Users[\\/]|/home/\w|[\w.+-]+@[\w-]+\.(?:com|net|org|tw)\b", re.I)  # prepublish-check: allow (fake test value)
 
 
 @pytest.mark.parametrize("path", AUTHOR_DOCS, ids=lambda p: os.path.relpath(p, ROOT))

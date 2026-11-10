@@ -1,6 +1,6 @@
 # SYNOX — AGENT.md
 
-給 AI 與接手的人看的地圖。設計規格（合約）在擁有者的 ClawBot repo：`docs/plans/2026-11-09-synox-design.md`；
+給 AI 與接手的人看的地圖（原始設計規格放在維護者的私有資料夾，不在這個 repo）；
 給人看的在 [../README.md](../README.md)。
 
 ## Commands
@@ -234,7 +234,7 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 | `synox.packs.kit.command`（照位置填）而不是 SDK `Forms.leaf` | SDK 的 `parse_fields` 把第一個 `key=` 之前的字全給第一個欄位：`/money 120 午餐` 會變成 amount="120 午餐"。kit 照位置分配，最後一個欄位吃剩下的；仍設 `node.fields` 給 AI schema。缺必填回用法、不開問答；不收 `fresh_code` 欄位（要碼的指令用 SDK Forms） |
 | `llm/claude_code.py` 直接 `subprocess.run`，不經 `JobRunner`（SDK invariant 10） | adapter 不拿 app（invariant 2）。有 argv 陣列、`CREATE_NO_WINDOW`、逾時；沒有 Job Object 收程序樹 |
 | 核准卡的節點叫 `agent.ai_approve`（`/ai_approve`），不是 `agent.approve` | 群組 `agent` 是 bare（葉節點直接用自己的名字：`/ai`、`/ai_usage`），`approve` 會變成 `/approve`，跟 AI 無關的名字容易撞名 |
-| 排程（`synox/schedule`） | SDK D6 沒有排程。照 ClawBot `routines/runner.py`，只做每天 HH:MM 與某一天一次；沒有「連續失敗自動暫停」 |
+| 排程（`synox/schedule`） | SDK D6 沒有排程。照前身專案的排程器做法，只做每天 HH:MM 與某一天一次；沒有「連續失敗自動暫停」 |
 
 ## 模式（`config.json` 的 `mode`）
 
@@ -250,14 +250,14 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 
 工程師模式：不跑精靈，照 `config.example.json` 寫 `config.json`（含 `mode`），`python -m synox run`。
 
-## ntu_easy_llm（擁有者的套件，LLM 那一層）
+## ntu_easy_llm（創始維護者的套件，LLM 那一層）
 
 - 用 API 金鑰的四種 kind（`openai`、`anthropic`、`gemini`、`openai_compat`）都經 `ntu_easy_llm.agent.chat`（0.5.0 起才有；舊的 `ask*` 沒有工具呼叫）。
   `claude_code`、`fake`、`none` 不需要它。`easy_llm.py` 用到時才 import；沒裝 → `LLMError("還沒安裝 ntu_easy_llm：…")`。
-- **現在（還沒發佈）**：`pyproject.toml` 的選用組 `llm = ["ntu_easy_llm>=0.5.0"]`；開發機手動裝本機的 wheel：
-  `.venv\Scripts\python.exe -m pip install C:\Users\user\Documents\ntu_easy_llm\dist\ntu_easy_llm-0.5.0-py3-none-any.whl`
+- **現在（還沒發佈）**：`pyproject.toml` 的選用組 `llm = ["ntu_easy_llm>=0.5.0"]`；開發機手動裝 wheel：
+  `.venv\Scripts\python.exe -m pip install <你的資料夾>\ntu_easy_llm-0.5.0-py3-none-any.whl`
   （它會一起裝 openai、anthropic、google-genai 三個 SDK——那是舊 API 要的；SYNOX 用的 `agent` 只用標準函式庫打 HTTP）。
-- **擁有者發佈 GitHub release 之後**：把 `pyproject.toml` 那一行換成（跟 ClawBot `requirements.txt` 同一種寫法）
+- **ntu_easy_llm 發佈 GitHub release 之後**：把 `pyproject.toml` 那一行換成（pip 的直接網址寫法）
 
   ```
   llm = ["ntu_easy_llm @ https://github.com/ChouYangEn0401/ntu_easy_llm/releases/download/ntu_easy_llm-0.5.0/ntu_easy_llm-0.5.0-py3-none-any.whl"]
@@ -289,3 +289,16 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
   網頁與 Telegram 的私訊共用同一份 AI 對話記憶（chat_id 都是那個人的 id）；pack reload 拿不掉 pack 自己綁的按鈕前綴；
   Telegram 指令選單在 reload 之後不會自動重設（重開 bot 才會）；設定頁改 AI 來源要重開 bot 才生效。
 - `/backup` 的 Telegram 指令與還原按鈕沒做（只有網頁下載＋`synox.backup.restore_cli`）；備份綁 DPAPI，換電腦解不開。
+
+## 公開前檢查清單（repo 改成 public 或發佈 zip 之前）
+
+1. 跑 `.venv\Scripts\python.exe scripts\prepublish_check.py`（只用標準函式庫、不連網）。它看**目前的檔案**（git 追蹤的＋沒被忽略的新檔）
+   與 **git 歷史**（所有分支、每個不同版本的檔案讀一次、每個 commit 的作者信箱），找：疑似密鑰（Telegram、OpenAI／Anthropic `sk-`、
+   Google `AIza`／`GOCSPX-`、Slack `xox`、GitHub `ghp_`、AWS `AKIA`、私鑰檔頭、Notion、Discord）、`C:\Users\<名字>`／`/Users/<名字>`
+   這類本機路徑、個人信箱、不該提交的檔名（`.env`、`config.json`、`*.enc`、`packs.lock`…；`config.example.json` 可以）。
+   報告只列「檔名:行號＋種類」，不印內容；有發現時退出碼是 1。`--worktree-only` 只看目前的檔案（PR 前自檢用）。
+2. 「目前的檔案」那一段必須是零。確定是範例或測試假值的行，在同一行加 `prepublish-check: allow`（並在 PR 說明為什麼）。
+3. 「git 歷史」那一段：舊版本裡的本機路徑不一定要改寫歷史，由維護者決定；**真的密鑰**一律先到服務端撤銷、換新，再考慮改寫歷史。
+4. commit 作者信箱若是個人信箱：要不要改寫成 GitHub 的 noreply 信箱，由維護者決定。
+5. 文件：README 頂端的 alpha 說明仍然屬實；`<待補：…>` 佔位（SECURITY.md、LICENSING.md、CONTRIBUTING.md、MAINTAINERS.md）都填好了。
+6. 測試全過：`.venv\Scripts\python.exe -m pytest -q`。

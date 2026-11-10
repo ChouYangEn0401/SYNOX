@@ -1,7 +1,7 @@
 {
   "name": "notion-mcp",
   "title": "🗂 Notion（遠端 MCP 範例）",
-  "summary": "示範：用 kind=mcp transport=http 接 Notion 的遠端 MCP（OAuth 貼回網址）。網址與工具名是佔位，要擁有者確認。",
+  "summary": "示範：用 kind=mcp transport=http 接 Notion 的遠端 MCP（OAuth 貼回網址）。網址與工具名是佔位，要對照官方文件確認。",
   "version": "0.1.0",
   "kind": "mcp",
   "group": "notionmcp",

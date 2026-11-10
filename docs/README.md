@@ -15,4 +15,3 @@
 | [../CHANGELOG.md](../CHANGELOG.md) | 維護者 | 每個版本改了什麼 |
 | [../LICENSING.md](../LICENSING.md) | 全部 | 授權：核心 AGPL-3.0-or-later，工具 SDK 與範例 Apache-2.0 |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | 維護者 | 怎麼貢獻、貢獻者同意書 |
-| [from-clawbot/](from-clawbot/) | 維護者 | 從前身專案複製過來的設計參考資料（副本，不是 SYNOX 的正式文件） |
