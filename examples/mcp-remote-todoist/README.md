@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # ✅ Todoist：遠端 MCP 範例（kind=mcp、transport=http）
 
-> ⚠️ **這是範例，裡面的網址與工具名是佔位，要擁有者確認後才能用。**
+> ⚠️ **這是範例，裡面的網址與工具名是佔位，要你對照服務的官方文件確認後才能用。**
 > - `mcp.url` 是 `https://todoist-mcp.example.invalid/mcp`（保證連不到）。Todoist 官方遠端 MCP 的正確網址、
 >   它收不收 API token 當 Bearer（還是只收 OAuth），請到 Todoist 的官方文件查，**不要照記憶填**。
 >   只收 OAuth 的話，照 `examples/mcp-remote-notion` 把 `auth` 改成 `type=oauth`。

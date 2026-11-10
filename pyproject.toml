@@ -13,7 +13,7 @@ dependencies = ["requests>=2.28", "cryptography>=41", "websocket-client>=1.6"]
 
 [project.optional-dependencies]
 dev = ["pytest>=7"]
-# API-key LLM providers (openai / anthropic / gemini / openai_compat) go through the owner's ntu_easy_llm.
+# API-key LLM providers (openai / anthropic / gemini / openai_compat) go through ntu_easy_llm (by the founding maintainer).
 # Not on PyPI yet: install the wheel by hand until it is released; then switch to the direct URL
 # (see docs/AGENT.md "ntu_easy_llm"). Claude Code, the fake AI and "no AI" work without it.
 llm = ["ntu_easy_llm>=0.5.0"]

@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: Apache-2.0 -->
 # 🗂 Notion：遠端 MCP 範例（kind=mcp、transport=http）
 
-> ⚠️ **這是範例，裡面的網址與工具名是佔位，要擁有者確認後才能用。**
+> ⚠️ **這是範例，裡面的網址與工具名是佔位，要你對照服務的官方文件確認後才能用。**
 > - `mcp.url`、`auth.oauth.authorize_url`／`token_url` 都是 `*.example.invalid`（保證連不到）。
 >   Notion 官方遠端 MCP 的正確網址、授權端點，請到 Notion 的官方文件查，**不要照記憶填**。
 > - `tools_allow` 的工具名（search、fetch、create-pages、update-page）也是佔位：

@@ -244,7 +244,7 @@ Application、各自一個 token，config.json 改成 `bots` 寫法（**跟上�
 - 文字一律純文字（Telegram 的粗體等 HTML 格式在 Discord 會被拿掉）。
 - Telegram 一台電腦一支 bot；Discord 可以多個私訊型、頻道型 bot（`bots`）。不支援分片（bot 加進 2500 個以上伺服器才需要）。
 - 多個 bot 時，每個 bot 一條 Gateway 執行緒；bot 很多（十幾個以上）時注意 Discord 對同一個 IP 的連線頻率限制。
-- 測試全部用程式內的假 Gateway、假 HTTP；**還沒跟真的 Discord 連過**，第一次真連請擁有者在可以上網的地方試。
+- 測試全部用程式內的假 Gateway、假 HTTP；**還沒跟真的 Discord 連過**，第一次真連請在可以上網的地方試。
 
 ## 程式在哪
 
