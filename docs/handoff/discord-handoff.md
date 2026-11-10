@@ -73,6 +73,8 @@ id 不是秘密，可以貼在 `config.json`。
   ```
 - 存在哪：`data\secrets.json.enc`（加密），名字 `discord_bot_token`（`--bot x` 時是 `discord_bot_token:x`）。
 - 如果 `config.json` 用的是多個 bot 的寫法（`bots`），一定要加 `--bot`，不然它會說「加 --bot <名字> 指定存哪一個」。
+- 刪掉存的 token：`.venv\Scripts\python.exe -m synox discord token --clear`（多個 bot 加 `--bot <名字>`）。
+  只是從保管箱刪掉；**舊 token 還能用**，要作廢到 Portal 的 Bot 頁按 **Reset Token**。
 
 ---
 
@@ -285,7 +287,7 @@ token **不寫在檔案裡**，只寫保管箱的名字（`vault:…`）。
 | D15 | 頻道節流 | 一分鐘內 @bot 超過 5 次 | 超過的不回 |
 | D16 | 頻道 AI（有開才做） | `@bot 你好` | AI 回覆；`/bot_status` 看得到用量 |
 | D17 | 重開 | `Stop.bat` → `Start.bat` | 私訊照常；配對還在 |
-| D18 | 清理 | 見 [real-service-testing.md](real-service-testing.md) 第 7 節 | Reset Token 後舊 token 失效 |
+| D18 | 清理 | `python -m synox discord token --clear`（`--bot X`）刪保管箱那份；Portal 按 Reset Token；其他見 [real-service-testing.md](real-service-testing.md) 第 7 節 | 說「已從保管箱刪掉」並提醒 Reset Token；Reset 後舊 token 失效 |
 
 ---
 
@@ -300,6 +302,7 @@ token **不寫在檔案裡**，只寫保管箱的名字（`vault:…`）。
 - 確認卡（AI 想做危險動作）綁在 AI 助理：`ai: false` 的 bot、頻道型 bot、訪客按 ✅ 只會回沒有權限，要到開著 AI 的私訊型 bot 或 Telegram 做。
 - 頻道型 bot 不送主動通知、不能拿來配對。主動通知走「這個人最近私訊過的 bot」，沒有就第一個私訊型。
 - 不支援分片（bot 進了 2500 個以上伺服器才需要）；bot 很多時注意 Discord 對同一個 IP 的連線頻率限制。
-- 保管箱裡的 Discord token 目前**沒有刪除指令**（`discord token` 只能存）；不用時在 Portal Reset Token 讓它失效。
+- 刪掉保管箱裡的 Discord token：`python -m synox discord token --clear`（`--bot X`）。這只是這台電腦不再存它，
+  舊 token 本身還能用；要真正作廢仍要到 Portal 的 Bot 頁按 **Reset Token**。
 - 這個 repo 沒有宣告 `channel` 的 pack，頻道型 bot 暫時只有內建指令與頻道 AI（見 4-3）。
 - 精靈（Setup.bat）和網頁設定頁還沒有 Discord 的設定畫面，先用上面的終端機指令。

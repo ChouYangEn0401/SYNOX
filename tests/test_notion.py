@@ -228,6 +228,55 @@ def test_bad_tokens_not_saved(nbot, owner, fake):
     assert "不設定了" in bot.last(owner)
 
 
+def _connect(bot, token=TOKEN):
+    """走 python -m synox connect notion 那條路（synox/connect.py）存 token。"""
+    from synox import connect
+    out = []
+    rc = connect.run("notion", bot.app.config, bot.app.extras["vault"], ask=lambda _: "",
+                     ask_secret=lambda _: token, out=out.append)
+    assert rc == 0, out
+
+
+def test_token_saved_by_connect_is_used(nbot, owner, fake):
+    bot = nbot(token=False)
+    _connect(bot)
+    vault = bot.app.extras["vault"]
+    assert vault.load_json("notion.auth")["token"] == TOKEN and not vault.exists("notion")
+    bot.say(owner, "/notion 牛奶")
+    assert "買牛奶" in bot.last(owner)
+    bot.say(owner, "/notion_status")
+    assert "連得上" in bot.last(owner) and "connect" in bot.last(owner) and TOKEN not in bot.last(owner)
+
+
+def test_connect_token_wins_and_legacy_still_works(nbot, owner, fake):
+    bot = nbot()                                                             # /notion_token 存的（舊位置）
+    vault = bot.app.extras["vault"]
+    bot.say(owner, "/notion_status")
+    assert "/notion_token 設定的那一份" in bot.last(owner)
+    _connect(bot, "ntn_" + "Z" * 40)                                         # connect 存了另一個：它優先
+    bot.say(owner, "/notion 牛奶")
+    assert "不認這個 token" in bot.last(owner)
+    bot.say(owner, f"/notion_token {TOKEN}")                                # 再用 /notion_token 設：最後設的算數
+    assert "接上 Notion 了" in bot.last(owner)
+    assert not (vault.load_json("notion.auth") or {}).get("token")
+    bot.say(owner, "/notion 牛奶")
+    assert "買牛奶" in bot.last(owner)
+
+
+def test_logout_clears_both_places(nbot, owner, fake):
+    bot = nbot()
+    _connect(bot)
+    vault = bot.app.extras["vault"]
+    bot.say(owner, "/notion_logout")
+    assert "token 拿掉了" in bot.last(owner)
+    assert not (vault.load_json("notion") or {}).get("token")
+    assert not (vault.load_json("notion.auth") or {}).get("token")
+    bot.say(owner, "/notion 牛奶")
+    assert "還沒設定" in bot.last(owner)
+    bot.say(owner, "/notion_logout")
+    assert "本來就沒有" in bot.last(owner)
+
+
 def test_token_commands_not_ai_tools_and_others_cannot_use(nbot, owner):
     from conftest import OTHER_ID
     bot = nbot(["好"])

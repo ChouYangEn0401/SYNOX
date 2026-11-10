@@ -178,3 +178,13 @@ class Vault:
             secrets = self.load_json("secrets", {}) or {}
             secrets[name] = value
             self.save_json("secrets", secrets)
+
+    def delete_secret(self, name: str) -> bool:
+        """刪掉一個值；本來就沒有回 False（不動檔案）。"""
+        with self._lock:
+            secrets = self.load_json("secrets", {}) or {}
+            if name not in secrets:
+                return False
+            del secrets[name]
+            self.save_json("secrets", secrets)
+            return True

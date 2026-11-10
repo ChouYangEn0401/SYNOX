@@ -363,15 +363,16 @@ def test_notion_nothing_shared_is_a_failure_with_the_share_hint(env):
     assert row.result == smoke_real.FAIL and "分享給你的 integration" in row.reason
 
 
-def test_notion_token_saved_by_connect_is_flagged(env):
-    """python -m synox connect notion 把 token 存在 key=auth，但 /notion 讀的是預設那一份：要說出來。"""
+def test_notion_token_saved_by_connect_is_used_and_source_shown(env):
+    """python -m synox connect notion 存在 key=auth：跟 /notion 一樣認得，並說出用的是哪一份。"""
     config, vault = env
     PackStore("notion", config.data_dir, vault).save({"token": NOTION}, key="auth")
-    smoke, _ = make(config, vault, FakeNet())
+    smoke, out = make(config, vault, FakeNet())
     smoke.run(("notion",))
     row = result(smoke, "notion", "token 存的位置")
-    assert row.result == smoke_real.FAIL and "/notion_token" in row.hint
+    assert row.result == smoke_real.OK and "connect" in row.reason
     assert result(smoke, "notion", "token 驗證").result == smoke_real.OK
+    assert_no_secret("\n".join(out))
 
 
 def test_icloud_without_caldav_lists_explains_the_apple_limit(env):
