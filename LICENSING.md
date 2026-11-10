@@ -18,7 +18,7 @@ Apache-2.0 的檔案開頭都有 `SPDX-License-Identifier: Apache-2.0`。沒有�
 
 **你改了 SYNOX 核心，而且把它架成網路服務給別人用**：AGPL 要求你把修改後的原始碼提供給使用這個服務的人。這是 AGPL 與 GPL 最大的差別。
 
-**你想在不受 AGPL 限制的情況下使用或散布核心**（例如放進閉源產品）：需要向著作權人取得另外的商業授權。請見 [CONTRIBUTING.md](CONTRIBUTING.md) 的聯絡方式。
+**你想在不受 AGPL 限制的情況下使用或散布核心**（例如放進閉源產品）：需要向著作權人取得另外的商業授權。聯絡：`<待補：聯絡信箱>`（同 [CONTRIBUTING.md](CONTRIBUTING.md)「聯絡」）。
 
 ## 著作權、署名與商標
 
