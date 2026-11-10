@@ -20,6 +20,10 @@ T2 要多的：
 - 執行期：伺服器版一律要真隔離（sandbox.required：T2 一定命中，不管 trust、required_for）；沒有＝只對擁有者可見；
   python pack 在 SYNOX 程序裡跑、沙盒包不到，T2 python pack 在伺服器版一律只給擁有者。個人版照用，doctor 提醒
 
+容器（runtime.container，S0）**不改層級**：層級講的是「第 2 關掃得到多少」，容器講的是「執行期在哪跑」。
+assess 多回一個 container（packs/container.summary：映像、Dockerfile、network、resources）給安裝報告用；
+映像的內容 SYNOX 不看（跟 pip／npm 套件一樣），報告會寫。伺服器版 T2 pack 選了容器、引擎可用＝算真隔離（sandbox.py）。
+
 **T2 不是沙盒保證，只是讓你知道你在信任誰**（docs/security.md「信任層級」）。publisher 是作者自己寫的字，
 沒有簽章驗證之前，它只是「你明確說了你信這個名字」，不能證明檔案真的出自那個人。
 """
@@ -58,9 +62,10 @@ def assess(m, report=None, exec_bits=()) -> dict:
         npm_bad = [{"name": n, "source": s} for n, s in envs.npm_bad_sources(m.folder)] if envs.wants_node(m) else []
     except Exception:
         npm_bad = []
+    from synox.packs import container as pack_container
     return {"tier": tier, "text": TEXT[tier], "opaque": opaque, "external": external, "packages": packages,
             "runs": runs, "publisher": getattr(m, "publisher", "") or "", "needs_publisher": tier == T2,
-            "npm_bad_sources": npm_bad}
+            "npm_bad_sources": npm_bad, "container": pack_container.summary(m)}
 
 
 def is_t2(m) -> bool:
