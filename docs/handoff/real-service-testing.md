@@ -370,7 +370,7 @@ SYNOX 真機煙霧測試（唯讀）　2026-11-12 14:03
 
 ### Discord
 
-完整的排查清單在 [discord-handoff.md](discord-handoff.md) 第 9 節；煙霧測試會出現的：
+完整的錯誤表與「頻道沒反應」排查清單在 [discord-handoff.md](discord-handoff.md) 第 8 節；煙霧測試會出現的：
 
 | 看到 | 意思 | 怎麼辦 |
 |---|---|---|
