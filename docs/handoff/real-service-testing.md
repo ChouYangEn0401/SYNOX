@@ -111,8 +111,8 @@ py -3 -m venv .venv
 4. 交給 SYNOX：開 `Console.bat`，打 `/notion_token`，它說「貼上來」之後貼上、按 Enter。看到「✅ 接上 Notion 了」。
 5. 試：`/notion_status`、`/notion 關鍵字`。
 
-> ⚠️ **不要用** `python -m synox connect notion`：那個指令存的位置 `/notion` 讀不到（已知問題，已回報擁有者）。
-> 用了也沒關係，`smoke_real.py` 會在「token 存的位置」那一行提醒你，改用上面第 4 步重存一次。
+> 第 4 步也可以改在電腦上打 `.venv\Scripts\python.exe -m synox connect notion`（token 輸入時不顯示、不經聊天）。
+> 兩邊都設過的話，**最後設的那個**算數；`/notion_status` 會說用的是哪一份，`/notion_logout` 兩份都清。
 
 ### 2-2 Todoist（約 1 分鐘）
 
@@ -316,7 +316,6 @@ SYNOX 真機煙霧測試（唯讀）　2026-11-12 14:03
 | 連不到 Notion（…） | 網路 | 檢查網路、公司防火牆 |
 | 這看起來不是 Notion 的 integration token | 格式不對 | 要 `ntn_` 開頭（舊的是 `secret_`） |
 | 還沒設定 Notion | 保管箱沒有 token | `/notion_token` |
-| token 存的位置 ❌（煙霧測試） | 用了 `python -m synox connect notion` | 改用 `/notion_token` 存一次 |
 
 ### Todoist
 
@@ -414,7 +413,7 @@ SYNOX 真機煙霧測試（唯讀）　2026-11-12 14:03
 | Todoist | `/todoist_logout` |
 | Google 日曆 | `/gcal_logout`（也會請 Google 收回授權） |
 | Apple | `/applerem_logout`，或 `.venv\Scripts\python.exe -m synox connect apple-reminders --clear` |
-| Discord | 目前**沒有**刪除指令：把 `config.json` 的 `channels` 拿掉，並到 Portal Reset Token 讓舊的失效（見下表） |
+| Discord | `.venv\Scripts\python.exe -m synox discord token --clear`（多個 bot 加 `--bot <名字>`），再把 `config.json` 的 `channels` 拿掉；只刪保管箱不會讓舊 token 失效，還要到 Portal Reset Token（見下表） |
 
 測試機不再用 SYNOX 的話：關掉所有 SYNOX 視窗，**直接刪掉整個 SYNOX 資料夾**（含 `data`）最乾淨。
 

@@ -4,6 +4,21 @@
 
 版本從 0.1.0 升到 0.2.0：pack 格式多了 surfaces／data／auth.fields／mcp／runtime auto／schema_tools 等欄位，SDK 產生的 pack 寫 `requires.synox: ">=0.2"`，舊版 SYNOX 會明說要先更新、不會載入。
 
+## 未發佈（branch feat/fix-connect：真機測試前的兩個小修）
+
+### 修正
+- **Notion：`python -m synox connect notion` 設的 token `/notion` 讀不到**。connect 存在保管箱的 `notion.auth`，
+  `/notion` 只讀 `/notion_token` 存的 `notion`。現在兩份都認：connect 存的優先，沒有再讀 `/notion_token` 存的（舊使用者不受影響）；
+  `/notion_token` 存新的時清掉 connect 那份（最後設的算數）；`/notion_logout` 兩份都清；`/notion_status` 說用的是哪一份（只給結尾 4 碼）。
+  `scripts/smoke_real.py` 改用同一套讀法，不再把 connect 存的當成錯誤。
+  其他內建 connector 查過：Apple 提醒事項本來就讀 `auth`（一致）；Todoist、Google 日曆的 `auth.fields` 是純字串，
+  connect 不收（會說「沒有 auth.fields」），只能用 `/todoist_token`、`/gcal_setup`，沒有兩份不一致的問題。
+
+### 新增
+- **`python -m synox discord token --clear [--bot 名字]`**：從保管箱刪掉那個 bot 的 token（以前存了就刪不掉）。
+  只刪這台電腦存的那份，會提醒到 Developer Portal 按 Reset Token 才能真正作廢舊 token；config.json 還指著它時也會說。
+  本來就沒有＝說一聲、不動檔案。保管箱多一個 `Vault.delete_secret`。docs/discord.md、交接文件跟著改。
+
 ## 未發佈（branch feat/fix-round3：獨立安全驗證審查 C 的後半段，C5～C8）
 
 ### 變更（安全）
