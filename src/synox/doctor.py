@@ -259,6 +259,9 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 boxed_out = sandbox.restricted_reason(config, m, box) if config is not None else ""
                 if boxed_out:
                     lines.append(f"     🔐 {boxed_out}")
+                runtime_note = sandbox.runtime_note(config, m) if config is not None else ""
+                if runtime_note:                             # S2：用容器／不用、引擎找不找得到（只用 which）
+                    lines.append(f"     {runtime_note}")
                 t2_note = sandbox.t2_personal_note(config, m) if config is not None else ""
                 if t2_note:                                  # SDK P7：個人版的 T2 照用，只提醒
                     lines.append(f"     ⚠️ {t2_note}")

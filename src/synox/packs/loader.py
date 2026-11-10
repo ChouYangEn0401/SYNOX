@@ -14,6 +14,7 @@ kind=cli 的 argv／env／cwd 樣板代換 {python}、{node}、{pack_dir}、{dat
 子程序另外拿到 SYNOX_USER_DATA_DIR／SYNOX_TG_ID／SYNOX_MODE／SYNOX_PACK_DIR／SYNOX_PACK_NAME／SYNOX_SECRET_ENV（context_env，給 synox_sdk）。
 runtime.python／node = "auto" 的環境在安裝時建（packs/envs.py）；沒建好＝status missing、detail 說怎麼重建。
 每次叫 cli 子程序都先過 synox/sandbox.py（PERM-7）：grants 從宣告算、後端包一層 argv（none＝原樣）；
+pack 有 runtime.container、擁有者選了容器、這台找得到引擎 → sandbox.box_for 給容器後端，代換改用容器裡的路徑（view_for）；
 伺服器版 policy.sandbox.required_for 命中又沒有真隔離 → 那個 cli pack 整組 owner_only（detail 寫原因）。
 伺服器版 kind=python 的信任（PERM-8）：出廠的（BUNDLED）＝core；有鎖看 packs.lock 的 trust；沒鎖（手動放的）＝third-party。
 third-party 的 python pack 整組 owner_only（成員打了跟不存在一樣、AI 工具清單也沒有；detail 寫原因）。
@@ -469,12 +470,20 @@ def build_argv(template, values: Dict[str, str]) -> List[str]:
     return out
 
 
+def pack_path(m: Manifest, values: Dict[str, str], rel: str) -> str:
+    """argv 裡 ./x 的完整路徑：values 的 pack_dir（容器裡＝/pack，用 / 接）；沒有就 pack 資料夾。"""
+    base = values.get("pack_dir") or m.folder
+    if base.startswith("/") and os.name == "nt":            # Windows 上的容器路徑（Docker Desktop）：一律 /
+        return base.rstrip("/") + "/" + rel.replace("\\", "/")
+    return os.path.join(base, rel)
+
+
 def cli_prefix(m: Manifest, values: Dict[str, str]) -> List[str]:
     out = []
     for part in m.cli["argv"]:
         part = str(part)
         if part.startswith("./") or part.startswith(".\\"):
-            part = os.path.join(m.folder, part[2:])
+            part = pack_path(m, values, part[2:])
         out.append(substitute(part, values))
     return out
 
@@ -493,7 +502,7 @@ def context_env(m: Manifest, config, values: Dict[str, str], secret_fields=()) -
     SYNOX_SECRET_ENV＝「auth 欄位名=環境變數名」逗號接起來（只有名字，值照舊只在那個環境變數裡）。"""
     out = {"SYNOX_USER_DATA_DIR": values.get("user_data_dir", ""), "SYNOX_TG_ID": values.get("tg_id", ""),
            "SYNOX_MODE": str(getattr(config, "mode", "personal") or "personal"),
-           "SYNOX_PACK_DIR": m.folder, "SYNOX_PACK_NAME": m.name,
+           "SYNOX_PACK_DIR": values.get("pack_dir") or m.folder, "SYNOX_PACK_NAME": m.name,
            # P7：packs.lock 鎖每一個檔（含 __pycache__）；子程序的 python 不准在 pack 資料夾裡寫 .pyc
            "PYTHONDONTWRITEBYTECODE": "1",
            # 審查 C #C2：子程序的 python 不讀使用者層的 site-packages（%APPDATA%\Python、~/.local 裡的 .pth 會在
@@ -541,21 +550,26 @@ def _install_cli(app, pack: Pack) -> None:
     grants = tool_confirm.grants_of(app)
     nodes: Dict[str, Any] = {}           # 指令名 → 節點（needs_confirm 出卡要用；節點在 submit 之後才掛）
 
-    def make_cli(ph: Dict[str, str], user=None, confirmed: Optional[str] = None) -> "JsonCli":
-        cwd = os.path.normpath(os.path.join(m.folder, substitute(m.cli.get("cwd") or ".", ph)))
-        env = cli_env(m, ph)
-        env.update(context_env(m, config, ph, pack.secret_fields))
+    def boxed(ph: Dict[str, str]):
+        """這一次的後端與代換用的值（選了容器＝容器裡的路徑，sandbox.view_for）。"""
+        box = sandbox.box_for(config, m)
+        return box, sandbox.view_for(box, ph)
+
+    def make_cli(ph: Dict[str, str], user=None, confirmed: Optional[str] = None, box_view=None) -> "JsonCli":
+        # 運行空間（synox/sandbox.py，PERM-7；選了容器＝ContainerSandbox，S1）：照宣告算範圍，交給後端包一層（none＝原樣）
+        box, view = box_view or boxed(ph)
+        cwd = os.path.normpath(os.path.join(m.folder, substitute(m.cli.get("cwd") or ".", ph)))   # 本機的（引擎用戶端也在這裡跑）
+        env = cli_env(m, view)
+        env.update(context_env(m, config, view, pack.secret_fields))
         env.update(tool_confirm.env_for(confirmed))      # 「已確認」只有這裡給（蓋過 cli.env）
         if pack.secret_fields and pack.secrets is not None:
             # auth.fields 有寫 env 的 secret：只走子程序環境（keep_env 放行這個名字），永遠不進 argv
             env.update(pack.secrets.env_for(m.name, pack.secret_fields, user))
-        # 運行空間（synox/sandbox.py，PERM-7）：照宣告算範圍，交給後端包一層（none＝原樣）
-        box = sandbox.sandbox_for(config)
-        grants = sandbox.grants_for(m, config, ph, pass_env=keep_env)
+        grants = sandbox.grants_for(m, config, ph, pass_env=keep_env)          # 本機的路徑（要掛哪些資料夾）
         if box.name != "none":
             for folder in grants.write:            # 要掛進去的可寫資料夾得先存在
                 os.makedirs(folder, exist_ok=True)
-        prefix, env = box.wrap(cli_prefix(m, ph), env, cwd, grants)
+        prefix, env = box.wrap(cli_prefix(m, view), env, cwd, grants)
         return JsonCli(app.jobs, prefix, cwd=cwd, name=m.name,
                        timeout=float(m.cli.get("timeout", 120)), json_flag=m.cli.get("json_flag", "--json"),
                        env_extra=env or None, keep_env=keep_env)
@@ -650,11 +664,13 @@ def _install_cli(app, pack: Pack) -> None:
                 if confirmed is None:                   # 過期、用過、參數或人對不上：不執行
                     say(api, chat_id, tool_confirm.EXPIRED)
                     return
-            cli = make_cli(ph, user, confirmed)
-            argv = build_argv(cmd.argv, {**values, **ph})
+            box_view = boxed(ph)
+            cli = make_cli(ph, user, confirmed, box_view)
+            view = box_view[1]                          # 容器裡跑：{user_data_dir} 這些是容器裡的路徑
+            argv = build_argv(cmd.argv, {**values, **view})
             timeout = {"timeout": cmd.timeout} if cmd.timeout else {}
             if stdin_template:
-                timeout["stdin"] = substitute(stdin_template, {**values, **ph})
+                timeout["stdin"] = substitute(stdin_template, {**values, **view})
             done = bridge._started()
 
             def finish(reply):
@@ -695,7 +711,8 @@ def _install_cli(app, pack: Pack) -> None:
             if blocked:
                 return {"ok": False, "error": blocked}
             ph = placeholders(m, config, user)
-            reply = make_cli(ph, user).call(*build_argv(c.get("argv") or [], ph))
+            box_view = boxed(ph)
+            reply = make_cli(ph, user, None, box_view).call(*build_argv(c.get("argv") or [], box_view[1]))
             return reply.data if reply.ok else {"ok": False, "error": reply.error}
         return fn
 

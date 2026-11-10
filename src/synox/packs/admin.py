@@ -7,7 +7,8 @@ Web UI 設定頁、`python -m synox install <檔>`、`python -m synox packs lock
     stage(blob, data_dir)            zip 檢查 → 解到 data/web_uploads/<token>/pack/ → 第 1 關（宣告，嚴格版）
                                      → 第 2 關（靜態掃描＋integrity 對檔）→ (token, 摘要＋掃描報告)；過不了丟 GateRefused
     （給人看報告＋「要建環境」那一段（runtime.python／node = auto，packs/envs.py）、按確認）
-    install_staged(token, …)         再跑一次 1、2 關、確認檔案跟看報告時一樣 → 搬進 packs/ → 第 3 關：寫 packs.lock（誰、何時）
+    install_staged(token, …)         再跑一次 1、2 關、確認檔案跟看報告時一樣 → 搬進 packs/ → 第 3 關：寫 packs.lock（誰、何時、
+                                     trust、runtime：用容器／不用，S2；報告的「🧱 執行環境」＝runtime_report）
     build_env(name, …, jobs, on_done)  裝好之後才建環境（JobRunner、最多 10 分鐘）；失敗＝pack 已裝、doctor 標環境沒建好
 
 zip 本身：不能有絕對路徑、`..`、磁碟代號、符號連結；檔名不能是 Windows 保留名（CON、NUL、COM1…）、
@@ -159,7 +160,64 @@ def summary_of(m: Manifest, report: ScanReport, hashes: Dict[str, str], problems
             "capabilities": list(m.capabilities), "integrity": bool(m.integrity),
             "scan": {**report.to_dict(m), "problems": problems, "ok": not problems},
             "warnings": warnings_for(m, report), "env": env_plan(m).to_dict(), "mcp": mcp_report(m), **scope_of(m),
-            "tier": tier_of(m, report)}
+            "tier": tier_of(m, report), "runtime": runtime_report(m)}
+
+
+# ── 執行環境：用容器／不用（S2） ─────────────────────────────────────────
+
+RUNTIME_TEXT = {"container": "用容器（建議）：在 podman／docker 的容器裡跑，只看得到自己的 pack 與資料夾",
+                "host": "不用容器：直接在這台跑（伺服器版有 bwrap／systemd 就用它們）"}
+
+
+def runtime_report(m: Manifest) -> dict:
+    """安裝報告的「🧱 執行環境」：這台找得到哪些容器引擎（只用 which，不執行）、pack 有沒有提供容器、可以選什麼。"""
+    from synox import sandbox
+    from synox.packs import container as pack_container
+    info = pack_container.summary(m)
+    engines = {e: bool(sandbox._engine_which(e)) for e in sandbox.ENGINES}
+    offered = bool(info)
+    choices = [{"value": v, "text": RUNTIME_TEXT[v]} for v in (("container", "host") if offered else ("host",))]
+    return {"offered": offered, "container": info, "engines": engines, "choices": choices,
+            "default": "container" if offered else "host",
+            "applies": m.kind == "cli" or m.mcp_stdio}
+
+
+def offers_container(m: Manifest) -> bool:
+    return bool((m.runtime or {}).get("container"))
+
+
+def check_runtime(m: Manifest, runtime: Optional[str]) -> str:
+    """擁有者選的 runtime（None＝照預設：有提供容器＝container）→ container｜host；不合丟 PackAdminError。"""
+    if runtime in (None, ""):
+        return "container" if (m.runtime or {}).get("container") else "host"
+    if runtime not in pack_lock.RUNTIME_MODES:
+        raise PackAdminError(f"runtime 只能是 {'、'.join(pack_lock.RUNTIME_MODES)}（現在是 {runtime!r}）")
+    if runtime == "container" and not (m.runtime or {}).get("container"):
+        raise PackAdminError(f"{m.name} 的 pack.json 沒有提供容器（runtime.container），只能選 host（不用容器）")
+    return runtime
+
+
+def format_runtime(summary: dict) -> List[str]:
+    """終端機的「🧱 執行環境」那一段。"""
+    rt = summary.get("runtime") or {}
+    if not rt or not rt.get("applies"):
+        return []
+    engines = "、".join(f"{e} {'✅' if ok else '—'}" for e, ok in (rt.get("engines") or {}).items())
+    lines = [f"🧱 執行環境：這台的容器引擎 {engines}（只看 PATH，沒有執行）"]
+    info = rt.get("container") or {}
+    if not rt.get("offered"):
+        lines.append("  這個 pack 沒有提供容器（runtime.container）：只能直接在這台跑"
+                     "（伺服器版的第三方／T2 pack 要 bwrap／systemd 才給成員）")
+        return lines
+    res = info.get("resources") or {}
+    limits = "、".join(f"{k}={v}" for k, v in res.items()) or "照 policy.sandbox"
+    lines.append(f"  這個 pack 提供容器：{info.get('run_image')}，network: {str(info.get('network')).lower()}，"
+                 f"上限 {limits}" + (f"（Dockerfile {info.get('dockerfile')}）" if info.get("dockerfile") else ""))
+    lines.append("  映像的內容 SYNOX 不看（跟 pip／npm 套件一樣）；執行時不會自己拉映像（--pull=never），要事先照 digest 拉好")
+    lines.append("  要怎麼跑：預設「用容器」（終端機 --runtime container｜host；網頁在報告上選）")
+    if not any((rt.get("engines") or {}).values()):
+        lines.append("  ⚠️ 這台找不到 podman／docker：選了容器也會先退回直接跑（doctor 會說），裝好引擎後自動改用容器")
+    return lines
 
 
 EFFECT_TEXT = {"READ": "只讀", "WRITE": "會寫入", "DANGER": "危險（每次都要你按核准）"}
@@ -379,6 +437,7 @@ def format_summary(summary: dict) -> str:
     lines += format_mcp(summary)
     lines += format_scope(summary)
     lines += format_tier(summary.get("tier") or {})
+    lines += format_runtime(summary)
     env = summary.get("env") or {}
     if env.get("needed"):
         lines.append("🧱 要建環境（按確認之後才建）：")
@@ -454,11 +513,13 @@ def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
 # ── 第 3 關＋安裝 ──────────────────────────────────────────────────────
 
 def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, via: str = "web",
-                   trust: Optional[str] = None, trust_publisher: Optional[str] = None) -> str:
+                   trust: Optional[str] = None, trust_publisher: Optional[str] = None,
+                   runtime: Optional[str] = None) -> str:
     """按了確認：再跑一次 1、2 關、檔案要跟看報告時一模一樣 → 搬進 packs/ → 寫 packs.lock。
     trust：擁有者在報告上選的 core｜third-party（沒給＝third-party），寫進鎖。
     trust_publisher：T2 pack（packs/tier.py）一定要給，而且跟 pack.json 的 publisher 一字不差；寫進鎖的
-    trusted_publisher／trusted_at。T0／T1 不用（給了也不記）。"""
+    trusted_publisher／trusted_at。T0／T1 不用（給了也不記）。
+    runtime：container｜host（S2；沒給＝有提供容器就 container），寫進鎖的 runtime（跟 trust 並列）。"""
     trust = _trust(trust)
     root = _staged_root(token, data_dir)
     folder = os.path.join(root, "pack")
@@ -467,6 +528,7 @@ def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
     if problems:
         raise GateRefused("拒裝（安全檢查沒過）：" + "；".join(problems[:12]),
                           summary_of(m, report, hashes, problems))
+    runtime = check_runtime(m, runtime)
     reviewed = meta.get("hashes") or {}
     if reviewed != hashes:
         raise PackAdminError("暫存的檔案在你看報告之後被改過了，不裝（重新上傳一次）："
@@ -489,16 +551,16 @@ def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
     shutil.rmtree(root, ignore_errors=True)
     fields = pack_tier.lock_fields(info, trust_publisher if info["tier"] == pack_tier.T2 else None)
     pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=target, trust=trust,
-                      tier_fields=fields)
-    logging.info("[PACKS] installed %s %s (approved by %s via %s, trust %s, tier %s%s)", m.name, m.version,
-                 approved_by, via, trust, info["tier"],
+                      tier_fields=fields, runtime=runtime if offers_container(m) else None)
+    logging.info("[PACKS] installed %s %s (approved by %s via %s, trust %s, runtime %s, tier %s%s)", m.name, m.version,
+                 approved_by, via, trust, runtime, info["tier"],
                  f", trusted publisher {fields.get('trusted_publisher')!r}" if fields.get("trusted_publisher") else "")
     return m.name
 
 
 def approve_installed(folder: str, data_dir: str, approved_by=None, via: str = "cli",
-                      trust: Optional[str] = None,
-                      trust_publisher: Optional[str] = None) -> Tuple[Manifest, ScanReport, List[str]]:
+                      trust: Optional[str] = None, trust_publisher: Optional[str] = None,
+                      runtime: Optional[str] = None) -> Tuple[Manifest, ScanReport, List[str]]:
     """已經在 packs/ 裡的 pack（工程師自己放的、自己改過的）：跑 1、2 關，過了就寫 packs.lock。
     trust 沒給＝沿用舊鎖的（沒有舊鎖：出廠的＝core，其他＝third-party）。回 (manifest, 報告, 拒裝理由)；有理由就沒有寫鎖。
     T2：舊鎖確認過同一個 publisher、可執行的東西沒變多、沒新增 exec＝沿用；否則要 trust_publisher（一字不差），
@@ -526,8 +588,14 @@ def approve_installed(folder: str, data_dir: str, approved_by=None, via: str = "
         if refused:
             return m, report, [refused]
     fields = pack_tier.lock_fields(info, typed if info["tier"] == pack_tier.T2 else None, previous=previous)
+    if runtime is None:                    # 沒給＝沿用舊鎖的（沒有舊鎖＝不寫，當作 host；packs runtime 可以改）
+        runtime = pack_lock.runtime_mode(data_dir, m.name)
+        if runtime == "container" and not offers_container(m):
+            runtime = "host"
+    else:
+        runtime = check_runtime(m, runtime)
     pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=folder, trust=trust,
-                      tier_fields=fields)
+                      tier_fields=fields, runtime=runtime if offers_container(m) else None)
     return m, report, []
 
 
