@@ -55,7 +55,8 @@ PLACEHOLDER_NAMES = {
 }
 
 EMAIL = re.compile(r"(?<![A-Za-z0-9._%+-])([A-Za-z0-9._%+-]+)@([A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,})(?![A-Za-z0-9-])")
-ALLOWED_EMAILS = {"noreply@anthropic.com", "git@github.com", "noreply@github.com"}
+ALLOWED_EMAILS = {"noreply@anthropic.com", "git@github.com", "noreply@github.com",
+                  "mi.anthony.chou@gmail.com", "mi.anthony.chou+security@gmail.com"}   # project contact addresses (published on purpose)
 ALLOWED_EMAIL_DOMAINS = ("example.com", "example.org", "example.net", "users.noreply.github.com")
 RESERVED_TLDS = (".invalid", ".test", ".example", ".localhost", ".local")
 PLACEHOLDER_LOCAL_PARTS = {"me", "you", "user", "test", "foo", "bar", "someone", "name", "example", "nobody", "noreply", "no-reply"}

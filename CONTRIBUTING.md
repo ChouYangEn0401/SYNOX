@@ -31,4 +31,4 @@
 
 ## 聯絡
 
-商業授權、貢獻者同意書：`<待補：聯絡信箱>`。安全通報：見 [SECURITY.md](SECURITY.md)。維護者名單見 [MAINTAINERS.md](MAINTAINERS.md)。
+商業授權、貢獻者同意書：`mi.anthony.chou@gmail.com`。安全通報：見 [SECURITY.md](SECURITY.md)。維護者名單見 [MAINTAINERS.md](MAINTAINERS.md)。
