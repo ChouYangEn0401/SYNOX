@@ -1,9 +1,16 @@
 # SYNOX：你自己電腦上的 Telegram 小助手
 
+> ⚠️ **目前是 alpha，請先別拿來放重要資料。**
+> - 所有 connector（Notion、Todoist、Google 日曆、Apple 提醒事項）與 Discord 通道都**只用假傳輸測過**，還沒對真實服務驗證。
+> - 沙盒後端**還沒在 Linux 實機上驗證**。
+> - **伺服器版的營運者（架的人）看得到使用者的資料**。
+> - 第三方 pack 的安全邊界：見 [docs/security.md](docs/security.md)「這套系統現在能保證什麼、不能保證什麼」。
+> - 授權：見 [LICENSING.md](LICENSING.md)。發現安全問題：見 [SECURITY.md](SECURITY.md)（請不要開公開 issue）。
+
 在手機的 Telegram 跟它講話：記帳、隨手記、提醒；接了 AI 之後，直接說人話它就會替你按指令
 （刪東西這類危險的事，會先送一張確認卡給你按）。資料都在**你自己的電腦**上，筆記和記帳是加密存的。
 
-## 三步裝好（Windows 10／11）
+## 快速開始：三步裝好（Windows 10／11）
 
 1. **雙擊 `Setup.bat`**。第一次會花幾分鐘準備 Python 和套件（會出現一個顯示進度的視窗，不用打任何字；
    電腦沒有 Python 的話，它會自己裝）。
@@ -116,7 +123,11 @@ pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的
 ```
 
 地圖與規則在 [docs/AGENT.md](docs/AGENT.md)；版本紀錄在 [CHANGELOG.md](CHANGELOG.md)。
+公開 repo 或發佈之前：[docs/AGENT.md](docs/AGENT.md) 的「公開前檢查清單」（`scripts\prepublish_check.py`）。
 
+## 回報安全問題
+
+請**不要**開公開 issue。回報方式、範圍與回應時程見 [SECURITY.md](SECURITY.md)。
 
 ## 授權
 
