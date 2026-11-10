@@ -19,6 +19,9 @@ effect 變寬（READ→WRITE→DANGER）、capabilities 新增、執行方式（
 或 auth 改動、access 變寬、多要密鑰環境變數、新加網頁面板、surfaces 多了 channel、data 變寬（none → user → shared）、
 trust（擁有者這次選的，跟舊鎖不同；不在 pack.json）、publisher 改了、mcp.schema_tools 多了工具（巢狀參數給 AI）
 ——這些 alert=True，畫面上用紅字標出來。
+容器（S2）：runtime.container 改了（映像 digest、network、resources、mounts、user…）＝「執行方式改了」紅字；
+network false → true、映像換了另外各一行紅字；原本用容器、升級後不用（新版不再提供或這次選 host）＝紅字。
+執行環境沒選＝沿用舊鎖的 runtime.mode（舊的沒寫、新版有提供容器＝container）。
 T2（SDK P7，packs/tier.py）：T1 → T2、新增 exec、可執行的東西變多、publisher 變了 → 紅字，而且要重新輸入發行者
 （report["tier"]["needs_publisher"]；upgrade_staged 的 trust_publisher）；都沒有＝沿用舊鎖的 trusted_publisher。
 
@@ -239,10 +242,44 @@ def env_change(old: Manifest, new: Manifest, data_dir: Optional[str]) -> dict:
     return out
 
 
+def runtime_choice(data_dir: str, new: Manifest, chosen: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
+    """升級後的執行環境（S2）：(裝著那一份的 runtime.mode｜None, 升級後的 container｜host｜None＝新版沒有容器、不寫)。
+    chosen（擁有者這次選的）優先；沒選＝沿用舊的；舊的沒寫＝新版有提供容器就 container。新版沒有容器＝一律 host。"""
+    from synox.packs import admin
+    installed = pack_lock.runtime_mode(data_dir, new.name)
+    if not admin.offers_container(new):
+        if chosen == "container":
+            raise admin.PackAdminError(f"{new.name} 的新版沒有提供容器（runtime.container），只能選 host")
+        return installed, ("host" if installed else None)
+    if chosen is not None:
+        return installed, admin.check_runtime(new, chosen)
+    return installed, installed or "container"
+
+
+def runtime_changes(old: Manifest, new: Manifest, installed: Optional[str], after: Optional[str]) -> List[dict]:
+    """升級報告的執行環境那幾行：用容器 → 不用＝紅字；新版開始提供容器＝一般；容器宣告改了的紅字由 diff_manifests 的 runtime 那行列。"""
+    from synox.packs import admin
+    out: List[dict] = []
+    if installed == "container" and after != "container":
+        why = "新版不再提供容器" if not admin.offers_container(new) else "這次選了不用容器"
+        out.append({"kind": "runtime_mode", "text": f"執行環境 容器 → 直接在這台跑（{why}）", "alert": True})
+    elif after == "container" and installed != "container":
+        out.append({"kind": "runtime_mode", "text": "執行環境 → 用容器（新版提供 runtime.container；--runtime host 可以不用）",
+                    "alert": False})
+    old_c = (old.runtime or {}).get("container") or {}
+    new_c = (new.runtime or {}).get("container") or {}
+    if old_c and new_c:
+        if new_c.get("network") and not old_c.get("network"):
+            out.append({"kind": "container", "text": "容器的 network false → true（容器裡可以連外了）", "alert": True})
+        if (new_c.get("image"), new_c.get("base")) != (old_c.get("image"), old_c.get("base")):
+            out.append({"kind": "container", "text": "容器映像換了（digest 不同）：新的映像要先照 digest 拉好", "alert": True})
+    return out
+
+
 def report_for(old: Manifest, old_folder: str, new: Manifest, new_hashes: Dict[str, str],
-               data_dir: str, trust: Optional[str] = None, report=None) -> dict:
+               data_dir: str, trust: Optional[str] = None, report=None, runtime: Optional[str] = None) -> dict:
     """trust：擁有者這次選的（None＝還沒選：報告只給 installed_trust，畫面自己比）。
-    report：新版的掃描報告（有就用它的掃不到內容清單；沒給現算）。"""
+    report：新版的掃描報告（有就用它的掃不到內容清單；沒給現算）。runtime：這次選的 container｜host（None＝沿用）。"""
     from synox.packs import tier as pack_tier
     status, message = compare_versions(old.version, new.version)
     try:
@@ -257,13 +294,15 @@ def report_for(old: Manifest, old_folder: str, new: Manifest, new_hashes: Dict[s
         changes.append(moved)
     t2 = tier_change(old, new, pack_lock.entry(data_dir, old.name), pack_tier.assess(new, report))
     changes += t2["changes"]
+    installed_runtime, after_runtime = runtime_choice(data_dir, new, runtime)
+    changes += runtime_changes(old, new, installed_runtime, after_runtime)
     return {"name": new.name, "installed_version": old.version, "new_version": new.version,
             "version_status": status, "version_ok": status == UPGRADE, "version_message": message, "changes": changes,
             "can_force": status != UPGRADE and semver_key(new.version) is not None,   # 可以明確選「降級／重裝」
             "alerts": sum(1 for c in changes if c["alert"]), "files": pack_lock.diff(old_hashes, new_hashes)[:50],
             "installed_lock": lock_state, "env": env_change(old, new, data_dir),
             "installed_trust": installed_trust, "trust": trust or installed_trust or pack_lock.DEFAULT_TRUST,
-            "tier": t2}
+            "tier": t2, "installed_runtime": installed_runtime, "runtime": after_runtime}
 
 
 def installed_manifest(packs_dir: str, name: str) -> Optional[Tuple[Manifest, str]]:
@@ -314,6 +353,10 @@ def format_upgrade(upg: dict) -> str:
     if upg.get("trust"):
         lines.append(f"  🔑 信任：裝著的是 {upg.get('installed_trust') or '（未鎖定）'}，升級後 {upg['trust']}"
                      "（終端機 --trust 改）")
+    if upg.get("runtime"):
+        names = {"container": "用容器", "host": "不用容器"}
+        lines.append(f"  🧱 執行環境：裝著的是 {names.get(upg.get('installed_runtime'), '（沒選）')}，"
+                     f"升級後 {names.get(upg['runtime'], upg['runtime'])}（終端機 --runtime container｜host 改）")
     lines += format_tier_upgrade(upg.get("tier") or {})
     lines += format_env(upg.get("env") or {}, upg.get("name") or "")
     lines.append("  資料（data/、使用者資料夾）不會動；資料格式要不要轉換由 pack 自己負責。")
@@ -421,7 +464,7 @@ def _verified_staged(token: str, data_dir: str):
 
 def upgrade_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, via: str = "web",
                    allow_downgrade: bool = False, now=None, trust: Optional[str] = None,
-                   trust_publisher: Optional[str] = None) -> dict:
+                   trust_publisher: Optional[str] = None, runtime: Optional[str] = None) -> dict:
     """按了「確認升級」：再檢查 → 版本要比較新（或 allow_downgrade）→ 舊的搬到 _removed → 新的搬進來 → 鎖換新。
     trust 沒給＝沿用舊鎖的（舊的沒鎖＝third-party）。
     T2（packs/tier.py）：發行者變了、新增 exec、可執行的東西變多、或舊的沒確認過 → 一定要 trust_publisher（跟新版
@@ -436,7 +479,7 @@ def upgrade_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
     if found is None:
         raise admin.PackAdminError(f"還沒裝過 {m.name}，不是升級（用一般的「確認安裝」）")
     old, target = found
-    upg = report_for(old, target, m, hashes, data_dir, trust=trust, report=report)
+    upg = report_for(old, target, m, hashes, data_dir, trust=trust, report=report, runtime=runtime)
     trust = upg["trust"]
     if not upg["version_ok"] and not (allow_downgrade and upg["can_force"]):
         hint = "（真的要換，明確選「降級／重裝」）" if upg["can_force"] else ""
@@ -464,7 +507,7 @@ def upgrade_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
         raise
     shutil.rmtree(root, ignore_errors=True)
     pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=target, trust=trust,
-                      tier_fields=fields)
+                      tier_fields=fields, runtime=upg["runtime"])
     logging.info("[PACKS] upgraded %s %s → %s (approved by %s via %s; old one in %s)",
                  m.name, old.version, m.version, approved_by, via, backup)
     return {"name": m.name, "from": old.version, "to": m.version, "backup": backup, "report": upg,

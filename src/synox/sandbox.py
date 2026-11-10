@@ -518,9 +518,7 @@ def runtime_mode(config, m) -> str:
     if not data_dir:
         return "host"
     from synox.packs import lock as pack_lock
-    found = pack_lock.entry(data_dir, m.name) or {}
-    mode = (found.get("runtime") or {}).get("mode") if isinstance(found.get("runtime"), dict) else None
-    return "container" if mode == "container" else "host"
+    return "container" if pack_lock.runtime_mode(data_dir, m.name) == "container" else "host"
 
 
 def container_target(config, m) -> Optional[dict]:
@@ -598,7 +596,7 @@ def runtime_note(config, m) -> str:
         return f"🧱 ⚠️ {problem}：退回這台的沙盒後端"
     engine = pick_engine(settings_of(config), _engine_which)
     from synox.packs import container as pack_container
-    return f"🧱 容器（{engine}）：{pack_container.image_ref(m)[:90]}"
+    return f"🧱 容器（{engine}）：{pack_container.image_ref(m)}"
 
 
 def engines_line(config) -> str:
