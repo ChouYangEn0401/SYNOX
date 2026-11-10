@@ -289,3 +289,16 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
   網頁與 Telegram 的私訊共用同一份 AI 對話記憶（chat_id 都是那個人的 id）；pack reload 拿不掉 pack 自己綁的按鈕前綴；
   Telegram 指令選單在 reload 之後不會自動重設（重開 bot 才會）；設定頁改 AI 來源要重開 bot 才生效。
 - `/backup` 的 Telegram 指令與還原按鈕沒做（只有網頁下載＋`synox.backup.restore_cli`）；備份綁 DPAPI，換電腦解不開。
+
+## 公開前檢查清單（repo 改成 public 或發佈 zip 之前）
+
+1. 跑 `.venv\Scripts\python.exe scripts\prepublish_check.py`（只用標準函式庫、不連網）。它看**目前的檔案**（git 追蹤的＋沒被忽略的新檔）
+   與 **git 歷史**（所有分支、每個不同版本的檔案讀一次、每個 commit 的作者信箱），找：疑似密鑰（Telegram、OpenAI／Anthropic `sk-`、
+   Google `AIza`／`GOCSPX-`、Slack `xox`、GitHub `ghp_`、AWS `AKIA`、私鑰檔頭、Notion、Discord）、`C:\Users\<名字>`／`/Users/<名字>`
+   這類本機路徑、個人信箱、不該提交的檔名（`.env`、`config.json`、`*.enc`、`packs.lock`…；`config.example.json` 可以）。
+   報告只列「檔名:行號＋種類」，不印內容；有發現時退出碼是 1。`--worktree-only` 只看目前的檔案（PR 前自檢用）。
+2. 「目前的檔案」那一段必須是零。確定是範例或測試假值的行，在同一行加 `prepublish-check: allow`（並在 PR 說明為什麼）。
+3. 「git 歷史」那一段：舊版本裡的本機路徑不一定要改寫歷史，由維護者決定；**真的密鑰**一律先到服務端撤銷、換新，再考慮改寫歷史。
+4. commit 作者信箱若是個人信箱：要不要改寫成 GitHub 的 noreply 信箱，由維護者決定。
+5. 文件：README 頂端的 alpha 說明仍然屬實；`<待補：…>` 佔位（SECURITY.md、LICENSING.md、CONTRIBUTING.md、MAINTAINERS.md）都填好了。
+6. 測試全過：`.venv\Scripts\python.exe -m pytest -q`。

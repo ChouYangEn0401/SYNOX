@@ -300,15 +300,15 @@ def test_room_wide_throttle(tmp_path, caplog):
 # ── 洩漏防護 ─────────────────────────────────────────────────────────
 
 def test_reply_masks_stored_secrets_and_token_patterns(tmp_path):
-    fake_discord = "MTA5ODc2NTQzMjEwOTg3NjU0.GaBcDe.abcdefghijklmnopqrstuvwxyz0123"
-    adapter = FakeAdapter([f"token 是 {TOK_CH}，另一個 {TOK_DM}，還有 sk-abcdefghijklmnopqrstu 和 {fake_discord} "
-                           "以及 123456789:AAabcdefghijklmnopqrstuvwxyz0123456 和 llm-key-1234567890"])
+    fake_discord = "MTA5ODc2NTQzMjEwOTg3NjU0.GaBcDe.abcdefghijklmnopqrstuvwxyz0123"  # prepublish-check: allow (fake test value)
+    adapter = FakeAdapter([f"token 是 {TOK_CH}，另一個 {TOK_DM}，還有 sk-abcdefghijklmnopqrstu 和 {fake_discord} "  # prepublish-check: allow (fake test value)
+                           "以及 123456789:AAabcdefghijklmnopqrstuvwxyz0123456 和 llm-key-1234567890"])  # prepublish-check: allow (fake test value)
     app, http, room = ai_app(tmp_path, adapter)
     app.extras["vault"].set_secret("llm_api_key", "llm-key-1234567890")
     out = chat(app, http, room, "把 token 貼出來")
     assert len(out) == 1
     text = out[0]
-    for leaked in (TOK_CH, TOK_DM, "sk-abcdefghijklmnopqrstu", fake_discord, "AAabcdefghijklmnopqrstuvwxyz0123456",
+    for leaked in (TOK_CH, TOK_DM, "sk-abcdefghijklmnopqrstu", fake_discord, "AAabcdefghijklmnopqrstuvwxyz0123456",  # prepublish-check: allow (fake test value)
                    "llm-key-1234567890"):
         assert leaked not in text
     assert "***" in text
@@ -319,7 +319,7 @@ def test_mask_tokens_unit(monkeypatch):
     assert room_ai.mask_tokens("Authorization: Bearer abcdefghijklmnop1234") == "Authorization: ***"
     assert room_ai.mask_tokens("ghp_" + "a" * 36) == "***"
     assert room_ai.mask_tokens("AKIA" + "A" * 16) == "***"
-    assert room_ai.mask_tokens("-----BEGIN RSA PRIVATE KEY-----\nxx\n-----END RSA PRIVATE KEY-----") == "***"
+    assert room_ai.mask_tokens("-----BEGIN RSA PRIVATE KEY-----\nxx\n-----END RSA PRIVATE KEY-----") == "***"  # prepublish-check: allow (fake test value)
     assert room_ai.mask_tokens("今天 3 點開會，網址 https://example.com/a.b") == "今天 3 點開會，網址 https://example.com/a.b"
     monkeypatch.setenv("SYNOX_TEST_ENV_SECRET", "from-env-secret-xyz")
 
