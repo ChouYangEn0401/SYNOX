@@ -251,6 +251,43 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
   經「升級」裝進來的新版會自動建／重建（見上面「升級」）。
 - 建置的實作在 `src/synox/packs/envs.py`（`Builder.plan(m)`／`build(m, jobs, on_done)`；`set_factory` 可換實作）。
 
+### 容器（`runtime.container`，kind=cli 與 kind=mcp stdio；建議提供）
+
+作者「建議提供」：有了它，擁有者安裝時可以選「用容器跑」，伺服器版的第三方／T2 pack 選了容器、伺服器又有 podman／docker，
+就能開給成員（沒提供或選不用容器，照舊只給擁有者）。做法與每個旗標防什麼：`docs/discussions/2026-11-10-isolation-howto.md`。
+
+```json
+"runtime": {"container": {
+  "image": "ghcr.io/作者/工具@sha256:<64 個 16 進位字>",
+  "network": false,
+  "resources": {"mem_mb": 512, "cpus": 1, "pids": 64},
+  "mounts": {"pack": "/pack", "user_data": "/data/user", "shared_data": "/data/shared"},
+  "env_passthrough": ["WEATHER_API_KEY"],
+  "user": "nonroot",
+  "python": "python3"
+}}
+```
+
+| 欄位 | 規則（第 1 關，`packs/container.py`；不合＝拒裝） |
+|---|---|
+| `image` | `image`／`dockerfile` 至少一個。**一定要帶 `@sha256:` digest**（只寫 `:latest`、`:1.0` 的不收：tag 會被換成別的內容）；registry 主機一定要寫、要在白名單（`docker.io`、`ghcr.io`、`quay.io`）；不收網址、`localhost`、IP、指定埠 |
+| `dockerfile`＋`base` | pack 資料夾裡的相對路徑（檔名 `Dockerfile`／`Containerfile`／`x.Dockerfile`，不能有 `..`）；`base` 是 Dockerfile 的 `FROM`，一樣要帶 digest。Dockerfile 本身在 packs.lock 的雜湊裡。**第 2 關**掃 Dockerfile：一定剛好一個 `FROM`、跟 `base` 一字不差；`ADD <網址>`、`ADD --from`、`RUN --network`／`--security`、`COPY --from=<沒有 digest 的映像>`、`ONBUILD` 拒裝；`RUN` 裡的 `curl`／`wget`／`pip install`… 列進報告（提醒不是門）。**SYNOX 這一版不會替你 build**（S3）：營運者自己 build 成 `localhost/synox-<pack>:<Dockerfile sha256 前 12 字>` |
+| `entry` | 只有 `stdio`（容器的 stdin／stdout 就是 cli／MCP 的管線；SYNOX 不開埠） |
+| `network` | `true`／`false`，沒寫＝`false`（`--network none`）。**要跟 `capabilities` 的 `network` 一致**（一邊有一邊沒有＝拒）；`"host"` 這類字一律拒 |
+| `resources` | `mem_mb`（16–65536）、`cpus`（0.1–64）、`pids`（1–4096）；執行時跟 `policy.sandbox` 取**小的**（pack 只能把上限調低） |
+| `mounts` | 只能改 **容器裡** 的路徑（`pack`、`user_data`、`shared_data` 三個鍵）。不能指定本機路徑、不能 `..`、不能 `/`、不能在 `/proc`、`/sys`、`/dev`、`/etc`、`/usr`、`/run`、`/tmp`… 底下、不能碰 `*.sock`、彼此不能重疊。本機要掛什麼由 SYNOX 照 `data` 宣告算：pack 資料夾（唯讀）＋那個人的 `<user_data_dir>/<pack>`（或共用的 `data/packs/<pack>`）可寫，其他什麼都不掛 |
+| `env_passthrough` | 選填：只放行這幾個密鑰名進容器（一定要是 `requires.env`／`auth.fields[].env` 列過的）；沒寫＝那些都放行。值不進命令列（`--env 名字`，值由 podman／docker 從 SYNOX 的環境拿） |
+| `user` | `nonroot`（預設：podman `--userns=keep-id`＝SYNOX 帳號的 uid；docker `--user <SYNOX 的 uid:gid>`，Windows 上 `65534:65534`）或 `"uid:gid"`（都不能是 0）。`root` 一律拒 |
+| `python`、`node` | `{python}`／`{node}` 在容器裡換成什麼（預設 `python3`／`node`；指令名或 `/` 開頭的路徑） |
+| 其他欄位 | **一律拒**：`privileged`、`cap_add`、`devices`、`volumes`、`security_opt`、`network_mode`、`pid`、`ipc`、`args`、`ports`… 這些都是把牆打掉的開關 |
+
+**在容器裡跑時的代換**：`{pack_dir}`→`/pack`、`{user_data_dir}`→`/data/user`、`{data_dir}`→`/data/shared`、`{python}`→`python3`
+（照 `mounts`／`python` 改），`./tool.py`→`/pack/tool.py`；`SYNOX_USER_DATA_DIR`、`SYNOX_PACK_DIR` 也是容器裡的路徑。所以 argv 不用寫兩份。
+可寫的只有 `{user_data_dir}/<pack 名字>/`（data=user）或 `{data_dir}/packs/<pack 名字>/`（data=shared），`/tmp` 是關門就清空的暫存。
+容器裡的根檔案系統唯讀、沒有 Linux 特權、不能提權、程序數與記憶體有上限；`HOME=/tmp`。
+**信任層級不變**（容器講的是「在哪跑」，層級講的是「掃得到多少」）；映像的內容 SYNOX 不看（跟 pip／npm 套件一樣）。
+建議 SDK 產生的 pack 附一份 Dockerfile（`FROM docker.io/library/python@sha256:…`、`COPY . /pack`、非 root 使用者）。
+
 經 AI 呼叫的一般 command 會**同步**跑完，印出來的結果（攤平成文字）交回 AI 當工具結果（包在每輪的分隔符裡），由 AI 轉述給人；
 人自己打的指令照舊在背景跑、結果直接回給人。`background: true` 的 command 兩條路都一樣：先回「開始了」，做完直接通知人（AI 只知道「開始了」）。
 

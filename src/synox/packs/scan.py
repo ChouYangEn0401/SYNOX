@@ -58,6 +58,9 @@
   信任等級 T0（只有宣告）：安裝報告逐一列 tools_allow 與每個工具的 effect 給安裝者確認（admin.mcp_report）；
   沒寫 effect 的工具第 1 關就拒；url 一定 https（第 1 關）。
 - connector：只能是宣告，不准有任何程式檔（.py 或執行檔）。
+- runtime.container 有 dockerfile（cli、mcp stdio；S0，packs/container.py）：只讀 Dockerfile、不 build：
+  一定剛好一個 FROM、FROM 跟 base 一字不差（帶 digest）、ADD 網址／ADD --from、RUN --network／--security、
+  COPY --from=沒有 digest 的映像、ONBUILD → 拒（container）；RUN 裡的 curl／wget／pip install… → 列出來（container_note，提醒不是門）。
 
 **這一關看得到的只有 pack 自己的原始碼**：它 import 的第三方套件做什麼、cli 叫的那支程式做什麼，掃不到。
 所以它是「擋明顯的、逼作者宣告」，不是沙盒——最後一道是第 5 關的核准卡（結構）。
@@ -207,7 +210,8 @@ LABELS = {"network": "連網", "subprocess": "開別的程式", "filesystem:own"
           "filesystem:any": "讀寫 pack 以外的檔案", "exec": "動態執行程式碼", "binary": "掃不到的執行檔",
           "env": "讀環境變數（可能是密鑰）", "secret": "讀使用者在「連接」填的 secret", "argv": "argv 樣板不合規則", "code": "不該有程式檔",
           "syntax": "程式解析不了", "mcp": "MCP 設定", "data": "資料歸屬（data）不合",
-          "external": "未鎖定執行環境（pack 外的程式）"}
+          "external": "未鎖定執行環境（pack 外的程式）", "container": "容器設定（Dockerfile）不合",
+          "container_note": "容器（Dockerfile）提醒"}
 
 _PLACEHOLDER = re.compile(r"\{(\w+)\}")
 _FLAG_VALUE = re.compile(r"^--?[A-Za-z0-9][A-Za-z0-9_-]*=\{(\w+)\}$")
@@ -228,7 +232,7 @@ class Finding:
     @property
     def blocking(self) -> bool:
         """不管宣告了什麼都擋（樣板不合、connector 有程式、解析不了）。"""
-        return self.kind in ("argv", "code", "syntax", "mcp", "data")
+        return self.kind in ("argv", "code", "syntax", "mcp", "data", "container")
 
     def where(self) -> str:
         return f"{self.file}:{self.line}" if self.line else self.file
@@ -1622,6 +1626,18 @@ def _binary_findings(opaque: List[dict]) -> List[Finding]:
     return [Finding(o["path"], 0, "binary", o["path"], f"掃不到內容：{o['why']}（{o['size']} bytes）") for o in opaque]
 
 
+def _container_findings(m: Manifest) -> List[Finding]:
+    """runtime.container 有 dockerfile：第 2 關掃 Dockerfile（packs/container.py；只讀檔，不 build）。
+    單一 FROM、FROM＝base（帶 digest）、ADD 網址、RUN --network、COPY --from 沒 digest → 擋；RUN 下載東西 → 列出來。"""
+    from synox.packs import container as pack_container
+    spec = pack_container.spec_of(m)
+    if not spec or not spec.get("dockerfile"):
+        return []
+    return [Finding(spec["dockerfile"], line, "container" if blocking else "container_note", snippet, detail)
+            for line, snippet, detail, blocking in
+            pack_container.dockerfile_issues(m.folder, spec["dockerfile"], spec.get("base", ""))]
+
+
 def scan(m: Manifest, exec_bits: Sequence[str] = ()) -> ScanReport:
     """exec_bits：zip 裡帶執行位元的檔（admin.stage 記的）；沒給＝只看檔案本身。"""
     files = pack_files(m.folder)
@@ -1633,6 +1649,7 @@ def scan(m: Manifest, exec_bits: Sequence[str] = ()) -> ScanReport:
         report.findings += _scan_python_files(m, files)
         report.findings += _check_mcp_stdio(m)
         report.findings += _check_data_cli(m)
+        report.findings += _container_findings(m)
         return report
     if m.kind in ("connector", "mcp"):
         opaque = {o["path"] for o in report.opaque}
@@ -1653,6 +1670,7 @@ def scan(m: Manifest, exec_bits: Sequence[str] = ()) -> ScanReport:
         report.findings += _external_findings(report.external, "cli.argv")
         report.findings += _inline_findings(m)
         report.findings += _blocked_findings(m)
+        report.findings += _container_findings(m)
     return report
 
 

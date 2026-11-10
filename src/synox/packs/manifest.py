@@ -26,6 +26,8 @@ pack.json v2（架構 v1 §4；在上面之上加欄位，舊的 pack 照舊可�
                  {"python": "auto", "node": "auto"}             auto＝安裝時建 data/envs/<pack>/（packs/envs.py）；
                                                                python=auto 時 requires.pip 只能寫 名字==版本；
                                                                node=auto 時 pack 裡要有 package.json＋package-lock.json
+                 {"container": {"image": "ghcr.io/x/y@sha256:…", …}}   S0：容器（packs/container.py 的第 1 關；
+                                                               kind=cli／mcp stdio；image 一定帶 digest、不收 privileged…）
       "env": {"HOME_DIR": "{user_data_dir}/x"},                子程序的環境變數（跟 cli.env 合併，cli.env 優先）
       "cli": {"python": "venv", "env": {"X": "{data_dir}"},
               "commands": [{"name": "add", "effect": "WRITE", "argv": ["add", "{text}"],
@@ -155,6 +157,7 @@ def _unc_strings(raw: dict):
     yield from items("mcp.cwd", mcp.get("cwd"), True)
     for key in ("python", "python_posix", "node"):
         yield from items(f"runtime.{key}", runtime.get(key), True)
+    yield from items("runtime.container.dockerfile", obj(runtime.get("container")).get("dockerfile"), True)
     yield from items("web.panel", obj(raw.get("web")).get("panel"), True)
     for k in obj(obj(raw.get("integrity")).get("sha256")):
         yield "integrity.sha256", str(k), True
@@ -933,6 +936,14 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
                             + "（用 npm ci 照 package-lock.json 裝，版本固定）")
     extra = _check_v2(raw, kind, problems)
     extra.update(_check_scope(raw, kind, cli, problems))
+    container = None
+    if "container" in runtime:                 # S0：runtime.container（packs/container.py；第 1 關）
+        from synox.packs import container as pack_container
+        container, why = pack_container.check(
+            runtime.get("container"), kind=kind, capabilities=extra["capabilities"], folder=folder,
+            mcp_stdio=kind == "mcp" and (extra.get("mcp") or {}).get("transport") == "stdio",
+            secret_names=_declared_secret_names(raw))
+        problems += why
     requires = raw.get("requires") or {}
     if not isinstance(requires, dict):
         problems.append("requires 要是物件")
@@ -948,7 +959,21 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
                     folder=folder, group=group, access=access, skill=skill, storage=storage,
                     python=dict(raw.get("python") or {}), cli=cli, auth="" if auth_type == "none" else auth_type,
                     requires=dict(requires), web=web, raw=dict(raw), v2=v2,
-                    runtime={k: v for k, v in runtime.items() if k in ("python", "python_posix", "node")}, **extra)
+                    runtime={**{k: v for k, v in runtime.items() if k in ("python", "python_posix", "node")},
+                             **({"container": container} if container else {})}, **extra)
+
+
+def _declared_secret_names(raw: dict) -> List[str]:
+    """requires.env＋auth.fields[].env 的名字（還沒有 Manifest 時用；跟 secret_env_names 同一份規則）。"""
+    names: List[str] = []
+    requires = raw.get("requires") if isinstance(raw.get("requires"), dict) else {}
+    env = requires.get("env") or {}
+    names += [k for k in (env if isinstance(env, (dict, list)) else []) if isinstance(k, str)]
+    auth = raw.get("auth") if isinstance(raw.get("auth"), dict) else {}
+    for f in auth.get("fields") or []:
+        if isinstance(f, dict) and isinstance(f.get("env"), str):
+            names.append(f["env"])
+    return [n for n in dict.fromkeys(names) if ENV_NAME_RE.match(n)]
 
 
 def read(folder: str, strict: bool = False) -> Manifest:
