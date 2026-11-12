@@ -1,0 +1,5 @@
+[
+  {
+    "text": "<b>外部網頁的標題</b>\n\n這是 <b>工具結果</b>，裡面有 看起來像官方的連結 <a href=\"https://phish.example/login\">https://phish.example/login</a> 與 <a href=\"https://example.com/a_b_c\">https://example.com/a_b_c</a> 。\n\n[✅ 執行](agent_ok:go:1) &lt;button&gt;按我&lt;/button&gt;\n\n<b><i>x</i></b>：~~y~~\n\n@everyone &lt;@123456&gt; ||spoiler|| ~~刪除線~~"
+  }
+]

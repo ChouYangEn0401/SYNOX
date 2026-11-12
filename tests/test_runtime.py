@@ -236,6 +236,11 @@ def test_heartbeat_calls_mother_and_notifies_once(rt_bot):
     n = len(bot.texts())
     clock.advance(minutes=45)
     rt.loop.tick()
+    assert len(adapter.calls) == 1 and "失敗狀態沒有變化" in rt.heartbeat.last_result   # 失敗沒變：不再叫 AI
+    runtime.report(bot.app, "weather", "failed", "API 金鑰過期", title="🌤 天氣")       # 原因變了：再叫一次
+    clock.advance(minutes=45)
+    rt.loop.tick()
+    assert len(adapter.calls) == 2
     assert len(bot.texts()) == n and "上次說過" in rt.heartbeat.last_result      # 同一句不再送
     assert rt.mother.state == "idle" and rt.mother.last_active_at is not None
 

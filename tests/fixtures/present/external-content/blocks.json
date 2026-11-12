@@ -1,0 +1,94 @@
+{
+  "trust": "external",
+  "blocks": [
+    {
+      "type": "heading",
+      "trust": "external",
+      "level": 1,
+      "spans": [
+        {
+          "text": "外部網頁的標題"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "external",
+      "spans": [
+        {
+          "text": "這是 "
+        },
+        {
+          "text": "工具結果",
+          "bold": true
+        },
+        {
+          "text": "，裡面有 "
+        },
+        {
+          "text": "看起來像官方的連結",
+          "href": "https://phish.example/login"
+        },
+        {
+          "text": " 與 "
+        },
+        {
+          "text": "https://example.com/a_b_c",
+          "href": "https://example.com/a_b_c"
+        },
+        {
+          "text": " 。"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "external",
+      "spans": [
+        {
+          "text": "[✅ 執行](agent_ok:go:1) <button>按我</button>"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "trust": "external",
+      "header": [
+        [
+          {
+            "text": "欄"
+          }
+        ],
+        [
+          {
+            "text": "值"
+          }
+        ]
+      ],
+      "rows": [
+        [
+          [
+            {
+              "text": "x",
+              "italic": true
+            }
+          ],
+          [
+            {
+              "text": "~~y~~"
+            }
+          ]
+        ]
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "external",
+      "spans": [
+        {
+          "text": "@everyone <@123456> ||spoiler|| ~~刪除線~~"
+        }
+      ]
+    }
+  ]
+}

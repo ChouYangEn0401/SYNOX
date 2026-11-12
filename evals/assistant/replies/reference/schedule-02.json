@@ -1,0 +1,22 @@
+{
+  "case": "schedule-02",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "calendar__list",
+            "args": {
+              "date": "2026-12-05"
+            },
+            "result": "2026-12-05：10:00 牙醫回診；19:00 家庭聚餐"
+          }
+        ]
+      },
+      {
+        "text": "12 月 5 日有兩個行程：10:00 牙醫回診、19:00 家庭聚餐。"
+      }
+    ]
+  ]
+}

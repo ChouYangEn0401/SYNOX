@@ -1,0 +1,42 @@
+{
+  "trust": "assistant",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "<script>alert(1)</script>"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "<b onclick=\"steal()\">粗體?</b> <img src=x onerror=alert(1)>"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "<a href=\"javascript:alert(1)\">點我</a> <style>body{display:none}</style>"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "<i>巢狀標籤</i>",
+          "bold": true
+        }
+      ]
+    }
+  ]
+}

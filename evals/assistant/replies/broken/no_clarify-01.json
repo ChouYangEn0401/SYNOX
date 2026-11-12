@@ -1,0 +1,16 @@
+{
+  "case": "no_clarify-01",
+  "source": "broken",
+  "note": "不該問卻問：明明可以直接記",
+  "expected_failures": [
+    "must_call",
+    "ask_back"
+  ],
+  "turns": [
+    [
+      {
+        "text": "要記在哪個分類？工作還是生活？"
+      }
+    ]
+  ]
+}

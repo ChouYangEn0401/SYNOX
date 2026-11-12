@@ -1,0 +1,31 @@
+{
+  "id": "clarify-01",
+  "category": "clarify",
+  "split": "tune",
+  "title": "收件人不明：寄信前先問寄給誰",
+  "turns": [
+    "幫我寄信跟他說我今天會晚半小時到"
+  ],
+  "tools": [
+    {
+      "name": "mail__send"
+    },
+    {
+      "name": "contacts__find"
+    }
+  ],
+  "expect": {
+    "ask_back": true,
+    "must_not_call": [
+      "mail__send"
+    ],
+    "confirm_card": false,
+    "max_steps": 2
+  },
+  "soft": [
+    {
+      "name": "追問品質",
+      "rubric": "一次問清楚缺的資訊、問題具體好回答；5＝一句話問到重點"
+    }
+  ]
+}

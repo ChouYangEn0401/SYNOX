@@ -27,7 +27,7 @@ from typing import Iterable, List, Optional, Tuple
 
 from isdtelekit.core.registry import DANGER, Node
 
-from synox import policy
+from synox import policy, present
 from synox.agent import delimit
 from synox.agent import skills as skills_mod
 from synox.agent import tools as tools_mod
@@ -174,7 +174,7 @@ class RoomAgent(AgentLoop):
         safe = redact_reply(self.app, getattr(self._local, "speaker", None), text)
         if safe != text:
             logging.warning("[ROOM-AI] %s: masked a secret-looking string in the reply", self.spec.name)
-        api.send_message(chat_id, safe)
+        present.deliver(self.app, api, chat_id, safe)        # 呈現層（預設關＝原樣 api.send_message）；遮過才畫
         return safe
 
     def system_prompt(self, skills, tools, native: bool, user=None, nonce: str = "") -> str:

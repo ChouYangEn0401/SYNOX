@@ -1,0 +1,4 @@
+[js](javascript:alert(1)) [JS 大寫](JAVASCRIPT:alert(1)) [data](data:text/html;base64,PHNjcmlwdD4=)
+[file](file:///etc/passwd) [相對](/admin) [空白]( javascript:alert(1)) [引號](https://ok.example/"onmouseover="x)
+<javascript:alert(1)> <https://safe.example/path?a=1&b=2>
+[好的](https://example.com/ok) https://example.com/trailing.

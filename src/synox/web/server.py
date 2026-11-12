@@ -1,5 +1,5 @@
 """
-Web UI 的 HTTP 那一層（標準函式庫 ThreadingHTTPServer，只綁 127.0.0.1）。
+Web UI 的 HTTP 那一層（標準函式庫 ThreadingHTTPServer，只綁 127.0.0.1；唯一例外是 SYNOX 自己的容器，見 bind_host）。
 
 設計：所有判斷都在 WebUI.route(method, path, headers, body, session) -> (status, headers, body)；
 BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。測試直接呼叫 route／handle，不開埠。
@@ -54,7 +54,14 @@ from synox.web.channel import WEB, WebChannel
 from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore
 from synox.web.tokens import LoginTokens, Session, Sessions, digest
 
-HOST = "127.0.0.1"                    # 永遠只綁這個；要對外由營運者自己架反向代理＋TLS（docs/security.md）
+HOST = "127.0.0.1"                    # 只綁這個；要對外由營運者自己架反向代理＋TLS（docs/security.md）。
+#                                       唯一的例外是 SYNOX 自己的容器（bind_host，docs/docker.md「為什麼容器裡綁 0.0.0.0 是安全的」）
+CONTAINER_ENV = "SYNOX_IN_CONTAINER"  # 映像檔（Dockerfile）設成 1
+BIND_ENV = "SYNOX_WEB_BIND"           # 容器裡才收：0.0.0.0（讓宿主經 compose 發佈到宿主 127.0.0.1 的埠連進來）
+CONTAINER_BIND_HOSTS = (HOST, "0.0.0.0")
+# 「真的在容器裡」的證據（任一個存在就算）：Docker 的 /.dockerenv、podman 的 /run/.containerenv、
+# SYNOX 映像檔自己放的 /etc/synox/container。光有環境變數不夠：怕有人在一般電腦上照抄容器的環境變數
+CONTAINER_MARKERS = ("/.dockerenv", "/run/.containerenv", "/etc/synox/container")
 COOKIE = "synox_session"
 LOGIN_COOKIE = "synox_login"          # 登入確認頁發的、綁這個瀏覽器（POST /login 要帶）
 LOGIN_FORM_TTL = 600.0
@@ -163,6 +170,33 @@ def _cookie(headers: Dict[str, str], name: str) -> Optional[str]:
     return None
 
 
+class BindError(ValueError):
+    """SYNOX_WEB_BIND／SYNOX_IN_CONTAINER 不合規則：網頁不開（fail closed），訊息是給人看的那句。"""
+
+
+def bind_host(environ=None, *, exists=os.path.exists, platform: Optional[str] = None) -> str:
+    """網頁要綁哪個位址。預設（沒設 SYNOX_WEB_BIND，或設成 127.0.0.1）＝127.0.0.1，跟以前一樣。
+    只有三件事同時成立才綁 0.0.0.0：SYNOX_WEB_BIND=0.0.0.0、SYNOX_IN_CONTAINER=1、不是 Windows 而且看得到容器的證據
+    （CONTAINER_MARKERS）。容器裡的 0.0.0.0 只是容器自己的網卡；宿主那一邊由 compose 只發佈到 127.0.0.1（docs/docker.md）。
+    其他值（區網位址、::、localhost、打錯字）、或不在容器裡卻要改綁 → BindError，網頁不開。"""
+    environ = os.environ if environ is None else environ
+    platform = os.name if platform is None else platform
+    wanted = (environ.get(BIND_ENV) or "").strip()
+    if not wanted or wanted == HOST:
+        return HOST
+    if wanted not in CONTAINER_BIND_HOSTS:
+        raise BindError(f"{BIND_ENV}={wanted!r} 不收：只能是 127.0.0.1（預設）或 0.0.0.0（只限 SYNOX 的容器裡）。"
+                        "要讓別台電腦連進來請架反向代理＋TLS（docs/security.md「網頁介面」）。")
+    flag = (environ.get(CONTAINER_ENV) or "").strip()
+    if flag != "1":
+        raise BindError(f"{BIND_ENV}={wanted} 只能在 SYNOX 的容器裡用（要 {CONTAINER_ENV}=1，現在是 {flag or '沒設'}）；"
+                        "一般電腦上網頁只綁 127.0.0.1。拿掉這個環境變數就好。")
+    if platform == "nt" or not any(exists(p) for p in CONTAINER_MARKERS):
+        raise BindError(f"設了 {CONTAINER_ENV}=1，但這裡看起來不是容器（找不到 {'、'.join(CONTAINER_MARKERS)}）："
+                        f"不改綁位址。一般電腦上請拿掉 {BIND_ENV}。")
+    return wanted
+
+
 def login_link(config, token: str, port: Optional[int] = None) -> str:
     web = getattr(config, "web", {}) or {}
     base = (web.get("public_url") or "").rstrip("/") or f"http://{HOST}:{port or web.get('port', 8830)}"
@@ -196,6 +230,7 @@ class WebUI:
         self.channel_probes = None            # (telegram_probe, discord_probe)；None＝真的（wizard 那兩個）
         self._mother_fresh: set = set()       # 這次執行中已經清過「常駐助理」聊天畫面的人（重開 SYNOX＝它的記憶清空）
         self._channels_changed: set = set()   # 這次執行中改過的聊天通道（要重開才生效）
+        self.bind_host = bind_host            # 綁哪個位址（start 時讀環境變數；測試換成假的容器證據）
 
     # ── 登入連結 ─────────────────────────────────────────────────────
 
@@ -213,9 +248,15 @@ class WebUI:
         if not self.enabled or self.disabled or self._server is not None:
             return False
         try:
-            server = _Server((HOST, self.port), _Handler)
+            host = self.bind_host()
+        except BindError as e:
+            self.error = f"網頁介面沒有開：{e}"
+            logging.error("[WEB] %s", self.error)
+            return False
+        try:
+            server = _Server((host, self.port), _Handler)
         except OSError as e:
-            self.error = (f"網頁介面開不起來：127.0.0.1:{self.port} 不能用（{e}）。"
+            self.error = (f"網頁介面開不起來：{host}:{self.port} 不能用（{e}）。"
                           f"改 config.json 的 web.port 換一個埠，或設 web.enabled=false 不開；bot 其他功能照常。")
             logging.error("[WEB] %s", self.error)
             return False
@@ -226,6 +267,9 @@ class WebUI:
         self.error = ""
         self._thread = threading.Thread(target=server.serve_forever, daemon=True, name="WebUI")
         self._thread.start()
+        if host != HOST:
+            logging.info("[WEB] 容器模式：綁容器裡的 %s:%s；宿主那一邊只該發佈到 127.0.0.1（docs/docker.md）",
+                         host, self.port)
         logging.info("[WEB] http://%s:%s/ （/web 拿登入連結）", HOST, self.port)
         return True
 

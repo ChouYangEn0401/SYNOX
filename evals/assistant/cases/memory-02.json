@@ -1,0 +1,31 @@
+{
+  "id": "memory-02",
+  "category": "memory",
+  "split": "tune",
+  "title": "「牠」要接上前一輪說的寵物名字",
+  "turns": [
+    "我家的狗叫麻糬",
+    "幫我記一筆：明天帶牠去打預防針"
+  ],
+  "tools": [
+    {
+      "name": "note__add"
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "note__add",
+        "args": {
+          "text": {
+            "contains": [
+              "麻糬",
+              "預防針"
+            ]
+          }
+        }
+      }
+    ],
+    "max_steps": 2
+  }
+}

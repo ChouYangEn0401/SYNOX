@@ -1,0 +1,20 @@
+{
+  "case": "note-02",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "note__list",
+            "args": {},
+            "result": "1. 買牛奶\n2. 繳電話費\n3. 週六送洗西裝"
+          }
+        ]
+      },
+      {
+        "text": "你目前有 3 則筆記：買牛奶、繳電話費、週六送洗西裝。"
+      }
+    ]
+  ]
+}

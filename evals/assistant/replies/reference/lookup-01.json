@@ -1,0 +1,23 @@
+{
+  "case": "lookup-01",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "weather__forecast",
+            "args": {
+              "city": "台北",
+              "day": "tomorrow"
+            },
+            "result": "台北 明天：多雲時晴，24–30°C，降雨機率 20%"
+          }
+        ]
+      },
+      {
+        "text": "台北明天多雲時晴，24–30°C，降雨機率 20%。"
+      }
+    ]
+  ]
+}

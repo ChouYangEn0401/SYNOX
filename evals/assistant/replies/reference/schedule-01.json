@@ -1,0 +1,24 @@
+{
+  "case": "schedule-01",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "calendar__add",
+            "args": {
+              "date": "2026-12-03",
+              "time": "15:00",
+              "title": "跟王小明開會"
+            },
+            "result": "已新增行程：2026-12-03 15:00 跟王小明開會"
+          }
+        ]
+      },
+      {
+        "text": "排好了：12 月 3 日 15:00 跟王小明開會。"
+      }
+    ]
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "id": "no_clarify-02",
+  "category": "no_clarify",
+  "split": "holdout",
+  "title": "沒說金額就是 1：直接換算，不要反問",
+  "turns": [
+    "現在一歐元換多少台幣？"
+  ],
+  "tools": [
+    {
+      "name": "currency__convert",
+      "results": [
+        {
+          "when": {
+            "amount": "1",
+            "source": {
+              "regex": "(?i)^eur$"
+            },
+            "target": {
+              "regex": "(?i)^twd$"
+            }
+          },
+          "reply": "1 EUR ≈ 35 TWD（範例匯率 35.0）"
+        },
+        {
+          "reply": "不支援這個幣別"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "currency__convert",
+        "args": {
+          "amount": "1",
+          "source": {
+            "regex": "(?i)eur"
+          },
+          "target": {
+            "regex": "(?i)twd"
+          }
+        }
+      }
+    ],
+    "ask_back": false,
+    "final_contains": [
+      "35"
+    ],
+    "max_steps": 2
+  }
+}
