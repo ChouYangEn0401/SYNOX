@@ -8,8 +8,9 @@
 教學：docs/handoff/real-service-testing.md。
 
 規則：
-- 直接用各 connector 自己的程式（connectors/*/pack.py 的 Notion、Client…、synox.discord 的 DiscordChannel），不另寫一套 API 呼叫，
-  所以這裡通了＝SYNOX 用起來也通。
+- 直接用各工具自己的程式（pack.py 的 Notion、Client…、synox.discord 的 DiscordChannel），不另寫一套 API 呼叫，
+  所以這裡通了＝SYNOX 用起來也通。四個服務的工具 2026-11-12 起在 SYNOX 工具庫（SYNOX_Libs）：先找這台裝好的
+  （packs/、packs.dirs），沒裝就找工具庫的原始碼（環境變數 SYNOX_LIBS，沒設就找並排的 ../SYNOX_Libs）。
 - 憑證：先讀 SYNOX 的保管箱（使用者先用 /notion_token、/todoist_token、/gcal_setup＋/gcal_code、Connect-Apple.bat、
   python -m synox discord token 設好）；保管箱沒有，就在這裡用 getpass 問（不顯示、不存、不寫檔）。
   憑證絕不印出：輸出前把這次碰到的每個憑證換成 ***；非預期的錯誤只印錯誤種類，不印內容。
@@ -70,6 +71,13 @@ class Plan:
     item: str
     what: str
     run: Callable[[], str]
+
+
+def libs_packs_dir() -> str:
+    """SYNOX 工具庫的 packs/（環境變數 SYNOX_LIBS，沒設就找並排的 ../SYNOX_Libs）；找不到回 ""。只讀，不改工具庫。"""
+    root = os.environ.get("SYNOX_LIBS") or os.path.join(os.path.dirname(ROOT), "SYNOX_Libs")
+    packs = os.path.join(root, "packs")
+    return packs if os.path.isdir(packs) else ""
 
 
 class Skip(Exception):
@@ -147,11 +155,13 @@ class Smoke:
     # ── 共用 ─────────────────────────────────────────────────────────
 
     def module(self, service: str):
-        """connectors/<…>/pack.py 原樣載入（不呼叫 install；只用裡面的 Client 與小工具）。"""
+        """那個工具的 pack.py 原樣載入（不呼叫 install；只用裡面的 Client 與小工具）。
+        先找這台裝好的（packs/、packs.dirs），再找工具庫的原始碼（libs_packs_dir）。"""
         if service in self._modules:
             return self._modules[service]
         wanted = PACK[service]
-        for folder in discover(self.config.pack_dirs()):
+        dirs = tuple(self.config.pack_dirs()) + tuple(d for d in (libs_packs_dir(),) if d)
+        for folder in discover(dirs):
             try:
                 m = read(folder)
             except ManifestError:
@@ -165,7 +175,7 @@ class Smoke:
             spec.loader.exec_module(mod)
             self._modules[service] = (m, mod)
             return m, mod
-        raise Skip(f"找不到 {wanted} 這個 connector（connectors/ 底下）")
+        raise Skip(f"找不到 {wanted} 這個工具：先從 SYNOX 工具庫裝它，或設環境變數 SYNOX_LIBS=<SYNOX_Libs 資料夾>")
 
     def store(self, m):
         """這個 pack 在保管箱的那一份（跟 pack 自己讀的同一份）。沒有保管箱（金鑰檔還沒產生）＝空的。"""

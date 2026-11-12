@@ -19,8 +19,8 @@ pack 的 secret（pack.json 的 auth.fields[]）：使用者在 Web UI 工具頁
 哪些 pack 由 SYNOX 管（managed）：auth.type 是 token／file、有 fields，而且
   kind=cli、真的會連的 kind=mcp（stdio：放進子程序環境；http：當 Authorization: Bearer，P4b），
   或 kind=python 的原始碼有呼叫 `.secret(…)`（pack.secret）；`auth.managed` 可以明講
-  "synox"（一定管）或 "pack"（pack 自己管，例如內建 connector 的 /todoist_token）。
-內建的 connector（notion／todoist／google-calendar／apple-reminders）都沒有呼叫 pack.secret，所以不受影響。
+  "synox"（一定管）或 "pack"（pack 自己管，例如 todoist 工具的 /todoist_token）。
+工具庫的 notion／todoist／google-calendar／apple-reminders（2026-11-12 以前是內建 connector）都沒有呼叫 pack.secret，所以不受影響。
 """
 
 from __future__ import annotations
