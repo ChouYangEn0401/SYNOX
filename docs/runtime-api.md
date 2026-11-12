@@ -15,7 +15,7 @@
 
 ## `GET /api/runtime/status`
 
-整體狀態：心跳、常駐助理、所有任務。
+整體狀態：心跳、常駐助理、所有任務、連動（`activator`，下面另一節）。
 
 ```json
 {
@@ -65,6 +65,88 @@
 | `tasks[].schedule` | 一句給人看的話：`"每 30 秒"`、`"每 45 分鐘"`、`"關閉"`、`"自己回報"` |
 | `tasks[].state` | `"ok"`｜`"running"`｜`"failed"`｜`"idle"`（登記了還沒跑過、或關掉了） |
 | `tasks[].last_message` | 最後一則訊息（最多 200 字）；沒有＝`null`。重開 SYNOX 後是 `null`（訊息只在記憶體） |
+
+### `activator`（連動，[adr/0004](adr/0004-activator-event-driven-rules.md)）
+
+`status` 多的一塊（2026-11-12 起；舊後端沒有這個鍵，前端要當作「沒有連動」）：
+
+```json
+"activator": {
+  "enabled": true,
+  "paused": null,
+  "limits": {"max_depth": 5, "max_chain_actions": 20, "max_fanout": 10, "budget_window_min": 10, "budget_max_actions": 60},
+  "budget_used": 2,
+  "rules": [
+    {"id": "pack.diarydemo.ask-checkin", "name": "日記圖片好了 → 問要不要打卡", "owner": "diarydemo",
+     "on": "pack.diarydemo", "states": ["ok"], "from": [], "tag": "diary-image", "action": "程式（工具 diarydemo）",
+     "timing": "now", "status": "active", "reason": null, "tripped_at": null,
+     "last_fired_at": "2026-11-12T14:30:00+08:00", "fired_last_hour": 1, "max_per_hour": 30, "cooldown_s": 60,
+     "failures": 0, "skipped": 0, "last_note": "做了"},
+    {"id": "weather-back", "name": "weather-back", "owner": "config", "on": "pack.weather", "states": ["ok"],
+     "from": ["failed"], "tag": null, "action": "通知你：天氣恢復了", "timing": "heartbeat", "status": "tripped",
+     "reason": "一小時內觸發超過 30 次", "tripped_at": "2026-11-12T14:31:00+08:00", "last_fired_at": "2026-11-12T14:31:00+08:00",
+     "fired_last_hour": 30, "max_per_hour": 30, "cooldown_s": 0, "failures": 0, "skipped": 4, "last_note": "暫停這條規則：一小時內觸發超過 30 次"}
+  ],
+  "rejected": [{"id": "pack.foo.loop", "reason": "會繞回自己（無限連動）：pack.foo.loop → pack.foo.loop"}],
+  "pending": [{"id": "1a2b3c4d", "rule": "weather-back", "task": "pack.weather", "state": "ok", "tag": "",
+               "at": "2026-11-12T14:31:00+08:00"}],
+  "events": [
+    {"id": "9f8e7d6c", "task": "pack.diarydemo", "state": "ok", "prev": "ok", "tag": "diary-image",
+     "at": "2026-11-12T14:30:00+08:00", "chain": "0a1b2c3d", "depth": 0,
+     "fired": ["pack.diarydemo.ask-checkin"], "skipped": []}
+  ]
+}
+```
+
+| 欄位 | 說明 |
+|---|---|
+| `enabled` | `config.json` 的 `runtime.activator.enabled`；`false`＝規則一律略過（`rules[].status` 都是 `off`） |
+| `paused` | 全部暫停（總量超過上限）：`{"reason", "at"}`；沒有＝`null`。按 `POST …/activator/resume` 恢復 |
+| `limits`、`budget_used` | 上限（見 ADR 0004 §3）；`budget_used`＝最近 `budget_window_min` 分鐘全部規則做了幾件 |
+| `rules[]` | 每條規則。順序：config.json 的、系統的、pack 的，各自照 id 排 |
+| `rules[].owner` | `"config"`（config.json）、`"system"`、或 pack 名 |
+| `rules[].states`、`from`、`tag` | 條件：任務 `on` 變成 `states` 其中一個（`from` 不是空的＝而且是從這幾個變過來；`tag` 不是 `null`＝標籤要一樣） |
+| `rules[].action` | 一句給人看的話：`"跑任務 <id>"`、`"通知你：…"`、`"程式（系統）"`、`"程式（工具 <名字>）"` |
+| `rules[].timing` | `"now"`（馬上）｜`"heartbeat"`（留成待處理，等下一次心跳） |
+| `rules[].status` | `"active"`｜`"tripped"`（暫停了，`reason` 寫原因，按 reset 恢復）｜`"off"`（關著） |
+| `rules[].last_note` | 上一次的結果或略過的原因（只在記憶體；重開後 `null`） |
+| `rejected[]` | 登記時發現會繞回自己、沒有收的規則（pack 定義的；config.json 的循環在啟動時就是設定錯誤） |
+| `pending[]` | 留給心跳的待處理（最多 100 件，超過一天的丟掉）；`id` 是 8 個十六進位字 |
+| `events[]` | 最近有規則在聽的狀態變化（新的在前，最多 20 個）；`chain`＝連動串 id、`depth`＝第幾層、`fired[]`＝做了（或排進待處理）的規則、`skipped[]`＝`{"rule", "reason"}` |
+
+事件與待處理**沒有任務訊息**（訊息可能有個人資料，只在記憶體）。
+
+## `POST /api/runtime/activator/rules/<id>/reset`
+
+解除一條規則的暫停（連同連續失敗數、這一小時的次數）。`<id>` 跟 `rules[].id` 一樣（`[a-z0-9._-]`，最多 128 字）。body 可以是 `{}`。
+
+```json
+{"ok": true, "message": "重設了，這條規則會再照常動作。"}
+```
+
+沒有這條 → `404 {"error": "沒有這條連動規則。"}`。
+
+## `POST /api/runtime/activator/resume`
+
+解除「全部暫停」（連同這段時間的總數）。
+
+```json
+{"ok": true, "message": "恢復了，連動會再照常動作。"}
+```
+
+本來就沒暫停也是 `200`，`message` 是「本來就沒有全部暫停。」。
+
+## `POST /api/runtime/activator/pending/run`
+
+待處理現在就做（不等心跳；在背景開始做，不等它做完）。暫停中的規則的待處理留著。
+
+```json
+{"ok": true, "count": 2, "message": "開始處理 2 件。"}
+```
+
+## `POST /api/runtime/activator/pending/<id>/dismiss`
+
+丟掉一件待處理（不做）。`{"ok": true}`；沒有這件（可能已經處理掉了）→ `404`。
 
 ## `POST /api/runtime/heartbeat`
 
@@ -158,6 +240,7 @@ body：
 ## 不在這個合約裡（之後要加先改這份）
 
 - 暫停／恢復單一任務、刪掉 pack 回報的任務。
+- 在網頁新增、修改、刪除連動規則（現在改 `config.json` 或寫在 pack 裡）。
 - 改安靜時段、每天最多通知幾次（現在只能改 `config.json`）。
 - 即時推送（現在前端自己輪詢 `status`；建議 15～30 秒一次，畫面不在前景就停）。
 

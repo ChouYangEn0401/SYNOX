@@ -1,0 +1,12 @@
+{
+  "name": "diarydemo",
+  "title": "🧪 連動示範（日記）",
+  "summary": "測試用：日記圖片做好之後，連動再問一次要不要打卡",
+  "version": "0.1.0",
+  "kind": "python",
+  "access": "owner",
+  "surfaces": ["dm"],
+  "data": "none",
+  "python": { "module": "pack" },
+  "skill": "SKILL.md"
+}

@@ -5,12 +5,16 @@
  * 下半部 mount() 才畫畫面。文字一律 textContent。
  *
  * API（全部擁有者才能叫；非 GET 帶 X-SYNOX-CSRF，跟 app.html 的 api() 一樣）：
- *   GET  /api/runtime/status              {heartbeat, mother, tasks}
+ *   GET  /api/runtime/status              {heartbeat, mother, tasks, activator}
  *   POST /api/runtime/heartbeat           {enabled?, interval_min?} → 新的 heartbeat
  *   POST /api/runtime/heartbeat/run-now   → {ok, message}
  *   POST /api/runtime/mother/reset-memory → {ok}
  *   GET  /api/runtime/soul                {text, updated_at}；PUT 同一個網址 {text}
  *   GET  /api/runtime/tasks/<id>/log      {lines: [...]}
+ *   POST /api/runtime/activator/rules/<id>/reset      連動規則解除暫停 → {ok, message}
+ *   POST /api/runtime/activator/resume                全部連動恢復 → {ok, message}
+ *   POST /api/runtime/activator/pending/run           留給心跳的現在處理 → {ok, count, message}
+ *   POST /api/runtime/activator/pending/<id>/dismiss  丟掉一件待處理 → {ok}
  */
 (function (root) {
   "use strict";
@@ -33,8 +37,18 @@
     off: { tone: "idle", label: "關著", hint: "常駐助理沒有在跑：heartbeat 和排定的任務不會自己動。" }
   };
 
+  // 連動規則的狀態（docs/adr/0004）
+  var RULE_STATUS = {
+    active: { tone: "ok", label: "啟用中" },
+    tripped: { tone: "bad", label: "暫停了" },
+    off: { tone: "idle", label: "關著" }
+  };
+
   function taskState(state) {
     return TASK_STATES[state] || { tone: "idle", label: "不明" };
+  }
+  function ruleStatus(status) {
+    return RULE_STATUS[status] || { tone: "idle", label: "不明" };
   }
   function motherState(state) {
     return MOTHER_STATES[state] || { tone: "idle", label: "不明", hint: "讀不到常駐助理的狀態。" };
@@ -123,7 +137,75 @@
       }).map(function (t) {
         return { id: String(t.id), name: t.name || String(t.id), owner: t.owner || "", schedule: t.schedule || "",
                  state: t.state || "idle", last_run_at: t.last_run_at || null, last_message: t.last_message || "" };
-      })
+      }),
+      activator: normalizeActivator(d.activator)
+    };
+  }
+
+  function objects(x) {
+    return Array.isArray(x) ? x.filter(function (i) { return i && typeof i === "object"; }) : [];
+  }
+  function strings(x) {
+    return Array.isArray(x) ? x.filter(function (i) { return typeof i === "string"; }) : [];
+  }
+
+  // 連動（舊後端沒有這塊＝null，畫面不顯示那張卡）
+  function normalizeActivator(a) {
+    if (!a || typeof a !== "object") { return null; }
+    return {
+      enabled: a.enabled !== false,
+      paused: a.paused && typeof a.paused === "object" ? { reason: String(a.paused.reason || ""), at: a.paused.at || null } : null,
+      rules: objects(a.rules).map(function (r) {
+        return { id: String(r.id || ""), name: r.name || String(r.id || ""), owner: r.owner || "", on: r.on || "",
+                 states: strings(r.states), tag: r.tag || "", action: r.action || "",
+                 timing: r.timing === "heartbeat" ? "heartbeat" : "now", status: r.status || "active",
+                 reason: r.reason || "", last_fired_at: r.last_fired_at || null, last_note: r.last_note || "" };
+      }),
+      pending: objects(a.pending).map(function (p) {
+        return { id: String(p.id || ""), rule: String(p.rule || ""), task: String(p.task || ""), state: p.state || "",
+                 at: p.at || null };
+      }),
+      events: objects(a.events).map(function (e) {
+        return { task: String(e.task || ""), state: e.state || "", tag: e.tag || "", at: e.at || null,
+                 fired: strings(e.fired), skipped: objects(e.skipped) };
+      }),
+      rejected: objects(a.rejected).map(function (r) { return { id: String(r.id || ""), reason: String(r.reason || "") }; })
+    };
+  }
+
+  // 連動那張卡要顯示的字：任務、規則都用名字（不貼 id 與內部詞）
+  function activatorView(a, tasks, now) {
+    if (!a) { return null; }
+    var taskNames = {}, ruleNames = {};
+    (tasks || []).forEach(function (t) { taskNames[t.id] = t.name; });
+    a.rules.forEach(function (r) { ruleNames[r.id] = r.name; });
+    function tname(id) { return taskNames[id] || id; }
+    function rname(id) { return ruleNames[id] || id; }
+    function sw(s) { return taskState(s).label; }
+    var tripped = a.rules.filter(function (r) { return r.status === "tripped"; }).length;
+    return {
+      paused: a.paused ? "全部連動暫停了：" + a.paused.reason + "。處理好之後按「恢復」。" : "",
+      brief: !a.enabled ? "連動整個關著（在設定檔裡關掉的）。"
+        : !a.rules.length ? "還沒有連動規則。"
+        : a.rules.length + " 條規則" + (tripped ? "，" + tripped + " 條暫停了" : "，都正常") +
+          (a.pending.length ? "；" + a.pending.length + " 件等心跳處理" : ""),
+      alert: tripped > 0 || !!a.paused,
+      rules: a.rules.map(function (r) {
+        var st = ruleStatus(r.status);
+        return { id: r.id, name: r.name, tone: st.tone, label: st.label, canReset: r.status === "tripped",
+                 line: "當「" + tname(r.on) + "」" + (r.tag ? "的「" + r.tag + "」" : "") + "變成" +
+                   (r.states.map(sw).join("或") || "—") + " → " + r.action + (r.timing === "heartbeat" ? "（等心跳）" : "（馬上）"),
+                 reason: r.reason, last: when(r.last_fired_at, now, "還沒動過"), note: r.last_note };
+      }),
+      pending: a.pending.map(function (p) {
+        return { id: p.id, text: rname(p.rule) + "：「" + tname(p.task) + "」變成" + sw(p.state), when: when(p.at, now, "") };
+      }),
+      events: a.events.slice(0, 10).map(function (e) {
+        return when(e.at, now, "") + "　「" + tname(e.task) + "」" + (e.tag ? "（" + e.tag + "）" : "") + "→ " + sw(e.state) +
+          (e.fired.length ? "；做了：" + e.fired.map(rname).join("、") : "") +
+          (e.skipped.length ? "；略過：" + e.skipped.map(function (s) { return rname(String(s.rule || "")) + "（" + (s.reason || "") + "）"; }).join("、") : "");
+      }),
+      rejected: a.rejected.map(function (r) { return rname(r.id) + "：" + r.reason; })
     };
   }
 
@@ -164,7 +246,8 @@
         return { id: t.id, name: t.name, owner: t.owner || "SYNOX", schedule: t.schedule || "—",
                  tone: st.tone, label: st.label, last: when(t.last_run_at, now, "還沒跑過"),
                  message: t.last_message || "" };
-      })
+      }),
+      activator: activatorView(s.activator, s.tasks, now)
     };
   }
 
@@ -218,7 +301,15 @@
       resetMemory: function () { return call("POST", "/api/runtime/mother/reset-memory", {}); },
       soul: function () { return call("GET", "/api/runtime/soul"); },
       saveSoul: function (text) { return call("PUT", "/api/runtime/soul", { text: String(text) }); },
-      taskLog: function (id) { return call("GET", "/api/runtime/tasks/" + encodeURIComponent(id) + "/log"); }
+      taskLog: function (id) { return call("GET", "/api/runtime/tasks/" + encodeURIComponent(id) + "/log"); },
+      resetRule: function (id) {
+        return call("POST", "/api/runtime/activator/rules/" + encodeURIComponent(id) + "/reset", {});
+      },
+      resumeActivator: function () { return call("POST", "/api/runtime/activator/resume", {}); },
+      runPending: function () { return call("POST", "/api/runtime/activator/pending/run", {}); },
+      dismissPending: function (id) {
+        return call("POST", "/api/runtime/activator/pending/" + encodeURIComponent(id) + "/dismiss", {});
+      }
     };
   }
 
@@ -346,6 +437,32 @@
     tasks.appendChild(tSummary); tasks.appendChild(tList);
     body.appendChild(tasks);
 
+    // 連動（docs/adr/0004）：後端沒有這塊就整張藏起來
+    var act = card("🔗", "連動", "一件事做完就馬上接著做下一件（例如：日記圖片做好了 → 問你要不要打卡）。" +
+      "會繞回自己、太頻繁、一直失敗的規則會自己暫停，在這裡看原因、按「重設」。");
+    act.classList.add("hidden");
+    var aSummary = el("p", "ctl-summary");
+    var aPaused = el("div", "row ctl-actions hidden");
+    var aPausedText = el("p", "alert", "");
+    var aResume = el("button", "primary sm", "恢復"); aResume.type = "button";
+    aPaused.appendChild(aPausedText); aPaused.appendChild(aResume);
+    var aRules = el("ul", "ctl-tasks");
+    var aPendHead = el("p", "ctl-summary hidden", "");
+    var aPending = el("ul", "ctl-tasks");
+    var aPendRow = el("div", "row ctl-actions hidden");
+    var aRunPending = el("button", "sm", "現在處理"); aRunPending.type = "button";
+    aPendRow.appendChild(aRunPending);
+    var aRejected = el("p", "alert hidden", "");
+    var aEventsBox = el("details", "");
+    aEventsBox.appendChild(el("summary", "", "最近的連動紀錄"));
+    var aEvents = el("pre", "ctl-pre", "");
+    aEventsBox.appendChild(aEvents);
+    var aMsg = el("p", "msgline"); aMsg.setAttribute("aria-live", "polite");
+    [aSummary, aPaused, aRules, aPendHead, aPending, aPendRow, aRejected, aEventsBox, aMsg].forEach(function (n) {
+      act.appendChild(n);
+    });
+    body.appendChild(act);
+
     // 偏好（soul.md）
     var soul = card("📜", "你的偏好（soul.md）",
       "常駐助理記你的喜好、習慣、要它注意的事的地方，它每次醒來都會先讀。這個檔只存在這台電腦，不會上傳。");
@@ -401,6 +518,9 @@
       swInput: swInput, swText: swText, interval: interval, saveInterval: saveInterval,
       hbNext: hbNext.value, hbLast: hbLast.value, hbResult: hbResult.value, runNow: runNow, hbMsg: hbMsg,
       tSummary: tSummary, tList: tList,
+      act: act, aSummary: aSummary, aPaused: aPaused, aPausedText: aPausedText, aResume: aResume, aRules: aRules,
+      aPendHead: aPendHead, aPending: aPending, aPendRow: aPendRow, aRunPending: aRunPending, aRejected: aRejected,
+      aEventsBox: aEventsBox, aEvents: aEvents, aMsg: aMsg,
       soulText: soulText, soulWhen: soulWhen, soulDirty: soulDirty, soulSave: soulSave, soulUndo: soulUndo,
       soulMsg: soulMsg,
       resetOpen: resetOpen, confirmBox: confirmBox, resetGo: resetGo, resetNo: resetNo, resetMsg: resetMsg
@@ -430,6 +550,76 @@
     d.tSummary.textContent = v.summary;
     clear(d.tList);
     v.tasks.forEach(function (t) { d.tList.appendChild(taskRow(t)); });
+    renderActivator(v.activator);
+  }
+
+  function renderActivator(a) {
+    var d = ui.dom;
+    d.act.classList.toggle("hidden", !a);
+    if (!a) { return; }
+    d.aSummary.textContent = a.brief;
+    d.aSummary.classList.toggle("alert", a.alert);
+    d.aPaused.classList.toggle("hidden", !a.paused);
+    d.aPausedText.textContent = a.paused;
+    clear(d.aRules);
+    a.rules.forEach(function (r) { d.aRules.appendChild(ruleRow(r)); });
+    d.aPendHead.classList.toggle("hidden", !a.pending.length);
+    d.aPendHead.textContent = a.pending.length ? "等心跳處理的（" + a.pending.length + " 件）：" : "";
+    clear(d.aPending);
+    a.pending.forEach(function (p) { d.aPending.appendChild(pendingRow(p)); });
+    d.aPendRow.classList.toggle("hidden", !a.pending.length);
+    d.aRejected.classList.toggle("hidden", !a.rejected.length);
+    d.aRejected.textContent = a.rejected.length ? "沒有收的規則（會繞回自己）：" + a.rejected.join("；") : "";
+    d.aEventsBox.classList.toggle("hidden", !a.events.length);
+    d.aEvents.textContent = a.events.join("\n");
+  }
+
+  function ruleRow(r) {
+    var li = el("li", "ctl-task");
+    var head = el("div", "ctl-task-head");
+    head.appendChild(badge(r.tone, r.label));
+    var main = el("span", "ctl-task-main");
+    main.appendChild(el("span", "ctl-task-name", r.name));
+    main.appendChild(el("span", "ctl-task-meta", r.line + "・上次 " + r.last));
+    if (r.reason) { main.appendChild(el("span", "ctl-task-msg alert", "暫停的原因：" + r.reason)); }
+    else if (r.note) { main.appendChild(el("span", "ctl-task-msg", r.note)); }
+    head.appendChild(main);
+    if (r.canReset) {
+      var btn = el("button", "sm", "重設"); btn.type = "button";
+      btn.addEventListener("click", function () {
+        btn.disabled = true;
+        ui.client.resetRule(r.id).then(function (res) {
+          ui.dom.aMsg.textContent = (res && res.message) || "重設了。";
+          refresh();
+        }, function (e) {
+          ui.dom.aMsg.textContent = "沒有重設成：" + humanError(e);
+          btn.disabled = false;
+        });
+      });
+      head.appendChild(btn);
+    }
+    li.appendChild(head);
+    return li;
+  }
+
+  function pendingRow(p) {
+    var li = el("li", "ctl-task");
+    var head = el("div", "ctl-task-head");
+    var main = el("span", "ctl-task-main");
+    main.appendChild(el("span", "ctl-task-name", p.text));
+    if (p.when) { main.appendChild(el("span", "ctl-task-meta", p.when)); }
+    head.appendChild(main);
+    var btn = el("button", "ghost sm", "不用做了"); btn.type = "button";
+    btn.addEventListener("click", function () {
+      btn.disabled = true;
+      ui.client.dismissPending(p.id).then(function () { refresh(); }, function (e) {
+        ui.dom.aMsg.textContent = "沒有丟掉：" + humanError(e);
+        btn.disabled = false;
+      });
+    });
+    head.appendChild(btn);
+    li.appendChild(head);
+    return li;
   }
 
   function taskRow(t) {
@@ -602,6 +792,25 @@
       });
     });
 
+    d.aResume.addEventListener("click", function () {
+      d.aResume.disabled = true;
+      client.resumeActivator().then(function (r) {
+        d.aMsg.textContent = (r && r.message) || "恢復了。";
+        refresh();
+      }, function (e) {
+        d.aMsg.textContent = "沒有恢復成：" + humanError(e);
+      }).then(function () { d.aResume.disabled = false; });
+    });
+    d.aRunPending.addEventListener("click", function () {
+      d.aRunPending.disabled = true;
+      client.runPending().then(function (r) {
+        d.aMsg.textContent = (r && r.message) || "開始處理了。";
+        refresh();
+      }, function (e) {
+        d.aMsg.textContent = "沒有處理成：" + humanError(e);
+      }).then(function () { d.aRunPending.disabled = false; });
+    });
+
     d.resetOpen.addEventListener("click", function () {
       d.confirmBox.classList.remove("hidden");
       d.resetOpen.classList.add("hidden");
@@ -652,7 +861,8 @@
 
   var api = {
     // 純函式（tests/js/test_control.js）
-    taskState: taskState, motherState: motherState, relative: relative, when: when,
+    taskState: taskState, motherState: motherState, ruleStatus: ruleStatus, relative: relative, when: when,
+    normalizeActivator: normalizeActivator, activatorView: activatorView,
     validateInterval: validateInterval, resultText: resultText, normalizeStatus: normalizeStatus,
     viewModel: viewModel, humanError: humanError, makeClient: makeClient, canSee: canSee,
     RESET_CLEARS: RESET_CLEARS, RESET_KEEPS: RESET_KEEPS,

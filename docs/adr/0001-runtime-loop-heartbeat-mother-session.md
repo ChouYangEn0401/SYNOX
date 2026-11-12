@@ -3,6 +3,7 @@
 - 日期：2026-11-12
 - 狀態：已採用（分支 `feat/runtime-heartbeat`）
 - 網頁 API 合約：[../runtime-api.md](../runtime-api.md)
+- 後續：[ADR 0004](0004-activator-event-driven-rules.md) 在這個 loop 上加「狀態一變就照規則觸發下一件」的連動（防無限連動）
 
 ## 擁有者原話（一字不改）
 
