@@ -7,6 +7,15 @@
   頁面切換、卡片進場、按鈕、對話泡泡、狀態點、背景淡光與小光點的微動畫。版面沒動；系統開了「減少動態效果」→ 開場不播、動畫全關。
   新檔 `static/splash.js`／`splash.css`（`app.html` 只多兩行 include；CSP、server.py 沒改）。手法取自 ISDPCS，說明與時間表：
   [docs/ui/motion-notes.md](docs/ui/motion-notes.md)。預覽多了「重播開場」（`?splash=1`）。要你決定的：[QuestionToUser.md](QuestionToUser.md) QM1～QM3。
+### 終端機的 SYNOX 門面：歡迎畫面、`synox open`（branch `feat/cli-brand`，還沒合併）
+- 新增 `synox open`：在這台電腦上打開網頁介面（好記的名字；行為跟 `web-login` 一樣，`web-login`、`Open-SYNOX.bat` 照舊）。
+- 新增歡迎畫面（`src/synox/brand.py`）：`synox`（沒參數）、`run`、`open`、`wizard`、`doctor`、`about` 開頭印貓頭鷹＋SYNOX logo、
+  「Welcome to SYNOX」、版本、照時段的問候（照 ISDPCS 歡迎頁）、下一步提示。只在互動終端機印；管線／重導向／`CI`／`--quiet`／
+  `SYNOX_NO_BANNER=1` 不印（既有指令被程式讀時輸出不變），`TERM=dumb` 一行純文字，`NO_COLOR` 不上色，Windows 舊主控台（cp950）
+  與 `SYNOX_ASCII=1` 用純 ASCII logo。預覽：[docs/ui/cli-welcome.txt](docs/ui/cli-welcome.txt)（`scripts/make_cli_welcome.py` 產生）。
+- 新增 `synox about`（版本、授權、裝在哪裡；專案網址還沒定所以寫「還沒公開」）、`synox tips`（隨機一則小提示，`--all` 全部）。
+- 全域 `-q`／`--quiet`（放在指令前後都可以）。
+- 要你決定的事：[QuestionToUser.md](QuestionToUser.md) QB1～QB3（專案網址、`synox` 要不要在任何命令列都能打、logo 的樣子）。
 
 ### 常駐助理、心跳、runtime loop（branch `feat/runtime-heartbeat`，還沒合併）
 - 新增 `src/synox/runtime/`：常駐的排程迴圈（每個任務自己的執行緒、逾時、失敗退避、連續 5 次失敗通知一次）、
