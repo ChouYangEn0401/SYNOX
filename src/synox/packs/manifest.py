@@ -21,6 +21,7 @@ pack.json 的格式與檢查（docs/pack-format.md 是人看的版本）。安�
       "storage": "vault",                        vault（pack.store 落地是密文）｜plain
       "web": {"panel": "panel.html",             選用：Web UI 工具頁的面板（pack 資料夾裡的一個 .html）
               "api": ["GET /summary"]}           面板能打的 GET /api/packs/<name>/<route>（pack 用 pack.web_route 掛）
+      "health": {"check": "ping"}                選填：工具壞掉時 SYNOX 重新檢查用的唯讀指令（health_problem；docs/tool-health.md）
     }
 
 pack.json v2（架構 v1 §4；在上面之上加欄位，舊的 pack 照舊可讀）：
@@ -298,6 +299,8 @@ class Manifest:
     # 穩定度（test｜alpha｜beta｜stable；沒寫＝alpha，stage_declared=False）
     stage: str = DEFAULT_STAGE
     stage_declared: bool = False
+    # 工具健康的自我檢查（選填；{"check": "<這個 pack 的一個唯讀指令名>"}，docs/tool-health.md）
+    health: dict = field(default_factory=dict)
 
     @property
     def stage_label(self) -> str:
@@ -518,6 +521,44 @@ def _check_commands(commands, strict: bool, problems: List[str], install: bool =
                 problems += _field_doc_problems(where, f)
         out.append({**c, "effect": effect or "READ"})
     return out
+
+
+def health_problem(raw: dict, kind, cli: dict) -> "tuple[dict, str]":
+    """pack.json 的 health（選填）：{"check": "<指令名>"}——工具壞掉、冷卻到了，SYNOX 用它重新檢查（不叫 AI）。
+    指到的一定要是這個 pack 裡**唯讀**、不用填參數的指令：kind=cli 是 cli.commands 裡 effect=READ、沒有沒預設值的必填欄位、
+    不是 background、沒有 confirm；kind=mcp 是 tools_allow 裡 mcp.effects 寫 READ 的工具；kind=python 的指令名在載入後才知道，
+    這裡只查名字的格式（執行時 health.check_node 再確認是 READ）。回 (整理過的 health, 問題)；沒寫＝({}, "")。"""
+    if "health" not in raw:
+        return {}, ""
+    value = raw.get("health")
+    if not isinstance(value, dict) or set(value) - {"check"}:
+        return {}, 'health 要是 {"check": "<這個 pack 的一個唯讀指令名>"}'
+    check = value.get("check")
+    if not isinstance(check, str) or not check.strip():
+        return {}, "health.check 要寫這個 pack 的一個唯讀指令名（自我檢查用）"
+    if kind == "cli":
+        cmd = next((c for c in cli.get("commands") or [] if isinstance(c, dict) and c.get("name") == check), None)
+        if cmd is None:
+            return {}, f"health.check 指到的 {check!r} 不是 cli.commands 裡的指令"
+        if norm_effect(cmd.get("effect")) != "READ":
+            return {}, f"health.check 指到的 {check} 不是唯讀的（effect 要是 READ）"
+        if cmd.get("background") or cmd.get("confirm") is True:
+            return {}, f"health.check 指到的 {check} 不能是 background 或要確認的指令"
+        if any(isinstance(f, dict) and f.get("required") and f.get("default") in (None, "")
+               for f in cmd.get("fields") or []):
+            return {}, f"health.check 指到的 {check} 有沒預設值的必填欄位（自我檢查不帶參數）"
+    elif kind == "mcp":
+        mcp = raw.get("mcp") if isinstance(raw.get("mcp"), dict) else {}
+        if check not in (mcp.get("tools_allow") or []):
+            return {}, f"health.check 指到的 {check!r} 不在 mcp.tools_allow 裡"
+        if norm_effect((mcp.get("effects") or {}).get(check)) != "READ":
+            return {}, f"health.check 指到的 {check} 不是唯讀的（mcp.effects 要寫 READ）"
+    elif kind == "python":
+        if not COMMAND_RE.match(check):
+            return {}, "health.check 要是指令名（小寫英數字、_，32 字內）"
+    else:
+        return {}, f"kind={kind} 的 pack 沒有指令可以當自我檢查（拿掉 health）"
+    return {"check": check}, ""
 
 
 def _cli_routes(web_raw: dict, api: List[str], commands: List[dict], problems: List[str]) -> Dict[str, str]:
@@ -1090,6 +1131,9 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     web = parse_web(raw.get("web"), folder, problems)
     if kind == "cli" and web["api"] and isinstance(cli.get("commands"), list):
         web["routes"] = _cli_routes(raw.get("web") or {}, web["api"], cli["commands"], problems)
+    health, health_bad = health_problem(raw, kind, cli)
+    if health_bad and strict:                  # 新欄位：安裝時說清楚；載入時壞的當作沒寫（只是少了自我檢查）
+        problems.append(health_bad)
     if problems:
         raise ManifestError("；".join(problems))
     auth_type = extra["auth_info"].get("type", "none")
@@ -1097,7 +1141,7 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
                     folder=folder, group=group, access=access, skill=skill, storage=storage,
                     python=dict(raw.get("python") or {}), cli=cli, auth="" if auth_type == "none" else auth_type,
                     requires=dict(requires), web=web, raw=dict(raw), v2=v2, category=category,
-                    stage=stage, stage_declared=stage_declared,
+                    stage=stage, stage_declared=stage_declared, health=health,
                     runtime={**{k: v for k, v in runtime.items() if k in ("python", "python_posix", "node")},
                              **({"container": container} if container else {})}, **extra)
 

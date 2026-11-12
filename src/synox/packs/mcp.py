@@ -922,6 +922,7 @@ def missing_secrets(pack, user) -> str:
 def install(app, pack) -> None:
     from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 
+    from synox import health
     from synox.agent import validate as gate4
     from synox.packs import confirm as tool_confirm
     from synox.packs import kit
@@ -1061,6 +1062,18 @@ def install(app, pack) -> None:
                  structured: Optional[dict] = None) -> None:
             """grant：只有核准卡按 ✅ 的重叫會給（指令、AI 都造不出來）。
             structured：schema 模式（只有 AI 那條路、核准卡的重跑會給）——巢狀參數原樣當 arguments，不經平面欄位。"""
+            tool_path = nodes[tool].path if tool in nodes else f"{m.group}.{cmd}"
+
+            def failed(api, user, failure) -> None:
+                """記進隔離清單（匯入的工具：門檻比較低）；經 AI 的改回 AI 一行 FAIL。原因先遮掉這個人存的 secret。"""
+                failure.reason = redact(failure.reason, hidden(user))
+                health.observe_failure(app, api, tool=tool_path, pack=m.name, failure=failure, user=user,
+                                       tool_version=m.version, untrusted=True)
+
+            if getattr(api, "via_ai", False) is not True and grant == "":
+                warning = health.manual_warning(app, tool_path, user)     # 人自己打：照常執行，前面多一行警告
+                if warning:
+                    say(api, chat_id, warning)
             blocked = not_connected(user)
             if blocked:
                 if grant:
@@ -1117,6 +1130,8 @@ def install(app, pack) -> None:
                     if e.retry and attempt == 1:
                         continue
                     again = backend.again if e.fatal else ""
+                    failed(api, user, health.failures.from_text(redact(e.message, hidden(user)),
+                                                                "timeout" if "逾時" in e.message else "upstream_unavailable"))
                     say(api, chat_id, redact(f"❌ {m.title}／{cmd}：{e.message}{again}", hidden(user)))
                     return
             envelope = needs_confirm_of(result)
@@ -1126,7 +1141,13 @@ def install(app, pack) -> None:
                 return
             ok, text = render_result(result)
             text = redact(text, hidden(user))
-            say(api, chat_id, text if ok and text else (f"❌ {cmd}：{text or '工具回報失敗'}" if not ok else "（做完了，沒有輸出）"))
+            if not ok:                                 # 工具回 isError：SDK 的工具在 structuredContent 放失敗信封 v1
+                failure = health.failures.from_mcp_result(result, text)
+                failed(api, user, failure)
+                say(api, chat_id, redact(health.failures.user_text(failure, cmd), hidden(user)))
+                return
+            health.observe_success(app, api, tool_path, user)
+            say(api, chat_id, text or "（做完了，沒有輸出）")
 
         def typed(api, chat_id, user, args: List[str]) -> None:
             shape = shapes[tool]

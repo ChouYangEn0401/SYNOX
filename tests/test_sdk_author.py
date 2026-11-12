@@ -223,7 +223,9 @@ def test_cli_shell_envelopes_in_subprocess(tmp_path):
     env = _last(proc)
     assert proc.returncode == 0 and env["needs_confirm"] and env["summary"] == "要刪 3 筆" and env["confirm_token"] == "tok1"
     proc = _run(folder, "boom", "--json")
-    assert proc.returncode == 1 and _last(proc)["code"] == "internal" and "RuntimeError" in proc.stderr
+    boom = _last(proc)                       # 沒處理的例外＝unclassified（失敗信封 v1；以前是 internal）
+    assert proc.returncode == 1 and boom["code"] == "unclassified" and "RuntimeError" in proc.stderr
+    assert boom["failure"] == {"v": 1, "diag": {"exception": "RuntimeError"}}
     proc = _run(folder, "color", "blue")                                    # 沒有 --json：給人看的字
     assert proc.returncode == 0 and proc.stdout.strip() == "Blue"
     from isdtelekit.jobs.cli import CliReply, last_json
