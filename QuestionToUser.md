@@ -126,6 +126,11 @@ ClawBot 的研究文件是「AI 只能提議、一律先跳卡給你按」。設
 | B. 留在主程式 | 它們要帳號設定、跟網頁「連接」綁得比較深，出廠就在比較省事 | |
 | C. 搬去工具庫，但安裝包預設附一份（不自動裝） | 跟 QL4 的做法一起決定 | |
 
+> **已回答（2026-11-12）：照建議 A（搬）。已做**（分支 `feat/connectors-to-libs`）。擁有者原話：
+> 「QL1 當然要，而且所有工具目前都先幫我註記為 "測試版本 test/alpha/beta' 之類的。」
+> 4 個 connector 連同測試搬到 SYNOX_Libs，主程式 `connectors/` 只剩說明（[legacy/connectors.md](legacy/connectors.md)）；
+> pack.json 新增 `stage`（test／alpha／beta／stable），工具庫的工具全部標 alpha，`/help`、工具頁、安裝報告、doctor 都顯示。
+
 ## QL2（2026-11-12）從舊版更新上來的人，記帳／筆記／提醒會從 `/help` 消失，要怎麼接回來？
 
 **為什麼問**：他們的資料都還在（`data/` 沒動），裝回同名工具就接著用；但更新之後第一眼看到「工具不見了」會嚇到。

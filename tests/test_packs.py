@@ -20,22 +20,20 @@ def _pack(folder, **over):
     return raw
 
 
-def test_shipped_manifests_are_valid():
-    """出廠只剩 connectors/；packs/ 是空的（安裝的落點）。用 git 追蹤的檔判斷，開發機自己裝的工具不算。"""
+def test_ships_with_no_tools_at_all():
+    """出廠真的全空（2026-11-12，legacy/builtin-packs.md、legacy/connectors.md）：packs/ 與 connectors/ 都只有說明、
+    沒有出廠名單、SYNOX 只掃 packs/。用 git 追蹤的檔判斷，開發機自己裝的工具不算。"""
     import subprocess
 
     from synox.config import ROOT
-    done = subprocess.run(["git", "-C", ROOT, "ls-files", "packs"], capture_output=True, text=True)
-    if done.returncode == 0:                                     # 解開的 zip（沒有 .git）就不看這一項
-        assert done.stdout.split() == ["packs/README.md"]
-    folders = loader.discover([os.path.join(ROOT, "connectors")])
-    names = {os.path.basename(f) for f in folders}
-    assert names == {"google-calendar", "notion", "todoist", "apple-reminders-caldav"}
-    assert set(loader.BUNDLED) == {"google-calendar", "notion", "todoist", "apple-reminders"}
-    for folder in folders:
-        from synox.packs.manifest import read
-        m = read(folder)
-        assert os.path.isfile(m.skill_path) and os.path.isfile(os.path.join(folder, "README.md"))
+    for folder in ("packs", "connectors"):
+        done = subprocess.run(["git", "-C", ROOT, "ls-files", folder], capture_output=True, text=True)
+        if done.returncode == 0:                                 # 解開的 zip（沒有 .git）就不看這一項
+            assert done.stdout.split() == [f"{folder}/README.md"]
+    assert loader.BUNDLED == ()
+    assert loader.discover([os.path.join(ROOT, "connectors")]) == []
+    src = open(loader.__file__, encoding="utf-8").read()
+    assert 'PACK_DIRS = (os.path.join(ROOT, "packs"),)' in src           # conftest 換掉了 PACK_DIRS，看原始碼
 
 
 @pytest.mark.parametrize("over,needle", [

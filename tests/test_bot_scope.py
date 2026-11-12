@@ -141,7 +141,6 @@ def test_bot_status_lists_effective_and_hidden_packs(tmp_path):
     ro = text.split("bot ro")[1].split("bot noai")[0]
     assert "weather：沒有載入" in ro                                            # 清單寫了但沒裝
     assert "money（2 個指令超過上限「唯讀」，不會出現）" in ro
-    assert "沒開給這個 bot：" in ro and "remind" in ro
     assert say(app, http, "alpha", "/bot_status", uid="4242")[0].startswith("未知指令")   # 個人版：只有擁有者
 
 

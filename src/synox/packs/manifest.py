@@ -7,7 +7,9 @@ pack.json 的格式與檢查（docs/pack-format.md 是人看的版本）。安�
       "group": "money",                          指令群組（/money、/money_list…）；沒寫＝name
       "category": "生活",                        選填：網頁工具頁「建議放在哪個群組」（給人看的名字，24 字內；
                                                  沒寫＝「未分類」；使用者自己排的優先，見 web/toolpage.py）
-      "access": "owner",                        owner（預設：只有你）｜member（伺服器版的成員以上；個人版＝owner）
+      "stage": "alpha",                          選填：多穩定 test｜alpha｜beta｜stable（沒寫＝alpha；安裝時寫錯＝拒）
+                                                 /help、網頁工具頁、安裝報告、doctor 顯示「🧪 alpha」這種標籤
+      "access": "owner",                       owner（預設：只有你）｜member（伺服器版的成員以上；個人版＝owner）
                                                  ｜everyone（任何傳訊息給 bot 的人，伺服器版的訪客也算）
       "python": {"module": "pack"},              kind=python：資料夾裡的 pack.py，有 install(app, pack)
       "cli": {"argv": ["{python}", "./x.py"], "cwd": ".", "commands": [...]},   kind=cli
@@ -88,6 +90,16 @@ FIELD_KINDS = ("text", "int", "number", "bool", "path", "choice")
 MAX_CHOICES = 50
 MAX_CATEGORY = 24                 # category：網頁工具頁的建議群組名（給人看的字）
 MAX_DOC_TEXT = 200                # commands[].summary、fields[].ask／help：一行字
+# stage：這個工具多穩定（作者自己標的；/help、網頁工具頁、安裝報告、doctor 都顯示）。沒寫＝alpha。
+# 標籤一律「符號＋英文字」（不只靠顏色）；說明給安裝報告與網頁的 title 用。
+STAGES = ("test", "alpha", "beta", "stable")
+DEFAULT_STAGE = "alpha"
+STAGE_INFO = {
+    "test": ("🔧", "測試中", "只給開發者試：隨時會改、可能壞掉，不要拿來放重要的資料"),
+    "alpha": ("🧪", "早期版", "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"),
+    "beta": ("🚧", "公測版", "功能齊了、有人實際用過一陣子；可能還有小問題，資料格式不會隨便改"),
+    "stable": ("⭐", "穩定版", "長時間實際使用過、有測試；不相容的改動會升主版號並寫清楚怎麼搬"),
+}
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f​-‏‪-‮⁦-⁩]")
 # cli 的 argv／env 樣板裡 loader 會代換的名字（欄位不能取這些名字）
 RESERVED_PLACEHOLDERS = ("python", "node", "pack_dir", "data_dir", "user_data_dir", "tg_id")
@@ -283,6 +295,13 @@ class Manifest:
     data_declared: bool = False
     # 網頁工具頁的建議群組（沒寫＝""，畫面上是「未分類」；使用者自己排的優先）
     category: str = ""
+    # 穩定度（test｜alpha｜beta｜stable；沒寫＝alpha，stage_declared=False）
+    stage: str = DEFAULT_STAGE
+    stage_declared: bool = False
+
+    @property
+    def stage_label(self) -> str:
+        return stage_label(self.stage)
 
     @property
     def channel_ok(self) -> bool:
@@ -387,6 +406,25 @@ def one_line_problem(value, label: str, limit: int = MAX_DOC_TEXT) -> str:
 def clean_category(value) -> str:
     """category 的值能用就回去掉前後空白的字，不能用回 ""（載入時寬鬆：壞的當作沒寫）。"""
     return value.strip() if not one_line_problem(value, "category", MAX_CATEGORY) else ""
+
+
+def stage_problem(value) -> str:
+    """pack.json 的 stage 寫得對不對（""＝對）。只收 test、alpha、beta、stable 四個小寫字。"""
+    if isinstance(value, str) and value in STAGES:
+        return ""
+    return (f"stage 只能是 {'、'.join(STAGES)}（現在是 {value!r}；沒寫＝{DEFAULT_STAGE}）")
+
+
+def stage_label(stage: str, long: bool = False) -> str:
+    """給人看的標籤：「🧪 alpha」；long=True：「🧪 alpha（早期版）」。不認得的當 alpha。"""
+    stage = stage if stage in STAGE_INFO else DEFAULT_STAGE
+    icon, word, _text = STAGE_INFO[stage]
+    return f"{icon} {stage}（{word}）" if long else f"{icon} {stage}"
+
+
+def stage_text(stage: str) -> str:
+    """這個 stage 的意思（一句話）。"""
+    return STAGE_INFO.get(stage, STAGE_INFO[DEFAULT_STAGE])[2]
 
 
 def default_text(value) -> str:
@@ -952,6 +990,13 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     if strict and "category" in raw and not category:      # 新欄位：安裝時說清楚；載入時壞的當作沒寫
         problems.append(one_line_problem(raw.get("category"), "category", MAX_CATEGORY)
                         + "（網頁工具頁建議放的群組名，例如 \"生活\"）")
+    stage, stage_declared = DEFAULT_STAGE, False
+    if "stage" in raw:                                      # 安裝時寫錯＝拒；載入時寫錯＝當作 alpha（比較保守的那一邊）
+        if stage_problem(raw.get("stage")):
+            if strict:
+                problems.append(stage_problem(raw.get("stage")))
+        else:
+            stage, stage_declared = raw["stage"], True
     access = raw.get("access", "owner")
     if access not in ACCESS:
         problems.append("access 只能是 owner、member 或 everyone")
@@ -1052,6 +1097,7 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
                     folder=folder, group=group, access=access, skill=skill, storage=storage,
                     python=dict(raw.get("python") or {}), cli=cli, auth="" if auth_type == "none" else auth_type,
                     requires=dict(requires), web=web, raw=dict(raw), v2=v2, category=category,
+                    stage=stage, stage_declared=stage_declared,
                     runtime={**{k: v for k, v in runtime.items() if k in ("python", "python_posix", "node")},
                              **({"container": container} if container else {})}, **extra)
 

@@ -96,15 +96,29 @@ def test_locked_trust_decides(make_bot, tmp_path):
     assert "corep" in _ai_groups(bot, OTHER_ID) and "third" not in _ai_groups(bot, OTHER_ID)
 
 
-def test_bundled_core_unless_the_lock_says_otherwise(tmp_path):
-    """審查 A #5：有鎖時以鎖的 trust 為準；出廠的名字＋位置只在沒有鎖時算 core。
-    （2026-11-12 起出廠的只剩 connectors/，這裡用 notion；notes 已經不是出廠的。）"""
-    from synox.packs import admin
+def test_nothing_is_bundled_anymore(tmp_path, monkeypatch):
+    """2026-11-12 起出廠真的全空（legacy/connectors.md）：叫 notion、放在內建 packs/ 的 pack 沒鎖＝third-party。"""
+    packs = tmp_path / "packs"
+    monkeypatch.setattr(loader, "PACK_DIRS", (str(packs),))
+    notion = read(_pack(packs, "notion"))
     cfg = SynoxConfig.from_dict({"owner_id": OWNER_ID, "data_dir": str(tmp_path / "data"), "mode": "server"},
                                 require_token=False, root=str(tmp_path))
-    notion = read(os.path.join(loader.PACK_DIRS[1], "notion"))
+    assert loader.BUNDLED == () and not loader.is_bundled(notion)
+    assert loader.python_trust(cfg, notion) == lock.THIRD_PARTY and "只對擁有者開放" in loader.trust_reason(cfg, notion)
+
+
+def test_bundled_core_unless_the_lock_says_otherwise(tmp_path, monkeypatch):
+    """審查 A #5：有鎖時以鎖的 trust 為準；出廠的名字＋位置只在沒有鎖時算 core。
+    （出廠名單現在是空的；機制還在，這裡把 notion 填進 BUNDLED 來測。）"""
+    from synox.packs import admin
+    builtin = tmp_path / "builtin"
+    monkeypatch.setattr(loader, "PACK_DIRS", (str(builtin),))
+    monkeypatch.setattr(loader, "BUNDLED", ("notion",))
+    cfg = SynoxConfig.from_dict({"owner_id": OWNER_ID, "data_dir": str(tmp_path / "data"), "mode": "server"},
+                                require_token=False, root=str(tmp_path))
+    notion = read(_pack(builtin, "notion"))
     assert loader.is_bundled(notion)
-    assert not loader.is_bundled(read(os.path.join(loader.PACK_DIRS[0], "notes")))   # 測試用的 notes 不是出廠的
+    assert not loader.is_bundled(read(_pack(builtin, "notes")))                      # 名字不在名單上＝不是出廠的
     assert loader.python_trust(cfg, notion) == lock.CORE                            # 沒鎖：出廠的＝core
     m, _report, problems = admin.approve_installed(notion.folder, cfg.data_dir, approved_by=OWNER_ID)
     assert not problems and lock.trust_of(cfg.data_dir, "notion") == lock.CORE        # 第一次鎖出廠的：沿用 core
@@ -123,6 +137,7 @@ def test_third_party_named_like_bundled_via_upgrade_is_not_core(tmp_path, monkey
     from synox.packs import admin, upgrade
     packs, data = tmp_path / "packs", tmp_path / "data"
     monkeypatch.setattr(loader, "PACK_DIRS", (str(packs),))                         # 這個資料夾當成內建的 packs/
+    monkeypatch.setattr(loader, "BUNDLED", ("notion",))                             # 假設 notion 還是出廠的（機制測試）
     factory = read(_pack(packs, "notion"))
     cfg = SynoxConfig.from_dict({"owner_id": OWNER_ID, "data_dir": str(data), "mode": "server"},
                                 require_token=False, root=str(tmp_path))

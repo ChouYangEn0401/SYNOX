@@ -164,9 +164,8 @@ def test_cli_data_shared_and_moneybook_pass(tmp_path):
 
 
 @pytest.mark.parametrize("folder", ["tests/fixtures/packs/notes", "tests/fixtures/packs/money",   # 下架前內建版本的複本
-                                    "connectors/notion",
-                                    "connectors/todoist", "connectors/google-calendar",
-                                    "connectors/apple-reminders-caldav", "tests/fixtures/moneybook_pack"])
+                                    "tests/fixtures/moneybook_pack"])
+# 以前的 connectors/（notion、todoist、google-calendar、apple-reminders）搬到 SYNOX_Libs，同樣的檢查在工具庫的 test_gates
 def test_shipped_packs_declare_scope_and_pass_new_scan(folder):
     root = os.path.dirname(os.path.dirname(__file__))
     m, report, _h, problems = admin.run_gates(os.path.join(root, *folder.split("/")))

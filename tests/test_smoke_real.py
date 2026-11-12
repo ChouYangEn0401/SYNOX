@@ -1,4 +1,5 @@
 """scripts/smoke_real.py（真機煙霧測試）的邏輯：假傳輸、假保管箱，不連網、不開埠。
+四個服務的工具程式從 SYNOX 工具庫讀（只讀；@needs_libs，找不到工具庫就跳過那幾個）。
 
 一個 FakeNet 同時扮 Notion、Todoist、Google、iCloud CalDAV、Discord（照網址分）；憑證存進真的 Vault（測試金鑰）。
 """
@@ -45,6 +46,10 @@ def load_script():
 
 
 smoke_real = load_script()
+# Notion、Todoist、Google 日曆、Apple 的程式 2026-11-12 起在 SYNOX 工具庫（不在這個 repo）：smoke_real 找得到工具庫才測；
+# Discord（SYNOX 本體）的測試照跑。設 SYNOX_LIBS=<SYNOX_Libs 資料夾>，或把它放在 SYNOX 旁邊。
+needs_libs = pytest.mark.skipif(not smoke_real.libs_packs_dir(),
+                                reason="沒有工具庫（設環境變數 SYNOX_LIBS=<SYNOX_Libs 資料夾>，或放在 SYNOX 旁邊）")
 
 
 class Resp:
@@ -267,6 +272,7 @@ def assert_no_secret(text):
 
 # ── 唯讀（預設） ─────────────────────────────────────────────────────
 
+@needs_libs
 def test_read_only_all_green_and_no_writes(env):
     config, vault = env
     seed(config, vault)
@@ -291,6 +297,7 @@ def test_read_only_all_green_and_no_writes(env):
     assert_no_secret(text)
 
 
+@needs_libs
 def test_google_refresh_is_not_written_back_to_the_vault(env):
     config, vault = env
     seed(config, vault)
@@ -302,6 +309,7 @@ def test_google_refresh_is_not_written_back_to_the_vault(env):
     assert PackStore("google-calendar", config.data_dir, vault).load()["access_token"] == "ya29.old-SECRET"
 
 
+@needs_libs
 def test_missing_credentials_are_skipped_with_a_hint(env):
     config, vault = env
     smoke, out = make(config, vault, FakeNet())
@@ -314,6 +322,7 @@ def test_missing_credentials_are_skipped_with_a_hint(env):
     assert "Connect-Apple.bat" in result(smoke, "apple", "設定").hint
 
 
+@needs_libs
 def test_no_vault_at_all_asks_with_getpass_and_never_prints_it(env):
     config, _vault = env
     net = FakeNet()
@@ -337,6 +346,7 @@ def test_open_vault_readonly_does_not_create_a_key(env):
 
 # ── 錯誤要變成人話 ───────────────────────────────────────────────────
 
+@needs_libs
 def test_notion_bad_token_uses_the_connector_message(env):
     config, vault = env
     seed(config, vault)
@@ -352,6 +362,7 @@ def test_notion_bad_token_uses_the_connector_message(env):
     assert_no_secret(text)
 
 
+@needs_libs
 def test_notion_nothing_shared_is_a_failure_with_the_share_hint(env):
     config, vault = env
     seed(config, vault)
@@ -363,6 +374,7 @@ def test_notion_nothing_shared_is_a_failure_with_the_share_hint(env):
     assert row.result == smoke_real.FAIL and "分享給你的 integration" in row.reason
 
 
+@needs_libs
 def test_notion_token_saved_by_connect_is_used_and_source_shown(env):
     """python -m synox connect notion 存在 key=auth：跟 /notion 一樣認得，並說出用的是哪一份。"""
     config, vault = env
@@ -375,6 +387,7 @@ def test_notion_token_saved_by_connect_is_used_and_source_shown(env):
     assert_no_secret("\n".join(out))
 
 
+@needs_libs
 def test_icloud_without_caldav_lists_explains_the_apple_limit(env):
     config, vault = env
     seed(config, vault)
@@ -389,6 +402,7 @@ def test_icloud_without_caldav_lists_explains_the_apple_limit(env):
     assert_no_secret("\n".join(out))
 
 
+@needs_libs
 def test_apple_wrong_password(env):
     config, vault = env
     seed(config, vault)
@@ -429,6 +443,7 @@ def test_discord_missing_token_and_unpaired(env):
     assert pair.result == smoke_real.FAIL and "discord pair" in pair.reason
 
 
+@needs_libs
 def test_unexpected_errors_do_not_leak_their_message(env):
     config, vault = env
     seed(config, vault)
@@ -451,6 +466,7 @@ def test_redact_hides_every_secret_it_has_seen(env):
 
 # ── --write ──────────────────────────────────────────────────────────
 
+@needs_libs
 def test_write_lists_the_plan_and_does_nothing_without_yes(env):
     config, vault = env
     seed(config, vault)
@@ -466,6 +482,7 @@ def test_write_lists_the_plan_and_does_nothing_without_yes(env):
     assert all(r.result == smoke_real.SKIP for r in skipped)
 
 
+@needs_libs
 def test_write_with_yes_creates_and_cleans_up(env):
     config, vault = env
     seed(config, vault)
@@ -490,6 +507,7 @@ def test_write_with_yes_creates_and_cleans_up(env):
     assert "（smoke_real.py，含寫入）" in "\n".join(out)
 
 
+@needs_libs
 def test_write_notion_without_parent_is_skipped(env):
     config, vault = env
     seed(config, vault)

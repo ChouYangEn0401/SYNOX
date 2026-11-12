@@ -157,7 +157,7 @@ class SynoxConfig(BotConfig):
         return enabled == "all" or name in (enabled or [])
 
     def pack_dirs(self) -> tuple:
-        """要掃哪些資料夾找 pack：SYNOX 自己的 packs/、connectors/，再加 config.json `packs.dirs` 列的。
+        """要掃哪些資料夾找 pack：SYNOX 自己的 packs/（安裝的落點），再加 config.json `packs.dirs` 列的。
         `packs.dirs` 的每一項可以是「裡面有很多 pack 的資料夾」，也可以直接是「一個 pack 的資料夾」（裡面就有 pack.json）——
         後者是為了把別的 repo 裡的 pack 原地接進來（例如金流簿的 `<記帳專案>/synox-pack`，它的 {python} 要指向那個 repo 的 .venv，
         所以不能複製進 packs/）。相對路徑以 SYNOX 資料夾為準；不存在的資料夾略過（doctor 會提）。"""

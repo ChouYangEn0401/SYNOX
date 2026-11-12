@@ -37,7 +37,8 @@ from typing import Dict, List, Optional, Tuple
 from synox.packs import envs, loader
 from synox.packs import lock as pack_lock
 from synox.packs import tier as pack_tier
-from synox.packs.manifest import Manifest, ManifestError, read, synox_problem
+from synox.packs.manifest import (DEFAULT_STAGE, Manifest, ManifestError, read, stage_label, stage_text,
+                                  synox_problem)
 from synox.packs.scan import ScanReport, scan
 
 MAX_UPLOAD = 5 * 1024 * 1024
@@ -156,6 +157,7 @@ def summary_of(m: Manifest, report: ScanReport, hashes: Dict[str, str], problems
                token: str = "") -> dict:
     return {"token": token, "name": m.name, "title": m.title, "summary": m.summary, "version": m.version,
             "kind": m.kind, "access": m.access, "storage": m.storage, "publisher": m.publisher,
+            "stage": m.stage, "stage_label": m.stage_label, "stage_declared": m.stage_declared,
             "files": sorted(hashes)[:100], "panel": bool(m.web.get("panel")), "api": list(m.web.get("api", [])),
             "capabilities": list(m.capabilities), "integrity": bool(m.integrity),
             "scan": {**report.to_dict(m), "problems": problems, "ok": not problems},
@@ -421,6 +423,8 @@ def format_summary(summary: dict) -> str:
     scan_ = summary.get("scan") or {}
     lines = [f"📦 {summary.get('title')}（{summary.get('name')} {summary.get('version')}，{summary.get('kind')}）",
              f"  {summary.get('summary')}",
+             f"  穩定度：{stage_label(summary.get('stage') or DEFAULT_STAGE, long=True)}"
+             + ("" if summary.get("stage_declared", True) else "（pack.json 沒寫 stage，當作 alpha）"),
              f"  誰能用：{summary.get('access')}　發行者：{summary.get('publisher') or '（沒寫）'}　"
              f"{len(summary.get('files') or [])} 個檔" + ("　有打包時的雜湊" if summary.get("integrity") else ""),
              f"🔍 靜態掃描：宣告要 {caps(scan_.get('declared_capabilities'))}；"
@@ -480,6 +484,9 @@ PYTHON_SCAN_NOTE = ("靜態掃描只攔得到直接寫出來的名字和常見�
 
 def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
     out = []
+    if m.stage != "stable":                   # 穩定度（作者自己標的；沒寫＝alpha）：網頁報告的提醒清單也看得到
+        out.append(f"穩定度 {stage_label(m.stage, long=True)}：{stage_text(m.stage)}"
+                   + ("" if m.stage_declared else "（pack.json 沒寫 stage，當作 alpha）") + "。")
     if m.kind == "python":
         out.append("這是 python pack：它的程式會在 SYNOX 裡面、用你的 Windows 帳號權限執行。只裝你信得過的人給的。")
         out.append(PYTHON_SCAN_NOTE)
@@ -609,7 +616,7 @@ def remove(name: str, packs_dir: str, now=None, data_dir: Optional[str] = None) 
         raise PackAdminError("pack 名字不對")
     folder = os.path.join(packs_dir, name)
     if not os.path.isfile(os.path.join(folder, "pack.json")):
-        raise PackAdminError(f"packs/ 裡沒有 {name}（出廠的 connector 設計稿不能從這裡移除）")
+        raise PackAdminError(f"packs/ 裡沒有 {name}（只有裝在 packs/ 的工具能從這裡移除；packs.dirs 指過去的請改 config.json）")
     installed = upgrade.installed_manifest(packs_dir, name)
     dest = upgrade.archive(folder, name, installed[0].version if installed else "", packs_dir, data_dir,
                            now=now, reason="remove")

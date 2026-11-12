@@ -1,7 +1,8 @@
 """共用的假東西：整支 SYNOX（測試用的 pack、真的 vault 加密）跑在記憶體裡，不連 Telegram、不連網、不開埠。
 
-SYNOX 出廠不帶工具（2026-11-12，legacy/builtin-packs.md）。測試期間 `loader.PACK_DIRS`（「SYNOX 自己的 pack 資料夾」）
-一律換成 tests/fixtures/packs/（money、notes：下架前內建版本的凍結複本，正本在 SYNOX_Libs）＋ connectors/
+SYNOX 出廠不帶工具（2026-11-12，legacy/builtin-packs.md、legacy/connectors.md）。測試期間 `loader.PACK_DIRS`（「SYNOX 自己的 pack 資料夾」）
+一律換成 tests/fixtures/packs/（money、notes：下架前內建版本的凍結複本，正本在 SYNOX_Libs；以前還加 connectors/，
+那 4 個連同測試搬到 SYNOX_Libs 了）
 （_test_pack_dirs，autouse）：make_bot、doctor、/bot_status、web 的 reload 看到的都是這一份，不讀 repo 的 packs/
 （那裡是使用者裝工具的地方，開發機上可能有東西）。提醒（/remind_*）是系統指令，不在這裡（QL5）。伺服器版的 make_bot 先把這兩個鎖成 trust=core
 （以前它們是「出廠＝core」；現在要經安裝流程，見 trust_core）。要測「空的 host」就給 pack_dirs=() 或換 PACK_DIRS。"""
@@ -13,13 +14,13 @@ import pytest
 from isdtelekit.testing import OWNER_ID, BotHarness, FakeChannel
 
 from synox.app import build
-from synox.config import ROOT, SynoxConfig
+from synox.config import SynoxConfig
 from synox.llm.fake import FakeAdapter
 from synox.vault import Vault
 
 OTHER_ID = 555
 FIXTURE_PACKS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "packs")
-DEFAULT_PACK_DIRS = (FIXTURE_PACKS, os.path.join(ROOT, "connectors"))
+DEFAULT_PACK_DIRS = (FIXTURE_PACKS,)
 FIXTURE_NAMES = ("money", "notes")
 
 

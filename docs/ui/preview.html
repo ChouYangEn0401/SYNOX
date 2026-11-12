@@ -2296,6 +2296,11 @@
       badge = el("span", "badge " + (t.status === "已連接" ? "ok" : "warn"), t.status);
       h.appendChild(badge);
     }
+    if (t.stage_label) {                  // 穩定度（pack.json 的 stage；符號＋字，不只靠顏色）
+      var stage = el("span", "badge stage", t.stage_label);
+      if (t.stage_text) { stage.title = t.stage_text; }
+      h.appendChild(stage);
+    }
     head.appendChild(h);
     if (t.name) { head.appendChild(el("span", "tp-meta", t.name + " " + (t.version || "") + "・" + (t.kind || ""))); }
     panel.appendChild(head);

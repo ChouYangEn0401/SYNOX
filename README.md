@@ -1,7 +1,7 @@
 # SYNOX：你自己電腦上的 Telegram 小助手
 
 > ⚠️ **目前是 alpha，請先別拿來放重要資料。**
-> - 所有 connector（Notion、Todoist、Google 日曆、Apple 提醒事項）與 Discord 通道都**只用假傳輸測過**，還沒對真實服務驗證。
+> - 工具庫的工具目前**全部標成 🧪 alpha**（早期版）；接外面服務的（Notion、Todoist、Google 日曆、Apple 提醒事項）與 Discord 通道都**只用假傳輸測過**，還沒對真實服務驗證。
 > - 沙盒後端**還沒在 Linux 實機上驗證**。
 > - **伺服器版的營運者（架的人）看得到使用者的資料**。
 > - 第三方 pack 的安全邊界：見 [docs/security.md](docs/security.md)「這套系統現在能保證什麼、不能保證什麼」。
@@ -10,9 +10,10 @@
 在手機的 Telegram 跟它講話：記帳、隨手記、提醒；接了 AI 之後，直接說人話它就會替你按指令
 （刪東西這類危險的事，會先送一張確認卡給你按）。資料都在**你自己的電腦**上，筆記和記帳是加密存的。
 
-> **SYNOX 出廠不帶工具**（2026-11-12 起）：記帳、隨手記、提醒、行事曆、待辦……都在另一個專案 **SYNOX 工具庫（SYNOX_Libs）**，
-> 一個工具一個 `.synoxpack` 檔，要什麼自己裝（見下面「裝工具」）。從舊版更新上來的人：資料還在，裝回同名工具就接著用
-> （[legacy/builtin-packs.md](legacy/builtin-packs.md)）。
+> **SYNOX 出廠不帶任何工具**（2026-11-12 起）：記帳、隨手記、行事曆、待辦，以及接 Notion、Todoist、Google 日曆、
+> Apple 提醒事項的工具，都在另一個專案 **SYNOX 工具庫（SYNOX_Libs）**——所有工具在那裡統一管理，
+> 一個工具一個 `.synoxpack` 檔，要什麼自己裝（見下面「裝工具」）。從舊版更新上來的人：資料（含存好的 token、帳號）還在，裝回同名工具就接著用
+> （[legacy/builtin-packs.md](legacy/builtin-packs.md)、[legacy/connectors.md](legacy/connectors.md)）。
 
 ## 快速開始：三步裝好（Windows 10／11）
 
@@ -138,6 +139,8 @@ SYNOX 出廠不帶任何工具；官方的工具都在 **SYNOX 工具庫（SYNOX
 拿到 `.synoxpack`：在網頁設定頁上傳，或點兩下檔案，或 `.venv\Scripts\python.exe -m synox install <檔>`；
 SYNOX 先檢查、把報告給你看，你按確認才裝。裝好 `/help` 就多一組，AI 也會自己學會怎麼用。
 每個工具會宣告它照哪一版 SDK 寫（`requires.sdk`）；跟這台不合的會明說、不裝。
+每個工具也標了**穩定度**（`stage`）：🔧 test（測試中）、🧪 alpha（早期版）、🚧 beta（公測版）、⭐ stable（穩定版），
+`/help`、網頁工具頁、安裝報告、`doctor` 都看得到；沒標的當 alpha。
 
 **想自己寫工具接進來**（任何語言的命令列程式、MCP 伺服器、別人架好的遠端 MCP）：從 [docs/tools.md](docs/tools.md) 開始——
 怎麼選接入方式、十行入門、權限怎麼宣告、怎麼測試與打包；範例在 [examples/](examples/)。全部文件的索引：[docs/README.md](docs/README.md)。
@@ -151,9 +154,10 @@ pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的
 - 多支 bot 分流、服務別人的角色商店、Remote Control／派工、AI 的情境（persona）與長期記憶。
 - 伺服器版：個人版的舊資料不會自動搬過去；「連架設的人都看不到」的版本（另一份規格）；網頁介面對外開放（要自己架反向代理＋TLS）。
 - 匯入前身專案的資料；換電腦的匯出（備份綁這個 Windows 帳號）、還原按鈕；網頁看圖／下載檔案、網頁收提醒（提醒只走 Telegram）。
-- connector：Notion、Todoist、Google 日曆、Apple 提醒事項都做好了（設定步驟見各自 `connectors/*/README.md`），但都只用假傳輸測過，還沒對真的服務跑過。
+- 接外面服務的工具（工具庫的 `notion`、`todoist`、`google-calendar`、`apple-reminders`）都做好了（設定步驟見工具庫裡各自的 README），
+  但都只用假傳輸測過，還沒對真的服務跑過（所以標 🧪 alpha）。
   到另一台電腦用真的帳號測（含 Discord）：[docs/handoff/](docs/handoff/README.md)（教學＋煙霧測試 `scripts/smoke_real.py`）。
-  Apple 提醒事項要注意：iCloud 升級過的提醒事項 Apple 不開放 CalDAV，見 `connectors/apple-reminders-caldav/README.md`。
+  Apple 提醒事項要注意：iCloud 升級過的提醒事項 Apple 不開放 CalDAV，見工具庫的 `packs/apple-reminders/README.md`。
 - macOS／Linux 的安裝器（程式本身跨平台，但 `Setup.bat` 只有 Windows）。Windows 安裝程式（Inno Setup＋可攜版 Python）的腳本做好了，
   **還沒真的打包、還沒在空白電腦上試**（[docs/handoff/clean-machine-test.md](docs/handoff/clean-machine-test.md)）。
 - AI 的對話紀錄只放在記憶體（重開 bot 就忘了），每個聊天留最近 6 輪。
