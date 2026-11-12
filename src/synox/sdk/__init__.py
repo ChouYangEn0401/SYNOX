@@ -150,6 +150,13 @@ class PackCheck:
             why = ("runtime.python 是 auto：安裝會被擋" if pip["auto"]
                    else "runtime.python 不是 auto：SYNOX 不會裝它，只是給人看")
             lines.append(f"📦 ⚠️ requires.pip 沒釘死（要寫 名字==版本）：{'、'.join(pip['unpinned'])}（{why}）")
+        from synox.packs.manifest import doc_warnings
+        docs = doc_warnings(m)
+        if docs:                                  # 不擋安裝；網頁工具頁與 AI 靠這些說明
+            lines.append("📝 ⚠️ 說明不齊（不擋安裝，但工具頁與 AI 會看不懂）：")
+            lines += [f"  · {d}" for d in docs]
+        else:
+            lines.append("📝 說明齊了：SKILL.md 的 name／description、每個 command 的 summary、每個欄位的 ask")
         blockers = self.blockers
         if blockers:
             lines.append(f"❌ 安裝一定會被擋（{len(blockers)} 個問題）：")
@@ -531,7 +538,7 @@ def run_command(folder: str, command: str, args: List[str], *, data_dir: Optiona
     from synox.agent import validate as gate4
     from synox.packs import kit, loader, render
     from synox.packs import secrets as pack_secrets
-    from synox.packs.manifest import ManifestError, read, secret_env_names
+    from synox.packs.manifest import ManifestError, default_text, read, secret_env_names
 
     def say(text: str) -> None:
         (out or sys.stdout).write(text + "\n")
@@ -550,7 +557,7 @@ def run_command(folder: str, command: str, args: List[str], *, data_dir: Optiona
     kinds = {f["name"]: f.get("kind", "text") for f in specs}
     choices = {f["name"]: tuple(f.get("choices") or ()) for f in specs}
     fields = tuple(Field(f["name"], f.get("ask", f["name"]), required=bool(f.get("required")),
-                         default=str(f.get("default", "")), choices=choices[f["name"]],
+                         default=default_text(f.get("default")), choices=choices[f["name"]],
                          check=gate4.typed_check(kinds[f["name"]], choices[f["name"]])) for f in specs)
     fields = tuple(service._no_dash(f) for f in fields)           # 跟 loader 一樣：值以 - 開頭一律拒
     n_required = sum(1 for f in fields if f.required)
