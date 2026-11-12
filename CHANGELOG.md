@@ -1,5 +1,22 @@
 # Changelog
 
+## 未發佈（branch feat/landing-readme：介紹頁、README 對齊現況、工具生態文件）
+
+### 新增
+- **介紹頁** `docs/landing/index.html`：單一檔案、雙擊就能看（深淺色跟系統、手機寬度可看）。內容：它是什麼、本機優先（會出門的只有兩條）、
+  網頁版畫面（`docs/ui/screenshots/*.png` 轉成 WebP data URI 嵌進去，約 0.5 MB）、三步裝好、安全（確認卡、五關、信任層級、保管箱）、
+  工具與 pack、alpha 現況、安裝、接下來（分「做好了等驗證」「還沒有」「提案」）。同一份發佈成 Artifact：
+  <https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW>（私人連結）。沒有編任何數字、見證或網址（專案網址照 `synox about` 一樣寫「還沒公開」）。
+- **`docs/ecosystem.md`**：使用者怎麼找、裝、更新（同名再裝＝升級、`packs rollback`）、移除工具；作者怎麼做一個工具給人裝、發佈前清單；
+  「之後的路」（線上目錄、簽章驗證、檢查更新、評分、一鍵安裝、其他平台安裝器）**全部標為提案**並寫現在為什麼沒有；
+  「文件維護清單」：每次發版改了什麼要跟著動哪些文件、教學、介紹頁。
+
+### 文件
+- README：對齊目前的狀態（出廠不帶工具、Telegram 擁有者可在網頁配對、bot 步驟可跳過、網頁四頁＋對話封存＋常駐助理入口、
+  本機擁有者直接開網頁就登入）；新增「文件與教學」一表，連到介紹頁、`docs/tutorials/telegram/`、`docs/tutorials/discord/`、
+  `docs/discord-concepts.md`（教學由另外的分支產生）、`docs/ecosystem.md`。alpha 警告原樣保留。
+- `docs/README.md` 索引加介紹頁、教學、ecosystem。
+
 ## 未發佈（dev，2026-11-12：合併 debug/setup-python-telegram＋跟進 ClawBot／金流簿）
 
 ### Telegram 圖文教學與教學的共用管線（branch `feat/tutorial-telegram`，還沒合併）
