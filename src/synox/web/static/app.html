@@ -2,240 +2,520 @@
 <html lang="zh-Hant">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="light dark">
 <title>SYNOX</title>
 <style nonce="{{NONCE}}">
+  /* ── 設計 token（說明：docs/ui/redesign-notes.md）────────────────────
+     淺色取記帳專案（金流簿）的簡約、深色取 ISDPCS 的層次；跟隨系統，
+     :root[data-theme="light|dark"] 可以強制（目前只有預覽用）。 */
   :root {
-    --bg: #f4f5f8; --panel: #ffffff; --fg: #1d2330; --muted: #5d6675; --line: #dde1e8;
-    --accent: #2f6fe0; --accent-fg: #ffffff; --me: #d9e8ff; --bot: #ffffff; --note: #6b7280;
-    --danger: #c0392b; --ok: #2f8a4e; --radius: 10px;
+    --bg: #f3f5f8; --bg-glow: #e3eef0; --surface: #ffffff; --surface-2: #f7f9fb; --sunken: #eef1f5;
+    --line: #e2e7ee; --line-strong: #cdd5df;
+    --text: #131b26; --text-2: #465264; --muted: #6a7687;
+    --accent: #0a7c70; --accent-hover: #086a60; --accent-ink: #ffffff; --accent-soft: #e0f2ef; --accent-line: #9fd6cd;
+    --accent-2: #2f7fd6;
+    --ok: #12823b; --ok-soft: #e6f4ea; --warn: #9a6400; --warn-soft: #fdf1dc; --bad: #c62f2f; --bad-soft: #fbe8e8;
+    --me: #dff1ee; --me-ink: #0c3a35;
+    --shadow-sm: 0 1px 2px rgba(19, 27, 38, .05), 0 1px 3px rgba(19, 27, 38, .06);
+    --shadow-md: 0 10px 30px -10px rgba(19, 27, 38, .22);
+    --shadow-lg: 0 24px 60px -18px rgba(19, 27, 38, .35);
+    --highlight: inset 0 1px 0 rgba(255, 255, 255, .7);
+    --scrim: rgba(10, 15, 22, .4);
+    --r-sm: 8px; --r: 10px; --r-lg: 14px; --r-xl: 18px; --pill: 999px;
+    --font: "Segoe UI Variable Text", "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", "PingFang TC",
+            "Noto Sans TC", system-ui, sans-serif;
+    --mono: "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, monospace;
+    --ease: cubic-bezier(.2, .9, .3, 1);
+    --side-w: 252px;
+    color-scheme: light;
   }
   @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #11141a; --panel: #1a1f28; --fg: #e7eaf0; --muted: #9aa3b2; --line: #2b313c;
-      --accent: #5b8ef0; --accent-fg: #0b0e13; --me: #24406e; --bot: #1f2530; --note: #9aa3b2;
-      --danger: #e5675a; --ok: #4cbb72;
+    :root:not([data-theme="light"]) {
+      --bg: #0b0f14; --bg-glow: #13222b; --surface: #121924; --surface-2: #161f2c; --sunken: #0d131b;
+      --line: #1f2b3b; --line-strong: #2d3b4f;
+      --text: #dbe4ef; --text-2: #aab6c6; --muted: #7f90a7;
+      --accent: #35e0c4; --accent-hover: #63ead5; --accent-ink: #04221d; --accent-soft: rgba(53, 224, 196, .12);
+      --accent-line: rgba(53, 224, 196, .42); --accent-2: #4aa8ff;
+      --ok: #46d17f; --ok-soft: rgba(70, 209, 127, .12); --warn: #ffb454; --warn-soft: rgba(255, 180, 84, .12);
+      --bad: #ff6b78; --bad-soft: rgba(255, 93, 108, .13);
+      --me: #163836; --me-ink: #dff7f2;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+      --shadow-md: 0 14px 34px -12px rgba(0, 0, 0, .75);
+      --shadow-lg: 0 28px 70px -20px rgba(0, 0, 0, .85);
+      --highlight: inset 0 1px 0 rgba(255, 255, 255, .045);
+      --scrim: rgba(3, 7, 12, .66);
+      color-scheme: dark;
     }
   }
+  :root[data-theme="dark"] {
+    --bg: #0b0f14; --bg-glow: #13222b; --surface: #121924; --surface-2: #161f2c; --sunken: #0d131b;
+    --line: #1f2b3b; --line-strong: #2d3b4f;
+    --text: #dbe4ef; --text-2: #aab6c6; --muted: #7f90a7;
+    --accent: #35e0c4; --accent-hover: #63ead5; --accent-ink: #04221d; --accent-soft: rgba(53, 224, 196, .12);
+    --accent-line: rgba(53, 224, 196, .42); --accent-2: #4aa8ff;
+    --ok: #46d17f; --ok-soft: rgba(70, 209, 127, .12); --warn: #ffb454; --warn-soft: rgba(255, 180, 84, .12);
+    --bad: #ff6b78; --bad-soft: rgba(255, 93, 108, .13);
+    --me: #163836; --me-ink: #dff7f2;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+    --shadow-md: 0 14px 34px -12px rgba(0, 0, 0, .75);
+    --shadow-lg: 0 28px 70px -20px rgba(0, 0, 0, .85);
+    --highlight: inset 0 1px 0 rgba(255, 255, 255, .045);
+    --scrim: rgba(3, 7, 12, .66);
+    color-scheme: dark;
+  }
+
+  /* ── 基本 ───────────────────────────────────────────────────────── */
   * { box-sizing: border-box; }
   html, body { height: 100%; }
-  body { margin: 0; background: var(--bg); color: var(--fg);
-         font: 15px/1.5 system-ui, "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", sans-serif; }
-  button, input, select, textarea { font: inherit; color: inherit; }
-  button { cursor: pointer; border: 1px solid var(--line); background: var(--panel); border-radius: 8px;
-           padding: 6px 12px; }
-  button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
-  button.danger { color: var(--danger); }
-  button:disabled { opacity: .5; cursor: default; }
-  input, select, textarea { background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
-                            padding: 6px 10px; max-width: 100%; }
-  a { color: var(--accent); }
+  body { margin: 0; color: var(--text); font: 15px/1.55 var(--font); -webkit-font-smoothing: antialiased;
+         background: radial-gradient(1100px 560px at 85% -12%, var(--bg-glow) 0%, var(--bg) 58%) fixed, var(--bg); }
+  h1, h2, h3, p { margin: 0; }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+  h2 { font-size: 16px; font-weight: 700; }
+  h3 { font-size: 14px; font-weight: 700; color: var(--text-2); }
+  ul { margin: 0; padding-left: 20px; }
+  li + li { margin-top: 3px; }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  code { font-family: var(--mono); font-size: .92em; }
+  svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8;
+          stroke-linecap: round; stroke-linejoin: round; }
   .hidden { display: none !important; }
   .muted { color: var(--muted); font-size: 13px; }
-
-  header.top { display: flex; align-items: center; gap: 12px; padding: 8px 16px; background: var(--panel);
-               border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 2; flex-wrap: wrap; }
-  header.top .brand { font-weight: 700; letter-spacing: .08em; }
-  header.top nav { display: flex; gap: 4px; flex: 1; }
-  header.top nav a { text-decoration: none; color: var(--fg); padding: 6px 12px; border-radius: 8px; }
-  header.top nav a.active { background: var(--accent); color: var(--accent-fg); }
-  header.top .who { font-size: 14px; font-weight: 600; color: var(--fg); padding: 4px 10px;
-                    border: 1px solid var(--line); border-radius: 8px; }
-
-  main { padding: 16px; max-width: 1100px; margin: 0 auto; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px 16px;
-          margin-bottom: 14px; }
-  .card h2, .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .alert { color: var(--bad); font-weight: 600; }
   .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
-  .badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); }
-  .badge.ok { color: var(--ok); border-color: var(--ok); }
-  .badge.warn { color: var(--danger); border-color: var(--danger); }
-  .alert { color: var(--danger); font-weight: 600; }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
 
-  /* 對話頁 */
-  #view-chat { display: grid; grid-template-columns: 240px 1fr; gap: 14px; height: calc(100vh - 90px); }
-  #chat-side { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
-  #chat-list { list-style: none; margin: 0; padding: 0; overflow: auto; flex: 1; }
-  #chat-list li { padding: 8px 10px; border-radius: 8px; cursor: pointer; border: 1px solid transparent; }
-  #chat-list li.active { background: var(--panel); border-color: var(--line); }
-  #chat-list .t { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #chat-list .l { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  #chat-main { display: flex; flex-direction: column; min-height: 0; background: var(--panel);
-               border: 1px solid var(--line); border-radius: var(--radius); }
-  #stream { flex: 1; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
-  .msg { max-width: 80%; padding: 8px 12px; border-radius: 12px; white-space: pre-wrap; word-break: break-word; }
-  .msg.me { align-self: flex-end; background: var(--me); }
-  .msg.bot { align-self: flex-start; background: var(--bot); border: 1px solid var(--line); }
-  .msg.note { align-self: center; background: transparent; color: var(--note); font-size: 13px; padding: 2px 8px; }
-  .msg .kb { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; white-space: normal; }
+  /* 按鈕：預設＝次要（JS 產生的按鈕沒有 class 也是這個樣子）；primary 一頁只放一個主要動作 */
+  button { font: inherit; font-size: 14px; font-weight: 500; color: var(--text); cursor: pointer; white-space: nowrap;
+           display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px;
+           padding: 7px 14px; border-radius: var(--r); border: 1px solid var(--line-strong);
+           background: var(--surface); box-shadow: var(--shadow-sm), var(--highlight);
+           transition: border-color .15s var(--ease), background .15s var(--ease), transform .15s var(--ease); }
+  button:hover { border-color: var(--accent-line); background: var(--surface-2); }
+  button:active { transform: translateY(1px); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 650; }
+  button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  button.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 35%, transparent); }
+  button.danger:hover { background: var(--bad-soft); border-color: var(--bad); }
+  button.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--text-2); }
+  button.ghost:hover { background: var(--sunken); border-color: transparent; color: var(--text); }
+  button.sm { min-height: 30px; padding: 4px 10px; font-size: 13px; }
+  button.block { width: 100%; }
+  button:disabled { opacity: .5; cursor: default; transform: none; }
+
+  input, select, textarea { font: inherit; font-size: 14.5px; color: var(--text); background: var(--surface);
+           border: 1px solid var(--line-strong); border-radius: var(--r); padding: 8px 11px; min-height: 38px;
+           max-width: 100%; transition: border-color .15s var(--ease), box-shadow .15s var(--ease); }
+  input, select { min-width: 0; }
+  input[type="checkbox"] { min-height: 0; width: 16px; height: 16px; accent-color: var(--accent); vertical-align: -3px; }
+  input[type="file"] { padding: 6px; background: var(--surface-2); }
+  input::placeholder, textarea::placeholder { color: var(--muted); }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent);
+           box-shadow: 0 0 0 3px var(--accent-soft); }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+          padding: 18px 20px; box-shadow: var(--shadow-sm), var(--highlight); }
+  .card + .card { margin-top: 14px; }
+  .card-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+  .card-head .txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .tile { width: 36px; height: 36px; flex: none; border-radius: 11px; display: grid; place-items: center;
+          font-size: 18px; background: var(--accent-soft); color: var(--accent); }
+  .sub { color: var(--muted); font-size: 13.5px; }
+  .section-label { font-size: 12px; font-weight: 650; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; }
+  .section-label:first-child { margin-top: 0; }
+  hr.rule { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
+
+  /* 狀態：顏色＋文字，壞的另外換形狀（方點），不只靠顏色 */
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; line-height: 1;
+           padding: 4px 9px; border-radius: var(--pill); background: var(--sunken); color: var(--text-2);
+           vertical-align: 2px; white-space: nowrap; }
+  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); }
+  .badge.bad, .badge.danger { background: var(--bad-soft); color: var(--bad); }
+  .badge.bad::before, .badge.danger::before { border-radius: 2px; }
+
+  /* 欄位：標題在上、說明在下 */
+  label.f { display: block; margin: 12px 0 5px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+  .field-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .field-row input { flex: 1 1 260px; }
+  .msgline { font-size: 13.5px; color: var(--text-2); min-height: 0; margin-top: 8px; }
+  .msgline:empty { display: none; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; font-size: 12px; font-weight: 650; letter-spacing: .04em; color: var(--muted);
+       padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  td { text-align: left; padding: 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: var(--surface-2); }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); }
+  td .name { font-weight: 600; }
+  td .detail { display: block; color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+
+  /* ── 外框：左側欄（OpenClaw／Hermes 的資訊架構）＋內容 ─────────────── */
+  .shell { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); min-height: 100vh; }
+  .side { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 14px;
+          padding: 16px 12px; border-right: 1px solid var(--line);
+          background: color-mix(in srgb, var(--surface) 72%, transparent); backdrop-filter: blur(8px); }
+  .brand-row { display: flex; align-items: center; gap: 10px; padding: 2px 6px; }
+  .brand { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+  .mark { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex: none;
+          font: 800 15px/1 var(--font); color: var(--accent-ink);
+          background: linear-gradient(140deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 55%, var(--accent-2)) 100%);
+          box-shadow: 0 6px 16px -6px var(--accent), var(--highlight); }
+  .brand .name { font-weight: 800; letter-spacing: .14em; font-size: 15px; }
+  .nav { display: flex; flex-direction: column; gap: 2px; }
+  .nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--r);
+           color: var(--text-2); text-decoration: none; font-weight: 550;
+           transition: background .15s var(--ease), color .15s var(--ease); }
+  .nav a:hover { background: var(--sunken); color: var(--text); }
+  .nav a.active { background: var(--surface); color: var(--text); font-weight: 650;
+                  box-shadow: var(--shadow-sm), var(--highlight); border: 1px solid var(--line); padding: 8px 9px; }
+  .nav a.active svg { color: var(--accent); }
+  .side-chats { display: none; flex-direction: column; gap: 8px; min-height: 0; flex: 1; }
+  body[data-view="chat"] .side-chats { display: flex; }
+  .side-chats .section-label { margin: 6px 6px 0; }
+  #chat-list { list-style: none; margin: 0; padding: 0 2px; overflow: auto; flex: 1; display: flex;
+               flex-direction: column; gap: 2px; }
+  #chat-list li { margin: 0; padding: 8px 10px; border-radius: var(--r); cursor: pointer; border: 1px solid transparent;
+                  transition: background .15s var(--ease); }
+  #chat-list li:hover { background: var(--sunken); }
+  #chat-list li.active { background: var(--accent-soft); border-color: var(--accent-line); }
+  #chat-list .t { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #chat-list .l { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .side-foot { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 10px;
+               border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface);
+               box-shadow: var(--shadow-sm), var(--highlight); }
+  .side-foot:empty, .side-foot.hidden { display: none; }
+  .avatar { width: 32px; height: 32px; flex: none; border-radius: 50%; display: grid; place-items: center;
+            font-weight: 700; font-size: 14px; background: var(--accent-soft); color: var(--accent); }
+  .who { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.3; }
+  .who .n { font-weight: 650; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .who .r { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  main { min-width: 0; padding: 28px 32px 48px; }
+  .page { max-width: 820px; margin: 0 auto; }
+  .page.wide { max-width: 1120px; }
+  .page-head { margin-bottom: 20px; display: flex; flex-direction: column; gap: 4px; }
+
+  /* ── 登入（沒有側欄，只有一張卡）──────────────────────────────────── */
+  body[data-view="login"] .shell { display: block; }
+  body[data-view="login"] .side { display: none; }
+  #view-login { min-height: calc(100vh - 76px); display: grid; place-items: center; }
+  .login { width: min(520px, 100%); padding: 28px; }
+  .login .mark { width: 44px; height: 44px; font-size: 20px; border-radius: 13px; margin-bottom: 16px; }
+  .login h1 { margin-bottom: 6px; }
+  .steps { list-style: none; padding: 0; margin: 20px 0; display: flex; flex-direction: column; gap: 14px;
+           counter-reset: step; }
+  .steps li { position: relative; padding-left: 40px; margin: 0; }
+  .steps li::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: 0;
+           width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px;
+           font-weight: 700; background: var(--accent-soft); color: var(--accent); }
+  .note-line { font-size: 13.5px; padding: 10px 12px; border-radius: var(--r); background: var(--sunken);
+               color: var(--text-2); }
+
+  /* ── 對話 ─────────────────────────────────────────────────────────── */
+  body[data-view="chat"] main { padding: 16px; height: 100vh; }
+  #view-chat { height: 100%; }
+  #chat-main { height: 100%; max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; min-height: 0;
+               background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl);
+               box-shadow: var(--shadow-sm), var(--highlight); overflow: hidden; }
+  .chat-head { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+  .chat-head .t { font-weight: 650; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .live { width: 8px; height: 8px; border-radius: 50%; background: var(--ok);
+          box-shadow: 0 0 0 3px var(--ok-soft); flex: none; }
+  #stream { flex: 1; overflow: auto; padding: 20px 18px; display: flex; flex-direction: column; gap: 10px;
+            scroll-behavior: smooth; }
+  .msg { max-width: min(78%, 640px); padding: 10px 14px; border-radius: 16px; white-space: pre-wrap;
+         word-break: break-word; line-height: 1.6; animation: rise .22s var(--ease); }
+  .msg.me { align-self: flex-end; background: var(--me); color: var(--me-ink); border-bottom-right-radius: 6px; }
+  .msg.bot { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--line);
+             border-bottom-left-radius: 6px; }
+  .msg.note { align-self: center; background: var(--sunken); color: var(--muted); font-size: 12.5px;
+              padding: 4px 12px; border-radius: var(--pill); }
+  .msg .kb { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; white-space: normal; }
   .msg .kb .kbrow { display: flex; gap: 6px; flex-wrap: wrap; }
   .msg .kb button, .msg .kb a { flex: 1; text-align: center; }
-  #composer { display: flex; gap: 8px; padding: 10px; border-top: 1px solid var(--line); }
-  #input { flex: 1; resize: none; min-height: 42px; max-height: 160px; }
-  .empty { color: var(--muted); text-align: center; margin: auto; }
+  .msg .kb a { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 7px 14px;
+               border-radius: var(--r); border: 1px solid var(--line-strong); background: var(--surface);
+               text-decoration: none; font-size: 14px; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  #composer { display: flex; gap: 8px; align-items: flex-end; margin: 0 14px 14px; padding: 8px 8px 8px 14px;
+              border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface);
+              transition: border-color .15s var(--ease), box-shadow .15s var(--ease); }
+  #composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  #input { flex: 1; resize: none; min-height: 40px; max-height: 160px; border: 0; padding: 9px 0; background: transparent;
+           box-shadow: none; }
+  #input:focus { box-shadow: none; }
+  .hint { font-size: 12px; color: var(--muted); text-align: center; margin: -6px 0 10px; }
+  .empty { color: var(--muted); text-align: center; margin: auto; display: flex; flex-direction: column;
+           align-items: center; gap: 10px; padding: 24px; }
+  .empty::before { content: ""; width: 44px; height: 44px; border-radius: 14px; background: var(--accent-soft); }
 
-  /* 工具頁 */
-  .cmd { border-top: 1px solid var(--line); padding: 8px 0; }
-  .cmd code { font-weight: 600; }
-  .connect { border-top: 1px solid var(--line); padding: 8px 0; display: grid; gap: 6px; }
-  .connect label { display: grid; gap: 2px; }
-  .cmd form { display: flex; gap: 6px; margin-top: 6px; }
-  .cmd form input { flex: 1; min-width: 0; }
-  .result { white-space: pre-wrap; background: var(--bg); border-radius: 8px; padding: 6px 10px; margin-top: 6px;
-            font-size: 14px; }
-  iframe.panel { width: 100%; height: 240px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+  /* ── 工具 ─────────────────────────────────────────────────────────── */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; align-items: start; }
+  .grid .card + .card { margin-top: 0; }
+  .grid .card h3 { font-size: 16px; color: var(--text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .grid .card > .muted { margin-top: 4px; }
+  .cmd { border-top: 1px solid var(--line); padding: 12px 0 2px; margin-top: 12px; }
+  .cmd > div:first-child { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; color: var(--muted);
+                           font-size: 13px; }
+  .cmd code { font-weight: 650; color: var(--accent); background: var(--accent-soft); padding: 2px 7px;
+              border-radius: 6px; font-size: 13px; }
+  .cmd > .muted { margin-top: 4px; color: var(--text-2); }
+  .cmd form { display: flex; gap: 6px; margin-top: 8px; }
+  .cmd form input { flex: 1; min-width: 0; min-height: 34px; padding: 6px 10px; font-size: 14px; }
+  .cmd form button { min-height: 34px; }
+  .connect { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; display: grid; gap: 8px; }
+  .connect > button { justify-self: start; }
+  .connect form { display: grid; gap: 10px; }
+  .connect label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+  .connect label .muted { font-weight: 400; }
+  .result { white-space: pre-wrap; background: var(--sunken); border-radius: var(--r); padding: 10px 12px;
+            margin-top: 8px; font-size: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .result .msg { max-width: 100%; animation: none; }
+  iframe.panel { width: 100%; height: 260px; margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r);
+                 background: var(--surface); }
 
-  /* 設定頁 */
-  label.f { display: block; margin: 8px 0 2px; font-size: 13px; color: var(--muted); }
-  table { width: 100%; border-collapse: collapse; font-size: 14px; }
-  th, td { text-align: left; padding: 6px 4px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-  .tablewrap { overflow-x: auto; }
-  #toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg);
-           padding: 8px 14px; border-radius: 8px; max-width: calc(100% - 32px); z-index: 5; }
+  /* ── 設定 ─────────────────────────────────────────────────────────── */
+  .channel + .channel { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 16px; }
+  .channel h3 { font-size: 15px; color: var(--text); }
+  #pack-review { margin-top: 14px; background: var(--surface-2); box-shadow: none; display: flex;
+                 flex-direction: column; gap: 10px; }
+  #pack-review > h3 { font-size: 16px; color: var(--text); }
+  #pack-review label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .upload { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; padding: 14px;
+            border: 1px dashed var(--line-strong); border-radius: var(--r); background: var(--surface-2); }
+  .upload input[type="file"] { flex: 1 1 220px; }
 
-  @media (max-width: 720px) {
-    main { padding: 10px 16px; }
-    #view-chat { grid-template-columns: 1fr; height: auto; }
-    #chat-side { flex-direction: row; align-items: center; }
-    #chat-list { display: flex; gap: 6px; overflow-x: auto; }
-    #chat-list li { min-width: 120px; max-width: 160px; }
-    #chat-main { height: calc(100vh - 170px); }
-    .msg { max-width: 92%; }
+  #toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--text);
+           color: var(--bg); padding: 10px 16px; border-radius: 12px; max-width: calc(100% - 32px); z-index: 50;
+           box-shadow: var(--shadow-lg); font-size: 14px; animation: rise .2s var(--ease); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
+
+  /* ── 手機：側欄變上方列＋底部分頁（記帳專案的做法）；字不小於 14px、輸入 16px、按鈕 44px ── */
+  @media (max-width: 760px) {
+    body { font-size: 15px; }
+    .shell { display: block; }
+    /* 不能有 backdrop-filter：它會讓底部分頁（position: fixed）改成貼著側欄定位 */
+    .side { position: sticky; top: 0; z-index: 20; height: auto; padding: 10px 16px; gap: 10px; border-right: 0;
+            border-bottom: 1px solid var(--line); background: var(--surface); backdrop-filter: none; }
+    .side-chats, #chat-list { min-width: 0; }
+    input:not([type="checkbox"]), select { width: 100%; }
+    .field-row button, .upload button { flex: 1 1 auto; }
+    .side-foot { display: none; }
+    .nav { position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; flex-direction: row; gap: 4px;
+           padding: 6px 10px calc(6px + env(safe-area-inset-bottom)); background: var(--surface);
+           border-top: 1px solid var(--line); box-shadow: 0 -8px 24px -16px rgba(0, 0, 0, .4); }
+    .nav a { flex: 1; flex-direction: column; gap: 2px; padding: 7px 4px; font-size: 13px; min-height: 52px;
+             justify-content: center; }
+    .nav a.active { padding: 6px 3px; }
+    .nav.hidden { display: none !important; }
+    .side-chats { flex: none; }
+    .side-chats .section-label { display: none; }
+    body[data-view="chat"] .side-chats { flex-direction: row; align-items: center; }
+    #new-chat { width: auto; flex: none; }
+    #chat-list { flex-direction: row; overflow-x: auto; gap: 6px; padding: 2px; }
+    #chat-list li { min-width: 120px; max-width: 170px; background: var(--surface); border-color: var(--line); }
+    main { padding: 16px 16px 96px; }
+    body[data-view="chat"] main { padding: 10px 10px 84px; height: auto; }
+    #chat-main { height: calc(100vh - 210px); height: calc(100dvh - 210px); border-radius: var(--r-lg); }
+    .chat-head, .hint { display: none; }
+    #composer { margin-bottom: 10px; }
+    .msg { max-width: 90%; }
     .grid { grid-template-columns: 1fr; }
+    .card { padding: 16px; }
+    button { min-height: 44px; font-size: 15px; }
+    button.sm { min-height: 40px; }
+    input, select, textarea { font-size: 16px; min-height: 44px; }
+    .cmd form input, .cmd form button { min-height: 44px; }
+    .muted, .sub, .badge, #chat-list .l, td .detail { font-size: 14px; }
+    #toast { bottom: 84px; }
+    #view-login { min-height: auto; padding-top: 12px; }
+    .login { padding: 22px 18px; }
   }
 </style>
 </head>
-<body>
-<header class="top">
-  <span class="brand">SYNOX</span>
-  <nav id="nav" class="hidden">
-    <a href="#chat" data-view="chat">對話</a>
-    <a href="#tools" data-view="tools">工具</a>
-    <a href="#settings" data-view="settings">設定</a>
+<body data-view="login">
+<div class="shell">
+<aside class="side">
+  <div class="brand-row">
+    <div class="brand"><span class="mark" aria-hidden="true">S</span><span class="name">SYNOX</span></div>
+    <button id="logout" class="ghost sm hidden" type="button" title="登出">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg>
+      <span>登出</span>
+    </button>
+  </div>
+  <nav id="nav" class="nav hidden">
+    <a href="#chat" data-view="chat">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12z"/></svg>
+      <span>對話</span></a>
+    <a href="#tools" data-view="tools">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>
+      <span>工具</span></a>
+    <a href="#settings" data-view="settings">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      <span>設定</span></a>
   </nav>
-  <span class="who" id="who"></span>
-  <button id="logout" class="hidden" type="button">登出</button>
-</header>
+  <div id="chat-side" class="side-chats">
+    <div class="section-label">對話紀錄</div>
+    <button id="new-chat" class="primary block" type="button">＋ 新對話</button>
+    <ul id="chat-list"></ul>
+  </div>
+  <div id="side-foot" class="side-foot hidden">
+    <span class="avatar" id="avatar" aria-hidden="true"></span>
+    <span class="who" id="who"></span>
+  </div>
+</aside>
 
 <main>
   <section id="view-login" class="hidden">
-    <div class="card">
-      <h2>請先登入</h2>
-      <p>在跑 SYNOX 的<b>這台電腦</b>上：雙擊桌面的「SYNOX」捷徑（或 SYNOX 資料夾裡的 <code>Open-SYNOX.bat</code>），它會打開一個新的一次性登入連結，按頁面上的「登入」就好。</p>
-      <p>有接 Telegram／Discord 的話，也可以跟你的 SYNOX bot 打 <code>/web</code> 拿連結（7 天內有效、只能用一次）。</p>
-      <p class="muted">這個網頁只在跑 SYNOX 的那台電腦上打得開（127.0.0.1）。沒有密碼：連結就是鑰匙，不要轉給別人。</p>
+    <div class="card login">
+      <span class="mark" aria-hidden="true">S</span>
+      <h1>請先登入</h1>
+      <p class="sub">沒有密碼：一次性的登入連結就是鑰匙，不要轉給別人。</p>
+      <ol class="steps">
+        <li>在跑 SYNOX 的<b>這台電腦</b>上：雙擊桌面的「SYNOX」捷徑（或 SYNOX 資料夾裡的 <code>Open-SYNOX.bat</code>），它會打開一個新的一次性登入連結，按頁面上的「登入」就好。</li>
+        <li>有接 Telegram／Discord 的話，也可以跟你的 SYNOX bot 打 <code>/web</code> 拿連結（7 天內有效、只能用一次）。</li>
+      </ol>
+      <p class="note-line">這個網頁只在跑 SYNOX 的那台電腦上打得開（127.0.0.1）。</p>
     </div>
   </section>
 
   <section id="view-chat" class="hidden">
-    <aside id="chat-side">
-      <button id="new-chat" class="primary" type="button">＋ 新對話</button>
-      <ul id="chat-list"></ul>
-    </aside>
     <div id="chat-main">
+      <div class="chat-head"><span class="live" aria-hidden="true"></span><span class="t" id="chat-title">對話</span></div>
       <div id="stream"><div class="empty">選一段對話，或按「新對話」。</div></div>
       <form id="composer">
-        <textarea id="input" rows="1" placeholder="打字跟 SYNOX 說，或打 /指令（Enter 送出，Shift+Enter 換行）"></textarea>
-        <button class="primary" type="submit">送出</button>
+        <textarea id="input" rows="1" placeholder="打字跟 SYNOX 說，或打 /指令"></textarea>
+        <button class="primary" type="submit">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+          <span>送出</span></button>
       </form>
+      <p class="hint">Enter 送出，Shift+Enter 換行；打 /help 看全部指令</p>
     </div>
   </section>
 
   <section id="view-tools" class="hidden">
-    <p class="muted">你看得到、用得到的全部功能。每個指令旁邊的框可以直接執行（結果也會留在對話頁的「🧰 工具頁」）。</p>
-    <div id="tool-packs" class="grid"></div>
-    <h3>其他</h3>
-    <div id="tool-groups" class="grid"></div>
+    <div class="page wide">
+      <header class="page-head">
+        <h1>工具</h1>
+        <p class="sub">你看得到、用得到的全部功能。每個指令旁邊的框可以直接執行（結果也會留在對話頁的「🧰 工具頁」）。</p>
+      </header>
+      <div id="tool-packs" class="grid"></div>
+      <div class="section-label">其他</div>
+      <div id="tool-groups" class="grid"></div>
+    </div>
   </section>
 
   <section id="view-settings" class="hidden">
-    <div id="set-notowner" class="card hidden">
-      <h2>設定</h2>
-      <p>AI 來源、聊天通道、功能裝卸和備份只有擁有者能改。</p>
-      <p id="my-budget" class="muted"></p>
-    </div>
+    <div class="page">
+      <header class="page-head">
+        <h1>設定</h1>
+        <p class="sub">AI 來源、聊天通道、功能和備份。改完的東西存在這台電腦。</p>
+      </header>
 
-    <div id="set-llm" class="card hidden">
-      <h2>🤖 AI 從哪裡來</h2>
-      <p class="muted" id="llm-now"></p>
-      <label class="f" for="llm-choice">來源</label>
-      <select id="llm-choice"></select>
-      <div id="llm-key-fields">
-        <label class="f" for="llm-key">API key（留空＝沿用原本的）</label>
-        <input id="llm-key" type="password" autocomplete="off" size="40">
-        <label class="f" for="llm-model">模型</label>
-        <input id="llm-model" type="text" size="30">
-        <div id="llm-url-wrap">
-          <label class="f" for="llm-url">網址（例如 http://localhost:11434/v1）</label>
-          <input id="llm-url" type="text" size="40">
+      <div id="set-notowner" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">🔒</span>
+          <div class="txt"><h2>只有擁有者能改</h2>
+            <p class="sub">AI 來源、聊天通道、功能裝卸和備份只有擁有者能改。</p></div></div>
+        <p id="my-budget" class="note-line"></p>
+      </div>
+
+      <div id="set-llm" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">🤖</span>
+          <div class="txt"><h2>AI 從哪裡來</h2><p class="sub" id="llm-now"></p></div></div>
+        <label class="f" for="llm-choice">來源</label>
+        <select id="llm-choice"></select>
+        <div id="llm-key-fields">
+          <label class="f" for="llm-key">API key（留空＝沿用原本的）</label>
+          <input id="llm-key" type="password" autocomplete="off" size="40">
+          <label class="f" for="llm-model">模型</label>
+          <input id="llm-model" type="text" size="30">
+          <div id="llm-url-wrap">
+            <label class="f" for="llm-url">網址（例如 http://localhost:11434/v1）</label>
+            <input id="llm-url" type="text" size="40">
+          </div>
         </div>
-      </div>
-      <div class="row">
-        <button id="llm-test" type="button">測一下</button>
-        <button id="llm-save" class="primary" type="button">存起來</button>
-        <span id="llm-msg" class="muted"></span>
-      </div>
-    </div>
-
-    <div id="set-channels" class="card hidden">
-      <h2>💬 聊天通道（Telegram / Discord）</h2>
-      <p class="muted">貼上 bot 的 token，先檢查再存（token 存好之後不會再顯示）。改了要重新啟動 SYNOX 才生效。</p>
-      <h3>Telegram</h3>
-      <p id="ch-tg-now" class="muted"></p>
-      <label class="f" for="ch-tg-token">bot token（@BotFather 給的，長得像 123456789:AAH…）</label>
-      <div class="row">
-        <input id="ch-tg-token" type="password" autocomplete="off" size="40">
-        <button id="ch-tg-save" class="primary" type="button">檢查並存起來</button>
-      </div>
-      <p id="ch-tg-msg" class="muted"></p>
-      <h3>Discord</h3>
-      <p id="ch-dc-now" class="muted"></p>
-      <div id="ch-dc-form">
-        <label class="f" for="ch-dc-token">bot token（Developer Portal → 你的 App → Bot → Reset Token）</label>
+        <hr class="rule">
         <div class="row">
-          <input id="ch-dc-token" type="password" autocomplete="off" size="40">
-          <button id="ch-dc-save" class="primary" type="button">檢查並存起來</button>
+          <button id="llm-save" class="primary" type="button">存起來</button>
+          <button id="llm-test" type="button">測一下</button>
+          <span id="llm-msg" class="muted"></span>
         </div>
       </div>
-      <p id="ch-dc-msg" class="muted"></p>
-      <p id="ch-dc-invite-wrap" class="hidden">邀請連結（把 bot 加進你的伺服器）：<a id="ch-dc-invite" target="_blank" rel="noopener noreferrer"></a></p>
-    </div>
 
-    <div id="set-packs" class="card hidden">
-      <h2>🧩 功能（pack）</h2>
-      <div class="tablewrap"><table><thead><tr><th>名字</th><th>狀態</th><th>版本</th><th></th></tr></thead>
-        <tbody id="pack-rows"></tbody></table></div>
-      <div class="row">
+      <div id="set-channels" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">💬</span>
+          <div class="txt"><h2>聊天通道</h2>
+            <p class="sub">貼上 bot 的 token，先檢查再存（token 存好之後不會再顯示）。改了要重新啟動 SYNOX 才生效。</p></div></div>
+        <div class="channel">
+          <h3>Telegram</h3>
+          <p id="ch-tg-now" class="muted"></p>
+          <label class="f" for="ch-tg-token">bot token（@BotFather 給的，長得像 123456789:AAH…）</label>
+          <div class="field-row">
+            <input id="ch-tg-token" type="password" autocomplete="off" size="40">
+            <button id="ch-tg-save" type="button">檢查並存起來</button>
+          </div>
+          <p id="ch-tg-msg" class="msgline"></p>
+        </div>
+        <div class="channel">
+          <h3>Discord</h3>
+          <p id="ch-dc-now" class="muted"></p>
+          <div id="ch-dc-form">
+            <label class="f" for="ch-dc-token">bot token（Developer Portal → 你的 App → Bot → Reset Token）</label>
+            <div class="field-row">
+              <input id="ch-dc-token" type="password" autocomplete="off" size="40">
+              <button id="ch-dc-save" type="button">檢查並存起來</button>
+            </div>
+          </div>
+          <p id="ch-dc-msg" class="msgline"></p>
+          <p id="ch-dc-invite-wrap" class="note-line hidden">邀請連結（把 bot 加進你的伺服器）：<a id="ch-dc-invite" target="_blank" rel="noopener noreferrer"></a></p>
+        </div>
+      </div>
+
+      <div id="set-packs" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">🧩</span>
+          <div class="txt"><h2>功能（pack）</h2><p class="sub">裝了哪些功能、能不能用。移除的會搬到 packs/_removed/，不會刪掉。</p></div></div>
+        <div class="tablewrap"><table><thead><tr><th>名字</th><th>狀態</th><th>版本</th><th></th></tr></thead>
+          <tbody id="pack-rows"></tbody></table></div>
         <label class="f" for="pack-file">裝一個 .synoxpack（pack 資料夾壓成的 zip）</label>
+        <div class="upload">
+          <input id="pack-file" type="file" accept=".synoxpack,.zip">
+          <button id="pack-upload" class="primary" type="button">上傳並檢查</button>
+          <button id="pack-reload" class="ghost" type="button">重新載入全部</button>
+        </div>
+        <div id="pack-review" class="card hidden"></div>
+        <p id="pack-msg" class="msgline"></p>
       </div>
-      <div class="row">
-        <input id="pack-file" type="file" accept=".synoxpack,.zip">
-        <button id="pack-upload" type="button">上傳並檢查</button>
-        <button id="pack-reload" type="button">重新載入全部</button>
+
+      <div id="set-accounts" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">👥</span>
+          <div class="txt"><h2>帳號（伺服器版）</h2><p class="sub">誰能用、用了多少；角色改了馬上生效。</p></div></div>
+        <div class="tablewrap"><table><thead><tr><th>id</th><th>名字</th><th>角色</th><th>今天訊息</th><th>本月 AI</th></tr></thead>
+          <tbody id="account-rows"></tbody></table></div>
+        <p id="account-msg" class="msgline"></p>
       </div>
-      <div id="pack-review" class="card hidden"></div>
-      <p id="pack-msg" class="muted"></p>
-    </div>
 
-    <div id="set-accounts" class="card hidden">
-      <h2>👥 帳號（伺服器版）</h2>
-      <div class="tablewrap"><table><thead><tr><th>id</th><th>名字</th><th>角色</th><th>今天訊息</th><th>本月 AI</th></tr></thead>
-        <tbody id="account-rows"></tbody></table></div>
-      <p id="account-msg" class="muted"></p>
-    </div>
-
-    <div id="set-backup" class="card hidden">
-      <h2>💾 備份</h2>
-      <p>下載整個 data 資料夾（筆記、記帳、提醒、使用者…），用這台電腦的保管箱金鑰加密。
-        <span class="muted">只有同一台電腦、同一個 Windows 帳號解得開。</span></p>
-      <button id="backup" type="button">下載備份</button>
-      <span id="backup-msg" class="muted"></span>
+      <div id="set-backup" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">💾</span>
+          <div class="txt"><h2>備份</h2>
+            <p class="sub">下載整個 data 資料夾（筆記、記帳、提醒、使用者…），用這台電腦的保管箱金鑰加密。只有同一台電腦、同一個 Windows 帳號解得開。</p></div></div>
+        <div class="row">
+          <button id="backup" type="button">下載備份</button>
+          <span id="backup-msg" class="muted"></span>
+        </div>
+      </div>
     </div>
   </section>
 </main>
-<div id="toast" class="hidden"></div>
+</div>
+<div id="toast" class="hidden" role="status"></div>
 
 <script nonce="{{NONCE}}">
 (function () {
@@ -293,8 +573,11 @@
   var VIEWS = ["login", "chat", "tools", "settings"];
   function show(view) {
     VIEWS.forEach(function (v) { $("view-" + v).classList.toggle("hidden", v !== view); });
+    document.body.setAttribute("data-view", view);
     Array.prototype.forEach.call(document.querySelectorAll("#nav a"), function (a) {
-      a.classList.toggle("active", a.getAttribute("data-view") === view);
+      var on = a.getAttribute("data-view") === view;
+      a.classList.toggle("active", on);
+      if (on) { a.setAttribute("aria-current", "page"); } else { a.removeAttribute("aria-current"); }
     });
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     if (view === "chat") { loadChats(); pollTimer = setInterval(poll, 2000); }
@@ -310,7 +593,8 @@
     me = null;
     $("nav").classList.add("hidden");
     $("logout").classList.add("hidden");
-    $("who").textContent = "";
+    $("side-foot").classList.add("hidden");
+    clear($("who"));
     show("login");
   }
 
@@ -335,9 +619,13 @@
     }).catch(function (e) { toast(e.message); });
   }
   function markActive() {
+    var title = "對話";
     Array.prototype.forEach.call(document.querySelectorAll("#chat-list li"), function (li) {
-      li.classList.toggle("active", li.getAttribute("data-id") === current);
+      var on = li.getAttribute("data-id") === current;
+      li.classList.toggle("active", on);
+      if (on) { title = li.querySelector(".t").textContent; }
     });
+    $("chat-title").textContent = title;
   }
   function openChat(id, keep) {
     if (current === id && keep && Object.keys(nodes).length) { markActive(); return; }
@@ -417,6 +705,7 @@
     var text = input.value.trim();
     if (!text) { return; }
     input.value = "";
+    input.style.height = "";
     send(text);
   });
   $("input").addEventListener("keydown", function (ev) {
@@ -425,6 +714,11 @@
       $("composer").requestSubmit ? $("composer").requestSubmit() : $("composer").dispatchEvent(new Event("submit"));
     }
   });
+  $("input").addEventListener("input", function () {      // 輸入框跟著字長高（最多 160px，CSS 的 max-height）
+    var t = $("input");
+    t.style.height = "";
+    t.style.height = t.scrollHeight + "px";
+  });
 
   // ── 工具頁 ────────────────────────────────────────────────────────
   function commandBlock(c) {
@@ -432,8 +726,9 @@
     var head = el("div");
     head.appendChild(el("code", "", c.command));
     if (c.usage) { head.appendChild(document.createTextNode(" " + c.usage)); }
+    if (c.effect === "danger") { head.appendChild(el("span", "badge danger", "危險：會先問你")); }
     box.appendChild(head);
-    box.appendChild(el("div", "muted", c.summary + (c.effect === "danger" ? "（危險：會先問你）" : "")));
+    box.appendChild(el("div", "muted", c.summary));
     var form = el("form");
     var input = el("input");
     input.type = "text"; input.placeholder = c.usage || "（不用參數，直接按執行）";
@@ -465,7 +760,8 @@
   // 「連接」：auth.fields 的表單。secret 用 password 輸入、伺服器永遠不回值（只回有填、最後 4 碼）；留空＝沿用原值。
   function connectBlock(p, badge) {
     var box = el("div", "connect");
-    var open = el("button", "", p.missing && p.missing.length ? "🔌 連接" : "🔌 連接設定");
+    var open = el("button", p.missing && p.missing.length ? "primary sm" : "sm",
+                  p.missing && p.missing.length ? "🔌 連接" : "🔌 連接設定");
     open.type = "button";
     var form = el("form", "hidden");
     var msg = el("div", "muted");
@@ -492,7 +788,7 @@
         form.appendChild(lab);
         inputs[f.name] = { field: f, input: input };
       });
-      var save = el("button", "", "存起來"); save.type = "submit";
+      var save = el("button", "primary", "存起來"); save.type = "submit";
       form.appendChild(save);
       form.onsubmit = function (ev) {
         ev.preventDefault();
@@ -586,6 +882,7 @@
       $("set-accounts").classList.toggle("hidden", !d.accounts);
       $("my-budget").textContent = d.ai_budget ?
         "這個月的 AI 額度：用了約 US$" + d.ai_budget.used.toFixed(2) + "／US$" + Number(d.ai_budget.limit).toFixed(2) : "";
+      $("my-budget").classList.toggle("hidden", !d.ai_budget);
       if (d.owner) { fillLlm(d); fillPacks(d.packs || []); loadChannels(); }
       if (d.accounts) { loadAccounts(); }
     }).catch(function (e) { toast(e.message); });
@@ -673,18 +970,24 @@
 
   var STATUS = { loaded: "可以用", connector: "還沒接上", disabled: "關掉了", invalid: "格式不對", missing: "缺東西", incompatible: "SYNOX 版本不合", error: "壞了",
     tampered: "被改過了，沒有載入", rejected: "掃描沒過，沒有載入" };
+  // 狀態的顏色（顏色之外一定有字）：可以用＝綠、還沒接上／關掉＝黃、其他＝紅
+  var TONE = { loaded: "ok", connector: "warn", disabled: "", missing: "warn", incompatible: "warn" };
   var LOCK = { locked: "🔒", unlocked: "", tampered: "⚠️" };
   function fillPacks(packs) {
     var body = $("pack-rows");
     clear(body);
     packs.forEach(function (p) {
       var tr = el("tr");
-      tr.appendChild(el("td", "", (LOCK[p.lock] ? LOCK[p.lock] + " " : "") + p.name));
-      tr.appendChild(el("td", "", (STATUS[p.status] || p.status) + (p.detail ? "：" + p.detail : "")));
-      tr.appendChild(el("td", "", p.version || ""));
+      tr.appendChild(el("td", "name", (LOCK[p.lock] ? LOCK[p.lock] + " " : "") + p.name));
+      var st = el("td");
+      var tone = TONE.hasOwnProperty(p.status) ? TONE[p.status] : "bad";
+      st.appendChild(el("span", "badge " + tone, STATUS[p.status] || p.status));
+      if (p.detail) { st.appendChild(el("span", "detail", p.detail)); }
+      tr.appendChild(st);
+      tr.appendChild(el("td", "muted", p.version || ""));
       var td = el("td");
       if (p.removable) {
-        var b = el("button", "danger", "移除");
+        var b = el("button", "danger sm", "移除");
         b.type = "button";
         b.addEventListener("click", function () {
           if (!confirm("移除 " + p.name + "？（會搬到 packs/_removed/，不會刪掉）")) { return; }
@@ -717,7 +1020,7 @@
     box.appendChild(el("p", "", "宣告要：" + capList(scan.declared_capabilities) + "　掃描看到要：" +
       capList(scan.required_capabilities)));
     if ((scan.problems || []).length) {
-      box.appendChild(el("p", "", "❌ 拒裝：安全檢查沒過"));
+      box.appendChild(el("p", "alert", "❌ 拒裝：安全檢查沒過"));
       var bad = el("ul");
       scan.problems.forEach(function (p) { bad.appendChild(el("li", "", p)); });
       box.appendChild(bad);
@@ -742,7 +1045,7 @@
     }
     var ul = el("ul");
     (s.warnings || []).forEach(function (w) { ul.appendChild(el("li", "", w)); });
-    box.appendChild(ul);
+    if ((s.warnings || []).length) { box.appendChild(ul); }
     var upg = s.upgrade, down = null;
     if (upg) { down = showUpgrade(box, upg, s.name); }
     var trust = canInstall && s.token ? showScope(box, s, upg) : null;
@@ -844,6 +1147,7 @@
     function check() {
       note.textContent = (upg && sel.value !== (current || "")) ?
         "🔴 信任 " + (current || "（未鎖定）") + " → " + sel.value : "";
+      note.classList.toggle("hidden", !note.textContent);
     }
     sel.addEventListener("change", check);
     check();
@@ -880,6 +1184,7 @@
       note.textContent = (sel.value === "container" && noEngine) ?
         "⚠️ 這台找不到 podman／docker：選了容器也會先退回直接跑，裝好引擎後自動改用容器" :
         ((current === "container" && sel.value !== "container") ? "🔴 執行環境 容器 → 直接在這台跑" : "");
+      note.classList.toggle("hidden", !note.textContent);
     }
     sel.addEventListener("change", check);
     check();
@@ -955,8 +1260,11 @@
       clear(body);
       d.users.forEach(function (u) {
         var tr = el("tr");
-        tr.appendChild(el("td", "", u.id));
-        tr.appendChild(el("td", "", (u.username || "") + (u.owner ? "（擁有者）" : "") + (u.pending ? "（申請中）" : "")));
+        tr.appendChild(el("td", "muted", u.id));
+        var name = el("td", "name", u.username || "");
+        if (u.owner) { name.appendChild(el("span", "badge ok", "擁有者")); }
+        if (u.pending) { name.appendChild(el("span", "badge warn", "申請中")); }
+        tr.appendChild(name);
         var td = el("td");
         if (u.owner) { td.textContent = u.role; }
         else {
@@ -1000,12 +1308,21 @@
   });
   window.addEventListener("hashchange", route);
 
+  // 左下角的「目前登入」：名字一行、角色一行（文字一律 textContent）
+  function showWho(d) {
+    var who = $("who");
+    clear(who);
+    who.appendChild(el("span", "n", d.username ? d.username : "id " + d.id));
+    who.appendChild(el("span", "r", (d.username ? "id " + d.id + "・" : "") + d.role + (d.owner ? "・擁有者" : "")));
+    $("avatar").textContent = (d.username || "#").charAt(0).toUpperCase();
+    $("side-foot").classList.remove("hidden");
+  }
+
   api("GET", "/api/me").then(function (d) {
     me = d;
     $("nav").classList.remove("hidden");
     $("logout").classList.remove("hidden");
-    $("who").textContent = "目前登入：" + (d.username ? d.username + "（id " + d.id + "）" : "id " + d.id) +
-      "・" + d.role + (d.owner ? "，擁有者" : "");
+    showWho(d);
     route();
   }).catch(function () { showLogin(); });
 })();

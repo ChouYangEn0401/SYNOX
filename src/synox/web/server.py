@@ -75,12 +75,36 @@ def _err(status: int, message: str) -> Resp:
     return _json(status, {"error": message})
 
 
+# 伺服器自己產生的小頁（登入確認、登入失敗）共用的樣式：跟 static/app.html 同一套 token 的精簡版
+# （CSP 是 style-src 'unsafe-inline'，沒有 script；改顏色先改 app.html，再對這裡）。
+PAGE_CSS = (
+    ":root{--bg:#f3f5f8;--surface:#fff;--line:#e2e7ee;--text:#131b26;--muted:#6a7687;--accent:#0a7c70;"
+    "--accent-ink:#fff;--accent-soft:#e0f2ef;--warn-soft:#fdf1dc;--warn:#9a6400;color-scheme:light dark}"
+    "@media (prefers-color-scheme:dark){:root{--bg:#0b0f14;--surface:#121924;--line:#1f2b3b;--text:#dbe4ef;"
+    "--muted:#7f90a7;--accent:#35e0c4;--accent-ink:#04221d;--accent-soft:rgba(53,224,196,.12);"
+    "--warn-soft:rgba(255,180,84,.12);--warn:#ffb454}}"
+    "*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;"
+    "background:var(--bg);color:var(--text);font:15px/1.6 \"Segoe UI\",\"Microsoft JhengHei UI\","
+    "\"Microsoft JhengHei\",\"PingFang TC\",\"Noto Sans TC\",system-ui,sans-serif}"
+    ".card{width:min(500px,100%);background:var(--surface);border:1px solid var(--line);border-radius:14px;"
+    "padding:28px;box-shadow:0 10px 30px -10px rgba(19,27,38,.22)}"
+    ".mark{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;margin-bottom:16px;"
+    "font-weight:800;font-size:20px;color:var(--accent-ink);background:var(--accent)}"
+    "h1{font-size:22px;margin:0 0 10px}p{margin:10px 0}.big{font-size:1.15em}.muted{color:var(--muted);font-size:14px}"
+    ".warn{background:var(--warn-soft);color:var(--warn);border-radius:10px;padding:10px 12px}"
+    "a{color:var(--accent)}button{font:inherit;font-weight:650;font-size:16px;min-height:44px;padding:8px 26px;"
+    "margin-top:8px;border-radius:10px;border:1px solid var(--accent);background:var(--accent);"
+    "color:var(--accent-ink);cursor:pointer}button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+)
+
+
 def _page(status: int, title: str, text: str, extra: Optional[List[Tuple[str, str]]] = None) -> Resp:
     """伺服器自己產生的小頁（登入失敗等）：內容一律 escape。"""
     html = ("<!doctype html><html lang=\"zh-Hant\"><head><meta charset=\"utf-8\">"
             "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">"
-            f"<title>{escape(title)}</title></head><body style=\"font-family:system-ui,sans-serif;padding:24px\">"
-            f"<h1>{escape(title)}</h1><p>{escape(text)}</p><p><a href=\"/\">回 SYNOX</a></p></body></html>")
+            f"<title>{escape(title)}</title><style>{PAGE_CSS}</style></head><body><main class=\"card\">"
+            "<div class=\"mark\" aria-hidden=\"true\">S</div>"
+            f"<h1>{escape(title)}</h1><p>{escape(text)}</p><p><a href=\"/\">回 SYNOX</a></p></main></body></html>")
     return status, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "DENY"),
                                    ("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; "
                                                                "frame-ancestors 'none'")] + (extra or []), \
@@ -303,17 +327,19 @@ class WebUI:
             self._login_forms[digest(form)] = (digest(token), digest(binder), self._clock() + LOGIN_FORM_TTL)
         now_text = ""
         if session is not None and session.tg_id != tg_id:
-            now_text = f"<p><b>注意：</b>這個瀏覽器現在登入的是 {escape(self._who(session.tg_id))}，按下去會換成上面這個帳號。</p>"
+            now_text = (f"<p class=\"warn\"><b>注意：</b>這個瀏覽器現在登入的是 {escape(self._who(session.tg_id))}，"
+                        "按下去會換成上面這個帳號。</p>")
         html = ("<!doctype html><html lang=\"zh-Hant\"><head><meta charset=\"utf-8\">"
-                "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>登入 SYNOX</title></head>"
-                "<body style=\"font-family:system-ui,sans-serif;padding:24px;max-width:560px\">"
+                "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>登入 SYNOX</title>"
+                f"<style>{PAGE_CSS}</style></head><body><main class=\"card\">"
+                "<div class=\"mark\" aria-hidden=\"true\">S</div>"
                 "<h1>登入 SYNOX</h1>"
-                f"<p style=\"font-size:1.2em\">你將以 <b>{escape(self._who(tg_id))}</b> 登入。</p>{now_text}"
-                "<p>這不是你的帳號（例如別人傳給你的連結）就<b>不要按</b>，直接關掉這一頁。</p>"
+                f"<p class=\"big\">你將以 <b>{escape(self._who(tg_id))}</b> 登入。</p>{now_text}"
+                "<p class=\"muted\">這不是你的帳號（例如別人傳給你的連結）就<b>不要按</b>，直接關掉這一頁。</p>"
                 "<form method=\"post\" action=\"/login\">"
                 f"<input type=\"hidden\" name=\"f\" value=\"{escape(form)}\">"
-                "<button type=\"submit\" style=\"font-size:1.1em;padding:8px 20px\">登入</button></form>"
-                "</body></html>")
+                "<button type=\"submit\">登入</button></form>"
+                "</main></body></html>")
         csp = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
         cookie = (f"{LOGIN_COOKIE}={binder}; HttpOnly; SameSite=Strict; Path=/login; Max-Age={int(LOGIN_FORM_TTL)}"
                   + self._secure())

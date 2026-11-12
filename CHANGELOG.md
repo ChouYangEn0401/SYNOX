@@ -8,6 +8,13 @@
   Windows 上網頁獨佔綁定 port、開機自動啟動不跳瀏覽器、網頁設定頁的「聊天通道」卡。每一條的細節與還沒拍板的事都在
   [docs/debug-notes.md](docs/debug-notes.md)（這裡不重抄）。
 
+### 網頁介面重新設計（branch `feat/ui-redesign`，還沒合併）
+- `src/synox/web/static/app.html` 重畫：左側欄＋對話紀錄（手機改成底部分頁）、一套 CSS token（淺色取記帳專案、深色取 ISDPCS）、
+  深淺色跟隨系統、狀態徽章（顏色＋文字＋形狀）、手機 44px 按鈕與 16px 輸入。登入確認頁、錯誤頁（`server.py` 的 `PAGE_CSS`）同一套顏色。
+  API、CSRF、登入、CSP 都沒動。說明與前後對照：[docs/ui/redesign-notes.md](docs/ui/redesign-notes.md)。
+- 新增 `scripts/make_ui_preview.py`：產生 `docs/ui/preview*.html`（真的 app.html＋假資料，雙擊就能看）；`tests/test_ui_preview.py` 檢查預覽有沒有同步。
+- 主色與深淺色切換鈕、安裝精靈要不要跟著換：[QuestionToUser.md](QuestionToUser.md) Q4、Q5。
+
 ### 修正
 - 兩個無效的跳脫字元（`src/synox/wizard/shortcuts.py` 的說明、`tests/test_wizard.py` 的位元組字串）改成 raw 字串，內容不變；
   Python 3.12 起會是 SyntaxWarning。
