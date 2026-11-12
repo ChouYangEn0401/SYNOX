@@ -7,8 +7,11 @@
 > - 第三方 pack 的安全邊界：見 [docs/security.md](docs/security.md)「這套系統現在能保證什麼、不能保證什麼」。
 > - 授權：見 [LICENSING.md](LICENSING.md)。發現安全問題：見 [SECURITY.md](SECURITY.md)（請不要開公開 issue）。
 
-在手機的 Telegram 跟它講話：記帳、隨手記、提醒；接了 AI 之後，直接說人話它就會替你按指令
+在手機的 Telegram（或 Discord 私訊、這台電腦的網頁）跟它講話：記帳、隨手記、提醒；接了 AI 之後，直接說人話它就會替你按指令
 （刪東西這類危險的事，會先送一張確認卡給你按）。資料都在**你自己的電腦**上，筆記和記帳是加密存的。
+
+想先看看長什麼樣：**介紹頁** [docs/landing/index.html](docs/landing/index.html)（雙擊就能開；線上版 <https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW>）。
+圖文教學：[Telegram](docs/tutorials/telegram/)、[Discord](docs/tutorials/discord/)（Discord 的名詞：[docs/discord-concepts.md](docs/discord-concepts.md)）。
 
 > **SYNOX 出廠不帶任何工具**（2026-11-12 起）：記帳、隨手記、行事曆、待辦，以及接 Notion、Todoist、Google 日曆、
 > Apple 提醒事項的工具，都在另一個專案 **SYNOX 工具庫（SYNOX_Libs）**——所有工具在那裡統一管理，
@@ -28,8 +31,10 @@
    開不了視窗的電腦（例如可攜版 Python 沒有 tkinter）會在同一個視窗改用文字版的 `synox init`，問的是同一組問題。
 2. **照安裝視窗點四頁**：
    - **這台給誰用？**「只有我（個人版）」或「一群人（伺服器版）」（差在哪見下面）。
-   - **Telegram bot 的 token**：照畫面上的三步跟 @BotFather 拿一個，貼上，按「檢查 token」。
-   - **你是誰**：畫面會給你六個數字，按按鈕打開你的 bot，把數字傳給它，畫面就認得你了。
+   - **Telegram bot 的 token**：照畫面上的三步跟 @BotFather 拿一個，貼上，按「檢查 token」（圖文：[docs/tutorials/telegram/](docs/tutorials/telegram/)）。
+     沒有 Telegram 也可以先跳過，只用網頁；Discord 可以之後在網頁「設定 → 聊天通道」接上（[docs/tutorials/discord/](docs/tutorials/discord/)）。
+   - **你是誰**：畫面會給你六個數字，按按鈕打開你的 bot，把數字傳給它，畫面就認得你了
+     （之後也能在網頁「設定 → 聊天通道」配對 Telegram 或 Discord 帳號：網頁給六位數字、私訊 bot 傳它，或直接貼你的帳號編號）。
    - **AI 從哪裡來**：最上面是預設的 **Claude（這台電腦登入的 Claude Code）**，畫面會說找不找得到；
      下面「其他金鑰來源」可以選 OpenAI、Anthropic API、Gemini，或「相容端點」（公司給的網址、自己電腦上的 Ollama），填金鑰和模型；
      也可以「先不用 AI」。按「測一下」確認接得通。
@@ -55,12 +60,16 @@ synox tips      隨機一則使用小提示
 
 ## 在電腦上用網頁（Web UI）
 
-在 Telegram 打 `/web`，bot 會給你一個登入連結（只能用一次、7 天內有效），在**跑 SYNOX 的那台電腦**上打開就登入了
-（安裝精靈按「完成並開始」之後也會自己打開一次）。三頁：
+在**跑 SYNOX 的那台電腦**上，雙擊桌面的「SYNOX」捷徑（或 `Open-SYNOX.bat`、`synox open`）就會打開並登入（安裝精靈按「完成並開始」之後也會自己打開一次）。
+不在那台電腦前：在 Telegram 打 `/web`，bot 會給你一個登入連結（只能用一次、7 天內有效）。四頁：
 
 - **對話**：跟 Telegram 一樣的訊息流，左邊是對話清單（新對話／接著上一段）；打字給 AI、打 `/指令`，確認卡的 ✅／❌ 直接按。
-- **工具**：你裝的每個功能一張卡，指令旁邊的框直接執行；工具自己可以帶小面板（例如記帳的「這個月花多少、預算剩多少」）。
-- **設定**（擁有者）：換 AI 來源、裝／移除功能（`.synoxpack`）、下載加密備份；伺服器版還有帳號表（改角色、看用量）。
+  每段網頁對話各自一份 AI 記憶；用完的可以**封存**（不會被自動清掉），到「已封存的對話」還原或徹底刪除（要按兩次）。
+  側欄固定有「🫀 常駐助理」：直接跟背景那個沒有工具的助理聊（只給擁有者）。
+- **工具**：你裝的每個工具一個分頁、照群組分；每個指令一張卡，照宣告產生參數表單、先顯示「會送出：…」再執行；工具自己可以帶小面板（例如記帳的「這個月花多少、預算剩多少」）。
+- **主控**（擁有者）：常駐助理的狀態、heartbeat 開關與間隔（預設 45 分鐘）、排定任務與日誌、你的偏好 soul.md、清空記憶。
+- **設定**（擁有者）：換 AI 來源（存起來立刻生效）、聊天通道（Telegram／Discord 的 token、配對你的帳號）、裝／移除功能（`.synoxpack`）、
+  AI 用量與花費、下載加密備份；伺服器版還有帳號表（改角色、看用量）。
 
 網頁只聽這台電腦（127.0.0.1:8830，`config.json` 的 `web.port` 可以改）。不想要：`/web_off`（到重開前關掉），或 `"web": {"enabled": false}`。
 
@@ -142,6 +151,9 @@ SYNOX 先檢查、把報告給你看，你按確認才裝。裝好 `/help` 就�
 每個工具也標了**穩定度**（`stage`）：🔧 test（測試中）、🧪 alpha（早期版）、🚧 beta（公測版）、⭐ stable（穩定版），
 `/help`、網頁工具頁、安裝報告、`doctor` 都看得到；沒標的當 alpha。
 
+更新：同名再裝一次就是升級（會列「改了什麼」，權限變大標紅字），退回用 `… -m synox packs rollback <名字>`；移除在網頁設定頁。
+找、裝、更新、移除的完整說明，以及之後的路線（線上目錄、簽章、一鍵安裝：都還是提案）：[docs/ecosystem.md](docs/ecosystem.md)。
+
 **想自己寫工具接進來**（任何語言的命令列程式、MCP 伺服器、別人架好的遠端 MCP）：從 [docs/tools.md](docs/tools.md) 開始——
 怎麼選接入方式、十行入門、權限怎麼宣告、怎麼測試與打包；範例在 [examples/](examples/)。全部文件的索引：[docs/README.md](docs/README.md)。
 
@@ -161,6 +173,18 @@ pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的
 - macOS／Linux 的安裝器（程式本身跨平台，但 `Setup.bat` 只有 Windows）。Windows 安裝程式（Inno Setup＋可攜版 Python）的腳本做好了，
   **還沒真的打包、還沒在空白電腦上試**（[docs/handoff/clean-machine-test.md](docs/handoff/clean-machine-test.md)）。
 - AI 的對話紀錄只放在記憶體（重開 bot 就忘了），每個聊天留最近 6 輪。
+- 工具的線上目錄、簽章驗證、評分、從介紹頁一鍵安裝：都還是提案（[docs/ecosystem.md](docs/ecosystem.md)「之後的路」）。
+
+## 文件與教學
+
+| 給誰 | 看哪裡 |
+|---|---|
+| 想先看長什麼樣 | 介紹頁 [docs/landing/index.html](docs/landing/index.html)（線上版 <https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW>） |
+| 第一次裝、接 Telegram | [docs/tutorials/telegram/](docs/tutorials/telegram/) |
+| 接 Discord | [docs/tutorials/discord/](docs/tutorials/discord/)；名詞解釋 [docs/discord-concepts.md](docs/discord-concepts.md)；現況與多 bot 設定 [docs/discord.md](docs/discord.md) |
+| 多裝幾個工具、做工具給人 | [docs/ecosystem.md](docs/ecosystem.md)、[docs/tools.md](docs/tools.md) |
+| 資料在哪、誰看得到 | [docs/security.md](docs/security.md) |
+| 全部文件 | [docs/README.md](docs/README.md) |
 
 ## 給開發的人
 
