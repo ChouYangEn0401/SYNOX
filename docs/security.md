@@ -182,8 +182,9 @@ python pack 沙盒管不到，伺服器版改用信任決定給不給成員（PE
 **伺服器版 python pack 的信任（PERM-8）**：kind=python 在 SYNOX 程序裡跑，拿得到 `app`（等於能讀任何人的資料），沒有沙盒可以包。
 所以伺服器版 `trust: third-party` 的 python pack **整組只對擁有者可見**：成員／管理員／訪客打了跟不存在的指令一樣（「未知指令」）、
 `/help`、網頁、AI 工具清單都沒有（loader 把群組設成 owner_only，SDK authorize 與 `policy.decide` 同一條擋）。照常給成員的只有：
-出廠的（內建 `packs/`、`connectors/` 裡的 notes、money、remind 與 4 個 connector——**只在沒有鎖時**看名字＋位置；有鎖一律照鎖的
-trust，所以第三方作者把 pack 取名 notes、經升級裝進 `packs/` 仍是 third-party）、擁有者安裝時選 `trust: core` 的。
+出廠的（內建 `connectors/` 裡的 4 個 connector——**只在沒有鎖時**看名字＋位置；有鎖一律照鎖的
+trust，所以第三方作者把 pack 取名 notion、經升級裝進內建資料夾仍是 third-party）、擁有者安裝時選 `trust: core` 的。
+（2026-11-12 起 notes、money、remind 不再出廠，搬到 SYNOX 工具庫；從工具庫裝的跟其他工具一樣看安裝時選的 trust。）
 出廠的 pack 第一次 `packs lock --approve`（沒有舊鎖）預設寫 core。
 **沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）＝third-party，而且載入前補跑一次第 2 關掃描（安裝流程沒掃過它），
 沒過＝狀態 `rejected`、不載入。原因在 `doctor`、`packs status`、網頁的 pack 清單寫一行。個人版不受影響（沒有成員）。
@@ -203,7 +204,7 @@ trust，所以第三方作者把 pack 取名 notes、經升級裝進 `packs/` �
 **個人版的 python pack 在 SYNOX 程序裡跑，沒有任何隔離**：讀得到你全部的資料、保管箱解開的東西、整台電腦的檔案；
 伺服器版靠 PERM-8 把第三方的 python pack 只給擁有者（下面）。cli pack 的子程序在個人版／Windows 也沒有沙盒（後端 none）。
 它做的是「擋掉明顯的、逼作者把要做的事寫清楚、讓你在裝之前看到」，最後一道仍然是第 5 關的結構（核准卡）——**只裝你信得過的人給的 pack**。
-出廠的 pack 與工程師直接放進 `packs/` 的 pack 沒有鎖（`doctor`／`packs status` 標「未鎖定」），照舊載入；要鎖就 `packs lock --approve`。
+出廠的 connector 與工程師直接放進 `packs/`（或 `packs.dirs`）的 pack 沒有鎖（`doctor`／`packs status` 標「未鎖定」），照舊載入；要鎖就 `packs lock --approve`。
 （伺服器版：手放的、沒鎖的 pack 載入前補跑第 2 關，沒過不載入；python 的當作 third-party，見上面 PERM-8。）
 
 **升級**（同名再裝）走同一條五關，另外跟裝著的那一份比對（`packs/upgrade.py`）：權限變大的地方——effect 變寬、新增 WRITE／DANGER

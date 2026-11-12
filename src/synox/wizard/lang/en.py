@@ -105,6 +105,7 @@ STRINGS = {
     "status_add_channel_later": "Double-click Setup.bat later to run the wizard again and connect Telegram/Discord.",
     "status_bot_head": "✅ All set, the bot is running.",
     "status_web_head": "✅ All set, SYNOX is running (no Telegram/Discord yet).",
+    "status_no_tools": "🧰 SYNOX ships with no tools (expenses, notes, reminders… are installed separately): get the .synoxpack files from the tool library (SYNOX_Libs), then double-click one or upload it in the web UI under Settings → Install. Ask whoever gave you SYNOX where the tool library is.",
     "status_can_close": "You can close this window.",
     "no_window": "❌ Cannot open a window ({e}). Copy config.example.json to config.json and fill it in by hand.",
 }

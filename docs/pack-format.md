@@ -1,10 +1,11 @@
 # Pack 格式
 
-一個 pack＝一個資料夾，放在 `packs/`（功能）或 `connectors/`（接外面的服務）。SYNOX 啟動時掃
-`packs/*/pack.json` 與 `connectors/*/pack.json`，一個壞掉只跳過那一個（`python -m synox doctor` 會列出原因）。
+一個 pack＝一個資料夾，放在 `packs/`（使用者裝的工具）或 `connectors/`（出廠的、接外面的服務）。SYNOX 啟動時掃
+`packs/*/pack.json` 與 `connectors/*/pack.json`（＋`config.json` 的 `packs.dirs`），一個壞掉只跳過那一個（`python -m synox doctor` 會列出原因）。
+**SYNOX 出廠的 `packs/` 是空的**（2026-11-12 起）：官方工具在 **SYNOX 工具庫（SYNOX_Libs）**，下面的 `money` 是那裡的例子。
 
 ```
-packs/money/
+<SYNOX_Libs>/packs/money/
   pack.json     宣告（下面）
   SKILL.md      給 AI 看：什麼時候用哪個指令
   README.md     給人看：有哪些指令、資料存哪
@@ -47,16 +48,20 @@ packs/money/
 | `requires.config` | | `config.json` 要有的欄位；缺了就不載入（doctor 會說缺什麼） |
 | `requires.env` | | 要有的環境變數（清單或 `{名字: 說明}`）；缺了就不載入。kind=cli 時**這些名字也是子程序唯一看得到的密鑰**：SYNOX 叫工具時會把像密鑰的變數（`*_TOKEN`、`*_API_KEY`、`*_SECRET`、`*_PASSWORD`…）拿掉，只放行這裡（和 `auth.fields[].env`）列的 |
 | `requires.synox` | | SYNOX 最低版本，例如 `">=0.3"`（逗號接好幾個：`">=0.3,<1.0"`；只寫 `"0.3"`＝`>=0.3`）。寫錯＝pack.json 不合；這台的 SYNOX 不合＝**不載入**（狀態「SYNOX 版本不合」），doctor、`packs status`、安裝報告會說要哪一版、這台是哪一版 |
+| `requires.sdk` | | **建議一定寫**：這個工具照哪一版 SYNOX SDK（給工具的介面合約，`synox_sdk.SDK_VERSION`，見 [sdk.md](sdk.md)「SDK 版本」）寫的，例如 `">=0.2,<0.3"`（0.x 寫到下一個 MINOR）。寫法同 `requires.synox`；寫錯＝pack.json 不合；這台的 SDK 不在範圍內＝**不裝**（安裝報告列原因）、**不載入**（狀態「版本不合」）。`synox-sdk init` 會自動寫好 |
 | `requires.pip` | | 要的 Python 套件。`runtime.python` 是 `"auto"`（只給 kind=cli）時，安裝會建 venv 照這份裝，每一項都要是 `名字==版本`（見下面「依賴與環境自動建置」）；沒有 `auto`＝SYNOX 不會幫你裝，只是給人看 |
 | `web.panel` | | Web UI 工具頁的面板：pack 資料夾裡的一個 `.html`（不能用 `..`、絕對路徑）。網頁在 `<iframe sandbox="allow-scripts allow-same-origin">` 裡掛 `/packs/<name>/panel`，只給看得到這個 pack 的人 |
 | `web.api` | | 面板能打的資料：`["GET /summary"]`（只支援 GET，名字小寫英數字）。pack 在 `install` 裡用 `pack.web_route("summary", fn)` 掛，`fn(user)` 回可以轉 JSON 的東西（**只回這個人自己的**：用 `pack.store.of(user)`）。沒宣告的 route 掛了也打不到 |
 
-面板範例：`packs/money/panel.html`（這個月的總額＋預算條，打 `GET /api/packs/money/summary`）。
+面板範例：SYNOX 工具庫的 `packs/money/panel.html`（這個月的總額＋預算條，打 `GET /api/packs/money/summary`）。
 面板是 pack 自己的 HTML，跟 `pack.py` 一樣是你決定要不要信任的程式碼：它跟 Web UI 同源，能做你在網頁上能做的事。
 
 `.synoxpack`＝一個 pack 資料夾壓成的 zip（`pack.json` 在最上層，或在唯一的那個資料夾裡）；`synox-sdk zip`／`scripts\pack_zip.py`
 會打包並算好 `integrity.sha256`（[sdk.md](sdk.md)）。裝的路有三條，都跑同一條安全管線（[security.md](security.md)「五關」）：
 Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Install-Pack.bat`）、`python -m synox install <檔> [--yes]`。
+（開發用的第四條：`config.json` 的 `packs.dirs` 直接指到一個資料夾，不經安裝流程、沒有鎖。）
+官方工具的 `.synoxpack` 由 SYNOX 工具庫（SYNOX_Libs）的 `scripts/build.py` 產生，旁邊有一份目錄 `index.json`；
+`config.json` 的 `packs.library`（資料夾或網址）告訴 SYNOX 工具庫在哪，`/help`、`doctor`、網頁在還沒裝工具時會提示（`src/synox/packs/library.py`）。
 檢查 zip（沒有絕對路徑、`..`、符號連結；檔名不能是 Windows 保留名（`CON`、`NUL`、`COM1`…，加副檔名也算）、不能有冒號（NTFS 資料流 `x.py::$DATA`）或 `< > " | ? *`、結尾不能是空白或句點；5 MB／解開 20 MB／300 個檔以內）→ 第 1 關宣告 → 第 2 關靜態掃描 → 給人看報告 →
 按確認 → 第 3 關寫 `data/packs.lock` → 搬進 `packs/`。移除＝搬到 `packs/_removed/<name>-<版本>-<時間>`（不刪），鎖的那一筆一起拿掉
 （旁邊留一份 `<那個資料夾>.lock.json`，`packs rollback` 用）。
@@ -94,7 +99,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 
 ### 權限宣告：`surfaces`、`data`、安裝時選的 `trust`
 
-舊的 pack 沒寫照舊能用（照下面的預設）；出廠的 notes、money、remind 與 4 個 connector 都寫了 `"surfaces": ["dm"], "data": "user"`。
+舊的 pack 沒寫照舊能用（照下面的預設）；工具庫的 notes、money、remind 與出廠的 4 個 connector 都寫了 `"surfaces": ["dm"], "data": "user"`。
 
 | | 值 | 沒寫的預設 | 效果 |
 |---|---|---|---|
@@ -113,7 +118,8 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 - **伺服器版怎麼用 trust（個人版不受影響）**：
   - kind=python 在 SYNOX 程序裡跑、沒有沙盒，所以 `trust: third-party` 的 python pack **只對擁有者可見**：成員打了跟不存在的指令一樣
     （「未知指令」）、`/help` 與 AI 工具清單都沒有。`core`（擁有者安裝時選的）與出廠的照常。
-  - 出廠的＝內建 `packs/`、`connectors/` 裡的 notes、money、remind 與 4 個 connector（不看鎖）。
+  - 出廠的＝內建 `connectors/` 裡的 4 個 connector（沒有鎖時看名字＋位置）。notes、money、remind 2026-11-12 起搬到工具庫，
+    跟其他工具一樣要經安裝流程、看擁有者選的 trust。
   - **沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）＝`third-party`；而且載入前補跑一次第 2 關靜態掃描，
     沒過＝狀態 `rejected`、不載入（理由列 `檔名:行號`）。信得過就 `python -m synox packs lock --approve <name> --trust core`。
   - 為什麼只給擁有者，`doctor` 與 `packs status` 都會寫一行 🔐。kind=cli 的第三方 pack 另外看沙盒（見 `docs/security.md`「運行空間（沙盒）」）。

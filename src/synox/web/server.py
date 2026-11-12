@@ -646,6 +646,9 @@ class WebUI:
                 groups_out.append({"id": node.name, "title": node.title, "summary": node.summary,
                                    "category": toolpage.BUILTIN, "commands": [self._leaf_info(n) for n in leaves]})
         out = {"packs": packs_out, "groups": groups_out}
+        if self.is_owner(user):                       # 只有擁有者裝得了工具；工具頁空的時候給「去哪裡裝」
+            from synox.packs import library
+            out["library"] = library.status(self.app)
         try:
             stored = self.prefs.get(user.tg_id, toolpage.LAYOUT_KEY)
         except Exception as e:                    # 保管箱解不開：照預設排，不蓋掉原本的檔
@@ -773,6 +776,8 @@ class WebUI:
                          "version": i.version, "lock": getattr(i, "lock", ""),
                          "removable": bool(user_dir) and os.path.realpath(os.path.dirname(i.folder)) == user_dir}
                         for i in (report.items if report else [])]
+        from synox.packs import library             # 出廠不帶工具：裝了幾個、工具庫在哪、怎麼裝（packs/library.py）
+        out["library"] = library.status(self.app)
         out["vault"] = self.vault is not None
         return out
 

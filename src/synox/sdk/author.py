@@ -53,8 +53,17 @@ from typing import Any, Callable, Dict, List, Optional, Sequence
 __all__ = ["tool", "serve", "secret", "context", "confirmed", "Context", "ToolError", "Confirm", "Ok", "SpecError",
            "tool_spec", "commands_for", "run_cli", "run_mcp", "registered", "report_status", "peer_status"]
 
-SDK_VERSION = "0.1.0"
+SDK_VERSION = "0.2.0"                  # SYNOX 給工具的介面合約的版本（pack.json 的 requires.sdk 對這個；docs/sdk.md「SDK 版本」）
 SYNOX_REQUIRES = ">=0.2"               # 產生的 pack.json 的 requires.synox（SYNOX_* 環境變數、ai／confirm 從這版起）
+
+
+def sdk_range(version: str = SDK_VERSION) -> str:
+    """這一版 SDK 寫出來的工具該宣告的 requires.sdk：0.x 到下一個 MINOR 為止（>=0.2,<0.3），1.x 以後到下一個 MAJOR。"""
+    major, minor = (int(x) for x in version.split(".")[:2])
+    return f">={major}.{minor},<{major}.{minor + 1}" if major == 0 else f">={major}.{minor},<{major + 1}.0"
+
+
+SDK_REQUIRES = sdk_range()             # 產生的 pack.json 的 requires.sdk
 EFFECTS = ("READ", "WRITE", "DANGER")
 RESERVED = ("python", "node", "pack_dir", "data_dir", "user_data_dir", "tg_id", "json", "mcp", "help")
 NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
