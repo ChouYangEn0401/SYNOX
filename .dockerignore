@@ -1,0 +1,54 @@
+# build context 用白名單：先全部排除，只放回 Dockerfile 真的要 COPY 的東西（docs/docker.md）。
+# 這樣 data/、config.json、.env、金鑰、.git、測試產物不管放在哪一層，都不會被送進 build context。
+*
+
+!Dockerfile
+!.dockerignore
+!pyproject.toml
+!requirements.txt
+!src/
+!vendor/
+!docker/healthcheck.py
+!LICENSE
+!LICENSE-APACHE
+!NOTICE
+!LICENSING.md
+
+# 放回來的資料夾裡，仍然一律排除（後面的規則蓋過前面的；萬一有人在 src/ 底下放了資料或金鑰）：
+# 使用者資料與設定
+**/data
+**/userdata
+**/var
+**/runtime/state.json
+**/config.json
+**/config.local.*
+**/.env
+**/.env.*
+**/lang.txt
+# 金鑰、憑證、密文
+**/*.key
+**/*.pem
+**/*.p12
+**/*.pfx
+**/*.enc
+**/*.kdbx
+**/id_rsa*
+**/id_ed25519*
+**/credentials.json
+**/token.json
+**/client_secret*.json
+**/secrets.json
+**/packs.lock
+# 版本控制、虛擬環境、測試與建置產物
+**/.git
+**/.venv
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.coverage
+**/htmlcov
+**/*.egg-info
+**/build
+**/dist
+**/*.tmp
+**/.claude
