@@ -1,0 +1,723 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>SYNOX 接 Discord</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* 版面：一欄長頁、左邊固定目錄（寬螢幕）、每一步一張「示意圖」＋編號說明；配色取自 Discord 的靛藍但壓暗，中性色帶一點藍紫 */
+:root{
+  --bg:#f5f5fa; --surface:#ffffff; --fg:#1b1c2a; --muted:#5d6079; --line:#dcdde8;
+  --accent:#4a52c4; --accent-ink:#ffffff; --accent-soft:#e8e9fb;
+  --ok:#237a4b; --ok-soft:#e1f3e8; --warn:#9a6210; --warn-soft:#fbf0d9; --bad:#b93a3a; --bad-soft:#fbe3e3;
+  --code-bg:#ededf5; --mock-nav:#eceef6; --mock-panel:#ffffff; --mock-dark:#2b2d3c; --mock-dark-2:#1f2130; --mock-dark-fg:#e6e7ef; --mock-dark-muted:#a9acc3;
+  --font:"Noto Sans TC",system-ui,-apple-system,"Segoe UI","PingFang TC","Microsoft JhengHei",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#14151d; --surface:#1d1f2a; --fg:#e8e8f1; --muted:#a0a3bd; --line:#2e3040;
+    --accent:#8e95ff; --accent-ink:#13142a; --accent-soft:#262a4a;
+    --ok:#6fcf97; --ok-soft:#1d3328; --warn:#e4b35e; --warn-soft:#3a2f18; --bad:#ef7b7b; --bad-soft:#3d2222;
+    --code-bg:#262838; --mock-nav:#23252f; --mock-panel:#1a1b24; --mock-dark:#2b2d3c; --mock-dark-2:#1f2130; --mock-dark-fg:#e6e7ef; --mock-dark-muted:#a9acc3;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#14151d; --surface:#1d1f2a; --fg:#e8e8f1; --muted:#a0a3bd; --line:#2e3040;
+  --accent:#8e95ff; --accent-ink:#13142a; --accent-soft:#262a4a;
+  --ok:#6fcf97; --ok-soft:#1d3328; --warn:#e4b35e; --warn-soft:#3a2f18; --bad:#ef7b7b; --bad-soft:#3d2222;
+  --code-bg:#262838; --mock-nav:#23252f; --mock-panel:#1a1b24; --mock-dark:#2b2d3c; --mock-dark-2:#1f2130; --mock-dark-fg:#e6e7ef; --mock-dark-muted:#a9acc3;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font-family:var(--font);font-size:16px;line-height:1.7;-webkit-text-size-adjust:100%}
+a{color:var(--accent)}
+code,pre,kbd{font-family:var(--mono)}
+code{background:var(--code-bg);padding:.1em .4em;border-radius:4px;font-size:.9em}
+pre{background:var(--code-bg);padding:14px 16px;border-radius:8px;overflow-x:auto;font-size:.86em;line-height:1.55;margin:0}
+pre code{background:none;padding:0;font-size:1em}
+table{border-collapse:collapse;width:100%;font:inherit;font-size:.93em}
+th,td{text-align:left;vertical-align:top;padding:8px 10px;border-bottom:1px solid var(--line)}
+th{font-weight:700;color:var(--muted);font-size:.85em;letter-spacing:.04em}
+.tbl{overflow-x:auto;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.tbl table{min-width:640px}
+h1,h2,h3,h4{line-height:1.25;text-wrap:balance;margin:0}
+h1{font-size:clamp(1.9rem,4.5vw,2.8rem);font-weight:900;letter-spacing:-.01em}
+h2{font-size:1.5rem;font-weight:900;padding-top:8px}
+h3{font-size:1.12rem;font-weight:700}
+p{margin:0}
+ul,ol{margin:0;padding-left:1.4em}
+li+li{margin-top:4px}
+strong{font-weight:700}
+.eyebrow{font-size:.78rem;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:700}
+
+/* 外框 */
+.wrap{max-width:1180px;margin:0 auto;padding-block:0 60px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.layout{display:grid;grid-template-columns:230px minmax(0,1fr);gap:40px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}}
+.toc{position:sticky;top:calc(16px + env(safe-area-inset-top,0px));display:flex;flex-direction:column;gap:2px;font-size:.88rem;max-height:calc(100vh - 32px);overflow:auto}
+.toc a{color:var(--muted);text-decoration:none;padding:5px 10px;border-radius:6px;border-left:2px solid transparent}
+.toc a:hover,.toc a:focus-visible{color:var(--fg);background:var(--accent-soft);outline:none}
+.toc .grp{margin-top:10px;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);padding:0 10px}
+@media (max-width:900px){.toc{position:static;max-height:none;flex-direction:row;flex-wrap:wrap;gap:6px;padding:12px 0;border-bottom:1px solid var(--line)}.toc .grp{display:none}.toc a{border:1px solid var(--line);border-left:1px solid var(--line)}}
+main{display:flex;flex-direction:column;gap:48px;min-width:0}
+section{display:flex;flex-direction:column;gap:18px;scroll-margin-top:20px}
+.hero{padding:44px 0 8px;display:flex;flex-direction:column;gap:16px;border-bottom:1px solid var(--line)}
+.hero p.lead{font-size:1.1rem;max-width:62ch;color:var(--muted)}
+.badges{display:flex;flex-wrap:wrap;gap:8px}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:700;padding:4px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface)}
+.badge.warn{background:var(--warn-soft);color:var(--warn);border-color:transparent}
+.badge.ok{background:var(--ok-soft);color:var(--ok);border-color:transparent}
+.badge.acc{background:var(--accent-soft);color:var(--accent);border-color:transparent}
+
+/* 步驟標頭 */
+.stephead{display:flex;align-items:baseline;gap:14px}
+.stepno{flex:none;width:40px;height:40px;border-radius:10px;background:var(--accent);color:var(--accent-ink);font-weight:900;font-size:1.1rem;display:grid;place-items:center;align-self:center}
+.who{font-size:.85rem;color:var(--muted)}
+
+/* 提示框 */
+.note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:0 8px 8px 0;font-size:.95em}
+.note.warn{border-color:var(--warn);background:var(--warn-soft)}
+.note.bad{border-color:var(--bad);background:var(--bad-soft)}
+.note.ok{border-color:var(--ok);background:var(--ok-soft)}
+.note b.t{display:block;margin-bottom:2px}
+
+/* 情境卡 */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:flex;flex-direction:column;gap:8px}
+.card .k{font-size:1.5rem;font-weight:900;color:var(--accent);line-height:1}
+.card h3{font-size:1.05rem}
+.card p{font-size:.93em;color:var(--muted)}
+.card .go{margin-top:auto;font-size:.88em;font-weight:700}
+.risk{display:inline-block;font-size:.75rem;font-weight:700;padding:2px 8px;border-radius:999px}
+.risk.l{background:var(--ok-soft);color:var(--ok)}.risk.m{background:var(--warn-soft);color:var(--warn)}.risk.h{background:var(--bad-soft);color:var(--bad)}
+
+/* 示意圖框 */
+.mock{border:1px solid var(--line);border-radius:12px;background:var(--surface);overflow:hidden}
+.mock .bar{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--line);font-size:.78rem;color:var(--muted);background:var(--mock-nav)}
+.mock .bar .dots{display:flex;gap:5px}.mock .bar .dots i{width:9px;height:9px;border-radius:50%;background:var(--line);display:block}
+.mock .bar .url{flex:1;min-width:0;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-family:var(--mono);font-size:.74rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mock .tag{flex:none;font-weight:700;color:var(--warn)}
+.portal{display:grid;grid-template-columns:170px minmax(0,1fr);min-height:220px}
+@media (max-width:560px){.portal{grid-template-columns:minmax(0,1fr)}.pnav{flex-direction:row;flex-wrap:wrap;border-right:0;border-bottom:1px solid var(--line)}}
+.pnav{background:var(--mock-nav);border-right:1px solid var(--line);padding:10px 8px;display:flex;flex-direction:column;gap:2px;font-size:.84rem}
+.pnav span{padding:5px 10px;border-radius:6px;color:var(--muted)}
+.pnav span.on{background:var(--accent);color:var(--accent-ink);font-weight:700}
+.pbody{padding:16px 18px;display:flex;flex-direction:column;gap:12px;background:var(--mock-panel);min-width:0}
+.pbody h4{font-size:.95rem;font-weight:700}
+.pbody .sub{font-size:.82rem;color:var(--muted)}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.field{border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-family:var(--mono);font-size:.8rem;background:var(--bg);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mbtn{display:inline-flex;align-items:center;gap:6px;border-radius:6px;padding:6px 12px;font-size:.82rem;font-weight:700;border:1px solid var(--line);background:var(--surface);color:var(--fg);white-space:nowrap}
+.mbtn.pri{background:var(--accent);color:var(--accent-ink);border-color:transparent}
+.mbtn.dng{background:var(--bad);color:#fff;border-color:transparent}
+.mbtn.ok{background:var(--ok);color:#fff;border-color:transparent}
+.tg{display:inline-flex;align-items:center;gap:10px;font-size:.88rem}
+.tg i{width:40px;height:22px;border-radius:999px;background:var(--line);position:relative;flex:none}
+.tg i::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--surface)}
+.tg.on i{background:var(--ok)}.tg.on i::after{left:21px}
+.chk{display:inline-flex;align-items:center;gap:8px;font-size:.86rem}
+.chk i{width:16px;height:16px;border:1.5px solid var(--muted);border-radius:3px;display:inline-grid;place-items:center;font-style:normal;font-size:.7rem;flex:none}
+.chk.on i{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.n{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--bad);color:#fff;font-weight:900;font-size:.75rem;flex:none;vertical-align:middle;font-family:var(--font)}
+.legend{display:grid;grid-template-columns:auto minmax(0,1fr);gap:6px 10px;font-size:.93em;align-items:start}
+.legend .n{margin-top:3px}
+.savebar{margin-top:6px;border-radius:8px;background:var(--mock-dark);color:var(--mock-dark-fg);padding:8px 12px;display:flex;align-items:center;gap:10px;font-size:.84rem;flex-wrap:wrap}
+.savebar .mbtn.ok{margin-left:auto}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:14px}
+
+/* Discord 客戶端示意 */
+.dc{display:grid;grid-template-columns:56px 160px minmax(0,1fr);min-height:230px;background:var(--mock-dark);color:var(--mock-dark-fg)}
+.dc.three{grid-template-columns:56px 160px minmax(0,1fr) 150px}
+@media (max-width:640px){.dc,.dc.three{grid-template-columns:56px minmax(0,1fr)}.dc .chlist,.dc .members{display:none}}
+.dc .guilds{background:var(--mock-dark-2);padding:10px 8px;display:flex;flex-direction:column;gap:8px;align-items:center}
+.dc .guilds i{width:40px;height:40px;border-radius:14px;background:var(--mock-dark);display:grid;place-items:center;font-style:normal;font-weight:900;font-size:.8rem;color:var(--mock-dark-muted)}
+.dc .guilds i.on{background:var(--accent);color:var(--accent-ink);border-radius:12px}
+.dc .chlist{background:#262838;padding:10px 8px;font-size:.82rem;display:flex;flex-direction:column;gap:2px}
+.dc .chlist b{display:block;padding:4px 8px;color:var(--mock-dark-fg)}
+.dc .chlist span{padding:4px 8px;border-radius:5px;color:var(--mock-dark-muted)}
+.dc .chlist span.on{background:#3a3d50;color:var(--mock-dark-fg)}
+.dc .chat{padding:12px 14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.msg{display:grid;grid-template-columns:32px minmax(0,1fr);gap:10px;font-size:.86rem}
+.msg i{width:32px;height:32px;border-radius:50%;background:#555a7a;display:grid;place-items:center;font-style:normal;font-weight:900;font-size:.7rem}
+.msg i.bot{background:var(--accent);color:var(--accent-ink)}
+.msg .name{font-weight:700}.msg .name small{font-size:.68rem;background:var(--accent);color:var(--accent-ink);border-radius:3px;padding:0 4px;margin-left:4px;vertical-align:middle}
+.msg .time{color:var(--mock-dark-muted);font-size:.72rem;margin-left:6px}
+.msg .q{border-left:2px solid #6b6f8f;padding-left:8px;color:var(--mock-dark-muted);font-size:.78rem;margin-bottom:2px}
+.dc .input{margin-top:auto;background:#3a3d50;border-radius:8px;padding:8px 12px;font-size:.84rem;color:var(--mock-dark-muted)}
+.dc .members{background:#262838;padding:10px;font-size:.82rem;display:flex;flex-direction:column;gap:6px}
+.dc .members b{color:var(--mock-dark-muted);font-size:.7rem;letter-spacing:.08em}
+.dc .members span{display:flex;align-items:center;gap:6px}
+.dc .members span::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--ok)}
+.dc .members span.off::before{background:#777b9a}
+.ctx{position:relative}
+.menu{background:var(--mock-dark-2);border:1px solid #3a3d50;border-radius:6px;padding:6px;font-size:.82rem;display:flex;flex-direction:column;gap:1px;max-width:230px}
+.menu span{padding:5px 8px;border-radius:4px;color:var(--mock-dark-fg)}
+.menu span.hi{background:var(--accent);color:var(--accent-ink);font-weight:700}
+.menu hr{border:0;border-top:1px solid #3a3d50;margin:4px 0}
+.settings{display:grid;grid-template-columns:150px minmax(0,1fr);background:var(--mock-dark);color:var(--mock-dark-fg);min-height:180px}
+@media (max-width:560px){.settings{grid-template-columns:minmax(0,1fr)}}
+.settings .snav{background:#262838;padding:12px 8px;font-size:.82rem;display:flex;flex-direction:column;gap:2px}
+.settings .snav span{padding:4px 8px;border-radius:4px;color:var(--mock-dark-muted)}
+.settings .snav span.on{background:#3a3d50;color:var(--mock-dark-fg);font-weight:700}
+.settings .sbody{padding:14px 16px;display:flex;flex-direction:column;gap:12px;font-size:.88rem}
+.settings .tg i{background:#555a7a}.settings .tg.on i{background:var(--ok)}
+
+/* 圖：三種用法 */
+.diagram{overflow-x:auto}
+.diagram svg{display:block;width:100%;max-width:860px;height:auto;margin:0 auto}
+.diagram text{font-family:var(--font);fill:var(--fg)}
+.diagram .mu{fill:var(--muted)}
+.diagram .box{fill:var(--surface);stroke:var(--line)}
+.diagram .acc{fill:var(--accent-soft);stroke:var(--accent)}
+.diagram .ln{stroke:var(--muted);fill:none}
+.diagram .bad{fill:var(--bad-soft);stroke:var(--bad)}
+.diagram .ok{fill:var(--ok-soft);stroke:var(--ok)}
+
+/* 設定檔區塊 */
+.codebox{position:relative}
+.codebox .cp{position:absolute;top:8px;right:8px;font:700 .72rem var(--font);border:1px solid var(--line);background:var(--surface);color:var(--fg);border-radius:6px;padding:3px 8px;cursor:pointer}
+.codebox .cp:focus-visible{outline:2px solid var(--accent)}
+.steps-ol{counter-reset:s;display:flex;flex-direction:column;gap:8px;padding:0;list-style:none}
+.steps-ol li{display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px}
+.steps-ol li::before{counter-increment:s;content:counter(s);width:24px;height:24px;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-weight:900;font-size:.8rem;display:grid;place-items:center;margin-top:3px}
+.ok-i{color:var(--ok);font-weight:900}.bad-i{color:var(--bad);font-weight:900}.warn-i{color:var(--warn);font-weight:900}
+footer{border-top:1px solid var(--line);padding-top:20px;font-size:.88rem;color:var(--muted);display:flex;flex-direction:column;gap:6px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+</style>
+
+<div class="wrap">
+<header class="hero">
+  <div class="eyebrow">SYNOX 教學 · Discord</div>
+  <h1>SYNOX 接 Discord：從建 bot 到第一句回覆</h1>
+  <p class="lead">一步一步把 Discord 的 bot 建好、接進 SYNOX、配對擁有者、測試、排錯。先挑你的情境，再往下做。看不懂的名詞，往下有「30 秒名詞」。</p>
+  <div class="badges">
+    <span class="badge warn">⚠ 圖都是示意圖，不是真實截圖；Discord 的選單名稱常改版，照意思找最接近的</span>
+    <span class="badge warn">⚠ SYNOX 的 Discord 通道還沒跟真的 Discord 連過（只用假傳輸測過）</span>
+    <span class="badge acc">依據：docs.discord.com 官方文件（2026-11）＋ SYNOX 程式</span>
+  </div>
+</header>
+
+<div class="layout">
+<nav class="toc" aria-label="目錄">
+  <span class="grp">開始之前</span>
+  <a href="#scenario">0. 先挑情境</a>
+  <a href="#terms">30 秒名詞</a>
+  <span class="grp">Developer Portal</span>
+  <a href="#s1">1. 建 Application</a>
+  <a href="#s2">2. 拿 token</a>
+  <a href="#s3">3. 開 Intent</a>
+  <a href="#s4">4. 邀請連結</a>
+  <a href="#s5">5. 邀進伺服器／私訊</a>
+  <a href="#s6">6. 開發者模式、複製 ID</a>
+  <span class="grp">SYNOX 這邊</span>
+  <a href="#s7">7. 貼進 SYNOX</a>
+  <a href="#s8">8. 配對擁有者</a>
+  <a href="#s9">9. 測試</a>
+  <a href="#s10">10. 頻道與每頻道不同</a>
+  <span class="grp">守則</span>
+  <a href="#security">安全</a>
+  <a href="#trouble">疑難排解</a>
+  <a href="#unverified">還沒驗證的事</a>
+</nav>
+
+<main>
+
+<!-- ───────────────────── 0. 情境 ───────────────────── -->
+<section id="scenario">
+  <div class="stephead"><div class="stepno">0</div><div><h2>先挑你的情境</h2><p class="who">Discord 允許一支 bot 同時被私訊、放進伺服器、在不同頻道行為不同；SYNOX 今天做到的程度每種不一樣。</p></div></div>
+  <div class="cards">
+    <div class="card"><div class="k">①</div><h3>只有我自己用（私訊）</h3><p>像 Telegram 一樣：私訊 bot 用全部功能、AI、按鈕、提醒。沒有別人。</p><p><span class="risk l">風險低</span></p><p class="go">建 1 個 Application → 做 1、2、3、4、5a、7、8、9</p></div>
+    <div class="card"><div class="k">②</div><h3>我和幾個朋友的私人伺服器</h3><p>每個人私訊 bot 用自己的資料；想要的話再放一支「查詢用」的 bot 在一個頻道給大家用。</p><p><span class="risk m">風險中</span></p><p class="go">私訊型 1 個；頻道型選用再 1 個 → 全部步驟</p></div>
+    <div class="card"><div class="k">③</div><h3>公開頻道，誰都能叫</h3><p>只放「頻道型」bot，唯讀、有節流、AI 額度小。私訊型 bot 是另一支，不要邀進公開伺服器。</p><p><span class="risk h">風險高</span></p><p class="go">頻道型 1 個 → 1–7、9、10 ＋ 安全</p></div>
+    <div class="card"><div class="k">④</div><h3>每個頻道不同功能</h3><p>今天的做法是「一個頻道一支頻道型 bot」；真正的每頻道設定還沒做（有提案）。</p><p><span class="risk m">風險中</span></p><p class="go">每個功能組合 1 個 Application → 10</p></div>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>情境</th><th>SYNOX 設定</th><th>要建幾個 Application</th><th>要開的 intent</th><th>邀請連結的權限數字</th></tr></thead>
+    <tbody>
+      <tr><td>① 只有我</td><td>一支私訊型（<code>surface: "dm"</code>，預設）</td><td>1</td><td>Message Content</td><td><code>2048</code>（Send Messages；私訊不看伺服器權限）</td></tr>
+      <tr><td>② 私人伺服器</td><td>私訊型 ＋（選用）頻道型 <code>max_effect: "read"</code> 或 <code>"write"</code></td><td>1 或 2</td><td>Message Content</td><td>頻道型 <code>68608</code>（View Channels＋Send Messages＋Read Message History）</td></tr>
+      <tr><td>③ 公開頻道</td><td>只有頻道型，<code>max_effect: "read"</code>，節流留預設或更嚴</td><td>2（私訊型留給自己）</td><td>Message Content</td><td><code>68608</code>；不要給 Administrator</td></tr>
+      <tr><td>④ 每頻道不同</td><td>每個頻道一支頻道型 bot，各自 <code>packs</code>／<code>max_effect</code></td><td>每個功能組合 1 個</td><td>Message Content</td><td><code>68608</code>，再用 Discord 的頻道權限覆寫收窄</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note"><b class="t">為什麼「一支 bot 同時私訊又在頻道回」要兩個 Application？</b>Discord 本身允許同一支 bot 兩邊都做；是 SYNOX 把「私訊型」和「頻道型」分成兩種 bot（各自的 intent、各自的規則、各自的風險），一支 bot 的 <code>surface</code> 只能二選一。多建一個 Application 不用錢，一分鐘的事。觀念說明在 <code>docs/discord-concepts.md</code>。</div>
+</section>
+
+<!-- ───────────────────── 名詞 ───────────────────── -->
+<section id="terms">
+  <h2>30 秒名詞</h2>
+  <div class="diagram" aria-label="一支 bot 的三種用法示意圖">
+  <svg viewBox="0 0 860 330" role="img">
+    <rect class="acc" x="250" y="14" width="360" height="62" rx="10"/>
+    <text x="430" y="40" text-anchor="middle" font-size="15" font-weight="700">Discord Developer Portal</text>
+    <text x="430" y="62" text-anchor="middle" font-size="12" class="mu">Application → Bot user（token、intents）</text>
+    <path class="ln" d="M430 76 V110 M430 110 H140 M430 110 H720 M140 110 V150 M430 110 V150 M720 110 V150" stroke-width="1.5"/>
+    <rect class="box" x="20" y="150" width="240" height="160" rx="10"/>
+    <text x="140" y="178" text-anchor="middle" font-size="14" font-weight="700">(a) 私訊 DM</text>
+    <text x="140" y="202" text-anchor="middle" font-size="12">你 ⇄ bot 一對一</text>
+    <text x="140" y="222" text-anchor="middle" font-size="12" class="mu">沒有 guild_id、沒有權限</text>
+    <text x="140" y="242" text-anchor="middle" font-size="12" class="mu">只有你看得到回覆</text>
+    <text x="140" y="268" text-anchor="middle" font-size="12" font-weight="700">SYNOX：私訊型 bot</text>
+    <text x="140" y="288" text-anchor="middle" font-size="12" class="mu">指令、AI、按鈕、提醒全部</text>
+    <rect class="box" x="310" y="150" width="240" height="160" rx="10"/>
+    <text x="430" y="178" text-anchor="middle" font-size="14" font-weight="700">(b) 伺服器 guild</text>
+    <text x="430" y="202" text-anchor="middle" font-size="12">#general：所有成員都看得到</text>
+    <text x="430" y="222" text-anchor="middle" font-size="12" class="mu">每個看得到頻道的人都能 @ 它</text>
+    <text x="430" y="242" text-anchor="middle" font-size="12" class="mu">bot 是一個成員，有身分組</text>
+    <text x="430" y="268" text-anchor="middle" font-size="12" font-weight="700">SYNOX：頻道型 bot</text>
+    <text x="430" y="288" text-anchor="middle" font-size="12" class="mu">只收列出的頻道、被 @ 才回</text>
+    <rect class="box" x="600" y="150" width="240" height="160" rx="10"/>
+    <text x="720" y="178" text-anchor="middle" font-size="14" font-weight="700">(c) 同伺服器、不同頻道</text>
+    <text x="720" y="202" text-anchor="middle" font-size="12">#公告：能看、不能講</text>
+    <text x="720" y="222" text-anchor="middle" font-size="12">#問答：能看、能講</text>
+    <text x="720" y="242" text-anchor="middle" font-size="12">#內部：根本看不到（覆寫）</text>
+    <text x="720" y="268" text-anchor="middle" font-size="12" font-weight="700">SYNOX：一頻道一支 bot</text>
+    <text x="720" y="288" text-anchor="middle" font-size="12" class="mu">每頻道設定＝提案（第 10 步）</text>
+  </svg>
+  </div>
+  <div class="tbl"><table>
+    <thead><tr><th>名詞</th><th>是什麼</th><th>Telegram 的對應</th></tr></thead>
+    <tbody>
+      <tr><td><b>Application</b></td><td>Developer Portal 裡的一個專案，有 Application ID（＝邀請連結的 <code>client_id</code>）</td><td>BotFather 建的 bot</td></tr>
+      <tr><td><b>Bot user</b>、<b>token</b></td><td>Application 底下的機器人帳號；token 是它的密碼，<b>只顯示一次</b>，外洩就 Reset</td><td>同一個東西</td></tr>
+      <tr><td><b>Gateway</b></td><td>bot 自己往外連的 WebSocket；SYNOX 走這條，不開埠、不要公開網址</td><td>long polling</td></tr>
+      <tr><td><b>Intent</b></td><td>連線時宣告「我要收哪幾類事件」；<b>Message Content</b> 是特權，要在 Portal 打開</td><td>privacy mode（相反方向）</td></tr>
+      <tr><td><b>伺服器 guild</b>／<b>頻道 channel</b></td><td>社群／社群裡的房間；每個頻道可以覆寫權限</td><td>群組／話題</td></tr>
+      <tr><td><b>身分組 role</b>、<b>權限</b></td><td>bot 進伺服器會拿到一個同名身分組；能不能看、講、讀歷史都是權限位元</td><td>群組管理員（粗很多）</td></tr>
+      <tr><td><b>ID</b></td><td>17–19 位數字；<b>不是秘密</b>，可以寫進 config.json；要開「開發者模式」才複製得到</td><td>Telegram id</td></tr>
+      <tr><td><b>Slash 指令</b></td><td>Discord 原生的 <code>/</code> 選單，要先向 Discord 登記；<b>SYNOX 沒做</b>，<code>/help</code> 只是打字</td><td>指令選單</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ───────────────────── 1 ───────────────────── -->
+<section id="s1">
+  <div class="stephead"><div class="stepno">1</div><div><h2>建一個 Application</h2><p class="who">在 Discord Developer Portal · 每種情境都要 · 約 1 分鐘</p></div></div>
+  <ol class="steps-ol">
+    <li><span>用瀏覽器打開 <a href="https://discord.com/developers/applications" target="_blank" rel="noopener noreferrer">discord.com/developers/applications</a>，用你平常的 Discord 帳號登入。</span></li>
+    <li><span>右上角 <b>New Application</b> → 取名（例如 <code>SYNOX</code>；頻道型另一支可以叫 <code>SYNOX 查詢</code>）→ 勾同意條款 → <b>Create</b>。</span></li>
+    <li><span>進到 <b>General Information</b> 頁。這裡的 <b>Application ID</b> 之後邀請連結會用到（不是秘密）。</span></li>
+  </ol>
+  <div class="mock">
+    <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">discord.com/developers/applications</span><span class="tag">示意圖</span></div>
+    <div class="portal">
+      <div class="pnav"><span class="on">Applications</span><span>Teams</span><span>Documentation</span></div>
+      <div class="pbody">
+        <div class="row"><h4>My Applications</h4><span class="mbtn pri" style="margin-left:auto"><span class="n">1</span> New Application</span></div>
+        <p class="sub">還沒有任何 Application 時這裡是空的。</p>
+        <div class="mock" style="max-width:360px">
+          <div class="pbody">
+            <h4>Create an application</h4>
+            <div class="row"><span class="n">2</span><span class="field">SYNOX</span></div>
+            <div class="chk on"><i>✓</i> 我同意 Developer Terms of Service 與 Developer Policy</div>
+            <div class="row"><span class="mbtn">Cancel</span><span class="mbtn pri"><span class="n">3</span> Create</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="legend"><span class="n">1</span><span>右上角的 New Application。</span><span class="n">2</span><span>名字就是之後成員清單看到的 bot 名字（可以再改）。</span><span class="n">3</span><span>建好會跳到 General Information，上面有 Application ID。</span></div>
+  <div class="note"><b class="t">要幾個？</b>情境 ① 一個。情境 ②③④ 每一支 bot（私訊型、每一支頻道型）各一個 Application；兩支 bot 不能共用一個 token。</div>
+</section>
+
+<!-- ───────────────────── 2 ───────────────────── -->
+<section id="s2">
+  <div class="stephead"><div class="stepno">2</div><div><h2>Bot 頁：拿 token</h2><p class="who">Developer Portal → 左邊 Bot · 每種情境都要</p></div></div>
+  <ol class="steps-ol">
+    <li><span>左邊選 <b>Bot</b>。新建的 Application 已經自帶一個 bot user（新版 Portal 不用再按 Add Bot）。</span></li>
+    <li><span><b>Token</b> 那一格按 <b>Reset Token</b>（有開兩步驟驗證會先要你輸入驗證碼）。</span></li>
+    <li><span>整串複製。<b>只會顯示這一次</b>；關掉頁面就看不到了，要再拿就再 Reset（舊的會失效）。</span></li>
+    <li><span>貼去哪：第 7 步的 SYNOX。<b>不要</b>貼到任何聊天、不要截圖、不要寫進 config.json。</span></li>
+  </ol>
+  <div class="mock">
+    <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">discord.com/developers/applications/&lt;Application ID&gt;/bot</span><span class="tag">示意圖</span></div>
+    <div class="portal">
+      <div class="pnav"><span>General Information</span><span>Installation</span><span>OAuth2</span><span class="on"><span class="n">1</span> Bot</span><span>Emojis</span><span>Webhooks</span></div>
+      <div class="pbody">
+        <h4>Build-A-Bot</h4>
+        <div class="row"><span style="font-weight:700">USERNAME</span><span class="field">SYNOX</span></div>
+        <div class="row"><span style="font-weight:700">TOKEN</span><span class="field">••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••</span><span class="mbtn dng"><span class="n">2</span> Reset Token</span></div>
+        <div class="note warn" style="font-size:.84em"><span class="n">3</span> Reset 之後這一格會變成完整的 token 和一個 <b>Copy</b> 按鈕；<b>離開這頁就再也看不到</b>。</div>
+        <div class="row"><span class="tg"><i></i> PUBLIC BOT</span><span class="sub">情境 ①②：關掉（只有你能邀）。情境 ③：看你要不要讓別人邀進他們的伺服器。</span></div>
+        <div class="row"><span class="tg"><i></i> REQUIRES OAUTH2 CODE GRANT</span><span class="sub">保持關閉。</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="legend"><span class="n">1</span><span>左邊導覽的 Bot。</span><span class="n">2</span><span>Reset Token；token 長得像一串 70 個左右的英數字，中間有兩個點。</span><span class="n">3</span><span>複製到剪貼簿後直接去做第 7 步，中間不要貼到別的地方。</span></div>
+  <div class="note bad"><b class="t">token 等於這支 bot 的全部。</b>任何拿到它的人都能用這支 bot 的名字講話、讀它能讀的頻道。外洩（貼錯地方、截圖、進了 git）就回來這頁再按一次 <b>Reset Token</b>，舊的立刻失效，再到 SYNOX 重存（第 7 步）。</div>
+</section>
+
+<!-- ───────────────────── 3 ───────────────────── -->
+<section id="s3">
+  <div class="stephead"><div class="stepno">3</div><div><h2>同一頁往下：Privileged Gateway Intents</h2><p class="who">Bot 頁下半部 · 每種情境都要 · 沒開會連不上（4014）</p></div></div>
+  <ol class="steps-ol">
+    <li><span>Bot 頁往下捲到 <b>Privileged Gateway Intents</b>。</span></li>
+    <li><span>把 <b>Message Content Intent</b> 打開。<b>Presence Intent</b>、<b>Server Members Intent</b> 不用開。</span></li>
+    <li><span>最下面會浮出綠色的 <b>Save Changes</b>，一定要按。</span></li>
+  </ol>
+  <div class="mock">
+    <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">…/bot（往下捲）</span><span class="tag">示意圖</span></div>
+    <div class="portal">
+      <div class="pnav"><span>General Information</span><span>Installation</span><span>OAuth2</span><span class="on">Bot</span></div>
+      <div class="pbody">
+        <h4><span class="n">1</span> Privileged Gateway Intents</h4>
+        <p class="sub">Some intents require verification once your app reaches 10,000 users.</p>
+        <div class="row"><span class="tg"><i></i> PRESENCE INTENT</span><span class="sub">不用</span></div>
+        <div class="row"><span class="tg"><i></i> SERVER MEMBERS INTENT</span><span class="sub">不用</span></div>
+        <div class="row"><span class="tg on"><i></i> <b>MESSAGE CONTENT INTENT</b></span><span class="n">2</span><span class="sub">要開</span></div>
+        <div class="savebar">Careful — you have unsaved changes! <span class="mbtn">Reset</span><span class="mbtn ok"><span class="n">3</span> Save Changes</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="legend"><span class="n">1</span><span>三個特權 intent 的區塊。</span><span class="n">2</span><span>只開 Message Content。</span><span class="n">3</span><span>沒按 Save 等於沒開。</span></div>
+  <div class="grid2">
+    <div class="note"><b class="t">為什麼要這個？</b>Discord 規定：bot 在伺服器裡收到的訊息，沒開這個 intent 時 <code>content</code> 是空字串（例外：@到 bot 的那則、私訊給 bot 的、回覆 bot 的）。SYNOX 不管私訊型或頻道型，連線時都<b>一律宣告</b>要 Message Content，所以沒開的話 Discord 會直接把連線關掉，SYNOX 狀態顯示「Developer Portal 沒開 Message Content intent（4014）」。</div>
+    <div class="note"><b class="t">要審核嗎？</b>不用。官方現在的規則：能看到這支 app 的不重複使用者超過 <b>1 萬</b>才要申請審核（舊規則是 100 個伺服器）。自己用、朋友的伺服器、小型公開頻道都遠低於這個數字，在 Portal 自己開就好。</div>
+  </div>
+</section>
+
+<!-- ───────────────────── 4 ───────────────────── -->
+<section id="s4">
+  <div class="stephead"><div class="stepno">4</div><div><h2>OAuth2 → URL Generator：做邀請連結</h2><p class="who">Developer Portal → OAuth2 · 每種情境都要（私訊型也要，因為要先進一個伺服器）</p></div></div>
+  <ol class="steps-ol">
+    <li><span>左邊 <b>OAuth2</b>，往下找 <b>OAuth2 URL Generator</b>。</span></li>
+    <li><span><b>Scopes</b> 只勾 <code>bot</code>（<code>applications.commands</code> 會自動跟著 <code>bot</code>，勾不勾都行；SYNOX 沒有 slash 指令，用不到）。</span></li>
+    <li><span>勾了 <code>bot</code> 下面會出現 <b>Bot Permissions</b>：<br>私訊型（情境 ①）只勾 <b>Send Messages</b>；<br>頻道型（情境 ②③④）勾 <b>View Channels</b>、<b>Send Messages</b>、<b>Read Message History</b>。<b>不要</b>勾 Administrator。</span></li>
+    <li><span>最下面 <b>Generated URL</b> 按 <b>Copy</b>。這條網址裡有 <code>client_id</code>（＝Application ID）、<code>scope=bot</code>、<code>permissions=數字</code>，都不是秘密。</span></li>
+  </ol>
+  <div class="mock">
+    <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">discord.com/developers/applications/&lt;Application ID&gt;/oauth2</span><span class="tag">示意圖</span></div>
+    <div class="portal">
+      <div class="pnav"><span>General Information</span><span>Installation</span><span class="on"><span class="n">1</span> OAuth2</span><span>Bot</span></div>
+      <div class="pbody">
+        <h4>OAuth2 URL Generator</h4>
+        <p class="sub">SCOPES</p>
+        <div class="row"><span class="chk"><i></i> identify</span><span class="chk"><i></i> guilds</span><span class="chk on"><i>✓</i> <b>bot</b></span><span class="n">2</span><span class="chk"><i></i> applications.commands</span><span class="chk"><i></i> messages.read</span></div>
+        <p class="sub">BOT PERMISSIONS</p>
+        <div class="row"><span class="chk"><i></i> Administrator</span><span class="chk on"><i>✓</i> View Channels</span><span class="chk"><i></i> Manage Channels</span><span class="chk"><i></i> Manage Roles</span></div>
+        <div class="row"><span class="chk on"><i>✓</i> Send Messages</span><span class="n">3</span><span class="chk"><i></i> Manage Messages</span><span class="chk on"><i>✓</i> Read Message History</span><span class="chk"><i></i> Mention Everyone</span><span class="chk"><i></i> Attach Files</span></div>
+        <p class="sub">GENERATED URL</p>
+        <div class="row"><span class="field">https://discord.com/oauth2/authorize?client_id=123456789012345678&amp;scope=bot&amp;permissions=68608</span><span class="mbtn pri"><span class="n">4</span> Copy</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="legend"><span class="n">1</span><span>OAuth2 頁。</span><span class="n">2</span><span>Scopes 勾 bot。</span><span class="n">3</span><span>頻道型勾三個：View Channels（1024）＋Send Messages（2048）＋Read Message History（65536）＝ <code>permissions=68608</code>；私訊型只勾 Send Messages ＝ <code>2048</code>。</span><span class="n">4</span><span>複製整條網址。</span></div>
+  <div class="grid2">
+    <div class="note"><b class="t">懶人版：SYNOX 幫你組。</b>SYNOX 網頁的「設定 → 聊天通道 → Discord」存好 token 之後會顯示一條「邀請連結」（精靈 Setup.bat 的配對頁也有），內容就是 <code>scope=bot&amp;permissions=2048</code>，給私訊型剛好。頻道型請自己用 URL Generator 勾三個權限。</div>
+    <div class="note warn"><b class="t">「Installation → User Install」那條路呢？</b>Portal 另有一頁 Installation，可以做「加到我的應用程式」的連結。官方文件說 User Install 的 app <b>只能用 slash 指令</b>，而 SYNOX 沒有登記 slash 指令，所以那條路能不能讓 SYNOX 收到你的私訊文字<b>還沒驗證</b>。這份教學一律走「邀進一個伺服器」。</div>
+  </div>
+</section>
+
+<!-- ───────────────────── 5 ───────────────────── -->
+<section id="s5">
+  <div class="stephead"><div class="stepno">5</div><div><h2>把 bot 邀進伺服器；私訊型再去私訊它</h2><p class="who">在 Discord 本體（桌面版或網頁版） · 每種情境都要</p></div></div>
+  <h3>5a. 邀進伺服器（每一支 bot 都要做一次）</h3>
+  <ol class="steps-ol">
+    <li><span>把第 4 步的網址貼到瀏覽器打開（要用<b>有那個伺服器管理權限</b>的帳號登入）。</span></li>
+    <li><span>「新增至伺服器」的下拉選單選伺服器。<b>沒有伺服器？</b>先在 Discord 左邊按「＋」建一個（免費、可以只有你一個人）；情境 ① 就建一個私人的。</span></li>
+    <li><span>看一眼它要的權限（就是你剛才勾的三個）→ <b>授權</b> → 人機驗證。</span></li>
+    <li><span>回 Discord，右邊成員清單會多一個 bot（離線也正常，SYNOX 還沒啟動）。</span></li>
+  </ol>
+  <div class="mock" style="max-width:420px">
+    <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">discord.com/oauth2/authorize?client_id=…&amp;scope=bot&amp;permissions=…</span><span class="tag">示意圖</span></div>
+    <div class="pbody">
+      <div class="row"><i class="n" style="background:var(--accent);color:var(--accent-ink)">S</i><h4>SYNOX 想要存取你的 Discord 帳號</h4></div>
+      <p class="sub">新增至伺服器：</p>
+      <div class="row"><span class="field">▾ 我的小伺服器</span><span class="n">2</span></div>
+      <p class="sub">這會允許 SYNOX 的開發者：</p>
+      <div class="chk on"><i>✓</i> 以 bot 身分加入伺服器</div>
+      <div class="chk on"><i>✓</i> 檢視頻道 · 傳送訊息 · 讀取訊息歷史 <span class="n">3</span></div>
+      <div class="row"><span class="mbtn">取消</span><span class="mbtn pri">授權</span></div>
+    </div>
+  </div>
+  <div class="legend"><span class="n">2</span><span>只會列出你有「管理伺服器」權限的伺服器（Discord 規定）。</span><span class="n">3</span><span>這裡列的就是連結裡的 permissions；多出來的沒勾過的話代表你貼錯連結。</span></div>
+
+  <h3>5b. 私訊型 bot：從成員清單私訊它（情境 ①②）</h3>
+  <p>bot 要收得到你的私訊，你跟它要有一個共同的伺服器（就是 5a 那個）。進去之後：右邊成員清單找到 bot → 點名字 → 「傳送訊息」（或右鍵 → 訊息）。</p>
+  <div class="mock">
+    <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">Discord · 我的小伺服器 · #general</span><span class="tag">示意圖</span></div>
+    <div class="dc three">
+      <div class="guilds"><i class="on">我</i><i>＋</i></div>
+      <div class="chlist"><b>我的小伺服器</b><span class="on"># general</span><span># 隨便聊</span></div>
+      <div class="chat">
+        <div class="msg"><i>你</i><div><span class="name">你 <span class="time">今天 21:03</span></span><div>bot 進來了，但還是離線，等 SYNOX 啟動。</div></div></div>
+        <div class="input">傳送訊息到 #general</div>
+      </div>
+      <div class="members">
+        <b>線上 — 1</b><span>你</span>
+        <b>離線 — 1</b><span class="off">SYNOX <span class="n">1</span></span>
+        <div class="menu" style="margin-top:6px"><span>個人資料</span><span class="hi"><span class="n">2</span> 訊息</span><hr><span>複製使用者 ID</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="legend"><span class="n">1</span><span>成員清單裡的 bot（名字旁邊會有 BOT 標籤）。</span><span class="n">2</span><span>點名字或右鍵 → 訊息，就會開一個跟它的私訊視窗。先別急著打字，等第 7、8 步做完。</span></div>
+  <div class="note"><b class="t">私訊型 bot 不會在伺服器頻道講話。</b>它在伺服器裡只是「存在」，讓你可以私訊它；頻道裡 @ 它不會有反應（它連頻道的訊息都不收）。要在頻道回的是「頻道型」，第 10 步。</div>
+</section>
+
+<!-- ───────────────────── 6 ───────────────────── -->
+<section id="s6">
+  <div class="stephead"><div class="stepno">6</div><div><h2>開發者模式與複製 ID</h2><p class="who">在 Discord 本體 · 頻道型 bot（情境 ②③④）必做；私訊型用「手動配對」時也會用到使用者 ID</p></div></div>
+  <ol class="steps-ol">
+    <li><span>Discord 左下角 ⚙️ <b>使用者設定</b> → 左邊 <b>進階（Advanced）</b> → 打開 <b>開發者模式（Developer Mode）</b>。手機版在 設定 → 外觀 或 進階 裡（版本不同位置不同）。</span></li>
+    <li><span>之後右鍵（手機長按）任何東西，選單最下面會多一個「複製 … ID」。</span></li>
+  </ol>
+  <div class="mock">
+    <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">Discord · 使用者設定 · 進階</span><span class="tag">示意圖</span></div>
+    <div class="settings">
+      <div class="snav"><span>我的帳號</span><span>隱私與安全</span><span>外觀</span><span>通知</span><span class="on"><span class="n">1</span> 進階</span></div>
+      <div class="sbody">
+        <h4 style="font-size:.95rem">進階</h4>
+        <div class="row"><span class="tg on"><i></i> <b>開發者模式</b></span><span class="n">2</span></div>
+        <p class="sub" style="color:var(--mock-dark-muted)">顯示開發者專用的內容選單項目，例如「複製 ID」。</p>
+      </div>
+    </div>
+  </div>
+  <h3>要複製哪三種 ID</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>ID</th><th>怎麼拿</th><th>寫在 config.json 哪裡</th></tr></thead>
+    <tbody>
+      <tr><td><b>伺服器 ID</b></td><td>左邊伺服器圖示 → 右鍵 → <b>複製伺服器 ID</b></td><td>頻道型 bot 的 <code>guilds</code> 的鍵</td></tr>
+      <tr><td><b>頻道 ID</b></td><td>頻道名稱 → 右鍵 → <b>複製頻道 ID</b></td><td><code>guilds.&lt;伺服器&gt;.channels</code> 清單</td></tr>
+      <tr><td><b>身分組 ID</b></td><td>伺服器設定 → 身分組 → 該身分組 右鍵（或 ⋯）→ <b>複製身分組 ID</b></td><td><code>role_map</code>（要把 Discord 身分組對到 SYNOX 成員才需要）</td></tr>
+      <tr><td><b>使用者 ID</b>（你自己）</td><td>任何地方你的名字 → 右鍵 → <b>複製使用者 ID</b></td><td>第 8 步「手動配對」或 <code>owner_user_id</code>；不是必要</td></tr>
+    </tbody>
+  </table></div>
+  <div class="mock">
+    <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">Discord · 右鍵選單</span><span class="tag">示意圖</span></div>
+    <div class="dc">
+      <div class="guilds"><i class="on">我</i><i>＋</i></div>
+      <div class="chlist"><b>我的小伺服器</b><span class="on"># 查詢 <span class="n">B</span></span><span># 記錄</span></div>
+      <div class="chat">
+        <div class="row" style="align-items:flex-start">
+          <div><p class="sub" style="color:var(--mock-dark-muted)"><span class="n">A</span> 伺服器圖示右鍵</p><div class="menu"><span>邀請其他人</span><span>伺服器設定</span><span>通知設定</span><hr><span class="hi">複製伺服器 ID</span></div></div>
+          <div><p class="sub" style="color:var(--mock-dark-muted)"><span class="n">B</span> 頻道名稱右鍵</p><div class="menu"><span>標示為已讀</span><span>邀請其他人</span><span>編輯頻道</span><hr><span class="hi">複製頻道 ID</span></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="legend"><span class="n">A</span><span>伺服器 ID。</span><span class="n">B</span><span>頻道 ID；一個頻道型 bot 可以列好幾個頻道、好幾個伺服器。</span></div>
+  <div class="note">ID 是 17–19 位的數字，<b>不是秘密</b>，可以放進 config.json、可以貼給別人。只有 token 是秘密。</div>
+</section>
+
+<!-- ───────────────────── 7 ───────────────────── -->
+<section id="s7">
+  <div class="stephead"><div class="stepno">7</div><div><h2>把 token 貼進 SYNOX</h2><p class="who">在你的電腦上 · 三條路擇一；多個 bot 走第三條</p></div></div>
+  <div class="tbl"><table>
+    <thead><tr><th>路</th><th>怎麼做</th><th>適合</th></tr></thead>
+    <tbody>
+      <tr><td><b>A. 安裝精靈</b></td><td>雙擊 <code>Setup.bat</code> → bot 那一頁選 <b>Discord</b> → 貼 token → 檢查 token → 下一頁就是配對（第 8 步）</td><td>第一次裝、情境 ①</td></tr>
+      <tr><td><b>B. 網頁設定頁</b></td><td>SYNOX 網頁 → <b>設定 → 聊天通道 → Discord</b> → 貼 token → 存。會先向 Discord 驗證這支 bot 叫什麼，然後顯示邀請連結；改完<b>要重新啟動 SYNOX</b></td><td>已經在用網頁的人、情境 ①②</td></tr>
+      <tr><td><b>C. 終端機</b></td><td>在 SYNOX 資料夾：<code>.venv\Scripts\python.exe -m synox discord token</code>（多個 bot 加 <code>--bot 名字</code>），貼上 token 按 Enter（畫面不顯示是正常的）；再改 config.json</td><td>多個 bot、頻道型（情境 ②③④）</td></tr>
+    </tbody>
+  </table></div>
+  <p>token 只存在保管箱 <code>data\secrets.json.enc</code>（加密），<b>config.json 裡只寫保管箱的名字</b>（<code>vault:…</code>），不會有 token 本身。A、B 兩條路會自己寫 config.json；C 要你自己改。</p>
+
+  <h3>config.json 範例：情境 ① 只有我（一支私訊型）</h3>
+  <div class="codebox"><button class="cp" type="button" data-copy="c1">複製</button><pre id="c1"><code>"channels": { "discord": { "enabled": true, "bot_token": "vault:discord_bot_token" } }</code></pre></div>
+  <p>只用 Discord、沒有 Telegram 的話，<code>owner_id</code>、<code>bot_token</code>（Telegram 的）可以不寫；SYNOX 會用保留號碼當擁有者，<b>配對（第 8 步）之前誰的私訊都不收</b>。</p>
+
+  <h3>config.json 範例：情境 ②④ 私訊型＋頻道型（<code>bots</code> 寫法）</h3>
+  <div class="codebox"><button class="cp" type="button" data-copy="c2">複製</button><pre id="c2"><code>"channels": { "discord": { "bots": {
+  "synox": {
+    "token": "vault:discord_bot_token:synox",
+    "surface": "dm", "packs": "all", "ai": true
+  },
+  "lookup": {
+    "token": "vault:discord_bot_token:lookup",
+    "surface": "channel",
+    "guilds": { "123456789012345678": {
+        "channels": ["234567890123456789"],
+        "role_map": { "345678901234567890": "member" } } },
+    "trigger": "mention",
+    "packs": ["dict"],
+    "max_effect": "read",
+    "rate_per_minute": 5
+  }
+} } }</code></pre></div>
+  <p>每支 bot 各存一次 token：<code>python -m synox discord token --bot synox</code>、<code>… --bot lookup</code>。<code>bot_token</code> 和 <code>bots</code> 兩種寫法<b>擇一</b>，不能並存。</p>
+
+  <h3>config.json 範例：情境 ③ 公開頻道（只有頻道型，保守設定）</h3>
+  <div class="codebox"><button class="cp" type="button" data-copy="c3">複製</button><pre id="c3"><code>"channels": { "discord": { "bots": {
+  "public": {
+    "token": "vault:discord_bot_token:public",
+    "surface": "channel",
+    "guilds": { "123456789012345678": { "channels": ["234567890123456789"] } },
+    "trigger": "mention",
+    "packs": ["dict"],
+    "max_effect": "read",
+    "rate_per_minute": 3,
+    "room_rate_per_minute": 10,
+    "ai": { "enabled": true, "pool_usd_month": 2, "rate_per_minute": 1,
+            "persona": "你是這個頻道的小幫手，只回答查得到的事。" }
+  }
+} } }</code></pre></div>
+  <p>沒列在 <code>guilds</code> 的伺服器與頻道一律不讀不回。<code>max_effect</code> 不能寫 <code>danger</code>（會被拒）。<code>ai</code> 要就一定要有 <code>pool_usd_month</code>（整支 bot 每月的額度，美元），不要就整段拿掉。</p>
+  <div class="note"><b class="t">改完先檢查。</b><code>.venv\Scripts\python.exe -m synox doctor --offline</code>：<code>Discord：</code> 底下每支 bot 一行，要看到「✅ token 在保管箱」；哪一格寫錯會直接說。</div>
+</section>
+
+<!-- ───────────────────── 8 ───────────────────── -->
+<section id="s8">
+  <div class="stephead"><div class="stepno">8</div><div><h2>配對：告訴 SYNOX 哪個 Discord 帳號是擁有者</h2><p class="who">情境 ①② 必做（有私訊型 bot 就要）；只有頻道型 bot 的情境 ③ 不用</p></div></div>
+  <p>沒配對之前，私訊型 bot <b>誰的私訊都不收</b>（回一句「還沒配對」），免得第一個來私訊的陌生人被當成擁有者。三條路擇一：</p>
+  <div class="tbl"><table>
+    <thead><tr><th>路</th><th>怎麼做</th><th>備註</th></tr></thead>
+    <tbody>
+      <tr><td><b>A. 精靈</b></td><td>第 7 步 A 的下一頁：畫面出現六位數字 → 照畫面打開邀請連結（5a）→ 在伺服器成員清單私訊 bot，傳那六個數字 → 畫面變「✅ 認得你了」</td><td>精靈自己開一條連線等你，不用先啟動 SYNOX</td></tr>
+      <tr><td><b>B. 網頁</b></td><td>SYNOX 要先啟動（bot 上線）→ 網頁 設定 → 聊天通道 → Discord → <b>「配對我的 Discord 帳號」</b> → 六位數字 → 私訊 bot 傳它 → 網頁顯示配對好了。也可以點「手動」直接貼你的 Discord 使用者 ID（第 6 步）</td><td>15 分鐘有效；傳錯 10 次就作廢要重產</td></tr>
+      <tr><td><b>C. 終端機</b></td><td>先 <code>Stop.bat</code> 關掉 SYNOX → <code>.venv\Scripts\python.exe -m synox discord pair</code>（多個 bot 可加 <code>--bot synox</code>，要私訊型的）→ 六位數字 → 私訊 bot 傳它 → 命令列印「✅ 已把 Discord 帳號 … 接到擁有者」</td><td>或在 config 的 <code>channels.discord</code> 寫 <code>"owner_user_id": "&lt;你的使用者 ID&gt;"</code></td></tr>
+    </tbody>
+  </table></div>
+  <div class="mock">
+    <div class="bar"><span class="dots"><i></i><i></i><i></i></span><span class="url">Discord · 私訊 · SYNOX</span><span class="tag">示意圖</span></div>
+    <div class="dc">
+      <div class="guilds"><i class="on">✉</i><i>我</i></div>
+      <div class="chlist"><b>私人訊息</b><span class="on">SYNOX</span></div>
+      <div class="chat">
+        <div class="msg"><i>你</i><div><span class="name">你 <span class="time">21:10</span></span><div>482913 <span class="n">1</span></div></div></div>
+        <div class="msg"><i class="bot">S</i><div><span class="name">SYNOX <small>BOT</small> <span class="time">21:10</span></span><div>✅ 配對成功！ <span class="n">2</span></div></div></div>
+        <div class="msg"><i>你</i><div><span class="name">你 <span class="time">21:12</span></span><div>/help</div></div></div>
+        <div class="msg"><i class="bot">S</i><div><span class="name">SYNOX <small>BOT</small> <span class="time">21:12</span></span><div>（指令清單…） <span class="n">3</span></div></div></div>
+        <div class="input">傳送訊息給 @SYNOX</div>
+      </div>
+    </div>
+  </div>
+  <div class="legend"><span class="n">1</span><span>只傳那六個數字，不要加別的字。</span><span class="n">2</span><span>這句出現就配好了，記在 <code>data\identities.json</code>；同一個 Discord 帳號對哪一支私訊型 bot 都是同一個人，配對一次就好。</span><span class="n">3</span><span>之後啟動 SYNOX（<code>Start.bat</code>）再私訊 <code>/help</code> 就該有回覆。</span></div>
+  <div class="note warn"><b class="t">頻道型 bot 不能拿來配對。</b><code>discord pair --bot</code> 指到頻道型會說「配對要用私訊型的 bot」。只有頻道型 bot 的情境 ③ 完全不用配對；頻道裡的人靠 Discord 身分組與 <code>role_map</code> 分角色。</div>
+</section>
+
+<!-- ───────────────────── 9 ───────────────────── -->
+<section id="s9">
+  <div class="stephead"><div class="stepno">9</div><div><h2>啟動、測試</h2><p class="who">每種情境 · 照順序打勾</p></div></div>
+  <ol class="steps-ol">
+    <li><span>雙擊 <code>Start.bat</code>（或 <code>.venv\Scripts\python.exe -m synox run</code>）。小視窗出現「✅ SYNOX 開始收訊息了」；有 bot 沒開成會印「⚠️ Discord bot X 沒有開：原因」。</span></li>
+    <li><span>Discord 成員清單裡的 bot 應該變成<b>線上</b>（綠點）。還是離線 → 看「疑難排解：bot 離線」。</span></li>
+    <li><span><b>私訊型</b>：私訊 bot 打 <code>/help</code>，要有指令清單。再試一個會出按鈕的指令、一個 AI 問題（如果有設 AI）。</span></li>
+    <li><span><b>頻道型</b>：到列出的頻道打 <code>@SYNOX查詢 /help</code>（要真的 @ 到 bot，不是打名字）。回覆會引用你那則訊息。到<b>沒列</b>的頻道 @ 它，應該<b>不回</b>。</span></li>
+    <li><span>私訊 SYNOX 打 <code>/bot_status</code>：每支 bot 的狀態、會出現哪些工具、「設定了但不會出現」的原因。</span></li>
+    <li><span>陌生人測試（有第二個 Discord 帳號才做）：個人版應該被擋；伺服器版變成訪客。</span></li>
+    <li><span>重開（<code>Stop.bat</code> → <code>Start.bat</code>）：配對還在、私訊照常。</span></li>
+  </ol>
+  <div class="note"><b class="t">頻道型 bot 今天只會回 /help、/start、/exit。</b>因為頻道裡只會出現 pack.json 宣告了 <code>"surfaces": ["dm","channel"]</code>、而且 <code>data</code> 不是 <code>user</code> 的工具，目前出廠與工具庫裡<b>沒有任何工具這樣宣告</b>。所以頻道裡 <code>/help</code> 幾乎是空的是<b>正常的</b>，不是壞掉。開了頻道 AI 可以聊天但沒有工具。</div>
+  <p>完整的 D1–D18 測試清單在 <code>docs/handoff/discord-handoff.md</code> 第 9 節；上線前也可以先跑 <code>scripts\smoke_real.py --only discord</code>（只查 token、bot 身分、intent、配對，不上線）。</p>
+</section>
+
+<!-- ───────────────────── 10 ───────────────────── -->
+<section id="s10">
+  <div class="stephead"><div class="stepno">10</div><div><h2>伺服器頻道、每個頻道不同功能</h2><p class="who">情境 ②③④ · 這一步是「能做到什麼」的誠實版</p></div></div>
+  <h3>Discord 給你的兩層控制</h3>
+  <div class="grid2">
+    <div class="card"><h3>第一層：頻道權限覆寫（Discord 擋）</h3><p>伺服器設定 → 頻道 → 權限：把 bot 的身分組在某個頻道的 <b>View Channel</b> 關掉，那個頻道的訊息根本不會送到 bot；關 <b>Send Messages</b> 就收得到、回不了。這層最可靠，設定寫錯也擋得住。</p></div>
+    <div class="card"><h3>第二層：bot 自己看 channel_id（SYNOX 擋）</h3><p>每則訊息都帶 <code>guild_id</code>、<code>channel_id</code>。SYNOX 頻道型 bot 的 <code>guilds</code> 就是用這個做 allowlist：沒列的不讀不回。</p></div>
+  </div>
+  <h3>SYNOX 今天做到的</h3>
+  <div class="tbl"><table>
+    <thead><tr><th>你想要</th><th>今天</th><th>說明</th></tr></thead>
+    <tbody>
+      <tr><td>某幾個頻道的人都能叫 bot</td><td><span class="ok-i">✅</span></td><td>頻道型 bot ＋ <code>guilds.&lt;伺服器&gt;.channels</code>；被 @ 或以 <code>/</code> 開頭才回</td></tr>
+      <tr><td>頻道裡跟 AI 聊</td><td><span class="ok-i">✅</span></td><td><code>ai.pool_usd_month</code> 一池；記憶是頻道共用的；回覆前遮罩 token</td></tr>
+      <tr><td>Discord 身分組 → 誰能用寫入工具</td><td><span class="ok-i">✅</span></td><td><code>role_map</code> 最高到成員；寫入還要 <code>max_effect: "write"</code>＋工具 <code>data: shared</code></td></tr>
+      <tr><td>頻道裡做危險動作、按確認卡</td><td><span class="bad-i">❌ 永遠不行</span></td><td>程式擋：回「這個動作要到私訊做」；確認卡不送進頻道</td></tr>
+      <tr><td>頻道裡用記帳、記事、提醒</td><td><span class="bad-i">❌</span></td><td><code>data: user</code> 的工具在頻道裡當作不存在（不洩漏誰的資料）</td></tr>
+      <tr><td><b>同一支 bot</b>，A 頻道只能查、B 頻道可以寫</td><td><span class="warn-i">⚠ 一半</span></td><td>allowlist 是每個頻道的，但 <code>packs</code>／<code>max_effect</code>／<code>trigger</code>／<code>ai</code>／節流是<b>每支 bot</b>的</td></tr>
+      <tr><td>Discord 原生 <code>/</code> 指令選單、收附件</td><td><span class="bad-i">❌</span></td><td>沒做</td></tr>
+    </tbody>
+  </table></div>
+  <h3>情境 ④ 今天的做法：一個頻道一支 bot</h3>
+  <div class="codebox"><button class="cp" type="button" data-copy="c4">複製</button><pre id="c4"><code>"bots": {
+  "me":     { "surface": "dm", "packs": "all" },
+  "lookup": { "surface": "channel", "packs": ["dict"], "max_effect": "read",
+              "guilds": { "&lt;伺服器 id&gt;": { "channels": ["&lt;#查詢 的 id&gt;"] } } },
+  "log":    { "surface": "channel", "packs": ["shared-list"], "max_effect": "write",
+              "guilds": { "&lt;伺服器 id&gt;": { "channels": ["&lt;#記錄 的 id&gt;"],
+                          "role_map": { "&lt;身分組 id&gt;": "member" } } } }
+}</code></pre></div>
+  <ul>
+    <li><code>lookup</code>、<code>log</code> 各是一個 Application、各一個 token、各自邀進伺服器；成員清單會是兩個名字（「SYNOX 查詢」「SYNOX 記錄」），大家反而清楚在 @ 誰。</li>
+    <li>再用第一層（頻道權限覆寫）把 <code>lookup</code> 的身分組從 <code>#記錄</code> 拿掉，反之亦然，雙保險。</li>
+    <li>缺點：Application 數量跟功能組合一起長；每支 bot 一條連線（十幾支以上要注意 Discord 對同一 IP 的連線頻率）。</li>
+  </ul>
+  <div class="note"><b class="t">提案（還沒做）：真正的每頻道設定。</b>讓 <code>guilds.&lt;伺服器&gt;.channels</code> 的每一項除了 id 字串也能寫成物件 <code>{"packs": [...], "max_effect": "read", "trigger": "/", "ai": false}</code>，沒寫的沿用 bot 的；收訊時算出一個「這個頻道的派生 BotSpec」丟給現有的 <code>policy.using_bot</code>，權限判斷、/help、AI 工具清單、節流一行都不用改。細節在 <code>docs/discord-concepts.md</code> 第 7 節，要不要做由擁有者決定。</div>
+</section>
+
+<!-- ───────────────────── 安全 ───────────────────── -->
+<section id="security">
+  <h2>安全：誰能命令 bot、確認卡、token</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>風險</th><th>Discord 這邊</th><th>SYNOX 已經擋的</th><th>你要做的</th></tr></thead>
+    <tbody>
+      <tr><td>任何人都能命令 bot（公開頻道）</td><td>看得到頻道的人都能 @ 它</td><td>頻道裡只有 <code>surfaces: channel</code>＋<code>data: shared</code> 的工具；DANGER 永遠拒；WRITE 要成員以上；訪客聊 AI 沒工具</td><td>頻道型 <code>max_effect</code> 留 <code>read</code>；私訊型 bot 不要邀進公開伺服器</td></tr>
+      <tr><td>危險動作的確認卡被別人按</td><td>—</td><td>確認卡不送進頻道；頻道裡的按鈕只有發話者能按</td><td>要確認的事到私訊做（開著 AI 的私訊型 bot 或 Telegram）</td></tr>
+      <tr><td>AI 額度被燒光</td><td>—</td><td><code>pool_usd_month</code> 用完整支 bot 停；三層節流</td><td>額度設小、看 <code>/bot_status</code></td></tr>
+      <tr><td>回覆洩漏 token／金鑰</td><td>—</td><td>送出前遮罩已存的 secret 與像 token 的字（多一層，不是主要保護）</td><td>persona、工具結果裡不要放秘密</td></tr>
+      <tr><td><b>token 外洩</b></td><td>拿到 token 的人就是這支 bot</td><td>token 只在保管箱、不進 log、不進 git</td><td><b>Portal → Bot → Reset Token</b>，再 <code>python -m synox discord token</code> 重存、重開 SYNOX</td></tr>
+      <tr><td>被灌爆</td><td>REST 全域每秒 50 次，超過回 429；10 分鐘內 1 萬次無效請求會被暫時封鎖</td><td>收訊節流靜默略過</td><td><code>rate_per_minute</code> 不要調太高</td></tr>
+      <tr><td>被人邀進別的伺服器</td><td>Bot 頁 <b>Public Bot</b> 開著時，知道 client_id 的人都能邀</td><td>沒列在 <code>guilds</code> 的一律不收不回</td><td>情境 ①② 把 Public Bot 關掉</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ───────────────────── 疑難排解 ───────────────────── -->
+<section id="trouble">
+  <h2>疑難排解</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>看到什麼</th><th>意思</th><th>怎麼辦</th></tr></thead>
+    <tbody>
+      <tr><td><b>bot 一直離線</b>（成員清單灰點）</td><td>SYNOX 沒啟動、或這支 bot 沒開成</td><td>看 <code>Start.bat</code> 小視窗：「⚠️ Discord bot X 沒有開：原因」。沒有這行但還是離線 → <code>python -m synox doctor</code>；再看下面 4014／4004</td></tr>
+      <tr><td><b>「Developer Portal 沒開 Message Content intent（4014）」</b>／ Used disallowed intent(s)</td><td>第 3 步沒開或沒按 Save；或 token 是<b>另一個</b> Application 的（開錯支）</td><td>Bot 頁 → Privileged Gateway Intents → Message Content → <b>Save Changes</b> → 重開 SYNOX。確認 token 跟你開 intent 的是同一個 Application</td></tr>
+      <tr><td><b>「bot token 不對（4004）」</b>／ 401</td><td>token 貼錯、少字、或按過 Reset Token</td><td>回 Bot 頁再 Reset 一次，<code>python -m synox discord token</code>（<code>--bot X</code>）重存，重開</td></tr>
+      <tr><td><b>Missing Access（50001）</b></td><td>bot 看不到那個頻道（沒有 View Channel，或頻道有私人覆寫）</td><td>伺服器設定 → 頻道權限：給 bot 的身分組 View Channel；或把 bot 加進那個私人頻道的成員</td></tr>
+      <tr><td><b>Missing Permissions（50013）</b></td><td>看得到但不能做這件事（通常是 Send Messages 或 Read Message History）</td><td>同上補權限；或重做第 4、5 步用 <code>permissions=68608</code> 的連結再邀一次（不用先踢掉）</td></tr>
+      <tr><td><b>Cannot send messages to this user（50007）</b></td><td>bot 跟那個人沒有共同伺服器，或對方關了「允許伺服器成員私訊」</td><td>把 bot 邀進一個對方也在的伺服器；對方的隱私設定要允許來自伺服器成員的私訊</td></tr>
+      <tr><td><b>私訊沒回</b>，bot 線上</td><td>還沒配對（會回「還沒配對」）；或你不是擁有者（個人版擋陌生人）；或 intent 沒開（其實會連不上）</td><td>第 8 步；用擁有者的帳號；<code>/bot_status</code> 看身分那行</td></tr>
+      <tr><td><b>頻道裡沒回</b>，bot 線上</td><td>頻道沒列在 <code>guilds</code>；沒真的 @ 到 bot；私人頻道沒給權限；講太快被節流；編輯過的訊息、只有附件的訊息一律不回</td><td>照 <code>docs/handoff/discord-handoff.md</code>「頻道沒反應：照順序檢查」1–10</td></tr>
+      <tr><td>頻道回「頻道裡只收指令；想聊天請私訊」</td><td>被 @ 但不是指令，頻道 AI 沒開</td><td>正常；要聊就設 <code>ai.pool_usd_month</code></td></tr>
+      <tr><td>「🔒 這個動作要到私訊做」</td><td>頻道裡要確認卡或危險動作</td><td>正常；去私訊做</td></tr>
+      <tr><td>429 Too Many Requests</td><td>打 Discord 太快</td><td>SYNOX 會等；頻繁出現就調低節流、別同時開太多 bot</td></tr>
+      <tr><td><b>token 外洩了</b></td><td>貼錯、截圖、進了 git、別人看到</td><td><b>立刻</b> Portal → Bot → Reset Token（舊的馬上失效）→ 重存 → 重開。保管箱那份用 <code>discord token --clear</code> 刪只是本機不再存，<b>不會</b>讓舊 token 失效</td></tr>
+      <tr><td>「加 --bot &lt;名字&gt; 指定存哪一個」</td><td>config 用 <code>bots</code> 寫法但 <code>discord token</code> 沒指定</td><td>加 <code>--bot 名字</code></td></tr>
+      <tr><td>「同時寫了 bot_token 和 bots」</td><td>兩種寫法混用</td><td>擇一</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ───────────────────── 未驗證 ───────────────────── -->
+<section id="unverified">
+  <h2>還沒驗證的事（誠實清單）</h2>
+  <ul>
+    <li><b>整條 Discord 通道還沒跟真的 Discord 連過</b>：所有測試用程式內的假 Gateway、假 HTTP。第一次真連請照 <code>docs/handoff/discord-handoff.md</code> 做，有問題照它的格式回報。</li>
+    <li><b>User Install 能不能讓 SYNOX 收到私訊文字</b>：官方說 User Install 的 app「只能用指令」（slash），SYNOX 沒有 slash 指令。<code>docs/discord.md</code> 把 User Install 列為選項之一，<b>先當作未驗證</b>；本教學走「邀進伺服器」。</li>
+    <li><b>「沒有共同伺服器就收不到私訊」</b>：官方只給錯誤碼 50007，「要共同伺服器」是社群共識＋SYNOX 精靈的假設。</li>
+    <li><b>Discord 選單的確切名稱</b>（「複製伺服器 ID」、「進階」、「Installation」…）：官方支援中心文章本次抓取被擋，名稱來自社群轉述；以你手上的版本為準，找最接近的。</li>
+    <li><b>特權 intent 審核門檻</b>：官方文件現在寫「1 萬個不重複使用者」，網路上很多文章還是舊的「100 個伺服器」。兩者對個人使用都不會碰到。</li>
+    <li><b>手機版開發者模式的位置</b>：各版本不同（外觀／進階）。</li>
+  </ul>
+</section>
+
+<footer>
+  <p>相關文件：<code>docs/discord-concepts.md</code>（觀念與決定表）· <code>docs/discord.md</code>（每個設定欄位）· <code>docs/handoff/discord-handoff.md</code>（真機交接與 D1–D18 測試）· <code>docs/tutorials/discord/README.md</code>（這份的純文字版與更新方式）。</p>
+  <p>依據 2026-11-12 讀到的 Discord 官方開發者文件（docs.discord.com/developers）。圖為示意，不是截圖。</p>
+</footer>
+
+</main>
+</div>
+</div>
+
+<script>
+(function(){
+  var btns=document.querySelectorAll('.cp');
+  for(var i=0;i<btns.length;i++){
+    btns[i].addEventListener('click',function(ev){
+      var b=ev.currentTarget,el=document.getElementById(b.getAttribute('data-copy'));
+      if(!el)return;
+      var text=el.textContent;
+      function done(ok){b.textContent=ok?'已複製':'請手動選取';setTimeout(function(){b.textContent='複製';},1600);}
+      if(navigator.clipboard&&navigator.clipboard.writeText){
+        navigator.clipboard.writeText(text).then(function(){done(true);},function(){select();});
+      }else{select();}
+      function select(){try{var r=document.createRange();r.selectNodeContents(el);var s=window.getSelection();s.removeAllRanges();s.addRange(r);done(false);}catch(e){done(false);}}
+    });
+  }
+})();
+</script>
