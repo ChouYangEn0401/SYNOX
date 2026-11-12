@@ -30,6 +30,8 @@ synox_sdk：寫一個 Python 函式，就是一個 SYNOX 工具（也是一個 M
 - `secret(name)`：使用者在 SYNOX 工具頁「連接」填的值（pack.json 的 auth.fields；SYNOX 經環境變數給，不經 argv）。
 - `context()`：這一次是誰在用：user_data_dir、tg_id、mode、pack_dir、pack_name、confirmed、confirm_token
   （SYNOX 經 SYNOX_* 環境變數給）。
+- `report_status(state, message="")`：回報這個工具的狀態（ok／running／failed／idle），跟著這一次的信封送給 SYNOX
+  （信封多一個 "status"；主控面板與常駐助理看得到）。`peer_status()`：別的任務／工具現在的狀態（只有 state 與時間）。
 
 這個檔有兩份：`src/synox/sdk/author.py`（正本，`from synox.sdk import tool, serve`）與 `sdk/synox_sdk.py`
 （`scripts/build_synox_sdk.py` 從正本產生，可以直接複製進你的 repo）。
@@ -51,7 +53,7 @@ from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
 __all__ = ["tool", "serve", "secret", "context", "confirmed", "Context", "ToolError", "Confirm", "Ok", "SpecError",
-           "tool_spec", "commands_for", "run_cli", "run_mcp", "registered"]
+           "tool_spec", "commands_for", "run_cli", "run_mcp", "registered", "report_status", "peer_status"]
 
 SDK_VERSION = "0.1.0"
 SYNOX_REQUIRES = ">=0.2"               # 產生的 pack.json 的 requires.synox（SYNOX_* 環境變數、ai／confirm 從這版起）
@@ -63,6 +65,8 @@ BOOL_FALSE = ("false", "no", "n", "off", "0", "否", "不", "不要", "關")
 MCP_PROTOCOLS = ("2025-06-18", "2025-03-26", "2024-11-05")
 MCP_CONFIRM_META = "synox/confirm_token"   # MCP tools/call 的 params._meta：用戶端（不是 AI）確認過才帶
 CONFIRM_TOKEN_RE = re.compile(r"^[A-Za-z0-9._:\-]{1,128}$")
+STATUS_STATES = ("ok", "running", "failed", "idle")
+STATUS_MESSAGE_MAX = 200
 EXIT_OK, EXIT_ERROR = 0, 1
 
 _REGISTRY: List[Callable] = []
@@ -70,6 +74,7 @@ _REGISTRY: List[Callable] = []
 # 不用 fn.__dict__／vars()：SYNOX 第 2 關把它們算成 exec（放進 pack 的這支檔不用宣告任何能力）。
 # 舊版 SDK 掛的是 __dict__["__synox_tool__"]（synox.sdk._legacy_spec 照樣認得）
 _MCP_CONFIRM: Optional[str] = None     # MCP tools/call 進行中：_meta 帶的確認 token（"" ＝沒確認）；None＝不在 MCP 呼叫裡
+_STATUS: Optional[dict] = None         # 這一次呼叫裡 report_status() 給的（印信封時帶出去）
 
 
 # ── 結果與錯誤 ──────────────────────────────────────────────────────────
@@ -367,7 +372,17 @@ def _coerce(field: dict, value: Any) -> Any:
 
 
 def _call(spec: dict, values: Dict[str, Any]):
-    """檢查必填、轉型、呼叫。回 (信封, 結束碼)。"""
+    """檢查必填、轉型、呼叫。回 (信封, 結束碼)。這一次有 report_status() 的話，信封多一個 "status"。"""
+    global _STATUS
+    _STATUS = None
+    envelope, code = _call_inner(spec, values)
+    if _STATUS is not None:
+        envelope["status"] = dict(_STATUS)
+        _STATUS = None
+    return envelope, code
+
+
+def _call_inner(spec: dict, values: Dict[str, Any]):
     fields = {f["name"]: f for f in spec["fields"]}
     unknown = [k for k in values if k not in fields]
     try:
@@ -699,3 +714,44 @@ def context() -> Context:
     ok, given = _confirm_state()
     return Context(_env("SYNOX_USER_DATA_DIR"), _env("SYNOX_TG_ID"), _env("SYNOX_MODE"), _env("SYNOX_PACK_DIR"),
                    _env("SYNOX_PACK_NAME"), ok, given)
+
+
+# ── 狀態回報（SYNOX 的 runtime：主控面板、常駐助理、別的工具看得到）──────────────
+
+def report_status(state: str, message: str = "") -> None:
+    """回報這個工具現在的狀態，跟著這一次的回覆（JSON 信封的 "status"）送給 SYNOX：
+
+        @tool("READ")
+        def sync():
+            try:
+                n = pull()
+            except IOError as e:
+                report_status("failed", f"同步失敗：{e}")
+                raise ToolError("sync", "同步失敗")
+            report_status("ok", f"同步了 {n} 筆")
+            return f"同步了 {n} 筆"
+
+    state：ok｜running｜failed｜idle（其他的丟 ValueError）。message 最多 200 字（SYNOX 會再遮掉像密鑰的片段），
+    不要放個人資料或密碼——主控面板會顯示、常駐助理會讀。同一次呼叫裡叫好幾次＝最後一次算。
+    舊版 SYNOX 不認得 "status"，直接忽略（不會出錯）。--mcp 模式這一版不送。"""
+    global _STATUS
+    if state not in STATUS_STATES:
+        raise ValueError(f"report_status: state 只能是 {'、'.join(STATUS_STATES)}（收到 {state!r}）")
+    _STATUS = {"state": state, "message": str(message or "")[:STATUS_MESSAGE_MAX]}
+
+
+def peer_status(task_id: str = "") -> Dict[str, Any]:
+    """別的任務／工具現在的狀態（SYNOX 叫你時放在 SYNOX_PEER_STATUS）：{"pack.weather": {"state": "failed", "at": "<ISO>"}, …}。
+    只有狀態與時間，沒有訊息（別的工具的訊息可能有個人資料）。task_id 有給＝只回那一個（沒有＝{}）。
+    不是從 SYNOX 叫的、或 SYNOX 太舊＝{}。"""
+    try:
+        data = json.loads(_env("SYNOX_PEER_STATUS") or "{}")
+    except ValueError:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    peers = {str(k): v for k, v in data.items() if isinstance(v, dict)}
+    if task_id:
+        found = peers.get(task_id)
+        return dict(found) if isinstance(found, dict) else {}
+    return peers

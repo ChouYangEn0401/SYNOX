@@ -13,6 +13,8 @@
 | [pack-format.md](pack-format.md) | 作者、維護者 | pack.json 每個欄位的完整規則、kind=cli／mcp／python 的細節、升級與環境建置 |
 | [../examples/](../examples/) | 作者 | 可以照抄的範例：`hello`（SDK）、`any-language-cli`（不用 SDK）、`node-mcp-tool`（MCP stdio）、`mcp-remote-*`（遠端 MCP） |
 | [AGENT.md](AGENT.md) | 維護者 | 程式地圖、不能破壞的規則（invariants）、已知限制 |
+| [adr/](adr/) | 維護者 | 架構決定（一件一檔）：[0001](adr/0001-runtime-loop-heartbeat-mother-session.md) runtime loop、心跳、常駐助理、soul.md |
+| [runtime-api.md](runtime-api.md) | 維護者（前端） | 主控面板用的 `/api/runtime/...` 合約（狀態、心跳設定、soul.md、任務日誌） |
 | [../CHANGELOG.md](../CHANGELOG.md) | 維護者 | 每個版本改了什麼 |
 | [ui/redesign-notes.md](ui/redesign-notes.md) | 維護者 | 網頁介面的設計 token、版面、參考對象；`ui/preview.html` 雙擊看假資料預覽（`scripts/make_ui_preview.py` 產生） |
 | [debug-notes.md](debug-notes.md) | 維護者 | 安裝流程真機除錯：修好的（Fixed）與還開著、等擁有者決定的（Open） |
