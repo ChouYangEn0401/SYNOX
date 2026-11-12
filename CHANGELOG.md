@@ -127,6 +127,15 @@
 - 聊天通道卡片標明「目前只能一對一私訊」：加進 Telegram 群組、Discord 頻道／社群沒有用（指令與 AI 在群組、頻道都被擋）；邀請連結的說法改成「為了能私訊它」。
 - Telegram 擁有者配對在網頁怎麼做（會換擁有者 id、牽涉資料搬遷）：[QuestionToUser.md](QuestionToUser.md) Q14。
 
+### Telegram 擁有者也能在網頁配對（跟 Discord 一樣）
+- 原因：只用網頁／Discord 安裝的人，擁有者的內部 id 是保留的 10^15，Telegram 傳訊息進來是他真正的 Telegram 編號，被當成陌生人（guest）；
+  陌生人傳自由文字只會一直收到「我只看得懂指令，打 /help」——看起來像鬼打牆。
+- 做法（`telegram_link.py`，**不改 SDK、不換擁有者 id、不搬資料**）：`identities.json` 記「telegram:<編號> ＝ 擁有者」；進來的訊息對得上就換成擁有者的內部 id，
+  回覆時 BotAPI 物件裡「送給某個 chat_id」的方法把擁有者的內部 id 翻回 Telegram 編號。設定 → 聊天通道 → Telegram →「配對我的 Telegram 帳號」：
+  網頁顯示六位數字，在 Telegram 私訊 bot 傳它（15 分鐘、用掉即作廢、猜錯 10 次作廢），或直接貼 Telegram 編號。要先存好 token 並重開一次。
+- 還沒配對時，這種安裝的 Telegram 一律不收訊息（回一句「還沒配對」，每人一次），不登記陌生人。**擁有者本來就是 Telegram 帳號的安裝完全不經過這一層。**
+- 網頁的配對區改成 Discord、Telegram 共用同一段程式（`makePairing`）。這等於照 Q14 的建議 B 做了（用 SYNOX 這邊包一層，沒動 vendor），請確認。
+
 ### 常駐助理的獨立聊天入口
 - 側欄固定多一個「🫀 常駐助理」（只給擁有者；主控頁的常駐助理那格也有「跟它聊天」連結）：直接跟常駐助理（母 session）聊天，沒有工具、純文字。
   這個聊天的紀錄**只在記憶體**（最多 12 輪，重開 SYNOX 就清空），跟巡邏用的保管箱記憶（主控頁清）分開，只讀最近 5 筆巡邏摘要當背景。
