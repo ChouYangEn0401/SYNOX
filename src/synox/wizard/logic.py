@@ -204,6 +204,11 @@ def save_discord_token(config_path: str, cfg: dict, token: str, vault_opener=Non
     """把 Discord bot token 存進保管箱，cfg 開 channels.discord.enabled，寫回 config.json。回寫進去的那份。"""
     from synox.discord import VAULT_NAME
     cfg = json.loads(json.dumps(cfg))
+    channels = dict(cfg.get("channels") or {})
+    old = channels.get("discord") if isinstance(channels.get("discord"), dict) else {}
+    if "bots" in old:        # 多 bot 寫法跟 bot_token 不能並存（synox.discord.bots.parse）；不替使用者改
+        # 先檢查再動保管箱：bots 的 default bot 也用 discord_bot_token 這個名字，不能被蓋掉
+        raise ValueError("config.json 的 channels.discord 已經用 bots 寫法（多個 bot）：請直接改 config.json，精靈不動它。")
     if vault_opener is None:
         from synox.config import SynoxConfig
         from synox.vault import open_vault
@@ -212,10 +217,6 @@ def save_discord_token(config_path: str, cfg: dict, token: str, vault_opener=Non
             return open_vault(SynoxConfig.from_dict(c, require_token=False,
                                                     root=os.path.dirname(os.path.abspath(config_path))))
     vault_opener(cfg).set_secret(VAULT_NAME, token.strip())
-    channels = dict(cfg.get("channels") or {})
-    old = channels.get("discord") if isinstance(channels.get("discord"), dict) else {}
-    if "bots" in old:        # 多 bot 寫法跟 bot_token 不能並存（synox.discord.bots.parse）；不替使用者改
-        raise ValueError("config.json 的 channels.discord 已經用 bots 寫法（多個 bot）：請直接改 config.json，精靈不動它。")
     channels["discord"] = {**old, "enabled": True, "bot_token": f"vault:{VAULT_NAME}"}   # 重跑精靈不洗掉其他設定
     cfg["channels"] = channels
     write_config(config_path, cfg)
