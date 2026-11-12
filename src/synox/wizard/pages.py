@@ -8,8 +8,8 @@
      背景等那則訊息 → 記下 owner_id（Discord 另外把帳號接進 identities.json）。
   4. AI：上面是預設「Claude（這台電腦登入的 Claude Code）」＋狀態＋測一下；下面「其他金鑰來源」
      （OpenAI／Anthropic API／Gemini／相容端點：下拉選單、網址（只有相容端點）、金鑰、模型、測一下）；「先不用 AI」
-  5. 完成：桌面捷徑（預設勾）、開機自動啟動（預設不勾）→「完成並開始」寫 config.json；有通道才開 Start.bat
-     （沒有通道就只存設定，提示用 Console.bat 先玩）
+  5. 完成：桌面捷徑（預設勾）、開機自動啟動（預設不勾）、完成後立刻開啟 SYNOX（預設勾）→「完成並開始」寫 config.json；
+     勾了就開 Start.bat（沒接聊天軟體＝只跑網頁介面，自己會打開瀏覽器）；沒勾就只存設定，提示之後怎麼開
 
 網路呼叫都在背景執行緒，結果用 root.after 交回畫面執行緒。畫面以外的邏輯在 logic.py／telegram_probe.py／
 discord_probe.py／shortcuts.py（有單元測試）；這個檔案只有畫面。
@@ -341,10 +341,12 @@ class Wizard:
         desk = tk.BooleanVar(value=True)
         auto = tk.BooleanVar(value=False)
         packs = tk.BooleanVar(value=True)
+        launch = tk.BooleanVar(value=True)
         ttk.Checkbutton(self.body, text="在桌面放一個「SYNOX」捷徑", variable=desk).pack(anchor="w", pady=4)
         ttk.Checkbutton(self.body, text="開機後自動啟動 SYNOX（看得到的小視窗，隨時可以關）", variable=auto).pack(anchor="w")
         ttk.Checkbutton(self.body, text="讓 .synoxpack 檔案點兩下就安裝（裝之前一樣會先檢查、給你按確認）",
                         variable=packs).pack(anchor="w", pady=4)
+        ttk.Checkbutton(self.body, text="完成後立刻開啟 SYNOX", variable=launch).pack(anchor="w")
         title, _one, _two = logic.mode_lines(self.mode)
         if self.token:
             who = "bot" if self.platform == "telegram" else f"Discord bot {self.bot_name}"
@@ -392,19 +394,18 @@ class Wizard:
                     notes.append(".synoxpack 點兩下安裝 ✅")
                 except OSError as e:
                     notes.append(f".synoxpack 點兩下安裝 ❌ {e}")
-            start = os.path.join(ROOT, "Start.bat")          # 不管有沒有接聊天軟體，裝完就把 SYNOX 開起來
-            subprocess.Popen(["cmd", "/c", start], cwd=ROOT,
-                             creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
-            if self.token:
-                link = logic.web_login_link(self.config_path)
-                if link:
-                    notes.append("幾秒後會打開網頁介面（之後在 Telegram 打 /web 可以再拿登入連結）")
-                    self.root.after(6000, lambda: webbrowser.open(link))
-                status.configure(text="✅ 設定好了，bot 開起來了。" + "\n" + "\n".join(notes) + "\n" + "可以關掉這個視窗。")
-            else:
-                notes.append("幾秒後會自動打開網頁介面（SYNOX 的主畫面）")
-                status.configure(text="✅ 設定好了，SYNOX 開起來了（還沒接 Telegram／Discord）。" + "\n" + "\n".join(notes) +
-                                 "\n" + "之後雙擊 Setup.bat 重跑精靈可以補接 Telegram／Discord。" + "\n" + "可以關掉這個視窗。")
+            if launch.get():                                  # 勾了才開；不管有沒有接聊天軟體
+                start = os.path.join(ROOT, "Start.bat")
+                subprocess.Popen(["cmd", "/c", start], cwd=ROOT,
+                                 creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+                if self.token:
+                    link = logic.web_login_link(self.config_path)
+                    if link:
+                        notes.append("幾秒後會打開網頁介面（之後在 Telegram 打 /web 可以再拿登入連結）")
+                        self.root.after(6000, lambda: webbrowser.open(link))
+                else:
+                    notes.append("幾秒後會自動打開網頁介面（SYNOX 的主畫面）")
+            status.configure(text=logic.finish_status(notes, launched=launch.get(), has_token=bool(self.token)))
             self.set_next("關閉", self.close)
 
         self.set_next("完成並開始", finish)
