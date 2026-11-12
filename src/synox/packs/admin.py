@@ -507,6 +507,8 @@ def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
         out.append("它有網頁面板：面板跟 Web UI 同源，能做你在網頁上能做的事。")
     if not m.publisher:
         out.append("沒有寫發行者（publisher）。")
+    from synox.packs.manifest import doc_warnings
+    out += doc_warnings(m)                    # 說明不齊（SKILL.md frontmatter、summary、ask）：提醒、不擋
     return out
 
 

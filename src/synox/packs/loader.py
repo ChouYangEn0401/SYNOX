@@ -57,8 +57,8 @@ from synox.packs import envs, kit, render
 from synox.packs import confirm as tool_confirm
 from synox.packs import secrets as pack_secrets
 from synox.packs import lock as pack_lock
-from synox.packs.manifest import (Manifest, ManifestError, missing_requirements, read, safe_env, secret_env_names,
-                                  synox_problem)
+from synox.packs.manifest import (Manifest, ManifestError, default_text, missing_requirements, read, safe_env,
+                                  secret_env_names, synox_problem)
 from synox.vault.vault import USERS_DIR
 
 PACK_DIRS = (os.path.join(ROOT, "packs"), os.path.join(ROOT, "connectors"))
@@ -723,7 +723,7 @@ def _install_cli(app, pack: Pack) -> None:
     for c in m.commands:
         kinds = {f["name"]: f.get("kind", "text") for f in c.get("fields") or []}
         fields = [Field(f["name"], f.get("ask", f["name"]), required=bool(f.get("required")),
-                        default=str(f.get("default", "")), choices=tuple(f.get("choices") or ()),
+                        default=default_text(f.get("default")), choices=tuple(f.get("choices") or ()),
                         check=gate4.typed_check(kinds.get(f["name"], "text"), tuple(f.get("choices") or ())))
                   for f in c.get("fields") or []]
         cmd = service.ServiceCommand(c["name"], c["argv"], c.get("summary", c["name"]), fields=fields,
@@ -752,7 +752,10 @@ def _install_cli(app, pack: Pack) -> None:
         nodes[cmd.name] = node
         positional = [n for n in kinds if f"{{{n}}}" in c.get("argv", [])]
         # commands[].confirm：AI 呼叫前先送確認卡（effect 照寫的算；agent/loop.py 看這個）
-        meta[node.path] = {"argv": True, "positional": positional, "kinds": kinds, "confirm": c.get("confirm") is True}
+        meta[node.path] = {"argv": True, "positional": positional, "kinds": kinds, "confirm": c.get("confirm") is True,
+                           # 網頁工具頁的表單說明（pack.json fields[].help；只給人看，不進 AI 的 schema）
+                           "help": {f["name"]: f["help"] for f in c.get("fields") or []
+                                    if isinstance(f.get("help"), str) and f["help"].strip()}}
 
 
 def tampered_text(m: Manifest, changes: List[str]) -> str:
