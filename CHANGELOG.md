@@ -15,6 +15,13 @@
 - 新增 `scripts/make_ui_preview.py`：產生 `docs/ui/preview*.html`（真的 app.html＋假資料，雙擊就能看）；`tests/test_ui_preview.py` 檢查預覽有沒有同步。
 - 主色與深淺色切換鈕、安裝精靈要不要跟著換：[QuestionToUser.md](QuestionToUser.md) Q4、Q5。
 
+### 網頁「主控」頁（branch `feat/control-panel-ui`，還沒合併）
+- 側欄多一個「主控」（只有擁有者看得到；成員打 `#control` 會回到對話頁）：常駐助理（母 session）的狀態、heartbeat 開關與間隔（預設 45 分鐘）、
+  「現在執行一次」、排定任務的狀態與日誌、偏好檔 soul.md 的編輯、清空記憶（二次確認，寫清楚會清掉／不會動什麼）。
+  前端在 `src/synox/web/static/control.js`／`control.css`，`server.app_html` 把它們塞進 app.html（仍是一頁、同一個 CSP nonce）。
+  呼叫的是 `/api/runtime/*`（後端另一個分支做，這裡沒有實作）。測試：`tests/test_control_panel.py`＋`tests/js/test_control.js`（node、假 fetch）。
+  說明見 [docs/ui/redesign-notes.md](docs/ui/redesign-notes.md)「主控」；要你決定的在 [QuestionToUser.md](QuestionToUser.md) Q6、Q7。
+
 ### 修正
 - 兩個無效的跳脫字元（`src/synox/wizard/shortcuts.py` 的說明、`tests/test_wizard.py` 的位元組字串）改成 raw 字串，內容不變；
   Python 3.12 起會是 SyntaxWarning。
