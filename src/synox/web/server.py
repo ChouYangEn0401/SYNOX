@@ -9,6 +9,7 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     POST /login                     確認頁的按鈕（f＝一次性表單 token＋synox_login cookie、Origin 要是自己）
                                     → 用掉連結 → cookie session → 303 到 /#chat
     GET  /packs/<name>/panel        pack 的 web.panel（工具頁用 <iframe sandbox> 掛）
+    GET  /tutorials/<name>/         圖文教學 docs/tutorials/<name>/index.html（公開文件，不用登入；synox/tutorials.py）
     GET  /api/pack-staged/<token>   `python -m synox install` 暫存好的 pack 的檢查報告（擁有者；網頁 ?pack=<token>#settings）
     GET  /api/pack-secrets/<name>   工具頁「連接」：auth.fields 的狀態（有填、最後 4 碼；secret 的值永遠不回）
     POST /api/pack-secrets/<name>   {"values": {欄位: 值}, "clear": [...]}：存進保管箱（空字串＝沿用原值）
@@ -46,6 +47,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from isdtelekit.core.channel import CallbackInfo, Inbound
 
+from synox import tutorials
 from synox.packs.manifest import stage_text
 from synox.web import toolpage
 from synox.web.channel import WEB, WebChannel
@@ -270,6 +272,9 @@ class WebUI:
                 if session is None:
                     return _page(401, "請先登入", LOGIN_HOW)
                 return self.panel(self._user(session), m.group(1))
+            m = re.match(r"^/tutorials/([a-z][a-z0-9_-]{0,31})/?$", path)
+            if m and method == "GET":
+                return self.tutorial(m.group(1))
             if path.startswith("/api/"):
                 if session is None:
                     return _err(401, "請先登入：" + LOGIN_HOW)
@@ -450,6 +455,17 @@ class WebUI:
         csp = ("default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; "
                "connect-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'")
         return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "SAMEORIGIN"),
+                                    ("Content-Security-Policy", csp)], html
+
+    # 圖文教學（docs/tutorials/<名字>/index.html；synox/tutorials.py）：公開的說明文件，不碰任何資料、不用登入
+    # （第一次設定的人可能還沒配對、還登不進來）。只收合規則的名字、只讀那個資料夾裡的 index.html；
+    # CSP 只放行內嵌樣式與 data: 圖，頁裡就算有 <script> 也不會跑。
+    def tutorial(self, name: str) -> Resp:
+        html = tutorials.read(name)
+        if html is None:
+            return _page(404, "找不到", "沒有這份教學。")
+        csp = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; frame-ancestors 'none'; base-uri 'none'"
+        return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "DENY"),
                                     ("Content-Security-Policy", csp)], html
 
     # ── API ──────────────────────────────────────────────────────────

@@ -34,6 +34,7 @@ STRINGS = {
     "skip_hint": ("Noch kein Bot, oder willst du erst mal ausprobieren? Überspringe das vorerst; doppelklicke später "
                   "auf Setup.bat, um den Assistenten erneut zu starten und ihn hinzuzufügen."),
     "skip_button": "Vorerst überspringen →",
+    "open_tutorial": "Bebilderte Anleitung öffnen",
     "pair_title": "Wer bist du",
     "pair_discord_invite": ("Ein Discord-Bot kann keine Direktnachrichten von Personen empfangen, mit denen er keinen Server teilt. "
                             "Füge ihn zuerst einem deiner Server hinzu (falls du keinen hast, kannst du bei Discord kostenlos einen erstellen):"),

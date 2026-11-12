@@ -35,6 +35,7 @@ STRINGS = {
     "check_token": "檢查 token",
     "skip_hint": "還沒有 bot，或想先玩玩看？可以先跳過，之後雙擊 Setup.bat 重跑這個精靈就能補填。",
     "skip_button": "先跳過，晚點再補 →",
+    "open_tutorial": "看圖文教學",
     # 3. 配對
     "pair_title": "你是誰",
     "pair_discord_invite": ("Discord bot 收不到還沒加進任何伺服器的人的私訊，先把它加進一個你的伺服器"

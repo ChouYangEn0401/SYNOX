@@ -34,6 +34,7 @@ STRINGS = {
     "skip_hint": ("No bot yet, or just want to try things out? Skip this for now; double-click Setup.bat "
                   "later to run this wizard again and add it."),
     "skip_button": "Skip for now →",
+    "open_tutorial": "Open the illustrated guide",
     "pair_title": "Who are you",
     "pair_discord_invite": ("A Discord bot cannot receive DMs from people it shares no server with. Add it to "
                             "one of your servers first (if you have none, Discord lets you create one for free):"),

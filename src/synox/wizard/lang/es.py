@@ -34,6 +34,7 @@ STRINGS = {
     "skip_hint": ("¿Aún no tienes bot o solo quieres probar? Omite esto por ahora; haz doble clic en Setup.bat "
                   "más tarde para volver a ejecutar este asistente y añadirlo."),
     "skip_button": "Omitir por ahora →",
+    "open_tutorial": "Abrir la guía ilustrada",
     "pair_title": "Quién eres",
     "pair_discord_invite": ("Un bot de Discord no puede recibir mensajes directos de personas con las que no comparte servidor. "
                             "Añádelo primero a uno de tus servidores (si no tienes, Discord te deja crear uno gratis):"),
