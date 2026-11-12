@@ -3,6 +3,7 @@
 （帶按鈕的訊息、圖片、檔案、送給別的聊天的），並在工具結果裡註明「已經直接傳給使用者」——照 ClawBot bridge 的規則。
 
 via_ai = True：SDK 的 Forms 與 Node.precheck 看這個旗標（經 AI 呼叫時不開問答，例如驗證碼）。
+note_failure：loader／mcp 經 health.observe_failure 交來的失敗（agent/loop.py 改回 AI 一行 `FAIL …`）。
 """
 
 from __future__ import annotations
@@ -29,9 +30,13 @@ class CaptureApi:
         self._open = True
         self._lock = threading.Lock()
         self.carded = False                 # 執行中送了確認卡（工具回 needs_confirm）：這一輪 AI 就停在這裡
+        self.failure = None                 # 工具失敗了（health.Failure）：loop 交回 AI 的是固定格式的一行，不是人看的字
 
     def mark_carded(self) -> None:
         self.carded = True
+
+    def note_failure(self, failure) -> None:
+        self.failure = failure
 
     @property
     def channel_name(self) -> str:

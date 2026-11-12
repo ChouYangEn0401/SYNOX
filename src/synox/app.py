@@ -1,7 +1,8 @@
 """
 build()：SynoxConfig → isdtelekit.build_app → 基本指令（伺服器版多 accounts、limits；還沒裝工具時 /start、/help
 多一段「去哪裡裝」，packs/library.py）→ ⏰ 提醒（系統）（schedule.install_system_remind）→ packs.load_all
-→ agent.install → runtime.install（排程迴圈、心跳、常駐助理）→ schedule.install → web.install（本機網頁介面）。
+→ agent.install → runtime.install（排程迴圈、心跳、常駐助理）→ health.install（工具健康）→ schedule.install
+→ web.install（本機網頁介面）。
 
     config = SynoxConfig.load()
     app = build(config)
@@ -19,7 +20,7 @@ from isdtelekit import build_app
 from isdtelekit.host.app import App
 from isdtelekit.packs import accounts, basics, help as help_pack, limits
 
-from synox import agent, discord, policy, runtime, schedule, telegram_link, web
+from synox import agent, discord, health, policy, runtime, schedule, telegram_link, web
 from synox.config import SynoxConfig
 from synox.llm import make_adapter
 from synox.llm.base import LLMError
@@ -87,6 +88,7 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
     discord.install(app, config, vault)      # 有開 Discord 才做事；要在 schedule/web 之前（它們用 app.home）
     telegram_link.install(app, config)       # 擁有者沒有真的 Telegram id 時，讓他之後能在網頁配對 Telegram 帳號（資料不動）
     runtime.install(app, config, vault, config_path=config_path or "")   # 要在 agent 之後（拿 adapter）、schedule 之前
+    health.install(app, config, vault)       # 工具健康：隔離清單、runtime 任務 system.health（docs/tool-health.md）
     schedule.install(app)                    # 排程登記成 runtime 的任務 system.schedule
     web.install(app, config, vault, pack_dirs=pack_dirs, config_path=config_path)
     app.on_start.append(lambda a: a.notify_owner(GREETING))
