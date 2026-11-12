@@ -15,6 +15,17 @@
 - 新增 `scripts/make_ui_preview.py`：產生 `docs/ui/preview*.html`（真的 app.html＋假資料，雙擊就能看）；`tests/test_ui_preview.py` 檢查預覽有沒有同步。
 - 主色與深淺色切換鈕、安裝精靈要不要跟著換：[QuestionToUser.md](QuestionToUser.md) Q4、Q5。
 
+### 網頁「工具」頁：群組＋分頁＋表單（branch `feat/tools-page-groups`，還沒合併）
+- 工具頁重做：頁內左邊是群組，群組裡的工具用分頁隔開；每個工具有說明、指令卡（effect 徽章）、照宣告產生的參數表單
+  （必填、下拉、預設值、說明）、「會送出：…」預覽、執行（危險的先在畫面上問一次；仍經同一個 dispatcher）。
+  使用者可以新增／改名／刪除群組、排序、把工具移到別的群組，存在每個人自己的偏好（`data/web_prefs/<id>.json.enc`，
+  擁有者與成員各自一份，不寫進 pack 資料夾）。新 API：`POST /api/tools/layout`；`GET /api/tools` 多了 `layout` 與每個欄位的表單資訊。
+  程式在 `src/synox/web/toolpage.py`、`static/tools.js`、`static/tools.css`。
+- pack.json 新欄位 `category`（網頁工具頁建議的群組，沒寫＝「未分類」；使用者排的優先）、`fields[].help`（表單上的說明）。
+  安裝時多檢查說明欄位的型別（`summary`／`ask`／`help` 一行字、`required` 布林、`default` 合 kind）；SKILL.md 沒有 frontmatter、
+  指令沒 summary、欄位沒 ask 只提醒不擋（安裝報告、`synox-sdk check`）。`@tool` 參數的預設值會寫成 `default`。
+  說明：[docs/tools.md](docs/tools.md)「網頁工具頁」、[docs/pack-format.md](docs/pack-format.md)。
+
 ### 修正
 - 兩個無效的跳脫字元（`src/synox/wizard/shortcuts.py` 的說明、`tests/test_wizard.py` 的位元組字串）改成 raw 字串，內容不變；
   Python 3.12 起會是 SyntaxWarning。
