@@ -14,7 +14,7 @@ from isdtelekit.users.roles import BasicRoles
 
 from synox.agent import delimit, validate
 from synox.llm.base import SYSTEM, TOOL
-from synox.packs import admin, loader, lock, scan
+from synox.packs import admin, kit, loader, lock, scan
 from synox.packs.manifest import ManifestError, read, validate as validate_manifest
 
 FIXTURES = os.path.join(os.path.dirname(__file__), "fixtures")
@@ -381,7 +381,9 @@ def test_server_mode_user_data_dir(tmp_path):
     assert loader.user_data_dir(cfg, 7) == str(tmp_path)
 
 
-MONEYBOOK = os.path.join(FIXTURES, "moneybook_pack")       # 金流簿 repo 的 synox-pack/pack.json 原樣複製
+# 金流簿 repo（記帳專案）的 synox-pack/ 複製（pack 0.17.0，2026-11-12 對過）：只多了 SYNOX 要求明寫的
+# "surfaces": ["dm"]、"data": "user"（test_perm2 要「有宣告」）；其他一字不差，對方改了要再對一次。
+MONEYBOOK = os.path.join(FIXTURES, "moneybook_pack")
 
 
 def test_moneybook_pack_shape_resolves(make_bot, owner, tmp_path):
@@ -407,6 +409,27 @@ def test_moneybook_pack_shape_resolves(make_bot, owner, tmp_path):
     add = next(c for c in pack.manifest.commands if c["name"] == "add")
     assert loader.build_argv(add["argv"], {"amount": "120", "desc": "便當", **ph}) == \
         ["txn", "add", "--amount=120", "--desc=便當"]                 # 沒填的 --k={v} 只拿掉自己那一段
+
+
+def test_moneybook_positional_fills_amount_and_desc(make_bot, tmp_path):
+    """金流簿 0.17.0 的 commands[].positional：/moneybook 120 便當 → amount=120、desc=便當
+    （沒寫 positional 時只照位置填必填的 amount，會變成 amount="120 便當"、被第 4 關或對方的 CLI 擋下）。"""
+    folder = str(tmp_path / "packs" / "moneybook")
+    shutil.copytree(MONEYBOOK, folder)
+    bot = make_bot(pack_dirs=(str(tmp_path / "packs"),))
+    pack = next(p for p in bot.app.extras["synox_packs"] if p.name == "moneybook")
+    by_name = {c["name"]: c for c in pack.manifest.commands}
+    assert (by_name["add"].get("positional"), by_name["income"].get("positional"),
+            by_name["budget_set"].get("positional")) == (2, 2, 1)
+    add = bot.app.registry.node("moneybook.add")
+    values, missing, _errors = kit.parse_args(add.fields, ["120", "便當"], by_name["add"]["positional"])
+    assert values["amount"] == "120" and values["desc"] == "便當" and not missing
+    assert "[買了什麼]" in add.usage                                   # 用法裡 desc 也是照位置填
+    values, _m, _e = kit.parse_args(add.fields, ["120", "排骨", "便當", "account=現金"], 2)
+    assert (values["desc"], values["account"]) == ("排骨 便當", "現金")   # 最後一個照位置的欄位吃剩下的字
+    budget = bot.app.registry.node("moneybook.budget_set")
+    values, missing, _e = kit.parse_args(budget.fields, ["食", "amount=9000"], 1)
+    assert (values["group"], values["amount"]) == ("食", "9000") and not missing
 
 
 def test_moneybook_server_mode_per_user_env(make_bot, owner, tmp_path):
