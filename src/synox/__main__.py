@@ -531,6 +531,128 @@ def cmd_discord(args) -> int:
     return 1
 
 
+def cmd_link(args) -> int:
+    """link card｜pair｜join <配對碼>｜trust <名片> --role worker|console｜peers｜forget <id>｜status：兩台 SYNOX 連線的配對
+    （配對碼與名片都不經聊天；見 docs/link.md）。"""
+    from synox import link as synox_link
+    from synox.link import pairing
+    from synox.link.identity import IdentityError, NodeCard, short_id
+    from synox.link.pairing import PairingError
+    from synox.vault import KeyringError, VaultError, open_vault
+    try:
+        config = SynoxConfig.load(args.config or None, require_token=False)
+        vault = open_vault(config)
+    except ConfigError as e:
+        print(f"❌ {e}")
+        return 2
+    except (KeyringError, VaultError) as e:
+        print(f"❌ 保管箱打不開：{e}")
+        return 2
+    settings = synox_link.settings_of(config)
+    try:
+        link = synox_link.build(config, vault, settings=settings, transport=_NoTransport())
+    except IdentityError as e:
+        print(f"❌ 這台的 link 身分讀不出來：{e}")
+        return 2
+    me = link.identity
+    role_label = "主控台" if settings.is_console else "哨兵"
+    try:
+        if args.link_cmd == "card":
+            print(f"這台：{me.name}（{me.node_id}）　角色：{role_label}{'' if settings.enabled else '（link 還沒開）'}")
+            print("名片（可以公開；對方 python -m synox link trust \"<這一行>\" --role " + settings.role + "）：")
+            print(me.card().to_text())
+            return 0
+        if args.link_cmd == "pair":
+            if not settings.is_console:
+                print("❌ 這台是哨兵（link.role=worker）；配對碼要在主控台那台產生，哨兵用 link join。")
+                return 2
+            code = pairing.issue(vault, me.card())
+            print(f"配對碼（{pairing.TTL // 60} 分鐘內有效、只能用一次；只貼在哨兵那台電腦上，不要傳進聊天）：")
+            print(code)
+            print(f"哨兵那台：python -m synox link join \"<配對碼>\"；主控台要在跑（python -m synox run）才收得到。")
+            return 0
+        if args.link_cmd == "join":
+            if settings.is_console:
+                print("❌ 這台是主控台（link.role=console）；join 是哨兵用的。")
+                return 2
+            try:
+                card = pairing.save_join(vault, args.value or "")
+            except PairingError as e:
+                print(f"❌ {e}")
+                return 2
+            link.peers.add(card, role="console", via="join")
+            print(f"✅ 記住了主控台 {card.name}（{short_id(card.node_id)}）。哨兵跑起來（python -m synox run）就會送配對請求；"
+                  "主控台收到會在 log 寫 paired worker。配對碼 10 分鐘內有效。")
+            return 0
+        if args.link_cmd == "trust":
+            try:
+                card = NodeCard.from_text(args.value or "")
+            except IdentityError as e:
+                print(f"❌ {e}")
+                return 2
+            role = args.role or ("worker" if settings.is_console else "console")
+            if card.node_id == me.node_id:
+                print("❌ 這是自己的名片。")
+                return 2
+            link.peers.add(card, role=role, via="trust")
+            print(f"✅ 名單加了 {card.name}（{card.node_id}）當{'主控台' if role == 'console' else '哨兵'}。"
+                  "對方也要把這台的名片 trust 進去（python -m synox link card）。")
+            return 0
+        if args.link_cmd == "forget":
+            found = link.peers.find(args.value or "")
+            if found is None:
+                print("❌ 名單裡找不到（python -m synox link peers 看）。")
+                return 2
+            link.peers.remove(found)
+            print(f"🗑 {found} 從名單拿掉了。")
+            return 0
+        if args.link_cmd in ("peers", "status"):
+            print(f"這台：{me.name}（{me.node_id}）　角色：{role_label}　link {'開' if settings.enabled else '關'}"
+                  f"　傳輸：{settings.transport.kind} "
+                  + (f"listen {settings.transport.listen[0]}:{settings.transport.listen[1]}" if settings.transport.listen else
+                     f"connect {settings.transport.connect[0]}:{settings.transport.connect[1]}" if settings.transport.connect else
+                     settings.transport.folder))
+            entries = link.peers.entries()
+            if not entries:
+                print("名單是空的。主控台：link pair；哨兵：link join <配對碼>；沒網路：link card ＋ link trust。")
+            for e in entries:
+                card = e.get("card") or {}
+                print(f"• {card.get('name', '?')}  {e['node_id']}  {'主控台' if e.get('role') == 'console' else '哨兵'}  （{e.get('via')}）")
+            if settings.is_console and pairing.pending(vault) is not None:
+                print("（有一個還沒用掉的配對碼）")
+            if not settings.is_console and pairing.pending_join(vault) is not None:
+                print("（有一個還沒送出的配對請求：哨兵跑起來就會送）")
+            return 0
+    except (KeyboardInterrupt, EOFError):
+        print("\n（取消了）")
+        return 1
+    print("用法：python -m synox link card｜pair｜join <配對碼>｜trust <名片> [--role worker|console]｜peers｜forget <id>")
+    return 1
+
+
+class _NoTransport:
+    """CLI 只動保管箱裡的名單，不開任何連線。"""
+    name = "none"
+
+    def start(self, on_frame, on_connect=None):
+        pass
+
+    def stop(self):
+        pass
+
+    def send(self, peer_id, frame, conn=None):
+        return False
+
+    def bind(self, peer_id, conn):
+        pass
+
+    def bad(self, conn):
+        pass
+
+    def status(self):
+        return {"kind": "none"}
+
+
 def main(argv=None) -> int:
     _utf8_console()
     parser = argparse.ArgumentParser(prog="python -m synox", description="SYNOX：你自己電腦上的 Telegram 小助手")
@@ -588,9 +710,15 @@ def main(argv=None) -> int:
                    help="哪個 bot（config.json 的 channels.discord.bots.<名字>）；不寫＝default（舊的單一 bot 寫法）")
     p.add_argument("--clear", action="store_true",
                    help="discord token --clear：從保管箱刪掉這個 bot 的 token（要作廢舊 token 還是要到 Developer Portal 按 Reset Token）")
+    p = sub.add_parser("link", help="兩台 SYNOX 連線：card（印名片）｜pair（主控台產生配對碼）｜join（哨兵貼配對碼）｜"
+                                    "trust（手動加名片）｜peers｜forget")
+    p.add_argument("link_cmd", choices=["card", "pair", "join", "trust", "peers", "status", "forget"])
+    p.add_argument("value", nargs="?", default="", help="join：配對碼；trust：名片；forget：node_id 或名字")
+    p.add_argument("--role", choices=["worker", "console"], default=None, help="trust：對方是哨兵還是主控台")
     args = parser.parse_args(argv)
     handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop,
-                "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord}
+                "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord,
+                "link": cmd_link}
     if args.cmd not in handlers:
         parser.print_help()
         return 1

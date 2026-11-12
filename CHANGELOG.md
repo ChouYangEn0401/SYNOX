@@ -4,6 +4,36 @@
 
 版本從 0.1.0 升到 0.2.0：pack 格式多了 surfaces／data／auth.fields／mcp／runtime auto／schema_tools 等欄位，SDK 產生的 pack 寫 `requires.synox: ">=0.2"`，舊版 SYNOX 會明說要先更新、不會載入。
 
+## 未發佈（branch claude/charming-einstein-41ih1s：SYNOX Link——主控台↔哨兵安全連線，L0–L2，還沒真機驗證）
+
+擁有者 2026-11-12 的題目：兩台（以上）SYNOX 怎麼**安全、簡單、不靠第三方**地互派任務（除了大家 polling 同一個 Telegram 對話、
+Cloudflare Tunnel、公網 webhook、VPN 之外），後端要好接 event bus／observer，之後要接 IoT（攝影機、Arduino、樹莓派）。
+調查與設計：`docs/discussions/2026-11-12-link-architecture.html`；實作交接與待決策：`docs/discussions/2026-11-12-link-implementation.html`；
+使用說明：`docs/link.md`。
+
+### 新增
+- **`src/synox/link/`**：把「安全」跟「走哪條路」分開——每封信是端對端加密＋簽章的信封（X25519 一次性＋長期 → HKDF →
+  ChaCha20-Poly1305；Ed25519 簽章；`to`／`seq`／`ts` 在 AAD；重放防護：±5 分鐘、seq 只能往上且持久化、視窗內不收第二次），
+  傳輸層只搬 bytes：`tcp`（哨兵主動連主控台；4 bytes 長度框架、1 MB 上限、沒驗過的連線三次就斷、斷線退避重連）、
+  `folder`（共用資料夾／NAS／Syncthing／USB：不開埠、不連外）、`memory`（測試）。
+- **身分與配對**：每台一組 Ed25519＋X25519 金鑰（保管箱 `link_identity`）、`node_id`＝公鑰雜湊；名片 `SYNOX-CARD-1:…`；
+  配對碼 `SYNOX-PAIR-1:…`（10 分鐘、一次、HMAC 驗請求、錯了不回）：`python -m synox link pair`（主控台）→ `link join`（哨兵）；
+  手動 `link card`／`link trust`；`link peers`／`forget`。配對不經聊天。
+- **任務協定與角色**：`task.offer／accepted／rejected／progress／result／cancel`、`hello／heartbeat／ping／pong`；
+  主控台 `ConsoleRole`（任務簿在保管箱 `link_tasks`；重做＝新任務＋lineage；交接＝新任務給另一台＋context 帶上一個的結果；取消）；
+  哨兵 `WorkerRole`（樹上、非群組／互動、`effect_of` ≤ `link.max_effect`、`policy.decide(擁有者, via=ROUTINE)`，
+  再經 `dispatcher.handle`＋`CaptureChannel` 收回覆；只收 role=console；同時最多 4 個）。
+- **事件匯流排 `EventBus`**（`link.in.*`／`link.out.*`／`link.peer.online|offline`／`link.paired`／`link.rejected`／`task.*`／`worker.*`；
+  fnmatch 樣式、同步、handler 例外隔離、`wait_for`）：之後接 observer／自動化就訂這裡。
+- **Telegram 指令**（群組 link，擁有者）：`/link_status`、`/link_peers`、`/link_run <哨兵> <指令>`、`/link_tasks`、`/link_task`、
+  `/link_redo`、`/link_handoff`、`/link_cancel`、`/link_forget`；AI 看得到 `/link_run`。
+- **config.json `link`**（`link/settings.py`：role、name、transport、max_effect、task_timeout、heartbeat、poll）；doctor 多一行 link。
+- 18 個測試（`tests/test_link.py`）：信封竄改／重放／時鐘、名片竄改、配對（錯碼不回）、folder 傳輸、TCP 框架（socketpair）、
+  三台 SYNOX 的派任務／重做／交接／取消／離線／陌生機器／非主控台、CLI 與 doctor。**不綁埠**。
+
+### 還沒做
+- NAT 穿透／公網 relay、MQTT 與序列埠傳輸、任務中途進度、per-哨兵指令白名單、Windows 兩台與樹莓派真機驗證（交接文件有清單）。
+
 ## 未發佈（branch feat/isolation：容器隔離 S0–S2，只組指令、還沒真機驗證）
 
 擁有者 2026-11-10 的決定：作者「建議提供」容器（不強制）；伺服器版第三方／T2 pack 選了容器才開給成員；Linux 優先 rootless podman、
