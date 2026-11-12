@@ -1,0 +1,87 @@
+{
+  "trust": "assistant",
+  "blocks": [
+    {
+      "type": "heading",
+      "trust": "assistant",
+      "level": 1,
+      "spans": [
+        {
+          "text": "一級標題"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "trust": "assistant",
+      "level": 2,
+      "spans": [
+        {
+          "text": "二級標題"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "trust": "assistant",
+      "level": 3,
+      "spans": [
+        {
+          "text": "三級標題 "
+        },
+        {
+          "text": "含粗體",
+          "bold": true
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "trust": "assistant",
+      "level": 4,
+      "spans": [
+        {
+          "text": "四級"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "trust": "assistant",
+      "level": 5,
+      "spans": [
+        {
+          "text": "五級"
+        }
+      ]
+    },
+    {
+      "type": "heading",
+      "trust": "assistant",
+      "level": 6,
+      "spans": [
+        {
+          "text": "六級"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "####### 七個井號不是標題"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "#不是標題（沒有空白）"
+        }
+      ]
+    }
+  ]
+}
