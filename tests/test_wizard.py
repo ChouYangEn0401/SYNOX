@@ -293,3 +293,14 @@ def test_finish_page_web_link(tmp_path):
     assert LoginTokens(str(tmp_path / "data" / "web_tokens.json")).redeem(token) == 42
     logic.write_config(str(path), {"owner_id": 42, "web": {"enabled": False}})
     assert logic.web_login_link(str(path)) == ""
+
+
+def test_save_discord_token_keeps_existing_discord_settings(tmp_path):
+    path = tmp_path / "config.json"
+    cfg = logic.build_config("", 0, {"kind": "none"})
+    cfg["channels"] = {"discord": {"bots": [{"name": "team", "surface": "channel"}]}, "other": {"x": 1}}
+    cfg = logic.save(str(path), cfg)
+    logic.save_discord_token(str(path), cfg, DTOKEN)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["channels"]["discord"]["bots"] == [{"name": "team", "surface": "channel"}]
+    assert data["channels"]["discord"]["enabled"] is True and data["channels"]["other"] == {"x": 1}
