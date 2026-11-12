@@ -6,6 +6,8 @@ WebChannel：SDK 的 Channel 介面（照 host/console.py 的 ConsoleChannel）�
 
 - 送給「這個人自己」（chat_id == tg_id，私訊）的訊息 → 存成這段對話的一則 bot 訊息；inline 按鈕原樣存
   （網頁畫成按鈕，按下時 callback_data 經 dispatcher.handle(…, button=…) 送回來，跟 Telegram 一樣先 authorize）。
+  text 帶 `.blocks`（呈現層的 synox.present.web.WebText，config presentation.enabled 開著時的 AI 回覆）→ 一起存，
+  網頁照區塊畫；一般字串沒有 blocks，存的東西跟以前一樣。
 - 送給別人的（例如升級申請通知管理員）→ 交給 app.home（Telegram），不寫進這個人的網頁。
 - edit_message_text／remove_buttons／delete_message 改同一則（message id 是這個人的對話紀錄裡的 id）。
 - answer_callback_query 的那句 → 一則小字（from="note"）。
@@ -60,7 +62,8 @@ class WebChannel:
             if reply_markup is not None:
                 return self._forward("send_message", chat_id, text, reply_markup=reply_markup)
             return self._forward("send_message", chat_id, text)
-        msg = self.store.append(self.tg_id, self.chat, "bot", plain(text), markup_rows(reply_markup))
+        msg = self.store.append(self.tg_id, self.chat, "bot", plain(text), markup_rows(reply_markup),
+                                blocks=getattr(text, "blocks", None))
         return {"ok": True, "result": {"message_id": msg["id"]}}
 
     def edit_message_text(self, chat_id, message_id, text, reply_markup=None, **kw):
