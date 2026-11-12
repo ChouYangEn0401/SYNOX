@@ -32,6 +32,13 @@ Problems found while testing the installer. "Fixed" items are on this branch; "O
    config is refused). Restart is needed for a channel change to take effect. Owner pairing is NOT in the web UI (see Open 5).
 8. `logic.save_discord_token` no longer writes the vault before refusing a multi-bot config.
 
+9. **Uninstall / reset for testing.** `Uninstall.bat` (menu, or `Uninstall.bat check|shortcuts|env|all [-Yes]`) runs
+   `setup/uninstall.ps1`: `check` only lists what is installed; `shortcuts` stops SYNOX and removes the desktop shortcut,
+   startup entry and .synoxpack association; `env` also deletes `.venv` and `runtime\` (config and data kept, Setup.bat
+   restores it); `all` also deletes `config.json` and `data\` (asks you to type DELETE unless `-Yes`). It never deletes the
+   SYNOX folder. Reinstall = Uninstall + Setup.bat. Repair = re-run Setup.bat (idempotent, reuses `.venv`, prefills the
+   wizard from config.json) and `python -m synox doctor`; no separate Repair tool for now.
+
 ## Open
 
 1. **Icon artwork** is a placeholder (blue square with an "S"); needs a real design.

@@ -389,3 +389,13 @@ def test_page_finish_launch_checked(tmp_path, monkeypatch):
         assert "SYNOX 開起來了" in widgets("TLabel")[-1].cget("text")
     finally:
         root.destroy()
+
+
+def test_uninstall_scripts_encoding():
+    import os
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    bat = open(os.path.join(root, "Uninstall.bat"), "rb").read()
+    bat.decode("ascii")                                    # cmd 用主控台字碼頁讀 .bat
+    assert b"\r\n" in bat and b"setup\uninstall.ps1" in bat
+    ps1 = open(os.path.join(root, "setup", "uninstall.ps1"), "rb").read()
+    assert ps1.startswith(b"\xef\xbb\xbf")                 # PowerShell 5.1 沒有 BOM 會當成 cp950
