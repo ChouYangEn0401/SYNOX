@@ -32,6 +32,7 @@ STRINGS = {
     "check_token": "检查 token",
     "skip_hint": "还没有 bot，或者想先试试？可以先跳过，之后双击 Setup.bat 重新运行向导即可补填。",
     "skip_button": "先跳过，稍后再补 →",
+    "open_tutorial": "看图文教程",
     "pair_title": "你是谁",
     "pair_discord_invite": ("Discord bot 收不到与它没有共同服务器的人的私信，请先把它加入你的某个服务器"
                             "（如果没有，Discord 可以免费创建一个）："),
