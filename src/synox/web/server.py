@@ -468,7 +468,10 @@ class WebUI:
                 chats = self.chats.list_chats(user.tg_id)
                 rest = [c for c in chats if c["id"] != MOTHER_CHAT]
                 mine = [c for c in chats if c["id"] == MOTHER_CHAT] if self.is_owner(user) else []
-                return _json(200, {"chats": rest + mine})       # 「常駐助理」排最後；畫面自己把它釘在最上面
+                return _json(200, {"chats": rest + mine,        # 「常駐助理」排最後；畫面自己把它釘在最上面
+                                   "archived_count": self.chats.archived_count(user.tg_id)})
+            if path == "/api/chats/archived":
+                return _json(200, {"chats": self.chats.list_chats(user.tg_id, archived=True)})
             m = re.match(r"^/api/chat/([a-z0-9]+)/events$", path)
             if m:
                 return self.events(user, m.group(1), (query.get("since") or ["0"])[0])
@@ -513,8 +516,10 @@ class WebUI:
             return _json(200, {"id": chat["id"], "title": chat["title"]})
         if path == "/api/tools/layout":
             return self.save_layout(user, data)
-        m = re.match(r"^/api/chat/([a-z0-9]+)/(send|press)$", path)
+        m = re.match(r"^/api/chat/([a-z0-9]+)/(send|press|archive|restore|delete)$", path)
         if m:
+            if m.group(2) in ("archive", "restore", "delete"):
+                return self.chat_keeping(user, m.group(1), m.group(2))
             return self.send(user, m.group(1), data) if m.group(2) == "send" else self.press(user, m.group(1), data)
         if path == "/api/settings/llm":
             return self.save_llm(user, data)
@@ -575,6 +580,29 @@ class WebUI:
             return chat
         return self.chats.get(user.tg_id, chat_id)
 
+    def chat_keeping(self, user, chat_id: str, action: str) -> Resp:
+        """對話的封存／還原／徹底刪除。刪除只收已封存的（要先封存）；刪掉時 AI 對這段的記憶也一起丟。"""
+        if not CHAT_RE.match(chat_id or "") or chat_id in (TOOLS_CHAT, MOTHER_CHAT):
+            return _err(404, "這一段不能封存或刪除。")
+        if self.chats.get(user.tg_id, chat_id) is None:
+            return _err(404, "沒有這段對話。")
+        if action == "archive":
+            ok = self.chats.archive(user.tg_id, chat_id)
+        elif action == "restore":
+            ok = self.chats.restore(user.tg_id, chat_id)
+        else:
+            ok = self.chats.delete_archived(user.tg_id, chat_id)
+            if ok:
+                loop = self.app.extras.get("synox_agent")
+                if loop is not None:
+                    loop.reset(user.tg_id, user, chat_id)       # AI 記得的這段也一起忘掉
+            elif self.chats.get(user.tg_id, chat_id) is not None:
+                return _err(409, "要先封存，才能徹底刪除。")
+        if not ok and action != "delete":
+            return _err(409, "這段已經是那個狀態了。")
+        logging.info("[WEB] %s %s chat %s", user.tg_id, action, chat_id)
+        return _json(200, {"ok": True, "archived_count": self.chats.archived_count(user.tg_id)})
+
     def events(self, user, chat_id: str, since: str) -> Resp:
         if self._chat(user, chat_id) is None:
             return _err(404, "沒有這段對話。")
@@ -596,6 +624,8 @@ class WebUI:
             return _err(400, "沒有內容。")
         if len(text) > MAX_TEXT:
             return _err(400, f"太長了（最多 {MAX_TEXT} 字）。")
+        if (self._chat(user, chat_id) or {}).get("archived"):
+            return _err(409, "這段對話封存了：先還原才能繼續。")
         self.chats.append(user.tg_id, chat_id, "me", text)
         if chat_id == MOTHER_CHAT:
             return self._send_mother(user, text)

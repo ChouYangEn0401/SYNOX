@@ -8,6 +8,8 @@
 
 - 檔案：有保管箱 → data/web_chats/<tg_id>.json.enc（那個人的金鑰，vault.for_user(id).at(...)）；
   沒有保管箱 → data/web_chats/<tg_id>.json。
+- 封存：chat 多一個 "archived"（封存的時間）。封存的對話不出現在側欄、不算在 MAX_CHATS 裡（不會被擠掉）、不能再傳訊息；
+  可以還原，或到「已封存」頁徹底刪除（只有封存過的才能刪；刪掉就沒了）。固定的兩段（工具頁、常駐助理）不能封存。
 - message id 在這個人的所有對話裡唯一（按鈕送回來時用它找回那則訊息）。
 - rev：每次新增或改一則訊息就 +1，那則訊息記下新的 rev；網頁每 2 秒問「rev 比 N 新的有哪些」（events）。
 - 記憶體快取一份，寫入時同步存檔（每 2 秒的輪詢不用每次解密）。
@@ -92,14 +94,55 @@ class ChatStore:
 
     # ── 對話 ─────────────────────────────────────────────────────────
 
-    def list_chats(self, tg_id: int) -> List[dict]:
+    def list_chats(self, tg_id: int, archived: bool = False) -> List[dict]:
+        """archived=False：側欄的對話（沒封存的）；True：已封存的（最近封存的在前面）。"""
         with self._lock:
+            chats = [c for c in self._data(tg_id)["chats"] if bool(c.get("archived")) == archived]
+            key = (lambda c: -c.get("archived", 0)) if archived else (lambda c: -c.get("updated", 0))
             out = []
-            for c in sorted(self._data(tg_id)["chats"], key=lambda c: -c.get("updated", 0)):
+            for c in sorted(chats, key=key):
                 last = c["messages"][-1]["text"][:60] if c["messages"] else ""
-                out.append({"id": c["id"], "title": c["title"], "updated": c.get("updated", 0),
-                            "count": len(c["messages"]), "last": last})
+                row = {"id": c["id"], "title": c["title"], "updated": c.get("updated", 0),
+                       "count": len(c["messages"]), "last": last}
+                if archived:
+                    row["archived"] = c.get("archived", 0)
+                out.append(row)
             return out
+
+    def archived_count(self, tg_id: int) -> int:
+        with self._lock:
+            return sum(1 for c in self._data(tg_id)["chats"] if c.get("archived"))
+
+    def archive(self, tg_id: int, chat_id: str) -> bool:
+        """封存一段對話（從側欄拿掉，資料還在）。固定的段、不存在的、已經封存的＝False。"""
+        with self._lock:
+            chat = self.get(tg_id, chat_id)
+            if chat is None or chat_id in PINNED or chat.get("archived"):
+                return False
+            chat["archived"] = self._clock()
+            self._save(tg_id)
+            return True
+
+    def restore(self, tg_id: int, chat_id: str) -> bool:
+        """把封存的對話放回側欄。不存在或沒封存＝False。"""
+        with self._lock:
+            chat = self.get(tg_id, chat_id)
+            if chat is None or not chat.get("archived"):
+                return False
+            del chat["archived"]
+            chat["updated"] = self._clock()                 # 放回去就是最近用的
+            self._save(tg_id)
+            return True
+
+    def delete_archived(self, tg_id: int, chat_id: str) -> bool:
+        """徹底刪除：只有已封存的才刪（要先封存），刪了就沒了。"""
+        with self._lock:
+            chat = self.get(tg_id, chat_id)
+            if chat is None or not chat.get("archived"):
+                return False
+            self._data(tg_id)["chats"].remove(chat)
+            self._save(tg_id)
+            return True
 
     def get(self, tg_id: int, chat_id: str) -> Optional[dict]:
         with self._lock:
@@ -116,7 +159,8 @@ class ChatStore:
             chat = {"id": chat_id, "title": title, "created": now, "updated": now, "messages": []}
             data["chats"].append(chat)
             # 太多段就丟掉最久沒動的（工具頁那段不丟）
-            normal = sorted((c for c in data["chats"] if c["id"] not in PINNED), key=lambda c: c.get("updated", 0))
+            normal = sorted((c for c in data["chats"] if c["id"] not in PINNED and not c.get("archived")),
+                            key=lambda c: c.get("updated", 0))
             for old in normal[:max(0, len(normal) - MAX_CHATS)]:
                 data["chats"].remove(old)
             self._save(tg_id)
