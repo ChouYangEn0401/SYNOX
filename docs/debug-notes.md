@@ -47,6 +47,11 @@ Problems found while testing the installer. "Fixed" items are on this branch; "O
    with `"web": {"local_auto_login": false}`. Other OS user accounts on the same PC can still reach the port; the link flow
    (`Open-SYNOX.bat`) stays for them and for non-browser clients.
 
+11. **Installers ask for a language first** (Setup.bat/bootstrap.ps1, the wizard, Uninstall.bat/uninstall.ps1): 12 languages
+   (zh-TW default, zh-CN, en, es, fr, de, pt-BR, ru, ar, hi, ja, ko). Order of precedence: `-Lang` / `--lang`, `SYNOX_LANG`,
+   `lang.txt` in the SYNOX folder (written by Setup; `Uninstall.bat all` deletes it), else ask. Wizard writes `"language"` into
+   config.json. Tables: `src/synox/wizard/lang/*.py`, `setup/lang/*.psd1`. Runtime bot/web messages are NOT translated.
+
 ## Open
 
 1. **Icon artwork** is a placeholder (blue square with an "S"); needs a real design.
@@ -68,5 +73,8 @@ Problems found while testing the installer. "Fixed" items are on this branch; "O
 6. Decisions pending from the user: should the desktop shortcut (`Open-SYNOX.bat`) also open the web UI for users who
    have Telegram; port conflict behaviour (stop with a message vs pick a free port); finish button text when the
    checkbox is off ("完成並開始" vs "完成"); Telegram bot token stays in plain text in config.json (as the wizard does).
-7. Older SYNOX copies still bind with SO_REUSEADDR and can bind over a new one; browser cookies are not separated by
+7. **Translations need native-speaker review** (all except zh-TW are model-written). Console text in ja/ko/ar/hi may show as boxes in
+   legacy conhost (fine in Windows Terminal); Arabic is only right-aligned, not mirrored. Left in Chinese: registry/shortcut
+   descriptions, `wizard --help`, runtime AI adapter errors. `test_envs.py::test_build_python_success` is flaky (~1 in 8).
+8. Older SYNOX copies still bind with SO_REUSEADDR and can bind over a new one; browser cookies are not separated by
    port, so two local instances share the session cookie name.
