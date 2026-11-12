@@ -4,7 +4,10 @@
 
 版本從 0.1.0 升到 0.2.0：pack 格式多了 surfaces／data／auth.fields／mcp／runtime auto／schema_tools 等欄位，SDK 產生的 pack 寫 `requires.synox: ">=0.2"`，舊版 SYNOX 會明說要先更新、不會載入。
 
-## 未發佈（branch claude/charming-einstein-41ih1s：SYNOX Link——主控台↔哨兵安全連線，L0–L2，還沒真機驗證）
+## 未發佈（branch claude/charming-einstein-41ih1s：SYNOX Link——主控台↔哨兵安全連線，L0–L2，🧪 實驗品、還沒真機驗證）
+
+**實驗品**：擁有者的方向是核心維持空殼、指令盡量少，所以 link 不算核心；之後可能整包搬成獨立套件或拿掉。
+沒開 `link` 時完全不存在（沒有指令、執行緒、檔案）；核心只在四個檔各 import 一處，切面寫在 `docs/link.md`「要搬出去時」。
 
 擁有者 2026-11-12 的題目：兩台（以上）SYNOX 怎麼**安全、簡單、不靠第三方**地互派任務（除了大家 polling 同一個 Telegram 對話、
 Cloudflare Tunnel、公網 webhook、VPN 之外），後端要好接 event bus／observer，之後要接 IoT（攝影機、Arduino、樹莓派）。

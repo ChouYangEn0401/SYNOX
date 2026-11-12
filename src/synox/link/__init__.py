@@ -1,4 +1,14 @@
 """
+⚠️ EXPERIMENTAL（實驗品，2026-11-12）：這一包不是 SYNOX 核心的一部分。擁有者的方向是讓 SYNOX 核心維持空殼、
+指令盡量少；link 之後很可能整包搬出去變成獨立的套件（或 pack），也可能直接拿掉。所以：
+- config.json 沒開 link 時，install() 什麼都不做：沒有指令、沒有執行緒、沒有檔案——核心不會被它汙染。
+- 它只碰 SYNOX 的這幾個介面（搬出去時就是這幾條線要接）：
+    app.extras["vault"]（保管箱：Vault.load_json／save_json／exists）、app.registry（ensure_group／leaf）、
+    app.dispatcher.handle＋isdtelekit.core.channel.Inbound（哨兵跑指令）、synox.policy.decide（哨兵的權限）、
+    synox.packs.loader.group_policy（指令群組權限）、app.notify／app.on_start／app.on_stop／app.extras、
+    synox.config（link 區塊的解析掛在 SynoxConfig.from_dict）、doctor 的一行、__main__ 的 link 子指令。
+- 不要在核心其他地方 import synox.link（只有 app.py、config.py、doctor.py、__main__.py 各一處）。
+
 SYNOX Link：兩台（以上）SYNOX 之間的安全連線——主控台（console）派任務、哨兵（worker）做任務、回報、重做、交接。
 調查與設計：docs/discussions/2026-11-12-link-architecture.html；使用說明：docs/link.md。
 
@@ -36,6 +46,7 @@ from synox.link.settings import LinkSettings
 from synox.link.transport import FolderTransport, TcpTransport
 
 EXTRA = "synox_link"
+EXPERIMENTAL = "實驗品：之後可能搬成獨立套件或拿掉（docs/link.md）"
 
 
 @dataclass
@@ -113,6 +124,7 @@ def install(app, config, vault) -> Optional[Link]:
         logging.exception("[LINK] cannot build")
         return None
     app.extras[EXTRA] = link
+    logging.warning("[LINK] %s", EXPERIMENTAL)
     link_commands.install(app, link)
     app.on_start.append(lambda _a: link.node.start())
     app.on_stop.append(lambda _a: link.node.stop())
