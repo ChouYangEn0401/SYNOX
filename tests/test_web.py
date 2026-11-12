@@ -506,7 +506,7 @@ def test_web_off(owner_client):
 def test_bind_failure_keeps_bot_running(make_bot, owner, monkeypatch):
     def refuse(*a, **kw):
         raise OSError(10048, "address already in use")
-    monkeypatch.setattr(web_server, "ThreadingHTTPServer", refuse)
+    monkeypatch.setattr(web_server, "_Server", refuse)
     bot = make_bot(raw={"web": {"port": 8830}})
     ui = ui_of(bot)
     assert ui.start() is False
@@ -515,6 +515,21 @@ def test_bind_failure_keeps_bot_running(make_bot, owner, monkeypatch):
     assert "照常" in bot.last(owner) or "記" in bot.last(owner)
     bot.say(owner, "/web")
     assert "沒有在跑" in bot.last(owner)
+
+
+def test_port_already_in_use_is_a_bind_failure(make_bot):
+    """Windows 的 SO_REUSEADDR 會讓第二支綁上同一個埠還說成功（登入連結被送到別支 SYNOX）：要失敗。"""
+    import socket
+    holder = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    holder.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)      # 跟另一支（舊版）SYNOX 的網頁一樣
+    holder.bind(("127.0.0.1", 0))
+    holder.listen(1)
+    port = holder.getsockname()[1]
+    try:
+        ui = ui_of(make_bot(raw={"web": {"port": port}}))
+        assert ui.start() is False and str(port) in ui.error
+    finally:
+        holder.close()
 
 
 def test_disabled_web_does_not_start(make_bot, owner):
