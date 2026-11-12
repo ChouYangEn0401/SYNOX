@@ -187,6 +187,38 @@ def save(path: str, cfg: dict, vault_opener=None) -> dict:
     return cfg
 
 
+def discord_owner_sentinel() -> int:
+    """Discord-only 擁有者的 owner_id：保留號段的第一號（跟 config.py 的說明、pair-discord 一致）。"""
+    from synox.identity import BASE
+    return BASE
+
+
+def save_discord_token(config_path: str, cfg: dict, token: str, vault_opener=None) -> dict:
+    """把 Discord bot token 存進保管箱，cfg 開 channels.discord.enabled，寫回 config.json。回寫進去的那份。"""
+    from synox.discord import VAULT_NAME
+    cfg = json.loads(json.dumps(cfg))
+    if vault_opener is None:
+        from synox.config import SynoxConfig
+        from synox.vault import open_vault
+
+        def vault_opener(c):
+            return open_vault(SynoxConfig.from_dict(c, require_token=False,
+                                                    root=os.path.dirname(os.path.abspath(config_path))))
+    vault_opener(cfg).set_secret(VAULT_NAME, token.strip())
+    cfg["channels"] = {**(cfg.get("channels") or {}),
+                       "discord": {"enabled": True, "bot_token": f"vault:{VAULT_NAME}"}}
+    write_config(config_path, cfg)
+    return cfg
+
+
+def bind_discord_owner(config_path: str, cfg: dict, external_id) -> None:
+    """配對成功後：把那個 Discord 帳號接到 cfg 裡的 owner_id（identities.json）。"""
+    from synox.config import SynoxConfig
+    from synox.identity import Identities
+    config = SynoxConfig.from_dict(cfg, require_token=False, root=os.path.dirname(os.path.abspath(config_path)))
+    Identities(config.path("identities.json")).bind("discord", external_id, config.owner_id)
+
+
 def web_login_link(config_path: str) -> str:
     """完成頁用：擁有者的網頁介面一次性登入連結（web.enabled=false 或設定讀不了 → ""）。"""
     try:

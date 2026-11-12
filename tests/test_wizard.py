@@ -5,9 +5,27 @@ import threading
 
 import pytest
 
-from synox.wizard import logic, shortcuts, telegram_probe
+from synox.wizard import discord_probe, logic, shortcuts, telegram_probe
 
 TOKEN = "123456789:" + "A" * 35
+DTOKEN = "D" * 30
+
+
+class FakeDiscordResp:
+    def __init__(self, status=200, body=None):
+        self.status_code = status
+        self._body = body if body is not None else {}
+
+    def json(self):
+        return self._body
+
+
+class FakeDiscordHttp:
+    def __init__(self, handler):
+        self.handler = handler
+
+    def request(self, method, url, **kw):
+        return self.handler(method, url, kw)
 
 
 class FakeResp:
@@ -208,6 +226,61 @@ def test_enable_autostart_writes_cmd(tmp_path):
 def test_shortcut_script():
     script = shortcuts.shortcut_script(r"C:\Users\x\Desktop\SYNOX.lnk", r"C:\it's\Start.bat", r"C:\it's")
     assert "WScript.Shell" in script and "'C:\\it''s\\Start.bat'" in script and "$s.Save()" in script
+
+
+def test_skip_channel_builds_config_without_token_or_owner(tmp_path):
+    """精靈「先跳過」：沒有 bot_token、owner_id 預設 0，不會丟例外，也不會開 Start.bat（由畫面層的 self.token 判斷）。"""
+    cfg = logic.build_config("", 0, {"kind": "none"})
+    path = tmp_path / "config.json"
+    logic.save(str(path), cfg)
+    from synox.config import SynoxConfig
+    config = SynoxConfig.load(str(path), require_token=False)
+    assert config.owner_id == 0 and not config.has_token and not config.discord_enabled
+
+
+def test_discord_token_validation():
+    assert discord_probe.valid_token(DTOKEN)
+    assert discord_probe.valid_token("  " + DTOKEN + " ")
+    for bad in ("", "short", "with space " * 3):
+        assert not discord_probe.valid_token(bad)
+
+
+def test_discord_get_me_and_bot_id():
+    http = FakeDiscordHttp(lambda m, u, kw: FakeDiscordResp(200, {"id": "999", "username": "my_discord_bot"}))
+    assert discord_probe.get_me(DTOKEN, http=http) == (True, "my_discord_bot")
+    assert discord_probe.bot_id(DTOKEN, http=http) == "999"
+    http = FakeDiscordHttp(lambda m, u, kw: FakeDiscordResp(401, {"message": "Unauthorized"}))
+    ok, msg = discord_probe.get_me(DTOKEN, http=http)
+    assert not ok and "401" in msg
+    assert discord_probe.get_me("nope")[0] is False
+
+
+def test_discord_invite_url():
+    assert discord_probe.invite_url("123") == (
+        "https://discord.com/oauth2/authorize?client_id=123&scope=bot&permissions=2048")
+
+
+def test_save_discord_token_and_bind_owner(tmp_path):
+    from synox.config import SynoxConfig
+    from synox.identity import BASE
+    from synox.vault import open_vault
+    path = tmp_path / "config.json"
+    owner_id = logic.discord_owner_sentinel()
+    assert owner_id == BASE
+    cfg = logic.build_config("", owner_id, {"kind": "none"})
+    cfg = logic.save(str(path), cfg)
+    cfg = logic.save_discord_token(str(path), cfg, "  " + DTOKEN + "  ")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["channels"]["discord"] == {"enabled": True, "bot_token": "vault:discord_bot_token"}
+    assert DTOKEN not in path.read_text(encoding="utf-8")
+    config = SynoxConfig.load(str(path), require_token=False)
+    assert open_vault(config).secret("discord_bot_token") == DTOKEN
+    assert config.discord_enabled and not config.has_token
+
+    logic.bind_discord_owner(str(path), cfg, "80351110224678912")
+    from synox.identity import Identities
+    ids = Identities(config.path("identities.json"))
+    assert ids.lookup("discord", "80351110224678912") == owner_id
 
 
 def test_finish_page_web_link(tmp_path):

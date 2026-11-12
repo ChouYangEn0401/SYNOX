@@ -2,14 +2,17 @@
 安裝精靈（tkinter，stdlib，不開埠）：四頁＋完成頁。
 
   1. 這台給誰用？○ 只有我（個人版）○ 一群人（伺服器版）；底下一行「工程師？直接改 config.json」
-  2. Telegram bot 的 token：「怎麼拿」三步 → 貼上 → getMe 驗證 →「✅ 這支 bot 叫 @xxx」
-  3. 你是誰：六位數配對碼＋「打開 t.me/<bot>」→ 背景 getUpdates 等那則訊息 → 記下 owner_id
+  2. 選 Telegram 或 Discord 的 bot（各自有自己的「怎麼拿 token」導覽）→ 貼上 → 驗證 →「✅ 這支 bot 叫 xxx」；
+     或者「先跳過，晚點再補」，直接進第 4 步（核心功能不靠任何通道）。
+  3. 你是誰：六位數配對碼。Telegram 直接「打開 t.me/<bot>」傳給它；Discord 要先把 bot 加進一個伺服器再私訊它。
+     背景等那則訊息 → 記下 owner_id（Discord 另外把帳號接進 identities.json）。
   4. AI：上面是預設「Claude（這台電腦登入的 Claude Code）」＋狀態＋測一下；下面「其他金鑰來源」
      （OpenAI／Anthropic API／Gemini／相容端點：下拉選單、網址（只有相容端點）、金鑰、模型、測一下）；「先不用 AI」
-  5. 完成：桌面捷徑（預設勾）、開機自動啟動（預設不勾）→「完成並開始」寫 config.json、開 Start.bat
+  5. 完成：桌面捷徑（預設勾）、開機自動啟動（預設不勾）→「完成並開始」寫 config.json；有通道才開 Start.bat
+     （沒有通道就只存設定，提示用 Console.bat 先玩）
 
 網路呼叫都在背景執行緒，結果用 root.after 交回畫面執行緒。畫面以外的邏輯在 logic.py／telegram_probe.py／
-shortcuts.py（有單元測試）；這個檔案只有畫面。
+discord_probe.py／shortcuts.py（有單元測試）；這個檔案只有畫面。
 """
 
 from __future__ import annotations
@@ -20,14 +23,20 @@ import threading
 import webbrowser
 
 from synox.config import CONFIG_PATH, ROOT
-from synox.wizard import logic, shortcuts, telegram_probe
+from synox.wizard import discord_probe, logic, shortcuts, telegram_probe
 
 TITLE = "SYNOX 安裝精靈"
 STEPS = 4
-HOW_TO_TOKEN = ("怎麼拿 token（三步）：\n"
+HOW_TO_TOKEN = ("怎麼拿 Telegram bot 的 token（三步）：\n"
                 "  1. 在 Telegram 搜尋 @BotFather，打開它\n"
                 "  2. 傳 /newbot，照它問的取一個名字和帳號（帳號要以 bot 結尾）\n"
                 "  3. 它會回一串像 123456789:AAH… 的字，整串複製，貼到下面")
+HOW_TO_DISCORD_TOKEN = ("怎麼拿 Discord bot 的 token（四步）：\n"
+                        "  1. 打開 https://discord.com/developers/applications，用你的 Discord 帳號登入\n"
+                        "  2. 按「New Application」取個名字 → 左邊選「Bot」→「Reset Token」，整串複製\n"
+                        "  3. 同一頁把「MESSAGE CONTENT INTENT」打開（bot 才能讀到你傳的文字）\n"
+                        "  4. 貼到下面，按「檢查 token」")
+PLATFORMS = (("telegram", "Telegram"), ("discord", "Discord"))
 
 
 class Wizard:
@@ -40,8 +49,10 @@ class Wizard:
         self.config_path = config_path
         self.existing = logic.read_existing(config_path)
         self.mode = self.existing.get("mode") if self.existing.get("mode") in logic.MODE_CHOICES else "personal"
+        self.platform = "telegram"
         self.token = ""
         self.bot_name = ""
+        self.bot_id = None
         self.owner = None
         self.llm = {"kind": "none"}
         self.stop = threading.Event()
@@ -107,46 +118,89 @@ class Wizard:
     # ── 2. token ─────────────────────────────────────────────────────
 
     def page_token(self):
-        self.clear("Telegram bot 的 token", f"第 2 步，共 {STEPS} 步")
-        self.label(HOW_TO_TOKEN)
-        var = self.tk.StringVar(value=self.existing.get("bot_token", ""))
-        entry = self.ttk.Entry(self.body, textvariable=var, width=60)
+        self.clear("Bot 的 token", f"第 2 步，共 {STEPS} 步")
+        tk, ttk = self.tk, self.ttk
+        platform = tk.StringVar(value=self.platform)
+
+        chooser = ttk.Frame(self.body)
+        chooser.pack(anchor="w", pady=(0, 6))
+        ttk.Label(chooser, text="用哪一個：").pack(side="left")
+        for value, title in PLATFORMS:
+            ttk.Radiobutton(chooser, text=title, value=value, variable=platform,
+                            command=lambda: switch()).pack(side="left", padx=(6, 0))
+
+        guide = self.label("")
+        var = tk.StringVar(value=self.existing.get("bot_token", "") if self.platform == "telegram" else "")
+        entry = ttk.Entry(self.body, textvariable=var, width=60)
         entry.pack(anchor="w", pady=6, fill="x")
         entry.focus_set()
         status = self.label("")
         self.set_next("下一步 ▶", self.page_pair, enabled=False)
 
+        def probe():
+            return telegram_probe if platform.get() == "telegram" else discord_probe
+
+        def switch():
+            self.platform = platform.get()
+            guide.configure(text=HOW_TO_TOKEN if self.platform == "telegram" else HOW_TO_DISCORD_TOKEN)
+            var.set("")
+            status.configure(text="")
+            self.token, self.bot_name, self.bot_id = "", "", None
+            self.set_next("下一步 ▶", self.page_pair, enabled=False)
+
         def check():
             token = var.get().strip()
-            if not telegram_probe.valid_token(token):
-                status.configure(text="❌ 這看起來不是 token（長得像 123456789:AAH…，中間有冒號）。")
+            p = probe()
+            if not p.valid_token(token):
+                status.configure(text="❌ 這看起來不是 token。")
                 return
-            status.configure(text="⏳ 跟 Telegram 確認中…")
+            status.configure(text="⏳ 確認中…")
 
             def done(result):
                 ok, info = result
                 if ok:
                     self.token, self.bot_name = token, info
-                    status.configure(text=f"✅ 這支 bot 叫 @{info}")
+                    if self.platform == "discord":
+                        self.bot_id = discord_probe.bot_id(token)
+                    status.configure(text=f"✅ 這支 bot 叫 {info}")
                     self.set_next("下一步 ▶", self.page_pair)
                 else:
                     status.configure(text=f"❌ {info}")
 
-            self.background(lambda: telegram_probe.get_me(token), done)
+            self.background(lambda: p.get_me(token), done)
 
         self.ttk.Button(self.body, text="檢查 token", command=check).pack(anchor="w")
         entry.bind("<Return>", lambda _e: check())
+        self.ttk.Separator(self.body).pack(fill="x", pady=14)
+        self.label("還沒有 bot，或想先玩玩看？可以先跳過，之後雙擊 Setup.bat 重跑這個精靈就能補填。",
+                  foreground="#666")
+        self.ttk.Button(self.body, text="先跳過，晚點再補 →", command=self.skip_token).pack(anchor="w")
+        switch()
+
+    def skip_token(self):
+        self.token, self.bot_name, self.bot_id, self.owner = "", "", None, None
+        self.page_llm()
 
     # ── 3. 配對 ──────────────────────────────────────────────────────
 
     def page_pair(self):
         self.clear("你是誰", f"第 3 步，共 {STEPS} 步")
-        code = telegram_probe.new_pairing_code()
-        self.label(f"打開你的 bot @{self.bot_name}，傳這六個數字給它（按下面的按鈕就會打開）：")
+        probe = telegram_probe if self.platform == "telegram" else discord_probe
+        code = probe.new_pairing_code()
+        if self.platform == "discord":
+            self.label("Discord bot 收不到還沒加進任何伺服器的人的私訊，先把它加進一個你的伺服器"
+                      "（沒有的話，Discord 可以免費建一個新的）：")
+            self.ttk.Button(self.body, text="打開邀請連結",
+                            command=lambda: webbrowser.open(discord_probe.invite_url(self.bot_id))
+                            ).pack(anchor="w", pady=(0, 10))
+            self.label(f"加進去之後，在那個伺服器裡找到 {self.bot_name}，私訊它，傳這六個數字：")
+        else:
+            self.label(f"打開你的 bot @{self.bot_name}，傳這六個數字給它（按下面的按鈕就會打開）：")
         self.ttk.Label(self.body, text=" ".join(code), font=("Consolas", 30, "bold")).pack(anchor="w", pady=10)
-        self.ttk.Button(self.body, text=f"打開 t.me/{self.bot_name}",
-                        command=lambda: webbrowser.open(f"https://t.me/{self.bot_name}")).pack(anchor="w")
-        status = self.label("⏳ 等你傳過來…（不用再問 @userinfobot）")
+        if self.platform == "telegram":
+            self.ttk.Button(self.body, text=f"打開 t.me/{self.bot_name}",
+                            command=lambda: webbrowser.open(f"https://t.me/{self.bot_name}")).pack(anchor="w")
+        status = self.label("⏳ 等你傳過來…")
         self.set_next("下一步 ▶", self.page_llm, enabled=False)
         self.stop.clear()
 
@@ -161,7 +215,7 @@ class Wizard:
             self.set_next("下一步 ▶", self.page_llm)
 
         token = self.token
-        self.background(lambda: telegram_probe.wait_for_code(token, code, stop=self.stop), done)
+        self.background(lambda: probe.wait_for_code(token, code, stop=self.stop), done)
 
     # ── 4. AI ────────────────────────────────────────────────────────
 
@@ -282,13 +336,31 @@ class Wizard:
         ttk.Checkbutton(self.body, text="讓 .synoxpack 檔案點兩下就安裝（裝之前一樣會先檢查、給你按確認）",
                         variable=packs).pack(anchor="w", pady=4)
         title, _one, _two = logic.mode_lines(self.mode)
-        status = self.label(f"這台是：{title}。\n按「完成並開始」：寫好設定、打開 bot，手機會收到「我在了」。")
+        if self.token:
+            who = "bot" if self.platform == "telegram" else f"Discord bot {self.bot_name}"
+            finish_hint = f"這台是：{title}。\n按「完成並開始」：寫好設定、打開 {who}，手機會收到「我在了」。"
+        else:
+            finish_hint = (f"這台是：{title}。還沒接 Telegram／Discord，先用主控台（Console.bat）試試看就好；"
+                           "之後雙擊 Setup.bat 重跑精靈可以補填。")
+        status = self.label(finish_hint)
 
         def finish():
             try:
-                cfg = logic.build_config(self.token, self.owner["id"], self.llm, existing=self.existing,
+                is_discord = self.platform == "discord" and bool(self.token)
+                telegram_token = "" if is_discord else self.token
+                if is_discord:
+                    owner_id = logic.discord_owner_sentinel() if self.owner else 0
+                elif self.owner:
+                    owner_id = self.owner["id"]
+                else:
+                    owner_id = 0
+                cfg = logic.build_config(telegram_token, owner_id, self.llm, existing=self.existing,
                                          mode=self.mode)
-                logic.save(self.config_path, cfg)
+                cfg = logic.save(self.config_path, cfg)
+                if is_discord:
+                    cfg = logic.save_discord_token(self.config_path, cfg, self.token)
+                    if self.owner:
+                        logic.bind_discord_owner(self.config_path, cfg, self.owner["id"])
             except Exception as e:
                 status.configure(text=f"❌ 存設定失敗：{e}")
                 return
@@ -310,13 +382,19 @@ class Wizard:
                     notes.append(".synoxpack 點兩下安裝 ✅")
                 except OSError as e:
                     notes.append(f".synoxpack 點兩下安裝 ❌ {e}")
-            start = os.path.join(ROOT, "Start.bat")
-            subprocess.Popen(["cmd", "/c", start], cwd=ROOT, creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
-            link = logic.web_login_link(self.config_path)
-            if link:
-                notes.append("幾秒後會打開網頁介面（之後在 Telegram 打 /web 可以再拿登入連結）")
-                self.root.after(6000, lambda: webbrowser.open(link))
-            status.configure(text="✅ 設定好了，bot 開起來了。\n" + "\n".join(notes) + "\n可以關掉這個視窗。")
+            if self.token:
+                start = os.path.join(ROOT, "Start.bat")
+                subprocess.Popen(["cmd", "/c", start], cwd=ROOT,
+                                 creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
+                link = logic.web_login_link(self.config_path)
+                if link:
+                    notes.append("幾秒後會打開網頁介面（之後在 Telegram 打 /web 可以再拿登入連結）")
+                    self.root.after(6000, lambda: webbrowser.open(link))
+                status.configure(text="✅ 設定好了，bot 開起來了。\n" + "\n".join(notes) + "\n可以關掉這個視窗。")
+            else:
+                status.configure(text="✅ 設定存好了（還沒有 bot）。\n" + "\n".join(notes) +
+                                 "\n雙擊 Console.bat 可以在終端機先試試看；之後雙擊 Setup.bat 重跑精靈補填 Telegram／Discord。"
+                                 "\n可以關掉這個視窗。")
             self.set_next("關閉", self.close)
 
         self.set_next("完成並開始", finish)
