@@ -17,6 +17,8 @@ SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、�
                                                沒寫＝預設；exec、filesystem:any 不能給任何角色）
       "runtime": {"heartbeat": {"enabled": true, "interval_min": 45, …}, "mother": {…}}   常駐助理與心跳
                                                （synox/runtime/settings.py；docs/adr/0001）
+      "presentation": {"enabled": false}       AI 回覆先經呈現層（Markdown → 各通道的格式）再送；預設關＝原樣送
+                                               （synox/present；docs/presentation.md）
     }
 - 多個 Discord bot：channels.discord.bots.<名字> = {"token": "vault:…", "surface": "dm", "packs": "all", "ai": true}
   （synox/discord/bots.py 解析與檢查；舊寫法＝bots.default）。
@@ -67,6 +69,7 @@ DEFAULT_VAULT = {"mode": "dpapi" if os.name == "nt" else "file"}
 DEFAULT_PACKS = {"enabled": "all", "disabled": []}
 DEFAULT_WEB = {"enabled": True, "port": 8830, "public_url": ""}
 DEFAULT_MEMBER_USD = 2.0
+DEFAULT_PRESENTATION = {"enabled": False}
 MODES = ("personal", "server")
 
 
@@ -81,6 +84,7 @@ class SynoxConfig(BotConfig):
     ai_member_monthly_usd: float = DEFAULT_MEMBER_USD
     policy: dict = field(default_factory=lambda: parse_policy(None))     # 角色能力上限（synox/policy.py）
     runtime: dict = field(default_factory=runtime_settings.defaults)    # 心跳、常駐助理（synox/runtime/settings.py）
+    presentation: dict = field(default_factory=lambda: dict(DEFAULT_PRESENTATION))   # 呈現層（synox/present）
 
     @property
     def server(self) -> bool:
@@ -129,11 +133,12 @@ class SynoxConfig(BotConfig):
             runtime = runtime_settings.parse(raw.get("runtime"))
         except runtime_settings.RuntimeConfigError as e:
             raise ConfigError(f"config.json：{e}")
+        presentation = parse_presentation(raw.get("presentation"))
         return cls(bot_token=base.bot_token, owner_id=base.owner_id,
                    poll_interval_seconds=base.poll_interval_seconds, data_dir=data_dir,
                    stepup_minutes=base.stepup_minutes, raw=dict(raw), llm=llm, vault=vault, packs=packs, mode=mode,
                    root=root, web=web, ai_member_monthly_usd=max(0.0, member_usd), policy=policy,
-                   runtime=runtime)
+                   runtime=runtime, presentation=presentation)
 
     @classmethod
     def load(cls, path: Optional[str] = None, *, require_token: bool = True,
@@ -179,6 +184,18 @@ def parse_mode(value) -> str:
     if mode not in MODES:
         raise ConfigError(f"config.json 的 mode 只能是 personal（只有我）或 server（一群人）（現在是 {value!r}）。")
     return mode
+
+
+def parse_presentation(value) -> dict:
+    """config.json 的 presentation：沒寫＝{"enabled": false}；enabled 只收 true／false（寫錯就講清楚，不猜）。"""
+    if value is None:
+        return dict(DEFAULT_PRESENTATION)
+    if not isinstance(value, dict):
+        raise ConfigError('config.json 的 presentation 要是一個物件，例如 {"enabled": false}。')
+    out = {**DEFAULT_PRESENTATION, **value}
+    if not isinstance(out.get("enabled"), bool):
+        raise ConfigError("config.json 的 presentation.enabled 只能是 true 或 false。")
+    return out
 
 
 MODE_LABELS = {"personal": "只有我（個人版）", "server": "一群人（伺服器版）"}

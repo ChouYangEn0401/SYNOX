@@ -1,0 +1,35 @@
+{
+  "trust": "assistant",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "[js](javascript:alert(1)) [JS 大寫](JAVASCRIPT:alert(1)) [data](data:text/html;base64,PHNjcmlwdD4=)\n[file](file:///etc/passwd) [相對](/admin) [空白]( javascript:alert(1)) [引號](https://ok.example/\"onmouseover=\"x)\n<javascript:alert(1)> "
+        },
+        {
+          "text": "https://safe.example/path?a=1&b=2",
+          "href": "https://safe.example/path?a=1&b=2"
+        },
+        {
+          "text": "\n"
+        },
+        {
+          "text": "好的",
+          "href": "https://example.com/ok"
+        },
+        {
+          "text": " "
+        },
+        {
+          "text": "https://example.com/trailing",
+          "href": "https://example.com/trailing"
+        },
+        {
+          "text": "."
+        }
+      ]
+    }
+  ]
+}

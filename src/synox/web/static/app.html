@@ -301,6 +301,18 @@
   .msg .kb a { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 7px 14px;
                border-radius: var(--r); border: 1px solid var(--line-strong); background: var(--surface);
                text-decoration: none; font-size: 14px; }
+  /* 呈現層的區塊（config presentation.enabled；synox/present/web.py 的 wire → renderBlocks） */
+  .msg .blocks { white-space: normal; }
+  .msg .blocks > * { margin: 0 0 8px; }
+  .msg .blocks > *:last-child { margin-bottom: 0; }
+  .msg .blocks p, .msg .blocks li, .msg .blocks td, .msg .blocks th { white-space: pre-wrap; }
+  .msg .blocks h3, .msg .blocks h4, .msg .blocks h5 { line-height: 1.35; }
+  .msg .blocks ul, .msg .blocks ol { padding-left: 1.4em; }
+  .msg .blocks li > ul, .msg .blocks li > ol { margin: 2px 0 0; }
+  .msg .blocks pre { overflow-x: auto; padding: 8px 10px; border-radius: 8px; background: var(--sunken); white-space: pre; }
+  .msg .blocks blockquote { margin-left: 0; padding-left: 10px; border-left: 3px solid var(--line-strong); color: var(--muted); }
+  .msg .blocks .tablewrap { background: var(--surface); }
+  .msg .blocks .status { font-weight: 650; }
   @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
   #composer { display: flex; gap: 8px; align-items: flex-end; margin: 0 14px 14px; padding: 8px 8px 8px 14px;
               border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface);
@@ -640,6 +652,7 @@
 <script nonce="{{NONCE}}">/*{{INCLUDE:control.js}}*/</script>
 <!-- include: tools.js -->
 <script nonce="{{NONCE}}">
+/*{{INCLUDE:blocks.js}}*/
 (function () {
   "use strict";
   var me = null;
@@ -827,7 +840,9 @@
   function renderMessage(m, chat, after) {
     var who = m.from === "me" ? "me" : (m.from === "note" ? "note" : "bot");
     var box = el("div", "msg " + who);
-    box.appendChild(el("div", "text", m.text));
+    // m.blocks：呈現層的區塊（config presentation.enabled 開著時 AI 回覆才有；blocks.js，一律 createElement＋textContent）
+    box.appendChild(Array.isArray(m.blocks) && m.blocks.length ? window.SynoxBlocks.render(document, m.blocks)
+      : el("div", "text", m.text));
     if (m.buttons && m.buttons.length) {
       var kb = el("div", "kb");
       m.buttons.forEach(function (row) {

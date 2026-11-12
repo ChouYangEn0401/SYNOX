@@ -1,0 +1,31 @@
+{
+  "trust": "assistant",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "範例："
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "trust": "assistant",
+      "code": "def hello(name: str) -> str:\n    return f\"<b>{name}</b> & co\"",
+      "lang": "python"
+    },
+    {
+      "type": "code",
+      "trust": "assistant",
+      "code": "沒有語言標記的區塊"
+    },
+    {
+      "type": "code",
+      "trust": "assistant",
+      "code": "int main() { return 0; }",
+      "lang": "c++"
+    }
+  ]
+}

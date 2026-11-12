@@ -1,0 +1,72 @@
+{
+  "trust": "assistant",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "今天的待辦都記好了，"
+        },
+        {
+          "text": "共 3 筆",
+          "bold": true
+        },
+        {
+          "text": "，其中 "
+        },
+        {
+          "text": "一筆",
+          "italic": true
+        },
+        {
+          "text": " 已經過期。"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "可以用 "
+        },
+        {
+          "text": "/note_list",
+          "code": true
+        },
+        {
+          "text": " 看全部，或打 "
+        },
+        {
+          "text": "重要",
+          "bold": true,
+          "italic": true
+        },
+        {
+          "text": " 的那筆先處理。\n第二行接著第一行（同一段裡的換行要留著）。"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "提醒：",
+          "bold": true
+        },
+        {
+          "text": "明天早上 9 點開會；"
+        },
+        {
+          "text": "底線斜體",
+          "italic": true
+        },
+        {
+          "text": " 與 snake_case_name 不會變斜體。"
+        }
+      ]
+    }
+  ]
+}
