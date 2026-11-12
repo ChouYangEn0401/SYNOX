@@ -56,7 +56,7 @@ def run(name: str, config, vault, *, user: Optional[int] = None, clear: bool = F
         out: Callable[[str], None] = print, dirs=None) -> int:
     m = find_pack(name, dirs if dirs is not None else config.pack_dirs())
     if m is None:
-        out(f"❌ 找不到叫 {name} 的 pack。")
+        out(f"❌ 找不到叫 {name} 的 pack（還沒裝？SYNOX 出廠不帶工具，先從 SYNOX 工具庫裝 {name} 的 .synoxpack）。")
         return 2
     managed = pack_secrets.managed_fields(m)
     if managed:

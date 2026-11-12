@@ -1,8 +1,9 @@
 # Pack 格式
 
-一個 pack＝一個資料夾，放在 `packs/`（使用者裝的工具）或 `connectors/`（出廠的、接外面的服務）。SYNOX 啟動時掃
-`packs/*/pack.json` 與 `connectors/*/pack.json`（＋`config.json` 的 `packs.dirs`），一個壞掉只跳過那一個（`python -m synox doctor` 會列出原因）。
-**SYNOX 出廠的 `packs/` 是空的**（2026-11-12 起）：官方工具在 **SYNOX 工具庫（SYNOX_Libs）**，下面的 `money` 是那裡的例子。
+一個 pack＝一個資料夾，放在 `packs/`（使用者裝的工具）。SYNOX 啟動時掃
+`packs/*/pack.json`（＋`config.json` 的 `packs.dirs`），一個壞掉只跳過那一個（`python -m synox doctor` 會列出原因）。
+**SYNOX 出廠不帶任何工具**（2026-11-12 起；以前的 `connectors/` 也搬走了，[../legacy/connectors.md](../legacy/connectors.md)）：
+官方工具全部在 **SYNOX 工具庫（SYNOX_Libs）**，下面的 `money` 是那裡的例子。
 
 ```
 <SYNOX_Libs>/packs/money/
@@ -39,6 +40,7 @@
 | `kind` | ✅ | `python`｜`cli`｜`connector`（下面） |
 | `group` | | 指令群組，小寫英數字 16 字內；沒寫＝`name` 去掉 `-`、`_`。`group: money` → `/money`（主要動作）、`/money_list`… （這是**指令的前綴**，不是網頁工具頁的群組；那個是下一列的 `category`） |
 | `category` | | 網頁「工具」頁**建議**把這個 pack 放在哪個群組（給人看的名字，例如 `"生活"`、`"待辦與行程"`；一行、24 字內）。沒寫＝「未分類」。**使用者自己排過的優先**（每個人的排法存在自己的偏好，不寫進 pack 資料夾）；同名的 category 會放進同一個群組。安裝時格式不對＝拒裝；已裝的舊 pack 寫壞了＝當作沒寫。見 [tools.md](tools.md)「網頁工具頁」 |
+| `stage` | | 這個工具**多穩定**（作者自己標）：`test`｜`alpha`｜`beta`｜`stable`，**沒寫＝`alpha`**。只收這四個小寫字：安裝時寫錯＝拒裝；已裝的寫壞了＝當作 `alpha`。`/help` 那一頁的標題（「💰 記帳（🧪 alpha）」）、網頁工具頁（`/api/tools` 回 `stage`／`stage_label`／`stage_text`，工具名旁一個小標籤）、安裝報告（「穩定度」一行；不是 `stable` 的另外在提醒清單寫一句意思）、`doctor` 都會顯示「符號＋字」：🔧 test（測試中）、🧪 alpha（早期版）、🚧 beta（公測版）、⭐ stable（穩定版）。意思與升級條件見 SYNOX 工具庫的 README「穩定度」 |
 | `access` | | `owner`（預設：只有安裝時配對的那個人，別人打了跟不存在一樣）｜`member`（伺服器版：成員以上；個人版＝`owner`）｜`everyone`（任何人，伺服器版的訪客也算） |
 | `surfaces` | | 在哪裡能用：`["dm"]`（預設：只能私訊，群組／頻道裡打了 SDK 回「請私訊」）｜`["dm", "channel"]`（也能在頻道用）。一定要有 `dm`。見下面「權限宣告」 |
 | `data` | | 資料屬於誰：`none`｜`user`（每個人自己一份）｜`shared`（大家共用一份）。沒寫照預設推（下面「權限宣告」）；第 2 關照它檢查程式 |
@@ -99,7 +101,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 
 ### 權限宣告：`surfaces`、`data`、安裝時選的 `trust`
 
-舊的 pack 沒寫照舊能用（照下面的預設）；工具庫的 notes、money 與出廠的 4 個 connector 都寫了 `"surfaces": ["dm"], "data": "user"`。
+舊的 pack 沒寫照舊能用（照下面的預設）；工具庫的每個工具（含 notion、todoist、google-calendar、apple-reminders）都寫了 `"surfaces": ["dm"], "data": "user"`。
 
 | | 值 | 沒寫的預設 | 效果 |
 |---|---|---|---|
@@ -117,9 +119,9 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
   舊的鎖沒有 `trust`＝當作 `third-party`。
 - **伺服器版怎麼用 trust（個人版不受影響）**：
   - kind=python 在 SYNOX 程序裡跑、沒有沙盒，所以 `trust: third-party` 的 python pack **只對擁有者可見**：成員打了跟不存在的指令一樣
-    （「未知指令」）、`/help` 與 AI 工具清單都沒有。`core`（擁有者安裝時選的）與出廠的照常。
-  - 出廠的＝內建 `connectors/` 裡的 4 個 connector（沒有鎖時看名字＋位置）。notes、money 2026-11-12 起搬到工具庫，
-    跟其他工具一樣要經安裝流程、看擁有者選的 trust（提醒 `/remind_*` 是系統指令「⏰ 提醒（系統）」，不是 pack）。
+    （「未知指令」）、`/help` 與 AI 工具清單都沒有。`core`（擁有者安裝時選的）照常。
+  - **沒有「出廠的」了**：以前內建的 notes、money、remind 與 `connectors/` 的 4 個 connector 2026-11-12 起都在工具庫，
+    跟其他工具一樣要經安裝流程、看擁有者選的 trust（`loader.BUNDLED` 是空的，機制留著；提醒 `/remind_*` 是系統指令「⏰ 提醒（系統）」，不是 pack）。
   - **沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）＝`third-party`；而且載入前補跑一次第 2 關靜態掃描，
     沒過＝狀態 `rejected`、不載入（理由列 `檔名:行號`）。信得過就 `python -m synox packs lock --approve <name> --trust core`。
   - 為什麼只給擁有者，`doctor` 與 `packs status` 都會寫一行 🔐。kind=cli 的第三方 pack 另外看沙盒（見 `docs/security.md`「運行空間（沙盒）」）。
@@ -205,8 +207,8 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
   **Telegram 不收**（聊天紀錄留在 Telegram 的伺服器上）。個人版只有擁有者能設；伺服器版每個人設自己的（`vault.for_user`）。
 - 怎麼拿：kind=cli 從環境變數讀；kind=python 用 `pack.secret("api_key", user)`（伺服器版一定要給 user）。
 - 哪些 pack 算「SYNOX 收」：kind=cli 一律；kind=python 要原始碼有呼叫 `pack.secret(...)`。`"auth": {"managed": "pack"}`＝pack 自己管
-  （例如內建 connector 的 `/todoist_token`），`"managed": "synox"`＝一定 SYNOX 收。內建的 notion／todoist／google-calendar／apple-reminders
-  都還是自己的指令，不受影響。
+  （例如工具庫 todoist 的 `/todoist_token`），`"managed": "synox"`＝一定 SYNOX 收。工具庫的 notion／todoist／google-calendar／apple-reminders
+  （以前是內建 connector）都還是自己的指令，不受影響。
 
 ### kind=cli 的代換
 
@@ -470,6 +472,7 @@ JSON-RPC 2.0（一行一個訊息），不開網路埠：
 接外面的服務（Google 日曆、Notion…）。v0 **只登記**：一個群組、一個葉節點說「還沒接上」，不給 AI。
 只寫 `mcp.url`（沒有 `transport`）的 kind=mcp 也一樣只登記。
 `auth` 必填：`oauth`｜`token`｜`caldav`。設計寫在那個資料夾的 README。
+（工具庫裡真的會連的 notion、todoist、google-calendar、apple-reminders 是 `kind: python`，不是這一種。）
 
 ## SKILL.md
 

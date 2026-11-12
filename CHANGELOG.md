@@ -61,7 +61,7 @@
 ### 工具搬到 SYNOX_Libs、主程式出廠是空的（branch `feat/libs-extraction`）
 - **移除（BREAKING）**：出廠的 `money`、`notes`、`remind` 下架，正本搬到新專案 **SYNOX_Libs（工具庫）**；`packs/` 只剩說明（安裝的落點，
   內容不進 git）。從舊版更新的人：`/help` 裡這三個會不見，**資料沒動**，從工具庫裝回同名工具就接著用。說明與怎麼救回：
-  [legacy/builtin-packs.md](legacy/builtin-packs.md)。`loader.BUNDLED` 只剩 4 個 connector（connector 要不要也搬：[QuestionToUser.md](QuestionToUser.md) QL1）。
+  [legacy/builtin-packs.md](legacy/builtin-packs.md)。`loader.BUNDLED` 只剩 4 個 connector（connector 要不要也搬：[QuestionToUser.md](QuestionToUser.md) QL1；後來也搬了，見下一段）。
 - **新增 `requires.sdk`**：工具在 pack.json 宣告照哪一版 SDK 寫（例如 `">=0.2,<0.3"`）；安裝、載入、doctor 都檢查，不合＝不裝、不載入、說原因。
   `SDK_VERSION` 0.1.0 → **0.2.0**；`synox-sdk init` 自動寫；examples 都補上。`sdk/` 可以 `pip install <SYNOX>/sdk`（`synox-sdk` 套件）。
 - **新增「還沒裝任何工具」提示**（`src/synox/packs/library.py`）：`/start`、`/help`（只給擁有者）、`doctor`（「• 工具：…」一行）、精靈完成頁、
@@ -71,6 +71,17 @@
   新的 `tests/test_empty_host.py`（空 host、只有 connector、什麼都沒有、從 `.synoxpack` 裝進空 host；設 `SYNOX_LIBS` 會多跑「工具庫每個工具都裝得進來」）、
   `tests/test_sdk_requires.py`。記帳、筆記本身的測試搬到 SYNOX_Libs。
 - 要你決定的事：[QuestionToUser.md](QuestionToUser.md) QL1～QL5（connector 要不要也搬、舊使用者怎麼接回、SYNOXPacks 怎麼處理、工具壓縮檔怎麼發、提醒要不要獨立）。
+
+### connector 也搬到 SYNOX_Libs、工具的穩定度標示（branch `feat/connectors-to-libs`）
+- **移除（BREAKING）**：`connectors/` 的 4 個（notion、todoist、google-calendar、apple-reminders）連同測試搬到 SYNOX_Libs（QL1 擁有者回「當然要」）；
+  `connectors/` 只剩 README、loader 只掃 `packs/`、`loader.BUNDLED` 清空——**主程式出廠真的一個工具都沒有**。pack 名字沒變，
+  從舊版更新的人裝回同名工具，保管箱裡的 token／帳號照用。說明與怎麼救回：[legacy/connectors.md](legacy/connectors.md)。
+- **新增 pack.json `stage`（穩定度）**：`test`｜`alpha`｜`beta`｜`stable`，沒寫＝`alpha`；安裝時寫錯＝拒裝。顯示「符號＋字」
+  （🔧 test、🧪 alpha、🚧 beta、⭐ stable）：`/help` 那一頁的標題、網頁 `/api/tools`（`stage`／`stage_label`／`stage_text`，工具頁標題旁一個小徽章）、
+  安裝報告（「穩定度」一行；不是 stable 的在提醒清單多一句意思）、`doctor` 每個 pack 那一行。工具庫的工具目前全部標 alpha。
+- `scripts/smoke_real.py`：先找這台裝好的工具，沒裝就讀工具庫的原始碼（`SYNOX_LIBS`）；`connect` 找不到工具時提示先從工具庫裝。
+- 測試：要讀工具庫的（smoke_real 的四個服務、connector 不被 SYNOX 管 secret、工具庫每個工具裝進空 host）設 `SYNOX_LIBS`，找不到就跳過；
+  新的 `tests/test_stage.py`。
 
 ### 合併進來的（安裝流程的真機除錯）
 - 從 `origin/debug/setup-python-telegram` 合併（`--no-ff`，沒有衝突）：安裝程式先問語言（12 種）、`Uninstall.bat`、bot 步驟可以跳過

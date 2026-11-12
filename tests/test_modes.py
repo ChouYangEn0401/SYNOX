@@ -129,14 +129,14 @@ def test_plain_store_is_per_user_in_server_mode(tmp_path):
 
 # ── 伺服器版：訪客只看得到 everyone ─────────────────────────────────
 
-def _everyone_pack(base):
-    folder = os.path.join(base, "hello")
+def _everyone_pack(base, name="hello", access="everyone"):
+    folder = os.path.join(base, name)
     os.makedirs(folder)
     with open(os.path.join(folder, "pack.json"), "w", encoding="utf-8") as f:
-        json.dump({"name": "hello", "title": "👋 打招呼", "summary": "誰都能用", "version": "0.1.0",
-                   "kind": "python", "access": "everyone"}, f)
+        json.dump({"name": name, "title": "👋 打招呼", "summary": "誰都能用", "version": "0.1.0",
+                   "kind": "python", "access": access}, f)
     with open(os.path.join(folder, "SKILL.md"), "w", encoding="utf-8") as f:
-        f.write("---\nname: hello\ndescription: d\n---\n")
+        f.write(f"---\nname: {name}\ndescription: d\n---\n")
     with open(os.path.join(folder, "pack.py"), "w", encoding="utf-8") as f:
         f.write("def install(app, pack):\n"
                 "    pack.group.leaf('hi', lambda api, c, u, a: api.send_message(c, 'hi there'), '打招呼', default=True)\n")
@@ -145,7 +145,8 @@ def _everyone_pack(base):
 
 def test_server_guest_sees_only_everyone_packs(make_bot, owner, tmp_path):
     extra = _everyone_pack(str(tmp_path / "extra"))
-    trust_core(tmp_path / "data", os.path.join(extra, "hello"))     # 手放的 python pack＝third-party（PERM-8）
+    _everyone_pack(extra, name="mine", access="owner")             # access: owner（以前用出廠的 gcal connector 測）
+    trust_core(tmp_path / "data", os.path.join(extra, "hello"), os.path.join(extra, "mine"))   # 手放的＝third-party（PERM-8）
     bot = make_bot(raw={"mode": "server"}, pack_dirs=loader.PACK_DIRS + (extra,))
     bot.say(STRANGER, "/start")
     guest = bot.app.users.get(STRANGER)
@@ -163,6 +164,6 @@ def test_server_guest_sees_only_everyone_packs(make_bot, owner, tmp_path):
     bot.say(owner, f"/user_role {STRANGER} member")
     member = bot.app.users.get(STRANGER)
     assert registry.visible(member, registry.node("note")) and registry.visible(member, registry.node("remind"))
-    assert not registry.visible(member, registry.node("gcal"))         # connector（access: owner）仍然只有擁有者
+    assert not registry.visible(member, registry.node("mine"))         # access: owner 仍然只有擁有者
     bot.say(STRANGER, "/note 我的")
     assert os.path.isfile(os.path.join(bot.app.config.data_dir, "users", str(STRANGER), "notes.json.enc"))

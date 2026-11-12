@@ -1,11 +1,11 @@
 """
 「還沒裝任何工具」時的提示，與工具庫（SYNOX_Libs）在哪裡。
 
-SYNOX 出廠不帶工具（2026-11-12，legacy/builtin-packs.md）：工具在另一個專案「SYNOX 工具庫（SYNOX_Libs）」，
+SYNOX 出廠不帶工具（2026-11-12，legacy/builtin-packs.md、legacy/connectors.md）：工具在另一個專案「SYNOX 工具庫（SYNOX_Libs）」，
 一個工具一個 .synoxpack，使用者自己挑來裝。這裡只負責「告訴人去哪裡裝」，裝的流程照舊是 packs/admin.py。
 
 - 工具庫的位置不寫死：config.json 的 `packs.library`（資料夾路徑，相對於 SYNOX 資料夾；或 https:// 網址），沒寫就只給說明文字。
-- 「裝了幾個工具」＝載入成功、而且不是出廠的（connectors/ 的那幾個不算）。
+- 「裝了幾個工具」＝載入成功、而且不是出廠的（loader.BUNDLED；現在是空的，所以載入成功的都算）。
 - 誰用：/help 與 /start（install）、doctor（doctor_lines）、網頁設定頁（status，web/server.py）、精靈完成頁（文字在 wizard/lang）。
 """
 
