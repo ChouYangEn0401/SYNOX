@@ -21,9 +21,17 @@ def _pack(folder, **over):
 
 
 def test_shipped_manifests_are_valid():
-    folders = loader.discover()
+    """出廠只剩 connectors/；packs/ 是空的（安裝的落點）。用 git 追蹤的檔判斷，開發機自己裝的工具不算。"""
+    import subprocess
+
+    from synox.config import ROOT
+    done = subprocess.run(["git", "-C", ROOT, "ls-files", "packs"], capture_output=True, text=True)
+    if done.returncode == 0:                                     # 解開的 zip（沒有 .git）就不看這一項
+        assert done.stdout.split() == ["packs/README.md"]
+    folders = loader.discover([os.path.join(ROOT, "connectors")])
     names = {os.path.basename(f) for f in folders}
-    assert {"notes", "money", "remind", "google-calendar", "notion", "todoist", "apple-reminders-caldav"} <= names
+    assert names == {"google-calendar", "notion", "todoist", "apple-reminders-caldav"}
+    assert set(loader.BUNDLED) == {"google-calendar", "notion", "todoist", "apple-reminders"}
     for folder in folders:
         from synox.packs.manifest import read
         m = read(folder)
@@ -104,31 +112,5 @@ def test_kit_positional_and_keys():
     v, missing, errors = kit.parse_args(fields, ["abc"])
     assert errors and [f.name for f in missing] == ["category"]
 
-
-def test_money_budget_warning(make_bot, owner):
-    bot = make_bot()
-    bot.say(owner, "/money_budget 100")
-    bot.say(owner, "/money 60 午餐")
-    assert "預算還剩 40 元" in bot.last(owner)
-    bot.say(owner, "/money 50 晚餐 和朋友")
-    assert "這一筆讓這個月超過預算了" in bot.last(owner) and "（和朋友）" in bot.last(owner)
-    bot.say(owner, "/money_month")
-    assert "共 110 元" in bot.last(owner) and "超過 10 元" in bot.last(owner)
-    bot.say(owner, "/money_list 1")
-    assert "晚餐 50 元" in bot.last(owner)
-    bot.say(owner, "/money abc 午餐")
-    assert "要是數字" in bot.last(owner)
-
-
-def test_notes_commands(make_bot, owner):
-    bot = make_bot()
-    bot.say(owner, "/note 買牛奶")
-    bot.say(owner, "/note 繳電費")
-    bot.say(owner, "/note_list 牛奶")
-    assert "買牛奶" in bot.last(owner) and "繳電費" not in bot.last(owner)
-    bot.say(owner, "/note_rm 5")
-    assert "沒有第 5 筆" in bot.last(owner)
-    bot.say(owner, "/note_rm 1")
-    assert "買牛奶" in bot.last(owner)
-    raw = open(bot.app.extras["vault"].path("notes"), "rb").read()
-    assert "繳電費".encode() not in raw
+# 記帳、筆記這兩個工具本身的測試（test_money_budget_warning、test_notes_commands、test_money_isolation）
+# 2026-11-12 跟著工具搬到 SYNOX_Libs 的 tests/test_money.py、tests/test_notes.py。

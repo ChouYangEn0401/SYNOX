@@ -47,11 +47,14 @@
 | `src/synox/backup.py` | `export_backup`／`read_backup`：data/ 的 zip 用保管箱主金鑰加密（`Vault.encrypt_bytes`） |
 | `src/synox/wizard/` | `pages.py`（tkinter 畫面：這台給誰用 → token → 配對 → AI → 完成）、`logic.py`（寫 config、mode、AI 頁的 helper、金鑰進保管箱）、`telegram_probe.py`（getMe、配對碼）、`shortcuts.py` |
 | `src/synox/doctor.py` | 健康檢查（不改任何檔、不產生金鑰） |
-| `packs/notes`、`packs/money`、`packs/remind` | 出廠 pack；remind 的程式在 `synox/schedule` |
+| `packs/` | **出廠是空的**（2026-11-12，[../legacy/builtin-packs.md](../legacy/builtin-packs.md)）：使用者裝的工具的落點（`PACK_DIRS[0]`），只有 `README.md` 進 git。notes／money／remind 的正本在 **SYNOX_Libs**（工具庫，另一個 repo；ADR 在它的 `docs/adr/0001`），remind 的程式本體仍在 `synox/schedule` |
+| `src/synox/packs/library.py` | 「還沒裝任何工具、去哪裡裝」：`installed_tools`（不算出廠 connector）、`empty_hint`／`start_hint`（/start、/help 只給擁有者）、`install`（包 SDK 的 /help）、`status`（網頁 `/api/tools`、`/api/settings` 的 `library`）、`doctor_lines`；工具庫位置＝`config.json` 的 `packs.library`（`library_location`，不寫死路徑） |
+| `sdk/` | 單檔 SDK `synox_sdk.py`（產生的）＋`pyproject.toml`（`pip install <SYNOX>/sdk`＝`synox-sdk` 套件，版本讀 `SDK_VERSION`） |
+| `tests/fixtures/packs/` | host 測試用的 money／notes／remind（下架前的凍結複本，不是正本、不加功能） |
 | `connectors/notion`、`todoist`、`google-calendar`、`apple-reminders-caldav` | **已接上**：`kind: python`＋`capabilities: ["network"]`，只用 requests＋標準函式庫；憑證存 `pack.store.of(user)`（vault）。Notion REST `2025-09-03`（`tests/test_notion.py`）；Todoist API v1（`pack.py` 的 `Client`，`tests/test_todoist.py`）；Google 日曆走 OAuth（PKCE，不開埠）；Apple 是通用 CalDAV VTODO 用戶端（README 有可行性結論）。測試都換成假的 HTTP |
 | `src/synox/connect.py` | `python -m synox connect <pack>`（`Connect-Apple.bat`）：照 pack.json `auth.fields` 用 getpass 問帳密，存進 `pack_secrets`（`src/synox/packs/secrets.py`，保管箱的鍵 `packs/<pack>/<field>`；跟 Web UI 工具頁「連接」表單是同一份）。帳密不經聊天：Telegram 會留紀錄、`[ROUTE]` log 印指令全文 |
 | `Setup.bat`、`setup/bootstrap.ps1` | 一鍵安裝；`Start.bat`／`Stop.bat`／`Console.bat` |
-| `tests/` | pytest；`conftest.py` 的 `make_bot` 用真的 packs＋真的 Vault＋`FakeAdapter`＋SDK `BotHarness` |
+| `tests/` | pytest；`conftest.py` 的 `make_bot` 用測試用的 packs＋真的 Vault＋`FakeAdapter`＋SDK `BotHarness`。測試期間 `loader.PACK_DIRS` 一律換成 `tests/fixtures/packs`＋`connectors/`（autouse `_test_pack_dirs`；不讀 repo 的 `packs/`），伺服器版的 make_bot 先把三個測試 pack 鎖成 core。空 host 的測試在 `tests/test_empty_host.py`（設 `SYNOX_LIBS=<工具庫>` 會多跑「工具庫每個工具打包→裝進空 host」） |
 
 ## Invariants
 
@@ -127,10 +130,11 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     **這台開發機絕不執行 podman／docker、不 pull、不 build**；真機清單 `docs/handoff/container-verification.md`。
     安裝時的選擇：`admin.runtime_report`／`check_runtime`、`lock.runtime_record`／`set_runtime`、升級 `upgrade.runtime_choice`。
 
-13. **伺服器版 python pack 看信任**（PERM-8）：`loader.python_trust`——出廠的（`loader.BUNDLED` 且在內建 `packs/`／`connectors/`）＝core、
+13. **伺服器版 python pack 看信任**（PERM-8）：`loader.python_trust`——出廠的（`loader.BUNDLED` 且在內建 `packs/`／`connectors/`；
+    2026-11-12 起 `BUNDLED` 只剩 4 個 connector，**不要再把工具加回出廠**——新工具放 SYNOX_Libs、走安裝流程）＝core、
     有鎖＝`lock.trust_of`、沒鎖＝third-party；third-party 的 kind=python 群組 `owner_only`（`loader.trust_reason`，跟 PERM-7 的
     `restricted_reason` 同一個出口：item.detail、doctor／packs status 的 🔐 行）。伺服器版沒鎖又不是出廠的 pack 載入前補跑第 2 關
-    （`loader.unlocked_scan`），沒過＝`rejected`、不載入。新加出廠 pack 要同時加進 `BUNDLED`。測試裡手放的 python pack 要給成員看，
+    （`loader.unlocked_scan`），沒過＝`rejected`、不載入。測試裡手放的 python pack 要給成員看，
     先用 `conftest.trust_core(data_dir, folder)` 鎖成 core。個人版一律不受影響。
 
 14. **kind=mcp stdio 的程序一律經 `packs/mcp.py` 的 `McpPool`**（P4a）：每個 `Scope.key(pack, user)` 一個長駐子程序（預設
@@ -218,7 +222,11 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 - 權限宣告（PERM-2）：`surfaces` 沒有 `channel`（預設）→ `loader.surface_policy` 給群組 `private_only`；`data: shared` 的 WRITE／DANGER 葉節點
   在伺服器版由 `loader.shared_write_admin` 拉到角色階梯最高那一級（install 之後跑；個人版不動）。第 2 關照 `data` 檢查（`data: user` 不准裸 `pack.store`、
   `pack.secret(name)` 不給 user、`pack.path(` 要改 `pack.path_of(user, …)`（PERM-8）、cli 不准 `{data_dir}`）。`trust`（core｜third-party）不在 pack.json：安裝報告上選、`lock.approve(trust=)` 寫進鎖，
-  舊鎖沒有＝third-party；升級沒給＝沿用舊鎖的。出廠 pack 與 connector 都宣告 `surfaces: ["dm"]`、`data: user`，新寫的 pack 也要寫。
+  舊鎖沒有＝third-party；升級沒給＝沿用舊鎖的。工具庫的 pack 與 connector 都宣告 `surfaces: ["dm"]`、`data: user`，新寫的 pack 也要寫。
+- **SDK 版本（`requires.sdk`，SYNOX_Libs ADR-0001）**：`SDK_VERSION` 只寫在 `src/synox/sdk/author.py`（SYNOX 給工具的介面合約：pack.json 格式、
+  子程序的環境變數與 JSON 信封、kind=python 的 `install(app, pack)`／`Pack` 方法／`synox.packs.kit`）。改了不相容的地方就升 MINOR（0.x）並重產
+  `sdk/synox_sdk.py`（`scripts/build_synox_sdk.py`）。檢查只在 `manifest.synox_problem`（先 `requires.synox` 再 `sdk_problem`）：安裝的
+  `admin.run_gates`、`loader.load_all`（incompatible）、doctor、`/bot_status` 都經它，不要另寫一份。
   可見性的總判斷（`policy.decide`）是 PERM-1，不在這裡。
 - **每個人自己的資料一律 `pack.store.of(user)`**（notes、money）。伺服器版 → `data/users/<id>/`，vault 金鑰 HKDF(主金鑰, `user:<id>`)；
   個人版 → 共用的那一份。營運者仍讀得到（docs/security.md）；「營運者也看不到」的 SYNOX Node 是另一份規格，不在這裡做。

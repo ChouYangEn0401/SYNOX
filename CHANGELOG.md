@@ -12,6 +12,19 @@
   python pack `pack.report_status()`／`pack.peer_status()`。舊工具不受影響。
 - `config.json` 多 `runtime` 一塊（預設值與檢查在 `runtime/settings.py`；精靈寫新設定時帶上）；`doctor` 列出心跳開關、間隔、上一次。
 - 等擁有者決定：[QuestionToUser.md](QuestionToUser.md) Q6（助理自動記 soul.md）、Q7（soul.md 給對話助理）、Q8（助理讀最近對話）。
+### 工具搬到 SYNOX_Libs、主程式出廠是空的（branch `feat/libs-extraction`）
+- **移除（BREAKING）**：出廠的 `money`、`notes`、`remind` 下架，正本搬到新專案 **SYNOX_Libs（工具庫）**；`packs/` 只剩說明（安裝的落點，
+  內容不進 git）。從舊版更新的人：`/help` 裡這三個會不見，**資料沒動**，從工具庫裝回同名工具就接著用。說明與怎麼救回：
+  [legacy/builtin-packs.md](legacy/builtin-packs.md)。`loader.BUNDLED` 只剩 4 個 connector（connector 要不要也搬：[QuestionToUser.md](QuestionToUser.md) QL1）。
+- **新增 `requires.sdk`**：工具在 pack.json 宣告照哪一版 SDK 寫（例如 `">=0.2,<0.3"`）；安裝、載入、doctor 都檢查，不合＝不裝、不載入、說原因。
+  `SDK_VERSION` 0.1.0 → **0.2.0**；`synox-sdk init` 自動寫；examples 都補上。`sdk/` 可以 `pip install <SYNOX>/sdk`（`synox-sdk` 套件）。
+- **新增「還沒裝任何工具」提示**（`src/synox/packs/library.py`）：`/start`、`/help`（只給擁有者）、`doctor`（「• 工具：…」一行）、精靈完成頁、
+  網頁 `/api/tools`／`/api/settings` 的 `library` 欄位（工具頁、設定頁要不要顯示由前端決定，這次沒改 `static/`）。
+  工具庫的位置寫在 `config.json` 的 `packs.library`（資料夾或網址；不寫死路徑），`doctor` 會檢查資料夾在不在。
+- 測試：`tests/fixtures/packs/` 是三個工具下架前的凍結複本（host 測試用）；conftest 測試期間把 `loader.PACK_DIRS` 換成它＋`connectors/`。
+  新的 `tests/test_empty_host.py`（空 host、只有 connector、什麼都沒有、從 `.synoxpack` 裝進空 host；設 `SYNOX_LIBS` 會多跑「工具庫每個工具都裝得進來」）、
+  `tests/test_sdk_requires.py`。記帳、筆記本身的測試搬到 SYNOX_Libs。
+- 要你決定的事：[QuestionToUser.md](QuestionToUser.md) QL1～QL5（connector 要不要也搬、舊使用者怎麼接回、SYNOXPacks 怎麼處理、工具壓縮檔怎麼發、提醒要不要獨立）。
 
 ### 合併進來的（安裝流程的真機除錯）
 - 從 `origin/debug/setup-python-telegram` 合併（`--no-ff`，沒有衝突）：安裝程式先問語言（12 種）、`Uninstall.bat`、bot 步驟可以跳過

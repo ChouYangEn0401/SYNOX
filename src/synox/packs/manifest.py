@@ -13,7 +13,8 @@ pack.json 的格式與檢查（docs/pack-format.md 是人看的版本）。安�
       "cli": {"argv": ["{python}", "./x.py"], "cwd": ".", "commands": [...]},   kind=cli
       "auth": "oauth",                           kind=connector：oauth｜token｜caldav（v2 寫成 {"type": …}）
       "requires": {"pip": [], "config": [], "env": {},  env：要有的環境變數（也是 cli 子程序唯一看得到的密鑰名）
-                   "synox": ">=0.3"},              synox：SYNOX 最低版本（不合＝不載入，doctor 說明）
+                   "synox": ">=0.3",               synox：SYNOX 最低版本（不合＝不載入，doctor 說明）
+                   "sdk": ">=0.2,<0.3"},           sdk：照哪一版 SDK 介面寫的（對 synox.sdk.author.SDK_VERSION；不合＝不裝、不載入）
       "skill": "SKILL.md",
       "storage": "vault",                        vault（pack.store 落地是密文）｜plain
       "web": {"panel": "panel.html",             選用：Web UI 工具頁的面板（pack 資料夾裡的一個 .html）
@@ -755,15 +756,15 @@ def _check_v2(raw: dict, kind, problems: List[str]) -> dict:
             "integrity": integrity, "auth_info": auth_info, "mcp": mcp}
 
 
-def parse_spec(spec) -> List[tuple]:
-    """requires.synox 的字串 → [(運算子, (主, 次, 修))…]；寫錯丟 ValueError。"""
+def parse_spec(spec, key: str = "synox") -> List[tuple]:
+    """requires.synox／requires.sdk 的字串 → [(運算子, (主, 次, 修))…]；寫錯丟 ValueError。"""
     if not isinstance(spec, str) or not spec.strip():
-        raise ValueError("requires.synox 要是版本條件字串，例如 \">=0.3\"")
+        raise ValueError(f"requires.{key} 要是版本條件字串，例如 \">=0.3\"")
     out = []
     for part in spec.split(","):
         m = _SPEC_RE.match(part)
         if m is None:
-            raise ValueError(f"requires.synox 的 {part.strip()!r} 看不懂（寫成 >=0.3、<1.0 這樣，可以用逗號接好幾個）")
+            raise ValueError(f"requires.{key} 的 {part.strip()!r} 看不懂（寫成 >=0.3、<1.0 這樣，可以用逗號接好幾個）")
         nums = [int(x) for x in m.group(2).split(".")]
         out.append((m.group(1) or ">=", tuple(nums + [0] * (3 - len(nums)))))
     return out
@@ -778,23 +779,42 @@ _OPS = {">=": lambda a, b: a >= b, ">": lambda a, b: a > b, "<=": lambda a, b: a
         "<": lambda a, b: a < b, "==": lambda a, b: a == b, "!=": lambda a, b: a != b}
 
 
-def synox_problem(m: "Manifest", current: Optional[str] = None) -> Optional[str]:
-    """requires.synox 跟這台的 SYNOX 版本合不合；不合回一句給人看的話，合（或沒寫）回 None。"""
+def synox_problem(m: "Manifest", current: Optional[str] = None, sdk: Optional[str] = None) -> Optional[str]:
+    """requires.synox（SYNOX 本體的版本）與 requires.sdk（SYNOX 給工具的介面合約 SDK_VERSION，ADR：SYNOX_Libs
+    docs/adr/0001）跟這台合不合；不合回一句給人看的話，都合（或沒寫）回 None。安裝（第 1、2 關）、載入、doctor 都用這個。"""
     spec = (m.requires or {}).get("synox")
+    if spec:
+        if current is None:
+            from synox import __version__ as current
+        problem = _range_problem(spec, current, "synox")
+        if problem:
+            return problem
+    return sdk_problem(m, sdk)
+
+
+def sdk_problem(m: "Manifest", current: Optional[str] = None) -> Optional[str]:
+    """requires.sdk 跟這台的 SDK_VERSION 合不合（沒寫＝不限）。"""
+    spec = (m.requires or {}).get("sdk")
     if not spec:
         return None
     if current is None:
-        from synox import __version__ as current
+        from synox.sdk.author import SDK_VERSION as current
+    return _range_problem(spec, current, "sdk")
+
+
+def _range_problem(spec: str, current: str, key: str) -> Optional[str]:
     have = _version_tuple(current)
     try:
-        clauses = parse_spec(spec)
+        clauses = parse_spec(spec, key)
     except ValueError as e:
         return str(e)
     if all(_OPS[op](have, want) for op, want in clauses):
         return None
     too_old = any(op in (">=", ">", "==") and have < want for op, want in clauses)
-    hint = "先更新 SYNOX（重跑 Setup.bat 或 git pull）再用這個 pack" if too_old else         "這個 pack 還沒支援這一版的 SYNOX，請向 pack 的作者要新版"
-    return f"這個 pack 要 SYNOX {spec.strip()}，這台是 {current}：{hint}"
+    hint = "先更新 SYNOX（重跑 Setup.bat 或 git pull）再用這個 pack" if too_old else \
+        "這個 pack 還沒支援這一版的 SYNOX，請向 pack 的作者要新版"
+    what = "SYNOX" if key == "synox" else "SYNOX SDK"
+    return f"這個 pack 要 {what} {spec.strip()}，這台是 {current}：{hint}"
 
 
 def secret_env_names(m: "Manifest") -> List[str]:
@@ -819,11 +839,12 @@ def _check_requires(requires: dict, problems: List[str]) -> None:
         names = list(env) if isinstance(env, (dict, list)) else None
         if names is None or not all(isinstance(n, str) and ENV_NAME_RE.match(n) for n in names):
             problems.append("requires.env 要是環境變數名字的清單或物件（英數字、_）")
-    if "synox" in requires:
-        try:
-            parse_spec(requires["synox"])
-        except ValueError as e:
-            problems.append(str(e))
+    for key in ("synox", "sdk"):
+        if key in requires:
+            try:
+                parse_spec(requires[key], key)
+            except ValueError as e:
+                problems.append(str(e))
 
 
 # ── 權限宣告：surfaces、data（PERM-2） ─────────────────────────────────
