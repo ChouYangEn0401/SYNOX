@@ -84,7 +84,10 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 7. **測試不綁埠、不連網、不開 Telegram、不開 `claude`**；requests 用假的 session，`claude` 用假的 runner/which；
    Web UI 測 `WebUI.handle()`／`route()`，不開 `ThreadingHTTPServer`。
 8. **repo 裡沒有真名、token、Telegram id 或個人資料**；`config.json`、`data/` 在 `.gitignore`。範例一律佔位字。
-9. **Web UI 只綁 127.0.0.1**（`web/server.py` 的 `HOST`，不從 config 讀）；對外是營運者的反向代理＋TLS。每個 API 用 session 的那個人算權限，
+9. **Web UI 只綁 127.0.0.1**（`web/server.py` 的 `HOST`，不從 config 讀）；對外是營運者的反向代理＋TLS。
+   唯一例外只在 `web/server.py` 的 `bind_host`：SYNOX 的容器裡（`SYNOX_IN_CONTAINER=1`＋`CONTAINER_MARKERS`、非 Windows）且
+   `SYNOX_WEB_BIND=0.0.0.0` 才綁容器自己的 0.0.0.0（compose 只發佈到宿主 127.0.0.1，[docker.md](docker.md)）；其他值＝`BindError`、網頁不開。
+   不要再加別的改綁方式，也不要讓 config.json 決定綁哪裡。每個 API 用 session 的那個人算權限，
    非 GET 要 CSRF header；網頁的字一律 `textContent`，伺服器產生的 HTML 一律 escape；沒有外部資源、沒有 inline 事件（nonce CSP）。
    網頁送出的指令與按鈕一律經 `dispatcher.handle`（同一個 authorize），按鈕的 callback_data 還要真的在那則訊息上。
 
