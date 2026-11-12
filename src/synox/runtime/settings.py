@@ -4,8 +4,10 @@ config.json 的 `runtime` 這一塊：預設值與檢查（docs/adr/0001）。�
     "runtime": {
       "heartbeat": {"enabled": true, "interval_min": 45, "quiet_hours": "23:00-08:00",
                     "daily_max_notify": 4, "daily_max_calls": 40},
-      "mother": {"enabled": true, "memory_turns": 20, "read_chat": true, "soul_append": true}
+      "mother": {"enabled": true, "memory_turns": 20, "read_chat": true, "soul_append": true, "soul_review": false}
     }
+
+soul_review（docs/adr/0004）：true＝常駐助理想記進 soul.md 的每一行都先等你在主控面板按；false＝沒有疑慮的直接加。
 """
 
 from __future__ import annotations
@@ -20,7 +22,7 @@ MAX_INTERVAL_MIN = 1440
 DEFAULT_RUNTIME = {
     "heartbeat": {"enabled": True, "interval_min": 45, "quiet_hours": "23:00-08:00",
                   "daily_max_notify": 4, "daily_max_calls": 40},
-    "mother": {"enabled": True, "memory_turns": 20, "read_chat": True, "soul_append": True},
+    "mother": {"enabled": True, "memory_turns": 20, "read_chat": True, "soul_append": True, "soul_review": False},
 }
 
 _HHMM = r"([01]\d|2[0-3]):([0-5]\d)"
@@ -105,7 +107,7 @@ def parse(raw) -> dict:
     parse_quiet(hb["quiet_hours"])
     _int(hb, "daily_max_notify", "heartbeat", 0, 48)
     _int(hb, "daily_max_calls", "heartbeat", 0, 200)
-    for key in ("enabled", "read_chat", "soul_append"):
+    for key in ("enabled", "read_chat", "soul_append", "soul_review"):
         _bool(mother, key, "mother")
     _int(mother, "memory_turns", "mother", 0, 100)
     return out
