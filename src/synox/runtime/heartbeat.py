@@ -94,13 +94,14 @@ class Snapshot(NamedTuple):
 class Heartbeat:
 
     def __init__(self, app, loop, mother, *, settings: dict, read_chat: bool = True, soul_append: bool = True,
-                 now: Callable[[], datetime] = datetime.now):
+                 now: Callable[[], datetime] = datetime.now, ledger=None):
         self.app = app
         self.loop = loop
         self.mother = mother
         self.settings = dict(settings)
         self.read_chat = read_chat
         self.soul_append = soul_append
+        self.ledger = ledger                   # soul 帳本（docs/adr/0005）；None＝照舊直接 append_notes
         self._now = now
         self.activator = None                  # runtime.install 掛上：每次巡先把留給心跳的連動做掉（docs/adr/0004）
         self._lock = threading.Lock()
@@ -301,12 +302,14 @@ class Heartbeat:
         parts = []
         if verdict.soul_lines and self.soul_append and self.mother.soul is not None:
             try:
-                added = self.mother.soul.append_notes(verdict.soul_lines, by="mother")
+                added, waiting = self._soul_lines(verdict.soul_lines)
             except Exception as e:
                 logging.warning("[HEARTBEAT] soul append skipped: %s", e)
-                added = []
+                added, waiting = [], []
             if added:
                 parts.append(f"記進 soul.md {len(added)} 行")
+            if waiting:
+                parts.append(f"{len(waiting)} 行想記的等你確認")
         text = verdict.notify.strip()
         if not text:
             return R_NOTHING + ("（" + "、".join(parts) + "）" if parts else "")
@@ -321,6 +324,24 @@ class Heartbeat:
             self._notified_failures = dict(failures)
         self.app.notify_owner(f"🫀 常駐助理：{text}")
         return f"通知了你：{text}"
+
+    def _soul_lines(self, lines: List[str]):
+        """常駐助理想記的行 →（直接加進去的, 等擁有者確認的）。有 soul 帳本就過它的規則（docs/adr/0005）。"""
+        if self.ledger is None:
+            return self.mother.soul.append_notes(lines, by="mother"), []
+        out = self.ledger.propose(lines, by="mother", source="heartbeat", evidence=self._owner_said())
+        return out.added, out.waiting
+
+    def _owner_said(self) -> Optional[List[str]]:
+        """擁有者自己最近說的話（不含對話助理的回答）：給 soul 帳本記「這一條看不看得出是他說的」。不讓看對話＝None。"""
+        agent = self.app.extras.get("synox_agent")
+        if not self.read_chat or agent is None:
+            return None
+        try:
+            history = agent.latest_history(self.app.owner_id)
+        except Exception:
+            return None
+        return [str(m.content) for m in history[-2 * CHAT_TURNS:] if m.role == "user"]
 
     def _hold_reason(self, text: str, manual: bool, failures: Optional[Dict[str, str]] = None, *,
                      news: bool = True) -> str:

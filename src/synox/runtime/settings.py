@@ -4,7 +4,7 @@ config.json 的 `runtime` 這一塊：預設值與檢查（docs/adr/0001）。�
     "runtime": {
       "heartbeat": {"enabled": true, "interval_min": 45, "quiet_hours": "23:00-08:00",
                     "daily_max_notify": 4, "daily_max_calls": 40},
-      "mother": {"enabled": true, "memory_turns": 20, "read_chat": true, "soul_append": true},
+      "mother": {"enabled": true, "memory_turns": 20, "read_chat": true, "soul_append": true, "soul_review": false},
       "activator": {"enabled": true, "max_depth": 5, "max_chain_actions": 20, "max_fanout": 10,
                     "budget_window_min": 10, "budget_max_actions": 60, "rules": [ … ]}
     }
@@ -13,6 +13,8 @@ activator（連動，docs/adr/0004）的 rules 每一條（只收資料，不收
     {"id": "diary-image-ask", "on": "pack.diary", "state": "ok", "from": "failed", "tag": "diary-image",
      "run_task": "system.schedule" 或 "notify": "一句話",  "timing": "now" 或 "heartbeat",
      "cooldown_s": 0, "max_per_hour": 30, "enabled": true, "name": "給人看的名字"}
+
+soul_review（docs/adr/0005）：true＝常駐助理想記進 soul.md 的每一行都先等你在主控面板按；false＝沒有疑慮的直接加。
 """
 
 from __future__ import annotations
@@ -27,7 +29,7 @@ MAX_INTERVAL_MIN = 1440
 DEFAULT_RUNTIME = {
     "heartbeat": {"enabled": True, "interval_min": 45, "quiet_hours": "23:00-08:00",
                   "daily_max_notify": 4, "daily_max_calls": 40},
-    "mother": {"enabled": True, "memory_turns": 20, "read_chat": True, "soul_append": True},
+    "mother": {"enabled": True, "memory_turns": 20, "read_chat": True, "soul_append": True, "soul_review": False},
     "activator": {"enabled": True, "max_depth": 5, "max_chain_actions": 20, "max_fanout": 10,
                   "budget_window_min": 10, "budget_max_actions": 60, "rules": []},
 }
@@ -129,7 +131,7 @@ def parse(raw) -> dict:
     parse_quiet(hb["quiet_hours"])
     _int(hb, "daily_max_notify", "heartbeat", 0, 48)
     _int(hb, "daily_max_calls", "heartbeat", 0, 200)
-    for key in ("enabled", "read_chat", "soul_append"):
+    for key in ("enabled", "read_chat", "soul_append", "soul_review"):
         _bool(mother, key, "mother")
     _int(mother, "memory_turns", "mother", 0, 100)
     act = out["activator"]

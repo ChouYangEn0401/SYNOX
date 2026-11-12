@@ -205,7 +205,7 @@ class RoomAgent(AgentLoop):
             lines += ["", textproto.system_snippet(tools)]
         return "\n".join(lines)
 
-    def soul_block(self, user, chat_id: int, nonce: str) -> str:
+    def soul_block(self, user, chat_id: int, nonce: str, query: str = "") -> str:
         """公開頻道永遠不放 soul.md（擁有者的私人偏好；docs/adr/0002）。"""
         return ""
 

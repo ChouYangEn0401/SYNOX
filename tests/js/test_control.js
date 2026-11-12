@@ -198,6 +198,91 @@ test("client errors carry the status and the server's own words; network failure
   await assert.rejects(c.resetMemory(), (e) => e.status === 500 && C.humanError(e).indexOf("500") < 0);
 });
 
+// ── 助理筆記（soul 帳本，docs/adr/0005）──────────────────────────────
+
+test("notes client follows the API contract (paths, bodies, CSRF on writes only)", async () => {
+  const f = fakeFetch([{ notes: [] }, { notes: [] }, { notes: [] }, { done: false }, { ok: true }, { format: "x" }]);
+  const c = C.makeClient(f, () => "tok123");
+  await c.notes();
+  await c.proposal("p-1", "replace");
+  await c.note("abc123", "retire");
+  await c.forget("某個詞", false);
+  await c.tidy();
+  await c.exportSoul();
+  assert.deepStrictEqual(f.calls.map((x) => [x.method, x.url, x.body]), [
+    ["GET", "/api/runtime/soul/notes", undefined],
+    ["POST", "/api/runtime/soul/proposal", { id: "p-1", action: "replace" }],
+    ["POST", "/api/runtime/soul/note", { id: "abc123", action: "retire" }],
+    ["POST", "/api/runtime/soul/forget", { text: "某個詞", confirm: false }],
+    ["POST", "/api/runtime/soul/tidy", {}],
+    ["GET", "/api/runtime/soul/export", undefined]
+  ]);
+  f.calls.forEach((x) => {
+    assert.strictEqual(x.headers["X-SYNOX-CSRF"], x.method === "GET" ? undefined : "tok123");
+  });
+});
+
+test("normalizeNotes survives missing / broken fields", () => {
+  const n = C.normalizeNotes(null);
+  assert.deepStrictEqual([n.review, n.notes, n.pending, n.archive], [false, [], [], []]);
+  assert.strictEqual(n.budget.notes_max, 0);
+  const m = C.normalizeNotes({ notes: [null, { text: "沒有 id" }, { id: 7, text: "- 好" }], pending: "壞的",
+                               archive: [{ id: "a-1" }], budget: { chars: "12" } });
+  assert.strictEqual(m.notes.length, 1);
+  assert.deepStrictEqual(m.notes[0], { id: "7", text: "- 好", by: "owner", tracked: false, added_at: null,
+                                       confirmed_at: null, stale: false, grounded: null });
+  assert.strictEqual(m.archive[0].text, "");
+  assert.strictEqual(m.budget.chars, 12);
+});
+
+test("notesModel: proposals say why and offer only the allowed buttons", () => {
+  const v = C.notesModel({
+    review: false,
+    notes: [
+      { id: "n1", text: "- 喜歡簡短", by: "mother", tracked: true, added_at: minutes(-2 * 1440),
+        confirmed_at: minutes(-60), stale: false, grounded: true },
+      { id: "n2", text: "- 很久以前記的", by: "mother", tracked: true, added_at: minutes(-200 * 1440),
+        confirmed_at: minutes(-200 * 1440), stale: true, grounded: false },
+      { id: "n3", text: "- 我自己加的", by: "owner", tracked: false }
+    ],
+    pending: [
+      { id: "p1", kind: "add", text: "- 新的一條", why: ["有網址或網域", "跟現有的一條很像，可能是更新"],
+        related: "- 喜歡簡短", can_replace: true, grounded: false, at: minutes(-5) },
+      { id: "p2", kind: "add", text: "- 另一條", why: ["你設定了每一條都先問你"], related: "", can_replace: false },
+      { id: "p3", kind: "retire", text: "- 很久以前記的", why: ["90 天沒有再確認過，還對嗎？"] }
+    ],
+    archive: [{ id: "a1", text: "- 舊的", retired_at: minutes(-30), reason: "被新的一條取代", replaced_by: "- 新的" }],
+    budget: { chars: 2600, max_chars: 6000, prompt_chars: 2400, prompt_max: 2000, notes: 3, notes_max: 40 }
+  }, NOW);
+  assert.strictEqual(v.usage, "soul.md 2600／6000 字・助理筆記 3／40 條");
+  assert.ok(v.over && /2000 字/.test(v.overText) && /2400/.test(v.overText));
+  assert.strictEqual(v.pendingTitle, "等你確認（3）");
+  assert.deepStrictEqual(v.pending[0].actions.map((a) => a[0]), ["approve", "replace", "reject"]);
+  assert.deepStrictEqual(v.pending[1].actions.map((a) => a[0]), ["approve", "reject"]);     // 沒有可以取代的就不給那顆
+  assert.deepStrictEqual(v.pending[2].actions, [["approve", "收起來"], ["reject", "留著"]]);
+  assert.strictEqual(v.pending[0].why, "為什麼先問你：有網址或網域；跟現有的一條很像，可能是更新");
+  assert.strictEqual(v.pending[0].related, "很像的現有一條：- 喜歡簡短");
+  assert.ok(v.pending[0].warn && !v.pending[1].warn);
+  assert.strictEqual(v.notes[0].meta, "常駐助理加的・11/10 14:05（2 天前）・上次確認 1 小時前");
+  assert.deepStrictEqual(v.notes[0].badges, []);
+  assert.deepStrictEqual(v.notes[1].badges, ["很久沒確認", "看不出是你說的"]);
+  assert.strictEqual(v.notes[2].meta, "你寫的或以前就有的");
+  assert.strictEqual(v.archiveTitle, "收起來的（1）");
+  assert.ok(/被新的一條取代/.test(v.archive[0].meta) && /換成：- 新的/.test(v.archive[0].meta));
+  const empty = C.notesModel({ review: true }, NOW);
+  assert.strictEqual(empty.empty, "助理還沒有記任何事。");
+  assert.ok(/每一條都先問你/.test(empty.mode) && !empty.over && empty.pendingTitle === "");
+});
+
+test("forgetSummary: says what goes, and that the owner's own lines stay", () => {
+  const s = C.forgetSummary({ notes: 2, pending: 1, archive: 0, audit: 3, patrol: 1, owner_lines: 1 }, "日文");
+  assert.ok(s.any && /助理筆記 2 條/.test(s.text) && /等你確認的 1 則/.test(s.text) && /回不來/.test(s.text));
+  assert.ok(!/收起來的/.test(s.text) && /不會動/.test(s.text));
+  const none = C.forgetSummary({ notes: 0, owner_lines: 2 }, "日文");
+  assert.ok(!none.any && /沒有找到/.test(none.text) && /2 行/.test(none.text));
+  assert.strictEqual(C.forgetSummary(null, "x").any, false);
+});
+
 test("activator card: old backend without it hides the card; broken fields do not break it", () => {
   assert.strictEqual(C.normalizeStatus({}).activator, null);
   assert.strictEqual(C.viewModel({}, NOW).activator, null);

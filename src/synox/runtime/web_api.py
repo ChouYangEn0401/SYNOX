@@ -12,6 +12,7 @@ import logging
 import re
 
 from synox import runtime as runtime_mod
+from synox.runtime.ledger import LedgerError
 from synox.runtime.loop import iso
 from synox.runtime.soul import SoulError
 
@@ -51,6 +52,10 @@ def route(ui, user, method: str, path: str, body: bytes):
             return _json(200, rt.status())
         if path == "/api/runtime/soul":
             return soul_get(rt)
+        if path == "/api/runtime/soul/notes":
+            return ledger_call(rt, lambda ledger: ledger.view())
+        if path == "/api/runtime/soul/export":
+            return ledger_call(rt, lambda ledger: ledger.export())
         m = TASK_LOG_RE.match(path)
         if m:
             task = rt.loop.task(m.group(1))
@@ -78,6 +83,8 @@ def route(ui, user, method: str, path: str, body: bytes):
     if path == "/api/runtime/mother/reset-memory":
         rt.mother.reset_memory()
         return _json(200, {"ok": True})
+    if path in SOUL_POSTS:
+        return SOUL_POSTS[path](rt, data)
     if path.startswith("/api/runtime/activator/"):
         return activator_post(rt, path)
     return _err(404, "沒有這個 API。")
@@ -162,3 +169,69 @@ def soul_put(rt, data: dict):
     except SoulError as e:
         return _err(400, str(e))
     return _json(200, {"ok": True, "text": saved["text"], "updated_at": iso(saved["updated_at"])})
+
+
+# ── soul 帳本（docs/adr/0005）：助理筆記的來歷、提議、收起來的、整理、遺忘、匯出 ──────────
+
+def ledger_call(rt, fn):
+    """叫 soul 帳本做一件事，回它給的 dict。保管箱沒開＝503；其他說得出口的錯＝400。內容不寫 log。"""
+    ledger = getattr(rt, "ledger", None)
+    if ledger is None or not ledger.available:
+        return _err(503, "保管箱沒有打開，助理筆記讀寫不了（python -m synox doctor 看原因）。")
+    try:
+        return _json(200, fn(ledger))
+    except LedgerError as e:
+        return _err(400, str(e))
+    except SoulError as e:
+        return _err(503, str(e))
+
+
+def _text_field(data: dict, key: str):
+    """(字串, 錯誤 Resp 或 None)：body 裡那個欄位要是非空字串。"""
+    value = data.get(key)
+    if not isinstance(value, str) or not value.strip():
+        return "", _err(400, f"{key} 要是字串。")
+    return value.strip(), None
+
+
+def proposal_post(rt, data: dict):
+    pid, bad = _text_field(data, "id")
+    if bad:
+        return bad
+    action = data.get("action")
+    if action not in ("approve", "replace", "reject"):
+        return _err(400, "action 要是 approve、replace 或 reject。")
+    if action == "reject":
+        return ledger_call(rt, lambda ledger: ledger.reject(pid))
+    return ledger_call(rt, lambda ledger: ledger.approve(pid, replace=action == "replace"))
+
+
+def note_post(rt, data: dict):
+    item, bad = _text_field(data, "id")
+    if bad:
+        return bad
+    action = data.get("action")
+    if action not in ("retire", "confirm", "restore"):
+        return _err(400, "action 要是 retire、confirm 或 restore。")
+    return ledger_call(rt, lambda ledger: getattr(ledger, action)(item))
+
+
+def forget_post(rt, data: dict):
+    text, bad = _text_field(data, "text")
+    if bad:
+        return bad
+    confirm = data.get("confirm", False)
+    if not isinstance(confirm, bool):
+        return _err(400, "confirm 要是 true 或 false。")
+    return ledger_call(rt, lambda ledger: ledger.forget(text, confirm=confirm))
+
+
+def tidy_post(rt, data: dict):
+    def run(ledger):
+        result = ledger.tidy()
+        return {"ok": True, "message": result["summary"], "notes": ledger.view()}
+    return ledger_call(rt, run)
+
+
+SOUL_POSTS = {"/api/runtime/soul/proposal": proposal_post, "/api/runtime/soul/note": note_post,
+              "/api/runtime/soul/forget": forget_post, "/api/runtime/soul/tidy": tidy_post}
