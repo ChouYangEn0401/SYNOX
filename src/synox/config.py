@@ -19,6 +19,8 @@ SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、�
                                                （synox/runtime/settings.py；docs/adr/0001）
       "presentation": {"enabled": false}       AI 回覆先經呈現層（Markdown → 各通道的格式）再送；預設關＝原樣送
                                                （synox/present；docs/presentation.md）
+      "health": {"enabled": true, "consecutive": 3, …}    工具健康：門檻、冷卻、試用次數（選填；synox/health/settings.py、
+                                               docs/tool-health.md）
     }
 - 多個 Discord bot：channels.discord.bots.<名字> = {"token": "vault:…", "surface": "dm", "packs": "all", "ai": true}
   （synox/discord/bots.py 解析與檢查；舊寫法＝bots.default）。
@@ -41,6 +43,7 @@ from typing import Optional
 
 from isdtelekit.host.config import BotConfig, ConfigError
 
+from synox.health import settings as health_settings
 from synox.policy import parse_policy
 from synox.runtime import settings as runtime_settings
 
@@ -85,6 +88,7 @@ class SynoxConfig(BotConfig):
     policy: dict = field(default_factory=lambda: parse_policy(None))     # 角色能力上限（synox/policy.py）
     runtime: dict = field(default_factory=runtime_settings.defaults)    # 心跳、常駐助理（synox/runtime/settings.py）
     presentation: dict = field(default_factory=lambda: dict(DEFAULT_PRESENTATION))   # 呈現層（synox/present）
+    health: dict = field(default_factory=health_settings.defaults)      # 工具健康：門檻、冷卻（synox/health/settings.py）
 
     @property
     def server(self) -> bool:
@@ -134,11 +138,15 @@ class SynoxConfig(BotConfig):
         except runtime_settings.RuntimeConfigError as e:
             raise ConfigError(f"config.json：{e}")
         presentation = parse_presentation(raw.get("presentation"))
+        try:
+            health = health_settings.parse(raw.get("health"))
+        except health_settings.HealthConfigError as e:
+            raise ConfigError(f"config.json：{e}")
         return cls(bot_token=base.bot_token, owner_id=base.owner_id,
                    poll_interval_seconds=base.poll_interval_seconds, data_dir=data_dir,
                    stepup_minutes=base.stepup_minutes, raw=dict(raw), llm=llm, vault=vault, packs=packs, mode=mode,
                    root=root, web=web, ai_member_monthly_usd=max(0.0, member_usd), policy=policy,
-                   runtime=runtime, presentation=presentation)
+                   runtime=runtime, presentation=presentation, health=health)
 
     @classmethod
     def load(cls, path: Optional[str] = None, *, require_token: bool = True,

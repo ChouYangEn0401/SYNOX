@@ -39,7 +39,7 @@ synox-sdk zip .                                                 → dist/hello-0
 
 ## SDK 版本（`requires.sdk`）
 
-SDK＝SYNOX 給工具的**介面合約**，有自己的版本號 `SDK_VERSION`（現在 `0.2.0`，寫在 `src/synox/sdk/author.py`，單檔版、`pip` 套件都讀它）。
+SDK＝SYNOX 給工具的**介面合約**，有自己的版本號 `SDK_VERSION`（現在 `0.2.1`，寫在 `src/synox/sdk/author.py`，單檔版、`pip` 套件都讀它）。
 合約包含：pack.json 的格式、子程序工具拿到的環境變數與 JSON 信封（`synox_sdk.py`）、kind=python 工具的 `install(app, pack)` 介面
 （`pack.store`／`store.of(user)`／`path_of`／`secret`／`web_route`、`synox.packs.kit`、`isdtelekit.core.registry` 的 `Field`／`READ`／`WRITE`／`DANGER`）。
 
@@ -51,6 +51,8 @@ SDK＝SYNOX 給工具的**介面合約**，有自己的版本號 `SDK_VERSION`�
 
 SYNOX 安裝時（第 1、2 關）、載入時、doctor 都會對這台的 `SDK_VERSION`：不在範圍內＝不裝、不載入，並說要哪一版。
 `synox-sdk init`／`init --from` 會自動寫（`synox_sdk.SDK_REQUIRES`）。合約有不相容的改動時 `SDK_VERSION` 升 MINOR（0.x）或 MAJOR（1.x 以後）。
+只**加**新 API、舊的照舊能用（例如 0.2.1 的 `fail()`）：0.x 升最後一段（PATCH），`requires.sdk` 的範圍不變（`>=0.2,<0.3` 的工具照樣裝得上）；
+1.x 以後升 MINOR。用了新 API 的工具帶著自己那一份 `synox_sdk.py`（單檔版），所以不用另外要求這台的 SDK 版本。
 工具庫（SYNOX_Libs）打包前也檢查每個工具都寫了、而且跟打包用的 SYNOX 相容（設計見 SYNOX_Libs 的 `docs/adr/0001-tool-library-and-sdk-dependency.md`）。
 
 ## @tool
@@ -90,10 +92,44 @@ SYNOX 安裝時（第 1、2 關）、載入時、doctor 都會對這台的 `SDK_
 | `return {"count": 3}`（dict、list、數字） | `{"ok": true, "data": {"count": 3}}` | 0 |
 | `return Ok("共 3 筆", {"count": 3})` | `{"ok": true, "message": "共 3 筆", "data": {...}}` | 0 |
 | `raise ToolError("not_found", "找不到這筆")` | `{"ok": false, "error": "找不到這筆", "code": "not_found"}` | 1 |
+| `fail("upstream_changed", "格式變了", remedy="needs_update")` | `{"ok": false, "error": "格式變了", "code": "upstream_changed", "failure": {"v": 1, "remedy": {"kind": "needs_update"}}}`（下一節） | 1 |
 | `raise Confirm("要刪 3 筆")`（或 return） | `{"ok": true, "needs_confirm": true, "summary": "要刪 3 筆", "confirm_token": "…"}` | 0 |
-| 其他例外 | `{"ok": false, "code": "internal", "error": "RuntimeError: …"}`（traceback 印到 stderr） | 1 |
+| 其他例外 | `{"ok": false, "code": "unclassified", "error": "RuntimeError: …", "failure": {"v": 1, "diag": {"exception": "RuntimeError"}}}`（traceback 印到 stderr；0.2.0 以前的 code 是 `internal`，SYNOX 兩個都認得） | 1 |
 
 SYNOX 把 `message` 直接回給使用者；沒有就把 `data` 攤平成幾行。`print()` 的 log 沒關係：SYNOX 只看**最後一行**。
+
+## fail()：失敗信封 v1（SDK 0.2.1 起）
+
+```python
+from synox_sdk import fail, tool
+
+@tool("READ")
+def price(item: str):
+    """查價格。"""
+    try:
+        return fetch(item)["price"]
+    except KeyError as e:
+        fail("upstream_changed", "資料來源的回傳格式變了，解析不出價格。",
+             remedy={"kind": "needs_update", "id": "upgrade", "summary": "要換成 1.3.0 以上的版本。"},
+             diag={"tool_version": "1.2.0", "upstream": f"KeyError: {e}"})
+```
+
+`fail(code, reason, *, retry_after=None, remedy=None, scope=None, diag=None)` 丟 `ToolFailure`（`ToolError` 的子類別：舊的
+`except ToolError` 照樣接得到）→ 印 v1 信封、結束碼 1。`--mcp` 模式＝`isError: true`，信封放在 `structuredContent`（**不帶 diag**，
+diag 改印到 stderr）。舊的 `raise ToolError(code, message)` 照舊（信封只有 `code`，SYNOX 依類別碼補預設值）。
+
+| 參數 | 說明 |
+|---|---|
+| `code` | 穩定的類別碼（`synox_sdk.FAILURE_CODES`）：`bad_input`、`not_found`、`needs_config`、`config_invalid`、`auth_missing`、`auth_expired`、`permission_denied`、`rate_limited`、`network_unreachable`、`upstream_unavailable`、`upstream_changed`、`dependency_missing`、`dependency_outdated`、`unsupported_platform`、`resource_exhausted`、`timeout`、`internal_bug`、`unclassified`。不在表上＝`unclassified`（你寫的碼留在 `diag.code`） |
+| `reason` | 給人看的原因（300 字內；不要放密碼，SYNOX 也會再遮一次像密鑰的片段） |
+| `retry_after` | 幾秒後可以再試（被限流時） |
+| `remedy` | 補救建議：種類字串（`auto_fixable`｜`needs_update`｜`needs_config`｜`needs_owner`｜`none`）或 `{"kind", "id", "summary"}`。**只是建議**：SYNOX 這一版不執行任何補救；`summary` 看起來像指令（命令列、網址）會整段換成「請看工具說明」 |
+| `scope` | `input`（參數錯）｜`user`（只跟這個人有關，例如他的憑證）｜`tool`｜`pack`｜`environment`；沒寫＝SYNOX 依類別碼補 |
+| `diag` | 給擁有者與 log 的細節（例如 `tool_version`、`upstream`）；每個值 200 字、整包 1 KB，**不會給 AI** |
+
+SYNOX 怎麼用它（同一個根因連續失敗就暫時把工具從 AI 的清單拿掉、冷卻、用 pack.json `health.check` 重新檢查）：[tool-health.md](tool-health.md)。
+`needs_config`、`dependency_missing`、`auth_expired`、`remedy.kind=needs_update` 是「要人處理」：SYNOX 收到一次就先把工具停下來，
+所以只在真的要人處理時才用。
 
 ## 確認來回：看了資料才知道危險
 
