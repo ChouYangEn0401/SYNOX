@@ -163,7 +163,8 @@ def test_cli_data_shared_and_moneybook_pass(tmp_path):
     assert m.data == "user" and problems == []
 
 
-@pytest.mark.parametrize("folder", ["packs/notes", "packs/money", "packs/remind", "connectors/notion",
+@pytest.mark.parametrize("folder", ["tests/fixtures/packs/notes", "tests/fixtures/packs/money",   # 下架前內建版本的複本
+                                    "tests/fixtures/packs/remind", "connectors/notion",
                                     "connectors/todoist", "connectors/google-calendar",
                                     "connectors/apple-reminders-caldav", "tests/fixtures/moneybook_pack"])
 def test_shipped_packs_declare_scope_and_pass_new_scan(folder):
