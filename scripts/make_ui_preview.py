@@ -182,8 +182,11 @@ TASK_LOGS = {
 SOUL = ("# 關於我\n- 叫我小明\n- 早上 9 點前不要傳訊息給我\n\n# 要你注意的事\n- 記帳超過預算八成就提醒我\n"
         "- 週末不要排工作的事\n")
 
-CHANNELS = {"telegram": {"saved": True, "bot": "my_synox_bot", "active": True, "owner_paired": True},
-            "discord": {"saved": False, "multi": False, "invite": ""}}
+CHANNELS = {"telegram": {"saved": True, "bot": "my_synox_bot", "active": True, "owner_paired": False, "pairable": True,
+                         "pair_ready": True, "paired_as": "", "pairing": {"code": "482915", "expires_in": 840}},
+            "discord": {"saved": True, "bot": "SYNOX test", "active": True, "multi": False, "owner_paired": True,
+                        "paired_as": "138765878633601855", "pair_ready": True, "pairing": None,
+                        "invite": "https://discord.com/oauth2/authorize?client_id=1&scope=bot&permissions=2048"}}
 
 ACCOUNTS = {"roles": ["guest", "member", "admin"], "users": [
     {"id": 100001, "username": "小明", "role": "admin", "owner": True, "messages_today": 12, "messages_limit": 200,
@@ -280,6 +283,11 @@ MOCK = r"""
     }
     if (p === "/api/settings") { return reply(D.settings); }
     if (p === "/api/settings/channels") { return reply(D.channels); }
+    var pr = /^\/api\/settings\/channels\/(telegram|discord)\/pair$/.exec(p);
+    if (pr) {                                     // 配對：預覽裡只回目前的狀態，不真的配
+      var ch = D.channels[pr[1]];
+      return reply({ pairing: ch.pairing, paired_as: ch.paired_as, just_paired: null, ok: true });
+    }
     if (p === "/api/accounts") { return reply(D.accounts); }
     if (p === "/api/usage") {                     // 假的用量：讓設定頁的「AI 用量與花費」有東西看
       var per = (String(path).split("period=")[1] || "day").split("&")[0];

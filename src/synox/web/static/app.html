@@ -548,6 +548,7 @@
             <button id="ch-tg-save" type="button">檢查並存起來</button>
           </div>
           <p id="ch-tg-msg" class="msgline"></p>
+          <div id="ch-tg-pair" class="pair hidden"></div>
         </div>
         <div class="channel">
           <h3>Discord</h3>
@@ -561,28 +562,7 @@
           </div>
           <p id="ch-dc-msg" class="msgline"></p>
           <p id="ch-dc-invite-wrap" class="note-line hidden">邀請連結：把 bot 加進任何一個<strong>你也在的</strong>伺服器，之後從成員清單點它就能私訊（bot 不會在伺服器的頻道裡講話）。<a id="ch-dc-invite" target="_blank" rel="noopener noreferrer"></a></p>
-          <div id="ch-dc-pair" class="pair hidden">
-            <h4>配對我的 Discord 帳號</h4>
-            <p id="ch-dc-pair-state" class="muted"></p>
-            <div id="ch-dc-pair-go" class="row">
-              <button id="ch-dc-pair-start" type="button" class="primary">產生配對碼</button>
-              <span id="ch-dc-pair-hint" class="muted"></span>
-            </div>
-            <div id="ch-dc-pair-code" class="pair-code hidden">
-              <div class="code" id="ch-dc-code" aria-live="polite"></div>
-              <p>到 Discord <strong>私訊</strong>你的 bot<span id="ch-dc-botname"></span>，傳這六個數字。<span id="ch-dc-ttl" class="muted"></span></p>
-              <button id="ch-dc-pair-cancel" type="button" class="sm">取消</button>
-            </div>
-            <details>
-              <summary>或直接貼我的 Discord 使用者 ID（不用重開，馬上配好）</summary>
-              <p class="muted">Discord 設定 → 進階 → 打開「開發者模式」；再對自己的頭像按右鍵 → 複製使用者 ID（一串 17～19 位的數字）。</p>
-              <div class="field-row">
-                <input id="ch-dc-uid" type="text" inputmode="numeric" autocomplete="off" placeholder="例如 123456789012345678">
-                <button id="ch-dc-uid-save" type="button">配對</button>
-              </div>
-            </details>
-            <p id="ch-dc-pair-msg" class="msgline"></p>
-          </div>
+          <div id="ch-dc-pair" class="pair hidden"></div>
         </div>
       </div>
 
@@ -1017,64 +997,97 @@
     if (c.restart) { s += RESTART; }
     return s;
   }
-  // ── Discord 擁有者配對（網頁產生六位數字，私訊 bot 傳它；或直接貼使用者 ID）──
-  var pairTimer = null, pairBot = "";
-  function stopPairPoll() { if (pairTimer) { clearInterval(pairTimer); pairTimer = null; } }
-  function pairState(paired, asId) {
-    $("ch-dc-pair-state").textContent = asId ? "✅ 已配對：Discord 使用者 " + asId + "。要換帳號就重新配對。" :
-      paired ? "✅ 已配對（config.json 寫了 owner_user_id）。" :
-      "⚠ 還沒配對：bot 不會理你的私訊（陌生人會被擋）。配對一次就好。";
-  }
-  function showCode(p) {
-    var on = !!p;
-    $("ch-dc-pair-code").classList.toggle("hidden", !on);
-    $("ch-dc-pair-go").classList.toggle("hidden", on);
-    if (on) {
-      $("ch-dc-code").textContent = p.code;
-      $("ch-dc-botname").textContent = pairBot ? "「" + pairBot + "」" : "";
-      $("ch-dc-ttl").textContent = "（" + Math.max(1, Math.ceil(p.expires_in / 60)) + " 分鐘內有效）";
+  // ── 擁有者配對（Discord、Telegram 共用）：網頁產生六位數字，到那邊私訊 bot 傳它；或直接貼使用者編號 ──
+  function makePairing(prefix, path, o) {
+    var box = $(prefix + "pair"), timer = null, botName = "";
+    var q = function (id) { return $(prefix + id); };
+    box.innerHTML =
+      "<h4>配對我的 " + o.what + " 帳號</h4>" +
+      '<p id="' + prefix + 'pair-state" class="muted"></p>' +
+      '<div id="' + prefix + 'pair-go" class="row"><button id="' + prefix + 'pair-start" type="button" class="primary">產生配對碼</button>' +
+      '<span id="' + prefix + 'pair-hint" class="muted"></span></div>' +
+      '<div id="' + prefix + 'pair-code" class="pair-code hidden"><div class="code" id="' + prefix + 'code" aria-live="polite"></div>' +
+      "<p>到 " + o.what + " <strong>私訊</strong>你的 bot<span id=\"" + prefix + 'botname"></span>，傳這六個數字。<span id="' + prefix + 'ttl" class="muted"></span></p>' +
+      '<button id="' + prefix + 'pair-cancel" type="button" class="sm">取消</button></div>' +
+      "<details><summary>或直接貼我的 " + o.what + " " + o.idName + "</summary><p class=\"muted\">" + o.idHelp + "</p>" +
+      '<div class="field-row"><input id="' + prefix + 'uid" type="text" inputmode="numeric" autocomplete="off" placeholder="' + o.idExample + '">' +
+      '<button id="' + prefix + 'uid-save" type="button">配對</button></div></details>' +
+      '<p id="' + prefix + 'pair-msg" class="msgline"></p>';
+    function stop() { if (timer) { clearInterval(timer); timer = null; } }
+    function stateText(paired, asId) {
+      q("pair-state").textContent = asId ? "✅ 已配對：" + o.what + " " + o.idName + " " + asId + "。要換帳號就重新配對。" :
+        paired ? "✅ 已配對。" : "⚠ 還沒配對：" + o.unpaired;
     }
-  }
-  function pollPair() {
-    api("GET", "/api/settings/channels/discord/pair").then(function (d) {
-      pairState(false, d.paired_as);
-      showCode(d.pairing);
-      if (!d.pairing) {
-        stopPairPoll();
-        if (d.just_paired) { $("ch-dc-pair-msg").textContent = "✅ 配對好了！去 Discord 跟 bot 說話看看。"; }
+    function showCode(pend) {
+      var on = !!pend;
+      q("pair-code").classList.toggle("hidden", !on);
+      q("pair-go").classList.toggle("hidden", on);
+      if (on) {
+        q("code").textContent = pend.code;
+        q("botname").textContent = botName ? " " + o.bot(botName) : "";
+        q("ttl").textContent = "（" + Math.max(1, Math.ceil(pend.expires_in / 60)) + " 分鐘內有效）";
       }
-    }).catch(function () { stopPairPoll(); });
+    }
+    function poll() {
+      api("GET", path).then(function (d) {
+        stateText(false, d.paired_as);
+        showCode(d.pairing);
+        if (!d.pairing) {
+          stop();
+          if (d.just_paired) { q("pair-msg").textContent = "✅ 配對好了！去 " + o.what + " 跟 bot 說話看看。"; }
+        }
+      }).catch(function () { stop(); });
+    }
+    function begin() { stop(); timer = setInterval(poll, 3000); }
+    q("pair-start").addEventListener("click", function () {
+      q("pair-msg").textContent = "";
+      api("POST", path, { action: "start" }).then(function (d) { showCode(d); begin(); })
+        .catch(function (e) { q("pair-msg").textContent = "❌ " + e.message; });
+    });
+    q("pair-cancel").addEventListener("click", function () {
+      stop();
+      api("POST", path, { action: "cancel" }).then(function () { showCode(null); });
+    });
+    q("uid-save").addEventListener("click", function () {
+      var btn = q("uid-save");
+      btn.disabled = true;
+      api("POST", path, { action: "manual", user_id: q("uid").value })
+        .then(function (d) { q("pair-msg").textContent = d.message; q("uid").value = ""; stop(); loadChannels(); })
+        .catch(function (e) { q("pair-msg").textContent = "❌ " + e.message; })
+        .then(function () { btn.disabled = false; });
+    });
+    return {
+      show: function (c) {
+        var on = o.visible(c);
+        box.classList.toggle("hidden", !on);
+        if (!on) { stop(); return; }
+        botName = c.bot || "";
+        stateText(c.owner_paired, c.paired_as);
+        q("pair-start").disabled = !c.pair_ready;
+        q("uid-save").disabled = !!o.manualNeedsReady && !c.pair_ready;
+        q("pair-hint").textContent = c.pair_ready ? "" : o.notReady;
+        showCode(c.pairing);
+        if (c.pairing && !timer) { begin(); }
+        if (!c.pairing) { stop(); }
+      }
+    };
   }
-  function showPairing(c) {
-    var box = $("ch-dc-pair");
-    box.classList.toggle("hidden", !c.saved || c.multi);
-    if (!c.saved || c.multi) { stopPairPoll(); return; }
-    pairBot = c.bot || "";
-    pairState(c.owner_paired, c.paired_as);
-    $("ch-dc-pair-start").disabled = !c.pair_ready;
-    $("ch-dc-pair-hint").textContent = c.pair_ready ? "" : "要先存好 bot token 並重新啟動 SYNOX（bot 上線後才收得到配對碼）；或用下面貼使用者 ID，不用重開。";
-    showCode(c.pairing);
-    if (c.pairing && !pairTimer) { pairTimer = setInterval(pollPair, 3000); }
-    if (!c.pairing) { stopPairPoll(); }
-  }
-  $("ch-dc-pair-start").addEventListener("click", function () {
-    $("ch-dc-pair-msg").textContent = "";
-    api("POST", "/api/settings/channels/discord/pair", { action: "start" }).then(function (d) {
-      showCode(d);
-      stopPairPoll(); pairTimer = setInterval(pollPair, 3000);
-    }).catch(function (e) { $("ch-dc-pair-msg").textContent = "❌ " + e.message; });
+  var dcPair = makePairing("ch-dc-", "/api/settings/channels/discord/pair", {
+    what: "Discord", idName: "使用者 ID", idExample: "例如 123456789012345678",
+    idHelp: "Discord 設定 → 進階 → 打開「開發者模式」；再對自己的頭像按右鍵 → 複製使用者 ID（一串 17～19 位的數字）。",
+    unpaired: "bot 不會理你的私訊（陌生人會被擋）。配對一次就好。",
+    notReady: "要先存好 bot token 並重新啟動 SYNOX（bot 上線後才收得到配對碼）；或用下面貼使用者 ID，不用重開。",
+    bot: function (n) { return "「" + n + "」"; },
+    visible: function (c) { return !!c.saved && !c.multi; }
   });
-  $("ch-dc-pair-cancel").addEventListener("click", function () {
-    stopPairPoll();
-    api("POST", "/api/settings/channels/discord/pair", { action: "cancel" }).then(function () { showCode(null); });
-  });
-  $("ch-dc-uid-save").addEventListener("click", function () {
-    var btn = $("ch-dc-uid-save");
-    btn.disabled = true;
-    api("POST", "/api/settings/channels/discord/pair", { action: "manual", user_id: $("ch-dc-uid").value })
-      .then(function (d) { $("ch-dc-pair-msg").textContent = d.message; $("ch-dc-uid").value = ""; stopPairPoll(); loadChannels(); })
-      .catch(function (e) { $("ch-dc-pair-msg").textContent = "❌ " + e.message; })
-      .then(function () { btn.disabled = false; });
+  var tgPair = makePairing("ch-tg-", "/api/settings/channels/telegram/pair", {
+    what: "Telegram", idName: "編號", idExample: "例如 123456789",
+    idHelp: "對 Telegram 的 @userinfobot 傳任何訊息，它會回你的編號（一串 6～12 位的數字）。",
+    unpaired: "bot 現在不收任何訊息（陌生人會被擋）。配對一次就好。",
+    notReady: "要先存好 bot token 並重新啟動 SYNOX（bot 上線後才收得到配對碼）。",
+    manualNeedsReady: true,
+    bot: function (n) { return "@" + n; },
+    visible: function (c) { return !!c.saved && !!c.pairable; }
   });
   function loadChannels() {
     $("ch-tg-now").textContent = "檢查中…";
@@ -1083,7 +1096,8 @@
       var t = d.telegram, c = d.discord;
       $("ch-restart").classList.toggle("hidden", !(t.restart || c.restart));
       $("ch-tg-now").textContent = channelLine(t, function (n) { return "@" + n; }) +
-        (t.saved && !t.owner_paired ? "還沒配對擁有者：雙擊 Setup.bat 重跑安裝精靈配對（token 會自動帶入）。" : "");
+        (t.saved && !t.owner_paired ? (t.pairable ? "還沒配對擁有者：用下面的「配對我的 Telegram 帳號」。" :
+          "還沒配對擁有者：雙擊 Setup.bat 重跑安裝精靈配對（token 會自動帶入）。") : "");
       $("ch-dc-form").classList.toggle("hidden", c.multi);
       if (c.multi) {
         $("ch-dc-now").textContent = "config.json 用的是 bots 寫法（多個 bot）：網頁不動它，請直接改 config.json。";
@@ -1092,7 +1106,8 @@
           (c.saved && !c.owner_paired ? "還沒配對擁有者：用下面的「配對我的 Discord 帳號」。" : "");
       }
       showInvite(c.invite);
-      showPairing(c);
+      dcPair.show(c);
+      tgPair.show(t);
     }).catch(function (e) { $("ch-tg-now").textContent = ""; $("ch-dc-now").textContent = "❌ " + e.message; });
   }
   function saveChannel(kind) {

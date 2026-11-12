@@ -104,7 +104,7 @@ def test_telegram_token_saved_with_placeholder_owner_still_starts(make_bot, tmp_
     status, body = _raw_post(c, "/api/settings/channels/telegram", {"token": "  " + TG_TOKEN + " "})
     assert status == 200, body
     data = json.loads(body)
-    assert data["bot"] == "my_synox_bot" and "重新啟動" in data["message"] and "Setup.bat" in data["message"]
+    assert data["bot"] == "my_synox_bot" and "重新啟動" in data["message"] and "配對我的 Telegram 帳號" in data["message"]
     saved = json.loads(path.read_text(encoding="utf-8"))
     assert saved["bot_token"] == TG_TOKEN and saved["owner_id"] == BASE
     config = SynoxConfig.load(str(path), require_token=False)
