@@ -836,7 +836,12 @@ class WebUI:
         if str(llm.get("api_key", "")).startswith(("vault:", "env:")):
             llm["api_key"] = resolve_secret(llm["api_key"], self.vault)
         result = logic.probe_llm(llm)
-        return _json(200, {"ok": result is None, "message": "✅ 接得通" if result is None else f"❌ {result}"})
+        out = {"ok": result is None, "message": "✅ 接得通" if result is None else f"❌ {result}"}
+        if result is not None and llm.get("kind") == "claude_code":
+            from synox.llm.claude_code import NOT_FOUND
+            if result == NOT_FOUND:                 # 沒裝：跟精靈一樣給下載點，裝好再按「測一下」
+                out["download_url"] = logic.CLAUDE_DOWNLOAD_URL
+        return _json(200, out)
 
     # ── 聊天通道（Telegram／Discord）：跟精靈同一套檢查與存法；token 永遠不回傳、不寫 log ──────
     # 改了要重開 SYNOX 才生效（App 沒有「執行中換通道」）。擁有者配對不在這裡做（Setup.bat／discord pair）。

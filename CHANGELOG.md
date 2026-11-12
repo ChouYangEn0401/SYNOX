@@ -56,6 +56,12 @@
   指令沒 summary、欄位沒 ask 只提醒不擋（安裝報告、`synox-sdk check`）。`@tool` 參數的預設值會寫成 `default`。
   說明：[docs/tools.md](docs/tools.md)「網頁工具頁」、[docs/pack-format.md](docs/pack-format.md)。
 
+### 找不到 Claude Code 時給安裝點
+- 網頁設定頁「測一下」回「找不到 claude」時，顯示 Windows／Linux／macOS 的安裝指令（可複製，不代跑）與官方說明連結；
+  安裝精靈與網頁共用的 `CLAUDE_DOWNLOAD_URL` 改成官方安裝說明頁（原本的行銷頁會讓人裝成 Claude Desktop）。
+- `find_claude()` 除了 PATH，也找 `~/.local/bin/claude(.exe)`（原生安裝程式的位置，不一定在 PATH 上）。
+  背景與「VS Code 能用不代表 SYNOX 找得到」：[docs/claude-code-cli.md](docs/claude-code-cli.md)。
+
 ### 修正
 - 兩個無效的跳脫字元（`src/synox/wizard/shortcuts.py` 的說明、`tests/test_wizard.py` 的位元組字串）改成 raw 字串，內容不變；
   Python 3.12 起會是 SyntaxWarning。

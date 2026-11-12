@@ -180,3 +180,16 @@ def test_missing_ntu_easy_llm_says_how_to_install(monkeypatch):
     with pytest.raises(LLMError) as e:
         a.chat([Message(USER, "hi")])
     assert "還沒安裝 ntu_easy_llm" in str(e.value)
+
+
+def test_find_claude_falls_back_to_native_install_dir(tmp_path, monkeypatch):
+    """PATH 上沒有 claude，但官方安裝程式的位置（~/.local/bin）有：要找得到。"""
+    from synox.llm import claude_code
+    monkeypatch.setattr(claude_code.shutil, "which", lambda name: None)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    assert claude_code.find_claude() is None
+    exe = tmp_path / ".local" / "bin" / "claude.exe"
+    exe.parent.mkdir(parents=True)
+    exe.write_bytes(b"")
+    assert claude_code.find_claude() == str(exe)
