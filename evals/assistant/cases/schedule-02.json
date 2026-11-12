@@ -1,0 +1,56 @@
+{
+  "id": "schedule-02",
+  "category": "schedule",
+  "split": "tune",
+  "title": "查某一天的行程並全部列出",
+  "turns": [
+    "我 2026 年 12 月 5 日有哪些行程？"
+  ],
+  "tools": [
+    {
+      "name": "calendar__list",
+      "results": [
+        {
+          "when": {
+            "date": {
+              "contains": "2026-12-05"
+            }
+          },
+          "reply": "2026-12-05：10:00 牙醫回診；19:00 家庭聚餐"
+        },
+        {
+          "reply": "{date} 沒有行程"
+        }
+      ]
+    },
+    {
+      "name": "calendar__clear"
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "calendar__list",
+        "args": {
+          "date": {
+            "contains": "2026-12-05"
+          }
+        }
+      }
+    ],
+    "must_not_call": [
+      "calendar__clear"
+    ],
+    "final_contains": [
+      "牙醫",
+      "19:00"
+    ],
+    "max_steps": 2
+  },
+  "soft": [
+    {
+      "name": "簡短",
+      "rubric": "一兩句講清楚做了什麼；5＝簡短又完整，1＝囉嗦或漏掉重點"
+    }
+  ]
+}

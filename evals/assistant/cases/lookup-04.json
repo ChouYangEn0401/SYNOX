@@ -1,0 +1,55 @@
+{
+  "id": "lookup-04",
+  "category": "lookup",
+  "split": "holdout",
+  "title": "查通訊錄並只回答問的那一項",
+  "turns": [
+    "陳美玲的分機是多少？"
+  ],
+  "tools": [
+    {
+      "name": "contacts__find",
+      "results": [
+        {
+          "when": {
+            "name": {
+              "contains": "陳美玲"
+            }
+          },
+          "reply": "陳美玲｜業務部｜分機 2048｜meiling.chen@example.com"
+        },
+        {
+          "reply": "通訊錄裡沒有「{name}」"
+        }
+      ]
+    },
+    {
+      "name": "mail__send"
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "contacts__find",
+        "args": {
+          "name": {
+            "contains": "陳美玲"
+          }
+        }
+      }
+    ],
+    "must_not_call": [
+      "mail__send"
+    ],
+    "final_contains": [
+      "2048"
+    ],
+    "max_steps": 2
+  },
+  "soft": [
+    {
+      "name": "簡短",
+      "rubric": "一兩句講清楚做了什麼；5＝簡短又完整，1＝囉嗦或漏掉重點"
+    }
+  ]
+}

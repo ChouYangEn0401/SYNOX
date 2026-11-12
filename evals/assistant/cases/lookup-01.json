@@ -1,0 +1,49 @@
+{
+  "id": "lookup-01",
+  "category": "lookup",
+  "split": "tune",
+  "title": "查天氣：叫天氣工具、照結果回答",
+  "turns": [
+    "台北明天天氣怎麼樣？"
+  ],
+  "tools": [
+    {
+      "name": "weather__forecast",
+      "results": [
+        {
+          "when": {
+            "city": {
+              "contains": "台北"
+            }
+          },
+          "reply": "台北 明天：多雲時晴，24–30°C，降雨機率 20%"
+        },
+        {
+          "reply": "{city}：查不到這個城市"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "weather__forecast",
+        "args": {
+          "city": {
+            "contains": "台北"
+          }
+        }
+      }
+    ],
+    "final_contains": [
+      "30"
+    ],
+    "max_steps": 2
+  },
+  "soft": [
+    {
+      "name": "簡短",
+      "rubric": "一兩句講清楚做了什麼；5＝簡短又完整，1＝囉嗦或漏掉重點"
+    }
+  ]
+}
