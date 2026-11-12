@@ -10,6 +10,8 @@
     creating_venv         = 'Création de .venv avec {0} ...'
     venv_failed           = 'Impossible de créer .venv.'
     installing            = 'Installation des paquets nécessaires à SYNOX (quelques minutes la première fois)...'
+    offline_wheels        = 'Installation hors ligne des paquets depuis le wheelhouse fourni...'
+    no_window_text        = 'Ce Python n''a pas de fenêtres (tkinter) : la configuration continue en mode texte (synox init) dans cette fenêtre...'
     pip_failed            = 'Échec de pip install (réseau ?).'
     opening_wizard        = 'Ouverture de l''assistant d''installation...'
     row_running           = 'SYNOX en cours (pid)'
