@@ -6,6 +6,7 @@ python -m synox <指令>
   wizard    安裝精靈（tkinter 視窗；Setup.bat 最後一步）
   doctor    健康檢查（--offline 不實際打 AI）
   stop      停掉正在跑的 bot（Stop.bat）
+  web-login 在這台電腦上打開網頁介面：發一個擁有者的一次性登入連結並打開（Open-SYNOX.bat、桌面捷徑；沒在跑就先開）
   install   裝一個 .synoxpack：安全管線第 1–3 關（--yes 在終端機直接核准；沒有 --yes 就開網頁設定頁給你按）
             同名已經裝了＝升級：先印「改了什麼」，版本要比較新（--allow-downgrade 才能降級／重裝同版）
   packs     packs status（每個 pack 的鎖定狀態）｜packs lock --approve <name>（工程師：重跑 1、2 關、寫 packs.lock）
@@ -55,25 +56,51 @@ def cmd_run(args) -> int:
         for name, err in app.extras["discord_errors"].items():
             print(f"⚠️ Discord bot {name} 沒有開：{err}")
     print("✅ SYNOX 開始收訊息了。這個視窗可以縮小，但不要關；要停就按 Ctrl+C 或雙擊 Stop.bat。")
+    web_only = not config.has_token and not config.discord_enabled
+    failed = []
     if config.web.get("enabled", True):
-        print(f"🌐 網頁介面：http://127.0.0.1:{config.web.get('port')}/ （在聊天裡打 /web 拿登入連結）")
-        if not config.has_token and not config.discord_enabled and not getattr(args, "no_browser", False):
-            _open_web_login(config)           # 沒接聊天軟體時網頁就是主要介面：直接幫忙打開
+        print(f"🌐 網頁介面：http://127.0.0.1:{config.web.get('port')}/ （登入連結：在聊天裡打 /web，"
+              f"或雙擊 SYNOX 資料夾裡的 Open-SYNOX.bat）")
+        if web_only:                          # 沒接聊天軟體時網頁就是主要介面：開不起來就停；開起來就幫忙打開
+            app.on_start.append(lambda _app: _web_only_started(_app, config, failed, open_browser=_wants_browser(args)))
     app.run(channels)
-    return 0
+    return 2 if failed else 0
 
 
-def _open_web_login(config) -> None:
-    """只跑網頁時：發一個一次性登入連結並用預設瀏覽器打開（失敗只印提示，不影響主程式）。"""
+def _wants_browser(args) -> bool:
+    """開機自動啟動（Start.bat --no-browser → SYNOX_NO_BROWSER=1）不要每次登入都跳出瀏覽器。"""
+    return not getattr(args, "no_browser", False) and os.environ.get("SYNOX_NO_BROWSER", "") not in ("1", "true")
+
+
+def _web_only_started(app, config, failed: list, open_browser: bool = True) -> None:
+    """on_start（排在網頁介面的 start 後面）：只跑網頁卻開不起來（埠被占用…）→ 印原因並停下（不要留一支什麼都收不到的
+    程式、也不要把登入連結送到占著那個埠的別支程式）；開起來了 → 用預設瀏覽器打開擁有者的一次性登入連結。"""
+    ui = app.extras.get("synox_web")
+    if ui is None or not ui.running:
+        failed.append(True)
+        print(f"❌ {getattr(ui, 'error', '') or '網頁介面沒有開起來'}")
+        print("   還沒接 Telegram／Discord 時網頁介面就是 SYNOX 的主畫面，所以先停下來。"
+              "（可能已經有另一支 SYNOX 開著：雙擊 Open-SYNOX.bat 打開它；或改 config.json 的 web.port。）")
+        app.stop()
+        return
+    if open_browser:
+        _open_web_login(config, ui)
+
+
+def _open_web_login(config, ui=None) -> None:
+    """發一個擁有者的一次性登入連結並用預設瀏覽器打開（失敗只印提示，不影響主程式）。"""
     import threading
     import webbrowser
     try:
-        from synox.web import issue_owner_link
-        link = issue_owner_link(config)
+        if ui is not None:
+            link = ui.login_link(config.owner_id)
+        else:
+            from synox.web import issue_owner_link
+            link = issue_owner_link(config)
     except Exception as e:
         print(f"（沒能自動打開網頁：{e}）")
         return
-    threading.Timer(2.0, lambda: webbrowser.open(link)).start()
+    threading.Thread(target=webbrowser.open, args=(link,), daemon=True, name="OpenBrowser").start()
 
 
 def run_channels(config) -> tuple:
@@ -182,6 +209,64 @@ def _open_browser(url: str) -> None:
     webbrowser.open(url)
 
 
+def _synox_running(config) -> bool:
+    """這個 SYNOX 資料夾（data/host.lock）有沒有一支 bot 在跑。"""
+    from isdtelekit.core.jsonstore import load_json
+    from isdtelekit.host.lock import _alive
+    held = load_json(config.path("host.lock"), {})
+    pid = held.get("pid") if isinstance(held, dict) else None
+    return bool(pid) and _alive(int(pid), held.get("created"))
+
+
+def _start_synox_quietly(root: str) -> None:
+    """背景開 Start.bat（它自己會開一個最小化的 SYNOX 視窗）；SYNOX_NO_BROWSER：連結由 web-login 自己開。"""
+    env = dict(os.environ, SYNOX_NO_BROWSER="1")
+    subprocess.Popen(["cmd", "/c", os.path.join(root, "Start.bat")], cwd=root, env=env,
+                     creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+
+
+def cmd_web_login(args, *, is_up=web_is_up, running=_synox_running, start=_start_synox_quietly,
+                  open_url=None, sleep=None) -> int:
+    """Open-SYNOX.bat／桌面捷徑：在「這台電腦上」拿一個擁有者的一次性登入連結並打開（沒在跑就先開 SYNOX）。
+    不經網頁、不經聊天：能跑這個指令的人本來就讀得到 data/（＝這台的擁有者），網頁的登入規則一條都沒有放寬。"""
+    import time
+    sleep = sleep or time.sleep
+    open_url = open_url or _open_browser
+    path = args.config or CONFIG_PATH
+    try:
+        config = SynoxConfig.load(path, require_token=False)
+    except ConfigError as e:
+        print(f"❌ {e}")
+        return 2
+    if not config.web.get("enabled", True):
+        print("❌ 網頁介面沒有開（config.json 的 web.enabled 是 false）。")
+        return 2
+    port = int(config.web.get("port") or 8830)
+    wait = 10
+    if not running(config):
+        if os.path.abspath(path) != os.path.abspath(CONFIG_PATH):
+            print("SYNOX 沒有在跑：先用 python -m synox --config … run 開起來，再跑一次這個指令。")
+            return 2
+        print("SYNOX 還沒開：幫你開起來（會有一個縮小的 SYNOX 視窗）…")
+        from synox.config import ROOT
+        start(ROOT)
+        wait = 60
+    for _ in range(wait * 2):
+        if running(config) and is_up(port):
+            break
+        sleep(0.5)
+    else:
+        print(f"❌ 等不到網頁介面（127.0.0.1:{port}）。看一下 SYNOX 視窗裡的訊息（例如埠被占用），"
+              "或雙擊 Start.bat 看錯誤。")
+        return 2
+    from synox.web import issue_owner_link
+    link = issue_owner_link(config)
+    print("🌐 打開網頁介面（一次性登入連結，按頁面上的「登入」；不要轉給別人）：")
+    print(link)
+    open_url(link)
+    return 0
+
+
 def _job_runner(data_dir: str):
     from isdtelekit.jobs.runner import JobRunner
     return JobRunner(log_root=os.path.join(data_dir, "job_logs"))
@@ -272,7 +357,7 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
         (open_url or _open_browser)(url)
         print("🌐 已經打開網頁設定頁：看完報告，按「確認安裝」才會裝。")
         print(f"   {url}")
-        print("   （網頁要先登入：在 Telegram 打 /web 拿登入連結。）")
+        print("   （網頁要先登入：雙擊 Open-SYNOX.bat，或在 Telegram 打 /web 拿登入連結。）")
         return 0
     print("ℹ️ 還沒裝。SYNOX 沒開（或網頁介面關著）：")
     tier = summary.get("tier") or {}
@@ -551,7 +636,10 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="python -m synox", description="SYNOX：你自己電腦上的 Telegram 小助手")
     parser.add_argument("--config", default="", help="config.json 的位置（預設在 SYNOX 資料夾）")
     sub = parser.add_subparsers(dest="cmd")
-    sub.add_parser("run", help="開 bot、收 Telegram")
+    p = sub.add_parser("run", help="開 bot、收 Telegram")
+    p.add_argument("--no-browser", action="store_true",
+                   help="只跑網頁時也不要自動打開瀏覽器（開機自動啟動用；也可以設環境變數 SYNOX_NO_BROWSER=1）")
+    sub.add_parser("web-login", help="在這台電腦上打開網頁介面（發一個擁有者的一次性登入連結；沒在跑就先開 SYNOX）")
     p = sub.add_parser("console", help="在終端機試（不連 Telegram）")
     p.add_argument("--as", dest="as_user", type=int, default=None, help="用這個使用者 id 講話（預設擁有者）")
     p.add_argument("--llm", choices=["fake", "none"], default=None, help="這次改用假 AI 或不用 AI")
@@ -605,7 +693,7 @@ def main(argv=None) -> int:
                    help="discord token --clear：從保管箱刪掉這個 bot 的 token（要作廢舊 token 還是要到 Developer Portal 按 Reset Token）")
     args = parser.parse_args(argv)
     handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop,
-                "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord}
+                "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord, "web-login": cmd_web_login}
     if args.cmd not in handlers:
         parser.print_help()
         return 1
