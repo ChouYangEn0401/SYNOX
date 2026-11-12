@@ -150,6 +150,18 @@ def _heartbeat_line(config) -> str:
     return head + "\n    上一次：還沒巡過（SYNOX 跑起來之後才會巡）"
 
 
+def _keep_awake_line(config) -> str:
+    """保持清醒（docs/adr/0006）：開關、熄螢幕設定、這個系統有沒有作用。"""
+    ka = (getattr(config, "runtime", None) or {}).get("keep_awake") or {}
+    if not ka.get("enabled", False):
+        return "  保持清醒：關（runtime.keep_awake.enabled=true 或網頁主控面板打開，電腦才不會睡著）"
+    if sys.platform != "win32":
+        return "  保持清醒：開，但只有 Windows 有作用，這個系統什麼都不會做"
+    minutes = ka.get("screen_off_after_min", 0)
+    screen = f"閒置 {minutes} 分鐘後請 Windows 關螢幕" if minutes else "螢幕照 Windows 電源計畫（動滑鼠或鍵盤就亮）"
+    return f"  保持清醒：開，電腦不會自己睡著；{screen}（闔上筆電蓋、手動睡眠、Windows Update 重開機擋不住）"
+
+
 def _activator_line(config) -> str:
     """連動（docs/adr/0004）：開關、config.json 的規則數＋state.json 記的暫停中的規則、全部暫停、待處理（不改檔）。"""
     from synox.runtime.loop import STATE_FILE
@@ -241,6 +253,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                                 + (f"　對外網址 {web.get('public_url')}" if web.get("public_url") else "")
                                 if web.get("enabled", True) else "關（web.enabled=false）"))
             out(_heartbeat_line(config))
+            out(_keep_awake_line(config))
             out(_activator_line(config))
             if config.discord_enabled:
                 bot_lines, bad = _discord_lines(config)
