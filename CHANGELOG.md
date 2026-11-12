@@ -56,6 +56,12 @@
   指令沒 summary、欄位沒 ask 只提醒不擋（安裝報告、`synox-sdk check`）。`@tool` 參數的預設值會寫成 `default`。
   說明：[docs/tools.md](docs/tools.md)「網頁工具頁」、[docs/pack-format.md](docs/pack-format.md)。
 
+### 設定頁選好 AI 來源就立刻能用
+- 設定頁選 Claude Code 時可以挑模型（預設／Sonnet／Opus／Haiku）；「存起來」之後對話助理與常駐助理**馬上換上、不用重開**
+  （`agent.set_adapter`）。接不上時設定仍會存，並說原因。「測一下」遇到沒登入會說怎麼登入。
+- 主控頁：還沒設定 AI 來源時，常駐助理那格說「到設定選好並存起來，這裡馬上就會開始跑」；`/api/runtime/status` 的 `mother` 多 `ai` 欄位。
+- 已知限制：啟動時沒有 AI，Discord 頻道 AI 要重開才會出現。
+
 ### 對話頁桌面版改滿版
 - 寬度超過 760px 時，對話區佔滿側欄以外的整個區域（原本是置中、最寬 980px 的浮動卡片，螢幕一大就飄在中間）。手機版沒動。
   `docs/ui/screenshots/desktop-chat-*.png` 還是舊的卡片版，沒有重拍。

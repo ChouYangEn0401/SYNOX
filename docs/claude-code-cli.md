@@ -61,6 +61,15 @@ Linux／macOS：           curl -fsSL https://claude.ai/install.sh | bash
   `claude --version` 要印出版本；`claude` 能進去對話才表示登入好了。
 - 預覽（`docs/ui/preview*.html`）改了 `app.html` 要重跑 `scripts/make_ui_preview.py`，`tests/test_ui_preview.py` 會檢查有沒有同步。
 
+## 設定頁選了 Claude Code 之後（2026-11-12）
+
+- 選模型：設定頁多一個下拉（預設／Sonnet／Opus／Haiku，`wizard/logic.py` 的 `CLAUDE_MODELS`，值直接給 `claude --model`）。
+- 「存起來」**立刻生效、不用重開**：`WebUI._apply_llm` → `agent.set_adapter(app, adapter, config)`，把對話助理（`AgentLoop.adapter`）與
+  常駐助理（`runtime.mother.adapter`）一起換；原本是「先不用 AI」的話現在才建 `AgentLoop` 與私訊的自由文字出口。
+  換不上（例如缺套件）時設定仍會存，回應 `applied: false` 並說原因。
+- 存的時候不會真的叫一次 claude（會花時間與額度）；有沒有裝、有沒有登入看「測一下」。存起來時若 `find_claude()` 是空的，只加一句警告。
+- 主控頁：`/api/runtime/status` 的 `mother.ai` 是 `false` 時，頁面說「還沒設定 AI 來源：到〔設定〕…」，而不是只寫「關著」。
+
 ## 還沒弄清楚的
 
 - 這個 venv 裡有 `claude-subscription 0.1.0`；repo 的程式碼裡沒有用到它，也搜不到 `claude-code-login` 這個名字。

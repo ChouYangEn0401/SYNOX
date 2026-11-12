@@ -512,7 +512,8 @@ def test_api_status_shape(api):
     assert status == 200
     assert set(data) == {"heartbeat", "mother", "tasks"}
     assert {"enabled", "interval_min", "last_run_at", "next_run_at", "last_result"} <= set(data["heartbeat"])
-    assert set(data["mother"]) == {"state", "last_active_at", "soul_updated_at"}
+    assert set(data["mother"]) == {"state", "ai", "last_active_at", "soul_updated_at"}
+    assert data["mother"]["ai"] is True
     assert data["mother"]["state"] == "idle"
     ids = [t["id"] for t in data["tasks"]]
     assert ids == ["system.heartbeat", "system.schedule", "pack.weather"]

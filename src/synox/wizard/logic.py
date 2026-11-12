@@ -95,6 +95,11 @@ def claude_status(which: Optional[Callable[[], Optional[str]]] = None) -> Tuple[
     return False, t("claude_missing")
 
 
+# 選 Claude Code 時可以挑的模型（`claude --model` 吃的別名；空字串＝不指定，讓 Claude Code 自己用預設）。
+CLAUDE_MODELS = [("", "預設（讓 Claude Code 自己選）"), ("sonnet", "Sonnet（平衡）"),
+                 ("opus", "Opus（最強、較慢）"), ("haiku", "Haiku（最快、最省）")]
+
+
 def default_choice(claude_found: bool) -> str:
     return "claude_code" if claude_found else "keys"
 

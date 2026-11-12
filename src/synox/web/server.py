@@ -767,7 +767,8 @@ class WebUI:
         llm = dict(self.config.llm or {})
         out["llm"] = {"kind": llm.get("kind", "none"), "model": llm.get("model", ""),
                       "base_url": llm.get("base_url", ""), "has_key": bool(llm.get("api_key"))}
-        out["llm_choices"] = [{"choice": "claude_code", "label": logic.CLAUDE_TITLE}] + \
+        out["llm_choices"] = [{"choice": "claude_code", "label": logic.CLAUDE_TITLE,
+                               "models": [{"value": v, "label": lbl} for v, lbl in logic.CLAUDE_MODELS]}] + \
             [{"choice": "keys", "provider": code, "label": v[0], "model": v[2], "needs_url": v[3]}
              for code, v in logic.KEY_PROVIDERS.items()] + [{"choice": "none", "label": "先不用 AI"}]
         report = self.app.extras.get("synox_pack_report")
@@ -821,8 +822,32 @@ class WebUI:
         old = cfg.get("llm") or {}
         cfg["llm"] = {"max_steps": old.get("max_steps", 6), "max_tokens": old.get("max_tokens", 1024), **llm}
         logic.write_config(self.config_path, cfg)
-        self.config.llm = {**self.config.llm, **cfg["llm"]}
-        return _json(200, {"ok": True, "message": "存好了。重開 SYNOX 之後就換成新的 AI 來源。", "kind": llm["kind"]})
+        stale = ("kind", "api_key", "base_url", "model", "tools")      # 換來源時，舊來源的欄位不要留在記憶體裡
+        self.config.llm = {**{k: v for k, v in (self.config.llm or {}).items() if k not in stale}, **cfg["llm"]}
+        return _json(200, self._apply_llm(llm))
+
+    def _apply_llm(self, llm: dict) -> dict:
+        """存好之後立刻換上：對話助理與常駐助理都用新的 AI 來源，不用重開。接不上就說原因（設定已經存了）。"""
+        from synox import agent
+        from synox.llm import make_adapter
+        from synox.llm.base import LLMError
+        kind = llm["kind"]
+        try:
+            adapter = make_adapter(self.config, self.vault)
+        except LLMError as e:
+            self.app.extras["llm_error"] = str(e)
+            return {"ok": True, "kind": kind, "applied": False,
+                    "message": f"存好了，但現在還接不上：{e}　（修好之後重開 SYNOX，或再按一次「存起來」）"}
+        self.app.extras.pop("llm_error", None)
+        agent.set_adapter(self.app, adapter, self.config)
+        if adapter is None:
+            return {"ok": True, "kind": kind, "applied": True, "message": "存好了。現在不用 AI；打指令照常可以用。"}
+        msg = "存好了，已經換上，現在就能在對話裡用。常駐助理（主控頁）也用這個來源。"
+        if kind == "claude_code":
+            from synox.llm.claude_code import find_claude
+            if not find_claude():
+                msg += "　⚠ 這台電腦還找不到 claude，按「測一下」看安裝方法。"
+        return {"ok": True, "kind": kind, "applied": True, "message": msg}
 
     def test_llm(self, user, data: dict) -> Resp:
         denied = self._owner_only(user)
@@ -841,6 +866,8 @@ class WebUI:
             from synox.llm.claude_code import NOT_FOUND
             if result == NOT_FOUND:                 # 沒裝：跟精靈一樣給下載點，裝好再按「測一下」
                 out["download_url"] = logic.CLAUDE_DOWNLOAD_URL
+            elif "登入" in result:                  # 裝了但還沒登入
+                out["message"] += "　→ 在終端機輸入 claude，照畫面登入一次，再按「測一下」。"
         return _json(200, out)
 
     # ── 聊天通道（Telegram／Discord）：跟精靈同一套檢查與存法；token 永遠不回傳、不寫 log ──────

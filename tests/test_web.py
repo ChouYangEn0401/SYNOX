@@ -368,6 +368,62 @@ def test_llm_test_gives_download_url_when_claude_missing(make_bot, owner, monkey
     assert "download_url" not in data
 
 
+def test_saving_llm_applies_immediately_without_restart(make_bot, owner):
+    """設定頁選 Claude Code 並存起來：對話助理與常駐助理馬上有 AI（不用重開）；改回「不用 AI」馬上拿掉。"""
+    from synox.llm.claude_code import ClaudeCodeAdapter
+    from synox import runtime
+    bot = make_bot(llm={"kind": "none"})
+    app = bot.app
+    assert app.extras["synox_agent"] is None and app.dispatcher.fallback is None
+    rt = runtime.of(app)
+    assert rt.mother.adapter is None and rt.status()["mother"]["ai"] is False
+
+    c = Client(ui_of(bot))
+    c.login(owner)
+    status, data = c.get("/api/settings")
+    cc = next(x for x in data["llm_choices"] if x["choice"] == "claude_code")
+    assert [m["value"] for m in cc["models"]] == ["", "sonnet", "opus", "haiku"]
+
+    status, data = c.post("/api/settings/llm", {"choice": "claude_code", "model": "sonnet"})
+    assert status == 200 and data["applied"] is True, data
+    loop = app.extras["synox_agent"]
+    assert loop is not None and isinstance(loop.adapter, ClaudeCodeAdapter) and loop.adapter.model == "sonnet"
+    assert app.dispatcher.fallback is not None                      # 私訊打字會進 AI
+    assert rt.mother.adapter is loop.adapter and rt.status()["mother"]["ai"] is True
+    assert c.get("/api/settings")[1]["llm"]["model"] == "sonnet"
+
+    status, data = c.post("/api/settings/llm", {"choice": "claude_code", "model": "opus"})     # 換模型：同一個 loop
+    assert app.extras["synox_agent"] is loop and loop.adapter.model == "opus"
+
+    status, data = c.post("/api/settings/llm", {"choice": "none"})
+    assert status == 200 and app.extras["synox_agent"] is None and app.dispatcher.fallback is None
+    assert rt.mother.adapter is None
+
+
+def test_saving_llm_that_cannot_connect_still_saves_and_says_why(make_bot, owner, tmp_path, monkeypatch):
+    from synox.llm.base import LLMError
+
+    def boom(*a, **k):
+        raise LLMError("缺了 ntu_easy_llm")
+    monkeypatch.setattr("synox.llm.make_adapter", boom)
+    bot = make_bot(llm={"kind": "none"})
+    c = Client(ui_of(bot))
+    c.login(owner)
+    status, data = c.post("/api/settings/llm", {"choice": "keys", "provider": "openai", "api_key": "sk-x", "model": "m"})
+    assert status == 200 and data["applied"] is False and "缺了 ntu_easy_llm" in data["message"]
+    assert bot.app.extras["synox_agent"] is None
+    with open(tmp_path / "config.json", encoding="utf-8") as f:
+        assert json.load(f)["llm"]["kind"] == "openai"              # 設定存了，只是還沒接上
+
+
+def test_llm_test_tells_how_to_log_in_when_claude_not_signed_in(make_bot, owner, monkeypatch):
+    monkeypatch.setattr("synox.wizard.logic.probe_llm", lambda llm, make=None: "Claude Code 回了錯誤：x。是不是還沒登入？")
+    c = Client(ui_of(make_bot()))
+    c.login(owner)
+    status, data = c.post("/api/settings/llm/test", {"choice": "claude_code"})
+    assert "claude" in data["message"] and "登入" in data["message"] and "download_url" not in data
+
+
 def _pack_zip(name="hello", top=None, extra=None):
     buf = io.BytesIO()
     prefix = f"{top}/" if top else ""
