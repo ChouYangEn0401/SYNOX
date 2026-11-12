@@ -7,12 +7,15 @@ soul.md：常駐助理的靈魂檔（docs/adr/0001 §5）。存保管箱（加�
     soul.append_notes(lines, by="mother") 常駐助理追加：只加在「## 助理筆記」段最後，一次最多 3 行、每行 200 字，
                                           重複的、有密鑰樣式的、總長超過上限的不加；回實際加了哪幾行
     soul.audit()                          每次改的紀錄（時間、誰、什麼）
+    soul.for_prompt()                     對話助理的系統提示用（唯讀；拿掉註解、沒寫東西＝""、有密鑰樣式＝""、最多 2000 字；
+                                          決定 Q7，docs/adr/0002）
 
-保管箱打不開（vault=None）＝讀寫都丟 SoulError（不退回明文存）。
+保管箱打不開（vault=None）＝讀寫都丟 SoulError（不退回明文存）；for_prompt 回 ""。
 """
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 from typing import Callable, List, Optional
@@ -58,6 +61,25 @@ def normalize(text: str) -> str:
     return (text or "").replace("\r\n", "\n").replace("\r", "\n")
 
 
+PROMPT_MAX_CHARS = 2000            # 對話助理的系統提示每一輪都送：比 MAX_CHARS 短，省 token（決定 Q7，docs/adr/0002）
+_COMMENT = re.compile(r"<!--.*?-->", re.S)
+
+
+def prompt_text(text: str, limit: int = PROMPT_MAX_CHARS) -> str:
+    """給對話助理系統提示用的 soul.md：拿掉 <!-- --> 註解；只剩標題與空行（還沒寫東西）＝""；
+    有像密鑰的片段＝""（整份不送）；超過 limit 字截斷並註明。"""
+    body = _COMMENT.sub("", normalize(text))
+    rows = [r.rstrip() for r in body.split("\n")]
+    if not any(r.strip() and not r.lstrip().startswith("#") for r in rows):
+        return ""
+    if secret_problem(body):
+        return ""
+    out = re.sub(r"\n{3,}", "\n\n", "\n".join(rows).strip())
+    if len(out) > limit:
+        out = out[:limit].rstrip() + "\n（後面太長，省略）"
+    return out
+
+
 class SoulStore:
 
     def __init__(self, vault, *, clock: Callable[[], float] = time.time):
@@ -80,6 +102,15 @@ class SoulStore:
 
     def text(self) -> str:
         return self._data().get("text") or DEFAULT_SOUL
+
+    def for_prompt(self, limit: int = PROMPT_MAX_CHARS) -> str:
+        """對話助理（agent/loop.py）唯讀用：prompt_text(text())。沒寫東西／保管箱沒開或解不開＝""（不丟錯、不寫 log）。"""
+        if self._vault is None:
+            return ""
+        try:
+            return prompt_text(self.text(), limit)
+        except Exception:                            # 保管箱解不開：這一輪就不放 soul（聊天照常）
+            return ""
 
     def updated_at(self) -> Optional[float]:
         at = self._data().get("updated_at")

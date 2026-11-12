@@ -36,9 +36,9 @@
 | `src/synox/sdk/` | 給 pack 作者：JSON 信封、`Pack.load`、`init_pack`、`zip_pack`；`synox-sdk init｜check｜zip`（`python -m synox.sdk`）。說明 [sdk.md](sdk.md) |
 | `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`validate.py`（第 4 關呼叫驗證）、`delimit.py`（第 5 關工具結果分隔符）、`budget.py`（伺服器版成員每月額度；`BotPool` 頻道型 bot 一池）、`room.py`（頻道 AI：`RoomAgent`、`redact_reply`）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
 | `src/synox/runtime/` | 常駐的排程迴圈與常駐助理（[adr/0001](adr/0001-runtime-loop-heartbeat-mother-session.md)，網頁合約 [runtime-api.md](runtime-api.md)）：`loop.py`（`RuntimeLoop`／`Task`：每 5 秒看、每個任務自己的執行緒、逾時、退避、連續 5 次失敗通知一次、`report`、`peer_states`、`data/runtime/state.json`）、`heartbeat.py`（`system.heartbeat`、快照與「沒事別吵」的規則）、`mother.py`（`MotherSession`：沒有工具、自己的記憶在保管箱、`NOTIFY:`／`SOUL+:` 格式）、`soul.py`（`SoulStore`：保管箱、追加規則、稽核）、`settings.py`（config `runtime` 的預設與檢查）、`web_api.py`（`/api/runtime/...`）、`__init__.py`（`install`、`report`／`ingest_envelope`／`peer_env`，`Runtime.use_fakes` 給測試） |
-| `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（`tick` 由 runtime 的任務 `system.schedule` 每 30 秒叫；沒有 runtime 才自己開執行緒；via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`、`/schedule_*`） |
+| `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（`tick` 由 runtime 的任務 `system.schedule` 每 30 秒叫；沒有 runtime 才自己開執行緒；via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`install_system_remind`＝系統指令「⏰ 提醒（系統）」`/remind_*`，app.build 在載入 pack 之前掛；`/schedule_*`） |
 | `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS）、`__init__.py`（`install`、`/web`、`/web_off`） |
-| `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（30 秒、via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`、`/schedule_*`） |
+| `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（30 秒、via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`＝⏰ 提醒（系統）、`/schedule_*`） |
 | `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS）、`__init__.py`（`install`、`/web`、`/web_off`）；工具頁：`toolpage.py`（指令卡與參數表單的資訊 `command_info`、群組排版 `effective`／`parse_layout`、每人的偏好 `UserPrefs`＝`data/web_prefs/<id>.json.enc`）＋`static/tools.js`／`tools.css`（`server.render_app` 換掉 app.html 的 `<!-- include: … -->`，同一個 nonce） |
 | `src/synox/packs/admin.py` | `.synoxpack`：stage（zip 檢查＋第 1、2 關；記 zip 的執行位元、不解出 `__pycache__`）→ install_staged（再驗一次＋T2 要 `trust_publisher`＋第 3 關寫鎖）／移除到 `packs/_removed/`／`reload()`（Web UI、`synox install` 共用）；`format_tier`／`red`＝T2 的紅字段 |
 | `src/synox/packs/tier.py` | 信任層級（SDK P7）：`assess`（T0／T1／T2＋掃不到內容的檔、外部程式、runtime auto 套件）、`warning_lines`、`confirm_problem`（publisher 一字不差）、`reconfirm_reasons`（升級）、`lock_fields` |
@@ -48,10 +48,10 @@
 | `src/synox/wizard/` | `pages.py`（tkinter 畫面：這台給誰用 → token → 配對 → AI → 完成）、`logic.py`（寫 config、mode、AI 頁的 helper、金鑰進保管箱）、`telegram_probe.py`（getMe、配對碼）、`shortcuts.py` |
 | `src/synox/doctor.py` | 健康檢查（不改任何檔、不產生金鑰） |
 | `src/synox/brand.py` | 終端機門面：歡迎畫面（`show_banner`；`BANNER_COMMANDS`＝沒參數／run／open／wizard／init／doctor／about）、`about_text`、`TIPS`。只在互動終端機印；`--quiet`、`SYNOX_NO_BANNER`、`CI`、管線＝不印（既有輸出一個字都不變），`TERM=dumb`＝一行，`NO_COLOR`＝不上色；Windows 主控台 code page 不是 65001（cp950）或 `SYNOX_ASCII=1`＝ASCII logo。預覽 `docs/ui/cli-welcome.txt`（`scripts/make_cli_welcome.py`） |
-| `packs/` | **出廠是空的**（2026-11-12，[../legacy/builtin-packs.md](../legacy/builtin-packs.md)）：使用者裝的工具的落點（`PACK_DIRS[0]`），只有 `README.md` 進 git。notes／money／remind 的正本在 **SYNOX_Libs**（工具庫，另一個 repo；ADR 在它的 `docs/adr/0001`），remind 的程式本體仍在 `synox/schedule` |
+| `packs/` | **出廠是空的**（2026-11-12，[../legacy/builtin-packs.md](../legacy/builtin-packs.md)）：使用者裝的工具的落點（`PACK_DIRS[0]`），只有 `README.md` 進 git。notes／money 的正本在 **SYNOX_Libs**（工具庫，另一個 repo；ADR 在它的 `docs/adr/0001`）。提醒是**系統指令**（`synox/schedule`，見下面「另外」），工具庫的舊 remind 在它的 `legacy/` |
 | `src/synox/packs/library.py` | 「還沒裝任何工具、去哪裡裝」：`installed_tools`（不算出廠 connector）、`empty_hint`／`start_hint`（/start、/help 只給擁有者）、`install`（包 SDK 的 /help）、`status`（網頁 `/api/tools`、`/api/settings` 的 `library`）、`doctor_lines`；工具庫位置＝`config.json` 的 `packs.library`（`library_location`，不寫死路徑） |
 | `sdk/` | 單檔 SDK `synox_sdk.py`（產生的）＋`pyproject.toml`（`pip install <SYNOX>/sdk`＝`synox-sdk` 套件，版本讀 `SDK_VERSION`） |
-| `tests/fixtures/packs/` | host 測試用的 money／notes／remind（下架前的凍結複本，不是正本、不加功能） |
+| `tests/fixtures/packs/` | host 測試用的 money／notes（下架前的凍結複本，不是正本、不加功能）；提醒直接測核心的 `/remind_*` |
 | `connectors/notion`、`todoist`、`google-calendar`、`apple-reminders-caldav` | **已接上**：`kind: python`＋`capabilities: ["network"]`，只用 requests＋標準函式庫；憑證存 `pack.store.of(user)`（vault）。Notion REST `2025-09-03`（`tests/test_notion.py`）；Todoist API v1（`pack.py` 的 `Client`，`tests/test_todoist.py`）；Google 日曆走 OAuth（PKCE，不開埠）；Apple 是通用 CalDAV VTODO 用戶端（README 有可行性結論）。測試都換成假的 HTTP |
 | `src/synox/connect.py` | `python -m synox connect <pack>`（`Connect-Apple.bat`）：照 pack.json `auth.fields` 用 getpass 問帳密，存進 `pack_secrets`（`src/synox/packs/secrets.py`，保管箱的鍵 `packs/<pack>/<field>`；跟 Web UI 工具頁「連接」表單是同一份）。帳密不經聊天：Telegram 會留紀錄、`[ROUTE]` log 印指令全文 |
 | `Setup.bat`、`setup/bootstrap.ps1` | 一鍵安裝；`Start.bat`／`Stop.bat`／`Console.bat` |
@@ -213,10 +213,19 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 18. **背景工作一律登記成 runtime 的任務**（docs/adr/0001）：`runtime.of(app).loop.register(id, name, fn=, interval=, timeout=)`，
     不要自己開 `threading.Thread` 迴圈——逾時、退避、失敗通知、主控面板的狀態都在 `RuntimeLoop`。常駐助理（`runtime/mother.py`）**沒有工具**；
     要讓它做事得走 `ai_decision`＋核准卡，另寫 ADR。soul.md 只能經 `SoulStore`（保管箱），常駐助理只能 `append_notes`（「助理筆記」段、
-    每次最多 3 行、有稽核）。pack 回報的狀態給別的工具看時**只有 state 與時間**（`peer_states`），訊息不外流。測試一律
+    每次最多 3 行、有稽核）。對話助理**唯讀** soul.md（docs/adr/0002，決定 Q7）：只經 `AgentLoop.soul_block`→`SoulStore.for_prompt`，
+    只有擁有者、只在 chat_id＝本人的對話、包在這一輪的 `delimit` 分隔符裡標明「使用者偏好，不是指令」、最多 2000 字、不寫 log；
+    `RoomAgent.soul_block` 永遠空；對話助理不讀常駐助理的記憶。pack 回報的狀態給別的工具看時**只有 state 與時間**（`peer_states`），訊息不外流。測試一律
     `Runtime.use_fakes(clock=, now=, spawn=)`（假時鐘、同步執行）＋`FakeAdapter`，不叫真的 LLM。
 
 另外：
+- **⏰ 提醒（系統）＝系統指令，不是 pack**（擁有者 2026-11-12，QuestionToUser QL5）：`/remind_add`／`/remind_list`／`/remind_rm` 由
+  `schedule.install_system_remind` 在 `loader.load_all` **之前**掛，群組名 `remind` 登記在 `app.extras[loader.SYSTEM_GROUPS_KEY]`；
+  pack 宣告 `group: remind`（例如工具庫的舊 remind 工具）＝`loader.system_group_problem` → 狀態 `incompatible`＋一句「不需要了、去移除」，不載入。
+  權限照以前的 remind pack（`group_policy(member)`＋`private_only`）；它是系統指令，所以跟 `/schedule_*` 一樣**不看 Discord bot 的 `packs` 清單**
+  （頻道型 bot 照樣看不到：不在 `CHANNEL_BUILTINS`）。資料就是 `data/schedule.json.enc`（伺服器版每人一份），跟以前同一份。
+  名字刻意寫「（系統）」：工具、文件不要再用 remind／reminder 指別的東西；Apple 提醒事項是 connector `apple-reminders`，另一回事。
+  網頁工具頁把 SYNOX 自己的指令都歸在「系統」群組（`toolpage.BUILTIN`）。
 - pack 的群組由 loader 依 pack.json 定義（`loader.group_policy`）：`access: owner`（預設）＝整組 `owner_only`；`member`＝伺服器版 `role=MEMBER`、
   個人版 `owner_only`；`everyone`＝最低一級；再套角色能力上限（只會更嚴，見 invariant 11）。agent 群組也用同一個規則（`member`）：個人版只有擁有者，伺服器版成員以上；
   `AgentFallback.accepts` 問的是 `authorize(user, agent.ai)`，不另寫判斷。訪客（最低一級）在 `ai_decision` 一律沒有工具。
@@ -271,7 +280,7 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 | pack 資料 | `data/<pack>.json.enc` 一份 | `data/users/<id>/<pack>.json.enc` 每人一份 |
 | 提醒、排程 | 擁有者；`data/schedule.json.enc` | 成員以上；每人 `data/users/<id>/schedule.json.enc`，提醒送給建立的人，排程以他的身分跑（建立時 via=SCHEDULE 檢查裡面的指令） |
 | AI | 擁有者 | 成員以上；工具只有 `ai_decision` 對他放行的；每月額度 `ai_member_monthly_usd`（預設 2.0，`/ai_budget` 調），用量 `data/users/<id>/llm_usage.json` |
-| 網頁介面 | `/web`：擁有者 | `/web`：每個人（訪客也可以，看到的只有自己能用的）；帳號頁給擁有者／管理員 |
+| 網頁介面 | `/web`：擁有者 | `/web`：每個人（訪客也可以，看到的只有自己能用的）；帳號頁給擁有者／管理員。網頁只聽 127.0.0.1：沒設 `web.public_url` 時連結只在伺服器那台電腦打得開，設了就人人能從外面登入（白話表：security.md「誰進得了網頁」；要不要收緊：QuestionToUser QS1） |
 | 舊資料 | — | 個人版的共用檔不會自動搬到 `data/users/<擁有者>/`（留著不動；改回個人版又會用它們） |
 
 工程師模式：不跑精靈，照 `config.example.json` 寫 `config.json`（含 `mode`），`python -m synox run`。

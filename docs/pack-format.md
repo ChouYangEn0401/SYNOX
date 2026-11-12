@@ -99,7 +99,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 
 ### 權限宣告：`surfaces`、`data`、安裝時選的 `trust`
 
-舊的 pack 沒寫照舊能用（照下面的預設）；工具庫的 notes、money、remind 與出廠的 4 個 connector 都寫了 `"surfaces": ["dm"], "data": "user"`。
+舊的 pack 沒寫照舊能用（照下面的預設）；工具庫的 notes、money 與出廠的 4 個 connector 都寫了 `"surfaces": ["dm"], "data": "user"`。
 
 | | 值 | 沒寫的預設 | 效果 |
 |---|---|---|---|
@@ -118,8 +118,8 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 - **伺服器版怎麼用 trust（個人版不受影響）**：
   - kind=python 在 SYNOX 程序裡跑、沒有沙盒，所以 `trust: third-party` 的 python pack **只對擁有者可見**：成員打了跟不存在的指令一樣
     （「未知指令」）、`/help` 與 AI 工具清單都沒有。`core`（擁有者安裝時選的）與出廠的照常。
-  - 出廠的＝內建 `connectors/` 裡的 4 個 connector（沒有鎖時看名字＋位置）。notes、money、remind 2026-11-12 起搬到工具庫，
-    跟其他工具一樣要經安裝流程、看擁有者選的 trust。
+  - 出廠的＝內建 `connectors/` 裡的 4 個 connector（沒有鎖時看名字＋位置）。notes、money 2026-11-12 起搬到工具庫，
+    跟其他工具一樣要經安裝流程、看擁有者選的 trust（提醒 `/remind_*` 是系統指令「⏰ 提醒（系統）」，不是 pack）。
   - **沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）＝`third-party`；而且載入前補跑一次第 2 關靜態掃描，
     沒過＝狀態 `rejected`、不載入（理由列 `檔名:行號`）。信得過就 `python -m synox packs lock --approve <name> --trust core`。
   - 為什麼只給擁有者，`doctor` 與 `packs status` 都會寫一行 🔐。kind=cli 的第三方 pack 另外看沙盒（見 `docs/security.md`「運行空間（沙盒）」）。
