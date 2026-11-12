@@ -1,5 +1,15 @@
 # Discord 通道：現況與設定（2026-11-09，含多 bot、頻道型 bot）
 
+## 先看這些（第一次接 Discord）
+
+| 文件 | 給誰 |
+|---|---|
+| [discord-concepts.md](discord-concepts.md) | 搞不清楚「私訊／伺服器／頻道／每個頻道不一樣」差在哪、該選哪一種的人：名詞對照、三種用法、決定表、SYNOX 今天做到哪、每頻道設定的提案、查證紀錄 |
+| [tutorials/discord/](tutorials/discord/README.md) | 一步一步做：建 Application → token → intent → 邀請連結 → 邀進伺服器 → 複製 ID → 貼進 SYNOX → 配對 → 測試 → 排錯（HTML 版有示意圖；README 是純文字版） |
+| [handoff/discord-handoff.md](handoff/discord-handoff.md) | 到另一台可以上網的電腦第一次真連：D1–D18 測試清單、回報格式 |
+
+這一份是**設定欄位的完整說明**；下面照舊。
+
 ## 現況（最小可用版）
 
 | 項目 | 狀態 |
