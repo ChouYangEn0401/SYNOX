@@ -492,6 +492,8 @@ class WebUI:
                 return self.channels(user)
             if path == "/api/settings/channels/discord/pair":
                 return self.discord_pair_state(user)
+            if path == "/api/settings/channels/telegram/pair":
+                return self.telegram_pair_state(user)
             if path == "/api/usage":
                 return self.usage_report(user, (query.get("period") or ["day"])[0])
             if path == "/api/accounts":
@@ -531,6 +533,8 @@ class WebUI:
             return self.save_discord(user, data)
         if path == "/api/settings/channels/discord/pair":
             return self.discord_pair(user, data)
+        if path == "/api/settings/channels/telegram/pair":
+            return self.telegram_pair(user, data)
         m = re.match(r"^/api/pack-secrets/([a-z][a-z0-9_-]{0,31})$", path)
         if m:
             return self.pack_secrets_save(user, m.group(1), data)
@@ -1011,6 +1015,14 @@ class WebUI:
             ok, info = tg.get_me(token)
             telegram["bot" if ok else "problem"] = self._scrub(info, token)
         telegram["restart"] = "telegram" in self._channels_changed or (telegram["saved"] and not telegram["active"])
+        link = self.app.extras.get("telegram_link")          # 擁有者是保留號段（只用網頁／Discord 安裝）才有
+        tp = self.app.extras.get("telegram_pairing")
+        telegram["pairable"] = link is not None or (telegram["saved"] and owner >= BASE)     # 要用網頁配對（不是精靈）
+        telegram["paired_as"] = (link.external() or "") if link is not None else ""
+        if telegram["paired_as"]:
+            telegram["owner_paired"] = True
+        telegram["pairing"] = tp.pending() if tp is not None else None
+        telegram["pair_ready"] = link is not None and telegram["active"] and not telegram["restart"]
         d = (cfg.get("channels") or {}).get("discord") if isinstance(cfg.get("channels"), dict) else None
         d = d if isinstance(d, dict) else {}
         discord = {"multi": "bots" in d, "saved": False, "active": "discord" in self.app.extras,
@@ -1048,6 +1060,50 @@ class WebUI:
             return str(ids.external(DISCORD, owner) or "")
         except Exception:
             return ""
+
+    def telegram_pair_state(self, user) -> Resp:
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        link = self.app.extras.get("telegram_link")
+        tp = self.app.extras.get("telegram_pairing")
+        return _json(200, {"pairing": tp.pending() if tp is not None else None,
+                           "paired_as": (link.external() or "") if link is not None else "",
+                           "just_paired": tp.last_paired if tp is not None else None})
+
+    def telegram_pair(self, user, data: dict) -> Resp:
+        """擁有者配對 Telegram 帳號（只給擁有者是保留號段的安裝）：start 產生六位數字（私訊 bot 傳它）、cancel、
+        manual（直接給 Telegram 編號）。做法是 telegram_link.py 的對照表：資料不動、不換擁有者 id。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from synox import telegram_link
+        link = self.app.extras.get("telegram_link")
+        tp = self.app.extras.get("telegram_pairing")
+        action = str(data.get("action") or "")
+        if action == "cancel":
+            if tp is not None:
+                tp.cancel()
+            return _json(200, {"ok": True})
+        if link is None:
+            return _err(409, "Telegram 還沒在執行（先存好 bot token、重新啟動 SYNOX），或你的擁有者本來就是 Telegram 帳號"
+                             "（用安裝精靈配對的，不用在這裡配）。")
+        if action == "start":
+            started = tp.start()
+            logging.info("[WEB] %s started a Telegram owner pairing", user.tg_id)
+            return _json(200, {"ok": True, **started})
+        if action == "manual":
+            raw = "".join(str(data.get("user_id") or "").split())
+            if not (raw.isdigit() and 5 <= len(raw) <= 15):
+                return _err(400, "Telegram 編號是一串 6～12 位的數字（對 Telegram 的 @userinfobot 傳任何訊息，它會告訴你）。")
+            try:
+                notes = telegram_link.bind_owner(link.identities, raw, link.owner_id)
+            except Exception as e:
+                return _err(400, str(e))
+            logging.info("[WEB] %s paired Telegram user %s as the owner", user.tg_id, raw)
+            return _json(200, {"ok": True, "paired_as": raw,
+                               "message": "✅ 配對好了：這個 Telegram 帳號現在是擁有者。" + "".join(notes)})
+        return _err(400, "action 要是 start、cancel 或 manual。")
 
     def discord_pair_state(self, user) -> Resp:
         denied = self._owner_only(user)
@@ -1121,7 +1177,7 @@ class WebUI:
             after = "之後在 Telegram 私訊 bot 打 /web 也能拿網頁的登入連結。（只能私訊 bot；加進群組沒有用。）"
         else:
             after = ("還沒配對擁有者：bot 還不認得你的 Telegram 帳號（陌生人會被擋）。"
-                     "要配對就雙擊 Setup.bat 重跑安裝精靈（token 會自動帶入），照畫面私訊 bot 六個數字。")
+                     "重新啟動 SYNOX 後，到設定 → 聊天通道 → Telegram →「配對我的 Telegram 帳號」，照畫面私訊 bot 六個數字。")
         return _json(200, {"ok": True, "bot": bot,
                            "message": f"✅ 存好了：bot @{bot}。重新啟動 SYNOX 後生效（雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑）。"
                                       + after})
