@@ -43,6 +43,13 @@ def test_repo_level_tools_and_wheelhouse_are_not_taken_from_git():
     assert not make_zip.excluded("src/synox/wizard/tools.py") and not make_zip.excluded("src/synox/runtime/loop.py")
 
 
+def test_eval_set_is_not_shipped():
+    """評測題目與劇本（evals/）是開發用的，不發給一般使用者；程式碼 src/synox/evals 照常發。"""
+    assert make_zip.excluded("evals/assistant/cases/note-01.json")
+    assert make_zip.excluded("evals/assistant/README.md")
+    assert not make_zip.excluded("src/synox/evals/cases.py")
+
+
 def fake_embed(folder, minor=12):
     os.makedirs(folder)
     with open(os.path.join(folder, f"python3{minor}._pth"), "w", encoding="ascii") as f:
