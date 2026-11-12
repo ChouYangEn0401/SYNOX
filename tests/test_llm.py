@@ -193,3 +193,12 @@ def test_find_claude_falls_back_to_native_install_dir(tmp_path, monkeypatch):
     exe.parent.mkdir(parents=True)
     exe.write_bytes(b"")
     assert claude_code.find_claude() == str(exe)
+
+
+def test_claude_code_passes_through_the_cost_it_reports():
+    def runner(argv, **kw):
+        return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(
+            {"type": "result", "result": "好", "is_error": False, "total_cost_usd": 0.0123,
+             "usage": {"input_tokens": 5, "output_tokens": 1}}), stderr="")
+    reply = ClaudeCodeAdapter(runner=runner, which=lambda: "claude").chat([Message(USER, "hi")])
+    assert reply.usage == {"input": 5, "output": 1, "usd": 0.0123}

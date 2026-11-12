@@ -22,7 +22,7 @@ import logging
 import threading
 import time
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
 from isdtelekit.core import jsonstore
@@ -80,8 +80,14 @@ class UsageBook:
             return
         with self._lock:
             data = jsonstore.load_json(self.path, {}) or {}
-            day = datetime.now().strftime("%Y-%m-%d")
-            for bucket in (data.setdefault("total", {}), data.setdefault("days", {}).setdefault(day, {})):
+            from synox.agent.usage_report import HOURS_KEEP
+            now = datetime.now()
+            day = now.strftime("%Y-%m-%d")
+            hours = data.setdefault("hours", {})
+            for stale in [h for h in hours if h < (now - timedelta(days=HOURS_KEEP)).strftime("%Y-%m-%d %H")]:
+                del hours[stale]                      # 每小時的只留最近幾天；更久的看每天（days 永遠留）
+            for bucket in (data.setdefault("total", {}), data.setdefault("days", {}).setdefault(day, {}),
+                           hours.setdefault(now.strftime("%Y-%m-%d %H"), {})):
                 bucket["calls"] = bucket.get("calls", 0) + 1
                 bucket["input"] = bucket.get("input", 0) + int(usage.get("input", 0) or 0)
                 bucket["output"] = bucket.get("output", 0) + int(usage.get("output", 0) or 0)
@@ -213,7 +219,8 @@ class AgentLoop:
         elif self.budget is not None:
             usd = self.budget.cost(usage)
         else:
-            usd = 0.0
+            from synox.agent.budget import usd_of
+            usd = usd_of(self.app.config, usage)      # 個人版也記花費（Claude Code 回報的優先，沒有就照單價算）
         self.usage.record(usage, usd=usd)
 
     def _turn(self, api, chat_id: int, user, text: str) -> None:

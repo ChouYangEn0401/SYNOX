@@ -16,6 +16,7 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     GET  /api/tools                 工具頁：看得到的工具（說明、指令、參數表單）＋這個人的群組排版（layout）
     POST /api/tools/layout          {"groups": [{"id", "title", "tools": [...]}]}｜{"reset": true}：存這個人自己的排版
                                     （web/toolpage.py；不寫進 pack 資料夾，擁有者與成員各自一份）
+    GET  /api/usage?period=hour|day|week|month   擁有者：AI 用量與花費（依期間分組；agent/usage_report.py）
     GET  /api/settings/channels     擁有者：Telegram／Discord 的狀態（存了沒、bot 名字、要不要重開；token 永遠不回）
     /api/runtime/...                擁有者：主控面板（心跳、常駐助理、soul.md、任務狀態；合約 docs/runtime-api.md，
                                     `PUT /api/runtime/soul` 是唯一收 PUT 的）
@@ -479,6 +480,10 @@ class WebUI:
                 return _json(200, self.settings(user))
             if path == "/api/settings/channels":
                 return self.channels(user)
+            if path == "/api/settings/channels/discord/pair":
+                return self.discord_pair_state(user)
+            if path == "/api/usage":
+                return self.usage_report(user, (query.get("period") or ["day"])[0])
             if path == "/api/accounts":
                 return self.accounts(user)
             return _err(404, "沒有這個 API。")
@@ -848,6 +853,25 @@ class WebUI:
             if not find_claude():
                 msg += "　⚠ 這台電腦還找不到 claude，按「測一下」看安裝方法。"
         return {"ok": True, "kind": kind, "applied": True, "message": msg}
+
+    def usage_report(self, user, period: str) -> Resp:
+        """AI 用量與花費（設定頁的小儀表板）：總帳 data/llm_usage.json 依每小時／天／週／月分組。只給擁有者。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from datetime import datetime
+        from isdtelekit.core import jsonstore
+        from synox.agent import usage_report
+        from synox.agent.budget import usd_of
+        if period not in usage_report.PERIODS:
+            return _err(400, "period 要是 " + "、".join(usage_report.PERIODS) + " 其中之一。")
+        data = jsonstore.load_json(self.config.path("llm_usage.json"), {}) or {}
+        out = usage_report.series(data, period, datetime.now(),
+                                  lambda tin, tout: usd_of(self.config, {"input": tin, "output": tout}))
+        kind = (self.config.llm or {}).get("kind", "none")
+        out["kind"] = kind
+        out["subscription"] = kind == "claude_code"          # 訂閱制：美元是照 API 價換算的約數
+        return _json(200, out)
 
     def test_llm(self, user, data: dict) -> Resp:
         denied = self._owner_only(user)

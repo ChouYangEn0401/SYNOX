@@ -143,6 +143,41 @@
   .field-row input { flex: 1 1 260px; }
   .msgline { font-size: 13.5px; color: var(--text-2); min-height: 0; margin-top: 8px; }
   .msgline:empty { display: none; }
+  .usage-bar { display: flex; gap: 12px; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; }
+  .usage-bar label.f { margin-top: 0; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 14px 0; }
+  .stat { padding: 12px 14px; border-radius: var(--r); background: var(--sunken); }
+  .stat .k { font-size: 12px; color: var(--muted); }
+  .stat .v { font-size: 24px; font-weight: 650; letter-spacing: -.01em; margin-top: 2px; }
+  .stat .d { font-size: 12.5px; color: var(--text-2); margin-top: 2px; }
+  .chart { position: relative; height: 180px; display: flex; align-items: flex-end; gap: 4px; padding: 22px 0 22px;
+           border-bottom: 1px solid var(--line); }
+  .chart .max { position: absolute; top: 0; left: 0; font-size: 12px; color: var(--muted); }
+  .chart .col { flex: 1 1 0; min-width: 0; height: 100%; display: flex; align-items: flex-end; justify-content: center;
+                position: relative; outline: none; }
+  .chart .col .bar { width: 100%; max-width: 40px; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 0; }
+  .chart .col.zero .bar { height: 2px !important; background: var(--line-strong); border-radius: 0; }
+  .chart .col:hover .bar, .chart .col:focus .bar { filter: brightness(1.12); }
+  .chart .col .lab { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-size: 11.5px;
+                     color: var(--muted); white-space: nowrap; }
+  .chart .col .tip { display: none; position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%);
+                     z-index: 5; padding: 6px 10px; border-radius: 8px; background: var(--text); color: var(--bg);
+                     font-size: 12.5px; white-space: nowrap; pointer-events: none; }
+  .chart .col:hover .tip, .chart .col:focus .tip { display: block; }
+  .chart .col.edge-l .tip { left: 0; transform: none; }
+  .chart .col.edge-r .tip { left: auto; right: 0; transform: none; }
+  #usage-table td, #usage-table th { text-align: right; }
+  #usage-table td:first-child, #usage-table th:first-child { text-align: left; }
+  #chat-list li.pinned { border-color: var(--accent); }
+  .scope-note { margin: 0 0 14px; }
+  .pair { margin-top: 14px; padding: 12px 14px; border-radius: var(--r); background: var(--sunken); }
+  .pair h4 { margin: 0 0 4px; font-size: 14px; }
+  .pair details { margin-top: 12px; }
+  .pair summary { cursor: pointer; font-size: 13.5px; color: var(--text-2); }
+  .pair-code { margin-top: 12px; }
+  .pair-code .code { font-size: 34px; font-weight: 700; letter-spacing: .28em; font-variant-numeric: tabular-nums;
+                     padding: 10px 14px; border-radius: var(--r); background: var(--surface); border: 1px dashed var(--line-strong);
+                     display: inline-block; user-select: all; }
   .restart-banner { margin: 0 0 14px; padding: 10px 12px; border-radius: var(--r); background: var(--warn-soft);
                     border-left: 4px solid var(--warn); font-size: 14px; }
   .install { margin-top: 14px; padding: 12px 14px; border-radius: var(--r); background: var(--sunken); font-size: 13.5px; }
@@ -475,6 +510,25 @@
         </div>
       </div>
 
+      <div id="set-usage" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">💰</span>
+          <div class="txt"><h2>AI 用量與花費</h2><p class="sub" id="usage-sub"></p></div></div>
+        <div class="usage-bar">
+          <div><label class="f" for="usage-period">一格是多久</label>
+            <select id="usage-period">
+              <option value="hour">每小時（最近 24 小時）</option>
+              <option value="day" selected>每天（最近 14 天）</option>
+              <option value="week">每週（最近 12 週）</option>
+              <option value="month">每月（最近 12 個月）</option>
+            </select></div>
+          <button id="usage-view" type="button" class="sm">看表格</button>
+        </div>
+        <div class="stats" id="usage-stats"></div>
+        <div id="usage-chart" class="chart" role="img"></div>
+        <div id="usage-table-wrap" class="hidden"><table id="usage-table"></table></div>
+        <p id="usage-note" class="muted"></p>
+      </div>
+
       <div id="set-channels" class="card hidden">
         <div class="card-head"><span class="tile" aria-hidden="true">💬</span>
           <div class="txt"><h2>聊天通道</h2>
@@ -785,12 +839,12 @@
   function loadSettings() {
     api("GET", "/api/settings").then(function (d) {
       $("set-notowner").classList.toggle("hidden", d.owner);
-      ["set-llm", "set-channels", "set-packs", "set-backup"].forEach(function (id) { $(id).classList.toggle("hidden", !d.owner); });
+      ["set-llm", "set-usage", "set-channels", "set-packs", "set-backup"].forEach(function (id) { $(id).classList.toggle("hidden", !d.owner); });
       $("set-accounts").classList.toggle("hidden", !d.accounts);
       $("my-budget").textContent = d.ai_budget ?
         "這個月的 AI 額度：用了約 US$" + d.ai_budget.used.toFixed(2) + "／US$" + Number(d.ai_budget.limit).toFixed(2) : "";
       $("my-budget").classList.toggle("hidden", !d.ai_budget);
-      if (d.owner) { fillLlm(d); fillPacks(d.packs || []); loadChannels(); }
+      if (d.owner) { loadUsage(); fillLlm(d); fillPacks(d.packs || []); loadChannels(); }
       if (d.accounts) { loadAccounts(); }
     }).catch(function (e) { toast(e.message); });
   }
@@ -845,6 +899,76 @@
     api("POST", "/api/settings/llm", llmBody()).then(function (d) { $("llm-msg").textContent = d.message; loadSettings(); })
       .catch(function (e) { $("llm-msg").textContent = "❌ " + e.message; });
   });
+
+  // ── AI 用量與花費（小儀表板）──────────────────────────────────────
+  var usageTable = false;
+  function money(v) {
+    v = Number(v) || 0;
+    return "US$" + (v === 0 ? "0" : v < 1 ? v.toFixed(4) : v.toFixed(2));
+  }
+  function num(v) { return (Number(v) || 0).toLocaleString("en-US"); }
+  function stat(k, v, d) {
+    var box = el("div", "stat");
+    box.appendChild(el("div", "k", k)); box.appendChild(el("div", "v", v));
+    if (d) { box.appendChild(el("div", "d", d)); }
+    return box;
+  }
+  function drawUsage(d) {
+    var stats = $("usage-stats"), chart = $("usage-chart"), tbl = $("usage-table");
+    clear(stats); clear(chart); clear(tbl);
+    var pts = d.points || [], total = d.total || {};
+    var periodName = { hour: "最近 24 小時", day: "最近 14 天", week: "最近 12 週", month: "最近 12 個月" }[d.period] || "";
+    stats.appendChild(stat(periodName + "的花費", (d.estimated ? "約 " : "") + money(total.usd),
+      d.subscription ? "照 API 價換算（不是額外扣的錢）" : "依你設定的單價估算"));
+    stats.appendChild(stat("呼叫 AI", num(total.calls) + " 次", ""));
+    stats.appendChild(stat("用掉的字數（token）", num((total.input || 0) + (total.output || 0)),
+      "輸入 " + num(total.input) + "／輸出 " + num(total.output)));
+    var max = 0;
+    pts.forEach(function (p) { if (p.usd > max) { max = p.usd; } });
+    var every = d.period === "hour" ? 4 : d.period === "month" ? 1 : 2;
+    chart.appendChild(el("div", "max", max > 0 ? money(max) : ""));
+    chart.setAttribute("aria-label", periodName + "每格的花費，總共 " + money(total.usd) + "。完整數字在「看表格」。");
+    pts.forEach(function (p, i) {
+      var col = el("div", "col" + (p.usd > 0 ? "" : " zero") + (i < 2 ? " edge-l" : i >= pts.length - 2 ? " edge-r" : ""));
+      col.tabIndex = 0;
+      var tip = (p.est ? "約 " : "") + money(p.usd) + "・" + num(p.calls) + " 次";
+      col.setAttribute("aria-label", p.label + "：" + tip);
+      var bar = el("div", "bar");
+      bar.style.height = (max > 0 ? Math.max(p.usd > 0 ? 3 : 0, Math.round(p.usd / max * 100)) : 0) + "%";
+      col.appendChild(bar);
+      col.appendChild(el("div", "tip", p.label + "　" + tip));
+      if (i % every === (pts.length - 1) % every) { col.appendChild(el("div", "lab", p.label)); }
+      chart.appendChild(col);
+    });
+    var head = el("tr");
+    ["時間", "花費", "呼叫", "輸入 token", "輸出 token"].forEach(function (h) { head.appendChild(el("th", "", h)); });
+    tbl.appendChild(head);
+    pts.slice().reverse().forEach(function (p) {
+      var tr = el("tr");
+      [p.label, (p.est ? "約 " : "") + money(p.usd), num(p.calls), num(p.input), num(p.output)].forEach(function (c) { tr.appendChild(el("td", "", c)); });
+      tbl.appendChild(tr);
+    });
+    $("usage-sub").textContent = d.subscription
+      ? "Claude Code 走的是你自己的訂閱：這裡的美元是照 API 價換算的約數，不是額外扣的錢。"
+      : "花費是依你設定的單價（config.json 的 llm.price_in／price_out）算的估計。";
+    $("usage-note").textContent = (d.estimated ? "標「約」的是舊紀錄（當時沒記花費），用字數照現在的單價估的。" : "") +
+      (total.calls === 0 ? "這段時間還沒有用過 AI。" : "");
+    $("usage-chart").classList.toggle("hidden", usageTable);
+    $("usage-table-wrap").classList.toggle("hidden", !usageTable);
+    $("usage-view").textContent = usageTable ? "看圖" : "看表格";
+  }
+  function loadUsage() {
+    var period = $("usage-period").value;
+    try { localStorage.setItem("synox.usage.period", period); } catch (e) { /* 沒有也行 */ }
+    api("GET", "/api/usage?period=" + encodeURIComponent(period)).then(drawUsage)
+      .catch(function (e) { $("usage-note").textContent = "❌ " + e.message; });
+  }
+  $("usage-period").addEventListener("change", loadUsage);
+  $("usage-view").addEventListener("click", function () { usageTable = !usageTable; loadUsage(); });
+  try {
+    var savedPeriod = localStorage.getItem("synox.usage.period");
+    if (savedPeriod && $("usage-period").querySelector('option[value="' + savedPeriod + '"]')) { $("usage-period").value = savedPeriod; }
+  } catch (e) { /* 沒有也行 */ }
 
   // ── 聊天通道 ─────────────────────────────────────────────────────
   var RESTART = "（重新啟動 SYNOX 後生效：雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑）";

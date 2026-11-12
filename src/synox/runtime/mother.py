@@ -172,7 +172,11 @@ class MotherSession:
             return
         try:
             budget = self.app.extras.get("synox_budget")
-            usd = budget.cost(usage) if budget is not None else 0.0
+            if budget is not None:
+                usd = budget.cost(usage)
+            else:
+                from synox.agent.budget import usd_of
+                usd = usd_of(self.app.config, usage)
             agent.usage.record(usage, usd=usd)
         except Exception:
             logging.exception("[MOTHER] cannot record usage")
