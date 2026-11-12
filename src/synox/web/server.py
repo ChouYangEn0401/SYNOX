@@ -317,14 +317,22 @@ class WebUI:
         csp = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
         cookie = (f"{LOGIN_COOKIE}={binder}; HttpOnly; SameSite=Strict; Path=/login; Max-Age={int(LOGIN_FORM_TTL)}"
                   + self._secure())
-        return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "DENY"),
-                                    ("Content-Security-Policy", csp), ("Set-Cookie", cookie)], html.encode("utf-8")
+        base = [h for h in BASE_HEADERS if h[0] != "Referrer-Policy"] + [("Referrer-Policy", "same-origin")]
+        return 200, base + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "DENY"),
+                            ("Content-Security-Policy", csp), ("Set-Cookie", cookie)], html.encode("utf-8")
 
     def login_post(self, headers: Dict[str, str], body: bytes) -> Resp:
         origin = headers.get("origin")
-        if origin and (origin == "null" or urlsplit(origin).netloc != headers.get("host", "")):
+        fetch_site = headers.get("sec-fetch-site")
+        if origin == "null":
+            # 頁面帶 Referrer-Policy: no-referrer 時，瀏覽器連「同源」表單 POST 都送 Origin: null（真的 Edge／Chrome 會）。
+            # Sec-Fetch-Site 是瀏覽器自己加、網頁改不了的標頭：same-origin 才放行；別的網站送來的是 cross-site／缺標頭。
+            origin_ok = fetch_site == "same-origin"
+        else:
+            origin_ok = not origin or urlsplit(origin).netloc == headers.get("host", "")
+        if not origin_ok:
             return _page(403, "登入沒有完成", "來源不對（不是從 SYNOX 自己的登入頁送出的）。")
-        if headers.get("sec-fetch-site") not in (None, "", "same-origin", "none"):
+        if fetch_site not in (None, "", "same-origin", "none"):
             return _page(403, "登入沒有完成", "來源不對（跨站送出的登入）。")
         try:
             form = (parse_qs(body.decode("utf-8")).get("f") or [""])[0]
