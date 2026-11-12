@@ -45,6 +45,7 @@ packs/money/
 | `requires.config` | | `config.json` 要有的欄位；缺了就不載入（doctor 會說缺什麼） |
 | `requires.env` | | 要有的環境變數（清單或 `{名字: 說明}`）；缺了就不載入。kind=cli 時**這些名字也是子程序唯一看得到的密鑰**：SYNOX 叫工具時會把像密鑰的變數（`*_TOKEN`、`*_API_KEY`、`*_SECRET`、`*_PASSWORD`…）拿掉，只放行這裡（和 `auth.fields[].env`）列的 |
 | `requires.synox` | | SYNOX 最低版本，例如 `">=0.3"`（逗號接好幾個：`">=0.3,<1.0"`；只寫 `"0.3"`＝`>=0.3`）。寫錯＝pack.json 不合；這台的 SYNOX 不合＝**不載入**（狀態「SYNOX 版本不合」），doctor、`packs status`、安裝報告會說要哪一版、這台是哪一版 |
+| `requires.sdk` | | **建議一定寫**：這個工具照哪一版 SYNOX SDK（給工具的介面合約，`synox_sdk.SDK_VERSION`，見 [sdk.md](sdk.md)「SDK 版本」）寫的，例如 `">=0.2,<0.3"`（0.x 寫到下一個 MINOR）。寫法同 `requires.synox`；寫錯＝pack.json 不合；這台的 SDK 不在範圍內＝**不裝**（安裝報告列原因）、**不載入**（狀態「版本不合」）。`synox-sdk init` 會自動寫好 |
 | `requires.pip` | | 要的 Python 套件。`runtime.python` 是 `"auto"`（只給 kind=cli）時，安裝會建 venv 照這份裝，每一項都要是 `名字==版本`（見下面「依賴與環境自動建置」）；沒有 `auto`＝SYNOX 不會幫你裝，只是給人看 |
 | `web.panel` | | Web UI 工具頁的面板：pack 資料夾裡的一個 `.html`（不能用 `..`、絕對路徑）。網頁在 `<iframe sandbox="allow-scripts allow-same-origin">` 裡掛 `/packs/<name>/panel`，只給看得到這個 pack 的人 |
 | `web.api` | | 面板能打的資料：`["GET /summary"]`（只支援 GET，名字小寫英數字）。pack 在 `install` 裡用 `pack.web_route("summary", fn)` 掛，`fn(user)` 回可以轉 JSON 的東西（**只回這個人自己的**：用 `pack.store.of(user)`）。沒宣告的 route 掛了也打不到 |

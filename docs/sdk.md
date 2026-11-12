@@ -35,6 +35,23 @@ synox-sdk zip .                                                 → dist/hello-0
 - **裝了 SYNOX**：`from synox.sdk import tool, serve`。
 
 單檔版是從正本 `src/synox/sdk/author.py` 用 `scripts/build_synox_sdk.py` 產生的；改 SDK 改正本，再重產（測試會比對兩份一樣）。
+- **pip 裝**：`sdk/` 本身是一個可以單獨安裝的套件（`synox-sdk`，[sdk/pyproject.toml](../sdk/pyproject.toml)）：`pip install <SYNOX 資料夾>/sdk`。
+
+## SDK 版本（`requires.sdk`）
+
+SDK＝SYNOX 給工具的**介面合約**，有自己的版本號 `SDK_VERSION`（現在 `0.2.0`，寫在 `src/synox/sdk/author.py`，單檔版、`pip` 套件都讀它）。
+合約包含：pack.json 的格式、子程序工具拿到的環境變數與 JSON 信封（`synox_sdk.py`）、kind=python 工具的 `install(app, pack)` 介面
+（`pack.store`／`store.of(user)`／`path_of`／`secret`／`web_route`、`synox.packs.kit`、`isdtelekit.core.registry` 的 `Field`／`READ`／`WRITE`／`DANGER`）。
+
+每個工具在 pack.json 宣告它照哪一版寫：
+
+```json
+"requires": { "synox": ">=0.2", "sdk": ">=0.2,<0.3" }
+```
+
+SYNOX 安裝時（第 1、2 關）、載入時、doctor 都會對這台的 `SDK_VERSION`：不在範圍內＝不裝、不載入，並說要哪一版。
+`synox-sdk init`／`init --from` 會自動寫（`synox_sdk.SDK_REQUIRES`）。合約有不相容的改動時 `SDK_VERSION` 升 MINOR（0.x）或 MAJOR（1.x 以後）。
+工具庫（SYNOX_Libs）打包前也檢查每個工具都寫了、而且跟打包用的 SYNOX 相容（設計見 SYNOX_Libs 的 `docs/adr/0001-tool-library-and-sdk-dependency.md`）。
 
 ## @tool
 
