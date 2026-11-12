@@ -75,6 +75,21 @@ def _err(status: int, message: str) -> Resp:
     return _json(status, {"error": message})
 
 
+# app.html 裡的 /*{{INCLUDE:檔名}}*/ 換成 static/ 裡那個檔的內容（主控頁的 control.js／control.css）。
+# 分成檔好維護、好測；送出去仍是一頁、同一個 nonce，不多開靜態檔的路由。只認 static/ 底下的 .js／.css 檔名。
+INCLUDE_RE = re.compile(r"/\*\{\{INCLUDE:([a-z][a-z0-9_-]{0,40}\.(?:js|css))\}\}\*/")
+
+
+def app_html(nonce: str) -> str:
+    with open(os.path.join(STATIC, "app.html"), "r", encoding="utf-8") as f:
+        html = f.read().replace("{{NONCE}}", nonce)
+
+    def include(m: "re.Match[str]") -> str:
+        with open(os.path.join(STATIC, m.group(1)), "r", encoding="utf-8") as f:
+            return f.read()
+    return INCLUDE_RE.sub(include, html)
+
+
 # 伺服器自己產生的小頁（登入確認、登入失敗）共用的樣式：跟 static/app.html 同一套 token 的精簡版
 # （CSP 是 style-src 'unsafe-inline'，沒有 script；改顏色先改 app.html，再對這裡）。
 PAGE_CSS = (
@@ -294,9 +309,8 @@ class WebUI:
 
     def app_page(self) -> Resp:
         nonce = secrets.token_urlsafe(16)
-        with open(os.path.join(STATIC, "app.html"), "r", encoding="utf-8") as f:
-            html = f.read().replace("{{NONCE}}", nonce)
-        csp = (f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'nonce-{nonce}'; "
+        html = app_html(nonce)
+        csp =(f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'nonce-{nonce}'; "
                "img-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; "
                "base-uri 'none'; form-action 'self'")
         return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "DENY"),
