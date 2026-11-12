@@ -2,6 +2,11 @@
 
 ## 未發佈（dev，2026-11-12：合併 debug/setup-python-telegram＋跟進 ClawBot／金流簿）
 
+### 工具健康：失敗信封 v1 與隔離清單（branch `feat/cb4-health`，還沒合併）
+- 工具失敗時有固定格式（類別碼、能不能重試、補救建議；截長、遮密鑰），AI 收到一行 `FAIL …`；同一個根因連續失敗的工具暫時不給 AI、冷卻後用 pack.json 的
+  `health.check` 重新檢查（不叫 AI），`doctor` 與網頁工具頁看得到狀態，擁有者可以重新檢查、解除隔離。SDK 0.2.1 加 `fail()`／`ToolFailure`
+  （舊的 `ToolError` 照舊；沒處理的例外改叫 `unclassified`）。不做自動修復。說明：[docs/tool-health.md](docs/tool-health.md)。
+
 ### 網頁的開場動畫與微動畫（branch `feat/ui-splash`，還沒合併）
 - 打開網頁時「S 寶寶」掉下來、眨眼、說嗨、翻面變成 S 標誌、SYNOX 字樣跳出來（約 1.7 秒；點一下或按任何鍵略過；同一個分頁只播一次）；
   頁面切換、卡片進場、按鈕、對話泡泡、狀態點、背景淡光與小光點的微動畫。版面沒動；系統開了「減少動態效果」→ 開場不播、動畫全關。
