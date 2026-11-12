@@ -2,7 +2,8 @@
  *
  * config.json 的 presentation.enabled 開著時，AI 回覆的訊息多一個 blocks（JSON），app.html 的 renderMessage
  * 用這裡的 render(document, blocks) 畫；沒有 blocks 的訊息照舊整段 textContent。
- * 伺服器把這個檔原地塞進 app.html 的 INCLUDE:blocks.js（server.app_html，同一個 CSP nonce）。
+ * 伺服器把這個檔原地塞進 app.html 主程式那個 script 標籤開頭的 INCLUDE:blocks.js（server.render_app，同一個 CSP nonce，
+ * 不多一個 script 標籤）。
  *
  * 規則（docs/AGENT.md invariant 9、docs/presentation.md）：一律 createElement＋textContent，不塞 HTML 字串；
  * 連結只收 http／https；只產生白名單的標籤；不知道的區塊種類直接略過。
