@@ -6,6 +6,8 @@
   "kind": "python",
   "group": "notion",
   "access": "owner",
+  "surfaces": ["dm"],
+  "data": "user",
   "order": 60,
   "publisher": "SYNOX（出廠）",
   "capabilities": ["network"],

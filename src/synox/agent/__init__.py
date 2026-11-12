@@ -8,6 +8,7 @@ AI 助理：
   /ai_budget     伺服器版、管理員：替某個人設每月 AI 額度（美元）
 
 誰能用：個人版只有擁有者（群組 agent 是 owner_only）；伺服器版成員以上（群組 role=成員，訪客看不到）。
+只能在私訊用（agent 群組 private_only）：Telegram 群組裡打 /ai、/ai_reset 一律被 SDK 擋（Discord 頻道 AI 另走 agent/room.py）。
 「這個人的自由文字要不要交給 AI」也問同一個 authorize（AgentFallback.accepts），不另外寫一套判斷。
 伺服器版成員有每月額度（agent/budget.py）；AI 拿到的工具只有 ai_decision 對「他」放行的（loop.ai_decision）。
 agent 群組本身不給 AI 當工具（HIDDEN_GROUPS）。
@@ -20,6 +21,7 @@ from typing import Optional
 from isdtelekit.core.dispatcher import FALLBACK, Route
 from isdtelekit.core.registry import DANGER, ROUTINE, TYPED, WRITE
 
+from synox import policy
 from synox.agent.approve import PREFIX, ApprovalDesk
 from synox.agent.budget import EXHAUSTED, MemberBudget
 from synox.agent.loop import AgentLoop, ai_decision
@@ -45,19 +47,25 @@ class AgentFallback:
 
     def handle(self, api, inbound, user, text: str, age: float) -> Route:
         route = self.app.dispatcher.log_route(inbound, text, Route(FALLBACK, "agent.ai"))
-        self.app.tasks.run(lambda: self.loop.run_turn(api, inbound.chat_id, user, text), name="agent-turn")
+        bot = policy.current_bot()                   # 收訊的 bot：AI 那一輪在別的執行緒，要帶過去（工具清單照它過濾）
+        self.app.tasks.run(lambda: policy.run_as(bot, self.loop.run_turn, api, inbound.chat_id, user, text),
+                           name="agent-turn")
         return route
 
 
 def install(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLoop]:
+    from synox.packs import kit
+    kit.install_log_redaction()                     # [ROUTE]／[AGENT] 行的 token 樣式一律遮掉（審查 A #7）
     registry = app.registry
     server = getattr(config, "mode", "personal") == "server"
+    # private_only：群組裡打 /ai 不行（跟 /web 一樣）——AI 拿得到這個人的私人工具與記憶，不能在多人看得到的地方用
     registry.ensure_group("agent", "🤖 AI 助理", "跟 AI 說人話，它替你按指令（危險的會先問你）", bare=True,
-                          **group_policy(app, "member", server))
+                          private_only=True, **group_policy(app, "member", server))
     g = registry.group("agent")
     llm = getattr(config, "llm", {}) or {}
     loop: Optional[AgentLoop] = None
     desk = ApprovalDesk(app)
+    app.extras["synox_approval_desk"] = desk        # cli pack 的 needs_confirm 也用這張卡（packs/loader.py、packs/confirm.py）
     budget = MemberBudget(app, config) if server else None
     app.extras["synox_budget"] = budget
     if adapter is not None:
@@ -74,7 +82,8 @@ def install(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLoop]:
         if not args:
             api.send_message(chat_id, "跟我說人話就好，例如：/ai 幫我記一筆 80 元咖啡\n（私訊裡直接打字也可以）")
             return
-        app.tasks.run(lambda: loop.run_turn(api, chat_id, user, " ".join(args)), name="agent-turn")
+        bot = policy.current_bot()
+        app.tasks.run(lambda: policy.run_as(bot, loop.run_turn, api, chat_id, user, " ".join(args)), name="agent-turn")
 
     def line(label, b):
         return f"{label}：{b.get('calls', 0)} 次，輸入 {b.get('input', 0):,} / 輸出 {b.get('output', 0):,} token"
@@ -96,7 +105,7 @@ def install(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLoop]:
                                              line("全部", s["total"])]))
 
     def cmd_reset(api, chat_id, user, args):
-        n = loop.reset(chat_id) if loop is not None else 0
+        n = loop.reset(chat_id, user) if loop is not None else 0
         api.send_message(chat_id, f"🤖 好，忘掉這裡的對話紀錄了（{n // 2} 輪）。")
 
     def cmd_approve(api, chat_id, user, args):

@@ -12,7 +12,7 @@ from conftest import OWNER_ID
 from synox.packs import admin, envs, upgrade
 from synox.packs import lock as pack_lock
 
-from test_envs import FakeJobs, _config, _node_raw, _raw, _write_pack, _zip, which_all
+from test_envs import PUB, FakeJobs, _config, _node_raw, _raw, _write_pack, _zip, which_all
 
 
 @pytest.fixture(autouse=True)
@@ -32,7 +32,7 @@ def _install(tmp_path, raw, node=False, build=True):
     """裝第一版（install_staged），build=True 再用假 JobRunner 把環境建好。回 (data, packs)。"""
     data, packs = str(tmp_path / "data"), str(tmp_path / "packs")
     token, _s = admin.stage(_zip(_write_pack(str(tmp_path / "src" / "v1"), raw, node=node)), data)
-    name = admin.install_staged(token, data, packs, approved_by=OWNER_ID, via="test")
+    name = admin.install_staged(token, data, packs, approved_by=OWNER_ID, via="test", trust_publisher=PUB)
     if build and envs.needs_env(admin.read(os.path.join(packs, name))):
         results = []
         assert admin.build_env(name, data, packs, FakeJobs(tmp_path), results.append) and results[0].ok
@@ -107,7 +107,8 @@ def _cli_install(tmp_path, tag, raw, jobs):
     blob = tmp_path / f"{tag}.synoxpack"
     blob.write_bytes(_zip(_write_pack(str(tmp_path / "src" / tag), raw)))
     packs = tmp_path / "packs"
-    args = argparse.Namespace(config=_config(tmp_path, packs), file=str(blob), yes=True, packs_dir=str(packs))
+    args = argparse.Namespace(config=_config(tmp_path, packs), file=str(blob), yes=True, packs_dir=str(packs),
+                              trust_publisher=PUB)
     return cli.cmd_install(args, jobs=jobs, is_up=lambda port: False)
 
 
@@ -166,11 +167,11 @@ def test_rollback_hints_rebuild_without_building(tmp_path, capsys):
 def test_rollback_env_none_when_matching_or_not_needed(tmp_path):
     data, packs = _install(tmp_path, _raw())
     token, _s = _stage(tmp_path, "v2", _raw(version="0.2.0"), data)            # 同一份套件：環境沿用
-    upgrade.upgrade_staged(token, data, packs)
+    upgrade.upgrade_staged(token, data, packs)                                  # 同一個 publisher、沒變多：沿用確認
     assert upgrade.rollback("tool", packs, data)["env"] is None
     data2, packs2 = _install(tmp_path / "b", _no_env())
     token, _s = _stage(tmp_path / "b", "v2", _raw(version="0.2.0"), data2)
-    upgrade.upgrade_staged(token, data2, packs2)
+    upgrade.upgrade_staged(token, data2, packs2, trust_publisher=PUB)            # T1 → T2：要確認
     assert upgrade.rollback("tool", packs2, data2)["env"] is None                # 舊版不用環境
 
 
@@ -205,7 +206,8 @@ def test_web_upgrade_starts_env_build_and_notifies(make_bot, owner, tmp_path):
     assert status == 200 and data["env"] == "" and not built
     s2 = upload("v2", _raw(version="0.2.0"))
     assert s2["upgrade"]["env"]["needed"] and s2["upgrade"]["env"]["lines"]
-    status, data = c.post("/api/packs/install", {"token": s2["token"], "upgrade": True})
+    assert s2["upgrade"]["tier"]["needs_publisher"]                              # T1 → T2：要重新確認
+    status, data = c.post("/api/packs/install", {"token": s2["token"], "upgrade": True, "trust_publisher": PUB})
     assert status == 200 and data["upgraded"] and data["env"] == "building" and built == ["0.2.0"], data
     assert data["to"] == "0.2.0" and data["status"] == "missing" and "環境沒建好" in data["detail"]
     assert any("升級好了，但環境沒建好" in t for t in bot.texts(owner))

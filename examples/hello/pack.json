@@ -1,0 +1,80 @@
+{
+  "name": "hello",
+  "title": "👋 範例",
+  "summary": "👋 範例工具：算小費、打招呼（synox_sdk 的最小範例）。",
+  "version": "0.1.0",
+  "kind": "cli",
+  "skill": "SKILL.md",
+  "publisher": "SYNOX examples",
+  "capabilities": [],
+  "requires": {
+    "synox": ">=0.2"
+  },
+  "cli": {
+    "argv": [
+      "{python}",
+      "./tool.py"
+    ],
+    "cwd": ".",
+    "json_flag": "--json",
+    "timeout": 60,
+    "commands": [
+      {
+        "name": "tip",
+        "effect": "READ",
+        "summary": "算含小費的總額。",
+        "argv": [
+          "tip",
+          "--amount={amount}",
+          "--percent={percent}",
+          "--round_up={round_up}"
+        ],
+        "default": true,
+        "fields": [
+          {
+            "name": "amount",
+            "ask": "帳單金額",
+            "kind": "number",
+            "required": true
+          },
+          {
+            "name": "percent",
+            "ask": "小費幾 %",
+            "kind": "int"
+          },
+          {
+            "name": "round_up",
+            "ask": "要不要進位到整數",
+            "kind": "bool"
+          }
+        ]
+      },
+      {
+        "name": "greet",
+        "effect": "READ",
+        "summary": "跟某人打招呼。",
+        "argv": [
+          "greet",
+          "--name={name}",
+          "--style={style}"
+        ],
+        "fields": [
+          {
+            "name": "name",
+            "ask": "要打招呼的人",
+            "required": true
+          },
+          {
+            "name": "style",
+            "ask": "casual（輕鬆）或 formal（正式）",
+            "kind": "choice",
+            "choices": [
+              "casual",
+              "formal"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

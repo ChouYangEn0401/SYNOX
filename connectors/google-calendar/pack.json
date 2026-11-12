@@ -6,6 +6,8 @@
   "kind": "python",
   "group": "gcal",
   "access": "owner",
+  "surfaces": ["dm"],
+  "data": "user",
   "order": 35,
   "python": { "module": "pack" },
   "capabilities": ["network"],

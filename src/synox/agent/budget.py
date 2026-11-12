@@ -7,6 +7,11 @@
   存在 data/ai_budgets.json）。擁有者沒有額度。
 - 價錢：token 換美元用 llm.price_in／llm.price_out（每百萬 token 多少美元）；沒寫就用保守的預設
   （輸入 3、輸出 15，約等於中階雲端模型）。本機模型可以設成 0。
+
+頻道 AI 的 bot 池（PERM-6，個人版、伺服器版都有）：BotPool——頻道型 bot 的 ai.pool_usd_month 是**整個 bot 一池**，
+用量記在 data/bot_pools/<bot 名字>/llm_usage.json（同一種格式），不算進任何人的個人額度；全部的總帳一樣記在
+data/llm_usage.json。這個月用到 pool 就整個 bot 的頻道 AI 停（回 POOL_EXHAUSTED），下個月自動重來。
+價錢跟個人額度同一套（llm.price_in／price_out）。
 """
 
 from __future__ import annotations
@@ -23,6 +28,8 @@ EXHAUSTED = "這個月的 AI 額度用完了，請管理員加"
 DEFAULT_PRICE_IN = 3.0          # 美元／百萬 token
 DEFAULT_PRICE_OUT = 15.0
 BUDGETS_FILE = "ai_budgets.json"
+POOLS_DIR = "bot_pools"
+POOL_EXHAUSTED = "🤖 這個 bot 這個月的頻道 AI 額度用完了（整個 bot 共用一池，下個月重來）；指令照樣能用（@我 /help）。"
 
 
 def _price(llm: dict, key: str, default: float) -> float:
@@ -30,6 +37,52 @@ def _price(llm: dict, key: str, default: float) -> float:
         return max(0.0, float(llm.get(key, default)))
     except (TypeError, ValueError):
         return default
+
+
+def usd_of(config, usage: dict) -> float:
+    """這次的 token 用量換成美元（llm.price_in／price_out，每百萬 token）。"""
+    llm = getattr(config, "llm", {}) or {}
+    usage = usage or {}
+    return (int(usage.get("input", 0) or 0) * _price(llm, "price_in", DEFAULT_PRICE_IN) +
+            int(usage.get("output", 0) or 0) * _price(llm, "price_out", DEFAULT_PRICE_OUT)) / 1_000_000
+
+
+class BotPool:
+    """頻道型 bot 的頻道 AI 額度池（整個 bot 一池，每月）。"""
+
+    def __init__(self, config, bot_name: str, usd_month: float):
+        from synox.agent.loop import UsageBook
+        self.config = config
+        self.name = bot_name
+        self.usd_month = max(0.0, float(usd_month or 0.0))
+        self.folder = os.path.join(config.data_dir, POOLS_DIR, bot_name)
+        self.book = UsageBook(os.path.join(self.folder, "llm_usage.json"))
+
+    def cost(self, usage: dict) -> float:
+        return usd_of(self.config, usage)
+
+    def record(self, usage: dict) -> float:
+        usd = self.cost(usage)
+        if usage:
+            os.makedirs(self.folder, exist_ok=True)
+            self.book.record(usage, usd=usd)
+        return usd
+
+    def month_usd(self) -> float:
+        return float(self.book.summary()["month"].get("usd", 0.0))
+
+    def exhausted(self) -> bool:
+        return self.month_usd() >= self.usd_month
+
+    def left(self) -> float:
+        return max(0.0, self.usd_month - self.month_usd())
+
+    def line(self) -> str:
+        """給 /bot_status 看的一行。"""
+        s = self.book.summary()["month"]
+        used = float(s.get("usd", 0.0))
+        return (f"頻道 AI 這個月：用了約 US${used:.2f}／US${self.usd_month:.2f}（整個 bot 一池）、{s.get('calls', 0)} 次"
+                + ("；用完了，頻道 AI 停到下個月" if used >= self.usd_month else ""))
 
 
 class MemberBudget:

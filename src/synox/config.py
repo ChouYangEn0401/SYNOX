@@ -10,9 +10,14 @@ SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、�
       "packs": {"enabled": "all", "disabled": []},
       "web":   {"enabled": true, "port": 8830, "public_url": ""},   本機網頁介面（只綁 127.0.0.1）
       "ai_member_monthly_usd": 2.0,            伺服器版：每個成員每月的 AI 額度（美元）
-      "channels": {"discord": {"enabled": true, "bot_token": "vault:discord_bot_token"}}   Discord 私訊（docs/discord.md）
+      "channels": {"discord": {"enabled": true, "bot_token": "vault:discord_bot_token"}},  Discord 私訊（docs/discord.md）
+      "policy": {"roles": {"member": {"capabilities": ["network", "filesystem:own"]}, …}}  角色能力上限（synox/policy.py；
+                                               沒寫＝預設；exec、filesystem:any 不能給任何角色）
     }
-- 只用 Discord 時 bot_token、owner_id 可以不填（owner_id 預設保留號段 10^15，pair-discord 把你的 Discord 帳號接上）。
+- 多個 Discord bot：channels.discord.bots.<名字> = {"token": "vault:…", "surface": "dm", "packs": "all", "ai": true}
+  （synox/discord/bots.py 解析與檢查；舊寫法＝bots.default）。
+- 只用 Discord 時 bot_token、owner_id 可以不填（owner_id 預設保留號段 10^15，`discord pair` 把你的 Discord 帳號接上；
+  接上之前私訊型 bot 誰的私訊都不收，陌生人的號碼從 10^15+1 起，見 identity.py）。
 
 - 路徑一律相對於 SYNOX 資料夾（不管從哪裡啟動）：data_dir 沒寫就是 <SYNOX>/data。
 - api_key 可以直接寫，也可以寫 "vault:<名字>"：真正的值放在 data/secrets.json.enc（精靈就是這樣存的）。
@@ -29,6 +34,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from isdtelekit.host.config import BotConfig, ConfigError
+
+from synox.policy import parse_policy
 
 ROOT = os.environ.get("SYNOX_HOME") or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 CONFIG_PATH = os.path.join(ROOT, "config.json")
@@ -51,6 +58,7 @@ class SynoxConfig(BotConfig):
     root: str = ROOT
     web: dict = field(default_factory=lambda: dict(DEFAULT_WEB))
     ai_member_monthly_usd: float = DEFAULT_MEMBER_USD
+    policy: dict = field(default_factory=lambda: parse_policy(None))     # 角色能力上限（synox/policy.py）
 
     @property
     def server(self) -> bool:
@@ -65,9 +73,12 @@ class SynoxConfig(BotConfig):
     def from_dict(cls, raw: dict, *, require_token: bool = True, root: Optional[str] = None) -> "SynoxConfig":
         discord = (raw.get("channels") or {}).get("discord") if isinstance(raw.get("channels"), dict) else None
         if discord and raw.get("owner_id", raw.get("machine_owner_id")) in (None, ""):
-            # 只用 Discord、沒有 Telegram id：擁有者用保留號段的第一號，之後 pair-discord 把 Discord 帳號接上來
+            # 只用 Discord、沒有 Telegram id：擁有者用保留號段的第一號（BASE，identity.py 不會發給陌生人），
+            # 之後 discord pair／owner_user_id 把 Discord 帳號接上來；接上之前私訊型 bot 不收任何私訊
             from synox.identity import BASE
             raw = {**raw, "owner_id": BASE}
+        from synox.discord.bots import parse as parse_discord_bots
+        parse_discord_bots(discord)                   # 設定錯在這裡就講清楚（ConfigError）
         base = BotConfig.from_dict(raw, require_token=require_token)
         root = os.path.abspath(root or ROOT)
         data_dir = base.data_dir if os.path.isabs(base.data_dir) else os.path.join(root, base.data_dir)
@@ -91,10 +102,11 @@ class SynoxConfig(BotConfig):
             member_usd = float(raw.get("ai_member_monthly_usd", DEFAULT_MEMBER_USD))
         except (TypeError, ValueError):
             raise ConfigError("config.json 的 ai_member_monthly_usd 要是數字（美元，例如 2.0）。")
+        policy = parse_policy(raw.get("policy"))      # exec／filesystem:any 寫進任何角色＝拒（第 1 關式檢查）
         return cls(bot_token=base.bot_token, owner_id=base.owner_id,
                    poll_interval_seconds=base.poll_interval_seconds, data_dir=data_dir,
                    stepup_minutes=base.stepup_minutes, raw=dict(raw), llm=llm, vault=vault, packs=packs, mode=mode,
-                   root=root, web=web, ai_member_monthly_usd=max(0.0, member_usd))
+                   root=root, web=web, ai_member_monthly_usd=max(0.0, member_usd), policy=policy)
 
     @classmethod
     def load(cls, path: Optional[str] = None, *, require_token: bool = True,
