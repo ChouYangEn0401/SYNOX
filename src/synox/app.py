@@ -1,5 +1,6 @@
 """
-build()：SynoxConfig → isdtelekit.build_app → 基本指令（伺服器版多 accounts、limits）→ packs.load_all
+build()：SynoxConfig → isdtelekit.build_app → 基本指令（伺服器版多 accounts、limits；還沒裝工具時 /start、/help
+多一段「去哪裡裝」，packs/library.py）→ packs.load_all
 → agent.install → schedule.install → web.install（本機網頁介面）。
 
     config = SynoxConfig.load()
@@ -22,7 +23,7 @@ from synox import agent, discord, policy, schedule, web
 from synox.config import SynoxConfig
 from synox.llm import make_adapter
 from synox.llm.base import LLMError
-from synox.packs import loader
+from synox.packs import library, loader
 from synox.vault import open_vault
 
 GREETING = "👋 我在了，按 /help 看我會什麼。"
@@ -62,11 +63,15 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
             vault = None
     app.extras["vault"] = vault
     server = getattr(config, "mode", "personal") == "server"
-    if server:
-        basics.install(app, welcome=lambda u: welcome(u) if app.registry.is_owner(u) else welcome_server(u))
-    else:
-        basics.install(app, welcome=welcome)
+
+    def greet(u) -> str:
+        text = welcome(u) if not server or app.registry.is_owner(u) else welcome_server(u)
+        hint = library.start_hint(app, u)            # 出廠不帶工具：還沒裝的話告訴擁有者去哪裡裝
+        return f"{text}\n\n{hint}" if hint else text
+
+    basics.install(app, welcome=greet)
     help_pack.install(app)
+    library.install(app)                       # /help 在還沒裝工具時多一則「去哪裡裝」
     if server:
         install_server_packs(app)
     loader.load_all(app, config, vault, dirs=pack_dirs)

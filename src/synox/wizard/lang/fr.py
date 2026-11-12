@@ -105,6 +105,7 @@ STRINGS = {
     "status_add_channel_later": "Double-cliquez sur Setup.bat plus tard pour relancer l'assistant et connecter Telegram/Discord.",
     "status_bot_head": "✅ Tout est prêt, le bot est lancé.",
     "status_web_head": "✅ Tout est prêt, SYNOX est lancé (sans Telegram/Discord pour l'instant).",
+    "status_no_tools": "🧰 SYNOX est livré sans outils (dépenses, notes, rappels… s'installent à part) : récupérez les fichiers .synoxpack de la bibliothèque d'outils (SYNOX_Libs), puis double-cliquez dessus ou téléversez-les dans l'interface web (Paramètres → Installer). Demandez à la personne qui vous a donné SYNOX où se trouve la bibliothèque.",
     "status_can_close": "Vous pouvez fermer cette fenêtre.",
     "no_window": "❌ Impossible d'ouvrir une fenêtre ({e}). Copiez config.example.json en config.json et remplissez-le à la main.",
 }

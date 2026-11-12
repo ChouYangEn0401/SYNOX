@@ -213,6 +213,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
     from synox.packs.loader import PACK_DIRS, discover
     from synox.packs.manifest import ManifestError, read, synox_problem
     lines: List[str] = []
+    tools: List[str] = []
     lock_dir = config.data_dir if config else os.path.join(ROOT, "data")
     locked = 0
     dirs = config.pack_dirs() if config else PACK_DIRS
@@ -246,6 +247,8 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 problems += 1
                 continue
             state = "connector（只登記）" if m.registered_only else ("✅" if enabled else "⏸ 停用")
+            if enabled and not loader.is_bundled(m):
+                tools.append(m.name)                 # 使用者自己裝的工具（出廠的 connector 不算）
             lock_mark = "🔒" if lock_state == pack_lock.LOCKED else "未鎖定"
             lines.append(f"  {state} {m.name} {m.version}（{m.kind}，/{m.group}，{lock_mark}）  {rel}")
             if enabled:
@@ -281,6 +284,10 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
     out(f"• packs：{len(lines)} 個（packs.lock 鎖定 {locked} 個；python -m synox packs status 看細節）")
     for line in lines:
         out(line)
+    from synox.packs import library                  # SYNOX 出廠不帶工具：裝了幾個、工具庫在哪裡
+    for line in library.doctor_lines(config, tools):
+        out(line)
+        problems += "⚠️" in line
 
     # 保管箱
     data_dir = config.data_dir if config else os.path.join(ROOT, "data")

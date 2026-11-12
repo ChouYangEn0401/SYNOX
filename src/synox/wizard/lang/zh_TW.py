@@ -106,6 +106,7 @@ STRINGS = {
     "status_add_channel_later": "之後雙擊 Setup.bat 重跑精靈可以補接 Telegram／Discord。",
     "status_bot_head": "✅ 設定好了，bot 開起來了。",
     "status_web_head": "✅ 設定好了，SYNOX 開起來了（還沒接 Telegram／Discord）。",
+    "status_no_tools": "🧰 SYNOX 出廠不帶工具（記帳、筆記、提醒…都要自己裝）：拿到工具庫（SYNOX_Libs）的 .synoxpack 檔後點兩下，或在網頁「設定 → 裝功能」上傳。工具庫在哪裡，問給你 SYNOX 的人。",
     "status_can_close": "可以關掉這個視窗。",
     "no_window": "❌ 開不了視窗（{e}）。可以複製 config.example.json 成 config.json 手動填。",
 }
