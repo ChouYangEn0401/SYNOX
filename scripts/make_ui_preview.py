@@ -132,7 +132,9 @@ SETTINGS = {
     "owner": True, "accounts": True, "ai_budget": None,
     "llm": {"kind": "claude_code", "model": "", "base_url": "", "has_key": False},
     "llm_choices": [
-        {"label": "Claude Code（用你自己的 Claude 訂閱）", "choice": "claude_code"},
+        {"label": "Claude Code（用你自己的 Claude 訂閱）", "choice": "claude_code",
+         "models": [{"value": "", "label": "預設（讓 Claude Code 自己選）"}, {"value": "sonnet", "label": "Sonnet（平衡）"},
+                    {"value": "opus", "label": "Opus（最強、較慢）"}, {"value": "haiku", "label": "Haiku（最快、最省）"}]},
         {"label": "API 金鑰：OpenAI", "choice": "keys", "provider": "openai", "model": "（照預設）"},
         {"label": "API 金鑰：本機或相容的服務", "choice": "keys", "provider": "openai_compat", "needs_url": True},
         {"label": "先不用 AI", "choice": "none"},
