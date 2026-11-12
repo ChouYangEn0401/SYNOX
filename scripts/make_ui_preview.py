@@ -3,11 +3,13 @@
     .venv\\Scripts\\python.exe scripts\\make_ui_preview.py
 
 寫出：
-- docs/ui/preview.html        真的 src/synox/web/static/app.html，前面插一段「假的 fetch」（假資料、不送出任何東西）。
-                              網址參數：?login=1 看登入畫面、?theme=dark|light 強制深淺色、?bar=0 拿掉上方的預覽列；
-                              #chat／#tools／#settings 切頁。
+- docs/ui/preview.html        真的 src/synox/web/static/app.html（含 tools.css／tools.js，跟 server.render_app 同一個函式），
+                              前面插一段「假的 fetch」（假資料、不送出任何東西）。
+                              網址參數：?login=1 看登入畫面、?theme=dark|light 強制深淺色、?bar=0 拿掉上方的預覽列、
+                              ?tooledit=1 工具頁直接打開「編輯群組」；#chat／#tools／#settings 切頁。
+                              工具頁的群組編輯可以真的操作（存在這一頁的記憶體裡，重新整理就回到預設）。
 - docs/ui/preview-phone.html、preview-phone-dark.html
-                              四個 390px 寬的框（登入、對話、工具、設定），看手機寬度用。
+                              五個 390px 寬的框（登入、對話、工具、工具的編輯群組、設定），看手機寬度用。
 - docs/ui/preview-login.html  伺服器產生的「登入確認頁」（server.py 的 login_page，用假的帳號資料）。
 - docs/ui/preview-error.html  伺服器產生的小頁（server.py 的 _page，例如登入連結不能用）。
 
@@ -24,7 +26,7 @@ import threading
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(ROOT, "src"))
 
-from synox.web import server  # noqa: E402
+from synox.web import server, toolpage  # noqa: E402
 
 OUT = os.path.join(ROOT, "docs", "ui")
 
@@ -55,30 +57,72 @@ EVENTS = {
     "tools": [{"id": 1, "from": "me", "text": "/note_list"}, {"id": 2, "from": "bot", "text": "1. 買牛奶\n2. 繳電費"}],
 }
 
+def _cmd(command, summary, effect="read", fields=(), usage="", default=False, confirm=False):
+    """假的指令卡（形狀照 web/toolpage.py 的 command_info）。"""
+    return {"command": command, "usage": usage, "summary": summary, "effect": effect, "path": command.strip("/"),
+            "default": default, "ai": True, "confirm": confirm, "fields": list(fields), "asks_code": False}
+
+
+def _f(name, label, kind="text", required=False, default="", help_="", choices=None):
+    out = {"name": name, "label": label, "kind": kind, "required": required, "default": default}
+    if help_:
+        out["help"] = help_
+    if choices:
+        out["choices"] = choices
+    return out
+
+
 TOOLS = {
     "packs": [
-        {"name": "notes", "title": "📝 筆記", "version": "0.2.0", "summary": "隨手記下想到的事", "status": "已連接",
-         "commands": [
-             {"command": "/note", "usage": "<內容>", "summary": "記一則筆記", "effect": "write"},
-             {"command": "/note_list", "usage": "", "summary": "列出全部筆記", "effect": "read"},
-             {"command": "/note_clear", "usage": "", "summary": "全部刪掉", "effect": "danger"}]},
-        {"name": "money", "title": "💰 記帳", "version": "0.2.0", "summary": "記一筆、看這個月花了多少", "status": "已連接",
-         "commands": [
-             {"command": "/money", "usage": "<金額> <說明>", "summary": "記一筆支出", "effect": "write"},
-             {"command": "/money_month", "usage": "", "summary": "這個月的合計與預算", "effect": "read"}]},
-        {"name": "todoist", "title": "✅ Todoist", "version": "0.2.0", "summary": "把待辦送進 Todoist",
-         "status": "還沒連接", "connect": True, "missing": ["API token"],
-         "commands": [{"command": "/todo", "usage": "<內容>", "summary": "新增一個待辦", "effect": "write"}]},
+        {"id": "note", "name": "notes", "title": "📝 筆記", "version": "0.2.0", "kind": "python", "category": "生活",
+         "summary": "隨手記下想到的事", "description": "使用者想記下一件事、看記過的事、或清掉筆記時使用。",
+         "status": "已連接", "commands": [
+             _cmd("/note", "記一則筆記", "write", [_f("text", "內容", required=True)], default=True),
+             _cmd("/note_list", "列出全部筆記"),
+             _cmd("/note_clear", "全部刪掉（不能復原）", "danger")]},
+        {"id": "money", "name": "money", "title": "💰 記帳", "version": "0.2.0", "kind": "python", "category": "生活",
+         "summary": "記一筆、看這個月花了多少", "description": "使用者提到花了多少錢、想記帳、問這個月花多少時使用。",
+         "status": "已連接", "commands": [
+             _cmd("/money", "記一筆支出", "write", [
+                 _f("amount", "金額", "number", required=True, help_="只放數字，例如 120"),
+                 _f("category", "類別", default="其他", help_="例如 餐飲、交通"),
+                 _f("memo", "備註")], default=True),
+             _cmd("/money_month", "這個月的合計與預算"),
+             _cmd("/money_budget", "設每月預算", "write", [_f("amount", "每月預算", "int", required=True)])]},
+        {"id": "todoist", "name": "todoist", "title": "✅ Todoist", "version": "0.2.0", "kind": "python",
+         "category": "待辦與行程", "summary": "把待辦送進 Todoist", "description": "",
+         "status": "要先設定", "connect": True, "missing": ["API token"], "commands": [
+             _cmd("/todo", "新增一個待辦", "write", [
+                 _f("content", "要做什麼", required=True),
+                 _f("due", "什麼時候", help_="例如 明天、週五 15:00；不填＝沒有期限")], default=True),
+             _cmd("/todo_list", "今天的待辦")]},
+        {"id": "gcal", "name": "google-calendar", "title": "📅 Google 日曆", "version": "0.2.0", "kind": "python",
+         "category": "待辦與行程", "summary": "看行程、加行程", "description": "", "status": "已連接", "commands": [
+             _cmd("/gcal_list", "接下來的行程", fields=[_f("days", "看幾天", "int", default="7")], default=True),
+             _cmd("/gcal_add", "加一個行程", "write", [
+                 _f("title", "標題", required=True), _f("when", "時間", required=True, help_="例如 11/20 14:00")],
+                  confirm=True),
+             _cmd("/gcal_rm", "刪掉一個行程", "danger", [_f("number", "編號（/gcal_list 的）", "int", required=True)])]},
+        {"id": "hello", "name": "hello", "title": "👋 範例", "version": "0.1.0", "kind": "cli", "category": "",
+         "summary": "算小費、打招呼（synox_sdk 的最小範例）", "description": "", "status": "已連接", "commands": [
+             _cmd("/hello", "算含小費的總額", fields=[
+                 _f("amount", "帳單金額", "number", required=True), _f("percent", "小費幾 %", "int", default="10"),
+                 _f("round_up", "要不要進位到整數", "bool", default="false")], default=True),
+             _cmd("/hello_greet", "跟某人打招呼", fields=[
+                 _f("name", "要打招呼的人", required=True),
+                 _f("style", "語氣", "choice", default="casual", choices=["casual", "formal"])])]},
     ],
     "groups": [
-        {"title": "⏰ 提醒與排程", "summary": "到時間 SYNOX 會傳訊息給你",
-         "commands": [
-             {"command": "/remind", "usage": "<HH:MM> <內容>", "summary": "每天固定時間提醒", "effect": "write"},
-             {"command": "/remind_list", "usage": "", "summary": "列出提醒", "effect": "read"}]},
-        {"title": "🤖 AI", "summary": "",
-         "commands": [{"command": "/ai_usage", "usage": "", "summary": "這個月用了多少", "effect": "read"}]},
+        {"id": "_basics", "title": "🧭 基本", "summary": "開始、說明、結束問答", "category": "內建",
+         "commands": [_cmd("/start", "開始"), _cmd("/help", "看全部指令")]},
+        {"id": "schedule", "title": "⏰ 排程", "summary": "到時間 SYNOX 會傳訊息給你", "category": "內建",
+         "commands": [_cmd("/remind", "每天固定時間提醒", "write", usage="<HH:MM> <內容>"),
+                      _cmd("/remind_list", "列出提醒")]},
+        {"id": "agent", "title": "🤖 AI", "summary": "", "category": "內建",
+         "commands": [_cmd("/ai_usage", "這個月用了多少")]},
     ],
 }
+TOOLS["layout"] = toolpage.effective(None, [(t["id"], t["category"]) for t in TOOLS["packs"] + TOOLS["groups"]])
 
 SECRETS = {"fields": [{"name": "token", "label": "API token", "required": True, "secret": True, "set": False,
                        "help": "Todoist 網頁 → 設定 → 整合 → 開發者"}]}
@@ -148,6 +192,15 @@ MOCK = r"""
       return reply({ ok: true });
     }
     if (p === "/api/tools") { return reply(D.tools); }
+    if (p === "/api/tools/layout") {       // 群組編輯：只存在這一頁的記憶體
+      var b = JSON.parse(opts.body);
+      if (b.reset) { D.tools.layout = JSON.parse(D.defaultLayout); }
+      else {
+        D.tools.layout = { custom: true, groups: b.groups.map(function (g) {
+          return { id: g.id, title: g.title, tools: g.tools, auto: false }; }) };
+      }
+      return reply({ ok: true, layout: D.tools.layout });
+    }
     if (p.indexOf("/api/pack-secrets/") === 0) {
       return method === "GET" ? reply(D.secrets) : reply({ message: "（預覽：沒有真的存）", status: "還沒連接",
         connected: false, fields: D.secrets.fields });
@@ -157,6 +210,15 @@ MOCK = r"""
     if (p === "/api/accounts") { return reply(D.accounts); }
     return reply({ message: "（預覽：沒有真的做）", ok: true });
   };
+  D.defaultLayout = JSON.stringify(D.tools.layout);
+  if (q.get("tooledit") === "1") {        // 工具頁直接打開「編輯群組」（截圖用）
+    var tries = 0;
+    var wait = setInterval(function () {
+      tries += 1;
+      if (document.querySelector(".tp") && window.SynoxTools) { clearInterval(wait); window.SynoxTools.edit(); }
+      else if (tries > 50) { clearInterval(wait); }
+    }, 100);
+  }
   // 上方的預覽列（?bar=0 拿掉）
   if (q.get("bar") === "0") { return; }
   document.addEventListener("DOMContentLoaded", function () {
@@ -166,6 +228,7 @@ MOCK = r"""
     var items = [["登入畫面", function () { return "?login=1"; }],
                  ["對話", function () { return "?" + theme + "#chat"; }],
                  ["工具", function () { return "?" + theme + "#tools"; }],
+                 ["工具：編輯群組", function () { return "?" + (theme ? theme + "&" : "") + "tooledit=1#tools"; }],
                  ["設定", function () { return "?" + theme + "#settings"; }],
                  ["淺色", function () { return "?theme=light" + location.hash; }],
                  ["深色", function () { return "?theme=dark" + location.hash; }],
@@ -194,12 +257,12 @@ BAR_CSS = """
 
 
 def app_preview() -> str:
-    with open(os.path.join(server.STATIC, "app.html"), "r", encoding="utf-8") as f:
-        html = f.read().replace("{{NONCE}}", "preview")
-    data = {"me": ME, "chats": CHATS, "events": EVENTS, "tools": TOOLS, "secrets": SECRETS,
+    html = server.render_app("preview")          # 跟伺服器送出的頁面同一個函式（含 tools.css／tools.js）
+    data ={"me": ME, "chats": CHATS, "events": EVENTS, "tools": TOOLS, "secrets": SECRETS,
             "settings": SETTINGS, "channels": CHANNELS, "accounts": ACCOUNTS}
     mock = MOCK.replace("__DATA__", json.dumps(data, ensure_ascii=False))
-    note = "<!-- 自動產生：scripts/make_ui_preview.py（不要手改；改 src/synox/web/static/app.html 再重跑） -->\n"
+    note = ("<!-- 自動產生：scripts/make_ui_preview.py（不要手改；改 src/synox/web/static/app.html、tools.css、"
+            "tools.js 再重跑） -->\n")
     html = html.replace("</style>", BAR_CSS + "</style>", 1)
     head_script = f'<script nonce="preview">{mock}</script>\n<script nonce="preview">'
     return note + html.replace('<script nonce="preview">', head_script, 1)
@@ -249,7 +312,8 @@ PHONE = """<!doctype html>
 
 
 def phone_preview() -> str:
-    frames = [("登入", "login=1"), ("對話", "#chat"), ("工具", "#tools"), ("設定", "#settings")]
+    frames = [("登入", "login=1"), ("對話", "#chat"), ("工具", "#tools"), ("工具：編輯群組", "tooledit=1#tools"),
+              ("設定", "#settings")]
     out = []
     for title, q in frames:
         query, _, hash_ = q.partition("#")
