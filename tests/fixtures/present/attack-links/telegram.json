@@ -1,0 +1,5 @@
+[
+  {
+    "text": "[js](javascript:alert(1)) [JS 大寫](JAVASCRIPT:alert(1)) [data](data:text/html;base64,PHNjcmlwdD4=)\n[file](file:///etc/passwd) [相對](/admin) [空白]( javascript:alert(1)) [引號](https://ok.example/\"onmouseover=\"x)\n&lt;javascript:alert(1)&gt; <a href=\"https://safe.example/path?a=1&amp;b=2\">https://safe.example/path?a=1&amp;b=2</a>\n<a href=\"https://example.com/ok\">好的</a> <a href=\"https://example.com/trailing\">https://example.com/trailing</a>."
+  }
+]

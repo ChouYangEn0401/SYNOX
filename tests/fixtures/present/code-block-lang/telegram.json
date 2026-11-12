@@ -1,0 +1,5 @@
+[
+  {
+    "text": "範例：\n\n<pre><code class=\"language-python\">def hello(name: str) -&gt; str:\n    return f\"&lt;b&gt;{name}&lt;/b&gt; &amp; co\"</code></pre>\n\n<pre>沒有語言標記的區塊</pre>\n\n<pre><code class=\"language-c++\">int main() { return 0; }</code></pre>"
+  }
+]

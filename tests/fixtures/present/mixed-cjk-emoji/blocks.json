@@ -1,0 +1,87 @@
+{
+  "trust": "assistant",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "🎉 "
+        },
+        {
+          "text": "完成了！",
+          "bold": true
+        },
+        {
+          "text": " All 3 tasks done 👍"
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "trust": "assistant",
+      "header": [
+        [
+          {
+            "text": "狀態"
+          }
+        ],
+        [
+          {
+            "text": "項目"
+          }
+        ],
+        [
+          {
+            "text": "備註"
+          }
+        ]
+      ],
+      "rows": [
+        [
+          [
+            {
+              "text": "✅"
+            }
+          ],
+          [
+            {
+              "text": "繳費"
+            }
+          ],
+          [
+            {
+              "text": "OK"
+            }
+          ]
+        ],
+        [
+          [
+            {
+              "text": "⏳"
+            }
+          ],
+          [
+            {
+              "text": "回信"
+            }
+          ],
+          [
+            {
+              "text": "明天"
+            }
+          ]
+        ]
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "家庭 👨‍👩‍👧 emoji 與 café、naïve、日本語テキスト、한국어 混在一起。"
+        }
+      ]
+    }
+  ]
+}

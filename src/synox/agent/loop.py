@@ -28,7 +28,7 @@ from typing import Dict, List, Optional, Tuple
 from isdtelekit.core import jsonstore
 from isdtelekit.core.registry import AI, DANGER, Node
 
-from synox import policy
+from synox import policy, present
 from synox.agent import delimit
 from synox.agent import skills as skills_mod
 from synox.agent import tools as tools_mod
@@ -240,8 +240,10 @@ class AgentLoop:
         return f"（已送出確認卡：{tool}，等使用者按）"
 
     def say(self, api, chat_id: int, text: str) -> str:
-        """送出 AI 的回答；回實際送出的字（記進對話記憶的就是這個）。"""
-        api.send_message(chat_id, text)
+        """送出 AI 的回答；回實際送出的字（記進對話記憶的就是這個）。
+        經呈現層（synox.present.deliver）：config presentation.enabled 關著（預設）＝原本的 api.send_message(chat_id, text)；
+        開著＝照通道畫成 Telegram HTML／Discord Markdown／網頁區塊，太長的切成幾則。記憶裡記的一律是 AI 原本的字。"""
+        present.deliver(self.app, api, chat_id, text)
         return text
 
     def run_turn(self, api, chat_id: int, user, text: str) -> None:
