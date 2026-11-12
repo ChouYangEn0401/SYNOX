@@ -28,6 +28,7 @@ import logging
 import os
 import re
 import secrets
+import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -136,7 +137,7 @@ class WebUI:
         if not self.enabled or self.disabled or self._server is not None:
             return False
         try:
-            server = ThreadingHTTPServer((HOST, self.port), _Handler)
+            server = _Server((HOST, self.port), _Handler)
         except OSError as e:
             self.error = (f"網頁介面開不起來：127.0.0.1:{self.port} 不能用（{e}）。"
                           f"改 config.json 的 web.port 換一個埠，或設 web.enabled=false 不開；bot 其他功能照常。")
@@ -892,6 +893,20 @@ class Collector:
 
     def __getattr__(self, name):
         return lambda *a, **kw: {"ok": True}
+
+
+class _Server(ThreadingHTTPServer):
+    """埠一定要「獨佔」：HTTPServer 預設 allow_reuse_address=True，在 Windows 上 SO_REUSEADDR 會讓第二支程式
+    綁上「已經有人在聽」的埠還回報成功（兩支都說在 8830，連線卻進了別支）——登入連結就被送到別的 SYNOX、
+    認不得 token。Windows 改用 SO_EXCLUSIVEADDRUSE；其他平台的 SO_REUSEADDR 不會搶別人正在聽的埠，維持原樣。"""
+
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self):
+        exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
+        if os.name == "nt" and exclusive is not None:
+            self.socket.setsockopt(socket.SOL_SOCKET, exclusive, 1)
+        super().server_bind()
 
 
 class _Handler(BaseHTTPRequestHandler):
