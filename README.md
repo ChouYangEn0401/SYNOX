@@ -16,8 +16,15 @@
 
 ## 快速開始：三步裝好（Windows 10／11）
 
+兩種拿法，裝完是同一個東西（設計：[docs/adr/0003](docs/adr/0003-distribution-git-clone-and-installer.md)）：
+
+- **安裝程式** `SYNOX-Setup-<版本>.exe`：雙擊、照畫面按（不要系統管理員，裝在 `%LOCALAPPDATA%\Programs\SYNOX`）。
+  Python、套件、工具庫都附在裡面，**不用上網**；最後一步自動跑下面的第 1 步。
+- **git clone**（或 GitHub 的 Download ZIP）到任何資料夾，然後照下面做。工具庫另外下載 `tools` 資料夾放進 SYNOX 資料夾（`SYNOX\tools\index.json`）。
+
 1. **雙擊 `Setup.bat`**。第一次會花幾分鐘準備 Python 和套件（會出現一個顯示進度的視窗，不用打任何字；
-   電腦沒有 Python 的話，它會自己裝）。
+   電腦沒有 Python 的話，它會自己裝；附了 `wheelhouse\` 的發佈版完全離線）。
+   開不了視窗的電腦（例如可攜版 Python 沒有 tkinter）會在同一個視窗改用文字版的 `synox init`，問的是同一組問題。
 2. **照安裝視窗點四頁**：
    - **這台給誰用？**「只有我（個人版）」或「一群人（伺服器版）」（差在哪見下面）。
    - **Telegram bot 的 token**：照畫面上的三步跟 @BotFather 拿一個，貼上，按「檢查 token」。
@@ -26,7 +33,9 @@
      下面「其他金鑰來源」可以選 OpenAI、Anthropic API、Gemini，或「相容端點」（公司給的網址、自己電腦上的 Ollama），填金鑰和模型；
      也可以「先不用 AI」。按「測一下」確認接得通。
 3. **按「完成並開始」**。手機會收到「👋 我在了，按 /help 看我會什麼」。
-4. **裝工具**：剛裝好的 SYNOX 是空的（`/help` 會提醒你）。拿到工具庫的 `.synoxpack` 檔，點兩下或在網頁「設定 → 裝功能」上傳。
+4. **裝工具**：剛裝好的 SYNOX 是空的（`/help` 會提醒你）。發佈版旁邊的 `tools\` 就是工具庫，自己挑：
+   `.venv\Scripts\python.exe -m synox tools list` 看有哪些、`… -m synox tools install notes money` 裝（看完報告才裝，不會自動全裝）；
+   或點兩下 `.synoxpack`、在網頁「設定 → 裝功能」上傳。
 
 之後要開 bot：雙擊桌面的「SYNOX」捷徑（或 `Start.bat`）。會有一個縮小的視窗，那就是 bot；關掉它（或雙擊 `Stop.bat`）bot 就停了。
 
@@ -72,12 +81,22 @@
 
 ## 工程師模式：不用精靈
 
-直接照 `config.example.json` 寫一份 `config.json`（`mode`、`bot_token`、`owner_id`、`llm`…），然後：
+文字版引導（終端機一問一答，或全部用參數）：
+
+```
+.venv\Scripts\python.exe -m synox init                                  一問一答
+.venv\Scripts\python.exe -m synox init --non-interactive --llm none --tools notes     不問，用參數（--dry-run 只印不寫）
+```
+
+或直接照 `config.example.json` 寫一份 `config.json`（`mode`、`bot_token`、`owner_id`、`llm`…），然後：
 
 ```
 .venv\Scripts\python.exe -m synox doctor --offline     先檢查
 .venv\Scripts\python.exe -m synox run                  開 bot（跟 Start.bat 一樣）
 ```
+
+自己建環境：`py -3.12 -m venv .venv` → `.venv\Scripts\python.exe -m pip install -r requirements.lock`（有這個檔的話）→
+`… -m pip install --no-deps -e .`（沒有鎖就 `pip install -e .`）。
 
 `llm.kind` 可以是 `claude_code`、`openai`、`anthropic`、`gemini`、`openai_compat`（要 `base_url`）、`fake`、`none`；
 `api_key` 可以直接寫、寫 `env:環境變數名`，或 `vault:llm_api_key`（精靈存進保管箱的）。
@@ -99,8 +118,9 @@
 
 一個功能＝一個 pack（一個資料夾：`pack.json`、`SKILL.md`、`README.md`、程式），壓成 `.synoxpack` 給人裝。
 SYNOX 出廠不帶任何工具；官方的工具都在 **SYNOX 工具庫（SYNOX_Libs）**：一堆 `.synoxpack`＋一份目錄 `index.json`（名稱、版本、說明、
-建議組合、雜湊），挑你要的裝。工具庫放在哪裡可以寫進 `config.json`：`"packs": {"library": "<工具庫的 dist 資料夾或網址>"}`，
-`/help`、`doctor`、網頁就會直接告訴你位置（沒寫只給說明）。
+建議組合、雜湊），挑你要的裝。發佈版把它放在 SYNOX 資料夾裡的 `tools\`，SYNOX 不用設定就找得到（相對位置，整個資料夾搬家也不會斷）；
+放別處就寫進 `config.json`：`"packs": {"library": "<打包好的工具庫資料夾>"}`（相對於 SYNOX 資料夾，或絕對路徑；網址只會顯示、不會自動下載）。
+`synox init`、`synox tools list｜install` 從這裡列出、對雜湊、再走同一條安全檢查。
 
 拿到 `.synoxpack`：在網頁設定頁上傳，或點兩下檔案，或 `.venv\Scripts\python.exe -m synox install <檔>`；
 SYNOX 先檢查、把報告給你看，你按確認才裝。裝好 `/help` 就多一組，AI 也會自己學會怎麼用。
@@ -121,7 +141,8 @@ pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的
 - connector：Notion、Todoist、Google 日曆、Apple 提醒事項都做好了（設定步驟見各自 `connectors/*/README.md`），但都只用假傳輸測過，還沒對真的服務跑過。
   到另一台電腦用真的帳號測（含 Discord）：[docs/handoff/](docs/handoff/README.md)（教學＋煙霧測試 `scripts/smoke_real.py`）。
   Apple 提醒事項要注意：iCloud 升級過的提醒事項 Apple 不開放 CalDAV，見 `connectors/apple-reminders-caldav/README.md`。
-- macOS／Linux 的安裝器（程式本身跨平台，但 `Setup.bat` 只有 Windows）；打包成 .exe（之後用 PyInstaller）。
+- macOS／Linux 的安裝器（程式本身跨平台，但 `Setup.bat` 只有 Windows）。Windows 安裝程式（Inno Setup＋可攜版 Python）的腳本做好了，
+  **還沒真的打包、還沒在空白電腦上試**（[docs/handoff/clean-machine-test.md](docs/handoff/clean-machine-test.md)）。
 - AI 的對話紀錄只放在記憶體（重開 bot 就忘了），每個聊天留最近 6 輪。
 
 ## 給開發的人
@@ -130,9 +151,12 @@ pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的
 .venv\Scripts\python.exe -m pytest -q          測試（不連網、不開埠、不連 Telegram）
 .venv\Scripts\python.exe -m synox console      終端機模式（沒有 config.json 時用示範設定＋假 AI）
 .venv\Scripts\python.exe -m synox doctor --offline
-.venv\Scripts\python.exe scripts\make_zip.py   打包給人的 zip（不含 .venv、data、config.json）
-.venv\Scripts\python.exe scripts\vendor_sdk.py 重新複製 ISDTeleKitSDK 到 vendor/
+.venv\Scripts\python.exe scripts\make_zip.py   打包給人的 zip（不含 .venv、data、config.json；--tools <工具庫 dist> 附 tools\）
+.venv\Scripts\python.exe scripts\clean_room_check.py   在暫存資料夾、清掉這台的環境變數與路徑後跑一遍（--tools／--libs 連工具一起）
+.venv\Scripts\python.exe scripts\vendor_sdk.py 重新複製 ISDTeleKitSDK 到 vendor/（--sdk 或 ISDTELEKIT_SDK）
 ```
+
+發佈（lock、wheelhouse、安裝程式）的步驟：[docs/handoff/clean-machine-test.md](docs/handoff/clean-machine-test.md) 的 B-1。
 
 地圖與規則在 [docs/AGENT.md](docs/AGENT.md)；版本紀錄在 [CHANGELOG.md](CHANGELOG.md)。
 公開 repo 或發佈之前：[docs/AGENT.md](docs/AGENT.md) 的「公開前檢查清單」（`scripts\prepublish_check.py`）。

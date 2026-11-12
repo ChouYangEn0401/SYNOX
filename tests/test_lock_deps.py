@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""鎖定的相依清單（scripts/lock_deps.py）與 bootstrap 的安裝順序（docs/adr/0002）。不連網、不真的 pip install。"""
+"""鎖定的相依清單（scripts/lock_deps.py）與 bootstrap 的安裝順序（docs/adr/0003）。不連網、不真的 pip install。"""
 import hashlib
 import importlib.metadata as md
 import os

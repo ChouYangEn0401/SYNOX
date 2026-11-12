@@ -3,7 +3,7 @@
 #    py 啟動器 → PATH 上的 python → winget 裝 Python.Python.3.12 → 最後退路：python.org 的
 #    embeddable zip 解到 runtime\python（加 get-pip、virtualenv；要網路）
 # 2. 建 .venv → 裝相依：有 wheelhouse\ 就離線裝（--no-index）；有 requirements.lock 就照鎖定的版本裝；都沒有才照
-#    pyproject 的範圍裝（docs/adr/0002；lock 與 wheelhouse 由 scripts/lock_deps.py 在發佈機產生）→ pip install -e .
+#    pyproject 的範圍裝（docs/adr/0003；lock 與 wheelhouse 由 scripts/lock_deps.py 在發佈機產生）→ pip install -e .
 # 3. 打開安裝精靈（pythonw，沒有黑色視窗）；這個 Python 沒有 tkinter（可攜版）就在這個視窗跑文字版 `synox init`
 # 重跑是安全的：已經有 .venv 就直接更新套件、打開精靈。
 # 0. 先選語言（lang.ps1）：-Lang／SYNOX_LANG → lang.txt → 問；存進 lang.txt，再用 --lang 交給精靈。

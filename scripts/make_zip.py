@@ -8,7 +8,7 @@ Falls back to walking the folder when git is not available.
 
 --tools: also put the tool library next to SYNOX as SYNOX/tools/ (index.json + every .synoxpack it lists, sha256
 checked first). SYNOX finds it there without any setting (packs.library defaults to the "tools" folder, relative
-to the SYNOX folder) and `synox init` lists it; nothing is installed until the user picks (docs/adr/0002, QL4).
+to the SYNOX folder) and `synox init` lists it; nothing is installed until the user picks (docs/adr/0003, QL4).
 --wheelhouse: also put downloaded wheels as SYNOX/wheelhouse/ so Setup.bat installs offline (scripts/lock_deps.py).
 """
 

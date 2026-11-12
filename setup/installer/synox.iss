@@ -1,4 +1,4 @@
-; synox.iss -- SYNOX per-user Windows installer (Inno Setup 6). Design: docs/adr/0002.
+; synox.iss -- SYNOX per-user Windows installer (Inno Setup 6). Design: docs/adr/0003.
 ; Build on the release machine, never on a user's machine:
 ;   1. scripts\stage_installer.py --python-embed ... --wheelhouse ... --tools ...   (copy only)
 ;   2. ISCC.exe /DAppVersion=0.2.0 /DStageDir=<stage>\SYNOX setup\installer\synox.iss

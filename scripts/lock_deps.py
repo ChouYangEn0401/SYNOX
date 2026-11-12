@@ -4,7 +4,7 @@
     <python> scripts\\lock_deps.py --wheelhouse wheelhouse   also add --hash=sha256:... for each wheel found there
     <python> scripts\\lock_deps.py --check                   exit 1 if requirements.lock is missing or stale
 
-Run it on the release build machine, in a fresh venv where `pip install -e .` just succeeded (docs/adr/0002).
+Run it on the release build machine, in a fresh venv where `pip install -e .` just succeeded (docs/adr/0003).
 Never downloads anything: versions come from importlib.metadata, hashes from wheel files already on disk.
 To fill a wheelhouse for an offline install (on the build machine, with network):
 

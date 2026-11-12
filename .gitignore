@@ -6,7 +6,7 @@ lang.txt
 __pycache__/
 *.egg-info/
 dist/
-# 發佈物旁邊附的工具庫（SYNOX_Libs 打包好的 .synoxpack＋index.json）與離線安裝用的套件；不進 git（docs/adr/0002）
+# 發佈物旁邊附的工具庫（SYNOX_Libs 打包好的 .synoxpack＋index.json）與離線安裝用的套件；不進 git（docs/adr/0003）
 /tools/
 /wheelhouse/
 .pytest_cache/

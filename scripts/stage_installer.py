@@ -1,4 +1,4 @@
-"""Lay out everything the Windows installer ships, ready for Inno Setup (docs/adr/0002, setup/installer/synox.iss).
+"""Lay out everything the Windows installer ships, ready for Inno Setup (docs/adr/0003, setup/installer/synox.iss).
 
     <python> scripts\\stage_installer.py --python-embed <extracted python-3.12.x-embed-amd64>
                                         --wheelhouse <wheels> --tools <SYNOX_Libs>\\dist
