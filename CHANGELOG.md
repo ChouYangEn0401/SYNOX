@@ -1,5 +1,22 @@
 # Changelog
 
+## 未發佈（branch feat/activator：連動——任務做完馬上觸發下一件，防無限連動）
+
+### 新增
+- **連動（activator）**：任務狀態一變（排程的任務做完、逾時、pack 回報），符合規則的動作**馬上**做，不用等排程或心跳；
+  可以一串接一串。規則＝「任務變成某個狀態（可加：從哪個狀態變過來、標籤、程式條件）→ 跑一個任務／通知你一句話／呼叫程式」。
+  不急的可以 `timing: "heartbeat"` 留成待處理，下一次心跳（或主控面板「現在處理」）再做。設計：[ADR 0004](docs/adr/0004-activator-event-driven-rules.md)。
+- **防無限連動**：登記時就找循環（會繞回自己的不收）；執行時每個事件帶連動串（串 id、第幾層、走過的規則），同一條規則在同一串出現第二次、
+  超過 5 層、同一串做超過 20 件 → 暫停那條規則；每條規則一小時最多 30 次、可設冷卻；動作連續失敗 5 次暫停；全部規則 10 分鐘最多 60 件，
+  超過就全部暫停；一個事件最多觸發 10 條。暫停會通知你一次、主控面板看得到原因、按「重設」／「恢復」才恢復；重開 SYNOX 還記得。
+- 規則三種來源：`config.json` 的 `runtime.activator.rules`（只收資料）、系統程式、python pack 的 `pack.on_event(...)`（只能跑自己的任務、
+  看不到別人任務的訊息）。
+- 回報狀態可以多帶**標籤**：`pack.report_status(state, message, tag=)`、SDK `report_status(state, message, tag=)`（信封 `status.tag`），
+  讓規則分得出「哪一件事做完了」。舊工具不帶＝照舊。
+- 網頁：`GET /api/runtime/status` 多 `activator`；新 API `activator/rules/<id>/reset`、`activator/resume`、`activator/pending/run`、
+  `activator/pending/<id>/dismiss`（[docs/runtime-api.md](docs/runtime-api.md)）。主控頁多一張「🔗 連動」卡。`doctor` 多一行「連動」。
+- 例子（測試與示範 pack `tests/fixtures/chain_pack`）：日記圖片做好了 → 馬上問你要不要打卡；問完回報另一個標籤，不會自己觸發自己。
+
 ## 未發佈（branch feat/landing-readme：介紹頁、README 對齊現況、工具生態文件）
 
 ### 新增
