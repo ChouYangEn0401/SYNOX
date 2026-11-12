@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+# synox-sdk：SYNOX 的工具 SDK 單獨發佈的套件（只有 synox_sdk.py 一個檔、只用標準函式庫）。
+# 正本是 ../src/synox/sdk/author.py；synox_sdk.py 由 ../scripts/build_synox_sdk.py 產生，不要直接改。
+#   pip install <SYNOX 資料夾>/sdk        工具作者在自己的 venv 裝（或直接把 synox_sdk.py 複製進工具資料夾）
+# 版本只寫在 synox_sdk.py 的 SDK_VERSION（pack.json 的 requires.sdk 對的就是它）。
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "synox-sdk"
+dynamic = ["version"]
+description = "SYNOX tool SDK: one Python function = one SYNOX tool (and an MCP stdio tool). Standard library only."
+requires-python = ">=3.11"            # 跟 SYNOX 一樣；更舊的 Python 沒測過
+license = {text = "Apache-2.0"}
+
+[tool.setuptools]
+py-modules = ["synox_sdk"]
+
+[tool.setuptools.dynamic]
+version = {attr = "synox_sdk.SDK_VERSION"}

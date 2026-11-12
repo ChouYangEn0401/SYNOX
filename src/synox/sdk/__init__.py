@@ -303,6 +303,7 @@ def init_pack(folder: str, kind: str, name: str, title: str) -> List[str]:
     manifest = {"name": name, "title": title, "summary": f"{title}（用 synox-sdk init 產生，改成你的說明）",
                 "version": "0.1.0", "kind": kind, "access": "owner", "surfaces": ["dm"],
                 "data": "user" if kind == "python" else "none", "skill": "SKILL.md",
+                "requires": {"synox": author.SYNOX_REQUIRES, "sdk": author.SDK_REQUIRES},
                 "publisher": "", "capabilities": [],
                 "web": {"panel": "panel.html", "api": ["GET /summary"]}}
     files = {}
@@ -468,7 +469,7 @@ def init_from(tool_path: str, name: str, title: str = "", folder: Optional[str] 
     else:
         raw = {"name": name, "title": title, "summary": (doc[0] if doc else f"{title}（改成你的說明）"),
                "version": "0.1.0", "kind": "cli", "skill": "SKILL.md", "publisher": "", "capabilities": [],
-               "requires": {"synox": author.SYNOX_REQUIRES},
+               "requires": {"synox": author.SYNOX_REQUIRES, "sdk": author.SDK_REQUIRES},
                "cli": {"argv": ["{python}", "./" + rel], "cwd": ".", "json_flag": "--json", "timeout": 60,
                        "commands": commands}}
     with open(manifest_path, "w", encoding="utf-8", newline="\n") as f:
