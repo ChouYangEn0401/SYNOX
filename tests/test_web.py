@@ -545,3 +545,48 @@ def test_bad_web_port_is_config_error(tmp_path):
     with pytest.raises(ConfigError):
         SynoxConfig.from_dict({"owner_id": 1, "web": {"port": "abc"}}, require_token=False, root=str(tmp_path))
     assert SynoxConfig.from_dict({"owner_id": 1}, require_token=False, root=str(tmp_path)).web["port"] == 8830
+
+
+# ── 本機擁有者直接開網址就進 ───────────────────────────────────────────
+
+NAV = {"Host": "127.0.0.1:8830", "Sec-Fetch-Site": "none", "Sec-Fetch-Mode": "navigate",
+       "Sec-Fetch-Dest": "document"}
+
+
+def test_local_owner_typing_the_url_logs_in(make_bot, owner):
+    ui = ui_of(make_bot())
+    status, headers, _ = ui.handle("GET", "/", dict(NAV))
+    cookie = dict(headers)["Set-Cookie"].split(";")[0]
+    assert status == 200 and cookie.startswith("synox_session=")
+    c = Client(ui)
+    c.cookie = cookie
+    status, me = c.get("/api/me")
+    assert status == 200 and me["owner"] is True
+
+
+@pytest.mark.parametrize("change", [
+    {"Sec-Fetch-Site": "cross-site"},                    # 別的網站的連結／重新導向
+    {"Sec-Fetch-Site": "same-site"},
+    {"Sec-Fetch-Mode": "cors"},                          # fetch
+    {"Sec-Fetch-Dest": "iframe"},
+    {"Host": "evil.example.com:8830"},                   # DNS rebinding
+    {"Host": "127.0.0.1:9999"},
+    {"Origin": "http://evil.example.com"},
+    {"Sec-Fetch-Site": None},                            # 沒有標頭（curl／舊瀏覽器）
+])
+def test_local_auto_login_refuses_anything_but_a_typed_navigation(make_bot, change):
+    ui = ui_of(make_bot())
+    headers = {**NAV, **change}
+    headers = {k: v for k, v in headers.items() if v is not None}
+    status, resp_headers, _ = ui.handle("GET", "/", headers)
+    assert status == 200 and "Set-Cookie" not in dict(resp_headers)
+    assert ui.handle("GET", "/api/me", {"Host": "127.0.0.1:8830"})[0] == 401
+
+
+def test_local_auto_login_is_off_for_server_mode_public_url_and_the_switch(make_bot):
+    for raw in ({"mode": "server"}, {"web": {"public_url": "https://x.example.com"}},
+                {"web": {"local_auto_login": False}}):
+        ui = ui_of(make_bot(raw=raw))
+        ui.port = 8830
+        _s, resp_headers, _b = ui.handle("GET", "/", dict(NAV))
+        assert "Set-Cookie" not in dict(resp_headers), raw

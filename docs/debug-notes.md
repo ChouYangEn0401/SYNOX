@@ -39,6 +39,14 @@ Problems found while testing the installer. "Fixed" items are on this branch; "O
    SYNOX folder. Reinstall = Uninstall + Setup.bat. Repair = re-run Setup.bat (idempotent, reuses `.venv`, prefills the
    wizard from config.json) and `python -m synox doctor`; no separate Repair tool for now.
 
+10. **Local owner opens the web UI without a link.** In personal mode, typing `http://127.0.0.1:<port>/` in the browser
+   (address bar, bookmark, desktop shortcut) logs the owner in automatically. Accepted only for a real browser navigation:
+   `Host` must be 127.0.0.1/localhost with our port (blocks DNS rebinding), `Sec-Fetch-Site: none`, `Sec-Fetch-Mode: navigate`,
+   `Sec-Fetch-Dest: document`, no `Origin`. Why not no check at all: the web UI can install packs, i.e. run code on this PC, so
+   any web page open in the same browser must not be able to reach it. Off for server mode, when `web.public_url` is set, or
+   with `"web": {"local_auto_login": false}`. Other OS user accounts on the same PC can still reach the port; the link flow
+   (`Open-SYNOX.bat`) stays for them and for non-browser clients.
+
 ## Open
 
 1. **Icon artwork** is a placeholder (blue square with an "S"); needs a real design.
