@@ -4,6 +4,7 @@
   "summary": "👋 範例工具：算小費、打招呼（synox_sdk 的最小範例）。",
   "version": "0.1.0",
   "kind": "cli",
+  "category": "示範",
   "skill": "SKILL.md",
   "publisher": "SYNOX examples",
   "capabilities": [],
@@ -40,12 +41,14 @@
           {
             "name": "percent",
             "ask": "小費幾 %",
-            "kind": "int"
+            "kind": "int",
+            "default": 10
           },
           {
             "name": "round_up",
             "ask": "要不要進位到整數",
-            "kind": "bool"
+            "kind": "bool",
+            "default": false
           }
         ]
       },
@@ -71,7 +74,8 @@
             "choices": [
               "casual",
               "formal"
-            ]
+            ],
+            "default": "casual"
           }
         ]
       }

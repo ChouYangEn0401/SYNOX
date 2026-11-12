@@ -13,6 +13,9 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     GET  /api/pack-secrets/<name>   工具頁「連接」：auth.fields 的狀態（有填、最後 4 碼；secret 的值永遠不回）
     POST /api/pack-secrets/<name>   {"values": {欄位: 值}, "clear": [...]}：存進保管箱（空字串＝沿用原值）
                                     個人版只有擁有者、伺服器版每人設自己的
+    GET  /api/tools                 工具頁：看得到的工具（說明、指令、參數表單）＋這個人的群組排版（layout）
+    POST /api/tools/layout          {"groups": [{"id", "title", "tools": [...]}]}｜{"reset": true}：存這個人自己的排版
+                                    （web/toolpage.py；不寫進 pack 資料夾，擁有者與成員各自一份）
     GET  /api/settings/channels     擁有者：Telegram／Discord 的狀態（存了沒、bot 名字、要不要重開；token 永遠不回）
     /api/runtime/...                擁有者：主控面板（心跳、常駐助理、soul.md、任務狀態；合約 docs/runtime-api.md，
                                     `PUT /api/runtime/soul` 是唯一收 PUT 的）
@@ -42,6 +45,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from isdtelekit.core.channel import CallbackInfo, Inbound
 
+from synox.web import toolpage
 from synox.web.channel import WEB, WebChannel
 from synox.web.chats import TOOLS_CHAT, ChatStore
 from synox.web.tokens import LoginTokens, Session, Sessions, digest
@@ -79,17 +83,7 @@ def _err(status: int, message: str) -> Resp:
 
 # app.html 裡的 /*{{INCLUDE:檔名}}*/ 換成 static/ 裡那個檔的內容（主控頁的 control.js／control.css）。
 # 分成檔好維護、好測；送出去仍是一頁、同一個 nonce，不多開靜態檔的路由。只認 static/ 底下的 .js／.css 檔名。
-INCLUDE_RE = re.compile(r"/\*\{\{INCLUDE:([a-z][a-z0-9_-]{0,40}\.(?:js|css))\}\}\*/")
-
-
-def app_html(nonce: str) -> str:
-    with open(os.path.join(STATIC, "app.html"), "r", encoding="utf-8") as f:
-        html = f.read().replace("{{NONCE}}", nonce)
-
-    def include(m: "re.Match[str]") -> str:
-        with open(os.path.join(STATIC, m.group(1)), "r", encoding="utf-8") as f:
-            return f.read()
-    return INCLUDE_RE.sub(include, html)
+INLINE_RE = re.compile(r"/\*\{\{INCLUDE:([a-z][a-z0-9_-]{0,40}\.(?:js|css))\}\}\*/")
 
 
 # 伺服器自己產生的小頁（登入確認、登入失敗）共用的樣式：跟 static/app.html 同一套 token 的精簡版
@@ -128,6 +122,35 @@ def _page(status: int, title: str, text: str, extra: Optional[List[Tuple[str, st
         html.encode("utf-8")
 
 
+# app.html 裡的 <!-- include: 檔名 -->：送出頁面時換成 static/ 裡那個檔的內容（同一個 nonce 的 <style>／<script>），
+# CSP 不用放寬、也不多一個靜態檔的路由。只收這張清單裡的檔（工具頁；scripts/make_ui_preview.py 用同一個函式）。
+INCLUDES = {"tools.css": "style", "tools.js": "script"}
+INCLUDE_RE = re.compile(r"<!-- include: ([a-z0-9_.-]+) -->")
+
+
+def render_app(nonce: str) -> str:
+    """app.html＋include 的檔，{{NONCE}} 換成這次的 nonce。"""
+    def include(m):
+        name = m.group(1)
+        tag = INCLUDES.get(name)
+        if tag is None:
+            raise ValueError(f"app.html includes an unknown file: {name}")
+        with open(os.path.join(STATIC, name), "r", encoding="utf-8") as f:
+            text = f.read()
+        if f"</{tag}" in text.lower() or "<!--" in text:      # 會提早結束（或攪亂）那個 <style>／<script>
+            raise ValueError(f"{name} must not contain </{tag} or <!--")
+        return f'<{tag} nonce="{nonce}">\n{text}</{tag}>'
+    def inline(m):
+        with open(os.path.join(STATIC, m.group(1)), "r", encoding="utf-8") as f:
+            return f.read()
+    with open(os.path.join(STATIC, "app.html"), "r", encoding="utf-8") as f:
+        html = f.read().replace("{{NONCE}}", nonce)
+    return INCLUDE_RE.sub(include, INLINE_RE.sub(inline, html))
+
+
+app_html = render_app          # 主控頁的測試與預覽沿用的舊名字
+
+
 def _cookie(headers: Dict[str, str], name: str) -> Optional[str]:
     for part in (headers.get("cookie") or "").split(";"):
         key, _, value = part.strip().partition("=")
@@ -160,6 +183,7 @@ class WebUI:
         self.tokens = LoginTokens(os.path.join(data, "web_tokens.json"), clock=clock)
         self.sessions = Sessions(os.path.join(data, "web_sessions.json"), clock=clock)
         self.chats = ChatStore(os.path.join(data, "web_chats"), vault, clock=clock)
+        self.prefs = toolpage.UserPrefs(os.path.join(data, "web_prefs"), vault)   # 每個人的工具頁排版
         self._clock = clock
         self._login_forms: Dict[str, tuple] = {}     # 表單 token 的雜湊 → (登入 token 雜湊, 瀏覽器 cookie 雜湊, 到期)
         self._login_lock = threading.Lock()
@@ -311,8 +335,8 @@ class WebUI:
 
     def app_page(self) -> Resp:
         nonce = secrets.token_urlsafe(16)
-        html = app_html(nonce)
-        csp =(f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'nonce-{nonce}'; "
+        html = render_app(nonce)
+        csp = (f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'nonce-{nonce}'; "
                "img-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; "
                "base-uri 'none'; form-action 'self'")
         return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "DENY"),
@@ -475,6 +499,8 @@ class WebUI:
         if path == "/api/chats":
             chat = self.chats.new_chat(user.tg_id)
             return _json(200, {"id": chat["id"], "title": chat["title"]})
+        if path == "/api/tools/layout":
+            return self.save_layout(user, data)
         m = re.match(r"^/api/chat/([a-z0-9]+)/(send|press)$", path)
         if m:
             return self.send(user, m.group(1), data) if m.group(2) == "send" else self.press(user, m.group(1), data)
@@ -576,8 +602,9 @@ class WebUI:
     # ── 工具頁 ───────────────────────────────────────────────────────
 
     def _leaf_info(self, node) -> dict:
-        return {"command": node.command, "usage": node.usage, "summary": node.summary,
-                "effect": node.effect, "path": node.path}
+        """工具頁的一張指令卡（說明、危險程度、參數表單；web/toolpage.py）。"""
+        meta = (self.app.extras.get("synox_tool_meta") or {}).get(node.path) or {}
+        return toolpage.command_info(node, meta)
 
     def tools(self, user) -> dict:
         registry = self.app.registry
@@ -590,7 +617,9 @@ class WebUI:
             leaves = [n for n in group.walk() if not n.is_group and registry.visible(user, n)]
             connector = getattr(pack.manifest, "registered_only", pack.manifest.kind in ("connector", "mcp"))
             row = {
-                "name": pack.name, "title": pack.manifest.title, "summary": pack.manifest.summary,
+                "id": pack.manifest.group, "name": pack.name, "title": pack.manifest.title,
+                "summary": pack.manifest.summary, "description": toolpage.skill_description(pack.manifest),
+                "category": getattr(pack.manifest, "category", ""),
                 "kind": pack.manifest.kind, "version": pack.manifest.version,
                 "status": "要先設定" if connector else "已連接",
                 "panel": f"/packs/{pack.name}/panel" if pack.manifest.web.get("panel") else None,
@@ -606,17 +635,47 @@ class WebUI:
         groups_out = []
         basics = [n for n in registry.root.children.values() if not n.is_group and registry.visible(user, n)]
         if basics:
-            groups_out.append({"title": "🧭 基本", "summary": "開始、說明、結束問答",
-                               "commands": [self._leaf_info(n) for n in basics]})
+            groups_out.append({"id": toolpage.BASICS_ID, "title": "🧭 基本", "summary": "開始、說明、結束問答",
+                               "category": toolpage.BUILTIN, "commands": [self._leaf_info(n) for n in basics]})
         for node in registry.root.children.values():
             if not node.is_group or node.name in pack_groups or not registry.visible(user, node):
                 continue
             leaves = [n for n in node.walk() if not n.is_group and registry.visible(user, n)
                       and n.path != "agent.ai_approve"]
             if leaves:
-                groups_out.append({"title": node.title, "summary": node.summary,
-                                   "commands": [self._leaf_info(n) for n in leaves]})
-        return {"packs": packs_out, "groups": groups_out}
+                groups_out.append({"id": node.name, "title": node.title, "summary": node.summary,
+                                   "category": toolpage.BUILTIN, "commands": [self._leaf_info(n) for n in leaves]})
+        out = {"packs": packs_out, "groups": groups_out}
+        try:
+            stored = self.prefs.get(user.tg_id, toolpage.LAYOUT_KEY)
+        except Exception as e:                    # 保管箱解不開：照預設排，不蓋掉原本的檔
+            logging.warning("[WEB] tool layout of %s unreadable: %s", user.tg_id, type(e).__name__)
+            stored, out["layout_error"] = None, "你的群組排版讀不到（保管箱解不開），先照預設排；存檔前請先看 doctor。"
+        out["layout"] = toolpage.effective(stored, self._tool_categories(out))
+        return out
+
+    @staticmethod
+    def _tool_categories(tools: dict):
+        return [(row["id"], row.get("category") or "") for row in tools["packs"] + tools["groups"]]
+
+    def save_layout(self, user, data: dict) -> Resp:
+        """工具頁的「編輯群組」：存這個人自己的排版（{"reset": true}＝回到 pack 建議的排法）。"""
+        tools = self.tools(user)
+        if "layout_error" in tools:
+            return _err(409, tools["layout_error"])
+        visible = [tid for tid, _cat in self._tool_categories(tools)]
+        if data.get("reset") is True:
+            self.prefs.set(user.tg_id, toolpage.LAYOUT_KEY, None)
+            return _json(200, {"ok": True, "layout": toolpage.effective(None, self._tool_categories(tools))})
+        try:
+            layout = toolpage.parse_layout(data)
+        except toolpage.LayoutError as e:
+            return _err(400, str(e))
+        old = self.prefs.get(user.tg_id, toolpage.LAYOUT_KEY)
+        layout = toolpage.merge_hidden(layout, old, visible)
+        self.prefs.set(user.tg_id, toolpage.LAYOUT_KEY, layout)
+        logging.info("[WEB] %s saved tool layout (%d groups)", user.tg_id, len(layout["groups"]))
+        return _json(200, {"ok": True, "layout": toolpage.effective(layout, self._tool_categories(tools))})
 
     def pack_api(self, user, name: str, route: str) -> Resp:
         pack = self._pack(name)
