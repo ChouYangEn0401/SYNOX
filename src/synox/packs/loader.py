@@ -300,8 +300,9 @@ def shared_write_admin(app, m: Manifest, server: bool) -> int:
 
 # ── 伺服器版 python pack 的信任（PERM-8） ─────────────────────────────────
 
-# 出廠的 pack（repo 的 packs/、connectors/ 裡、名字在這張表上）＝core，不看 packs.lock
-BUNDLED = ("money", "notes", "remind", "apple-reminders", "google-calendar", "notion", "todoist")
+# 出廠的 pack（repo 的 packs/、connectors/ 裡、名字在這張表上）＝core，不看 packs.lock。
+# 2026-11-12 起 SYNOX 出廠不帶工具（money、notes、remind 搬到 SYNOX_Libs，legacy/builtin-packs.md），只剩 connectors/。
+BUNDLED = ("apple-reminders", "google-calendar", "notion", "todoist")
 
 
 def is_bundled(m: Manifest) -> bool:

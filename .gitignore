@@ -8,5 +8,9 @@ __pycache__/
 dist/
 .pytest_cache/
 
+# 使用者裝的工具（SYNOX 出廠是空的；packs/README.md 說明）
+packs/*
+!packs/README.md
+
 # local agent scratch
 .claude/

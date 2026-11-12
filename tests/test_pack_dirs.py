@@ -4,7 +4,8 @@ import json
 import os
 
 from synox.config import SynoxConfig
-from synox.packs.loader import PACK_DIRS, discover
+from synox.packs import loader
+from synox.packs.loader import discover
 
 
 def _pack(folder: str, name: str) -> None:
@@ -37,10 +38,10 @@ def test_config_pack_dirs_adds_relative_and_absolute_entries(tmp_path):
     raw = {"bot_token": "", "owner_id": 1, "packs": {"dirs": ["extra", str(tmp_path / "abs"), "", 42]}}
     cfg = SynoxConfig.from_dict(raw, require_token=False, root=str(tmp_path))
     dirs = cfg.pack_dirs()
-    assert dirs[:len(PACK_DIRS)] == tuple(PACK_DIRS)
-    assert dirs[len(PACK_DIRS):] == (os.path.normpath(str(tmp_path / "extra")), os.path.normpath(str(tmp_path / "abs")))
+    assert dirs[:len(loader.PACK_DIRS)] == tuple(loader.PACK_DIRS)
+    assert dirs[len(loader.PACK_DIRS):] == (os.path.normpath(str(tmp_path / "extra")), os.path.normpath(str(tmp_path / "abs")))
 
 
 def test_config_without_dirs_is_just_the_builtin_folders(tmp_path):
     cfg = SynoxConfig.from_dict({"bot_token": "", "owner_id": 1}, require_token=False, root=str(tmp_path))
-    assert cfg.pack_dirs() == tuple(PACK_DIRS)
+    assert cfg.pack_dirs() == tuple(loader.PACK_DIRS)          # conftest 換成測試用的資料夾
