@@ -21,6 +21,9 @@ synox_sdk：寫一個 Python 函式，就是一個 SYNOX 工具（也是一個 M
       python tool.py --mcp                                 → MCP stdio server（JSON-RPC 2.0，給其他 AI 用戶端）
 - 函式回什麼：字串＝給人看的那句話；dict／list／數字＝data；`Ok(message, data)` 兩個都給；
   `raise ToolError(code, message)`＝失敗；`raise Confirm(summary)`（或 return）＝要確認（信封 needs_confirm）。
+- `fail(code, reason, retry_after=…, remedy=…, scope=…, diag=…)`＝失敗信封 v1（穩定的類別碼、能不能重試、補救建議；
+  SYNOX 用它決定要不要暫時把工具從 AI 的清單拿掉）。丟的是 `ToolFailure`（`ToolError` 的子類別，舊的 except 照樣接得到）。
+  沒處理的例外＝`unclassified`。
 - --mcp 模式的 Confirm：result 帶 structuredContent.needs_confirm；用戶端讓人確認後帶 _meta["synox/confirm_token"] 重叫。
 - 確認來回：`if not confirmed(): raise Confirm("要刪 3 筆")`。SYNOX 出卡給人，按 ✅ 用同一組參數重跑一次，
   這一次 `confirmed()` 是 True（SYNOX 驗過一次性憑證才給 SYNOX_CONFIRMED=1；工具、AI、pack.json 都造不出來）。
@@ -50,10 +53,11 @@ from contextlib import redirect_stdout
 from pathlib import PurePath
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
-__all__ = ["tool", "serve", "secret", "context", "confirmed", "Context", "ToolError", "Confirm", "Ok", "SpecError",
-           "tool_spec", "commands_for", "run_cli", "run_mcp", "registered", "report_status", "peer_status"]
+__all__ = ["tool", "serve", "secret", "context", "confirmed", "Context", "ToolError", "ToolFailure", "fail", "Confirm",
+           "Ok", "SpecError", "tool_spec", "commands_for", "run_cli", "run_mcp", "registered", "report_status",
+           "peer_status"]
 
-SDK_VERSION = "0.2.0"                  # SYNOX 給工具的介面合約的版本（pack.json 的 requires.sdk 對這個；docs/sdk.md「SDK 版本」）
+SDK_VERSION = "0.2.1"                  # SYNOX 給工具的介面合約的版本（pack.json 的 requires.sdk 對這個；docs/sdk.md「SDK 版本」）
 SYNOX_REQUIRES = ">=0.2"               # 產生的 pack.json 的 requires.synox（SYNOX_* 環境變數、ai／confirm 從這版起）
 
 
@@ -75,6 +79,18 @@ CONFIRM_TOKEN_RE = re.compile(r"^[A-Za-z0-9._:\-]{1,128}$")
 STATUS_STATES = ("ok", "running", "failed", "idle")
 STATUS_MESSAGE_MAX = 200
 EXIT_OK, EXIT_ERROR = 0, 1
+# 失敗信封 v1（docs/tool-health.md）：穩定的類別碼；不在表上的一律 unclassified（SYNOX 那邊也一樣）
+FAILURE_V = 1
+FAILURE_CODES = ("bad_input", "not_found", "needs_config", "config_invalid", "auth_missing", "auth_expired",
+                 "permission_denied", "rate_limited", "network_unreachable", "upstream_unavailable", "upstream_changed",
+                 "dependency_missing", "dependency_outdated", "unsupported_platform", "resource_exhausted", "timeout",
+                 "internal_bug", "unclassified")
+FAILURE_SCOPES = ("input", "user", "tool", "pack", "environment")
+REMEDY_KINDS = ("auto_fixable", "needs_update", "needs_config", "needs_owner", "none")
+REMEDY_ID_RE = re.compile(r"^[a-z0-9_]{1,32}$")
+REASON_MAX = 300
+DIAG_VALUE_MAX = 200
+DIAG_MAX_BYTES = 1024
 
 _REGISTRY: List[Callable] = []
 # @tool 的宣告掛在函式的 synox_tool_spec 屬性（synox.sdk 的 init --from 也從這裡讀，不管 tool.py import 的是哪一份 SDK）。
@@ -92,6 +108,86 @@ class ToolError(Exception):
     def __init__(self, code: str, message: str):
         super().__init__(message)
         self.code, self.message = str(code), str(message)
+
+
+class ToolFailure(ToolError):
+    """失敗信封 v1（`fail()` 丟的）：ToolError 多一個 failure 物件。`except ToolError` 照樣接得到。"""
+
+    def __init__(self, code: str, reason: str, *, retry_after: Optional[float] = None, remedy: Any = None,
+                 scope: Optional[str] = None, diag: Optional[dict] = None):
+        code = str(code or "").strip().lower()
+        given = code
+        code = code if code in FAILURE_CODES else "unclassified"
+        super().__init__(code, _clip(" ".join(str(reason or "").split()), REASON_MAX))
+        block: Dict[str, Any] = {"v": FAILURE_V}
+        if scope is not None:
+            if scope not in FAILURE_SCOPES:
+                raise ValueError(f"fail: scope 只能是 {'、'.join(FAILURE_SCOPES)}（收到 {scope!r}）")
+            block["scope"] = scope
+        if retry_after is not None:
+            if isinstance(retry_after, bool) or not isinstance(retry_after, (int, float)) or retry_after <= 0:
+                raise ValueError("fail: retry_after 要是正的秒數")
+            block["retry"] = {"ok": True, "after_s": int(retry_after)}
+        if remedy is not None:
+            block["remedy"] = _remedy(remedy)
+        extra = dict(diag or {})
+        if given and given != code:
+            extra.setdefault("code", given)              # 作者寫了表上沒有的碼：留在 diag，類別碼用 unclassified
+        if extra:
+            block["diag"] = _diag(extra)
+        self.failure = block
+
+
+def _clip(text: str, limit: int) -> str:
+    return text if len(text) <= limit else text[:limit - 1] + "…"
+
+
+def _remedy(remedy: Any) -> dict:
+    """remedy：種類字串（"needs_update"），或 {"kind", "id", "summary"}。summary 是給人看的一句話，不要放指令（SYNOX 會整段換掉）。"""
+    if isinstance(remedy, str):
+        remedy = {"kind": remedy}
+    if not isinstance(remedy, dict):
+        raise ValueError("fail: remedy 要是種類字串或 {kind, id, summary}")
+    kind = remedy.get("kind", "none")
+    if kind not in REMEDY_KINDS:
+        raise ValueError(f"fail: remedy.kind 只能是 {'、'.join(REMEDY_KINDS)}（收到 {kind!r}）")
+    out = {"kind": kind}
+    rid = remedy.get("id")
+    if rid is not None:
+        if not isinstance(rid, str) or not REMEDY_ID_RE.match(rid):
+            raise ValueError("fail: remedy.id 只能用小寫英數字與 _（32 字內）")
+        out["id"] = rid
+    if remedy.get("summary"):
+        out["summary"] = _clip(" ".join(str(remedy["summary"]).split()), DIAG_VALUE_MAX)
+    return out
+
+
+def _diag(diag: dict) -> dict:
+    """diag：只給擁有者與 log 看（SYNOX 不放進 AI 的提示）；每個值最多 200 字、整包最多 1 KB，超過的鍵丟掉。"""
+    out: Dict[str, str] = {}
+    for key, value in diag.items():
+        item = _clip(" ".join(str(value).split()), DIAG_VALUE_MAX)
+        trial = dict(out)
+        trial[str(key)[:32]] = item
+        if len(json.dumps(trial, ensure_ascii=False).encode("utf-8")) > DIAG_MAX_BYTES:
+            continue
+        out = trial
+    return out
+
+
+def fail(code: str, reason: str, *, retry_after: Optional[float] = None, remedy: Any = None,
+         scope: Optional[str] = None, diag: Optional[dict] = None):
+    """工具失敗：丟 ToolFailure → 印 v1 信封、結束碼 1（MCP 模式：isError，信封放在 structuredContent）。
+
+        fail("upstream_changed", "資料來源的回傳格式變了，解析不出價格。",
+             remedy={"kind": "needs_update", "id": "upgrade", "summary": "要換成 1.3.0 以上的版本。"},
+             diag={"tool_version": "1.2.0", "upstream": "KeyError: 'price'"})
+
+    code：穩定的類別碼（FAILURE_CODES；不在表上＝unclassified）。reason：給人看的原因（300 字內，不要放密碼）。
+    retry_after：幾秒後可以再試。remedy：補救的種類（REMEDY_KINDS）或 {kind, id, summary}——只是建議，SYNOX 不會照著執行。
+    scope：input（參數錯）｜user（只跟這個人有關，例如他的憑證）｜tool｜pack｜environment；沒寫＝SYNOX 依類別碼補。
+    diag：給擁有者與 log 的細節（例如 tool_version、upstream），不會給 AI。"""
+    raise ToolFailure(code, reason, retry_after=retry_after, remedy=remedy, scope=scope, diag=diag)
 
 
 class Confirm(Exception):
@@ -125,8 +221,11 @@ def ok_envelope(data: Any = None, message: str = "") -> dict:
     return out
 
 
-def error_envelope(code: str, message: str) -> dict:
-    return {"ok": False, "error": str(message), "code": str(code)}
+def error_envelope(code: str, message: str, failure: Optional[dict] = None) -> dict:
+    out = {"ok": False, "error": str(message), "code": str(code)}
+    if failure is not None:
+        out["failure"] = dict(failure)                  # 失敗信封 v1（舊版 SYNOX 不認得，直接忽略）
+    return out
 
 
 def confirm_envelope(summary: str, token: str) -> dict:
@@ -411,12 +510,13 @@ def _call_inner(spec: dict, values: Dict[str, Any]):
         fn = spec["fn"]
         result = fn(**kwargs)
     except ToolError as e:
-        return error_envelope(e.code, e.message), EXIT_ERROR
+        return error_envelope(e.code, e.message, getattr(e, "failure", None)), EXIT_ERROR
     except Confirm as c:
         return confirm_envelope(c.summary, c.token), EXIT_OK
-    except Exception as e:                                  # 工具自己的錯：說是哪一種，細節印到 stderr
+    except Exception as e:                                  # 工具自己的錯：沒分類（unclassified），細節印到 stderr
         traceback.print_exc(file=sys.stderr)
-        return error_envelope("internal", f"{type(e).__name__}: {e}"), EXIT_ERROR
+        return error_envelope("unclassified", _clip(f"{type(e).__name__}: {e}", REASON_MAX),
+                              {"v": FAILURE_V, "diag": {"exception": type(e).__name__}}), EXIT_ERROR
     if isinstance(result, Confirm):
         return confirm_envelope(result.summary, result.token), EXIT_OK
     if isinstance(result, Ok):
@@ -554,6 +654,17 @@ def _mcp_text(envelope: dict) -> str:
     return "\n".join(parts) or "完成"
 
 
+def _mcp_failure(envelope: dict) -> dict:
+    """MCP 的 isError 結果的 structuredContent：同一個失敗信封，但不帶 diag（別的 MCP 用戶端可能把它整個給 AI；
+    diag 改印到 stderr＝server 自己的 log）。"""
+    out = {k: v for k, v in envelope.items() if k in ("ok", "error", "code", "failure")}
+    block = out.get("failure")
+    if isinstance(block, dict) and "diag" in block:
+        sys.stderr.write("diag " + _dumps(block["diag"]) + "\n")
+        out["failure"] = {k: v for k, v in block.items() if k != "diag"}
+    return out
+
+
 def _mcp_handle(msg: Any, specs: Dict[str, dict], info: dict) -> Optional[dict]:
     if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0" or not isinstance(msg.get("method"), str):
         return {"jsonrpc": "2.0", "id": msg.get("id") if isinstance(msg, dict) else None,
@@ -596,6 +707,8 @@ def _mcp_handle(msg: Any, specs: Dict[str, dict], info: dict) -> Optional[dict]:
         finally:
             _MCP_CONFIRM = None
         reply = {"content": [{"type": "text", "text": _mcp_text(envelope)}], "isError": not envelope.get("ok")}
+        if not envelope.get("ok"):
+            reply["structuredContent"] = _mcp_failure(envelope)
         if envelope.get("needs_confirm"):
             reply["structuredContent"] = {"needs_confirm": True, "summary": envelope.get("summary", ""),
                                           "confirm_token": envelope.get("confirm_token", "")}

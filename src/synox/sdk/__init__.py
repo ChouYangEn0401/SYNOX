@@ -22,7 +22,7 @@ synox.sdk：給 pack 作者（寫工具的人）的小工具。工具是什麼�
 3. 範本：`init_pack(dir, kind, name, title)` 產生 pack.json、SKILL.md、README.md、panel.html（＋python 的 pack.py、
    cli 的範例工具 tool.py）。
 
-4. 作者端（synox.sdk.author，單檔版 sdk/synox_sdk.py）：`@tool`、`serve()`、`secret()`、`context()`、`ToolError`、`Confirm`。
+4. 作者端（synox.sdk.author，單檔版 sdk/synox_sdk.py）：`@tool`、`serve()`、`secret()`、`context()`、`ToolError`、`fail()`／`ToolFailure`（失敗信封 v1）、`Confirm`。
    `init_from(tool.py, …)` 從 @tool 函式產生 pack.json＋SKILL.md；`run_command(資料夾, 指令, 參數)` 本機試跑
    （照 loader 的代換與第 4 關驗參數，不用開 SYNOX）。
 
@@ -43,8 +43,9 @@ from dataclasses import dataclass
 from typing import Any, List, Optional
 
 from synox.sdk import author
-from synox.sdk.author import (Confirm, Context, Ok, SpecError, ToolError, confirm_envelope, confirmed, context,  # noqa: F401
-                              error_envelope, ok_envelope, peer_status, report_status, secret, serve, tool)
+from synox.sdk.author import (Confirm, Context, Ok, SpecError, ToolError, ToolFailure, confirm_envelope,  # noqa: F401
+                              confirmed, context, error_envelope, fail, ok_envelope, peer_status, report_status, secret,
+                              serve, tool)
 
 EXIT_OK, EXIT_ERROR = 0, 1
 

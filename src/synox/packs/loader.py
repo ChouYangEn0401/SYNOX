@@ -52,7 +52,7 @@ from typing import Any, Callable, Dict, List, Optional
 from isdtelekit.core import jsonstore
 from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 
-from synox import policy, sandbox
+from synox import health, policy, sandbox
 from synox.config import ROOT
 from synox.packs import envs, kit, render
 from synox.packs import confirm as tool_confirm
@@ -667,6 +667,11 @@ def _install_cli(app, pack: Pack) -> None:
                     grants.discard(_grant)
                 say(api, chat_id, blocked)
                 return
+            tool_path = nodes[cmd.name].path if cmd.name in nodes else f"{m.group}.{cmd.name}"
+            if getattr(api, "via_ai", False) is not True:
+                warning = health.manual_warning(app, tool_path, user)     # 人自己打：照常執行，前面多一行警告
+                if warning:
+                    say(api, chat_id, warning)
             raw_values = dict(values)
             ph = placeholders(m, config, user)
             if getattr(config, "mode", "personal") == "server":
@@ -701,8 +706,13 @@ def _install_cli(app, pack: Pack) -> None:
                 try:
                     runtime.ingest_envelope(app, m.name, reply.data, title=m.title)   # 信封的 status（選填）
                     if not reply.ok:
-                        say(api, chat_id, f"❌ {cmd.name}：{reply.error}")
+                        # 失敗信封 v1（health/failure.py）：正規化、截長、遮密鑰；記進隔離清單，經 AI 的改回 AI 一行 FAIL
+                        failure = health.failures.from_cli_reply(reply)
+                        health.observe_failure(app, api, tool=tool_path, pack=m.name, failure=failure, user=user,
+                                               tool_version=m.version)
+                        say(api, chat_id, health.failures.user_text(failure, cmd.name))
                         return
+                    health.observe_success(app, api, tool_path, user)
                     if tool_confirm.is_needs_confirm(reply.data):
                         ask_confirm(api, chat_id, user, raw_values, values, reply.data, again=confirmed is not None)
                         return
