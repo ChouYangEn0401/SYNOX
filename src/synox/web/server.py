@@ -16,6 +16,7 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     GET  /api/tools                 工具頁：看得到的工具（說明、指令、參數表單）＋這個人的群組排版（layout）
     POST /api/tools/layout          {"groups": [{"id", "title", "tools": [...]}]}｜{"reset": true}：存這個人自己的排版
                                     （web/toolpage.py；不寫進 pack 資料夾，擁有者與成員各自一份）
+    POST /api/tools/health          {"key", "action": "recheck"|"release"}：擁有者重新檢查／解除隔離一個工具（docs/tool-health.md）
     GET  /api/usage?period=hour|day|week|month   擁有者：AI 用量與花費（依期間分組；agent/usage_report.py）
     GET  /api/settings/channels     擁有者：Telegram／Discord 的狀態（存了沒、bot 名字、要不要重開；token 永遠不回）
     /api/runtime/...                擁有者：主控面板（心跳、常駐助理、soul.md、任務狀態；合約 docs/runtime-api.md，
@@ -518,6 +519,8 @@ class WebUI:
             return _json(200, {"id": chat["id"], "title": chat["title"]})
         if path == "/api/tools/layout":
             return self.save_layout(user, data)
+        if path == "/api/tools/health":
+            return self.tool_health(user, data)
         m = re.match(r"^/api/chat/([a-z0-9]+)/(send|press|archive|restore|delete)$", path)
         if m:
             if m.group(2) in ("archive", "restore", "delete"):
@@ -702,6 +705,7 @@ class WebUI:
                 "status": "要先設定" if connector else "已連接",
                 "panel": f"/packs/{pack.name}/panel" if pack.manifest.web.get("panel") else None,
                 "commands": [self._leaf_info(n) for n in leaves]}
+            self._health_marks(row, user)
             fields = getattr(pack, "secret_fields", None) or []
             if fields:                          # auth.fields 由 SYNOX 收：照這個人存了沒算狀態
                 store = self._secret_store()
@@ -734,6 +738,44 @@ class WebUI:
             stored, out["layout_error"] = None, "你的群組排版讀不到（保管箱解不開），先照預設排；存檔前請先看 doctor。"
         out["layout"] = toolpage.effective(stored, self._tool_categories(out))
         return out
+
+    def _health_marks(self, row: dict, user) -> None:
+        """工具頁每張指令卡的健康狀態（docs/tool-health.md）：不正常的才帶 health（狀態、原因、下次檢查）；
+        擁有者另外看得到 diag、能按「重新檢查」「解除隔離」（health_admin）。別人的 scope=user 紀錄不給。出錯＝不顯示（fail open）。"""
+        from synox import health
+        reg = health.of(self.app)
+        owner = self.is_owner(user)
+        row["health_admin"] = owner and reg is not None and reg.enabled
+        if reg is None or not reg.enabled:
+            return
+        try:
+            for cmd in row["commands"]:
+                mine = [e for e in reg.problems(cmd["path"]) if e.user is None or e.user == user.tg_id]
+                if mine:
+                    cmd["health"] = [reg.view(e, owner=owner) for e in mine]
+        except Exception:
+            logging.exception("[WEB] health marks failed (ignored)")
+
+    def tool_health(self, user, data: dict) -> Resp:
+        """POST /api/tools/health {"key": "<工具>[@<id>]", "action": "recheck"|"release"}：只有擁有者。
+        recheck＝用 pack 宣告的自我檢查重新檢查一次（背景跑，不叫 AI）；release＝解除（含隔離）。"""
+        from synox import health
+        if not self.is_owner(user):
+            return _err(403, "只有擁有者能重新檢查或解除隔離。")
+        reg = health.of(self.app)
+        if reg is None or not reg.enabled:
+            return _err(409, "工具健康管理沒有開（config.json 的 health.enabled）。")
+        key, action = str(data.get("key") or ""), data.get("action")
+        entry = reg.entry(key)
+        if entry is None or action not in ("recheck", "release"):
+            return _err(404, "沒有這筆紀錄，或動作不對（recheck｜release）。")
+        if action == "release":
+            reg.release(key)
+            return _json(200, {"ok": True, "state": entry.state})
+        if entry.state == health.QUARANTINED:
+            return _err(409, "隔離中的工具要先「解除隔離」。")
+        self.app.tasks.run(lambda: health.recheck(self.app, entry, manual=True), name="health-recheck")
+        return _json(200, {"ok": True, "queued": True})
 
     @staticmethod
     def _tool_categories(tools: dict):
