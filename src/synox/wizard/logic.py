@@ -158,6 +158,8 @@ def build_config(token: str, owner_id: int, llm: dict, *, existing: Optional[dic
     cfg["llm"] = {"max_steps": 6, "max_tokens": 1024, **{k: v for k, v in llm.items()}}
     cfg.setdefault("vault", {"mode": "dpapi" if os.name == "nt" else "file"})
     cfg.setdefault("packs", {"enabled": "all", "disabled": []})
+    from synox.runtime import settings as runtime_settings
+    cfg.setdefault("runtime", runtime_settings.defaults())   # 心跳每 45 分鐘、常駐助理（docs/adr/0001）；已經有的不動
     return cfg
 
 

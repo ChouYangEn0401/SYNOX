@@ -35,7 +35,8 @@
 | `src/synox/packs/oauth.py` | 遠端 MCP 的 OAuth（選配）：`Flow`（PKCE＋state、貼回網址、換／更新 token 存 PackSecrets、`/<群組>_login／_code／_logout`）、`Listener`／`PasteListener`／`LoopbackListener`（只有介面，叫了就拒） |
 | `src/synox/sdk/` | 給 pack 作者：JSON 信封、`Pack.load`、`init_pack`、`zip_pack`；`synox-sdk init｜check｜zip`（`python -m synox.sdk`）。說明 [sdk.md](sdk.md) |
 | `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`validate.py`（第 4 關呼叫驗證）、`delimit.py`（第 5 關工具結果分隔符）、`budget.py`（伺服器版成員每月額度；`BotPool` 頻道型 bot 一池）、`room.py`（頻道 AI：`RoomAgent`、`redact_reply`）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
-| `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（30 秒、via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`、`/schedule_*`） |
+| `src/synox/runtime/` | 常駐的排程迴圈與常駐助理（[adr/0001](adr/0001-runtime-loop-heartbeat-mother-session.md)，網頁合約 [runtime-api.md](runtime-api.md)）：`loop.py`（`RuntimeLoop`／`Task`：每 5 秒看、每個任務自己的執行緒、逾時、退避、連續 5 次失敗通知一次、`report`、`peer_states`、`data/runtime/state.json`）、`heartbeat.py`（`system.heartbeat`、快照與「沒事別吵」的規則）、`mother.py`（`MotherSession`：沒有工具、自己的記憶在保管箱、`NOTIFY:`／`SOUL+:` 格式）、`soul.py`（`SoulStore`：保管箱、追加規則、稽核）、`settings.py`（config `runtime` 的預設與檢查）、`web_api.py`（`/api/runtime/...`）、`__init__.py`（`install`、`report`／`ingest_envelope`／`peer_env`，`Runtime.use_fakes` 給測試） |
+| `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（`tick` 由 runtime 的任務 `system.schedule` 每 30 秒叫；沒有 runtime 才自己開執行緒；via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`、`/schedule_*`） |
 | `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS）、`__init__.py`（`install`、`/web`、`/web_off`） |
 | `src/synox/packs/admin.py` | `.synoxpack`：stage（zip 檢查＋第 1、2 關；記 zip 的執行位元、不解出 `__pycache__`）→ install_staged（再驗一次＋T2 要 `trust_publisher`＋第 3 關寫鎖）／移除到 `packs/_removed/`／`reload()`（Web UI、`synox install` 共用）；`format_tier`／`red`＝T2 的紅字段 |
 | `src/synox/packs/tier.py` | 信任層級（SDK P7）：`assess`（T0／T1／T2＋掃不到內容的檔、外部程式、runtime auto 套件）、`warning_lines`、`confirm_problem`（publisher 一字不差）、`reconfirm_reasons`（升級）、`lock_fields` |
@@ -202,6 +203,12 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     schema 模式的定義（`mcp_schema.tool_schema`）。**人打字的路徑不碰 schema**：leaf 照舊 `kit.parse_args(node.fields)`，必填是巢狀＝拒。
     硬限制是常數（`mcp_schema.MAX_*`），不要讓 pack.json 或 schema 放寬。測試在 `tests/test_schema_mode.py`（假 stdio 伺服器）。
 
+18. **背景工作一律登記成 runtime 的任務**（docs/adr/0001）：`runtime.of(app).loop.register(id, name, fn=, interval=, timeout=)`，
+    不要自己開 `threading.Thread` 迴圈——逾時、退避、失敗通知、主控面板的狀態都在 `RuntimeLoop`。常駐助理（`runtime/mother.py`）**沒有工具**；
+    要讓它做事得走 `ai_decision`＋核准卡，另寫 ADR。soul.md 只能經 `SoulStore`（保管箱），常駐助理只能 `append_notes`（「助理筆記」段、
+    每次最多 3 行、有稽核）。pack 回報的狀態給別的工具看時**只有 state 與時間**（`peer_states`），訊息不外流。測試一律
+    `Runtime.use_fakes(clock=, now=, spawn=)`（假時鐘、同步執行）＋`FakeAdapter`，不叫真的 LLM。
+
 另外：
 - pack 的群組由 loader 依 pack.json 定義（`loader.group_policy`）：`access: owner`（預設）＝整組 `owner_only`；`member`＝伺服器版 `role=MEMBER`、
   個人版 `owner_only`；`everyone`＝最低一級；再套角色能力上限（只會更嚴，見 invariant 11）。agent 群組也用同一個規則（`member`）：個人版只有擁有者，伺服器版成員以上；
@@ -242,7 +249,7 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 | `synox.packs.kit.command`（照位置填）而不是 SDK `Forms.leaf` | SDK 的 `parse_fields` 把第一個 `key=` 之前的字全給第一個欄位：`/money 120 午餐` 會變成 amount="120 午餐"。kit 照位置分配，最後一個欄位吃剩下的；仍設 `node.fields` 給 AI schema。缺必填回用法、不開問答；不收 `fresh_code` 欄位（要碼的指令用 SDK Forms） |
 | `llm/claude_code.py` 直接 `subprocess.run`，不經 `JobRunner`（SDK invariant 10） | adapter 不拿 app（invariant 2）。有 argv 陣列、`CREATE_NO_WINDOW`、逾時；沒有 Job Object 收程序樹 |
 | 核准卡的節點叫 `agent.ai_approve`（`/ai_approve`），不是 `agent.approve` | 群組 `agent` 是 bare（葉節點直接用自己的名字：`/ai`、`/ai_usage`），`approve` 會變成 `/approve`，跟 AI 無關的名字容易撞名 |
-| 排程（`synox/schedule`） | SDK D6 沒有排程。照前身專案的排程器做法，只做每天 HH:MM 與某一天一次；沒有「連續失敗自動暫停」 |
+| 排程（`synox/schedule`） | SDK D6 沒有排程。照前身專案的排程器做法，只做每天 HH:MM 與某一天一次；跑在 runtime 的任務 `system.schedule` 裡（逾時、退避、連續失敗通知；不自動暫停，見 adr/0001） |
 
 ## 模式（`config.json` 的 `mode`）
 

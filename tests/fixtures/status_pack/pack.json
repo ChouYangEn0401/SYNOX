@@ -1,0 +1,12 @@
+{
+  "name": "statusdemo",
+  "title": "🧪 狀態回報示範",
+  "summary": "測試用：回報 runtime 狀態、讀別人的狀態",
+  "version": "0.1.0",
+  "kind": "python",
+  "access": "owner",
+  "surfaces": ["dm"],
+  "data": "none",
+  "python": { "module": "pack" },
+  "skill": "SKILL.md"
+}

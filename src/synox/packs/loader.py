@@ -158,6 +158,17 @@ class Pack:
             raise pack_secrets.SecretError("保管箱沒有打開，讀不到 secret。")
         return self.secrets.get(self.name, name, user)
 
+    def report_status(self, state: str, message: str = "") -> bool:
+        """回報這個 pack 的狀態給 runtime（任務 pack.<name>，主控面板與常駐助理看得到；docs/adr/0001 §2）。
+        state：ok｜running｜failed｜idle（其他的忽略、回 False）；message 最多 200 字、像密鑰的會被遮掉。"""
+        from synox import runtime
+        return runtime.report(self.app, self.name, state, message, title=self.manifest.title)
+
+    def peer_status(self) -> Dict[str, dict]:
+        """別的任務／pack 的狀態：{任務 id: {"state", "at"}}（只有狀態與時間，沒有訊息）。"""
+        from synox import runtime
+        return runtime.peer_status(self.app)
+
     def web_route(self, route: str, fn: Callable) -> None:
         """Web UI 面板的資料：GET /api/packs/<name>/<route> → fn(user) 回可以轉 JSON 的東西。
         route 一定要寫在 pack.json 的 web.api 裡（"GET /<route>"），沒寫的掛了也打不到。"""
@@ -535,6 +546,7 @@ def _install_cli(app, pack: Pack) -> None:
     from isdtelekit.jobs.cli import JsonCli
     from isdtelekit.packs import service
 
+    from synox import runtime
     from synox.agent import validate as gate4
 
     m = pack.manifest
@@ -562,6 +574,7 @@ def _install_cli(app, pack: Pack) -> None:
         env = cli_env(m, view)
         env.update(context_env(m, config, view, pack.secret_fields))
         env.update(tool_confirm.env_for(confirmed))      # 「已確認」只有這裡給（蓋過 cli.env）
+        env.update(runtime.peer_env(app))                # SYNOX_PEER_STATUS：別人的狀態（只有 state 與時間）
         if pack.secret_fields and pack.secrets is not None:
             # auth.fields 有寫 env 的 secret：只走子程序環境（keep_env 放行這個名字），永遠不進 argv
             env.update(pack.secrets.env_for(m.name, pack.secret_fields, user))
@@ -675,6 +688,7 @@ def _install_cli(app, pack: Pack) -> None:
 
             def finish(reply):
                 try:
+                    runtime.ingest_envelope(app, m.name, reply.data, title=m.title)   # 信封的 status（選填）
                     if not reply.ok:
                         say(api, chat_id, f"❌ {cmd.name}：{reply.error}")
                         return

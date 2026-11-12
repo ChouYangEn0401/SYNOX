@@ -1,7 +1,7 @@
 .venv/
 data/
 config.json
-runtime/
+/runtime/
 lang.txt
 __pycache__/
 *.egg-info/
