@@ -14,6 +14,8 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     POST /api/pack-secrets/<name>   {"values": {欄位: 值}, "clear": [...]}：存進保管箱（空字串＝沿用原值）
                                     個人版只有擁有者、伺服器版每人設自己的
     GET  /api/settings/channels     擁有者：Telegram／Discord 的狀態（存了沒、bot 名字、要不要重開；token 永遠不回）
+    /api/runtime/...                擁有者：主控面板（心跳、常駐助理、soul.md、任務狀態；合約 docs/runtime-api.md，
+                                    `PUT /api/runtime/soul` 是唯一收 PUT 的）
     POST /api/settings/channels/telegram|discord   {"token"}：跟精靈一樣先驗（getMe）再存；重開 SYNOX 才生效
     /api/...                        JSON；都要登入；改東西的（非 GET）都要 X-SYNOX-CSRF 等於 session 的 csrf，
                                     有 Origin 的話要跟 Host 一樣
@@ -413,6 +415,9 @@ class WebUI:
 
     def api(self, method: str, path: str, query, headers, body: bytes, session: Session) -> Resp:
         user = self._user(session)
+        if path.startswith("/api/runtime/"):          # 主控面板：常駐助理／心跳／任務（docs/runtime-api.md；含 PUT）
+            from synox.runtime import web_api as runtime_api
+            return runtime_api.route(self, user, method, path, body)
         if method == "GET":
             if path == "/api/me":
                 return _json(200, self.me(user, session))
@@ -1153,6 +1158,9 @@ class _Handler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         self._go("POST")
+
+    def do_PUT(self):
+        self._go("PUT")
 
     def log_message(self, fmt, *args):
         logging.debug("[WEB] " + fmt, *args)
