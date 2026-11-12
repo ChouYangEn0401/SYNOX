@@ -313,3 +313,7 @@ def test_save_discord_token_refuses_multi_bot_config(tmp_path):
     cfg = logic.save(str(path), cfg)
     with pytest.raises(ValueError):
         logic.save_discord_token(str(path), cfg, DTOKEN)
+
+
+def test_claude_download_url_is_https():
+    assert logic.CLAUDE_DOWNLOAD_URL.startswith("https://")

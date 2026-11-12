@@ -235,6 +235,12 @@ class Wizard:
         ttk.Radiobutton(top, text=logic.CLAUDE_TITLE, value="claude_code", variable=choice,
                         command=lambda: changed()).pack(anchor="w")
         self.label(claude_text, parent=top, foreground="#2a6" if found else "#a33")
+        if not found:                               # 沒裝：一鍵去下載頁；裝好登入後按「重新偵測」
+            helper = ttk.Frame(top)
+            helper.pack(anchor="w")
+            ttk.Button(helper, text="打開下載網頁", command=lambda: webbrowser.open(logic.CLAUDE_DOWNLOAD_URL)
+                       ).pack(side="left")
+            ttk.Button(helper, text="裝好了，重新偵測", command=self.page_llm).pack(side="left", padx=(6, 0))
         claude_status = self.label("", parent=top)
         ttk.Button(top, text="測一下", command=lambda: test("claude_code", claude_status)).pack(anchor="w")
 
