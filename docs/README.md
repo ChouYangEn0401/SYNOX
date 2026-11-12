@@ -14,6 +14,7 @@
 | [../examples/](../examples/) | 作者 | 可以照抄的範例：`hello`（SDK）、`any-language-cli`（不用 SDK）、`node-mcp-tool`（MCP stdio）、`mcp-remote-*`（遠端 MCP） |
 | [AGENT.md](AGENT.md) | 維護者 | 程式地圖、不能破壞的規則（invariants）、已知限制 |
 | [../CHANGELOG.md](../CHANGELOG.md) | 維護者 | 每個版本改了什麼 |
+| [ui/redesign-notes.md](ui/redesign-notes.md) | 維護者 | 網頁介面的設計 token、版面、參考對象；`ui/preview.html` 雙擊看假資料預覽（`scripts/make_ui_preview.py` 產生） |
 | [debug-notes.md](debug-notes.md) | 維護者 | 安裝流程真機除錯：修好的（Fixed）與還開著、等擁有者決定的（Open） |
 | [../QuestionToUser.md](../QuestionToUser.md) | 維護者 | 等擁有者拍板的事（每題有建議，不答就照建議） |
 | [../LICENSING.md](../LICENSING.md) | 全部 | 授權：核心 AGPL-3.0-or-later，工具 SDK 與範例 Apache-2.0 |
