@@ -5,7 +5,9 @@ pack.json 的格式與檢查（docs/pack-format.md 是人看的版本）。安�
       "name": "money", "title": "💰 記帳", "summary": "記一筆、看這個月、設預算",
       "version": "0.1.0", "kind": "python",
       "group": "money",                          指令群組（/money、/money_list…）；沒寫＝name
-      "access": "owner",                         owner（預設：只有你）｜member（伺服器版的成員以上；個人版＝owner）
+      "category": "生活",                        選填：網頁工具頁「建議放在哪個群組」（給人看的名字，24 字內；
+                                                 沒寫＝「未分類」；使用者自己排的優先，見 web/toolpage.py）
+      "access": "owner",                        owner（預設：只有你）｜member（伺服器版的成員以上；個人版＝owner）
                                                  ｜everyone（任何傳訊息給 bot 的人，伺服器版的訪客也算）
       "python": {"module": "pack"},              kind=python：資料夾裡的 pack.py，有 install(app, pack)
       "cli": {"argv": ["{python}", "./x.py"], "cwd": ".", "commands": [...]},   kind=cli
@@ -30,8 +32,12 @@ pack.json v2（架構 v1 §4；在上面之上加欄位，舊的 pack 照舊可�
                                                                kind=cli／mcp stdio；image 一定帶 digest、不收 privileged…）
       "env": {"HOME_DIR": "{user_data_dir}/x"},                子程序的環境變數（跟 cli.env 合併，cli.env 優先）
       "cli": {"python": "venv", "env": {"X": "{data_dir}"},
-              "commands": [{"name": "add", "effect": "WRITE", "argv": ["add", "{text}"],
+              "commands": [{"name": "add", "effect": "WRITE", "argv": ["add", "{text}"], "summary": "記一則",
                             "fields": [{"name": "text"}, {"name": "file", "kind": "path"}]}]},
+               fields[]：{"name", "ask": 問人的那句（也是 AI 的參數說明）, "help": 網頁表單的補充說明,
+                          "kind", "choices", "required": true|false, "default": 沒填時用的值}
+               （安裝時 strict 檢查型別：ask／help／summary 是 200 字內的一行字、required 是布林、
+                default 是字串／數字／布林而且合 kind／choices）
       "capabilities": ["network", "subprocess", "filesystem:own", "filesystem:any", "exec"],
       "publisher": "…",
       "integrity": {"sha256": {"pack.py": "<64 hex>", …}},      打包時算（scripts/pack_zip.py）；有寫就要對得上
@@ -79,6 +85,9 @@ CAPABILITIES = ("network", "subprocess", "filesystem:own", "filesystem:any", "ex
 EFFECT_NAMES = ("READ", "WRITE", "DANGER")
 FIELD_KINDS = ("text", "int", "number", "bool", "path", "choice")
 MAX_CHOICES = 50
+MAX_CATEGORY = 24                 # category：網頁工具頁的建議群組名（給人看的字）
+MAX_DOC_TEXT = 200                # commands[].summary、fields[].ask／help：一行字
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f​-‏‪-‮⁦-⁩]")
 # cli 的 argv／env 樣板裡 loader 會代換的名字（欄位不能取這些名字）
 RESERVED_PLACEHOLDERS = ("python", "node", "pack_dir", "data_dir", "user_data_dir", "tg_id")
 V2_KEYS = ("capabilities", "publisher", "integrity", "mcp", "commands", "runtime", "env")
@@ -271,6 +280,8 @@ class Manifest:
     surfaces_declared: bool = False
     data: str = "none"                                        # none｜user｜shared（沒寫照 default_data 推）
     data_declared: bool = False
+    # 網頁工具頁的建議群組（沒寫＝""，畫面上是「未分類」；使用者自己排的優先）
+    category: str = ""
 
     @property
     def channel_ok(self) -> bool:
@@ -361,8 +372,59 @@ def norm_effect(value) -> str:
     return value if value in EFFECT_NAMES else ""
 
 
-def _check_commands(commands, strict: bool, problems: List[str]) -> List[dict]:
-    """cli 的 commands：名字、argv、effect、fields。回整理過的清單（effect 一律大寫）。"""
+def one_line_problem(value, label: str, limit: int = MAX_DOC_TEXT) -> str:
+    """給人看的一行字（summary、ask、help、category）：要是字串、不空、limit 字內、沒有換行與控制字元。"""
+    if not isinstance(value, str) or not value.strip():
+        return f"{label} 要是不空的字串"
+    if len(value) > limit:
+        return f"{label} 太長了（最多 {limit} 字）"
+    if _CONTROL_RE.search(value):
+        return f"{label} 不能有換行、控制字元或雙向文字控制字元"
+    return ""
+
+
+def clean_category(value) -> str:
+    """category 的值能用就回去掉前後空白的字，不能用回 ""（載入時寬鬆：壞的當作沒寫）。"""
+    return value.strip() if not one_line_problem(value, "category", MAX_CATEGORY) else ""
+
+
+def default_text(value) -> str:
+    """fields[].default（JSON 的字串／數字／布林）→ 交給程式的字串：布林寫成 true／false（不是 Python 的 True）。"""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return ""
+    return str(value)
+
+
+def _field_doc_problems(where: str, f: dict) -> List[str]:
+    """安裝時（strict）才檢查的欄位說明：網頁工具頁的表單、AI 的參數說明都靠這些（舊 pack 載入時不擋）。"""
+    out = []
+    fname = f["name"]
+    for key in ("ask", "help"):
+        if key in f:
+            problem = one_line_problem(f[key], f"{where} 的欄位 {fname} 的 {key}")
+            if problem:
+                out.append(problem)
+    if "required" in f and not isinstance(f["required"], bool):
+        out.append(f"{where} 的欄位 {fname} 的 required 要是 true 或 false（\"false\" 這種字串會被當成必填）")
+    if "default" in f and f["default"] != "":                 # "" ＝沒有預設值
+        value = f["default"]
+        if not isinstance(value, (str, int, float, bool)) or (isinstance(value, str) and
+                                                              one_line_problem(value, "default", MAX_DOC_TEXT)):
+            out.append(f"{where} 的欄位 {fname} 的 default 要是一行字串、數字或 true／false（200 字內）")
+        else:
+            from synox.agent.validate import kind_problem
+            kind = f.get("kind", "text")
+            if kind in FIELD_KINDS and kind_problem(kind, default_text(value), tuple(f.get("choices") or ())):
+                out.append(f"{where} 的欄位 {fname} 的 default {value!r} 不合 kind={kind}"
+                           + (f"（只能是 {'／'.join(map(str, f.get('choices') or []))}）" if kind == "choice" else ""))
+    return out
+
+
+def _check_commands(commands, strict: bool, problems: List[str], install: bool = False) -> List[dict]:
+    """cli 的 commands：名字、argv、effect、fields。回整理過的清單（effect 一律大寫）。
+    install=True（安裝時的 strict）：另外檢查給人看的說明（summary、fields 的 ask／help／required／default 的型別）。"""
     out = []
     seen = set()
     for i, c in enumerate(commands):
@@ -389,6 +451,10 @@ def _check_commands(commands, strict: bool, problems: List[str]) -> List[dict]:
         for flag in ("ai", "confirm"):                    # ai: false＝不給 AI；confirm: true＝AI 呼叫前先送確認卡
             if flag in c and not isinstance(c[flag], bool):
                 problems.append(f"{where} 的 {flag} 要是 true 或 false")
+        if install and "summary" in c:
+            problem = one_line_problem(c["summary"], f"{where} 的 summary")
+            if problem:
+                problems.append(problem)
         fields = c.get("fields") or []
         if not isinstance(fields, list):
             problems.append(f"{where} 的 fields 要是清單")
@@ -409,6 +475,8 @@ def _check_commands(commands, strict: bool, problems: List[str]) -> List[dict]:
                 problems.append(f"{where} 的欄位 {fname} 的 choices 要是不空的字串清單（最多 {MAX_CHOICES} 個）")
             elif fkind == "choice" and not choices:
                 problems.append(f"{where} 的欄位 {fname} 是 kind=choice，要寫 choices（可以選的值，字串清單）")
+            elif install:
+                problems += _field_doc_problems(where, f)
         out.append({**c, "effect": effect or "READ"})
     return out
 
@@ -859,6 +927,10 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     group = str(raw.get("group") or name.replace("-", "").replace("_", ""))
     if group and not GROUP_RE.match(group):
         problems.append(f"group {group!r} 只能用小寫英數字（16 字內）")
+    category = clean_category(raw.get("category"))
+    if strict and "category" in raw and not category:      # 新欄位：安裝時說清楚；載入時壞的當作沒寫
+        problems.append(one_line_problem(raw.get("category"), "category", MAX_CATEGORY)
+                        + "（網頁工具頁建議放的群組名，例如 \"生活\"）")
     access = raw.get("access", "owner")
     if access not in ACCESS:
         problems.append("access 只能是 owner、member 或 everyone")
@@ -893,7 +965,7 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
         if not isinstance(cli.get("commands"), list) or not cli.get("commands"):
             problems.append("kind=cli 要有 cli.commands（至少一個子指令）")
         else:
-            cli["commands"] = _check_commands(cli["commands"], strict or v2, problems)
+            cli["commands"] = _check_commands(cli["commands"], strict or v2, problems, install=strict)
         env = cli.get("env") or {}
         top_env = raw.get("env") or {}
         for label, value in (("cli.env", env), ("env", top_env)):
@@ -958,9 +1030,33 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     return Manifest(name=name, title=raw["title"], summary=raw["summary"], version=version, kind=kind,
                     folder=folder, group=group, access=access, skill=skill, storage=storage,
                     python=dict(raw.get("python") or {}), cli=cli, auth="" if auth_type == "none" else auth_type,
-                    requires=dict(requires), web=web, raw=dict(raw), v2=v2,
+                    requires=dict(requires), web=web, raw=dict(raw), v2=v2, category=category,
                     runtime={**{k: v for k, v in runtime.items() if k in ("python", "python_posix", "node")},
                              **({"container": container} if container else {})}, **extra)
+
+
+def doc_warnings(m: Manifest) -> List[str]:
+    """說明不齊的地方（提醒、不擋）：網頁工具頁與 AI 都靠它們，缺了照樣能裝、能用，只是畫面上只剩名字。
+    - SKILL.md 開頭沒有 frontmatter 的 name／description：AI 的系統提示看不到這個 pack（agent/skills.py）。
+    - cli 的 command 沒寫 summary、欄位沒寫 ask：工具頁與 AI 只看得到英文名字。"""
+    out = []
+    try:
+        from synox.agent.skills import parse, read_text
+        meta, _body = parse(read_text(m.skill_path))
+    except (OSError, UnicodeDecodeError):
+        meta = {}
+    missing = [k for k in ("name", "description") if not meta.get(k)]
+    if missing:
+        out.append(f"{m.skill} 開頭的 frontmatter 少了 {'、'.join(missing)}：AI 不會知道什麼時候用這個 pack，"
+                   "網頁工具頁的「說明」也只剩 summary（格式見 docs/pack-format.md「SKILL.md」）")
+    no_summary = [c["name"] for c in m.commands if isinstance(c, dict) and not str(c.get("summary") or "").strip()]
+    if no_summary:
+        out.append(f"這些 command 沒寫 summary（工具頁與 /help 只看得到名字）：{'、'.join(no_summary)}")
+    no_ask = [f"{c['name']}.{f['name']}" for c in m.commands if isinstance(c, dict)
+              for f in c.get("fields") or [] if isinstance(f, dict) and not str(f.get("ask") or "").strip()]
+    if no_ask:
+        out.append(f"這些欄位沒寫 ask（表單上只看得到英文欄位名）：{'、'.join(no_ask)}")
+    return out
 
 
 def _declared_secret_names(raw: dict) -> List[str]:

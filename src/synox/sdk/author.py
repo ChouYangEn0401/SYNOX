@@ -256,6 +256,10 @@ def tool_spec(fn: Callable) -> dict:
                  "required": p.default is inspect.Parameter.empty and not optional}
         if choices is not None:
             field["choices"] = choices
+        # 參數的預設值（字串、數字、布林）寫進 pack.json 的 default：網頁工具頁的表單看得到，沒填時 SYNOX 也照它送
+        if p.default is not inspect.Parameter.empty and p.default is not None and p.default != "" and \
+                type(p.default) in (str, int, float, bool):
+            field["default"] = p.default
         field["_type"] = annotation
         fields.append(field)
     return {"name": name, "effect": effect, "summary": summary, "default": raw["default"], "ai": raw["ai"],
@@ -306,6 +310,8 @@ def commands_for(tools: Optional[Sequence[Callable]] = None) -> List[dict]:
                 item["choices"] = [str(c) for c in f["choices"]]
             if f["required"]:
                 item["required"] = True
+            if "default" in f:
+                item["default"] = f["default"]
             fields.append(item)
         cmd: Dict[str, Any] = {"name": spec["name"], "effect": spec["effect"], "summary": spec["summary"],
                                "argv": [spec["name"]] + [f"--{f['name']}={{{f['name']}}}" for f in spec["fields"]]}

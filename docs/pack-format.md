@@ -18,6 +18,7 @@ packs/money/
   "name": "money", "title": "💰 記帳", "summary": "記一筆、看這個月、設預算",
   "version": "0.1.0", "kind": "python",
   "group": "money",
+  "category": "生活",
   "access": "owner",
   "surfaces": ["dm"],
   "data": "user",
@@ -35,7 +36,8 @@ packs/money/
 | `title`、`summary` | ✅ | `/help` 那一頁的標題與說明；也進 AI 的系統提示 |
 | `version` | ✅ | `0.1.0` 這種 |
 | `kind` | ✅ | `python`｜`cli`｜`connector`（下面） |
-| `group` | | 指令群組，小寫英數字 16 字內；沒寫＝`name` 去掉 `-`、`_`。`group: money` → `/money`（主要動作）、`/money_list`… |
+| `group` | | 指令群組，小寫英數字 16 字內；沒寫＝`name` 去掉 `-`、`_`。`group: money` → `/money`（主要動作）、`/money_list`… （這是**指令的前綴**，不是網頁工具頁的群組；那個是下一列的 `category`） |
+| `category` | | 網頁「工具」頁**建議**把這個 pack 放在哪個群組（給人看的名字，例如 `"生活"`、`"待辦與行程"`；一行、24 字內）。沒寫＝「未分類」。**使用者自己排過的優先**（每個人的排法存在自己的偏好，不寫進 pack 資料夾）；同名的 category 會放進同一個群組。安裝時格式不對＝拒裝；已裝的舊 pack 寫壞了＝當作沒寫。見 [tools.md](tools.md)「網頁工具頁」 |
 | `access` | | `owner`（預設：只有安裝時配對的那個人，別人打了跟不存在一樣）｜`member`（伺服器版：成員以上；個人版＝`owner`）｜`everyone`（任何人，伺服器版的訪客也算） |
 | `surfaces` | | 在哪裡能用：`["dm"]`（預設：只能私訊，群組／頻道裡打了 SDK 回「請私訊」）｜`["dm", "channel"]`（也能在頻道用）。一定要有 `dm`。見下面「權限宣告」 |
 | `data` | | 資料屬於誰：`none`｜`user`（每個人自己一份）｜`shared`（大家共用一份）。沒寫照預設推（下面「權限宣告」）；第 2 關照它檢查程式 |
@@ -132,6 +134,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | `commands[].effect` | cli 的每個 command：`READ`／`WRITE`／`DANGER`（大小寫都收）。`commands` 也可以放最上層（等於 `cli.commands`） |
 | `commands[].ai`、`commands[].confirm` | cli 的 command：`"ai": false`＝不給 AI 當工具；`"confirm": true`＝AI 呼叫前先送確認卡給人按（effect 照寫的算）。一定要是 true／false。synox_sdk 的 `@tool(ai=…, confirm=…)` 會產生。跟工具執行中回的 `needs_confirm`（下一列）並存 |
 | 回 `needs_confirm`（確認來回） | cli 工具最後一行印 `{"ok": true, "needs_confirm": true, "summary": "要刪 3 筆", "confirm_token": "…"}`（結束碼 0）→ SYNOX 出核准卡給下令的人（人打字、AI 呼叫都一樣），按 ✅ 用**同一組參數**重跑，那一次環境變數 `SYNOX_CONFIRMED=1`、`SYNOX_CONFIRM_TOKEN`＝你給的 `confirm_token`（只收英數字與 `. _ : -`、128 字內）；其他每一次都是 `SYNOX_CONFIRMED=0`（`cli.env` 寫了也會被蓋掉）。❌、過期、參數對不上＝不執行。任何語言都能用：自己讀這兩個環境變數。說明見 [sdk.md](sdk.md)「確認來回」 |
+| `commands[].summary`、`fields[].ask`、`fields[].help`、`fields[].required`、`fields[].default` | 網頁工具頁的表單與 AI 的工具說明靠這些：`summary`＝這個指令做什麼；`ask`＝欄位的名字（問人的那句話，也是 AI 看到的參數說明）；`help`＝表單上欄位下面的補充說明（例如「只放數字，例如 1200」；**只給人看**，不進 AI 的 schema）；`required`＝必填（`true`／`false`）；`default`＝沒填時用的值（字串、數字或 `true`／`false`，要合 `kind`／`choices`；SYNOX 會自己補上再交給程式；`""`＝沒有預設）。**安裝時（strict）檢查型別**：`summary`／`ask`／`help` 要是 200 字內的一行字、`required` 要是布林（`"false"` 這種字串會被當成必填）、`default` 要合格式——不合＝拒裝；已裝的舊 pack 載入時不擋。沒寫 `summary`／`ask`、或 SKILL.md 沒有 frontmatter 不擋，但安裝報告與 `synox-sdk check` 會提醒（工具頁只看得到英文名字）。synox_sdk 的 `@tool` 會把函式參數的預設值（字串、數字、布林）寫成 `default` |
 | `commands[].fields[].kind` | `text`（預設）｜`int`（整數，可有千分位逗號）｜`number`（數字）｜`bool`（是／否：`yes/no`、`true/false`、`1/0`、`是/否`…）｜`path`（值一定要在使用者自己的資料夾裡，第 4 關）｜`choice`（要寫 `choices: ["Red", "Blue"]`，大小寫不拘）。對 AI 的參數 schema 一律是字串；SYNOX 在交給程式**之前**照 kind 檢查（人打字與 AI 呼叫都會），不合回一句人話（例如「次數要是整數（例如 3）」）、不執行。交給程式的值整理過：`bool` → `true`／`false`、`int`／`number` 拿掉逗號、`choice` 換成 `choices` 裡的拼法 |
 | `cli.python` | `{python}` 換成什麼：絕對路徑｜`"venv"`（`<pack 資料夾>/../.venv` 的 python）｜沒寫＝看 `runtime`，再沒有＝SYNOX 自己的 Python。**一定要指到 Python 直譯器**（檔名 `python`、`python3`、`python3.12`、`pythonw`、`pypy3`…，可以有 `.exe`）、不能有 `..`；要叫別的程式請直接寫在 `cli.argv` 第一段（算 pack 外的程式、T2）。kind=mcp 寫了也照樣檢查 |
 | `runtime.python`、`runtime.python_posix` | 另一種寫法（放在自己 repo 裡、用那個 repo 的 venv 的外部 pack 常用）：相對於 pack 資料夾（或絕對路徑），Windows 用 `python`、其他用 `python_posix`。`cli.python` 有寫就用它。**`"auto"`**＝安裝時自動建 venv（見下面「依賴與環境自動建置」；跟 `cli.python` 不能同時寫）。一樣要是 Python 直譯器的檔名；`..` 只收 `../.venv/Scripts/python.exe`、`../venv/bin/python` 這種「pack 旁邊的 venv」 |
@@ -478,5 +481,7 @@ description: 使用者提到花了多少錢、想記帳、問這個月花多少�
 ```
 
 - **AI 的系統提示只放 frontmatter**（每個約 100 token）；正文由 `skill_read` 工具在需要時才讀。
+- `description` 也是網頁工具頁那個工具「說明」裡的「什麼時候用」。沒有 frontmatter（或少了 `name`／`description`）：
+  AI 不會知道這個 pack，安裝報告與 `synox-sdk check` 會提醒（不擋）。
 - 工具名＝節點路徑把 `.` 換成 `__`：`money.add` → `money__add`。參數名就是 Field 的 name。
 - 正文寫「什麼時候用哪個工具、參數怎麼填、要注意什麼」，用繁體中文。
