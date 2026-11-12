@@ -19,7 +19,7 @@ from isdtelekit import build_app
 from isdtelekit.host.app import App
 from isdtelekit.packs import accounts, basics, help as help_pack, limits
 
-from synox import agent, discord, policy, runtime, schedule, web
+from synox import agent, discord, policy, runtime, schedule, telegram_link, web
 from synox.config import SynoxConfig
 from synox.llm import make_adapter
 from synox.llm.base import LLMError
@@ -85,6 +85,7 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
             adapter = None
     agent.install(app, adapter, config)
     discord.install(app, config, vault)      # 有開 Discord 才做事；要在 schedule/web 之前（它們用 app.home）
+    telegram_link.install(app, config)       # 擁有者沒有真的 Telegram id 時，讓他之後能在網頁配對 Telegram 帳號（資料不動）
     runtime.install(app, config, vault, config_path=config_path or "")   # 要在 agent 之後（拿 adapter）、schedule 之前
     schedule.install(app)                    # 排程登記成 runtime 的任務 system.schedule
     web.install(app, config, vault, pack_dirs=pack_dirs, config_path=config_path)
