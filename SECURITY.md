@@ -20,7 +20,7 @@ SYNOX 是小型、志願維護的專案，回應是**盡力而為**，沒有保�
 
 - SYNOX 核心（`src/synox/`）：權限判斷、保管箱與加密、網頁介面（登入、CSRF、Origin）、Telegram／Discord 通道的身分與配對。
 - pack 安裝與執行：五關檢查、完整性鎖定、信任層級、沙盒包裝、依賴建置（pip／npm）。
-- 工具 SDK（`src/synox/sdk/`、`sdk/`）與內建的 `packs/`、`connectors/`。
+- 工具 SDK（`src/synox/sdk/`、`sdk/`）與官方工具（2026-11-12 起在 SYNOX 工具庫 SYNOX_Libs；以前在這裡的 `packs/`、`connectors/`）。
 - 安裝器與腳本（`setup/`、`scripts/`、`*.bat`）。
 
 **不在範圍內**：

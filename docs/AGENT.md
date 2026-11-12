@@ -29,7 +29,7 @@
 | `src/synox/discord/` 其他 | `bots.py`（BotSpec、設定檢查；頻道型 `guilds`／`role_map`／`trigger`／`rate_per_minute`）、`events.py`（`parse_event` 私訊、`parse_room_event` 頻道）、`rest.py`（`DiscordChannel`）、`gateway.py`（`INTENTS`／`CHANNEL_INTENTS`、`on_ready`）、`__init__.py`（`install`、`DiscordEntry`、`RoomEntry`／`RoomReply`／`RoomThrottle`、`MultiHome`、配對）。見 [discord.md](discord.md) |
 | `src/synox/llm/` | `base.py`（`ChatAdapter`、`Message`、`Reply`、`ToolCall`、`ToolSpec`）、`easy_llm.py`（openai／anthropic／gemini／openai_compat，經 `ntu_easy_llm.agent`，lazy import）、`claude_code`、`fake`、`textproto`、`factory.make_adapter` |
 | `src/synox/vault/` | `vault.py`（Fernet＋每檔 scrypt、`*.json.enc`；`for_user(id)`＝伺服器版每人的保管箱，HKDF 衍生）、`keyring.py`（DPAPI 包住主金鑰 `data/.synox.key`） |
-| `src/synox/packs/` | `manifest.py`（pack.json v2 檢查＝第 1 關；`surfaces`／`data`（`_check_scope`、`default_data`、`cli_templates`）；`requires.synox`＝`synox_problem`、`requires.env`→`secret_env_names`、`fields[].kind`、`auth.fields`；工具頁用的 `category`、strict 時的說明欄位型別 `_field_doc_problems`、提醒 `doc_warnings`）、`secrets.py`（pack 的 secret：`PackSecrets`、`managed_fields`）、`scan.py`（ast 靜態掃描＝第 2 關；`_check_data_python`／`_check_data_cli`＝data 宣告的規則；`ImportContext`＝import 的來源、`_fold`＝拼出來的字串，審查 C #C5）、`lock.py`（`data/packs.lock`＝第 3 關；`trust`、`trust_of`）、`loader.py`（掃 `packs/`＋`connectors/`、`Pack`／`PackStore`／`store.of(user)`、`group_policy`、`surface_policy`（沒有 channel＝private_only）、`shared_write_admin`、cli 代換與 `build_argv`）、`kit.py`（照位置填的指令）、`envs.py`（`runtime.python／node = "auto"`：`Builder.plan`／`build(m, jobs, on_done)` 建 `data/envs/<pack>/`、`python_of`／`node_of`／`node_env` 給 loader 代換、`env_problem` 給 loader／doctor；`set_factory` 換實作） |
+| `src/synox/packs/` | `manifest.py`（pack.json v2 檢查＝第 1 關；`surfaces`／`data`（`_check_scope`、`default_data`、`cli_templates`）；`requires.synox`＝`synox_problem`、`requires.env`→`secret_env_names`、`fields[].kind`、`auth.fields`；工具頁用的 `category`、穩定度 `stage`（`STAGES`、`stage_label`／`stage_text`，沒寫＝alpha；/help 標題用 `loader.help_title`）、strict 時的說明欄位型別 `_field_doc_problems`、提醒 `doc_warnings`）、`secrets.py`（pack 的 secret：`PackSecrets`、`managed_fields`）、`scan.py`（ast 靜態掃描＝第 2 關；`_check_data_python`／`_check_data_cli`＝data 宣告的規則；`ImportContext`＝import 的來源、`_fold`＝拼出來的字串，審查 C #C5）、`lock.py`（`data/packs.lock`＝第 3 關；`trust`、`trust_of`）、`loader.py`（掃 `packs/`（＋`packs.dirs`）、`Pack`／`PackStore`／`store.of(user)`、`group_policy`、`surface_policy`（沒有 channel＝private_only）、`shared_write_admin`、cli 代換與 `build_argv`）、`kit.py`（照位置填的指令）、`envs.py`（`runtime.python／node = "auto"`：`Builder.plan`／`build(m, jobs, on_done)` 建 `data/envs/<pack>/`、`python_of`／`node_of`／`node_env` 給 loader 代換、`env_problem` 給 loader／doctor；`set_factory` 換實作） |
 | `src/synox/packs/mcp.py` | kind=mcp stdio（P4a）：`Session`（JSON-RPC over stdio、讀執行緒、`request`／`notify`）、`handshake`（initialize／initialized／tools/list）、`spawn`（Windows Job Object）、`McpPool`（每個 key 一個長駐程序、`reap()` 閒置回收、`close_all`；`clock`／`spawner` 可換）、`Scope`／`PerUserScope`／`SharedScope`（介面）、`shape_of`（inputSchema → fields）、`to_arguments`、`needs_confirm_of`、`render_result`、快取 `data/mcp/<pack>.tools.json`、`doctor_notes`、`Backend`／`StdioBackend`（連法）、`redact`、`install`（loader 叫，兩種連法共用） |
 | `src/synox/packs/mcp_http.py` | kind=mcp http（P4b）：`HttpSession`（Streamable HTTP：POST JSON-RPC、JSON／單次 SSE 回應、`Mcp-Session-Id`、不跟轉址、DELETE 收尾）、`HttpBackend`（Bearer token 或 OAuth）、`parse_sse`、`new_session`（測試換掉） |
 | `src/synox/packs/oauth.py` | 遠端 MCP 的 OAuth（選配）：`Flow`（PKCE＋state、貼回網址、換／更新 token 存 PackSecrets、`/<群組>_login／_code／_logout`）、`Listener`／`PasteListener`／`LoopbackListener`（只有介面，叫了就拒） |
@@ -47,14 +47,14 @@
 | `src/synox/backup.py` | `export_backup`／`read_backup`：data/ 的 zip 用保管箱主金鑰加密（`Vault.encrypt_bytes`） |
 | `src/synox/wizard/` | `pages.py`（tkinter 畫面：這台給誰用 → token → 配對 → AI → 完成）、`logic.py`（寫 config、mode、AI 頁的 helper、金鑰進保管箱）、`telegram_probe.py`（getMe、配對碼）、`shortcuts.py` |
 | `src/synox/doctor.py` | 健康檢查（不改任何檔、不產生金鑰） |
-| `packs/` | **出廠是空的**（2026-11-12，[../legacy/builtin-packs.md](../legacy/builtin-packs.md)）：使用者裝的工具的落點（`PACK_DIRS[0]`），只有 `README.md` 進 git。notes／money／remind 的正本在 **SYNOX_Libs**（工具庫，另一個 repo；ADR 在它的 `docs/adr/0001`），remind 的程式本體仍在 `synox/schedule` |
-| `src/synox/packs/library.py` | 「還沒裝任何工具、去哪裡裝」：`installed_tools`（不算出廠 connector）、`empty_hint`／`start_hint`（/start、/help 只給擁有者）、`install`（包 SDK 的 /help）、`status`（網頁 `/api/tools`、`/api/settings` 的 `library`）、`doctor_lines`；工具庫位置＝`config.json` 的 `packs.library`（`library_location`，不寫死路徑） |
+| `packs/` | **出廠是空的**（2026-11-12，[../legacy/builtin-packs.md](../legacy/builtin-packs.md)）：使用者裝的工具的落點（`PACK_DIRS` 只有它），只有 `README.md` 進 git。所有工具的正本在 **SYNOX_Libs**（工具庫，另一個 repo；ADR 在它的 `docs/adr/0001`） |
+| `connectors/` | **只剩 README**（2026-11-12，[../legacy/connectors.md](../legacy/connectors.md)）：以前的 notion、todoist、google-calendar、apple-reminders 連同測試搬到 SYNOX_Libs；loader 不再掃這裡、`BUNDLED` 是空的 |
+| `src/synox/packs/library.py` | 「還沒裝任何工具、去哪裡裝」：`installed_tools`（不算 `BUNDLED`；現在是空的）、`empty_hint`／`start_hint`（/start、/help 只給擁有者）、`install`（包 SDK 的 /help）、`status`（網頁 `/api/tools`、`/api/settings` 的 `library`）、`doctor_lines`；工具庫位置＝`config.json` 的 `packs.library`（`library_location`，不寫死路徑） |
 | `sdk/` | 單檔 SDK `synox_sdk.py`（產生的）＋`pyproject.toml`（`pip install <SYNOX>/sdk`＝`synox-sdk` 套件，版本讀 `SDK_VERSION`） |
 | `tests/fixtures/packs/` | host 測試用的 money／notes／remind（下架前的凍結複本，不是正本、不加功能） |
-| `connectors/notion`、`todoist`、`google-calendar`、`apple-reminders-caldav` | **已接上**：`kind: python`＋`capabilities: ["network"]`，只用 requests＋標準函式庫；憑證存 `pack.store.of(user)`（vault）。Notion REST `2025-09-03`（`tests/test_notion.py`）；Todoist API v1（`pack.py` 的 `Client`，`tests/test_todoist.py`）；Google 日曆走 OAuth（PKCE，不開埠）；Apple 是通用 CalDAV VTODO 用戶端（README 有可行性結論）。測試都換成假的 HTTP |
-| `src/synox/connect.py` | `python -m synox connect <pack>`（`Connect-Apple.bat`）：照 pack.json `auth.fields` 用 getpass 問帳密，存進 `pack_secrets`（`src/synox/packs/secrets.py`，保管箱的鍵 `packs/<pack>/<field>`；跟 Web UI 工具頁「連接」表單是同一份）。帳密不經聊天：Telegram 會留紀錄、`[ROUTE]` log 印指令全文 |
+| `src/synox/connect.py` | `python -m synox connect <pack>`（`Connect-Apple.bat`；要先從工具庫裝好那個工具）：照 pack.json `auth.fields` 用 getpass 問帳密，存進 `pack_secrets`（`src/synox/packs/secrets.py`，保管箱的鍵 `packs/<pack>/<field>`；跟 Web UI 工具頁「連接」表單是同一份）。帳密不經聊天：Telegram 會留紀錄、`[ROUTE]` log 印指令全文 |
 | `Setup.bat`、`setup/bootstrap.ps1` | 一鍵安裝；`Start.bat`／`Stop.bat`／`Console.bat` |
-| `tests/` | pytest；`conftest.py` 的 `make_bot` 用測試用的 packs＋真的 Vault＋`FakeAdapter`＋SDK `BotHarness`。測試期間 `loader.PACK_DIRS` 一律換成 `tests/fixtures/packs`＋`connectors/`（autouse `_test_pack_dirs`；不讀 repo 的 `packs/`），伺服器版的 make_bot 先把三個測試 pack 鎖成 core。空 host 的測試在 `tests/test_empty_host.py`（設 `SYNOX_LIBS=<工具庫>` 會多跑「工具庫每個工具打包→裝進空 host」） |
+| `tests/` | pytest；`conftest.py` 的 `make_bot` 用測試用的 packs＋真的 Vault＋`FakeAdapter`＋SDK `BotHarness`。測試期間 `loader.PACK_DIRS` 一律換成 `tests/fixtures/packs`（autouse `_test_pack_dirs`；不讀 repo 的 `packs/`），伺服器版的 make_bot 先把三個測試 pack 鎖成 core。空 host 的測試在 `tests/test_empty_host.py`。要讀工具庫的測試（`SYNOX_LIBS=<工具庫>`，沒有就跳過）：`test_empty_host` 的「工具庫每個工具打包→裝進空 host」、`test_smoke_real` 的四個服務、`test_sdk_p2_secret` 的 connector 不被 SYNOX 管 secret。connector 自己的測試在工具庫。穩定度 `stage` 的測試在 `tests/test_stage.py` |
 
 ## Invariants
 
@@ -130,8 +130,8 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     **這台開發機絕不執行 podman／docker、不 pull、不 build**；真機清單 `docs/handoff/container-verification.md`。
     安裝時的選擇：`admin.runtime_report`／`check_runtime`、`lock.runtime_record`／`set_runtime`、升級 `upgrade.runtime_choice`。
 
-13. **伺服器版 python pack 看信任**（PERM-8）：`loader.python_trust`——出廠的（`loader.BUNDLED` 且在內建 `packs/`／`connectors/`；
-    2026-11-12 起 `BUNDLED` 只剩 4 個 connector，**不要再把工具加回出廠**——新工具放 SYNOX_Libs、走安裝流程）＝core、
+13. **伺服器版 python pack 看信任**（PERM-8）：`loader.python_trust`——出廠的（`loader.BUNDLED` 且在內建 `PACK_DIRS`；
+    2026-11-12 起 `BUNDLED` 是空的、連 connector 都搬走了，**不要再把工具加回出廠**——新工具放 SYNOX_Libs、走安裝流程）＝core、
     有鎖＝`lock.trust_of`、沒鎖＝third-party；third-party 的 kind=python 群組 `owner_only`（`loader.trust_reason`，跟 PERM-7 的
     `restricted_reason` 同一個出口：item.detail、doctor／packs status 的 🔐 行）。伺服器版沒鎖又不是出廠的 pack 載入前補跑第 2 關
     （`loader.unlocked_scan`），沒過＝`rejected`、不載入。測試裡手放的 python pack 要給成員看，
@@ -247,7 +247,7 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
   `.secret(`；`auth.managed` 可以強制），存保管箱 `pack_secrets`、鍵 `packs/<pack>/<field>`、伺服器版 `vault.for_user`。只有 Web UI
   `/api/pack-secrets/<name>`（CSRF＋Origin；個人版擁有者、伺服器版本人）與 `python -m synox connect` 能寫；**不加 Telegram 指令**。
   值永遠不回網頁（`status()` 只給 set／last4）。cli：`env_for()` 進 `env_extra`，**絕不進 argv**；python：`Pack.secret(name, user)`。
-  第 4 關 `check_call` 拒「值＝已存 secret（或夾著 8 字以上的）」。內建 connector 沒呼叫 pack.secret，不受影響——別讓它們變 managed，
+  第 4 關 `check_call` 拒「值＝已存 secret（或夾著 8 字以上的）」。工具庫的 4 個 connector（以前內建）沒呼叫 pack.secret，不受影響——別讓它們變 managed，
   除非一起改成讀 `pack.secret`（遷移時加 `"managed": "synox"`）。
 - `requires.synox` 不合 → `PackStatus.status = "incompatible"`（不載入、不算 `LoadReport.ok` 的失敗）；doctor、`packs status`、安裝的第 1、2 關都用
   `manifest.synox_problem` 那句人話。
@@ -299,7 +299,7 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
   結果之後直接送給使用者），以及 python pack 自己丟背景執行緒回覆的指令（同樣的問題，要 pack 自己看 `api.via_ai` 改成同步）。
 - 核准卡按下執行的結果直接給使用者，只在 AI 的紀錄留一句「已執行」，不會自動再開一輪讓 AI 接著做。
 - `Setup.bat` 的完整安裝路徑（winget、embeddable zip）沒有在任何一台陌生電腦上跑過；精靈的畫面沒有自動化測試（只測了 logic／probe／shortcuts）。
-- connector 全部接上了，但都只對假傳輸測過。網頁工具頁對 kind=python 一律顯示「已連接」，沒設憑證時要打各自的 `_status`；
+- 工具庫的 connector（notion、todoist、google-calendar、apple-reminders）全部接上了，但都只對假傳輸測過（標 🧪 alpha）。網頁工具頁對 kind=python 一律顯示「已連接」，沒設憑證時要打各自的 `_status`；
   Notion 指令參數照空白切（換行變空白）；Todoist 呼叫是同步的、逾時 15 秒；Apple 的帳號只能在電腦上用 `Connect-Apple.bat` 設。
 - `[ROUTE]` log 會印指令全文（SDK dispatcher），所以任何密碼都不能設計成「在聊天裡打」的指令（Notion／Todoist 的 token 指令靠 `redact_in_logs` 遮罩）。
 - Google 日曆：連接只有指令（`/gcal_setup`、貼網址列回來），網頁沒有「連接」按鈕；只用主要日曆；`/gcal_rm` 的編號是最近一次列表；沒有改行程。

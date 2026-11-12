@@ -8,7 +8,7 @@
 > - `tools_allow` 的工具名（find-tasks、add-tasks、complete-tasks、delete-object）也是佔位：
 >   連上一次之後用 `python -m synox doctor` 看哪些名字伺服器沒有，照真的 tools/list 改。
 
-現有的 `connectors/todoist`（REST）保留不動；這個範例示範另一條路。
+SYNOX 工具庫（SYNOX_Libs）的 `todoist` 工具（REST；以前是 SYNOX 的 `connectors/todoist`）保留不動；這個範例示範另一條路。
 
 ## 示範什麼
 

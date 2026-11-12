@@ -41,6 +41,10 @@ dir scripts\smoke_real.py
 
 - 最後一行要看到 `smoke_real.py`。看不到 → 這份教學的程式還沒合併進 `dev`，請找擁有者。
 - repo 是私人的話，`git clone` 會要你登入 GitHub（照畫面做）。
+- **還要工具庫**（2026-11-12 起 Notion、Todoist、Google 日曆、Apple 的工具不在 SYNOX 裡，在 SYNOX_Libs）：
+  跟擁有者拿 SYNOX_Libs，放在 SYNOX **旁邊**（`Documents\SYNOX_Libs`），`smoke_real.py` 會自己找到；
+  要在 Telegram 用 `/notion_token`、`/gcal_setup`、`Connect-Apple.bat` 這些設定指令，先把對應的 `.synoxpack` 裝進 SYNOX
+  （網頁「設定 → 裝功能」，或 `.venv\Scripts\python.exe -m synox install <檔>.synoxpack`）。
 
 ### 1-2 裝 Python 套件（二選一）
 
@@ -433,11 +437,14 @@ SYNOX 真機煙霧測試（唯讀）　2026-11-12 14:03
 
 ## 8. 這份教學依據的程式
 
-| 服務 | 程式 | 原本的說明 |
+2026-11-12 起四個服務的工具在 **SYNOX 工具庫（SYNOX_Libs）**（以前在 SYNOX 的 `connectors/`，[legacy/connectors.md](../../legacy/connectors.md)）。
+`smoke_real.py` 先找這台裝好的工具，沒裝就讀工具庫的原始碼：設環境變數 `SYNOX_LIBS=<SYNOX_Libs 資料夾>`，或把它放在 SYNOX 旁邊。
+
+| 服務 | 程式（工具庫） | 原本的說明 |
 |---|---|---|
-| Notion | `connectors/notion/pack.py`（`Notion` 類別） | `connectors/notion/README.md` |
-| Todoist | `connectors/todoist/pack.py`（`Client`） | `connectors/todoist/README.md` |
-| Google 日曆 | `connectors/google-calendar/pack.py`（`Client`、OAuth） | `connectors/google-calendar/README.md` |
-| Apple | `connectors/apple-reminders-caldav/pack.py`（`Client`） | `connectors/apple-reminders-caldav/README.md` |
+| Notion | `packs/notion/pack.py`（`Notion` 類別） | `packs/notion/README.md` |
+| Todoist | `packs/todoist/pack.py`（`Client`） | `packs/todoist/README.md` |
+| Google 日曆 | `packs/google-calendar/pack.py`（`Client`、OAuth） | `packs/google-calendar/README.md` |
+| Apple | `packs/apple-reminders/pack.py`（`Client`） | `packs/apple-reminders/README.md` |
 | Discord | `src/synox/discord/`（`DiscordChannel`、`Gateway`） | `docs/discord.md`、[discord-handoff.md](discord-handoff.md) |
 | 煙霧測試 | `scripts/smoke_real.py`（測試：`tests/test_smoke_real.py`） | 檔案開頭的說明 |

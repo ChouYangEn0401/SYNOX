@@ -272,7 +272,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 continue
             state = "connector（只登記）" if m.registered_only else ("✅" if enabled else "⏸ 停用")
             if enabled and not loader.is_bundled(m):
-                tools.append(m.name)                 # 使用者自己裝的工具（出廠的 connector 不算）
+                tools.append(m.name)                 # 使用者自己裝的工具（出廠的不算；loader.BUNDLED 現在是空的）
             lock_mark = "🔒" if lock_state == pack_lock.LOCKED else "未鎖定"
             lines.append(f"  {state} {m.name} {m.version} {m.stage_label}（{m.kind}，/{m.group}，{lock_mark}）  {rel}")
             if enabled:
