@@ -4,7 +4,7 @@
 細節（每個欄位的完整規則）在 [pack-format.md](pack-format.md)；Python SDK 的用法在 [sdk.md](sdk.md)；
 安全模型（裝的人那邊看到什麼、SYNOX 擋什麼、不擋什麼）在 [security.md](security.md)。
 
-**授權**：工具 SDK（`sdk/synox_sdk.py`、`src/synox/sdk/`）與 `examples/` 是 Apache-2.0。你用 SDK 寫的工具，授權由你自己決定
+**授權**：工具 SDK（`sdk/`、`src/synox/sdk/`）與 `examples/` 是 Apache-2.0。你用 SDK 寫的工具，授權由你自己決定
 （閉源、商用都可以），見 [LICENSING.md](../LICENSING.md)。
 
 - [一個工具＝一個 pack](#一個工具一個-pack)
@@ -275,6 +275,15 @@ SDK：`@tool("WRITE", ai=False, confirm=True)`；cli 的 pack.json：`{"name": "
 - **資料不在 pack 資料夾裡**，升級、退回都不會動到資料。資料格式要不要轉換是你的事：在資料裡存一個 `schema` 版本號，
   新版讀到舊格式自己轉；退回的舊版要看得懂新版寫的資料（做不到就在 README 寫清楚「不能退回」）。
 - `requires.synox`（例如 `">=0.2"`）：這台的 SYNOX 版本不合就不裝、不載入，並說要哪一版。
+- **`requires.sdk`（一定要寫）**：你照哪一版 SDK 介面寫的，例如 `">=0.2,<0.3"`（0.x 寫到下一個 MINOR）。SDK 的版本是
+  `synox_sdk.SDK_VERSION`，跟 SYNOX 本體的版本分開；不合一樣不裝、不載入（[sdk.md](sdk.md)「SDK 版本」）。`synox-sdk init` 會自動寫。
+
+## 放進工具庫（SYNOX_Libs）
+
+SYNOX 出廠不帶工具；官方工具都放在另一個專案 **SYNOX 工具庫（SYNOX_Libs）**：一個工具一個資料夾 `packs/<name>/`，
+`scripts/build.py` 打包成 `.synoxpack` 並寫一份目錄 `index.json`（名稱、版本、說明、SDK 範圍、建議組合、雜湊），使用者挑來裝。
+打包前會擋：沒寫 `requires.sdk`、範圍不含拿來打包的那份 SYNOX 的 SDK、附的 `synox_sdk.py` 版本不在範圍內，以及安裝時的第 1、2 關。
+規則與流程見工具庫的 README 與 `docs/adr/0001-tool-library-and-sdk-dependency.md`。自己用的工具不一定要進工具庫，`.synoxpack` 直接給人也行。
 
 ## 測試方法
 
