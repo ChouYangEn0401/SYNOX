@@ -44,7 +44,7 @@ from typing import Any, List, Optional
 
 from synox.sdk import author
 from synox.sdk.author import (Confirm, Context, Ok, SpecError, ToolError, confirm_envelope, confirmed, context,  # noqa: F401
-                              error_envelope, ok_envelope, secret, serve, tool)
+                              error_envelope, ok_envelope, peer_status, report_status, secret, serve, tool)
 
 EXIT_OK, EXIT_ERROR = 0, 1
 
