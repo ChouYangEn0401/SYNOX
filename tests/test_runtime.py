@@ -521,7 +521,7 @@ def test_api_status_shape(api):
     assert data["mother"]["ai"] is True
     assert data["mother"]["state"] == "idle"
     ids = [t["id"] for t in data["tasks"]]
-    assert ids == ["system.heartbeat", "system.schedule", "pack.weather"]
+    assert ids == ["system.health", "system.heartbeat", "system.schedule", "pack.weather"]   # system.health：工具健康
     for t in data["tasks"]:
         assert set(t) == {"id", "name", "owner", "schedule", "state", "last_run_at", "last_message"}
         assert t["state"] in ("ok", "running", "failed", "idle")

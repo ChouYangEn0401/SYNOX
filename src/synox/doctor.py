@@ -150,6 +150,36 @@ def _heartbeat_line(config) -> str:
     return head + "\n    上一次：還沒巡過（SYNOX 跑起來之後才會巡）"
 
 
+HEALTH_MARKS = {"broken": "⏸", "needs_action": "🛠", "quarantined": "⛔"}
+
+
+def health_lines(config, default_data: str) -> tuple:
+    """工具健康（docs/tool-health.md）：每個不正常的工具一行（狀態、類別碼、原因、下次檢查時間）。
+    只讀 data/health/tools.json.enc（保管箱金鑰不在＝不開、不產生）。回 (行, 要看一下的個數)。"""
+    from synox.health import store as health_store
+    from synox.health.failure import CODES
+    from synox.health.state import HEALTHY, STATE_LABELS
+    from synox.runtime.loop import iso
+    settings = getattr(config, "health", None) or {}
+    if settings and not settings.get("enabled", True):
+        return ["• 工具健康：關（health.enabled=false；每個工具都當成正常）"], 0
+    data_dir = config.data_dir if config is not None else default_data
+    entries, problem = health_store.read_only(data_dir)
+    if entries is None:
+        return [f"• 工具健康：⚠️ {problem}"], 1
+    bad = sorted((e for e in entries.values() if e.state != HEALTHY), key=lambda e: (e.tool, e.user or 0))
+    if not bad:
+        return ["• 工具健康：✅ 沒有被暫停或隔離的工具"], 0
+    lines = [f"• 工具健康：{len(bad)} 個不正常（網頁工具頁看得到原因；擁有者可以按「重新檢查」「解除隔離」）"]
+    for e in bad:
+        who = f"（只對 {e.user}）" if e.user is not None else ""
+        label = CODES[e.code].label if e.code in CODES else e.code
+        when = f"　下次檢查 {iso(e.next_check)}" if e.next_check else ("　試用中" if e.trial else "")
+        lines.append(f"  {HEALTH_MARKS.get(e.state, '⚠️')} {e.tool}{who} {STATE_LABELS.get(e.state, e.state)}："
+                     f"{e.code}（{label}）　{e.reason}{when}")
+    return lines, len(bad)
+
+
 # SYNOX 資料夾是怎麼決定的（config.default_root）：原始碼版面不多說，其他兩種要讓人知道
 ROOT_NOTES = {"SYNOX_HOME": "（來自環境變數 SYNOX_HOME；不是你要的就把它刪掉）",
               "cwd": "（⚠️ 不是原始碼的版面，用的是目前所在的資料夾；要固定就設環境變數 SYNOX_HOME）"}
@@ -317,6 +347,10 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
     for line in library.doctor_lines(config, tools):
         out(line)
         problems += "⚠️" in line
+    health_text, bad = health_lines(config, os.path.join(ROOT, "data"))
+    for line in health_text:
+        out(line)
+    problems += bad
 
     # 保管箱
     data_dir = config.data_dir if config else os.path.join(ROOT, "data")
