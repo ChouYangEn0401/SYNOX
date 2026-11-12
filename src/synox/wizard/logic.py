@@ -230,6 +230,23 @@ def bind_discord_owner(config_path: str, cfg: dict, external_id) -> None:
     Identities(config.path("identities.json")).bind("discord", external_id, config.owner_id)
 
 
+def finish_status(notes: list, *, launched: bool, has_token: bool) -> str:
+    """完成頁最後的狀態文字。launched＝勾了「完成後立刻開啟 SYNOX」（Start.bat 已經開了）；
+    沒勾就只存了設定，告訴使用者之後怎麼開。has_token＝接了 Telegram／Discord。"""
+    lines = list(notes)
+    if not launched:
+        head = "✅ 設定好了（SYNOX 還沒開）。"
+        lines.append("要用的時候雙擊桌面的「SYNOX」捷徑（或 SYNOX 資料夾裡的 Open-SYNOX.bat／Start.bat）就會開啟。")
+        if not has_token:
+            lines.append("之後雙擊 Setup.bat 重跑精靈可以補接 Telegram／Discord。")
+    elif has_token:
+        head = "✅ 設定好了，bot 開起來了。"
+    else:
+        head = "✅ 設定好了，SYNOX 開起來了（還沒接 Telegram／Discord）。"
+        lines.append("之後雙擊 Setup.bat 重跑精靈可以補接 Telegram／Discord。")
+    return "\n".join([head] + lines + ["可以關掉這個視窗。"])
+
+
 def web_login_link(config_path: str) -> str:
     """完成頁用：擁有者的網頁介面一次性登入連結（web.enabled=false 或設定讀不了 → ""）。"""
     try:
