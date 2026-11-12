@@ -180,7 +180,7 @@ ClawBot 的研究文件是「AI 只能提議、一律先跳卡給你按」。設
 | B. 整個封存（搬到 legacy 或 GitHub archive） | 乾淨，但要你動手或授權 | |
 | C. 兩邊都繼續維護 | 會有兩份一樣的東西 | |
 
-## QL4（2026-11-12）工具庫的壓縮檔要怎麼交到使用者手上？
+## QL4（2026-11-12）工具庫的壓縮檔要怎麼交到使用者手上？（已回答、已做，見題末）
 
 **為什麼問**：你說「我會提供這個主程式，和一大堆工具壓縮檔」。現在 SYNOX_Libs 跑 `scripts/build.py` 會在 `dist/` 產生一堆 `.synoxpack` 和 `index.json`，
 但還沒決定放哪裡；SYNOX 這邊已經能用 `config.json` 的 `packs.library` 指到一個資料夾或網址，`/help`、`doctor`、網頁會顯示「去這裡裝」。
@@ -190,6 +190,59 @@ ClawBot 的研究文件是「AI 只能提議、一律先跳卡給你按」。設
 | A. 你自己放雲端硬碟或 GitHub Release，`packs.library` 寫那個網址 | 主程式與工具分開發，最符合「別人要什麼自己來裝」 | |
 | B. SYNOX 的發佈 zip 旁邊附一個 `tools/` 資料夾（工具庫 `dist/` 的內容），`packs.library` 預設指過去；**不自動裝** | 拿到一份就全有，離線也能裝；要改 `scripts/make_zip.py` | **建議（預設）** |
 | C. 網頁裡做「瀏覽工具庫、一鍵下載安裝」 | 最方便，但要連網、要另外設計下載的安全檢查，範圍大 | |
+
+> **已回答（2026-11-12）**：git clone＋released exe installer 兩種，init 時引導設好參數與環境，**不可以有 hidden dependency 或這台的路徑**。
+> 已做（分支 `feat/clean-room-dist`，[docs/adr/0003](docs/adr/0003-distribution-git-clone-and-installer.md)）：B 的做法——發佈物旁邊附 `tools/`、
+> `packs.library` 預設就是它（相對位置）、`synox init`／`synox tools` 列出來讓使用者自己挑，不自動全裝；安裝程式用 Inno Setup＋可攜版 Python；
+> clean-room 審計與 `scripts/clean_room_check.py`。**還沒做的**：真的打包 exe、空白電腦實測（清單：[docs/handoff/clean-machine-test.md](docs/handoff/clean-machine-test.md)）、
+> 網頁「設定 → 工具」的清單畫面。延伸的決定在下面 QD1～QD4。
+
+---
+
+以下 QD1～QD4 是「乾淨安裝與發佈」（分支 `feat/clean-room-dist`、[docs/adr/0003](docs/adr/0003-distribution-git-clone-and-installer.md)）留下的題目。
+
+## QD1（2026-11-12）安裝程式要不要簽章？
+
+**為什麼問**：沒簽章的 `SYNOX-Setup.exe` 第一次執行時 Windows SmartScreen 會跳「Windows 已保護您的電腦」，要按「其他資訊 → 仍要執行」；
+有些防毒也比較會多看一眼。簽章要花錢、要驗證身分，是你的決定。
+
+| 選項 | 一句話 | |
+|---|---|---|
+| A. alpha 期間先不簽，說明文件教測試的人按「仍要執行」 | 不花錢；只給認識的人測時夠用 | **建議（預設）**：公開發佈前再換 B |
+| B. 用雲端簽章服務（例如 Azure 的簽章服務，月費制、要驗證身分） | 不用保管硬體金鑰，CI 也能簽 | 公開發佈時建議 |
+| C. 買傳統的程式碼簽章憑證（年費、通常要硬體金鑰） | 最常見，但最麻煩 | |
+
+## QD2（2026-11-12）用金鑰的 AI（OpenAI、Anthropic、Gemini）在全新電腦上缺 ntu_easy_llm，怎麼補？
+
+**為什麼問**：這四種 AI 都經過你的 `ntu_easy_llm`，它還不在 PyPI；空白電腦裝完 SYNOX 選這幾種，init／doctor 會說「還沒安裝 ntu_easy_llm」。
+Claude Code 與「先不用 AI」不受影響。
+
+| 選項 | 一句話 | |
+|---|---|---|
+| A. 你發一個 ntu_easy_llm 的 GitHub Release，SYNOX 的 `pyproject.toml` 改用那個網址（docs/AGENT.md 早就寫好的做法），安裝程式的 wheelhouse 也帶它 | git clone 與安裝程式都自動有 | **建議（預設）**：等你發 release |
+| B. 先不管：安裝程式只保證 Claude Code 與不用 AI；要金鑰的人照文件手動裝 wheel | 不用動 ntu_easy_llm | |
+| C. 像 isdtelekit 一樣把 ntu_easy_llm 複製進 SYNOX 的 `vendor/` | 不用發佈，但兩邊要同步 | |
+
+## QD3（2026-11-12）安裝程式版要不要帶視窗精靈（tkinter）？
+
+**為什麼問**：安裝程式附的可攜版 Python 沒有 tkinter。可以從同版本的完整 Python 把 tkinter 複製進去（`stage_installer.py --tk-from`），
+但這招在 `.venv` 裡能不能開出視窗沒有驗證過；不行的話會自動改用文字版 init（問的東西一樣，只是在黑色視窗裡、只有中文）。
+
+| 選項 | 一句話 | |
+|---|---|---|
+| A. 建置時帶 `--tk-from`，能開就用視窗、不能開就文字版 | 大部分人看到熟悉的精靈；最壞情況是文字版 | **建議（預設）** |
+| B. 安裝程式一律文字版 | 建置簡單、行為固定，但沒有 12 種語言 | |
+| C. 精靈改成本機網頁（之後再做，跟 Q5 的 C 一樣） | 外觀與網頁一致、也不需要 tkinter；範圍大 | |
+
+## QD4（2026-11-12）git clone 的人去哪裡拿打包好的 tools？
+
+**為什麼問**：安裝程式與 zip 已經附 `tools/`；但只 clone SYNOX 的人手上沒有 `.synoxpack`（`tools/` 不進 git），要自己 clone SYNOX_Libs 再打包，太難。
+
+| 選項 | 一句話 | |
+|---|---|---|
+| A. SYNOX_Libs 每次發版在 GitHub Release 放一個 `tools-<版本>.zip`（就是 `dist/` 的內容），README 教「解到 SYNOX\tools」 | 跟 git 歷史分開、檔案有版本 | **建議（預設）** |
+| B. SYNOX_Libs 把 `dist/` 也 commit 進 git | clone 一次就有，但 repo 會一直長大 | |
+| C. 只發 SYNOX 的 zip／安裝程式（都附 tools），git clone 版不另外提供 | 最省事，git clone 的人要自己打包 | |
 
 ## QL5（2026-11-12）提醒（remind）要不要變成真正獨立的工具？
 

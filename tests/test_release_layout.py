@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""發佈物的版面（docs/adr/0002）：zip 旁邊附 tools/、安裝程式的 stage。只複製檔案；不執行任何 Python、不 pip、不打包 exe。
+"""發佈物的版面（docs/adr/0003）：zip 旁邊附 tools/、安裝程式的 stage。只複製檔案；不執行任何 Python、不 pip、不打包 exe。
 假的可攜版 Python 只是幾個位元組的檔案（不會被執行）。"""
 import os
 import sys

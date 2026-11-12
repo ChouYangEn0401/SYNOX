@@ -2,7 +2,7 @@
 
     <python> scripts\\clean_room_check.py [--tools <SYNOX_Libs>\\dist | --libs <SYNOX_Libs>] [--keep] [--no-tests]
 
-Steps (docs/adr/0002; the owner's real test on a blank machine is docs/handoff/clean-machine-test.md):
+Steps (docs/adr/0003; the owner's real test on a blank machine is docs/handoff/clean-machine-test.md):
 1. copy what ships (git-tracked files, same list as make_zip.py: no .git, .venv, data, config.json) into a new
    temp folder; optionally add tools/ (a built library, or build one from a SYNOX_Libs checkout into the copy);
 2. scan the copy's text files for local paths (C:\\Users\\<name>, /home/<name>) and sibling-folder guesses

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""全新電腦能用（docs/adr/0002）：工具庫（tools/ 的 .synoxpack＋index.json）、文字版 `synox init`、
+"""全新電腦能用（docs/adr/0003）：工具庫（tools/ 的 .synoxpack＋index.json）、文字版 `synox init`、
 `synox tools list｜install`。全部在暫存資料夾；不連網、不開埠、不叫 AI、不真的 pip install。"""
 import argparse
 import hashlib

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""SYNOX 資料夾怎麼決定（config.default_root，docs/adr/0002）：不寫死任何一台電腦的路徑。"""
+"""SYNOX 資料夾怎麼決定（config.default_root，docs/adr/0003）：不寫死任何一台電腦的路徑。"""
 import os
 
 from synox import config as synox_config
