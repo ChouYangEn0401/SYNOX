@@ -56,10 +56,10 @@ def test_included_files_cannot_break_out_of_their_tag():
 
 
 def test_include_only_takes_plain_static_file_names():
-    assert web_server.INCLUDE_RE.fullmatch("/*{{INCLUDE:control.js}}*/")
+    assert web_server.INLINE_RE.fullmatch("/*{{INCLUDE:control.js}}*/")
     for bad in ("/*{{INCLUDE:../server.py}}*/", "/*{{INCLUDE:a/b.js}}*/", "/*{{INCLUDE:x.html}}*/",
                 "/*{{INCLUDE:Control.JS}}*/"):
-        assert not web_server.INCLUDE_RE.fullmatch(bad), bad
+        assert not web_server.INLINE_RE.fullmatch(bad), bad
 
 
 def test_control_css_only_uses_the_design_tokens():
