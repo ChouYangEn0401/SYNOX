@@ -12,7 +12,11 @@
   不想開任何 port 的機器加 `--deselect tests/test_web.py::test_port_already_in_use_is_a_bind_failure`
 - 終端機：`.venv\Scripts\python.exe -m synox console`（`--llm fake` 換假 AI；沒有 config.json 用示範設定）
 - 健康檢查：`.venv\Scripts\python.exe -m synox doctor --offline`
-- 重新 vendor SDK：`.venv\Scripts\python.exe scripts\vendor_sdk.py`；打包：`scripts\make_zip.py`
+- 重新 vendor SDK：`.venv\Scripts\python.exe scripts\vendor_sdk.py`（`--sdk` 或 `ISDTELEKIT_SDK`）；打包：`scripts\make_zip.py [--tools <Libs dist>]`
+- 文字版設定引導：`.venv\Scripts\python.exe -m synox init`（`--non-interactive`、`--dry-run`）；工具庫：`-m synox tools list｜install <名字>`
+- 乾淨安裝的模擬：`.venv\Scripts\python.exe scripts\clean_room_check.py [--tools <Libs dist>｜--libs <SYNOX_Libs>]`（暫存資料夾、
+  清掉 SYNOX_*／PATH／使用者資料夾；重用這個直譯器，不建 venv、不 pip、不連網）。發佈（lock、wheelhouse、安裝程式）：[adr/0003](adr/0003-distribution-git-clone-and-installer.md)、
+  [handoff/clean-machine-test.md](handoff/clean-machine-test.md) B-1
 - 主控台是 cp950：跑 Python 前 `$env:PYTHONIOENCODING='utf-8'; $env:PYTHONUTF8='1'`
 
 ## Map
@@ -20,9 +24,9 @@
 | Path | Role |
 |---|---|
 | `vendor/isdtelekit/` | ISDTeleKitSDK 的**原樣**複製（版本與 commit 在 `vendor/VERSION`）。不要改；要不同的行為就在 `src/synox` 寫轉接 |
-| `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜doctor｜stop｜open（＝web-login）｜about｜tips [--all]｜install <檔> [--yes] [--trust-publisher <名字>]｜packs status｜packs lock --approve <name> [--trust-publisher <名字>] [--runtime container|host]｜packs runtime <name> container|host｜packs env rebuild <name>`（install 也收 `--runtime`） |
+| `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜init｜tools list｜tools install <名字…>｜doctor｜stop｜open（＝web-login）｜about｜tips [--all]｜install <檔> [--yes] [--trust-publisher <名字>]｜packs status｜packs lock --approve <name> [--trust-publisher <名字>] [--runtime container|host]｜packs runtime <name> container|host｜packs env rebuild <name>`（install 也收 `--runtime`） |
 | `src/synox/app.py` | `build(config, home=, adapter=, vault=, config_path=)`：SDK `build_app` → basics/help → `packs.load_all` → `agent.install` → `schedule.install` → `web.install` |
-| `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`／`policy`；路徑相對 SYNOX 資料夾（`ROOT`） |
+| `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`／`policy`；路徑相對 SYNOX 資料夾（`ROOT`＝`default_root()`：SYNOX_HOME → 原始碼版面 → 目前資料夾，`ROOT_SOURCE` 記哪一種，doctor 會印） |
 | `src/synox/policy.py` | `decide`（權限唯一交會點）、`parse_policy`（`policy.roles` 能力上限，第 1 關式檢查）、`group_policy_for`（loader 用）、`ceiling`／`fits`；bot 範圍 `bot_scope`／`using_bot`／`current_bot`／`run_as`；`install`（把 decide 接到 SDK 的 `registry.authorize`） |
 | `src/synox/sandbox.py` | 運行空間（PERM-7）：`Sandbox.wrap(argv, env, cwd, grants)`、`Grants`、後端 none／jobobject／bwrap／systemd／container（每個 pack 自己的，S1）／appcontainer（介面）、`set_factory`／`sandbox_for`、`box_for`／`view_for`／`set_engine_which`／`set_container_factory`、`grants_for`、`data_scope`（推斷集中處）、`trust_of`、`restricted_reason`、`doctor_line`；jobobject 的 launcher（`python -I sandbox.py jobobject …`） |
 | `src/synox/discord/scope.py` | bot 範圍報告：`/bot_status`（`install`）、`report`／`lines`（doctor 也用）、`REASONS`（不會出現的原因，可擴充）、`channel_line`（頻道型的收訊設定） |
@@ -45,7 +49,8 @@
 | `src/synox/packs/upgrade.py` | 同名再裝＝升級：`staged_upgrade`（「改了什麼」、semver 版本檢查，權限變大的標 alert＝紅字）→ `upgrade_staged`（舊的搬到 `_removed/<name>-<版本>-<時間>`＋旁邊留舊鎖、鎖換新）；`rollback`（`python -m synox packs rollback <name>`）。資料不在 pack 資料夾，不動；資料 schema 升級由 pack 自己負責 |
 | `Install-Pack.bat`、`scripts/pack_zip.py` | 點兩下 `.synoxpack` 的落點（精靈勾了才在 HKCU 登記）；打包 |
 | `src/synox/backup.py` | `export_backup`／`read_backup`：data/ 的 zip 用保管箱主金鑰加密（`Vault.encrypt_bytes`） |
-| `src/synox/wizard/` | `pages.py`（tkinter 畫面：這台給誰用 → token → 配對 → AI → 完成）、`logic.py`（寫 config、mode、AI 頁的 helper、金鑰進保管箱）、`telegram_probe.py`（getMe、配對碼）、`shortcuts.py` |
+| `src/synox/wizard/` | `pages.py`（tkinter 畫面：這台給誰用 → token → 配對 → AI → 完成）、`logic.py`（寫 config、mode、AI 頁的 helper、金鑰進保管箱；`env:` 照原樣）、`telegram_probe.py`（getMe、配對碼）、`shortcuts.py`；`init_cli.py`（文字版 `synox init`：同一份 config，`Prompter` 可換、`--non-interactive`／`--dry-run`）、`tools.py`（工具庫：位置規則＝`packs.library` → `<SYNOX>/tools`、讀 `index.json`、`file_of` 對檔名與 sha256、`pick` 名字或組合；`packs/library.py` 也用它） |
+| `scripts/` 發佈 | `make_zip.py`（`release_files`＝會發出去的檔案，`--tools`／`--wheelhouse`）、`lock_deps.py`（`requirements.lock`，只讀已裝的版本與本機 wheel）、`stage_installer.py`（安裝程式的 stage：只複製）、`clean_room_check.py`（乾淨副本＋清掉這台的環境跑一遍）；`setup/installer/synox.iss`（Inno Setup，每個使用者自己裝） |
 | `src/synox/doctor.py` | 健康檢查（不改任何檔、不產生金鑰） |
 | `src/synox/brand.py` | 終端機門面：歡迎畫面（`show_banner`；`BANNER_COMMANDS`＝沒參數／run／open／wizard／init／doctor／about）、`about_text`、`TIPS`。只在互動終端機印；`--quiet`、`SYNOX_NO_BANNER`、`CI`、管線＝不印（既有輸出一個字都不變），`TERM=dumb`＝一行，`NO_COLOR`＝不上色；Windows 主控台 code page 不是 65001（cp950）或 `SYNOX_ASCII=1`＝ASCII logo。預覽 `docs/ui/cli-welcome.txt`（`scripts/make_cli_welcome.py`） |
 | `packs/` | **出廠是空的**（2026-11-12，[../legacy/builtin-packs.md](../legacy/builtin-packs.md)）：使用者裝的工具的落點（`PACK_DIRS[0]`），只有 `README.md` 進 git。notes／money 的正本在 **SYNOX_Libs**（工具庫，另一個 repo；ADR 在它的 `docs/adr/0001`）。提醒是**系統指令**（`synox/schedule`，見下面「另外」），工具庫的舊 remind 在它的 `legacy/` |
@@ -226,6 +231,9 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
   （頻道型 bot 照樣看不到：不在 `CHANNEL_BUILTINS`）。資料就是 `data/schedule.json.enc`（伺服器版每人一份），跟以前同一份。
   名字刻意寫「（系統）」：工具、文件不要再用 remind／reminder 指別的東西；Apple 提醒事項是 connector `apple-reminders`，另一回事。
   網頁工具頁把 SYNOX 自己的指令都歸在「系統」群組（`toolpage.BUILTIN`）。
+- **沒有 hidden dependency**（[adr/0003](adr/0003-distribution-git-clone-and-installer.md) D）：路徑一律相對 `config.ROOT` 或可設定（config、環境變數、參數）；
+  不寫任何一台電腦的路徑或使用者名稱。「找 SYNOX 旁邊的兄弟資料夾」只能當有文件的後備，那一行標 `clean-room: sibling-fallback`；
+  `tests/test_clean_room_check.py` 擋所有 git 追蹤的檔案裡沒標記的猜測與 `C:\Users\<名字>` 這類路徑。相依要能照 `requirements.lock` 離線裝。
 - pack 的群組由 loader 依 pack.json 定義（`loader.group_policy`）：`access: owner`（預設）＝整組 `owner_only`；`member`＝伺服器版 `role=MEMBER`、
   個人版 `owner_only`；`everyone`＝最低一級；再套角色能力上限（只會更嚴，見 invariant 11）。agent 群組也用同一個規則（`member`）：個人版只有擁有者，伺服器版成員以上；
   `AgentFallback.accepts` 問的是 `authorize(user, agent.ai)`，不另寫判斷。訪客（最低一級）在 `ai_decision` 一律沒有工具。
@@ -308,7 +316,9 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 - 經 AI 呼叫的 kind=cli 一般指令已改成同步（`api.via_ai`），結果交回 AI。仍然例外：`background: true` 的 cli 指令（AI 只拿到「開始了」，
   結果之後直接送給使用者），以及 python pack 自己丟背景執行緒回覆的指令（同樣的問題，要 pack 自己看 `api.via_ai` 改成同步）。
 - 核准卡按下執行的結果直接給使用者，只在 AI 的紀錄留一句「已執行」，不會自動再開一輪讓 AI 接著做。
-- `Setup.bat` 的完整安裝路徑（winget、embeddable zip）沒有在任何一台陌生電腦上跑過；精靈的畫面沒有自動化測試（只測了 logic／probe／shortcuts）。
+- `Setup.bat` 的完整安裝路徑（winget、embeddable zip、wheelhouse 離線、文字版 init 退路）與安裝程式（`setup/installer/synox.iss`）
+  都沒有在任何一台陌生電腦上跑過（清單：[handoff/clean-machine-test.md](handoff/clean-machine-test.md)）；精靈的畫面沒有自動化測試（只測了 logic／probe／shortcuts）。
+  `requirements.lock` 還沒產生（開發機的 .venv 少 websocket-client，要在發佈機的乾淨 venv 產生）。
 - connector 全部接上了，但都只對假傳輸測過。網頁工具頁對 kind=python 一律顯示「已連接」，沒設憑證時要打各自的 `_status`；
   Notion 指令參數照空白切（換行變空白）；Todoist 呼叫是同步的、逾時 15 秒；Apple 的帳號只能在電腦上用 `Connect-Apple.bat` 設。
 - `[ROUTE]` log 會印指令全文（SDK dispatcher），所以任何密碼都不能設計成「在聊天裡打」的指令（Notion／Todoist 的 token 指令靠 `redact_in_logs` 遮罩）。

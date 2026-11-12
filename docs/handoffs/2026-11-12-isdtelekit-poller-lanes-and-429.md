@@ -1,6 +1,6 @@
 # ISDTeleKitSDK：把 ClawBot 11-11 的「收訊不互等、429 等一下重送」搬進 SDK
 
-- 狀態：**待處理**（由擁有者轉交給 `C:\Users\user\Documents\ISDTeleKitSDK` 的 session；SYNOX 的 `vendor/` 不改，修好後重新 vendor）
+- 狀態：**待處理**（由擁有者轉交給 ISDTeleKitSDK repo 的 session；SYNOX 的 `vendor/` 不改，修好後重新 vendor）
 - 寫的時間：2026-11-12
 - 對象：ISDTeleKitSDK `isdtelekit/telegram/poller.py`、`isdtelekit/telegram/bot_api.py`
 

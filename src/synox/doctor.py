@@ -12,7 +12,7 @@ import sys
 from typing import Callable, List
 
 from synox import __version__
-from synox.config import CONFIG_PATH, MODE_LABELS, ROOT, SynoxConfig, redacted
+from synox.config import CONFIG_PATH, MODE_LABELS, ROOT, ROOT_SOURCE, SynoxConfig, redacted
 
 
 def _sdk_line() -> str:
@@ -150,12 +150,17 @@ def _heartbeat_line(config) -> str:
     return head + "\n    上一次：還沒巡過（SYNOX 跑起來之後才會巡）"
 
 
+# SYNOX 資料夾是怎麼決定的（config.default_root）：原始碼版面不多說，其他兩種要讓人知道
+ROOT_NOTES = {"SYNOX_HOME": "（來自環境變數 SYNOX_HOME；不是你要的就把它刪掉）",
+              "cwd": "（⚠️ 不是原始碼的版面，用的是目前所在的資料夾；要固定就設環境變數 SYNOX_HOME）"}
+
+
 def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] = print) -> int:
     problems = 0
     out(f"🩺 SYNOX {__version__} 健康檢查")
     out(f"• Python：{platform.python_version()}（{sys.executable}）")
     out(f"• SDK：{_sdk_line()}")
-    out(f"• 資料夾：{ROOT}")
+    out(f"• 資料夾：{ROOT}" + ROOT_NOTES.get(ROOT_SOURCE, ""))
 
     path = config_path or CONFIG_PATH
     config = None

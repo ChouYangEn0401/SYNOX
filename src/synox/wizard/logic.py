@@ -185,10 +185,10 @@ def read_existing(path: str) -> dict:
 
 
 def save(path: str, cfg: dict, vault_opener=None) -> dict:
-    """寫 config.json。llm.api_key 是明文時先存進保管箱，config 裡換成 "vault:llm_api_key"。回寫進去的那份。"""
+    """寫 config.json。llm.api_key 是明文時先存進保管箱，config 裡換成 "vault:llm_api_key"（"env:名字" 照原樣）。回寫進去的那份。"""
     cfg = json.loads(json.dumps(cfg))
     key = (cfg.get("llm") or {}).get("api_key", "")
-    if key and not str(key).startswith(VAULT_PREFIX):
+    if key and not str(key).startswith((VAULT_PREFIX, "env:")):       # env:名字＝讀環境變數，本身不是金鑰
         if vault_opener is None:
             from synox.config import SynoxConfig
             from synox.vault import open_vault

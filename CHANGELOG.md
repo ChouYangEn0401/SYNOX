@@ -33,6 +33,21 @@
 - [QuestionToUser.md](QuestionToUser.md)：最上面加常駐規則（擁有者 2026-11-12：「你作玩得可以先刪掉，剩下的我沒回就都先留著」）；
   Q5、Q7、Q10、Q11、QL5 標成已回答、濃縮成結論搬到最下面「已回答」；其他題目不動。
 
+### 乾淨安裝：git clone＋安裝程式、工具庫附在旁邊（branch `feat/clean-room-dist`，還沒合併）
+- 發佈方式定案（QL4）：**git clone／Download ZIP＋`Setup.bat`**，以及 **Windows 安裝程式**（Inno Setup 6＋官方可攜版 Python＋離線套件，
+  每個使用者自己裝、不要管理員）。為什麼不用 PyInstaller／Nuitka：[docs/adr/0003](docs/adr/0003-distribution-git-clone-and-installer.md)。
+  安裝程式的腳本做好了（`scripts/stage_installer.py`、`setup/installer/synox.iss`），**還沒真的打包、還沒在空白電腦上試**。
+- **新指令** `python -m synox init`：文字版設定引導（模式、Telegram、AI、工具庫位置、挑工具），`--non-interactive`、`--dry-run`；
+  `python -m synox tools list｜install <名字或組合>`：從工具庫挑來裝（先對 sha256，再走原本的五關；不自動全裝）。
+- **工具庫預設位置**：`config.json` 沒寫 `packs.library` 時，SYNOX 找自己資料夾裡的 `tools\`（相對位置）；`make_zip.py --tools` 會把它放進 zip。
+- **Setup.bat**：有 `wheelhouse\` 就完全離線裝、有 `requirements.lock` 就照鎖定版本裝（`scripts/lock_deps.py` 產生）；SYNOX 資料夾自己帶的
+  `runtime\python` 優先；開不了視窗（沒有 tkinter）就在同一個視窗跑文字版 init。setup 訊息 12 種語言各多兩句。
+- **乾淨安裝審計**：SYNOX 資料夾的判斷不再假設原始碼版面（`SYNOX_HOME` → 原始碼 → 目前資料夾，doctor 會說）；交接單裡這台電腦的路徑拿掉；
+  `vendor_sdk.py` 可以用 `--sdk`／`ISDTELEKIT_SDK`；精靈存設定時 `env:名字` 不再被當成金鑰；doctor 不再把 `max_tokens` 當密鑰遮掉。
+  新的 `scripts/clean_room_check.py`：在暫存資料夾、清掉這台的環境變數／PATH／使用者資料夾後跑 doctor、init、tools、pytest 子集。
+- SYNOX_Libs（另一個 repo）：`scripts/_synox.py` 找 SYNOX 改成 `SYNOX_HOME` → 跑腳本的 Python 裝的那份 → 後備 `../SYNOX`；README 寫清楚安裝流程。
+- 給擁有者：空白電腦實測清單 [docs/handoff/clean-machine-test.md](docs/handoff/clean-machine-test.md)；要你決定的事 [QuestionToUser.md](QuestionToUser.md) QD1～QD4。
+
 ### 常駐助理、心跳、runtime loop（branch `feat/runtime-heartbeat`，還沒合併）
 - 新增 `src/synox/runtime/`：常駐的排程迴圈（每個任務自己的執行緒、逾時、失敗退避、連續 5 次失敗通知一次）、
   心跳（預設每 45 分鐘、下限 15 分鐘、沒有新狀況不叫 AI、安靜時段、每天通知／叫 AI 的上限）、常駐助理（母 session：沒有工具、

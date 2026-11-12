@@ -148,7 +148,8 @@ def test_install_synoxpack_into_empty_host(make_bot, owner, empty_dirs, tmp_path
     assert not any(HINT in t for t in bot.texts(owner))
 
 
-LIBS = os.environ.get("SYNOX_LIBS") or os.path.join(os.path.dirname(ROOT), "SYNOX_Libs")
+# 工具庫的原始碼：SYNOX_LIBS，沒設才看 SYNOX 旁邊（維護者的方便；找不到就跳過這個整合測試，docs/adr/0003）
+LIBS = os.environ.get("SYNOX_LIBS") or os.path.join(os.path.dirname(ROOT), "SYNOX_Libs")  # clean-room: sibling-fallback
 
 
 @pytest.mark.skipif(not os.path.isdir(os.path.join(LIBS, "packs")),

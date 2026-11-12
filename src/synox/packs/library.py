@@ -19,15 +19,13 @@ HOW_TO_INSTALL = "裝法：網頁介面「設定 → 裝功能」上傳 .synoxpa
 
 
 def library_location(config) -> str:
-    """config.json packs.library 寫的工具庫位置（資料夾換成絕對路徑；網址原樣；沒寫回 ""）。"""
-    raw = ((getattr(config, "packs", None) or {}).get("library") or "")
-    if not isinstance(raw, str) or not raw.strip():
-        return ""
-    raw = raw.strip()
-    if raw.lower().startswith(("https://", "http://")):
-        return raw
-    root = getattr(config, "root", "") or ""
-    return os.path.normpath(raw if os.path.isabs(raw) else os.path.join(root, raw))
+    """config.json packs.library 寫的工具庫位置（資料夾換成絕對路徑；網址原樣）。沒寫時：SYNOX 資料夾旁邊附的
+    `tools/`（有 index.json 才算，發佈物會帶；規則在 synox/wizard/tools.py）；都沒有回 ""。"""
+    from synox.wizard import tools as library_tools
+    if config is None:
+        from synox.config import ROOT
+        return library_tools.default_location(ROOT)
+    return library_tools.configured(getattr(config, "packs", None), getattr(config, "root", "") or "")
 
 
 def installed_tools(app) -> list:
@@ -85,8 +83,12 @@ def doctor_lines(config, tool_names: List[str]) -> List[str]:
         lines.append(f"• 工具：裝了 {len(tool_names)} 個（{'、'.join(tool_names)}）")
     else:
         lines.append("• 工具：還沒裝任何工具（SYNOX 出廠是空的）")
-    if where and not where.lower().startswith(("https://", "http://")) and not os.path.isdir(where):
+    from synox.wizard import tools as library_tools
+    local = where and not library_tools.is_url(where)
+    if local and not os.path.isdir(where):
         lines.append(f"  ⚠️ config.json 的 packs.library 指到 {where}，但這個資料夾不存在")
+    elif local and library_tools.why_not_library(where):
+        lines.append(f"  ⚠️ packs.library：{library_tools.why_not_library(where)}")
     elif where:
         lines.append(f"  工具庫：{where}")
     if not tool_names or not where:
