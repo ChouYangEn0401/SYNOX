@@ -19,7 +19,7 @@
 
 ## 未發佈（dev，2026-11-12：合併 debug/setup-python-telegram＋跟進 ClawBot／金流簿）
 
-### Telegram 圖文教學與教學的共用管線（branch `feat/tutorial-telegram`，還沒合併）
+### Telegram 圖文教學與教學的共用管線（branch `feat/tutorial-telegram`，已合併）
 - 新增 [docs/tutorials/telegram/index.html](docs/tutorials/telegram/index.html)：給電腦新手的一步一圖教學——跟 @BotFather 建 bot、拿 token、
   貼進 SYNOX（精靈或網頁設定）、六位數配對、第一則訊息；常見問題（token 格式／401、bot 不回、作廢重發 token、隱私模式、群組、改名與頭像、
   帳號被佔、換電腦）。自足一頁（沒有外部資源、沒有 JavaScript）、亮暗兩色、手機可看；示意圖是手繪的 HTML／CSS 框，都標「示意圖」。
@@ -30,7 +30,7 @@
   （有那個平台的教學才出現，用瀏覽器開本機那份；12 種語言各加一句 `open_tutorial`）；網頁設定「聊天通道」Telegram 那一格多一個連結；
   `synox init` 印本機檔路徑。發佈 zip／安裝程式本來就帶 `docs/`。測試 `tests/test_tutorials.py`。
 
-### Discord 觀念篇與步驟教學（branch `feat/tutorial-discord`，還沒合併）
+### Discord 觀念篇與步驟教學（branch `feat/tutorial-discord`，已合併）
 - 新增 [docs/discord-concepts.md](docs/discord-concepts.md)：給覺得 Discord 難懂的人——名詞對照（Application／bot user／token／intent／guild／頻道／私訊／身分組／ID）、
   一支 bot 的三種用法（私訊、伺服器、同伺服器不同頻道）、對照到 SYNOX 今天做得到／做不到的表、四種情境的決定表（只有我／私人伺服器／公開頻道／每頻道不同）、
   公開頻道的風險表、**每頻道設定的提案**（`guilds.<g>.channels` 的每一項可寫成物件、收訊時算派生 BotSpec 丟給現有的 `policy.using_bot`；還沒做）、
