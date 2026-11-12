@@ -1,0 +1,1410 @@
+<!-- 自動產生：scripts/make_ui_preview.py（不要手改；改 src/synox/web/static/app.html 再重跑） -->
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>SYNOX</title>
+<style nonce="preview">
+  /* ── 設計 token（說明：docs/ui/redesign-notes.md）────────────────────
+     淺色取記帳專案（金流簿）的簡約、深色取 ISDPCS 的層次；跟隨系統，
+     :root[data-theme="light|dark"] 可以強制（目前只有預覽用）。 */
+  :root {
+    --bg: #f3f5f8; --bg-glow: #e3eef0; --surface: #ffffff; --surface-2: #f7f9fb; --sunken: #eef1f5;
+    --line: #e2e7ee; --line-strong: #cdd5df;
+    --text: #131b26; --text-2: #465264; --muted: #6a7687;
+    --accent: #0a7c70; --accent-hover: #086a60; --accent-ink: #ffffff; --accent-soft: #e0f2ef; --accent-line: #9fd6cd;
+    --accent-2: #2f7fd6;
+    --ok: #12823b; --ok-soft: #e6f4ea; --warn: #9a6400; --warn-soft: #fdf1dc; --bad: #c62f2f; --bad-soft: #fbe8e8;
+    --me: #dff1ee; --me-ink: #0c3a35;
+    --shadow-sm: 0 1px 2px rgba(19, 27, 38, .05), 0 1px 3px rgba(19, 27, 38, .06);
+    --shadow-md: 0 10px 30px -10px rgba(19, 27, 38, .22);
+    --shadow-lg: 0 24px 60px -18px rgba(19, 27, 38, .35);
+    --highlight: inset 0 1px 0 rgba(255, 255, 255, .7);
+    --scrim: rgba(10, 15, 22, .4);
+    --r-sm: 8px; --r: 10px; --r-lg: 14px; --r-xl: 18px; --pill: 999px;
+    --font: "Segoe UI Variable Text", "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", "PingFang TC",
+            "Noto Sans TC", system-ui, sans-serif;
+    --mono: "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, monospace;
+    --ease: cubic-bezier(.2, .9, .3, 1);
+    --side-w: 252px;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0b0f14; --bg-glow: #13222b; --surface: #121924; --surface-2: #161f2c; --sunken: #0d131b;
+      --line: #1f2b3b; --line-strong: #2d3b4f;
+      --text: #dbe4ef; --text-2: #aab6c6; --muted: #7f90a7;
+      --accent: #35e0c4; --accent-hover: #63ead5; --accent-ink: #04221d; --accent-soft: rgba(53, 224, 196, .12);
+      --accent-line: rgba(53, 224, 196, .42); --accent-2: #4aa8ff;
+      --ok: #46d17f; --ok-soft: rgba(70, 209, 127, .12); --warn: #ffb454; --warn-soft: rgba(255, 180, 84, .12);
+      --bad: #ff6b78; --bad-soft: rgba(255, 93, 108, .13);
+      --me: #163836; --me-ink: #dff7f2;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+      --shadow-md: 0 14px 34px -12px rgba(0, 0, 0, .75);
+      --shadow-lg: 0 28px 70px -20px rgba(0, 0, 0, .85);
+      --highlight: inset 0 1px 0 rgba(255, 255, 255, .045);
+      --scrim: rgba(3, 7, 12, .66);
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0b0f14; --bg-glow: #13222b; --surface: #121924; --surface-2: #161f2c; --sunken: #0d131b;
+    --line: #1f2b3b; --line-strong: #2d3b4f;
+    --text: #dbe4ef; --text-2: #aab6c6; --muted: #7f90a7;
+    --accent: #35e0c4; --accent-hover: #63ead5; --accent-ink: #04221d; --accent-soft: rgba(53, 224, 196, .12);
+    --accent-line: rgba(53, 224, 196, .42); --accent-2: #4aa8ff;
+    --ok: #46d17f; --ok-soft: rgba(70, 209, 127, .12); --warn: #ffb454; --warn-soft: rgba(255, 180, 84, .12);
+    --bad: #ff6b78; --bad-soft: rgba(255, 93, 108, .13);
+    --me: #163836; --me-ink: #dff7f2;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
+    --shadow-md: 0 14px 34px -12px rgba(0, 0, 0, .75);
+    --shadow-lg: 0 28px 70px -20px rgba(0, 0, 0, .85);
+    --highlight: inset 0 1px 0 rgba(255, 255, 255, .045);
+    --scrim: rgba(3, 7, 12, .66);
+    color-scheme: dark;
+  }
+
+  /* ── 基本 ───────────────────────────────────────────────────────── */
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body { margin: 0; color: var(--text); font: 15px/1.55 var(--font); -webkit-font-smoothing: antialiased;
+         background: radial-gradient(1100px 560px at 85% -12%, var(--bg-glow) 0%, var(--bg) 58%) fixed, var(--bg); }
+  h1, h2, h3, p { margin: 0; }
+  h1 { font-size: 22px; font-weight: 700; letter-spacing: -.01em; }
+  h2 { font-size: 16px; font-weight: 700; }
+  h3 { font-size: 14px; font-weight: 700; color: var(--text-2); }
+  ul { margin: 0; padding-left: 20px; }
+  li + li { margin-top: 3px; }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  code { font-family: var(--mono); font-size: .92em; }
+  svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8;
+          stroke-linecap: round; stroke-linejoin: round; }
+  .hidden { display: none !important; }
+  .muted { color: var(--muted); font-size: 13px; }
+  .alert { color: var(--bad); font-weight: 600; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+
+  /* 按鈕：預設＝次要（JS 產生的按鈕沒有 class 也是這個樣子）；primary 一頁只放一個主要動作 */
+  button { font: inherit; font-size: 14px; font-weight: 500; color: var(--text); cursor: pointer; white-space: nowrap;
+           display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px;
+           padding: 7px 14px; border-radius: var(--r); border: 1px solid var(--line-strong);
+           background: var(--surface); box-shadow: var(--shadow-sm), var(--highlight);
+           transition: border-color .15s var(--ease), background .15s var(--ease), transform .15s var(--ease); }
+  button:hover { border-color: var(--accent-line); background: var(--surface-2); }
+  button:active { transform: translateY(1px); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 650; }
+  button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+  button.danger { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 35%, transparent); }
+  button.danger:hover { background: var(--bad-soft); border-color: var(--bad); }
+  button.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--text-2); }
+  button.ghost:hover { background: var(--sunken); border-color: transparent; color: var(--text); }
+  button.sm { min-height: 30px; padding: 4px 10px; font-size: 13px; }
+  button.block { width: 100%; }
+  button:disabled { opacity: .5; cursor: default; transform: none; }
+
+  input, select, textarea { font: inherit; font-size: 14.5px; color: var(--text); background: var(--surface);
+           border: 1px solid var(--line-strong); border-radius: var(--r); padding: 8px 11px; min-height: 38px;
+           max-width: 100%; transition: border-color .15s var(--ease), box-shadow .15s var(--ease); }
+  input, select { min-width: 0; }
+  input[type="checkbox"] { min-height: 0; width: 16px; height: 16px; accent-color: var(--accent); vertical-align: -3px; }
+  input[type="file"] { padding: 6px; background: var(--surface-2); }
+  input::placeholder, textarea::placeholder { color: var(--muted); }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--accent);
+           box-shadow: 0 0 0 3px var(--accent-soft); }
+  button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg);
+          padding: 18px 20px; box-shadow: var(--shadow-sm), var(--highlight); }
+  .card + .card { margin-top: 14px; }
+  .card-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 14px; }
+  .card-head .txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .tile { width: 36px; height: 36px; flex: none; border-radius: 11px; display: grid; place-items: center;
+          font-size: 18px; background: var(--accent-soft); color: var(--accent); }
+  .sub { color: var(--muted); font-size: 13.5px; }
+  .section-label { font-size: 12px; font-weight: 650; letter-spacing: .06em; color: var(--muted); margin: 18px 0 8px; }
+  .section-label:first-child { margin-top: 0; }
+  hr.rule { border: 0; border-top: 1px solid var(--line); margin: 16px 0; }
+
+  /* 狀態：顏色＋文字，壞的另外換形狀（方點），不只靠顏色 */
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; line-height: 1;
+           padding: 4px 9px; border-radius: var(--pill); background: var(--sunken); color: var(--text-2);
+           vertical-align: 2px; white-space: nowrap; }
+  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .badge.ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.warn { background: var(--warn-soft); color: var(--warn); }
+  .badge.bad, .badge.danger { background: var(--bad-soft); color: var(--bad); }
+  .badge.bad::before, .badge.danger::before { border-radius: 2px; }
+
+  /* 欄位：標題在上、說明在下 */
+  label.f { display: block; margin: 12px 0 5px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+  .field-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .field-row input { flex: 1 1 260px; }
+  .msgline { font-size: 13.5px; color: var(--text-2); min-height: 0; margin-top: 8px; }
+  .msgline:empty { display: none; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th { text-align: left; font-size: 12px; font-weight: 650; letter-spacing: .04em; color: var(--muted);
+       padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  td { text-align: left; padding: 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tbody tr:last-child td { border-bottom: 0; }
+  tbody tr:hover td { background: var(--surface-2); }
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--r); }
+  td .name { font-weight: 600; }
+  td .detail { display: block; color: var(--muted); font-size: 12.5px; margin-top: 3px; }
+
+  /* ── 外框：左側欄（OpenClaw／Hermes 的資訊架構）＋內容 ─────────────── */
+  .shell { display: grid; grid-template-columns: var(--side-w) minmax(0, 1fr); min-height: 100vh; }
+  .side { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; gap: 14px;
+          padding: 16px 12px; border-right: 1px solid var(--line);
+          background: color-mix(in srgb, var(--surface) 72%, transparent); backdrop-filter: blur(8px); }
+  .brand-row { display: flex; align-items: center; gap: 10px; padding: 2px 6px; }
+  .brand { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+  .mark { width: 30px; height: 30px; border-radius: 9px; display: grid; place-items: center; flex: none;
+          font: 800 15px/1 var(--font); color: var(--accent-ink);
+          background: linear-gradient(140deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 55%, var(--accent-2)) 100%);
+          box-shadow: 0 6px 16px -6px var(--accent), var(--highlight); }
+  .brand .name { font-weight: 800; letter-spacing: .14em; font-size: 15px; }
+  .nav { display: flex; flex-direction: column; gap: 2px; }
+  .nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--r);
+           color: var(--text-2); text-decoration: none; font-weight: 550;
+           transition: background .15s var(--ease), color .15s var(--ease); }
+  .nav a:hover { background: var(--sunken); color: var(--text); }
+  .nav a.active { background: var(--surface); color: var(--text); font-weight: 650;
+                  box-shadow: var(--shadow-sm), var(--highlight); border: 1px solid var(--line); padding: 8px 9px; }
+  .nav a.active svg { color: var(--accent); }
+  .side-chats { display: none; flex-direction: column; gap: 8px; min-height: 0; flex: 1; }
+  body[data-view="chat"] .side-chats { display: flex; }
+  .side-chats .section-label { margin: 6px 6px 0; }
+  #chat-list { list-style: none; margin: 0; padding: 0 2px; overflow: auto; flex: 1; display: flex;
+               flex-direction: column; gap: 2px; }
+  #chat-list li { margin: 0; padding: 8px 10px; border-radius: var(--r); cursor: pointer; border: 1px solid transparent;
+                  transition: background .15s var(--ease); }
+  #chat-list li:hover { background: var(--sunken); }
+  #chat-list li.active { background: var(--accent-soft); border-color: var(--accent-line); }
+  #chat-list .t { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #chat-list .l { font-size: 12.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .side-foot { margin-top: auto; display: flex; align-items: center; gap: 10px; padding: 10px;
+               border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface);
+               box-shadow: var(--shadow-sm), var(--highlight); }
+  .side-foot:empty, .side-foot.hidden { display: none; }
+  .avatar { width: 32px; height: 32px; flex: none; border-radius: 50%; display: grid; place-items: center;
+            font-weight: 700; font-size: 14px; background: var(--accent-soft); color: var(--accent); }
+  .who { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.3; }
+  .who .n { font-weight: 650; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .who .r { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  main { min-width: 0; padding: 28px 32px 48px; }
+  .page { max-width: 820px; margin: 0 auto; }
+  .page.wide { max-width: 1120px; }
+  .page-head { margin-bottom: 20px; display: flex; flex-direction: column; gap: 4px; }
+
+  /* ── 登入（沒有側欄，只有一張卡）──────────────────────────────────── */
+  body[data-view="login"] .shell { display: block; }
+  body[data-view="login"] .side { display: none; }
+  #view-login { min-height: calc(100vh - 76px); display: grid; place-items: center; }
+  .login { width: min(520px, 100%); padding: 28px; }
+  .login .mark { width: 44px; height: 44px; font-size: 20px; border-radius: 13px; margin-bottom: 16px; }
+  .login h1 { margin-bottom: 6px; }
+  .steps { list-style: none; padding: 0; margin: 20px 0; display: flex; flex-direction: column; gap: 14px;
+           counter-reset: step; }
+  .steps li { position: relative; padding-left: 40px; margin: 0; }
+  .steps li::before { counter-increment: step; content: counter(step); position: absolute; left: 0; top: 0;
+           width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: 13px;
+           font-weight: 700; background: var(--accent-soft); color: var(--accent); }
+  .note-line { font-size: 13.5px; padding: 10px 12px; border-radius: var(--r); background: var(--sunken);
+               color: var(--text-2); }
+
+  /* ── 對話 ─────────────────────────────────────────────────────────── */
+  body[data-view="chat"] main { padding: 16px; height: 100vh; }
+  #view-chat { height: 100%; }
+  #chat-main { height: 100%; max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; min-height: 0;
+               background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl);
+               box-shadow: var(--shadow-sm), var(--highlight); overflow: hidden; }
+  .chat-head { display: flex; align-items: center; gap: 10px; padding: 12px 18px; border-bottom: 1px solid var(--line); }
+  .chat-head .t { font-weight: 650; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .live { width: 8px; height: 8px; border-radius: 50%; background: var(--ok);
+          box-shadow: 0 0 0 3px var(--ok-soft); flex: none; }
+  #stream { flex: 1; overflow: auto; padding: 20px 18px; display: flex; flex-direction: column; gap: 10px;
+            scroll-behavior: smooth; }
+  .msg { max-width: min(78%, 640px); padding: 10px 14px; border-radius: 16px; white-space: pre-wrap;
+         word-break: break-word; line-height: 1.6; animation: rise .22s var(--ease); }
+  .msg.me { align-self: flex-end; background: var(--me); color: var(--me-ink); border-bottom-right-radius: 6px; }
+  .msg.bot { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--line);
+             border-bottom-left-radius: 6px; }
+  .msg.note { align-self: center; background: var(--sunken); color: var(--muted); font-size: 12.5px;
+              padding: 4px 12px; border-radius: var(--pill); }
+  .msg .kb { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; white-space: normal; }
+  .msg .kb .kbrow { display: flex; gap: 6px; flex-wrap: wrap; }
+  .msg .kb button, .msg .kb a { flex: 1; text-align: center; }
+  .msg .kb a { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 7px 14px;
+               border-radius: var(--r); border: 1px solid var(--line-strong); background: var(--surface);
+               text-decoration: none; font-size: 14px; }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  #composer { display: flex; gap: 8px; align-items: flex-end; margin: 0 14px 14px; padding: 8px 8px 8px 14px;
+              border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface);
+              transition: border-color .15s var(--ease), box-shadow .15s var(--ease); }
+  #composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  #input { flex: 1; resize: none; min-height: 40px; max-height: 160px; border: 0; padding: 9px 0; background: transparent;
+           box-shadow: none; }
+  #input:focus { box-shadow: none; }
+  .hint { font-size: 12px; color: var(--muted); text-align: center; margin: -6px 0 10px; }
+  .empty { color: var(--muted); text-align: center; margin: auto; display: flex; flex-direction: column;
+           align-items: center; gap: 10px; padding: 24px; }
+  .empty::before { content: ""; width: 44px; height: 44px; border-radius: 14px; background: var(--accent-soft); }
+
+  /* ── 工具 ─────────────────────────────────────────────────────────── */
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; align-items: start; }
+  .grid .card + .card { margin-top: 0; }
+  .grid .card h3 { font-size: 16px; color: var(--text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .grid .card > .muted { margin-top: 4px; }
+  .cmd { border-top: 1px solid var(--line); padding: 12px 0 2px; margin-top: 12px; }
+  .cmd > div:first-child { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; color: var(--muted);
+                           font-size: 13px; }
+  .cmd code { font-weight: 650; color: var(--accent); background: var(--accent-soft); padding: 2px 7px;
+              border-radius: 6px; font-size: 13px; }
+  .cmd > .muted { margin-top: 4px; color: var(--text-2); }
+  .cmd form { display: flex; gap: 6px; margin-top: 8px; }
+  .cmd form input { flex: 1; min-width: 0; min-height: 34px; padding: 6px 10px; font-size: 14px; }
+  .cmd form button { min-height: 34px; }
+  .connect { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; display: grid; gap: 8px; }
+  .connect > button { justify-self: start; }
+  .connect form { display: grid; gap: 10px; }
+  .connect label { display: grid; gap: 4px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+  .connect label .muted { font-weight: 400; }
+  .result { white-space: pre-wrap; background: var(--sunken); border-radius: var(--r); padding: 10px 12px;
+            margin-top: 8px; font-size: 14px; display: flex; flex-direction: column; gap: 8px; }
+  .result .msg { max-width: 100%; animation: none; }
+  iframe.panel { width: 100%; height: 260px; margin-top: 12px; border: 1px solid var(--line); border-radius: var(--r);
+                 background: var(--surface); }
+
+  /* ── 設定 ─────────────────────────────────────────────────────────── */
+  .channel + .channel { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 16px; }
+  .channel h3 { font-size: 15px; color: var(--text); }
+  #pack-review { margin-top: 14px; background: var(--surface-2); box-shadow: none; display: flex;
+                 flex-direction: column; gap: 10px; }
+  #pack-review > h3 { font-size: 16px; color: var(--text); }
+  #pack-review label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .upload { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; padding: 14px;
+            border: 1px dashed var(--line-strong); border-radius: var(--r); background: var(--surface-2); }
+  .upload input[type="file"] { flex: 1 1 220px; }
+
+  #toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--text);
+           color: var(--bg); padding: 10px 16px; border-radius: 12px; max-width: calc(100% - 32px); z-index: 50;
+           box-shadow: var(--shadow-lg); font-size: 14px; animation: rise .2s var(--ease); }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  }
+
+  /* ── 手機：側欄變上方列＋底部分頁（記帳專案的做法）；字不小於 14px、輸入 16px、按鈕 44px ── */
+  @media (max-width: 760px) {
+    body { font-size: 15px; }
+    .shell { display: block; }
+    /* 不能有 backdrop-filter：它會讓底部分頁（position: fixed）改成貼著側欄定位 */
+    .side { position: sticky; top: 0; z-index: 20; height: auto; padding: 10px 16px; gap: 10px; border-right: 0;
+            border-bottom: 1px solid var(--line); background: var(--surface); backdrop-filter: none; }
+    .side-chats, #chat-list { min-width: 0; }
+    input:not([type="checkbox"]), select { width: 100%; }
+    .field-row button, .upload button { flex: 1 1 auto; }
+    .side-foot { display: none; }
+    .nav { position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; flex-direction: row; gap: 4px;
+           padding: 6px 10px calc(6px + env(safe-area-inset-bottom)); background: var(--surface);
+           border-top: 1px solid var(--line); box-shadow: 0 -8px 24px -16px rgba(0, 0, 0, .4); }
+    .nav a { flex: 1; flex-direction: column; gap: 2px; padding: 7px 4px; font-size: 13px; min-height: 52px;
+             justify-content: center; }
+    .nav a.active { padding: 6px 3px; }
+    .nav.hidden { display: none !important; }
+    .side-chats { flex: none; }
+    .side-chats .section-label { display: none; }
+    body[data-view="chat"] .side-chats { flex-direction: row; align-items: center; }
+    #new-chat { width: auto; flex: none; }
+    #chat-list { flex-direction: row; overflow-x: auto; gap: 6px; padding: 2px; }
+    #chat-list li { min-width: 120px; max-width: 170px; background: var(--surface); border-color: var(--line); }
+    main { padding: 16px 16px 96px; }
+    body[data-view="chat"] main { padding: 10px 10px 84px; height: auto; }
+    #chat-main { height: calc(100vh - 210px); height: calc(100dvh - 210px); border-radius: var(--r-lg); }
+    .chat-head, .hint { display: none; }
+    #composer { margin-bottom: 10px; }
+    .msg { max-width: 90%; }
+    .grid { grid-template-columns: 1fr; }
+    .card { padding: 16px; }
+    button { min-height: 44px; font-size: 15px; }
+    button.sm { min-height: 40px; }
+    input, select, textarea { font-size: 16px; min-height: 44px; }
+    .cmd form input, .cmd form button { min-height: 44px; }
+    .muted, .sub, .badge, #chat-list .l, td .detail { font-size: 14px; }
+    #toast { bottom: 84px; }
+    #view-login { min-height: auto; padding-top: 12px; }
+    .login { padding: 22px 18px; }
+  }
+
+  .preview-bar { position: fixed; top: 8px; right: 8px; z-index: 60; display: flex; flex-wrap: wrap; gap: 4px;
+    align-items: center; max-width: calc(100% - 16px); padding: 5px 8px; font-size: 12px; border-radius: 10px;
+    background: var(--text); color: var(--bg); box-shadow: var(--shadow-md); opacity: .92; }
+  .preview-bar b { margin-right: 4px; }
+  .preview-bar a { color: inherit; padding: 2px 7px; border-radius: 6px; text-decoration: none;
+    border: 1px solid color-mix(in srgb, var(--bg) 30%, transparent); }
+</style>
+</head>
+<body data-view="login">
+<div class="shell">
+<aside class="side">
+  <div class="brand-row">
+    <div class="brand"><span class="mark" aria-hidden="true">S</span><span class="name">SYNOX</span></div>
+    <button id="logout" class="ghost sm hidden" type="button" title="登出">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg>
+      <span>登出</span>
+    </button>
+  </div>
+  <nav id="nav" class="nav hidden">
+    <a href="#chat" data-view="chat">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12z"/></svg>
+      <span>對話</span></a>
+    <a href="#tools" data-view="tools">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>
+      <span>工具</span></a>
+    <a href="#settings" data-view="settings">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      <span>設定</span></a>
+  </nav>
+  <div id="chat-side" class="side-chats">
+    <div class="section-label">對話紀錄</div>
+    <button id="new-chat" class="primary block" type="button">＋ 新對話</button>
+    <ul id="chat-list"></ul>
+  </div>
+  <div id="side-foot" class="side-foot hidden">
+    <span class="avatar" id="avatar" aria-hidden="true"></span>
+    <span class="who" id="who"></span>
+  </div>
+</aside>
+
+<main>
+  <section id="view-login" class="hidden">
+    <div class="card login">
+      <span class="mark" aria-hidden="true">S</span>
+      <h1>請先登入</h1>
+      <p class="sub">沒有密碼：一次性的登入連結就是鑰匙，不要轉給別人。</p>
+      <ol class="steps">
+        <li>在跑 SYNOX 的<b>這台電腦</b>上：雙擊桌面的「SYNOX」捷徑（或 SYNOX 資料夾裡的 <code>Open-SYNOX.bat</code>），它會打開一個新的一次性登入連結，按頁面上的「登入」就好。</li>
+        <li>有接 Telegram／Discord 的話，也可以跟你的 SYNOX bot 打 <code>/web</code> 拿連結（7 天內有效、只能用一次）。</li>
+      </ol>
+      <p class="note-line">這個網頁只在跑 SYNOX 的那台電腦上打得開（127.0.0.1）。</p>
+    </div>
+  </section>
+
+  <section id="view-chat" class="hidden">
+    <div id="chat-main">
+      <div class="chat-head"><span class="live" aria-hidden="true"></span><span class="t" id="chat-title">對話</span></div>
+      <div id="stream"><div class="empty">選一段對話，或按「新對話」。</div></div>
+      <form id="composer">
+        <textarea id="input" rows="1" placeholder="打字跟 SYNOX 說，或打 /指令"></textarea>
+        <button class="primary" type="submit">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
+          <span>送出</span></button>
+      </form>
+      <p class="hint">Enter 送出，Shift+Enter 換行；打 /help 看全部指令</p>
+    </div>
+  </section>
+
+  <section id="view-tools" class="hidden">
+    <div class="page wide">
+      <header class="page-head">
+        <h1>工具</h1>
+        <p class="sub">你看得到、用得到的全部功能。每個指令旁邊的框可以直接執行（結果也會留在對話頁的「🧰 工具頁」）。</p>
+      </header>
+      <div id="tool-packs" class="grid"></div>
+      <div class="section-label">其他</div>
+      <div id="tool-groups" class="grid"></div>
+    </div>
+  </section>
+
+  <section id="view-settings" class="hidden">
+    <div class="page">
+      <header class="page-head">
+        <h1>設定</h1>
+        <p class="sub">AI 來源、聊天通道、功能和備份。改完的東西存在這台電腦。</p>
+      </header>
+
+      <div id="set-notowner" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">🔒</span>
+          <div class="txt"><h2>只有擁有者能改</h2>
+            <p class="sub">AI 來源、聊天通道、功能裝卸和備份只有擁有者能改。</p></div></div>
+        <p id="my-budget" class="note-line"></p>
+      </div>
+
+      <div id="set-llm" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">🤖</span>
+          <div class="txt"><h2>AI 從哪裡來</h2><p class="sub" id="llm-now"></p></div></div>
+        <label class="f" for="llm-choice">來源</label>
+        <select id="llm-choice"></select>
+        <div id="llm-key-fields">
+          <label class="f" for="llm-key">API key（留空＝沿用原本的）</label>
+          <input id="llm-key" type="password" autocomplete="off" size="40">
+          <label class="f" for="llm-model">模型</label>
+          <input id="llm-model" type="text" size="30">
+          <div id="llm-url-wrap">
+            <label class="f" for="llm-url">網址（例如 http://localhost:11434/v1）</label>
+            <input id="llm-url" type="text" size="40">
+          </div>
+        </div>
+        <hr class="rule">
+        <div class="row">
+          <button id="llm-save" class="primary" type="button">存起來</button>
+          <button id="llm-test" type="button">測一下</button>
+          <span id="llm-msg" class="muted"></span>
+        </div>
+      </div>
+
+      <div id="set-channels" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">💬</span>
+          <div class="txt"><h2>聊天通道</h2>
+            <p class="sub">貼上 bot 的 token，先檢查再存（token 存好之後不會再顯示）。改了要重新啟動 SYNOX 才生效。</p></div></div>
+        <div class="channel">
+          <h3>Telegram</h3>
+          <p id="ch-tg-now" class="muted"></p>
+          <label class="f" for="ch-tg-token">bot token（@BotFather 給的，長得像 123456789:AAH…）</label>
+          <div class="field-row">
+            <input id="ch-tg-token" type="password" autocomplete="off" size="40">
+            <button id="ch-tg-save" type="button">檢查並存起來</button>
+          </div>
+          <p id="ch-tg-msg" class="msgline"></p>
+        </div>
+        <div class="channel">
+          <h3>Discord</h3>
+          <p id="ch-dc-now" class="muted"></p>
+          <div id="ch-dc-form">
+            <label class="f" for="ch-dc-token">bot token（Developer Portal → 你的 App → Bot → Reset Token）</label>
+            <div class="field-row">
+              <input id="ch-dc-token" type="password" autocomplete="off" size="40">
+              <button id="ch-dc-save" type="button">檢查並存起來</button>
+            </div>
+          </div>
+          <p id="ch-dc-msg" class="msgline"></p>
+          <p id="ch-dc-invite-wrap" class="note-line hidden">邀請連結（把 bot 加進你的伺服器）：<a id="ch-dc-invite" target="_blank" rel="noopener noreferrer"></a></p>
+        </div>
+      </div>
+
+      <div id="set-packs" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">🧩</span>
+          <div class="txt"><h2>功能（pack）</h2><p class="sub">裝了哪些功能、能不能用。移除的會搬到 packs/_removed/，不會刪掉。</p></div></div>
+        <div class="tablewrap"><table><thead><tr><th>名字</th><th>狀態</th><th>版本</th><th></th></tr></thead>
+          <tbody id="pack-rows"></tbody></table></div>
+        <label class="f" for="pack-file">裝一個 .synoxpack（pack 資料夾壓成的 zip）</label>
+        <div class="upload">
+          <input id="pack-file" type="file" accept=".synoxpack,.zip">
+          <button id="pack-upload" class="primary" type="button">上傳並檢查</button>
+          <button id="pack-reload" class="ghost" type="button">重新載入全部</button>
+        </div>
+        <div id="pack-review" class="card hidden"></div>
+        <p id="pack-msg" class="msgline"></p>
+      </div>
+
+      <div id="set-accounts" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">👥</span>
+          <div class="txt"><h2>帳號（伺服器版）</h2><p class="sub">誰能用、用了多少；角色改了馬上生效。</p></div></div>
+        <div class="tablewrap"><table><thead><tr><th>id</th><th>名字</th><th>角色</th><th>今天訊息</th><th>本月 AI</th></tr></thead>
+          <tbody id="account-rows"></tbody></table></div>
+        <p id="account-msg" class="msgline"></p>
+      </div>
+
+      <div id="set-backup" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">💾</span>
+          <div class="txt"><h2>備份</h2>
+            <p class="sub">下載整個 data 資料夾（筆記、記帳、提醒、使用者…），用這台電腦的保管箱金鑰加密。只有同一台電腦、同一個 Windows 帳號解得開。</p></div></div>
+        <div class="row">
+          <button id="backup" type="button">下載備份</button>
+          <span id="backup-msg" class="muted"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+</div>
+<div id="toast" class="hidden" role="status"></div>
+
+<script nonce="preview">
+(function () {
+  "use strict";
+  // 預覽專用：把 fetch 換成假的，全部回假資料；不送出任何東西。
+  var q = new URLSearchParams(location.search);
+  if (q.get("theme")) { document.documentElement.setAttribute("data-theme", q.get("theme")); }
+  var D = {"me": {"id": 100001, "username": "小明", "role": "admin", "owner": true, "csrf": "preview"}, "chats": [{"id": "c1", "title": "今天要做的事", "last": "好，兩件都記下來了。"}, {"id": "c2", "title": "記帳", "last": "記了：午餐 120 元"}, {"id": "c3", "title": "週末行程", "last": "（還沒有訊息）"}, {"id": "tools", "title": "🧰 工具頁", "last": "/note_list"}], "events": {"c1": [{"id": 1, "from": "me", "text": "幫我記：買牛奶、繳電費"}, {"id": 2, "from": "bot", "text": "好，兩件都記下來了。\n📝 買牛奶\n📝 繳電費"}, {"id": 3, "from": "me", "text": "把筆記全部刪掉"}, {"id": 4, "from": "note", "text": "AI 想用一個會刪東西的工具，先問你"}, {"id": 5, "from": "bot", "text": "⚠️ 要刪掉全部 2 則筆記嗎？這個沒辦法復原。", "buttons": [[{"text": "✅ 刪掉", "data": "ok"}, {"text": "取消", "data": "no"}]]}], "c2": [{"id": 1, "from": "me", "text": "/money 120 午餐"}, {"id": 2, "from": "bot", "text": "記了：午餐 120 元\n這個月：3,420／預算 12,000"}], "c3": [], "tools": [{"id": 1, "from": "me", "text": "/note_list"}, {"id": 2, "from": "bot", "text": "1. 買牛奶\n2. 繳電費"}]}, "tools": {"packs": [{"name": "notes", "title": "📝 筆記", "version": "0.2.0", "summary": "隨手記下想到的事", "status": "已連接", "commands": [{"command": "/note", "usage": "<內容>", "summary": "記一則筆記", "effect": "write"}, {"command": "/note_list", "usage": "", "summary": "列出全部筆記", "effect": "read"}, {"command": "/note_clear", "usage": "", "summary": "全部刪掉", "effect": "danger"}]}, {"name": "money", "title": "💰 記帳", "version": "0.2.0", "summary": "記一筆、看這個月花了多少", "status": "已連接", "commands": [{"command": "/money", "usage": "<金額> <說明>", "summary": "記一筆支出", "effect": "write"}, {"command": "/money_month", "usage": "", "summary": "這個月的合計與預算", "effect": "read"}]}, {"name": "todoist", "title": "✅ Todoist", "version": "0.2.0", "summary": "把待辦送進 Todoist", "status": "還沒連接", "connect": true, "missing": ["API token"], "commands": [{"command": "/todo", "usage": "<內容>", "summary": "新增一個待辦", "effect": "write"}]}], "groups": [{"title": "⏰ 提醒與排程", "summary": "到時間 SYNOX 會傳訊息給你", "commands": [{"command": "/remind", "usage": "<HH:MM> <內容>", "summary": "每天固定時間提醒", "effect": "write"}, {"command": "/remind_list", "usage": "", "summary": "列出提醒", "effect": "read"}]}, {"title": "🤖 AI", "summary": "", "commands": [{"command": "/ai_usage", "usage": "", "summary": "這個月用了多少", "effect": "read"}]}]}, "secrets": {"fields": [{"name": "token", "label": "API token", "required": true, "secret": true, "set": false, "help": "Todoist 網頁 → 設定 → 整合 → 開發者"}]}, "settings": {"owner": true, "accounts": true, "ai_budget": null, "llm": {"kind": "claude_code", "model": "", "base_url": "", "has_key": false}, "llm_choices": [{"label": "Claude Code（用你自己的 Claude 訂閱）", "choice": "claude_code"}, {"label": "API 金鑰：OpenAI", "choice": "keys", "provider": "openai", "model": "（照預設）"}, {"label": "API 金鑰：本機或相容的服務", "choice": "keys", "provider": "openai_compat", "needs_url": true}, {"label": "先不用 AI", "choice": "none"}], "packs": [{"name": "notes", "status": "loaded", "version": "0.2.0", "lock": "locked", "removable": false}, {"name": "money", "status": "loaded", "version": "0.2.0", "lock": "locked", "removable": false}, {"name": "todoist", "status": "connector", "version": "0.2.0", "lock": "locked", "removable": false}, {"name": "example-tool", "status": "rejected", "detail": "掃描沒過：用了動態執行程式碼", "version": "1.0.0", "lock": "unlocked", "removable": true}]}, "channels": {"telegram": {"saved": true, "bot": "my_synox_bot", "active": true, "owner_paired": true}, "discord": {"saved": false, "multi": false, "invite": ""}}, "accounts": {"roles": ["guest", "member", "admin"], "users": [{"id": 100001, "username": "小明", "role": "admin", "owner": true, "messages_today": 12, "messages_limit": 200, "ai_month_usd": 1.2, "ai_limit_usd": 20}, {"id": 100002, "username": "阿華", "role": "member", "messages_today": 3, "messages_limit": 100, "ai_month_usd": 0.4, "ai_limit_usd": 2}, {"id": 100003, "username": "新朋友", "role": "guest", "pending": true}]}};
+  var loggedOut = q.get("login") === "1";
+  var seq = 100;
+  function reply(body, status) {
+    return Promise.resolve(new Response(JSON.stringify(body), {
+      status: status || 200, headers: { "Content-Type": "application/json" } }));
+  }
+  window.fetch = function (path, opts) {
+    var method = (opts && opts.method) || "GET";
+    var p = String(path).split("?")[0];
+    if (p === "/api/me") { return loggedOut ? reply({ error: "請先登入" }, 401) : reply(D.me); }
+    if (p === "/api/chats" && method === "GET") { return reply({ chats: D.chats }); }
+    if (p === "/api/chats") {
+      var id = "c" + (++seq);
+      D.chats.unshift({ id: id, title: "新對話", last: "" }); D.events[id] = [];
+      return reply({ id: id });
+    }
+    var m = /^\/api\/chat\/([^/]+)\/(events|send|press)$/.exec(p);
+    if (m) {
+      var list = D.events[m[1]] || (D.events[m[1]] = []);
+      if (m[2] === "events") { return reply({ messages: list.slice(), rev: list.length }); }
+      if (m[2] === "send") {
+        var text = JSON.parse(opts.body).text;
+        list.push({ id: ++seq, from: "me", text: text });
+        list.push({ id: ++seq, from: "bot", text: "（預覽：這裡不會真的送出，SYNOX 的回覆會出現在這裡）" });
+        return reply({ ok: true });
+      }
+      list.push({ id: ++seq, from: "note", text: "（預覽：按了按鈕）" });
+      return reply({ ok: true });
+    }
+    if (p === "/api/tools") { return reply(D.tools); }
+    if (p.indexOf("/api/pack-secrets/") === 0) {
+      return method === "GET" ? reply(D.secrets) : reply({ message: "（預覽：沒有真的存）", status: "還沒連接",
+        connected: false, fields: D.secrets.fields });
+    }
+    if (p === "/api/settings") { return reply(D.settings); }
+    if (p === "/api/settings/channels") { return reply(D.channels); }
+    if (p === "/api/accounts") { return reply(D.accounts); }
+    return reply({ message: "（預覽：沒有真的做）", ok: true });
+  };
+  // 上方的預覽列（?bar=0 拿掉）
+  if (q.get("bar") === "0") { return; }
+  document.addEventListener("DOMContentLoaded", function () {
+    var bar = document.createElement("div");
+    bar.className = "preview-bar";
+    var theme = q.get("theme") ? "theme=" + q.get("theme") : "";
+    var items = [["登入畫面", function () { return "?login=1"; }],
+                 ["對話", function () { return "?" + theme + "#chat"; }],
+                 ["工具", function () { return "?" + theme + "#tools"; }],
+                 ["設定", function () { return "?" + theme + "#settings"; }],
+                 ["淺色", function () { return "?theme=light" + location.hash; }],
+                 ["深色", function () { return "?theme=dark" + location.hash; }],
+                 ["跟隨系統", function () { return "?" + location.hash; }]];
+    var label = document.createElement("b"); label.textContent = "設計預覽（假資料）";
+    bar.appendChild(label);
+    items.forEach(function (it) {
+      var a = document.createElement("a"); a.textContent = it[0]; a.href = it[1]();
+      a.addEventListener("mouseenter", function () { a.href = it[1](); });
+      a.addEventListener("focus", function () { a.href = it[1](); });
+      bar.appendChild(a);
+    });
+    document.body.appendChild(bar);
+  });
+})();
+</script>
+<script nonce="preview">
+(function () {
+  "use strict";
+  var me = null;
+  var current = null;          // 對話頁現在這段的 id
+  var rev = 0;                 // 這段已經畫到哪個 rev
+  var nodes = {};              // message id → DOM
+  var pollTimer = null;
+  var toolsRev = 0;
+
+  function $(id) { return document.getElementById(id); }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) { e.className = cls; }
+    if (text !== undefined && text !== null) { e.textContent = String(text); }
+    return e;
+  }
+  function clear(node) { while (node.firstChild) { node.removeChild(node.firstChild); } }
+  function toast(text) {
+    var t = $("toast");
+    t.textContent = text;
+    t.classList.remove("hidden");
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(function () { t.classList.add("hidden"); }, 3500);
+  }
+
+  function api(method, path, body, raw) {
+    var opts = { method: method, credentials: "same-origin", headers: {} };
+    if (method !== "GET") {
+      opts.headers["X-SYNOX-CSRF"] = me ? me.csrf : "";
+      if (raw) {
+        opts.body = raw;
+        opts.headers["Content-Type"] = "application/zip";
+      } else {
+        opts.body = JSON.stringify(body || {});
+        opts.headers["Content-Type"] = "application/json";
+      }
+    }
+    return fetch(path, opts).then(function (r) {
+      if (r.status === 401) { showLogin(); throw new Error("請先登入"); }
+      var type = r.headers.get("Content-Type") || "";
+      if (type.indexOf("application/json") === 0) {
+        return r.json().then(function (d) {
+          if (!r.ok) { var err = new Error(d.error || ("HTTP " + r.status)); err.data = d; throw err; }
+          return d;
+        });
+      }
+      if (!r.ok) { throw new Error("HTTP " + r.status); }
+      return r;
+    });
+  }
+
+  // ── 切換畫面 ──────────────────────────────────────────────────────
+  var VIEWS = ["login", "chat", "tools", "settings"];
+  function show(view) {
+    VIEWS.forEach(function (v) { $("view-" + v).classList.toggle("hidden", v !== view); });
+    document.body.setAttribute("data-view", view);
+    Array.prototype.forEach.call(document.querySelectorAll("#nav a"), function (a) {
+      var on = a.getAttribute("data-view") === view;
+      a.classList.toggle("active", on);
+      if (on) { a.setAttribute("aria-current", "page"); } else { a.removeAttribute("aria-current"); }
+    });
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    if (view === "chat") { loadChats(); pollTimer = setInterval(poll, 2000); }
+    if (view === "tools") { loadTools(); }
+    if (view === "settings") { loadSettings(); openStaged(); }
+  }
+  function route() {
+    if (!me) { show("login"); return; }
+    var v = (location.hash || "#chat").slice(1);
+    show(VIEWS.indexOf(v) > 0 ? v : "chat");
+  }
+  function showLogin() {
+    me = null;
+    $("nav").classList.add("hidden");
+    $("logout").classList.add("hidden");
+    $("side-foot").classList.add("hidden");
+    clear($("who"));
+    show("login");
+  }
+
+  // ── 對話頁 ────────────────────────────────────────────────────────
+  function loadChats(selectId) {
+    return api("GET", "/api/chats").then(function (d) {
+      var list = $("chat-list");
+      clear(list);
+      var chats = d.chats.filter(function (c) { return c.id !== "tools"; });
+      var tools = d.chats.filter(function (c) { return c.id === "tools"; });
+      chats.concat(tools).forEach(function (c) {
+        var li = el("li");
+        li.appendChild(el("div", "t", c.title));
+        li.appendChild(el("div", "l", c.last || "（還沒有訊息）"));
+        li.setAttribute("data-id", c.id);
+        li.addEventListener("click", function () { openChat(c.id); });
+        list.appendChild(li);
+      });
+      var want = selectId || current || (chats[0] && chats[0].id);
+      if (want) { openChat(want, true); }
+      else { newChat(); }
+    }).catch(function (e) { toast(e.message); });
+  }
+  function markActive() {
+    var title = "對話";
+    Array.prototype.forEach.call(document.querySelectorAll("#chat-list li"), function (li) {
+      var on = li.getAttribute("data-id") === current;
+      li.classList.toggle("active", on);
+      if (on) { title = li.querySelector(".t").textContent; }
+    });
+    $("chat-title").textContent = title;
+  }
+  function openChat(id, keep) {
+    if (current === id && keep && Object.keys(nodes).length) { markActive(); return; }
+    current = id; rev = 0; nodes = {};
+    var s = $("stream");
+    clear(s);
+    markActive();
+    poll();
+  }
+  function newChat() {
+    api("POST", "/api/chats", {}).then(function (d) { current = null; loadChats(d.id); })
+      .catch(function (e) { toast(e.message); });
+  }
+  function renderMessage(m, chat, after) {
+    var who = m.from === "me" ? "me" : (m.from === "note" ? "note" : "bot");
+    var box = el("div", "msg " + who);
+    box.appendChild(el("div", "text", m.text));
+    if (m.buttons && m.buttons.length) {
+      var kb = el("div", "kb");
+      m.buttons.forEach(function (row) {
+        var r = el("div", "kbrow");
+        row.forEach(function (b) {
+          if (b.url) {
+            if (!/^https?:\/\//.test(b.url)) { return; }
+            var a = el("a", "", b.text);
+            a.href = b.url; a.target = "_blank"; a.rel = "noopener noreferrer";
+            r.appendChild(a);
+          } else {
+            var btn = el("button", "", b.text);
+            btn.type = "button";
+            btn.addEventListener("click", function () {
+              var p = press(chat || current, m.id, b.data, btn);
+              if (after) { p.then(after); }
+            });
+            r.appendChild(btn);
+          }
+        });
+        kb.appendChild(r);
+      });
+      box.appendChild(kb);
+    }
+    return box;
+  }
+  function poll() {
+    if (!current || !me) { return; }
+    var id = current;
+    api("GET", "/api/chat/" + encodeURIComponent(id) + "/events?since=" + rev).then(function (d) {
+      if (id !== current) { return; }
+      var s = $("stream");
+      var empty = s.querySelector(".empty");
+      d.messages.forEach(function (m) {
+        var node = renderMessage(m);
+        if (nodes[m.id]) { s.replaceChild(node, nodes[m.id]); }
+        else { if (empty) { s.removeChild(empty); empty = null; } s.appendChild(node); s.scrollTop = s.scrollHeight; }
+        nodes[m.id] = node;
+      });
+      if (!Object.keys(nodes).length && !empty) { s.appendChild(el("div", "empty", "還沒有訊息。打字，或打 /help 看指令。")); }
+      rev = Math.max(rev, d.rev);
+    }).catch(function () {});
+  }
+  function send(text) {
+    if (!current) { return Promise.resolve(); }
+    return api("POST", "/api/chat/" + encodeURIComponent(current) + "/send", { text: text })
+      .then(function () { poll(); setTimeout(poll, 700); })
+      .catch(function (e) { toast(e.message); });
+  }
+  function press(chat, messageId, data, btn) {
+    if (btn) { btn.disabled = true; }
+    return api("POST", "/api/chat/" + encodeURIComponent(chat) + "/press", { message_id: messageId, data: data })
+      .then(function () { poll(); setTimeout(poll, 700); })
+      .catch(function (e) { toast(e.message); if (btn) { btn.disabled = false; } });
+  }
+  $("new-chat").addEventListener("click", newChat);
+  $("composer").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var input = $("input");
+    var text = input.value.trim();
+    if (!text) { return; }
+    input.value = "";
+    input.style.height = "";
+    send(text);
+  });
+  $("input").addEventListener("keydown", function (ev) {
+    if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) {
+      ev.preventDefault();
+      $("composer").requestSubmit ? $("composer").requestSubmit() : $("composer").dispatchEvent(new Event("submit"));
+    }
+  });
+  $("input").addEventListener("input", function () {      // 輸入框跟著字長高（最多 160px，CSS 的 max-height）
+    var t = $("input");
+    t.style.height = "";
+    t.style.height = t.scrollHeight + "px";
+  });
+
+  // ── 工具頁 ────────────────────────────────────────────────────────
+  function commandBlock(c) {
+    var box = el("div", "cmd");
+    var head = el("div");
+    head.appendChild(el("code", "", c.command));
+    if (c.usage) { head.appendChild(document.createTextNode(" " + c.usage)); }
+    if (c.effect === "danger") { head.appendChild(el("span", "badge danger", "危險：會先問你")); }
+    box.appendChild(head);
+    box.appendChild(el("div", "muted", c.summary));
+    var form = el("form");
+    var input = el("input");
+    input.type = "text"; input.placeholder = c.usage || "（不用參數，直接按執行）";
+    var btn = el("button", "", "執行"); btn.type = "submit";
+    form.appendChild(input); form.appendChild(btn);
+    var out = el("div", "result hidden");
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      var text = (c.command + " " + input.value).trim();
+      btn.disabled = true;
+      var since = toolsRev;
+      api("POST", "/api/chat/tools/send", { text: text }).then(function (d) {
+        return new Promise(function (ok) { setTimeout(ok, 500); }).then(function () {
+          return api("GET", "/api/chat/tools/events?since=" + since);
+        });
+      }).then(function (d) {
+        toolsRev = d.rev;
+        clear(out);
+        out.classList.remove("hidden");
+        var replies = d.messages.filter(function (m) { return m.from !== "me"; });
+        if (!replies.length) { out.textContent = "（送出了；回覆可能要等一下，到對話頁的「🧰 工具頁」看）"; }
+        replies.forEach(function (m) { out.appendChild(renderToolReply(m)); });
+      }).catch(function (e) { toast(e.message); }).then(function () { btn.disabled = false; });
+    });
+    box.appendChild(form);
+    box.appendChild(out);
+    return box;
+  }
+  // 「連接」：auth.fields 的表單。secret 用 password 輸入、伺服器永遠不回值（只回有填、最後 4 碼）；留空＝沿用原值。
+  function connectBlock(p, badge) {
+    var box = el("div", "connect");
+    var open = el("button", p.missing && p.missing.length ? "primary sm" : "sm",
+                  p.missing && p.missing.length ? "🔌 連接" : "🔌 連接設定");
+    open.type = "button";
+    var form = el("form", "hidden");
+    var msg = el("div", "muted");
+    box.appendChild(open); box.appendChild(form); box.appendChild(msg);
+    function build(view) {
+      clear(form);
+      var inputs = {};
+      view.fields.forEach(function (f) {
+        var lab = el("label");
+        var title = f.label + (f.required ? "" : "（選填）");
+        if (f.set) { title += f.kind === "file" ? "　✅ 已上傳（" + f.size + " 字）" : (f.secret ? "　✅ 有填" + (f.last4 ? "（…" + f.last4 + "）" : "") : ""); }
+        lab.appendChild(el("span", "", title));
+        var input;
+        if (f.kind === "file") {
+          input = el("input"); input.type = "file";
+        } else {
+          input = el("input"); input.type = f.secret ? "password" : "text";
+          input.autocomplete = f.secret ? "new-password" : "off";
+          if (!f.secret && f.value) { input.value = f.value; }
+          if (f.set && f.secret) { input.placeholder = "留空＝沿用原本的"; }
+        }
+        lab.appendChild(input);
+        if (f.help) { lab.appendChild(el("span", "muted", f.help)); }
+        form.appendChild(lab);
+        inputs[f.name] = { field: f, input: input };
+      });
+      var save = el("button", "primary", "存起來"); save.type = "submit";
+      form.appendChild(save);
+      form.onsubmit = function (ev) {
+        ev.preventDefault();
+        var values = {}, reads = [];
+        Object.keys(inputs).forEach(function (name) {
+          var it = inputs[name];
+          if (it.field.kind === "file") {
+            var file = it.input.files && it.input.files[0];
+            if (file) { reads.push(file.text().then(function (t) { values[name] = t; })); }
+          } else { values[name] = it.input.value; }
+        });
+        save.disabled = true;
+        Promise.all(reads).then(function () {
+          return api("POST", "/api/pack-secrets/" + encodeURIComponent(p.name), { values: values });
+        }).then(function (d) {
+          msg.textContent = d.message;
+          badge.textContent = d.status;
+          badge.className = "badge " + (d.connected ? "ok" : "warn");
+          build(d);
+        }).catch(function (e) { msg.textContent = "❌ " + e.message; })
+          .then(function () { save.disabled = false; });
+      };
+    }
+    open.addEventListener("click", function () {
+      if (!form.classList.contains("hidden")) { form.classList.add("hidden"); return; }
+      api("GET", "/api/pack-secrets/" + encodeURIComponent(p.name)).then(function (d) {
+        build(d); form.classList.remove("hidden");
+        msg.textContent = "存在這台電腦的保管箱（密文）；為了安全，Telegram 不收這些。";
+      }).catch(function (e) { msg.textContent = "❌ " + e.message; });
+    });
+    return box;
+  }
+  function renderToolReply(m) {
+    return renderMessage(m, "tools", function () { toast("按了；結果在對話頁的「🧰 工具頁」"); });
+  }
+  function loadTools() {
+    api("GET", "/api/chat/tools/events?since=0").then(function (d) { toolsRev = d.rev; }).catch(function () {});
+    api("GET", "/api/tools").then(function (d) {
+      var packs = $("tool-packs"), groups = $("tool-groups");
+      clear(packs); clear(groups);
+      d.packs.forEach(function (p) {
+        var card = el("div", "card");
+        var h = el("h3", "", p.title + " ");
+        var badge = el("span", "badge " + (p.status === "已連接" ? "ok" : "warn"), p.status);
+        h.appendChild(badge);
+        card.appendChild(h);
+        card.appendChild(el("div", "muted", p.summary + "（" + p.name + " " + p.version + "）"));
+        if (p.connect) { card.appendChild(connectBlock(p, badge)); }
+        else if (p.missing && p.missing.length) {
+          card.appendChild(el("div", "muted", "還沒連接（缺 " + p.missing.join("、") + "）；請擁有者到工具頁按「連接」。"));
+        }
+        if (p.panel) {
+          var frame = el("iframe", "panel");
+          frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
+          frame.setAttribute("title", p.title + " 面板");
+          frame.src = p.panel;
+          card.appendChild(frame);
+        }
+        p.commands.forEach(function (c) { card.appendChild(commandBlock(c)); });
+        packs.appendChild(card);
+      });
+      if (!d.packs.length) { packs.appendChild(el("p", "muted", "你現在沒有可以用的功能；請管理員替你開。")); }
+      d.groups.forEach(function (g) {
+        var card = el("div", "card");
+        card.appendChild(el("h3", "", g.title));
+        if (g.summary) { card.appendChild(el("div", "muted", g.summary)); }
+        g.commands.forEach(function (c) { card.appendChild(commandBlock(c)); });
+        groups.appendChild(card);
+      });
+    }).catch(function (e) { toast(e.message); });
+  }
+
+  // ── 設定頁 ────────────────────────────────────────────────────────
+  var llmChoices = [];
+  function selectedChoice() { return llmChoices[Number($("llm-choice").value)] || {}; }
+  function syncLlmFields() {
+    var c = selectedChoice();
+    $("llm-key-fields").classList.toggle("hidden", c.choice !== "keys");
+    $("llm-url-wrap").classList.toggle("hidden", !c.needs_url);
+    if (c.model && !$("llm-model").value) { $("llm-model").value = c.model; }
+  }
+  function llmBody() {
+    var c = selectedChoice();
+    return { choice: c.choice, provider: c.provider || "", api_key: $("llm-key").value,
+             model: $("llm-model").value, base_url: $("llm-url").value };
+  }
+  function loadSettings() {
+    api("GET", "/api/settings").then(function (d) {
+      $("set-notowner").classList.toggle("hidden", d.owner);
+      ["set-llm", "set-channels", "set-packs", "set-backup"].forEach(function (id) { $(id).classList.toggle("hidden", !d.owner); });
+      $("set-accounts").classList.toggle("hidden", !d.accounts);
+      $("my-budget").textContent = d.ai_budget ?
+        "這個月的 AI 額度：用了約 US$" + d.ai_budget.used.toFixed(2) + "／US$" + Number(d.ai_budget.limit).toFixed(2) : "";
+      $("my-budget").classList.toggle("hidden", !d.ai_budget);
+      if (d.owner) { fillLlm(d); fillPacks(d.packs || []); loadChannels(); }
+      if (d.accounts) { loadAccounts(); }
+    }).catch(function (e) { toast(e.message); });
+  }
+  function fillLlm(d) {
+    llmChoices = d.llm_choices || [];
+    var sel = $("llm-choice");
+    clear(sel);
+    var pick = 0;
+    llmChoices.forEach(function (c, i) {
+      var o = el("option", "", c.label);
+      o.value = String(i);
+      sel.appendChild(o);
+      var kind = c.choice === "keys" ? c.provider : c.choice;
+      if (kind === d.llm.kind) { pick = i; }
+    });
+    sel.value = String(pick);
+    $("llm-model").value = d.llm.model || "";
+    $("llm-url").value = d.llm.base_url || "";
+    $("llm-key").value = "";
+    $("llm-now").textContent = "現在：" + d.llm.kind + (d.llm.model ? "（" + d.llm.model + "）" : "") +
+      (d.llm.has_key ? "，有金鑰" : "");
+    syncLlmFields();
+  }
+  $("llm-choice").addEventListener("change", function () { $("llm-model").value = ""; syncLlmFields(); });
+  $("llm-test").addEventListener("click", function () {
+    $("llm-msg").textContent = "測試中…";
+    api("POST", "/api/settings/llm/test", llmBody()).then(function (d) { $("llm-msg").textContent = d.message; })
+      .catch(function (e) { $("llm-msg").textContent = "❌ " + e.message; });
+  });
+  $("llm-save").addEventListener("click", function () {
+    api("POST", "/api/settings/llm", llmBody()).then(function (d) { $("llm-msg").textContent = d.message; loadSettings(); })
+      .catch(function (e) { $("llm-msg").textContent = "❌ " + e.message; });
+  });
+
+  // ── 聊天通道 ─────────────────────────────────────────────────────
+  var RESTART = "（重新啟動 SYNOX 後生效：雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑）";
+  function showInvite(url) {
+    $("ch-dc-invite-wrap").classList.toggle("hidden", !url);
+    $("ch-dc-invite").textContent = url || "";
+    if (url && url.indexOf("https://discord.com/") === 0) { $("ch-dc-invite").href = url; }
+    else { $("ch-dc-invite").removeAttribute("href"); }
+  }
+  function channelLine(c, name) {
+    var s;
+    if (!c.saved) { s = "還沒設定。"; }
+    else if (c.bot) { s = "✅ token 已存：bot " + name(c.bot) + "。"; }
+    else { s = "⚠️ token 已存，但檢查沒過：" + (c.problem || "原因不明") + "。"; }
+    if (c.saved && c.active && !c.restart) { s += "執行中。"; }
+    if (c.restart) { s += RESTART; }
+    return s;
+  }
+  function loadChannels() {
+    $("ch-tg-now").textContent = "檢查中…";
+    $("ch-dc-now").textContent = "檢查中…";
+    api("GET", "/api/settings/channels").then(function (d) {
+      var t = d.telegram, c = d.discord;
+      $("ch-tg-now").textContent = channelLine(t, function (n) { return "@" + n; }) +
+        (t.saved && !t.owner_paired ? "還沒配對擁有者：雙擊 Setup.bat 重跑安裝精靈配對（token 會自動帶入）。" : "");
+      $("ch-dc-form").classList.toggle("hidden", c.multi);
+      if (c.multi) {
+        $("ch-dc-now").textContent = "config.json 用的是 bots 寫法（多個 bot）：網頁不動它，請直接改 config.json。";
+      } else {
+        $("ch-dc-now").textContent = channelLine(c, function (n) { return n; }) +
+          (c.saved && !c.owner_paired ? "還沒配對擁有者：在 SYNOX 資料夾跑 python -m synox discord pair（或重跑 Setup.bat）。" : "");
+      }
+      showInvite(c.invite);
+    }).catch(function (e) { $("ch-tg-now").textContent = ""; $("ch-dc-now").textContent = "❌ " + e.message; });
+  }
+  function saveChannel(kind) {
+    var input = $("ch-" + kind + "-token"), msg = $("ch-" + kind + "-msg"), btn = $("ch-" + kind + "-save");
+    msg.textContent = "檢查中…";
+    btn.disabled = true;
+    api("POST", "/api/settings/channels/" + (kind === "tg" ? "telegram" : "discord"), { token: input.value })
+      .then(function (d) {
+        input.value = "";
+        msg.textContent = d.message;
+        loadChannels();
+      })
+      .catch(function (e) { msg.textContent = "❌ " + e.message; })
+      .then(function () { btn.disabled = false; });
+  }
+  $("ch-tg-save").addEventListener("click", function () { saveChannel("tg"); });
+  $("ch-dc-save").addEventListener("click", function () { saveChannel("dc"); });
+
+  var STATUS = { loaded: "可以用", connector: "還沒接上", disabled: "關掉了", invalid: "格式不對", missing: "缺東西", incompatible: "SYNOX 版本不合", error: "壞了",
+    tampered: "被改過了，沒有載入", rejected: "掃描沒過，沒有載入" };
+  // 狀態的顏色（顏色之外一定有字）：可以用＝綠、還沒接上／關掉＝黃、其他＝紅
+  var TONE = { loaded: "ok", connector: "warn", disabled: "", missing: "warn", incompatible: "warn" };
+  var LOCK = { locked: "🔒", unlocked: "", tampered: "⚠️" };
+  function fillPacks(packs) {
+    var body = $("pack-rows");
+    clear(body);
+    packs.forEach(function (p) {
+      var tr = el("tr");
+      tr.appendChild(el("td", "name", (LOCK[p.lock] ? LOCK[p.lock] + " " : "") + p.name));
+      var st = el("td");
+      var tone = TONE.hasOwnProperty(p.status) ? TONE[p.status] : "bad";
+      st.appendChild(el("span", "badge " + tone, STATUS[p.status] || p.status));
+      if (p.detail) { st.appendChild(el("span", "detail", p.detail)); }
+      tr.appendChild(st);
+      tr.appendChild(el("td", "muted", p.version || ""));
+      var td = el("td");
+      if (p.removable) {
+        var b = el("button", "danger sm", "移除");
+        b.type = "button";
+        b.addEventListener("click", function () {
+          if (!confirm("移除 " + p.name + "？（會搬到 packs/_removed/，不會刪掉）")) { return; }
+          api("POST", "/api/packs/remove", { name: p.name }).then(function (d) {
+            $("pack-msg").textContent = "搬到 " + d.moved_to; loadSettings();
+          }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });
+        });
+        td.appendChild(b);
+      }
+      tr.appendChild(td);
+      body.appendChild(tr);
+    });
+  }
+  var CAP = { network: "連網", subprocess: "開別的程式", "filesystem:own": "讀寫檔案",
+    "filesystem:any": "讀寫 pack 以外的檔案", exec: "動態執行程式碼" };
+  function capList(list) {
+    return (list && list.length) ? list.map(function (c) { return CAP[c] || c; }).join("、") : "（沒有）";
+  }
+  // 安全管線第 1、2 關的結果（掃描報告）；canInstall＝過了，可以按確認（第 3 關在伺服器寫 packs.lock）
+  function showReview(s, canInstall) {
+    var box = $("pack-review");
+    clear(box);
+    box.classList.remove("hidden");
+    box.appendChild(el("h3", "", s.title + "（" + s.name + " " + s.version + "）"));
+    box.appendChild(el("p", "", s.summary));
+    box.appendChild(el("p", "muted", "種類 " + s.kind + "，誰能用 " + s.access + "，資料 " + s.storage +
+      (s.panel ? "，有網頁面板" : "") + "；" + (s.files || []).length + " 個檔案" +
+      (s.publisher ? "；發行者 " + s.publisher : "") + (s.integrity ? "；有打包時的雜湊" : "")));
+    var scan = s.scan || {};
+    box.appendChild(el("p", "", "宣告要：" + capList(scan.declared_capabilities) + "　掃描看到要：" +
+      capList(scan.required_capabilities)));
+    if ((scan.problems || []).length) {
+      box.appendChild(el("p", "alert", "❌ 拒裝：安全檢查沒過"));
+      var bad = el("ul");
+      scan.problems.forEach(function (p) { bad.appendChild(el("li", "", p)); });
+      box.appendChild(bad);
+    } else {
+      box.appendChild(el("p", "", "✅ 宣告檢查、靜態掃描都過了"));
+    }
+    var notes = (scan.findings || []).filter(function (f) { return !f.capability || f.kind === "env"; });
+    if (notes.length) {
+      var nl = el("ul");
+      notes.forEach(function (f) { nl.appendChild(el("li", "muted", f.file + (f.line ? ":" + f.line : "") + " " + f.label + "：" + f.snippet)); });
+      box.appendChild(nl);
+    }
+    var env = s.upgrade ? {} : (s.env || {});   // 升級：看升級報告那一段（跟舊版比過要不要建）
+    if (env.needed) {
+      // runtime.python／node = auto：按確認之後才建（packs/envs.py）
+      box.appendChild(el("p", "", "🧱 要建環境（按確認之後才建，要網路，最多 10 分鐘）："));
+      var el2 = el("ul");
+      (env.lines || []).forEach(function (t) { el2.appendChild(el("li", "", t)); });
+      (env.problems || []).forEach(function (t) { el2.appendChild(el("li", "", "⚠️ " + t)); });
+      box.appendChild(el2);
+      box.appendChild(el("p", "muted", "建失敗的話 pack 照樣裝好，狀態會標「環境沒建好」，修好後可以重建。"));
+    }
+    var ul = el("ul");
+    (s.warnings || []).forEach(function (w) { ul.appendChild(el("li", "", w)); });
+    if ((s.warnings || []).length) { box.appendChild(ul); }
+    var upg = s.upgrade, down = null;
+    if (upg) { down = showUpgrade(box, upg, s.name); }
+    var trust = canInstall && s.token ? showScope(box, s, upg) : null;
+    var runtime = canInstall && s.token ? showRuntime(box, s, upg) : null;
+    var pub = showTier(box, s, upg, canInstall && s.token);
+    var row = el("div", "row");
+    if (canInstall && s.token) {
+      var ok = el("button", "primary", upg ? "確認升級" : "確認安裝");
+      ok.type = "button";
+      var refresh = function () {
+        var versionOk = !(upg && !upg.version_ok) || !!(down && down.checked);
+        ok.disabled = !versionOk || (pub && !pub.ready());
+      };
+      if (down) { down.addEventListener("change", refresh); }
+      if (pub) { pub.onchange(refresh); }
+      refresh();
+      ok.addEventListener("click", function () {
+        var body = { token: s.token };
+        if (upg) { body.upgrade = true; body.allow_downgrade = !!(down && down.checked); }
+        if (trust) { body.trust = trust.value; }
+        if (runtime) { body.runtime = runtime.value; }
+        if (pub) { body.trust_publisher = pub.value(); }
+        api("POST", "/api/packs/install", body).then(function (d) {
+          $("pack-msg").textContent = (d.upgraded ? "升級好了：" + d.name + " " + d.from + " → " + d.to + "（舊的在 " + d.backup + "）"
+            : "裝好了：" + d.name) + "（" + (STATUS[d.status] || d.status) + (d.detail ? "：" + d.detail : "") + "）" +
+            (d.env === "building" ? "。環境在背景建，好了會在 Telegram 通知你。" :
+              (d.env && d.env.indexOf("failed") === 0 ? "。環境沒建好：" + d.env.slice(8) : ""));
+          box.classList.add("hidden");
+          loadSettings();
+        }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });
+      });
+      row.appendChild(ok);
+    }
+    var no = el("button", "", canInstall ? "不要裝" : "關掉");
+    no.type = "button";
+    no.addEventListener("click", function () { box.classList.add("hidden"); });
+    row.appendChild(no);
+    box.appendChild(row);
+  }
+  // 同名已經裝了＝升級：「改了什麼」（alert 的用紅字）、版本檢查；版本不對時回「降級」勾選框（沒勾不能按）
+  function showUpgrade(box, upg, name) {
+    box.appendChild(el("h3", "", "🔁 這是升級：改了什麼（" + upg.installed_version + " → " + upg.new_version + "）"));
+    box.appendChild(el("p", upg.version_ok ? "" : "alert", (upg.version_ok ? "✅ " : "⛔ ") + upg.version_message));
+    if (upg.installed_lock === "tampered") { box.appendChild(el("p", "alert", "⚠️ 裝著的那一份已經被改過（跟 packs.lock 不符）")); }
+    var cl = el("ul");
+    (upg.changes || []).forEach(function (c) { cl.appendChild(el("li", c.alert ? "alert" : "", (c.alert ? "🔴 " : "") + c.text)); });
+    if (!(upg.changes || []).length) { cl.appendChild(el("li", "muted", "宣告沒有變")); }
+    box.appendChild(cl);
+    if ((upg.files || []).length) { box.appendChild(el("p", "muted", "檔案：" + upg.files.join("、"))); }
+    var env = upg.env || {};
+    if (env.keep) {
+      box.appendChild(el("p", "muted", "🧱 環境：套件清單跟舊版一樣，沿用 data/envs/" + name + "/（不重建）"));
+    } else if (env.needed) {
+      box.appendChild(el("p", "", "🧱 " + (env.rebuild ? "要重建環境" : "要建環境") + "（按確認升級之後才建，要網路，最多 10 分鐘）：" +
+        (env.reason || "")));
+      var envList = el("ul");
+      (env.lines || []).forEach(function (t) { envList.appendChild(el("li", "", t)); });
+      (env.problems || []).forEach(function (t) { envList.appendChild(el("li", "", "⚠️ " + t)); });
+      box.appendChild(envList);
+      box.appendChild(el("p", "muted", "建失敗的話 pack 照樣升級好（不會退回），狀態會標「環境沒建好」，修好後可以重建。"));
+    }
+    box.appendChild(el("p", "muted", "資料（data/、使用者資料夾）不會動；資料格式要不要轉換由 pack 自己負責。舊版會搬到 packs/_removed/，" +
+      "要退回：python -m synox packs rollback " + name));
+    if (upg.version_ok || !upg.can_force) { return null; }
+    var lab = el("label", "alert");
+    var cb = el("input");
+    cb.type = "checkbox";
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(" 我知道，照樣換成這一版（降級／重裝）"));
+    box.appendChild(lab);
+    return cb;
+  }
+  // PERM-2：在哪裡用、資料屬於誰（pack.json），信任（擁有者選，寫進 packs.lock）；升級時跟裝著那一份不同就紅字
+  function showScope(box, s, upg) {
+    if (!s.trust_choices) { return null; }
+    var mcp = s.mcp || {};
+    if (mcp.tools) {   // P4b：kind=mcp 逐一列允許的工具與 effect（遠端 MCP 是 T0：只有宣告可信）
+      box.appendChild(el("p", "", "🔌 MCP：" + (mcp.transport || "") + (mcp.host ? "，連到 " + mcp.host : "") +
+        (mcp.trust_level ? "，信任 " + mcp.trust_level : "") + "；只允許下面這 " + mcp.tools.length + " 個工具（請逐一確認）："));
+      var tl = el("ul");
+      mcp.tools.forEach(function (t) { tl.appendChild(el("li", "", t.name + "：" + t.effect + "（" + t.effect_text + "）")); });
+      box.appendChild(tl);
+    }
+    box.appendChild(el("p", "", "🧭 在哪裡用：" + (s.surfaces_text || "") + "　資料：" + (s.data_text || s.data || "") +
+      (s.data_declared ? "" : "（沒寫，照預設推的）")));
+    var lab = el("label", "", "🔑 信任：");
+    var sel = el("select");
+    var current = upg ? (upg.installed_trust || "") : "";
+    s.trust_choices.forEach(function (c) {
+      var o = el("option", "", c.text);
+      o.value = c.value;
+      sel.appendChild(o);
+    });
+    sel.value = current || s.trust_default;
+    lab.appendChild(sel);
+    box.appendChild(lab);
+    var note = el("p", "alert", "");
+    box.appendChild(note);
+    function check() {
+      note.textContent = (upg && sel.value !== (current || "")) ?
+        "🔴 信任 " + (current || "（未鎖定）") + " → " + sel.value : "";
+      note.classList.toggle("hidden", !note.textContent);
+    }
+    sel.addEventListener("change", check);
+    check();
+    return sel;
+  }
+  // S2：執行環境（用容器／不用）。引擎只看 PATH（伺服器沒有執行 podman／docker）；pack 沒提供容器就只有「不用」
+  function showRuntime(box, s, upg) {
+    var rt = s.runtime || {};
+    if (!rt.applies) { return null; }
+    var engines = Object.keys(rt.engines || {}).map(function (k) { return k + (rt.engines[k] ? " ✅" : " —"); }).join("、");
+    box.appendChild(el("p", "", "🧱 執行環境：這台的容器引擎 " + engines + "（只看 PATH，沒有執行）"));
+    var c = rt.container || {};
+    if (!rt.offered) {
+      box.appendChild(el("p", "muted", "這個 pack 沒有提供容器：只能直接在這台跑（伺服器版的第三方／T2 pack 要 bwrap／systemd 才給成員）"));
+      return null;
+    }
+    box.appendChild(el("p", "muted", "提供的容器：" + (c.run_image || "") + "，network: " + (c.network ? "true" : "false") +
+      "。映像的內容 SYNOX 不看；執行時不會自己拉映像，要事先照 digest 拉好。"));
+    var lab = el("label", "", "要怎麼跑：");
+    var sel = el("select");
+    (rt.choices || []).forEach(function (ch) {
+      var o = el("option", "", ch.text);
+      o.value = ch.value;
+      sel.appendChild(o);
+    });
+    var current = upg ? (upg.installed_runtime || "") : "";
+    sel.value = current || rt.default || "host";
+    lab.appendChild(sel);
+    box.appendChild(lab);
+    var note = el("p", "alert", "");
+    box.appendChild(note);
+    function check() {
+      var noEngine = !Object.keys(rt.engines || {}).some(function (k) { return rt.engines[k]; });
+      note.textContent = (sel.value === "container" && noEngine) ?
+        "⚠️ 這台找不到 podman／docker：選了容器也會先退回直接跑，裝好引擎後自動改用容器" :
+        ((current === "container" && sel.value !== "container") ? "🔴 執行環境 容器 → 直接在這台跑" : "");
+      note.classList.toggle("hidden", !note.textContent);
+    }
+    sel.addEventListener("change", check);
+    check();
+    return sel;
+  }
+  // SDK P7：信任層級。T2（有掃不到內容的執行檔、外部程式、runtime auto 的套件）：紅字＋勾選＋輸入 publisher
+  //（一字不差才能按確認）；升級時只有發行者變了／新增 exec／可執行的東西變多才要重新確認
+  function showTier(box, s, upg, canInstall) {
+    var t = upg ? (upg.tier || {}) : (s.tier || {});
+    if (!t.tier) { return null; }
+    if (t.tier !== "T2") { box.appendChild(el("p", "muted", "🧩 信任層級：" + (t.text || t.tier))); return null; }
+    if (upg && !t.needs_publisher) {
+      box.appendChild(el("p", "muted", "🧩 T2：沿用之前確認過的發行者「" + (t.trusted_publisher || "") + "」"));
+      return null;
+    }
+    box.appendChild(el("p", "alert", "🔴 信任層級：" + (t.text || "T2") + "——T2 不是沙盒保證，只是讓你知道你在信任誰"));
+    if (upg && (t.reconfirm || []).length) {
+      box.appendChild(el("p", "alert", "🔴 要重新確認發行者：" + t.reconfirm.join("；")));
+    }
+    var ul = el("ul");
+    var lines = (s.tier && s.tier.warning_lines) || t.warning_lines || [];
+    lines.forEach(function (w) { ul.appendChild(el("li", "alert", "🔴 " + w)); });
+    (t.opaque || []).forEach(function (o) {
+      ul.appendChild(el("li", "muted", o.path + "　" + o.size + " bytes　sha256 " + o.sha256 + "　" + o.why));
+    });
+    box.appendChild(ul);
+    if (!canInstall || !t.publisher) { return null; }
+    var lab = el("label", "alert");
+    var cb = el("input");
+    cb.type = "checkbox";
+    lab.appendChild(cb);
+    lab.appendChild(document.createTextNode(" 我知道這個 pack 會執行掃不到內容的東西，我信任發行者："));
+    var input = el("input");
+    input.type = "text";
+    input.placeholder = "輸入 " + t.publisher;
+    input.setAttribute("autocomplete", "off");
+    lab.appendChild(input);
+    box.appendChild(lab);
+    return {
+      ready: function () { return cb.checked && input.value.trim() === t.publisher.trim(); },
+      value: function () { return cb.checked ? input.value.trim() : ""; },
+      onchange: function (fn) { cb.addEventListener("change", fn); input.addEventListener("input", fn); }
+    };
+  }
+  function reviewFailed(e) {
+    if (e.data && e.data.refused && e.data.refused.name) { showReview(e.data.refused, false); }
+    $("pack-msg").textContent = "❌ " + e.message;
+  }
+  $("pack-upload").addEventListener("click", function () {
+    var f = $("pack-file").files[0];
+    if (!f) { toast("先選一個 .synoxpack 檔"); return; }
+    f.arrayBuffer().then(function (buf) { return api("POST", "/api/packs/upload", null, buf); })
+      .then(function (s) { showReview(s, true); }).catch(reviewFailed);
+  });
+  // python -m synox install <檔>（或點兩下 .synoxpack）暫存好之後開的網址：/?pack=<token>#settings
+  var stagedToken = (/[?&]pack=([A-Za-z0-9_-]{8,64})/.exec(location.search) || [])[1];
+  function openStaged() {
+    if (!stagedToken || !me || !me.owner) { return; }
+    var t = stagedToken;
+    stagedToken = "";
+    api("GET", "/api/pack-staged/" + t).then(function (s) { showReview(s, true); }).catch(reviewFailed);
+  }
+  $("pack-reload").addEventListener("click", function () {
+    api("POST", "/api/packs/reload", {}).then(function (d) {
+      $("pack-msg").textContent = d.ok ? "重新載入好了。" : "重新載入了，但有 pack 有問題（看上面的狀態）。";
+      loadSettings();
+    }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });
+  });
+
+  function loadAccounts() {
+    api("GET", "/api/accounts").then(function (d) {
+      var body = $("account-rows");
+      clear(body);
+      d.users.forEach(function (u) {
+        var tr = el("tr");
+        tr.appendChild(el("td", "muted", u.id));
+        var name = el("td", "name", u.username || "");
+        if (u.owner) { name.appendChild(el("span", "badge ok", "擁有者")); }
+        if (u.pending) { name.appendChild(el("span", "badge warn", "申請中")); }
+        tr.appendChild(name);
+        var td = el("td");
+        if (u.owner) { td.textContent = u.role; }
+        else {
+          var sel = el("select");
+          d.roles.forEach(function (r) { var o = el("option", "", r); o.value = r; sel.appendChild(o); });
+          sel.value = u.role;
+          sel.addEventListener("change", function () {
+            api("POST", "/api/accounts/role", { id: u.id, role: sel.value }).then(function (r) {
+              $("account-msg").textContent = r.message; loadAccounts();
+            }).catch(function (e) { $("account-msg").textContent = "❌ " + e.message; loadAccounts(); });
+          });
+          td.appendChild(sel);
+        }
+        tr.appendChild(td);
+        tr.appendChild(el("td", "", u.messages_limit !== undefined ? (u.messages_today + "／" + u.messages_limit) : "—"));
+        tr.appendChild(el("td", "", u.ai_limit_usd !== undefined ?
+          ("US$" + Number(u.ai_month_usd).toFixed(2) + "／" + Number(u.ai_limit_usd).toFixed(2)) : "—"));
+        body.appendChild(tr);
+      });
+    }).catch(function (e) { $("account-msg").textContent = "❌ " + e.message; });
+  }
+
+  $("backup").addEventListener("click", function () {
+    $("backup-msg").textContent = "打包中…";
+    api("POST", "/api/backup", {}).then(function (r) {
+      var cd = r.headers.get("Content-Disposition") || "";
+      var m = /filename="([^"]+)"/.exec(cd);
+      return r.blob().then(function (blob) {
+        var a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = m ? m[1] : "synox-backup.zip";
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 5000);
+        $("backup-msg").textContent = "下載了 " + a.download;
+      });
+    }).catch(function (e) { $("backup-msg").textContent = "❌ " + e.message; });
+  });
+
+  $("logout").addEventListener("click", function () {
+    api("POST", "/api/logout", {}).then(showLogin, showLogin);
+  });
+  window.addEventListener("hashchange", route);
+
+  // 左下角的「目前登入」：名字一行、角色一行（文字一律 textContent）
+  function showWho(d) {
+    var who = $("who");
+    clear(who);
+    who.appendChild(el("span", "n", d.username ? d.username : "id " + d.id));
+    who.appendChild(el("span", "r", (d.username ? "id " + d.id + "・" : "") + d.role + (d.owner ? "・擁有者" : "")));
+    $("avatar").textContent = (d.username || "#").charAt(0).toUpperCase();
+    $("side-foot").classList.remove("hidden");
+  }
+
+  api("GET", "/api/me").then(function (d) {
+    me = d;
+    $("nav").classList.remove("hidden");
+    $("logout").classList.remove("hidden");
+    showWho(d);
+    route();
+  }).catch(function () { showLogin(); });
+})();
+</script>
+</body>
+</html>
