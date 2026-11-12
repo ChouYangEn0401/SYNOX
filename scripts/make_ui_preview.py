@@ -245,7 +245,24 @@ MOCK = r"""
     var p = String(path).split("?")[0];
     if (p.indexOf("/api/runtime/") === 0) { return runtime(p, method, opts); }
     if (p === "/api/me") { return loggedOut ? reply({ error: "請先登入" }, 401) : reply(D.me); }
-    if (p === "/api/chats" && method === "GET") { return reply({ chats: D.chats }); }
+    // 封存：假的，只在這個頁面的記憶體裡動（預覽不存任何東西）
+    D.archived = D.archived || [{ id: "c90", title: "上週的旅遊規劃", last: "好，行程排好了。", count: 12, archived: Date.now() / 1000 - 86400 * 3 },
+                                { id: "c91", title: "寫給房東的信", last: "已經幫你改好語氣。", count: 6, archived: Date.now() / 1000 - 86400 * 9 }];
+    if (p === "/api/chats" && method === "GET") { return reply({ chats: D.chats, archived_count: D.archived.length }); }
+    if (p === "/api/chats/archived") { return reply({ chats: D.archived }); }
+    var ar = /^\/api\/chat\/([^/]+)\/(archive|restore|delete)$/.exec(p);
+    if (ar) {
+      if (ar[2] === "archive") {
+        var gone = D.chats.filter(function (c) { return c.id === ar[1]; })[0];
+        D.chats = D.chats.filter(function (c) { return c.id !== ar[1]; });
+        if (gone) { D.archived.unshift({ id: gone.id, title: gone.title, last: gone.last, count: 1, archived: Date.now() / 1000 }); }
+      } else {
+        var back = D.archived.filter(function (c) { return c.id === ar[1]; })[0];
+        D.archived = D.archived.filter(function (c) { return c.id !== ar[1]; });
+        if (back && ar[2] === "restore") { D.chats.push({ id: back.id, title: back.title, last: back.last }); }
+      }
+      return reply({ ok: true, archived_count: D.archived.length });
+    }
     if (p === "/api/chats") {
       var id = "c" + (++seq);
       D.chats.unshift({ id: id, title: "新對話", last: "" }); D.events[id] = [];

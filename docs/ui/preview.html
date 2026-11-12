@@ -170,6 +170,22 @@
   #usage-table td, #usage-table th { text-align: right; }
   #usage-table td:first-child, #usage-table th:first-child { text-align: left; }
   #chat-list li.pinned { border-color: var(--accent); }
+  #chat-list li { position: relative; }
+  #chat-list li .x { position: absolute; top: 6px; right: 6px; min-height: 0; padding: 2px 7px; font-size: 12px;
+                     border-radius: 8px; opacity: 0; background: var(--surface); }
+  #chat-list li:hover .x, #chat-list li:focus-within .x, #chat-list li.active .x { opacity: 1; }
+  @media (hover: none) { #chat-list li .x { opacity: 1; } }
+  .archive-link { display: block; margin: 6px 6px 0; padding: 6px 8px; font-size: 13px; color: var(--muted);
+                  text-decoration: none; border-radius: var(--r); }
+  .archive-link:hover { background: var(--sunken); color: var(--text); }
+  .archive-list { display: flex; flex-direction: column; gap: 10px; }
+  .archive-item { display: flex; gap: 12px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+                  padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+  .archive-item .txt { min-width: 0; flex: 1 1 220px; }
+  .archive-item .t { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .archive-item .l { font-size: 13px; color: var(--muted); }
+  .archive-item .btns { display: flex; gap: 8px; }
+  button.danger { color: var(--bad); border-color: var(--bad); }
   .scope-note { margin: 0 0 14px; }
   .pair { margin-top: 14px; padding: 12px 14px; border-radius: var(--r); background: var(--sunken); }
   .pair h4 { margin: 0 0 4px; font-size: 14px; }
@@ -893,7 +909,24 @@
     var p = String(path).split("?")[0];
     if (p.indexOf("/api/runtime/") === 0) { return runtime(p, method, opts); }
     if (p === "/api/me") { return loggedOut ? reply({ error: "請先登入" }, 401) : reply(D.me); }
-    if (p === "/api/chats" && method === "GET") { return reply({ chats: D.chats }); }
+    // 封存：假的，只在這個頁面的記憶體裡動（預覽不存任何東西）
+    D.archived = D.archived || [{ id: "c90", title: "上週的旅遊規劃", last: "好，行程排好了。", count: 12, archived: Date.now() / 1000 - 86400 * 3 },
+                                { id: "c91", title: "寫給房東的信", last: "已經幫你改好語氣。", count: 6, archived: Date.now() / 1000 - 86400 * 9 }];
+    if (p === "/api/chats" && method === "GET") { return reply({ chats: D.chats, archived_count: D.archived.length }); }
+    if (p === "/api/chats/archived") { return reply({ chats: D.archived }); }
+    var ar = /^\/api\/chat\/([^/]+)\/(archive|restore|delete)$/.exec(p);
+    if (ar) {
+      if (ar[2] === "archive") {
+        var gone = D.chats.filter(function (c) { return c.id === ar[1]; })[0];
+        D.chats = D.chats.filter(function (c) { return c.id !== ar[1]; });
+        if (gone) { D.archived.unshift({ id: gone.id, title: gone.title, last: gone.last, count: 1, archived: Date.now() / 1000 }); }
+      } else {
+        var back = D.archived.filter(function (c) { return c.id === ar[1]; })[0];
+        D.archived = D.archived.filter(function (c) { return c.id !== ar[1]; });
+        if (back && ar[2] === "restore") { D.chats.push({ id: back.id, title: back.title, last: back.last }); }
+      }
+      return reply({ ok: true, archived_count: D.archived.length });
+    }
     if (p === "/api/chats") {
       var id = "c" + (++seq);
       D.chats.unshift({ id: id, title: "新對話", last: "" }); D.events[id] = [];
@@ -1170,6 +1203,7 @@
     <div class="section-label">對話紀錄</div>
     <button id="new-chat" class="primary block" type="button">＋ 新對話</button>
     <ul id="chat-list"></ul>
+    <a id="open-archive" class="archive-link" href="#archive">🗄 已封存的對話<span id="archive-n"></span></a>
   </div>
   <div id="side-foot" class="side-foot hidden">
     <span class="avatar" id="avatar" aria-hidden="true"></span>
@@ -1212,6 +1246,18 @@
         <p class="sub">你看得到、用得到的全部功能，照群組分好。填好參數按「執行」就跑（結果也會留在對話頁的「🧰 工具頁」）；群組可以按「編輯」自己排。</p>
       </header>
       <div id="tools-root"></div>
+    </div>
+  </section>
+
+  <section id="view-archive" class="hidden">
+    <div class="page">
+      <header class="page-head">
+        <h1>已封存的對話</h1>
+        <p class="sub">封存的對話不在側欄、也不會被自動清掉。在這裡可以<b>還原</b>，或<b>徹底刪除</b>（刪掉就回不來了；AI 對那段的記憶也一起忘掉）。</p>
+        <p><a href="#chat">← 回到對話</a></p>
+      </header>
+      <div id="archive-list" class="archive-list"></div>
+      <p id="archive-empty" class="muted hidden">沒有封存的對話。在對話的側欄，把滑鼠移到一段對話上按「封存」就會放到這裡。</p>
     </div>
   </section>
 
@@ -2718,19 +2764,20 @@
   }
 
   // ── 切換畫面 ──────────────────────────────────────────────────────
-  var VIEWS = ["login", "chat", "tools", "settings", "control"];
+  var VIEWS = ["login", "chat", "tools", "settings", "control", "archive"];
   var control = window.SynoxControl;        // 主控頁（control.js，只有擁有者）
   function show(view) {
     VIEWS.forEach(function (v) { $("view-" + v).classList.toggle("hidden", v !== view); });
     document.body.setAttribute("data-view", view);
     Array.prototype.forEach.call(document.querySelectorAll("#nav a"), function (a) {
-      var on = a.getAttribute("data-view") === view;
+      var on = a.getAttribute("data-view") === (view === "archive" ? "chat" : view);
       a.classList.toggle("active", on);
       if (on) { a.setAttribute("aria-current", "page"); } else { a.removeAttribute("aria-current"); }
     });
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     if (view === "chat") { loadChats(); pollTimer = setInterval(poll, 2000); }
     if (view === "tools") { loadTools(); }
+    if (view === "archive") { loadArchive(); }
     if (view === "settings") { loadSettings(); openStaged(); }
     if (control) {
       if (view === "control") { control.open($("view-control"), { me: me, onUnauthorized: showLogin, toast: toast }); }
@@ -2769,8 +2816,16 @@
           "重開 SYNOX 會清空這裡的記憶；巡邏的記憶在〔主控〕頁清" : "（還沒有訊息）")));
         li.setAttribute("data-id", c.id);
         li.addEventListener("click", function () { openChat(c.id); });
+        if (c.id !== "mother" && c.id !== "tools") {                       // 固定的兩段不能封存
+          var x = el("button", "x sm", "封存");
+          x.type = "button";
+          x.setAttribute("aria-label", "封存這段對話：" + c.title);
+          x.addEventListener("click", function (ev) { ev.stopPropagation(); archiveChat(c.id); });
+          li.appendChild(x);
+        }
         list.appendChild(li);
       });
+      $("archive-n").textContent = d.archived_count ? "（" + d.archived_count + "）" : "";
       var want = selectId || current || (chats[0] && chats[0].id);
       if (want) { openChat(want, true); }
       else { newChat(); }
@@ -2792,6 +2847,51 @@
     clear(s);
     markActive();
     poll();
+  }
+  function archiveChat(id) {
+    api("POST", "/api/chat/" + id + "/archive", {}).then(function () {
+      if (current === id) { current = null; }
+      toast("已封存。要找回來：側欄下面的「已封存的對話」。");
+      loadChats();
+    }).catch(function (e) { toast(e.message); });
+  }
+  // ── 已封存的對話：還原／徹底刪除（刪除要按兩次）──
+  function loadArchive() {
+    api("GET", "/api/chats/archived").then(function (d) {
+      var box = $("archive-list");
+      clear(box);
+      $("archive-empty").classList.toggle("hidden", d.chats.length > 0);
+      d.chats.forEach(function (c) {
+        var row = el("div", "archive-item");
+        var txt = el("div", "txt");
+        txt.appendChild(el("div", "t", c.title));
+        var when = c.archived ? "封存於 " + new Date(c.archived * 1000).toLocaleString() + "・" : "";
+        txt.appendChild(el("div", "l", when + c.count + " 則訊息" + (c.last ? "・" + c.last : "")));
+        var btns = el("div", "btns");
+        var back = el("button", "", "還原");
+        back.type = "button";
+        back.addEventListener("click", function () {
+          api("POST", "/api/chat/" + c.id + "/restore", {}).then(function () { toast("已放回對話側欄。"); loadArchive(); })
+            .catch(function (e) { toast(e.message); });
+        });
+        var del = el("button", "danger", "徹底刪除");
+        del.type = "button";
+        var armed = null;
+        del.addEventListener("click", function () {
+          if (!armed) {
+            del.textContent = "再按一次：確定刪掉";
+            armed = setTimeout(function () { armed = null; del.textContent = "徹底刪除"; }, 4000);
+            return;
+          }
+          clearTimeout(armed);
+          api("POST", "/api/chat/" + c.id + "/delete", {}).then(function () { toast("已徹底刪除。"); loadArchive(); })
+            .catch(function (e) { toast(e.message); });
+        });
+        btns.appendChild(back); btns.appendChild(del);
+        row.appendChild(txt); row.appendChild(btns);
+        box.appendChild(row);
+      });
+    }).catch(function (e) { toast(e.message); });
   }
   function newChat() {
     api("POST", "/api/chats", {}).then(function (d) { current = null; loadChats(d.id); })
