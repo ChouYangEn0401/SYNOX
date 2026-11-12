@@ -248,8 +248,12 @@ def sync():
 - `peer_status(task_id="")`：別的任務／工具現在的狀態 `{"pack.weather": {"state": "failed", "at": "<ISO 時間>"}, "system.schedule": {…}}`，
   **只有狀態與時間、沒有訊息**（別的 pack 的訊息可能有個人資料）。SYNOX 叫你時放在環境變數 `SYNOX_PEER_STATUS`（JSON）。
 - 不用 SDK 的工具也一樣：信封最後一行多帶 `"status"`、讀 `SYNOX_PEER_STATUS`。舊版 SYNOX 不認得 `"status"`，直接忽略。
-- kind=python 的 pack：`pack.report_status(state, message)`、`pack.peer_status()`。kind=mcp（`--mcp`）這一版不送狀態。
-- 設計與規則：[adr/0001](adr/0001-runtime-loop-heartbeat-mother-session.md) §2。
+- `report_status(state, message="", tag="")`：`tag` 選填，短標籤（小寫英數字與 `. _ -`，32 字內，例如 `"diary-image"`；格式不對丟 `ValueError`），
+  信封變成 `"status": {"state", "message", "tag"}`。SYNOX 的**連動規則**可以只聽某個標籤：「這件事做完了 → 馬上做下一件」
+  （[adr/0004](adr/0004-activator-event-driven-rules.md)）。一個 pack 只有一個任務，標籤就是用來分「哪一件事」做完了。
+- kind=python 的 pack：`pack.report_status(state, message, tag="")`、`pack.peer_status()`；還可以定義連動規則
+  `pack.on_event(on, rule_id, do, state="ok", tag=…, emits=[…])`（見 adr/0004 §2）。kind=mcp（`--mcp`）這一版不送狀態。
+- 設計與規則：[adr/0001](adr/0001-runtime-loop-heartbeat-mother-session.md) §2、[adr/0004](adr/0004-activator-event-driven-rules.md)。
 
 ## synox-sdk 指令
 

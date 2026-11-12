@@ -201,7 +201,7 @@ class AgentLoop:
         只有**擁有者**、只在**私訊／網頁**（chat_id 就是他自己）；唯讀（`SoulStore.for_prompt`：拿掉註解、沒寫東西＝""、
         有密鑰樣式＝""、最多 2000 字）；包在這一輪的分隔符裡，標明是使用者偏好、不是指令。不寫 log。
         常駐助理的記憶不讀（邊界照 ADR 0001 §4）。頻道 AI（agent/room.py）換成永遠 ""。
-        query＝這一輪使用者說的話：soul.md 超過上限時，「助理筆記」挑跟這句話相關、比較新的放（docs/adr/0004）。"""
+        query＝這一輪使用者說的話：soul.md 超過上限時，「助理筆記」挑跟這句話相關、比較新的放（docs/adr/0005）。"""
         if user is None or not nonce or getattr(user, "tg_id", None) != chat_id or not self.app.registry.is_owner(user):
             return ""
         from synox import runtime

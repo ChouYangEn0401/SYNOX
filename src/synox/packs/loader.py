@@ -166,11 +166,27 @@ class Pack:
             raise pack_secrets.SecretError("保管箱沒有打開，讀不到 secret。")
         return self.secrets.get(self.name, name, user)
 
-    def report_status(self, state: str, message: str = "") -> bool:
+    def report_status(self, state: str, message: str = "", tag: str = "") -> bool:
         """回報這個 pack 的狀態給 runtime（任務 pack.<name>，主控面板與常駐助理看得到；docs/adr/0001 §2）。
-        state：ok｜running｜failed｜idle（其他的忽略、回 False）；message 最多 200 字、像密鑰的會被遮掉。"""
+        state：ok｜running｜failed｜idle（其他的忽略、回 False）；message 最多 200 字、像密鑰的會被遮掉。
+        tag：選填的短標籤（小寫英數字與 . _ -，32 字內），讓連動規則分得出是哪一件事做完了（例如 "diary-image"）。"""
         from synox import runtime
-        return runtime.report(self.app, self.name, state, message, title=self.manifest.title)
+        return runtime.report(self.app, self.name, state, message, title=self.manifest.title, tag=tag)
+
+    def on_event(self, on: str, rule_id: str, do: Callable, *, state="ok", from_state=(), tag: Optional[str] = None,
+                 when: Optional[Callable] = None, emits=(), timing: str = "now", cooldown_s: int = 0,
+                 max_per_hour: int = 30, name: str = ""):
+        """連動規則（docs/adr/0004）：任務 on 變成 state（可加 from_state、tag、when(event)）→ 呼叫 do(event)。
+        規則 id 會是 pack.<name>.<rule_id>。do 拿到的 event 有 task、state、prev、tag、at、chain、depth；
+        message 只有自己的任務才有（別人的是 ""，跟 peer_status 一樣）。do 裡回報的狀態會接在同一串連動上（防循環）。
+        do 會讓哪個任務有新狀態，寫在 emits（例如 ["pack.<name>#asked"]），登記時就能擋掉會繞回自己的規則。
+        形狀錯丟 RuleError；會繞回自己＝不收（主控面板看得到原因）、回 None。"""
+        from synox import runtime
+        from synox.runtime.activator import Rule
+        rule = Rule(id=f"pack.{self.name}.{rule_id}", on=on, states=state, from_states=from_state, tag=tag, do=do,
+                    when=when, emits=tuple(emits), timing=timing, cooldown_s=cooldown_s, max_per_hour=max_per_hour,
+                    owner=self.name, name=name or f"{self.manifest.title}：{rule_id}")
+        return runtime.add_rule(self.app, rule)
 
     def peer_status(self) -> Dict[str, dict]:
         """別的任務／pack 的狀態：{任務 id: {"state", "at"}}（只有狀態與時間，沒有訊息）。"""

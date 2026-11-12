@@ -6,6 +6,8 @@
     hb.view()              網頁 API 的 heartbeat 物件
     hb.update(enabled=, interval_min=)   改設定（網頁 POST；寫 config.json 是呼叫端的事）
 
+每次巡先把連動留給心跳的待處理做掉（activator.drain，docs/adr/0004）；不放進給 AI 的快照，只在結果那句多寫幾件。
+
 沒事別吵（規則，不交給 AI）：
   1. 事實快照（不含時間）跟上一次一樣 → 不叫 AI（手動那一次不看）。有失敗的任務也一樣：失敗只記
      「哪個任務＋去掉數字、空白、截短的原因」（failure_key），同一批失敗只是次數、時間不同不算變化；
@@ -99,8 +101,9 @@ class Heartbeat:
         self.settings = dict(settings)
         self.read_chat = read_chat
         self.soul_append = soul_append
-        self.ledger = ledger                   # soul 帳本（docs/adr/0004）；None＝照舊直接 append_notes
+        self.ledger = ledger                   # soul 帳本（docs/adr/0005）；None＝照舊直接 append_notes
         self._now = now
+        self.activator = None                  # runtime.install 掛上：每次巡先把留給心跳的連動做掉（docs/adr/0004）
         self._lock = threading.Lock()
         saved = loop.saved("heartbeat", {})
         if not isinstance(saved, dict):
@@ -234,6 +237,7 @@ class Heartbeat:
         manual = bool(getattr(ctx, "manual", False))
         with self._lock:
             self._roll_day()
+            drained = self._drain()
             snap = self.facts()
             failed = snap.failed
             self._forget_changed(snap)
@@ -252,11 +256,23 @@ class Heartbeat:
                 self._last_hash, self._last_context = snap.digest, snap.context
                 self._held_failures = {}
                 result = self._act(verdict, manual, snap.failures, news=news)
+            if drained:
+                result += f"（另外處理了 {drained} 件留給心跳的連動）"
             self.last_result = clean_text(result, MESSAGE_MAX)
             self.loop.save(heartbeat=self._saved_state())
             if ctx is not None:
                 ctx.log(result)
             return self.last_result
+
+    def _drain(self) -> int:
+        """留給心跳的連動（timing="heartbeat"）做掉；不放進給 AI 的快照（不然每做一件就多叫一次 AI）。"""
+        if self.activator is None:
+            return 0
+        try:
+            return self.activator.drain()
+        except Exception:
+            logging.exception("[HEARTBEAT] activator drain failed")
+            return 0
 
     def _saved_state(self) -> dict:
         """存進 state.json 的（沒有個人資料：結果那句、快照的雜湊、任務 id＋失敗原因的雜湊）。"""
@@ -310,7 +326,7 @@ class Heartbeat:
         return f"通知了你：{text}"
 
     def _soul_lines(self, lines: List[str]):
-        """常駐助理想記的行 →（直接加進去的, 等擁有者確認的）。有 soul 帳本就過它的規則（docs/adr/0004）。"""
+        """常駐助理想記的行 →（直接加進去的, 等擁有者確認的）。有 soul 帳本就過它的規則（docs/adr/0005）。"""
         if self.ledger is None:
             return self.mother.soul.append_notes(lines, by="mother"), []
         out = self.ledger.propose(lines, by="mother", source="heartbeat", evidence=self._owner_said())

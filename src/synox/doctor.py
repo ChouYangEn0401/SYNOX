@@ -150,6 +150,32 @@ def _heartbeat_line(config) -> str:
     return head + "\n    上一次：還沒巡過（SYNOX 跑起來之後才會巡）"
 
 
+def _activator_line(config) -> str:
+    """連動（docs/adr/0004）：開關、config.json 的規則數＋state.json 記的暫停中的規則、全部暫停、待處理（不改檔）。"""
+    from synox.runtime.loop import STATE_FILE
+    act = (getattr(config, "runtime", None) or {}).get("activator") or {}
+    if not act.get("enabled", True):
+        return "  連動：關（runtime.activator.enabled=false）"
+    head = f"  連動：開（config.json 裡 {len(act.get('rules') or [])} 條規則；工具自己的規則 SYNOX 跑起來才登記）"
+    try:
+        import json
+        with open(os.path.join(config.data_dir, STATE_FILE), "r", encoding="utf-8") as f:
+            saved = json.load(f).get("activator") or {}
+        tripped = sorted(k for k, v in (saved.get("rules") or {}).items() if isinstance(v, dict) and v.get("tripped"))
+        paused = (saved.get("paused") or {}).get("reason") if isinstance(saved.get("paused"), dict) else None
+        pending = len(saved.get("pending") or [])
+    except (OSError, ValueError, AttributeError):
+        return head
+    lines = [head]
+    if paused:
+        lines.append(f"    ⏸ 全部暫停中：{paused}（網頁主控面板按「恢復」）")
+    if tripped:
+        lines.append(f"    ⏸ 暫停中的規則：{'、'.join(tripped[:10])}（網頁主控面板看原因、按「重設」）")
+    if pending:
+        lines.append(f"    等心跳處理：{pending} 件")
+    return "\n".join(lines)
+
+
 HEALTH_MARKS = {"broken": "⏸", "needs_action": "🛠", "quarantined": "⛔"}
 
 
@@ -215,6 +241,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                                 + (f"　對外網址 {web.get('public_url')}" if web.get("public_url") else "")
                                 if web.get("enabled", True) else "關（web.enabled=false）"))
             out(_heartbeat_line(config))
+            out(_activator_line(config))
             if config.discord_enabled:
                 bot_lines, bad = _discord_lines(config)
                 from synox import discord as _dc

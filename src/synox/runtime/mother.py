@@ -135,7 +135,7 @@ class MotherSession:
             return n
 
     def scrub_memory(self, needle: str, *, dry_run: bool = False) -> int:
-        """遺忘（docs/adr/0004）：巡邏記憶與網頁聊天記憶裡提到 needle 的那幾筆整筆拿掉。回幾筆（dry_run＝只算不動）。"""
+        """遺忘（docs/adr/0005）：巡邏記憶與網頁聊天記憶裡提到 needle 的那幾筆整筆拿掉。回幾筆（dry_run＝只算不動）。"""
         low = (needle or "").strip().lower()
         if not low:
             return 0

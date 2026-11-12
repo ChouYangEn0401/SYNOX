@@ -17,6 +17,8 @@ from synox.runtime.loop import iso
 from synox.runtime.soul import SoulError
 
 TASK_LOG_RE = re.compile(r"^/api/runtime/tasks/([a-z0-9][a-z0-9._-]{0,63})/log$")
+RULE_RESET_RE = re.compile(r"^/api/runtime/activator/rules/([a-z0-9][a-z0-9._-]{0,127})/reset$")
+PENDING_DISMISS_RE = re.compile(r"^/api/runtime/activator/pending/([0-9a-f]{8})/dismiss$")
 
 
 def _json(status, data):
@@ -83,6 +85,33 @@ def route(ui, user, method: str, path: str, body: bytes):
         return _json(200, {"ok": True})
     if path in SOUL_POSTS:
         return SOUL_POSTS[path](rt, data)
+    if path.startswith("/api/runtime/activator/"):
+        return activator_post(rt, path)
+    return _err(404, "沒有這個 API。")
+
+
+def activator_post(rt, path: str):
+    """連動（docs/adr/0004）：重設一條暫停的規則、恢復全部、現在處理待處理、丟掉一件待處理。"""
+    act = rt.activator
+    if act is None:
+        return _err(503, "連動沒有裝上。")
+    m = RULE_RESET_RE.match(path)
+    if m:
+        if not act.reset_rule(m.group(1)):
+            return _err(404, "沒有這條連動規則。")
+        return _json(200, {"ok": True, "message": "重設了，這條規則會再照常動作。"})
+    if path == "/api/runtime/activator/resume":
+        was = act.resume()
+        return _json(200, {"ok": True, "message": "恢復了，連動會再照常動作。" if was else "本來就沒有全部暫停。"})
+    if path == "/api/runtime/activator/pending/run":
+        n = act.drain()
+        return _json(200, {"ok": True, "count": n,
+                           "message": f"開始處理 {n} 件。" if n else "沒有可以處理的（暫停中的規則留著，重設後再處理）。"})
+    m = PENDING_DISMISS_RE.match(path)
+    if m:
+        if not act.dismiss(m.group(1)):
+            return _err(404, "沒有這件待處理（可能已經處理掉了）。")
+        return _json(200, {"ok": True})
     return _err(404, "沒有這個 API。")
 
 
@@ -142,7 +171,7 @@ def soul_put(rt, data: dict):
     return _json(200, {"ok": True, "text": saved["text"], "updated_at": iso(saved["updated_at"])})
 
 
-# ── soul 帳本（docs/adr/0004）：助理筆記的來歷、提議、收起來的、整理、遺忘、匯出 ──────────
+# ── soul 帳本（docs/adr/0005）：助理筆記的來歷、提議、收起來的、整理、遺忘、匯出 ──────────
 
 def ledger_call(rt, fn):
     """叫 soul 帳本做一件事，回它給的 dict。保管箱沒開＝503；其他說得出口的錯＝400。內容不寫 log。"""
