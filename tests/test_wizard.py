@@ -311,8 +311,10 @@ def test_save_discord_token_refuses_multi_bot_config(tmp_path):
     cfg = logic.build_config("", 0, {"kind": "none"})
     cfg["channels"] = {"discord": {"bots": {"synox": {"surface": "dm", "token": "vault:x"}}}}
     cfg = logic.save(str(path), cfg)
+    opened = []
     with pytest.raises(ValueError):
-        logic.save_discord_token(str(path), cfg, DTOKEN)
+        logic.save_discord_token(str(path), cfg, DTOKEN, vault_opener=opened.append)
+    assert opened == []          # 拒絕之前不碰保管箱（bots 的 default bot 也用 discord_bot_token）
 
 
 def test_claude_download_url_is_https():
