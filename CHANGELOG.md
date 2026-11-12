@@ -13,6 +13,19 @@
   （有那個平台的教學才出現，用瀏覽器開本機那份；12 種語言各加一句 `open_tutorial`）；網頁設定「聊天通道」Telegram 那一格多一個連結；
   `synox init` 印本機檔路徑。發佈 zip／安裝程式本來就帶 `docs/`。測試 `tests/test_tutorials.py`。
 
+### Discord 觀念篇與步驟教學（branch `feat/tutorial-discord`，還沒合併）
+- 新增 [docs/discord-concepts.md](docs/discord-concepts.md)：給覺得 Discord 難懂的人——名詞對照（Application／bot user／token／intent／guild／頻道／私訊／身分組／ID）、
+  一支 bot 的三種用法（私訊、伺服器、同伺服器不同頻道）、對照到 SYNOX 今天做得到／做不到的表、四種情境的決定表（只有我／私人伺服器／公開頻道／每頻道不同）、
+  公開頻道的風險表、**每頻道設定的提案**（`guilds.<g>.channels` 的每一項可寫成物件、收訊時算派生 BotSpec 丟給現有的 `policy.using_bot`；還沒做）、
+  查證紀錄（2026-11-12 讀的 docs.discord.com 官方文件，含哪些是官方、哪些是社群共識）。
+- 新增 [docs/tutorials/discord/](docs/tutorials/discord/README.md)：`index.html` 單一檔案的逐步教學（建 Application → token → Message Content intent →
+  URL Generator → 邀進伺服器／私訊 → 開發者模式與複製 ID → 貼進 SYNOX 的三條路 → 配對的三條路 → 測試 → 頻道與每頻道不同 → 安全 → 疑難排解
+  （bot 離線、4014、4004、50001、50013、50007、沒回、429、token 外洩 → Reset Token）→ 還沒驗證的事）；步驟圖是 HTML／CSS 畫的**示意圖**（不是截圖），
+  深淺色、手機可看；`README.md` 是同一份的純文字版＋更新方式。同一個檔案也發佈成 Artifact（網址在 README 頂端）。
+- `docs/discord.md` 頂端加一節「先看這些」連到上面兩份。
+- 查證時發現兩件要注意的：官方說 **User Install 的 app 只能用 slash 指令**（SYNOX 沒有 slash 指令，所以 `docs/discord.md` 第 1 節把 User Install 列為
+  讓 bot 收私訊的選項之一，**未驗證**；教學一律走「邀進伺服器」）；特權 intent 的審核門檻官方現在是「1 萬個不重複使用者」（不是舊的 100 個伺服器）。
+
 ### 網頁的開場動畫與微動畫（branch `feat/ui-splash`，還沒合併）
 - 打開網頁時「S 寶寶」掉下來、眨眼、說嗨、翻面變成 S 標誌、SYNOX 字樣跳出來（約 1.7 秒；點一下或按任何鍵略過；同一個分頁只播一次）；
   頁面切換、卡片進場、按鈕、對話泡泡、狀態點、背景淡光與小光點的微動畫。版面沒動；系統開了「減少動態效果」→ 開場不播、動畫全關。
