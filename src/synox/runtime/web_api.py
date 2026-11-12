@@ -75,6 +75,8 @@ def route(ui, user, method: str, path: str, body: bytes):
         return bad
     if path == "/api/runtime/heartbeat":
         return heartbeat_post(ui, rt, data)
+    if path == "/api/runtime/keep-awake":
+        return keep_awake_post(ui, rt, data)
     if path == "/api/runtime/heartbeat/run-now":
         from synox.runtime.heartbeat import TASK_ID
         if rt.loop.run_now(TASK_ID, manual=True):
@@ -130,7 +132,24 @@ def heartbeat_post(ui, rt, data: dict):
     return _json(200, view)
 
 
-def _write_config(ui, rt) -> None:
+def keep_awake_post(ui, rt, data: dict):
+    """保持清醒（docs/adr/0006）：開關、閒置幾分鐘請 Windows 關螢幕。"""
+    ka = rt.keep_awake
+    if ka is None:
+        return _err(503, "保持清醒沒有裝上。")
+    enabled = data.get("enabled")
+    minutes = data.get("screen_off_after_min")
+    if enabled is not None and not isinstance(enabled, bool):
+        return _err(400, "enabled 要是 true 或 false。")
+    try:
+        view = ka.update(enabled=enabled, screen_off_after_min=minutes)
+    except ValueError as e:
+        return _err(400, str(e))
+    _write_config(ui, rt, section="keep_awake")
+    return _json(200, view)
+
+
+def _write_config(ui, rt, section: str = "heartbeat") -> None:
     """改過的心跳設定寫回 config.json（跟設定頁存 AI 來源同一套 read_existing／write_config）。"""
     from synox.wizard import logic
     path = rt.config_path or getattr(ui, "config_path", "")
@@ -139,16 +158,20 @@ def _write_config(ui, rt) -> None:
     try:
         cfg = logic.read_existing(path)
         runtime = cfg.get("runtime") if isinstance(cfg.get("runtime"), dict) else {}
-        hb = runtime.get("heartbeat") if isinstance(runtime.get("heartbeat"), dict) else {}
-        hb.update({"enabled": rt.heartbeat.enabled, "interval_min": rt.heartbeat.interval_min})
-        runtime["heartbeat"] = hb
+        if section == "keep_awake":
+            values = {"enabled": rt.keep_awake.enabled, "screen_off_after_min": rt.keep_awake.screen_off_after_min}
+        else:
+            values = {"enabled": rt.heartbeat.enabled, "interval_min": rt.heartbeat.interval_min}
+        block = runtime.get(section) if isinstance(runtime.get(section), dict) else {}
+        block.update(values)
+        runtime[section] = block
         cfg["runtime"] = runtime
         logic.write_config(path, cfg)
         conf = getattr(ui.config, "runtime", None)
         if isinstance(conf, dict):
-            conf.setdefault("heartbeat", {}).update(enabled=rt.heartbeat.enabled, interval_min=rt.heartbeat.interval_min)
+            conf.setdefault(section, {}).update(values)
     except Exception:
-        logging.exception("[RUNTIME] cannot write heartbeat settings to config.json")
+        logging.exception("[RUNTIME] cannot write %s settings to config.json", section)
 
 
 def soul_get(rt):
