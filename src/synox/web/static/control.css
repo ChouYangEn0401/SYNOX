@@ -79,6 +79,26 @@
   textarea.ctl-soul { width: 100%; min-height: 200px; resize: vertical; font: 14px/1.6 var(--mono); padding: 10px 12px; }
   .ctl-soul-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
 
+  /* 助理筆記（soul 帳本）：一列一條，右邊是按鈕 */
+  .ctl-note-h { font-size: 14px; margin: 14px 0 6px; }
+  .ctl-note-over { margin: 6px 0; padding: 10px 12px; border-radius: var(--r); background: var(--warn-soft);
+                   color: var(--warn); font-size: 13.5px; }
+  .ctl-notes { list-style: none; padding: 0; margin: 0; border: 1px solid var(--line); border-radius: var(--r);
+               overflow: hidden; }
+  .ctl-notes:empty { display: none; }
+  .ctl-note { display: flex; gap: 12px; align-items: flex-start; justify-content: space-between; padding: 10px 14px; }
+  .ctl-note + .ctl-note { margin: 0; border-top: 1px solid var(--line); }
+  .ctl-note-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+  .ctl-note-text { overflow-wrap: anywhere; }
+  .ctl-note-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  .ctl-note-why { font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
+  .ctl-note-acts { flex: none; justify-content: flex-end; }
+  .ctl-note-archive { margin-top: 12px; }
+  .ctl-note-archive summary { cursor: pointer; font-size: 14px; color: var(--text-2); padding: 4px 0; }
+  .ctl-note-archive .ctl-note-text { color: var(--muted); }
+  .ctl-forget-preview { font-size: 13.5px; color: var(--text-2); margin: 0; padding-left: 18px; }
+  .ctl-forget-preview:empty { display: none; }
+
   /* 清空記憶的二次確認 */
   .ctl-confirm { margin-top: 4px; padding: 14px; border-radius: var(--r-lg); background: var(--bad-soft);
                  border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent); display: grid; gap: 12px; }
@@ -100,5 +120,7 @@
     .ctl-chev { margin-left: auto; }
     .ctl-task-meta, .ctl-task-msg, .ctl-chev, .ctl-stat { font-size: 14px; }
     textarea.ctl-soul { font-size: 16px; }
+    .ctl-note { flex-direction: column; gap: 8px; padding: 12px; }
+    .ctl-note-acts { justify-content: flex-start; }
     .ctl-switch input { width: 52px; height: 44px; }
   }

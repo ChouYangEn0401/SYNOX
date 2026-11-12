@@ -6,6 +6,7 @@ Runtime：常駐的排程迴圈、心跳、常駐助理（母 session）、soul.
     rt.heartbeat   Heartbeat：system.heartbeat
     rt.mother      MotherSession：只給擁有者、沒有工具
     rt.soul        SoulStore：soul.md（保管箱）
+    rt.ledger      SoulLedger：助理筆記的來歷、等你確認的提議、整理與遺忘（docs/adr/0004；任務 system.soul_tidy）
 
 pack 回報狀態：`runtime.report(app, pack_name, state, message)`（loader 收 cli 信封的 status、Pack.report_status 都走這裡）。
 這個檔不要在模組層 import 會 import config 的東西（config.py import runtime.settings）。
@@ -25,11 +26,12 @@ PEER_MAX = 50
 
 class Runtime:
 
-    def __init__(self, loop, heartbeat, mother, soul, config_path: str = ""):
+    def __init__(self, loop, heartbeat, mother, soul, config_path: str = "", ledger=None):
         self.loop = loop
         self.heartbeat = heartbeat
         self.mother = mother
         self.soul = soul
+        self.ledger = ledger
         self.config_path = config_path
 
     def use_fakes(self, *, clock: Optional[Callable[[], float]] = None, now: Optional[Callable[[], datetime]] = None,
@@ -38,6 +40,8 @@ class Runtime:
         if clock is not None:
             old_now, new_now = self.loop._clock(), clock()   # 已排好的下一次照新時鐘平移（取整秒）
             self.loop._clock = self.mother._clock = self.soul._clock = clock
+            if self.ledger is not None:
+                self.ledger._clock = clock
             for task in self.loop.tasks.values():
                 task._clock = clock
                 if task.next_due is not None:
@@ -67,6 +71,7 @@ class Runtime:
 def install(app, config, vault=None, *, config_path: str = "") -> Runtime:
     from synox.runtime import settings as rs
     from synox.runtime.heartbeat import Heartbeat
+    from synox.runtime.ledger import SoulLedger, SoulTidy
     from synox.runtime.loop import RuntimeLoop
     from synox.runtime.mother import MotherSession
     from synox.runtime.soul import SoulStore
@@ -77,10 +82,12 @@ def install(app, config, vault=None, *, config_path: str = "") -> Runtime:
     adapter = getattr(agent, "adapter", None)
     soul = SoulStore(vault)
     mother = MotherSession(app, adapter, soul, settings=conf["mother"], vault=vault)
+    ledger = SoulLedger(soul, vault, review=bool(conf["mother"].get("soul_review", False)), mother=mother)
     heartbeat = Heartbeat(app, loop, mother, settings=conf["heartbeat"], read_chat=conf["mother"]["read_chat"],
-                          soul_append=conf["mother"]["soul_append"])
+                          soul_append=conf["mother"]["soul_append"], ledger=ledger)
     heartbeat.register()
-    rt = Runtime(loop, heartbeat, mother, soul, config_path=config_path)
+    SoulTidy(app, ledger, quiet=heartbeat._in_quiet).register(loop)
+    rt = Runtime(loop, heartbeat, mother, soul, config_path=config_path, ledger=ledger)
     app.extras[RUNTIME_KEY] = rt
     app.on_start.append(lambda _app: loop.start())
     app.on_stop.append(lambda _app: loop.stop())

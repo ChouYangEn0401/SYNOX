@@ -11,6 +11,12 @@
  *   POST /api/runtime/mother/reset-memory → {ok}
  *   GET  /api/runtime/soul                {text, updated_at}；PUT 同一個網址 {text}
  *   GET  /api/runtime/tasks/<id>/log      {lines: [...]}
+ *   GET  /api/runtime/soul/notes          助理筆記：{review, notes, pending, archive, budget}（docs/adr/0004）
+ *   POST /api/runtime/soul/proposal       {id, action: approve|replace|reject} → 新的 notes 物件
+ *   POST /api/runtime/soul/note           {id, action: retire|confirm|restore} → 新的 notes 物件
+ *   POST /api/runtime/soul/forget         {text, confirm} → 會動到／動了幾筆
+ *   POST /api/runtime/soul/tidy           → {ok, message, notes}
+ *   GET  /api/runtime/soul/export         全部倒成一份 JSON
  */
 (function (root) {
   "use strict";
@@ -168,6 +174,96 @@
     };
   }
 
+  // ── 助理筆記（soul 帳本，GET /api/runtime/soul/notes）─────────────────
+
+  var NOTE_BY = { mother: "常駐助理加的", owner: "你寫的", tidy: "整理時提的" };
+
+  // 伺服器回什麼都不讓畫面壞掉：缺的欄位補預設、不是物件的丟掉
+  function normalizeNotes(d) {
+    d = d && typeof d === "object" ? d : {};
+    function list(v) { return (Array.isArray(v) ? v : []).filter(function (x) { return x && typeof x === "object" && x.id; }); }
+    var b = d.budget && typeof d.budget === "object" ? d.budget : {};
+    function num(v) { var n = parseInt(v, 10); return isNaN(n) ? 0 : n; }
+    return {
+      review: !!d.review,
+      notes: list(d.notes).map(function (n) {
+        return { id: String(n.id), text: String(n.text || ""), by: String(n.by || "owner"), tracked: !!n.tracked,
+                 added_at: n.added_at || null, confirmed_at: n.confirmed_at || null, stale: !!n.stale,
+                 grounded: n.grounded === false ? false : (n.grounded === true ? true : null) };
+      }),
+      pending: list(d.pending).map(function (p) {
+        return { id: String(p.id), kind: p.kind === "retire" ? "retire" : "add", text: String(p.text || ""),
+                 at: p.at || null, why: (Array.isArray(p.why) ? p.why : []).map(String),
+                 related: String(p.related || ""), can_replace: !!p.can_replace,
+                 grounded: p.grounded === false ? false : (p.grounded === true ? true : null) };
+      }),
+      archive: list(d.archive).map(function (a) {
+        return { id: String(a.id), text: String(a.text || ""), retired_at: a.retired_at || null,
+                 reason: String(a.reason || ""), replaced_by: String(a.replaced_by || "") };
+      }),
+      budget: { chars: num(b.chars), max_chars: num(b.max_chars), prompt_chars: num(b.prompt_chars),
+                prompt_max: num(b.prompt_max), notes: num(b.notes), notes_max: num(b.notes_max),
+                stale_days: num(b.stale_days) }
+    };
+  }
+
+  // 畫面要顯示的字（純資料，好測）
+  function notesModel(data, now) {
+    var d = normalizeNotes(data), b = d.budget;
+    var over = b.prompt_max > 0 && b.prompt_chars > b.prompt_max;
+    return {
+      usage: "soul.md " + b.chars + "／" + b.max_chars + " 字・助理筆記 " + b.notes + "／" + b.notes_max + " 條",
+      over: over,
+      overText: over ? "對話助理每一輪最多讀 " + b.prompt_max + " 字，現在有 " + b.prompt_chars +
+        " 字：你寫的段落都會放，助理筆記只挑跟那句話相關、比較新的。想讓它每次都讀到，就收起幾條。" : "",
+      mode: d.review ? "現在的設定：助理想記的每一條都先問你。" : "現在的設定：沒有疑慮的助理會直接記；有疑慮的先問你。",
+      pendingTitle: d.pending.length ? "等你確認（" + d.pending.length + "）" : "",
+      pending: d.pending.map(function (p) {
+        var retire = p.kind === "retire";
+        return { id: p.id, text: p.text, retire: retire,
+                 head: retire ? "要不要收起這一條？" : "助理想記這一條",
+                 why: p.why.length ? "為什麼先問你：" + p.why.join("；") : "",
+                 related: p.related ? (retire ? "比較新的那一條：" : "很像的現有一條：") + p.related : "",
+                 warn: p.grounded === false ? "看不出是從你自己說的話來的" : "",
+                 when: when(p.at, now, ""),
+                 actions: retire ? [["approve", "收起來"], ["reject", "留著"]]
+                   : [["approve", "加進去"]].concat(p.can_replace ? [["replace", "取代舊的那條"]] : [], [["reject", "不要"]]) };
+      }),
+      notesTitle: "助理筆記（" + d.notes.length + "）",
+      notes: d.notes.map(function (n) {
+        var who = n.tracked ? (NOTE_BY[n.by] || n.by) : "你寫的或以前就有的";
+        var bits = [who];
+        if (n.added_at) { bits.push(when(n.added_at, now, "")); }
+        if (n.tracked && n.confirmed_at && n.confirmed_at !== n.added_at) { bits.push("上次確認 " + relative(n.confirmed_at, now)); }
+        return { id: n.id, text: n.text, meta: bits.join("・"),
+                 badges: [n.stale ? "很久沒確認" : "", n.grounded === false ? "看不出是你說的" : ""].filter(Boolean),
+                 stale: n.stale };
+      }),
+      empty: !d.notes.length && !d.pending.length ? "助理還沒有記任何事。" : "",
+      archiveTitle: d.archive.length ? "收起來的（" + d.archive.length + "）" : "",
+      archive: d.archive.map(function (a) {
+        return { id: a.id, text: a.text,
+                 meta: [when(a.retired_at, now, ""), a.reason, a.replaced_by ? "換成：" + a.replaced_by : ""]
+                   .filter(Boolean).join("・") };
+      })
+    };
+  }
+
+  // 「忘掉」先看會動到什麼：給確認框的一句話
+  function forgetSummary(r, word) {
+    r = r && typeof r === "object" ? r : {};
+    function n(k) { var v = parseInt(r[k], 10); return isNaN(v) ? 0 : v; }
+    var parts = [];
+    if (n("notes")) { parts.push("助理筆記 " + n("notes") + " 條"); }
+    if (n("pending")) { parts.push("等你確認的 " + n("pending") + " 則"); }
+    if (n("archive")) { parts.push("收起來的 " + n("archive") + " 條"); }
+    if (n("audit")) { parts.push("修改紀錄 " + n("audit") + " 筆"); }
+    if (n("patrol")) { parts.push("常駐助理的記憶 " + n("patrol") + " 筆"); }
+    var mine = n("owner_lines") ? "你自己寫的段落裡有 " + n("owner_lines") + " 行提到，那是你寫的，不會動（要改請直接改上面的內容）。" : "";
+    if (!parts.length) { return { any: false, text: "沒有找到提到「" + word + "」的東西。" + mine }; }
+    return { any: true, text: "會拿掉提到「" + word + "」的：" + parts.join("、") + "。拿掉就回不來。" + mine };
+  }
+
   // 錯誤 → 人話（不貼 HTTP 碼、例外名、CSRF 這類內部詞）
   function humanError(err) {
     var status = err && err.status;
@@ -218,7 +314,13 @@
       resetMemory: function () { return call("POST", "/api/runtime/mother/reset-memory", {}); },
       soul: function () { return call("GET", "/api/runtime/soul"); },
       saveSoul: function (text) { return call("PUT", "/api/runtime/soul", { text: String(text) }); },
-      taskLog: function (id) { return call("GET", "/api/runtime/tasks/" + encodeURIComponent(id) + "/log"); }
+      taskLog: function (id) { return call("GET", "/api/runtime/tasks/" + encodeURIComponent(id) + "/log"); },
+      notes: function () { return call("GET", "/api/runtime/soul/notes"); },
+      proposal: function (id, action) { return call("POST", "/api/runtime/soul/proposal", { id: String(id), action: action }); },
+      note: function (id, action) { return call("POST", "/api/runtime/soul/note", { id: String(id), action: action }); },
+      forget: function (text, confirm) { return call("POST", "/api/runtime/soul/forget", { text: String(text), confirm: !!confirm }); },
+      tidy: function () { return call("POST", "/api/runtime/soul/tidy", {}); },
+      exportSoul: function () { return call("GET", "/api/runtime/soul/export"); }
     };
   }
 
@@ -367,6 +469,48 @@
     soul.appendChild(soulRow); soul.appendChild(soulMsg);
     body.appendChild(soul);
 
+    // 助理筆記（soul 帳本）
+    var notes = card("🗒️", "助理記下來的事",
+      "常駐助理自己加進 soul.md「助理筆記」那一段的每一條：誰加的、什麼時候、還對不對。" +
+      "看起來像在下指令、有網址、或跟現有的很像的，它不會自己寫進去，會先在這裡等你按。");
+    var nUsage = el("p", "ctl-summary");
+    var nOver = el("p", "ctl-note-over hidden");
+    var nMode = el("p", "muted");
+    var nPendingTitle = el("h3", "ctl-note-h hidden");
+    var nPending = el("ul", "ctl-notes");
+    var nTitle = el("h3", "ctl-note-h");
+    var nList = el("ul", "ctl-notes");
+    var nEmpty = el("p", "muted hidden");
+    var nArchive = el("details", "ctl-note-archive hidden");
+    var nArchiveTitle = el("summary", "");
+    var nArchiveList = el("ul", "ctl-notes");
+    nArchive.appendChild(nArchiveTitle); nArchive.appendChild(nArchiveList);
+    var nRow = el("div", "row ctl-actions");
+    var nTidy = el("button", "", "整理一次"); nTidy.type = "button";
+    var nExport = el("button", "ghost", "匯出（下載）"); nExport.type = "button";
+    nRow.appendChild(nTidy); nRow.appendChild(nExport);
+    var fLab = el("label", "f", "要它忘掉的事（打一個詞，例如人名或主題）");
+    fLab.setAttribute("for", "ctl-forget");
+    var fRow = el("div", "row");
+    var fText = el("input"); fText.id = "ctl-forget"; fText.type = "text"; fText.maxLength = 80;
+    fText.setAttribute("autocomplete", "off");
+    var fAsk = el("button", "danger", "忘掉…"); fAsk.type = "button";
+    fRow.appendChild(fText); fRow.appendChild(fAsk);
+    var fBox = el("div", "ctl-confirm hidden");
+    fBox.setAttribute("role", "group");
+    fBox.setAttribute("aria-label", "確認忘掉");
+    var fQ = el("p", "ctl-confirm-q", "");
+    var fPreview = el("ul", "ctl-forget-preview");
+    var fBtns = el("div", "row");
+    var fGo = el("button", "danger ctl-solid", "確定忘掉"); fGo.type = "button";
+    var fNo = el("button", "", "取消"); fNo.type = "button";
+    fBtns.appendChild(fGo); fBtns.appendChild(fNo);
+    fBox.appendChild(fQ); fBox.appendChild(fPreview); fBox.appendChild(fBtns);
+    var nMsg = el("p", "msgline"); nMsg.setAttribute("aria-live", "polite");
+    [nUsage, nOver, nMode, nPendingTitle, nPending, nTitle, nList, nEmpty, nArchive, nRow, fLab, fRow, fBox, nMsg]
+      .forEach(function (x) { notes.appendChild(x); });
+    body.appendChild(notes);
+
     // 清空記憶
     var reset = card("🧹", "清空常駐助理的記憶",
       "它記得的東西太亂、或想讓它從頭開始時用。按了會先再問你一次。");
@@ -403,6 +547,10 @@
       tSummary: tSummary, tList: tList,
       soulText: soulText, soulWhen: soulWhen, soulDirty: soulDirty, soulSave: soulSave, soulUndo: soulUndo,
       soulMsg: soulMsg,
+      nUsage: nUsage, nOver: nOver, nMode: nMode, nPendingTitle: nPendingTitle, nPending: nPending, nTitle: nTitle,
+      nList: nList, nEmpty: nEmpty, nArchive: nArchive, nArchiveTitle: nArchiveTitle, nArchiveList: nArchiveList,
+      nTidy: nTidy, nExport: nExport, fText: fText, fAsk: fAsk, fBox: fBox, fQ: fQ, fPreview: fPreview,
+      fGo: fGo, fNo: fNo, nMsg: nMsg,
       resetOpen: resetOpen, confirmBox: confirmBox, resetGo: resetGo, resetNo: resetNo, resetMsg: resetMsg
     };
   }
@@ -528,12 +676,105 @@
     ui.dom.soulUndo.disabled = !on;
   }
 
+  // ── 助理筆記 ────────────────────────────────────────────────────────
+
+  function noteItem(text, meta, extra, badges, actions, onAct) {
+    var li = el("li", "ctl-note");
+    var main = el("div", "ctl-note-main");
+    main.appendChild(el("span", "ctl-note-text", text));
+    if (badges && badges.length) {
+      var bs = el("span", "ctl-note-badges");
+      badges.forEach(function (b) { bs.appendChild(el("span", "badge warn", b)); });
+      main.appendChild(bs);
+    }
+    if (meta) { main.appendChild(el("span", "ctl-task-meta", meta)); }
+    (extra || []).forEach(function (t) { if (t) { main.appendChild(el("span", "ctl-note-why", t)); } });
+    li.appendChild(main);
+    var row = el("div", "row ctl-note-acts");
+    actions.forEach(function (a, i) {
+      var b = el("button", (i === 0 ? "" : "ghost ") + "sm", a[1]); b.type = "button";
+      b.addEventListener("click", function () { onAct(a[0], li); });
+      row.appendChild(b);
+    });
+    li.appendChild(row);
+    return li;
+  }
+
+  function renderNotes(data) {
+    var v = notesModel(data, new Date()), d = ui.dom;
+    d.nUsage.textContent = v.usage;
+    d.nOver.textContent = v.overText;
+    d.nOver.classList.toggle("hidden", !v.over);
+    d.nMode.textContent = v.mode;
+    d.nPendingTitle.textContent = v.pendingTitle;
+    d.nPendingTitle.classList.toggle("hidden", !v.pendingTitle);
+    clear(d.nPending);
+    v.pending.forEach(function (p) {
+      d.nPending.appendChild(noteItem(p.text, p.head + (p.when ? "・" + p.when : ""), [p.why, p.related],
+        p.warn ? [p.warn] : [], p.actions, function (action, li) {
+          noteAct(li, ui.client.proposal(p.id, action),
+            action === "reject" ? (p.retire ? "留著了。" : "不記這一條；它之後再提同一句也不會記。")
+              : (p.retire ? "收起來了（在「收起來的」裡，可以放回去）。" : "加進 soul.md 了。"));
+        }));
+    });
+    d.nTitle.textContent = v.notesTitle;
+    clear(d.nList);
+    v.notes.forEach(function (n) {
+      d.nList.appendChild(noteItem(n.text, n.meta, [], n.badges,
+        (n.stale ? [["confirm", "還對"]] : []).concat([["retire", "收起來"]]), function (action, li) {
+          noteAct(li, ui.client.note(n.id, action),
+            action === "confirm" ? "記下了：這條還對。" : "收起來了：AI 讀不到了；在「收起來的」裡可以放回去。");
+        }));
+    });
+    d.nEmpty.textContent = v.empty;
+    d.nEmpty.classList.toggle("hidden", !v.empty);
+    d.nArchive.classList.toggle("hidden", !v.archiveTitle);
+    d.nArchiveTitle.textContent = v.archiveTitle;
+    clear(d.nArchiveList);
+    v.archive.forEach(function (a) {
+      d.nArchiveList.appendChild(noteItem(a.text, a.meta, [], [], [["restore", "放回去"]], function (action, li) {
+        noteAct(li, ui.client.note(a.id, "restore"), "放回 soul.md 了。");
+      }));
+    });
+  }
+
+  // 按了一顆筆記的按鈕：那一列的按鈕先鎖住，成功＝用伺服器回的新清單重畫，soul.md 那一格也重讀
+  function noteAct(li, promise, done) {
+    var buttons = li.querySelectorAll("button");
+    Array.prototype.forEach.call(buttons, function (b) { b.disabled = true; });
+    ui.dom.nMsg.textContent = "";
+    promise.then(function (view) {
+      renderNotes(view);
+      ui.dom.nMsg.textContent = done;
+      loadSoul(); refresh();
+    }, function (e) {
+      Array.prototype.forEach.call(buttons, function (b) { b.disabled = false; });
+      ui.dom.nMsg.textContent = "沒有成功：" + humanError(e);
+    });
+  }
+
+  function loadNotes() {
+    return ui.client.notes().then(renderNotes, function (e) {
+      ui.dom.nUsage.textContent = "";
+      ui.dom.nMsg.textContent = "讀不到助理筆記：" + humanError(e);
+    });
+  }
+
+  function saveFile(name, text) {
+    var blob = new Blob([text], { type: "application/json" });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
   function wire() {
     var d = ui.dom, client = ui.client;
     d.retry.addEventListener("click", function () {
       d.banner.classList.add("hidden");
       if (!ui.status) { d.loading.classList.remove("hidden"); }
-      refresh(); loadSoul();
+      refresh(); loadSoul(); loadNotes();
     });
     d.swInput.addEventListener("change", function () {
       var want = d.swInput.checked;
@@ -595,11 +836,68 @@
         d.soulMsg.textContent = "存好了。常駐助理下一次醒來就會照新的偏好。";
         if (r && r.updated_at) { ui.soulUpdated = r.updated_at; soulWhenText(); }
         else { ui.soulUpdated = new Date().toISOString(); soulWhenText(); }
-        refresh();
+        refresh(); loadNotes();
       }, function (e) {
         d.soulSave.disabled = false;
         d.soulMsg.textContent = "沒有存成（你打的字還在）：" + humanError(e);
       });
+    });
+
+    d.nTidy.addEventListener("click", function () {
+      d.nTidy.disabled = true;
+      d.nMsg.textContent = "整理中…";
+      client.tidy().then(function (r) {
+        if (r && r.notes) { renderNotes(r.notes); }
+        d.nMsg.textContent = (r && r.message) || "整理過了。";
+        loadSoul(); refresh();
+      }, function (e) {
+        d.nMsg.textContent = "沒有整理成：" + humanError(e);
+      }).then(function () { d.nTidy.disabled = false; });
+    });
+    d.nExport.addEventListener("click", function () {
+      d.nExport.disabled = true;
+      client.exportSoul().then(function (data) {
+        try {
+          saveFile("synox-soul-export.json", JSON.stringify(data, null, 2));
+          d.nMsg.textContent = "下載了一份（沒有加密的純文字：裡面是你的偏好與紀錄，放好）。";
+        } catch (x) { d.nMsg.textContent = "這個瀏覽器存不了檔。"; }
+      }, function (e) {
+        d.nMsg.textContent = "沒有匯出成：" + humanError(e);
+      }).then(function () { d.nExport.disabled = false; });
+    });
+    function closeForget() { d.fBox.classList.add("hidden"); d.fAsk.disabled = false; }
+    function askForget() {
+      var word = d.fText.value.trim();
+      if (!word) { d.nMsg.textContent = "先打要它忘掉的詞。"; d.fText.focus(); return; }
+      d.fAsk.disabled = true;
+      d.nMsg.textContent = "";
+      client.forget(word, false).then(function (r) {
+        var s = forgetSummary(r, word);
+        if (!s.any) { d.nMsg.textContent = s.text; d.fAsk.disabled = false; return; }
+        ui.forgetWord = word;
+        d.fQ.textContent = s.text;
+        clear(d.fPreview);
+        (Array.isArray(r.preview) ? r.preview : []).forEach(function (t) { d.fPreview.appendChild(el("li", "", String(t))); });
+        d.fBox.classList.remove("hidden");
+        d.fNo.focus();
+      }, function (e) {
+        d.nMsg.textContent = "沒有成功：" + humanError(e);
+        d.fAsk.disabled = false;
+      });
+    }
+    d.fAsk.addEventListener("click", askForget);
+    d.fText.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { ev.preventDefault(); askForget(); } });
+    d.fNo.addEventListener("click", function () { closeForget(); d.fText.focus(); });
+    d.fGo.addEventListener("click", function () {
+      d.fGo.disabled = true;
+      client.forget(ui.forgetWord, true).then(function () {
+        closeForget();
+        d.fText.value = "";
+        d.nMsg.textContent = "忘掉了。";
+        loadNotes(); loadSoul(); refresh();
+      }, function (e) {
+        d.nMsg.textContent = "沒有忘掉：" + humanError(e);
+      }).then(function () { d.fGo.disabled = false; });
     });
 
     d.resetOpen.addEventListener("click", function () {
@@ -631,7 +929,7 @@
     ctx = ctx || {};
     if (!ui || ui.container !== container) {
       ui = { container: container, ctx: ctx, status: null, openLogs: {}, logs: {}, timer: null,
-             soulSaved: "", soulUpdated: null, soulDirty: false, intervalDirty: false };
+             soulSaved: "", soulUpdated: null, soulDirty: false, intervalDirty: false, forgetWord: "" };
       ui.client = makeClient(ctx.fetch || function (p, o) { return root.fetch(p, o); },
         function () { return ui.ctx.me ? ui.ctx.me.csrf : ""; });
       ui.dom = build(container);
@@ -641,6 +939,7 @@
     if (!canSee(ctx.me)) { leave(); return; }
     refresh();
     loadSoul();
+    loadNotes();
     if (ui.timer) { clearInterval(ui.timer); }
     ui.timer = setInterval(function () {
       if (!root.document || !root.document.hidden) { refresh(); }
@@ -655,6 +954,7 @@
     taskState: taskState, motherState: motherState, relative: relative, when: when,
     validateInterval: validateInterval, resultText: resultText, normalizeStatus: normalizeStatus,
     viewModel: viewModel, humanError: humanError, makeClient: makeClient, canSee: canSee,
+    normalizeNotes: normalizeNotes, notesModel: notesModel, forgetSummary: forgetSummary,
     RESET_CLEARS: RESET_CLEARS, RESET_KEEPS: RESET_KEEPS,
     INTERVAL_MIN: INTERVAL_MIN, INTERVAL_MAX: INTERVAL_MAX, INTERVAL_DEFAULT: INTERVAL_DEFAULT,
     // 畫面

@@ -196,17 +196,20 @@ class AgentLoop:
             lines += ["", textproto.system_snippet(tools)]
         return "\n".join(lines)
 
-    def soul_block(self, user, chat_id: int, nonce: str) -> str:
+    def soul_block(self, user, chat_id: int, nonce: str, query: str = "") -> str:
         """soul.md 放進對話助理的系統提示（擁有者 2026-11-12 決定 Q7，docs/adr/0002）。
         只有**擁有者**、只在**私訊／網頁**（chat_id 就是他自己）；唯讀（`SoulStore.for_prompt`：拿掉註解、沒寫東西＝""、
         有密鑰樣式＝""、最多 2000 字）；包在這一輪的分隔符裡，標明是使用者偏好、不是指令。不寫 log。
-        常駐助理的記憶不讀（邊界照 ADR 0001 §4）。頻道 AI（agent/room.py）換成永遠 ""。"""
+        常駐助理的記憶不讀（邊界照 ADR 0001 §4）。頻道 AI（agent/room.py）換成永遠 ""。
+        query＝這一輪使用者說的話：soul.md 超過上限時，「助理筆記」挑跟這句話相關、比較新的放（docs/adr/0004）。"""
         if user is None or not nonce or getattr(user, "tg_id", None) != chat_id or not self.app.registry.is_owner(user):
             return ""
         from synox import runtime
         rt = runtime.of(self.app)
         soul = getattr(rt, "soul", None)
-        text = soul.for_prompt() if soul is not None else ""
+        ledger = getattr(rt, "ledger", None)
+        text = soul.for_prompt(query=query, weight=ledger.weigher() if ledger is not None else None) \
+            if soul is not None else ""
         if not text:
             return ""
         return "\n".join([
@@ -304,7 +307,7 @@ class AgentLoop:
         native = bool(self.adapter.supports_tools)
         nonce = delimit.new_nonce()                 # 這一輪的分隔符（第 5 關）
         prompt = self.system_prompt(skills, tools, native, user, nonce)
-        soul = self.soul_block(user, chat_id, nonce)
+        soul = self.soul_block(user, chat_id, nonce, text)
         if soul:
             prompt += "\n\n" + soul
         unavailable = self.health_note(user, chat_id)
