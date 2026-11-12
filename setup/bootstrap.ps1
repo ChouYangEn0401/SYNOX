@@ -1,8 +1,9 @@
 ﻿# bootstrap.ps1 — Setup.bat 叫的安裝步驟（UTF-8 有 BOM：PowerShell 5.1 沒 BOM 會當成 cp950）。
 # 1. 找 Python ≥ 3.11：py 啟動器 → PATH 上的 python → winget 裝 Python.Python.3.12 → 最後退路：python.org 的
 #    embeddable zip 解到 runtime\python（加 get-pip、virtualenv）
-# 2. 建 .venv → pip install -e .
-# 3. 打開安裝精靈（pythonw，沒有黑色視窗）
+# 2. 建 .venv → 裝相依：有 wheelhouse\ 就離線裝（--no-index）；有 requirements.lock 就照鎖定的版本裝；都沒有才照
+#    pyproject 的範圍裝（docs/adr/0002；lock 與 wheelhouse 由 scripts/lock_deps.py 在發佈機產生）→ pip install -e .
+# 3. 打開安裝精靈（pythonw，沒有黑色視窗）；這個 Python 沒有 tkinter（可攜版）就在這個視窗跑文字版 `synox init`
 # 重跑是安全的：已經有 .venv 就直接更新套件、打開精靈。
 # 0. 先選語言（lang.ps1）：-Lang／SYNOX_LANG → lang.txt → 問；存進 lang.txt，再用 --lang 交給精靈。
 param([string]$Lang = '')
@@ -48,6 +49,40 @@ function Find-Python {
     return $null
 }
 
+function Test-Window {
+    # 可攜版（embeddable）Python 沒有 tkinter：精靈開不了視窗，改用文字版
+    try {
+        & $VenvPy -c "import tkinter, _tkinter" 2>$null | Out-Null
+        return ($LASTEXITCODE -eq 0)
+    } catch { return $false }
+}
+
+function Install-Packages {
+    $wheels = Join-Path $Root 'wheelhouse'
+    $lock = Join-Path $Root 'requirements.lock'
+    $pip = @('-m', 'pip', 'install', '--disable-pip-version-check', '-q')
+    if (Test-Path -LiteralPath $wheels) {
+        Say (Tr 'offline_wheels')
+        $offline = $pip + @('--no-index', '--find-links', $wheels)
+        if (Test-Path -LiteralPath $lock) {
+            & $VenvPy @offline -r $lock | Out-Host
+            if ($LASTEXITCODE -ne 0) { throw (Tr 'pip_failed') }
+            & $VenvPy @offline --no-deps -e $Root | Out-Host
+        } else {
+            & $VenvPy @offline -e $Root | Out-Host
+        }
+    } elseif (Test-Path -LiteralPath $lock) {
+        & $VenvPy @pip --upgrade pip | Out-Host
+        & $VenvPy @pip -r $lock | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw (Tr 'pip_failed') }
+        & $VenvPy @pip --no-deps -e $Root | Out-Host
+    } else {
+        & $VenvPy @pip --upgrade pip | Out-Host
+        & $VenvPy @pip -e $Root | Out-Host
+    }
+    if ($LASTEXITCODE -ne 0) { throw (Tr 'pip_failed') }
+}
+
 function Install-WithWinget {
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { return }
     Say (Tr 'no_python_winget')
@@ -88,9 +123,12 @@ try {
         if (-not (Test-Path -LiteralPath $VenvPy)) { throw (Tr 'venv_failed') }
     }
     Say (Tr 'installing')
-    & $VenvPy -m pip install --disable-pip-version-check -q --upgrade pip | Out-Host
-    & $VenvPy -m pip install --disable-pip-version-check -q -e $Root | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw (Tr 'pip_failed') }
+    Install-Packages
+    if (-not (Test-Window)) {
+        Say (Tr 'no_window_text')
+        & $VenvPy -m synox init
+        exit $LASTEXITCODE
+    }
     Say (Tr 'opening_wizard')
     $exe = if (Test-Path -LiteralPath $VenvPyw) { $VenvPyw } else { $VenvPy }
     Start-Process -FilePath $exe -ArgumentList @('-m', 'synox', 'wizard', '--lang', $LangCode) -WorkingDirectory $Root

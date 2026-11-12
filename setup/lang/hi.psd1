@@ -10,6 +10,8 @@
     creating_venv         = '{0} से .venv बनाया जा रहा है ...'
     venv_failed           = '.venv नहीं बन सका।'
     installing            = 'SYNOX के ज़रूरी पैकेज इंस्टॉल हो रहे हैं (पहली बार कुछ मिनट)...'
+    offline_wheels        = 'साथ दिए wheelhouse से पैकेज ऑफ़लाइन इंस्टॉल हो रहे हैं...'
+    no_window_text        = 'इस Python में विंडो सपोर्ट (tkinter) नहीं है: सेटअप इसी विंडो में टेक्स्ट रूप (synox init) में चलेगा...'
     pip_failed            = 'pip install विफल (नेटवर्क?)।'
     opening_wizard        = 'सेटअप विज़ार्ड खुल रहा है...'
     row_running           = 'SYNOX चल रहा है (pid)'
