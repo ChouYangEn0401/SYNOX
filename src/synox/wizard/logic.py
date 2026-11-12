@@ -42,6 +42,7 @@ def mode_lines(mode: str) -> Tuple[str, str, str]:
 # ── 第 4 頁：AI ─────────────────────────────────────────────────────
 
 CLAUDE_TITLE = "預設：Claude（這台電腦登入的 Claude Code）"
+CLAUDE_DOWNLOAD_URL = "https://claude.com/product/claude-code"      # 找不到 Claude Code 時，精靈的按鈕帶使用者去下載
 
 # 其他金鑰來源：代號 → (下拉選單上的字, config 的 llm.kind, 預填的模型, 要不要填網址)
 # 模型名稱只是預填，使用者可以改，「測一下」會驗。
