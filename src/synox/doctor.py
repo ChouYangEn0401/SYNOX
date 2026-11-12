@@ -127,6 +127,29 @@ def _discord_bot_line(spec, vault) -> tuple:
     return f"{head}：⚠️ token 直接寫在 config.json（建議改用保管箱：python -m synox discord token）", 0
 
 
+def _heartbeat_line(config) -> str:
+    """心跳（docs/adr/0001）：開關、間隔、安靜時段＋data/runtime/state.json 記的上一次（沒有個人資料的那份；不改檔）。"""
+    from synox.runtime.loop import STATE_FILE, iso
+    hb = (getattr(config, "runtime", None) or {}).get("heartbeat") or {}
+    if not hb.get("enabled", True):
+        head = "  心跳：關（runtime.heartbeat.enabled=false）"
+    else:
+        quiet = hb.get("quiet_hours") or "沒有"
+        head = f"  心跳：開，每 {hb.get('interval_min', 45)} 分鐘（安靜時段 {quiet}；網頁主控面板可以改）"
+    try:
+        import json
+        with open(os.path.join(config.data_dir, STATE_FILE), "r", encoding="utf-8") as f:
+            saved = json.load(f)
+        task = (saved.get("tasks") or {}).get("system.heartbeat") or {}
+        last = task.get("last_run_at")
+        result = (saved.get("heartbeat") or {}).get("last_result") or ""
+    except (OSError, ValueError, AttributeError):
+        last, result = None, ""
+    if isinstance(last, (int, float)):
+        return head + f"\n    上一次：{iso(last)}　{result}".rstrip()
+    return head + "\n    上一次：還沒巡過（SYNOX 跑起來之後才會巡）"
+
+
 def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] = print) -> int:
     problems = 0
     out(f"🩺 SYNOX {__version__} 健康檢查")
@@ -156,6 +179,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
             out("  網頁介面：" + (f"開，http://127.0.0.1:{web.get('port')}/（/web 拿登入連結）"
                                 + (f"　對外網址 {web.get('public_url')}" if web.get("public_url") else "")
                                 if web.get("enabled", True) else "關（web.enabled=false）"))
+            out(_heartbeat_line(config))
             if config.discord_enabled:
                 bot_lines, bad = _discord_lines(config)
                 from synox import discord as _dc
