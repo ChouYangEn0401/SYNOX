@@ -1,0 +1,51 @@
+{
+  "id": "chain-02",
+  "category": "chain",
+  "split": "holdout",
+  "title": "先查天氣，會下雨才記一條帶傘",
+  "turns": [
+    "看一下台北明天會不會下雨，會的話幫我記一條「帶傘」"
+  ],
+  "tools": [
+    {
+      "name": "weather__forecast",
+      "results": [
+        {
+          "when": {
+            "city": {
+              "contains": "台北"
+            }
+          },
+          "reply": "台北 明天：陣雨，20–24°C，降雨機率 80%"
+        },
+        {
+          "reply": "{city}：查不到這個城市"
+        }
+      ]
+    },
+    {
+      "name": "note__add"
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "weather__forecast",
+        "args": {
+          "city": {
+            "contains": "台北"
+          }
+        }
+      },
+      {
+        "tool": "note__add",
+        "args": {
+          "text": {
+            "contains": "傘"
+          }
+        }
+      }
+    ],
+    "max_steps": 3
+  }
+}

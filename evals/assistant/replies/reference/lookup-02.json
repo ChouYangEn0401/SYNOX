@@ -1,0 +1,24 @@
+{
+  "case": "lookup-02",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "currency__convert",
+            "args": {
+              "amount": "100",
+              "source": "USD",
+              "target": "TWD"
+            },
+            "result": "100 USD ≈ 3,200 TWD（範例匯率 32.0）"
+          }
+        ]
+      },
+      {
+        "text": "大約 3,200 台幣（以範例匯率 32.0 計算）。"
+      }
+    ]
+  ]
+}

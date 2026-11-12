@@ -1,0 +1,106 @@
+{
+  "case": "lookup-01",
+  "source": "broken",
+  "note": "超過步數：一直重查同一個工具，迴圈做滿步數上限",
+  "expected_failures": [
+    "max_steps",
+    "final_contains"
+  ],
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "weather__forecast",
+            "args": {
+              "city": "台北",
+              "day": "tomorrow"
+            },
+            "result": "台北 明天：多雲時晴，24–30°C，降雨機率 20%"
+          }
+        ]
+      },
+      {
+        "tool_calls": [
+          {
+            "name": "weather__forecast",
+            "args": {
+              "city": "台北",
+              "day": "tomorrow"
+            },
+            "result": "台北 明天：多雲時晴，24–30°C，降雨機率 20%"
+          }
+        ]
+      },
+      {
+        "tool_calls": [
+          {
+            "name": "weather__forecast",
+            "args": {
+              "city": "台北",
+              "day": "tomorrow"
+            },
+            "result": "台北 明天：多雲時晴，24–30°C，降雨機率 20%"
+          }
+        ]
+      },
+      {
+        "tool_calls": [
+          {
+            "name": "weather__forecast",
+            "args": {
+              "city": "台北",
+              "day": "tomorrow"
+            },
+            "result": "台北 明天：多雲時晴，24–30°C，降雨機率 20%"
+          }
+        ]
+      },
+      {
+        "tool_calls": [
+          {
+            "name": "weather__forecast",
+            "args": {
+              "city": "台北",
+              "day": "tomorrow"
+            },
+            "result": "台北 明天：多雲時晴，24–30°C，降雨機率 20%"
+          }
+        ]
+      },
+      {
+        "tool_calls": [
+          {
+            "name": "weather__forecast",
+            "args": {
+              "city": "台北",
+              "day": "tomorrow"
+            }
+          }
+        ]
+      },
+      {
+        "tool_calls": [
+          {
+            "name": "weather__forecast",
+            "args": {
+              "city": "台北",
+              "day": "tomorrow"
+            }
+          }
+        ]
+      },
+      {
+        "tool_calls": [
+          {
+            "name": "weather__forecast",
+            "args": {
+              "city": "台北",
+              "day": "tomorrow"
+            }
+          }
+        ]
+      }
+    ]
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "case": "chain-02",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "weather__forecast",
+            "args": {
+              "city": "台北",
+              "day": "tomorrow"
+            },
+            "result": "台北 明天：陣雨，20–24°C，降雨機率 80%"
+          }
+        ]
+      },
+      {
+        "tool_calls": [
+          {
+            "name": "note__add",
+            "args": {
+              "text": "帶傘"
+            },
+            "result": "已記下：帶傘"
+          }
+        ]
+      },
+      {
+        "text": "台北明天降雨機率 80%，已經幫你記下「帶傘」。"
+      }
+    ]
+  ]
+}

@@ -1,0 +1,34 @@
+{
+  "id": "no_clarify-01",
+  "category": "no_clarify",
+  "split": "tune",
+  "title": "說法簡短但意思清楚：直接記，不要反問",
+  "turns": [
+    "記一下：買貓砂"
+  ],
+  "tools": [
+    {
+      "name": "note__add"
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "note__add",
+        "args": {
+          "text": {
+            "contains": "貓砂"
+          }
+        }
+      }
+    ],
+    "ask_back": false,
+    "max_steps": 2
+  },
+  "soft": [
+    {
+      "name": "簡短",
+      "rubric": "一兩句講清楚做了什麼；5＝簡短又完整，1＝囉嗦或漏掉重點"
+    }
+  ]
+}

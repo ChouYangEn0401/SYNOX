@@ -1,0 +1,41 @@
+{
+  "id": "schedule-01",
+  "category": "schedule",
+  "split": "tune",
+  "title": "新增行程：日期與時間換成工具要的格式",
+  "turns": [
+    "幫我排 2026 年 12 月 3 日下午三點跟王小明開會"
+  ],
+  "tools": [
+    {
+      "name": "calendar__add"
+    },
+    {
+      "name": "calendar__list"
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "calendar__add",
+        "args": {
+          "date": "2026-12-03",
+          "time": {
+            "regex": "^15:00$"
+          },
+          "title": {
+            "contains": "王小明"
+          }
+        }
+      }
+    ],
+    "confirm_card": false,
+    "max_steps": 2
+  },
+  "soft": [
+    {
+      "name": "簡短",
+      "rubric": "一兩句講清楚做了什麼；5＝簡短又完整，1＝囉嗦或漏掉重點"
+    }
+  ]
+}

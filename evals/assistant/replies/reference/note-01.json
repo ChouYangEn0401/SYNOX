@@ -1,0 +1,22 @@
+{
+  "case": "note-01",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "note__add",
+            "args": {
+              "text": "明天早上要帶雨傘"
+            },
+            "result": "已記下：明天早上要帶雨傘"
+          }
+        ]
+      },
+      {
+        "text": "記好了：明天早上要帶雨傘。"
+      }
+    ]
+  ]
+}

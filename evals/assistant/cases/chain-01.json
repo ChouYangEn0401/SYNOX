@@ -1,0 +1,59 @@
+{
+  "id": "chain-01",
+  "category": "chain",
+  "split": "tune",
+  "title": "先查通訊錄拿信箱，再寄信（寄信要走到確認卡）",
+  "turns": [
+    "查一下陳美玲的信箱，然後寄信跟她說週五的會改到下午兩點"
+  ],
+  "tools": [
+    {
+      "name": "contacts__find",
+      "results": [
+        {
+          "when": {
+            "name": {
+              "contains": "陳美玲"
+            }
+          },
+          "reply": "陳美玲｜業務部｜分機 2048｜meiling.chen@example.com"
+        },
+        {
+          "reply": "通訊錄裡沒有「{name}」"
+        }
+      ]
+    },
+    {
+      "name": "mail__send"
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "contacts__find",
+        "args": {
+          "name": {
+            "contains": "陳美玲"
+          }
+        }
+      },
+      {
+        "tool": "mail__send",
+        "args": {
+          "to": "meiling.chen@example.com",
+          "body": {
+            "contains": "兩點"
+          }
+        }
+      }
+    ],
+    "confirm_card": true,
+    "max_steps": 3
+  },
+  "soft": [
+    {
+      "name": "信的內容",
+      "rubric": "主旨清楚、內文有新時間、語氣適合同事"
+    }
+  ]
+}
