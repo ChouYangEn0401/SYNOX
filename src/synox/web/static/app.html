@@ -340,6 +340,7 @@
     .login { padding: 22px 18px; }
   }
 </style>
+<style nonce="{{NONCE}}">/*{{INCLUDE:control.css}}*/</style>
 </head>
 <body data-view="login">
 <div class="shell">
@@ -358,6 +359,9 @@
     <a href="#tools" data-view="tools">
       <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>
       <span>工具</span></a>
+    <a href="#control" data-view="control" id="nav-control" class="hidden">
+      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>
+      <span>主控</span></a>
     <a href="#settings" data-view="settings">
       <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
       <span>設定</span></a>
@@ -513,10 +517,13 @@
       </div>
     </div>
   </section>
+
+  <section id="view-control" class="hidden"></section>
 </main>
 </div>
 <div id="toast" class="hidden" role="status"></div>
 
+<script nonce="{{NONCE}}">/*{{INCLUDE:control.js}}*/</script>
 <script nonce="{{NONCE}}">
 (function () {
   "use strict";
@@ -570,7 +577,8 @@
   }
 
   // ── 切換畫面 ──────────────────────────────────────────────────────
-  var VIEWS = ["login", "chat", "tools", "settings"];
+  var VIEWS = ["login", "chat", "tools", "settings", "control"];
+  var control = window.SynoxControl;        // 主控頁（control.js，只有擁有者）
   function show(view) {
     VIEWS.forEach(function (v) { $("view-" + v).classList.toggle("hidden", v !== view); });
     document.body.setAttribute("data-view", view);
@@ -583,10 +591,15 @@
     if (view === "chat") { loadChats(); pollTimer = setInterval(poll, 2000); }
     if (view === "tools") { loadTools(); }
     if (view === "settings") { loadSettings(); openStaged(); }
+    if (control) {
+      if (view === "control") { control.open($("view-control"), { me: me, onUnauthorized: showLogin, toast: toast }); }
+      else { control.leave(); }
+    }
   }
   function route() {
     if (!me) { show("login"); return; }
     var v = (location.hash || "#chat").slice(1);
+    if (v === "control" && !(control && control.canSee(me))) { v = "chat"; }
     show(VIEWS.indexOf(v) > 0 ? v : "chat");
   }
   function showLogin() {
@@ -1321,6 +1334,7 @@
   api("GET", "/api/me").then(function (d) {
     me = d;
     $("nav").classList.remove("hidden");
+    $("nav-control").classList.toggle("hidden", !(control && control.canSee(d)));
     $("logout").classList.remove("hidden");
     showWho(d);
     route();
