@@ -5,6 +5,9 @@
 | 文件 | 給誰 | 一行說明 |
 |---|---|---|
 | [../README.md](../README.md) | 使用者 | 怎麼裝、每天怎麼用、個人版與伺服器版的差別、常見問題 |
+| [landing/index.html](landing/index.html) | 使用者 | 介紹頁（雙擊就能看；線上版 <https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW>）：它是什麼、本機優先、畫面、三步裝好、安全、工具生態、alpha 現況、路線 |
+| `tutorials/telegram/`、`tutorials/discord/` | 使用者 | 第一次裝、接 Telegram／Discord 的圖文教學；Discord 的名詞在 `discord-concepts.md`（這三個在另外的分支產生，合併後把這列改成連結） |
+| [ecosystem.md](ecosystem.md) | 使用者、作者、維護者 | 工具生態：找、裝、更新、移除工具；做一個工具給人裝；之後的路（哪些是提案）；每次發版要更新哪些文件 |
 | [security.md](security.md) | 使用者、作者 | 資料存在哪、誰看得到、裝別人的 pack 時的五關、信任層級、沙盒、沒有做的保護 |
 | [discord.md](discord.md) | 使用者 | Discord 通道的現況與設定（含多個 bot） |
 | [handoff/](handoff/README.md) | 使用者 | 到另一台電腦用真的帳號測 connector 與 Discord：教學、Discord 交接、煙霧測試 `scripts/smoke_real.py` |
