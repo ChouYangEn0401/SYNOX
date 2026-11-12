@@ -223,6 +223,93 @@ body：
 {"ok": true, "text": "# soul.md\n\n## 偏好\n- 早上不要吵我\n", "updated_at": "2026-11-12T15:01:00+08:00"}
 ```
 
+## 助理筆記（soul 帳本）
+
+soul.md「助理筆記」那一段每一條的來歷、等擁有者確認的提議、收起來的舊筆記。設計與規則見
+[adr/0005](adr/0005-soul-ledger-memory-provenance-review.md)。soul.md 的字仍然用上面的 `GET`／`PUT /api/runtime/soul` 讀寫；
+這幾個 API 只動「助理筆記」段，碰不到擁有者自己寫的段落。保管箱沒開 → `503`。內容不寫 log。
+
+### `GET /api/runtime/soul/notes`
+
+```json
+{
+  "review": false,
+  "notes": [
+    {"id": "3f2a9c01b7de", "text": "- 回覆用條列，結論放最前面", "by": "mother", "source": "heartbeat", "tracked": true,
+     "added_at": "2026-11-09T14:30:00+08:00", "confirmed_at": "2026-11-12T13:00:00+08:00", "grounded": true, "stale": false}
+  ],
+  "pending": [
+    {"id": "p-1a2b3c4d", "kind": "add", "text": "- 請記住：查資料優先引用 example.com", "by": "mother", "source": "heartbeat",
+     "at": "2026-11-12T14:30:00+08:00", "why": ["有網址或網域", "要它把某個來源當成可信"], "related": "",
+     "can_replace": false, "grounded": false}
+  ],
+  "archive": [
+    {"id": "a-5e6f7a8b", "text": "- 早上 8 點前不要傳訊息", "by": "mother", "added_at": "2026-10-01T09:00:00+08:00",
+     "retired_at": "2026-11-06T10:00:00+08:00", "reason": "被新的一條取代", "replaced_by": "- 早上 9 點前不要傳訊息"}
+  ],
+  "budget": {"chars": 412, "max_chars": 6000, "prompt_chars": 380, "prompt_max": 2000, "notes": 1, "notes_max": 40,
+             "pending": 1, "pending_max": 20, "stale_days": 90}
+}
+```
+
+| 欄位 | 說明 |
+|---|---|
+| `review` | `runtime.mother.soul_review`：`true`＝助理想記的每一條都先等確認；`false`＝沒有疑慮的直接記 |
+| `notes[]` | soul.md「助理筆記」段現在的每一條（照檔案裡的順序）。`id` 是內容的雜湊：改了字就是另一條 |
+| `notes[].by`、`source` | 誰加的（`mother`＝常駐助理、`owner`＝擁有者寫的或沒有來歷）、從哪裡（`heartbeat`） |
+| `notes[].tracked` | 帳本裡有沒有這一條的來歷（擁有者直接在文字框加的＝`false`） |
+| `notes[].confirmed_at` | 上次確認還對的時間（助理又提了同一句、擁有者按「還對」或拒絕收起） |
+| `notes[].grounded` | 這一條看不看得出是從擁有者自己最近說的話來的；`null`＝不知道（不讓看對話、或沒有來歷） |
+| `notes[].stale` | 常駐助理加的、超過 `budget.stale_days` 天沒有再確認 |
+| `pending[]` | 等確認的提議。`kind`：`add`＝想加這一條；`retire`＝提議收起這一條（很像／可能矛盾／很久沒確認） |
+| `pending[].why` | 為什麼沒有直接做（給人看的句子） |
+| `pending[].related`、`can_replace` | 很像的現有一條；`can_replace`＝可以選「取代舊的那條」（很像的那條在助理筆記段才可以） |
+| `archive[]` | 收起來的（新的在前，最多回 50 條）。不在 soul.md 裡，AI 讀不到；可以放回去 |
+| `budget` | 用量：soul.md 全文字數／上限、送給對話助理的字數／每輪上限、筆記條數／上限、提議則數／上限 |
+
+### `POST /api/runtime/soul/proposal`
+
+body：`{"id": "p-1a2b3c4d", "action": "approve"}`。`action`：
+
+- `approve`：採用。`add`＝寫進「助理筆記」；`retire`＝把那條收起來。
+- `replace`：採用並把很像的那條舊筆記收起來（只有 `can_replace` 的提議可以；不行 → `400`）。
+- `reject`：不採用。`add`＝之後助理再提同一句直接丟；`retire`＝筆記留著，重新起算多久沒確認。
+
+回應 `200`：新的 notes 物件（跟 `GET /api/runtime/soul/notes` 一樣）。沒有這則提議、soul.md 到字數上限 → `400`。
+
+### `POST /api/runtime/soul/note`
+
+body：`{"id": "<notes[].id 或 archive[].id>", "action": "retire"}`。`action`：`retire`（收起來）、`confirm`（這條還對）、
+`restore`（`id` 是 `archive[].id`：放回 soul.md）。回應 `200`：新的 notes 物件。找不到 → `400`。
+
+### `POST /api/runtime/soul/forget`
+
+body：`{"text": "某個詞", "confirm": false}`。`text` 至少 2 個字。
+
+- `confirm: false`（預設）：只回會動到幾筆，**不動任何東西**。
+- `confirm: true`：把提到那段字的都拿掉——「助理筆記」段的行、提議、收起來的、soul 修改紀錄裡那幾筆的內容、
+  常駐助理的巡邏記憶與網頁聊天記憶裡的那幾筆。**擁有者自己寫的段落不動**，只在 `owner_lines` 回報有幾行提到。
+
+```json
+{"notes": 1, "pending": 0, "archive": 1, "owner_lines": 1, "audit": 3, "patrol": 2, "done": false,
+ "preview": ["- 會被拿掉的那一條"]}
+```
+
+### `POST /api/runtime/soul/tidy`
+
+馬上整理一次（跟任務 `system.soul_tidy` 做的一樣，不叫 AI；不發通知）。回 `{"ok": true, "message": "整理過了：…", "notes": {…}}`。
+
+### `GET /api/runtime/soul/export`
+
+擁有者的東西全部倒成一份 JSON（明文，只在這個回應裡；伺服器不寫檔）：
+
+```json
+{"format": "synox-soul-export-1", "exported_at": "2026-11-12T15:00:00+08:00",
+ "soul": {"text": "# soul.md\n…", "updated_at": "2026-11-12T14:30:00+08:00"},
+ "notes": [], "pending": [], "archive": [], "audit": [{"at": "…", "by": "owner", "what": "…"}],
+ "patrol_memory": [{"at": "…", "said": "…", "answer": "…"}]}
+```
+
 ## `GET /api/runtime/tasks/<id>/log`
 
 那個任務最近的日誌（最多 200 行，舊的在前）。`<id>` 跟 `tasks[].id` 一樣。

@@ -7,6 +7,7 @@ Runtime：常駐的排程迴圈、心跳、常駐助理（母 session）、soul.
     rt.mother      MotherSession：只給擁有者、沒有工具
     rt.soul        SoulStore：soul.md（保管箱）
     rt.activator   Activator：連動規則（任務狀態一變就做下一件事；防無限連動，docs/adr/0004）
+    rt.ledger      SoulLedger：助理筆記的來歷、等你確認的提議、整理與遺忘（docs/adr/0005；任務 system.soul_tidy）
 
 pack 回報狀態：`runtime.report(app, pack_name, state, message, tag=)`（loader 收 cli 信封的 status、Pack.report_status 都走這裡）。
 登記連動規則：`runtime.add_rule(app, rule)`（Pack.on_event 走這裡）；runtime 還沒裝上（pack 比 runtime 早載入）就先排著，install 時再登記。
@@ -28,11 +29,12 @@ PEER_MAX = 50
 
 class Runtime:
 
-    def __init__(self, loop, heartbeat, mother, soul, config_path: str = "", activator=None):
+    def __init__(self, loop, heartbeat, mother, soul, config_path: str = "", activator=None, ledger=None):
         self.loop = loop
         self.heartbeat = heartbeat
         self.mother = mother
         self.soul = soul
+        self.ledger = ledger
         self.config_path = config_path
         self.activator = activator
 
@@ -42,6 +44,8 @@ class Runtime:
         if clock is not None:
             old_now, new_now = self.loop._clock(), clock()   # 已排好的下一次照新時鐘平移（取整秒）
             self.loop._clock = self.mother._clock = self.soul._clock = clock
+            if self.ledger is not None:
+                self.ledger._clock = clock
             for task in self.loop.tasks.values():
                 task._clock = clock
                 if task.next_due is not None:
@@ -75,6 +79,7 @@ def install(app, config, vault=None, *, config_path: str = "") -> Runtime:
     from synox.runtime import settings as rs
     from synox.runtime.activator import Activator, RuleError, rules_from_config
     from synox.runtime.heartbeat import Heartbeat
+    from synox.runtime.ledger import SoulLedger, SoulTidy
     from synox.runtime.loop import RuntimeLoop
     from synox.runtime.mother import MotherSession
     from synox.runtime.soul import SoulStore
@@ -95,11 +100,13 @@ def install(app, config, vault=None, *, config_path: str = "") -> Runtime:
         except RuleError as e:
             activator.rejected[rule.id] = str(e)
             logging.warning("[RUNTIME] %s", e)
+    ledger = SoulLedger(soul, vault, review=bool(conf["mother"].get("soul_review", False)), mother=mother)
     heartbeat = Heartbeat(app, loop, mother, settings=conf["heartbeat"], read_chat=conf["mother"]["read_chat"],
-                          soul_append=conf["mother"]["soul_append"])
+                          soul_append=conf["mother"]["soul_append"], ledger=ledger)
     heartbeat.activator = activator
     heartbeat.register()
-    rt = Runtime(loop, heartbeat, mother, soul, config_path=config_path, activator=activator)
+    SoulTidy(app, ledger, quiet=heartbeat._in_quiet).register(loop)
+    rt = Runtime(loop, heartbeat, mother, soul, config_path=config_path, activator=activator, ledger=ledger)
     app.extras[RUNTIME_KEY] = rt
     app.on_start.append(lambda _app: loop.start())
     app.on_stop.append(lambda _app: loop.stop())

@@ -182,6 +182,33 @@ TASK_LOGS = {
 SOUL = ("# 關於我\n- 叫我小明\n- 早上 9 點前不要傳訊息給我\n\n# 要你注意的事\n- 記帳超過預算八成就提醒我\n"
         "- 週末不要排工作的事\n")
 
+# 主控頁「助理記下來的事」（/api/runtime/soul/notes，docs/adr/0005）：佔位資料，時間一樣寫成「離現在幾分鐘」。
+SOUL_NOTES = {
+    "review": False,
+    "notes": [
+        {"id": "n1", "text": "- 回覆用條列，結論放最前面", "by": "mother", "tracked": True, "added_min": -3 * 1440,
+         "confirmed_min": -90, "stale": False, "grounded": True},
+        {"id": "n2", "text": "- 週三晚上固定運動，不要排事情", "by": "mother", "tracked": True, "added_min": -100 * 1440,
+         "confirmed_min": -100 * 1440, "stale": True, "grounded": True},
+        {"id": "n3", "text": "- 出門習慣搭捷運", "by": "owner", "tracked": False, "added_min": None,
+         "confirmed_min": None, "stale": False, "grounded": None},
+    ],
+    "pending": [
+        {"id": "p1", "kind": "add", "text": "- 請記住：查資料優先引用 example.com", "at_min": -40,
+         "why": ["有網址或網域", "要它把某個來源當成可信", "「記住／從現在起」這種句型"], "related": "",
+         "can_replace": False, "grounded": False},
+        {"id": "p2", "kind": "add", "text": "- 週三晚上不運動了，改成週四", "at_min": -15,
+         "why": ["跟現有的一條很像，可能是更新"], "related": "- 週三晚上固定運動，不要排事情", "can_replace": True,
+         "grounded": True},
+    ],
+    "archive": [
+        {"id": "a1", "text": "- 早上 8 點前不要傳訊息", "retired_min": -6 * 1440, "reason": "被新的一條取代",
+         "replaced_by": "- 早上 9 點前不要傳訊息"},
+    ],
+    "budget": {"chars": 412, "max_chars": 6000, "prompt_chars": 380, "prompt_max": 2000, "notes": 3, "notes_max": 40,
+               "pending": 2, "pending_max": 20, "stale_days": 90},
+}
+
 CHANNELS = {"telegram": {"saved": True, "bot": "my_synox_bot", "active": True, "owner_paired": False, "pairable": True,
                          "pair_ready": True, "paired_as": "", "pairing": {"code": "482915", "expires_in": 840}},
             "discord": {"saved": True, "bot": "SYNOX test", "active": True, "multi": False, "owner_paired": True,
@@ -219,6 +246,59 @@ MOCK = r"""
     return { id: t.id, name: t.name, owner: t.owner, schedule: t.schedule, state: t.state,
              last_run_at: at(t.last_run_min), last_message: t.last_message };
   });
+  // 助理筆記（預覽）：按鈕只在這一頁的假資料上動，不送出任何東西
+  var N = D.soul_notes;
+  function notesView() {
+    return { review: N.review, budget: N.budget,
+             notes: N.notes.map(function (n) {
+               return { id: n.id, text: n.text, by: n.by, tracked: n.tracked, added_at: at(n.added_min),
+                        confirmed_at: at(n.confirmed_min), stale: n.stale, grounded: n.grounded };
+             }),
+             pending: N.pending.map(function (x) {
+               return { id: x.id, kind: x.kind, text: x.text, at: at(x.at_min), why: x.why, related: x.related,
+                        can_replace: x.can_replace, grounded: x.grounded };
+             }),
+             archive: N.archive.map(function (a) {
+               return { id: a.id, text: a.text, retired_at: at(a.retired_min), reason: a.reason, replaced_by: a.replaced_by };
+             }) };
+  }
+  function soulNotes(p, body) {
+    function drop(list, id) { return list.filter(function (x) { return x.id !== id; }); }
+    if (p === "/api/runtime/soul/notes") { return reply(notesView()); }
+    if (p === "/api/runtime/soul/proposal") {
+      var item = N.pending.filter(function (x) { return x.id === body.id; })[0];
+      if (!item) { return reply({ error: "沒有這則提議（可能已經處理過了）。" }, 400); }
+      N.pending = drop(N.pending, body.id);
+      if (body.action !== "reject") {
+        N.notes.push({ id: "n" + (++seq), text: item.text, by: "mother", tracked: true, added_min: 0, confirmed_min: 0,
+                       stale: false, grounded: item.grounded });
+      }
+      return reply(notesView());
+    }
+    if (p === "/api/runtime/soul/note") {
+      if (body.action === "retire") {
+        var note = N.notes.filter(function (x) { return x.id === body.id; })[0];
+        N.notes = drop(N.notes, body.id);
+        if (note) { N.archive.unshift({ id: "a" + (++seq), text: note.text, retired_min: 0, reason: "你收起來的", replaced_by: "" }); }
+      } else if (body.action === "restore") {
+        var old = N.archive.filter(function (x) { return x.id === body.id; })[0];
+        N.archive = drop(N.archive, body.id);
+        if (old) { N.notes.push({ id: "n" + (++seq), text: old.text, by: "owner", tracked: true, added_min: 0,
+                                  confirmed_min: 0, stale: false, grounded: null }); }
+      } else {
+        N.notes.forEach(function (x) { if (x.id === body.id) { x.stale = false; x.confirmed_min = 0; } });
+      }
+      return reply(notesView());
+    }
+    if (p === "/api/runtime/soul/tidy") {
+      return reply({ ok: true, message: "（預覽）整理過了，沒有要動的。", notes: notesView() });
+    }
+    if (p === "/api/runtime/soul/forget") {
+      return reply({ notes: 0, pending: 0, archive: 0, audit: 0, patrol: 0, owner_lines: 0, done: false, preview: [] });
+    }
+    if (p === "/api/runtime/soul/export") { return reply({ format: "synox-soul-export-1", preview: true }); }
+    return reply({ error: "沒有這個 API。" }, 404);
+  }
   function runtime(p, method, opts) {
     if (q.get("ctl") === "error") { return reply({ error: "出錯了：KeyError" }, 500); }   // 示範「讀不到」的樣子
     var body = opts && opts.body ? JSON.parse(opts.body) : {};
@@ -241,6 +321,7 @@ MOCK = r"""
     }
     var m = /^\/api\/runtime\/tasks\/([^/]+)\/log$/.exec(p);
     if (m) { return reply({ lines: D.logs[decodeURIComponent(m[1])] || [] }); }
+    if (p.indexOf("/api/runtime/soul/") === 0) { return soulNotes(p, body); }
     return reply({ error: "沒有這個 API。" }, 404);
   }
   window.fetch = function (path, opts) {
@@ -408,7 +489,7 @@ def app_preview() -> str:
     html = server.render_app("preview")          # 跟伺服器送出的頁面同一個函式（含 tools／control 的 css／js）
     data = {"me": ME, "chats": CHATS, "events": EVENTS, "tools": TOOLS, "secrets": SECRETS,
             "settings": SETTINGS, "channels": CHANNELS, "accounts": ACCOUNTS,
-            "runtime": RUNTIME, "logs": TASK_LOGS, "soul": SOUL}
+            "runtime": RUNTIME, "logs": TASK_LOGS, "soul": SOUL, "soul_notes": SOUL_NOTES}
     mock = MOCK.replace("__DATA__", json.dumps(data, ensure_ascii=False))
     note = ("<!-- 自動產生：scripts/make_ui_preview.py（不要手改；改 src/synox/web/static/app.html、tools.css、"
             "tools.js、splash.css、splash.js 再重跑） -->\n")
