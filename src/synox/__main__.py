@@ -68,7 +68,7 @@ def cmd_run(args) -> int:
 
 
 def _wants_browser(args) -> bool:
-    """web-login 幫忙開 SYNOX 時設 SYNOX_NO_BROWSER=1（連結由它自己開，不要開兩個分頁）；--no-browser 同義。"""
+    """開機自動啟動（Start.bat --no-browser → SYNOX_NO_BROWSER=1）不要每次登入都跳出瀏覽器。"""
     return not getattr(args, "no_browser", False) and os.environ.get("SYNOX_NO_BROWSER", "") not in ("1", "true")
 
 

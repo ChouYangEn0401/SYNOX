@@ -121,9 +121,15 @@ def test_web_only_opens_the_owner_link_only_when_asked(tmp_path, monkeypatch):
     assert ui.issued == [logic.local_owner_id()]
 
 
-def test_desktop_shortcut_target_runs_web_login():
+def test_desktop_shortcut_opens_the_web_ui_and_autostart_does_not():
+    text = shortcuts.startup_cmd_text(r"C:\Apps\SYNOX")
+    assert text.rstrip().endswith('Start.bat" --no-browser')
+    s = shortcuts.shortcut_script(r"C:\x\a.lnk", r"C:\a\Start.bat", r"C:\a", arguments="--no-browser")
+    assert "$s.Arguments = '--no-browser'" in s
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     assert os.path.exists(os.path.join(root, shortcuts.OPEN_BAT))
     bat = open(os.path.join(root, shortcuts.OPEN_BAT), "rb").read()
     bat.decode("ascii")
     assert b"\r\n" in bat and b"-m synox web-login" in bat
+    start = open(os.path.join(root, "Start.bat"), "rb").read()
+    assert b'"--no-browser" set "SYNOX_NO_BROWSER=1"' in start
