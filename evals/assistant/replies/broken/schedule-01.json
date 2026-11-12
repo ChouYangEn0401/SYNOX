@@ -1,0 +1,28 @@
+{
+  "case": "schedule-01",
+  "source": "broken",
+  "note": "參數格式不對（日期、時間沒換成工具要的格式）",
+  "expected_failures": [
+    "must_call"
+  ],
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "calendar__add",
+            "args": {
+              "date": "12/3",
+              "time": "下午三點",
+              "title": "開會"
+            },
+            "result": "已新增行程：12/3 下午三點 開會"
+          }
+        ]
+      },
+      {
+        "text": "排好了。"
+      }
+    ]
+  ]
+}

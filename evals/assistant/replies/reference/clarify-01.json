@@ -1,0 +1,11 @@
+{
+  "case": "clarify-01",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "text": "要寄給誰呢？告訴我對方的名字或信箱，我再幫你寄。"
+      }
+    ]
+  ]
+}

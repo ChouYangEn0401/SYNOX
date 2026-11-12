@@ -1,0 +1,39 @@
+{
+  "id": "note-02",
+  "category": "note",
+  "split": "tune",
+  "title": "列出筆記並照工具結果回報，不自己編",
+  "turns": [
+    "我現在記了哪些東西？"
+  ],
+  "tools": [
+    {
+      "name": "note__list"
+    },
+    {
+      "name": "note__add"
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "note__list"
+      }
+    ],
+    "must_not_call": [
+      "note__add"
+    ],
+    "final_contains": [
+      "買牛奶",
+      "繳電話費",
+      "送洗西裝"
+    ],
+    "max_steps": 2
+  },
+  "soft": [
+    {
+      "name": "簡短",
+      "rubric": "一兩句講清楚做了什麼；5＝簡短又完整，1＝囉嗦或漏掉重點"
+    }
+  ]
+}

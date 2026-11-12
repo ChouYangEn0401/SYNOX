@@ -1,0 +1,55 @@
+{
+  "id": "note-04",
+  "category": "note",
+  "split": "holdout",
+  "title": "用關鍵字找筆記並照結果回答",
+  "turns": [
+    "找一下我之前記的社區管委會電話"
+  ],
+  "tools": [
+    {
+      "name": "note__search",
+      "results": [
+        {
+          "when": {
+            "keyword": {
+              "contains": "管委會"
+            }
+          },
+          "reply": "找到 1 則：社區管委會電話 02-0000-1234（平日 9:00–18:00）"
+        },
+        {
+          "reply": "沒有找到含「{keyword}」的筆記"
+        }
+      ]
+    },
+    {
+      "name": "note__add"
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "note__search",
+        "args": {
+          "keyword": {
+            "contains": "管委會"
+          }
+        }
+      }
+    ],
+    "must_not_call": [
+      "note__add"
+    ],
+    "final_contains": [
+      "02-0000-1234"
+    ],
+    "max_steps": 2
+  },
+  "soft": [
+    {
+      "name": "簡短",
+      "rubric": "一兩句講清楚做了什麼；5＝簡短又完整，1＝囉嗦或漏掉重點"
+    }
+  ]
+}

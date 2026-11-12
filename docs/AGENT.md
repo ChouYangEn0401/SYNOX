@@ -17,6 +17,8 @@
 - 乾淨安裝的模擬：`.venv\Scripts\python.exe scripts\clean_room_check.py [--tools <Libs dist>｜--libs <SYNOX_Libs>]`（暫存資料夾、
   清掉 SYNOX_*／PATH／使用者資料夾；重用這個直譯器，不建 venv、不 pip、不連網）。發佈（lock、wheelhouse、安裝程式）：[adr/0003](adr/0003-distribution-git-clone-and-installer.md)、
   [handoff/clean-machine-test.md](handoff/clean-machine-test.md) B-1
+- 對話助理的離線評測：`.venv\Scripts\python.exe scripts\eval_assistant.py [--split tune|holdout|all] [--replies <資料夾>] [--json <檔>]`
+  （照劇本重放在真的 AgentLoop 上、假工具、不叫真的 AI；怎麼新增題目：[../evals/assistant/README.md](../evals/assistant/README.md)）
 - 主控台是 cp950：跑 Python 前 `$env:PYTHONIOENCODING='utf-8'; $env:PYTHONUTF8='1'`
 
 ## Map
@@ -39,6 +41,7 @@
 | `src/synox/packs/oauth.py` | 遠端 MCP 的 OAuth（選配）：`Flow`（PKCE＋state、貼回網址、換／更新 token 存 PackSecrets、`/<群組>_login／_code／_logout`）、`Listener`／`PasteListener`／`LoopbackListener`（只有介面，叫了就拒） |
 | `src/synox/sdk/` | 給 pack 作者：JSON 信封、`Pack.load`、`init_pack`、`zip_pack`；`synox-sdk init｜check｜zip`（`python -m synox.sdk`）。說明 [sdk.md](sdk.md) |
 | `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`validate.py`（第 4 關呼叫驗證）、`delimit.py`（第 5 關工具結果分隔符）、`budget.py`（伺服器版成員每月額度；`BotPool` 頻道型 bot 一池）、`room.py`（頻道 AI：`RoomAgent`、`redact_reply`）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
+| `src/synox/evals/`、`evals/assistant/` | 對話助理的離線評測（量，不改助理）：`cases.py`（題目格式、`DISTRIBUTION`、範例網域檢查）、`fake_tools.py`（假工具掛成指令樹的葉節點）、`replay.py`（`ReplayAdapter` 照劇本回話、`run_case` 用 `app.build` 建暫存的整支 SYNOX 跑真的 `AgentLoop`、不同步＝`replay_mismatch`、`stamp`）、`checks.py`（硬檢查、拒絕／替代標記、簡體字表）、`report.py`（決定性的文字＋JSON）；題目與劇本在 `evals/assistant/`（不進發佈物：`make_zip.ROOT_ONLY_DIRS`）。**沒有真跑的路徑**，要加先看 README 最後一節 |
 | `src/synox/runtime/` | 常駐的排程迴圈與常駐助理（[adr/0001](adr/0001-runtime-loop-heartbeat-mother-session.md)，網頁合約 [runtime-api.md](runtime-api.md)）：`loop.py`（`RuntimeLoop`／`Task`：每 5 秒看、每個任務自己的執行緒、逾時、退避、連續 5 次失敗通知一次、`report`、`peer_states`、`data/runtime/state.json`）、`heartbeat.py`（`system.heartbeat`、快照與「沒事別吵」的規則）、`mother.py`（`MotherSession`：沒有工具、自己的記憶在保管箱、`NOTIFY:`／`SOUL+:` 格式）、`soul.py`（`SoulStore`：保管箱、追加規則、稽核）、`settings.py`（config `runtime` 的預設與檢查）、`web_api.py`（`/api/runtime/...`）、`__init__.py`（`install`、`report`／`ingest_envelope`／`peer_env`，`Runtime.use_fakes` 給測試） |
 | `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（`tick` 由 runtime 的任務 `system.schedule` 每 30 秒叫；沒有 runtime 才自己開執行緒；via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`install_system_remind`＝系統指令「⏰ 提醒（系統）」`/remind_*`，app.build 在載入 pack 之前掛；`/schedule_*`） |
 | `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS）、`__init__.py`（`install`、`/web`、`/web_off`） |
