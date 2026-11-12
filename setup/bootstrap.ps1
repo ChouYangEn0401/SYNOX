@@ -4,9 +4,15 @@
 # 2. 建 .venv → pip install -e .
 # 3. 打開安裝精靈（pythonw，沒有黑色視窗）
 # 重跑是安全的：已經有 .venv 就直接更新套件、打開精靈。
+# 0. 先選語言（lang.ps1）：-Lang／SYNOX_LANG → lang.txt → 問；存進 lang.txt，再用 --lang 交給精靈。
+param([string]$Lang = '')
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $Root
+. (Join-Path $PSScriptRoot 'lang.ps1')
+$LangCode = Resolve-SynoxLang $Root $Lang -SaveOverride
+Import-SynoxText $LangCode
+Write-Host "[SYNOX] $(Tr 'prep')"
 $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'
 $Venv = Join-Path $Root '.venv'
@@ -44,14 +50,14 @@ function Find-Python {
 
 function Install-WithWinget {
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { return }
-    Say '找不到 Python 3.11 以上，用 winget 安裝 Python 3.12（要幾分鐘）…'
+    Say (Tr 'no_python_winget')
     try {
         & winget install -e --id Python.Python.3.12 --silent --accept-package-agreements --accept-source-agreements | Out-Host
-    } catch { Say "winget 安裝失敗：$($_.Exception.Message)" }
+    } catch { Say (Tr 'winget_failed' $_.Exception.Message) }
 }
 
 function Install-Embedded {
-    Say "改下載 python.org 的可攜版 Python $EmbedVersion 到 runtime\python …"
+    Say (Tr 'embedded' $EmbedVersion)
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $dir = Join-Path $Root 'runtime\python'
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
@@ -75,21 +81,22 @@ try {
         $py = Find-Python
         if (-not $py) { Install-WithWinget; $py = Find-Python }
         if (-not $py) { Install-Embedded; $py = Find-Python }
-        if (-not $py) { throw '裝不起 Python。請到 https://www.python.org/downloads/ 安裝 Python 3.12，再雙擊 Setup.bat。' }
-        Say "用 $($py.Exe) $($py.Pre -join ' ') 建立 .venv …"
+        if (-not $py) { throw (Tr 'cannot_install_python') }
+        Say (Tr 'creating_venv' "$($py.Exe) $($py.Pre -join ' ')".Trim())
         if ($py.Embedded) { & $py.Exe @($py.Pre) -m virtualenv $Venv | Out-Host }
         else { & $py.Exe @($py.Pre) -m venv $Venv | Out-Host }
-        if (-not (Test-Path -LiteralPath $VenvPy)) { throw '建立 .venv 失敗。' }
+        if (-not (Test-Path -LiteralPath $VenvPy)) { throw (Tr 'venv_failed') }
     }
-    Say '安裝 SYNOX 需要的套件（第一次要幾分鐘）…'
+    Say (Tr 'installing')
     & $VenvPy -m pip install --disable-pip-version-check -q --upgrade pip | Out-Host
     & $VenvPy -m pip install --disable-pip-version-check -q -e $Root | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw 'pip install 失敗（網路？）。' }
-    Say '打開安裝精靈…'
+    if ($LASTEXITCODE -ne 0) { throw (Tr 'pip_failed') }
+    Say (Tr 'opening_wizard')
     $exe = if (Test-Path -LiteralPath $VenvPyw) { $VenvPyw } else { $VenvPy }
-    Start-Process -FilePath $exe -ArgumentList @('-m', 'synox', 'wizard') -WorkingDirectory $Root
+    Start-Process -FilePath $exe -ArgumentList @('-m', 'synox', 'wizard', '--lang', $LangCode) -WorkingDirectory $Root
     exit 0
 } catch {
     Write-Host "[SYNOX] ❌ $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "[SYNOX] $(Tr 'failed')"
     exit 1
 }

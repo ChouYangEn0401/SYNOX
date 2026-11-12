@@ -5,9 +5,27 @@ import threading
 
 import pytest
 
-from synox.wizard import logic, shortcuts, telegram_probe
+from synox.wizard import discord_probe, logic, shortcuts, telegram_probe
 
 TOKEN = "123456789:" + "A" * 35
+DTOKEN = "D" * 30
+
+
+class FakeDiscordResp:
+    def __init__(self, status=200, body=None):
+        self.status_code = status
+        self._body = body if body is not None else {}
+
+    def json(self):
+        return self._body
+
+
+class FakeDiscordHttp:
+    def __init__(self, handler):
+        self.handler = handler
+
+    def request(self, method, url, **kw):
+        return self.handler(method, url, kw)
 
 
 class FakeResp:
@@ -193,7 +211,7 @@ def test_startup_cmd_text():
     text = shortcuts.startup_cmd_text(r"C:\Apps\SYNOX")
     text.encode("ascii")
     assert text.count("\r\n") == 4 and "\n" not in text.replace("\r\n", "")
-    assert 'call "C:\\Apps\\SYNOX\\Start.bat"' in text
+    assert 'call "C:\\Apps\\SYNOX\\Start.bat" ' + shortcuts.AUTOSTART_ARGS + "\r\n" in text   # 開機登入不跳瀏覽器
     with pytest.raises(ValueError):
         shortcuts.startup_cmd_text("C:\\使用者\\SYNOX")
 
@@ -210,6 +228,61 @@ def test_shortcut_script():
     assert "WScript.Shell" in script and "'C:\\it''s\\Start.bat'" in script and "$s.Save()" in script
 
 
+def test_skip_channel_builds_config_without_token_or_owner(tmp_path):
+    """精靈「先跳過」：沒有 bot_token、owner_id 預設 0，不會丟例外，也不會開 Start.bat（由畫面層的 self.token 判斷）。"""
+    cfg = logic.build_config("", 0, {"kind": "none"})
+    path = tmp_path / "config.json"
+    logic.save(str(path), cfg)
+    from synox.config import SynoxConfig
+    config = SynoxConfig.load(str(path), require_token=False)
+    assert config.owner_id == 0 and not config.has_token and not config.discord_enabled
+
+
+def test_discord_token_validation():
+    assert discord_probe.valid_token(DTOKEN)
+    assert discord_probe.valid_token("  " + DTOKEN + " ")
+    for bad in ("", "short", "with space " * 3):
+        assert not discord_probe.valid_token(bad)
+
+
+def test_discord_get_me_and_bot_id():
+    http = FakeDiscordHttp(lambda m, u, kw: FakeDiscordResp(200, {"id": "999", "username": "my_discord_bot"}))
+    assert discord_probe.get_me(DTOKEN, http=http) == (True, "my_discord_bot")
+    assert discord_probe.bot_id(DTOKEN, http=http) == "999"
+    http = FakeDiscordHttp(lambda m, u, kw: FakeDiscordResp(401, {"message": "Unauthorized"}))
+    ok, msg = discord_probe.get_me(DTOKEN, http=http)
+    assert not ok and "401" in msg
+    assert discord_probe.get_me("nope")[0] is False
+
+
+def test_discord_invite_url():
+    assert discord_probe.invite_url("123") == (
+        "https://discord.com/oauth2/authorize?client_id=123&scope=bot&permissions=2048")
+
+
+def test_save_discord_token_and_bind_owner(tmp_path):
+    from synox.config import SynoxConfig
+    from synox.identity import BASE
+    from synox.vault import open_vault
+    path = tmp_path / "config.json"
+    owner_id = logic.discord_owner_sentinel()
+    assert owner_id == BASE
+    cfg = logic.build_config("", owner_id, {"kind": "none"})
+    cfg = logic.save(str(path), cfg)
+    cfg = logic.save_discord_token(str(path), cfg, "  " + DTOKEN + "  ")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["channels"]["discord"] == {"enabled": True, "bot_token": "vault:discord_bot_token"}
+    assert DTOKEN not in path.read_text(encoding="utf-8")
+    config = SynoxConfig.load(str(path), require_token=False)
+    assert open_vault(config).secret("discord_bot_token") == DTOKEN
+    assert config.discord_enabled and not config.has_token
+
+    logic.bind_discord_owner(str(path), cfg, "80351110224678912")
+    from synox.identity import Identities
+    ids = Identities(config.path("identities.json"))
+    assert ids.lookup("discord", "80351110224678912") == owner_id
+
+
 def test_finish_page_web_link(tmp_path):
     from synox.web.tokens import LoginTokens
     path = tmp_path / "config.json"
@@ -220,3 +293,109 @@ def test_finish_page_web_link(tmp_path):
     assert LoginTokens(str(tmp_path / "data" / "web_tokens.json")).redeem(token) == 42
     logic.write_config(str(path), {"owner_id": 42, "web": {"enabled": False}})
     assert logic.web_login_link(str(path)) == ""
+
+
+def test_save_discord_token_keeps_existing_discord_settings(tmp_path):
+    path = tmp_path / "config.json"
+    cfg = logic.build_config("", 0, {"kind": "none"})
+    cfg["channels"] = {"discord": {"owner_user_id": "77"}, "other": {"x": 1}}
+    cfg = logic.save(str(path), cfg)
+    logic.save_discord_token(str(path), cfg, DTOKEN)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    assert data["channels"]["discord"]["owner_user_id"] == "77" and data["channels"]["discord"]["enabled"] is True
+    assert data["channels"]["other"] == {"x": 1}
+
+
+def test_save_discord_token_refuses_multi_bot_config(tmp_path):
+    path = tmp_path / "config.json"
+    cfg = logic.build_config("", 0, {"kind": "none"})
+    cfg["channels"] = {"discord": {"bots": {"synox": {"surface": "dm", "token": "vault:x"}}}}
+    cfg = logic.save(str(path), cfg)
+    opened = []
+    with pytest.raises(ValueError):
+        logic.save_discord_token(str(path), cfg, DTOKEN, vault_opener=opened.append)
+    assert opened == []          # 拒絕之前不碰保管箱（bots 的 default bot 也用 discord_bot_token）
+
+
+def test_claude_download_url_is_https():
+    assert logic.CLAUDE_DOWNLOAD_URL.startswith("https://")
+
+
+def test_shortcut_script_icon():
+    s = shortcuts.shortcut_script(r"C:\x\SYNOX.lnk", r"C:\a\Start.bat", r"C:\a", icon=r"C:\a\i.ico")
+    assert r"$s.IconLocation = 'C:\a\i.ico'" in s
+    assert "IconLocation" not in shortcuts.shortcut_script(r"C:\x\a.lnk", r"C:\a\b.bat", r"C:\a")
+    import os
+    assert shortcuts.icon_path(os.path.dirname(os.path.dirname(__file__))).endswith("synox.ico")
+
+
+def test_finish_status():
+    launched = logic.finish_status(["桌面捷徑 ✅"], launched=True, has_token=True)
+    assert launched.startswith("✅ 設定好了，bot 開起來了。") and "桌面捷徑 ✅" in launched
+    web_only = logic.finish_status([], launched=True, has_token=False)
+    assert "還沒接 Telegram／Discord" in web_only and "Setup.bat" in web_only
+    for has_token in (True, False):
+        later = logic.finish_status(["x"], launched=False, has_token=has_token)
+        assert "還沒開" in later and "捷徑" in later and "Open-SYNOX.bat" in later
+        assert "開起來了" not in later and later.endswith("可以關掉這個視窗。")
+
+
+def _finish_page(tmp_path, monkeypatch):
+    """完成頁冒煙測試：隱藏的 Tk 視窗；存設定、捷徑、Start.bat、瀏覽器都換成假的。"""
+    tk = pytest.importorskip("tkinter")
+    from synox.wizard import pages
+    try:
+        root = tk.Tk()
+    except tk.TclError as e:
+        pytest.skip(f"no display: {e}")
+    root.withdraw()
+    calls = {"popen": [], "browser": []}
+    monkeypatch.setattr(pages.logic, "save", lambda path, cfg, *a, **k: cfg)
+    monkeypatch.setattr(pages.logic, "web_login_link", lambda path: "http://127.0.0.1:1/login")
+    monkeypatch.setattr(pages.shortcuts, "create_desktop_shortcut", lambda root_: None)
+    monkeypatch.setattr(pages.shortcuts, "enable_autostart", lambda root_: "x")
+    monkeypatch.setattr(pages.shortcuts, "disable_autostart", lambda: None)
+    monkeypatch.setattr(pages.shortcuts, "register_synoxpack", lambda root_: None)
+    monkeypatch.setattr(pages.subprocess, "Popen", lambda *a, **k: calls["popen"].append(a))
+    monkeypatch.setattr(pages.webbrowser, "open", lambda link: calls["browser"].append(link))
+    wiz = pages.Wizard(root, config_path=str(tmp_path / "config.json"))
+    wiz.page_finish()
+
+    def widgets(kind):
+        return [w for w in wiz.body.winfo_children() if w.winfo_class() == kind]
+
+    return root, wiz, calls, widgets
+
+
+def test_page_finish_launch_unchecked(tmp_path, monkeypatch):
+    root, wiz, calls, widgets = _finish_page(tmp_path, monkeypatch)
+    try:
+        boxes = {w.cget("text"): w for w in widgets("TCheckbutton")}
+        boxes["完成後立刻開啟 SYNOX"].invoke()            # 取消勾選
+        wiz.next_btn.invoke()                             # 完成並開始
+        assert calls["popen"] == [] and calls["browser"] == []
+        text = widgets("TLabel")[-1].cget("text")
+        assert "還沒開" in text and "Open-SYNOX.bat" in text
+        assert wiz.next_btn.cget("text") == "關閉"
+    finally:
+        root.destroy()
+
+
+def test_page_finish_launch_checked(tmp_path, monkeypatch):
+    root, wiz, calls, widgets = _finish_page(tmp_path, monkeypatch)
+    try:
+        wiz.next_btn.invoke()                             # 預設勾著：跟以前一樣開 Start.bat
+        assert len(calls["popen"]) == 1 and calls["popen"][0][0][-1].endswith("Start.bat")
+        assert "SYNOX 開起來了" in widgets("TLabel")[-1].cget("text")
+    finally:
+        root.destroy()
+
+
+def test_uninstall_scripts_encoding():
+    import os
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    bat = open(os.path.join(root, "Uninstall.bat"), "rb").read()
+    bat.decode("ascii")                                    # cmd 用主控台字碼頁讀 .bat
+    assert b"\r\n" in bat and b"setup\uninstall.ps1" in bat
+    ps1 = open(os.path.join(root, "setup", "uninstall.ps1"), "rb").read()
+    assert ps1.startswith(b"\xef\xbb\xbf")                 # PowerShell 5.1 沒有 BOM 會當成 cp950

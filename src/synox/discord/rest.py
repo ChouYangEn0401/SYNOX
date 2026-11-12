@@ -122,6 +122,10 @@ class DiscordChannel:
             return {"ok": True, "result": body}
         return {"ok": False, "error": "rate limited"}
 
+    def get_me(self) -> Dict[str, Any]:
+        """GET /users/@me：精靈用來驗 token、拿 bot 自己的 id（組邀請連結要用）。"""
+        return self.request("GET", "/users/@me")
+
     # ── 私訊頻道 ─────────────────────────────────────────────────────
 
     def remember_dm(self, uid: int, channel_id: str) -> None:

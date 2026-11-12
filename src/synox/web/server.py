@@ -13,6 +13,8 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     GET  /api/pack-secrets/<name>   工具頁「連接」：auth.fields 的狀態（有填、最後 4 碼；secret 的值永遠不回）
     POST /api/pack-secrets/<name>   {"values": {欄位: 值}, "clear": [...]}：存進保管箱（空字串＝沿用原值）
                                     個人版只有擁有者、伺服器版每人設自己的
+    GET  /api/settings/channels     擁有者：Telegram／Discord 的狀態（存了沒、bot 名字、要不要重開；token 永遠不回）
+    POST /api/settings/channels/telegram|discord   {"token"}：跟精靈一樣先驗（getMe）再存；重開 SYNOX 才生效
     /api/...                        JSON；都要登入；改東西的（非 GET）都要 X-SYNOX-CSRF 等於 session 的 csrf，
                                     有 Origin 的話要跟 Host 一樣
 
@@ -28,6 +30,7 @@ import logging
 import os
 import re
 import secrets
+import socket
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -46,7 +49,9 @@ COOKIE = "synox_session"
 LOGIN_COOKIE = "synox_login"          # 登入確認頁發的、綁這個瀏覽器（POST /login 要帶）
 LOGIN_FORM_TTL = 600.0
 LOGIN_FORMS_MAX = 200
-LOGIN_BAD = "這個連結用過了、過期了（7 天），或打錯了。在 Telegram 再打一次 /web 拿新的。"
+LOGIN_HOW = ("在跑 SYNOX 的這台電腦上雙擊桌面的「SYNOX」捷徑（或 SYNOX 資料夾裡的 Open-SYNOX.bat）會打開新的登入連結；"
+             "有接 Telegram／Discord 的話，也可以跟 bot 打 /web。")
+LOGIN_BAD = "這個連結用過了、過期了（7 天），或打錯了。" + LOGIN_HOW
 CSRF_HEADER = "x-synox-csrf"
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 MAX_BODY = 256 * 1024
@@ -119,6 +124,8 @@ class WebUI:
         self._login_lock = threading.Lock()
         self._server: Optional[ThreadingHTTPServer] = None
         self._thread: Optional[threading.Thread] = None
+        self.channel_probes = None            # (telegram_probe, discord_probe)；None＝真的（wizard 那兩個）
+        self._channels_changed: set = set()   # 這次執行中改過的聊天通道（要重開才生效）
 
     # ── 登入連結 ─────────────────────────────────────────────────────
 
@@ -136,7 +143,7 @@ class WebUI:
         if not self.enabled or self.disabled or self._server is not None:
             return False
         try:
-            server = ThreadingHTTPServer((HOST, self.port), _Handler)
+            server = _Server((HOST, self.port), _Handler)
         except OSError as e:
             self.error = (f"網頁介面開不起來：127.0.0.1:{self.port} 不能用（{e}）。"
                           f"改 config.json 的 web.port 換一個埠，或設 web.enabled=false 不開；bot 其他功能照常。")
@@ -183,6 +190,8 @@ class WebUI:
         path, query = parts.path, parse_qs(parts.query)
         try:
             if path == "/" and method == "GET":
+                if session is None and self._local_owner_navigation(headers):
+                    return self._auto_login_page()
                 return self.app_page()
             if path == "/login" and method == "GET":
                 return self.login_page((query.get("t") or [""])[0], headers, session)
@@ -191,11 +200,11 @@ class WebUI:
             m = re.match(r"^/packs/([a-z][a-z0-9_-]{0,31})/panel$", path)
             if m and method == "GET":
                 if session is None:
-                    return _page(401, "請先登入", "在 Telegram 打 /web 拿登入連結。")
+                    return _page(401, "請先登入", LOGIN_HOW)
                 return self.panel(self._user(session), m.group(1))
             if path.startswith("/api/"):
                 if session is None:
-                    return _err(401, "請先登入：在 Telegram 打 /web 拿登入連結。")
+                    return _err(401, "請先登入：" + LOGIN_HOW)
                 if method != "GET":
                     problem = self._csrf_problem(headers, session)
                     if problem:
@@ -205,6 +214,34 @@ class WebUI:
         except Exception as e:
             logging.exception("[WEB] %s %s failed", method, path)
             return _err(500, f"出錯了：{type(e).__name__}")
+
+    # 本機擁有者直接開網址就進（不用連結）：這台電腦的人本來就能改設定檔、裝 pack，網頁不該再擋他。
+    # 但網頁能裝 pack＝能在這台電腦跑程式，所以只認「使用者自己在瀏覽器網址列打／書籤／桌面捷徑開」的那一下，
+    # 不認別的網站戳過來的請求：Host 必須是 127.0.0.1／localhost 本身（擋 DNS rebinding）、
+    # Sec-Fetch-Site 必須是 none（使用者直接導覽；別的網站的連結、圖片、fetch、表單都是 cross-site／same-site）、
+    # Sec-Fetch-Mode=navigate 且 Dest=document（不是 API／iframe）。沒有這些標頭（curl、舊瀏覽器）就不自動登入，
+    # 照舊用連結。個人版才有；伺服器版、有 public_url（反向代理）、或 web.local_auto_login=false 都關掉。
+
+    def _local_auto_login_enabled(self) -> bool:
+        web = getattr(self.config, "web", {}) or {}
+        return (not self.server_mode and not str(web.get("public_url") or "").strip()
+                and bool(web.get("local_auto_login", True)))
+
+    def _local_owner_navigation(self, headers: Dict[str, str]) -> bool:
+        if not self._local_auto_login_enabled():
+            return False
+        if headers.get("host", "").lower() not in (f"127.0.0.1:{self.port}", f"localhost:{self.port}"):
+            return False
+        return (headers.get("sec-fetch-site") == "none" and headers.get("sec-fetch-mode") == "navigate"
+                and headers.get("sec-fetch-dest") == "document" and not headers.get("origin"))
+
+    def _auto_login_page(self) -> Resp:
+        owner = int(self.config.owner_id)
+        sid, _session = self.sessions.create(owner)
+        self.app.users.get_or_create(owner)
+        status, headers, body = self.app_page()
+        cookie = f"{COOKIE}={sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age={int(self.sessions.ttl)}" + self._secure()
+        return status, headers + [("Set-Cookie", cookie)], body
 
     def _csrf_problem(self, headers: Dict[str, str], session: Session) -> str:
         origin = headers.get("origin")
@@ -363,6 +400,8 @@ class WebUI:
                 return self.pack_secrets_get(user, m.group(1))
             if path == "/api/settings":
                 return _json(200, self.settings(user))
+            if path == "/api/settings/channels":
+                return self.channels(user)
             if path == "/api/accounts":
                 return self.accounts(user)
             return _err(404, "沒有這個 API。")
@@ -390,6 +429,10 @@ class WebUI:
             return self.save_llm(user, data)
         if path == "/api/settings/llm/test":
             return self.test_llm(user, data)
+        if path == "/api/settings/channels/telegram":
+            return self.save_telegram(user, data)
+        if path == "/api/settings/channels/discord":
+            return self.save_discord(user, data)
         m = re.match(r"^/api/pack-secrets/([a-z][a-z0-9_-]{0,31})$", path)
         if m:
             return self.pack_secrets_save(user, m.group(1), data)
@@ -678,6 +721,143 @@ class WebUI:
         result = logic.probe_llm(llm)
         return _json(200, {"ok": result is None, "message": "✅ 接得通" if result is None else f"❌ {result}"})
 
+    # ── 聊天通道（Telegram／Discord）：跟精靈同一套檢查與存法；token 永遠不回傳、不寫 log ──────
+    # 改了要重開 SYNOX 才生效（App 沒有「執行中換通道」）。擁有者配對不在這裡做（Setup.bat／discord pair）。
+
+    def _probes(self):
+        """(telegram_probe, discord_probe)；測試換成假的（channel_probes），不連網。"""
+        if self.channel_probes is not None:
+            return self.channel_probes
+        from synox.wizard import discord_probe, telegram_probe
+        return telegram_probe, discord_probe
+
+    @staticmethod
+    def _scrub(text, token: str) -> str:
+        text = str(text or "")
+        return text.replace(token, "（token）") if token else text
+
+    def _file_owner(self, cfg: dict) -> int:
+        owner = cfg.get("owner_id", cfg.get("machine_owner_id"))
+        try:
+            return int(owner)
+        except (TypeError, ValueError):
+            return int(self.config.owner_id or 0)
+
+    def _discord_paired(self, owner: int, settings: dict) -> bool:
+        if str(settings.get("owner_user_id") or "").strip():
+            return True
+        try:
+            from synox.discord.events import DISCORD
+            from synox.identity import Identities
+            return Identities(self.config.path("identities.json")).external(DISCORD, owner) is not None
+        except Exception:
+            return False
+
+    def channels(self, user) -> Resp:
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from synox.identity import BASE
+        from synox.wizard import logic
+        tg, dc = self._probes()
+        cfg = logic.read_existing(self.config_path)
+        owner = self._file_owner(cfg)
+        token = str(cfg.get("bot_token") or "").strip()
+        telegram = {"saved": tg.valid_token(token), "active": bool(self.config.has_token),
+                    "owner_paired": 0 < owner < BASE, "bot": "", "problem": ""}
+        if telegram["saved"]:
+            ok, info = tg.get_me(token)
+            telegram["bot" if ok else "problem"] = self._scrub(info, token)
+        telegram["restart"] = "telegram" in self._channels_changed or (telegram["saved"] and not telegram["active"])
+        d = (cfg.get("channels") or {}).get("discord") if isinstance(cfg.get("channels"), dict) else None
+        d = d if isinstance(d, dict) else {}
+        discord = {"multi": "bots" in d, "saved": False, "active": "discord" in self.app.extras,
+                   "owner_paired": self._discord_paired(owner, d), "bot": "", "problem": "", "invite": ""}
+        if not discord["multi"] and d.get("bot_token") and d.get("enabled", True):
+            discord["saved"] = True
+            dtoken = ""
+            try:
+                from synox.llm.factory import resolve_secret
+                dtoken = resolve_secret(str(d["bot_token"]), self.vault).strip()
+            except Exception:
+                discord["problem"] = "token 在保管箱裡讀不出來（保管箱沒打開，或還沒存）：重新貼一次。"
+            if dtoken:
+                ok, info = dc.get_me(dtoken)
+                discord["bot" if ok else "problem"] = self._scrub(info, dtoken)
+                bid = dc.bot_id(dtoken) if ok else None
+                discord["invite"] = dc.invite_url(bid) if bid else ""
+        discord["restart"] = "discord" in self._channels_changed or (discord["saved"] and not discord["active"])
+        return _json(200, {"telegram": telegram, "discord": discord})
+
+    def save_telegram(self, user, data: dict) -> Resp:
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from synox.identity import BASE
+        from synox.wizard import logic
+        tg, _dc = self._probes()
+        token = str(data.get("token") or "").strip()
+        if not token:
+            return _err(400, "要貼上 Telegram bot 的 token（@BotFather 給的那串）。")
+        ok, info = tg.get_me(token)
+        if not ok:
+            return _err(400, self._scrub(info, token))
+        cfg = logic.read_existing(self.config_path)
+        if not cfg:
+            return _err(400, "讀不到 config.json，沒有存（重跑 Setup.bat）。")
+        cfg["bot_token"] = token                                # 跟精靈一樣寫在 config.json
+        if cfg.get("owner_id", cfg.get("machine_owner_id")) in (None, ""):
+            cfg["owner_id"] = int(self.config.owner_id)         # 只用 Discord 的設定沒寫 owner_id：照現在的擁有者寫
+        logic.write_config(self.config_path, cfg)
+        self._channels_changed.add("telegram")
+        bot = self._scrub(info, token)
+        logging.info("[WEB] %s saved a Telegram bot token (bot @%s)", user.tg_id, bot)
+        if 0 < self._file_owner(cfg) < BASE:
+            after = "之後在 Telegram 私訊 bot 打 /web 也能拿網頁的登入連結。"
+        else:
+            after = ("還沒配對擁有者：bot 還不認得你的 Telegram 帳號（陌生人會被擋）。"
+                     "要配對就雙擊 Setup.bat 重跑安裝精靈（token 會自動帶入），照畫面私訊 bot 六個數字。")
+        return _json(200, {"ok": True, "bot": bot,
+                           "message": f"✅ 存好了：bot @{bot}。重新啟動 SYNOX 後生效（雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑）。"
+                                      + after})
+
+    def save_discord(self, user, data: dict) -> Resp:
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from synox.wizard import logic
+        _tg, dc = self._probes()
+        token = str(data.get("token") or "").strip()
+        if not token:
+            return _err(400, "要貼上 Discord bot 的 token（Developer Portal 的 Bot 頁）。")
+        cfg = logic.read_existing(self.config_path)
+        if not cfg:
+            return _err(400, "讀不到 config.json，沒有存（重跑 Setup.bat）。")
+        d = (cfg.get("channels") or {}).get("discord") if isinstance(cfg.get("channels"), dict) else None
+        if isinstance(d, dict) and "bots" in d:
+            return _err(400, "config.json 的 channels.discord 已經用 bots 寫法（多個 bot）：網頁不動它，"
+                             "請直接改 config.json（或用 python -m synox discord token --bot 名字）。")
+        if self.vault is None:
+            return _err(400, "保管箱沒有打開，token 沒地方放（python -m synox doctor 看原因）。")
+        ok, info = dc.get_me(token)
+        if not ok:
+            return _err(400, self._scrub(info, token))
+        bid = dc.bot_id(token)
+        try:
+            logic.save_discord_token(self.config_path, cfg, token, vault_opener=lambda _c: self.vault)
+        except ValueError as e:
+            return _err(400, self._scrub(e, token))
+        self._channels_changed.add("discord")
+        bot = self._scrub(info, token)
+        logging.info("[WEB] %s saved a Discord bot token (bot %s)", user.tg_id, bot)
+        invite = dc.invite_url(bid) if bid else ""
+        return _json(200, {"ok": True, "bot": bot, "invite": invite,
+                           "message": f"✅ 存好了：bot {bot}（token 在保管箱，密文）。接下來："
+                                      "① 用邀請連結把 bot 加進你的（任一個）Discord 伺服器；"
+                                      "② 配對擁有者：在 SYNOX 資料夾跑 python -m synox discord pair（或重跑 Setup.bat），"
+                                      "私訊 bot 畫面上的六個數字（配對前 bot 不認得你的 Discord 帳號）；"
+                                      "③ 重新啟動 SYNOX（雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑）才會生效。"})
+
     def pack_upload(self, user, body: bytes) -> Resp:
         denied = self._owner_only(user)
         if denied:
@@ -892,6 +1072,20 @@ class Collector:
 
     def __getattr__(self, name):
         return lambda *a, **kw: {"ok": True}
+
+
+class _Server(ThreadingHTTPServer):
+    """埠一定要「獨佔」：HTTPServer 預設 allow_reuse_address=True，在 Windows 上 SO_REUSEADDR 會讓第二支程式
+    綁上「已經有人在聽」的埠還回報成功（兩支都說在 8830，連線卻進了別支）——登入連結就被送到別的 SYNOX、
+    認不得 token。Windows 改用 SO_EXCLUSIVEADDRUSE；其他平台的 SO_REUSEADDR 不會搶別人正在聽的埠，維持原樣。"""
+
+    allow_reuse_address = os.name != "nt"
+
+    def server_bind(self):
+        exclusive = getattr(socket, "SO_EXCLUSIVEADDRUSE", None)
+        if os.name == "nt" and exclusive is not None:
+            self.socket.setsockopt(socket.SOL_SOCKET, exclusive, 1)
+        super().server_bind()
 
 
 class _Handler(BaseHTTPRequestHandler):
