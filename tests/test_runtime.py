@@ -27,6 +27,7 @@ from test_web import Client, ui_of
 HERE = os.path.dirname(os.path.abspath(__file__))
 FIXTURES = os.path.join(HERE, "fixtures")
 T0 = datetime(2026, 11, 12, 14, 0, 0)
+FAKE_KEY = "sk-" + "abcdefghijklmnopqrstuvwxyz0123"     # 假的、拼起來的（像密鑰的樣式，測遮罩用）
 
 
 class Clock:
@@ -193,7 +194,7 @@ def test_loop_restores_saved_state(tmp_path):
 def test_report_rejects_bad_state_and_masks_tokens(tmp_path):
     loop = RuntimeLoop(FakeApp(), clock=Clock(), spawn=sync, state_path=str(tmp_path / "s.json"))
     assert loop.report("pack.x", "exploded", "?") is None
-    t = loop.report("pack.x", "failed", "key sk-abcdefghijklmnopqrstuvwxyz0123 壞了")
+    t = loop.report("pack.x", "failed", "key " + FAKE_KEY + " 壞了")
     assert t.state == "failed" and "sk-abcdef" not in t.last_message and "***" in t.last_message
     assert loop.peer_states()["pack.x"] == {"state": "failed", "at": t.view()["last_run_at"]}
 
@@ -340,7 +341,7 @@ def test_soul_append_rules(tmp_path):
     from synox.vault import Vault
     soul = SoulStore(Vault(b"k" * 32, str(tmp_path)), clock=Clock())
     soul.write("# soul.md\n## 偏好\n- 喜歡簡短\n" + NOTES_HEADING + "\n- 舊的筆記\n## 其他\n- 我寫的\n")
-    added = soul.append_notes(["週末不想被提醒工作", "- 喜歡簡短", "sk-abcdefghijklmnopqrstuvwxyz0123",
+    added = soul.append_notes(["週末不想被提醒工作", "- 喜歡簡短", FAKE_KEY,
                                "x" * 201, "第四行不會加", "第五行"])
     assert added == ["- 週末不想被提醒工作"]
     text = soul.text()
@@ -561,7 +562,7 @@ def test_api_reset_memory_soul_and_log(api):
     assert status == 200 and data["ok"] is True and data["updated_at"]
     assert client.get("/api/runtime/soul")[1]["text"] == "# soul.md\n## 偏好\n- 少吵\n"
     assert put(client, "/api/runtime/soul", {"text": 3})[0] == 400
-    assert put(client, "/api/runtime/soul", {"text": "sk-abcdefghijklmnopqrstuvwxyz0123"})[0] == 400
+    assert put(client, "/api/runtime/soul", {"text": FAKE_KEY})[0] == 400
     assert put(client, "/api/runtime/soul", {"text": ""})[1]["text"] == DEFAULT_SOUL
     status, data = client.get("/api/runtime/tasks/system.heartbeat/log")
     assert status == 200 and any("開始" in line for line in data["lines"])
