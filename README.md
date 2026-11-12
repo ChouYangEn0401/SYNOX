@@ -48,7 +48,7 @@
 | `/help` | 看全部指令（還沒裝工具時會告訴你去哪裡裝） |
 | `/note 買牛奶`、`/note_list`、`/note_rm 1` | 隨手記（要先裝工具庫的 `notes`） |
 | `/money 120 午餐`、`/money_month`、`/money_budget 20000` | 記帳、看這個月、設預算（要先裝 `money`） |
-| `/remind_add 08:00 吃藥`、`/remind_list` | 每天提醒；加 `date=2026-11-20` 只提醒那一天（要先裝 `remind`） |
+| `/remind_add 08:00 吃藥`、`/remind_list` | ⏰ 提醒（系統）：每天提醒；加 `date=2026-11-20` 只提醒那一天（SYNOX 本體就有，不用裝；跟 Apple 提醒事項無關） |
 | `/schedule_add 21:00 /money_month` | 每天幾點自動替你跑一個指令（SYNOX 本體就有） |
 | 直接打字，例如「幫我記一筆 80 元咖啡」 | 交給 AI（有設定 AI 時） |
 | `/ai_usage` | AI 用了多少 |

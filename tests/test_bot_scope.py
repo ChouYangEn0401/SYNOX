@@ -62,7 +62,8 @@ def test_help_and_group_menu_follow_the_bot(tmp_path):
     a = " ".join(say(app, http, "alpha", "/help all"))
     b = " ".join(say(app, http, "bravo", "/help all"))
     assert "/money" in a and "/note" in a
-    assert "/money" not in b and "/remind" not in b and "/note" in b
+    assert "/money" not in b and "/note" in b
+    assert "/remind_add" in b                       # ⏰ 提醒（系統）是系統指令，跟 /schedule_* 一樣不看 bot 的 pack 清單
     reg = app.registry
     with policy.using_bot(app.extras["discord_specs"]["bravo"]):
         assert policy.hidden(app, owner(app), reg.node("money"))                  # 群組本身也不存在（打群組名同未知指令）
@@ -112,7 +113,7 @@ def test_ai_tool_list_follows_the_bot(tmp_path):
     say(app, http, "bravo", "幫我看看")
     b = _tools_seen(app)
     assert "note__add" in b
-    assert not any(t.startswith("money__") or t.startswith("remind__") for t in b)
+    assert not any(t.startswith("money__") for t in b)
     system = app.extras["synox_agent"].adapter.calls[-1][0][0].content
     assert "記帳" not in system                                                 # 系統提示也沒有別的 pack 的名字
     app.extras["synox_agent"].adapter = FakeAdapter(["好"])

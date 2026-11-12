@@ -32,7 +32,8 @@ def test_guest_gets_no_tools_member_only_member_or_everyone_packs(make_bot, owne
     packs = {p.manifest.group: p.manifest.access for p in bot.app.extras["synox_packs"]}
     pack_groups = {g for g in groups if g in packs}
     assert pack_groups and all(packs[g] in ("member", "everyone") for g in pack_groups)
-    assert {"note", "money", "remind"} <= pack_groups
+    assert {"note", "money"} <= pack_groups
+    assert "remind" in groups and "remind" not in packs             # ⏰ 提醒（系統）：系統指令，成員照樣有
     assert "gcal" not in groups and "user" not in groups and "limit" not in groups
     owner_groups = _tool_groups(bot, bot.app.users.get(owner))
     assert "user" in owner_groups or "limit" in owner_groups        # 擁有者照舊拿得到管理工具
