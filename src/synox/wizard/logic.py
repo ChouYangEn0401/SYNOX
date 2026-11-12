@@ -207,7 +207,9 @@ def save_discord_token(config_path: str, cfg: dict, token: str, vault_opener=Non
     vault_opener(cfg).set_secret(VAULT_NAME, token.strip())
     channels = dict(cfg.get("channels") or {})
     old = channels.get("discord") if isinstance(channels.get("discord"), dict) else {}
-    channels["discord"] = {**old, "enabled": True, "bot_token": f"vault:{VAULT_NAME}"}   # 重跑精靈不洗掉 bots 等其他設定
+    if "bots" in old:        # 多 bot 寫法跟 bot_token 不能並存（synox.discord.bots.parse）；不替使用者改
+        raise ValueError("config.json 的 channels.discord 已經用 bots 寫法（多個 bot）：請直接改 config.json，精靈不動它。")
+    channels["discord"] = {**old, "enabled": True, "bot_token": f"vault:{VAULT_NAME}"}   # 重跑精靈不洗掉其他設定
     cfg["channels"] = channels
     write_config(config_path, cfg)
     return cfg

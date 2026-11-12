@@ -298,9 +298,18 @@ def test_finish_page_web_link(tmp_path):
 def test_save_discord_token_keeps_existing_discord_settings(tmp_path):
     path = tmp_path / "config.json"
     cfg = logic.build_config("", 0, {"kind": "none"})
-    cfg["channels"] = {"discord": {"bots": [{"name": "team", "surface": "channel"}]}, "other": {"x": 1}}
+    cfg["channels"] = {"discord": {"owner_user_id": "77"}, "other": {"x": 1}}
     cfg = logic.save(str(path), cfg)
     logic.save_discord_token(str(path), cfg, DTOKEN)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["channels"]["discord"]["bots"] == [{"name": "team", "surface": "channel"}]
-    assert data["channels"]["discord"]["enabled"] is True and data["channels"]["other"] == {"x": 1}
+    assert data["channels"]["discord"]["owner_user_id"] == "77" and data["channels"]["discord"]["enabled"] is True
+    assert data["channels"]["other"] == {"x": 1}
+
+
+def test_save_discord_token_refuses_multi_bot_config(tmp_path):
+    path = tmp_path / "config.json"
+    cfg = logic.build_config("", 0, {"kind": "none"})
+    cfg["channels"] = {"discord": {"bots": {"synox": {"surface": "dm", "token": "vault:x"}}}}
+    cfg = logic.save(str(path), cfg)
+    with pytest.raises(ValueError):
+        logic.save_discord_token(str(path), cfg, DTOKEN)
