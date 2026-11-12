@@ -9,12 +9,12 @@
 沒事別吵（規則，不交給 AI）：
   1. 事實快照（不含時間）跟上一次一樣 → 不叫 AI（手動那一次不看）。有失敗的任務也一樣：失敗只記
      「哪個任務＋去掉數字、空白、截短的原因」（failure_key），同一批失敗只是次數、時間不同不算變化；
-     新的任務壞了、原因變了、恢復了、換日才算。
+     新的任務壞了、原因變了、恢復了、換日才算。上一次的快照指紋存在 state.json，重開後接著用。
      例外：上一次有失敗要通知、卻被安靜時段擋下 → 安靜時段過了再叫一次（不然沒變的失敗永遠不會通知）
   2. 一天最多叫 AI daily_max_calls 次
   3. 安靜時段不通知（手動那一次不看）
   4. 一天最多通知 daily_max_notify 次；跟上一次通知同一句不送；同一批失敗通知過就不再為它通知
-     （組成變了才清掉；提醒或對話也變了的那一次不擋）
+     （組成變了才清掉；提醒或對話也變了的那一次不擋；只存任務 id 與原因的雜湊，不存訊息原文）
 """
 
 from __future__ import annotations
@@ -51,6 +51,7 @@ HOLD_QUIET = "在安靜時段"
 
 _DIGITS = re.compile(r"\d+")
 _SPACES = re.compile(r"\s+")
+_HASH = re.compile(r"[0-9a-f]{64}")
 
 
 def failure_key(message) -> str:
@@ -61,6 +62,19 @@ def failure_key(message) -> str:
 
 def _short_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def _digest_or_empty(value) -> str:
+    return value if isinstance(value, str) and _HASH.fullmatch(value) else ""
+
+
+def _marks(value) -> Dict[str, str]:
+    """存檔裡的 {任務 id: 失敗原因的雜湊}；格式不對＝當作沒有（壞掉的存檔不能讓心跳不能跑）。"""
+    if not isinstance(value, dict):
+        return {}
+    if not all(isinstance(k, str) and k and isinstance(v, str) and v for k, v in value.items()):
+        return {}
+    return dict(value)
 
 
 class Snapshot(NamedTuple):
@@ -87,12 +101,14 @@ class Heartbeat:
         self.soul_append = soul_append
         self._now = now
         self._lock = threading.Lock()
-        saved = loop.saved("heartbeat", {}) or {}
+        saved = loop.saved("heartbeat", {})
+        if not isinstance(saved, dict):
+            saved = {}
         self.last_result: Optional[str] = saved.get("last_result") if isinstance(saved.get("last_result"), str) else None
-        self._last_hash: str = ""
-        self._last_context: str = ""
-        self._notified_failures: Dict[str, str] = {}   # 通知過的那批失敗
-        self._held_failures: Dict[str, str] = {}       # 被安靜時段擋下的那批
+        self._last_hash: str = _digest_or_empty(saved.get("last_hash"))
+        self._last_context: str = _digest_or_empty(saved.get("last_context"))
+        self._notified_failures: Dict[str, str] = _marks(saved.get("notified_failures"))   # 通知過的那批失敗
+        self._held_failures: Dict[str, str] = _marks(saved.get("held_failures"))           # 被安靜時段擋下的那批
         self._last_notify: str = ""
         self._day = ""
         self._calls_today = 0
@@ -236,10 +252,15 @@ class Heartbeat:
                 self._held_failures = {}
                 result = self._act(verdict, manual, snap.failures, news=news)
             self.last_result = clean_text(result, MESSAGE_MAX)
-            self.loop.save(heartbeat={"last_result": self.last_result})
+            self.loop.save(heartbeat=self._saved_state())
             if ctx is not None:
                 ctx.log(result)
             return self.last_result
+
+    def _saved_state(self) -> dict:
+        """存進 state.json 的（沒有個人資料：結果那句、快照的雜湊、任務 id＋失敗原因的雜湊）。"""
+        return {"last_result": self.last_result, "last_hash": self._last_hash, "last_context": self._last_context,
+                "notified_failures": dict(self._notified_failures), "held_failures": dict(self._held_failures)}
 
     def _forget_changed(self, snap: Snapshot) -> None:
         """記著的那批失敗（通知過的、被安靜時段擋下的）跟現在不一樣了（新的壞了、原因變了、恢復了）→ 清掉。
