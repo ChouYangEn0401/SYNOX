@@ -396,6 +396,6 @@ def test_uninstall_scripts_encoding():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     bat = open(os.path.join(root, "Uninstall.bat"), "rb").read()
     bat.decode("ascii")                                    # cmd 用主控台字碼頁讀 .bat
-    assert b"\r\n" in bat and b"setup\uninstall.ps1" in bat
+    assert b"\r\n" in bat and rb"setup\uninstall.ps1" in bat
     ps1 = open(os.path.join(root, "setup", "uninstall.ps1"), "rb").read()
     assert ps1.startswith(b"\xef\xbb\xbf")                 # PowerShell 5.1 沒有 BOM 會當成 cp950

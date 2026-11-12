@@ -1,4 +1,4 @@
-"""
+r"""
 桌面捷徑「SYNOX」與開機自動啟動（使用者在精靈裡勾的才做，invariant 5）。
 
 - 桌面捷徑：PowerShell 的 WScript.Shell 建 .lnk，目標是 Open-SYNOX.bat（沒在跑就先開 SYNOX，再發一個擁有者的
