@@ -21,6 +21,8 @@ import requests
 
 from isdtelekit.host.config import TOKEN_RE
 
+from synox.wizard.i18n import t
+
 API = "https://api.telegram.org/bot{token}/{method}"
 
 
@@ -39,23 +41,23 @@ def _call(http, token: str, method: str, params: Optional[dict] = None, http_tim
     except ValueError:
         data = {}
     if getattr(resp, "status_code", 200) == 401 or data.get("error_code") == 401:
-        raise PermissionError("token 不對（Telegram 說 401）：再到 @BotFather 複製一次。")
+        raise PermissionError(t("tg_bad_401"))
     if not data.get("ok"):
-        raise RuntimeError(data.get("description") or f"Telegram 回了錯誤（{getattr(resp, 'status_code', '?')}）")
+        raise RuntimeError(data.get("description") or t("tg_error", status=getattr(resp, "status_code", "?")))
     return data
 
 
 def get_me(token: str, http=requests) -> Tuple[bool, str]:
     if not valid_token(token):
-        return False, "這看起來不是 token（長得像 123456789:AAH…，中間有冒號）。"
+        return False, t("tg_not_token")
     try:
         data = _call(http, token, "getMe")
     except PermissionError as e:
         return False, str(e)
     except requests.RequestException:
-        return False, "連不到 Telegram：檢查網路。"
+        return False, t("tg_offline")
     except RuntimeError as e:
-        return False, f"Telegram 說：{e}"
+        return False, t("tg_says", e=e)
     return True, data["result"].get("username", "")
 
 
@@ -100,7 +102,7 @@ def wait_for_code(token: str, code: str, *, timeout: float = 900.0, stop: Option
                 try:
                     _call(http, token, "getUpdates", {"offset": offset, "timeout": 0})
                     _call(http, token, "sendMessage", {"chat_id": who["id"],
-                                                      "text": "✅ 配對成功！回到電腦上的安裝畫面，按「下一步」。"})
+                                                      "text": t("pair_sent")})
                 except (requests.RequestException, RuntimeError, PermissionError):
                     pass
                 return who

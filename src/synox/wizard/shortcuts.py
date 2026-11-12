@@ -1,8 +1,10 @@
 """
 桌面捷徑「SYNOX」與開機自動啟動（使用者在精靈裡勾的才做，invariant 5）。
 
-- 桌面捷徑：PowerShell 的 WScript.Shell 建 .lnk，目標是 Start.bat。
-- 開機自動啟動：啟動資料夾（shell:startup）放一個 SYNOX.cmd（ASCII＋CRLF：cmd.exe 用主控台字碼頁讀 .bat/.cmd）。
+- 桌面捷徑：PowerShell 的 WScript.Shell 建 .lnk，目標是 Open-SYNOX.bat（沒在跑就先開 SYNOX，再發一個擁有者的
+  一次性登入連結打開網頁介面：沒接 Telegram 的人也進得去）。
+- 開機自動啟動：啟動資料夾（shell:startup）放一個 SYNOX.cmd（ASCII＋CRLF：cmd.exe 用主控台字碼頁讀 .bat/.cmd），
+  跑 `Start.bat --no-browser`（開機登入時不要跳出瀏覽器）。
   SYNOX 資料夾的路徑有中文時 .cmd 寫不成 ASCII，改放一個 .lnk（WScript.Shell 吃 Unicode）。
 刪掉那個檔案就不會自動啟動了。
 - .synoxpack 點兩下就安裝（使用者在精靈完成頁勾的才做）：HKCU\Software\Classes 底下登記副檔名與 ProgID，
@@ -16,6 +18,8 @@ import subprocess
 from typing import Optional
 
 STARTUP_NAME = "SYNOX"
+AUTOSTART_ARGS = "--no-browser"          # Start.bat：只跑網頁時也不自動打開瀏覽器（開機登入時不要跳出來）
+OPEN_BAT = "Open-SYNOX.bat"
 PACK_EXT = ".synoxpack"
 PACK_PROGID = "SYNOX.Pack"
 
@@ -59,15 +63,23 @@ def _ps_quote(value: str) -> str:
     return "'" + str(value).replace("'", "''") + "'"
 
 
+def icon_path(root: str) -> str:
+    """SYNOX 的圖示（src/synox/assets/synox.ico）；找不到回 ""（捷徑就用預設圖示）。"""
+    path = os.path.join(root, "src", "synox", "assets", "synox.ico")
+    return path if os.path.exists(path) else ""
+
+
 def shortcut_script(lnk_path: str, target: str, workdir: str, description: str = "SYNOX",
-                    window_style: int = 7) -> str:
+                    window_style: int = 7, icon: str = "", arguments: str = "") -> str:
     """建 .lnk 的 PowerShell 片段。window_style 7＝最小化。"""
     return "\n".join([
         "$s = (New-Object -ComObject WScript.Shell).CreateShortcut(" + _ps_quote(lnk_path) + ")",
         "$s.TargetPath = " + _ps_quote(target),
+        *(["$s.Arguments = " + _ps_quote(arguments)] if arguments else []),
         "$s.WorkingDirectory = " + _ps_quote(workdir),
         "$s.Description = " + _ps_quote(description),
         f"$s.WindowStyle = {int(window_style)}",
+        *(["$s.IconLocation = " + _ps_quote(icon)] if icon else []),
         "$s.Save()",
     ])
 
@@ -95,7 +107,7 @@ def startup_cmd_text(root: str) -> str:
     text = ("@echo off\r\n"
             "rem SYNOX autostart, created by the SYNOX setup wizard. Delete this file to stop it.\r\n"
             f'cd /d "{root}"\r\n'
-            f'call "{start}"\r\n')
+            f'call "{start}" {AUTOSTART_ARGS}\r\n')
     text.encode("ascii")                       # 有中文路徑就在這裡丟 UnicodeEncodeError（ValueError 的子類）
     return text
 
@@ -113,7 +125,8 @@ def run_powershell(script: str) -> Optional[str]:
 
 def create_desktop_shortcut(root: str) -> Optional[str]:
     lnk = os.path.join(desktop_dir(), "SYNOX.lnk")
-    return run_powershell(shortcut_script(lnk, os.path.join(root, "Start.bat"), root, "開啟 SYNOX"))
+    return run_powershell(shortcut_script(lnk, os.path.join(root, OPEN_BAT), root, "開啟 SYNOX",
+                                                icon=icon_path(root)))
 
 
 def enable_autostart(root: str, folder: Optional[str] = None) -> str:
@@ -124,7 +137,8 @@ def enable_autostart(root: str, folder: Optional[str] = None) -> str:
         text = startup_cmd_text(root)
     except ValueError:
         lnk = os.path.join(folder, STARTUP_NAME + ".lnk")
-        err = run_powershell(shortcut_script(lnk, os.path.join(root, "Start.bat"), root, "SYNOX 開機自動啟動"))
+        err = run_powershell(shortcut_script(lnk, os.path.join(root, "Start.bat"), root, "SYNOX 開機自動啟動",
+                                                icon=icon_path(root), arguments=AUTOSTART_ARGS))
         if err:
             raise OSError(err)
         return lnk

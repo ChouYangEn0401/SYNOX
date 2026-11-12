@@ -506,7 +506,7 @@ def test_web_off(owner_client):
 def test_bind_failure_keeps_bot_running(make_bot, owner, monkeypatch):
     def refuse(*a, **kw):
         raise OSError(10048, "address already in use")
-    monkeypatch.setattr(web_server, "ThreadingHTTPServer", refuse)
+    monkeypatch.setattr(web_server, "_Server", refuse)
     bot = make_bot(raw={"web": {"port": 8830}})
     ui = ui_of(bot)
     assert ui.start() is False
@@ -515,6 +515,21 @@ def test_bind_failure_keeps_bot_running(make_bot, owner, monkeypatch):
     assert "照常" in bot.last(owner) or "記" in bot.last(owner)
     bot.say(owner, "/web")
     assert "沒有在跑" in bot.last(owner)
+
+
+def test_port_already_in_use_is_a_bind_failure(make_bot):
+    """Windows 的 SO_REUSEADDR 會讓第二支綁上同一個埠還說成功（登入連結被送到別支 SYNOX）：要失敗。"""
+    import socket
+    holder = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    holder.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)      # 跟另一支（舊版）SYNOX 的網頁一樣
+    holder.bind(("127.0.0.1", 0))
+    holder.listen(1)
+    port = holder.getsockname()[1]
+    try:
+        ui = ui_of(make_bot(raw={"web": {"port": port}}))
+        assert ui.start() is False and str(port) in ui.error
+    finally:
+        holder.close()
 
 
 def test_disabled_web_does_not_start(make_bot, owner):
@@ -530,3 +545,48 @@ def test_bad_web_port_is_config_error(tmp_path):
     with pytest.raises(ConfigError):
         SynoxConfig.from_dict({"owner_id": 1, "web": {"port": "abc"}}, require_token=False, root=str(tmp_path))
     assert SynoxConfig.from_dict({"owner_id": 1}, require_token=False, root=str(tmp_path)).web["port"] == 8830
+
+
+# ── 本機擁有者直接開網址就進 ───────────────────────────────────────────
+
+NAV = {"Host": "127.0.0.1:8830", "Sec-Fetch-Site": "none", "Sec-Fetch-Mode": "navigate",
+       "Sec-Fetch-Dest": "document"}
+
+
+def test_local_owner_typing_the_url_logs_in(make_bot, owner):
+    ui = ui_of(make_bot())
+    status, headers, _ = ui.handle("GET", "/", dict(NAV))
+    cookie = dict(headers)["Set-Cookie"].split(";")[0]
+    assert status == 200 and cookie.startswith("synox_session=")
+    c = Client(ui)
+    c.cookie = cookie
+    status, me = c.get("/api/me")
+    assert status == 200 and me["owner"] is True
+
+
+@pytest.mark.parametrize("change", [
+    {"Sec-Fetch-Site": "cross-site"},                    # 別的網站的連結／重新導向
+    {"Sec-Fetch-Site": "same-site"},
+    {"Sec-Fetch-Mode": "cors"},                          # fetch
+    {"Sec-Fetch-Dest": "iframe"},
+    {"Host": "evil.example.com:8830"},                   # DNS rebinding
+    {"Host": "127.0.0.1:9999"},
+    {"Origin": "http://evil.example.com"},
+    {"Sec-Fetch-Site": None},                            # 沒有標頭（curl／舊瀏覽器）
+])
+def test_local_auto_login_refuses_anything_but_a_typed_navigation(make_bot, change):
+    ui = ui_of(make_bot())
+    headers = {**NAV, **change}
+    headers = {k: v for k, v in headers.items() if v is not None}
+    status, resp_headers, _ = ui.handle("GET", "/", headers)
+    assert status == 200 and "Set-Cookie" not in dict(resp_headers)
+    assert ui.handle("GET", "/api/me", {"Host": "127.0.0.1:8830"})[0] == 401
+
+
+def test_local_auto_login_is_off_for_server_mode_public_url_and_the_switch(make_bot):
+    for raw in ({"mode": "server"}, {"web": {"public_url": "https://x.example.com"}},
+                {"web": {"local_auto_login": False}}):
+        ui = ui_of(make_bot(raw=raw))
+        ui.port = 8830
+        _s, resp_headers, _b = ui.handle("GET", "/", dict(NAV))
+        assert "Set-Cookie" not in dict(resp_headers), raw

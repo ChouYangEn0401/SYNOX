@@ -123,7 +123,8 @@
   <section id="view-login" class="hidden">
     <div class="card">
       <h2>請先登入</h2>
-      <p>在 Telegram 跟你的 SYNOX bot 打 <code>/web</code>，它會給你一個一次性的登入連結（7 天內有效、只能用一次）。</p>
+      <p>在跑 SYNOX 的<b>這台電腦</b>上：雙擊桌面的「SYNOX」捷徑（或 SYNOX 資料夾裡的 <code>Open-SYNOX.bat</code>），它會打開一個新的一次性登入連結，按頁面上的「登入」就好。</p>
+      <p>有接 Telegram／Discord 的話，也可以跟你的 SYNOX bot 打 <code>/web</code> 拿連結（7 天內有效、只能用一次）。</p>
       <p class="muted">這個網頁只在跑 SYNOX 的那台電腦上打得開（127.0.0.1）。沒有密碼：連結就是鑰匙，不要轉給別人。</p>
     </div>
   </section>
@@ -152,7 +153,7 @@
   <section id="view-settings" class="hidden">
     <div id="set-notowner" class="card hidden">
       <h2>設定</h2>
-      <p>AI 來源、功能裝卸和備份只有擁有者能改。</p>
+      <p>AI 來源、聊天通道、功能裝卸和備份只有擁有者能改。</p>
       <p id="my-budget" class="muted"></p>
     </div>
 
@@ -176,6 +177,30 @@
         <button id="llm-save" class="primary" type="button">存起來</button>
         <span id="llm-msg" class="muted"></span>
       </div>
+    </div>
+
+    <div id="set-channels" class="card hidden">
+      <h2>💬 聊天通道（Telegram / Discord）</h2>
+      <p class="muted">貼上 bot 的 token，先檢查再存（token 存好之後不會再顯示）。改了要重新啟動 SYNOX 才生效。</p>
+      <h3>Telegram</h3>
+      <p id="ch-tg-now" class="muted"></p>
+      <label class="f" for="ch-tg-token">bot token（@BotFather 給的，長得像 123456789:AAH…）</label>
+      <div class="row">
+        <input id="ch-tg-token" type="password" autocomplete="off" size="40">
+        <button id="ch-tg-save" class="primary" type="button">檢查並存起來</button>
+      </div>
+      <p id="ch-tg-msg" class="muted"></p>
+      <h3>Discord</h3>
+      <p id="ch-dc-now" class="muted"></p>
+      <div id="ch-dc-form">
+        <label class="f" for="ch-dc-token">bot token（Developer Portal → 你的 App → Bot → Reset Token）</label>
+        <div class="row">
+          <input id="ch-dc-token" type="password" autocomplete="off" size="40">
+          <button id="ch-dc-save" class="primary" type="button">檢查並存起來</button>
+        </div>
+      </div>
+      <p id="ch-dc-msg" class="muted"></p>
+      <p id="ch-dc-invite-wrap" class="hidden">邀請連結（把 bot 加進你的伺服器）：<a id="ch-dc-invite" target="_blank" rel="noopener noreferrer"></a></p>
     </div>
 
     <div id="set-packs" class="card hidden">
@@ -557,11 +582,11 @@
   function loadSettings() {
     api("GET", "/api/settings").then(function (d) {
       $("set-notowner").classList.toggle("hidden", d.owner);
-      ["set-llm", "set-packs", "set-backup"].forEach(function (id) { $(id).classList.toggle("hidden", !d.owner); });
+      ["set-llm", "set-channels", "set-packs", "set-backup"].forEach(function (id) { $(id).classList.toggle("hidden", !d.owner); });
       $("set-accounts").classList.toggle("hidden", !d.accounts);
       $("my-budget").textContent = d.ai_budget ?
         "這個月的 AI 額度：用了約 US$" + d.ai_budget.used.toFixed(2) + "／US$" + Number(d.ai_budget.limit).toFixed(2) : "";
-      if (d.owner) { fillLlm(d); fillPacks(d.packs || []); }
+      if (d.owner) { fillLlm(d); fillPacks(d.packs || []); loadChannels(); }
       if (d.accounts) { loadAccounts(); }
     }).catch(function (e) { toast(e.message); });
   }
@@ -595,6 +620,56 @@
     api("POST", "/api/settings/llm", llmBody()).then(function (d) { $("llm-msg").textContent = d.message; loadSettings(); })
       .catch(function (e) { $("llm-msg").textContent = "❌ " + e.message; });
   });
+
+  // ── 聊天通道 ─────────────────────────────────────────────────────
+  var RESTART = "（重新啟動 SYNOX 後生效：雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑）";
+  function showInvite(url) {
+    $("ch-dc-invite-wrap").classList.toggle("hidden", !url);
+    $("ch-dc-invite").textContent = url || "";
+    if (url && url.indexOf("https://discord.com/") === 0) { $("ch-dc-invite").href = url; }
+    else { $("ch-dc-invite").removeAttribute("href"); }
+  }
+  function channelLine(c, name) {
+    var s;
+    if (!c.saved) { s = "還沒設定。"; }
+    else if (c.bot) { s = "✅ token 已存：bot " + name(c.bot) + "。"; }
+    else { s = "⚠️ token 已存，但檢查沒過：" + (c.problem || "原因不明") + "。"; }
+    if (c.saved && c.active && !c.restart) { s += "執行中。"; }
+    if (c.restart) { s += RESTART; }
+    return s;
+  }
+  function loadChannels() {
+    $("ch-tg-now").textContent = "檢查中…";
+    $("ch-dc-now").textContent = "檢查中…";
+    api("GET", "/api/settings/channels").then(function (d) {
+      var t = d.telegram, c = d.discord;
+      $("ch-tg-now").textContent = channelLine(t, function (n) { return "@" + n; }) +
+        (t.saved && !t.owner_paired ? "還沒配對擁有者：雙擊 Setup.bat 重跑安裝精靈配對（token 會自動帶入）。" : "");
+      $("ch-dc-form").classList.toggle("hidden", c.multi);
+      if (c.multi) {
+        $("ch-dc-now").textContent = "config.json 用的是 bots 寫法（多個 bot）：網頁不動它，請直接改 config.json。";
+      } else {
+        $("ch-dc-now").textContent = channelLine(c, function (n) { return n; }) +
+          (c.saved && !c.owner_paired ? "還沒配對擁有者：在 SYNOX 資料夾跑 python -m synox discord pair（或重跑 Setup.bat）。" : "");
+      }
+      showInvite(c.invite);
+    }).catch(function (e) { $("ch-tg-now").textContent = ""; $("ch-dc-now").textContent = "❌ " + e.message; });
+  }
+  function saveChannel(kind) {
+    var input = $("ch-" + kind + "-token"), msg = $("ch-" + kind + "-msg"), btn = $("ch-" + kind + "-save");
+    msg.textContent = "檢查中…";
+    btn.disabled = true;
+    api("POST", "/api/settings/channels/" + (kind === "tg" ? "telegram" : "discord"), { token: input.value })
+      .then(function (d) {
+        input.value = "";
+        msg.textContent = d.message;
+        loadChannels();
+      })
+      .catch(function (e) { msg.textContent = "❌ " + e.message; })
+      .then(function () { btn.disabled = false; });
+  }
+  $("ch-tg-save").addEventListener("click", function () { saveChannel("tg"); });
+  $("ch-dc-save").addEventListener("click", function () { saveChannel("dc"); });
 
   var STATUS = { loaded: "可以用", connector: "還沒接上", disabled: "關掉了", invalid: "格式不對", missing: "缺東西", incompatible: "SYNOX 版本不合", error: "壞了",
     tampered: "被改過了，沒有載入", rejected: "掃描沒過，沒有載入" };

@@ -18,6 +18,7 @@ from collections import OrderedDict
 from typing import Callable, Optional, Tuple
 
 from synox.llm.factory import VAULT_PREFIX
+from synox.wizard.i18n import t
 
 SECRET_NAME = "llm_api_key"
 
@@ -35,13 +36,15 @@ ENGINEER_HINT = "工程師？直接改 config.json（範例 config.example.json�
 
 
 def mode_lines(mode: str) -> Tuple[str, str, str]:
-    """(標題, 說明一, 說明二)。"""
-    return MODE_CHOICES[mode]
+    """(標題, 說明一, 說明二)，用精靈選的語言（i18n）。"""
+    MODE_CHOICES[mode]                              # 不認得的 mode 一樣丟 KeyError
+    return t(f"mode.{mode}.title"), t(f"mode.{mode}.one"), t(f"mode.{mode}.two")
 
 
 # ── 第 4 頁：AI ─────────────────────────────────────────────────────
 
 CLAUDE_TITLE = "預設：Claude（這台電腦登入的 Claude Code）"
+CLAUDE_DOWNLOAD_URL = "https://claude.com/product/claude-code"      # 找不到 Claude Code 時，精靈的按鈕帶使用者去下載
 
 # 其他金鑰來源：代號 → (下拉選單上的字, config 的 llm.kind, 預填的模型, 要不要填網址)
 # 模型名稱只是預填，使用者可以改，「測一下」會驗。
@@ -55,13 +58,18 @@ PROVIDERS = KEY_PROVIDERS                       # 舊名
 CHOICES = ("claude_code", "keys", "none")
 
 
+def _label(code: str) -> str:
+    return t("provider_compat") if code == "openai_compat" else KEY_PROVIDERS[code][0]
+
+
 def provider_labels() -> list:
-    return [v[0] for v in KEY_PROVIDERS.values()]
+    """下拉選單上的字（用精靈選的語言）。"""
+    return [_label(code) for code in KEY_PROVIDERS]
 
 
 def provider_by_label(label: str) -> str:
     for code, v in KEY_PROVIDERS.items():
-        if v[0] == label:
+        if label in (v[0], _label(code)):
             return code
     return label if label in KEY_PROVIDERS else "openai"
 
@@ -81,8 +89,8 @@ def claude_status(which: Optional[Callable[[], Optional[str]]] = None) -> Tuple[
         which = find_claude
     path = which()
     if path:
-        return True, f"✅ 找到了：{path}"
-    return False, "❌ 這台電腦找不到 Claude Code（claude）。要用它，先安裝並登入；或在下面填其他金鑰來源。"
+        return True, t("claude_found", path=path)
+    return False, t("claude_missing")
 
 
 def default_choice(claude_found: bool) -> str:
@@ -101,19 +109,19 @@ def llm_settings(choice: str, *, base_url: str = "", api_key: str = "", model: s
     if choice == "own":
         choice = "keys"
     if choice != "keys":
-        return {}, f"不認得的選項 {choice}。"
+        return {}, t("err_unknown_choice", choice=choice)
     if provider not in KEY_PROVIDERS:
-        return {}, f"不認得的服務 {provider}。"
+        return {}, t("err_unknown_provider", provider=provider)
     _label, kind, suggested, wants_url = KEY_PROVIDERS[provider]
     out = {"kind": kind, "api_key": api_key.strip(), "model": model.strip() or suggested}
     if wants_url:
         if not base_url.strip().startswith(("http://", "https://")):
-            return {}, "網址要以 http:// 或 https:// 開頭（例如 http://localhost:11434/v1）。"
+            return {}, t("err_url")
         if not model.strip():
-            return {}, "要填模型名稱（問給你網址的人；Ollama 就是你 pull 的那個名字）。"
+            return {}, t("err_model")
         out["base_url"], out["tools"] = base_url.strip(), True
     elif not api_key.strip():
-        return {}, "要貼上 API key。"
+        return {}, t("err_api_key")
     return out, ""
 
 
@@ -128,16 +136,19 @@ def probe_llm(llm: dict, make=None) -> Optional[str]:
     except Exception as e:                         # LLMError（設定不完整、沒裝 ntu_easy_llm）
         return str(e)
     if adapter is None:
-        return "不認得的 AI 來源。"
+        return t("err_unknown_source")
     try:
         return adapter.probe()
     except Exception as e:
-        return f"測試失敗：{e}"
+        return t("err_test_failed", e=e)
 
 
 def build_config(token: str, owner_id: int, llm: dict, *, existing: Optional[dict] = None,
-                 mode: Optional[str] = None) -> dict:
+                 mode: Optional[str] = None, language: Optional[str] = None) -> dict:
+    """language＝精靈用的語言（"zh-TW"、"en"…），寫進 config.json 的 "language"（只是記著；SynoxConfig 不讀它）。"""
     cfg = dict(existing or {})
+    if language:
+        cfg["language"] = language
     if mode is not None:
         if mode not in MODE_CHOICES:
             raise ValueError(f"mode must be one of {tuple(MODE_CHOICES)}")
@@ -185,6 +196,66 @@ def save(path: str, cfg: dict, vault_opener=None) -> dict:
         cfg["llm"]["api_key"] = VAULT_PREFIX + SECRET_NAME
     write_config(path, cfg)
     return cfg
+
+
+def local_owner_id() -> int:
+    """沒接 Telegram 的擁有者 id（保留號段第一號）：網頁介面、Discord 配對都認這個人；之後補 Telegram 會換成真的 id。"""
+    from synox.identity import BASE
+    return BASE
+
+
+def discord_owner_sentinel() -> int:
+    """Discord-only 擁有者的 owner_id：保留號段的第一號（跟 config.py 的說明、pair-discord 一致）。"""
+    from synox.identity import BASE
+    return BASE
+
+
+def save_discord_token(config_path: str, cfg: dict, token: str, vault_opener=None) -> dict:
+    """把 Discord bot token 存進保管箱，cfg 開 channels.discord.enabled，寫回 config.json。回寫進去的那份。"""
+    from synox.discord import VAULT_NAME
+    cfg = json.loads(json.dumps(cfg))
+    channels = dict(cfg.get("channels") or {})
+    old = channels.get("discord") if isinstance(channels.get("discord"), dict) else {}
+    if "bots" in old:        # 多 bot 寫法跟 bot_token 不能並存（synox.discord.bots.parse）；不替使用者改
+        # 先檢查再動保管箱：bots 的 default bot 也用 discord_bot_token 這個名字，不能被蓋掉
+        raise ValueError("config.json 的 channels.discord 已經用 bots 寫法（多個 bot）：請直接改 config.json，精靈不動它。")
+    if vault_opener is None:
+        from synox.config import SynoxConfig
+        from synox.vault import open_vault
+
+        def vault_opener(c):
+            return open_vault(SynoxConfig.from_dict(c, require_token=False,
+                                                    root=os.path.dirname(os.path.abspath(config_path))))
+    vault_opener(cfg).set_secret(VAULT_NAME, token.strip())
+    channels["discord"] = {**old, "enabled": True, "bot_token": f"vault:{VAULT_NAME}"}   # 重跑精靈不洗掉其他設定
+    cfg["channels"] = channels
+    write_config(config_path, cfg)
+    return cfg
+
+
+def bind_discord_owner(config_path: str, cfg: dict, external_id) -> None:
+    """配對成功後：把那個 Discord 帳號接到 cfg 裡的 owner_id（identities.json）。"""
+    from synox.config import SynoxConfig
+    from synox.identity import Identities
+    config = SynoxConfig.from_dict(cfg, require_token=False, root=os.path.dirname(os.path.abspath(config_path)))
+    Identities(config.path("identities.json")).bind("discord", external_id, config.owner_id)
+
+
+def finish_status(notes: list, *, launched: bool, has_token: bool) -> str:
+    """完成頁最後的狀態文字。launched＝勾了「完成後立刻開啟 SYNOX」（Start.bat 已經開了）；
+    沒勾就只存了設定，告訴使用者之後怎麼開。has_token＝接了 Telegram／Discord。"""
+    lines = list(notes)
+    if not launched:
+        head = t("status_saved_head")
+        lines.append(t("status_how_to_open"))
+        if not has_token:
+            lines.append(t("status_add_channel_later"))
+    elif has_token:
+        head = t("status_bot_head")
+    else:
+        head = t("status_web_head")
+        lines.append(t("status_add_channel_later"))
+    return "\n".join([head] + lines + [t("status_can_close")])
 
 
 def web_login_link(config_path: str) -> str:
