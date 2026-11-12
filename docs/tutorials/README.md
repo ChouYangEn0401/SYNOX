@@ -4,6 +4,7 @@
 
 | 教學 | 本機檔 | 線上版（Artifact） |
 |---|---|---|
+| Discord：觀念（私訊／伺服器／各頻道）、開發者後台建 bot、邀請、複製 ID、貼進 SYNOX、疑難排解 | [discord/index.html](discord/index.html)（純文字 [discord/README.md](discord/README.md)；觀念 [../discord-concepts.md](../discord-concepts.md)） | <https://claude.ai/artifact/21KFtvB7EVKsV4bjCE5h1h> |
 | Telegram：跟 @BotFather 拿 token、貼進 SYNOX、配對、第一則訊息、常見問題 | [telegram/index.html](telegram/index.html)（純文字 [telegram/README.md](telegram/README.md)） | <https://claude.ai/artifact/SjWBzQkdDpUNymrQEZRKHe> |
 
 ## 怎麼打開
