@@ -172,6 +172,8 @@
   #chat-list li.pinned { border-color: var(--accent); }
   .scope-note { margin: 0 0 14px; }
   .pair { margin-top: 14px; padding: 12px 14px; border-radius: var(--r); background: var(--sunken); }
+  .pair-done { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+               font-size: 13.5px; color: var(--text-2); }
   .pair h4 { margin: 0 0 4px; font-size: 14px; }
   .pair details { margin-top: 12px; }
   .pair summary { cursor: pointer; font-size: 13.5px; color: var(--text-2); }
@@ -3044,7 +3046,11 @@
   function makePairing(prefix, path, o) {
     var box = $(prefix + "pair"), timer = null, botName = "";
     var q = function (id) { return $(prefix + id); };
+    var redo = false, last = null;                      // redo：已配對後使用者按了「重新配對」，才展開完整區
     box.innerHTML =
+      '<div id="' + prefix + 'pair-done" class="pair-done hidden"><span id="' + prefix + 'pair-done-text"></span> ' +
+      '<button id="' + prefix + 'pair-redo" type="button" class="sm">重新配對</button></div>' +
+      '<div id="' + prefix + 'pair-full">' +
       "<h4>配對我的 " + o.what + " 帳號</h4>" +
       '<p id="' + prefix + 'pair-state" class="muted"></p>' +
       '<div id="' + prefix + 'pair-go" class="row"><button id="' + prefix + 'pair-start" type="button" class="primary">產生配對碼</button>' +
@@ -3055,7 +3061,7 @@
       "<details><summary>或直接貼我的 " + o.what + " " + o.idName + "</summary><p class=\"muted\">" + o.idHelp + "</p>" +
       '<div class="field-row"><input id="' + prefix + 'uid" type="text" inputmode="numeric" autocomplete="off" placeholder="' + o.idExample + '">' +
       '<button id="' + prefix + 'uid-save" type="button">配對</button></div></details>' +
-      '<p id="' + prefix + 'pair-msg" class="msgline"></p>';
+      '<p id="' + prefix + 'pair-msg" class="msgline"></p></div>';
     function stop() { if (timer) { clearInterval(timer); timer = null; } }
     function stateText(paired, asId) {
       q("pair-state").textContent = asId ? "✅ 已配對：" + o.what + " " + o.idName + " " + asId + "。要換帳號就重新配對。" :
@@ -3077,7 +3083,7 @@
         showCode(d.pairing);
         if (!d.pairing) {
           stop();
-          if (d.just_paired) { q("pair-msg").textContent = "✅ 配對好了！去 " + o.what + " 跟 bot 說話看看。"; }
+          if (d.just_paired) { redo = false; loadChannels(); }          // 配好了：收起來，只留一行摘要
         }
       }).catch(function () { stop(); });
     }
@@ -3089,31 +3095,41 @@
     });
     q("pair-cancel").addEventListener("click", function () {
       stop();
-      api("POST", path, { action: "cancel" }).then(function () { showCode(null); });
+      api("POST", path, { action: "cancel" }).then(function () { showCode(null); redo = false; if (last) { api_show(last); } });
     });
+    q("pair-redo").addEventListener("click", function () { redo = true; if (last) { api_show(last); } });
     q("uid-save").addEventListener("click", function () {
       var btn = q("uid-save");
       btn.disabled = true;
       api("POST", path, { action: "manual", user_id: q("uid").value })
-        .then(function (d) { q("pair-msg").textContent = d.message; q("uid").value = ""; stop(); loadChannels(); })
+        .then(function (d) { q("pair-msg").textContent = ""; q("uid").value = ""; stop(); redo = false; loadChannels(); })
         .catch(function (e) { q("pair-msg").textContent = "❌ " + e.message; })
         .then(function () { btn.disabled = false; });
     });
-    return {
-      show: function (c) {
-        var on = o.visible(c);
-        box.classList.toggle("hidden", !on);
-        if (!on) { stop(); return; }
-        botName = c.bot || "";
-        stateText(c.owner_paired, c.paired_as);
-        q("pair-start").disabled = !c.pair_ready;
-        q("uid-save").disabled = !!o.manualNeedsReady && !c.pair_ready;
-        q("pair-hint").textContent = c.pair_ready ? "" : o.notReady;
-        showCode(c.pairing);
-        if (c.pairing && !timer) { begin(); }
-        if (!c.pairing) { stop(); }
+    function api_show(c) {
+      last = c;
+      var on = o.visible(c);
+      box.classList.toggle("hidden", !on);
+      if (!on) { stop(); return; }
+      botName = c.bot || "";
+      var paired = !!(c.owner_paired || c.paired_as);
+      var collapsed = paired && !redo && !c.pairing;      // 已配對就收起來：只留一行（要重配再按「重新配對」）
+      q("pair-full").classList.toggle("hidden", collapsed);
+      q("pair-done").classList.toggle("hidden", !collapsed);
+      if (collapsed) {
+        q("pair-done-text").textContent = "✅ " + o.what + " 已配對" + (c.paired_as ? "（" + o.idName + " " + c.paired_as + "）" : "") + "。";
+        stop();
+        return;
       }
-    };
+      stateText(c.owner_paired, c.paired_as);
+      q("pair-start").disabled = !c.pair_ready;
+      q("uid-save").disabled = !!o.manualNeedsReady && !c.pair_ready;
+      q("pair-hint").textContent = c.pair_ready ? "" : o.notReady;
+      showCode(c.pairing);
+      if (c.pairing && !timer) { begin(); }
+      if (!c.pairing) { stop(); }
+    }
+    return { show: api_show };
   }
   var dcPair = makePairing("ch-dc-", "/api/settings/channels/discord/pair", {
     what: "Discord", idName: "使用者 ID", idExample: "例如 123456789012345678",
