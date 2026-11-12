@@ -9,8 +9,6 @@ set "PYTHONUTF8=1"
 if not exist "%VENV_PY%" goto notinstalled
 if not exist "%~dp0config.json" goto notinstalled
 if /i "%~1"=="--here" goto run
-rem --no-browser (autostart at login): web-only mode does not pop up the browser; inherited by the window below.
-if /i "%~1"=="--no-browser" set "SYNOX_NO_BROWSER=1"
 start "SYNOX" /min "%ComSpec%" /c ""%~f0" --here"
 exit /b 0
 :run
