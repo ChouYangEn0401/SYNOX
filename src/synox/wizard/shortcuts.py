@@ -59,8 +59,14 @@ def _ps_quote(value: str) -> str:
     return "'" + str(value).replace("'", "''") + "'"
 
 
+def icon_path(root: str) -> str:
+    """SYNOX 的圖示（src/synox/assets/synox.ico）；找不到回 ""（捷徑就用預設圖示）。"""
+    path = os.path.join(root, "src", "synox", "assets", "synox.ico")
+    return path if os.path.exists(path) else ""
+
+
 def shortcut_script(lnk_path: str, target: str, workdir: str, description: str = "SYNOX",
-                    window_style: int = 7) -> str:
+                    window_style: int = 7, icon: str = "") -> str:
     """建 .lnk 的 PowerShell 片段。window_style 7＝最小化。"""
     return "\n".join([
         "$s = (New-Object -ComObject WScript.Shell).CreateShortcut(" + _ps_quote(lnk_path) + ")",
@@ -68,6 +74,7 @@ def shortcut_script(lnk_path: str, target: str, workdir: str, description: str =
         "$s.WorkingDirectory = " + _ps_quote(workdir),
         "$s.Description = " + _ps_quote(description),
         f"$s.WindowStyle = {int(window_style)}",
+        *(["$s.IconLocation = " + _ps_quote(icon)] if icon else []),
         "$s.Save()",
     ])
 
@@ -113,7 +120,8 @@ def run_powershell(script: str) -> Optional[str]:
 
 def create_desktop_shortcut(root: str) -> Optional[str]:
     lnk = os.path.join(desktop_dir(), "SYNOX.lnk")
-    return run_powershell(shortcut_script(lnk, os.path.join(root, "Start.bat"), root, "開啟 SYNOX"))
+    return run_powershell(shortcut_script(lnk, os.path.join(root, "Start.bat"), root, "開啟 SYNOX",
+                                                icon=icon_path(root)))
 
 
 def enable_autostart(root: str, folder: Optional[str] = None) -> str:
@@ -124,7 +132,8 @@ def enable_autostart(root: str, folder: Optional[str] = None) -> str:
         text = startup_cmd_text(root)
     except ValueError:
         lnk = os.path.join(folder, STARTUP_NAME + ".lnk")
-        err = run_powershell(shortcut_script(lnk, os.path.join(root, "Start.bat"), root, "SYNOX 開機自動啟動"))
+        err = run_powershell(shortcut_script(lnk, os.path.join(root, "Start.bat"), root, "SYNOX 開機自動啟動",
+                                                icon=icon_path(root)))
         if err:
             raise OSError(err)
         return lnk

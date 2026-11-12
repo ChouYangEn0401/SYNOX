@@ -57,19 +57,34 @@ def cmd_run(args) -> int:
     print("✅ SYNOX 開始收訊息了。這個視窗可以縮小，但不要關；要停就按 Ctrl+C 或雙擊 Stop.bat。")
     if config.web.get("enabled", True):
         print(f"🌐 網頁介面：http://127.0.0.1:{config.web.get('port')}/ （在聊天裡打 /web 拿登入連結）")
+        if not config.has_token and not config.discord_enabled and not getattr(args, "no_browser", False):
+            _open_web_login(config)           # 沒接聊天軟體時網頁就是主要介面：直接幫忙打開
     app.run(channels)
     return 0
 
 
+def _open_web_login(config) -> None:
+    """只跑網頁時：發一個一次性登入連結並用預設瀏覽器打開（失敗只印提示，不影響主程式）。"""
+    import threading
+    import webbrowser
+    try:
+        from synox.web import issue_owner_link
+        link = issue_owner_link(config)
+    except Exception as e:
+        print(f"（沒能自動打開網頁：{e}）")
+        return
+    threading.Timer(2.0, lambda: webbrowser.open(link)).start()
+
+
 def run_channels(config) -> tuple:
     """要開哪些「SDK 自己管」的通道：有 Telegram token 就 telegram；Discord 由 synox.discord 在 on_start 自己登記。
-    兩個都沒有 → ConfigError（給人看的訊息）。"""
+    兩個都沒有：網頁介面開著就只跑網頁（本機 App，之後再接 Telegram／Discord）；網頁也關掉 → ConfigError（給人看的訊息）。"""
     if config.has_token:
         return ("telegram",)
-    if config.discord_enabled:
+    if config.discord_enabled or config.web.get("enabled", True):
         return ()
-    raise ConfigError("config.json 的 bot_token 還不是真的 Telegram token，也沒有開 Discord（channels.discord）。"
-                      "至少要有一個；只想在終端機試的話用 Console.bat。")
+    raise ConfigError("config.json 的 bot_token 還不是真的 Telegram token，也沒有開 Discord（channels.discord），"
+                      "網頁介面（web.enabled）也關著：至少要開一個；只想在終端機試的話用 Console.bat。")
 
 
 def cmd_console(args) -> int:

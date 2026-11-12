@@ -29,7 +29,7 @@ where = ["src", "vendor"]
 include = ["synox*", "isdtelekit*"]
 
 [tool.setuptools.package-data]
-synox = ["web/static/*.html"]
+synox = ["web/static/*.html", "assets/*.ico"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

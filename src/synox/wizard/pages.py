@@ -57,6 +57,10 @@ class Wizard:
         self.llm = {"kind": "none"}
         self.stop = threading.Event()
         root.title(TITLE)
+        try:                                        # 視窗左上角的圖示（找不到就用預設的）
+            root.iconbitmap(shortcuts.icon_path(ROOT))
+        except Exception:
+            pass
         root.geometry("640x580")
         root.minsize(580, 520)
         root.protocol("WM_DELETE_WINDOW", self.close)
@@ -346,8 +350,8 @@ class Wizard:
             who = "bot" if self.platform == "telegram" else f"Discord bot {self.bot_name}"
             finish_hint = f"這台是：{title}。\n按「完成並開始」：寫好設定、打開 {who}，手機會收到「我在了」。"
         else:
-            finish_hint = (f"這台是：{title}。還沒接 Telegram／Discord，先用主控台（Console.bat）試試看就好；"
-                           "之後雙擊 Setup.bat 重跑精靈可以補填。")
+            finish_hint = (f"這台是：{title}。還沒接 Telegram／Discord 也沒關係：按「完成並開始」會打開 SYNOX 的網頁介面，"
+                           "之後雙擊 Setup.bat 重跑精靈可以補接。")
         status = self.label(finish_hint)
 
         def finish():
@@ -355,11 +359,11 @@ class Wizard:
                 is_discord = self.platform == "discord" and bool(self.token)
                 telegram_token = "" if is_discord else self.token
                 if is_discord:
-                    owner_id = logic.discord_owner_sentinel() if self.owner else 0
+                    owner_id = logic.discord_owner_sentinel()
                 elif self.owner:
                     owner_id = self.owner["id"]
                 else:
-                    owner_id = 0
+                    owner_id = logic.local_owner_id()       # 沒接聊天軟體：本機擁有者（網頁登入用），之後補 Telegram 會換成真的
                 cfg = logic.build_config(telegram_token, owner_id, self.llm, existing=self.existing,
                                          mode=self.mode)
                 cfg = logic.save(self.config_path, cfg)
@@ -388,19 +392,19 @@ class Wizard:
                     notes.append(".synoxpack 點兩下安裝 ✅")
                 except OSError as e:
                     notes.append(f".synoxpack 點兩下安裝 ❌ {e}")
+            start = os.path.join(ROOT, "Start.bat")          # 不管有沒有接聊天軟體，裝完就把 SYNOX 開起來
+            subprocess.Popen(["cmd", "/c", start], cwd=ROOT,
+                             creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
             if self.token:
-                start = os.path.join(ROOT, "Start.bat")
-                subprocess.Popen(["cmd", "/c", start], cwd=ROOT,
-                                 creationflags=getattr(subprocess, "CREATE_NEW_CONSOLE", 0))
                 link = logic.web_login_link(self.config_path)
                 if link:
                     notes.append("幾秒後會打開網頁介面（之後在 Telegram 打 /web 可以再拿登入連結）")
                     self.root.after(6000, lambda: webbrowser.open(link))
-                status.configure(text="✅ 設定好了，bot 開起來了。\n" + "\n".join(notes) + "\n可以關掉這個視窗。")
+                status.configure(text="✅ 設定好了，bot 開起來了。" + "\n" + "\n".join(notes) + "\n" + "可以關掉這個視窗。")
             else:
-                status.configure(text="✅ 設定存好了（還沒有 bot）。\n" + "\n".join(notes) +
-                                 "\n雙擊 Console.bat 可以在終端機先試試看；之後雙擊 Setup.bat 重跑精靈補填 Telegram／Discord。"
-                                 "\n可以關掉這個視窗。")
+                notes.append("幾秒後會自動打開網頁介面（SYNOX 的主畫面）")
+                status.configure(text="✅ 設定好了，SYNOX 開起來了（還沒接 Telegram／Discord）。" + "\n" + "\n".join(notes) +
+                                 "\n" + "之後雙擊 Setup.bat 重跑精靈可以補接 Telegram／Discord。" + "\n" + "可以關掉這個視窗。")
             self.set_next("關閉", self.close)
 
         self.set_next("完成並開始", finish)
