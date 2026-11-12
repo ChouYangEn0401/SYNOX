@@ -190,6 +190,8 @@ class WebUI:
         path, query = parts.path, parse_qs(parts.query)
         try:
             if path == "/" and method == "GET":
+                if session is None and self._local_owner_navigation(headers):
+                    return self._auto_login_page()
                 return self.app_page()
             if path == "/login" and method == "GET":
                 return self.login_page((query.get("t") or [""])[0], headers, session)
@@ -212,6 +214,34 @@ class WebUI:
         except Exception as e:
             logging.exception("[WEB] %s %s failed", method, path)
             return _err(500, f"出錯了：{type(e).__name__}")
+
+    # 本機擁有者直接開網址就進（不用連結）：這台電腦的人本來就能改設定檔、裝 pack，網頁不該再擋他。
+    # 但網頁能裝 pack＝能在這台電腦跑程式，所以只認「使用者自己在瀏覽器網址列打／書籤／桌面捷徑開」的那一下，
+    # 不認別的網站戳過來的請求：Host 必須是 127.0.0.1／localhost 本身（擋 DNS rebinding）、
+    # Sec-Fetch-Site 必須是 none（使用者直接導覽；別的網站的連結、圖片、fetch、表單都是 cross-site／same-site）、
+    # Sec-Fetch-Mode=navigate 且 Dest=document（不是 API／iframe）。沒有這些標頭（curl、舊瀏覽器）就不自動登入，
+    # 照舊用連結。個人版才有；伺服器版、有 public_url（反向代理）、或 web.local_auto_login=false 都關掉。
+
+    def _local_auto_login_enabled(self) -> bool:
+        web = getattr(self.config, "web", {}) or {}
+        return (not self.server_mode and not str(web.get("public_url") or "").strip()
+                and bool(web.get("local_auto_login", True)))
+
+    def _local_owner_navigation(self, headers: Dict[str, str]) -> bool:
+        if not self._local_auto_login_enabled():
+            return False
+        if headers.get("host", "").lower() not in (f"127.0.0.1:{self.port}", f"localhost:{self.port}"):
+            return False
+        return (headers.get("sec-fetch-site") == "none" and headers.get("sec-fetch-mode") == "navigate"
+                and headers.get("sec-fetch-dest") == "document" and not headers.get("origin"))
+
+    def _auto_login_page(self) -> Resp:
+        owner = int(self.config.owner_id)
+        sid, _session = self.sessions.create(owner)
+        self.app.users.get_or_create(owner)
+        status, headers, body = self.app_page()
+        cookie = f"{COOKIE}={sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age={int(self.sessions.ttl)}" + self._secure()
+        return status, headers + [("Set-Cookie", cookie)], body
 
     def _csrf_problem(self, headers: Dict[str, str], session: Session) -> str:
         origin = headers.get("origin")
