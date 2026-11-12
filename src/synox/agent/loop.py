@@ -28,7 +28,7 @@ from typing import Dict, List, Optional, Tuple
 from isdtelekit.core import jsonstore
 from isdtelekit.core.registry import AI, DANGER, Node
 
-from synox import policy
+from synox import health, policy
 from synox.agent import delimit
 from synox.agent import skills as skills_mod
 from synox.agent import tools as tools_mod
@@ -226,7 +226,34 @@ class AgentLoop:
         return ai_decision(self.app, user, node, chat_id=chat_id)
 
     def tools_for(self, user, chat_id: int):
-        return tools_mod.build(self.app.registry, lambda n: self.decision(user, n, chat_id), self.app)
+        return tools_mod.build(self.app.registry, lambda n: self.usable(user, n, chat_id), self.app)
+
+    def usable(self, user, node: Node, chat_id: int):
+        """給 AI 的工具清單：decision（權限，唯一的判斷）放行、而且現在沒有壞掉（health：broken／needs_action／quarantined
+        不給 AI）。健康管理器出錯＝當作正常（fail open）。"""
+        decision = self.decision(user, node, chat_id)
+        if decision is not None and health.hidden(self.app, node.path, user) is not None:
+            return None
+        return decision
+
+    def health_note(self, user, chat_id: int) -> str:
+        """系統提示最後的「暫時不能用的功能：<工具>（<原因>）」，最多 health.prompt_lines 行；只列這個人本來能用的。
+        原因是 SYNOX 依狀態與類別碼產生的字（不放工具自己的文字）。"""
+        try:
+            if not health.any_hidden(self.app):
+                return ""
+            limit = health.prompt_lines(self.app)
+            lines: List[str] = []
+            for node in self.app.registry.leaves():
+                if len(lines) >= limit:
+                    break
+                entry = health.hidden(self.app, node.path, user)
+                if entry is not None and self.decision(user, node, chat_id) is not None:
+                    lines.append(health.unavailable_line(node, entry))
+            return "\n".join(lines)
+        except Exception:
+            logging.exception("[AGENT] health note failed (ignored)")
+            return ""
 
     def out_of_budget(self, user) -> str:
         """額度用完回給人看的一句話；還有額度回 ""。"""
@@ -278,6 +305,9 @@ class AgentLoop:
         soul = self.soul_block(user, chat_id, nonce)
         if soul:
             prompt += "\n\n" + soul
+        unavailable = self.health_note(user, chat_id)
+        if unavailable:
+            prompt += "\n\n" + unavailable
         messages = [Message(SYSTEM, prompt)] + \
             list(self.history[self.memory_key(chat_id, user)]) + [Message(USER, text)]
         typing = getattr(api, "typing", None)
@@ -337,6 +367,9 @@ class AgentLoop:
             return f"沒有 {call.name} 這個工具（或你不能用）。", False
         if not decision.allowed:
             return f"{node.command} 要先解鎖（/sudo），請使用者自己打。", False
+        broken = health.hidden(self.app, node.path, user)        # 隔離清單上的（工具清單裡本來就沒有）：不執行
+        if broken is not None:
+            return health.unavailable_line(node, broken), False
         if gate4.schema_of(self.app, node) is not None:          # schema 模式（巢狀參數，只有 MCP 工具）
             return self.call_schema_tool(api, chat_id, user, node, call)
         problem = gate4.check_call(self.app, node, call.args, user, call.name)      # 第 4 關：執行前驗參數
@@ -370,11 +403,35 @@ class AgentLoop:
         except Exception as e:
             logging.exception("[AGENT] tool %s failed", call.name)
             capture.close()
-            return f"執行出錯：{type(e).__name__}: {e}", False
+            return self.tool_failed(capture, node, user, e), False
+        return self.tool_result(capture, node, user)
+
+    def tool_failed(self, capture: CaptureApi, node: Node, user, error: Exception) -> str:
+        """工具丟例外（kind=python 的 pack；SDK 的 ToolFailure／ToolError 照它的類別碼）→ 記進隔離清單，回 AI 一行 FAIL。"""
+        failure = health.failures.from_exception(error)
+        health.observe_failure(self.app, capture, tool=node.path, pack=self._pack_of(node), failure=failure, user=user)
+        return health.failures.ai_line(failure)
+
+    def tool_result(self, capture: CaptureApi, node: Node, user) -> Tuple[str, bool]:
+        """執行完：工具回了失敗信封（loader／mcp 交給 capture）＝AI 拿到固定格式的一行（≤300 字、沒有金鑰、沒有 diag）；
+        成功＝記一次成功、回攔下來的字。"""
         result = capture.close()
         if capture.carded:                      # 工具執行中要確認（needs_confirm）：卡已經給人了，這一輪停在這裡
             return result, True
+        if capture.failure is not None:
+            return health.failures.ai_line(capture.failure), False
+        pack = self._pack(node)
+        if pack is not None and pack.manifest.kind == "python":   # cli／mcp 的成功由 loader／mcp 自己記（真的跑完才算）
+            health.observe_success(self.app, capture, node.path, user)
         return result or "（做完了，沒有輸出）", False
+
+    def _pack(self, node: Node):
+        group = node.path.split(".", 1)[0]
+        return next((p for p in self.app.extras.get("synox_packs", []) if p.manifest.group == group), None)
+
+    def _pack_of(self, node: Node) -> str:
+        pack = self._pack(node)
+        return pack.name if pack is not None else node.path.split(".", 1)[0]
 
     def call_schema_tool(self, api, chat_id: int, user, node: Node, call: ToolCall) -> Tuple[str, bool]:
         """schema 模式：第 4 關照 schema 驗（validate.check_schema_call），結構化參數原樣交給 MCP 後端（不轉 argv）。
@@ -399,8 +456,5 @@ class AgentLoop:
         except Exception as e:
             logging.exception("[AGENT] tool %s failed", call.name)
             capture.close()
-            return f"執行出錯：{type(e).__name__}: {e}", False
-        result = capture.close()
-        if capture.carded:
-            return result, True
-        return result or "（做完了，沒有輸出）", False
+            return self.tool_failed(capture, node, user, e), False
+        return self.tool_result(capture, node, user)
