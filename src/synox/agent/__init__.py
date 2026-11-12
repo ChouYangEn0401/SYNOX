@@ -106,7 +106,7 @@ def install(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLoop]:
 
     def cmd_reset(api, chat_id, user, args):
         loop = cur()
-        n = loop.reset(chat_id, user) if loop is not None else 0
+        n = loop.reset(chat_id, user, getattr(api, "thread", None)) if loop is not None else 0
         api.send_message(chat_id, f"🤖 好，忘掉這裡的對話紀錄了（{n // 2} 輪）。")
 
     def cmd_approve(api, chat_id, user, args):

@@ -97,7 +97,7 @@ class ApprovalDesk:
         if action != "go":
             self._discard(grant)
             api.send_message(cb.chat_id, f"好，不執行 {shown}。")
-            self._done(cb.chat_id, f"使用者取消了 {shown}", cb.clicker_id)
+            self._done(cb.chat_id, f"使用者取消了 {shown}", cb.clicker_id, api)
             return
         if node is None or node.is_group:
             self._discard(grant)
@@ -115,16 +115,16 @@ class ApprovalDesk:
             payload["run"](api, cb.chat_id, clicker)              # schema 模式：同一組結構化參數
         else:
             node.fn(api, cb.chat_id, clicker, list(payload["argv"]))
-        self._done(cb.chat_id, f"使用者按了 ✅，已執行 {shown}", cb.clicker_id)
+        self._done(cb.chat_id, f"使用者按了 ✅，已執行 {shown}", cb.clicker_id, api)
 
     def _discard(self, grant: str) -> None:
         if grant:
             from synox.packs.confirm import grants_of
             grants_of(self.app).discard(grant)
 
-    def _done(self, chat_id: int, note: str, user_id=None) -> None:
+    def _done(self, chat_id: int, note: str, user_id=None, api=None) -> None:
         if self.on_done is not None:
             try:
-                self.on_done(chat_id, note, user_id)
+                self.on_done(chat_id, note, user_id, getattr(api, "thread", None))    # 網頁：記進按卡的那一段對話
             except Exception:
                 pass
