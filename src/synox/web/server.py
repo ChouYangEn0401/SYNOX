@@ -47,7 +47,9 @@ COOKIE = "synox_session"
 LOGIN_COOKIE = "synox_login"          # 登入確認頁發的、綁這個瀏覽器（POST /login 要帶）
 LOGIN_FORM_TTL = 600.0
 LOGIN_FORMS_MAX = 200
-LOGIN_BAD = "這個連結用過了、過期了（7 天），或打錯了。在 Telegram 再打一次 /web 拿新的。"
+LOGIN_HOW = ("在跑 SYNOX 的這台電腦上雙擊桌面的「SYNOX」捷徑（或 SYNOX 資料夾裡的 Open-SYNOX.bat）會打開新的登入連結；"
+             "有接 Telegram／Discord 的話，也可以跟 bot 打 /web。")
+LOGIN_BAD = "這個連結用過了、過期了（7 天），或打錯了。" + LOGIN_HOW
 CSRF_HEADER = "x-synox-csrf"
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 MAX_BODY = 256 * 1024
@@ -192,11 +194,11 @@ class WebUI:
             m = re.match(r"^/packs/([a-z][a-z0-9_-]{0,31})/panel$", path)
             if m and method == "GET":
                 if session is None:
-                    return _page(401, "請先登入", "在 Telegram 打 /web 拿登入連結。")
+                    return _page(401, "請先登入", LOGIN_HOW)
                 return self.panel(self._user(session), m.group(1))
             if path.startswith("/api/"):
                 if session is None:
-                    return _err(401, "請先登入：在 Telegram 打 /web 拿登入連結。")
+                    return _err(401, "請先登入：" + LOGIN_HOW)
                 if method != "GET":
                     problem = self._csrf_problem(headers, session)
                     if problem:
