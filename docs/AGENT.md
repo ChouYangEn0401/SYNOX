@@ -7,7 +7,9 @@
 
 - 安裝（開發）：`py -3.11 -m venv .venv` → `.venv\Scripts\python.exe -m pip install -e .[dev]`；
   用 API 金鑰的 AI 要再裝 ntu_easy_llm（見下面「ntu_easy_llm」）
-- 測試：`.venv\Scripts\python.exe -m pytest -q`（約 10 秒；不連網、不開埠、不開 Telegram、不叫 `claude`）
+- 測試：`.venv\Scripts\python.exe -m pytest -q`（2026-11-12 約 1500 個、3～4 分鐘；不連網、不開 Telegram、不叫 `claude`）。
+  例外：`tests/test_web.py::test_port_already_in_use_is_a_bind_failure` 會在 127.0.0.1 暫時 listen 一個 port（測獨佔綁定）；
+  不想開任何 port 的機器加 `--deselect tests/test_web.py::test_port_already_in_use_is_a_bind_failure`
 - 終端機：`.venv\Scripts\python.exe -m synox console`（`--llm fake` 換假 AI；沒有 config.json 用示範設定）
 - 健康檢查：`.venv\Scripts\python.exe -m synox doctor --offline`
 - 重新 vendor SDK：`.venv\Scripts\python.exe scripts\vendor_sdk.py`；打包：`scripts\make_zip.py`

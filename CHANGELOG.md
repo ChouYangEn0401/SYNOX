@@ -1,5 +1,28 @@
 # Changelog
 
+## 未發佈（dev，2026-11-12：合併 debug/setup-python-telegram＋跟進 ClawBot／金流簿）
+
+### 合併進來的（安裝流程的真機除錯）
+- 從 `origin/debug/setup-python-telegram` 合併（`--no-ff`，沒有衝突）：安裝程式先問語言（12 種）、`Uninstall.bat`、bot 步驟可以跳過
+  （只開網頁版）、Discord 當第二個通道、本機擁有者在瀏覽器打 `http://127.0.0.1:<port>/` 就登入、`web-login`／`Open-SYNOX.bat`、
+  Windows 上網頁獨佔綁定 port、開機自動啟動不跳瀏覽器、網頁設定頁的「聊天通道」卡。每一條的細節與還沒拍板的事都在
+  [docs/debug-notes.md](docs/debug-notes.md)（這裡不重抄）。
+
+### 修正
+- 兩個無效的跳脫字元（`src/synox/wizard/shortcuts.py` 的說明、`tests/test_wizard.py` 的位元組字串）改成 raw 字串，內容不變；
+  Python 3.12 起會是 SyntaxWarning。
+
+### 測試
+- `tests/fixtures/moneybook_pack/` 對齊金流簿 synox-pack 0.17.0（補 `commands[].positional`）；新測試 `/moneybook 120 便當` 照位置填 amount、desc。
+
+### 跟進外部專案（只讀、沒改對方）
+- ClawBot（MyFirstTelegramClawBot）11-10～11-12 的更新查過：通用的兩件（收訊不互等、429 短等重送）在 SDK 那一層，寫成
+  [docs/handoffs/2026-11-12-isdtelekit-poller-lanes-and-429.md](docs/handoffs/2026-11-12-isdtelekit-poller-lanes-and-429.md)；
+  「AI 寫行事曆先確認」「確認卡編號」會改產品行為，寫進 [QuestionToUser.md](QuestionToUser.md)。
+  ClawBot 的「工具呼叫前寫的答案沒送出」不影響 SYNOX（`claude -p` 不給工具，一輪只有一段文字）。
+- 金流簿（記帳專案）0.18.x：SYNOX 的安裝檢查唯讀跑過對方現在的 pack，沒有問題；新指令要對方的 synox-pack 跟上，寫成
+  [docs/handoffs/2026-11-12-moneybook-synox-pack-0.18.md](docs/handoffs/2026-11-12-moneybook-synox-pack-0.18.md)。
+
 ## 0.2.0
 
 版本從 0.1.0 升到 0.2.0：pack 格式多了 surfaces／data／auth.fields／mcp／runtime auto／schema_tools 等欄位，SDK 產生的 pack 寫 `requires.synox: ">=0.2"`，舊版 SYNOX 會明說要先更新、不會載入。
