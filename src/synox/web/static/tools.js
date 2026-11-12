@@ -381,12 +381,39 @@
     panel.appendChild(el("div", "section-label", "指令（" + cmds.length + "）"));
     var list = el("div", "tp-cmds");
     var openOne = cmds.filter(function (c) { return c.default; })[0] || cmds[0];
-    cmds.forEach(function (c) { list.appendChild(commandCard(c, c === openOne)); });
+    cmds.forEach(function (c) { list.appendChild(commandCard(c, c === openOne, t)); });
     panel.appendChild(list);
   }
 
+  // ── 工具健康（docs/tool-health.md）：狀態徽章、原因、擁有者的「重新檢查」「解除隔離」 ─────
+  var HEALTH_MARK = { broken: "⏸", needs_action: "🛠", quarantined: "⛔" };
+  function healthBlock(c, t) {
+    var box = el("div", "tp-health");
+    c.health.forEach(function (h) {
+      var line = el("p", "note-line");
+      line.appendChild(el("strong", "", (HEALTH_MARK[h.state] || "⚠️") + " " + h.label + (h.personal ? "（只對你）" : "")));
+      line.appendChild(el("span", "", "：" + (h.code_label || h.code) + (h.reason ? "——" + h.reason : "")));
+      if (h.trial) { line.appendChild(el("span", "muted", "（試用中：AI 這次會再用一次）")); }
+      else if (h.next_check) { line.appendChild(el("span", "muted", "（下次自動檢查 " + h.next_check.replace("T", " ").slice(0, 16) + "）")); }
+      box.appendChild(line);
+      if (!t || !t.health_admin) { return; }
+      var row = el("div", "tp-actions");
+      var msg = el("span", "msgline");
+      function act(action) {
+        api("POST", "/api/tools/health", { key: h.key, action: action }).then(function () {
+          msg.textContent = action === "release" ? "已解除，重新整理看最新狀態。" : "已經開始檢查，稍後重新整理看結果。";
+        }).catch(function (e) { msg.textContent = "❌ " + e.message; });
+      }
+      if (h.state !== "quarantined") { row.appendChild(button("重新檢查", "sm", function () { act("recheck"); })); }
+      row.appendChild(button(h.state === "quarantined" ? "解除隔離" : "標成正常", "sm", function () { act("release"); }));
+      row.appendChild(msg);
+      box.appendChild(row);
+    });
+    return box;
+  }
+
   // ── 一個指令：說明、參數、輸入、執行 ────────────────────────────────
-  function commandCard(c, open) {
+  function commandCard(c, open, t) {
     var box = el("details", "tp-cmd" + (c.effect === "danger" ? " is-danger" : ""));
     box.open = !!open;
     var sum = el("summary");
@@ -394,10 +421,14 @@
     var badge = el("span", "badge" + (c.effect === "danger" ? " danger" : c.effect === "write" ? " write" : ""),
                    EFFECT[c.effect] || c.effect);
     sum.appendChild(badge);
+    if (c.health && c.health.length) {
+      sum.appendChild(el("span", "badge warn", (HEALTH_MARK[c.health[0].state] || "⚠️") + " " + c.health[0].label));
+    }
     sum.appendChild(el("span", "tp-csum", c.summary || ""));
     box.appendChild(sum);
 
     var body = el("div", "tp-cbody");
+    if (c.health && c.health.length) { body.appendChild(healthBlock(c, t)); }
     var notes = [];
     if (c.confirm) { notes.push("AI 要用它之前會先問你"); }
     if (c.ai === false) { notes.push("不給 AI 用，只有你自己按"); }
