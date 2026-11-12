@@ -81,6 +81,7 @@ footer{margin-top:56px;padding-top:16px;border-top:1px solid var(--line);font-si
   </div>
 </header>
 
+<div class="callout warn"><p><strong>🧪 定位：實驗品，不算核心。</strong>擁有者 2026-11-12 的方向是 SYNOX 核心維持空殼、指令盡量少，所以 link 之後很可能整包搬成獨立套件（或 pack），也可能拿掉。config 沒開 <code>link</code> 時它完全不存在（沒有指令、沒有執行緒、沒有檔案）；核心只在 app.py、config.py、doctor.py、__main__.py 各 import 一處，搬出去時要接回的切面列在 <code>docs/link.md</code>「要搬出去時」。</p></div>
 <h2 id="done">做了什麼</h2>
 <p>調查文件第 04 節那五層全部有程式；傳輸層做了 memory（測試）、folder（共用資料夾）、tcp（區網）三種。設計上的重點是<strong>安全跟路分開</strong>：信封端對端加密＋簽章，傳輸層只搬 bytes，所以之後加 MQTT 或序列埠不用碰安全層。</p>
 <div class="tablewrap"><table>

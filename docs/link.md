@@ -1,6 +1,10 @@
 # 兩台 SYNOX 連線（Link）：主控台派任務、哨兵做事
 
-> 這一塊是 **0.3 的新東西，還沒在真機上跑過**（只在開發機用記憶體傳輸、socketpair 與 127.0.0.1 的 TCP 驗過）。
+> 🧪 **實驗品（experimental）**。擁有者 2026-11-12 的方向：SYNOX 核心維持空殼、指令盡量少，所以 link **不算核心的一部分**，
+> 之後很可能整包搬出去成獨立套件（或 pack），也可能拿掉。config.json 沒開 `link` 時它完全不存在（沒有指令、沒有執行緒、沒有檔案）。
+> 它只碰核心的幾個介面，清單在下面「要搬出去時」。
+>
+> 另外這一塊**還沒在真機上跑過**（只在開發機用記憶體傳輸、socketpair 與 127.0.0.1 的 TCP 驗過）。
 > 調查與設計的來龍去脈：[discussions/2026-11-12-link-architecture.html](discussions/2026-11-12-link-architecture.html)；
 > 實作現況、沒做的、要擁有者決定的：[discussions/2026-11-12-link-implementation.html](discussions/2026-11-12-link-implementation.html)。
 
@@ -87,6 +91,21 @@
 - **主控台被攻破＝所有哨兵都聽它的**（在 `max_effect` 之內）。主控台要是你最信任的那台。
 - 沒做的：NAT 穿透、公網 relay、MQTT／序列埠傳輸、任務的中途進度（哨兵現在只回最後結果）、per-哨兵的指令白名單
   （只有 `max_effect`）、Windows 實機驗證。清單在 [AGENT.md](AGENT.md)「Known limitations」。
+
+## 要搬出去時（切面）
+
+`src/synox/link/` 只從 SYNOX 拿這幾樣，搬成獨立套件就是把這幾條線接回去：
+
+| link 用到 | 在哪 | 搬出去時 |
+|---|---|---|
+| 保管箱 `Vault.load_json／save_json／exists` | `app.extras["vault"]` | 任何「存 JSON、保完整性」的東西都行 |
+| 指令樹 `registry.ensure_group／leaf`、`loader.group_policy` | `commands.py` | 變成 pack 的話改用 pack.json 宣告指令 |
+| `app.dispatcher.handle` ＋ `Inbound(channel="link")`、`policy.decide(via=ROUTINE)` | `roles.py` 哨兵跑指令 | 這是唯一真的要核心配合的點（同一個 authorize） |
+| `app.notify`、`app.on_start／on_stop`、`app.extras` | `__init__.py`、`roles.py` | 主動通知與生命週期 |
+| `SynoxConfig.from_dict` 解析 `link` 區塊、doctor 一行、`__main__` 的 `link` 子指令 | 核心各一處 import | 拿掉這四個 import，核心就乾淨了 |
+
+核心其他地方不 import `synox.link`。信封、身分、名單、配對、傳輸、事件匯流排（`envelope／identity／peers／pairing／transport／bus`）
+完全不依賴 SYNOX，可以原封搬走。
 
 ## 跟 IoT（攝影機、Arduino、樹莓派）的關係
 

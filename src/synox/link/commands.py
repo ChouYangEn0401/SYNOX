@@ -41,7 +41,7 @@ def _task_line(task: P.Task) -> str:
 def install(app, link) -> None:
     """link：synox.link.Link（node、console／worker 角色、book）。"""
     registry = app.registry
-    registry.ensure_group("link", "🔗 兩台 SYNOX 連線", "主控台派任務給哨兵、看狀態、重做、交接",
+    registry.ensure_group("link", "🧪 兩台 SYNOX 連線（實驗）", "實驗品：主控台派任務給哨兵、看狀態、重做、交接；之後可能搬出去",
                           **group_policy(app, "owner", getattr(app.config, "mode", "personal") == "server"))
     g = registry.group("link")
     node, console = link.node, link.console

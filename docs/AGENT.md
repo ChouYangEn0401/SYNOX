@@ -35,7 +35,7 @@
 | `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`validate.py`（第 4 關呼叫驗證）、`delimit.py`（第 5 關工具結果分隔符）、`budget.py`（伺服器版成員每月額度；`BotPool` 頻道型 bot 一池）、`room.py`（頻道 AI：`RoomAgent`、`redact_reply`）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
 | `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（30 秒、via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`、`/schedule_*`） |
 | `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS）、`__init__.py`（`install`、`/web`、`/web_off`） |
-| `src/synox/link/` | 兩台 SYNOX 連線（[link.md](link.md)）：`identity.py`（Ed25519＋X25519 金鑰、`NodeCard` 名片、`node_id`；保管箱 `link_identity`）、`envelope.py`（`seal`／`open_envelope`：每封換金鑰的 X25519→HKDF→ChaCha20-Poly1305＋Ed25519 簽章、`ReplayGuard`、`MAX_FRAME`）、`peers.py`（`PeerStore` 名單＋雙向 seq，保管箱 `link_peers`）、`pairing.py`（配對碼 `issue`／`save_join`／`verify_request`，保管箱 `link_pairing`／`link_join`）、`transport.py`（只搬 bytes：`MemoryTransport`＋`MemoryFabric`、`FolderTransport`、`TcpTransport`＋`Conn`／`pack`／`read_frame`）、`bus.py`（`EventBus`：`subscribe(pattern)`／`publish`／`wait_for`）、`node.py`（`LinkNode`：收信→驗→`bus.publish("link.in.<kind>")`、心跳、在線、配對）、`protocol.py`（kind 常數、`Task`／`TaskBook`，保管箱 `link_tasks`）、`roles.py`（`ConsoleRole` 派／重做／交接／取消、`WorkerRole` 檢查＋`dispatcher.handle`＋`CaptureChannel`）、`commands.py`（`/link_*`）、`settings.py`（config 的 `link`）、`__init__.py`（`install`、`build`、`set_transport_factory`） |
+| `src/synox/link/` | 🧪 **實驗品，不算核心**（擁有者 2026-11-12：核心維持空殼、指令盡量少；之後可能整包搬成獨立套件或拿掉；沒開 `link` 時完全不存在；核心只在 app.py／config.py／doctor.py／__main__.py 各 import 一處，切面見 [link.md](link.md)「要搬出去時」）。兩台 SYNOX 連線：`identity.py`（Ed25519＋X25519 金鑰、`NodeCard` 名片、`node_id`；保管箱 `link_identity`）、`envelope.py`（`seal`／`open_envelope`：每封換金鑰的 X25519→HKDF→ChaCha20-Poly1305＋Ed25519 簽章、`ReplayGuard`、`MAX_FRAME`）、`peers.py`（`PeerStore` 名單＋雙向 seq，保管箱 `link_peers`）、`pairing.py`（配對碼 `issue`／`save_join`／`verify_request`，保管箱 `link_pairing`／`link_join`）、`transport.py`（只搬 bytes：`MemoryTransport`＋`MemoryFabric`、`FolderTransport`、`TcpTransport`＋`Conn`／`pack`／`read_frame`）、`bus.py`（`EventBus`：`subscribe(pattern)`／`publish`／`wait_for`）、`node.py`（`LinkNode`：收信→驗→`bus.publish("link.in.<kind>")`、心跳、在線、配對）、`protocol.py`（kind 常數、`Task`／`TaskBook`，保管箱 `link_tasks`）、`roles.py`（`ConsoleRole` 派／重做／交接／取消、`WorkerRole` 檢查＋`dispatcher.handle`＋`CaptureChannel`）、`commands.py`（`/link_*`）、`settings.py`（config 的 `link`）、`__init__.py`（`install`、`build`、`set_transport_factory`） |
 | `src/synox/packs/admin.py` | `.synoxpack`：stage（zip 檢查＋第 1、2 關；記 zip 的執行位元、不解出 `__pycache__`）→ install_staged（再驗一次＋T2 要 `trust_publisher`＋第 3 關寫鎖）／移除到 `packs/_removed/`／`reload()`（Web UI、`synox install` 共用）；`format_tier`／`red`＝T2 的紅字段 |
 | `src/synox/packs/tier.py` | 信任層級（SDK P7）：`assess`（T0／T1／T2＋掃不到內容的檔、外部程式、runtime auto 套件）、`warning_lines`、`confirm_problem`（publisher 一字不差）、`reconfirm_reasons`（升級）、`lock_fields` |
 | `src/synox/packs/upgrade.py` | 同名再裝＝升級：`staged_upgrade`（「改了什麼」、semver 版本檢查，權限變大的標 alert＝紅字）→ `upgrade_staged`（舊的搬到 `_removed/<name>-<版本>-<時間>`＋旁邊留舊鎖、鎖換新）；`rollback`（`python -m synox packs rollback <name>`）。資料不在 pack 資料夾，不動；資料 schema 升級由 pack 自己負責 |
@@ -201,7 +201,9 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     schema 模式的定義（`mcp_schema.tool_schema`）。**人打字的路徑不碰 schema**：leaf 照舊 `kit.parse_args(node.fields)`，必填是巢狀＝拒。
     硬限制是常數（`mcp_schema.MAX_*`），不要讓 pack.json 或 schema 放寬。測試在 `tests/test_schema_mode.py`（假 stdio 伺服器）。
 
-18. **兩台 SYNOX 連線（Link）的信任點只有信封**（`src/synox/link/envelope.py`）：名單（`PeerStore`）外的寄件者一律丟、不回
+18. **兩台 SYNOX 連線（Link）是實驗品、不算核心**：核心只在 `app.py`、`config.py`、`doctor.py`、`__main__.py` 各 import 一處，
+    其他地方**不要 import `synox.link`**；沒開 `link` 時沒有指令、沒有執行緒、沒有檔案。之後可能整包搬成獨立套件或拿掉，
+    所以新功能不要長在 link 裡面、link 也不要長進核心。**信任點只有信封**（`src/synox/link/envelope.py`）：名單（`PeerStore`）外的寄件者一律丟、不回
     （唯一例外：主控台**正在等配對碼**時收帶名片的 `pair.request`，mac 對得上才進名單）。傳輸層（`transport.py`）只搬 bytes、
     不做任何判斷、看不到明文；**新增傳輸（MQTT、序列埠…）只實作 `start／send／bind／bad／stop／status`，不碰 envelope**。
     哨兵跑指令一律 `WorkerRole.check`（樹上、非群組、非互動、`effect_of(args)` ≤ `link.max_effect`、`policy.decide(擁有者, via=ROUTINE)`）
@@ -307,7 +309,7 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
   Telegram 指令選單在 reload 之後不會自動重設（重開 bot 才會）；設定頁改 AI 來源要重開 bot 才生效。
 - `/backup` 的 Telegram 指令與還原按鈕沒做（只有網頁下載＋`synox.backup.restore_cli`）；備份綁 DPAPI，換電腦解不開。
 
-- Link（`synox/link`，0.3）：沒有 NAT 穿透／公網 relay（兩台要在同一個區域網路、WireGuard，或共用一個資料夾）；傳輸只有 tcp／folder
+- Link（`synox/link`，🧪 實驗品、之後可能搬出去）：沒有 NAT 穿透／公網 relay（兩台要在同一個區域網路、WireGuard，或共用一個資料夾）；傳輸只有 tcp／folder
   （MQTT、序列埠是介面留著）；哨兵只回最後結果（`task.progress` 有協定、沒有人送）；取消是盡力的（已經開始做會做完）；
   per-哨兵只有 `max_effect`，沒有指令白名單；主控台的通知只走 `app.notify`（Telegram／Discord 私訊）；TCP 沒 TLS（靠信封，只建議內網）；
   `link pair` 要主控台的 bot 在跑才收得到配對請求；folder 傳輸的順序靠檔名的時間戳（兩台時鐘要對）；配對碼 407 字（名片在裡面）。
