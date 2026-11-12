@@ -17,6 +17,8 @@ import re
 import threading
 from typing import Optional, Tuple
 
+from synox.wizard.i18n import t
+
 TOKEN_RE = re.compile(r"^[A-Za-z0-9_\-\.]{20,}$")
 
 
@@ -32,13 +34,13 @@ def _whoami(token: str, http=None) -> dict:
 def get_me(token: str, http=None) -> Tuple[bool, str]:
     token = (token or "").strip()
     if not valid_token(token):
-        return False, "這看起來不是 token（Discord 的 bot token 通常是一長串字母數字）。"
+        return False, t("dc_not_token")
     out = _whoami(token, http=http)
     if not out.get("ok"):
         err = str(out.get("error", ""))
         if "401" in err:
-            return False, "token 不對（Discord 說 401）：回 Developer Portal 的 Bot 頁重新 Reset Token。"
-        return False, f"連不到 Discord：{err or '原因不明'}"
+            return False, t("dc_bad_401")
+        return False, t("dc_offline", err=err or t("dc_unknown"))
     me = out.get("result") or {}
     return True, me.get("username") or str(me.get("id") or "")
 
