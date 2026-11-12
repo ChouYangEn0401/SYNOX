@@ -1001,7 +1001,7 @@ class WebUI:
         logging.info("[WEB] %s saved a Discord bot token (bot %s)", user.tg_id, bot)
         invite = dc.invite_url(bid) if bid else ""
         return _json(200, {"ok": True, "bot": bot, "invite": invite,
-                           "message": f"✅ 存好了：bot {bot}（token 在保管箱，密文）。接下來："
+                           "message": f"✅ 存好了：bot {bot}（token 在保管箱，密文）。⚠ 要重新啟動 SYNOX 才會生效。接下來："
                                       "① 用邀請連結把 bot 加進你的（任一個）Discord 伺服器；"
                                       "② 配對擁有者：在 SYNOX 資料夾跑 python -m synox discord pair（或重跑 Setup.bat），"
                                       "私訊 bot 畫面上的六個數字（配對前 bot 不認得你的 Discord 帳號）；"

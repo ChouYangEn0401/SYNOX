@@ -143,6 +143,8 @@
   .field-row input { flex: 1 1 260px; }
   .msgline { font-size: 13.5px; color: var(--text-2); min-height: 0; margin-top: 8px; }
   .msgline:empty { display: none; }
+  .restart-banner { margin: 0 0 14px; padding: 10px 12px; border-radius: var(--r); background: var(--warn-soft);
+                    border-left: 4px solid var(--warn); font-size: 14px; }
   .install { margin-top: 14px; padding: 12px 14px; border-radius: var(--r); background: var(--sunken); font-size: 13.5px; }
   .install p { margin: 0 0 10px; }
   .cmd-label { font-size: 12px; font-weight: 650; color: var(--muted); margin: 8px 0 4px; }
@@ -477,6 +479,8 @@
         <div class="card-head"><span class="tile" aria-hidden="true">💬</span>
           <div class="txt"><h2>聊天通道</h2>
             <p class="sub">貼上 bot 的 token，先檢查再存（token 存好之後不會再顯示）。改了要重新啟動 SYNOX 才生效。</p></div></div>
+        <p id="ch-restart" class="restart-banner hidden" role="status">⚠ 聊天通道的設定改了，要<strong>重新啟動 SYNOX</strong> 才會生效：
+          先雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑。在那之前 bot 不會上線、也不會回你。</p>
         <div class="channel">
           <h3>Telegram</h3>
           <p id="ch-tg-now" class="muted"></p>
@@ -864,6 +868,7 @@
     $("ch-dc-now").textContent = "檢查中…";
     api("GET", "/api/settings/channels").then(function (d) {
       var t = d.telegram, c = d.discord;
+      $("ch-restart").classList.toggle("hidden", !(t.restart || c.restart));
       $("ch-tg-now").textContent = channelLine(t, function (n) { return "@" + n; }) +
         (t.saved && !t.owner_paired ? "還沒配對擁有者：雙擊 Setup.bat 重跑安裝精靈配對（token 會自動帶入）。" : "");
       $("ch-dc-form").classList.toggle("hidden", c.multi);
