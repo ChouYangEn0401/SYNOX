@@ -699,9 +699,11 @@
   }
   function route() {
     if (!me) { show("login"); return; }
-    var v = (location.hash || "#chat").slice(1);
+    var parts = (location.hash || "#chat").slice(1).split(":");       // #chat:mother＝直接打開「常駐助理」那段
+    var v = parts[0];
     if (v === "control" && !(control && control.canSee(me))) { v = "chat"; }
     show(VIEWS.indexOf(v) > 0 ? v : "chat");
+    if (v === "chat" && parts[1] === "mother" && me) { openChat("mother"); }
   }
   function showLogin() {
     me = null;
@@ -717,12 +719,14 @@
     return api("GET", "/api/chats").then(function (d) {
       var list = $("chat-list");
       clear(list);
-      var chats = d.chats.filter(function (c) { return c.id !== "tools"; });
+      var chats = d.chats.filter(function (c) { return c.id !== "tools" && c.id !== "mother"; });
       var tools = d.chats.filter(function (c) { return c.id === "tools"; });
-      chats.concat(tools).forEach(function (c) {
-        var li = el("li");
+      var mother = d.chats.filter(function (c) { return c.id === "mother"; });       // 常駐助理：釘在最上面（只有擁有者有）
+      mother.concat(chats, tools).forEach(function (c) {
+        var li = el("li", c.id === "mother" ? "pinned" : "");
         li.appendChild(el("div", "t", c.title));
-        li.appendChild(el("div", "l", c.last || "（還沒有訊息）"));
+        li.appendChild(el("div", "l", c.last || (c.id === "mother" ?
+          "重開 SYNOX 會清空這裡的記憶；巡邏的記憶在〔主控〕頁清" : "（還沒有訊息）")));
         li.setAttribute("data-id", c.id);
         li.addEventListener("click", function () { openChat(c.id); });
         list.appendChild(li);
