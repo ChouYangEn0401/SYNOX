@@ -4,6 +4,8 @@
 淺色與手機的簡約規則（參考記帳專案）。
 **怎麼看**：雙擊 [preview.html](preview.html) 看電腦版，雙擊 [preview-phone.html](preview-phone.html) 看手機寬度。用的是假資料，
 不用開 SYNOX、不連網。截圖在 [screenshots/](screenshots/)。
+**動態**（2026-11-12 擁有者要「跟 ISDPCS 學、絢麗可愛的開場」）：開場動畫、頁面切換、按鈕、背景的微動畫另外寫在 [motion-notes.md](motion-notes.md)；
+下面表格說「ISDPCS 的大量動畫沒取」是重畫當時的決定，現在改成「取了一部分、版面不動、減少動態效果時全關」。
 
 ## 之前哪裡醜、哪裡難用 → 怎麼改
 
