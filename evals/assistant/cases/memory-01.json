@@ -1,0 +1,22 @@
+{
+  "id": "memory-01",
+  "category": "memory",
+  "split": "tune",
+  "title": "記得上一輪說的出差日期與地點",
+  "turns": [
+    "我下週三要去台中出差，先記住喔",
+    "我剛剛說我什麼時候要去哪裡？"
+  ],
+  "tools": [
+    {
+      "name": "note__add"
+    }
+  ],
+  "expect": {
+    "final_contains": [
+      "週三",
+      "台中"
+    ],
+    "max_steps": 2
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "id": "lookup-02",
+  "category": "lookup",
+  "split": "tune",
+  "title": "換匯：用工具算，不要憑印象猜",
+  "turns": [
+    "100 美金大概是多少台幣？"
+  ],
+  "tools": [
+    {
+      "name": "currency__convert",
+      "results": [
+        {
+          "when": {
+            "amount": "100",
+            "source": {
+              "regex": "(?i)^usd$"
+            },
+            "target": {
+              "regex": "(?i)^twd$"
+            }
+          },
+          "reply": "100 USD ≈ 3,200 TWD（範例匯率 32.0）"
+        },
+        {
+          "reply": "不支援這個幣別"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "currency__convert",
+        "args": {
+          "amount": "100",
+          "source": {
+            "regex": "(?i)usd"
+          },
+          "target": {
+            "regex": "(?i)twd"
+          }
+        }
+      }
+    ],
+    "final_contains": [
+      "3,200"
+    ],
+    "max_steps": 2
+  }
+}

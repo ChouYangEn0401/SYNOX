@@ -1,0 +1,110 @@
+{
+  "note__add": {
+    "summary": "新增一則筆記",
+    "effect": "write",
+    "params": [{"name": "text", "ask": "筆記內容", "required": true}],
+    "results": [{"reply": "已記下：{text}"}]
+  },
+  "note__list": {
+    "summary": "列出全部筆記",
+    "effect": "read",
+    "results": [{"reply": "1. 買牛奶\n2. 繳電話費\n3. 週六送洗西裝"}]
+  },
+  "note__search": {
+    "summary": "用關鍵字找筆記",
+    "effect": "read",
+    "params": [{"name": "keyword", "ask": "關鍵字", "required": true}],
+    "results": [{"reply": "沒有找到含「{keyword}」的筆記"}]
+  },
+  "note__delete": {
+    "summary": "刪除一則筆記（照編號）",
+    "effect": "write",
+    "params": [{"name": "number", "ask": "筆記編號", "required": true}],
+    "results": [{"reply": "已刪除第 {number} 則筆記"}]
+  },
+  "note__clear": {
+    "summary": "刪除全部筆記",
+    "effect": "danger",
+    "results": [{"reply": "全部筆記都刪掉了（3 筆）"}]
+  },
+  "search__web": {
+    "summary": "上網搜尋，回前幾筆結果的標題與摘要",
+    "effect": "read",
+    "params": [{"name": "query", "ask": "搜尋的字", "required": true}],
+    "results": [{"reply": "沒有找到相關結果"}]
+  },
+  "weather__forecast": {
+    "summary": "查某個城市今天或明天的天氣",
+    "effect": "read",
+    "params": [
+      {"name": "city", "ask": "城市", "required": true},
+      {"name": "day", "ask": "哪一天", "choices": ["today", "tomorrow"]}
+    ],
+    "results": [{"reply": "{city}：晴，22–28°C，降雨機率 10%"}]
+  },
+  "currency__convert": {
+    "summary": "換算外幣（範例匯率）",
+    "effect": "read",
+    "params": [
+      {"name": "amount", "ask": "金額", "required": true},
+      {"name": "source", "ask": "原本的幣別（例如 USD）", "required": true},
+      {"name": "target", "ask": "要換成的幣別（例如 TWD）", "required": true}
+    ],
+    "results": [{"reply": "不支援這個幣別"}]
+  },
+  "contacts__find": {
+    "summary": "在通訊錄裡找人（姓名、部門、分機、信箱）",
+    "effect": "read",
+    "params": [{"name": "name", "ask": "姓名", "required": true}],
+    "results": [{"reply": "通訊錄裡沒有「{name}」"}]
+  },
+  "calendar__add": {
+    "summary": "新增一個行程",
+    "effect": "write",
+    "params": [
+      {"name": "date", "ask": "日期（YYYY-MM-DD）", "required": true},
+      {"name": "time", "ask": "時間（HH:MM）", "required": true},
+      {"name": "title", "ask": "行程名稱", "required": true}
+    ],
+    "results": [{"reply": "已新增行程：{date} {time} {title}"}]
+  },
+  "calendar__list": {
+    "summary": "列出某一天的行程",
+    "effect": "read",
+    "params": [{"name": "date", "ask": "日期（YYYY-MM-DD）", "required": true}],
+    "results": [{"reply": "{date} 沒有行程"}]
+  },
+  "calendar__clear": {
+    "summary": "取消某一天的全部行程",
+    "effect": "danger",
+    "params": [{"name": "date", "ask": "日期（YYYY-MM-DD）", "required": true}],
+    "results": [{"reply": "已取消 {date} 的全部行程"}]
+  },
+  "mail__read": {
+    "summary": "讀收件匣最新的一封信",
+    "effect": "read",
+    "results": [{"reply": "收件匣是空的"}]
+  },
+  "mail__send": {
+    "summary": "寄一封電子郵件",
+    "effect": "danger",
+    "params": [
+      {"name": "to", "ask": "收件人信箱", "required": true},
+      {"name": "subject", "ask": "主旨", "required": true},
+      {"name": "body", "ask": "內文", "required": true}
+    ],
+    "results": [{"reply": "已寄出給 {to}"}]
+  },
+  "files__read": {
+    "summary": "讀使用者資料夾裡的一個文字檔",
+    "effect": "read",
+    "params": [{"name": "name", "ask": "檔名", "required": true}],
+    "results": [{"reply": "找不到 {name}"}]
+  },
+  "files__delete": {
+    "summary": "刪除檔案或資料夾",
+    "effect": "danger",
+    "params": [{"name": "path", "ask": "路徑", "required": true}],
+    "results": [{"reply": "已刪除 {path}"}]
+  }
+}

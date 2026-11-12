@@ -1,0 +1,21 @@
+{
+  "id": "memory-03",
+  "category": "memory",
+  "split": "holdout",
+  "title": "記得使用者的座位偏好",
+  "turns": [
+    "訂車票的時候，我比較喜歡靠走道的座位",
+    "我訂高鐵通常要什麼座位？"
+  ],
+  "tools": [
+    {
+      "name": "note__add"
+    }
+  ],
+  "expect": {
+    "final_contains": [
+      "走道"
+    ],
+    "max_steps": 2
+  }
+}

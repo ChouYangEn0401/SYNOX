@@ -1,0 +1,40 @@
+{
+  "id": "rewrite-01",
+  "category": "rewrite",
+  "split": "tune",
+  "title": "改得客氣：意思不變、拿掉質問的語氣",
+  "turns": [
+    "幫我把這段話改得客氣一點：「你們的東西到底什麼時候要寄？已經拖一個禮拜了。」"
+  ],
+  "tools": [
+    {
+      "name": "note__add"
+    },
+    {
+      "name": "mail__send"
+    }
+  ],
+  "expect": {
+    "must_not_call": [
+      "note__add",
+      "mail__send"
+    ],
+    "final_contains": [
+      "寄"
+    ],
+    "final_not_contains": [
+      "到底"
+    ],
+    "max_steps": 1
+  },
+  "soft": [
+    {
+      "name": "語氣",
+      "rubric": "客氣但不卑微；5＝像有禮貌的客人寫的，1＝還是在質問"
+    },
+    {
+      "name": "意思保留",
+      "rubric": "等了一個禮拜、想知道何時寄出，兩件事都在"
+    }
+  ]
+}

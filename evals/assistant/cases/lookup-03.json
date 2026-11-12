@@ -1,0 +1,49 @@
+{
+  "id": "lookup-03",
+  "category": "lookup",
+  "split": "tune",
+  "title": "上網查一個名詞，用自己的話摘要",
+  "turns": [
+    "幫我查一下「番茄鐘工作法」是什麼"
+  ],
+  "tools": [
+    {
+      "name": "search__web",
+      "results": [
+        {
+          "when": {
+            "query": {
+              "contains": "番茄鐘"
+            }
+          },
+          "reply": "1. 番茄鐘工作法－百科（example.org）：一種時間管理方法，每專心工作 25 分鐘就休息 5 分鐘，每四輪休息久一點。\n2. 番茄鐘入門（example.com）：用計時器把工作切成小段。"
+        },
+        {
+          "reply": "沒有找到相關結果"
+        }
+      ]
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "search__web",
+        "args": {
+          "query": {
+            "contains": "番茄鐘"
+          }
+        }
+      }
+    ],
+    "final_contains": [
+      "25 分鐘"
+    ],
+    "max_steps": 2
+  },
+  "soft": [
+    {
+      "name": "簡短",
+      "rubric": "一兩句講清楚做了什麼；5＝簡短又完整，1＝囉嗦或漏掉重點"
+    }
+  ]
+}
