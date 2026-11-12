@@ -65,6 +65,11 @@ PACK_DIRS = (os.path.join(ROOT, "packs"), os.path.join(ROOT, "connectors"))
 EFFECTS = {"read": READ, "write": WRITE, "danger": DANGER}
 
 
+def help_title(m: Manifest) -> str:
+    """/help 那一頁（SDK 的群組標題）：pack 的 title＋穩定度標籤，例如「💰 記帳（🧪 alpha）」。"""
+    return f"{m.title}（{m.stage_label}）"
+
+
 class PackStore:
     """pack 的資料：load/save 一份 JSON。storage=vault 時落地是密文（Vault），否則 SDK 的 jsonstore。
 
@@ -884,7 +889,8 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         if boxed_out:
             group_rules = {**group_rules, "owner_only": True}
             item.detail = boxed_out
-        app.registry.define_group(m.group, m.title, m.summary, **group_rules)
+        # /help 的那一頁標題帶穩定度（「💰 記帳（🧪 alpha）」）；網頁、AI 用的是 manifest.title，不受影響
+        app.registry.define_group(m.group, help_title(m), m.summary, **group_rules)
         try:
             {"python": _install_python, "cli": _install_cli, "connector": _install_connector,
              "mcp": _install_mcp}[m.kind](app, pack)

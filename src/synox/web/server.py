@@ -45,6 +45,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from isdtelekit.core.channel import CallbackInfo, Inbound
 
+from synox.packs.manifest import stage_text
 from synox.web import toolpage
 from synox.web.channel import WEB, WebChannel
 from synox.web.chats import TOOLS_CHAT, ChatStore
@@ -621,6 +622,8 @@ class WebUI:
                 "summary": pack.manifest.summary, "description": toolpage.skill_description(pack.manifest),
                 "category": getattr(pack.manifest, "category", ""),
                 "kind": pack.manifest.kind, "version": pack.manifest.version,
+                "stage": pack.manifest.stage, "stage_label": pack.manifest.stage_label,     # 穩定度（沒寫＝alpha）
+                "stage_text": stage_text(pack.manifest.stage),
                 "status": "要先設定" if connector else "已連接",
                 "panel": f"/packs/{pack.name}/panel" if pack.manifest.web.get("panel") else None,
                 "commands": [self._leaf_info(n) for n in leaves]}

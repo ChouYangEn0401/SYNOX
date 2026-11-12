@@ -201,6 +201,7 @@ SDK：`@tool("WRITE", ai=False, confirm=True)`；cli 的 pack.json：`{"name": "
 |---|---|
 | 放在哪個群組 | pack.json 的 `category`（建議；沒寫＝「未分類」）。使用者按「編輯」自己排過的優先 |
 | 分頁標題、說明 | `title`、`summary`；「什麼時候用」＝SKILL.md frontmatter 的 `description` |
+| 標題旁的穩定度標籤 | `stage`（沒寫＝🧪 alpha）；滑鼠停在上面看意思 |
 | 指令卡 | 每個 command：指令名、`summary`、effect 徽章（唯讀／會寫入／**危險：會先問你**）、`confirm`／`ai: false` 的註記 |
 | 參數的輸入欄 | `fields[]`：`ask`＝欄位名稱、`required`＝必填標籤、`kind`＝輸入方式（`bool` 是／否下拉、`choice` 下拉、`int`／`number` 數字鍵盤）、`default`＝預先填好、`help`＝欄位下面的說明 |
 | 執行 | 送出 `/<指令> 欄位=值 …`，走跟聊天一樣的路（權限、第 4 關、確認來回都一樣）。`DANGER` 的指令按下去先在畫面上問一次「確定要執行嗎？」 |
@@ -298,6 +299,9 @@ SDK：`@tool("WRITE", ai=False, confirm=True)`；cli 的 pack.json：`{"name": "
 - `requires.synox`（例如 `">=0.2"`）：這台的 SYNOX 版本不合就不裝、不載入，並說要哪一版。
 - **`requires.sdk`（一定要寫）**：你照哪一版 SDK 介面寫的，例如 `">=0.2,<0.3"`（0.x 寫到下一個 MINOR）。SDK 的版本是
   `synox_sdk.SDK_VERSION`，跟 SYNOX 本體的版本分開；不合一樣不裝、不載入（[sdk.md](sdk.md)「SDK 版本」）。`synox-sdk init` 會自動寫。
+- **`stage`（穩定度，建議寫）**：`test`｜`alpha`｜`beta`｜`stable`，沒寫＝`alpha`。裝的人在 `/help`、網頁工具頁、安裝報告、
+  `doctor` 都會看到「🔧 test／🧪 alpha／🚧 beta／⭐ stable」這種標籤；寫錯（例如 `"Beta"`、`"gold"`）安裝時拒裝。
+  它跟 `version` 是兩回事：`version` 說「哪一版」，`stage` 說「這一版多可靠」（[pack-format.md](pack-format.md) 的 `stage` 那一列）。
 
 ## 放進工具庫（SYNOX_Libs）
 
@@ -348,6 +352,7 @@ synox-sdk init <資料夾> --kind cli --name x                    不用 @tool �
 | 遠端 MCP：網址是 `http://`、帶 `帳號:密碼@`、`#`、`{樣板}`；宣告 `subprocess`／`exec`／`filesystem:any`；寫了 `argv`、`env`、`headers` | token 只能走加密連線、只送到宣告的那個主機；這台不跑對方的程式 |
 | `requires.synox` 跟這台的版本不合 | 你用到的功能這版沒有 |
 | `category` 不是一行字（空的、換行、超過 24 字）；command 的 `summary`、欄位的 `ask`／`help` 有換行或超過 200 字；欄位的 `required` 不是 `true`／`false`；`default` 不合 `kind`／`choices` | 網頁工具頁與 AI 照這些畫表單、送參數；`"required": "false"` 這種字串會被當成必填 |
+| `stage` 不是 `test`、`alpha`、`beta`、`stable` 其中一個（大小寫也要對） | 裝的人靠這個標籤判斷多可靠；寫錯就看不出來 |
 | `.synoxpack` 超過 5 MB（解開 20 MB、300 個檔），或有絕對路徑、`..`、符號連結 | 防止解壓縮時寫到 pack 資料夾外面 |
 | zip 裡的檔名是 Windows 保留名（`CON`、`NUL`、`COM1`、`nul.txt`…）、有冒號（`x.py::$DATA`）、`< > " \| ? *`、結尾是空白或句點 | Windows 解壓縮時會變成裝置、資料流或另一個檔名，看到的跟裝進去的不一樣 |
 
