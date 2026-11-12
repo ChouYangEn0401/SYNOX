@@ -126,12 +126,12 @@ def test_identities_reserved_range_and_persist(tmp_path):
     ids = Identities(path)
     a = ids.resolve("discord", "111")
     b = ids.resolve("discord", "222")
-    assert a == BASE and b == BASE + 1
+    assert a == BASE + 1 and b == BASE + 2                # BASE 保留給擁有者（只用 Discord 時的 owner_id）
     assert ids.resolve("discord", "111") == a
     assert ids.external("discord", b) == "222"
     again = Identities(path)
     assert again.lookup("discord", "222") == b
-    assert again.resolve("discord", "333") == BASE + 2
+    assert again.resolve("discord", "333") == BASE + 3
 
 
 def test_identities_never_reuse_numbers(tmp_path):
@@ -140,6 +140,44 @@ def test_identities_never_reuse_numbers(tmp_path):
     assert ids.unbind("discord", "111")
     assert ids.resolve("discord", "999") != a           # 陌生人不會繼承舊號碼的資料
     assert Identities(str(tmp_path / "i.json")).resolve("discord", "888") == a + 2
+
+
+def test_identities_first_stranger_never_gets_base(tmp_path):
+    """審查 A #1：只用 Discord 時擁有者＝BASE；舊版第一個陌生人也拿到 BASE＝擁有者。"""
+    ids = Identities(str(tmp_path / "i.json"))
+    assert ids.resolve("discord", "666") != BASE
+    assert ids.resolve_room("discord-channel", "c1") == -BASE              # 頻道是負號，跟任何人都不相等
+    ids.bind("discord", "777", BASE)                                         # 配對：擁有者
+    assert ids.resolve("discord", "888") not in (BASE, ids.lookup("discord", "666"))
+
+
+def test_identities_legacy_base_is_marked_suspect(tmp_path):
+    path = tmp_path / "i.json"
+    path.write_text(json.dumps({"next": BASE + 2, "links": {"discord:666": BASE, "discord:667": BASE + 1}}),
+                    encoding="utf-8")
+    ids = Identities(str(path))
+    assert ids.is_suspect("discord", "666") and not ids.is_suspect("discord", "667")
+    assert not ids.owner_bound("discord", BASE)
+    saved = json.loads(path.read_text(encoding="utf-8"))
+    assert saved["version"] == 2 and saved["suspect"] == ["discord:666"]       # 遷移寫回（之後不再重標）
+    assert Identities(str(path)).is_suspect("discord", "666")
+    ids.bind("discord", "666", BASE)                                         # 擁有者重新配對＝確認
+    assert ids.owner_bound("discord", BASE) and not Identities(str(path)).is_suspect("discord", "666")
+    ro = tmp_path / "ro.json"
+    ro.write_text(json.dumps({"links": {"discord:1": BASE}}), encoding="utf-8")
+    assert Identities(str(ro), readonly=True).is_suspect("discord", "1")
+    assert "version" not in json.loads(ro.read_text(encoding="utf-8"))     # readonly（doctor）不改檔
+
+
+@pytest.mark.parametrize("content", ["{not json", "[1, 2]", '{"links": {"discord:1": "x"}}'])
+def test_identities_corrupt_file_refuses(tmp_path, content):
+    """審查 A #10：壞掉的檔不當成空的重新發號（下一個陌生人會拿到別人的舊號碼）。"""
+    path = tmp_path / "i.json"
+    path.write_text(content, encoding="utf-8")
+    from synox.identity import IdentityFileError
+    with pytest.raises(IdentityFileError):
+        Identities(str(path))
+    assert path.read_text(encoding="utf-8") == content                     # 原檔留著、沒被改名或蓋掉
 
 
 def test_identities_bind_owner_and_conflict(tmp_path):
@@ -367,6 +405,86 @@ def test_stranger_does_not_get_owner(tmp_path):
     # 個人版：陌生人被擋（不會看到擁有者的指令選單）
     texts = [(j or {}).get("content", "") for j in http.posted()]
     assert texts and not any("/notes" in t for t in texts)
+
+
+def test_discord_only_unpaired_stranger_first_is_not_owner(tmp_path):
+    """審查 A #1：沒 owner_user_id、沒配對、陌生人先來 → 不是擁有者（私訊一律不收、不發號碼）。"""
+    app, http, _ = make_discord_bot(tmp_path)
+    assert app.config.owner_id == BASE
+    entry = app.extras["discord_entry"]
+    entry.on_dispatch("MESSAGE_CREATE", dm(uid="666", text="/notes", channel="dm-666")["d"])
+    entry.on_dispatch("MESSAGE_CREATE", dm(uid="666", text="/help", channel="dm-666")["d"])
+    app.tasks.wait(5)
+    ids = app.extras["identities"]
+    assert ids.lookup("discord", "666") is None                             # 沒發號碼、沒進 dispatcher
+    texts = [(j or {}).get("content", "") for j in http.posted()]
+    assert texts == [dc.UNPAIRED]                                           # 只回一次「還沒配對」
+    assert not any("/notes" in t for t in texts)
+    d = {"type": 3, "id": "i1", "token": "t1", "channel_id": "dm-666", "user": {"id": "666"},
+         "data": {"custom_id": "agent_ok:go:x"}, "message": {"id": "1", "content": ""}}
+    entry.on_dispatch("INTERACTION_CREATE", d)
+    assert any(kw.get("json", {}).get("data", {}).get("content") == dc.UNPAIRED for _, u, kw in http.calls
+               if "/interactions/i1/t1/callback" in u)
+    assert "還沒接上" in dc.owner_problem(app.config, ids)
+    assert "擁有者還沒接上" in dc.scope.status_text(app, app.config)
+    # 擁有者在別的程序配對好（discord pair 寫檔）：開著的 bot 重讀，擁有者可以用、陌生人拿新號碼（不是 BASE）
+    Identities(app.config.path("identities.json")).bind("discord", "777", BASE)
+    entry.on_dispatch("MESSAGE_CREATE", dm(uid="777", text="/help", channel="dm-777")["d"])
+    entry.on_dispatch("MESSAGE_CREATE", dm(uid="666", text="/help", channel="dm-666")["d"])
+    app.tasks.wait(5)
+    assert ids.lookup("discord", "777") == BASE
+    assert ids.lookup("discord", "666") not in (None, BASE)
+    assert dc.owner_problem(app.config, ids) == ""
+
+
+def test_discord_only_legacy_base_held_by_stranger(tmp_path):
+    """舊版的 identities.json：BASE 已經發給某個 Discord 帳號 → 標待確認、私訊不收；config 的 owner_user_id 指別人 → 移開。"""
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "identities.json").write_text(json.dumps({"next": BASE + 1, "links": {"discord:666": BASE}}),
+                                          encoding="utf-8")
+    app, http, _ = make_discord_bot(tmp_path)
+    ids = app.extras["identities"]
+    assert "666" in dc.owner_problem(app.config, ids)
+    app.extras["discord_entry"].on_dispatch("MESSAGE_CREATE", dm(uid="666", text="/notes", channel="dm-666")["d"])
+    app.tasks.wait(5)
+    assert [(j or {}).get("content", "") for j in http.posted()] == [dc.UNPAIRED]
+
+    other = tmp_path / "other"
+    (other / "data").mkdir(parents=True)
+    (other / "data" / "identities.json").write_text(
+        json.dumps({"next": BASE + 1, "links": {"discord:666": BASE}}), encoding="utf-8")
+    app2, _, _ = make_discord_bot(other, owner_discord="777")
+    ids2 = app2.extras["identities"]
+    assert ids2.lookup("discord", "777") == BASE and ids2.lookup("discord", "666") is None
+    assert any("666" in n for n in app2.extras["discord_identity_notes"])
+    assert dc.owner_problem(app2.config, ids2) == ""
+
+
+def test_corrupt_identities_keeps_discord_off(tmp_path):
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "identities.json").write_text("{broken", encoding="utf-8")
+    raw ={"data_dir": str(data), "vault": {"mode": "file"}, "llm": {"kind": "fake"},
+           "channels": {"discord": {"enabled": True, "bot_token": "vault:discord_bot_token"}}}
+    config = SynoxConfig.from_dict(raw, require_token=False, root=str(tmp_path))
+    vault = Vault(b"k" * 32, str(data))
+    vault.set_secret("discord_bot_token", TOKEN)
+    app = build(config, home=FakeChannel(), adapter=FakeAdapter(None), vault=vault)
+    assert "壞掉" in app.extras["discord_error"] and app.extras.get("discord_entry") is None
+    assert (data / "identities.json").read_text(encoding="utf-8") == "{broken"
+    lines = []
+    assert dc.pair_owner(app.config, vault, code="123456", out=lines.append,
+                         connect=lambda url: FakeWS([hello(), {"op": 0, "t": "MESSAGE_CREATE", "s": 1,
+                                                              "d": dm(uid="777", text="123456")["d"]}], Clock()),
+                         http=FakeHTTP(), timeout=30) == 2
+    assert "壞掉" in lines[-1]
+    from synox import doctor
+    cfg_path = tmp_path / "config.json"
+    cfg_path.write_text(json.dumps(raw), encoding="utf-8")
+    out = []
+    doctor.run(offline=True, config_path=str(cfg_path), out=out.append)
+    assert any("身分" in line and "壞掉" in line for line in out)
 
 
 def test_button_auto_ack(tmp_path):

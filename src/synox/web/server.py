@@ -5,7 +5,9 @@ Web UI 的 HTTP 那一層（標準函式庫 ThreadingHTTPServer，只綁 127.0.0
 BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。測試直接呼叫 route／handle，不開埠。
 
     GET  /                          app.html（每次回應一個 nonce 的 CSP；沒有 inline 事件、沒有外部資源）
-    GET  /login?t=<token>           一次性登入連結 → cookie session → 303 到 /#chat
+    GET  /login?t=<token>           一次性登入連結 → 確認頁「你將以 <名字> 登入」（不用掉連結；防 login CSRF）
+    POST /login                     確認頁的按鈕（f＝一次性表單 token＋synox_login cookie、Origin 要是自己）
+                                    → 用掉連結 → cookie session → 303 到 /#chat
     GET  /packs/<name>/panel        pack 的 web.panel（工具頁用 <iframe sandbox> 掛）
     GET  /api/pack-staged/<token>   `python -m synox install` 暫存好的 pack 的檢查報告（擁有者；網頁 ?pack=<token>#settings）
     GET  /api/pack-secrets/<name>   工具頁「連接」：auth.fields 的狀態（有填、最後 4 碼；secret 的值永遠不回）
@@ -20,6 +22,7 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
 
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import os
@@ -36,10 +39,14 @@ from isdtelekit.core.channel import CallbackInfo, Inbound
 
 from synox.web.channel import WEB, WebChannel
 from synox.web.chats import TOOLS_CHAT, ChatStore
-from synox.web.tokens import LoginTokens, Session, Sessions
+from synox.web.tokens import LoginTokens, Session, Sessions, digest
 
 HOST = "127.0.0.1"                    # 永遠只綁這個；要對外由營運者自己架反向代理＋TLS（docs/security.md）
 COOKIE = "synox_session"
+LOGIN_COOKIE = "synox_login"          # 登入確認頁發的、綁這個瀏覽器（POST /login 要帶）
+LOGIN_FORM_TTL = 600.0
+LOGIN_FORMS_MAX = 200
+LOGIN_BAD = "這個連結用過了、過期了（7 天），或打錯了。在 Telegram 再打一次 /web 拿新的。"
 CSRF_HEADER = "x-synox-csrf"
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 MAX_BODY = 256 * 1024
@@ -107,6 +114,9 @@ class WebUI:
         self.tokens = LoginTokens(os.path.join(data, "web_tokens.json"), clock=clock)
         self.sessions = Sessions(os.path.join(data, "web_sessions.json"), clock=clock)
         self.chats = ChatStore(os.path.join(data, "web_chats"), vault, clock=clock)
+        self._clock = clock
+        self._login_forms: Dict[str, tuple] = {}     # 表單 token 的雜湊 → (登入 token 雜湊, 瀏覽器 cookie 雜湊, 到期)
+        self._login_lock = threading.Lock()
         self._server: Optional[ThreadingHTTPServer] = None
         self._thread: Optional[threading.Thread] = None
 
@@ -175,7 +185,9 @@ class WebUI:
             if path == "/" and method == "GET":
                 return self.app_page()
             if path == "/login" and method == "GET":
-                return self.login((query.get("t") or [""])[0], headers)
+                return self.login_page((query.get("t") or [""])[0], headers, session)
+            if path == "/login" and method == "POST":
+                return self.login_post(headers, body)
             m = re.match(r"^/packs/([a-z][a-z0-9_-]{0,31})/panel$", path)
             if m and method == "GET":
                 if session is None:
@@ -229,16 +241,84 @@ class WebUI:
         return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "DENY"),
                                     ("Content-Security-Policy", csp)], html.encode("utf-8")
 
-    def login(self, token: str, headers: Dict[str, str]) -> Resp:
-        tg_id = self.tokens.redeem(token)
+    # 登入（兩步，防 login CSRF）：GET /login?t= 只顯示「你將以 <名字> 登入」，不用掉連結；
+    # 按頁上的按鈕 POST /login（一次性表單 token f＋這個瀏覽器的 LOGIN_COOKIE、Origin 要是自己）才兌換。
+    # 別人塞給你的連結（他的帳號）：你會先看到要登入的是誰；跨站自動送出的表單拿不到 f、也帶不了 cookie。
+
+    def _who(self, tg_id: int) -> str:
+        user = self.app.users.get(tg_id)
+        name = (getattr(user, "username", "") or "").strip()
+        return f"{name}（id {tg_id}）" if name else f"id {tg_id}"
+
+    def _login_forms_prune(self) -> None:
+        now = self._clock()
+        self._login_forms = {k: v for k, v in self._login_forms.items() if v[2] > now}
+
+    def login_page(self, token: str, headers: Dict[str, str], session: Optional[Session]) -> Resp:
+        tg_id = self.tokens.peek(token)
         if tg_id is None:
-            return _page(403, "登入連結不能用", "這個連結用過了、過期了（7 天），或打錯了。在 Telegram 再打一次 /web 拿新的。")
+            return _page(403, "登入連結不能用", LOGIN_BAD)
+        form, binder = secrets.token_urlsafe(24), secrets.token_urlsafe(24)
+        with self._login_lock:
+            self._login_forms_prune()
+            if len(self._login_forms) >= LOGIN_FORMS_MAX:          # 有人狂刷確認頁：丟最舊的
+                self._login_forms.pop(next(iter(self._login_forms)))
+            self._login_forms[digest(form)] = (digest(token), digest(binder), self._clock() + LOGIN_FORM_TTL)
+        now_text = ""
+        if session is not None and session.tg_id != tg_id:
+            now_text = f"<p><b>注意：</b>這個瀏覽器現在登入的是 {escape(self._who(session.tg_id))}，按下去會換成上面這個帳號。</p>"
+        html = ("<!doctype html><html lang=\"zh-Hant\"><head><meta charset=\"utf-8\">"
+                "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>登入 SYNOX</title></head>"
+                "<body style=\"font-family:system-ui,sans-serif;padding:24px;max-width:560px\">"
+                "<h1>登入 SYNOX</h1>"
+                f"<p style=\"font-size:1.2em\">你將以 <b>{escape(self._who(tg_id))}</b> 登入。</p>{now_text}"
+                "<p>這不是你的帳號（例如別人傳給你的連結）就<b>不要按</b>，直接關掉這一頁。</p>"
+                "<form method=\"post\" action=\"/login\">"
+                f"<input type=\"hidden\" name=\"f\" value=\"{escape(form)}\">"
+                "<button type=\"submit\" style=\"font-size:1.1em;padding:8px 20px\">登入</button></form>"
+                "</body></html>")
+        csp = "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'"
+        cookie = (f"{LOGIN_COOKIE}={binder}; HttpOnly; SameSite=Strict; Path=/login; Max-Age={int(LOGIN_FORM_TTL)}"
+                  + self._secure())
+        return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "DENY"),
+                                    ("Content-Security-Policy", csp), ("Set-Cookie", cookie)], html.encode("utf-8")
+
+    def login_post(self, headers: Dict[str, str], body: bytes) -> Resp:
+        origin = headers.get("origin")
+        if origin and (origin == "null" or urlsplit(origin).netloc != headers.get("host", "")):
+            return _page(403, "登入沒有完成", "來源不對（不是從 SYNOX 自己的登入頁送出的）。")
+        if headers.get("sec-fetch-site") not in (None, "", "same-origin", "none"):
+            return _page(403, "登入沒有完成", "來源不對（跨站送出的登入）。")
+        try:
+            form = (parse_qs(body.decode("utf-8")).get("f") or [""])[0]
+        except UnicodeDecodeError:
+            form = ""
+        binder = _cookie(headers, LOGIN_COOKIE)
+        with self._login_lock:
+            self._login_forms_prune()
+            found = self._login_forms.get(digest(form)) if form else None
+            if found is None or not binder or not hmac.compare_digest(found[1], digest(binder)):
+                found = None
+            else:
+                self._login_forms.pop(digest(form), None)            # 對得上才用掉（一次性）
+        if found is None:
+            return _page(403, "登入沒有完成", "這個登入頁過期了，或不是在這個瀏覽器打開的。回去再點一次登入連結。")
+        tg_id = self.tokens.redeem_digest(found[0])
+        if tg_id is None:
+            return _page(403, "登入連結不能用", LOGIN_BAD)
         self.sessions.drop(_cookie(headers, COOKIE))
         sid, _session = self.sessions.create(tg_id)
         self.app.users.get_or_create(tg_id)
-        cookie = f"{COOKIE}={sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age={int(self.sessions.ttl)}"
-        return 303, BASE_HEADERS + [("Location", "/#chat"), ("Set-Cookie", cookie),
+        cookie = f"{COOKIE}={sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age={int(self.sessions.ttl)}" + self._secure()
+        gone = f"{LOGIN_COOKIE}=; HttpOnly; SameSite=Strict; Path=/login; Max-Age=0" + self._secure()
+        return 303, BASE_HEADERS + [("Location", "/#chat"), ("Set-Cookie", gone), ("Set-Cookie", cookie),
                                     ("Content-Type", "text/plain; charset=utf-8")], b"OK"
+
+    def _secure(self) -> str:
+        """對外網址是 https（反向代理＋TLS）：cookie 加 Secure，瀏覽器不會在明文 http 上送出 session。
+        只開本機 http://127.0.0.1 時不加（不然瀏覽器收不下 cookie）。"""
+        public = str((getattr(self.config, "web", {}) or {}).get("public_url") or "").strip().lower()
+        return "; Secure" if public.startswith("https://") else ""
 
     def _pack(self, name: str):
         return next((p for p in self.app.extras.get("synox_packs", []) if p.name == name), None)
@@ -298,7 +378,8 @@ class WebUI:
             return _err(400, "送來的 JSON 要是物件。")
         if path == "/api/logout":
             self.sessions.drop(_cookie(headers, COOKIE))
-            return _json(200, {"ok": True}, [("Set-Cookie", f"{COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0")])
+            return _json(200, {"ok": True}, [("Set-Cookie", f"{COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0"
+                                                            + self._secure())])
         if path == "/api/chats":
             chat = self.chats.new_chat(user.tg_id)
             return _json(200, {"id": chat["id"], "title": chat["title"]})
@@ -411,7 +492,7 @@ class WebUI:
             if group is None or not registry.visible(user, group):
                 continue
             leaves = [n for n in group.walk() if not n.is_group and registry.visible(user, n)]
-            connector = pack.manifest.kind in ("connector", "mcp")
+            connector = getattr(pack.manifest, "registered_only", pack.manifest.kind in ("connector", "mcp"))
             row = {
                 "name": pack.name, "title": pack.manifest.title, "summary": pack.manifest.summary,
                 "kind": pack.manifest.kind, "version": pack.manifest.version,
@@ -490,7 +571,7 @@ class WebUI:
 
     def pack_secrets_save(self, user, name: str, data: dict) -> Resp:
         """{"values": {欄位: 值（空字串＝沿用原值）}, "clear": [欄位…]}。"""
-        from synox.packs.secrets import SecretError
+        from synox.packs.secrets import SecretError, short_warning
         pack, denied = self._secret_pack(user, name)
         if denied:
             return denied
@@ -500,7 +581,7 @@ class WebUI:
                 not all(isinstance(c, str) for c in clear):
             return _err(400, "values 要是 {欄位: 值}，clear 要是欄位名的清單。")
         try:
-            self._secret_store().update(pack.name, pack.secret_fields, values, user, clear=clear)
+            short = self._secret_store().update(pack.name, pack.secret_fields, values, user, clear=clear)
         except SecretError as e:
             return _err(400, str(e))
         logging.info("[WEB] %s saved secrets for pack %s (fields: %s)", user.tg_id, pack.name,
@@ -509,6 +590,9 @@ class WebUI:
         out["ok"] = True
         out["message"] = "✅ 已連接（存在保管箱，密文）。" if out["connected"] else \
             "存好了，還缺：" + "、".join(out["missing"])
+        if short:                                    # 存了，但太短的 secret 第 4 關保護不全：照實說
+            out["warning"] = short_warning(short)
+            out["message"] += "\n" + out["warning"]
         return _json(200, out)
 
     # ── 設定頁 ───────────────────────────────────────────────────────
@@ -641,7 +725,9 @@ class WebUI:
             return self._pack_upgrade(user, data)
         try:                                                            # 再跑 1、2 關 → 第 3 關（packs.lock）
             name = install_staged(str(data.get("token") or ""), self.config.data_dir, self.pack_dirs[0],
-                                  approved_by=user.tg_id, via="web")
+                                  approved_by=user.tg_id, via="web", trust=data.get("trust") or None,
+                                  trust_publisher=str(data.get("trust_publisher") or "") or None,
+                                  runtime=str(data.get("runtime") or "") or None)       # S2：用容器／不用
         except GateRefused as e:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:
@@ -681,7 +767,10 @@ class WebUI:
         from synox.packs.upgrade import upgrade_staged
         try:
             done = upgrade_staged(str(data.get("token") or ""), self.config.data_dir, self.pack_dirs[0],
-                                  approved_by=user.tg_id, via="web", allow_downgrade=bool(data.get("allow_downgrade")))
+                                  approved_by=user.tg_id, via="web", allow_downgrade=bool(data.get("allow_downgrade")),
+                                  trust=data.get("trust") or None,
+                                  trust_publisher=str(data.get("trust_publisher") or "") or None,
+                                  runtime=str(data.get("runtime") or "") or None)
         except GateRefused as e:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:

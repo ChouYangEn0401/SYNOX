@@ -51,6 +51,9 @@ def cmd_run(args) -> int:
         print(f"⚠️ Discord 沒有開成：{app.extras.get('discord_error', '原因看 log')}")
         if not channels:
             return 2
+    elif app.extras.get("discord_errors"):
+        for name, err in app.extras["discord_errors"].items():
+            print(f"⚠️ Discord bot {name} 沒有開：{err}")
     print("✅ SYNOX 開始收訊息了。這個視窗可以縮小，但不要關；要停就按 Ctrl+C 或雙擊 Stop.bat。")
     if config.web.get("enabled", True):
         print(f"🌐 網頁介面：http://127.0.0.1:{config.web.get('port')}/ （在聊天裡打 /web 拿登入連結）")
@@ -217,7 +220,8 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
         print(f"❌ {e}")
         return 2
     packs_dir = args.packs_dir or PACK_DIRS[0]
-    upg = _staged_upgrade(token, data_dir, packs_dir)                    # 同名已經裝了＝升級：「改了什麼」
+    trust = getattr(args, "trust", None) or None                         # PERM-2：core｜third-party（寫進 packs.lock）
+    upg = _staged_upgrade(token, data_dir, packs_dir, trust)             # 同名已經裝了＝升級：「改了什麼」
     # 升級時「要不要建環境」看升級報告那一段（跟舊版比過），安裝摘要的那一段就不印，免得兩段說法不一樣
     print(admin.format_summary(summary if upg is None else {**summary, "env": {}}))
     if upg is not None:
@@ -233,11 +237,17 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
         who = getattr(config, "owner_id", None) or "console"
         try:
             name = admin.install_staged(token, data_dir, args.packs_dir or PACK_DIRS[0], approved_by=who,
-                                        via="console")                       # 第 3 關：packs.lock
+                                        via="console", trust=trust,          # 第 3 關：packs.lock
+                                        trust_publisher=getattr(args, "trust_publisher", None) or None,
+                                        runtime=getattr(args, "runtime", None) or None)
         except admin.PackAdminError as e:
             print(f"❌ {e}")
             return 2
-        print(f"✅ 裝好了：{name}（已寫進 packs.lock）。SYNOX 開著的話到網頁設定頁按「重新載入全部」，或重開 SYNOX。")
+        from synox.packs import lock as pack_lock
+        mode = pack_lock.runtime_mode(data_dir, name)
+        runtime_text = {"container": "，用容器", "host": "，不用容器"}.get(mode or "", "")
+        print(f"✅ 裝好了：{name}（已寫進 packs.lock，信任 {trust or 'third-party'}{runtime_text}）。"
+              "SYNOX 開著的話到網頁設定頁按「重新載入全部」，或重開 SYNOX。")
         _build_env_now(name, data_dir, args.packs_dir or PACK_DIRS[0], jobs)
         return 0
     web = (getattr(config, "web", None) or {}) if config is not None else {}
@@ -250,15 +260,17 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
         print("   （網頁要先登入：在 Telegram 打 /web 拿登入連結。）")
         return 0
     print("ℹ️ 還沒裝。SYNOX 沒開（或網頁介面關著）：")
-    print(f'   • 在這裡核准：python -m synox install "{args.file}" --yes')
+    tier = summary.get("tier") or {}
+    extra = f' --trust-publisher "{tier.get("publisher")}"' if tier.get("needs_publisher") and tier.get("publisher") else ""
+    print(f'   • 在這裡核准：python -m synox install "{args.file}" --yes{extra}')
     print("   • 或開 SYNOX 之後，在網頁設定頁「裝一個 .synoxpack」選這個檔")
     return 1
 
 
-def _staged_upgrade(token: str, data_dir: str, packs_dir: str):
+def _staged_upgrade(token: str, data_dir: str, packs_dir: str, trust=None):
     from synox.packs import admin, upgrade
     try:
-        return upgrade.staged_upgrade(token, data_dir, packs_dir)
+        return upgrade.staged_upgrade(token, data_dir, packs_dir, trust=trust)
     except admin.PackAdminError:
         return None
 
@@ -268,7 +280,10 @@ def _upgrade_now(token: str, data_dir: str, packs_dir: str, config, args, jobs=N
     who = getattr(config, "owner_id", None) or "console"
     try:
         done = upgrade.upgrade_staged(token, data_dir, packs_dir, approved_by=who, via="console",
-                                      allow_downgrade=getattr(args, "allow_downgrade", False))
+                                      allow_downgrade=getattr(args, "allow_downgrade", False),
+                                      trust=getattr(args, "trust", None) or None,
+                                      trust_publisher=getattr(args, "trust_publisher", None) or None,
+                                      runtime=getattr(args, "runtime", None) or None)
     except admin.PackAdminError as e:
         print(f"❌ {e}")
         return 2
@@ -312,7 +327,8 @@ def cmd_packs(args, *, jobs=None) -> int:
     if args.packs_cmd == "rollback":
         return cmd_rollback(args, data_dir, config)
     found = {}
-    for folder in discover(args.dirs or PACK_DIRS):
+    default_dirs = config.pack_dirs() if config is not None and hasattr(config, "pack_dirs") else PACK_DIRS
+    for folder in discover(args.dirs or default_dirs):          # 內建的＋config.json 的 packs.dirs
         try:
             found[read(folder).name] = folder
         except ManifestError:
@@ -343,7 +359,10 @@ def cmd_packs(args, *, jobs=None) -> int:
             return 2
         try:
             m, report, problems = admin.approve_installed(found[name], data_dir,
-                                                          approved_by=getattr(config, "owner_id", None) or "cli")
+                                                          approved_by=getattr(config, "owner_id", None) or "cli",
+                                                          trust=getattr(args, "trust", None) or None,
+                                                          trust_publisher=getattr(args, "trust_publisher", None) or None,
+                                                          runtime=getattr(args, "runtime", None) or None)
         except admin.PackAdminError as e:
             print(f"❌ {e}")
             return 2
@@ -353,6 +372,8 @@ def cmd_packs(args, *, jobs=None) -> int:
             return 2
         print(f"🔒 {name} 已鎖定（data/packs.lock）。之後檔案被改過就不會載入。")
         return 0
+    if args.packs_cmd == "runtime":
+        return cmd_packs_runtime(args, found, data_dir, config)
     marks = {pack_lock.LOCKED: "🔒 鎖定", pack_lock.UNLOCKED: "· 未鎖定", pack_lock.TAMPERED: "⚠️ 被改過"}
     from synox.packs.manifest import synox_problem
     for name, folder in sorted(found.items()):
@@ -366,6 +387,56 @@ def cmd_packs(args, *, jobs=None) -> int:
             too_old = None
         if too_old:
             print(f"    ⛔ 不會載入：{too_old}")
+        if config is not None and not changes:          # PERM-8：伺服器版第三方 python pack、沒鎖的補掃
+            from synox.packs import loader as pack_loader
+            try:
+                m = read(folder)
+            except ManifestError:
+                continue
+            scan_problems = pack_loader.unlocked_scan(config, m, state)
+            if scan_problems:
+                print(f"    ❌ 沒有 packs.lock、第 2 關掃描沒過，不會載入：{'；'.join(scan_problems[:3])}")
+            elif scan_problems is not None:
+                print("    🔍 沒有 packs.lock：載入時補跑的第 2 關掃描過了")
+            reason = "" if scan_problems else pack_loader.trust_reason(config, m)
+            if reason:
+                print(f"    🔐 {reason}")
+            from synox import sandbox
+            note = sandbox.runtime_note(config, m)               # S2：用容器／不用、引擎找不找得到
+            if note:
+                print(f"    {note}")
+    return 0
+
+
+def cmd_packs_runtime(args, found: dict, data_dir: str, config) -> int:
+    """`packs runtime <name> container|host`：只改 packs.lock 的 runtime（擁有者在這台電腦上跑才改得了）。"""
+    from synox import sandbox
+    from synox.packs import admin
+    from synox.packs import lock as pack_lock
+    from synox.packs.manifest import ManifestError, read
+    name = args.name
+    if name not in found:
+        print(f"❌ 找不到叫 {name} 的 pack（有：{'、'.join(sorted(found)) or '沒有'}）")
+        return 2
+    try:
+        m = read(found[name])
+        mode = admin.check_runtime(m, args.mode)
+    except ManifestError as e:
+        print(f"❌ pack.json 不合：{e}")
+        return 2
+    except admin.PackAdminError as e:
+        print(f"❌ {e}")
+        return 2
+    state, _changes = pack_lock.verify(data_dir, name, found[name])
+    if state != pack_lock.LOCKED:
+        print(f"❌ {name} 沒有鎖（或檔案被改過）：先 python -m synox packs lock --approve {name}")
+        return 2
+    pack_lock.set_runtime(data_dir, m, mode, getattr(config, "owner_id", None) or "cli")
+    print(f"🧱 {name}：{'用容器' if mode == 'container' else '不用容器'}（已寫進 packs.lock）。"
+          "SYNOX 開著的話到網頁設定頁按「重新載入全部」，或重開 SYNOX。")
+    note = sandbox.runtime_note(config, m) if config is not None else ""
+    if note:
+        print(f"   {note}")
     return 0
 
 
@@ -390,7 +461,8 @@ def cmd_connect(args) -> int:
 
 
 def cmd_discord(args) -> int:
-    """discord token：把 bot token 存進保管箱（getpass，不經聊天）｜discord pair：私訊配對碼，把你的 Discord 帳號接到擁有者。"""
+    """discord token：把 bot token 存進保管箱（getpass，不經聊天）；加 --clear＝從保管箱刪掉｜
+    discord pair：私訊配對碼，把你的 Discord 帳號接到擁有者。"""
     import getpass
 
     from synox import discord
@@ -404,21 +476,58 @@ def cmd_discord(args) -> int:
     except (KeyringError, VaultError) as e:
         print(f"❌ 保管箱打不開：{e}")
         return 2
+    from synox.discord import bots as bot_specs
+    name = (getattr(args, "bot", None) or "").strip() or None
     try:
         if args.discord_cmd == "token":
-            token = getpass.getpass("貼上 Discord bot token（畫面不會顯示）：").strip()
+            if name and not bot_specs.NAME_RE.match(name):
+                print(f"❌ bot 名字 {name!r} 不行：只能用小寫英文、數字、- 和 _。")
+                return 2
+            spec = discord.find_spec(config, name or bot_specs.DEFAULT)
+            if spec is None and not name and "bots" in discord.settings(config):
+                print("❌ config.json 用的是多個 bot 的寫法（channels.discord.bots）：加 --bot <名字> 指定存哪一個。")
+                return 2
+            if spec is not None and spec.legacy and spec.vault_name is None:
+                spec = None                       # 舊寫法把 token 直接寫在 config：照舊存到 discord_bot_token
+            if spec is not None and spec.vault_name is None:
+                print(f"❌ config.json 裡 bot {spec.name} 的 token 寫的是 {spec.token.split(':', 1)[0]}:…，不是保管箱；"
+                      "要改用保管箱就把它改成 \"vault:<名字>\" 再跑一次。")
+                return 2
+            vault_name = spec.vault_name if spec is not None else bot_specs.default_vault_name(name or bot_specs.DEFAULT)
+            label = f"bot {name} 的" if name else ""
+            if getattr(args, "clear", False):
+                if not vault.delete_secret(vault_name):
+                    print(f"（保管箱裡本來就沒有 Discord {label}bot token（{vault_name}），沒有動任何東西）")
+                    return 0
+                print(f"🗑 已從保管箱刪掉 Discord {label}bot token（{vault_name}）。\n"
+                      "⚠️ 這只是這台電腦不再存它，舊 token 本身還能用：要真正作廢，到 Discord Developer Portal → "
+                      "你的應用程式 → Bot → 按 Reset Token。")
+                if spec is not None:
+                    print(f"config.json 還指著 \"vault:{vault_name}\"：在重新存一個 token（python -m synox discord token"
+                          f"{' --bot ' + name if name else ''}）或從 config.json 拿掉之前，這個 bot 開不起來。")
+                return 0
+            token = getpass.getpass(f"貼上 Discord {label}bot token（畫面不會顯示）：").strip()
             if not token:
                 print("（沒有輸入，沒有存）")
                 return 1
-            vault.set_secret(discord.VAULT_NAME, token)
-            print(f"✅ 存進保管箱了。config.json 的 channels.discord.bot_token 寫 \"vault:{discord.VAULT_NAME}\"。")
+            vault.set_secret(vault_name, token)
+            if spec is not None:
+                print(f"✅ 存進保管箱了（{vault_name}），config.json 已經指到這裡。")
+            elif name and name != bot_specs.DEFAULT:
+                print(f"✅ 存進保管箱了。config.json 的 channels.discord.bots 加上 "
+                      f"\"{name}\": {{\"token\": \"vault:{vault_name}\", \"surface\": \"dm\"}}。")
+            else:
+                print(f"✅ 存進保管箱了。config.json 的 channels.discord.bot_token 寫 \"vault:{vault_name}\"。")
             return 0
         if args.discord_cmd == "pair":
-            return discord.pair_owner(config, vault)
+            if getattr(args, "clear", False):
+                print("❌ --clear 只給 discord token 用（刪掉存的 bot token）。")
+                return 2
+            return discord.pair_owner(config, vault, bot=name)
     except (KeyboardInterrupt, EOFError):
         print("\n（取消了）")
         return 1
-    print("用法：python -m synox discord token｜python -m synox discord pair")
+    print("用法：python -m synox discord token [--bot 名字] [--clear]｜python -m synox discord pair [--bot 名字]")
     return 1
 
 
@@ -440,12 +549,27 @@ def main(argv=None) -> int:
     p.add_argument("--yes", action="store_true", help="看完報告直接在終端機核准（同名已裝＝升級）")
     p.add_argument("--allow-downgrade", action="store_true",
                    help="升級時新版本不比裝著的新（一樣或比較舊）也照換")
+    p.add_argument("--trust", choices=["core", "third-party"], default=None,
+                   help="信任：core（跟出廠的一樣）｜third-party（預設；升級沒給＝沿用裝著那一份的）")
+    p.add_argument("--trust-publisher", default=None, metavar="NAME",
+                   help="T2 pack（有掃不到內容的執行檔／外部相依）：明確輸入 pack.json 的 publisher 才裝")
+    p.add_argument("--runtime", choices=["container", "host"], default=None,
+                   help="用容器（pack 有提供 runtime.container 時的預設）｜host（不用容器；升級沒給＝沿用）")
     p.add_argument("--packs-dir", default="", help=argparse.SUPPRESS)
     p = sub.add_parser("packs", help="pack 的鎖定狀態、重新核准、退回上一版")
     psub = p.add_subparsers(dest="packs_cmd")
     psub.add_parser("status", help="每個 pack 鎖了沒、有沒有被改過")
     q = psub.add_parser("lock", help="重跑宣告檢查與靜態掃描，過了就寫 packs.lock")
     q.add_argument("--approve", required=True, metavar="NAME", help="pack 的名字")
+    q.add_argument("--trust", choices=["core", "third-party"], default=None,
+                   help="信任（沒給＝沿用舊鎖的，沒有舊鎖＝third-party）")
+    q.add_argument("--trust-publisher", default=None, metavar="NAME",
+                   help="T2 pack：明確輸入 pack.json 的 publisher（舊鎖確認過同一個、沒變多就不用）")
+    q.add_argument("--runtime", choices=["container", "host"], default=None,
+                   help="用容器｜不用（沒給＝沿用舊鎖的）")
+    q = psub.add_parser("runtime", help="改用容器／不用容器跑（只改 packs.lock 的 runtime）")
+    q.add_argument("name", help="pack 的名字")
+    q.add_argument("mode", choices=["container", "host"])
     q = psub.add_parser("rollback", help="把 packs/_removed/ 裡最近一份舊版搬回來、packs.lock 改回當時的")
     q.add_argument("name", help="pack 的名字")
     p.set_defaults(dirs=None, packs_dir="")
@@ -460,6 +584,10 @@ def main(argv=None) -> int:
     p.add_argument("--clear", action="store_true", help="清掉存的帳號")
     p = sub.add_parser("discord", help="Discord 通道：token（存 bot token 進保管箱）｜pair（擁有者配對）")
     p.add_argument("discord_cmd", choices=["token", "pair"])
+    p.add_argument("--bot", default="", metavar="NAME",
+                   help="哪個 bot（config.json 的 channels.discord.bots.<名字>）；不寫＝default（舊的單一 bot 寫法）")
+    p.add_argument("--clear", action="store_true",
+                   help="discord token --clear：從保管箱刪掉這個 bot 的 token（要作廢舊 token 還是要到 Developer Portal 按 Reset Token）")
     args = parser.parse_args(argv)
     handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop,
                 "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord}

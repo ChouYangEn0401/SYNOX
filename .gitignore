@@ -6,3 +6,6 @@ __pycache__/
 *.egg-info/
 dist/
 .pytest_cache/
+
+# local agent scratch
+.claude/

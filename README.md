@@ -1,9 +1,16 @@
 # SYNOX：你自己電腦上的 Telegram 小助手
 
+> ⚠️ **目前是 alpha，請先別拿來放重要資料。**
+> - 所有 connector（Notion、Todoist、Google 日曆、Apple 提醒事項）與 Discord 通道都**只用假傳輸測過**，還沒對真實服務驗證。
+> - 沙盒後端**還沒在 Linux 實機上驗證**。
+> - **伺服器版的營運者（架的人）看得到使用者的資料**。
+> - 第三方 pack 的安全邊界：見 [docs/security.md](docs/security.md)「這套系統現在能保證什麼、不能保證什麼」。
+> - 授權：見 [LICENSING.md](LICENSING.md)。發現安全問題：見 [SECURITY.md](SECURITY.md)（請不要開公開 issue）。
+
 在手機的 Telegram 跟它講話：記帳、隨手記、提醒；接了 AI 之後，直接說人話它就會替你按指令
 （刪東西這類危險的事，會先送一張確認卡給你按）。資料都在**你自己的電腦**上，筆記和記帳是加密存的。
 
-## 三步裝好（Windows 10／11）
+## 快速開始：三步裝好（Windows 10／11）
 
 1. **雙擊 `Setup.bat`**。第一次會花幾分鐘準備 Python 和套件（會出現一個顯示進度的視窗，不用打任何字；
    電腦沒有 Python 的話，它會自己裝）。
@@ -85,18 +92,23 @@
 
 ## 想加功能：丟一個 pack 進來
 
-一個功能＝`packs/` 底下一個資料夾（`pack.json`、`SKILL.md`、`README.md`、`pack.py`）。把資料夾放進去、重開 bot，
-`/help` 就多一組，AI 也會自己學會怎麼用。格式與範例在 [docs/pack-format.md](docs/pack-format.md)。
+一個功能＝一個 pack（一個資料夾：`pack.json`、`SKILL.md`、`README.md`、程式）。別人給你的 `.synoxpack`：在網頁設定頁上傳，
+或點兩下檔案；SYNOX 先檢查、把報告給你看，你按確認才裝。裝好 `/help` 就多一組，AI 也會自己學會怎麼用。
+
+**想自己寫工具接進來**（任何語言的命令列程式、MCP 伺服器、別人架好的遠端 MCP）：從 [docs/tools.md](docs/tools.md) 開始——
+怎麼選接入方式、十行入門、權限怎麼宣告、怎麼測試與打包；範例在 [examples/](examples/)。全部文件的索引：[docs/README.md](docs/README.md)。
+
 不想要某個 pack：`config.json` 的 `"packs": {"disabled": ["money"]}`。
-pack 放在別的地方（例如金流簿那個 repo 裡的 `synox-pack/`，它要用那個 repo 自己的 Python）：
-`"packs": {"dirs": ["C:/Users/你/Documents/記帳專案/synox-pack"]}`——每一項可以是一個 pack 的資料夾，或裝了很多 pack 的資料夾。
+pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的 Python）：
+`"packs": {"dirs": ["<你的資料夾>/synox-pack"]}`——每一項可以是一個 pack 的資料夾，或裝了很多 pack 的資料夾。
 
 ## 還沒有（v0 不做的）
 
 - 多支 bot 分流、服務別人的角色商店、Remote Control／派工、AI 的情境（persona）與長期記憶。
 - 伺服器版：個人版的舊資料不會自動搬過去；「連架設的人都看不到」的版本（另一份規格）；網頁介面對外開放（要自己架反向代理＋TLS）。
-- 匯入 ClawBot 的資料；換電腦的匯出（備份綁這個 Windows 帳號）、還原按鈕；網頁看圖／下載檔案、網頁收提醒（提醒只走 Telegram）。
+- 匯入前身專案的資料；換電腦的匯出（備份綁這個 Windows 帳號）、還原按鈕；網頁看圖／下載檔案、網頁收提醒（提醒只走 Telegram）。
 - connector：Notion、Todoist、Google 日曆、Apple 提醒事項都做好了（設定步驟見各自 `connectors/*/README.md`），但都只用假傳輸測過，還沒對真的服務跑過。
+  到另一台電腦用真的帳號測（含 Discord）：[docs/handoff/](docs/handoff/README.md)（教學＋煙霧測試 `scripts/smoke_real.py`）。
   Apple 提醒事項要注意：iCloud 升級過的提醒事項 Apple 不開放 CalDAV，見 `connectors/apple-reminders-caldav/README.md`。
 - macOS／Linux 的安裝器（程式本身跨平台，但 `Setup.bat` 只有 Windows）；打包成 .exe（之後用 PyInstaller）。
 - AI 的對話紀錄只放在記憶體（重開 bot 就忘了），每個聊天留最近 6 輪。
@@ -112,3 +124,14 @@ pack 放在別的地方（例如金流簿那個 repo 裡的 `synox-pack/`，它�
 ```
 
 地圖與規則在 [docs/AGENT.md](docs/AGENT.md)；版本紀錄在 [CHANGELOG.md](CHANGELOG.md)。
+公開 repo 或發佈之前：[docs/AGENT.md](docs/AGENT.md) 的「公開前檢查清單」（`scripts\prepublish_check.py`）。
+
+## 回報安全問題
+
+請**不要**開公開 issue。回報方式、範圍與回應時程見 [SECURITY.md](SECURITY.md)。
+
+## 授權
+
+- **核心**：AGPL-3.0-or-later（[LICENSE](LICENSE)）。自己用、公司內部用、商用都可以；改了核心再架成網路服務給別人用，就要提供修改後的原始碼。
+- **工具 SDK 與範例**：Apache-2.0（[LICENSE-APACHE](LICENSE-APACHE)）。你用 SDK 寫的工具，授權由你決定，閉源、商用都可以。
+- 範圍、商業授權、貢獻者同意書與商標政策：[LICENSING.md](LICENSING.md)、[CONTRIBUTING.md](CONTRIBUTING.md)、[TRADEMARK.md](TRADEMARK.md)。

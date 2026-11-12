@@ -20,12 +20,14 @@ pack.json 的格式與檢查（docs/pack-format.md 是人看的版本）。安�
 
 pack.json v2（架構 v1 §4；在上面之上加欄位，舊的 pack 照舊可讀）：
 
-      "kind": "mcp",                             第四種：接一個 MCP 伺服器（這一版只登記、不連）
+      "kind": "mcp",                             第四種：接一個 MCP 伺服器（mcp.transport=stdio 才連；只寫 url＝只登記）
       "runtime": {"python": "../.venv/Scripts/python.exe",      {python} 的另一種寫法：相對於 pack 資料夾，
                   "python_posix": "../.venv/bin/python"},      照作業系統挑一個（cli.python 有寫就用 cli.python）
                  {"python": "auto", "node": "auto"}             auto＝安裝時建 data/envs/<pack>/（packs/envs.py）；
                                                                python=auto 時 requires.pip 只能寫 名字==版本；
                                                                node=auto 時 pack 裡要有 package.json＋package-lock.json
+                 {"container": {"image": "ghcr.io/x/y@sha256:…", …}}   S0：容器（packs/container.py 的第 1 關；
+                                                               kind=cli／mcp stdio；image 一定帶 digest、不收 privileged…）
       "env": {"HOME_DIR": "{user_data_dir}/x"},                子程序的環境變數（跟 cli.env 合併，cli.env 優先）
       "cli": {"python": "venv", "env": {"X": "{data_dir}"},
               "commands": [{"name": "add", "effect": "WRITE", "argv": ["add", "{text}"],
@@ -36,7 +38,27 @@ pack.json v2（架構 v1 §4；在上面之上加欄位，舊的 pack 照舊可�
       "auth": {"type": "none|token|oauth|caldav|file", "fields": [...]},
                fields[]：{"name", "label", "secret": true, "env": "X_API_KEY", "kind": "text|file", "required"}；
                token／file 的由 SYNOX 收（Web UI「連接」→ 保管箱；見 packs/secrets.py），"managed": "synox"|"pack" 可以強制
-      "mcp": {"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}
+      "mcp": {"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}        只登記（不連）
+      "mcp": {"transport": "stdio", "argv": ["{python}", "./server.py"],                 真的連（P4a，packs/mcp.py）：
+              "env": {…}, "cwd": ".", "timeout": 60, "start_timeout": 20,                代換同 cli；每個（pack, 使用者）
+              "tools_allow": ["search"], "effects": {"search": "READ"}}                  一個長駐子程序；要宣告 subprocess
+      "mcp": {"transport": "http", "url": "https://…/mcp", "timeout": 60,                遠端 MCP（P4b，packs/mcp_http.py）：
+              "bearer": "token", "tools_allow": […], "effects": {…}}                     url 一定 https；要宣告 network；
+                                                 auth.type=token 的 secret 欄位當 Authorization: Bearer；
+                                                 auth.type=oauth＋auth.oauth＝貼回網址的授權碼流程（packs/oauth.py）
+              "schema_tools": ["add-tasks"]                                              （stdio／http 都可以）schema 模式：
+                                                 這些工具的巢狀參數照 inputSchema 給 AI（只給 AI；packs/mcp_schema.py）；
+                                                 一定要是 tools_allow 裡的工具
+
+權限宣告（PERM-2；舊 pack 沒寫照舊相容，見 _check_scope）：
+
+      "surfaces": ["dm"] | ["dm", "channel"]     在哪裡能用；沒寫＝["dm"]（只能私訊：loader 加 private_only）
+      "data": "none" | "user" | "shared"          資料屬於誰；沒寫：python 有寫 storage＝user、沒寫＝none；
+                                                 cli 樣板用了 {user_data_dir}＝user、只用 {data_dir}＝shared、都沒有＝none；
+                                                 mcp stdio 照 mcp.argv／env／cwd 的樣板推（同 cli）；
+                                                 connector、只登記的 mcp＝none。第 2 關（scan.py）照它檢查程式；
+                                                 shared 的 WRITE／DANGER 指令在伺服器版只有管理員（loader）
+      trust（core｜third-party）不在 pack.json：安裝時擁有者在報告上選，寫進 packs.lock（lock.py）
 
 validate(raw, folder, strict=True) 是安裝時用的嚴格版（cli 的每個 command 一定要寫 effect）；
 載入時 strict=False：舊的 pack（沒寫 effect＝READ）照舊能用。v2 的 pack（有任何 v2 欄位）一律嚴格。
@@ -61,6 +83,8 @@ MAX_CHOICES = 50
 RESERVED_PLACEHOLDERS = ("python", "node", "pack_dir", "data_dir", "user_data_dir", "tg_id")
 V2_KEYS = ("capabilities", "publisher", "integrity", "mcp", "commands", "runtime", "env")
 ACCESS = ("owner", "member", "everyone")
+SURFACES = ("dm", "channel")
+DATA_SCOPES = ("none", "user", "shared")
 NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 GROUP_RE = re.compile(r"^[a-z][a-z0-9]{0,15}$")
 WEB_ROUTE_RE = re.compile(r"^GET /([a-z0-9][a-z0-9_-]{0,31})$")
@@ -69,8 +93,146 @@ SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 COMMAND_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 FIELD_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 ENV_NAME_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+MODULE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")              # python.module：pack 資料夾裡的 <名字>.py
 # requires.synox：一個或幾個（逗號分隔）條件，例如 ">=0.3"、">=0.3,<1.0"；只寫版本＝>=
 _SPEC_RE = re.compile(r"^\s*(>=|<=|==|!=|>|<)?\s*(\d+(?:\.\d+){0,2})\s*$")
+# {python} 一定要是 Python 直譯器（cli.python、runtime.python／python_posix 的檔名）：python、python3、python3.12、
+# pythonw、python3.13t、pypy3（可以有 .exe）。要叫別的程式就直接寫在 argv[0]（算 pack 外的程式、T2）
+PYTHON_NAME_RE = re.compile(r"^(python|pypy)(\d+(\.\d+)*)?[tw]?(\.exe)?$", re.IGNORECASE)
+# runtime.python 唯一收的 ..：「pack 旁邊的 venv」（跟 cli.python="venv" 一樣；金流簿 repo 的寫法）
+SIBLING_VENV_RE = re.compile(r"^\.\./\.?venv/(Scripts|bin)/[^/]+$")
+
+
+# 審查 C #C2：pack 寫的子程序環境變數（cli.env、最上層 env、mcp.env）不能用這些名字——它們會讓「合法的」直譯器
+# 在開始跑 pack 的程式之前，先載入 pack 外、沒鎖、沒掃過的程式碼（PYTHONPATH 的 sitecustomize.py／.pth、PYTHONHOME、
+# PYTHONSTARTUP、NODE_OPTIONS=--require、POSIX 的 PATH 換掉 argv[0] 找到的程式、LD_PRELOAD…）。
+# 不分大小寫（Windows 的環境變數名不分大小寫）。這是黑名單：擋常見的，不保證涵蓋每一種程式的每一個變數
+ENV_PYTHON_OK = ("PYTHONIOENCODING", "PYTHONUTF8", "PYTHONUNBUFFERED")
+ENV_BANNED = ("PATH", "PATHEXT", "SYSTEMROOT", "WINDIR", "COMSPEC", "NODE_OPTIONS", "NODE_PATH", "BASH_ENV", "ENV",
+              "PERL5LIB", "PERL5OPT", "PERLLIB", "RUBYLIB", "RUBYOPT", "PSMODULEPATH", "PHP_INI_SCAN_DIR",
+              "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "JDK_JAVA_OPTIONS", "DOTNET_STARTUP_HOOKS", "LUA_PATH", "LUA_CPATH",
+              "LUA_INIT", "GCONV_PATH")
+ENV_BANNED_PREFIXES = ("PYTHON", "LD_", "DYLD_", "PIP_", "NPM_CONFIG_", "COR_", "CORECLR_")
+# PYTHONPATH 只收 pack 自己的資料夾（或底下的子資料夾）：{pack_dir} 或 {pack_dir}/lib，不能有 ..、;、:
+PYTHONPATH_OK_RE = re.compile(r"^\{pack_dir\}(/[A-Za-z0-9_.-]+)*/?$")
+
+
+# 審查 C #C4：UNC／裝置路徑（\\主機\分享、//主機/分享、\\?\、\\.\、\??\）。Windows 碰到這種路徑（realpath、exists、
+# isfile…）就會用目前的帳號對那台主機發 SMB 連線（NetNTLM 雜湊外洩）——而第 1、2 關在安裝者按確認之前就會跑。
+# 只看字串，不碰檔案系統。一段字的開頭，或 = ; , 空白、引號後面出現 // 都算（--file=\\主機\x 也是）
+# argv 裡的字：//主機/分享（要有第二個 /，所以 cscript 的 //E:jscript、//B 這種選項不算）、//?/、//./、/??/
+_UNC_RE = re.compile(r"(^|[=;,\s\"'])(//[^/]+/|/\?\?/)")
+
+
+def unc_like(text, strict: bool = False) -> bool:
+    """這段字裡有沒有 UNC／裝置路徑（反斜線、正斜線都算）。只做字串判斷。
+    strict=True（一定是路徑的欄位：cli.python、cwd、skill…）：// 開頭就算（\\\\主機 沒有分享名也一樣不碰）。"""
+    plain = str(text).replace("\\", "/")
+    if strict and plain.lstrip().startswith(("//", "/??/")):
+        return True
+    return bool(_UNC_RE.search(plain))
+
+
+def _unc_strings(raw: dict):
+    """pack.json 裡第 1、2 關會拿去當路徑用的字串：yield (在哪, 值, strict)。strict＝這個欄位一定是路徑
+    （cli.python、runtime、cwd、skill、python.module、web.panel、integrity 的檔名）；argv、env 的值是「一段字」。"""
+    def items(label, value, strict):
+        if isinstance(value, str):
+            yield label, value, strict
+        elif isinstance(value, list):
+            for i, v in enumerate(value):
+                yield from items(f"{label}[{i}]", v, strict)
+        elif isinstance(value, dict):
+            for k, v in value.items():
+                yield from items(f"{label}.{k}", v, strict)
+
+    def obj(value) -> dict:
+        return value if isinstance(value, dict) else {}
+
+    cli, mcp, runtime = obj(raw.get("cli")), obj(raw.get("mcp")), obj(raw.get("runtime"))
+    yield from items("skill", raw.get("skill"), True)
+    yield from items("python.module", obj(raw.get("python")).get("module"), True)
+    yield from items("cli.python", cli.get("python"), True)
+    yield from items("cli.cwd", cli.get("cwd"), True)
+    yield from items("mcp.cwd", mcp.get("cwd"), True)
+    for key in ("python", "python_posix", "node"):
+        yield from items(f"runtime.{key}", runtime.get(key), True)
+    yield from items("runtime.container.dockerfile", obj(runtime.get("container")).get("dockerfile"), True)
+    yield from items("web.panel", obj(raw.get("web")).get("panel"), True)
+    for k in obj(obj(raw.get("integrity")).get("sha256")):
+        yield "integrity.sha256", str(k), True
+    yield from items("cli.argv", cli.get("argv"), False)
+    for i, c in enumerate(cli.get("commands") or raw.get("commands") or []):
+        if isinstance(c, dict):
+            yield from items(f"commands[{i}].argv", c.get("argv"), False)
+    yield from items("mcp.argv", mcp.get("argv"), False)
+    for label, env in (("env", raw.get("env")), ("cli.env", cli.get("env")), ("mcp.env", mcp.get("env"))):
+        yield from items(label, env, False)
+
+
+def unc_problems(raw: dict) -> List[str]:
+    """第 1 關最先跑（任何碰檔案系統的檢查之前）：pack.json 裡有 UNC／裝置路徑 → 每個一句理由。"""
+    return [f"{where} 不能用網路路徑或裝置路徑（\\\\主機\\…、//主機/…、\\\\?\\、\\\\.\\）：{value[:80]!r}"
+            "——光是檢查這種路徑，Windows 就會連到那台主機（審查 C #C4）"
+            for where, value, strict in _unc_strings(raw) if unc_like(value, strict=strict)]
+
+
+def env_name_problem(name, value=None) -> str:
+    """pack 寫的環境變數名（與值）能不能給子程序：""＝可以；否則一句理由（審查 C #C2）。"""
+    if not isinstance(name, str) or not ENV_NAME_RE.match(name):
+        return f"環境變數名字 {name!r} 只能用英數字和 _（不能以數字開頭）"
+    upper = name.upper()
+    if upper == "PYTHONPATH":
+        text = str(value or "").replace("\\", "/")
+        if PYTHONPATH_OK_RE.match(text) and ".." not in text.split("/"):
+            return ""
+        return ("PYTHONPATH 只能指到 pack 自己的資料夾（{pack_dir} 或 {pack_dir}/子資料夾）："
+                "指到別處，Python 啟動時會先載入那裡沒鎖、沒掃過的程式（sitecustomize.py、.pth）")
+    if upper in ENV_PYTHON_OK:
+        return ""
+    if upper in ENV_BANNED or upper.startswith(ENV_BANNED_PREFIXES):
+        return (f"環境變數 {name} 不能由 pack 設定：它會讓 Python／Node／系統在跑 pack 的程式之前，"
+                "先載入 pack 外、沒鎖、沒掃過的程式（或換掉要跑的程式）")
+    return ""
+
+
+def env_problems(label: str, env) -> List[str]:
+    """{名字: 字串} 的每一個鍵都過 env_name_problem；回不合的說明。"""
+    if not isinstance(env, dict):
+        return []
+    out = []
+    for k, v in env.items():
+        why = env_name_problem(k, v)
+        if why:
+            out.append(f"{label}.{k}：{why}")
+    return out
+
+
+def safe_env(env: Dict[str, str]) -> Dict[str, str]:
+    """防禦深度（loader／mcp 開子程序前）：pack 寫的環境變數裡 env_name_problem 不收的一律拿掉。"""
+    return {k: v for k, v in (env or {}).items() if not env_name_problem(k, v)}
+
+
+def python_path_problems(label: str, value, *, relative_ok: bool) -> List[str]:
+    """cli.python／runtime.python 的值：一定是 Python 直譯器的檔名、不准 ..（runtime 只收 ../.venv/…）。
+    relative_ok=False（cli.python）：一定要絕對路徑或 "venv"。"""
+    if not isinstance(value, str) or not value.strip():
+        return []                                         # 型別錯另外講
+    if value == "venv" and not relative_ok:
+        return []
+    if relative_ok and value == "auto":
+        return []
+    plain = value.replace("\\", "/")
+    out = []
+    if not relative_ok and not os.path.isabs(value):
+        return ['cli.python 只能是絕對路徑或 "venv"（沒寫＝SYNOX 自己的 Python）']
+    if ".." in plain.split("/") and not (relative_ok and SIBLING_VENV_RE.match(plain)):
+        out.append(f"{label} 不能用 .. 跑出 pack 資料夾（{value!r}；"
+                   "只收 ../.venv/Scripts/python.exe 這種「pack 旁邊的 venv」，會算 pack 外的程式、T2）")
+    if not PYTHON_NAME_RE.match(plain.rsplit("/", 1)[-1]):
+        out.append(f"{label} 要指到 Python 直譯器（檔名是 python…／pypy…，現在是 {value!r}）；"
+                   "要叫別的程式請直接寫在 argv 的第一段（會算 pack 外的程式、T2，要輸入 publisher 才裝）")
+    return out
 
 
 class ManifestError(ValueError):
@@ -104,6 +266,16 @@ class Manifest:
     auth_info: dict = field(default_factory=dict)            # {"type": …, "fields": …}（v0 的字串也轉成這個）
     mcp: dict = field(default_factory=dict)
     runtime: dict = field(default_factory=dict)              # {"python": 相對路徑, "python_posix": …}
+    # ── 權限宣告（PERM-2） ──
+    surfaces: List[str] = field(default_factory=lambda: ["dm"])   # ["dm"]｜["dm", "channel"]
+    surfaces_declared: bool = False
+    data: str = "none"                                        # none｜user｜shared（沒寫照 default_data 推）
+    data_declared: bool = False
+
+    @property
+    def channel_ok(self) -> bool:
+        """宣告可以在頻道（群組）裡用。"""
+        return "channel" in self.surfaces
 
     @property
     def skill_path(self) -> str:
@@ -116,6 +288,26 @@ class Manifest:
     @property
     def commands(self) -> List[dict]:
         return list(self.cli.get("commands") or [])
+
+    @property
+    def mcp_stdio(self) -> bool:
+        """kind=mcp 而且 mcp.transport=stdio：真的會連（packs/mcp.py）。"""
+        return self.kind == "mcp" and (self.mcp or {}).get("transport") == "stdio"
+
+    @property
+    def mcp_http(self) -> bool:
+        """kind=mcp 而且 mcp.transport=http：遠端 MCP，真的會連（packs/mcp_http.py，P4b）。"""
+        return self.kind == "mcp" and (self.mcp or {}).get("transport") == "http"
+
+    @property
+    def mcp_connected(self) -> bool:
+        """kind=mcp 而且真的會連（stdio 或 http）。"""
+        return self.mcp_stdio or self.mcp_http
+
+    @property
+    def registered_only(self) -> bool:
+        """只登記、不連的：connector，與沒有 transport 的 mcp（只寫 url）。"""
+        return self.kind == "connector" or (self.kind == "mcp" and not self.mcp_connected)
 
     def allows(self, capability: str) -> bool:
         """宣告了這個能力嗎（filesystem:any 包含 filesystem:own）。"""
@@ -194,6 +386,9 @@ def _check_commands(commands, strict: bool, problems: List[str]) -> List[dict]:
             problems.append(f"{where} 的 effect 只能是 READ、WRITE 或 DANGER")
         elif not effect and strict:
             problems.append(f"{where} 沒寫 effect（READ、WRITE 或 DANGER，一定要寫）")
+        for flag in ("ai", "confirm"):                    # ai: false＝不給 AI；confirm: true＝AI 呼叫前先送確認卡
+            if flag in c and not isinstance(c[flag], bool):
+                problems.append(f"{where} 的 {flag} 要是 true 或 false")
         fields = c.get("fields") or []
         if not isinstance(fields, list):
             problems.append(f"{where} 的 fields 要是清單")
@@ -269,6 +464,8 @@ def _check_auth_fields(auth: dict, problems: List[str]) -> None:
                 problems.append(f"auth.fields 的 {name}.env 要是環境變數名字（英數字、_）")
             elif env.upper() in envs:
                 problems.append(f"auth.fields 的 env {env} 重複了")
+            elif env_name_problem(env, "x"):
+                problems.append(f"auth.fields 的 {name}.env：{env_name_problem(env, 'x')}")
             else:
                 envs.add(env.upper())
         if f.get("kind") is not None and f.get("kind") not in ("text", "file"):
@@ -279,6 +476,141 @@ def _check_auth_fields(auth: dict, problems: List[str]) -> None:
         for text in ("label", "ask", "help"):
             if f.get(text) is not None and (not isinstance(f.get(text), str) or len(f[text]) > 200):
                 problems.append(f"auth.fields 的 {name}.{text} 要是 200 字內的字串")
+
+
+MCP_TRANSPORTS = ("stdio", "http")
+OAUTH_RECEIVERS = ("paste", "loopback")
+
+
+def check_https_url(url, label: str, problems: List[str]) -> str:
+    """遠端 MCP 用的網址：一定是 https、有主機、不帶帳密（user:pass@）、不帶 #、沒有 {樣板}。回主機（小寫，含埠）。"""
+    from urllib.parse import urlsplit
+    if not isinstance(url, str) or not url.strip():
+        problems.append(f"{label} 要是網址（https://…）")
+        return ""
+    if any(c in url for c in "{} \t\r\n"):
+        problems.append(f"{label} 不能有空白或 {{樣板}}（要寫死一個網址）")
+        return ""
+    try:
+        parts = urlsplit(url)
+        port = parts.port
+    except ValueError:
+        problems.append(f"{label} 看不懂：{url[:80]}")
+        return ""
+    if parts.scheme != "https":
+        problems.append(f"{label} 一定要是 https://（現在是 {parts.scheme or '沒寫'}://；不收明文 http，token 會被看到）")
+        return ""
+    if not parts.hostname:
+        problems.append(f"{label} 沒有主機名稱")
+        return ""
+    if parts.username is not None or parts.password is not None:
+        problems.append(f"{label} 不能把帳號密碼寫在網址裡（user:pass@）；token 用 auth.fields，SYNOX 會放在 Authorization 標頭")
+        return ""
+    if parts.fragment:
+        problems.append(f"{label} 不能有 #…")
+        return ""
+    return parts.hostname.lower() + (f":{port}" if port else "")
+
+
+def _check_mcp_http(mcp: dict, caps: List[str], auth: dict, problems: List[str]) -> None:
+    """transport=http（P4b，packs/mcp_http.py）：url 一定 https；capabilities 要有 network；沒有程式、沒有 argv。
+    auth.type=token：auth.fields 的一個 secret 欄位當 Bearer（mcp.bearer 指定，沒寫＝第一個 secret 欄位）；
+    auth.type=oauth：auth.oauth 的授權碼流程（貼回網址，預設 receiver=paste；loopback 只有介面，執行時拒）。"""
+    check_https_url(mcp.get("url"), "mcp.url", problems)
+    for key in ("argv", "env", "cwd", "start_timeout"):
+        if key in mcp:
+            problems.append(f"mcp.transport 是 http 就不要寫 mcp.{key}（遠端 MCP 沒有子程序）")
+    if "headers" in mcp:
+        problems.append("mcp.headers 不收：遠端 MCP 只送 SYNOX 自己的標頭，token 用 auth.fields")
+    value = mcp.get("timeout")
+    if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value <= 3600):
+        problems.append("mcp.timeout 要是 1～3600 的秒數")
+    if "network" not in caps:
+        problems.append("mcp.transport 是 http：SYNOX 會連到 mcp.url，capabilities 一定要宣告 network")
+    if "subprocess" in caps or "exec" in caps or "filesystem:any" in caps:
+        problems.append("mcp.transport 是 http 沒有程式在這台跑：capabilities 只要 network（不要 subprocess、exec、filesystem:any）")
+    kind = auth.get("type", "none")
+    if kind not in ("none", "token", "oauth"):
+        problems.append("mcp.transport 是 http：auth.type 只能是 none、token 或 oauth")
+    secret_names = [f.get("name") if isinstance(f, dict) else f for f in auth.get("fields") or []
+                    if (isinstance(f, dict) and f.get("secret")) or isinstance(f, str)]
+    bearer = mcp.get("bearer")
+    if bearer is not None and kind != "token":
+        problems.append("mcp.bearer 只給 auth.type=token 用")
+    if kind == "token":
+        if not secret_names:
+            problems.append("auth.type 是 token：auth.fields 要有一個 secret 欄位（它的值會當 Authorization: Bearer 送出）")
+        elif bearer is not None and bearer not in secret_names:
+            problems.append(f"mcp.bearer 要是 auth.fields 裡的一個 secret 欄位（{'、'.join(map(str, secret_names))}）")
+    oauth = auth.get("oauth")
+    if kind == "oauth":
+        if not isinstance(oauth, dict):
+            problems.append('auth.type 是 oauth：要寫 auth.oauth（{"authorize_url", "token_url", "client_id", "scope"}）')
+            return
+        for key in ("authorize_url", "token_url"):
+            check_https_url(oauth.get(key), f"auth.oauth.{key}", problems)
+        if not isinstance(oauth.get("client_id"), str) or not oauth["client_id"].strip():
+            problems.append("auth.oauth.client_id 要寫（事先在服務那邊登記的 public client）")
+        if oauth.get("scope") is not None and not isinstance(oauth.get("scope"), str):
+            problems.append("auth.oauth.scope 要是字串（空白分隔）")
+        if oauth.get("receiver", "paste") not in OAUTH_RECEIVERS:
+            problems.append(f"auth.oauth.receiver 只能是 {'、'.join(OAUTH_RECEIVERS)}（沒寫＝paste：使用者把網址列貼回來）")
+        redirect = oauth.get("redirect_uri")
+        if redirect is not None and (not isinstance(redirect, str) or
+                                     not re.match(r"^http://(127\.0\.0\.1|localhost)(:\d{1,5})?/", redirect)):
+            problems.append("auth.oauth.redirect_uri 只能是 http://127.0.0.1:<埠>/…（SYNOX 不開埠；瀏覽器轉過去打不開，使用者把網址貼回來）")
+    elif oauth is not None:
+        problems.append("auth.oauth 只給 auth.type=oauth 用")
+
+
+def _check_mcp_transport(mcp: dict, caps: List[str], problems: List[str], auth: Optional[dict] = None) -> None:
+    """mcp.transport：沒寫＝只登記（舊的寫法，只收 url）；"stdio"＝SYNOX 開一個子程序講 MCP（packs/mcp.py）；
+    "http"＝遠端 MCP（Streamable HTTP，packs/mcp_http.py，_check_mcp_http）。
+    stdio 要 argv（字串清單，代換同 cli）、capabilities 要有 subprocess；env／cwd／timeout／start_timeout 選填。"""
+    transport = mcp.get("transport")
+    if transport is None:
+        return
+    if transport not in MCP_TRANSPORTS:
+        problems.append(f"mcp.transport 只能是 {'、'.join(MCP_TRANSPORTS)}（沒寫＝只登記、不連）")
+        return
+    if transport == "http":
+        _check_mcp_http(mcp, caps, auth or {}, problems)
+        return
+    argv = mcp.get("argv")
+    if not isinstance(argv, list) or not argv or not all(isinstance(a, str) and a for a in argv):
+        problems.append("mcp.transport 是 stdio 要寫 mcp.argv（啟動 MCP 伺服器的命令列，字串清單，例如 [\"{python}\", \"./server.py\"]）")
+    if mcp.get("url"):
+        problems.append("mcp.transport 是 stdio 就不要寫 mcp.url（兩種連法只能選一種）")
+    env = mcp.get("env")
+    if env is not None and (not isinstance(env, dict) or
+                            not all(isinstance(k, str) and ENV_NAME_RE.match(k) and isinstance(v, str)
+                                    for k, v in env.items())):
+        problems.append("mcp.env 要是 {環境變數名字: 字串}")
+    else:
+        problems += env_problems("mcp.env", env)
+    if mcp.get("cwd") is not None and not isinstance(mcp.get("cwd"), str):
+        problems.append("mcp.cwd 要是字串（相對於 pack 資料夾）")
+    for key in ("timeout", "start_timeout"):
+        value = mcp.get(key)
+        if value is not None and (isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 < value <= 3600):
+            problems.append(f"mcp.{key} 要是 1～3600 的秒數")
+    if "subprocess" not in caps:
+        problems.append("mcp.transport 是 stdio：SYNOX 會開一個子程序跑 MCP 伺服器，capabilities 一定要宣告 subprocess")
+
+
+def mcp_templates(mcp: dict) -> List[tuple]:
+    """kind=mcp stdio 會被代換的樣板：[(在哪, 字串)…]（mcp.argv、mcp.env、mcp.cwd）。"""
+    out: List[tuple] = []
+    if not isinstance(mcp, dict):
+        return out
+    for i, token in enumerate(mcp.get("argv") or []):
+        out.append((f"mcp.argv[{i}]", str(token)))
+    env = mcp.get("env") or {}
+    if isinstance(env, dict):
+        out += [(f"mcp.env.{k}", str(v)) for k, v in env.items()]
+    if isinstance(mcp.get("cwd"), str):
+        out.append(("mcp.cwd", mcp["cwd"]))
+    return out
 
 
 def _check_v2(raw: dict, kind, problems: List[str]) -> dict:
@@ -341,6 +673,16 @@ def _check_v2(raw: dict, kind, problems: List[str]) -> dict:
         if missing:
             problems.append(f"mcp.effects 沒寫這些工具的 effect：{'、'.join(missing)}（每個允許的工具都要寫）")
         mcp = {**mcp, "tools_allow": list(allow), "effects": {t: norm_effect(effects.get(t)) for t in allow}}
+        nested = mcp.get("schema_tools")
+        if nested is not None:
+            if not isinstance(nested, list) or not all(isinstance(t, str) and t for t in nested):
+                problems.append("mcp.schema_tools 要是工具名清單（這些工具的巢狀參數照 inputSchema 給 AI）")
+            else:
+                outside = [t for t in nested if t not in allow]
+                if outside:
+                    problems.append(f"mcp.schema_tools 只能列 tools_allow 裡的工具（{'、'.join(outside)} 不在裡面）")
+                mcp["schema_tools"] = [t for t in dict.fromkeys(nested) if t in allow]
+        _check_mcp_transport(mcp, caps, problems, auth_info)
     return {"capabilities": caps, "capabilities_declared": caps_raw is not None, "publisher": publisher,
             "integrity": integrity, "auth_info": auth_info, "mcp": mcp}
 
@@ -416,6 +758,82 @@ def _check_requires(requires: dict, problems: List[str]) -> None:
             problems.append(str(e))
 
 
+# ── 權限宣告：surfaces、data（PERM-2） ─────────────────────────────────
+
+def cli_templates(cli: dict) -> List[tuple]:
+    """kind=cli 會被代換的每一段樣板：[(在哪, 字串)…]（cli.argv、cli.env（已含最上層 env）、cli.cwd、
+    commands[].argv、commands[].stdin）。"""
+    out: List[tuple] = []
+    for i, token in enumerate(cli.get("argv") or []):
+        out.append((f"cli.argv[{i}]", str(token)))
+    env = cli.get("env") or {}
+    if isinstance(env, dict):
+        out += [(f"env.{k}", str(v)) for k, v in env.items()]
+    if isinstance(cli.get("cwd"), str):
+        out.append(("cli.cwd", cli["cwd"]))
+    for c in cli.get("commands") or []:
+        if not isinstance(c, dict):
+            continue
+        name = c.get("name")
+        out += [(f"command {name} argv[{i}]", str(t)) for i, t in enumerate(c.get("argv") or [])]
+        if isinstance(c.get("stdin"), str):
+            out.append((f"command {name} stdin", c["stdin"]))
+    return out
+
+
+def default_data(raw: dict, kind, cli: dict) -> str:
+    """沒寫 data 時的預設：python 有寫 storage＝user（沒寫＝none）；cli 樣板用了 {user_data_dir}＝user、
+    只用 {data_dir}＝shared、都沒有＝none（兩個都用＝user，第 2 關會要作者明寫 shared）；其他＝none。"""
+    if kind == "python":
+        return "user" if "storage" in raw else "none"
+    if kind in ("cli", "mcp"):
+        texts = [t for _w, t in (cli_templates(cli) if kind == "cli" else mcp_templates(raw.get("mcp") or {}))]
+        if any("{user_data_dir}" in t for t in texts):
+            return "user"
+        if any("{data_dir}" in t for t in texts):
+            return "shared"
+    return "none"
+
+
+def _check_scope(raw: dict, kind, cli: dict, problems: List[str]) -> dict:
+    """surfaces（["dm"]｜["dm", "channel"]，沒寫＝["dm"]）、data（none｜user｜shared，沒寫照 default_data）。"""
+    surfaces_raw = raw.get("surfaces")
+    surfaces = ["dm"]
+    if surfaces_raw is not None:
+        if not isinstance(surfaces_raw, list) or not surfaces_raw or \
+                not all(isinstance(s, str) for s in surfaces_raw):
+            problems.append('surfaces 要是清單：["dm"] 或 ["dm", "channel"]')
+        else:
+            bad = [s for s in surfaces_raw if s not in SURFACES]
+            if bad:
+                problems.append(f"surfaces 不認得 {'、'.join(bad)}（只能是 dm、channel）")
+            elif "dm" not in surfaces_raw:
+                problems.append('surfaces 一定要有 "dm"（["dm"] 或 ["dm", "channel"]）')
+            elif len(set(surfaces_raw)) != len(surfaces_raw):
+                problems.append("surfaces 有重複")
+            else:
+                surfaces = [s for s in SURFACES if s in surfaces_raw]
+    data_raw = raw.get("data")
+    if data_raw is None:
+        data = default_data(raw, kind, cli)
+    elif data_raw not in DATA_SCOPES:
+        problems.append("data 只能是 none、user 或 shared")
+        data = "none"
+    else:
+        data = data_raw
+    if "channel" in surfaces and data == "user":
+        hint = "" if data_raw is not None else f"（沒寫 data，照預設推成 user：{_data_hint(kind)}）"
+        problems.append('surfaces 有 "channel" 但 data 是 user：每個人自己的資料不能在頻道裡用'
+                        f'（要嘛拿掉 channel，要嘛資料不是個人的就寫 "data": "shared" 或 "none"）{hint}')
+    return {"surfaces": surfaces, "surfaces_declared": surfaces_raw is not None,
+            "data": data, "data_declared": data_raw is not None}
+
+
+def _data_hint(kind) -> str:
+    return {"python": "python pack 寫了 storage", "cli": "cli 樣板用了 {user_data_dir}",
+            "mcp": "mcp 樣板用了 {user_data_dir}"}.get(kind, "")
+
+
 def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     """raw（pack.json 的內容）→ Manifest；不合就丟 ManifestError（訊息說哪裡不對）。
 
@@ -423,6 +841,9 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     problems: List[str] = []
     if not isinstance(raw, dict):
         raise ManifestError("pack.json 最外層要是 {…} 物件")
+    unc = unc_problems(raw)                    # 審查 C #C4：在任何 isfile／realpath 之前
+    if unc:
+        raise ManifestError("；".join(unc[:5]))
     for key in ("name", "title", "summary", "version", "kind"):
         if not isinstance(raw.get(key), str) or not raw.get(key).strip():
             problems.append(f"少了 {key}")
@@ -445,11 +866,17 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     if storage not in ("vault", "plain"):
         problems.append("storage 只能是 vault 或 plain")
     skill = raw.get("skill", "SKILL.md")
-    if not isinstance(skill, str) or not os.path.isfile(os.path.join(folder, skill)):
+    if not isinstance(skill, str) or os.path.isabs(skill) or re.match(r"^[A-Za-z]:", skill) or \
+            ".." in skill.replace("\\", "/").split("/"):
+        problems.append(f"skill 要是 pack 資料夾裡的檔（相對路徑、不能有 ..）：{skill!r}")
+    elif not os.path.isfile(os.path.join(folder, skill)):
         problems.append(f"找不到 skill 檔 {skill}")
     if kind == "python":
         module = (raw.get("python") or {}).get("module", "pack")
-        if not os.path.isfile(os.path.join(folder, f"{module}.py")):
+        if not isinstance(module, str) or not MODULE_RE.match(module):
+            # 審查 C：以前 "../x" 會讓 loader 執行 pack 外的 x.py（第 2 關沒掃、鎖裡沒有）
+            problems.append(f"python.module 要是 pack 資料夾裡的模組名字（英數字、_；不能有路徑）：{module!r}")
+        elif not os.path.isfile(os.path.join(folder, f"{module}.py")):
             problems.append(f"kind=python 但找不到 {module}.py")
     v2 = any(k in raw for k in V2_KEYS) or isinstance(raw.get("auth"), dict)
     cli = raw.get("cli") or {}
@@ -467,18 +894,23 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
             problems.append("kind=cli 要有 cli.commands（至少一個子指令）")
         else:
             cli["commands"] = _check_commands(cli["commands"], strict or v2, problems)
-        python = cli.get("python")
-        if python is not None and (not isinstance(python, str) or
-                                   not (python == "venv" or os.path.isabs(python))):
-            problems.append('cli.python 只能是絕對路徑或 "venv"（沒寫＝SYNOX 自己的 Python）')
         env = cli.get("env") or {}
         top_env = raw.get("env") or {}
         for label, value in (("cli.env", env), ("env", top_env)):
             if not isinstance(value, dict) or \
                     not all(isinstance(k, str) and isinstance(v, str) for k, v in value.items()):
                 problems.append(f"{label} 要是 {{名字: 字串}}")
+            else:
+                problems += env_problems(label, value)          # 審查 C #C2：PYTHONPATH、NODE_OPTIONS、PATH…
         if isinstance(env, dict) and isinstance(top_env, dict):
             cli["env"] = {**top_env, **env}             # 最上層的 env（金流簿的寫法）＋ cli.env，cli.env 優先
+    # cli.python 不管 kind 都檢查：loader 代換 {python} 時 mcp stdio 也讀它（envs.python_target）
+    python = cli.get("python")
+    if python is not None and (not isinstance(python, str) or
+                               not (python == "venv" or os.path.isabs(python))):
+        problems.append('cli.python 只能是絕對路徑或 "venv"（沒寫＝SYNOX 自己的 Python）')
+    elif python is not None:
+        problems += python_path_problems("cli.python", python, relative_ok=False)
     runtime = raw.get("runtime") or {}
     if not isinstance(runtime, dict):
         problems.append("runtime 要是物件")
@@ -486,6 +918,8 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     for key in ("python", "python_posix", "node"):
         if key in runtime and (not isinstance(runtime[key], str) or not runtime[key].strip()):
             problems.append(f"runtime.{key} 要是路徑（相對於 pack 資料夾，或絕對路徑）或 \"auto\"")
+        elif key in runtime and key != "node":
+            problems += python_path_problems(f"runtime.{key}", runtime[key], relative_ok=True)
     auto_py = any(runtime.get(k) == "auto" for k in ("python", "python_posix"))
     if (auto_py or "node" in runtime) and kind != "cli":
         problems.append("runtime.python=auto 和 runtime.node 只給 kind=cli 用")
@@ -501,6 +935,15 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
             problems.append("runtime.node 是 auto，pack 裡要有 " + "、".join(missing)
                             + "（用 npm ci 照 package-lock.json 裝，版本固定）")
     extra = _check_v2(raw, kind, problems)
+    extra.update(_check_scope(raw, kind, cli, problems))
+    container = None
+    if "container" in runtime:                 # S0：runtime.container（packs/container.py；第 1 關）
+        from synox.packs import container as pack_container
+        container, why = pack_container.check(
+            runtime.get("container"), kind=kind, capabilities=extra["capabilities"], folder=folder,
+            mcp_stdio=kind == "mcp" and (extra.get("mcp") or {}).get("transport") == "stdio",
+            secret_names=_declared_secret_names(raw))
+        problems += why
     requires = raw.get("requires") or {}
     if not isinstance(requires, dict):
         problems.append("requires 要是物件")
@@ -516,7 +959,21 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
                     folder=folder, group=group, access=access, skill=skill, storage=storage,
                     python=dict(raw.get("python") or {}), cli=cli, auth="" if auth_type == "none" else auth_type,
                     requires=dict(requires), web=web, raw=dict(raw), v2=v2,
-                    runtime={k: v for k, v in runtime.items() if k in ("python", "python_posix", "node")}, **extra)
+                    runtime={**{k: v for k, v in runtime.items() if k in ("python", "python_posix", "node")},
+                             **({"container": container} if container else {})}, **extra)
+
+
+def _declared_secret_names(raw: dict) -> List[str]:
+    """requires.env＋auth.fields[].env 的名字（還沒有 Manifest 時用；跟 secret_env_names 同一份規則）。"""
+    names: List[str] = []
+    requires = raw.get("requires") if isinstance(raw.get("requires"), dict) else {}
+    env = requires.get("env") or {}
+    names += [k for k in (env if isinstance(env, (dict, list)) else []) if isinstance(k, str)]
+    auth = raw.get("auth") if isinstance(raw.get("auth"), dict) else {}
+    for f in auth.get("fields") or []:
+        if isinstance(f, dict) and isinstance(f.get("env"), str):
+            names.append(f["env"])
+    return [n for n in dict.fromkeys(names) if ENV_NAME_RE.match(n)]
 
 
 def read(folder: str, strict: bool = False) -> Manifest:

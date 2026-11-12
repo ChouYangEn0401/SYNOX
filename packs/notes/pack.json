@@ -6,6 +6,8 @@
   "kind": "python",
   "group": "note",
   "access": "member",
+  "surfaces": ["dm"],
+  "data": "user",
   "order": 10,
   "python": { "module": "pack" },
   "requires": { "pip": [], "config": [], "env": {} },

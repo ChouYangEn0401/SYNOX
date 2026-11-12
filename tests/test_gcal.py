@@ -18,7 +18,7 @@ from synox.packs import loader, manifest, scan
 FOLDER = os.path.join(loader.PACK_DIRS[1], "google-calendar")
 TZ = timezone(timedelta(hours=8))
 CID = "1234567890-abcdefg.apps.googleusercontent.com"
-SECRET = "GOCSPX-fake_secret_value_123"
+SECRET = "GOCSPX-fake_secret_value_123"  # prepublish-check: allow (fake test value)
 REFRESH = "1//0refresh-token-SECRET-xyz"
 ACCESS = "ya29.access-token-ABC"
 API = "https://www.googleapis.com/calendar/v3"

@@ -4,26 +4,40 @@
   kind=python     import 資料夾裡的 pack.py，呼叫 install(app, pack)
   kind=cli        pack.json 的 cli.argv＋cli.commands → isdtelekit.packs.service.install（會印 JSON 的命令列程式）
   kind=connector  只登記：一個群組、一個葉節點，說「還沒接上」（v0 不連外）
-  kind=mcp        同上（pack.json v2；tools_allow／effects 已宣告，這一版不連）
+  kind=mcp        mcp.transport=stdio：packs/mcp.py（每個 (pack, 使用者) 一個長駐 MCP 子程序，tools_allow 的工具＝葉節點，
+                  effect 只看 pack.json）；mcp.transport=http：遠端 MCP（packs/mcp_http.py，同一套工具→葉節點）；
+                  沒寫 transport（只有 url）＝同 connector，只登記
 
 安全管線（架構 v1 §4）在載入時做的是第 3 關：packs.lock 有記的 pack 每個檔重算 sha256，不符＝不載入
 （tampered）、通知擁有者一次；沒鎖的照舊載入（報告標 unlocked）。第 1、2 關在安裝時（packs/admin.py）。
-kind=cli 的 argv／env／cwd 樣板代換 {python}、{node}、{pack_dir}、{data_dir}、{user_data_dir}、{tg_id}（每次呼叫照下令的人）。
+kind=cli 的 argv／env／cwd 樣板代換 {python}、{node}、{pack_dir}、{data_dir}、{user_data_dir}、{tg_id}（每次呼叫照下令的人）；
+子程序另外拿到 SYNOX_USER_DATA_DIR／SYNOX_TG_ID／SYNOX_MODE／SYNOX_PACK_DIR／SYNOX_PACK_NAME／SYNOX_SECRET_ENV（context_env，給 synox_sdk）。
 runtime.python／node = "auto" 的環境在安裝時建（packs/envs.py）；沒建好＝status missing、detail 說怎麼重建。
+每次叫 cli 子程序都先過 synox/sandbox.py（PERM-7）：grants 從宣告算、後端包一層 argv（none＝原樣）；
+pack 有 runtime.container、擁有者選了容器、這台找得到引擎 → sandbox.box_for 給容器後端，代換改用容器裡的路徑（view_for）；
+伺服器版 policy.sandbox.required_for 命中又沒有真隔離 → 那個 cli pack 整組 owner_only（detail 寫原因）。
+伺服器版 kind=python 的信任（PERM-8）：出廠的（BUNDLED）＝core；有鎖看 packs.lock 的 trust；沒鎖（手動放的）＝third-party。
+third-party 的 python pack 整組 owner_only（成員打了跟不存在一樣、AI 工具清單也沒有；detail 寫原因）。
+伺服器版沒鎖、不是出廠的 pack 載入前補跑一次第 2 關（scan.gate2），沒過＝status rejected、不載入。
 
 群組（/help 的一頁）由 loader 依 pack.json 定義（title、summary、access），pack 只往裡面掛葉節點；
 access=owner（預設）＝整組只有機器擁有者看得到、用得到（別人打了跟不存在一樣）；
 access=member＝伺服器版給「成員」以上（擁有者用 /user_role 升級），個人版等於 owner；
 access=everyone＝任何傳訊息給 bot 的人（伺服器版的訪客 GUEST 只看得到這種）。
+再套角色的能力上限（config.json policy.roles，synox/policy.py）：pack.json 的 capabilities 裝不下某一級的上限，
+那一級（以下）整組看不到；exec、filesystem:any 只有擁有者（pack_group_policy）。
 一個 pack 壞掉（pack.json 不合、install 丟例外）只跳過那一個，記在 LoadReport，doctor 會印出來。
 pack 拿到的 Pack 物件：.manifest、.store（storage=vault → 密文 data/<name>.json.enc；plain → data/<name>.json）、
-.path(...)（data/packs/<name>/... 給 pack 自己的檔案）、.group（指令群組的 Group handle）。
+.path(...)（data/packs/<name>/... 全部人共用的檔案；伺服器版 data=user 的 pack 呼叫會丟 PackPathError）、
+.path_of(user, ...)（這個人自己的檔案：伺服器版 data/users/<id>/<name>/files/，個人版 data/<name>/files/；擋 .. 逃逸）、
+.group（指令群組的 Group handle）。
 **每個人自己的資料用 pack.store.of(user)**：個人版回同一份共用檔；伺服器版回這個人自己的
 data/users/<tg_id>/<name>.json(.enc)（vault 的金鑰由主金鑰＋id 用 HKDF 衍生，別人的檔解不開）。
 """
 
 from __future__ import annotations
 
+import dataclasses
 import hashlib
 import importlib.util
 import logging
@@ -37,11 +51,13 @@ from typing import Any, Callable, Dict, List, Optional
 from isdtelekit.core import jsonstore
 from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 
+from synox import policy, sandbox
 from synox.config import ROOT
 from synox.packs import envs, kit, render
+from synox.packs import confirm as tool_confirm
 from synox.packs import secrets as pack_secrets
 from synox.packs import lock as pack_lock
-from synox.packs.manifest import (Manifest, ManifestError, missing_requirements, read, secret_env_names,
+from synox.packs.manifest import (Manifest, ManifestError, missing_requirements, read, safe_env, secret_env_names,
                                   synox_problem)
 from synox.vault.vault import USERS_DIR
 
@@ -121,6 +137,16 @@ class Pack:
     cli_bridge: Any = field(repr=False, default=None)                       # kind=cli：ServiceBridge（測試用 wait()）
     secret_fields: List[dict] = field(default_factory=list, repr=False)     # auth.fields（SYNOX 收的那些；見 packs/secrets.py）
     secrets: Any = field(repr=False, default=None)                          # PackSecrets（保管箱的 pack_secrets）
+    live: Any = field(repr=False, default=None)                             # lock.LiveCheck（有鎖時；每次叫 cli 前再對一次）
+
+    def tampered_since_load(self) -> List[str]:
+        """載入之後檔案被改過嗎（審查 B #D）：有鎖的 pack 每次叫 cli／開 mcp stdio 子程序之前問；[]＝對得上（或沒鎖）。"""
+        if self.live is None:
+            return []
+        try:
+            return self.live.changes()
+        except Exception as e:                   # 對不了就不能說它沒被改
+            return [f"檢查失敗：{type(e).__name__}: {e}"]
 
     def secret(self, name: str, user=None) -> Optional[str]:
         """使用者在 Web UI「連接」填的值（pack.json auth.fields 的 name）；沒填回 None。
@@ -147,21 +173,75 @@ class Pack:
     def group(self):
         return self.app.registry.group(self.manifest.group)
 
+    @property
+    def server(self) -> bool:
+        return getattr(self.config if self.config is not None else getattr(self.app, "config", None),
+                       "mode", "personal") == "server"
+
     def path(self, *parts: str) -> str:
+        """data/packs/<name>/...：**全部人共用**的檔案（data=shared／none 的 pack 用）。
+        伺服器版 data=user 的 pack 呼叫會丟 PackPathError（那是跨戶的同一個資料夾）——改用 path_of(user, ...)。
+        個人版照舊可以用（相容）。"""
+        if self.server and getattr(self.manifest, "data", "none") == "user":
+            raise PackPathError(
+                f"{self.name}：data 是 user 的 pack 在伺服器版不能用 pack.path()（data/packs/{self.name}/ 是全部人共用的，"
+                f"會讀到別人的檔案）。改用 pack.path_of(user, ...)：每個人自己的 data/users/<id>/{self.name}/files/。")
         folder = os.path.join(self.data_dir, "packs", self.manifest.name)
         os.makedirs(folder, exist_ok=True)
-        return os.path.join(folder, *parts)
+        return _inside(folder, parts, "pack.path")
+
+    def path_of(self, user, *parts: str) -> str:
+        """這個人自己的檔案：伺服器版 data/users/<tg_id>/<name>/files/...；個人版 data/<name>/files/...。
+        資料夾會先建好；parts 是相對路徑（不准絕對路徑、不准用 .. 跑出這個資料夾，丟 PackPathError）。
+        user：有 tg_id 的使用者物件或 int；伺服器版一定要給（不給丟 PackPathError，不會拿到別人的）。"""
+        tg_id = user if isinstance(user, int) and not isinstance(user, bool) else getattr(user, "tg_id", None)
+        if isinstance(tg_id, bool) or not isinstance(tg_id, int):
+            if self.server:
+                raise PackPathError(f"{self.name}：pack.path_of(user, ...) 要給下令的人（有整數 tg_id 的使用者）")
+            tg_id = None
+        if self.server:
+            base = os.path.join(self.data_dir, USERS_DIR, str(tg_id))
+        else:
+            base = self.data_dir
+        folder = os.path.join(base, self.manifest.name, "files")
+        os.makedirs(folder, exist_ok=True)
+        return _inside(folder, parts, "pack.path_of")
+
+
+class PackPathError(ValueError):
+    """pack.path()／pack.path_of() 用錯：伺服器版 data=user 用了共用資料夾，或路徑想跑出 pack 自己的資料夾。"""
+
+
+def _inside(folder: str, parts, what: str) -> str:
+    """folder／parts…，但一定還在 folder 裡面（絕對路徑、..、磁碟機代號、連結跑出去都擋）。"""
+    for part in parts:
+        if not isinstance(part, str):
+            raise PackPathError(f"{what}：路徑每一段都要是字串（拿到 {type(part).__name__}）")
+        if os.path.isabs(part) or os.path.splitdrive(part)[0] or part.startswith(("/", "\\")):
+            raise PackPathError(f"{what}：不能用絕對路徑（{part!r}）")
+    target = os.path.normpath(os.path.join(folder, *parts))
+    root_real = os.path.realpath(folder)
+    target_real = os.path.realpath(target)
+    try:
+        inside = os.path.commonpath([os.path.normcase(root_real), os.path.normcase(target_real)]) == \
+            os.path.normcase(root_real)
+    except ValueError:                      # 不同磁碟機
+        inside = False
+    if not inside:
+        raise PackPathError(f"{what}：路徑跑出 pack 自己的資料夾了（{os.path.join(*parts) if parts else ''!r}）")
+    return target
 
 
 @dataclass
 class PackStatus:
     name: str
     folder: str
-    status: str                 # loaded｜connector｜disabled｜invalid｜missing｜incompatible｜error｜tampered
+    status: str                 # loaded｜connector｜disabled｜invalid｜missing｜incompatible｜error｜tampered｜rejected
     detail: str = ""
     kind: str = ""
     version: str = ""
     lock: str = ""              # locked｜unlocked｜tampered（packs.lock，第 3 關）
+    scan: str = ""              # 伺服器版沒鎖的 pack 載入時補跑第 2 關：passed｜failed（""＝沒掃，PERM-8）
 
 
 @dataclass
@@ -173,7 +253,7 @@ class LoadReport:
 
     @property
     def ok(self) -> bool:
-        return not any(i.status in ("invalid", "error", "tampered") for i in self.items)
+        return not any(i.status in ("invalid", "error", "tampered", "rejected") for i in self.items)
 
 
 def group_policy(app, access: str, server: bool) -> dict:
@@ -185,6 +265,87 @@ def group_policy(app, access: str, server: bool) -> dict:
         roles = app.users.roles
         return {"role": next_up(roles, min(roles)) or max(roles)}
     return {}
+
+
+def pack_group_policy(app, config, m: Manifest, server: bool) -> dict:
+    """group_policy（access）再套角色能力上限（synox/policy.py，PERM-1）：pack.json 的 capabilities 裝不下某個角色的上限
+    → 這一組對那個角色整組不可見（群組的最低角色拉到裝得下的那一級；哪一級都裝不下＝owner_only）。擁有者全部可見。
+    SDK 的 authorize／visible 因此自己就擋：/help、選單、網頁、人打字、AI 工具清單都是同一條。"""
+    return policy.group_policy_for(config, app.users.roles, m.capabilities, group_policy(app, m.access, server))
+
+
+# ── 權限宣告（PERM-2）：surfaces、data=shared ───────────────────────────
+
+def surface_policy(m: Manifest) -> dict:
+    """pack.json 的 surfaces 沒有 channel（預設 ["dm"]）→ 整組 private_only：SDK authorize 自己擋群組／頻道。"""
+    return {} if "channel" in (getattr(m, "surfaces", None) or ["dm"]) else {"private_only": True}
+
+
+def shared_write_admin(app, m: Manifest, server: bool) -> int:
+    """data=shared 的 pack 在伺服器版：WRITE／DANGER 的葉節點最低角色拉到管理員（角色階梯最高那一級）。
+    群組定義、葉節點都掛好之後呼叫。回改了幾個節點。個人版、data 不是 shared 不動。"""
+    if not server or getattr(m, "data", "none") != "shared":
+        return 0
+    group = app.registry.node(m.group)
+    if group is None:
+        return 0
+    admin = max(app.registry.roles)
+    n = 0
+    for node in group.walk():
+        if not node.is_group and node.effect in (WRITE, DANGER) and node.own.role < admin:
+            node.own = dataclasses.replace(node.own, role=admin)
+            n += 1
+    return n
+
+
+# ── 伺服器版 python pack 的信任（PERM-8） ─────────────────────────────────
+
+# 出廠的 pack（repo 的 packs/、connectors/ 裡、名字在這張表上）＝core，不看 packs.lock
+BUNDLED = ("money", "notes", "remind", "apple-reminders", "google-calendar", "notion", "todoist")
+
+
+def is_bundled(m: Manifest) -> bool:
+    """出廠的：名字在 BUNDLED，而且資料夾就在內建的 packs/ 或 connectors/ 底下（packs.dirs 另外放的不算）。
+    只看名字和位置，所以**只在沒有 packs.lock 那一筆時**拿來決定信任（python_trust、sandbox.trust_of）：
+    經安裝／升級流程進來的同名 pack 一定有鎖，以鎖記的 trust 為準（審查 A #5）。"""
+    if m.name not in BUNDLED:
+        return False
+    parent = os.path.normcase(os.path.realpath(os.path.dirname(os.path.abspath(m.folder))))
+    return parent in {os.path.normcase(os.path.realpath(d)) for d in PACK_DIRS}
+
+
+def python_trust(config, m: Manifest) -> str:
+    """kind=python 在伺服器版的信任：有鎖＝packs.lock 的 trust（擁有者安裝時選的；舊鎖沒寫＝third-party）；
+    沒有鎖：出廠的＝core，其他（手動放進 packs/ 或 packs.dirs 的）＝third-party。
+    以前出廠的名字優先——第三方作者把 pack 取名 notes、經升級裝進 packs/，就被當成 core。"""
+    locked = pack_lock.trust_of(getattr(config, "data_dir", "") or "", m.name)
+    if locked is not None:
+        return locked
+    return pack_lock.CORE if is_bundled(m) else pack_lock.THIRD_PARTY
+
+
+def trust_reason(config, m: Manifest) -> str:
+    """伺服器版、kind=python、trust=third-party → 一句話說為什麼只給擁有者（""＝不受影響；個人版永遠 ""）。"""
+    if getattr(config, "mode", "personal") != "server" or m.kind != "python":
+        return ""
+    if python_trust(config, m) != pack_lock.THIRD_PARTY:
+        return ""
+    locked = pack_lock.entry(getattr(config, "data_dir", "") or "", m.name) is not None
+    why = "安裝時信任選的是第三方（third-party）" if locked else "沒有 packs.lock（手動放進來的），當作第三方（third-party）"
+    return (f"只對擁有者開放：{why}；python pack 在 SYNOX 程序裡跑、沒有沙盒，伺服器版不給成員用"
+            f"（信得過就跑 python -m synox packs lock --approve {m.name} --trust core）")
+
+
+def unlocked_scan(config, m: Manifest, lock_state: str) -> "Optional[List[str]]":
+    """伺服器版沒有鎖、又不是出廠的 pack：載入前補跑一次第 2 關靜態掃描（安裝流程沒掃過它）。
+    回 None＝不用掃；[]＝過了；否則是拒絕的理由（不載入）。"""
+    if getattr(config, "mode", "personal") != "server" or lock_state != pack_lock.UNLOCKED or is_bundled(m):
+        return None
+    from synox.packs import scan as pack_scan
+    try:
+        return pack_scan.gate2(m).problems(m)
+    except Exception as e:                   # 掃不了就不能說它安全
+        return [f"掃描失敗：{type(e).__name__}: {e}"]
 
 
 def discover(dirs=PACK_DIRS) -> List[str]:
@@ -259,21 +420,9 @@ def cli_python(m: Manifest, data_dir: Optional[str] = None) -> str:
     1. cli.python：絕對路徑｜"venv"（<pack 資料夾>/../.venv 的 python）
     2. runtime.python（Windows）／runtime.python_posix（其他）："auto"＝data/envs/<pack>/venv（安裝時建，packs/envs.py）；
        其他＝相對於 pack 資料夾（或絕對路徑）
-    3. 都沒寫＝SYNOX 自己的 Python"""
-    py = m.cli.get("python")
-    if py == "venv":
-        exe = os.path.join("Scripts", "python.exe") if os.name == "nt" else os.path.join("bin", "python")
-        return os.path.normpath(os.path.join(m.folder, "..", ".venv", exe))
-    if py:
-        return py
-    auto = envs.python_of(m, data_dir)
-    if auto:
-        return auto
-    runtime = getattr(m, "runtime", {}) or {}
-    rel = runtime.get("python") if os.name == "nt" else (runtime.get("python_posix") or runtime.get("python"))
-    if rel:
-        return rel if os.path.isabs(rel) else os.path.normpath(os.path.join(m.folder, rel))
-    return sys.executable
+    3. 都沒寫＝SYNOX 自己的 Python
+    （envs.python_target：第 2 關用同一份規則判斷它在不在 pack 外；pack 外的＝未鎖定執行環境、T2）"""
+    return envs.python_target(m, data_dir)[0]
 
 
 def user_data_dir(config, tg_id) -> str:
@@ -321,12 +470,20 @@ def build_argv(template, values: Dict[str, str]) -> List[str]:
     return out
 
 
+def pack_path(m: Manifest, values: Dict[str, str], rel: str) -> str:
+    """argv 裡 ./x 的完整路徑：values 的 pack_dir（容器裡＝/pack，用 / 接）；沒有就 pack 資料夾。"""
+    base = values.get("pack_dir") or m.folder
+    if base.startswith("/") and os.name == "nt":            # Windows 上的容器路徑（Docker Desktop）：一律 /
+        return base.rstrip("/") + "/" + rel.replace("\\", "/")
+    return os.path.join(base, rel)
+
+
 def cli_prefix(m: Manifest, values: Dict[str, str]) -> List[str]:
     out = []
     for part in m.cli["argv"]:
         part = str(part)
         if part.startswith("./") or part.startswith(".\\"):
-            part = os.path.join(m.folder, part[2:])
+            part = pack_path(m, values, part[2:])
         out.append(substitute(part, values))
     return out
 
@@ -334,8 +491,36 @@ def cli_prefix(m: Manifest, values: Dict[str, str]) -> List[str]:
 def cli_env(m: Manifest, values: Dict[str, str]) -> Dict[str, str]:
     """cli.env（代換過）；runtime.node=auto 再加 NODE_PATH＝data/envs/<pack>/node_modules（pack 自己寫的優先）。"""
     out = envs.node_env(m, values.get("data_dir") or None)
-    out.update({k: substitute(v, values) for k, v in (m.cli.get("env") or {}).items()})
+    # 審查 C #C2：PYTHONPATH（pack 外）、NODE_OPTIONS、PATH… 第 1 關就拒；這裡再濾一次（防禦深度）
+    out.update({k: substitute(v, values) for k, v in safe_env(m.cli.get("env") or {}).items()})
     return out
+
+
+def context_env(m: Manifest, config, values: Dict[str, str], secret_fields=()) -> Dict[str, str]:
+    """synox_sdk 的 context()／secret() 讀的環境變數（每次呼叫照下令的人；蓋過 pack 自己寫的同名變數）：
+    SYNOX_USER_DATA_DIR、SYNOX_TG_ID、SYNOX_MODE（personal｜server）、SYNOX_PACK_DIR、SYNOX_PACK_NAME，
+    SYNOX_SECRET_ENV＝「auth 欄位名=環境變數名」逗號接起來（只有名字，值照舊只在那個環境變數裡）。"""
+    out = {"SYNOX_USER_DATA_DIR": values.get("user_data_dir", ""), "SYNOX_TG_ID": values.get("tg_id", ""),
+           "SYNOX_MODE": str(getattr(config, "mode", "personal") or "personal"),
+           "SYNOX_PACK_DIR": values.get("pack_dir") or m.folder, "SYNOX_PACK_NAME": m.name,
+           # P7：packs.lock 鎖每一個檔（含 __pycache__）；子程序的 python 不准在 pack 資料夾裡寫 .pyc
+           "PYTHONDONTWRITEBYTECODE": "1",
+           # 審查 C #C2：子程序的 python 不讀使用者層的 site-packages（%APPDATA%\Python、~/.local 裡的 .pth 會在
+           # 啟動時執行，不在鎖裡）；SYNOX／runtime auto 的 venv 本來就不讀，這裡讓系統 Python 也一樣
+           "PYTHONNOUSERSITE": "1"}
+    pairs = [f"{f['name']}={f['env']}" for f in secret_fields or () if f.get("env")]
+    if pairs:
+        out["SYNOX_SECRET_ENV"] = ",".join(pairs)
+    return out
+
+
+def refuse_blocked_argv(m: Manifest) -> None:
+    """載入時再看一次 argv（審查 C）：第 2 關一定擋的寫法（{python} 跑 pack 裡不是 .py 的檔…，scan.argv_blocked）
+    → 丟 ManifestError、不載入。已經裝好、鎖住的舊 pack 不會重跑第 2 關，這裡補上。只查路徑，不執行。"""
+    from synox.packs import scan as pack_scan
+    blocked = pack_scan.argv_blocked(m)
+    if blocked:
+        raise ManifestError("；".join(f"{at}：{detail}" for _p, detail, at in blocked[:3]))
 
 
 def _install_cli(app, pack: Pack) -> None:
@@ -343,6 +528,8 @@ def _install_cli(app, pack: Pack) -> None:
     「這一次是誰」代換（{tg_id}、{user_data_dir}），service.install 的 JsonCli 是裝的時候就固定的。
     其他行為照 service.install：值以 - 開頭拒絕、一般指令丟 app.tasks、background 先回「開始了」。
     例外：經 AI 呼叫（api.via_ai）的一般指令同步跑完，結果交回 AI（不然 AI 拿到空的、結果直接跑去給使用者）。
+    工具回 needs_confirm（SDK P3）：不顯示結果，出核准卡；按 ✅ 用同一組參數重跑，子程序這次才拿到
+    SYNOX_CONFIRMED=1／SYNOX_CONFIRM_TOKEN（packs/confirm.py；其他時候一律明寫 0／空）。
     fields[].kind（int｜number｜bool｜choice）在 Field.check 檢查、交給程式前 normalize；
     requires.env 列的名字當 keep_env 給 JsonCli（其他看起來像密鑰的環境變數照樣拿掉）。"""
     from isdtelekit.jobs.cli import JsonCli
@@ -351,20 +538,39 @@ def _install_cli(app, pack: Pack) -> None:
     from synox.agent import validate as gate4
 
     m = pack.manifest
+    refuse_blocked_argv(m)
     config = pack.config if pack.config is not None else app.config
     bridge = service.ServiceBridge()
     pack.cli_bridge = bridge
 
-    keep_env = secret_env_names(m)       # 子程序只看得到 requires.env／auth.fields[].env 列的密鑰名（其他照 JsonCli 拿掉）
+    # 子程序只看得到 requires.env／auth.fields[].env 列的密鑰名（其他照 JsonCli 拿掉）；
+    # SYNOX_CONFIRM_TOKEN 名字像密鑰，但值是 SYNOX 自己每次明寫的（packs/confirm.py），要留著
+    keep_env = list(secret_env_names(m)) + list(tool_confirm.ENV_NAMES)
     by_name = {c["name"]: c for c in m.commands}
+    grants = tool_confirm.grants_of(app)
+    nodes: Dict[str, Any] = {}           # 指令名 → 節點（needs_confirm 出卡要用；節點在 submit 之後才掛）
 
-    def make_cli(ph: Dict[str, str], user=None) -> "JsonCli":
-        cwd = substitute(m.cli.get("cwd") or ".", ph)
-        env = cli_env(m, ph)
+    def boxed(ph: Dict[str, str]):
+        """這一次的後端與代換用的值（選了容器＝容器裡的路徑，sandbox.view_for）。"""
+        box = sandbox.box_for(config, m)
+        return box, sandbox.view_for(box, ph)
+
+    def make_cli(ph: Dict[str, str], user=None, confirmed: Optional[str] = None, box_view=None) -> "JsonCli":
+        # 運行空間（synox/sandbox.py，PERM-7；選了容器＝ContainerSandbox，S1）：照宣告算範圍，交給後端包一層（none＝原樣）
+        box, view = box_view or boxed(ph)
+        cwd = os.path.normpath(os.path.join(m.folder, substitute(m.cli.get("cwd") or ".", ph)))   # 本機的（引擎用戶端也在這裡跑）
+        env = cli_env(m, view)
+        env.update(context_env(m, config, view, pack.secret_fields))
+        env.update(tool_confirm.env_for(confirmed))      # 「已確認」只有這裡給（蓋過 cli.env）
         if pack.secret_fields and pack.secrets is not None:
             # auth.fields 有寫 env 的 secret：只走子程序環境（keep_env 放行這個名字），永遠不進 argv
             env.update(pack.secrets.env_for(m.name, pack.secret_fields, user))
-        return JsonCli(app.jobs, cli_prefix(m, ph), cwd=os.path.normpath(os.path.join(m.folder, cwd)), name=m.name,
+        grants = sandbox.grants_for(m, config, ph, pass_env=keep_env)          # 本機的路徑（要掛哪些資料夾）
+        if box.name != "none":
+            for folder in grants.write:            # 要掛進去的可寫資料夾得先存在
+                os.makedirs(folder, exist_ok=True)
+        prefix, env = box.wrap(cli_prefix(m, view), env, cwd, grants)
+        return JsonCli(app.jobs, prefix, cwd=cwd, name=m.name,
                        timeout=float(m.cli.get("timeout", 120)), json_flag=m.cli.get("json_flag", "--json"),
                        env_extra=env or None, keep_env=keep_env)
 
@@ -386,32 +592,94 @@ def _install_cli(app, pack: Pack) -> None:
         except Exception:
             logging.exception("[PACKS] reply to %s failed", chat_id)
 
+    def changed_files() -> str:
+        """載入之後 pack 的檔案被換過（跟 packs.lock 對不上）：回一句人話、通知擁有者一次（空字串＝可以跑）。"""
+        changes = pack.tampered_since_load()
+        if not changes:
+            return ""
+        logging.error("[PACKS] %s changed after load, refusing to run: %s", m.name, changes)
+        _tamper_notice(app, config, m, changes)
+        return tampered_text(m, changes)
+
     def make_submit(cmd: "service.ServiceCommand", stdin_template: Optional[str] = None):
         """stdin_template：pack.json commands[].stdin，例如 "{answers}"——這個欄位的內容走 stdin 給程式，
         不進 argv（日記正文、長文字；不會出現在程序清單與 log 的 argv 那一行）。"""
         kinds_of = {f["name"]: f.get("kind", "text") for f in by_name.get(cmd.name, {}).get("fields") or []}
         choices_of = {f["name"]: tuple(f.get("choices") or ()) for f in by_name.get(cmd.name, {}).get("fields") or []}
+        via_stdin = set(_PLACEHOLDER.findall(stdin_template or ""))
 
-        def submit(api, chat_id, user, values):
-            blocked = not_connected(user)
+        def ask_confirm(api, chat_id, user, raw_values, values, envelope, again: bool) -> None:
+            """工具回 needs_confirm：出核准卡（why＝工具的 summary），按 ✅ 用同一組參數帶一次性憑證重跑。"""
+            if again:                                   # 已經確認過的重跑又要確認：不再出卡（不會無限來回）
+                say(api, chat_id, tool_confirm.AGAIN.format(name=cmd.name))
+                return
+            desk = app.extras.get("synox_approval_desk")
+            node = nodes.get(cmd.name)
+            if desk is None or node is None:
+                say(api, chat_id, tool_confirm.NO_DESK.format(name=cmd.name))
+                return
+            gid = grants.issue(m.name, cmd.name, values, getattr(user, "tg_id", None),
+                               tool_confirm.tool_token(envelope), app.timing.confirm_ttl)
+            shown = [f"{k}={str(v)[:60]}" for k, v in raw_values.items() if k not in via_stdin and str(v).strip()]
+
+            def rerun(api2, chat2, clicker, grant):
+                submit(api2, chat2, clicker, raw_values, _grant=grant)
+
+            try:
+                desk.request(api, chat_id, user, node, shown, tool_confirm.summary_of(envelope), grant=gid,
+                             rerun=rerun, header="⚠️ 要你確認才會做")
+            except Exception:
+                grants.discard(gid)
+                raise
+            mark = getattr(type(api), "mark_carded", None)     # 經 AI（CaptureApi）：這一輪停在這裡
+            if callable(mark):
+                mark(api)
+
+        def submit(api, chat_id, user, values, _grant: str = ""):
+            """_grant：只有核准卡按 ✅ 的重跑會給（kit.command、Forms、AI 都只傳四個參數，造不出來）。"""
+            blocked = not_connected(user) or changed_files()
             if blocked:
+                if _grant:
+                    grants.discard(_grant)
                 say(api, chat_id, blocked)
                 return
+            raw_values = dict(values)
             ph = placeholders(m, config, user)
             if getattr(config, "mode", "personal") == "server":
                 os.makedirs(ph["user_data_dir"], exist_ok=True)
-            cli = make_cli(ph, user)
             values = {k: gate4.normalize(kinds_of.get(k, "text"), v, choices_of.get(k, ())) for k, v in values.items()}
-            argv = build_argv(cmd.argv, {**values, **ph})
+            user_id = getattr(user, "tg_id", None)
+            for k, v in values.items():
+                # kind: path：人打字也要在這個人的資料夾裡（AI 那條第 4 關本來就查；typed_check 不知道是誰）
+                if kinds_of.get(k) == "path" and str(v or "").strip():
+                    _full, problem = gate4.inside(ph["user_data_dir"], str(v).strip())
+                    if problem:
+                        if _grant:
+                            grants.discard(_grant)
+                        say(api, chat_id, f"❌ {cmd.name}：{k} 的路徑{problem}。")
+                        return
+            confirmed: Optional[str] = None
+            if _grant:
+                confirmed = grants.redeem(_grant, m.name, cmd.name, values, user_id)
+                if confirmed is None:                   # 過期、用過、參數或人對不上：不執行
+                    say(api, chat_id, tool_confirm.EXPIRED)
+                    return
+            box_view = boxed(ph)
+            cli = make_cli(ph, user, confirmed, box_view)
+            view = box_view[1]                          # 容器裡跑：{user_data_dir} 這些是容器裡的路徑
+            argv = build_argv(cmd.argv, {**values, **view})
             timeout = {"timeout": cmd.timeout} if cmd.timeout else {}
             if stdin_template:
-                timeout["stdin"] = substitute(stdin_template, {**values, **ph})
+                timeout["stdin"] = substitute(stdin_template, {**values, **view})
             done = bridge._started()
 
             def finish(reply):
                 try:
                     if not reply.ok:
                         say(api, chat_id, f"❌ {cmd.name}：{reply.error}")
+                        return
+                    if tool_confirm.is_needs_confirm(reply.data):
+                        ask_confirm(api, chat_id, user, raw_values, values, reply.data, again=confirmed is not None)
                         return
                     try:
                         text = render.render(reply.data)         # SYNOX 自己攤平 JSON（SDK 的只會印「N 筆」）
@@ -439,11 +707,12 @@ def _install_cli(app, pack: Pack) -> None:
 
     def panel_route(c: dict):
         def fn(user):                          # Web UI 面板的 GET：在網頁的請求執行緒上跑（等它結束）
-            blocked = not_connected(user)
+            blocked = not_connected(user) or changed_files()
             if blocked:
                 return {"ok": False, "error": blocked}
             ph = placeholders(m, config, user)
-            reply = make_cli(ph, user).call(*build_argv(c.get("argv") or [], ph))
+            box_view = boxed(ph)
+            reply = make_cli(ph, user, None, box_view).call(*build_argv(c.get("argv") or [], box_view[1]))
             return reply.data if reply.ok else {"ok": False, "error": reply.error}
         return fn
 
@@ -466,7 +735,7 @@ def _install_cli(app, pack: Pack) -> None:
         if any(f.fresh_code for f in fields):
             # 要驗證碼的走 SDK Forms（碼永遠最後問、收到就驗）
             node = app.forms.leaf(pack.group, cmd.name, make_submit(cmd, stdin_template), cmd.summary,
-                                  fields=safe_fields, effect=cmd.effect, default=cmd.default)
+                                  fields=safe_fields, effect=cmd.effect, default=cmd.default, ai=c.get("ai") is not False)
         else:
             # 其他的跟內建 pack 一樣「照位置填、key=value 補、選填不追問」：/moneybook 120 午餐 直接存
             # （SDK Forms 會停下來問「要補充這些嗎？」，手機上多一輪、下一句指令還會把它打斷）。
@@ -479,9 +748,17 @@ def _install_cli(app, pack: Pack) -> None:
             submit = make_submit(cmd, stdin_template)
             node = kit.command(pack.group, cmd.name, lambda api, chat_id, user, values, _s=submit: _s(api, chat_id, user, values),
                                cmd.summary, fields=safe_fields, positional=max(0, min(n_pos, len(safe_fields))),
-                               effect=cmd.effect, default=cmd.default)
+                               effect=cmd.effect, default=cmd.default, ai=c.get("ai") is not False)
+        nodes[cmd.name] = node
         positional = [n for n in kinds if f"{{{n}}}" in c.get("argv", [])]
-        meta[node.path] = {"argv": True, "positional": positional, "kinds": kinds}
+        # commands[].confirm：AI 呼叫前先送確認卡（effect 照寫的算；agent/loop.py 看這個）
+        meta[node.path] = {"argv": True, "positional": positional, "kinds": kinds, "confirm": c.get("confirm") is True}
+
+
+def tampered_text(m: Manifest, changes: List[str]) -> str:
+    listing = "、".join(changes[:5]) + ("…" if len(changes) > 5 else "")
+    return (f"⚠️ {m.title} 的檔案在載入之後被改過了（{listing}），跟安裝時核准的不一樣，為了安全這次不執行；已經通知擁有者。"
+            f"如果是擁有者自己改的，在電腦上跑 python -m synox packs lock --approve {m.name} 重新核准後重新載入。")
 
 
 def _install_connector(app, pack: Pack) -> None:
@@ -495,7 +772,15 @@ def _install_connector(app, pack: Pack) -> None:
 
 
 def _install_mcp(app, pack: Pack) -> None:
+    """mcp.transport=stdio／http：真的連（packs/mcp.py：每個 (pack, 使用者) 一條連線——stdio 是長駐子程序、
+    http 是遠端 MCP（packs/mcp_http.py）；tools_allow 的工具變成葉節點）。沒寫 transport（只有 url）：照舊只登記。"""
     m = pack.manifest
+    if m.mcp_connected:
+        from synox.packs import mcp
+        if m.mcp_stdio:
+            refuse_blocked_argv(m)
+        mcp.install(app, pack)
+        return
     allow = "、".join(m.mcp.get("tools_allow") or [])
 
     def status(api, chat_id, user, args):
@@ -559,22 +844,39 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
             logging.error("[PACKS] %s tampered: %s", m.name, changes)
             _tamper_notice(app, config, m, changes)
             continue
+        problems = unlocked_scan(config, m, item.lock)    # 伺服器版沒鎖的：補第 2 關（PERM-8）
+        if problems is not None:
+            item.scan = "failed" if problems else "passed"
+        if problems:
+            item.status = "rejected"
+            item.detail = "沒有 packs.lock、載入時的第 2 關掃描沒過，沒有載入：" + "；".join(problems[:5])
+            logging.error("[PACKS] %s rejected by load-time scan: %s", m.name, problems)
+            continue
         server = getattr(config, "mode", "personal") == "server"
         store = PackStore(m.name, config.data_dir, vault if use_vault else None, per_user=server)
         pack = Pack(m, store, app, config.data_dir, config=config,
                     secret_fields=pack_secrets.managed_fields(m), secrets=secret_store)
         if item.lock == pack_lock.LOCKED:
-            pack.locked_files = dict((pack_lock.entry(config.data_dir, m.name) or {}).get("files") or {})
-        app.registry.define_group(m.group, m.title, m.summary, **group_policy(app, m.access, server))
+            record = pack_lock.entry(config.data_dir, m.name) or {}
+            pack.locked_files = dict(record.get("files") or {})
+            pack.live = pack_lock.live_check(record, folder)
+        group_rules = {**pack_group_policy(app, config, m, server), **surface_policy(m)}
+        boxed_out = sandbox.restricted_reason(config, m)   # 要沙盒卻沒有真隔離 → 只給擁有者（PERM-7）
+        boxed_out = boxed_out or trust_reason(config, m)   # 伺服器版第三方 python pack → 只給擁有者（PERM-8）
+        if boxed_out:
+            group_rules = {**group_rules, "owner_only": True}
+            item.detail = boxed_out
+        app.registry.define_group(m.group, m.title, m.summary, **group_rules)
         try:
             {"python": _install_python, "cli": _install_cli, "connector": _install_connector,
              "mcp": _install_mcp}[m.kind](app, pack)
+            shared_write_admin(app, m, server)
         except Exception as e:
             logging.exception("[PACKS] %s failed to install", m.name)
             _drop_group(app.registry, m.group)
             item.status, item.detail = "error", f"{type(e).__name__}: {e}"
             continue
-        if m.kind in ("connector", "mcp"):
+        if m.registered_only:
             item.status = "connector"
         packs.append(pack)
     app.extras["synox_pack_report"] = report

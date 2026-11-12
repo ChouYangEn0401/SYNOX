@@ -1,14 +1,17 @@
 """
 AI 助理的一輪（spec §5、§7）：
 
-    人話 → adapter.chat(訊息, 工具) → 工具呼叫 → ai_decision（authorize via=AI）
+    人話 → adapter.chat(訊息, 工具) → 工具呼叫 → ai_decision（＝synox/policy.py 的 decide via=AI）
          → 危險的：送核准卡，這一輪結束 → 其他：用 CaptureApi 執行，結果回餵 → 最多 max_steps 步 → 回答
 
 - **AI 能不能用一個節點只有一個判斷：ai_decision()**（invariant 1，照 ClawBot invariant 12）。工具清單、每次呼叫、
   排程裡包的指令都問它。
 - adapter 支援原生 tool-calling 就給工具；不支援就把工具說明寫進系統提示，從文字裡解析 JSON（textproto）。
 - 對話記憶：每個聊天只在記憶體留最近 history_turns 輪的「人話 → 最後回答」（不留工具的中間過程；重啟就沒了）。
+  鍵是 memory_key(chat_id, user)：私訊＝這個人；chat_id 不是這個人時＝(chat_id, 這個人)，群組裡不共用。
+- 核准卡一律送這個人的私訊（ApprovalDesk.request），不進群組。
 - 用量：adapter 回的 usage 累計到 data/llm_usage.json，/ai_usage 看。
+- log：工具呼叫只印名字；過了第 4 關才印參數的「欄位名(長度)」，值永遠不進 log（arg_shape）。
 - 安全管線（架構 v1 §4）在這裡的兩關：第 4 關 `validate.check_call`（執行任何工具之前驗參數，不合就把一句話交回給 AI、
   不執行）；第 5 關 ai_decision＋核准卡＋額度，以及交回 AI 的每個工具結果包在每輪隨機的 ⟦SYNOX-TOOL-<nonce>⟧ 裡（delimit.py）。
 """
@@ -23,8 +26,9 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
 from isdtelekit.core import jsonstore
-from isdtelekit.core.registry import AI, DANGER, CommandRegistry, Node
+from isdtelekit.core.registry import AI, DANGER, Node
 
+from synox import policy
 from synox.agent import delimit
 from synox.agent import skills as skills_mod
 from synox.agent import tools as tools_mod
@@ -34,20 +38,29 @@ from synox.llm import textproto
 from synox.llm.base import ASSISTANT, SYSTEM, TOOL, USER, ChatAdapter, LLMError, Message, ToolCall
 from synox.packs import kit
 
-HIDDEN_GROUPS = ("agent", "sudo")
+HIDDEN_GROUPS = policy.HIDDEN_GROUPS
 WEEKDAYS = "一二三四五六日"
 
 
-def ai_decision(registry: CommandRegistry, user, node: Node):
-    """None：這個節點不給 AI；否則回 authorize(使用者, node, AI) 的結果（放行，或只差 /sudo）。"""
-    if node.is_group or node.interactive or not node.ai:
-        return None
-    if node.path.split(".")[0] in HIDDEN_GROUPS:
-        return None
-    if not registry.is_owner(user) and user.role <= registry.lowest_role:
-        return None                       # 訪客（最低一級）沒有 AI 工具：伺服器版的 AI 從成員開始
-    decision = registry.authorize(user, node, AI, user.tg_id)
+def ai_decision(app, user, node: Node, *, chat_id: Optional[int] = None, bot=None):
+    """None：這個節點不給 AI；否則回 policy.decide(via=AI) 的結果（放行，或只差 /sudo）。
+    app：SYNOX 的 app（有 pack 與設定的能力上限）；也收裸的 CommandRegistry（測試用，沒有 pack、預設上限）。
+    判斷本身全在 synox/policy.py 的 decide：群組／interactive／ai=False／agent、sudo 群組／訪客、角色能力上限、authorize。"""
+    decision = policy.decide(app, user, node, via=AI, chat_id=user.tg_id if chat_id is None else chat_id, bot=bot)
     return decision if decision.allowed or decision.needs_sudo else None
+
+
+def arg_shape(args) -> str:
+    """log 用：只印欄位名與長度（值可能是 secret、個人資料），例如 "amount(2), memo(12)"。"""
+    if not isinstance(args, dict):
+        return f"（{type(args).__name__}）"
+    if not args:
+        return "（沒有參數）"
+    parts = []
+    for key, value in list(args.items())[:20]:
+        size = len(value) if isinstance(value, (str, list, dict)) else (0 if value is None else 1)
+        parts.append(f"{str(key)[:40]}({size})")
+    return ", ".join(parts) + ("…" if len(args) > 20 else "")
 
 
 def needs_card(node: Node, argv: List[str]) -> bool:
@@ -100,22 +113,30 @@ class AgentLoop:
         self.desk = desk
         self.budget = budget                  # 伺服器版：MemberBudget（成員每月額度）；個人版 None
         self.usage = UsageBook(app.config.path("llm_usage.json"))
-        self.history: Dict[int, List[Message]] = defaultdict(list)
-        self._locks: Dict[int, threading.Lock] = defaultdict(threading.Lock)
+        self.history: Dict[object, List[Message]] = defaultdict(list)
+        self._locks: Dict[object, threading.Lock] = defaultdict(threading.Lock)
 
     # ── 記憶 ─────────────────────────────────────────────────────────
 
-    def remember(self, chat_id: int, said: str, answer: str) -> None:
-        h = self.history[chat_id]
+    def memory_key(self, chat_id: int, user=None):
+        """對話記憶的鍵：私訊＝chat_id（就是這個人）；chat_id 不是這個人（群組）＝(chat_id, 這個人)——
+        同一個群組裡的人不共用彼此的記憶（審查 A #2）。頻道 AI（agent/room.py）換成「頻道」本身。"""
+        uid = getattr(user, "tg_id", user)
+        if uid is None or uid == chat_id:
+            return chat_id
+        return (chat_id, uid)
+
+    def remember(self, chat_id: int, said: str, answer: str, user=None) -> None:
+        h = self.history[self.memory_key(chat_id, user)]
         h += [Message(USER, said), Message(ASSISTANT, answer)]
         del h[:max(0, len(h) - 2 * self.history_turns)]
 
-    def note(self, chat_id: int, text: str) -> None:
-        """核准卡按下之後記一筆（下一輪 AI 知道那件事做了沒）。"""
-        self.remember(chat_id, "（系統）確認卡的結果", text)
+    def note(self, chat_id: int, text: str, user=None) -> None:
+        """核准卡按下之後記一筆（下一輪 AI 知道那件事做了沒）。user：卡的主人（記進他自己的那份記憶）。"""
+        self.remember(chat_id, "（系統）確認卡的結果", text, user)
 
-    def reset(self, chat_id: int) -> int:
-        return len(self.history.pop(chat_id, []))
+    def reset(self, chat_id: int, user=None) -> int:
+        return len(self.history.pop(self.memory_key(chat_id, user), []))
 
     # ── 提示 ─────────────────────────────────────────────────────────
 
@@ -124,7 +145,7 @@ class AgentLoop:
         registry = self.app.registry
         out = []
         for p in self.app.extras.get("synox_packs", []):
-            if p.manifest.kind in ("connector", "mcp"):
+            if getattr(p.manifest, "registered_only", p.manifest.kind in ("connector", "mcp")):
                 continue
             group = registry.node(p.manifest.group)
             if user is None or (group is not None and registry.visible(user, group)):
@@ -152,11 +173,37 @@ class AgentLoop:
 
     # ── 一輪 ─────────────────────────────────────────────────────────
 
+    # ── 可換的幾個點（頻道 AI，agent/room.py 的 RoomAgent 換掉；私訊照這裡）────────
+
+    def decision(self, user, node: Node, chat_id: int):
+        """這個節點給不給 AI（工具清單與每次呼叫都問這裡；就是 ai_decision）。
+        帶真正的 chat_id：群組裡 private_only 的工具不給（以前沒帶＝當成私訊）。"""
+        return ai_decision(self.app, user, node, chat_id=chat_id)
+
+    def tools_for(self, user, chat_id: int):
+        return tools_mod.build(self.app.registry, lambda n: self.decision(user, n, chat_id), self.app)
+
+    def out_of_budget(self, user) -> str:
+        """額度用完回給人看的一句話；還有額度回 ""。"""
+        if self.budget is not None and self.budget.exhausted(user):
+            from synox.agent.budget import EXHAUSTED
+            return EXHAUSTED
+        return ""
+
+    def carded_note(self, tool: str) -> str:
+        """這一輪停在核准卡時記進對話記憶的一句。"""
+        return f"（已送出確認卡：{tool}，等使用者按）"
+
+    def say(self, api, chat_id: int, text: str) -> str:
+        """送出 AI 的回答；回實際送出的字（記進對話記憶的就是這個）。"""
+        api.send_message(chat_id, text)
+        return text
+
     def run_turn(self, api, chat_id: int, user, text: str) -> None:
-        with self._locks[chat_id]:
-            if self.budget is not None and self.budget.exhausted(user):
-                from synox.agent.budget import EXHAUSTED
-                api.send_message(chat_id, EXHAUSTED)
+        with self._locks[self.memory_key(chat_id, user)]:
+            stop = self.out_of_budget(user)
+            if stop:
+                api.send_message(chat_id, stop)
                 return
             self._turn(api, chat_id, user, text)
 
@@ -172,19 +219,19 @@ class AgentLoop:
     def _turn(self, api, chat_id: int, user, text: str) -> None:
         registry = self.app.registry
         skills = skills_mod.from_packs(self.visible_packs(user))
-        tools = tools_mod.build(registry, lambda n: ai_decision(registry, user, n))
+        tools = self.tools_for(user, chat_id)
         if skills:
             tools.append(skills_mod.read_tool_spec(skills))
         native = bool(self.adapter.supports_tools)
         nonce = delimit.new_nonce()                 # 這一輪的分隔符（第 5 關）
         messages = [Message(SYSTEM, self.system_prompt(skills, tools, native, user, nonce))] + \
-            list(self.history[chat_id]) + [Message(USER, text)]
+            list(self.history[self.memory_key(chat_id, user)]) + [Message(USER, text)]
         typing = getattr(api, "typing", None)
         for step in range(self.max_steps):
-            if step and self.budget is not None and self.budget.exhausted(user):
-                from synox.agent.budget import EXHAUSTED
-                api.send_message(chat_id, EXHAUSTED)
-                self.remember(chat_id, text, "（額度用完，沒做完）")
+            stop = self.out_of_budget(user) if step else ""
+            if stop:
+                api.send_message(chat_id, stop)
+                self.remember(chat_id, text, "（額度用完，沒做完）", user)
                 return
             if callable(typing):
                 typing(chat_id)
@@ -204,16 +251,15 @@ class AgentLoop:
                 if call is not None:
                     calls, said = [call], rest
             if not calls:
-                answer = said.strip() or "（AI 沒有說話）"
-                api.send_message(chat_id, answer)
-                self.remember(chat_id, text, answer)
+                answer = self.say(api, chat_id, said.strip() or "（AI 沒有說話）")
+                self.remember(chat_id, text, answer, user)
                 return
             messages.append(Message(ASSISTANT, said if native else reply.text, tool_calls=calls if native else []))
             for call in calls:
-                logging.info("[AGENT] chat %s step %d → %s %s", chat_id, step + 1, call.name, call.args)
+                logging.info("[AGENT] chat %s step %d → %s", chat_id, step + 1, call.name)   # 參數值不進 log
                 result, carded = self.call_tool(api, chat_id, user, call, skills)
                 if carded:
-                    self.remember(chat_id, text, f"（已送出確認卡：{call.name}，等使用者按）")
+                    self.remember(chat_id, text, self.carded_note(call.name), user)
                     return
                 wrapped = delimit.wrap(result, nonce)
                 if native:
@@ -221,7 +267,7 @@ class AgentLoop:
                 else:
                     messages.append(Message(USER, textproto.result_message(call.name, wrapped)))
         api.send_message(chat_id, f"（做了 {self.max_steps} 步還沒做完，先停在這裡。可以換個說法再試。）")
-        self.remember(chat_id, text, "（步數用完，沒做完）")
+        self.remember(chat_id, text, "（步數用完，沒做完）", user)
 
     def call_tool(self, api, chat_id: int, user, call: ToolCall, skills) -> Tuple[str, bool]:
         """回 (給 AI 看的結果, 是否送了核准卡)。"""
@@ -232,22 +278,25 @@ class AgentLoop:
                 return problem, False
             return skills_mod.read_skill(skills, (call.args or {}).get("name", "")), False
         node = tools_mod.node_for(registry, call.name)
-        decision = ai_decision(registry, user, node) if node is not None else None
+        decision = self.decision(user, node, chat_id) if node is not None else None
         if decision is None:
             return f"沒有 {call.name} 這個工具（或你不能用）。", False
         if not decision.allowed:
             return f"{node.command} 要先解鎖（/sudo），請使用者自己打。", False
+        if gate4.schema_of(self.app, node) is not None:          # schema 模式（巢狀參數，只有 MCP 工具）
+            return self.call_schema_tool(api, chat_id, user, node, call)
         problem = gate4.check_call(self.app, node, call.args, user, call.name)      # 第 4 關：執行前驗參數
         if problem:
             logging.warning("[AGENT] gate 4 rejected %s: %s", call.name, problem)
             return problem, False
+        logging.info("[AGENT] %s passed gate 4: %s", call.name, arg_shape(call.args))
         argv = tools_mod.to_argv(node, call.args)
         if node.wraps is not None:
             try:
                 found = node.inner(argv)
             except Exception:
                 return f"看不懂 {node.command} 裡要排的指令。", False
-            if found is not None and ai_decision(registry, user, found[0]) is None:
+            if found is not None and self.decision(user, found[0], chat_id) is None:
                 return f"{found[0].command} 不是你能用的工具，不能替使用者排；要排請他自己打。", False
         if node.fields:
             _values, missing, errors = kit.parse_args(node.fields, argv, positional=0)
@@ -256,7 +305,7 @@ class AgentLoop:
                 return "參數不對：" + "；".join(errors), False
             if missing:
                 return "缺必填參數：" + "、".join(f"{f.name}（{f.ask}）" for f in missing) + "。先問使用者。", False
-        if needs_card(node, argv):
+        if needs_card(node, argv) or gate4.wants_confirm(self.app, node):
             if self.desk is None:
                 return "這個動作要使用者確認，但確認卡沒有接上，所以不執行。", False
             self.desk.request(api, chat_id, user, node, argv)
@@ -268,4 +317,36 @@ class AgentLoop:
             logging.exception("[AGENT] tool %s failed", call.name)
             capture.close()
             return f"執行出錯：{type(e).__name__}: {e}", False
-        return capture.close() or "（做完了，沒有輸出）", False
+        result = capture.close()
+        if capture.carded:                      # 工具執行中要確認（needs_confirm）：卡已經給人了，這一輪停在這裡
+            return result, True
+        return result or "（做完了，沒有輸出）", False
+
+    def call_schema_tool(self, api, chat_id: int, user, node: Node, call: ToolCall) -> Tuple[str, bool]:
+        """schema 模式：第 4 關照 schema 驗（validate.check_schema_call），結構化參數原樣交給 MCP 後端（不轉 argv）。
+        風險等級、核准卡照舊（effect 來自 pack.json）；DANGER 的卡把巢狀參數一行一個列出來（mcp_schema.describe）。"""
+        from synox.packs import mcp_schema
+        args, problem = gate4.check_schema_call(self.app, node, call.args, user, call.name)
+        if problem:
+            logging.warning("[AGENT] gate 4 rejected %s: %s", call.name, problem)
+            return problem, False
+        logging.info("[AGENT] %s passed gate 4 (schema): %s", call.name, arg_shape(args))
+        runner = gate4.schema_runner(self.app, node)
+        if needs_card(node, []) or gate4.wants_confirm(self.app, node):
+            if self.desk is None:
+                return "這個動作要使用者確認，但確認卡沒有接上，所以不執行。", False
+            lines = mcp_schema.describe(gate4.schema_of(self.app, node), args)
+            self.desk.request(api, chat_id, user, node, [], lines=lines,
+                              run=lambda api2, chat2, clicker: runner(api2, chat2, clicker, args))
+            return "", True
+        capture = CaptureApi(api, chat_id)
+        try:
+            runner(capture, chat_id, user, args)
+        except Exception as e:
+            logging.exception("[AGENT] tool %s failed", call.name)
+            capture.close()
+            return f"執行出錯：{type(e).__name__}: {e}", False
+        result = capture.close()
+        if capture.carded:
+            return result, True
+        return result or "（做完了，沒有輸出）", False
