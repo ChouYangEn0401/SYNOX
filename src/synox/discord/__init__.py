@@ -52,7 +52,8 @@ NO_GUILDS = "頻道型 bot 沒有列任何伺服器／頻道（guilds），不�
 ONLY_SPEAKER = "只有發這個指令的人能按這些按鈕。"
 CHAT_IN_DM = "頻道裡只收指令（例如 @我 /help）；想聊天請私訊。"
 UNPAIRED = ("🔒 這個 SYNOX 的擁有者還沒把 Discord 帳號配對好，暫時不收任何私訊。"
-            "擁有者：在電腦上跑 python -m synox discord pair（或在 config 寫 owner_user_id）。")
+            "擁有者：打開 SYNOX 網頁 → 設定 → 聊天通道 → Discord →「配對我的 Discord 帳號」，照畫面私訊 bot 六個數字就好"
+            "（或在電腦上跑 python -m synox discord pair、在 config 寫 owner_user_id）。")
 OWNER_UNPAIRED = ("只用 Discord、擁有者還沒接上 Discord 帳號：私訊一律不收（不發號碼，免得陌生人先來被當成擁有者）。"
                   "跑 python -m synox discord pair，或在 config.json 的 channels.discord 寫 owner_user_id")
 OWNER_SUSPECT = ("identities.json 是舊版的：Discord 帳號 {who} 對到擁有者的號碼，但舊版會把這個號碼發給第一個陌生人，"
@@ -290,7 +291,10 @@ class DiscordEntry:
     TOLD_KEPT = 1000
 
     def __init__(self, dispatcher, identities: Identities, channel: DiscordChannel, *, name: str = bot_specs.DEFAULT,
-                 bots: Optional[DiscordBots] = None, spec: Optional[BotSpec] = None, owner_id: Optional[int] = None):
+                 bots: Optional[DiscordBots] = None, spec: Optional[BotSpec] = None, owner_id: Optional[int] = None,
+                 pairing=None, pair_owner_id: Optional[int] = None):
+        self.pairing = pairing                     # discord/pairing.py WebPairing：網頁產生的六位數配對碼（可以是 None）
+        self.pair_owner_id = pair_owner_id         # 配對成功要接到哪個內部 id（config.owner_id；不一定是保留號段）
         self.dispatcher = dispatcher
         self.identities = identities
         self.channel = channel
@@ -333,7 +337,38 @@ class DiscordEntry:
         self.channel.request("POST", f"/channels/{channel_id}/messages",
                              json_body={"content": UNPAIRED, "allowed_mentions": {"parse": []}})
 
+    def _pairing_try(self, event: str, d: dict) -> bool:
+        """網頁設定頁正在等配對：私訊傳了對的六位數字 → 接上擁有者、回一句、不進 dispatcher（True）。
+        傳了六位數字但不對 → 記一次猜錯（太多次就作廢）、照常處理（False）。沒有在等配對 → False。"""
+        code = self.pairing.code() if self.pairing is not None else ""
+        if not code or not isinstance(d, dict) or event != "MESSAGE_CREATE" or d.get("guild_id"):
+            return False
+        who = pairing_sender(event, d, code)
+        if who is None:
+            text = "".join(str(d.get("content") or "").split())
+            if text.isdigit() and len(text) == len(code) and not (d.get("author") or {}).get("bot"):
+                self.pairing.wrong_guess()
+            return False
+        owner = self.pair_owner_id if self.pair_owner_id is not None else self.owner_id
+        try:
+            self.identities.reload_if_changed()
+            notes = bind_owner(self.identities, who["id"], int(owner))
+        except (IdentityError, IdentityFileError, TypeError, ValueError) as e:
+            logging.warning("[DISCORD] %s: web pairing failed: %s", self.name, e)
+            reply = f"❌ 配對失敗：{e}"
+        else:
+            self.pairing.done(who)
+            logging.info("[DISCORD] %s: owner paired from the web page (discord user %s)", self.name, who["id"])
+            reply = "✅ 配對好了！你的 Discord 帳號現在是這個 SYNOX 的擁有者。可以直接跟我說話，或打 /help。" + \
+                ("\n" + "\n".join(notes) if notes else "")
+        if who.get("channel_id"):
+            self.channel.request("POST", f"/channels/{who['channel_id']}/messages",
+                                 json_body={"content": reply, "allowed_mentions": {"parse": []}})
+        return True
+
     def on_dispatch(self, event: str, d: dict):
+        if self._pairing_try(event, d):
+            return None
         if self._owner_missing():
             self._refuse(event, d)
             return None
@@ -564,6 +599,8 @@ def install(app, config, vault) -> Optional[DiscordChannel]:
         app.extras["discord_error"] = str(e)
         return None
     app.extras["identities"] = identities
+    from synox.discord.pairing import WebPairing
+    pairing = app.extras["discord_pairing"] = WebPairing()      # 網頁設定頁「配對我的 Discord 帳號」用
     bots = DiscordBots(config.path("discord_last_bot.json"))
     entries: Dict[str, object] = {}
     gateways = []
@@ -596,7 +633,7 @@ def install(app, config, vault) -> Optional[DiscordChannel]:
         else:
             bots.add(spec.name, channel)
             entry = DiscordEntry(app.dispatcher, identities, channel, name=spec.name, bots=bots, spec=spec,
-                                 owner_id=config.owner_id)
+                                 owner_id=config.owner_id, pairing=pairing, pair_owner_id=config.owner_id)
         entries[spec.name] = entry
         gateways.append((spec, token, entry))
     app.extras["discord_bots"] = bots
@@ -665,6 +702,23 @@ def wait_for_pairing(token: str, code: str, *, timeout: float = 900.0, connect=N
     return found
 
 
+def bind_owner(identities: Identities, external_id, owner_id: int) -> List[str]:
+    """把 Discord 帳號 external_id 接到擁有者 owner_id（配對）。回要告訴擁有者的提醒（空＝沒有）。
+    這個帳號之前當陌生人拿過號碼 → 改接到擁有者；擁有者之前接的是別的 Discord 帳號 → 解除舊的。"""
+    external_id = str(external_id)
+    notes: List[str] = []
+    old = identities.lookup(DISCORD, external_id)
+    if old is not None and old != owner_id:
+        identities.unbind(DISCORD, external_id)     # 這個帳號之前當陌生人拿過號碼：改接到擁有者
+    previous = identities.external(DISCORD, owner_id)
+    if previous and previous != external_id:
+        if identities.is_suspect(DISCORD, previous):
+            notes.append(f"⚠️ Discord 帳號 {previous} 之前被舊版發到擁有者的號碼，已移開（他下次來會拿新的號碼）。")
+        identities.unbind(DISCORD, previous)
+    identities.bind(DISCORD, external_id, owner_id)
+    return notes
+
+
 def pair_owner(config, vault, *, code: Optional[str] = None, out=print, bot: Optional[str] = None, **kw) -> int:
     """python -m synox discord pair [--bot 名字]：印出配對碼 → 等私訊 → 把那個 Discord 帳號接到 owner_id。
     身分對所有 bot 共用，所以配對一次就好（用哪個私訊型 bot 都可以；沒指定＝default／第一個私訊型）。"""
@@ -695,14 +749,7 @@ def pair_owner(config, vault, *, code: Optional[str] = None, out=print, bot: Opt
     except IdentityFileError as e:
         out(f"❌ {e}")
         return 2
-    old = identities.lookup(DISCORD, who["id"])
-    if old is not None and old != config.owner_id:
-        identities.unbind(DISCORD, who["id"])     # 這個帳號之前當陌生人拿過號碼：改接到擁有者
-    previous = identities.external(DISCORD, config.owner_id)
-    if previous and previous != who["id"]:
-        if identities.is_suspect(DISCORD, previous):
-            out(f"⚠️ Discord 帳號 {previous} 之前被舊版發到擁有者的號碼，已移開（他下次來會拿新的號碼）。")
-        identities.unbind(DISCORD, previous)
-    identities.bind(DISCORD, who["id"], config.owner_id)
+    for note in bind_owner(identities, who["id"], config.owner_id):
+        out(note)
     out(f"✅ 已把 Discord 帳號 {who.get('username') or who['id']} 接到擁有者（id {config.owner_id}）。")
     return 0

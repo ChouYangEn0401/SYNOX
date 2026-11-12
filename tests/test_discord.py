@@ -537,3 +537,55 @@ def test_pair_owner_binds(tmp_path, monkeypatch):
     assert rc == 0
     assert Identities(app.config.path("identities.json")).lookup("discord", "777") == app.config.owner_id
     assert any("配對成功" in (j or {}).get("content", "") for j in http.posted())
+
+
+# ── 網頁發起的擁有者配對（設定頁「配對我的 Discord 帳號」）──────────────────────
+
+def test_web_pairing_binds_owner_from_a_dm_to_the_running_bot(tmp_path):
+    app, http, _ = make_discord_bot(tmp_path)                                # 只用 Discord、還沒配對
+    entry = app.extras["discord_entry"]
+    pairing = app.extras["discord_pairing"]
+    code = pairing.start()["code"]
+    assert len(code) == 6 and pairing.pending()["code"] == code
+    entry.on_dispatch("MESSAGE_CREATE", dm(uid="555", text="  " + code + " ", channel="dm-555")["d"])
+    app.tasks.wait(5)
+    ids = app.extras["identities"]
+    assert ids.lookup("discord", "555") == app.config.owner_id               # 接到擁有者
+    assert pairing.pending() is None and pairing.last_paired["id"] == "555"  # 碼用掉就作廢
+    texts = [(j or {}).get("content", "") for j in http.posted()]
+    assert any("配對好了" in t for t in texts)
+    entry.on_dispatch("MESSAGE_CREATE", dm(uid="555", text="/help", channel="dm-555")["d"])    # 配對之後就是擁有者
+    app.tasks.wait(5)
+    assert not any(t == dc.UNPAIRED for t in [(j or {}).get("content", "") for j in http.posted()])
+
+
+def test_web_pairing_wrong_code_does_nothing_and_too_many_guesses_void_it(tmp_path):
+    from synox.discord.pairing import MAX_WRONG
+    app, http, _ = make_discord_bot(tmp_path)
+    entry = app.extras["discord_entry"]
+    pairing = app.extras["discord_pairing"]
+    code = pairing.start()["code"]
+    wrong = "000000" if code != "000000" else "111111"
+    for _ in range(MAX_WRONG):
+        entry.on_dispatch("MESSAGE_CREATE", dm(uid="666", text=wrong, channel="dm-666")["d"])
+    assert app.extras["identities"].lookup("discord", "666") is None         # 猜錯不會配上
+    assert pairing.pending() is None                                          # 猜太多次：這組碼作廢
+    entry.on_dispatch("MESSAGE_CREATE", dm(uid="666", text=code, channel="dm-666")["d"])
+    assert app.extras["identities"].lookup("discord", "666") is None          # 作廢後連對的也不收
+
+
+def test_web_pairing_code_is_ignored_when_nobody_asked_for_one(tmp_path):
+    app, http, _ = make_discord_bot(tmp_path)
+    entry = app.extras["discord_entry"]
+    entry.on_dispatch("MESSAGE_CREATE", dm(uid="666", text="123456", channel="dm-666")["d"])
+    assert app.extras["identities"].lookup("discord", "666") is None
+
+
+def test_web_pairing_code_expires():
+    from synox.discord.pairing import TTL, WebPairing
+    now = [1000.0]
+    p = WebPairing(clock=lambda: now[0])
+    code = p.start()["code"]
+    assert p.matches(code)
+    now[0] += TTL + 1
+    assert p.pending() is None and not p.matches(code)

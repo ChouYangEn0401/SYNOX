@@ -517,6 +517,8 @@ class WebUI:
             return self.save_telegram(user, data)
         if path == "/api/settings/channels/discord":
             return self.save_discord(user, data)
+        if path == "/api/settings/channels/discord/pair":
+            return self.discord_pair(user, data)
         m = re.match(r"^/api/pack-secrets/([a-z][a-z0-9_-]{0,31})$", path)
         if m:
             return self.pack_secrets_save(user, m.group(1), data)
@@ -960,7 +962,70 @@ class WebUI:
                 bid = dc.bot_id(dtoken) if ok else None
                 discord["invite"] = dc.invite_url(bid) if bid else ""
         discord["restart"] = "discord" in self._channels_changed or (discord["saved"] and not discord["active"])
+        discord["paired_as"] = self._discord_external(owner)
+        wp = self._discord_pairing()
+        discord["pairing"] = wp.pending() if wp is not None else None
+        discord["pair_ready"] = wp is not None and discord["active"] and not discord["restart"]   # bot 上線了才收得到配對碼
         return _json(200, {"telegram": telegram, "discord": discord})
+
+    def _discord_pairing(self):
+        """配對碼的保管者：Discord 正在跑時 discord.install 建的那個（沒跑＝None）。"""
+        return self.app.extras.get("discord_pairing")
+
+    def _discord_external(self, owner: int) -> str:
+        """擁有者配對好的 Discord 使用者 id（沒有＝空字串）。"""
+        try:
+            from synox.discord.events import DISCORD
+            from synox.identity import Identities
+            ids = Identities(self.config.path("identities.json"))
+            return str(ids.external(DISCORD, owner) or "")
+        except Exception:
+            return ""
+
+    def discord_pair_state(self, user) -> Resp:
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        wp = self._discord_pairing()
+        owner = int(self.config.owner_id)
+        return _json(200, {"pairing": wp.pending() if wp is not None else None, "paired_as": self._discord_external(owner),
+                           "just_paired": wp.last_paired if wp is not None else None})
+
+    def discord_pair(self, user, data: dict) -> Resp:
+        """擁有者配對 Discord 帳號：action=start 產生六位數字（私訊 bot 傳它，正在跑的 SYNOX 接上，不用開終端機）、
+        cancel、manual（直接給 Discord 使用者 ID，馬上接上）。接上的做法跟 `discord pair` 同一個（discord.bind_owner）。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from synox import discord as dc_mod
+        from synox.identity import Identities, IdentityError, IdentityFileError
+        action = str(data.get("action") or "")
+        wp = self.app.extras.get("discord_pairing")           # Discord 正在跑才有
+        owner = int(self.config.owner_id)
+        if action == "start":
+            if wp is None:
+                return _err(409, "Discord 還沒在執行：先存好 bot token、重新啟動 SYNOX，再來配對。")
+            started = wp.start()
+            logging.info("[WEB] %s started a Discord owner pairing", user.tg_id)
+            return _json(200, {"ok": True, **started})
+        if action == "cancel":
+            if wp is not None:
+                wp.cancel()
+            return _json(200, {"ok": True})
+        if action == "manual":
+            raw = "".join(str(data.get("user_id") or "").split())
+            if not (raw.isdigit() and 15 <= len(raw) <= 22):
+                return _err(400, "Discord 使用者 ID 是一串 17～19 位的數字（Discord 設定 → 進階 → 開啟開發者模式，"
+                                 "再對自己的頭像按右鍵 → 複製使用者 ID）。")
+            try:
+                ids = Identities(self.config.path("identities.json"))
+                notes = dc_mod.bind_owner(ids, raw, owner)
+            except (IdentityError, IdentityFileError) as e:
+                return _err(400, str(e))
+            logging.info("[WEB] %s paired Discord user %s as the owner", user.tg_id, raw)
+            return _json(200, {"ok": True, "paired_as": raw, "message": "✅ 配對好了：這個 Discord 帳號現在是擁有者。"
+                                                                          + ("".join(notes) if notes else "")})
+        return _err(400, "action 要是 start、cancel 或 manual。")
 
     def save_telegram(self, user, data: dict) -> Resp:
         denied = self._owner_only(user)
@@ -986,7 +1051,7 @@ class WebUI:
         bot = self._scrub(info, token)
         logging.info("[WEB] %s saved a Telegram bot token (bot @%s)", user.tg_id, bot)
         if 0 < self._file_owner(cfg) < BASE:
-            after = "之後在 Telegram 私訊 bot 打 /web 也能拿網頁的登入連結。"
+            after = "之後在 Telegram 私訊 bot 打 /web 也能拿網頁的登入連結。（只能私訊 bot；加進群組沒有用。）"
         else:
             after = ("還沒配對擁有者：bot 還不認得你的 Telegram 帳號（陌生人會被擋）。"
                      "要配對就雙擊 Setup.bat 重跑安裝精靈（token 會自動帶入），照畫面私訊 bot 六個數字。")
@@ -1026,7 +1091,7 @@ class WebUI:
         invite = dc.invite_url(bid) if bid else ""
         return _json(200, {"ok": True, "bot": bot, "invite": invite,
                            "message": f"✅ 存好了：bot {bot}（token 在保管箱，密文）。⚠ 要重新啟動 SYNOX 才會生效。接下來："
-                                      "① 用邀請連結把 bot 加進你的（任一個）Discord 伺服器；"
+                                      "① 用邀請連結把 bot 加進你也在的（任一個）Discord 伺服器（只是為了能私訊它；bot 只回私訊，不會在伺服器頻道裡回話）；"
                                       "② 配對擁有者：在 SYNOX 資料夾跑 python -m synox discord pair（或重跑 Setup.bat），"
                                       "私訊 bot 畫面上的六個數字（配對前 bot 不認得你的 Discord 帳號）；"
                                       "③ 重新啟動 SYNOX（雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑）才會生效。"})

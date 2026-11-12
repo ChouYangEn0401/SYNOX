@@ -693,3 +693,22 @@ def test_login_page_lets_the_browser_send_the_real_origin(make_bot, owner):
     headers = _login_page_for(ui, owner)[1]
     policies = [v for k, v in headers if k == "Referrer-Policy"]
     assert policies == ["same-origin"]
+
+
+def test_discord_pair_api_manual_id_and_owner_only(make_bot, owner, tmp_path):
+    from synox.discord.events import DISCORD
+    from synox.identity import Identities
+    bot = make_bot()
+    c = Client(ui_of(bot))
+    c.login(owner)
+    assert c.post("/api/settings/channels/discord/pair", {"action": "manual", "user_id": "abc"})[0] == 400
+    assert c.post("/api/settings/channels/discord/pair", {"action": "start"})[0] == 409           # Discord 沒開：不能用 bot 收碼
+    status, data = c.post("/api/settings/channels/discord/pair", {"action": "manual", "user_id": " 123456789012345678 "})
+    assert status == 200 and data["paired_as"] == "123456789012345678"
+    assert Identities(str(tmp_path / "data" / "identities.json")).external(DISCORD, bot.app.config.owner_id) == "123456789012345678"
+    assert c.get("/api/settings/channels/discord/pair")[1]["paired_as"] == "123456789012345678"
+    from tests.test_web import GUEST_ID
+    m = Client(ui_of(bot))
+    m.login(GUEST_ID)
+    assert m.post("/api/settings/channels/discord/pair", {"action": "manual", "user_id": "123456789012345678"})[0] == 403
+    assert m.get("/api/settings/channels/discord/pair")[0] == 403
