@@ -13,6 +13,8 @@ SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、�
       "channels": {"discord": {"enabled": true, "bot_token": "vault:discord_bot_token"}},  Discord 私訊（docs/discord.md）
       "policy": {"roles": {"member": {"capabilities": ["network", "filesystem:own"]}, …}}  角色能力上限（synox/policy.py；
                                                沒寫＝預設；exec、filesystem:any 不能給任何角色）
+      "link":  {"enabled": true, "role": "console", "transport": {"kind": "tcp", "listen": "0.0.0.0:8831"}}
+                                               兩台 SYNOX 連線（synox/link；docs/link.md）
     }
 - 多個 Discord bot：channels.discord.bots.<名字> = {"token": "vault:…", "surface": "dm", "packs": "all", "ai": true}
   （synox/discord/bots.py 解析與檢查；舊寫法＝bots.default）。
@@ -59,6 +61,7 @@ class SynoxConfig(BotConfig):
     web: dict = field(default_factory=lambda: dict(DEFAULT_WEB))
     ai_member_monthly_usd: float = DEFAULT_MEMBER_USD
     policy: dict = field(default_factory=lambda: parse_policy(None))     # 角色能力上限（synox/policy.py）
+    link: object = None                                                   # LinkSettings（synox/link/settings.py）
 
     @property
     def server(self) -> bool:
@@ -103,10 +106,12 @@ class SynoxConfig(BotConfig):
         except (TypeError, ValueError):
             raise ConfigError("config.json 的 ai_member_monthly_usd 要是數字（美元，例如 2.0）。")
         policy = parse_policy(raw.get("policy"))      # exec／filesystem:any 寫進任何角色＝拒（第 1 關式檢查）
+        from synox.link.settings import parse as parse_link      # 延後 import：link 也 import config
+        link = parse_link(raw.get("link"))
         return cls(bot_token=base.bot_token, owner_id=base.owner_id,
                    poll_interval_seconds=base.poll_interval_seconds, data_dir=data_dir,
                    stepup_minutes=base.stepup_minutes, raw=dict(raw), llm=llm, vault=vault, packs=packs, mode=mode,
-                   root=root, web=web, ai_member_monthly_usd=max(0.0, member_usd), policy=policy)
+                   root=root, web=web, ai_member_monthly_usd=max(0.0, member_usd), policy=policy, link=link)
 
     @classmethod
     def load(cls, path: Optional[str] = None, *, require_token: bool = True,

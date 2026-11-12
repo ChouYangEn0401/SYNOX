@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SYNOX Link 架構研究</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a single reading column (72ch) with full-bleed tables and figures; a sticky section rail on wide screens. */
+:root{
+  --bg:#f7f8f7; --fg:#1c2321; --muted:#5c6a66; --line:#d8dedb; --panel:#ffffff; --panel-2:#eef2f0;
+  --accent:#0f766e; --accent-ink:#ffffff; --warn:#9a5b00; --good:#1f6b3a; --bad:#9b2c2c; --code:#f0f3f2;
+  --font-text:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --font-mono:"JetBrains Mono","Cascadia Mono",Consolas,ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#141917; --fg:#e4e9e6; --muted:#98a59f; --line:#2b3330; --panel:#1b2220; --panel-2:#222b28;
+  --accent:#2dd4bf; --accent-ink:#06201c; --warn:#f0b35a; --good:#6fd39a; --bad:#f28b8b; --code:#10151399; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#141917; --fg:#e4e9e6; --muted:#98a59f; --line:#2b3330; --panel:#1b2220; --panel-2:#222b28;
+  --accent:#2dd4bf; --accent-ink:#06201c; --warn:#f0b35a; --good:#6fd39a; --bad:#f28b8b; --code:#10151399; color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-text);font-size:16px;line-height:1.75;margin:0;
+  padding-block:0 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:860px;margin:0 auto}
+header.top{padding-block:40px 24px;border-bottom:1px solid var(--line)}
+.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+h1{font-size:clamp(28px,4vw,40px);line-height:1.2;margin:8px 0 10px;text-wrap:balance;font-weight:700}
+.lede{font-size:18px;color:var(--muted);max-width:68ch;margin:0}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--muted);margin-top:14px}
+h2{font-size:24px;margin:48px 0 12px;text-wrap:balance;scroll-margin-top:16px}
+h3{font-size:18px;margin:28px 0 8px}
+p,li{max-width:72ch}
+a{color:var(--accent)}
+code{font-family:var(--font-mono);font-size:.88em;background:var(--code);padding:1px 5px;border-radius:4px}
+pre{font-family:var(--font-mono);font-size:13px;line-height:1.6;background:var(--code);border:1px solid var(--line);
+  border-radius:8px;padding:14px 16px;overflow-x:auto;max-width:100%}
+pre code{background:none;padding:0;font-size:inherit}
+.toc{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:4px 24px;padding:18px 0 0;list-style:none;margin:0}
+.toc li{font-size:14px} .toc a{text-decoration:none;color:var(--fg)} .toc a:hover{color:var(--accent)}
+.toc .n{color:var(--muted);font-family:var(--font-mono);font-size:12px;margin-right:6px}
+.callout{border-left:3px solid var(--accent);background:var(--panel-2);padding:12px 16px;border-radius:0 8px 8px 0;margin:18px 0}
+.callout.warn{border-color:var(--warn)}
+.callout p{margin:4px 0}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:14px 0}
+.tablewrap{overflow-x:auto;max-width:100%;margin:14px 0 22px}
+th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;white-space:nowrap}
+td.k{white-space:nowrap;font-weight:500}
+.pill{display:inline-block;font-size:12px;line-height:1;padding:4px 8px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
+.pill.good{color:var(--good);border-color:currentColor}.pill.warn{color:var(--warn);border-color:currentColor}.pill.bad{color:var(--bad);border-color:currentColor}
+.pick{outline:2px solid var(--accent);outline-offset:-2px;border-radius:6px}
+figure{margin:22px 0;padding:16px;border:1px solid var(--line);border-radius:10px;background:var(--panel);overflow-x:auto}
+figure svg{display:block;max-width:100%;height:auto;margin:0 auto}
+figcaption{font-size:13px;color:var(--muted);margin-top:10px;max-width:72ch}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:14px;margin:14px 0}
+.card{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--panel);min-width:0}
+.card h4{margin:0 0 6px;font-size:15px}
+.card p{margin:0;font-size:14px;color:var(--muted)}
+.kv{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;font-size:14px;margin:10px 0}
+.kv dt{color:var(--muted)} .kv dd{margin:0;min-width:0}
+ol.steps li{margin-bottom:6px}
+.ref{font-size:14px} .ref li{margin-bottom:4px}
+footer{margin-top:56px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+@media (prefers-reduced-motion: no-preference){ a{transition:color .15s} }
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header class="top">
+  <div class="eyebrow">SYNOX · 調查文件 · 2026-11-12</div>
+  <h1>兩台 SYNOX 怎麼安全地互派任務</h1>
+  <p class="lede">主控台（console）與哨兵（worker）之間的連線：除了大家 polling 同一個 Telegram 對話、Cloudflare Tunnel、公網 webhook、VPN 之外還有什麼路，哪一條最簡單又最不依賴別人，以及為什麼最後選了「端對端信封 ＋ 可換的傳輸層」。</p>
+  <div class="meta"><span>讀者：擁有者（決策）、接手的維護者</span><span>對應程式：<code>src/synox/link/</code></span><span>使用說明：<code>docs/link.md</code></span></div>
+  <ol class="toc">
+    <li><span class="n">01</span><a href="#q">題目與限制</a></li>
+    <li><span class="n">02</span><a href="#idea">關鍵想法：安全跟路分開</a></li>
+    <li><span class="n">03</span><a href="#options">候選方案比較</a></li>
+    <li><span class="n">04</span><a href="#arch">推薦架構</a></li>
+    <li><span class="n">05</span><a href="#crypto">安全設計</a></li>
+    <li><span class="n">06</span><a href="#tasks">任務協定與交接</a></li>
+    <li><span class="n">07</span><a href="#bus">事件匯流排（observer）</a></li>
+    <li><span class="n">08</span><a href="#nat">不在同一個網段時</a></li>
+    <li><span class="n">09</span><a href="#iot">IoT：攝影機、Arduino、樹莓派</a></li>
+    <li><span class="n">10</span><a href="#refs">參考資料</a></li>
+  </ol>
+</header>
+
+<h2 id="q">01 · 題目與限制</h2>
+<p>擁有者 2026-11-12 的問題，整理成可以打勾的條件：</p>
+<div class="tablewrap"><table>
+<tr><th>條件</th><th>意思</th></tr>
+<tr><td class="k">安全</td><td>只有自己的那幾台看得懂、改得了訊息；別人就算能看到封包、能連上埠，也做不了事。</td></tr>
+<tr><td class="k">簡單</td><td>兩台電腦、一個 config、一次配對。不要架一套伺服器、不要管憑證。</td></tr>
+<tr><td class="k">不靠第三方</td><td>不經 Telegram／Cloudflare／Tailscale 這類別人的服務；自己的內網優先。</td></tr>
+<tr><td class="k">不開公網</td><td>不把任何東西直接掛在公網上等人敲。</td></tr>
+<tr><td class="k">雙向、有狀態</td><td>派任務、回狀態、要求重做、交接給另一台、知道誰在線。</td></tr>
+<tr><td class="k">好接 event bus／observer</td><td>後端收到什麼都變成事件，誰想反應就訂閱，不要寫死在收訊的地方。</td></tr>
+<tr><td class="k">之後接 IoT</td><td>攝影機、Arduino、樹莓派掛得上來，而且不用為它們另外設計一套安全。</td></tr>
+</table></div>
+<p>現有的 SYNOX 已經有的東西直接沿用：保管箱（Fernet、scrypt）、<code>cryptography</code> 套件（已是相依）、唯一的 <code>authorize()</code>、<code>dispatcher.handle</code>（排程就是這樣觸發指令的）、SDK dispatcher 的 observer 介面。</p>
+
+<h2 id="idea">02 · 關鍵想法：把「安全」跟「走哪條路」分開</h2>
+<p>一開始列出來的四個選項（Telegram、Cloudflare Tunnel、webhook、VPN）其實都在回答同一個問題：<em>封包怎麼到對面</em>。安全是附帶在那條路上的：Telegram 靠 Telegram、Tunnel 靠 Cloudflare、webhook 靠 TLS 憑證、VPN 靠 VPN。路一換，安全就要重做。</p>
+<p>反過來想：如果<strong>每一封訊息本身就是加密並簽過名的</strong>，那它走哪條路都無所謂。路只要能搬 bytes 就好，可以是區域網路 TCP、一個共用資料夾、MQTT、甚至序列埠或貼進聊天室的一行 base64。路被偷看、被竄改、被重放，信封都驗得出來。這就是 WireGuard、Signal、Syncthing 都在用的分法。</p>
+
+<figure>
+<svg viewBox="0 0 760 300" role="img" aria-label="同一個端對端加密的信封可以走任何傳輸層：TCP、共用資料夾、MQTT、序列埠，傳輸層只看到密文">
+<defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+<g font-family="Noto Sans TC, sans-serif" font-size="13" fill="currentColor">
+<rect x="20" y="40" width="200" height="220" rx="10" fill="none" stroke="currentColor" opacity=".5"/>
+<text x="120" y="64" text-anchor="middle" font-weight="700">主控台 SYNOX</text>
+<rect x="40" y="84" width="160" height="40" rx="6" fill="none" stroke="currentColor"/><text x="120" y="109" text-anchor="middle">任務／指令</text>
+<rect x="40" y="144" width="160" height="40" rx="6" fill="none" stroke="#0f766e" stroke-width="2"/><text x="120" y="169" text-anchor="middle">信封：加密＋簽章</text>
+<text x="120" y="228" text-anchor="middle" font-size="12" opacity=".7">私鑰在保管箱</text>
+<rect x="540" y="40" width="200" height="220" rx="10" fill="none" stroke="currentColor" opacity=".5"/>
+<text x="640" y="64" text-anchor="middle" font-weight="700">哨兵 SYNOX</text>
+<rect x="560" y="144" width="160" height="40" rx="6" fill="none" stroke="#0f766e" stroke-width="2"/><text x="640" y="169" text-anchor="middle">驗簽、解密、防重放</text>
+<rect x="560" y="84" width="160" height="40" rx="6" fill="none" stroke="currentColor"/><text x="640" y="109" text-anchor="middle">dispatcher.handle</text>
+<line x1="120" y1="124" x2="120" y2="144" stroke="currentColor" marker-end="url(#ar)"/>
+<line x1="640" y1="144" x2="640" y2="124" stroke="currentColor" marker-end="url(#ar)"/>
+<rect x="260" y="70" width="240" height="190" rx="10" fill="none" stroke="currentColor" stroke-dasharray="5 4" opacity=".6"/>
+<text x="380" y="92" text-anchor="middle" font-size="12" opacity=".8">傳輸層：只搬密文，可以換</text>
+<rect x="280" y="104" width="200" height="28" rx="5" fill="none" stroke="currentColor"/><text x="380" y="123" text-anchor="middle">區域網路 TCP（已做）</text>
+<rect x="280" y="140" width="200" height="28" rx="5" fill="none" stroke="currentColor"/><text x="380" y="159" text-anchor="middle">共用資料夾／NAS／USB（已做）</text>
+<rect x="280" y="176" width="200" height="28" rx="5" fill="none" stroke="currentColor" opacity=".5"/><text x="380" y="195" text-anchor="middle" opacity=".7">MQTT（介面留著）</text>
+<rect x="280" y="212" width="200" height="28" rx="5" fill="none" stroke="currentColor" opacity=".5"/><text x="380" y="231" text-anchor="middle" opacity=".7">序列埠／LoRa（介面留著）</text>
+<line x1="200" y1="164" x2="260" y2="164" stroke="#0f766e" stroke-width="2" marker-end="url(#ar)"/>
+<line x1="500" y1="164" x2="560" y2="164" stroke="#0f766e" stroke-width="2" marker-end="url(#ar)"/>
+<text x="230" y="150" text-anchor="middle" font-size="11" opacity=".7">密文</text>
+<text x="530" y="150" text-anchor="middle" font-size="11" opacity=".7">密文</text>
+</g></svg>
+<figcaption>信封在兩台 SYNOX 之間端對端封好；中間那一格怎麼換，兩端的程式碼都不用動。</figcaption>
+</figure>
+
+<h2 id="options">03 · 候選方案比較</h2>
+<p>先看「路」。每一條都可以配上信封；差別在要不要靠別人、要不要開公網、設定多煩、能不能穿 NAT。</p>
+<div class="tablewrap"><table>
+<tr><th>路</th><th>不靠第三方</th><th>不開公網埠</th><th>設定</th><th>穿 NAT</th><th>延遲</th><th>多裝套件</th><th>評語</th></tr>
+<tr><td class="k">Telegram 共用對話（大家 polling）</td><td><span class="pill bad">靠 Telegram</span></td><td><span class="pill good">是</span></td><td>低</td><td><span class="pill good">是</span></td><td>秒級</td><td>無</td><td><strong>bot 之間走不通</strong>：Telegram 規定 bot 看不到其他 bot 的訊息（防止互相觸發），兩支 bot 放同一個群組彼此是聾的。要通只能用使用者帳號（MTProto，Telethon 之類），那就不是 bot、也違反 SYNOX 的設計。兩邊共用同一個 token 也不行（同時兩個 getUpdates 會 409）。</td></tr>
+<tr><td class="k">Cloudflare Tunnel</td><td><span class="pill bad">靠 Cloudflare</span></td><td><span class="pill good">是</span></td><td>中</td><td><span class="pill good">是</span></td><td>百毫秒</td><td>cloudflared</td><td>好用，但流量經 Cloudflare 邊緣、要有網域與帳號；擁有者明說不想靠外部雲。</td></tr>
+<tr><td class="k">公網 webhook（自己架 HTTPS）</td><td><span class="pill good">是</span></td><td><span class="pill bad">要開</span></td><td>高</td><td>要固定 IP／DDNS</td><td>百毫秒</td><td>憑證</td><td>要管憑證、要對外開埠、每次收訊都是公網上任何人都能敲的入口。擁有者明說不想。</td></tr>
+<tr><td class="k">VPN：Tailscale／ZeroTier</td><td><span class="pill warn">協調伺服器是別人的</span></td><td><span class="pill good">是</span></td><td>低</td><td><span class="pill good">是</span></td><td>低</td><td>客戶端</td><td>最省事的跨網方案；Headscale 可以自架協調伺服器，但那又多一台要顧的伺服器。</td></tr>
+<tr><td class="k">VPN：WireGuard（純）</td><td><span class="pill good">是</span></td><td><span class="pill warn">一端開一個 UDP 埠</span></td><td>中</td><td>一端要能被連到</td><td>低</td><td>系統元件</td><td>沒有第三方；開的那個埠對沒鑰匙的人是「靜默」的（不回應）。跨網段時最推薦墊在下面；同一個區網不需要。</td></tr>
+<tr><td class="k">MQTT（自架 Mosquitto）</td><td><span class="pill good">是</span></td><td><span class="pill warn">broker 要能被連到</span></td><td>中</td><td>broker 在哪就看哪</td><td>低</td><td>paho-mqtt、broker</td><td>IoT 的通用語言：感測器、ESP32、樹莓派都會講。但 broker 本身是一台要架的伺服器、要管 TLS／帳密；對「兩台電腦互派任務」是殺雞用牛刀。留作第三種傳輸層（感測器多了再做）。</td></tr>
+<tr class="pick"><td class="k">區域網路 TCP ＋ 信封</td><td><span class="pill good">是</span></td><td><span class="pill warn">主控台在內網開一個埠</span></td><td>低</td><td>同網段才行</td><td>毫秒</td><td>無（標準函式庫）</td><td>哨兵主動連主控台（哨兵不用開埠）；沒驗過的連線什麼都做不了。最簡單、最快；跨網段就墊 WireGuard。<strong>已做。</strong></td></tr>
+<tr class="pick"><td class="k">共用資料夾 ＋ 信封</td><td><span class="pill good">是</span></td><td><span class="pill good">是</span></td><td>最低</td><td>看資料夾怎麼同步</td><td>秒級（輪詢）</td><td>無</td><td>NAS 分享、Syncthing、甚至 USB 都行；不開任何埠、不連外。慢一點但零設定。<strong>已做。</strong></td></tr>
+<tr><td class="k">SSH 隧道</td><td><span class="pill good">是</span></td><td><span class="pill warn">一端開 22</span></td><td>中</td><td>一端要能被連到</td><td>低</td><td>sshd</td><td>Windows 要裝 OpenSSH Server、管金鑰；比 WireGuard 沒好處。</td></tr>
+<tr><td class="k">ZeroMQ（CurveZMQ）／gRPC mTLS</td><td><span class="pill good">是</span></td><td><span class="pill warn">要開埠</span></td><td>中高</td><td>同上</td><td>低</td><td>pyzmq／grpcio</td><td>做得到一樣的事，但多一個大相依，信封層的安全還是得自己管（Curve 只保護連線）。</td></tr>
+<tr><td class="k">Matrix／XMPP 自架</td><td><span class="pill good">是</span></td><td><span class="pill bad">伺服器要開</span></td><td>高</td><td><span class="pill good">是</span></td><td>秒級</td><td>很多</td><td>為了兩台電腦架一個聊天伺服器，太重。</td></tr>
+</table></div>
+<div class="callout"><p><strong>結論。</strong>同一個區網：TCP。開不了埠或想完全不連網：共用資料夾。跨網段：WireGuard 墊在 TCP 下面（WireGuard 本身就是「只有鑰匙對的人才存在」的設計，跟信封的精神一致）。這三條都不靠第三方、都不碰公網、都用同一套信封與同一套程式。</p></div>
+
+<h2 id="arch">04 · 推薦架構（已實作）</h2>
+<p>每一層只認識下一層；角色與指令只碰事件匯流排，不碰傳輸層；傳輸層看不到明文。</p>
+<figure>
+<svg viewBox="0 0 760 330" role="img" aria-label="SYNOX Link 的五層：指令與 AI、角色、節點與事件匯流排、信封與身分與名單、傳輸層；箭頭標示誰呼叫誰">
+<defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+<g font-family="Noto Sans TC, sans-serif" font-size="13" fill="currentColor">
+<rect x="60" y="20" width="640" height="46" rx="8" fill="none" stroke="currentColor"/>
+<text x="80" y="40" font-weight="700">Telegram 指令 /link_*、AI 工具</text><text x="80" y="57" font-size="11" opacity=".7">commands.py　只呼叫 ConsoleRole／讀 node.status()</text>
+<rect x="60" y="86" width="640" height="46" rx="8" fill="none" stroke="currentColor"/>
+<text x="80" y="106" font-weight="700">角色：ConsoleRole（派、重做、交接、取消）　WorkerRole（檢查、跑、回報）</text><text x="80" y="123" font-size="11" opacity=".7">roles.py　只訂閱 bus、只呼叫 node.send；哨兵跑指令經 dispatcher.handle（同一個 authorize）</text>
+<rect x="60" y="152" width="400" height="46" rx="8" fill="none" stroke="#0f766e" stroke-width="2"/>
+<text x="80" y="172" font-weight="700">LinkNode：收信 → 驗 → 發事件；心跳、在線、配對</text><text x="80" y="189" font-size="11" opacity=".7">node.py</text>
+<rect x="480" y="152" width="220" height="46" rx="8" fill="none" stroke="#0f766e" stroke-width="2"/>
+<text x="500" y="172" font-weight="700">EventBus</text><text x="500" y="189" font-size="11" opacity=".7">link.in.*、task.*、link.peer.*</text>
+<rect x="60" y="218" width="640" height="46" rx="8" fill="none" stroke="currentColor"/>
+<text x="80" y="238" font-weight="700">信封 envelope.py　身分 identity.py　名單 peers.py　配對 pairing.py</text><text x="80" y="255" font-size="11" opacity=".7">X25519 → HKDF → ChaCha20-Poly1305；Ed25519 簽章；重放防護；全部在保管箱</text>
+<rect x="60" y="284" width="640" height="40" rx="8" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+<text x="80" y="309" font-weight="700">傳輸層 transport.py：memory ｜ folder ｜ tcp　（只有 start／send／bind／bad／stop）</text>
+<line x1="380" y1="66" x2="380" y2="86" stroke="currentColor" marker-end="url(#ar2)"/>
+<line x1="260" y1="132" x2="260" y2="152" stroke="currentColor" marker-end="url(#ar2)"/><text x="268" y="146" font-size="11" opacity=".7">node.send</text>
+<line x1="590" y1="152" x2="590" y2="132" stroke="currentColor" marker-end="url(#ar2)"/><text x="598" y="146" font-size="11" opacity=".7">subscribe</text>
+<line x1="460" y1="175" x2="480" y2="175" stroke="currentColor" marker-end="url(#ar2)"/>
+<line x1="260" y1="198" x2="260" y2="218" stroke="currentColor" marker-end="url(#ar2)"/><text x="268" y="212" font-size="11" opacity=".7">seal／open</text>
+<line x1="380" y1="264" x2="380" y2="284" stroke="currentColor" marker-end="url(#ar2)"/><text x="388" y="278" font-size="11" opacity=".7">bytes</text>
+</g></svg>
+<figcaption>箭頭是呼叫方向。要加一種新的傳輸（MQTT、序列埠）只動最下面那一格；要加一種新的任務行為只動角色那一格。</figcaption>
+</figure>
+
+<div class="grid2">
+<div class="card"><h4>為什麼哨兵「主動連」主控台</h4><p>哨兵常常是樹莓派、放在門口的小電腦、別人家的機器；它們不用開埠、不用固定 IP，只要能出去。主控台只要在內網開一個埠。斷線哨兵自己退避重連。</p></div>
+<div class="card"><h4>為什麼不是 HTTP／WebSocket</h4><p>信封已經是完整的安全層，HTTP 只會多一層框架與一堆標頭要過濾。4 bytes 長度前綴的 TCP 框架加上 1 MB 上限，整段程式一百行、沒有新相依。要走瀏覽器時再加 WebSocket 傳輸。</p></div>
+<div class="card"><h4>為什麼哨兵以「自己的擁有者」身分跑</h4><p>主控台那邊是誰下的，哨兵看不到也不信；信任的邊界是名單（配對），不是人。跑的路跟排程觸發一模一樣（<code>via=ROUTINE</code>、同一個 <code>authorize</code>），再加一道 <code>max_effect</code> 上限。</p></div>
+<div class="card"><h4>為什麼名單與任務簿放保管箱</h4><p>名片本身不是祕密，但被改成攻擊者的公鑰就等於換掉對方；保管箱的 HMAC 擋得住改檔。<code>data/</code> 本來就是信任邊界。</p></div>
+</div>
+
+<h2 id="crypto">05 · 安全設計</h2>
+<h3>身分</h3>
+<p>每台一組長期金鑰：Ed25519（簽章、身分）＋ X25519（金鑰交換），存保管箱 <code>link_identity</code>。<code>node_id</code> ＝ SHA-256(簽章公鑰) 前 12 bytes，寫成 <code>3f2a-9c1e-…</code> 六組。名片（NodeCard）是兩把公鑰＋名字，由 Ed25519 簽過，所以拿到名片就能確認兩把鑰匙是同一台的。不做 Ed25519→X25519 轉換（<code>cryptography</code> 沒提供，兩把分開也比較乾淨）。</p>
+<h3>信封</h3>
+<pre><code>{"v":1, "from":"寄件者", "to":"收件者", "seq":12, "ts":1760000000,
+ "eph":"一次性 X25519 公鑰", "salt":"16 bytes", "ct":"密文", "sig":"Ed25519 簽章"}
+
+shared = X25519(eph_priv, peer_box_pub) ‖ X25519(my_box_priv, peer_box_pub)
+key    = HKDF-SHA256(shared, salt, info = "synox-link-v1|from|to")      # 每封一把
+ct     = ChaCha20-Poly1305(key, nonce = 0, plaintext = {"kind","body"}, aad = 表頭)
+sig    = Ed25519(寄件者簽章私鑰, aad ‖ ct)</code></pre>
+<ul>
+<li><strong>第一段 DH 用一次性金鑰</strong>：之後私鑰外洩，舊信也解不開（前向保密）。</li>
+<li><strong>第二段 DH 用寄件者長期金鑰</strong>：只有寄件者或收件者算得出 key，收件者因此知道是誰寄的。</li>
+<li><strong>簽章</strong>再確認一次寄件者，而且收件者可以留存證據（主控台的任務簿）。</li>
+<li>每封換 key 所以 nonce 固定全零是安全的；這避開了 96-bit 隨機 nonce 的碰撞問題，也不用 XChaCha。</li>
+<li><code>to</code>／<code>seq</code>／<code>ts</code> 都在 AAD：改收件者、改序號、改時間都驗不過。</li>
+</ul>
+<h3>重放與順序</h3>
+<p>三道：<code>ts</code> 與現在差超過 5 分鐘＝拒（兩台時鐘要大致對）；同一寄件者的 <code>seq</code> 只能往上（寄件計數與「上次看到的」都存保管箱，重開程式不會倒退）；5 分鐘視窗內看過的 (from, salt) 不收第二次。</p>
+<h3>配對</h3>
+<p>主控台 <code>python -m synox link pair</code> 印一行配對碼 ＝ 主控台名片 ＋ 16 bytes 一次性祕密，10 分鐘有效。哨兵 <code>link join</code> 存起來，跑起來時送 <code>pair.request</code>：信封本身已經是封給主控台的（哨兵有主控台名片），自己的名片放在信封的 <code>card</code> 欄位，body 帶 HMAC-SHA256(祕密, 哨兵名片 ‖ 主控台 node_id)。主控台只在「正在等配對碼」時才看 <code>card</code>，mac 對了才把哨兵寫進名單並回 <code>pair.ok</code>；錯了不回任何東西。沒有網路也能配：兩邊 <code>link card</code> 印名片、<code>link trust</code> 互貼（SSH 式）。</p>
+<h3>威脅表</h3>
+<div class="tablewrap"><table>
+<tr><th>攻擊者拿到／能做</th><th>結果</th></tr>
+<tr><td>在區網上看封包、改封包、重送封包</td><td>看到密文；改一個字簽章與 AEAD 都失敗；重送被 seq／salt／ts 擋。</td></tr>
+<tr><td>連上主控台開的 TCP 埠</td><td>送什麼都被丟掉（不回應），三次就斷線；最多 32 條連線。等於 WireGuard 的「靜默」。</td></tr>
+<tr><td>10 分鐘內拿到配對碼</td><td>能以哨兵身分進名單：主控台之後可能派任務給它、它會看到派來的指令文字。它拿不到主控台的資料、不能對主控台下指令。</td></tr>
+<tr><td>拿到哨兵的 <code>data/</code></td><td>等於那台哨兵（跟現在拿到 data/ 一樣）；可以冒充那台回報結果。主控台 <code>/link_forget</code> 就斷。</td></tr>
+<tr><td>拿到主控台的 <code>data/</code> 或主控台被攻破</td><td><strong>所有哨兵都聽它的</strong>（在各自 <code>max_effect</code> 之內）。主控台要是最信任的那台。</td></tr>
+<tr><td>共用資料夾被別人寫入</td><td>寫進去的東西驗不過就被刪掉；可以塞滿磁碟（沒做配額）。</td></tr>
+<tr><td>哨兵被攻破</td><td>只影響派給它的任務；它可以回假的結果。主控台不會因為哨兵回了什麼而執行任何東西（結果只是文字）。</td></tr>
+</table></div>
+<div class="callout warn"><p><strong>老實清單。</strong>TCP 沒有 TLS（靠信封；對外聽的埠只建議內網或 WireGuard 裡）。沒有 NAT 穿透。沒有流量整形（folder 傳輸可以被塞滿）。密碼學是標準原語的標準組合（跟 libsodium 的 sealed box ＋簽章同構），但沒有經過獨立審查；程式只在開發機以記憶體傳輸、socketpair、127.0.0.1 的 TCP 驗過。</p></div>
+
+<h2 id="tasks">06 · 任務協定與交接</h2>
+<figure>
+<svg viewBox="0 0 760 230" role="img" aria-label="任務狀態機：offered 到 accepted 到 running，再到 done、failed、rejected 或 cancelled；重做與交接各開一個新任務並以 lineage 指回舊任務">
+<defs><marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+<g font-family="Noto Sans TC, sans-serif" font-size="13" fill="currentColor">
+<rect x="20" y="70" width="110" height="40" rx="20" fill="none" stroke="currentColor"/><text x="75" y="95" text-anchor="middle">offered</text>
+<rect x="190" y="70" width="110" height="40" rx="20" fill="none" stroke="currentColor"/><text x="245" y="95" text-anchor="middle">accepted</text>
+<rect x="360" y="70" width="110" height="40" rx="20" fill="none" stroke="currentColor"/><text x="415" y="95" text-anchor="middle">running</text>
+<rect x="560" y="20" width="110" height="34" rx="17" fill="none" stroke="#0f766e" stroke-width="2"/><text x="615" y="42" text-anchor="middle">done</text>
+<rect x="560" y="74" width="110" height="34" rx="17" fill="none" stroke="currentColor"/><text x="615" y="96" text-anchor="middle">failed</text>
+<rect x="560" y="128" width="110" height="34" rx="17" fill="none" stroke="currentColor"/><text x="615" y="150" text-anchor="middle">rejected</text>
+<rect x="560" y="182" width="110" height="34" rx="17" fill="none" stroke="currentColor"/><text x="615" y="204" text-anchor="middle">cancelled</text>
+<line x1="130" y1="90" x2="190" y2="90" stroke="currentColor" marker-end="url(#ar3)"/><text x="160" y="82" text-anchor="middle" font-size="11">task.accepted</text>
+<line x1="300" y1="90" x2="360" y2="90" stroke="currentColor" marker-end="url(#ar3)"/><text x="330" y="82" text-anchor="middle" font-size="11">（同時）</text>
+<line x1="470" y1="84" x2="560" y2="40" stroke="#0f766e" stroke-width="2" marker-end="url(#ar3)"/><text x="505" y="52" font-size="11">result ok</text>
+<line x1="470" y1="92" x2="560" y2="92" stroke="currentColor" marker-end="url(#ar3)"/><text x="490" y="108" font-size="11">result 失敗</text>
+<path d="M75 110 C75 170 400 150 560 146" fill="none" stroke="currentColor" marker-end="url(#ar3)"/><text x="300" y="150" text-anchor="middle" font-size="11">task.rejected（哨兵的檢查沒過）／送不出去</text>
+<path d="M245 110 C245 210 420 200 560 200" fill="none" stroke="currentColor" marker-end="url(#ar3)"/><text x="330" y="208" text-anchor="middle" font-size="11">/link_cancel</text>
+<path d="M615 20 C615 2 75 2 75 70" fill="none" stroke="currentColor" stroke-dasharray="4 3" marker-end="url(#ar3)"/><text x="345" y="14" text-anchor="middle" font-size="11">/link_redo、/link_handoff ＝ 新任務，lineage 指回舊的</text>
+</g></svg>
+<figcaption>哨兵回 accepted 的瞬間就開始跑，所以主控台直接記成 running。重做與交接都不改舊任務：歷史永遠看得到誰做了什麼、第幾次。</figcaption>
+</figure>
+<div class="tablewrap"><table>
+<tr><th>信封 kind</th><th>方向</th><th>body</th></tr>
+<tr><td class="k">task.offer</td><td>主控台 → 哨兵</td><td><code>{id, command, lineage, context, attempts}</code></td></tr>
+<tr><td class="k">task.accepted／task.rejected</td><td>哨兵 → 主控台</td><td><code>{id}</code>／<code>{id, reason}</code>（reason 是給人看的一句：「這台沒有這個指令」「效果 danger 超過 max_effect」…）</td></tr>
+<tr><td class="k">task.progress</td><td>哨兵 → 主控台</td><td><code>{id, text}</code>（協定有、哨兵現在還沒有人送）</td></tr>
+<tr><td class="k">task.result</td><td>哨兵 → 主控台</td><td><code>{id, ok, text, error}</code>；text 是指令的回覆全文（最多 8000 字）</td></tr>
+<tr><td class="k">task.cancel</td><td>主控台 → 哨兵</td><td><code>{id}</code>（盡力：已經開始做的做完但不回結果）</td></tr>
+<tr><td class="k">hello／heartbeat／ping／pong</td><td>雙向</td><td>連上時、每 30 秒、探測</td></tr>
+<tr><td class="k">pair.request／pair.ok</td><td>哨兵 → 主控台 → 哨兵</td><td>配對（見 05）</td></tr>
+</table></div>
+<p><strong>交接（handoff）</strong>的做法刻意簡單：主控台把 A 的結果放進新任務的 <code>context</code>（<code>from_task</code>、<code>from_worker</code>、<code>result</code>）派給 B。哨兵之間不直接講話；主控台永遠是唯一的協調者，所以信任圖是一顆星，不是網。要讓 B 真的「用到」A 的結果，B 的那個指令要自己讀 context（下一步：讓哨兵把 context 放進子程序的環境變數或 AI 的系統提示）。</p>
+
+<h2 id="bus">07 · 事件匯流排（observer）</h2>
+<p>每台 SYNOX 一個 <code>EventBus</code>：主題是用點分的字串，<code>subscribe(pattern, handler)</code> 用 fnmatch（<code>task.*</code>、<code>link.in.*</code>、<code>*</code>），同步呼叫、handler 例外隔離、有 <code>wait_for</code>。收到的信驗過之後一律變成 <code>link.in.&lt;kind&gt;</code>；角色再把它翻成領域事件。</p>
+<div class="tablewrap"><table>
+<tr><th>主題</th><th>誰發</th><th>事件內容</th></tr>
+<tr><td class="k">link.in.&lt;kind&gt;</td><td>LinkNode</td><td><code>msg</code>（Message：kind、body、sender、seq、ts）、<code>peer</code>、<code>conn</code></td></tr>
+<tr><td class="k">link.out.&lt;kind&gt;</td><td>LinkNode</td><td><code>peer</code>、<code>kind</code>、<code>sent</code>（傳輸層有沒有送出去）</td></tr>
+<tr><td class="k">link.rejected</td><td>LinkNode</td><td><code>peer</code>、<code>reason</code>（驗不過的信：陌生寄件者、重放、簽章…）</td></tr>
+<tr><td class="k">link.peer.online／offline、link.paired</td><td>LinkNode</td><td><code>peer</code>（在線狀態改變；配對成功）</td></tr>
+<tr><td class="k">task.offered／running／progress／done／failed／rejected／cancelled</td><td>ConsoleRole</td><td><code>task</code>（整個 Task 的 dict）</td></tr>
+<tr><td class="k">worker.accepted／rejected／done／failed</td><td>WorkerRole</td><td><code>id</code>、<code>command</code>、<code>text</code>／<code>error</code></td></tr>
+</table></div>
+<pre><code># 之後要做的自動化都長這樣：不碰傳輸、不碰角色
+link = app.extras["synox_link"]
+link.bus.subscribe("task.failed", lambda topic, e: link.console.redo(e["task"]["id"])
+                                                   if e["task"]["attempts"] &lt; 3 else None)
+link.bus.subscribe("link.peer.offline", lambda topic, e: app.notify_owner(f"⚪ {e['peer']} 離線了"))</code></pre>
+<p>跟 SDK 現有的 <code>DispatchObserver</code> 是兩回事：那個看的是「這台 dispatcher 跑了哪個指令」，這個看的是「兩台之間發生了什麼」。哨兵跑指令時仍會經過 dispatcher，所以 SDK 的 observer 也看得到（kind＝command、channel＝link）。</p>
+
+<h2 id="nat">08 · 不在同一個網段時</h2>
+<div class="grid2">
+<div class="card"><h4>WireGuard（推薦）</h4><p>主控台那邊開一個 UDP 埠（或兩邊都在同一個 WireGuard 網裡），哨兵的 config 寫 WireGuard 位址。WireGuard 對沒鑰匙的人不回應，跟信封的精神一樣；Windows 有官方客戶端，樹莓派是核心內建。沒有第三方。</p></div>
+<div class="card"><h4>共用資料夾經 Syncthing</h4><p>兩台各自跑 Syncthing 同步一個資料夾（Syncthing 的發現伺服器是第三方，但可以關掉只用手動位址）。零埠、零固定 IP，但是秒級到分鐘級的延遲。</p></div>
+<div class="card"><h4>只開一個埠到公網（不建議但可以）</h4><p>主控台 port-forward 8831，哨兵直接連。沒驗過的封包全被丟，理論上撐得住；但那是公網上一個會回 TCP 握手的埠，比 WireGuard 多露一點。要做就加 Noise 握手讓沒鑰匙的人連 ACK 都拿不到。</p></div>
+<div class="card"><h4>之後：自架小 relay</h4><p>兩台都主動連一台你自己的小 VPS（它只搬密文、看不懂內容），就是「不信任的中繼」。信封設計已經允許這件事，只要寫一個 relay 傳輸。沒有做，因為擁有者現在不想多一台伺服器。</p></div>
+</div>
+
+<h2 id="iot">09 · IoT：攝影機、Arduino、樹莓派</h2>
+<p>硬體都掛在<strong>哨兵</strong>身上、當那台的 pack（kind=cli 或 kind=python），主控台只會 <code>/link_run 門口 /cam_snap</code>。這樣硬體的安全邊界跟現在的 pack 一樣（五關、沙盒、容器），link 不用為它們另外設計。</p>
+<div class="tablewrap"><table>
+<tr><th>要做的事</th><th>Python 怎麼接</th><th>放哪</th><th>備註</th></tr>
+<tr><td class="k">USB 攝影機拍照</td><td><code>opencv-python</code>：<code>cv2.VideoCapture(0)</code> → <code>read()</code> → <code>imwrite</code></td><td>哨兵的 cli pack（<code>requires.pip</code> 釘版本）</td><td>Windows／Linux 都行；影像檔用 <code>pack.path_of</code> 放資料夾，回覆走 <code>send_photo</code>（link 現在只回文字，圖片要下一步）</td></tr>
+<tr><td class="k">樹莓派 CSI 攝影機</td><td><code>picamera2</code>（libcamera）</td><td>樹莓派哨兵的 python pack</td><td>Pi OS Bookworm 以後用 picamera2，不是舊的 picamera</td></tr>
+<tr><td class="k">Arduino 開關、讀感測器</td><td><code>pyserial</code> ＋ Arduino 跑 StandardFirmata → <code>pyfirmata2</code>；或自訂簡單的序列協定</td><td>哨兵（USB 線接著的那台）</td><td>序列埠是最簡單的硬體介面；沙盒要把 <code>/dev/ttyUSB0</code>／COM 埠放行</td></tr>
+<tr><td class="k">樹莓派 GPIO</td><td><code>gpiozero</code>（Pi 5 用 lgpio 後端）</td><td>樹莓派哨兵</td><td>繼電器、LED、按鈕一行搞定</td></tr>
+<tr><td class="k">一堆感測器／ESP32</td><td>MQTT（自架 Mosquitto；<code>paho-mqtt</code>）</td><td>哨兵訂閱 broker，或 link 多一個 MQTT 傳輸</td><td>感測器多了再做；單台相機／Arduino 不需要</td></tr>
+<tr><td class="k">樹莓派當哨兵</td><td>裝 Python 3.11+、<code>pip install -e .</code>、config 寫 <code>link.role=worker</code>、<code>link.connect</code></td><td>—</td><td>程式本身跨平台；安裝精靈只有 Windows，Linux 手動裝；sandbox 後端用 bwrap／systemd-run</td></tr>
+</table></div>
+<p>一個典型的擺法：客廳的 Windows 當主控台（有 Telegram、有 AI），門口的樹莓派當哨兵（相機、GPIO），書房的桌機當另一台哨兵（算力、檔案）。你在手機上說「看一下門口」，AI 在主控台叫 <code>/link_run 門口 /cam_snap</code>，門口那台拍照回傳。</p>
+
+<h2 id="refs">10 · 參考資料</h2>
+<ul class="ref">
+<li>Telegram Bot FAQ「bots will not be able to see messages from other bots」：<a href="https://core.telegram.org/bots/faq">core.telegram.org/bots/faq</a></li>
+<li>WireGuard 白皮書（靜默、Noise 式握手）：<a href="https://www.wireguard.com/papers/wireguard.pdf">wireguard.com/papers/wireguard.pdf</a></li>
+<li>Noise Protocol Framework（之後要做「連 ACK 都不給」的握手時）：<a href="https://noiseprotocol.org/">noiseprotocol.org</a></li>
+<li>libsodium sealed boxes（信封的同構設計）：<a href="https://doc.libsodium.org/public-key_cryptography/sealed_boxes">doc.libsodium.org</a></li>
+<li>Python <code>cryptography</code>：X25519、Ed25519、ChaCha20Poly1305、HKDF：<a href="https://cryptography.io/">cryptography.io</a></li>
+<li>Syncthing（裝置 ID＝憑證雜湊、手動位址）：<a href="https://docs.syncthing.net/">docs.syncthing.net</a></li>
+<li>MQTT 規格與 Mosquitto：<a href="https://mqtt.org/">mqtt.org</a>、<a href="https://mosquitto.org/">mosquitto.org</a></li>
+<li>Headscale（自架 Tailscale 協調伺服器）：<a href="https://github.com/juanfont/headscale">github.com/juanfont/headscale</a></li>
+<li>picamera2：<a href="https://github.com/raspberrypi/picamera2">github.com/raspberrypi/picamera2</a>；gpiozero：<a href="https://gpiozero.readthedocs.io/">gpiozero.readthedocs.io</a>；pyFirmata2：<a href="https://github.com/berndporr/pyFirmata2">github.com/berndporr/pyFirmata2</a></li>
+</ul>
+<footer>SYNOX 調查文件 · 歸檔於 <code>docs/discussions/2026-11-12-link-architecture.html</code> · 同日實作交接：<code>2026-11-12-link-implementation.html</code></footer>
+</div>
+
+</body>
+</html>

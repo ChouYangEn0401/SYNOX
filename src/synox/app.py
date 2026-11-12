@@ -1,6 +1,6 @@
 """
 build()：SynoxConfig → isdtelekit.build_app → 基本指令（伺服器版多 accounts、limits）→ packs.load_all
-→ agent.install → schedule.install → web.install（本機網頁介面）。
+→ agent.install → schedule.install → web.install（本機網頁介面）→ link.install（兩台 SYNOX 連線）。
 
     config = SynoxConfig.load()
     app = build(config)
@@ -18,7 +18,7 @@ from isdtelekit import build_app
 from isdtelekit.host.app import App
 from isdtelekit.packs import accounts, basics, help as help_pack, limits
 
-from synox import agent, discord, policy, schedule, web
+from synox import agent, discord, link, policy, schedule, web
 from synox.config import SynoxConfig
 from synox.llm import make_adapter
 from synox.llm.base import LLMError
@@ -81,5 +81,6 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
     discord.install(app, config, vault)      # 有開 Discord 才做事；要在 schedule/web 之前（它們用 app.home）
     schedule.install(app)
     web.install(app, config, vault, pack_dirs=pack_dirs, config_path=config_path)
+    link.install(app, config, vault)          # config.json 有開 link 才做事（docs/link.md）
     app.on_start.append(lambda a: a.notify_owner(GREETING))
     return app

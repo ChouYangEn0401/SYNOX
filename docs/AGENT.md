@@ -18,9 +18,9 @@
 | Path | Role |
 |---|---|
 | `vendor/isdtelekit/` | ISDTeleKitSDK 的**原樣**複製（版本與 commit 在 `vendor/VERSION`）。不要改；要不同的行為就在 `src/synox` 寫轉接 |
-| `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜doctor｜stop｜install <檔> [--yes] [--trust-publisher <名字>]｜packs status｜packs lock --approve <name> [--trust-publisher <名字>] [--runtime container|host]｜packs runtime <name> container|host｜packs env rebuild <name>`（install 也收 `--runtime`） |
-| `src/synox/app.py` | `build(config, home=, adapter=, vault=, config_path=)`：SDK `build_app` → basics/help → `packs.load_all` → `agent.install` → `schedule.install` → `web.install` |
-| `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`／`policy`；路徑相對 SYNOX 資料夾（`ROOT`） |
+| `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜doctor｜stop｜install <檔> [--yes] [--trust-publisher <名字>]｜packs status｜packs lock --approve <name> [--trust-publisher <名字>] [--runtime container|host]｜packs runtime <name> container|host｜packs env rebuild <name>｜link card|pair|join <碼>|trust <名片> [--role]|peers|forget <id>`（install 也收 `--runtime`） |
+| `src/synox/app.py` | `build(config, home=, adapter=, vault=, config_path=)`：SDK `build_app` → basics/help → `packs.load_all` → `agent.install` → `schedule.install` → `web.install` → `link.install` |
+| `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`／`policy`／`link`（`link/settings.py` 的 `LinkSettings`）；路徑相對 SYNOX 資料夾（`ROOT`） |
 | `src/synox/policy.py` | `decide`（權限唯一交會點）、`parse_policy`（`policy.roles` 能力上限，第 1 關式檢查）、`group_policy_for`（loader 用）、`ceiling`／`fits`；bot 範圍 `bot_scope`／`using_bot`／`current_bot`／`run_as`；`install`（把 decide 接到 SDK 的 `registry.authorize`） |
 | `src/synox/sandbox.py` | 運行空間（PERM-7）：`Sandbox.wrap(argv, env, cwd, grants)`、`Grants`、後端 none／jobobject／bwrap／systemd／container（每個 pack 自己的，S1）／appcontainer（介面）、`set_factory`／`sandbox_for`、`box_for`／`view_for`／`set_engine_which`／`set_container_factory`、`grants_for`、`data_scope`（推斷集中處）、`trust_of`、`restricted_reason`、`doctor_line`；jobobject 的 launcher（`python -I sandbox.py jobobject …`） |
 | `src/synox/discord/scope.py` | bot 範圍報告：`/bot_status`（`install`）、`report`／`lines`（doctor 也用）、`REASONS`（不會出現的原因，可擴充）、`channel_line`（頻道型的收訊設定） |
@@ -35,6 +35,7 @@
 | `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`validate.py`（第 4 關呼叫驗證）、`delimit.py`（第 5 關工具結果分隔符）、`budget.py`（伺服器版成員每月額度；`BotPool` 頻道型 bot 一池）、`room.py`（頻道 AI：`RoomAgent`、`redact_reply`）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
 | `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（30 秒、via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`、`/schedule_*`） |
 | `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS）、`__init__.py`（`install`、`/web`、`/web_off`） |
+| `src/synox/link/` | 兩台 SYNOX 連線（[link.md](link.md)）：`identity.py`（Ed25519＋X25519 金鑰、`NodeCard` 名片、`node_id`；保管箱 `link_identity`）、`envelope.py`（`seal`／`open_envelope`：每封換金鑰的 X25519→HKDF→ChaCha20-Poly1305＋Ed25519 簽章、`ReplayGuard`、`MAX_FRAME`）、`peers.py`（`PeerStore` 名單＋雙向 seq，保管箱 `link_peers`）、`pairing.py`（配對碼 `issue`／`save_join`／`verify_request`，保管箱 `link_pairing`／`link_join`）、`transport.py`（只搬 bytes：`MemoryTransport`＋`MemoryFabric`、`FolderTransport`、`TcpTransport`＋`Conn`／`pack`／`read_frame`）、`bus.py`（`EventBus`：`subscribe(pattern)`／`publish`／`wait_for`）、`node.py`（`LinkNode`：收信→驗→`bus.publish("link.in.<kind>")`、心跳、在線、配對）、`protocol.py`（kind 常數、`Task`／`TaskBook`，保管箱 `link_tasks`）、`roles.py`（`ConsoleRole` 派／重做／交接／取消、`WorkerRole` 檢查＋`dispatcher.handle`＋`CaptureChannel`）、`commands.py`（`/link_*`）、`settings.py`（config 的 `link`）、`__init__.py`（`install`、`build`、`set_transport_factory`） |
 | `src/synox/packs/admin.py` | `.synoxpack`：stage（zip 檢查＋第 1、2 關；記 zip 的執行位元、不解出 `__pycache__`）→ install_staged（再驗一次＋T2 要 `trust_publisher`＋第 3 關寫鎖）／移除到 `packs/_removed/`／`reload()`（Web UI、`synox install` 共用）；`format_tier`／`red`＝T2 的紅字段 |
 | `src/synox/packs/tier.py` | 信任層級（SDK P7）：`assess`（T0／T1／T2＋掃不到內容的檔、外部程式、runtime auto 套件）、`warning_lines`、`confirm_problem`（publisher 一字不差）、`reconfirm_reasons`（升級）、`lock_fields` |
 | `src/synox/packs/upgrade.py` | 同名再裝＝升級：`staged_upgrade`（「改了什麼」、semver 版本檢查，權限變大的標 alert＝紅字）→ `upgrade_staged`（舊的搬到 `_removed/<name>-<版本>-<時間>`＋旁邊留舊鎖、鎖換新）；`rollback`（`python -m synox packs rollback <name>`）。資料不在 pack 資料夾，不動；資料 schema 升級由 pack 自己負責 |
@@ -200,6 +201,16 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     schema 模式的定義（`mcp_schema.tool_schema`）。**人打字的路徑不碰 schema**：leaf 照舊 `kit.parse_args(node.fields)`，必填是巢狀＝拒。
     硬限制是常數（`mcp_schema.MAX_*`），不要讓 pack.json 或 schema 放寬。測試在 `tests/test_schema_mode.py`（假 stdio 伺服器）。
 
+18. **兩台 SYNOX 連線（Link）的信任點只有信封**（`src/synox/link/envelope.py`）：名單（`PeerStore`）外的寄件者一律丟、不回
+    （唯一例外：主控台**正在等配對碼**時收帶名片的 `pair.request`，mac 對得上才進名單）。傳輸層（`transport.py`）只搬 bytes、
+    不做任何判斷、看不到明文；**新增傳輸（MQTT、序列埠…）只實作 `start／send／bind／bad／stop／status`，不碰 envelope**。
+    哨兵跑指令一律 `WorkerRole.check`（樹上、非群組、非互動、`effect_of(args)` ≤ `link.max_effect`、`policy.decide(擁有者, via=ROUTINE)`）
+    再經 `app.dispatcher.handle(CaptureChannel, Inbound(channel="link", 擁有者))`——同一個 authorize、同一條路；只收 role=console 的任務。
+    私鑰、名單、seq、任務簿都在保管箱（`data/link_*.json.enc`）。配對碼與名片**不經聊天**（只有 CLI；`/link_*` 沒有配對指令）。
+    角色（`roles.py`）與指令（`commands.py`）只訂閱 `bus` 與呼叫 `node.send`，不碰傳輸層。
+    **測試不綁埠**：`synox.link.set_transport_factory` 換 `MemoryTransport`、TCP 框架用 `socket.socketpair()`；`TcpTransport` 真的
+    listen／connect 只在手動驗證跑過（127.0.0.1），Windows 實機還沒。`tcp.listen` 預設 `127.0.0.1`（跟 Web UI 一樣要明寫才對外）。
+
 另外：
 - pack 的群組由 loader 依 pack.json 定義（`loader.group_policy`）：`access: owner`（預設）＝整組 `owner_only`；`member`＝伺服器版 `role=MEMBER`、
   個人版 `owner_only`；`everyone`＝最低一級；再套角色能力上限（只會更嚴，見 invariant 11）。agent 群組也用同一個規則（`member`）：個人版只有擁有者，伺服器版成員以上；
@@ -295,6 +306,12 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
   網頁與 Telegram 的私訊共用同一份 AI 對話記憶（chat_id 都是那個人的 id）；pack reload 拿不掉 pack 自己綁的按鈕前綴；
   Telegram 指令選單在 reload 之後不會自動重設（重開 bot 才會）；設定頁改 AI 來源要重開 bot 才生效。
 - `/backup` 的 Telegram 指令與還原按鈕沒做（只有網頁下載＋`synox.backup.restore_cli`）；備份綁 DPAPI，換電腦解不開。
+
+- Link（`synox/link`，0.3）：沒有 NAT 穿透／公網 relay（兩台要在同一個區域網路、WireGuard，或共用一個資料夾）；傳輸只有 tcp／folder
+  （MQTT、序列埠是介面留著）；哨兵只回最後結果（`task.progress` 有協定、沒有人送）；取消是盡力的（已經開始做會做完）；
+  per-哨兵只有 `max_effect`，沒有指令白名單；主控台的通知只走 `app.notify`（Telegram／Discord 私訊）；TCP 沒 TLS（靠信封，只建議內網）；
+  `link pair` 要主控台的 bot 在跑才收得到配對請求；folder 傳輸的順序靠檔名的時間戳（兩台時鐘要對）；配對碼 407 字（名片在裡面）。
+  真機驗證（Windows 兩台、樹莓派哨兵）還沒做。
 
 ## 公開前檢查清單（repo 改成 public 或發佈 zip 之前）
 

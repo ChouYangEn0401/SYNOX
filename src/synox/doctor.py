@@ -127,6 +127,40 @@ def _discord_bot_line(spec, vault) -> tuple:
     return f"{head}：⚠️ token 直接寫在 config.json（建議改用保管箱：python -m synox discord token）", 0
 
 
+def _link_lines(config, out: Callable[[str], None]) -> int:
+    """兩台 SYNOX 連線（synox/link）：角色、傳輸、名單幾台；不開連線、不產生金鑰。回傳問題數。"""
+    settings = getattr(config, "link", None)
+    if settings is None or not getattr(settings, "enabled", False):
+        return 0
+    t = settings.transport
+    where = (f"listen {t.listen[0]}:{t.listen[1]}" if t.listen else f"connect {t.connect[0]}:{t.connect[1]}" if t.connect
+             else f"folder {t.folder}")
+    line = f"  link：開，{'主控台' if settings.is_console else '哨兵'}（{settings.name}）　傳輸 {t.kind} {where}"
+    if settings.is_console and t.kind == "tcp" and t.listen and t.listen[0] not in ("127.0.0.1", "localhost"):
+        line += "　⚠️ 對外聽：只建議區域網路或 WireGuard 內（docs/link.md）"
+    if not settings.is_console:
+        line += f"　max_effect={settings.max_effect}"
+    out(line)
+    key_path = os.path.join(config.data_dir, ".synox.key")
+    if not os.path.exists(key_path):
+        out("    名單：（保管箱還沒建立；bot 第一次跑起來才會產生身分）")
+        return 0
+    try:
+        from synox.vault import open_vault
+        from synox.link.peers import PeerStore
+        peers = PeerStore(open_vault(config))
+        entries = peers.entries()
+        if not entries:
+            out("    名單：空的（python -m synox link pair／join 配對，見 docs/link.md）")
+        else:
+            out("    名單：" + "、".join(f"{(e.get('card') or {}).get('name', '?')}（{e['node_id'][:9]}…，"
+                                          f"{'主控台' if e.get('role') == 'console' else '哨兵'}）" for e in entries))
+    except Exception as e:
+        out(f"    名單：❌ 讀不出來：{e}")
+        return 1
+    return 0
+
+
 def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] = print) -> int:
     problems = 0
     out(f"🩺 SYNOX {__version__} 健康檢查")
@@ -165,6 +199,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                     out(line)
                 problems += bad
             problems += 0 if (config.has_token or config.discord_enabled) else 1
+            problems += _link_lines(config, out)
         except Exception as e:
             out(f"• 設定：❌ {e}")
             problems += 1
