@@ -62,6 +62,17 @@ def parse_reply(text: str) -> Verdict:
     return Verdict(notify=notify, soul_lines=soul[:3], raw=(text or "")[:REPLY_MAX])
 
 
+CHAT_ROLE = (
+    "你是 SYNOX 的「常駐助理」，現在擁有者直接在網頁上跟你聊天。你平常每隔一段時間巡一次背景任務與提醒，這裡是他主動找你說話。",
+    "你沒有任何工具，不能執行指令、不能改任何東西；只能用文字回答。需要動手的事，請他到「對話」頁用對話助理或打指令。",
+    "一律用繁體中文、簡短、直接，用純文字回答（不要用 NOTIFY:、SOUL+: 這種格式）。",
+)
+NO_AI = "🤖 還沒設定 AI 來源：到〔設定〕選好並存起來，這裡馬上就能聊（不用重開）。"
+CHAT_MEMORY_TURNS = 12                         # 聊天自己的記憶（只在記憶體）最多留幾輪
+CHAT_REPLY_MAX = 4000
+PATROL_BACKGROUND = 5                          # 最近幾筆巡邏摘要放進提示當背景（只讀、不寫回）
+
+
 class MotherSession:
 
     def __init__(self, app, adapter, soul, *, settings: Optional[dict] = None, vault=None,
@@ -129,6 +140,43 @@ class MotherSession:
             mem.append({"at": self._clock(), "said": said[:300], "answer": answer[:REPLY_MAX]})
             del mem[:max(0, len(mem) - turns)]
             self._save_memory()
+
+    # ── 跟擁有者聊天（網頁的「常駐助理」入口）───────────────────────────
+
+    def chat(self, text: str) -> str:
+        """擁有者主動找常駐助理說話：沒有工具、純文字回答。記憶只存在記憶體（chat_reset／重開就清空），
+        不讀也不寫對話助理的記憶；巡邏的記憶（保管箱）只讀最近幾筆當背景，不寫回。adapter 的例外往外丟。"""
+        if self.adapter is None:
+            return NO_AI
+        parts = list(CHAT_ROLE)
+        base = self.system_prompt().split("\n")
+        soul_at = next((i for i, ln in enumerate(base) if ln.startswith("以下是擁有者的 soul.md")), None)
+        if soul_at is not None:
+            parts += [""] + base[soul_at:]
+        with self._lock:
+            patrols = list(self.memory())[-PATROL_BACKGROUND:]
+        if patrols:
+            parts += ["", "最近幾次巡邏的摘要（背景，只供參考）："]
+            parts += [f"- {p.get('said', '')} → {str(p.get('answer', ''))[:120]}" for p in patrols]
+        with self._chat_lock:
+            past = list(self._chat_memory)
+        messages = [Message(SYSTEM, "\n".join(parts))] + past + [Message(USER, text)]
+        self.running = True
+        try:
+            reply = self.adapter.chat(messages, ())
+        finally:
+            self.running = False
+        self.last_active_at = self._clock()
+        self._usage(reply.usage)
+        answer = (reply.text or "").strip()[:CHAT_REPLY_MAX] or "（沒有說話）"
+        with self._chat_lock:
+            self._chat_memory += [Message(USER, text), Message(ASSISTANT, answer)]
+            del self._chat_memory[:max(0, len(self._chat_memory) - 2 * CHAT_MEMORY_TURNS)]
+        return answer
+
+    def chat_reset(self) -> None:
+        with self._chat_lock:
+            self._chat_memory = []
 
     # ── 巡一次 ───────────────────────────────────────────────────────
 

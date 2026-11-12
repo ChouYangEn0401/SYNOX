@@ -48,7 +48,7 @@ from isdtelekit.core.channel import CallbackInfo, Inbound
 
 from synox.web import toolpage
 from synox.web.channel import WEB, WebChannel
-from synox.web.chats import TOOLS_CHAT, ChatStore
+from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore
 from synox.web.tokens import LoginTokens, Session, Sessions, digest
 
 HOST = "127.0.0.1"                    # 永遠只綁這個；要對外由營運者自己架反向代理＋TLS（docs/security.md）
@@ -63,7 +63,7 @@ CSRF_HEADER = "x-synox-csrf"
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 MAX_BODY = 256 * 1024
 MAX_TEXT = 4000
-CHAT_RE = re.compile(r"^(c\d{1,6}|tools)$")
+CHAT_RE = re.compile(r"^(c\d{1,6}|tools|mother)$")
 NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 
 Resp = Tuple[int, List[Tuple[str, str]], bytes]
@@ -191,6 +191,7 @@ class WebUI:
         self._server: Optional[ThreadingHTTPServer] = None
         self._thread: Optional[threading.Thread] = None
         self.channel_probes = None            # (telegram_probe, discord_probe)；None＝真的（wizard 那兩個）
+        self._mother_fresh: set = set()       # 這次執行中已經清過「常駐助理」聊天畫面的人（重開 SYNOX＝它的記憶清空）
         self._channels_changed: set = set()   # 這次執行中改過的聊天通道（要重開才生效）
 
     # ── 登入連結 ─────────────────────────────────────────────────────
@@ -461,7 +462,12 @@ class WebUI:
             if path == "/api/me":
                 return _json(200, self.me(user, session))
             if path == "/api/chats":
-                return _json(200, {"chats": self.chats.list_chats(user.tg_id)})
+                if self.is_owner(user):
+                    self._chat(user, MOTHER_CHAT)                 # 擁有者的側欄固定有「常駐助理」
+                chats = self.chats.list_chats(user.tg_id)
+                rest = [c for c in chats if c["id"] != MOTHER_CHAT]
+                mine = [c for c in chats if c["id"] == MOTHER_CHAT] if self.is_owner(user) else []
+                return _json(200, {"chats": rest + mine})       # 「常駐助理」排最後；畫面自己把它釘在最上面
             m = re.match(r"^/api/chat/([a-z0-9]+)/events$", path)
             if m:
                 return self.events(user, m.group(1), (query.get("since") or ["0"])[0])
@@ -557,6 +563,15 @@ class WebUI:
             return None
         if chat_id == TOOLS_CHAT:
             return self.chats.ensure(user.tg_id, TOOLS_CHAT, "🧰 工具頁")
+        if chat_id == MOTHER_CHAT:
+            if not self.is_owner(user):
+                return None                                       # 只有擁有者；成員當作沒有這段
+            first = user.tg_id not in self._mother_fresh
+            chat = self.chats.ensure(user.tg_id, MOTHER_CHAT, "🫀 常駐助理")
+            if first:                                             # 這次執行的第一次：它的記憶是空的，畫面也跟著清空
+                self._mother_fresh.add(user.tg_id)
+                self.chats.clear(user.tg_id, MOTHER_CHAT)
+            return chat
         return self.chats.get(user.tg_id, chat_id)
 
     def events(self, user, chat_id: str, since: str) -> Resp:
@@ -581,9 +596,28 @@ class WebUI:
         if len(text) > MAX_TEXT:
             return _err(400, f"太長了（最多 {MAX_TEXT} 字）。")
         self.chats.append(user.tg_id, chat_id, "me", text)
+        if chat_id == MOTHER_CHAT:
+            return self._send_mother(user, text)
         inbound = Inbound(WEB, user.tg_id, user.tg_id, text, username=user.username or "web", sent_at=time.time())
         route = self.app.dispatcher.handle(self.channel(user, chat_id), inbound)
         return _json(200, {"ok": True, "route": getattr(route, "kind", ""), "rev": self.chats.rev(user.tg_id)})
+
+    def _send_mother(self, user, text: str) -> Resp:
+        """跟常駐助理聊天：不經 dispatcher／對話助理，叫 runtime 的母 session（沒有工具）；背景跑，不卡 request。"""
+        from synox import runtime
+        rt = runtime.of(self.app)
+        tg_id = user.tg_id
+
+        def run():
+            try:
+                answer = rt.mother.chat(text) if rt is not None else "常駐助理沒有啟用（runtime 沒有裝上）。"
+            except Exception as e:
+                logging.exception("[WEB] mother chat failed")
+                answer = f"⚠️ 常駐助理沒有回應：{e}"
+            self.chats.append(tg_id, MOTHER_CHAT, "bot", answer)
+
+        self.app.tasks.run(run, name="mother-chat")
+        return _json(200, {"ok": True, "route": "mother", "rev": self.chats.rev(tg_id)})
 
     def press(self, user, chat_id: str, data: dict) -> Resp:
         if self._chat(user, chat_id) is None:

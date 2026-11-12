@@ -302,7 +302,9 @@
     var mActive = stat("上次活動");
     var mSoul = stat("偏好（soul.md）更新");
     var mTasks = stat("任務");
-    mother.appendChild(mLine); mother.appendChild(mHint);
+    var mChat = el("a", "ctl-chat", "💬 跟它聊天（對話頁最上面的「常駐助理」）");
+    mChat.href = "#chat:mother";
+    mother.appendChild(mLine); mother.appendChild(mHint); mother.appendChild(mChat);
     var mStats = el("div", "ctl-stats");
     mStats.appendChild(mActive.row); mStats.appendChild(mSoul.row); mStats.appendChild(mTasks.row);
     mother.appendChild(mStats);
