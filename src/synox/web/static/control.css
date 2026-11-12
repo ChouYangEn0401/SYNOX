@@ -1,0 +1,104 @@
+  /* ── 主控（control.js；伺服器塞進 app.html，只用上面的 token，不寫死顏色）──────── */
+  .ctl .page-head { margin-bottom: 14px; }
+  .ctl-roles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-bottom: 16px; }
+  .ctl-role { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r-lg);
+              background: var(--surface-2); border: 1px solid var(--line); }
+  .ctl-role .tile { width: 30px; height: 30px; font-size: 15px; border-radius: 9px; }
+  .ctl-role .txt { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .ctl-role b { font-size: 14px; }
+
+  .ctl-banner { display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-wrap: wrap;
+                padding: 12px 14px; margin-bottom: 14px; border-radius: var(--r-lg); background: var(--bad-soft);
+                color: var(--bad); font-weight: 600; border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent); }
+  .ctl-loading { color: var(--muted); padding: 28px 0; text-align: center; }
+
+  .ctl-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
+  .ctl-grid .card + .card { margin-top: 0; }
+  .ctl-body > .card { margin-top: 14px; }
+  .ctl-state { margin: -4px 0 6px; }
+  .ctl-state .badge { font-size: 14px; padding: 6px 12px; }
+  .ctl-stats { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; margin-top: 12px;
+               border-top: 1px solid var(--line); }
+  .ctl-stat { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line);
+              font-size: 14px; }
+  .ctl-stat:last-child { border-bottom: 0; }
+  .ctl-stat .k { color: var(--muted); flex: none; }
+  .ctl-stat .v { text-align: right; min-width: 0; overflow-wrap: anywhere; }
+  .ctl-actions { margin-top: 14px; }
+  .ctl-interval-row input { flex: 0 1 120px; }
+
+  /* 開關：checkbox 本身（螢幕閱讀器、鍵盤照用），旁邊畫一條軌道 */
+  .ctl-switch { position: relative; display: inline-flex; align-items: center; gap: 10px; cursor: pointer;
+                font-weight: 600; min-height: 36px; }
+  .ctl-switch input { position: absolute; opacity: 0; width: 44px; height: 26px; margin: 0; cursor: pointer; }
+  .ctl-switch .track { width: 44px; height: 26px; border-radius: var(--pill); background: var(--line-strong);
+                       position: relative; flex: none; transition: background .15s var(--ease); }
+  .ctl-switch .track::after { content: ""; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px;
+                              border-radius: 50%; background: var(--surface); box-shadow: var(--shadow-sm);
+                              transition: transform .18s var(--ease); }
+  .ctl-switch input:checked + .track { background: var(--accent); }
+  .ctl-switch input:checked + .track::after { transform: translateX(18px); }
+  .ctl-switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .ctl-switch input:disabled + .track { opacity: .5; }
+
+  /* 狀態徽章：正常＝綠圓點、執行中＝主色空心圈、失敗＝紅方點、閒置／關著＝灰短線 */
+  .badge.ctl-ok { background: var(--ok-soft); color: var(--ok); }
+  .badge.ctl-run { background: var(--accent-soft); color: var(--accent); }
+  .badge.ctl-run::before { width: 8px; height: 8px; background: transparent; border: 2px solid currentColor;
+                           animation: ctl-pulse 1.4s var(--ease) infinite; }
+  .badge.ctl-bad { background: var(--bad-soft); color: var(--bad); }
+  .badge.ctl-bad::before { border-radius: 2px; }
+  .badge.ctl-idle { background: var(--sunken); color: var(--muted); }
+  .badge.ctl-idle::before { width: 8px; height: 2px; border-radius: 1px; }
+  @keyframes ctl-pulse { 50% { opacity: .35; } }
+
+  /* 任務清單：一列一個按鈕（點開日誌） */
+  .ctl-summary { color: var(--text-2); font-size: 14px; margin-bottom: 8px; }
+  .ctl-tasks { list-style: none; padding: 0; margin: 0; border: 1px solid var(--line); border-radius: var(--r);
+               overflow: hidden; }
+  .ctl-tasks:empty { display: none; }
+  .ctl-task + .ctl-task { margin: 0; border-top: 1px solid var(--line); }
+  .ctl-task-head { width: 100%; display: flex; align-items: flex-start; justify-content: flex-start; gap: 12px;
+                   text-align: left; white-space: normal; padding: 12px 14px; border: 0; border-radius: 0;
+                   background: transparent; box-shadow: none; font-weight: 400; }
+  .ctl-task-head:hover { background: var(--surface-2); border: 0; }
+  .ctl-task-head:active { transform: none; }
+  .ctl-task-head .badge { margin-top: 2px; min-width: 78px; justify-content: flex-start; }
+  .ctl-task-main { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+  .ctl-task-name { font-weight: 650; }
+  .ctl-task-meta { font-size: 13px; color: var(--muted); }
+  .ctl-task-msg { font-size: 13.5px; color: var(--text-2); overflow-wrap: anywhere; }
+  .ctl-chev { font-size: 13px; color: var(--accent); flex: none; margin-top: 2px; }
+  .ctl-task-head[aria-expanded="true"] { background: var(--surface-2); }
+  .ctl-log { padding: 4px 14px 12px; background: var(--surface-2); display: grid; gap: 6px; justify-items: start; }
+  .ctl-pre { margin: 0; width: 100%; max-height: 280px; overflow: auto; padding: 10px 12px; border-radius: var(--r);
+             background: var(--sunken); border: 1px solid var(--line); font: 12.5px/1.6 var(--mono); color: var(--text-2);
+             white-space: pre-wrap; overflow-wrap: anywhere; }
+
+  /* soul.md 編輯器 */
+  textarea.ctl-soul { width: 100%; min-height: 200px; resize: vertical; font: 14px/1.6 var(--mono); padding: 10px 12px; }
+  .ctl-soul-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
+
+  /* 清空記憶的二次確認 */
+  .ctl-confirm { margin-top: 4px; padding: 14px; border-radius: var(--r-lg); background: var(--bad-soft);
+                 border: 1px solid color-mix(in srgb, var(--bad) 30%, transparent); display: grid; gap: 12px; }
+  .ctl-confirm-q { font-weight: 700; color: var(--bad); }
+  .ctl-confirm-lists { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .ctl-confirm-col { padding: 10px 12px; border-radius: var(--r); background: var(--surface); border: 1px solid var(--line); }
+  .ctl-confirm-col b { display: block; font-size: 13px; margin-bottom: 4px; }
+  .ctl-confirm-col.bad b { color: var(--bad); }
+  .ctl-confirm-col.ok b { color: var(--ok); }
+  .ctl-confirm-col ul { font-size: 13.5px; color: var(--text-2); }
+  button.danger.ctl-solid { background: var(--bad); border-color: var(--bad); color: var(--surface); font-weight: 650; }
+  button.danger.ctl-solid:hover { background: color-mix(in srgb, var(--bad) 85%, var(--text)); }
+
+  @media (max-width: 760px) {
+    .ctl-roles, .ctl-grid, .ctl-confirm-lists { grid-template-columns: minmax(0, 1fr); }
+    .ctl-interval-row input { flex: 1 1 auto; }
+    .ctl-task-head { flex-wrap: wrap; padding: 12px; row-gap: 6px; }
+    .ctl-task-main { order: 3; flex-basis: 100%; }        /* 徽章、「日誌」一行，名字和說明在下面整行 */
+    .ctl-chev { margin-left: auto; }
+    .ctl-task-meta, .ctl-task-msg, .ctl-chev, .ctl-stat { font-size: 14px; }
+    textarea.ctl-soul { font-size: 16px; }
+    .ctl-switch input { width: 52px; height: 44px; }
+  }

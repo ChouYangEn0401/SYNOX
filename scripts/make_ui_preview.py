@@ -4,10 +4,11 @@
 
 寫出：
 - docs/ui/preview.html        真的 src/synox/web/static/app.html，前面插一段「假的 fetch」（假資料、不送出任何東西）。
-                              網址參數：?login=1 看登入畫面、?theme=dark|light 強制深淺色、?bar=0 拿掉上方的預覽列；
-                              #chat／#tools／#settings 切頁。
+                              網址參數：?login=1 看登入畫面、?theme=dark|light 強制深淺色、?bar=0 拿掉上方的預覽列、
+                              ?ctl=error 主控頁讀不到時的樣子、?member=1 用成員身分看（沒有「主控」）；
+                              #chat／#tools／#settings／#control 切頁。
 - docs/ui/preview-phone.html、preview-phone-dark.html
-                              四個 390px 寬的框（登入、對話、工具、設定），看手機寬度用。
+                              五個 390px 寬的框（登入、對話、工具、設定、主控），看手機寬度用。
 - docs/ui/preview-login.html  伺服器產生的「登入確認頁」（server.py 的 login_page，用假的帳號資料）。
 - docs/ui/preview-error.html  伺服器產生的小頁（server.py 的 _page，例如登入連結不能用）。
 
@@ -101,6 +102,33 @@ SETTINGS = {
     ],
 }
 
+# 主控頁（/api/runtime/*）：時間寫成「離現在幾分鐘」，假 fetch 打開時才換成 ISO 時間，預覽檔才不會每跑一次就變。
+RUNTIME = {
+    "heartbeat": {"enabled": True, "interval_min": 45, "last_run_min": -12, "next_run_min": 33,
+                  "last_result": {"ok": True, "message": "看過一輪：任務都正常，沒有要提醒你的事。"}},
+    "mother": {"state": "idle", "last_active_min": -3, "soul_updated_min": -26 * 60},
+    "tasks": [
+        {"id": "morning-digest", "name": "早上的摘要", "owner": "SYNOX", "schedule": "每天 08:00", "state": "ok",
+         "last_run_min": -5 * 60, "last_message": "送出了：今天 2 個行程、1 個待辦"},
+        {"id": "budget-watch", "name": "預算檢查", "owner": "example-budget", "schedule": "每 6 小時", "state": "failed",
+         "last_run_min": -40, "last_message": "讀不到這個月的資料，下一輪會再試"},
+        {"id": "calendar-sync", "name": "行事曆同步", "owner": "example-calendar", "schedule": "每 30 分鐘",
+         "state": "running", "last_run_min": -1, "last_message": "同步中…"},
+        {"id": "weekly-review", "name": "每週回顧", "owner": "example-notes", "schedule": "每週日 21:00", "state": "idle",
+         "last_run_min": None, "last_message": ""},
+    ],
+}
+
+TASK_LOGS = {
+    "morning-digest": ["08:00:01 開始", "08:00:02 讀了 2 個行程、1 個待辦", "08:00:03 送出摘要", "08:00:03 完成"],
+    "budget-watch": ["10:20:00 開始", "10:20:01 讀這個月的資料", "10:20:31 等太久沒有回應（30 秒）", "10:20:31 沒有完成，下一輪再試"],
+    "calendar-sync": ["10:59:00 開始", "10:59:01 比對 14 筆"],
+    "weekly-review": [],
+}
+
+SOUL = ("# 關於我\n- 叫我小明\n- 早上 9 點前不要傳訊息給我\n\n# 要你注意的事\n- 記帳超過預算八成就提醒我\n"
+        "- 週末不要排工作的事\n")
+
 CHANNELS = {"telegram": {"saved": True, "bot": "my_synox_bot", "active": True, "owner_paired": True},
             "discord": {"saved": False, "multi": False, "invite": ""}}
 
@@ -119,14 +147,50 @@ MOCK = r"""
   if (q.get("theme")) { document.documentElement.setAttribute("data-theme", q.get("theme")); }
   var D = __DATA__;
   var loggedOut = q.get("login") === "1";
+  if (q.get("member") === "1") { D.me.owner = false; D.me.role = "member"; D.me.username = "阿華"; }
   var seq = 100;
   function reply(body, status) {
     return Promise.resolve(new Response(JSON.stringify(body), {
       status: status || 200, headers: { "Content-Type": "application/json" } }));
   }
+  // 主控頁：「離現在幾分鐘」換成 ISO 時間
+  function at(min) { return min === null || min === undefined ? null : new Date(Date.now() + min * 60000).toISOString(); }
+  var R = D.runtime, soul = { text: D.soul, updated_at: at(R.mother.soul_updated_min) };
+  var hb = { enabled: R.heartbeat.enabled, interval_min: R.heartbeat.interval_min, last_run_at: at(R.heartbeat.last_run_min),
+             next_run_at: at(R.heartbeat.next_run_min), last_result: R.heartbeat.last_result };
+  var mother = { state: R.mother.state, last_active_at: at(R.mother.last_active_min), soul_updated_at: soul.updated_at };
+  var tasks = R.tasks.map(function (t) {
+    return { id: t.id, name: t.name, owner: t.owner, schedule: t.schedule, state: t.state,
+             last_run_at: at(t.last_run_min), last_message: t.last_message };
+  });
+  function runtime(p, method, opts) {
+    if (q.get("ctl") === "error") { return reply({ error: "出錯了：KeyError" }, 500); }   // 示範「讀不到」的樣子
+    var body = opts && opts.body ? JSON.parse(opts.body) : {};
+    if (p === "/api/runtime/status") { return reply({ heartbeat: hb, mother: mother, tasks: tasks }); }
+    if (p === "/api/runtime/heartbeat") {
+      if (body.enabled !== undefined) { hb.enabled = body.enabled; }
+      if (body.interval_min !== undefined) { hb.interval_min = body.interval_min; }
+      hb.next_run_at = hb.enabled ? at(hb.interval_min) : null;
+      return reply(hb);
+    }
+    if (p === "/api/runtime/heartbeat/run-now") {
+      hb.last_run_at = at(0); hb.next_run_at = hb.enabled ? at(hb.interval_min) : null; mother.last_active_at = at(0);
+      hb.last_result = { ok: true, message: "（預覽）剛剛看過一輪，沒有新的事。" };
+      return reply({ ok: true, message: "開始了（預覽：沒有真的跑）。結果會出現在「上次結果」。" });
+    }
+    if (p === "/api/runtime/mother/reset-memory") { mother.last_active_at = at(0); return reply({ ok: true }); }
+    if (p === "/api/runtime/soul") {
+      if (method === "PUT") { soul = { text: body.text, updated_at: at(0) }; mother.soul_updated_at = soul.updated_at; }
+      return reply(soul);
+    }
+    var m = /^\/api\/runtime\/tasks\/([^/]+)\/log$/.exec(p);
+    if (m) { return reply({ lines: D.logs[decodeURIComponent(m[1])] || [] }); }
+    return reply({ error: "沒有這個 API。" }, 404);
+  }
   window.fetch = function (path, opts) {
     var method = (opts && opts.method) || "GET";
     var p = String(path).split("?")[0];
+    if (p.indexOf("/api/runtime/") === 0) { return runtime(p, method, opts); }
     if (p === "/api/me") { return loggedOut ? reply({ error: "請先登入" }, 401) : reply(D.me); }
     if (p === "/api/chats" && method === "GET") { return reply({ chats: D.chats }); }
     if (p === "/api/chats") {
@@ -157,6 +221,22 @@ MOCK = r"""
     if (p === "/api/accounts") { return reply(D.accounts); }
     return reply({ message: "（預覽：沒有真的做）", ok: true });
   };
+  // 主控頁的示範（截圖用）：?open=log 打開失敗那個任務的日誌、?open=reset 打開清空記憶的確認，可以用逗號一起
+  var demo = (q.get("open") || "").split(",");
+  if (demo[0]) {
+    window.addEventListener("load", function () {
+      setTimeout(function () {
+        if (demo.indexOf("log") >= 0) {
+          var heads = document.querySelectorAll(".ctl-task-head");
+          if (heads[1]) { heads[1].click(); }
+        }
+        if (demo.indexOf("reset") >= 0) {
+          var b = document.querySelectorAll(".ctl button.danger")[0];
+          if (b) { b.click(); }
+        }
+      }, 200);
+    });
+  }
   // 上方的預覽列（?bar=0 拿掉）
   if (q.get("bar") === "0") { return; }
   document.addEventListener("DOMContentLoaded", function () {
@@ -167,6 +247,9 @@ MOCK = r"""
                  ["對話", function () { return "?" + theme + "#chat"; }],
                  ["工具", function () { return "?" + theme + "#tools"; }],
                  ["設定", function () { return "?" + theme + "#settings"; }],
+                 ["主控", function () { return "?" + theme + "#control"; }],
+                 ["主控讀不到", function () { return "?ctl=error" + (theme ? "&" + theme : "") + "#control"; }],
+                 ["成員看到的", function () { return "?member=1" + (theme ? "&" + theme : "") + "#control"; }],
                  ["淺色", function () { return "?theme=light" + location.hash; }],
                  ["深色", function () { return "?theme=dark" + location.hash; }],
                  ["跟隨系統", function () { return "?" + location.hash; }]];
@@ -194,10 +277,10 @@ BAR_CSS = """
 
 
 def app_preview() -> str:
-    with open(os.path.join(server.STATIC, "app.html"), "r", encoding="utf-8") as f:
-        html = f.read().replace("{{NONCE}}", "preview")
+    html = server.app_html("preview")                 # 跟伺服器同一份：app.html＋塞進去的 control.js／control.css
     data = {"me": ME, "chats": CHATS, "events": EVENTS, "tools": TOOLS, "secrets": SECRETS,
-            "settings": SETTINGS, "channels": CHANNELS, "accounts": ACCOUNTS}
+            "settings": SETTINGS, "channels": CHANNELS, "accounts": ACCOUNTS,
+            "runtime": RUNTIME, "logs": TASK_LOGS, "soul": SOUL}
     mock = MOCK.replace("__DATA__", json.dumps(data, ensure_ascii=False))
     note = "<!-- 自動產生：scripts/make_ui_preview.py（不要手改；改 src/synox/web/static/app.html 再重跑） -->\n"
     html = html.replace("</style>", BAR_CSS + "</style>", 1)
@@ -249,7 +332,7 @@ PHONE = """<!doctype html>
 
 
 def phone_preview() -> str:
-    frames = [("登入", "login=1"), ("對話", "#chat"), ("工具", "#tools"), ("設定", "#settings")]
+    frames = [("登入", "login=1"), ("對話", "#chat"), ("工具", "#tools"), ("設定", "#settings"), ("主控", "#control")]
     out = []
     for title, q in frames:
         query, _, hash_ = q.partition("#")
