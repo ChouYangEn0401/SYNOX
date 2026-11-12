@@ -33,8 +33,8 @@ synox_sdk：寫一個 Python 函式，就是一個 SYNOX 工具（也是一個 M
 - `secret(name)`：使用者在 SYNOX 工具頁「連接」填的值（pack.json 的 auth.fields；SYNOX 經環境變數給，不經 argv）。
 - `context()`：這一次是誰在用：user_data_dir、tg_id、mode、pack_dir、pack_name、confirmed、confirm_token
   （SYNOX 經 SYNOX_* 環境變數給）。
-- `report_status(state, message="")`：回報這個工具的狀態（ok／running／failed／idle），跟著這一次的信封送給 SYNOX
-  （信封多一個 "status"；主控面板與常駐助理看得到）。`peer_status()`：別的任務／工具現在的狀態（只有 state 與時間）。
+- `report_status(state, message="", tag="")`：回報這個工具的狀態（ok／running／failed／idle），跟著這一次的信封送給 SYNOX
+  （信封多一個 "status"；主控面板與常駐助理看得到；tag 讓 SYNOX 的連動規則分得出是哪一件事做完了）。`peer_status()`：別的任務／工具現在的狀態（只有 state 與時間）。
 
 這個檔有兩份：`src/synox/sdk/author.py`（正本，`from synox.sdk import tool, serve`）與 `sdk/synox_sdk.py`
 （`scripts/build_synox_sdk.py` 從正本產生，可以直接複製進你的 repo）。
@@ -80,6 +80,7 @@ MCP_CONFIRM_META = "synox/confirm_token"   # MCP tools/call 的 params._meta：�
 CONFIRM_TOKEN_RE = re.compile(r"^[A-Za-z0-9._:\-]{1,128}$")
 STATUS_STATES = ("ok", "running", "failed", "idle")
 STATUS_MESSAGE_MAX = 200
+STATUS_TAG_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{0,31}$")
 EXIT_OK, EXIT_ERROR = 0, 1
 # 失敗信封 v1（docs/tool-health.md）：穩定的類別碼；不在表上的一律 unclassified（SYNOX 那邊也一樣）
 FAILURE_V = 1
@@ -846,7 +847,7 @@ def context() -> Context:
 
 # ── 狀態回報（SYNOX 的 runtime：主控面板、常駐助理、別的工具看得到）──────────────
 
-def report_status(state: str, message: str = "") -> None:
+def report_status(state: str, message: str = "", tag: str = "") -> None:
     """回報這個工具現在的狀態，跟著這一次的回覆（JSON 信封的 "status"）送給 SYNOX：
 
         @tool("READ")
@@ -861,11 +862,17 @@ def report_status(state: str, message: str = "") -> None:
 
     state：ok｜running｜failed｜idle（其他的丟 ValueError）。message 最多 200 字（SYNOX 會再遮掉像密鑰的片段），
     不要放個人資料或密碼——主控面板會顯示、常駐助理會讀。同一次呼叫裡叫好幾次＝最後一次算。
-    舊版 SYNOX 不認得 "status"，直接忽略（不會出錯）。--mcp 模式這一版不送。"""
+    舊版 SYNOX 不認得 "status"，直接忽略（不會出錯）。--mcp 模式這一版不送。
+    tag：選填的短標籤（小寫英數字與 . _ -，32 字內，例如 "diary-image"），SYNOX 的連動規則可以只聽某個標籤
+    （「這件事做完了 → 馬上做下一件」）；格式不對丟 ValueError。"""
     global _STATUS
     if state not in STATUS_STATES:
         raise ValueError(f"report_status: state 只能是 {'、'.join(STATUS_STATES)}（收到 {state!r}）")
+    if tag and not STATUS_TAG_RE.match(str(tag)):
+        raise ValueError(f"report_status: tag 只能用小寫英數字與 . _ -，32 字內（收到 {tag!r}）")
     _STATUS = {"state": state, "message": str(message or "")[:STATUS_MESSAGE_MAX]}
+    if tag:
+        _STATUS["tag"] = str(tag)
 
 
 def peer_status(task_id: str = "") -> Dict[str, Any]:
