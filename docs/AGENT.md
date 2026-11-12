@@ -279,7 +279,7 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 | pack 資料 | `data/<pack>.json.enc` 一份 | `data/users/<id>/<pack>.json.enc` 每人一份 |
 | 提醒、排程 | 擁有者；`data/schedule.json.enc` | 成員以上；每人 `data/users/<id>/schedule.json.enc`，提醒送給建立的人，排程以他的身分跑（建立時 via=SCHEDULE 檢查裡面的指令） |
 | AI | 擁有者 | 成員以上；工具只有 `ai_decision` 對他放行的；每月額度 `ai_member_monthly_usd`（預設 2.0，`/ai_budget` 調），用量 `data/users/<id>/llm_usage.json` |
-| 網頁介面 | `/web`：擁有者 | `/web`：每個人（訪客也可以，看到的只有自己能用的）；帳號頁給擁有者／管理員 |
+| 網頁介面 | `/web`：擁有者 | `/web`：每個人（訪客也可以，看到的只有自己能用的）；帳號頁給擁有者／管理員。網頁只聽 127.0.0.1：沒設 `web.public_url` 時連結只在伺服器那台電腦打得開，設了就人人能從外面登入（白話表：security.md「誰進得了網頁」；要不要收緊：QuestionToUser QS1） |
 | 舊資料 | — | 個人版的共用檔不會自動搬到 `data/users/<擁有者>/`（留著不動；改回個人版又會用它們） |
 
 工程師模式：不跑精靈，照 `config.example.json` 寫 `config.json`（含 `mode`），`python -m synox run`。
