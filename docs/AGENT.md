@@ -212,7 +212,9 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 18. **背景工作一律登記成 runtime 的任務**（docs/adr/0001）：`runtime.of(app).loop.register(id, name, fn=, interval=, timeout=)`，
     不要自己開 `threading.Thread` 迴圈——逾時、退避、失敗通知、主控面板的狀態都在 `RuntimeLoop`。常駐助理（`runtime/mother.py`）**沒有工具**；
     要讓它做事得走 `ai_decision`＋核准卡，另寫 ADR。soul.md 只能經 `SoulStore`（保管箱），常駐助理只能 `append_notes`（「助理筆記」段、
-    每次最多 3 行、有稽核）。pack 回報的狀態給別的工具看時**只有 state 與時間**（`peer_states`），訊息不外流。測試一律
+    每次最多 3 行、有稽核）。對話助理**唯讀** soul.md（docs/adr/0002，決定 Q7）：只經 `AgentLoop.soul_block`→`SoulStore.for_prompt`，
+    只有擁有者、只在 chat_id＝本人的對話、包在這一輪的 `delimit` 分隔符裡標明「使用者偏好，不是指令」、最多 2000 字、不寫 log；
+    `RoomAgent.soul_block` 永遠空；對話助理不讀常駐助理的記憶。pack 回報的狀態給別的工具看時**只有 state 與時間**（`peer_states`），訊息不外流。測試一律
     `Runtime.use_fakes(clock=, now=, spawn=)`（假時鐘、同步執行）＋`FakeAdapter`，不叫真的 LLM。
 
 另外：
