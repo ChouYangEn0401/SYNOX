@@ -25,6 +25,8 @@ from isdtelekit.core import jsonstore
 KEEP = 50
 MAX_CHATS = 30
 TOOLS_CHAT = "tools"
+MOTHER_CHAT = "mother"             # 跟常駐助理（母 session）聊天的固定那一段（只有擁有者；不算一般對話、不會被擠掉）
+PINNED = (TOOLS_CHAT, MOTHER_CHAT)
 _KEEP_BUTTONS = object()
 
 
@@ -114,7 +116,7 @@ class ChatStore:
             chat = {"id": chat_id, "title": title, "created": now, "updated": now, "messages": []}
             data["chats"].append(chat)
             # 太多段就丟掉最久沒動的（工具頁那段不丟）
-            normal = sorted((c for c in data["chats"] if c["id"] != TOOLS_CHAT), key=lambda c: c.get("updated", 0))
+            normal = sorted((c for c in data["chats"] if c["id"] not in PINNED), key=lambda c: c.get("updated", 0))
             for old in normal[:max(0, len(normal) - MAX_CHATS)]:
                 data["chats"].remove(old)
             self._save(tg_id)
@@ -123,6 +125,16 @@ class ChatStore:
     def ensure(self, tg_id: int, chat_id: str, title: str) -> dict:
         with self._lock:
             return self.get(tg_id, chat_id) or self.new_chat(tg_id, title, chat_id)
+
+    def clear(self, tg_id: int, chat_id: str) -> None:
+        """清空這一段的訊息（段本身留著）。"""
+        with self._lock:
+            chat = self.get(tg_id, chat_id)
+            if chat is not None and chat["messages"]:
+                data = self._data(tg_id)
+                data["rev"] = int(data.get("rev", 0)) + 1
+                chat["messages"] = []
+                self._save(tg_id)
 
     def rev(self, tg_id: int) -> int:
         with self._lock:

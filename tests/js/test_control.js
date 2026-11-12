@@ -111,6 +111,15 @@ test("viewModel turns the contract shape into the words on screen", () => {
   assert.strictEqual(C.resultText(null), "還沒跑過");
 });
 
+test("mother is off because no AI source is set: the hint points to settings", () => {
+  const noAi = C.viewModel({ heartbeat: { enabled: true, interval_min: 45 }, mother: { state: "off", ai: false } }, NOW);
+  assert.ok(noAi.mother.hint.includes("設定"));
+  const disabled = C.viewModel({ heartbeat: { enabled: true, interval_min: 45 }, mother: { state: "off", ai: true } }, NOW);
+  assert.ok(!disabled.mother.hint.includes("AI 來源"));
+  const old = C.viewModel({ heartbeat: { enabled: true, interval_min: 45 }, mother: { state: "off" } }, NOW);   // 舊後端沒有 ai 欄位
+  assert.ok(!old.mother.hint.includes("AI 來源"));
+});
+
 test("humanError never shows status codes, exception names or CSRF", () => {
   const cases = [
     [{ status: 0 }, /連不到 SYNOX/],

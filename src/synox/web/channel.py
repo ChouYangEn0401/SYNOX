@@ -33,6 +33,11 @@ class WebChannel:
         self.chat = chat
         self.home = home
 
+    @property
+    def thread(self) -> str:
+        """這是網頁的哪一段對話（AI 的記憶每一段各自一份：agent/loop.py memory_key）。"""
+        return self.chat
+
     def _mine(self, chat_id) -> bool:
         try:
             return int(chat_id) == self.tg_id

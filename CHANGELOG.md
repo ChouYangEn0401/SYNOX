@@ -113,6 +113,35 @@
   指令沒 summary、欄位沒 ask 只提醒不擋（安裝報告、`synox-sdk check`）。`@tool` 參數的預設值會寫成 `default`。
   說明：[docs/tools.md](docs/tools.md)「網頁工具頁」、[docs/pack-format.md](docs/pack-format.md)。
 
+### AI 用量與花費小儀表板、新對話不再記得前面、Discord 網頁配對
+- **用量與花費**（設定頁新的一張卡，`GET /api/usage?period=hour|day|week|month`，只給擁有者）：選「每小時／每天／每週／每月」，看這段期間的花費、呼叫次數、token，
+  長條圖（可切成表格）。花費：Claude Code 回報的 `total_cost_usd`（訂閱制下是照 API 價換算的約數）優先，沒有就照 `llm.price_in／price_out` 算；
+  **個人版以前不記花費（一律 0）**，現在也記；舊紀錄沒花費的用 token 估、標「約」。`llm_usage.json` 多了 `hours`（只留最近 14 天，`days` 永遠留）。
+  程式：`agent/usage_report.py`。常駐助理巡的花費也記進同一本帳。
+- **修正：網頁開「新對話」AI 還記得前面**。原因：每一段網頁對話送給 AI 的 chat_id 都是你自己的 id，記憶的鍵是 chat_id，所以整個人共用一份。
+  現在記憶多一個「對話串」（`WebChannel.thread`＝網頁的 chat id）：每段對話各自一份、`/ai_reset` 只清這一段、確認卡的結果記進按卡的那一段；
+  Telegram／Discord 私訊照舊（整個人一份）。常駐助理巡的時候看「最近有動靜的那一段」（`AgentLoop.latest_history`）。重開 SYNOX 仍會清空（記憶在記憶體）。
+- **Discord 擁有者配對搬到網頁**（設定 → 聊天通道 → Discord →「配對我的 Discord 帳號」）：產生六位數字，私訊 bot 傳它，**正在跑的 SYNOX 直接接上**
+  （不用開終端機、不用先關 SYNOX）；或直接貼 Discord 使用者 ID，馬上配好。碼 15 分鐘有效、用掉就作廢、猜錯 10 次作廢（`discord/pairing.py`）。
+  bot 對還沒配對的人回的那句也改成指到網頁。三種配對（指令、網頁碼、貼 ID）共用 `discord.bind_owner`。
+- 聊天通道卡片標明「目前只能一對一私訊」：加進 Telegram 群組、Discord 頻道／社群沒有用（指令與 AI 在群組、頻道都被擋）；邀請連結的說法改成「為了能私訊它」。
+- Telegram 擁有者配對在網頁怎麼做（會換擁有者 id、牽涉資料搬遷）：[QuestionToUser.md](QuestionToUser.md) Q14。
+
+### 常駐助理的獨立聊天入口
+- 側欄固定多一個「🫀 常駐助理」（只給擁有者；主控頁的常駐助理那格也有「跟它聊天」連結）：直接跟常駐助理（母 session）聊天，沒有工具、純文字。
+  這個聊天的紀錄**只在記憶體**（最多 12 輪，重開 SYNOX 就清空），跟巡邏用的保管箱記憶（主控頁清）分開，只讀最近 5 筆巡邏摘要當背景。
+  程式：`MotherSession.chat()`／`chat_reset()`、`web/chats.py` 的 `MOTHER_CHAT`。
+
+### 設定頁選好 AI 來源就立刻能用
+- 設定頁選 Claude Code 時可以挑模型（預設／Sonnet／Opus／Haiku）；「存起來」之後對話助理與常駐助理**馬上換上、不用重開**
+  （`agent.set_adapter`）。接不上時設定仍會存，並說原因。「測一下」遇到沒登入會說怎麼登入。
+- 主控頁：還沒設定 AI 來源時，常駐助理那格說「到設定選好並存起來，這裡馬上就會開始跑」；`/api/runtime/status` 的 `mother` 多 `ai` 欄位。
+- 已知限制：啟動時沒有 AI，Discord 頻道 AI 要重開才會出現。
+
+### 聊天通道改了要重開：說得更明顯
+- 設定頁的「聊天通道」卡：只要 Telegram／Discord 有改過、還沒重開，頂端出現黃色提示「要重新啟動 SYNOX 才會生效（Stop.bat → 桌面捷徑），在那之前 bot 不會上線」；
+  存 Discord token 的訊息也在最前面先講一次（原本埋在第 ③ 步）。
+
 ### 對話頁桌面版改滿版
 - 寬度超過 760px 時，對話區佔滿側欄以外的整個區域（原本是置中、最寬 980px 的浮動卡片，螢幕一大就飄在中間）。手機版沒動。
   `docs/ui/screenshots/desktop-chat-*.png` 還是舊的卡片版，沒有重拍。

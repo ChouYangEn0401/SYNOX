@@ -97,8 +97,13 @@ class ClaudeCodeAdapter(ChatAdapter):
             detail = data.get("result") or (done.stderr or out or "").strip()[-200:]
             raise LLMError(f"Claude Code 回了錯誤：{detail or '（沒有訊息）'}。是不是還沒登入？")
         usage = data.get("usage") or {}
-        return Reply(text=str(data.get("result") or ""), usage={"input": int(usage.get("input_tokens") or 0),
-                                                                "output": int(usage.get("output_tokens") or 0)})
+        counted = {"input": int(usage.get("input_tokens") or 0), "output": int(usage.get("output_tokens") or 0)}
+        try:                                      # claude 自己算的這次花費（含快取等；訂閱制下是約當 API 價）
+            if data.get("total_cost_usd") is not None:
+                counted["usd"] = max(0.0, float(data["total_cost_usd"]))
+        except (TypeError, ValueError):
+            pass
+        return Reply(text=str(data.get("result") or ""), usage=counted)
 
     def probe(self) -> Optional[str]:
         if not self._which():
