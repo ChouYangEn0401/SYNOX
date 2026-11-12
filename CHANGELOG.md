@@ -56,6 +56,10 @@
   指令沒 summary、欄位沒 ask 只提醒不擋（安裝報告、`synox-sdk check`）。`@tool` 參數的預設值會寫成 `default`。
   說明：[docs/tools.md](docs/tools.md)「網頁工具頁」、[docs/pack-format.md](docs/pack-format.md)。
 
+### 對話頁桌面版改滿版
+- 寬度超過 760px 時，對話區佔滿側欄以外的整個區域（原本是置中、最寬 980px 的浮動卡片，螢幕一大就飄在中間）。手機版沒動。
+  `docs/ui/screenshots/desktop-chat-*.png` 還是舊的卡片版，沒有重拍。
+
 ### 找不到 Claude Code 時給安裝點
 - 網頁設定頁「測一下」回「找不到 claude」時，顯示 Windows／Linux／macOS 的安裝指令（可複製，不代跑）與官方說明連結；
   安裝精靈與網頁共用的 `CLAUDE_DOWNLOAD_URL` 改成官方安裝說明頁（原本的行銷頁會讓人裝成 Claude Desktop）。
