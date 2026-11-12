@@ -12,6 +12,7 @@
 - [十行入門](#十行入門)
 - [信任層級](#信任層級)
 - [權限欄位](#權限欄位)
+- [網頁工具頁（群組、分頁、表單）](#網頁工具頁群組分頁表單)
 - [secret 與連接表單](#secret-與連接表單)
 - [確認來回](#確認來回)
 - [環境建置](#環境建置)
@@ -36,7 +37,7 @@ pack 是一個資料夾，壓成 zip 就是 `.synoxpack`：
 
 - 一個 Telegram 指令（`/<群組>_<指令>`，主要的那個就是 `/<群組>`），
 - 一個 AI 工具（使用者講人話，AI 替他叫），
-- 網頁介面「工具」頁的一張卡。
+- 網頁介面「工具」頁裡的一張指令卡（整個 pack 是一個分頁，見下面「網頁工具頁」）。
 
 使用者裝你的 pack 時，SYNOX 先跑**宣告檢查（第 1 關）**與**靜態掃描（第 2 關）**，把報告給他看，他按確認才裝，
 並把每個檔的雜湊鎖起來（之後檔案被改過就不載入）。之後每次 AI 叫你的工具，SYNOX 先驗參數、
@@ -191,6 +192,26 @@ SDK：`@tool("WRITE", ai=False, confirm=True)`；cli 的 pack.json：`{"name": "
 | 包一支現成的程式 | `capabilities: ["subprocess"]`（管理員以上）；附了執行檔再加 `exec`（只有擁有者）＋`publisher`（T2） |
 | 接 MCP 伺服器 | stdio：`capabilities: ["subprocess"]`；遠端：`capabilities: ["network"]`＋`access: "member"`。每個 `tools_allow` 都寫 effect |
 
+## 網頁工具頁（群組、分頁、表單）
+
+網頁介面的「工具」頁是你的 pack 給人看的那一面（skill 的視覺化版本）：**左邊是群組**，選一個群組，
+群組裡的每個工具（pack）是**一個分頁**；分頁裡有說明、指令清單、每個參數的輸入欄、「執行」。全部從你的宣告讀出來，**不用寫網頁**：
+
+| 畫面上 | 從哪裡來 |
+|---|---|
+| 放在哪個群組 | pack.json 的 `category`（建議；沒寫＝「未分類」）。使用者按「編輯」自己排過的優先 |
+| 分頁標題、說明 | `title`、`summary`；「什麼時候用」＝SKILL.md frontmatter 的 `description` |
+| 指令卡 | 每個 command：指令名、`summary`、effect 徽章（唯讀／會寫入／**危險：會先問你**）、`confirm`／`ai: false` 的註記 |
+| 參數的輸入欄 | `fields[]`：`ask`＝欄位名稱、`required`＝必填標籤、`kind`＝輸入方式（`bool` 是／否下拉、`choice` 下拉、`int`／`number` 數字鍵盤）、`default`＝預先填好、`help`＝欄位下面的說明 |
+| 執行 | 送出 `/<指令> 欄位=值 …`，走跟聊天一樣的路（權限、第 4 關、確認來回都一樣）。`DANGER` 的指令按下去先在畫面上問一次「確定要執行嗎？」 |
+
+- 使用者可以**新增／改名／刪除群組、排序、把工具移到別的群組**。排法存在**每個人自己的**偏好（保管箱密文，
+  `data/web_prefs/<id>.json.enc`），擁有者與成員各自一份；**不會寫進你的 pack 資料夾**（packs.lock 的雜湊照樣對得上）。
+- `category` 只是建議：同名的放同一個群組（例如兩個 pack 都寫 `"待辦與行程"`）。名字取一般人看得懂的，一行、24 字內。
+- 說明寫得好，工具頁才好用：每個 command 寫 `summary`、每個欄位寫 `ask`（不然畫面上只剩英文名字），格式提示寫進 `help`。
+  `synox-sdk check` 會列出「📝 說明不齊」。
+- SDK 的 `@tool`：函式參數的預設值會變成 `default`、docstring 的 `Args:` 會變成 `ask`；`category` 自己加進 pack.json。
+
 ## secret 與連接表單
 
 要使用者的 API key、token、憑證檔時，**不要做成指令參數、也不要叫使用者在聊天裡打**。在 pack.json 宣告：
@@ -317,6 +338,7 @@ synox-sdk init <資料夾> --kind cli --name x                    不用 @tool �
 | MCP stdio 沒宣告 `subprocess` | 長駐子程序就是開別的程式 |
 | 遠端 MCP：網址是 `http://`、帶 `帳號:密碼@`、`#`、`{樣板}`；宣告 `subprocess`／`exec`／`filesystem:any`；寫了 `argv`、`env`、`headers` | token 只能走加密連線、只送到宣告的那個主機；這台不跑對方的程式 |
 | `requires.synox` 跟這台的版本不合 | 你用到的功能這版沒有 |
+| `category` 不是一行字（空的、換行、超過 24 字）；command 的 `summary`、欄位的 `ask`／`help` 有換行或超過 200 字；欄位的 `required` 不是 `true`／`false`；`default` 不合 `kind`／`choices` | 網頁工具頁與 AI 照這些畫表單、送參數；`"required": "false"` 這種字串會被當成必填 |
 | `.synoxpack` 超過 5 MB（解開 20 MB、300 個檔），或有絕對路徑、`..`、符號連結 | 防止解壓縮時寫到 pack 資料夾外面 |
 | zip 裡的檔名是 Windows 保留名（`CON`、`NUL`、`COM1`、`nul.txt`…）、有冒號（`x.py::$DATA`）、`< > " \| ? *`、結尾是空白或句點 | Windows 解壓縮時會變成裝置、資料流或另一個檔名，看到的跟裝進去的不一樣 |
 
@@ -362,6 +384,7 @@ synox-sdk init <資料夾> --kind cli --name x                    不用 @tool �
 - 用外部程式（`npx`、`git`）時要知道：那支程式不在 SYNOX 的雜湊鎖裡，被換掉 SYNOX 不會發現；`npx` 每次還會去網路抓。
 - 第三方的執行檔、npm 套件請在別台機器或隔離環境（雲端、容器、VM）先測過，不要在你平常用的電腦上直接跑別人的東西。
 - SKILL.md 寫清楚「什麼時候用、參數怎麼填、什麼時候要先問使用者」：AI 只看得到這份和指令說明。
+- 每個 command 寫 `summary`、每個欄位寫 `ask`（格式提示放 `help`），pack 寫 `category`：網頁工具頁照這些分群組、畫表單。
 
 ## 範例
 

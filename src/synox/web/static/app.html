@@ -254,20 +254,11 @@
            align-items: center; gap: 10px; padding: 24px; }
   .empty::before { content: ""; width: 44px; height: 44px; border-radius: 14px; background: var(--accent-soft); }
 
-  /* ── 工具 ─────────────────────────────────────────────────────────── */
+  /* ── 工具（頁面本身的版面在 static/tools.css；這裡是共用的小元件）──────── */
   .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; align-items: start; }
   .grid .card + .card { margin-top: 0; }
   .grid .card h3 { font-size: 16px; color: var(--text); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .grid .card > .muted { margin-top: 4px; }
-  .cmd { border-top: 1px solid var(--line); padding: 12px 0 2px; margin-top: 12px; }
-  .cmd > div:first-child { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; color: var(--muted);
-                           font-size: 13px; }
-  .cmd code { font-weight: 650; color: var(--accent); background: var(--accent-soft); padding: 2px 7px;
-              border-radius: 6px; font-size: 13px; }
-  .cmd > .muted { margin-top: 4px; color: var(--text-2); }
-  .cmd form { display: flex; gap: 6px; margin-top: 8px; }
-  .cmd form input { flex: 1; min-width: 0; min-height: 34px; padding: 6px 10px; font-size: 14px; }
-  .cmd form button { min-height: 34px; }
   .connect { border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; display: grid; gap: 8px; }
   .connect > button { justify-self: start; }
   .connect form { display: grid; gap: 10px; }
@@ -333,13 +324,13 @@
     button { min-height: 44px; font-size: 15px; }
     button.sm { min-height: 40px; }
     input, select, textarea { font-size: 16px; min-height: 44px; }
-    .cmd form input, .cmd form button { min-height: 44px; }
     .muted, .sub, .badge, #chat-list .l, td .detail { font-size: 14px; }
     #toast { bottom: 84px; }
     #view-login { min-height: auto; padding-top: 12px; }
     .login { padding: 22px 18px; }
   }
 </style>
+<!-- include: tools.css -->
 </head>
 <body data-view="login">
 <div class="shell">
@@ -405,11 +396,9 @@
     <div class="page wide">
       <header class="page-head">
         <h1>工具</h1>
-        <p class="sub">你看得到、用得到的全部功能。每個指令旁邊的框可以直接執行（結果也會留在對話頁的「🧰 工具頁」）。</p>
+        <p class="sub">你看得到、用得到的全部功能，照群組分好。填好參數按「執行」就跑（結果也會留在對話頁的「🧰 工具頁」）；群組可以按「編輯」自己排。</p>
       </header>
-      <div id="tool-packs" class="grid"></div>
-      <div class="section-label">其他</div>
-      <div id="tool-groups" class="grid"></div>
+      <div id="tools-root"></div>
     </div>
   </section>
 
@@ -517,6 +506,7 @@
 </div>
 <div id="toast" class="hidden" role="status"></div>
 
+<!-- include: tools.js -->
 <script nonce="{{NONCE}}">
 (function () {
   "use strict";
@@ -525,7 +515,6 @@
   var rev = 0;                 // 這段已經畫到哪個 rev
   var nodes = {};              // message id → DOM
   var pollTimer = null;
-  var toolsRev = 0;
 
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) {
@@ -720,145 +709,10 @@
     t.style.height = t.scrollHeight + "px";
   });
 
-  // ── 工具頁 ────────────────────────────────────────────────────────
-  function commandBlock(c) {
-    var box = el("div", "cmd");
-    var head = el("div");
-    head.appendChild(el("code", "", c.command));
-    if (c.usage) { head.appendChild(document.createTextNode(" " + c.usage)); }
-    if (c.effect === "danger") { head.appendChild(el("span", "badge danger", "危險：會先問你")); }
-    box.appendChild(head);
-    box.appendChild(el("div", "muted", c.summary));
-    var form = el("form");
-    var input = el("input");
-    input.type = "text"; input.placeholder = c.usage || "（不用參數，直接按執行）";
-    var btn = el("button", "", "執行"); btn.type = "submit";
-    form.appendChild(input); form.appendChild(btn);
-    var out = el("div", "result hidden");
-    form.addEventListener("submit", function (ev) {
-      ev.preventDefault();
-      var text = (c.command + " " + input.value).trim();
-      btn.disabled = true;
-      var since = toolsRev;
-      api("POST", "/api/chat/tools/send", { text: text }).then(function (d) {
-        return new Promise(function (ok) { setTimeout(ok, 500); }).then(function () {
-          return api("GET", "/api/chat/tools/events?since=" + since);
-        });
-      }).then(function (d) {
-        toolsRev = d.rev;
-        clear(out);
-        out.classList.remove("hidden");
-        var replies = d.messages.filter(function (m) { return m.from !== "me"; });
-        if (!replies.length) { out.textContent = "（送出了；回覆可能要等一下，到對話頁的「🧰 工具頁」看）"; }
-        replies.forEach(function (m) { out.appendChild(renderToolReply(m)); });
-      }).catch(function (e) { toast(e.message); }).then(function () { btn.disabled = false; });
-    });
-    box.appendChild(form);
-    box.appendChild(out);
-    return box;
-  }
-  // 「連接」：auth.fields 的表單。secret 用 password 輸入、伺服器永遠不回值（只回有填、最後 4 碼）；留空＝沿用原值。
-  function connectBlock(p, badge) {
-    var box = el("div", "connect");
-    var open = el("button", p.missing && p.missing.length ? "primary sm" : "sm",
-                  p.missing && p.missing.length ? "🔌 連接" : "🔌 連接設定");
-    open.type = "button";
-    var form = el("form", "hidden");
-    var msg = el("div", "muted");
-    box.appendChild(open); box.appendChild(form); box.appendChild(msg);
-    function build(view) {
-      clear(form);
-      var inputs = {};
-      view.fields.forEach(function (f) {
-        var lab = el("label");
-        var title = f.label + (f.required ? "" : "（選填）");
-        if (f.set) { title += f.kind === "file" ? "　✅ 已上傳（" + f.size + " 字）" : (f.secret ? "　✅ 有填" + (f.last4 ? "（…" + f.last4 + "）" : "") : ""); }
-        lab.appendChild(el("span", "", title));
-        var input;
-        if (f.kind === "file") {
-          input = el("input"); input.type = "file";
-        } else {
-          input = el("input"); input.type = f.secret ? "password" : "text";
-          input.autocomplete = f.secret ? "new-password" : "off";
-          if (!f.secret && f.value) { input.value = f.value; }
-          if (f.set && f.secret) { input.placeholder = "留空＝沿用原本的"; }
-        }
-        lab.appendChild(input);
-        if (f.help) { lab.appendChild(el("span", "muted", f.help)); }
-        form.appendChild(lab);
-        inputs[f.name] = { field: f, input: input };
-      });
-      var save = el("button", "primary", "存起來"); save.type = "submit";
-      form.appendChild(save);
-      form.onsubmit = function (ev) {
-        ev.preventDefault();
-        var values = {}, reads = [];
-        Object.keys(inputs).forEach(function (name) {
-          var it = inputs[name];
-          if (it.field.kind === "file") {
-            var file = it.input.files && it.input.files[0];
-            if (file) { reads.push(file.text().then(function (t) { values[name] = t; })); }
-          } else { values[name] = it.input.value; }
-        });
-        save.disabled = true;
-        Promise.all(reads).then(function () {
-          return api("POST", "/api/pack-secrets/" + encodeURIComponent(p.name), { values: values });
-        }).then(function (d) {
-          msg.textContent = d.message;
-          badge.textContent = d.status;
-          badge.className = "badge " + (d.connected ? "ok" : "warn");
-          build(d);
-        }).catch(function (e) { msg.textContent = "❌ " + e.message; })
-          .then(function () { save.disabled = false; });
-      };
-    }
-    open.addEventListener("click", function () {
-      if (!form.classList.contains("hidden")) { form.classList.add("hidden"); return; }
-      api("GET", "/api/pack-secrets/" + encodeURIComponent(p.name)).then(function (d) {
-        build(d); form.classList.remove("hidden");
-        msg.textContent = "存在這台電腦的保管箱（密文）；為了安全，Telegram 不收這些。";
-      }).catch(function (e) { msg.textContent = "❌ " + e.message; });
-    });
-    return box;
-  }
-  function renderToolReply(m) {
-    return renderMessage(m, "tools", function () { toast("按了；結果在對話頁的「🧰 工具頁」"); });
-  }
+  // ── 工具頁（版面、表單、群組編輯都在 static/tools.js；這裡只把共用的小工具交給它）──────
   function loadTools() {
-    api("GET", "/api/chat/tools/events?since=0").then(function (d) { toolsRev = d.rev; }).catch(function () {});
-    api("GET", "/api/tools").then(function (d) {
-      var packs = $("tool-packs"), groups = $("tool-groups");
-      clear(packs); clear(groups);
-      d.packs.forEach(function (p) {
-        var card = el("div", "card");
-        var h = el("h3", "", p.title + " ");
-        var badge = el("span", "badge " + (p.status === "已連接" ? "ok" : "warn"), p.status);
-        h.appendChild(badge);
-        card.appendChild(h);
-        card.appendChild(el("div", "muted", p.summary + "（" + p.name + " " + p.version + "）"));
-        if (p.connect) { card.appendChild(connectBlock(p, badge)); }
-        else if (p.missing && p.missing.length) {
-          card.appendChild(el("div", "muted", "還沒連接（缺 " + p.missing.join("、") + "）；請擁有者到工具頁按「連接」。"));
-        }
-        if (p.panel) {
-          var frame = el("iframe", "panel");
-          frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
-          frame.setAttribute("title", p.title + " 面板");
-          frame.src = p.panel;
-          card.appendChild(frame);
-        }
-        p.commands.forEach(function (c) { card.appendChild(commandBlock(c)); });
-        packs.appendChild(card);
-      });
-      if (!d.packs.length) { packs.appendChild(el("p", "muted", "你現在沒有可以用的功能；請管理員替你開。")); }
-      d.groups.forEach(function (g) {
-        var card = el("div", "card");
-        card.appendChild(el("h3", "", g.title));
-        if (g.summary) { card.appendChild(el("div", "muted", g.summary)); }
-        g.commands.forEach(function (c) { card.appendChild(commandBlock(c)); });
-        groups.appendChild(card);
-      });
-    }).catch(function (e) { toast(e.message); });
+    if (!window.SynoxTools) { toast("工具頁的程式沒有載入（重新整理看看）"); return; }
+    window.SynoxTools.load({ api: api, toast: toast, renderMessage: renderMessage, root: $("tools-root") });
   }
 
   // ── 設定頁 ────────────────────────────────────────────────────────
