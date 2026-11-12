@@ -184,13 +184,16 @@ def parse_mode(value) -> str:
 MODE_LABELS = {"personal": "只有我（個人版）", "server": "一群人（伺服器版）"}
 
 
+NOT_SECRET = {"max_tokens"}             # 名字裡有 token 但不是密鑰（寧可多遮，所以只列確定的）
+
+
 def redacted(raw: dict) -> dict:
     """doctor 印設定用：拿掉 token、金鑰（只說有沒有）。"""
     out = {}
     for key, value in raw.items():
         if isinstance(value, dict):
             out[key] = redacted(value)
-        elif any(s in key.lower() for s in ("token", "key", "secret", "password")):
+        elif key.lower() not in NOT_SECRET and any(s in key.lower() for s in ("token", "key", "secret", "password")):
             out[key] = "（有填）" if value else "（空）"
         else:
             out[key] = value
