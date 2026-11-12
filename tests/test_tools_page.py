@@ -91,13 +91,13 @@ def test_effective_layout_follows_pack_suggestions_until_the_user_arranges():
              ("money", "生活")]
     lay = toolpage.effective(None, tools)
     assert [(g["title"], g["tools"], g["auto"]) for g in lay["groups"]] == [
-        ("生活", ["memo", "money"], True), ("未分類", ["calc"], True), ("內建", ["_basics", "agent"], True)]
+        ("生活", ["memo", "money"], True), ("未分類", ["calc"], True), ("系統", ["_basics", "agent"], True)]
     assert lay["custom"] is False
     stored = {"groups": [{"id": "g1", "title": "常用", "tools": ["calc", "money", "gone"]},
                          {"id": "g2", "title": "空的", "tools": []}]}
     lay = toolpage.effective(stored, tools)
     assert [(g["title"], g["tools"]) for g in lay["groups"]] == [
-        ("常用", ["calc", "money"]), ("空的", []), ("生活", ["memo"]), ("內建", ["_basics", "agent"])]
+        ("常用", ["calc", "money"]), ("空的", []), ("生活", ["memo"]), ("系統", ["_basics", "agent"])]
     assert lay["custom"] is True and "gone" not in json.dumps(lay)        # 看不到的不出現
     # 使用者自己的群組剛好跟建議同名：沒排過的工具放進去，不另開一個
     lay = toolpage.effective({"groups": [{"id": "x", "title": "生活", "tools": []}]}, tools)
@@ -150,7 +150,7 @@ def test_tools_api_gives_descriptions_fields_and_default_layout(tools_bot, owner
     assert tip["percent"]["default"] == "10" and tip["round"]["default"] == "false"     # 布林寫成 true／false
     assert tip["style"]["choices"] == ["casual", "formal"] and tip["style"]["kind"] == "choice"
     titles = [g["title"] for g in data["layout"]["groups"]]
-    assert titles[0] == "生活" and titles[-2:] == ["未分類", "內建"]
+    assert titles[0] == "生活" and titles[-2:] == ["未分類", "系統"]
     builtin = data["layout"]["groups"][-1]["tools"]
     assert toolpage.BASICS_ID in builtin and all(g["id"] in builtin for g in data["groups"])
 

@@ -613,3 +613,16 @@ def test_doctor_shows_heartbeat(tmp_path):
     doctor.run(offline=True, config_path=str(path), out=lines.append)
     text = "\n".join(lines)
     assert "心跳：開，每 30 分鐘" in text and "巡過了，沒有要通知你的事。" in text
+
+
+def test_heartbeat_default_is_45_everywhere():
+    """決定 Q10（docs/adr/0001 §3）：預設 45 分鐘（擁有者：搭得上約 1 小時的 prompt 快取），最短 15 分鐘。各處要一致。"""
+    import re
+    root = os.path.dirname(HERE)
+    assert rs.DEFAULT_RUNTIME["heartbeat"]["interval_min"] == 45
+    assert rs.MIN_INTERVAL_MIN == 15 and rs.MAX_INTERVAL_MIN == 1440
+    with open(os.path.join(root, "config.example.json"), encoding="utf-8") as f:
+        assert json.load(f)["runtime"]["heartbeat"]["interval_min"] == 45
+    with open(os.path.join(root, "src", "synox", "web", "static", "control.js"), encoding="utf-8") as f:
+        js = f.read()
+    assert re.search(r"INTERVAL_MIN = 15, INTERVAL_MAX = 1440, INTERVAL_DEFAULT = 45;", js)

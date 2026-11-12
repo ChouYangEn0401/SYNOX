@@ -1,6 +1,6 @@
 """
 build()：SynoxConfig → isdtelekit.build_app → 基本指令（伺服器版多 accounts、limits；還沒裝工具時 /start、/help
-多一段「去哪裡裝」，packs/library.py）→ packs.load_all
+多一段「去哪裡裝」，packs/library.py）→ ⏰ 提醒（系統）（schedule.install_system_remind）→ packs.load_all
 → agent.install → runtime.install（排程迴圈、心跳、常駐助理）→ schedule.install → web.install（本機網頁介面）。
 
     config = SynoxConfig.load()
@@ -74,6 +74,7 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
     library.install(app)                       # /help 在還沒裝工具時多一則「去哪裡裝」
     if server:
         install_server_packs(app)
+    schedule.install_system_remind(app)        # ⏰ 提醒（系統）：系統指令，先佔住群組名再載入 pack（QL5）
     loader.load_all(app, config, vault, dirs=pack_dirs)
     if adapter is _UNSET:
         try:

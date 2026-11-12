@@ -2,6 +2,10 @@
 
 2026-11-12 起 SYNOX 出廠**不帶任何工具**，`packs/` 只剩說明。
 
+> **後來（同一天，QuestionToUser QL5）：提醒回到核心了**，但不是回到 `packs/`：`/remind_*` 現在是 SYNOX 的**系統指令**
+> 「⏰ 提醒（系統）」（跟 `/help`、`/schedule_*` 同一層，`src/synox/schedule/commands.py` 的 `install_system_remind`），不用裝、資料照舊。
+> 工具庫的 `remind` 工具下架到 SYNOX_Libs 的 `legacy/remind/`。下面的表照當時記錄留著。
+
 ## 原本做什麼
 
 | 工具 | 指令 | 做什麼 | 資料 |
@@ -21,8 +25,10 @@
 
 ## 從舊版更新上來的人
 
-- 更新後 `/help` 裡記帳、筆記、提醒會不見，**資料沒有動**（`data/` 裡的檔照舊）。
-- 從工具庫裝同名的工具（`money`、`notes`、`remind` 的 `.synoxpack`）就回來，資料接著用。
+- 更新後 `/help` 裡記帳、筆記會不見，**資料沒有動**（`data/` 裡的檔照舊）。
+- 從工具庫裝同名的工具（`money`、`notes` 的 `.synoxpack`）就回來，資料接著用。
+- 提醒不會不見：它是系統指令「⏰ 提醒（系統）」，`data/schedule.json.enc` 直接接上。裝過工具庫舊 `remind` 工具的人，SYNOX 會把它標成
+  「不需要了」、不載入（到網頁設定頁移除即可）。
 - `/schedule_*`（排程替你跑指令）是 SYNOX 本體的功能，沒有下架。
 
 ## 怎麼救回（不建議，除非工具庫拿不到）
@@ -32,7 +38,7 @@
 ```
 git log --oneline -1 -- packs/money          # 找到「搬走」的那個 commit，它的上一個就是最後一版
 git show <那個 commit>^:packs/money/pack.py
-git checkout <那個 commit>^ -- packs/money packs/notes packs/remind
+git checkout <那個 commit>^ -- packs/money packs/notes
 ```
 
-再把 `loader.BUNDLED` 加回 `"money", "notes", "remind"`。測試用的凍結複本在 `tests/fixtures/packs/`（只給測試用，不要直接當正本）。
+再把 `loader.BUNDLED` 加回 `"money", "notes"`。（提醒不用救：已經是系統指令。）測試用的凍結複本在 `tests/fixtures/packs/`（只給測試用，不要直接當正本）。

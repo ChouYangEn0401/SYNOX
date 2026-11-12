@@ -205,6 +205,10 @@ class RoomAgent(AgentLoop):
             lines += ["", textproto.system_snippet(tools)]
         return "\n".join(lines)
 
+    def soul_block(self, user, chat_id: int, nonce: str) -> str:
+        """公開頻道永遠不放 soul.md（擁有者的私人偏好；docs/adr/0002）。"""
+        return ""
+
     def call_tool(self, api, chat_id: int, user, call: ToolCall, skills) -> Tuple[str, bool]:
         node = tools_mod.node_for(self.app.registry, call.name)
         if node is not None and needs_dm(self.app, node) and not policy.hidden(self.app, user, node, self.spec):

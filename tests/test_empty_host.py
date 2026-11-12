@@ -114,7 +114,7 @@ def test_doctor_counts_installed_tools(tmp_path, monkeypatch):
     monkeypatch.setattr(loader, "PACK_DIRS", (FIXTURE_PACKS, CONNECTORS))
     lines = []
     doctor.run(offline=True, config_path=_write_config(tmp_path), out=lines.append)
-    assert "• 工具：裝了 3 個（money、notes、remind）" in "\n".join(lines)
+    assert "• 工具：裝了 2 個（money、notes）" in "\n".join(lines)
 
 
 def test_wizard_finish_mentions_tool_library():

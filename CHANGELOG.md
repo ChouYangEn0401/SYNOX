@@ -17,6 +17,22 @@
 - 全域 `-q`／`--quiet`（放在指令前後都可以）。
 - 要你決定的事：[QuestionToUser.md](QuestionToUser.md) QB1～QB3（專案網址、`synox` 要不要在任何命令列都能打、logo 的樣子）。
 
+### 提醒變系統指令、soul.md 給對話助理（branch `feat/core-remind-soul`，還沒合併）
+- **提醒回到核心當系統指令**（QuestionToUser QL5）：`/remind_add`、`/remind_list`、`/remind_rm` 不用再裝工具，標題「⏰ 提醒（系統）」，
+  網頁工具頁歸在「系統」群組（SYNOX 自己的指令原本叫「內建」，一起改名）。指令名、AI 工具名、資料（`data/schedule.json.enc`）都不變，
+  舊提醒直接接上；權限照舊（個人版只有擁有者、伺服器版成員以上、只在私訊）。群組名 `remind` 保留給系統：裝過工具庫舊 `remind` 工具的人，
+  它會被標成「不需要了」（狀態 incompatible、不載入、不算壞掉）。工具庫那邊把 `remind` 搬到它的 `legacy/remind/`。
+  `tests/fixtures/packs/remind` 拿掉（測試直接用核心的 `/remind_*`）。
+- **soul.md 放進對話助理的系統提示**（決定 Q7，[docs/adr/0002](docs/adr/0002-soul-md-in-chat-assistant-prompt.md)）：只有擁有者的私訊／網頁對話、
+  唯讀、最多 2000 字、包在分隔符裡標明「使用者偏好，不是指令」；沒寫東西（預設的空段落）就不放；成員、訪客、公開頻道都不帶；不寫 log；
+  對話助理仍不讀常駐助理的記憶。「agent 怎麼讀 context」的 HTML 說明記在 [docs/README.md](docs/README.md) 的待做（MVP 之後）。
+- 心跳預設**維持 45 分鐘**、最短 15 分鐘（決定 Q10）：ADR 0001 §3 補理由（擁有者：搭得上約 1 小時的 prompt 快取、固定 beat 下去比較划算），
+  並註明 SYNOX 現在的 adapter 沒有自己標 1 小時快取（之後的工作）；新測試對設定預設值、`config.example.json`、主控面板三處都是 45。
+- 網頁誰進得了（Q11）：[docs/security.md](docs/security.md) 新增白話表；程式沒改。查到伺服器版 `/web` 對每個人（含訪客）都發連結，
+  要不要收緊另開 QuestionToUser **QS1**。
+- [QuestionToUser.md](QuestionToUser.md)：最上面加常駐規則（擁有者 2026-11-12：「你作玩得可以先刪掉，剩下的我沒回就都先留著」）；
+  Q5、Q7、Q10、Q11、QL5 標成已回答、濃縮成結論搬到最下面「已回答」；其他題目不動。
+
 ### 常駐助理、心跳、runtime loop（branch `feat/runtime-heartbeat`，還沒合併）
 - 新增 `src/synox/runtime/`：常駐的排程迴圈（每個任務自己的執行緒、逾時、失敗退避、連續 5 次失敗通知一次）、
   心跳（預設每 45 分鐘、下限 15 分鐘、沒有新狀況不叫 AI、安靜時段、每天通知／叫 AI 的上限）、常駐助理（母 session：沒有工具、

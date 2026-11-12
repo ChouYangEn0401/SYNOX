@@ -820,6 +820,16 @@ def _tamper_notice(app, config, m: Manifest, changes: List[str]) -> None:
         logging.exception("[PACKS] tamper notice for %s failed", m.name)
 
 
+# SYNOX 系統指令佔住的群組名 → 撞到的 pack 給人看的一句話（例如 remind＝⏰ 提醒（系統），schedule/commands.py 在載入 pack 之前登記）。
+SYSTEM_GROUPS_KEY = "synox_system_groups"
+
+
+def system_group_problem(app, m: Manifest) -> str:
+    """pack 的群組是系統指令的名字 → 一句說明（狀態 incompatible、不載入，不算壞掉）；不是 → ""。"""
+    owned = (getattr(app, "extras", None) or {}).get(SYSTEM_GROUPS_KEY) or {}
+    return owned.get(m.group.split(".")[0], "")
+
+
 def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
     report = LoadReport()
     packs: List[Pack] = app.extras.setdefault("synox_packs", [])
@@ -840,6 +850,10 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         too_old = synox_problem(m)                 # requires.synox：版本不合就不載入
         if too_old:
             item.status, item.detail = "incompatible", too_old
+            continue
+        system_owned = system_group_problem(app, m)    # 例：舊的 remind 工具（提醒已經是系統指令）
+        if system_owned:
+            item.status, item.detail = "incompatible", system_owned
             continue
         missing = missing_requirements(m, config)
         if missing:

@@ -1,5 +1,5 @@
 """
-/remind_add <HH:MM> <文字> [date=YYYY-MM-DD]、/remind_list、/remind_rm <n>（掛在 packs/remind 的群組）；
+/remind_add <HH:MM> <文字> [date=YYYY-MM-DD]、/remind_list、/remind_rm <n>（系統群組「⏰ 提醒（系統）」，install_system_remind）；
 /schedule_add <HH:MM> /<指令> …、/schedule_list、/schedule_rm <n>（這裡自己定義 schedule 群組）。
 
 /schedule_add 設了 Node.wraps：「之後替你執行另一個指令」的節點，危險程度連裡面那個一起算（Node.effect_of），
@@ -48,7 +48,31 @@ def _when(item: dict) -> str:
     return f"{item['date']} {item['time']}（一次）" if item.get("date") else f"每天 {item['time']}"
 
 
-# ── /remind_* ────────────────────────────────────────────────────────
+# ── /remind_*：⏰ 提醒（系統）───────────────────────────────────────────
+#
+# 提醒是 SYNOX 的**系統指令**（擁有者 2026-11-12，QuestionToUser QL5），跟 /help、/schedule_* 同一層：不是可裝可卸的
+# pack，不在工具庫（SYNOX_Libs 的舊 remind 工具在它的 legacy/）。名字刻意標「（系統）」：工具很容易也叫 remind／reminder，
+# Apple 提醒事項（connector apple-reminders）也是另一回事。群組名 remind 保留給這裡：pack 宣告 group=remind 會載不進去
+# （loader.system_group_problem）。指令名、AI 工具名（remind__add…）、資料（data/schedule.json.enc）都跟以前一樣。
+
+REMIND_GROUP = "remind"
+REMIND_TITLE = "⏰ 提醒（系統）"
+REMIND_SUMMARY = "SYNOX 內建的提醒：每天幾點、或指定哪一天提醒你一件事（不是 Apple 提醒事項）"
+REMIND_RETIRED = ("提醒已經是 SYNOX 的系統指令（⏰ 提醒（系統），/remind_* 照舊能用、資料沒動），"
+                  "這個工具不需要了：到網頁「設定」移除它就好（移除只是搬到 packs/_removed/）。")
+
+
+def install_system_remind(app) -> None:
+    """⏰ 提醒（系統）：在 packs.load_all **之前**掛（群組名先佔住；舊的 remind 工具或撞名的 pack 由 loader 說明、不載入）。
+    權限照以前的 remind pack（access: member、surfaces: dm）：個人版只有擁有者；伺服器版成員以上；只在私訊。"""
+    from synox.packs.loader import SYSTEM_GROUPS_KEY
+    config = app.extras.get("synox_config")
+    server = getattr(config, "mode", "personal") == "server"
+    group = app.registry.define_group(REMIND_GROUP, REMIND_TITLE, REMIND_SUMMARY, private_only=True,
+                                      **group_policy(app, "member", server))
+    install_remind(app, group)
+    app.extras.setdefault(SYSTEM_GROUPS_KEY, {})[REMIND_GROUP] = REMIND_RETIRED
+
 
 def install_remind(app, group) -> None:
     store = store_for(app)
@@ -66,7 +90,7 @@ def install_remind(app, group) -> None:
         if not items:
             api.send_message(chat_id, "⏰ 還沒有提醒。用 /remind_add 08:00 吃藥 加一個。")
             return
-        lines = ["⏰ 提醒"] + [f"{i}. {_when(it)}  {it['text']}" for i, it in enumerate(items, 1)]
+        lines = [REMIND_TITLE] + [f"{i}. {_when(it)}  {it['text']}" for i, it in enumerate(items, 1)]
         api.send_message(chat_id, "\n".join(lines))
 
     def rm(api, chat_id, user, values):
@@ -76,12 +100,13 @@ def install_remind(app, group) -> None:
             return
         api.send_message(chat_id, f"🗑 刪掉提醒：{_when(gone)} {gone['text']}")
 
-    kit.command(group, "add", add, "加一個提醒（每天，或 date= 指定那天一次）", effect=WRITE, positional=2, fields=[
-        Field("time", "時間 HH:MM", required=True, check=kit.hhmm),
+    # 欄位說明也是給 AI 看的（以前寫在 remind 工具的 SKILL.md）
+    kit.command(group, "add", add, "加一個提醒（系統；每天，或 date= 指定那天一次）", effect=WRITE, positional=2, fields=[
+        Field("time", "時間 HH:MM（24 小時制，下午 3 點＝15:00）", required=True, check=kit.hhmm),
         Field("text", "提醒什麼", required=True),
-        Field("date", "只提醒一次的日期 YYYY-MM-DD", check=check_date)])
-    kit.command(group, "list", list_, "列出提醒")
-    kit.command(group, "rm", rm, "刪掉一個提醒", effect=WRITE,
+        Field("date", "只提醒一次的日期 YYYY-MM-DD（沒說年份就用今年；不填＝每天）", check=check_date)])
+    kit.command(group, "list", list_, "列出提醒（系統）")
+    kit.command(group, "rm", rm, "刪掉一個提醒（系統；先 /remind_list 看編號）", effect=WRITE,
                 fields=[Field("n", "編號", required=True, check=kit.positive_int)])
 
 
