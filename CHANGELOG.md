@@ -17,6 +17,14 @@
   不呼叫任何真的 AI、沒有「真跑」模式（要先決定花費上限，見 README 最後一節）；對話助理本身沒有改。
 - `evals/` 是開發用的，`scripts/make_zip.py` 不打包它。
 
+### 用 Docker 開發與執行（branch `feat/docker-support`，還沒合併）
+- 新增開發容器 `.devcontainer/devcontainer.json`（Python 3.11、裝相依、pytest；網頁埠只轉到本機 localhost）與執行用映像檔：
+  `Dockerfile`（兩段式、非 root、`HEALTHCHECK` 不經對外的埠）、`.dockerignore`（白名單）、`docker-compose.yml`（具名 volume、
+  埠只發佈到宿主 127.0.0.1、唯讀根目錄、tmpfs、cap_drop ALL、資源上限）、`.env.example`、`docker/healthcheck.py`。說明：[docs/docker.md](docs/docker.md)。
+- 網頁介面：只有在 SYNOX 的容器裡（`SYNOX_IN_CONTAINER=1`＋容器證據）且 `SYNOX_WEB_BIND=0.0.0.0` 才綁容器自己的 0.0.0.0；
+  預設行為不變（127.0.0.1），其他值一律拒、網頁不開（`web/server.py` 的 `bind_host`，`tests/test_web_bind.py`）。
+- 映像檔**還沒實際建置、容器還沒實際跑過**：驗證清單在 docs/docker.md「驗證」。
+
 ### 網頁的開場動畫與微動畫（branch `feat/ui-splash`，還沒合併）
 - 打開網頁時「S 寶寶」掉下來、眨眼、說嗨、翻面變成 S 標誌、SYNOX 字樣跳出來（約 1.7 秒；點一下或按任何鍵略過；同一個分頁只播一次）；
   頁面切換、卡片進場、按鈕、對話泡泡、狀態點、背景淡光與小光點的微動畫。版面沒動；系統開了「減少動態效果」→ 開場不播、動畫全關。

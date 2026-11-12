@@ -1,6 +1,8 @@
 .venv/
 data/
 config.json
+# docker compose 的設定（docs/docker.md；範本是 .env.example，進 git）
+.env
 /runtime/
 lang.txt
 __pycache__/
