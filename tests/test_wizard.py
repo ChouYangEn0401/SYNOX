@@ -211,7 +211,7 @@ def test_startup_cmd_text():
     text = shortcuts.startup_cmd_text(r"C:\Apps\SYNOX")
     text.encode("ascii")
     assert text.count("\r\n") == 4 and "\n" not in text.replace("\r\n", "")
-    assert 'call "C:\\Apps\\SYNOX\\Start.bat"' in text
+    assert 'call "C:\\Apps\\SYNOX\\Start.bat" ' + shortcuts.AUTOSTART_ARGS + "\r\n" in text   # 開機登入不跳瀏覽器
     with pytest.raises(ValueError):
         shortcuts.startup_cmd_text("C:\\使用者\\SYNOX")
 
@@ -325,3 +325,65 @@ def test_shortcut_script_icon():
     assert "IconLocation" not in shortcuts.shortcut_script(r"C:\x\a.lnk", r"C:\a\b.bat", r"C:\a")
     import os
     assert shortcuts.icon_path(os.path.dirname(os.path.dirname(__file__))).endswith("synox.ico")
+
+
+def test_finish_status():
+    launched = logic.finish_status(["桌面捷徑 ✅"], launched=True, has_token=True)
+    assert launched.startswith("✅ 設定好了，bot 開起來了。") and "桌面捷徑 ✅" in launched
+    web_only = logic.finish_status([], launched=True, has_token=False)
+    assert "還沒接 Telegram／Discord" in web_only and "Setup.bat" in web_only
+    for has_token in (True, False):
+        later = logic.finish_status(["x"], launched=False, has_token=has_token)
+        assert "還沒開" in later and "捷徑" in later and "Open-SYNOX.bat" in later
+        assert "開起來了" not in later and later.endswith("可以關掉這個視窗。")
+
+
+def _finish_page(tmp_path, monkeypatch):
+    """完成頁冒煙測試：隱藏的 Tk 視窗；存設定、捷徑、Start.bat、瀏覽器都換成假的。"""
+    tk = pytest.importorskip("tkinter")
+    from synox.wizard import pages
+    try:
+        root = tk.Tk()
+    except tk.TclError as e:
+        pytest.skip(f"no display: {e}")
+    root.withdraw()
+    calls = {"popen": [], "browser": []}
+    monkeypatch.setattr(pages.logic, "save", lambda path, cfg, *a, **k: cfg)
+    monkeypatch.setattr(pages.logic, "web_login_link", lambda path: "http://127.0.0.1:1/login")
+    monkeypatch.setattr(pages.shortcuts, "create_desktop_shortcut", lambda root_: None)
+    monkeypatch.setattr(pages.shortcuts, "enable_autostart", lambda root_: "x")
+    monkeypatch.setattr(pages.shortcuts, "disable_autostart", lambda: None)
+    monkeypatch.setattr(pages.shortcuts, "register_synoxpack", lambda root_: None)
+    monkeypatch.setattr(pages.subprocess, "Popen", lambda *a, **k: calls["popen"].append(a))
+    monkeypatch.setattr(pages.webbrowser, "open", lambda link: calls["browser"].append(link))
+    wiz = pages.Wizard(root, config_path=str(tmp_path / "config.json"))
+    wiz.page_finish()
+
+    def widgets(kind):
+        return [w for w in wiz.body.winfo_children() if w.winfo_class() == kind]
+
+    return root, wiz, calls, widgets
+
+
+def test_page_finish_launch_unchecked(tmp_path, monkeypatch):
+    root, wiz, calls, widgets = _finish_page(tmp_path, monkeypatch)
+    try:
+        boxes = {w.cget("text"): w for w in widgets("TCheckbutton")}
+        boxes["完成後立刻開啟 SYNOX"].invoke()            # 取消勾選
+        wiz.next_btn.invoke()                             # 完成並開始
+        assert calls["popen"] == [] and calls["browser"] == []
+        text = widgets("TLabel")[-1].cget("text")
+        assert "還沒開" in text and "Open-SYNOX.bat" in text
+        assert wiz.next_btn.cget("text") == "關閉"
+    finally:
+        root.destroy()
+
+
+def test_page_finish_launch_checked(tmp_path, monkeypatch):
+    root, wiz, calls, widgets = _finish_page(tmp_path, monkeypatch)
+    try:
+        wiz.next_btn.invoke()                             # 預設勾著：跟以前一樣開 Start.bat
+        assert len(calls["popen"]) == 1 and calls["popen"][0][0][-1].endswith("Start.bat")
+        assert "SYNOX 開起來了" in widgets("TLabel")[-1].cget("text")
+    finally:
+        root.destroy()
