@@ -23,7 +23,20 @@ NOT_FOUND = "這台電腦找不到 claude（Claude Code）。先安裝並登入 
 
 
 def find_claude() -> Optional[str]:
-    return shutil.which("claude")
+    """PATH 上的 claude；沒有就看官方安裝程式的固定位置（~/.local/bin）。
+
+    原生安裝程式把 claude 放在 ~/.local/bin，但不一定替使用者加進 PATH（或 SYNOX 是在安裝前啟動的、PATH 還是舊的），
+    只靠 PATH 會誤報「找不到」。VS Code 擴充功能自帶的 claude.exe 不算（它不在這些位置、也不是給別的程式叫的）。
+    """
+    found = shutil.which("claude")
+    if found:
+        return found
+    base = os.path.join(os.path.expanduser("~"), ".local", "bin")
+    for name in ("claude.exe", "claude"):
+        path = os.path.join(base, name)
+        if os.path.isfile(path):
+            return path
+    return None
 
 
 def flatten(messages: Sequence[Message]) -> str:
