@@ -1,0 +1,22 @@
+{
+  "case": "no_clarify-01",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "note__add",
+            "args": {
+              "text": "買貓砂"
+            },
+            "result": "已記下：買貓砂"
+          }
+        ]
+      },
+      {
+        "text": "記好了：買貓砂。"
+      }
+    ]
+  ]
+}

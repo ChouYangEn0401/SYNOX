@@ -1,0 +1,20 @@
+{
+  "case": "memory-01",
+  "source": "broken",
+  "note": "忘記前一輪",
+  "expected_failures": [
+    "final_contains"
+  ],
+  "turns": [
+    [
+      {
+        "text": "好，記住了。"
+      }
+    ],
+    [
+      {
+        "text": "抱歉，我不知道你要去哪裡。"
+      }
+    ]
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "case": "no_clarify-02",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "currency__convert",
+            "args": {
+              "amount": "1",
+              "source": "EUR",
+              "target": "TWD"
+            },
+            "result": "1 EUR ≈ 35 TWD（範例匯率 35.0）"
+          }
+        ]
+      },
+      {
+        "text": "1 歐元大約 35 台幣（範例匯率）。"
+      }
+    ]
+  ]
+}

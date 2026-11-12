@@ -1,0 +1,11 @@
+{
+  "case": "clarify-02",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "text": "好的，想約下週哪一天、幾點？要跟誰開會？"
+      }
+    ]
+  ]
+}

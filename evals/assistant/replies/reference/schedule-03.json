@@ -1,0 +1,18 @@
+{
+  "case": "schedule-03",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "calendar__clear",
+            "args": {
+              "date": "2026-12-10"
+            }
+          }
+        ]
+      }
+    ]
+  ]
+}
