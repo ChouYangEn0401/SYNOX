@@ -150,7 +150,7 @@ def _pick_notes(out: str, limit: int, query: str, weight: Optional[Callable[[str
     if span is None:
         return ""
     notes = [i for i in range(span[0] + 1, span[1]) if _is_bullet(rows[i])]
-    fixed = sum(len(r) + 1 for i, r in enumerate(rows) if i not in set(notes))
+    fixed = sum(len(r) + 1 for r in rows) - sum(len(rows[i]) + 1 for i in notes)
     room = limit - fixed - len(MORE_NOTES.format(n=len(notes))) - 1
     if not notes or room < 0:
         return ""

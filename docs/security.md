@@ -47,6 +47,7 @@
 | `data/web_chats/<id>.json.enc` | 網頁對話頁的紀錄（每段最近 50 則） | **密文**，那個人的金鑰（個人版是擁有者的） |
 | `data/web_tokens.json`、`data/web_sessions.json` | 網頁登入連結、登入中的 session | 只存 SHA-256（檔案被看到也拿不到能用的連結或 cookie）；session 的 CSRF token 是明文 |
 | `data/runtime_soul.json.enc`、`data/runtime_soul_audit.json.enc`、`data/runtime_mother_memory.json.enc` | 常駐助理的 soul.md、每次改 soul 的紀錄、常駐助理自己的記憶（docs/adr/0001） | **密文**（擁有者的；保管箱打不開＝soul 讀寫都拒，不退回明文）。主控面板可以改 soul、清空記憶 |
+| `data/runtime_soul_ledger.json.enc`（有筆記的來歷或提議之後才有） | soul 帳本：助理筆記每一條的來歷、等你確認的提議、收起來的舊筆記、你拒絕過的東西的雜湊（docs/adr/0005） | **密文**（擁有者的）。主控面板「助理記下來的事」逐條看、收起、放回、忘掉、匯出。匯出的那一份是**明文**，下載之後由你保管 |
 | `data/runtime/state.json` | 背景任務與心跳的狀態（state、時間、連續失敗次數、上一次心跳的結果一句話） | 明文（沒有任務訊息與日誌——那些只在記憶體，重開就沒了）。心跳的「上一次結果」可能帶一句通知內容 |
 | `data/users.json`、`data/llm_usage.json`、`data/users/<id>/llm_usage.json`、`data/ai_budgets.json`、`data/host.lock`、`data/last_update_id`… | 誰傳過訊息、AI 用量與額度、執行狀態 | 明文（沒有內容，只有 id、次數、金額） |
 
@@ -103,6 +104,9 @@
    **常駐助理（心跳，預設每 45 分鐘）**也送給同一個 AI：soul.md、背景任務的狀態與最後訊息、今天還沒到的提醒、
    你跟對話助理最近 3 輪（每段截到 150 字；`runtime.mother.read_chat=false` 不送）、它自己最近 20 次的紀錄。
    快照沒變（沒有新狀況）就不送；`runtime.heartbeat.enabled=false` 整個關掉。它沒有工具，不能替你執行指令。
+   它想記進 soul.md 的字先過程式檢查（[adr/0005](adr/0005-soul-ledger-memory-provenance-review.md)）：像在下指令、有網址、要跳過確認、
+   要把資料傳出去、跟現有的很像的，**不會自己寫進去**，在主控面板等你按；`runtime.mother.soul_review=true`＝每一條都先問你。
+   這是樣式比對，擋不住刻意繞過的句子——它降低的是「對話或工具訊息裡的一句話變成每一輪都會讀到的記憶」的機會。
 
 ## 用朋友／公司的 LLM
 
