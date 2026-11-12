@@ -10,6 +10,8 @@
     creating_venv         = '使用 {0} 创建 .venv …'
     venv_failed           = '创建 .venv 失败。'
     installing            = '正在安装 SYNOX 需要的软件包（第一次需要几分钟）…'
+    offline_wheels        = '从附带的 wheelhouse 离线安装软件包（不联网）…'
+    no_window_text        = '这个 Python 没有窗口组件（tkinter）：改在这个窗口用文字版设置（synox init）…'
     pip_failed            = 'pip install 失败（网络问题？）。'
     opening_wizard        = '正在打开安装向导…'
     row_running           = 'SYNOX 正在运行（pid）'
