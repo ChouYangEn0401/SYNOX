@@ -105,6 +105,7 @@ STRINGS = {
     "status_add_channel_later": "انقر نقرًا مزدوجًا على Setup.bat لاحقًا لتشغيل المعالج مجددًا وربط Telegram/Discord.",
     "status_bot_head": "✅ اكتمل كل شيء، والبوت يعمل.",
     "status_web_head": "✅ اكتمل كل شيء، وSYNOX يعمل (بدون Telegram/Discord بعد).",
+    "status_no_tools": "🧰 يأتي SYNOX بلا أدوات (المصاريف والملاحظات والتذكيرات… تُثبَّت على حدة): احصل على ملفات \u200e.synoxpack\u200e من مكتبة الأدوات (SYNOX_Libs) ثم انقر نقرًا مزدوجًا على الملف أو ارفعه من واجهة الويب: الإعدادات ← تثبيت. اسأل من أعطاك SYNOX عن مكان المكتبة.",
     "status_can_close": "يمكنك إغلاق هذه النافذة.",
     "no_window": "❌ تعذّر فتح نافذة ({e}). انسخ config.example.json إلى config.json واملأه يدويًا.",
 }

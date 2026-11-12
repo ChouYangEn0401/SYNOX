@@ -105,6 +105,7 @@ STRINGS = {
     "status_add_channel_later": "나중에 Setup.bat을 더블클릭해 마법사를 다시 실행하면 Telegram/Discord에 연결할 수 있습니다.",
     "status_bot_head": "✅ 설정 완료, bot이 실행 중입니다.",
     "status_web_head": "✅ 설정 완료, SYNOX가 실행 중입니다(Telegram/Discord 미연결).",
+    "status_no_tools": "🧰 SYNOX에는 처음에 도구가 없습니다(가계부, 메모, 알림 등은 따로 설치). 도구 라이브러리(SYNOX_Libs)의 .synoxpack 파일을 더블클릭하거나 웹 화면의 설정 → 기능 설치에서 올리세요. 라이브러리 위치는 SYNOX를 준 사람에게 물어보세요.",
     "status_can_close": "이 창을 닫아도 됩니다.",
     "no_window": "❌ 창을 열 수 없습니다({e}). config.example.json을 config.json으로 복사해 직접 입력하세요.",
 }

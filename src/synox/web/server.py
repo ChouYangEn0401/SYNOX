@@ -597,7 +597,11 @@ class WebUI:
             if leaves:
                 groups_out.append({"title": node.title, "summary": node.summary,
                                    "commands": [self._leaf_info(n) for n in leaves]})
-        return {"packs": packs_out, "groups": groups_out}
+        out = {"packs": packs_out, "groups": groups_out}
+        if self.is_owner(user):                       # 只有擁有者裝得了工具；工具頁空的時候給「去哪裡裝」
+            from synox.packs import library
+            out["library"] = library.status(self.app)
+        return out
 
     def pack_api(self, user, name: str, route: str) -> Resp:
         pack = self._pack(name)
@@ -695,6 +699,8 @@ class WebUI:
                          "version": i.version, "lock": getattr(i, "lock", ""),
                          "removable": bool(user_dir) and os.path.realpath(os.path.dirname(i.folder)) == user_dir}
                         for i in (report.items if report else [])]
+        from synox.packs import library             # 出廠不帶工具：裝了幾個、工具庫在哪、怎麼裝（packs/library.py）
+        out["library"] = library.status(self.app)
         out["vault"] = self.vault is not None
         return out
 

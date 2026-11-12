@@ -255,6 +255,7 @@ def finish_status(notes: list, *, launched: bool, has_token: bool) -> str:
     else:
         head = t("status_web_head")
         lines.append(t("status_add_channel_later"))
+    lines.append(t("status_no_tools"))       # 出廠不帶工具：去工具庫（SYNOX_Libs）拿 .synoxpack 裝（packs/library.py）
     return "\n".join([head] + lines + [t("status_can_close")])
 
 
