@@ -9,7 +9,7 @@ soul.md：常駐助理的靈魂檔（docs/adr/0001 §5）。存保管箱（加�
     soul.audit()                          每次改的紀錄（時間、誰、什麼）
     soul.for_prompt(query=, weight=)      對話助理的系統提示用（唯讀；拿掉註解、沒寫東西＝""、有密鑰樣式＝""、最多 2000 字；
                                           決定 Q7，docs/adr/0002）。超過上限時你寫的段落先留，「助理筆記」照跟這句話的相關度
-                                          與新舊挑著放（docs/adr/0004），不是從尾巴硬切
+                                          與新舊挑著放（docs/adr/0005），不是從尾巴硬切
     soul.filter_notes(keep, by=, what=)   只能**拿掉**「助理筆記」段裡的行（別的段落碰不到）；soul 帳本（ledger.py）收起、整理、遺忘用
     soul.record(by, what) / soul.redact_audit(needle)   多記一筆稽核／把稽核裡提到某段字的那幾筆蓋掉（遺忘用）
 

@@ -515,7 +515,7 @@ def test_api_status_shape(api):
     runtime.report(bot.app, "weather", "failed", "API 回 503", title="🌤 天氣")
     status, data = client.get("/api/runtime/status")
     assert status == 200
-    assert set(data) == {"heartbeat", "mother", "tasks"}
+    assert set(data) == {"heartbeat", "mother", "tasks", "activator"}       # activator：連動（docs/adr/0004）
     assert {"enabled", "interval_min", "last_run_at", "next_run_at", "last_result"} <= set(data["heartbeat"])
     assert set(data["mother"]) == {"state", "ai", "last_active_at", "soul_updated_at"}
     assert data["mother"]["ai"] is True

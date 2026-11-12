@@ -198,7 +198,7 @@ test("client errors carry the status and the server's own words; network failure
   await assert.rejects(c.resetMemory(), (e) => e.status === 500 && C.humanError(e).indexOf("500") < 0);
 });
 
-// ── 助理筆記（soul 帳本，docs/adr/0004）──────────────────────────────
+// ── 助理筆記（soul 帳本，docs/adr/0005）──────────────────────────────
 
 test("notes client follows the API contract (paths, bodies, CSRF on writes only)", async () => {
   const f = fakeFetch([{ notes: [] }, { notes: [] }, { notes: [] }, { done: false }, { ok: true }, { format: "x" }]);
@@ -281,6 +281,64 @@ test("forgetSummary: says what goes, and that the owner's own lines stay", () =>
   const none = C.forgetSummary({ notes: 0, owner_lines: 2 }, "日文");
   assert.ok(!none.any && /沒有找到/.test(none.text) && /2 行/.test(none.text));
   assert.strictEqual(C.forgetSummary(null, "x").any, false);
+});
+
+test("activator card: old backend without it hides the card; broken fields do not break it", () => {
+  assert.strictEqual(C.normalizeStatus({}).activator, null);
+  assert.strictEqual(C.viewModel({}, NOW).activator, null);
+  const a = C.normalizeActivator({ rules: [null, { id: "x" }], pending: "nope", events: [{ fired: [1, "x"] }] });
+  assert.strictEqual(a.rules.length, 1);
+  assert.deepStrictEqual(a.pending, []);
+  assert.deepStrictEqual(a.events[0].fired, ["x"]);
+});
+
+test("activator card uses task and rule names, shows tripped reasons and pending in plain words", () => {
+  const v = C.viewModel({
+    tasks: [{ id: "pack.diary", name: "📔 日記", state: "ok" }],
+    activator: {
+      enabled: true, paused: null,
+      rules: [
+        { id: "pack.diary.ask", name: "圖片好了 → 問打卡", owner: "diary", on: "pack.diary", states: ["ok"],
+          tag: "diary-image", action: "程式（工具 diary）", timing: "now", status: "active", reason: null,
+          last_fired_at: minutes(-3) },
+        { id: "loopy", name: "會繞圈的", on: "pack.diary", states: ["failed"], action: "通知你：壞了",
+          timing: "heartbeat", status: "tripped", reason: "同一串連動又回到這條規則（循環）", last_fired_at: null }
+      ],
+      pending: [{ id: "abcd1234", rule: "loopy", task: "pack.diary", state: "failed", at: minutes(-1) }],
+      events: [{ task: "pack.diary", state: "ok", tag: "diary-image", at: minutes(-3), fired: ["pack.diary.ask"],
+                 skipped: [{ rule: "loopy", reason: "冷卻中" }] }],
+      rejected: [{ id: "pack.x.y", reason: "會繞回自己（無限連動）：a → a" }]
+    }
+  }, NOW).activator;
+  assert.strictEqual(v.brief, "2 條規則，1 條暫停了；1 件等心跳處理");
+  assert.strictEqual(v.alert, true);
+  assert.strictEqual(v.rules[0].line, "當「📔 日記」的「diary-image」變成正常 → 程式（工具 diary）（馬上）");
+  assert.strictEqual(v.rules[0].last, "14:02（3 分鐘前）");
+  assert.strictEqual(v.rules[1].label, "暫停了");
+  assert.strictEqual(v.rules[1].canReset, true);
+  assert.ok(v.rules[1].line.endsWith("（等心跳）"));
+  assert.strictEqual(v.pending[0].text, "會繞圈的：「📔 日記」變成失敗");
+  assert.ok(v.events[0].indexOf("做了：圖片好了 → 問打卡") > 0 && v.events[0].indexOf("略過：會繞圈的（冷卻中）") > 0);
+  assert.strictEqual(v.rejected.length, 1);
+  const paused = C.viewModel({ activator: { enabled: true, paused: { reason: "10 分鐘內太多" }, rules: [] } }, NOW).activator;
+  assert.ok(paused.paused.indexOf("10 分鐘內太多") >= 0 && paused.alert);
+  assert.strictEqual(paused.brief, "還沒有連動規則。");
+});
+
+test("activator client calls follow the contract (POST + CSRF, ids encoded)", async () => {
+  const f = fakeFetch([{ ok: true }, { ok: true }, { ok: true, count: 0 }, { ok: true }]);
+  const c = C.makeClient(f, () => "tok");
+  await c.resetRule("pack.diary.ask");
+  await c.resumeActivator();
+  await c.runPending();
+  await c.dismissPending("ab/cd");
+  assert.deepStrictEqual(f.calls.map((x) => [x.method, x.url, x.body]), [
+    ["POST", "/api/runtime/activator/rules/pack.diary.ask/reset", {}],
+    ["POST", "/api/runtime/activator/resume", {}],
+    ["POST", "/api/runtime/activator/pending/run", {}],
+    ["POST", "/api/runtime/activator/pending/ab%2Fcd/dismiss", {}]
+  ]);
+  f.calls.forEach((x) => assert.strictEqual(x.headers["X-SYNOX-CSRF"], "tok"));
 });
 
 (async () => {
