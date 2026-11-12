@@ -20,7 +20,7 @@
 | Path | Role |
 |---|---|
 | `vendor/isdtelekit/` | ISDTeleKitSDK 的**原樣**複製（版本與 commit 在 `vendor/VERSION`）。不要改；要不同的行為就在 `src/synox` 寫轉接 |
-| `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜doctor｜stop｜install <檔> [--yes] [--trust-publisher <名字>]｜packs status｜packs lock --approve <name> [--trust-publisher <名字>] [--runtime container|host]｜packs runtime <name> container|host｜packs env rebuild <name>`（install 也收 `--runtime`） |
+| `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜doctor｜stop｜open（＝web-login）｜about｜tips [--all]｜install <檔> [--yes] [--trust-publisher <名字>]｜packs status｜packs lock --approve <name> [--trust-publisher <名字>] [--runtime container|host]｜packs runtime <name> container|host｜packs env rebuild <name>`（install 也收 `--runtime`） |
 | `src/synox/app.py` | `build(config, home=, adapter=, vault=, config_path=)`：SDK `build_app` → basics/help → `packs.load_all` → `agent.install` → `schedule.install` → `web.install` |
 | `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`／`policy`；路徑相對 SYNOX 資料夾（`ROOT`） |
 | `src/synox/policy.py` | `decide`（權限唯一交會點）、`parse_policy`（`policy.roles` 能力上限，第 1 關式檢查）、`group_policy_for`（loader 用）、`ceiling`／`fits`；bot 範圍 `bot_scope`／`using_bot`／`current_bot`／`run_as`；`install`（把 decide 接到 SDK 的 `registry.authorize`） |
@@ -47,6 +47,7 @@
 | `src/synox/backup.py` | `export_backup`／`read_backup`：data/ 的 zip 用保管箱主金鑰加密（`Vault.encrypt_bytes`） |
 | `src/synox/wizard/` | `pages.py`（tkinter 畫面：這台給誰用 → token → 配對 → AI → 完成）、`logic.py`（寫 config、mode、AI 頁的 helper、金鑰進保管箱）、`telegram_probe.py`（getMe、配對碼）、`shortcuts.py` |
 | `src/synox/doctor.py` | 健康檢查（不改任何檔、不產生金鑰） |
+| `src/synox/brand.py` | 終端機門面：歡迎畫面（`show_banner`；`BANNER_COMMANDS`＝沒參數／run／open／wizard／init／doctor／about）、`about_text`、`TIPS`。只在互動終端機印；`--quiet`、`SYNOX_NO_BANNER`、`CI`、管線＝不印（既有輸出一個字都不變），`TERM=dumb`＝一行，`NO_COLOR`＝不上色；Windows 主控台 code page 不是 65001（cp950）或 `SYNOX_ASCII=1`＝ASCII logo。預覽 `docs/ui/cli-welcome.txt`（`scripts/make_cli_welcome.py`） |
 | `packs/` | **出廠是空的**（2026-11-12，[../legacy/builtin-packs.md](../legacy/builtin-packs.md)）：使用者裝的工具的落點（`PACK_DIRS[0]`），只有 `README.md` 進 git。notes／money／remind 的正本在 **SYNOX_Libs**（工具庫，另一個 repo；ADR 在它的 `docs/adr/0001`），remind 的程式本體仍在 `synox/schedule` |
 | `src/synox/packs/library.py` | 「還沒裝任何工具、去哪裡裝」：`installed_tools`（不算出廠 connector）、`empty_hint`／`start_hint`（/start、/help 只給擁有者）、`install`（包 SDK 的 /help）、`status`（網頁 `/api/tools`、`/api/settings` 的 `library`）、`doctor_lines`；工具庫位置＝`config.json` 的 `packs.library`（`library_location`，不寫死路徑） |
 | `sdk/` | 單檔 SDK `synox_sdk.py`（產生的）＋`pyproject.toml`（`pip install <SYNOX>/sdk`＝`synox-sdk` 套件，版本讀 `SDK_VERSION`） |
