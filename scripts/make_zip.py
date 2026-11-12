@@ -16,13 +16,15 @@ import sys
 import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-EXCLUDED_DIRS = {".venv", "data", "runtime", "dist", ".git", "__pycache__", ".pytest_cache"}
+EXCLUDED_DIRS = {".venv", "data", "dist", ".git", "__pycache__", ".pytest_cache"}
+ROOT_ONLY_DIRS = {"runtime"}          # 只有 SYNOX 資料夾最上層的 runtime/（執行時的狀態）；src/synox/runtime 是程式碼
 EXCLUDED_FILES = {"config.json"}
 
 
 def excluded(rel: str) -> bool:
     parts = rel.replace("\\", "/").split("/")
     return (any(p in EXCLUDED_DIRS or p.endswith(".egg-info") for p in parts[:-1])
+            or (len(parts) > 1 and parts[0] in ROOT_ONLY_DIRS)
             or parts[-1] in EXCLUDED_FILES or parts[-1].endswith((".pyc", ".tmp")))
 
 
@@ -35,7 +37,8 @@ def tracked_files() -> list:
         pass
     found = []
     for folder, dirs, files in os.walk(ROOT):
-        dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS and not d.endswith(".egg-info")]
+        dirs[:] = [d for d in dirs if d not in EXCLUDED_DIRS and not d.endswith(".egg-info")
+                   and not (folder == ROOT and d in ROOT_ONLY_DIRS)]
         found += [os.path.relpath(os.path.join(folder, f), ROOT) for f in files]
     return found
 
