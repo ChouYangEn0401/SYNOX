@@ -291,7 +291,9 @@ def test_tools_page_owner_sees_packs_and_panel(owner_client):
     bot, c = owner_client
     status, data = c.get("/api/tools")
     packs = {p["name"]: p for p in data["packs"]}
-    assert {"notes", "money", "remind"} <= set(packs)
+    assert {"notes", "money"} <= set(packs) and "remind" not in packs
+    remind = next(g for g in data["groups"] if g["id"] == "remind")            # ⏰ 提醒（系統）：系統群組，不是 pack
+    assert remind["title"] == "⏰ 提醒（系統）" and remind["category"] == "系統"
     assert packs["money"]["panel"] == "/packs/money/panel" and packs["money"]["status"] == "已連接"
     assert any(cmd["command"] == "/money" and cmd["usage"] for cmd in packs["money"]["commands"])
     c.say("tools", "/money 120 午餐")
@@ -315,7 +317,9 @@ def test_guest_sees_no_packs_member_only_theirs(make_bot, owner):
     assert g.get("/api/tools")[1]["packs"] == []
     assert g.get("/packs/money/panel")[0] == 404 and g.get("/api/packs/money/summary")[0] == 404
     names = {p["name"] for p in m.get("/api/tools")[1]["packs"]}
-    assert {"notes", "money", "remind"} <= names and "notion" not in names
+    assert {"notes", "money"} <= names and "notion" not in names
+    assert "remind" in {grp["id"] for grp in m.get("/api/tools")[1]["groups"]}   # 成員看得到 ⏰ 提醒（系統）
+    assert "remind" not in {grp["id"] for grp in g.get("/api/tools")[1]["groups"]}  # 訪客沒有
     g.say("tools", "/note 想偷用")
     assert not os.path.exists(os.path.join(bot.app.config.data_dir, "users", str(GUEST_ID), "notes.json.enc"))
     m.say("tools", "/money 30 早餐")

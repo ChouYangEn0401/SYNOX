@@ -120,7 +120,7 @@
 - 個人版：只有安裝時配對的 Telegram 帳號（`owner_id`）。出廠 pack 是 `access: owner`／`member`（個人版兩個都＝只有你）：
   別人傳 `/note`，回的跟「沒有這個指令」一模一樣。
 - 伺服器版：陌生人傳訊息會自動登記成**訪客**，只看得到 `access: everyone` 的 pack；你（或你升成管理員的人）用 `/user_role <id> member`
-  （或網頁設定頁的帳號表）讓他變成成員，才用得到 `access: member` 的 pack（筆記、記帳、提醒）與排程、AI。`access: owner` 的（connector）仍然只有你。
+  （或網頁設定頁的帳號表）讓他變成成員，才用得到 `access: member` 的 pack（例如工具庫的筆記、記帳）與提醒（系統）、排程、AI。`access: owner` 的（connector）仍然只有你。
 - **角色的能力上限**（`config.json` 的 `policy.roles`，`src/synox/policy.py`）：pack.json 宣告的 `capabilities` 裝不下某一級的上限，
   那一級（以下）整組看不到、AI 工具清單也沒有。預設：訪客 `[]`、成員 `network`＋`filesystem:own`、管理員再加 `subprocess`；
   `exec`、`filesystem:any` 只有擁有者，設定裡寫給任何角色都會拒絕啟動。例：宣告 `subprocess` 的 pack 即使 `access: member`，
@@ -184,7 +184,8 @@ python pack 沙盒管不到，伺服器版改用信任決定給不給成員（PE
 `/help`、網頁、AI 工具清單都沒有（loader 把群組設成 owner_only，SDK authorize 與 `policy.decide` 同一條擋）。照常給成員的只有：
 出廠的（內建 `connectors/` 裡的 4 個 connector——**只在沒有鎖時**看名字＋位置；有鎖一律照鎖的
 trust，所以第三方作者把 pack 取名 notion、經升級裝進內建資料夾仍是 third-party）、擁有者安裝時選 `trust: core` 的。
-（2026-11-12 起 notes、money、remind 不再出廠，搬到 SYNOX 工具庫；從工具庫裝的跟其他工具一樣看安裝時選的 trust。）
+（2026-11-12 起 notes、money 不再出廠，搬到 SYNOX 工具庫；從工具庫裝的跟其他工具一樣看安裝時選的 trust。
+提醒 `/remind_*` 是 SYNOX 的系統指令「⏰ 提醒（系統）」，不是 pack，沒有 trust 的問題。）
 出廠的 pack 第一次 `packs lock --approve`（沒有舊鎖）預設寫 core。
 **沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）＝third-party，而且載入前補跑一次第 2 關掃描（安裝流程沒掃過它），
 沒過＝狀態 `rejected`、不載入。原因在 `doctor`、`packs status`、網頁的 pack 清單寫一行。個人版不受影響（沒有成員）。

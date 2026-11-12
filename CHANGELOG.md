@@ -2,6 +2,13 @@
 
 ## 未發佈（dev，2026-11-12：合併 debug/setup-python-telegram＋跟進 ClawBot／金流簿）
 
+### 提醒變系統指令、soul.md 給對話助理（branch `feat/core-remind-soul`，還沒合併）
+- **提醒回到核心當系統指令**（QuestionToUser QL5）：`/remind_add`、`/remind_list`、`/remind_rm` 不用再裝工具，標題「⏰ 提醒（系統）」，
+  網頁工具頁歸在「系統」群組（SYNOX 自己的指令原本叫「內建」，一起改名）。指令名、AI 工具名、資料（`data/schedule.json.enc`）都不變，
+  舊提醒直接接上；權限照舊（個人版只有擁有者、伺服器版成員以上、只在私訊）。群組名 `remind` 保留給系統：裝過工具庫舊 `remind` 工具的人，
+  它會被標成「不需要了」（狀態 incompatible、不載入、不算壞掉）。工具庫那邊把 `remind` 搬到它的 `legacy/remind/`。
+  `tests/fixtures/packs/remind` 拿掉（測試直接用核心的 `/remind_*`）。
+
 ### 常駐助理、心跳、runtime loop（branch `feat/runtime-heartbeat`，還沒合併）
 - 新增 `src/synox/runtime/`：常駐的排程迴圈（每個任務自己的執行緒、逾時、失敗退避、連續 5 次失敗通知一次）、
   心跳（預設每 45 分鐘、下限 15 分鐘、沒有新狀況不叫 AI、安靜時段、每天通知／叫 AI 的上限）、常駐助理（母 session：沒有工具、

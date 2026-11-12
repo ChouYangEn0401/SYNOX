@@ -14,7 +14,7 @@
 - 存在 `data/web_prefs/<tg_id>.json.enc`（有保管箱：那個人的金鑰，跟對話紀錄同一套）裡的 `tool_layout`；
   沒有保管箱＝`data/web_prefs/<tg_id>.json`。擁有者、成員各自一份，互相看不到。
 - 畫面上的排版＝使用者存的群組（照他的順序）＋還沒被排進任何群組的工具：照 pack.json 的 `category`
-  放進同名的群組（沒有就在最後面新增一個），沒寫 category 的 pack＝「未分類」、SYNOX 內建的＝「內建」。
+  放進同名的群組（沒有就在最後面新增一個），沒寫 category 的 pack＝「未分類」、SYNOX 自己的指令（/help、⏰ 提醒（系統）、排程、AI…）＝「系統」。
   **使用者排過的優先於 pack 的建議**。
 - 看不到的工具（沒權限、pack 暫時沒載入）不會出現在畫面上；存檔時它原本在哪個群組照樣記著，之後看得到了就回原位。
 """
@@ -32,7 +32,7 @@ from isdtelekit.core import jsonstore
 from synox.packs.manifest import MAX_CATEGORY, one_line_problem
 
 UNCATEGORIZED = "未分類"
-BUILTIN = "內建"
+BUILTIN = "系統"                      # SYNOX 自己的指令（不是裝的工具）；2026-11-12 以前叫「內建」
 BASICS_ID = "_basics"
 LAYOUT_KEY = "tool_layout"
 LAYOUT_VERSION = 1
@@ -175,7 +175,7 @@ def effective(stored, tools: Iterable[Tuple[str, str]]) -> dict:
             by_title[title] = g
             autos.append(g)
         g["tools"].append(tid)
-    # 自動產生的群組：照第一次出現的順序，「未分類」「內建」放最後
+    # 自動產生的群組：照第一次出現的順序，「未分類」「系統」放最後
     tail = {UNCATEGORIZED: 1, BUILTIN: 2}
     autos.sort(key=lambda g: tail.get(g["title"], 0))
     return {"groups": groups + autos, "custom": bool(stored and _stored_groups(stored))}

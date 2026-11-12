@@ -99,7 +99,7 @@ STRINGS = {
     "status_add_channel_later": "之后双击 Setup.bat 重新运行向导，即可补连 Telegram／Discord。",
     "status_bot_head": "✅ 设置完成，bot 已启动。",
     "status_web_head": "✅ 设置完成，SYNOX 已启动（尚未连接 Telegram／Discord）。",
-    "status_no_tools": "🧰 SYNOX 出厂不带工具（记账、笔记、提醒…都要自己装）：拿到工具库（SYNOX_Libs）的 .synoxpack 文件后双击，或在网页“设置 → 安装功能”上传。工具库在哪里，问给你 SYNOX 的人。",
+    "status_no_tools": "🧰 SYNOX 出厂不带工具（记账、笔记…都要自己装；提醒是系统指令，本来就有）：拿到工具库（SYNOX_Libs）的 .synoxpack 文件后双击，或在网页“设置 → 安装功能”上传。工具库在哪里，问给你 SYNOX 的人。",
     "status_can_close": "可以关闭这个窗口了。",
     "no_window": "❌ 无法打开窗口（{e}）。可以把 config.example.json 复制为 config.json 手动填写。",
 }
