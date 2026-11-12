@@ -13,6 +13,10 @@ python -m synox <指令>
             ｜packs rollback <name>（_removed 裡最近一份舊版搬回、鎖改回）
             ｜packs env rebuild <name>（重建 runtime.python／node = auto 的環境，data/envs/<name>/）
   connect   connect <pack> [--user ID] [--clear]：把 pack 要的帳號存進保管箱（密碼用 getpass，不經聊天）
+  init      文字版的安裝引導（沒有視窗也能用）：模式、Telegram、AI、工具庫位置、挑工具裝 → config.json
+            （--non-interactive 全部用參數給；--dry-run 只印出來不寫；wizard/init_cli.py）
+  tools     tools list [--library 資料夾]（工具庫有哪些、裝了哪些）｜tools install <名字或組合…> [--yes]
+            （從工具庫找檔、對 index.json 的雜湊，再走 install 的同一條安全檢查）
 """
 
 from __future__ import annotations
@@ -141,7 +145,68 @@ def cmd_console(args) -> int:
 def cmd_wizard(args) -> int:
     from synox.wizard import pages
     lang = getattr(args, "lang", None) or os.environ.get("SYNOX_LANG") or None   # Setup.bat 問過的語言
-    return pages.main(config_path=args.config or CONFIG_PATH, lang=lang)
+    rc = pages.main(config_path=args.config or CONFIG_PATH, lang=lang)
+    if rc == 1 and sys.stdin is not None and sys.stdin.isatty():     # 開不了視窗（沒有 tkinter）：有終端機就改文字版
+        print("→ 改用文字版的安裝引導（python -m synox init）")
+        return cmd_init(argparse.Namespace(config=args.config))
+    return rc
+
+
+def cmd_init(args) -> int:
+    from synox.wizard import init_cli
+    return init_cli.run(args, config_path=args.config or CONFIG_PATH)
+
+
+def _library_of(args):
+    """tools 指令用：--library 或 config.json 的 packs.library（沒寫＝SYNOX 資料夾旁的 tools/）→ Library；不行就印原因回 None。"""
+    from synox.wizard import tools as library
+    config = _config_quiet(args.config)
+    root = config.root if config is not None else os.path.dirname(os.path.abspath(args.config or CONFIG_PATH))
+    if args.library:
+        folder = library.resolve(args.library, root)
+    else:
+        from synox.packs.library import library_location
+        folder = library_location(config) if config is not None else library.default_location(root)
+    if not folder:
+        print("❌ 不知道工具庫在哪裡：加 --library <tools 資料夾>，或 config.json 寫 packs.library"
+              "（發佈的 zip／安裝程式旁邊附的 tools 資料夾就是）。")
+        return None
+    try:
+        return library.read(folder)
+    except library.LibraryError as e:
+        print(f"❌ {e}")
+        return None
+
+
+def cmd_tools(args, *, is_up=None, open_url=None, jobs=None) -> int:
+    from synox.packs.loader import PACK_DIRS
+    is_up = is_up or web_is_up
+    from synox.wizard import tools as library
+    lib = _library_of(args)
+    if lib is None:
+        return 2
+    have = library.installed_names(PACK_DIRS[0])
+    if args.tools_cmd != "install":
+        for line in library.list_lines(lib, have):
+            print(line)
+        print("裝：python -m synox tools install <名字或組合代號…>（看完報告再核准；不會自動全裝）")
+        return 0
+    chosen, unknown = library.pick(lib, args.names)
+    if unknown or not chosen:
+        print(f"❌ 工具庫裡沒有：{'、'.join(unknown) or '（沒給名字）'}（有：{'、'.join(e.name for e in lib.entries)}）")
+        return 2
+    worst = 0
+    for entry in chosen:
+        try:
+            path = library.file_of(lib, entry)
+        except library.LibraryError as e:
+            print(f"❌ {e}")
+            worst = 2
+            continue
+        ns = argparse.Namespace(file=path, yes=args.yes, config=args.config, packs_dir="", trust=None,
+                                trust_publisher=args.trust_publisher, runtime=None, allow_downgrade=False)
+        worst = max(worst, cmd_install(ns, is_up=is_up, open_url=open_url, jobs=jobs))
+    return worst
 
 
 def cmd_doctor(args) -> int:
@@ -647,6 +712,25 @@ def main(argv=None) -> int:
     p = sub.add_parser("wizard", help="安裝精靈")
     p.add_argument("--lang", default=None,
                    help="安裝精靈的語言（zh-TW、zh-CN、en、es、fr、de、pt-BR、ru、ar、hi、ja、ko）；沒給就在第一頁問")
+    p = sub.add_parser("init", help="文字版的安裝引導（模式、Telegram、AI、工具庫、挑工具）")
+    p.add_argument("--non-interactive", action="store_true", help="不問問題，全部用參數（沒給的用預設或舊設定）")
+    p.add_argument("--dry-run", action="store_true", help="只印出會寫進 config.json 的內容與要裝的工具，什麼都不寫")
+    p.add_argument("--mode", choices=["personal", "server"], default=None, help="這台給誰用")
+    p.add_argument("--telegram-token", default=None, help=argparse.SUPPRESS)      # 會留在 shell 歷史：建議互動時貼
+    p.add_argument("--owner-id", default=None, help="你的 Telegram 數字 id（給了 token 才要）")
+    p.add_argument("--llm", default=None,
+                   choices=["none", "claude_code", "openai", "anthropic", "gemini", "openai_compat"], help="AI 來源")
+    p.add_argument("--model", default=None, help="模型名稱")
+    p.add_argument("--base-url", default=None, help="openai_compat 的網址")
+    p.add_argument("--api-key-env", default=None, metavar="NAME", help="金鑰放在哪個環境變數（config 寫 env:NAME）")
+    p.add_argument("--library", default=None, help="工具庫資料夾（打包好的 .synoxpack＋index.json；預設 SYNOX 資料夾旁的 tools）")
+    p.add_argument("--tools", nargs="*", default=None, help="要裝的工具名字或組合代號（沒給＝互動時問、非互動時不裝）")
+    p = sub.add_parser("tools", help="工具庫：list（有哪些）｜install <名字…>（裝）")
+    p.add_argument("tools_cmd", choices=["list", "install"])
+    p.add_argument("names", nargs="*", help="install：工具名字或建議組合的代號")
+    p.add_argument("--library", default="", help="工具庫資料夾（預設 config.json 的 packs.library，或 SYNOX 資料夾旁的 tools）")
+    p.add_argument("--yes", action="store_true", help="看完報告直接在終端機核准")
+    p.add_argument("--trust-publisher", default=None, metavar="NAME", help="T2 工具：明確輸入 pack.json 的 publisher 才裝")
     p = sub.add_parser("doctor", help="健康檢查")
     p.add_argument("--offline", action="store_true", help="不實際打 AI")
     sub.add_parser("stop", help="停掉正在跑的 bot")
@@ -696,7 +780,8 @@ def main(argv=None) -> int:
                    help="discord token --clear：從保管箱刪掉這個 bot 的 token（要作廢舊 token 還是要到 Developer Portal 按 Reset Token）")
     args = parser.parse_args(argv)
     handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop,
-                "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord, "web-login": cmd_web_login}
+                "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord, "web-login": cmd_web_login,
+                "init": cmd_init, "tools": cmd_tools}
     if args.cmd not in handlers:
         parser.print_help()
         return 1

@@ -8,7 +8,8 @@ SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、�
                 "model": "…", "tools": true, "max_steps": 6, "max_tokens": 1024},
       "vault": {"mode": "dpapi"},              dpapi（Windows 預設）｜file（金鑰明文存在 data/.synox.key）
       "packs": {"enabled": "all", "disabled": [], "dirs": [], "library": ""},   library：工具庫（SYNOX_Libs）在哪
-                                               （資料夾或網址；只拿來提示「去哪裡裝」，packs/library.py）
+                                               （資料夾或網址；沒寫＝SYNOX 資料夾旁的 tools/，有 index.json 才算；
+                                               packs/library.py、wizard/tools.py）
       "web":   {"enabled": true, "port": 8830, "public_url": ""},   本機網頁介面（只綁 127.0.0.1）
       "ai_member_monthly_usd": 2.0,            伺服器版：每個成員每月的 AI 額度（美元）
       "channels": {"discord": {"enabled": true, "bot_token": "vault:discord_bot_token"}},  Discord 私訊（docs/discord.md）
