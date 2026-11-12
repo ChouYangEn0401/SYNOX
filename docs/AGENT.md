@@ -333,7 +333,7 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
   或網頁帳號頁）。成員的 AI 額度用 token × 單價估（`llm.price_in`／`price_out`，預設 3／15 美元每百萬 token），不是供應者的帳單。
 - Web UI：主動通知（提醒、排程的結果、申請通知）仍然只走 Telegram（`app.home`），網頁對話頁只看得到在網頁上講的；圖片、檔案在網頁只顯示一行說明；
   網頁與 Telegram 的私訊共用同一份 AI 對話記憶（chat_id 都是那個人的 id）；pack reload 拿不掉 pack 自己綁的按鈕前綴；
-  Telegram 指令選單在 reload 之後不會自動重設（重開 bot 才會）；設定頁改 AI 來源要重開 bot 才生效。
+  Telegram 指令選單在 reload 之後不會自動重設（重開 bot 才會）；設定頁改 AI 來源**立刻生效**（`agent.set_adapter`：對話助理與常駐助理一起換；只有「啟動時沒有 AI 才沒建的 Discord 頻道 AI」要重開才出現）。
 - `/backup` 的 Telegram 指令與還原按鈕沒做（只有網頁下載＋`synox.backup.restore_cli`）；備份綁 DPAPI，換電腦解不開。
 
 ## 公開前檢查清單（repo 改成 public 或發佈 zip 之前）

@@ -139,7 +139,9 @@ SETTINGS = {
     "owner": True, "accounts": True, "ai_budget": None,
     "llm": {"kind": "claude_code", "model": "", "base_url": "", "has_key": False},
     "llm_choices": [
-        {"label": "Claude Code（用你自己的 Claude 訂閱）", "choice": "claude_code"},
+        {"label": "Claude Code（用你自己的 Claude 訂閱）", "choice": "claude_code",
+         "models": [{"value": "", "label": "預設（讓 Claude Code 自己選）"}, {"value": "sonnet", "label": "Sonnet（平衡）"},
+                    {"value": "opus", "label": "Opus（最強、較慢）"}, {"value": "haiku", "label": "Haiku（最快、最省）"}]},
         {"label": "API 金鑰：OpenAI", "choice": "keys", "provider": "openai", "model": "（照預設）"},
         {"label": "API 金鑰：本機或相容的服務", "choice": "keys", "provider": "openai_compat", "needs_url": True},
         {"label": "先不用 AI", "choice": "none"},
@@ -279,6 +281,21 @@ MOCK = r"""
     if (p === "/api/settings") { return reply(D.settings); }
     if (p === "/api/settings/channels") { return reply(D.channels); }
     if (p === "/api/accounts") { return reply(D.accounts); }
+    if (p === "/api/usage") {                     // 假的用量：讓設定頁的「AI 用量與花費」有東西看
+      var per = (String(path).split("period=")[1] || "day").split("&")[0];
+      var n = { hour: 24, day: 14, week: 12, month: 12 }[per] || 14, pts = [], total = { calls: 0, input: 0, output: 0, usd: 0 };
+      for (var i = 0; i < n; i++) {
+        var calls = (i * 7 + 3) % 9 === 0 ? 0 : (i * 5 + 2) % 11 + 1;
+        var usd = calls * (per === "hour" ? 0.004 : per === "day" ? 0.02 : per === "week" ? 0.11 : 0.46);
+        var tin = calls * 1800, tout = calls * 240;
+        pts.push({ key: String(i), label: per === "hour" ? (i < 10 ? "0" : "") + i + ":00" : per === "month" ? "2026-" + (i < 9 ? "0" : "") + (i + 1)
+          : (i + 1 < 10 ? "0" : "") + (i + 1) + "-" + (per === "week" ? "09起" : "01"), calls: calls, input: tin, output: tout,
+          usd: Math.round(usd * 10000) / 10000, est: false });
+        total.calls += calls; total.input += tin; total.output += tout; total.usd += usd;
+      }
+      total.usd = Math.round(total.usd * 10000) / 10000;
+      return reply({ period: per, points: pts, total: total, estimated: false, kind: "claude_code", subscription: true });
+    }
     return reply({ message: "（預覽：沒有真的做）", ok: true });
   };
   // 主控頁的示範（截圖用）：?open=log 打開失敗那個任務的日誌、?open=reset 打開清空記憶的確認，可以用逗號一起

@@ -16,6 +16,7 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     GET  /api/tools                 工具頁：看得到的工具（說明、指令、參數表單）＋這個人的群組排版（layout）
     POST /api/tools/layout          {"groups": [{"id", "title", "tools": [...]}]}｜{"reset": true}：存這個人自己的排版
                                     （web/toolpage.py；不寫進 pack 資料夾，擁有者與成員各自一份）
+    GET  /api/usage?period=hour|day|week|month   擁有者：AI 用量與花費（依期間分組；agent/usage_report.py）
     GET  /api/settings/channels     擁有者：Telegram／Discord 的狀態（存了沒、bot 名字、要不要重開；token 永遠不回）
     /api/runtime/...                擁有者：主控面板（心跳、常駐助理、soul.md、任務狀態；合約 docs/runtime-api.md，
                                     `PUT /api/runtime/soul` 是唯一收 PUT 的）
@@ -48,7 +49,7 @@ from isdtelekit.core.channel import CallbackInfo, Inbound
 from synox.packs.manifest import stage_text
 from synox.web import toolpage
 from synox.web.channel import WEB, WebChannel
-from synox.web.chats import TOOLS_CHAT, ChatStore
+from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore
 from synox.web.tokens import LoginTokens, Session, Sessions, digest
 
 HOST = "127.0.0.1"                    # 永遠只綁這個；要對外由營運者自己架反向代理＋TLS（docs/security.md）
@@ -63,7 +64,7 @@ CSRF_HEADER = "x-synox-csrf"
 STATIC = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 MAX_BODY = 256 * 1024
 MAX_TEXT = 4000
-CHAT_RE = re.compile(r"^(c\d{1,6}|tools)$")
+CHAT_RE = re.compile(r"^(c\d{1,6}|tools|mother)$")
 NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 
 Resp = Tuple[int, List[Tuple[str, str]], bytes]
@@ -191,6 +192,7 @@ class WebUI:
         self._server: Optional[ThreadingHTTPServer] = None
         self._thread: Optional[threading.Thread] = None
         self.channel_probes = None            # (telegram_probe, discord_probe)；None＝真的（wizard 那兩個）
+        self._mother_fresh: set = set()       # 這次執行中已經清過「常駐助理」聊天畫面的人（重開 SYNOX＝它的記憶清空）
         self._channels_changed: set = set()   # 這次執行中改過的聊天通道（要重開才生效）
 
     # ── 登入連結 ─────────────────────────────────────────────────────
@@ -461,7 +463,12 @@ class WebUI:
             if path == "/api/me":
                 return _json(200, self.me(user, session))
             if path == "/api/chats":
-                return _json(200, {"chats": self.chats.list_chats(user.tg_id)})
+                if self.is_owner(user):
+                    self._chat(user, MOTHER_CHAT)                 # 擁有者的側欄固定有「常駐助理」
+                chats = self.chats.list_chats(user.tg_id)
+                rest = [c for c in chats if c["id"] != MOTHER_CHAT]
+                mine = [c for c in chats if c["id"] == MOTHER_CHAT] if self.is_owner(user) else []
+                return _json(200, {"chats": rest + mine})       # 「常駐助理」排最後；畫面自己把它釘在最上面
             m = re.match(r"^/api/chat/([a-z0-9]+)/events$", path)
             if m:
                 return self.events(user, m.group(1), (query.get("since") or ["0"])[0])
@@ -480,6 +487,10 @@ class WebUI:
                 return _json(200, self.settings(user))
             if path == "/api/settings/channels":
                 return self.channels(user)
+            if path == "/api/settings/channels/discord/pair":
+                return self.discord_pair_state(user)
+            if path == "/api/usage":
+                return self.usage_report(user, (query.get("period") or ["day"])[0])
             if path == "/api/accounts":
                 return self.accounts(user)
             return _err(404, "沒有這個 API。")
@@ -513,6 +524,8 @@ class WebUI:
             return self.save_telegram(user, data)
         if path == "/api/settings/channels/discord":
             return self.save_discord(user, data)
+        if path == "/api/settings/channels/discord/pair":
+            return self.discord_pair(user, data)
         m = re.match(r"^/api/pack-secrets/([a-z][a-z0-9_-]{0,31})$", path)
         if m:
             return self.pack_secrets_save(user, m.group(1), data)
@@ -551,6 +564,15 @@ class WebUI:
             return None
         if chat_id == TOOLS_CHAT:
             return self.chats.ensure(user.tg_id, TOOLS_CHAT, "🧰 工具頁")
+        if chat_id == MOTHER_CHAT:
+            if not self.is_owner(user):
+                return None                                       # 只有擁有者；成員當作沒有這段
+            first = user.tg_id not in self._mother_fresh
+            chat = self.chats.ensure(user.tg_id, MOTHER_CHAT, "🫀 常駐助理")
+            if first:                                             # 這次執行的第一次：它的記憶是空的，畫面也跟著清空
+                self._mother_fresh.add(user.tg_id)
+                self.chats.clear(user.tg_id, MOTHER_CHAT)
+            return chat
         return self.chats.get(user.tg_id, chat_id)
 
     def events(self, user, chat_id: str, since: str) -> Resp:
@@ -575,9 +597,28 @@ class WebUI:
         if len(text) > MAX_TEXT:
             return _err(400, f"太長了（最多 {MAX_TEXT} 字）。")
         self.chats.append(user.tg_id, chat_id, "me", text)
+        if chat_id == MOTHER_CHAT:
+            return self._send_mother(user, text)
         inbound = Inbound(WEB, user.tg_id, user.tg_id, text, username=user.username or "web", sent_at=time.time())
         route = self.app.dispatcher.handle(self.channel(user, chat_id), inbound)
         return _json(200, {"ok": True, "route": getattr(route, "kind", ""), "rev": self.chats.rev(user.tg_id)})
+
+    def _send_mother(self, user, text: str) -> Resp:
+        """跟常駐助理聊天：不經 dispatcher／對話助理，叫 runtime 的母 session（沒有工具）；背景跑，不卡 request。"""
+        from synox import runtime
+        rt = runtime.of(self.app)
+        tg_id = user.tg_id
+
+        def run():
+            try:
+                answer = rt.mother.chat(text) if rt is not None else "常駐助理沒有啟用（runtime 沒有裝上）。"
+            except Exception as e:
+                logging.exception("[WEB] mother chat failed")
+                answer = f"⚠️ 常駐助理沒有回應：{e}"
+            self.chats.append(tg_id, MOTHER_CHAT, "bot", answer)
+
+        self.app.tasks.run(run, name="mother-chat")
+        return _json(200, {"ok": True, "route": "mother", "rev": self.chats.rev(tg_id)})
 
     def press(self, user, chat_id: str, data: dict) -> Resp:
         if self._chat(user, chat_id) is None:
@@ -770,7 +811,8 @@ class WebUI:
         llm = dict(self.config.llm or {})
         out["llm"] = {"kind": llm.get("kind", "none"), "model": llm.get("model", ""),
                       "base_url": llm.get("base_url", ""), "has_key": bool(llm.get("api_key"))}
-        out["llm_choices"] = [{"choice": "claude_code", "label": logic.CLAUDE_TITLE}] + \
+        out["llm_choices"] = [{"choice": "claude_code", "label": logic.CLAUDE_TITLE,
+                               "models": [{"value": v, "label": lbl} for v, lbl in logic.CLAUDE_MODELS]}] + \
             [{"choice": "keys", "provider": code, "label": v[0], "model": v[2], "needs_url": v[3]}
              for code, v in logic.KEY_PROVIDERS.items()] + [{"choice": "none", "label": "先不用 AI"}]
         report = self.app.extras.get("synox_pack_report")
@@ -824,8 +866,51 @@ class WebUI:
         old = cfg.get("llm") or {}
         cfg["llm"] = {"max_steps": old.get("max_steps", 6), "max_tokens": old.get("max_tokens", 1024), **llm}
         logic.write_config(self.config_path, cfg)
-        self.config.llm = {**self.config.llm, **cfg["llm"]}
-        return _json(200, {"ok": True, "message": "存好了。重開 SYNOX 之後就換成新的 AI 來源。", "kind": llm["kind"]})
+        stale = ("kind", "api_key", "base_url", "model", "tools")      # 換來源時，舊來源的欄位不要留在記憶體裡
+        self.config.llm = {**{k: v for k, v in (self.config.llm or {}).items() if k not in stale}, **cfg["llm"]}
+        return _json(200, self._apply_llm(llm))
+
+    def _apply_llm(self, llm: dict) -> dict:
+        """存好之後立刻換上：對話助理與常駐助理都用新的 AI 來源，不用重開。接不上就說原因（設定已經存了）。"""
+        from synox import agent
+        from synox.llm import make_adapter
+        from synox.llm.base import LLMError
+        kind = llm["kind"]
+        try:
+            adapter = make_adapter(self.config, self.vault)
+        except LLMError as e:
+            self.app.extras["llm_error"] = str(e)
+            return {"ok": True, "kind": kind, "applied": False,
+                    "message": f"存好了，但現在還接不上：{e}　（修好之後重開 SYNOX，或再按一次「存起來」）"}
+        self.app.extras.pop("llm_error", None)
+        agent.set_adapter(self.app, adapter, self.config)
+        if adapter is None:
+            return {"ok": True, "kind": kind, "applied": True, "message": "存好了。現在不用 AI；打指令照常可以用。"}
+        msg = "存好了，已經換上，現在就能在對話裡用。常駐助理（主控頁）也用這個來源。"
+        if kind == "claude_code":
+            from synox.llm.claude_code import find_claude
+            if not find_claude():
+                msg += "　⚠ 這台電腦還找不到 claude，按「測一下」看安裝方法。"
+        return {"ok": True, "kind": kind, "applied": True, "message": msg}
+
+    def usage_report(self, user, period: str) -> Resp:
+        """AI 用量與花費（設定頁的小儀表板）：總帳 data/llm_usage.json 依每小時／天／週／月分組。只給擁有者。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from datetime import datetime
+        from isdtelekit.core import jsonstore
+        from synox.agent import usage_report
+        from synox.agent.budget import usd_of
+        if period not in usage_report.PERIODS:
+            return _err(400, "period 要是 " + "、".join(usage_report.PERIODS) + " 其中之一。")
+        data = jsonstore.load_json(self.config.path("llm_usage.json"), {}) or {}
+        out = usage_report.series(data, period, datetime.now(),
+                                  lambda tin, tout: usd_of(self.config, {"input": tin, "output": tout}))
+        kind = (self.config.llm or {}).get("kind", "none")
+        out["kind"] = kind
+        out["subscription"] = kind == "claude_code"          # 訂閱制：美元是照 API 價換算的約數
+        return _json(200, out)
 
     def test_llm(self, user, data: dict) -> Resp:
         denied = self._owner_only(user)
@@ -844,6 +929,8 @@ class WebUI:
             from synox.llm.claude_code import NOT_FOUND
             if result == NOT_FOUND:                 # 沒裝：跟精靈一樣給下載點，裝好再按「測一下」
                 out["download_url"] = logic.CLAUDE_DOWNLOAD_URL
+            elif "登入" in result:                  # 裝了但還沒登入
+                out["message"] += "　→ 在終端機輸入 claude，照畫面登入一次，再按「測一下」。"
         return _json(200, out)
 
     # ── 聊天通道（Telegram／Discord）：跟精靈同一套檢查與存法；token 永遠不回傳、不寫 log ──────
@@ -912,7 +999,70 @@ class WebUI:
                 bid = dc.bot_id(dtoken) if ok else None
                 discord["invite"] = dc.invite_url(bid) if bid else ""
         discord["restart"] = "discord" in self._channels_changed or (discord["saved"] and not discord["active"])
+        discord["paired_as"] = self._discord_external(owner)
+        wp = self._discord_pairing()
+        discord["pairing"] = wp.pending() if wp is not None else None
+        discord["pair_ready"] = wp is not None and discord["active"] and not discord["restart"]   # bot 上線了才收得到配對碼
         return _json(200, {"telegram": telegram, "discord": discord})
+
+    def _discord_pairing(self):
+        """配對碼的保管者：Discord 正在跑時 discord.install 建的那個（沒跑＝None）。"""
+        return self.app.extras.get("discord_pairing")
+
+    def _discord_external(self, owner: int) -> str:
+        """擁有者配對好的 Discord 使用者 id（沒有＝空字串）。"""
+        try:
+            from synox.discord.events import DISCORD
+            from synox.identity import Identities
+            ids = Identities(self.config.path("identities.json"))
+            return str(ids.external(DISCORD, owner) or "")
+        except Exception:
+            return ""
+
+    def discord_pair_state(self, user) -> Resp:
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        wp = self._discord_pairing()
+        owner = int(self.config.owner_id)
+        return _json(200, {"pairing": wp.pending() if wp is not None else None, "paired_as": self._discord_external(owner),
+                           "just_paired": wp.last_paired if wp is not None else None})
+
+    def discord_pair(self, user, data: dict) -> Resp:
+        """擁有者配對 Discord 帳號：action=start 產生六位數字（私訊 bot 傳它，正在跑的 SYNOX 接上，不用開終端機）、
+        cancel、manual（直接給 Discord 使用者 ID，馬上接上）。接上的做法跟 `discord pair` 同一個（discord.bind_owner）。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from synox import discord as dc_mod
+        from synox.identity import Identities, IdentityError, IdentityFileError
+        action = str(data.get("action") or "")
+        wp = self.app.extras.get("discord_pairing")           # Discord 正在跑才有
+        owner = int(self.config.owner_id)
+        if action == "start":
+            if wp is None:
+                return _err(409, "Discord 還沒在執行：先存好 bot token、重新啟動 SYNOX，再來配對。")
+            started = wp.start()
+            logging.info("[WEB] %s started a Discord owner pairing", user.tg_id)
+            return _json(200, {"ok": True, **started})
+        if action == "cancel":
+            if wp is not None:
+                wp.cancel()
+            return _json(200, {"ok": True})
+        if action == "manual":
+            raw = "".join(str(data.get("user_id") or "").split())
+            if not (raw.isdigit() and 15 <= len(raw) <= 22):
+                return _err(400, "Discord 使用者 ID 是一串 17～19 位的數字（Discord 設定 → 進階 → 開啟開發者模式，"
+                                 "再對自己的頭像按右鍵 → 複製使用者 ID）。")
+            try:
+                ids = Identities(self.config.path("identities.json"))
+                notes = dc_mod.bind_owner(ids, raw, owner)
+            except (IdentityError, IdentityFileError) as e:
+                return _err(400, str(e))
+            logging.info("[WEB] %s paired Discord user %s as the owner", user.tg_id, raw)
+            return _json(200, {"ok": True, "paired_as": raw, "message": "✅ 配對好了：這個 Discord 帳號現在是擁有者。"
+                                                                          + ("".join(notes) if notes else "")})
+        return _err(400, "action 要是 start、cancel 或 manual。")
 
     def save_telegram(self, user, data: dict) -> Resp:
         denied = self._owner_only(user)
@@ -938,7 +1088,7 @@ class WebUI:
         bot = self._scrub(info, token)
         logging.info("[WEB] %s saved a Telegram bot token (bot @%s)", user.tg_id, bot)
         if 0 < self._file_owner(cfg) < BASE:
-            after = "之後在 Telegram 私訊 bot 打 /web 也能拿網頁的登入連結。"
+            after = "之後在 Telegram 私訊 bot 打 /web 也能拿網頁的登入連結。（只能私訊 bot；加進群組沒有用。）"
         else:
             after = ("還沒配對擁有者：bot 還不認得你的 Telegram 帳號（陌生人會被擋）。"
                      "要配對就雙擊 Setup.bat 重跑安裝精靈（token 會自動帶入），照畫面私訊 bot 六個數字。")
@@ -977,8 +1127,8 @@ class WebUI:
         logging.info("[WEB] %s saved a Discord bot token (bot %s)", user.tg_id, bot)
         invite = dc.invite_url(bid) if bid else ""
         return _json(200, {"ok": True, "bot": bot, "invite": invite,
-                           "message": f"✅ 存好了：bot {bot}（token 在保管箱，密文）。接下來："
-                                      "① 用邀請連結把 bot 加進你的（任一個）Discord 伺服器；"
+                           "message": f"✅ 存好了：bot {bot}（token 在保管箱，密文）。⚠ 要重新啟動 SYNOX 才會生效。接下來："
+                                      "① 用邀請連結把 bot 加進你也在的（任一個）Discord 伺服器（只是為了能私訊它；bot 只回私訊，不會在伺服器頻道裡回話）；"
                                       "② 配對擁有者：在 SYNOX 資料夾跑 python -m synox discord pair（或重跑 Setup.bat），"
                                       "私訊 bot 畫面上的六個數字（配對前 bot 不認得你的 Discord 帳號）；"
                                       "③ 重新啟動 SYNOX（雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑）才會生效。"})

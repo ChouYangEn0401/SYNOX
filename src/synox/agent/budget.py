@@ -39,10 +39,22 @@ def _price(llm: dict, key: str, default: float) -> float:
         return default
 
 
+def reported_usd(usage: dict):
+    """AI 來源自己回報了這次花多少（Claude Code 的 total_cost_usd；訂閱制下是照 API 價換算的約數）→ 那個數字；沒有＝None。"""
+    try:
+        value = (usage or {}).get("usd")
+        return max(0.0, float(value)) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def usd_of(config, usage: dict) -> float:
     """這次的 token 用量換成美元（llm.price_in／price_out，每百萬 token）。"""
     llm = getattr(config, "llm", {}) or {}
     usage = usage or {}
+    reported = reported_usd(usage)
+    if reported is not None:
+        return reported
     return (int(usage.get("input", 0) or 0) * _price(llm, "price_in", DEFAULT_PRICE_IN) +
             int(usage.get("output", 0) or 0) * _price(llm, "price_out", DEFAULT_PRICE_OUT)) / 1_000_000
 
@@ -101,6 +113,9 @@ class MemberBudget:
 
     def cost(self, usage: dict) -> float:
         usage = usage or {}
+        reported = reported_usd(usage)
+        if reported is not None:
+            return reported
         return (int(usage.get("input", 0) or 0) * self.price_in +
                 int(usage.get("output", 0) or 0) * self.price_out) / 1_000_000
 

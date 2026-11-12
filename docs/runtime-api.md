@@ -31,6 +31,7 @@
   },
   "mother": {
     "state": "idle",
+    "ai": true,
     "last_active_at": "2026-11-12T14:30:04+08:00",
     "soul_updated_at": "2026-11-10T21:02:11+08:00"
   },
@@ -47,6 +48,7 @@
 
 | 欄位 | 說明 |
 |---|---|
+| `mother.ai` | 有沒有設定 AI 來源（`false`＝設定頁選了「先不用 AI」，這時 `state` 一定是 `off`；到設定頁存好 AI 來源就立刻變 `true`，不用重開） |
 | `heartbeat.enabled` | 心跳開著沒（`config.json` 的 `runtime.heartbeat.enabled`，預設 `true`） |
 | `heartbeat.interval_min` | 幾分鐘巡一次（預設 45） |
 | `heartbeat.last_run_at` | 上一次巡的時間；從沒巡過＝`null` |
@@ -158,3 +160,9 @@ body：
 - 暫停／恢復單一任務、刪掉 pack 回報的任務。
 - 改安靜時段、每天最多通知幾次（現在只能改 `config.json`）。
 - 即時推送（現在前端自己輪詢 `status`；建議 15～30 秒一次，畫面不在前景就停）。
+
+
+## 跟常駐助理聊天（網頁）
+
+網頁側欄固定有「🫀 常駐助理」（chat id `mother`，只有擁有者看得到、送得出訊息）：用既有的 `/api/chats`、`/api/chat/mother/send`、`/api/chat/mother/events`。
+訊息不經對話助理，直接給母 session 的 `chat()`（沒有工具、純文字）；它的對話記憶只在記憶體，重開 SYNOX 就清空（畫面也跟著清），跟巡邏的保管箱記憶（主控頁「清空記憶」）分開。

@@ -144,6 +144,43 @@
   .field-row input { flex: 1 1 260px; }
   .msgline { font-size: 13.5px; color: var(--text-2); min-height: 0; margin-top: 8px; }
   .msgline:empty { display: none; }
+  .usage-bar { display: flex; gap: 12px; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; }
+  .usage-bar label.f { margin-top: 0; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 14px 0; }
+  .stat { padding: 12px 14px; border-radius: var(--r); background: var(--sunken); }
+  .stat .k { font-size: 12px; color: var(--muted); }
+  .stat .v { font-size: 24px; font-weight: 650; letter-spacing: -.01em; margin-top: 2px; }
+  .stat .d { font-size: 12.5px; color: var(--text-2); margin-top: 2px; }
+  .chart { position: relative; height: 180px; display: flex; align-items: flex-end; gap: 4px; padding: 22px 0 22px;
+           border-bottom: 1px solid var(--line); }
+  .chart .max { position: absolute; top: 0; left: 0; font-size: 12px; color: var(--muted); }
+  .chart .col { flex: 1 1 0; min-width: 0; height: 100%; display: flex; align-items: flex-end; justify-content: center;
+                position: relative; outline: none; }
+  .chart .col .bar { width: 100%; max-width: 40px; background: var(--accent); border-radius: 4px 4px 0 0; min-height: 0; }
+  .chart .col.zero .bar { height: 2px !important; background: var(--line-strong); border-radius: 0; }
+  .chart .col:hover .bar, .chart .col:focus .bar { filter: brightness(1.12); }
+  .chart .col .lab { position: absolute; bottom: -20px; left: 50%; transform: translateX(-50%); font-size: 11.5px;
+                     color: var(--muted); white-space: nowrap; }
+  .chart .col .tip { display: none; position: absolute; bottom: calc(100% + 4px); left: 50%; transform: translateX(-50%);
+                     z-index: 5; padding: 6px 10px; border-radius: 8px; background: var(--text); color: var(--bg);
+                     font-size: 12.5px; white-space: nowrap; pointer-events: none; }
+  .chart .col:hover .tip, .chart .col:focus .tip { display: block; }
+  .chart .col.edge-l .tip { left: 0; transform: none; }
+  .chart .col.edge-r .tip { left: auto; right: 0; transform: none; }
+  #usage-table td, #usage-table th { text-align: right; }
+  #usage-table td:first-child, #usage-table th:first-child { text-align: left; }
+  #chat-list li.pinned { border-color: var(--accent); }
+  .scope-note { margin: 0 0 14px; }
+  .pair { margin-top: 14px; padding: 12px 14px; border-radius: var(--r); background: var(--sunken); }
+  .pair h4 { margin: 0 0 4px; font-size: 14px; }
+  .pair details { margin-top: 12px; }
+  .pair summary { cursor: pointer; font-size: 13.5px; color: var(--text-2); }
+  .pair-code { margin-top: 12px; }
+  .pair-code .code { font-size: 34px; font-weight: 700; letter-spacing: .28em; font-variant-numeric: tabular-nums;
+                     padding: 10px 14px; border-radius: var(--r); background: var(--surface); border: 1px dashed var(--line-strong);
+                     display: inline-block; user-select: all; }
+  .restart-banner { margin: 0 0 14px; padding: 10px 12px; border-radius: var(--r); background: var(--warn-soft);
+                    border-left: 4px solid var(--warn); font-size: 14px; }
   .install { margin-top: 14px; padding: 12px 14px; border-radius: var(--r); background: var(--sunken); font-size: 13.5px; }
   .install p { margin: 0 0 10px; }
   .cmd-label { font-size: 12px; font-weight: 650; color: var(--muted); margin: 8px 0 4px; }
@@ -809,7 +846,7 @@
   // 預覽專用：把 fetch 換成假的，全部回假資料；不送出任何東西。
   var q = new URLSearchParams(location.search);
   if (q.get("theme")) { document.documentElement.setAttribute("data-theme", q.get("theme")); }
-  var D = {"me": {"id": 100001, "username": "小明", "role": "admin", "owner": true, "csrf": "preview"}, "chats": [{"id": "c1", "title": "今天要做的事", "last": "好，兩件都記下來了。"}, {"id": "c2", "title": "記帳", "last": "記了：午餐 120 元"}, {"id": "c3", "title": "週末行程", "last": "（還沒有訊息）"}, {"id": "tools", "title": "🧰 工具頁", "last": "/note_list"}], "events": {"c1": [{"id": 1, "from": "me", "text": "幫我記：買牛奶、繳電費"}, {"id": 2, "from": "bot", "text": "好，兩件都記下來了。\n📝 買牛奶\n📝 繳電費"}, {"id": 3, "from": "me", "text": "把筆記全部刪掉"}, {"id": 4, "from": "note", "text": "AI 想用一個會刪東西的工具，先問你"}, {"id": 5, "from": "bot", "text": "⚠️ 要刪掉全部 2 則筆記嗎？這個沒辦法復原。", "buttons": [[{"text": "✅ 刪掉", "data": "ok"}, {"text": "取消", "data": "no"}]]}], "c2": [{"id": 1, "from": "me", "text": "/money 120 午餐"}, {"id": 2, "from": "bot", "text": "記了：午餐 120 元\n這個月：3,420／預算 12,000"}], "c3": [], "tools": [{"id": 1, "from": "me", "text": "/note_list"}, {"id": 2, "from": "bot", "text": "1. 買牛奶\n2. 繳電費"}]}, "tools": {"packs": [{"id": "note", "name": "notes", "title": "📝 筆記", "version": "0.2.0", "kind": "python", "category": "生活", "summary": "隨手記下想到的事", "description": "使用者想記下一件事、看記過的事、或清掉筆記時使用。", "status": "已連接", "commands": [{"command": "/note", "usage": "", "summary": "記一則筆記", "effect": "write", "path": "note", "default": true, "ai": true, "confirm": false, "fields": [{"name": "text", "label": "內容", "kind": "text", "required": true, "default": ""}], "asks_code": false}, {"command": "/note_list", "usage": "", "summary": "列出全部筆記", "effect": "read", "path": "note_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/note_clear", "usage": "", "summary": "全部刪掉（不能復原）", "effect": "danger", "path": "note_clear", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "money", "name": "money", "title": "💰 記帳", "version": "0.2.0", "kind": "python", "category": "生活", "summary": "記一筆、看這個月花了多少", "description": "使用者提到花了多少錢、想記帳、問這個月花多少時使用。", "status": "已連接", "commands": [{"command": "/money", "usage": "", "summary": "記一筆支出", "effect": "write", "path": "money", "default": true, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "金額", "kind": "number", "required": true, "default": "", "help": "只放數字，例如 120"}, {"name": "category", "label": "類別", "kind": "text", "required": false, "default": "其他", "help": "例如 餐飲、交通"}, {"name": "memo", "label": "備註", "kind": "text", "required": false, "default": ""}], "asks_code": false}, {"command": "/money_month", "usage": "", "summary": "這個月的合計與預算", "effect": "read", "path": "money_month", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/money_budget", "usage": "", "summary": "設每月預算", "effect": "write", "path": "money_budget", "default": false, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "每月預算", "kind": "int", "required": true, "default": ""}], "asks_code": false}]}, {"id": "todoist", "name": "todoist", "title": "✅ Todoist", "version": "0.2.0", "kind": "python", "category": "待辦與行程", "summary": "把待辦送進 Todoist", "description": "", "status": "要先設定", "connect": true, "missing": ["API token"], "commands": [{"command": "/todo", "usage": "", "summary": "新增一個待辦", "effect": "write", "path": "todo", "default": true, "ai": true, "confirm": false, "fields": [{"name": "content", "label": "要做什麼", "kind": "text", "required": true, "default": ""}, {"name": "due", "label": "什麼時候", "kind": "text", "required": false, "default": "", "help": "例如 明天、週五 15:00；不填＝沒有期限"}], "asks_code": false}, {"command": "/todo_list", "usage": "", "summary": "今天的待辦", "effect": "read", "path": "todo_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "gcal", "name": "google-calendar", "title": "📅 Google 日曆", "version": "0.2.0", "kind": "python", "category": "待辦與行程", "summary": "看行程、加行程", "description": "", "status": "已連接", "commands": [{"command": "/gcal_list", "usage": "", "summary": "接下來的行程", "effect": "read", "path": "gcal_list", "default": true, "ai": true, "confirm": false, "fields": [{"name": "days", "label": "看幾天", "kind": "int", "required": false, "default": "7"}], "asks_code": false}, {"command": "/gcal_add", "usage": "", "summary": "加一個行程", "effect": "write", "path": "gcal_add", "default": false, "ai": true, "confirm": true, "fields": [{"name": "title", "label": "標題", "kind": "text", "required": true, "default": ""}, {"name": "when", "label": "時間", "kind": "text", "required": true, "default": "", "help": "例如 11/20 14:00"}], "asks_code": false}, {"command": "/gcal_rm", "usage": "", "summary": "刪掉一個行程", "effect": "danger", "path": "gcal_rm", "default": false, "ai": true, "confirm": false, "fields": [{"name": "number", "label": "編號（/gcal_list 的）", "kind": "int", "required": true, "default": ""}], "asks_code": false}]}, {"id": "hello", "name": "hello", "title": "👋 範例", "version": "0.1.0", "kind": "cli", "category": "", "summary": "算小費、打招呼（synox_sdk 的最小範例）", "description": "", "status": "已連接", "commands": [{"command": "/hello", "usage": "", "summary": "算含小費的總額", "effect": "read", "path": "hello", "default": true, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "帳單金額", "kind": "number", "required": true, "default": ""}, {"name": "percent", "label": "小費幾 %", "kind": "int", "required": false, "default": "10"}, {"name": "round_up", "label": "要不要進位到整數", "kind": "bool", "required": false, "default": "false"}], "asks_code": false}, {"command": "/hello_greet", "usage": "", "summary": "跟某人打招呼", "effect": "read", "path": "hello_greet", "default": false, "ai": true, "confirm": false, "fields": [{"name": "name", "label": "要打招呼的人", "kind": "text", "required": true, "default": ""}, {"name": "style", "label": "語氣", "kind": "choice", "required": false, "default": "casual", "choices": ["casual", "formal"]}], "asks_code": false}]}], "groups": [{"id": "_basics", "title": "🧭 基本", "summary": "開始、說明、結束問答", "category": "系統", "commands": [{"command": "/start", "usage": "", "summary": "開始", "effect": "read", "path": "start", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/help", "usage": "", "summary": "看全部指令", "effect": "read", "path": "help", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "remind", "title": "⏰ 提醒（系統）", "summary": "SYNOX 內建的提醒：每天幾點、或指定哪一天提醒你一件事（不是 Apple 提醒事項）", "category": "系統", "commands": [{"command": "/remind_add", "usage": "<HH:MM> <內容> [date=…]", "summary": "加一個提醒（系統；每天，或 date= 指定那天一次）", "effect": "write", "path": "remind_add", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/remind_list", "usage": "", "summary": "列出提醒（系統）", "effect": "read", "path": "remind_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "schedule", "title": "🗓 排程指令", "summary": "每天幾點自動替你執行一個指令", "category": "系統", "commands": [{"command": "/schedule_list", "usage": "", "summary": "列出排程", "effect": "read", "path": "schedule_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "agent", "title": "🤖 AI", "summary": "", "category": "系統", "commands": [{"command": "/ai_usage", "usage": "", "summary": "這個月用了多少", "effect": "read", "path": "ai_usage", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}], "layout": {"groups": [{"id": "a-15d208d1b4", "title": "生活", "tools": ["note", "money"], "auto": true}, {"id": "a-e31e24dad3", "title": "待辦與行程", "tools": ["todoist", "gcal"], "auto": true}, {"id": "a-607089b311", "title": "未分類", "tools": ["hello"], "auto": true}, {"id": "a-6df543c4a4", "title": "系統", "tools": ["_basics", "remind", "schedule", "agent"], "auto": true}], "custom": false}}, "secrets": {"fields": [{"name": "token", "label": "API token", "required": true, "secret": true, "set": false, "help": "Todoist 網頁 → 設定 → 整合 → 開發者"}]}, "settings": {"owner": true, "accounts": true, "ai_budget": null, "llm": {"kind": "claude_code", "model": "", "base_url": "", "has_key": false}, "llm_choices": [{"label": "Claude Code（用你自己的 Claude 訂閱）", "choice": "claude_code"}, {"label": "API 金鑰：OpenAI", "choice": "keys", "provider": "openai", "model": "（照預設）"}, {"label": "API 金鑰：本機或相容的服務", "choice": "keys", "provider": "openai_compat", "needs_url": true}, {"label": "先不用 AI", "choice": "none"}], "packs": [{"name": "notes", "status": "loaded", "version": "0.2.0", "lock": "locked", "removable": false}, {"name": "money", "status": "loaded", "version": "0.2.0", "lock": "locked", "removable": false}, {"name": "todoist", "status": "connector", "version": "0.2.0", "lock": "locked", "removable": false}, {"name": "example-tool", "status": "rejected", "detail": "掃描沒過：用了動態執行程式碼", "version": "1.0.0", "lock": "unlocked", "removable": true}]}, "channels": {"telegram": {"saved": true, "bot": "my_synox_bot", "active": true, "owner_paired": true}, "discord": {"saved": false, "multi": false, "invite": ""}}, "accounts": {"roles": ["guest", "member", "admin"], "users": [{"id": 100001, "username": "小明", "role": "admin", "owner": true, "messages_today": 12, "messages_limit": 200, "ai_month_usd": 1.2, "ai_limit_usd": 20}, {"id": 100002, "username": "阿華", "role": "member", "messages_today": 3, "messages_limit": 100, "ai_month_usd": 0.4, "ai_limit_usd": 2}, {"id": 100003, "username": "新朋友", "role": "guest", "pending": true}]}, "runtime": {"heartbeat": {"enabled": true, "interval_min": 45, "last_run_min": -12, "next_run_min": 33, "last_result": {"ok": true, "message": "看過一輪：任務都正常，沒有要提醒你的事。"}}, "mother": {"state": "idle", "last_active_min": -3, "soul_updated_min": -1560}, "tasks": [{"id": "morning-digest", "name": "早上的摘要", "owner": "SYNOX", "schedule": "每天 08:00", "state": "ok", "last_run_min": -300, "last_message": "送出了：今天 2 個行程、1 個待辦"}, {"id": "budget-watch", "name": "預算檢查", "owner": "example-budget", "schedule": "每 6 小時", "state": "failed", "last_run_min": -40, "last_message": "讀不到這個月的資料，下一輪會再試"}, {"id": "calendar-sync", "name": "行事曆同步", "owner": "example-calendar", "schedule": "每 30 分鐘", "state": "running", "last_run_min": -1, "last_message": "同步中…"}, {"id": "weekly-review", "name": "每週回顧", "owner": "example-notes", "schedule": "每週日 21:00", "state": "idle", "last_run_min": null, "last_message": ""}]}, "logs": {"morning-digest": ["08:00:01 開始", "08:00:02 讀了 2 個行程、1 個待辦", "08:00:03 送出摘要", "08:00:03 完成"], "budget-watch": ["10:20:00 開始", "10:20:01 讀這個月的資料", "10:20:31 等太久沒有回應（30 秒）", "10:20:31 沒有完成，下一輪再試"], "calendar-sync": ["10:59:00 開始", "10:59:01 比對 14 筆"], "weekly-review": []}, "soul": "# 關於我\n- 叫我小明\n- 早上 9 點前不要傳訊息給我\n\n# 要你注意的事\n- 記帳超過預算八成就提醒我\n- 週末不要排工作的事\n"};
+  var D = {"me": {"id": 100001, "username": "小明", "role": "admin", "owner": true, "csrf": "preview"}, "chats": [{"id": "c1", "title": "今天要做的事", "last": "好，兩件都記下來了。"}, {"id": "c2", "title": "記帳", "last": "記了：午餐 120 元"}, {"id": "c3", "title": "週末行程", "last": "（還沒有訊息）"}, {"id": "tools", "title": "🧰 工具頁", "last": "/note_list"}], "events": {"c1": [{"id": 1, "from": "me", "text": "幫我記：買牛奶、繳電費"}, {"id": 2, "from": "bot", "text": "好，兩件都記下來了。\n📝 買牛奶\n📝 繳電費"}, {"id": 3, "from": "me", "text": "把筆記全部刪掉"}, {"id": 4, "from": "note", "text": "AI 想用一個會刪東西的工具，先問你"}, {"id": 5, "from": "bot", "text": "⚠️ 要刪掉全部 2 則筆記嗎？這個沒辦法復原。", "buttons": [[{"text": "✅ 刪掉", "data": "ok"}, {"text": "取消", "data": "no"}]]}], "c2": [{"id": 1, "from": "me", "text": "/money 120 午餐"}, {"id": 2, "from": "bot", "text": "記了：午餐 120 元\n這個月：3,420／預算 12,000"}], "c3": [], "tools": [{"id": 1, "from": "me", "text": "/note_list"}, {"id": 2, "from": "bot", "text": "1. 買牛奶\n2. 繳電費"}]}, "tools": {"packs": [{"id": "note", "name": "notes", "title": "📝 筆記", "version": "0.2.0", "kind": "python", "category": "生活", "summary": "隨手記下想到的事", "description": "使用者想記下一件事、看記過的事、或清掉筆記時使用。", "status": "已連接", "commands": [{"command": "/note", "usage": "", "summary": "記一則筆記", "effect": "write", "path": "note", "default": true, "ai": true, "confirm": false, "fields": [{"name": "text", "label": "內容", "kind": "text", "required": true, "default": ""}], "asks_code": false}, {"command": "/note_list", "usage": "", "summary": "列出全部筆記", "effect": "read", "path": "note_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/note_clear", "usage": "", "summary": "全部刪掉（不能復原）", "effect": "danger", "path": "note_clear", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "money", "name": "money", "title": "💰 記帳", "version": "0.2.0", "kind": "python", "category": "生活", "summary": "記一筆、看這個月花了多少", "description": "使用者提到花了多少錢、想記帳、問這個月花多少時使用。", "status": "已連接", "commands": [{"command": "/money", "usage": "", "summary": "記一筆支出", "effect": "write", "path": "money", "default": true, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "金額", "kind": "number", "required": true, "default": "", "help": "只放數字，例如 120"}, {"name": "category", "label": "類別", "kind": "text", "required": false, "default": "其他", "help": "例如 餐飲、交通"}, {"name": "memo", "label": "備註", "kind": "text", "required": false, "default": ""}], "asks_code": false}, {"command": "/money_month", "usage": "", "summary": "這個月的合計與預算", "effect": "read", "path": "money_month", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/money_budget", "usage": "", "summary": "設每月預算", "effect": "write", "path": "money_budget", "default": false, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "每月預算", "kind": "int", "required": true, "default": ""}], "asks_code": false}]}, {"id": "todoist", "name": "todoist", "title": "✅ Todoist", "version": "0.2.0", "kind": "python", "category": "待辦與行程", "summary": "把待辦送進 Todoist", "description": "", "status": "要先設定", "connect": true, "missing": ["API token"], "commands": [{"command": "/todo", "usage": "", "summary": "新增一個待辦", "effect": "write", "path": "todo", "default": true, "ai": true, "confirm": false, "fields": [{"name": "content", "label": "要做什麼", "kind": "text", "required": true, "default": ""}, {"name": "due", "label": "什麼時候", "kind": "text", "required": false, "default": "", "help": "例如 明天、週五 15:00；不填＝沒有期限"}], "asks_code": false}, {"command": "/todo_list", "usage": "", "summary": "今天的待辦", "effect": "read", "path": "todo_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "gcal", "name": "google-calendar", "title": "📅 Google 日曆", "version": "0.2.0", "kind": "python", "category": "待辦與行程", "summary": "看行程、加行程", "description": "", "status": "已連接", "commands": [{"command": "/gcal_list", "usage": "", "summary": "接下來的行程", "effect": "read", "path": "gcal_list", "default": true, "ai": true, "confirm": false, "fields": [{"name": "days", "label": "看幾天", "kind": "int", "required": false, "default": "7"}], "asks_code": false}, {"command": "/gcal_add", "usage": "", "summary": "加一個行程", "effect": "write", "path": "gcal_add", "default": false, "ai": true, "confirm": true, "fields": [{"name": "title", "label": "標題", "kind": "text", "required": true, "default": ""}, {"name": "when", "label": "時間", "kind": "text", "required": true, "default": "", "help": "例如 11/20 14:00"}], "asks_code": false}, {"command": "/gcal_rm", "usage": "", "summary": "刪掉一個行程", "effect": "danger", "path": "gcal_rm", "default": false, "ai": true, "confirm": false, "fields": [{"name": "number", "label": "編號（/gcal_list 的）", "kind": "int", "required": true, "default": ""}], "asks_code": false}]}, {"id": "hello", "name": "hello", "title": "👋 範例", "version": "0.1.0", "kind": "cli", "category": "", "summary": "算小費、打招呼（synox_sdk 的最小範例）", "description": "", "status": "已連接", "commands": [{"command": "/hello", "usage": "", "summary": "算含小費的總額", "effect": "read", "path": "hello", "default": true, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "帳單金額", "kind": "number", "required": true, "default": ""}, {"name": "percent", "label": "小費幾 %", "kind": "int", "required": false, "default": "10"}, {"name": "round_up", "label": "要不要進位到整數", "kind": "bool", "required": false, "default": "false"}], "asks_code": false}, {"command": "/hello_greet", "usage": "", "summary": "跟某人打招呼", "effect": "read", "path": "hello_greet", "default": false, "ai": true, "confirm": false, "fields": [{"name": "name", "label": "要打招呼的人", "kind": "text", "required": true, "default": ""}, {"name": "style", "label": "語氣", "kind": "choice", "required": false, "default": "casual", "choices": ["casual", "formal"]}], "asks_code": false}]}], "groups": [{"id": "_basics", "title": "🧭 基本", "summary": "開始、說明、結束問答", "category": "系統", "commands": [{"command": "/start", "usage": "", "summary": "開始", "effect": "read", "path": "start", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/help", "usage": "", "summary": "看全部指令", "effect": "read", "path": "help", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "remind", "title": "⏰ 提醒（系統）", "summary": "SYNOX 內建的提醒：每天幾點、或指定哪一天提醒你一件事（不是 Apple 提醒事項）", "category": "系統", "commands": [{"command": "/remind_add", "usage": "<HH:MM> <內容> [date=…]", "summary": "加一個提醒（系統；每天，或 date= 指定那天一次）", "effect": "write", "path": "remind_add", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/remind_list", "usage": "", "summary": "列出提醒（系統）", "effect": "read", "path": "remind_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "schedule", "title": "🗓 排程指令", "summary": "每天幾點自動替你執行一個指令", "category": "系統", "commands": [{"command": "/schedule_list", "usage": "", "summary": "列出排程", "effect": "read", "path": "schedule_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "agent", "title": "🤖 AI", "summary": "", "category": "系統", "commands": [{"command": "/ai_usage", "usage": "", "summary": "這個月用了多少", "effect": "read", "path": "ai_usage", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}], "layout": {"groups": [{"id": "a-15d208d1b4", "title": "生活", "tools": ["note", "money"], "auto": true}, {"id": "a-e31e24dad3", "title": "待辦與行程", "tools": ["todoist", "gcal"], "auto": true}, {"id": "a-607089b311", "title": "未分類", "tools": ["hello"], "auto": true}, {"id": "a-6df543c4a4", "title": "系統", "tools": ["_basics", "remind", "schedule", "agent"], "auto": true}], "custom": false}}, "secrets": {"fields": [{"name": "token", "label": "API token", "required": true, "secret": true, "set": false, "help": "Todoist 網頁 → 設定 → 整合 → 開發者"}]}, "settings": {"owner": true, "accounts": true, "ai_budget": null, "llm": {"kind": "claude_code", "model": "", "base_url": "", "has_key": false}, "llm_choices": [{"label": "Claude Code（用你自己的 Claude 訂閱）", "choice": "claude_code", "models": [{"value": "", "label": "預設（讓 Claude Code 自己選）"}, {"value": "sonnet", "label": "Sonnet（平衡）"}, {"value": "opus", "label": "Opus（最強、較慢）"}, {"value": "haiku", "label": "Haiku（最快、最省）"}]}, {"label": "API 金鑰：OpenAI", "choice": "keys", "provider": "openai", "model": "（照預設）"}, {"label": "API 金鑰：本機或相容的服務", "choice": "keys", "provider": "openai_compat", "needs_url": true}, {"label": "先不用 AI", "choice": "none"}], "packs": [{"name": "notes", "status": "loaded", "version": "0.2.0", "lock": "locked", "removable": false}, {"name": "money", "status": "loaded", "version": "0.2.0", "lock": "locked", "removable": false}, {"name": "todoist", "status": "connector", "version": "0.2.0", "lock": "locked", "removable": false}, {"name": "example-tool", "status": "rejected", "detail": "掃描沒過：用了動態執行程式碼", "version": "1.0.0", "lock": "unlocked", "removable": true}]}, "channels": {"telegram": {"saved": true, "bot": "my_synox_bot", "active": true, "owner_paired": true}, "discord": {"saved": false, "multi": false, "invite": ""}}, "accounts": {"roles": ["guest", "member", "admin"], "users": [{"id": 100001, "username": "小明", "role": "admin", "owner": true, "messages_today": 12, "messages_limit": 200, "ai_month_usd": 1.2, "ai_limit_usd": 20}, {"id": 100002, "username": "阿華", "role": "member", "messages_today": 3, "messages_limit": 100, "ai_month_usd": 0.4, "ai_limit_usd": 2}, {"id": 100003, "username": "新朋友", "role": "guest", "pending": true}]}, "runtime": {"heartbeat": {"enabled": true, "interval_min": 45, "last_run_min": -12, "next_run_min": 33, "last_result": {"ok": true, "message": "看過一輪：任務都正常，沒有要提醒你的事。"}}, "mother": {"state": "idle", "last_active_min": -3, "soul_updated_min": -1560}, "tasks": [{"id": "morning-digest", "name": "早上的摘要", "owner": "SYNOX", "schedule": "每天 08:00", "state": "ok", "last_run_min": -300, "last_message": "送出了：今天 2 個行程、1 個待辦"}, {"id": "budget-watch", "name": "預算檢查", "owner": "example-budget", "schedule": "每 6 小時", "state": "failed", "last_run_min": -40, "last_message": "讀不到這個月的資料，下一輪會再試"}, {"id": "calendar-sync", "name": "行事曆同步", "owner": "example-calendar", "schedule": "每 30 分鐘", "state": "running", "last_run_min": -1, "last_message": "同步中…"}, {"id": "weekly-review", "name": "每週回顧", "owner": "example-notes", "schedule": "每週日 21:00", "state": "idle", "last_run_min": null, "last_message": ""}]}, "logs": {"morning-digest": ["08:00:01 開始", "08:00:02 讀了 2 個行程、1 個待辦", "08:00:03 送出摘要", "08:00:03 完成"], "budget-watch": ["10:20:00 開始", "10:20:01 讀這個月的資料", "10:20:31 等太久沒有回應（30 秒）", "10:20:31 沒有完成，下一輪再試"], "calendar-sync": ["10:59:00 開始", "10:59:01 比對 14 筆"], "weekly-review": []}, "soul": "# 關於我\n- 叫我小明\n- 早上 9 點前不要傳訊息給我\n\n# 要你注意的事\n- 記帳超過預算八成就提醒我\n- 週末不要排工作的事\n"};
   var loggedOut = q.get("login") === "1";
   if (q.get("member") === "1") { D.me.owner = false; D.me.role = "member"; D.me.username = "阿華"; }
   var seq = 100;
@@ -892,6 +929,21 @@
     if (p === "/api/settings") { return reply(D.settings); }
     if (p === "/api/settings/channels") { return reply(D.channels); }
     if (p === "/api/accounts") { return reply(D.accounts); }
+    if (p === "/api/usage") {                     // 假的用量：讓設定頁的「AI 用量與花費」有東西看
+      var per = (String(path).split("period=")[1] || "day").split("&")[0];
+      var n = { hour: 24, day: 14, week: 12, month: 12 }[per] || 14, pts = [], total = { calls: 0, input: 0, output: 0, usd: 0 };
+      for (var i = 0; i < n; i++) {
+        var calls = (i * 7 + 3) % 9 === 0 ? 0 : (i * 5 + 2) % 11 + 1;
+        var usd = calls * (per === "hour" ? 0.004 : per === "day" ? 0.02 : per === "week" ? 0.11 : 0.46);
+        var tin = calls * 1800, tout = calls * 240;
+        pts.push({ key: String(i), label: per === "hour" ? (i < 10 ? "0" : "") + i + ":00" : per === "month" ? "2026-" + (i < 9 ? "0" : "") + (i + 1)
+          : (i + 1 < 10 ? "0" : "") + (i + 1) + "-" + (per === "week" ? "09起" : "01"), calls: calls, input: tin, output: tout,
+          usd: Math.round(usd * 10000) / 10000, est: false });
+        total.calls += calls; total.input += tin; total.output += tout; total.usd += usd;
+      }
+      total.usd = Math.round(total.usd * 10000) / 10000;
+      return reply({ period: per, points: pts, total: total, estimated: false, kind: "claude_code", subscription: true });
+    }
     return reply({ message: "（預覽：沒有真的做）", ok: true });
   };
   // 主控頁的示範（截圖用）：?open=log 打開失敗那個任務的日誌、?open=reset 打開清空記憶的確認，可以用逗號一起
@@ -1182,6 +1234,10 @@
           <div class="txt"><h2>AI 從哪裡來</h2><p class="sub" id="llm-now"></p></div></div>
         <label class="f" for="llm-choice">來源</label>
         <select id="llm-choice"></select>
+        <div id="llm-cc-fields" class="hidden">
+          <label class="f" for="llm-cc-model">模型</label>
+          <select id="llm-cc-model"></select>
+        </div>
         <div id="llm-key-fields">
           <label class="f" for="llm-key">API key（留空＝沿用原本的）</label>
           <input id="llm-key" type="password" autocomplete="off" size="40">
@@ -1212,10 +1268,33 @@
         </div>
       </div>
 
+      <div id="set-usage" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">💰</span>
+          <div class="txt"><h2>AI 用量與花費</h2><p class="sub" id="usage-sub"></p></div></div>
+        <div class="usage-bar">
+          <div><label class="f" for="usage-period">一格是多久</label>
+            <select id="usage-period">
+              <option value="hour">每小時（最近 24 小時）</option>
+              <option value="day" selected>每天（最近 14 天）</option>
+              <option value="week">每週（最近 12 週）</option>
+              <option value="month">每月（最近 12 個月）</option>
+            </select></div>
+          <button id="usage-view" type="button" class="sm">看表格</button>
+        </div>
+        <div class="stats" id="usage-stats"></div>
+        <div id="usage-chart" class="chart" role="img"></div>
+        <div id="usage-table-wrap" class="hidden"><table id="usage-table"></table></div>
+        <p id="usage-note" class="muted"></p>
+      </div>
+
       <div id="set-channels" class="card hidden">
         <div class="card-head"><span class="tile" aria-hidden="true">💬</span>
           <div class="txt"><h2>聊天通道</h2>
             <p class="sub">貼上 bot 的 token，先檢查再存（token 存好之後不會再顯示）。改了要重新啟動 SYNOX 才生效。</p></div></div>
+        <p class="note-line scope-note">💬 <strong>目前只能一對一私訊</strong>：要在 Telegram 或 Discord 裡<strong>私訊</strong> bot 才會回你。
+          把 bot 加進 Telegram 群組、Discord 伺服器的頻道或「社群」裡 @ 它，<strong>不會有用</strong>（指令與 AI 在群組、頻道裡都被擋掉，這是為了不讓別人碰到你的資料）。</p>
+        <p id="ch-restart" class="restart-banner hidden" role="status">⚠ 聊天通道的設定改了，要<strong>重新啟動 SYNOX</strong> 才會生效：
+          先雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑。在那之前 bot 不會上線、也不會回你。</p>
         <div class="channel">
           <h3>Telegram</h3>
           <p id="ch-tg-now" class="muted"></p>
@@ -1237,7 +1316,29 @@
             </div>
           </div>
           <p id="ch-dc-msg" class="msgline"></p>
-          <p id="ch-dc-invite-wrap" class="note-line hidden">邀請連結（把 bot 加進你的伺服器）：<a id="ch-dc-invite" target="_blank" rel="noopener noreferrer"></a></p>
+          <p id="ch-dc-invite-wrap" class="note-line hidden">邀請連結：把 bot 加進任何一個<strong>你也在的</strong>伺服器，之後從成員清單點它就能私訊（bot 不會在伺服器的頻道裡講話）。<a id="ch-dc-invite" target="_blank" rel="noopener noreferrer"></a></p>
+          <div id="ch-dc-pair" class="pair hidden">
+            <h4>配對我的 Discord 帳號</h4>
+            <p id="ch-dc-pair-state" class="muted"></p>
+            <div id="ch-dc-pair-go" class="row">
+              <button id="ch-dc-pair-start" type="button" class="primary">產生配對碼</button>
+              <span id="ch-dc-pair-hint" class="muted"></span>
+            </div>
+            <div id="ch-dc-pair-code" class="pair-code hidden">
+              <div class="code" id="ch-dc-code" aria-live="polite"></div>
+              <p>到 Discord <strong>私訊</strong>你的 bot<span id="ch-dc-botname"></span>，傳這六個數字。<span id="ch-dc-ttl" class="muted"></span></p>
+              <button id="ch-dc-pair-cancel" type="button" class="sm">取消</button>
+            </div>
+            <details>
+              <summary>或直接貼我的 Discord 使用者 ID（不用重開，馬上配好）</summary>
+              <p class="muted">Discord 設定 → 進階 → 打開「開發者模式」；再對自己的頭像按右鍵 → 複製使用者 ID（一串 17～19 位的數字）。</p>
+              <div class="field-row">
+                <input id="ch-dc-uid" type="text" inputmode="numeric" autocomplete="off" placeholder="例如 123456789012345678">
+                <button id="ch-dc-uid-save" type="button">配對</button>
+              </div>
+            </details>
+            <p id="ch-dc-pair-msg" class="msgline"></p>
+          </div>
         </div>
       </div>
 
@@ -1397,6 +1498,7 @@
       },
       mother: {
         state: mo.state || "off",
+        ai: mo.ai !== false,                     // 沒有這個欄位（舊後端）＝當作有 AI
         last_active_at: mo.last_active_at || null,
         soul_updated_at: mo.soul_updated_at || null
       },
@@ -1417,7 +1519,9 @@
     var counts = { ok: 0, running: 0, failed: 0, idle: 0 };
     s.tasks.forEach(function (t) { if (counts.hasOwnProperty(t.state)) { counts[t.state] += 1; } });
     return {
-      mother: { tone: ms.tone, label: ms.label, hint: ms.hint,
+      mother: { tone: ms.tone, label: ms.label,
+                hint: (mo.state === "off" && !mo.ai) ?
+                  "還沒設定 AI 來源：到〔設定〕選好並存起來，這裡馬上就會開始跑（不用重開）。" : ms.hint,
                 lastActive: when(mo.last_active_at, now, "還沒有活動"),
                 soulUpdated: when(mo.soul_updated_at, now, "還沒寫過") },
       heartbeat: {
@@ -1582,7 +1686,9 @@
     var mActive = stat("上次活動");
     var mSoul = stat("偏好（soul.md）更新");
     var mTasks = stat("任務");
-    mother.appendChild(mLine); mother.appendChild(mHint);
+    var mChat = el("a", "ctl-chat", "💬 跟它聊天（對話頁最上面的「常駐助理」）");
+    mChat.href = "#chat:mother";
+    mother.appendChild(mLine); mother.appendChild(mHint); mother.appendChild(mChat);
     var mStats = el("div", "ctl-stats");
     mStats.appendChild(mActive.row); mStats.appendChild(mSoul.row); mStats.appendChild(mTasks.row);
     mother.appendChild(mStats);
@@ -2633,9 +2739,11 @@
   }
   function route() {
     if (!me) { show("login"); return; }
-    var v = (location.hash || "#chat").slice(1);
+    var parts = (location.hash || "#chat").slice(1).split(":");       // #chat:mother＝直接打開「常駐助理」那段
+    var v = parts[0];
     if (v === "control" && !(control && control.canSee(me))) { v = "chat"; }
     show(VIEWS.indexOf(v) > 0 ? v : "chat");
+    if (v === "chat" && parts[1] === "mother" && me) { openChat("mother"); }
   }
   function showLogin() {
     me = null;
@@ -2651,12 +2759,14 @@
     return api("GET", "/api/chats").then(function (d) {
       var list = $("chat-list");
       clear(list);
-      var chats = d.chats.filter(function (c) { return c.id !== "tools"; });
+      var chats = d.chats.filter(function (c) { return c.id !== "tools" && c.id !== "mother"; });
       var tools = d.chats.filter(function (c) { return c.id === "tools"; });
-      chats.concat(tools).forEach(function (c) {
-        var li = el("li");
+      var mother = d.chats.filter(function (c) { return c.id === "mother"; });       // 常駐助理：釘在最上面（只有擁有者有）
+      mother.concat(chats, tools).forEach(function (c) {
+        var li = el("li", c.id === "mother" ? "pinned" : "");
         li.appendChild(el("div", "t", c.title));
-        li.appendChild(el("div", "l", c.last || "（還沒有訊息）"));
+        li.appendChild(el("div", "l", c.last || (c.id === "mother" ?
+          "重開 SYNOX 會清空這裡的記憶；巡邏的記憶在〔主控〕頁清" : "（還沒有訊息）")));
         li.setAttribute("data-id", c.id);
         li.addEventListener("click", function () { openChat(c.id); });
         list.appendChild(li);
@@ -2780,23 +2890,29 @@
   function syncLlmFields() {
     var c = selectedChoice();
     $("llm-key-fields").classList.toggle("hidden", c.choice !== "keys");
+    var cc = $("llm-cc-fields");
+    cc.classList.toggle("hidden", c.choice !== "claude_code");
+    if (c.choice === "claude_code" && $("llm-cc-model").options.length === 0) {
+      (c.models || []).forEach(function (m) { var o = el("option", "", m.label); o.value = m.value; $("llm-cc-model").appendChild(o); });
+    }
     $("llm-url-wrap").classList.toggle("hidden", !c.needs_url);
     if (c.model && !$("llm-model").value) { $("llm-model").value = c.model; }
   }
   function llmBody() {
     var c = selectedChoice();
     return { choice: c.choice, provider: c.provider || "", api_key: $("llm-key").value,
-             model: $("llm-model").value, base_url: $("llm-url").value };
+             model: c.choice === "claude_code" ? $("llm-cc-model").value : $("llm-model").value,
+             base_url: $("llm-url").value };
   }
   function loadSettings() {
     api("GET", "/api/settings").then(function (d) {
       $("set-notowner").classList.toggle("hidden", d.owner);
-      ["set-llm", "set-channels", "set-packs", "set-backup"].forEach(function (id) { $(id).classList.toggle("hidden", !d.owner); });
+      ["set-llm", "set-usage", "set-channels", "set-packs", "set-backup"].forEach(function (id) { $(id).classList.toggle("hidden", !d.owner); });
       $("set-accounts").classList.toggle("hidden", !d.accounts);
       $("my-budget").textContent = d.ai_budget ?
         "這個月的 AI 額度：用了約 US$" + d.ai_budget.used.toFixed(2) + "／US$" + Number(d.ai_budget.limit).toFixed(2) : "";
       $("my-budget").classList.toggle("hidden", !d.ai_budget);
-      if (d.owner) { fillLlm(d); fillPacks(d.packs || []); loadChannels(); }
+      if (d.owner) { loadUsage(); fillLlm(d); fillPacks(d.packs || []); loadChannels(); }
       if (d.accounts) { loadAccounts(); }
     }).catch(function (e) { toast(e.message); });
   }
@@ -2819,6 +2935,7 @@
     $("llm-now").textContent = "現在：" + d.llm.kind + (d.llm.model ? "（" + d.llm.model + "）" : "") +
       (d.llm.has_key ? "，有金鑰" : "");
     syncLlmFields();
+    if (d.llm.kind === "claude_code") { $("llm-cc-model").value = d.llm.model || ""; }
   }
   $("llm-choice").addEventListener("change", function () { $("llm-model").value = ""; syncLlmFields(); });
   $("llm-test").addEventListener("click", function () {
@@ -2851,6 +2968,76 @@
       .catch(function (e) { $("llm-msg").textContent = "❌ " + e.message; });
   });
 
+  // ── AI 用量與花費（小儀表板）──────────────────────────────────────
+  var usageTable = false;
+  function money(v) {
+    v = Number(v) || 0;
+    return "US$" + (v === 0 ? "0" : v < 1 ? v.toFixed(4) : v.toFixed(2));
+  }
+  function num(v) { return (Number(v) || 0).toLocaleString("en-US"); }
+  function stat(k, v, d) {
+    var box = el("div", "stat");
+    box.appendChild(el("div", "k", k)); box.appendChild(el("div", "v", v));
+    if (d) { box.appendChild(el("div", "d", d)); }
+    return box;
+  }
+  function drawUsage(d) {
+    var stats = $("usage-stats"), chart = $("usage-chart"), tbl = $("usage-table");
+    clear(stats); clear(chart); clear(tbl);
+    var pts = d.points || [], total = d.total || {};
+    var periodName = { hour: "最近 24 小時", day: "最近 14 天", week: "最近 12 週", month: "最近 12 個月" }[d.period] || "";
+    stats.appendChild(stat(periodName + "的花費", (d.estimated ? "約 " : "") + money(total.usd),
+      d.subscription ? "照 API 價換算（不是額外扣的錢）" : "依你設定的單價估算"));
+    stats.appendChild(stat("呼叫 AI", num(total.calls) + " 次", ""));
+    stats.appendChild(stat("用掉的字數（token）", num((total.input || 0) + (total.output || 0)),
+      "輸入 " + num(total.input) + "／輸出 " + num(total.output)));
+    var max = 0;
+    pts.forEach(function (p) { if (p.usd > max) { max = p.usd; } });
+    var every = d.period === "hour" ? 4 : d.period === "month" ? 1 : 2;
+    chart.appendChild(el("div", "max", max > 0 ? money(max) : ""));
+    chart.setAttribute("aria-label", periodName + "每格的花費，總共 " + money(total.usd) + "。完整數字在「看表格」。");
+    pts.forEach(function (p, i) {
+      var col = el("div", "col" + (p.usd > 0 ? "" : " zero") + (i < 2 ? " edge-l" : i >= pts.length - 2 ? " edge-r" : ""));
+      col.tabIndex = 0;
+      var tip = (p.est ? "約 " : "") + money(p.usd) + "・" + num(p.calls) + " 次";
+      col.setAttribute("aria-label", p.label + "：" + tip);
+      var bar = el("div", "bar");
+      bar.style.height = (max > 0 ? Math.max(p.usd > 0 ? 3 : 0, Math.round(p.usd / max * 100)) : 0) + "%";
+      col.appendChild(bar);
+      col.appendChild(el("div", "tip", p.label + "　" + tip));
+      if (i % every === (pts.length - 1) % every) { col.appendChild(el("div", "lab", p.label)); }
+      chart.appendChild(col);
+    });
+    var head = el("tr");
+    ["時間", "花費", "呼叫", "輸入 token", "輸出 token"].forEach(function (h) { head.appendChild(el("th", "", h)); });
+    tbl.appendChild(head);
+    pts.slice().reverse().forEach(function (p) {
+      var tr = el("tr");
+      [p.label, (p.est ? "約 " : "") + money(p.usd), num(p.calls), num(p.input), num(p.output)].forEach(function (c) { tr.appendChild(el("td", "", c)); });
+      tbl.appendChild(tr);
+    });
+    $("usage-sub").textContent = d.subscription
+      ? "Claude Code 走的是你自己的訂閱：這裡的美元是照 API 價換算的約數，不是額外扣的錢。"
+      : "花費是依你設定的單價（config.json 的 llm.price_in／price_out）算的估計。";
+    $("usage-note").textContent = (d.estimated ? "標「約」的是舊紀錄（當時沒記花費），用字數照現在的單價估的。" : "") +
+      (total.calls === 0 ? "這段時間還沒有用過 AI。" : "");
+    $("usage-chart").classList.toggle("hidden", usageTable);
+    $("usage-table-wrap").classList.toggle("hidden", !usageTable);
+    $("usage-view").textContent = usageTable ? "看圖" : "看表格";
+  }
+  function loadUsage() {
+    var period = $("usage-period").value;
+    try { localStorage.setItem("synox.usage.period", period); } catch (e) { /* 沒有也行 */ }
+    api("GET", "/api/usage?period=" + encodeURIComponent(period)).then(drawUsage)
+      .catch(function (e) { $("usage-note").textContent = "❌ " + e.message; });
+  }
+  $("usage-period").addEventListener("change", loadUsage);
+  $("usage-view").addEventListener("click", function () { usageTable = !usageTable; loadUsage(); });
+  try {
+    var savedPeriod = localStorage.getItem("synox.usage.period");
+    if (savedPeriod && $("usage-period").querySelector('option[value="' + savedPeriod + '"]')) { $("usage-period").value = savedPeriod; }
+  } catch (e) { /* 沒有也行 */ }
+
   // ── 聊天通道 ─────────────────────────────────────────────────────
   var RESTART = "（重新啟動 SYNOX 後生效：雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑）";
   function showInvite(url) {
@@ -2868,11 +3055,71 @@
     if (c.restart) { s += RESTART; }
     return s;
   }
+  // ── Discord 擁有者配對（網頁產生六位數字，私訊 bot 傳它；或直接貼使用者 ID）──
+  var pairTimer = null, pairBot = "";
+  function stopPairPoll() { if (pairTimer) { clearInterval(pairTimer); pairTimer = null; } }
+  function pairState(paired, asId) {
+    $("ch-dc-pair-state").textContent = asId ? "✅ 已配對：Discord 使用者 " + asId + "。要換帳號就重新配對。" :
+      paired ? "✅ 已配對（config.json 寫了 owner_user_id）。" :
+      "⚠ 還沒配對：bot 不會理你的私訊（陌生人會被擋）。配對一次就好。";
+  }
+  function showCode(p) {
+    var on = !!p;
+    $("ch-dc-pair-code").classList.toggle("hidden", !on);
+    $("ch-dc-pair-go").classList.toggle("hidden", on);
+    if (on) {
+      $("ch-dc-code").textContent = p.code;
+      $("ch-dc-botname").textContent = pairBot ? "「" + pairBot + "」" : "";
+      $("ch-dc-ttl").textContent = "（" + Math.max(1, Math.ceil(p.expires_in / 60)) + " 分鐘內有效）";
+    }
+  }
+  function pollPair() {
+    api("GET", "/api/settings/channels/discord/pair").then(function (d) {
+      pairState(false, d.paired_as);
+      showCode(d.pairing);
+      if (!d.pairing) {
+        stopPairPoll();
+        if (d.just_paired) { $("ch-dc-pair-msg").textContent = "✅ 配對好了！去 Discord 跟 bot 說話看看。"; }
+      }
+    }).catch(function () { stopPairPoll(); });
+  }
+  function showPairing(c) {
+    var box = $("ch-dc-pair");
+    box.classList.toggle("hidden", !c.saved || c.multi);
+    if (!c.saved || c.multi) { stopPairPoll(); return; }
+    pairBot = c.bot || "";
+    pairState(c.owner_paired, c.paired_as);
+    $("ch-dc-pair-start").disabled = !c.pair_ready;
+    $("ch-dc-pair-hint").textContent = c.pair_ready ? "" : "要先存好 bot token 並重新啟動 SYNOX（bot 上線後才收得到配對碼）；或用下面貼使用者 ID，不用重開。";
+    showCode(c.pairing);
+    if (c.pairing && !pairTimer) { pairTimer = setInterval(pollPair, 3000); }
+    if (!c.pairing) { stopPairPoll(); }
+  }
+  $("ch-dc-pair-start").addEventListener("click", function () {
+    $("ch-dc-pair-msg").textContent = "";
+    api("POST", "/api/settings/channels/discord/pair", { action: "start" }).then(function (d) {
+      showCode(d);
+      stopPairPoll(); pairTimer = setInterval(pollPair, 3000);
+    }).catch(function (e) { $("ch-dc-pair-msg").textContent = "❌ " + e.message; });
+  });
+  $("ch-dc-pair-cancel").addEventListener("click", function () {
+    stopPairPoll();
+    api("POST", "/api/settings/channels/discord/pair", { action: "cancel" }).then(function () { showCode(null); });
+  });
+  $("ch-dc-uid-save").addEventListener("click", function () {
+    var btn = $("ch-dc-uid-save");
+    btn.disabled = true;
+    api("POST", "/api/settings/channels/discord/pair", { action: "manual", user_id: $("ch-dc-uid").value })
+      .then(function (d) { $("ch-dc-pair-msg").textContent = d.message; $("ch-dc-uid").value = ""; stopPairPoll(); loadChannels(); })
+      .catch(function (e) { $("ch-dc-pair-msg").textContent = "❌ " + e.message; })
+      .then(function () { btn.disabled = false; });
+  });
   function loadChannels() {
     $("ch-tg-now").textContent = "檢查中…";
     $("ch-dc-now").textContent = "檢查中…";
     api("GET", "/api/settings/channels").then(function (d) {
       var t = d.telegram, c = d.discord;
+      $("ch-restart").classList.toggle("hidden", !(t.restart || c.restart));
       $("ch-tg-now").textContent = channelLine(t, function (n) { return "@" + n; }) +
         (t.saved && !t.owner_paired ? "還沒配對擁有者：雙擊 Setup.bat 重跑安裝精靈配對（token 會自動帶入）。" : "");
       $("ch-dc-form").classList.toggle("hidden", c.multi);
@@ -2880,9 +3127,10 @@
         $("ch-dc-now").textContent = "config.json 用的是 bots 寫法（多個 bot）：網頁不動它，請直接改 config.json。";
       } else {
         $("ch-dc-now").textContent = channelLine(c, function (n) { return n; }) +
-          (c.saved && !c.owner_paired ? "還沒配對擁有者：在 SYNOX 資料夾跑 python -m synox discord pair（或重跑 Setup.bat）。" : "");
+          (c.saved && !c.owner_paired ? "還沒配對擁有者：用下面的「配對我的 Discord 帳號」。" : "");
       }
       showInvite(c.invite);
+      showPairing(c);
     }).catch(function (e) { $("ch-tg-now").textContent = ""; $("ch-dc-now").textContent = "❌ " + e.message; });
   }
   function saveChannel(kind) {

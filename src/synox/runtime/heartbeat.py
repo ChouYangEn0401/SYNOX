@@ -147,7 +147,7 @@ class Heartbeat:
             return []
         owner = self.app.owner_id
         try:
-            history = list(agent.history.get(agent.memory_key(owner, owner), []))
+            history = agent.latest_history(owner)
         except Exception:
             return []
         out = []
