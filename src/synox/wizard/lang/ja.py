@@ -34,6 +34,7 @@ STRINGS = {
     "skip_hint": ("まだ bot がない、またはとりあえず試したい場合は、いったんスキップできます。"
                   "あとで Setup.bat をダブルクリックすればウィザードを再実行して追加できます。"),
     "skip_button": "今はスキップ →",
+    "open_tutorial": "図解ガイドを開く",
     "pair_title": "あなたは誰？",
     "pair_discord_invite": ("Discord bot は、共通のサーバーがない人からの DM を受け取れません。"
                             "まず bot をあなたのサーバーに追加してください（サーバーがなければ Discord で無料で作れます）："),

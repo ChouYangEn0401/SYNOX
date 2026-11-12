@@ -21,6 +21,7 @@ import json
 import os
 from typing import Callable, List, Optional
 
+from synox import tutorials
 from synox.config import redacted
 from synox.wizard import logic
 from synox.wizard import tools as library
@@ -123,6 +124,9 @@ def ask_telegram(p: Prompter, token: Optional[str], owner: Optional[str], existi
     if p.interactive and token is None:
         p.out("② Telegram（可以先跳過，只用這台電腦上的網頁；之後再跑一次 init 或 Setup.bat 補上）")
         p.out("   跟 @BotFather 傳 /newbot 拿 token。")
+        guide = tutorials.path_of("telegram")
+        if guide:
+            p.out(f"   圖文教學（用瀏覽器打開）：{guide}")
         token = p.password("貼上 bot token（Enter＝跳過" + ("／沿用舊的" if _token_ok(old_token) else "") + "）")
         if not token and _token_ok(old_token):
             token = old_token

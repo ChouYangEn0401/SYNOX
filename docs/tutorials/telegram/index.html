@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>SYNOX Telegram 設定教學</title>
+<meta name="description" content="從跟 @BotFather 建一支 bot、拿 token，到貼進 SYNOX、配對、收到第一句話；加上常見問題。全部圖片都是示意圖。">
+<style>
+/* 版面：一欄的教學文件，每一步「左邊說明、右邊示意圖」，手機上疊成一欄。
+   顏色用 SYNOX 網頁介面同一套 token（src/synox/web/static/app.html）；手機示意圖另用 Telegram 的藍、綠泡泡。
+   沒有任何外部資源、沒有 JavaScript：本機離線打開、SYNOX 網頁 /tutorials/telegram/（嚴格 CSP）都要能看。 */
+:root {
+  --bg: #f3f5f8; --surface: #ffffff; --sunken: #e9edf2; --line: #dde3ea; --text: #131b26; --muted: #5f6b7c;
+  --accent: #0a7c70; --accent-ink: #ffffff; --accent-soft: #dff1ee;
+  --warn: #8a5a00; --warn-soft: #fdf1dc; --bad: #a3273b; --bad-soft: #fbe5e8; --ok: #1f7a3a; --ok-soft: #e2f4e7;
+  --frame: #c9d1db; --win-bar: #e4e9ef; --win-fg: #131b26;
+  --tg-bar: #2aabee; --tg-bar-fg: #ffffff; --tg-chat: #dfe7ee; --tg-in: #ffffff; --tg-in-fg: #131b26;
+  --tg-out: #effdde; --tg-out-fg: #131b26; --tg-sys: rgba(20, 40, 60, .55); --tg-link: #1a73c5; --tg-compose: #f4f7f9;
+  --font: "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", system-ui, sans-serif;
+  --mono: Consolas, "Cascadia Mono", "SF Mono", Menlo, monospace;
+  --r: 12px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0f14; --surface: #121924; --sunken: #0f151e; --line: #233041; --text: #dbe4ef; --muted: #8e9db2;
+    --accent: #35e0c4; --accent-ink: #04221d; --accent-soft: rgba(53, 224, 196, .14);
+    --warn: #ffb454; --warn-soft: rgba(255, 180, 84, .13); --bad: #ff8a9b; --bad-soft: rgba(255, 138, 155, .13);
+    --ok: #6fd98f; --ok-soft: rgba(111, 217, 143, .13);
+    --frame: #2b3948; --win-bar: #1a2433; --win-fg: #dbe4ef;
+    --tg-bar: #17212b; --tg-bar-fg: #e6edf3; --tg-chat: #0e1621; --tg-in: #182533; --tg-in-fg: #e6edf3;
+    --tg-out: #2b5278; --tg-out-fg: #ffffff; --tg-sys: rgba(0, 0, 0, .45); --tg-link: #6ab3f3; --tg-compose: #17212b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0f14; --surface: #121924; --sunken: #0f151e; --line: #233041; --text: #dbe4ef; --muted: #8e9db2;
+  --accent: #35e0c4; --accent-ink: #04221d; --accent-soft: rgba(53, 224, 196, .14);
+  --warn: #ffb454; --warn-soft: rgba(255, 180, 84, .13); --bad: #ff8a9b; --bad-soft: rgba(255, 138, 155, .13);
+  --ok: #6fd98f; --ok-soft: rgba(111, 217, 143, .13);
+  --frame: #2b3948; --win-bar: #1a2433; --win-fg: #dbe4ef;
+  --tg-bar: #17212b; --tg-bar-fg: #e6edf3; --tg-chat: #0e1621; --tg-in: #182533; --tg-in-fg: #e6edf3;
+  --tg-out: #2b5278; --tg-out-fg: #ffffff; --tg-sys: rgba(0, 0, 0, .45); --tg-link: #6ab3f3; --tg-compose: #17212b;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.7 var(--font); }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code, kbd, .tok { font-family: var(--mono); font-size: .92em; }
+code { background: var(--sunken); padding: 1px 6px; border-radius: 6px; }
+h1, h2, h3, h4 { text-wrap: balance; line-height: 1.3; margin: 0; }
+p { margin: 0; }
+ul, ol { margin: 0; padding-inline-start: 1.4em; }
+li + li { margin-top: .35em; }
+.muted { color: var(--muted); }
+strong { font-weight: 650; }
+
+.wrap { width: min(1040px, 100%); margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* 頁首 */
+.hero { padding-block: 36px 28px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.hero .wrap { display: grid; gap: 18px; }
+.eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.eyebrow .mark { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); font-weight: 800; font-size: 14px; letter-spacing: 0; }
+.hero h1 { font-size: clamp(26px, 4vw, 36px); font-weight: 750; }
+.lede { max-width: 62ch; font-size: 17px; color: var(--muted); }
+.steps-nav { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; list-style: none; padding: 0; margin: 0; counter-reset: nav; }
+.steps-nav li { counter-increment: nav; }
+.steps-nav a { display: flex; gap: 10px; align-items: center; text-decoration: none; color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: var(--r); padding: 10px 12px; min-height: 52px; }
+.steps-nav a::before { content: counter(nav); flex: none; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 13px; }
+.steps-nav a:hover { border-color: var(--accent); }
+.note { border-radius: var(--r); padding: 12px 14px; font-size: 15px; }
+.note.warn { background: var(--warn-soft); color: var(--warn); }
+.note.ok { background: var(--ok-soft); color: var(--ok); }
+.note.bad { background: var(--bad-soft); color: var(--bad); }
+.note.info { background: var(--accent-soft); color: var(--text); }
+.note code { background: rgba(127, 127, 127, .15); color: inherit; }
+
+/* 每一步 */
+main { padding-block: 8px 48px; display: grid; gap: 8px; }
+.step { padding-block: 36px; border-bottom: 1px solid var(--line); scroll-margin-top: 16px; }
+.step:last-of-type { border-bottom: 0; }
+.step-head { display: flex; gap: 14px; align-items: baseline; margin-bottom: 8px; }
+.step-no { flex: none; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); font-weight: 800; font-size: 17px; align-self: center; }
+.step h2 { font-size: clamp(22px, 3vw, 27px); font-weight: 720; }
+.step-sub { color: var(--muted); max-width: 64ch; margin-bottom: 22px; }
+.pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 400px); gap: 28px; align-items: start; }
+.pair + .pair { margin-top: 30px; padding-top: 30px; border-top: 1px dashed var(--line); }
+.pair > * { min-width: 0; }
+.text { display: grid; gap: 12px; max-width: 62ch; }
+.text h3 { font-size: 18px; font-weight: 700; }
+.text ol li::marker { color: var(--accent); font-weight: 700; }
+@media (max-width: 760px) { .pair { grid-template-columns: 1fr; } }
+
+/* 示意圖框 */
+.fig { display: grid; gap: 10px; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+.fig-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); }
+.badge { flex: none; font-size: 11.5px; font-weight: 700; letter-spacing: .06em; padding: 2px 8px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); }
+.fig-cap { font-size: 13.5px; color: var(--muted); line-height: 1.55; }
+.fig-cap .n { margin-right: 4px; vertical-align: 1px; }
+.n { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 800; line-height: 1; }
+.hl { position: relative; outline: 2.5px solid var(--accent); outline-offset: 3px; border-radius: 10px; }
+.hl > .n { position: absolute; top: -12px; left: -12px; box-shadow: 0 0 0 3px var(--surface); }
+.hl.right > .n { left: auto; right: -12px; }
+
+/* 手機 */
+.phone { width: 100%; max-width: 320px; margin: 0 auto; border: 2px solid var(--frame); border-radius: 26px; overflow: hidden; background: var(--tg-chat); box-shadow: 0 14px 30px -18px rgba(0, 0, 0, .45); }
+.bar { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--tg-bar); color: var(--tg-bar-fg); font-size: 14px; }
+.bar .back { font-size: 18px; opacity: .85; }
+.bar .who { display: grid; line-height: 1.25; min-width: 0; }
+.bar .who .name { font-weight: 700; display: flex; align-items: center; gap: 4px; }
+.bar .who .st { font-size: 11.5px; opacity: .85; }
+.avatar { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 14px; color: #fff; background: #5b8def; }
+.avatar.bf { background: #2aabee; }
+.avatar.syn { background: #0a7c70; }
+.avatar.me { background: #c86dd7; }
+.vcheck { width: 14px; height: 14px; }
+.chat { padding: 10px; display: grid; gap: 7px; font-size: 13.2px; line-height: 1.45; }
+.msg { max-width: 88%; padding: 7px 10px; border-radius: 13px; word-break: break-word; }
+.msg.in { justify-self: start; background: var(--tg-in); color: var(--tg-in-fg); border-bottom-left-radius: 4px; }
+.msg.out { justify-self: end; background: var(--tg-out); color: var(--tg-out-fg); border-bottom-right-radius: 4px; }
+.msg .t { display: block; text-align: right; font-size: 10.5px; opacity: .6; margin-top: 2px; }
+.msg .tok { display: block; margin: 4px 0; padding: 4px 6px; border-radius: 6px; background: rgba(127, 127, 127, .15); word-break: break-all; }
+.msg a { color: var(--tg-link); text-decoration: none; }
+.sys { justify-self: center; font-size: 11px; color: #fff; background: var(--tg-sys); padding: 2px 9px; border-radius: 10px; }
+.compose { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--tg-compose); color: var(--muted); font-size: 13px; border-top: 1px solid var(--line); }
+.compose .box { flex: 1; min-width: 0; background: var(--tg-in); color: var(--tg-in-fg); border-radius: 16px; padding: 5px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.compose .send { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--tg-bar); color: #fff; }
+.compose .send svg { width: 14px; height: 14px; }
+.startbtn { margin: 0 10px 10px; padding: 9px; border-radius: 10px; text-align: center; font-weight: 700; background: var(--tg-bar); color: #fff; font-size: 14px; letter-spacing: .04em; }
+.search { padding: 10px; display: grid; gap: 8px; }
+.search .q { display: flex; align-items: center; gap: 8px; background: var(--tg-in); color: var(--tg-in-fg); border-radius: 10px; padding: 7px 10px; font-size: 13.5px; }
+.search .q svg { width: 15px; height: 15px; flex: none; opacity: .6; }
+.row { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 10px; background: var(--tg-in); color: var(--tg-in-fg); font-size: 13px; }
+.row .who { display: grid; line-height: 1.25; min-width: 0; }
+.row .who .name { font-weight: 700; display: flex; align-items: center; gap: 4px; }
+.row .who .st { font-size: 11.5px; opacity: .7; }
+.row.dim { opacity: .55; }
+.sheet { margin: 6px 10px 10px; background: var(--tg-in); color: var(--tg-in-fg); border-radius: 12px; padding: 6px 0; font-size: 13.5px; }
+.sheet div { padding: 7px 14px; }
+.sheet div + div { border-top: 1px solid var(--line); }
+
+/* 電腦視窗（安裝精靈、網頁設定） */
+.win { border: 1px solid var(--frame); border-radius: 12px; overflow: hidden; background: var(--surface); box-shadow: 0 14px 30px -18px rgba(0, 0, 0, .45); font-size: 13.5px; }
+.win .tbar { display: flex; align-items: center; gap: 8px; padding: 7px 12px; background: var(--win-bar); color: var(--win-fg); font-size: 12.5px; }
+.win .tbar .dots { margin-left: auto; letter-spacing: 4px; opacity: .6; }
+.win .body { padding: 14px; display: grid; gap: 10px; }
+.win .step-line { font-size: 12px; color: var(--muted); }
+.win h4 { font-size: 16px; font-weight: 750; }
+.win .guide { white-space: pre-line; font-size: 12.5px; color: var(--muted); line-height: 1.5; }
+.field { border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; background: var(--sunken); font-family: var(--mono); font-size: 12.5px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.field.dots { letter-spacing: 2px; }
+.btn { display: inline-block; padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line); background: var(--sunken); color: var(--text); font-weight: 600; font-size: 13px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.ghost { background: transparent; }
+.btnrow { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.radio { display: inline-flex; align-items: center; gap: 6px; margin-right: 10px; }
+.radio i { width: 13px; height: 13px; border-radius: 50%; border: 1.5px solid var(--muted); display: inline-block; }
+.radio.on i { border-color: var(--accent); box-shadow: inset 0 0 0 3.5px var(--accent); }
+.status { font-size: 13px; }
+.status.ok { color: var(--ok); } .status.bad { color: var(--bad); }
+.bigcode { font-family: var(--mono); font-size: 30px; font-weight: 800; letter-spacing: .32em; font-variant-numeric: tabular-nums; }
+.win .nav { display: flex; justify-content: flex-end; padding-top: 6px; border-top: 1px solid var(--line); }
+.card { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 8px; }
+.card h5 { margin: 0; font-size: 14px; }
+.arrow { display: grid; place-items: center; color: var(--muted); }
+.arrow svg { width: 28px; height: 28px; }
+.two { display: grid; gap: 10px; }
+
+/* 常見問題 */
+.faq { display: grid; gap: 10px; }
+.faq details { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+.faq summary { cursor: pointer; padding: 14px 16px; font-weight: 650; list-style: none; display: flex; gap: 10px; align-items: center; }
+.faq summary::-webkit-details-marker { display: none; }
+.faq summary::before { content: "+"; flex: none; width: 22px; height: 22px; border-radius: 6px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); font-weight: 800; }
+.faq details[open] summary::before { content: "−"; }
+.faq .a { padding: 0 16px 16px; display: grid; gap: 10px; max-width: 70ch; }
+.faq .a p, .faq .a li { font-size: 15.5px; }
+.cmd { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 15px; }
+.cmd code { white-space: nowrap; }
+@media (max-width: 480px) { .cmd { grid-template-columns: 1fr; gap: 2px; } .cmd dd { margin: 0 0 8px; } }
+
+footer { border-top: 1px solid var(--line); padding-block: 22px 36px; font-size: 14px; color: var(--muted); }
+footer .wrap { display: grid; gap: 6px; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+@media print { .steps-nav, .compose { display: none; } .step { break-inside: avoid; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="eyebrow"><span class="mark" aria-hidden="true">S</span>SYNOX 圖文教學</div>
+    <h1>把 SYNOX 接上 Telegram</h1>
+    <p class="lede">從跟 @BotFather 要一支 bot、拿到 token，到貼進 SYNOX、配對你的帳號、收到第一句話。全程大約五分鐘，不用打任何指令到電腦的黑視窗裡。</p>
+    <ol class="steps-nav">
+      <li><a href="#s1">跟 @BotFather 拿 token</a></li>
+      <li><a href="#s2">貼進 SYNOX，檢查 token</a></li>
+      <li><a href="#s3">配對：傳六個數字</a></li>
+      <li><a href="#s4">第一則訊息</a></li>
+      <li><a href="#faq">常見問題</a></li>
+    </ol>
+    <p class="note warn"><strong>這一頁的圖都是示意圖</strong>，不是真的截圖：畫的是畫面上會出現的東西和位置，Telegram 的實際字句、顏色會跟你的手機版本略有不同。</p>
+  </div>
+</header>
+
+<main class="wrap">
+
+<section class="step" id="s0">
+  <div class="step-head"><span class="step-no" aria-hidden="true">0</span><h2>開始前，準備好這三樣</h2></div>
+  <div class="text">
+    <ul>
+      <li>一個 <strong>Telegram 帳號</strong>，手機（或電腦）上已經裝好 Telegram 並登入。</li>
+      <li>電腦上已經雙擊過 <code>Setup.bat</code>，安裝精靈停在「<strong>Bot 的 token</strong>」那一頁；或者 SYNOX 已經在跑，你打開了網頁的「設定 → 聊天通道」。</li>
+      <li>手機和電腦都能上網（精靈會替你去問 Telegram）。</li>
+    </ul>
+    <p class="muted">bot 是什麼？你可以把它想成「一個只跟你講話的 Telegram 聯絡人」。它的本體是你電腦上的 SYNOX；token 就是這個聯絡人的鑰匙，SYNOX 拿著鑰匙才能替它收訊息、回訊息。</p>
+  </div>
+</section>
+
+<section class="step" id="s1">
+  <div class="step-head"><span class="step-no" aria-hidden="true">1</span><h2>跟 @BotFather 拿 token</h2></div>
+  <p class="step-sub">BotFather 是 Telegram 官方用來「製造 bot」的 bot。所有 Telegram bot 都是在這裡誕生的。</p>
+
+  <div class="pair">
+    <div class="text">
+      <h3>1-1 找到正牌的 BotFather</h3>
+      <ol>
+        <li>打開 Telegram，點上面的<strong>搜尋</strong>，輸入 <code>BotFather</code>。</li>
+        <li>點進帳號是 <strong>@BotFather</strong>、名字旁邊有<strong>藍色勾勾</strong>（官方認證）的那一個。</li>
+        <li>第一次打開會看到一顆藍色的 <strong>START</strong>（開始）按鈕，點它。</li>
+      </ol>
+      <p class="note bad">搜尋結果裡常有名字很像、沒有藍勾勾的假帳號（例如 Bot_Father、BotFather_official）。<strong>只認 @BotFather 加藍勾勾</strong>；把 token 交給假帳號等於把鑰匙給陌生人。</p>
+    </div>
+    <figure class="fig">
+      <div class="fig-head"><span>手機 Telegram，搜尋結果</span><span class="badge">示意圖</span></div>
+      <div class="phone">
+        <div class="bar"><span class="back">‹</span><span class="who"><span class="name">搜尋</span></span></div>
+        <div class="search">
+          <div class="q"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>BotFather</div>
+          <div class="row hl"><span class="n">1</span>
+            <span class="avatar bf" aria-hidden="true">B</span>
+            <span class="who"><span class="name">BotFather <svg class="vcheck" viewBox="0 0 24 24" aria-label="官方認證"><circle cx="12" cy="12" r="11" fill="#2aabee"/><path d="m7 12.5 3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="st">@BotFather · bot</span></span>
+          </div>
+          <div class="row dim"><span class="avatar" aria-hidden="true">B</span><span class="who"><span class="name">Bot Father</span><span class="st">@bot_father_helper · 沒有藍勾勾</span></span></div>
+          <div class="row dim"><span class="avatar" aria-hidden="true">F</span><span class="who"><span class="name">BotFather Official</span><span class="st">@botfather_officialbot · 沒有藍勾勾</span></span></div>
+        </div>
+      </div>
+      <figcaption class="fig-cap"><span class="n">1</span>帳號剛好是 @BotFather、名字旁有藍勾勾的才是正牌；下面兩個是仿冒的例子。</figcaption>
+    </figure>
+  </div>
+
+  <div class="pair">
+    <div class="text">
+      <h3>1-2 傳 <code>/newbot</code>，回答兩個問題</h3>
+      <ol>
+        <li>在對話框輸入 <code>/newbot</code> 送出（也可以按左下角的「選單」從清單裡點）。</li>
+        <li>它會問<strong>名字</strong>（name）：這是顯示用的，中文、空格都可以，之後能改。例如「我的小助手」。</li>
+        <li>再問<strong>帳號</strong>（username）：只能用英文字母、數字、底線，5 到 32 個字，<strong>結尾一定要是 <code>bot</code></strong>（例如 <code>amy_helper_bot</code>）。帳號在整個 Telegram 裡不能重複，被用掉了它會說「already taken」，換一個再傳就好。<strong>帳號之後不能改</strong>，名字可以。</li>
+        <li>它回「Done! Congratulations on your new bot.」那一則裡，<strong>「Use this token to access the HTTP API:」下面那一整串</strong>就是 token。</li>
+      </ol>
+    </div>
+    <figure class="fig">
+      <div class="fig-head"><span>跟 @BotFather 的對話</span><span class="badge">示意圖</span></div>
+      <div class="phone">
+        <div class="bar"><span class="back">‹</span><span class="avatar bf" aria-hidden="true">B</span><span class="who"><span class="name">BotFather <svg class="vcheck" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="11" fill="#fff"/><path d="m7 12.5 3.2 3.2L17 9" fill="none" stroke="#2aabee" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></span><span class="st">bot</span></span></div>
+        <div class="chat">
+          <div class="msg out hl right"><span class="n">1</span>/newbot<span class="t">10:21</span></div>
+          <div class="msg in">Alright, a new bot. How are we going to call it? Please choose a name for your bot.<span class="t">10:21</span></div>
+          <div class="msg out hl right"><span class="n">2</span>我的小助手<span class="t">10:21</span></div>
+          <div class="msg in">Good. Now let's choose a username for your bot. It must end in <code>bot</code>. Like this, for example: TetrisBot or tetris_bot.<span class="t">10:21</span></div>
+          <div class="msg out hl right"><span class="n">3</span>amy_helper_bot<span class="t">10:22</span></div>
+          <div class="msg in">Done! Congratulations on your new bot. You will find it at <a>t.me/amy_helper_bot</a>. …<br>Use this token to access the HTTP API:<span class="tok hl"><span class="n">4</span>123456789:AAH5vQ…（一整串，約 45 個字）…8kQ</span>Keep your token secure and store it safely, it can be used by anyone to control your bot.<span class="t">10:22</span></div>
+        </div>
+        <div class="compose"><span class="box">訊息</span><span class="send"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 11.5 21 3l-8.5 18-2.5-7.5z"/></svg></span></div>
+      </div>
+      <figcaption class="fig-cap"><span class="n">1</span>傳 /newbot。<span class="n">2</span>名字（顯示用，可中文）。<span class="n">3</span>帳號（英文、結尾 bot、不能重複）。<span class="n">4</span>token：冒號前是數字，冒號後一長串字母數字。</figcaption>
+    </figure>
+  </div>
+
+  <div class="pair">
+    <div class="text">
+      <h3>1-3 把 token 整串複製起來</h3>
+      <ul>
+        <li><strong>手機：</strong>長按那一串 token，Telegram 會把它整段選起來，點「複製」。</li>
+        <li><strong>電腦版 Telegram：</strong>點一下 token 通常就會複製（右下角跳出「已複製」）；或用滑鼠選取整串再 Ctrl+C。</li>
+        <li>要複製<strong>完整的一串</strong>：從冒號前面的數字一路到最後一個字，前後不要多空格、也不要少字。精靈會幫你檢查格式。</li>
+      </ul>
+      <p class="note warn"><strong>token 等於這支 bot 的密碼。</strong>不要貼到群組、截圖分享、或交給任何網站。真的不小心外流了，看下面的常見問題「<a href="#faq-revoke">換一組 token</a>」，一分鐘就能作廢重發。</p>
+      <p class="muted">之後要再看 token：對 BotFather 傳 <code>/mybots</code> → 點你的 bot → <strong>API Token</strong>。</p>
+    </div>
+    <figure class="fig">
+      <div class="fig-head"><span>長按 token 之後</span><span class="badge">示意圖</span></div>
+      <div class="phone">
+        <div class="bar"><span class="back">‹</span><span class="avatar bf" aria-hidden="true">B</span><span class="who"><span class="name">BotFather</span><span class="st">bot</span></span></div>
+        <div class="chat">
+          <div class="msg in">Use this token to access the HTTP API:<span class="tok hl"><span class="n">1</span>123456789:AAH5vQ…8kQ</span>Keep your token secure and store it safely…<span class="t">10:22</span></div>
+        </div>
+        <div class="sheet hl right"><span class="n">2</span><div><strong>複製</strong></div><div>回覆</div><div>轉傳</div></div>
+        <div class="compose"><span class="box">訊息</span><span class="send"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 11.5 21 3l-8.5 18-2.5-7.5z"/></svg></span></div>
+      </div>
+      <figcaption class="fig-cap"><span class="n">1</span>長按 token 那一串。<span class="n">2</span>選「複製」。選單長相依手機而異，重點是整串都要選到。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="step" id="s2">
+  <div class="step-head"><span class="step-no" aria-hidden="true">2</span><h2>貼進 SYNOX，按「檢查 token」</h2></div>
+  <p class="step-sub">兩個地方都可以貼：第一次安裝用<strong>安裝精靈</strong>；SYNOX 已經在跑、想補接或換 token，用<strong>網頁的設定頁</strong>。</p>
+
+  <div class="pair">
+    <div class="text">
+      <h3>2-A 安裝精靈（第一次安裝）</h3>
+      <ol>
+        <li>精靈第 2 頁「Bot 的 token」，上面「用哪一個」選 <strong>Telegram</strong>（預設就是）。</li>
+        <li>點進輸入框，<strong>貼上</strong>剛剛複製的 token（Ctrl+V，或右鍵 → 貼上）。</li>
+        <li>按「<strong>檢查 token</strong>」。精靈會去問 Telegram 這把鑰匙開得了哪支 bot，幾秒內顯示「✅ 這支 bot 叫 @你的帳號」。</li>
+        <li>「下一步」亮起來了，按它進到配對。</li>
+      </ol>
+      <p class="muted">看到紅字？對照常見問題「<a href="#faq-token">token 檢查沒過</a>」。還沒有 bot 也可以先按「先跳過，晚點再補」，之後再雙擊 Setup.bat 回來填。</p>
+    </div>
+    <figure class="fig">
+      <div class="fig-head"><span>SYNOX 安裝精靈，第 2 頁</span><span class="badge">示意圖</span></div>
+      <div class="win">
+        <div class="tbar"><span>SYNOX 安裝精靈</span><span class="dots" aria-hidden="true">— ▢ ✕</span></div>
+        <div class="body">
+          <div class="step-line">第 2 步，共 4 步</div>
+          <h4>Bot 的 token</h4>
+          <div><span class="muted">用哪一個：</span> <span class="radio on hl"><span class="n">1</span><i></i>Telegram</span> <span class="radio"><i></i>Discord</span></div>
+          <div class="guide">怎麼拿 Telegram bot 的 token（三步）：
+  1. 在 Telegram 搜尋 @BotFather，打開它
+  2. 傳 /newbot，照它問的取一個名字和帳號（帳號要以 bot 結尾）
+  3. 它會回一串像 123456789:AAH… 的字，整串複製，貼到下面</div>
+          <div class="btnrow"><span class="btn ghost">看圖文教學</span></div>
+          <div class="field hl"><span class="n">2</span>123456789:AAH5vQ…8kQ</div>
+          <div class="btnrow"><span class="btn hl"><span class="n">3</span>檢查 token</span><span class="status ok">✅ 這支 bot 叫 amy_helper_bot</span></div>
+          <div class="nav"><span class="btn primary hl right"><span class="n">4</span>下一步 ▶</span></div>
+        </div>
+      </div>
+      <figcaption class="fig-cap"><span class="n">1</span>選 Telegram。<span class="n">2</span>貼上整串 token。<span class="n">3</span>按「檢查 token」，等它說 ✅。<span class="n">4</span>「下一步」才會亮起來。</figcaption>
+    </figure>
+  </div>
+
+  <div class="pair">
+    <div class="text">
+      <h3>2-B 網頁設定頁（SYNOX 已經在跑）</h3>
+      <ol>
+        <li>打開 SYNOX 網頁（雙擊桌面的「SYNOX」捷徑，或 SYNOX 資料夾裡的 <code>Open-SYNOX.bat</code>）。</li>
+        <li>左邊選「<strong>設定</strong>」，找到「<strong>聊天通道</strong>」這張卡，Telegram 那一格。</li>
+        <li>貼上 token，按「<strong>檢查並存起來</strong>」。通過會顯示「✅ token 已存：bot @你的帳號」。</li>
+        <li>卡片上會出現黃色的「要<strong>重新啟動 SYNOX</strong>」提醒：先雙擊 <code>Stop.bat</code>，再雙擊桌面的 SYNOX 捷徑。重開之前 bot 不會上線。</li>
+      </ol>
+      <p class="muted">存好之後網頁不會再顯示 token 本身（只看得到是哪支 bot），這是刻意的。</p>
+    </div>
+    <figure class="fig">
+      <div class="fig-head"><span>SYNOX 網頁 → 設定 → 聊天通道</span><span class="badge">示意圖</span></div>
+      <div class="win">
+        <div class="tbar"><span>SYNOX · 127.0.0.1:8830</span><span class="dots" aria-hidden="true">— ▢ ✕</span></div>
+        <div class="body">
+          <div class="card">
+            <h5>💬 聊天通道</h5>
+            <p class="muted" style="font-size:12.5px">貼上 bot 的 token，先檢查再存。改了要重新啟動 SYNOX 才生效。</p>
+            <div class="note warn hl" style="font-size:12.5px;padding:8px 10px"><span class="n">4</span>⚠ 聊天通道的設定改了，要重新啟動 SYNOX 才會生效：先雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑。</div>
+            <strong>Telegram</strong>
+            <span class="status ok">✅ token 已存：bot @amy_helper_bot。</span>
+            <span class="muted" style="font-size:12px">bot token（@BotFather 給的，長得像 123456789:AAH…）</span>
+            <div class="btnrow"><span class="field dots hl" style="flex:1"><span class="n">2</span>••••••••••••••••••••••</span><span class="btn hl right"><span class="n">3</span>檢查並存起來</span></div>
+            <span class="btn ghost" style="justify-self:start">產生配對碼</span>
+          </div>
+        </div>
+      </div>
+      <figcaption class="fig-cap"><span class="n">2</span>貼 token（畫面上顯示成點點）。<span class="n">3</span>檢查並存。<span class="n">4</span>重新啟動 SYNOX 才會上線。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="step" id="s3">
+  <div class="step-head"><span class="step-no" aria-hidden="true">3</span><h2>配對：把六個數字傳給你的 bot</h2></div>
+  <p class="step-sub">SYNOX 要知道「哪個 Telegram 帳號是主人」。方法很簡單：電腦畫面給你六個數字，你用手機傳給 bot，SYNOX 看到就認得你了。別人就算找到你的 bot，沒有這六個數字也進不來。</p>
+
+  <div class="pair">
+    <div class="text">
+      <h3>3-1 電腦這邊：拿到六個數字</h3>
+      <ol>
+        <li>精靈第 3 頁「你是誰」會顯示<strong>一組六位數字</strong>，下面寫著「⏳ 等你傳過來…」。</li>
+        <li>按「<strong>打開 t.me/你的bot</strong>」按鈕，瀏覽器會幫你跳到 Telegram 並打開這支 bot 的對話（手機上也可以直接在 Telegram 搜尋你剛取的帳號）。</li>
+      </ol>
+      <p class="muted">用網頁設定頁的話：Telegram 那一格按「<strong>產生配對碼</strong>」，一樣會出現六個數字；接下來的動作相同。</p>
+      <p class="note info">數字有效 15 分鐘。超過會顯示「⌛ 等太久了」，把精靈關掉、再雙擊 Setup.bat 重來一次就好，不會壞掉什麼。</p>
+    </div>
+    <figure class="fig">
+      <div class="fig-head"><span>SYNOX 安裝精靈，第 3 頁</span><span class="badge">示意圖</span></div>
+      <div class="win">
+        <div class="tbar"><span>SYNOX 安裝精靈</span><span class="dots" aria-hidden="true">— ▢ ✕</span></div>
+        <div class="body">
+          <div class="step-line">第 3 步，共 4 步</div>
+          <h4>你是誰</h4>
+          <p class="muted">打開你的 bot @amy_helper_bot，傳這六個數字給它（按下面的按鈕就會打開）：</p>
+          <div class="bigcode hl" style="justify-self:start;padding:4px 8px"><span class="n">1</span>4 2 9 1 7 0</div>
+          <div class="btnrow"><span class="btn hl"><span class="n">2</span>打開 t.me/amy_helper_bot</span></div>
+          <div class="status">⏳ 等你傳過來…</div>
+          <div class="nav"><span class="btn" style="opacity:.45">下一步 ▶</span></div>
+        </div>
+      </div>
+      <figcaption class="fig-cap"><span class="n">1</span>你的六個數字（每次都不一樣）。<span class="n">2</span>按它打開 bot 的對話；或自己在手機上搜尋 bot 的帳號。</figcaption>
+    </figure>
+  </div>
+
+  <div class="pair">
+    <div class="text">
+      <h3>3-2 手機這邊：傳數字</h3>
+      <ol>
+        <li>打開你的 bot 之後，先按最下面的 <strong>START</strong>（開始）。第一次跟任何 bot 講話都要按這一下。</li>
+        <li>把那六個數字<strong>直接打出來送出</strong>（例如 <code>429170</code>；中間有沒有空格都可以）。</li>
+        <li>幾秒內 bot 會回「✅ 配對成功！回到電腦上的安裝畫面，按『下一步』。」</li>
+        <li>回到電腦：畫面變成「✅ 認得你了：@你的帳號（id 一串數字）」，按「下一步」去設定 AI。</li>
+      </ol>
+      <p class="muted">bot 沒回？看常見問題「<a href="#faq-pair">傳了數字沒反應</a>」。</p>
+    </div>
+    <figure class="fig">
+      <div class="fig-head"><span>手機，跟你自己的 bot 對話</span><span class="badge">示意圖</span></div>
+      <div class="phone">
+        <div class="bar"><span class="back">‹</span><span class="avatar syn" aria-hidden="true">S</span><span class="who"><span class="name">我的小助手</span><span class="st">bot</span></span></div>
+        <div class="chat">
+          <div class="sys">今天</div>
+          <div class="msg out hl right"><span class="n">2</span>429170<span class="t">10:30</span></div>
+          <div class="msg in hl"><span class="n">3</span>✅ 配對成功！回到電腦上的安裝畫面，按「下一步」。<span class="t">10:30</span></div>
+        </div>
+        <div class="startbtn hl"><span class="n">1</span>START</div>
+        <div class="compose"><span class="box">訊息</span><span class="send"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 11.5 21 3l-8.5 18-2.5-7.5z"/></svg></span></div>
+      </div>
+      <figcaption class="fig-cap"><span class="n">1</span>第一次先按 START（按過之後這顆就變成一般的輸入框）。<span class="n">2</span>傳六個數字。<span class="n">3</span>bot 回「配對成功」就完成了。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="step" id="s4">
+  <div class="step-head"><span class="step-no" aria-hidden="true">4</span><h2>第一則訊息</h2></div>
+  <p class="step-sub">精靈的最後一頁按「完成並開始」，SYNOX 就會開起來（一個縮小的小視窗，那就是 bot 本人）。</p>
+
+  <div class="pair">
+    <div class="text">
+      <h3>手機會收到「我在了」</h3>
+      <ol>
+        <li>幾秒內，你的 bot 會傳來「<strong>👋 我在了，按 /help 看我會什麼。</strong>」看到這句，就全部接通了。</li>
+        <li>回它 <code>/help</code>，它會列出現在會的指令。剛裝好的 SYNOX 只有系統指令（提醒 <code>/remind_add</code>、網頁 <code>/web</code>…），記帳、筆記這些要另外裝工具。</li>
+        <li>有設定 AI 的話，直接用人話講也行，例如「明天早上八點提醒我吃藥」。</li>
+      </ol>
+      <p class="note ok">以後要開 bot：雙擊桌面的「SYNOX」捷徑（或 <code>Start.bat</code>）。關掉那個小視窗（或雙擊 <code>Stop.bat</code>）bot 就下線；下線時手機傳訊息它不會回，開回來也不會補回。</p>
+    </div>
+    <figure class="fig">
+      <div class="fig-head"><span>手機，接通之後</span><span class="badge">示意圖</span></div>
+      <div class="phone">
+        <div class="bar"><span class="back">‹</span><span class="avatar syn" aria-hidden="true">S</span><span class="who"><span class="name">我的小助手</span><span class="st">bot</span></span></div>
+        <div class="chat">
+          <div class="msg in">✅ 配對成功！回到電腦上的安裝畫面，按「下一步」。<span class="t">10:30</span></div>
+          <div class="msg in hl"><span class="n">1</span>👋 我在了，按 /help 看我會什麼。<span class="t">10:34</span></div>
+          <div class="msg out hl right"><span class="n">2</span>/help<span class="t">10:35</span></div>
+          <div class="msg in">我會的：<br>⏰ 提醒（系統）<br>/remind_add 08:00 吃藥 · /remind_list · /remind_rm<br>🌐 /web 拿網頁介面的登入連結<br>…<span class="t">10:35</span></div>
+        </div>
+        <div class="compose"><span class="box">訊息</span><span class="send"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 11.5 21 3l-8.5 18-2.5-7.5z"/></svg></span></div>
+      </div>
+      <figcaption class="fig-cap"><span class="n">1</span>SYNOX 開起來會主動打招呼。<span class="n">2</span>回 /help 看它會什麼（清單內容依你裝的工具而定）。</figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="step" id="faq">
+  <div class="step-head"><span class="step-no" aria-hidden="true">?</span><h2>常見問題</h2></div>
+  <p class="step-sub">照出現的錯字找。每一題都是先講「為什麼」，再講「怎麼做」。</p>
+  <div class="faq">
+
+    <details id="faq-token">
+      <summary>「❌ 這看起來不是 token」或「token 不對（Telegram 說 401）」</summary>
+      <div class="a">
+        <p><strong>「這看起來不是 token」</strong>：貼進來的字<strong>格式</strong>不對。token 一定是「一串數字 <code>:</code> 一串字母數字」，中間有一個冒號。常見原因：只複製到一半、多貼了前後的字（例如把「Use this token…」那句也貼進來）、或貼成 bot 的帳號（<code>@xxx_bot</code>）。回 BotFather 那則訊息，重新長按、整串複製。</p>
+        <p><strong>「token 不對（Telegram 說 401）」</strong>：格式對，但 Telegram 說這把鑰匙<strong>不存在或已作廢</strong>。常見原因：</p>
+        <ul>
+          <li>你後來在 BotFather 按過「Revoke」或傳過 <code>/token</code>，舊的那串已經失效，要用新的。</li>
+          <li>複製時少了一個字，或多了一個字（看起來很像但其實不同）。</li>
+          <li>貼到的是別支 bot 的舊 token。</li>
+        </ul>
+        <p>最快的做法：對 BotFather 傳 <code>/mybots</code> → 點你的 bot → <strong>API Token</strong>，它會把<strong>現在有效的</strong> token 再給你一次，整串複製回來貼。</p>
+        <p><strong>「連不到 Telegram：檢查網路」</strong>：電腦這一刻上不了 Telegram 的伺服器。換個網路、關掉 VPN 或防火牆再按一次「檢查 token」。</p>
+      </div>
+    </details>
+
+    <details id="faq-pair">
+      <summary>傳了六個數字，bot 沒反應</summary>
+      <div class="a">
+        <ul>
+          <li><strong>有沒有先按 START？</strong>還沒按之前，你打的字送不出去。</li>
+          <li><strong>傳對 bot 了嗎？</strong>要傳給<strong>你剛建的那支 bot</strong>（精靈畫面上寫的那個帳號），不是傳給 BotFather。</li>
+          <li><strong>數字還在有效期內嗎？</strong>精靈上的數字 15 分鐘有效；畫面已經顯示「⌛ 等太久了」就重來：關掉精靈、再雙擊 Setup.bat。</li>
+          <li><strong>要用私訊傳</strong>，不要在群組裡傳。而且要用你自己的帳號傳（別的 bot 傳的不算）。</li>
+          <li>精靈畫面還是「⏳ 等你傳過來…」而且過了一分鐘：電腦的網路可能斷了，精靈每幾秒會再試一次，連回來就會收到。</li>
+        </ul>
+      </div>
+    </details>
+
+    <details id="faq-noreply">
+      <summary>配對好了，之後 bot 都不回我</summary>
+      <div class="a">
+        <p>依序檢查這幾件事，九成的情況在前三項：</p>
+        <ol>
+          <li><strong>SYNOX 有開著嗎？</strong>電腦上要有那個縮小的 SYNOX 小視窗（工作列上看得到）。沒有就雙擊桌面的「SYNOX」捷徑。電腦關機、睡眠時 bot 也會下線。</li>
+          <li><strong>小視窗裡有沒有紅字？</strong>點開看最後幾行。常見是 token 失效（401）、或網路不通。</li>
+          <li><strong>你是用配對的那個帳號嗎？</strong>個人版只回配對過的主人，別的帳號傳訊息它會當作沒看到。換了手機號碼、換了 Telegram 帳號就要重新配對（網頁設定 → 聊天通道 → Telegram → 重新配對）。</li>
+          <li><strong>是在群組裡嗎？</strong>SYNOX 現在<strong>只回私訊</strong>（一對一）。把 bot 拉進群組、在群組裡 @ 它，它不會回，見下面「群組」那題。</li>
+          <li>剛在網頁改過 token？要<strong>重新啟動 SYNOX</strong>（Stop.bat → 桌面捷徑）才生效。</li>
+          <li>還是不行：在 SYNOX 資料夾雙擊 <code>Console.bat</code>，可以不連 Telegram 直接在電腦上試指令；或開命令列跑 <code>.venv\Scripts\python.exe -m synox doctor</code>，它會逐項檢查並用人話說哪裡有問題。</li>
+        </ol>
+      </div>
+    </details>
+
+    <details id="faq-revoke">
+      <summary>token 外流了、想換一組 token</summary>
+      <div class="a">
+        <p>token 誰拿到都能操控你的 bot，所以一旦貼錯地方、截圖傳出去，就直接<strong>作廢重發</strong>。bot 本身、它的名字和帳號都不會變，只是換一把鑰匙。</p>
+        <ol>
+          <li>對 BotFather 傳 <code>/mybots</code> → 點你的 bot → <strong>API Token</strong> → <strong>Revoke current token</strong>。它會立刻給你一串新的（舊的那串從這一刻起就失效）。<br><span class="muted">也可以直接傳 <code>/revoke</code>（作廢並重發）或 <code>/token</code>（重發），BotFather 會先問你要處理哪一支 bot。</span></li>
+          <li>把新的 token 貼回 SYNOX：網頁設定 → 聊天通道 → Telegram → 貼上 → 「檢查並存起來」；或再雙擊 Setup.bat 走一次精靈。</li>
+          <li><strong>重新啟動 SYNOX</strong>（Stop.bat → 桌面捷徑）。舊 token 失效的那一刻起、到你重開之前，bot 是下線的。</li>
+        </ol>
+        <p class="muted">配對不用重做：換鑰匙不影響「誰是主人」。</p>
+      </div>
+    </details>
+
+    <details id="faq-privacy">
+      <summary>隱私模式（Privacy mode）要不要開？</summary>
+      <div class="a">
+        <p>隱私模式是 Telegram 對 bot 的一個設定，只影響 bot <strong>在群組裡</strong>看得到哪些訊息：開著（預設）時，bot 在群組只收得到指令（<code>/xxx</code>）、回覆它的訊息、@ 它的訊息；關掉時群組裡每一句它都收得到。<strong>私訊永遠不受影響</strong>，bot 在一對一對話裡本來就收得到全部。</p>
+        <p><strong>SYNOX 現在只在私訊裡工作，所以這個設定你不用動</strong>，維持預設（開著）就好。這也是對群組裡其他人比較禮貌的設定。</p>
+        <p>如果你還是想改：對 BotFather 傳 <code>/setprivacy</code> → 選 bot → Enable／Disable。注意 Telegram 的規則：<strong>改了隱私模式之後，bot 要從群組移除、再加回去</strong>，新設定才會對那個群組生效。</p>
+      </div>
+    </details>
+
+    <details id="faq-group">
+      <summary>可以把 bot 拉進群組一起用嗎？</summary>
+      <div class="a">
+        <p>目前<strong>不行</strong>。SYNOX 的指令和 AI 在 Telegram 群組裡都會被擋掉，這是刻意的：群組裡的人不該碰得到你電腦上的筆記、記帳和提醒。把 bot 加進群組之後，它在群組裡不會回任何話（私訊照常）。</p>
+        <p>想讓家人、同事也用：裝的時候選「<strong>一群人（伺服器版）</strong>」，每個人各自<strong>私訊</strong>你的 bot，你用 <code>/user_list</code>、<code>/user_role</code> 決定誰能用什麼；每個人的資料各自加密、互相看不到。詳情見 SYNOX 的 README「個人版和伺服器版」。</p>
+      </div>
+    </details>
+
+    <details id="faq-rename">
+      <summary>想改 bot 的名字、頭像、說明</summary>
+      <div class="a">
+        <p>這些都在 BotFather 改，跟 SYNOX 無關、不用重新貼 token。傳指令之後它會先問你要改哪一支 bot：</p>
+        <dl class="cmd">
+          <dt><code>/setname</code></dt><dd>改顯示名字（帳號 @xxx_bot 不能改）。</dd>
+          <dt><code>/setuserpic</code></dt><dd>換頭像：傳指令後，把一張圖片傳給它。</dd>
+          <dt><code>/setdescription</code></dt><dd>對話開頭「這個 bot 能做什麼」那段說明，最多 512 字。</dd>
+          <dt><code>/setabouttext</code></dt><dd>個人頁上的簡介，最多 120 字。</dd>
+          <dt><code>/setcommands</code></dt><dd>打「/」時跳出的指令提示清單（SYNOX 啟動時會自己設一份，通常不用手動改）。</dd>
+          <dt><code>/mybots</code></dt><dd>用按鈕的方式看全部設定、拿 token、作廢 token；上面這些指令在裡面都找得到。</dd>
+        </dl>
+      </div>
+    </details>
+
+    <details id="faq-username">
+      <summary>取帳號時它說「Sorry, this username is already taken」</summary>
+      <div class="a">
+        <p>帳號在整個 Telegram 裡不能重複，被別人用掉了。換一個再傳給它就好（不用重來 /newbot）：加上你的名字、數字或底線，例如 <code>amy_home_helper_bot</code>。規則：5 到 32 個字、只能英文字母／數字／底線、結尾一定是 <code>bot</code>（大小寫不分）。</p>
+        <p>它說「Sorry, this username is invalid」通常是結尾不是 bot，或用了中文、空格、連字號。</p>
+      </div>
+    </details>
+
+    <details id="faq-newpc">
+      <summary>換了一台電腦，token 要重拿嗎？</summary>
+      <div class="a">
+        <p>不用。token 跟 bot 綁在一起，不綁電腦。新電腦上雙擊 Setup.bat，到第 2 頁時到 BotFather 傳 <code>/mybots</code> → 你的 bot → API Token 拿同一串貼上即可；配對也要再做一次（六個數字）。</p>
+        <p class="note warn">但要注意：<strong>同一個 token 同一時間只能有一台電腦在跑</strong>。舊電腦的 SYNOX 要先關掉（雙擊 Stop.bat），不然兩邊會搶訊息，兩邊都時好時壞。另外，筆記、記帳這些資料是綁舊電腦加密的，不會自動搬過去，見 README「換電腦？」。</p>
+      </div>
+    </details>
+
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>這一頁放在 SYNOX 資料夾的 <code>docs/tutorials/telegram/index.html</code>，離線也打得開；純文字版在旁邊的 <code>README.md</code>。安裝精靈 token 那一頁的「看圖文教學」、網頁設定「聊天通道」的連結，開的都是這一頁。</p>
+    <p>BotFather 的指令與規則依 Telegram 官方文件（core.telegram.org/bots）整理，2026 年 11 月確認；Telegram 改版時以它實際的畫面為準。畫面示意圖是手繪的，不是截圖。</p>
+  </div>
+</footer>
+
+</body>
+</html>

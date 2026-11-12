@@ -34,6 +34,7 @@ STRINGS = {
     "skip_hint": ("아직 bot이 없거나 먼저 사용해 보고 싶나요? 지금은 건너뛰고, "
                   "나중에 Setup.bat을 더블클릭해 마법사를 다시 실행하면 추가할 수 있습니다."),
     "skip_button": "지금은 건너뛰기 →",
+    "open_tutorial": "그림 안내서 열기",
     "pair_title": "본인 확인",
     "pair_discord_invite": ("Discord bot은 같은 서버에 없는 사람의 DM을 받을 수 없습니다. 먼저 bot을 내 서버에 "
                             "추가하세요(서버가 없으면 Discord에서 무료로 만들 수 있습니다):"),
