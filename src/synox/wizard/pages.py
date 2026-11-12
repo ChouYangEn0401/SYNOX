@@ -27,6 +27,7 @@ import subprocess
 import threading
 import webbrowser
 
+from synox import tutorials
 from synox.config import CONFIG_PATH, ROOT
 from synox.wizard import discord_probe, i18n, logic, shortcuts, telegram_probe
 from synox.wizard.i18n import t
@@ -196,6 +197,9 @@ class Wizard:
                             command=lambda: switch()).pack(side=self.start, padx=(6, 0))
 
         guide = self.label("")
+        # 「看圖文教學」：有 docs/tutorials/<平台>/index.html 才出現（synox/tutorials.py），用瀏覽器開本機那份
+        tutorial_btn = ttk.Button(self.body, text=t("open_tutorial"),
+                                  command=lambda: tutorials.open_local(platform.get()))
         var = tk.StringVar(value=self.existing.get("bot_token", "") if self.platform == "telegram" else "")
         entry = ttk.Entry(self.body, textvariable=var, width=60)
         entry.pack(anchor=self.west, pady=6, fill="x")
@@ -209,6 +213,10 @@ class Wizard:
         def switch():
             self.platform = platform.get()
             guide.configure(text=t("how_to_token") if self.platform == "telegram" else t("how_to_discord_token"))
+            if tutorials.path_of(self.platform):
+                tutorial_btn.pack(anchor=self.west, pady=(0, 4), before=entry)
+            else:
+                tutorial_btn.pack_forget()
             var.set("")
             status.configure(text="")
             self.token, self.bot_name, self.bot_id = "", "", None

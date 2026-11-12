@@ -1,6 +1,47 @@
 # Changelog
 
+## 未發佈（branch feat/landing-readme：介紹頁、README 對齊現況、工具生態文件）
+
+### 新增
+- **介紹頁** `docs/landing/index.html`：單一檔案、雙擊就能看（深淺色跟系統、手機寬度可看）。內容：它是什麼、本機優先（會出門的只有兩條）、
+  網頁版畫面（`docs/ui/screenshots/*.png` 轉成 WebP data URI 嵌進去，約 0.5 MB）、三步裝好、安全（確認卡、五關、信任層級、保管箱）、
+  工具與 pack、alpha 現況、安裝、接下來（分「做好了等驗證」「還沒有」「提案」）。同一份發佈成 Artifact：
+  <https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW>（私人連結）。沒有編任何數字、見證或網址（專案網址照 `synox about` 一樣寫「還沒公開」）。
+- **`docs/ecosystem.md`**：使用者怎麼找、裝、更新（同名再裝＝升級、`packs rollback`）、移除工具；作者怎麼做一個工具給人裝、發佈前清單；
+  「之後的路」（線上目錄、簽章驗證、檢查更新、評分、一鍵安裝、其他平台安裝器）**全部標為提案**並寫現在為什麼沒有；
+  「文件維護清單」：每次發版改了什麼要跟著動哪些文件、教學、介紹頁。
+
+### 文件
+- README：對齊目前的狀態（出廠不帶工具、Telegram 擁有者可在網頁配對、bot 步驟可跳過、網頁四頁＋對話封存＋常駐助理入口、
+  本機擁有者直接開網頁就登入）；新增「文件與教學」一表，連到介紹頁、`docs/tutorials/telegram/`、`docs/tutorials/discord/`、
+  `docs/discord-concepts.md`（教學由另外的分支產生）、`docs/ecosystem.md`。alpha 警告原樣保留。
+- `docs/README.md` 索引加介紹頁、教學、ecosystem。
+
 ## 未發佈（dev，2026-11-12：合併 debug/setup-python-telegram＋跟進 ClawBot／金流簿）
+
+### Telegram 圖文教學與教學的共用管線（branch `feat/tutorial-telegram`，已合併）
+- 新增 [docs/tutorials/telegram/index.html](docs/tutorials/telegram/index.html)：給電腦新手的一步一圖教學——跟 @BotFather 建 bot、拿 token、
+  貼進 SYNOX（精靈或網頁設定）、六位數配對、第一則訊息；常見問題（token 格式／401、bot 不回、作廢重發 token、隱私模式、群組、改名與頭像、
+  帳號被佔、換電腦）。自足一頁（沒有外部資源、沒有 JavaScript）、亮暗兩色、手機可看；示意圖是手繪的 HTML／CSS 框，都標「示意圖」。
+  純文字版 `telegram/README.md`（含「怎麼更新」）；線上版（Artifact）網址與加新教學的規則在 [docs/tutorials/README.md](docs/tutorials/README.md)。
+  BotFather 的指令與規則對照 Telegram 官方文件（core.telegram.org/bots/features、/bots/tutorial）。
+- 共用管線（Discord 之後只要放 `docs/tutorials/discord/index.html`，不用改程式）：新 `src/synox/tutorials.py`（`path_of`／`names`／`read`／`open_local`）；
+  網頁 `GET /tutorials/<名字>/`（公開文件、不用登入、嚴格 CSP：只放行內嵌樣式與 data: 圖）；精靈 token 頁多一顆「看圖文教學」
+  （有那個平台的教學才出現，用瀏覽器開本機那份；12 種語言各加一句 `open_tutorial`）；網頁設定「聊天通道」Telegram 那一格多一個連結；
+  `synox init` 印本機檔路徑。發佈 zip／安裝程式本來就帶 `docs/`。測試 `tests/test_tutorials.py`。
+
+### Discord 觀念篇與步驟教學（branch `feat/tutorial-discord`，已合併）
+- 新增 [docs/discord-concepts.md](docs/discord-concepts.md)：給覺得 Discord 難懂的人——名詞對照（Application／bot user／token／intent／guild／頻道／私訊／身分組／ID）、
+  一支 bot 的三種用法（私訊、伺服器、同伺服器不同頻道）、對照到 SYNOX 今天做得到／做不到的表、四種情境的決定表（只有我／私人伺服器／公開頻道／每頻道不同）、
+  公開頻道的風險表、**每頻道設定的提案**（`guilds.<g>.channels` 的每一項可寫成物件、收訊時算派生 BotSpec 丟給現有的 `policy.using_bot`；還沒做）、
+  查證紀錄（2026-11-12 讀的 docs.discord.com 官方文件，含哪些是官方、哪些是社群共識）。
+- 新增 [docs/tutorials/discord/](docs/tutorials/discord/README.md)：`index.html` 單一檔案的逐步教學（建 Application → token → Message Content intent →
+  URL Generator → 邀進伺服器／私訊 → 開發者模式與複製 ID → 貼進 SYNOX 的三條路 → 配對的三條路 → 測試 → 頻道與每頻道不同 → 安全 → 疑難排解
+  （bot 離線、4014、4004、50001、50013、50007、沒回、429、token 外洩 → Reset Token）→ 還沒驗證的事）；步驟圖是 HTML／CSS 畫的**示意圖**（不是截圖），
+  深淺色、手機可看；`README.md` 是同一份的純文字版＋更新方式。同一個檔案也發佈成 Artifact（網址在 README 頂端）。
+- `docs/discord.md` 頂端加一節「先看這些」連到上面兩份。
+- 查證時發現兩件要注意的：官方說 **User Install 的 app 只能用 slash 指令**（SYNOX 沒有 slash 指令，所以 `docs/discord.md` 第 1 節把 User Install 列為
+  讓 bot 收私訊的選項之一，**未驗證**；教學一律走「邀進伺服器」）；特權 intent 的審核門檻官方現在是「1 萬個不重複使用者」（不是舊的 100 個伺服器）。
 
 ### 網頁的開場動畫與微動畫（branch `feat/ui-splash`，還沒合併）
 - 打開網頁時「S 寶寶」掉下來、眨眼、說嗨、翻面變成 S 標誌、SYNOX 字樣跳出來（約 1.7 秒；點一下或按任何鍵略過；同一個分頁只播一次）；
