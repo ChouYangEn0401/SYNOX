@@ -616,7 +616,7 @@ def remove(name: str, packs_dir: str, now=None, data_dir: Optional[str] = None) 
         raise PackAdminError("pack 名字不對")
     folder = os.path.join(packs_dir, name)
     if not os.path.isfile(os.path.join(folder, "pack.json")):
-        raise PackAdminError(f"packs/ 裡沒有 {name}（出廠的 connector 設計稿不能從這裡移除）")
+        raise PackAdminError(f"packs/ 裡沒有 {name}（只有裝在 packs/ 的工具能從這裡移除；packs.dirs 指過去的請改 config.json）")
     installed = upgrade.installed_manifest(packs_dir, name)
     dest = upgrade.archive(folder, name, installed[0].version if installed else "", packs_dir, data_dir,
                            now=now, reason="remove")

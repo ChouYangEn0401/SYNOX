@@ -10,7 +10,7 @@
 > - `client_id` 要事先在服務那邊登記（SYNOX 這一版不做動態註冊）；登記的 redirect URI 要是
 >   `http://127.0.0.1:47232/`（SYNOX 不在那裡聽，見下面）。
 
-現有的 `connectors/notion`（REST、integration token）保留不動；這個範例是另一條路：讓 Notion 自己的 MCP 伺服器提供工具。
+SYNOX 工具庫（SYNOX_Libs）的 `notion` 工具（REST、integration token；以前是 SYNOX 的 `connectors/notion`）保留不動；這個範例是另一條路：讓 Notion 自己的 MCP 伺服器提供工具。
 
 ## 示範什麼
 
