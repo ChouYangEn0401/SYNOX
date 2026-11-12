@@ -376,12 +376,14 @@ def test_discord_only_config_owner_defaults_to_reserved(tmp_path):
     assert run_channels(app.config) == ()
 
 
-def test_no_channel_at_all_is_config_error(tmp_path):
+def test_no_channel_runs_web_only_and_errors_when_web_is_off_too(tmp_path):
     from isdtelekit.host.config import ConfigError
     from synox.__main__ import run_channels
     config = SynoxConfig.from_dict({"owner_id": 1}, require_token=False, root=str(tmp_path))
+    assert run_channels(config) == ()
+    off = SynoxConfig.from_dict({"owner_id": 1, "web": {"enabled": False}}, require_token=False, root=str(tmp_path))
     with pytest.raises(ConfigError):
-        run_channels(config)
+        run_channels(off)
 
 
 def test_owner_dm_roundtrip(tmp_path):

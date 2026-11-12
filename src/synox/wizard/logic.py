@@ -188,6 +188,12 @@ def save(path: str, cfg: dict, vault_opener=None) -> dict:
     return cfg
 
 
+def local_owner_id() -> int:
+    """沒接 Telegram 的擁有者 id（保留號段第一號）：網頁介面、Discord 配對都認這個人；之後補 Telegram 會換成真的 id。"""
+    from synox.identity import BASE
+    return BASE
+
+
 def discord_owner_sentinel() -> int:
     """Discord-only 擁有者的 owner_id：保留號段的第一號（跟 config.py 的說明、pair-discord 一致）。"""
     from synox.identity import BASE

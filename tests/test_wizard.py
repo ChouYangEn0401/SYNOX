@@ -317,3 +317,11 @@ def test_save_discord_token_refuses_multi_bot_config(tmp_path):
 
 def test_claude_download_url_is_https():
     assert logic.CLAUDE_DOWNLOAD_URL.startswith("https://")
+
+
+def test_shortcut_script_icon():
+    s = shortcuts.shortcut_script(r"C:\x\SYNOX.lnk", r"C:\a\Start.bat", r"C:\a", icon=r"C:\a\i.ico")
+    assert r"$s.IconLocation = 'C:\a\i.ico'" in s
+    assert "IconLocation" not in shortcuts.shortcut_script(r"C:\x\a.lnk", r"C:\a\b.bat", r"C:\a")
+    import os
+    assert shortcuts.icon_path(os.path.dirname(os.path.dirname(__file__))).endswith("synox.ico")
