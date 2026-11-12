@@ -2,6 +2,12 @@
 
 ## 未發佈（dev，2026-11-12：合併 debug/setup-python-telegram＋跟進 ClawBot／金流簿）
 
+### 網頁的開場動畫與微動畫（branch `feat/ui-splash`，還沒合併）
+- 打開網頁時「S 寶寶」掉下來、眨眼、說嗨、翻面變成 S 標誌、SYNOX 字樣跳出來（約 1.7 秒；點一下或按任何鍵略過；同一個分頁只播一次）；
+  頁面切換、卡片進場、按鈕、對話泡泡、狀態點、背景淡光與小光點的微動畫。版面沒動；系統開了「減少動態效果」→ 開場不播、動畫全關。
+  新檔 `static/splash.js`／`splash.css`（`app.html` 只多兩行 include；CSP、server.py 沒改）。手法取自 ISDPCS，說明與時間表：
+  [docs/ui/motion-notes.md](docs/ui/motion-notes.md)。預覽多了「重播開場」（`?splash=1`）。要你決定的：[QuestionToUser.md](QuestionToUser.md) QM1～QM3。
+
 ### 常駐助理、心跳、runtime loop（branch `feat/runtime-heartbeat`，還沒合併）
 - 新增 `src/synox/runtime/`：常駐的排程迴圈（每個任務自己的執行緒、逾時、失敗退避、連續 5 次失敗通知一次）、
   心跳（預設每 45 分鐘、下限 15 分鐘、沒有新狀況不叫 AI、安靜時段、每天通知／叫 AI 的上限）、常駐助理（母 session：沒有工具、
