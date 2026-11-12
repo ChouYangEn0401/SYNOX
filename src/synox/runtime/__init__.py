@@ -55,7 +55,7 @@ class Runtime:
             soul_at = None
         from synox.runtime.loop import iso
         return {"heartbeat": self.heartbeat.view(),
-                "mother": {"state": self.mother.state, "last_active_at": iso(self.mother_last_active()),
+                "mother": {"state": self.mother.state, "ai": self.mother.adapter is not None, "last_active_at": iso(self.mother_last_active()),
                            "soul_updated_at": iso(soul_at)},
                 "tasks": self.loop.views()}
 

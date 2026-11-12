@@ -439,6 +439,10 @@
           <div class="txt"><h2>AI 從哪裡來</h2><p class="sub" id="llm-now"></p></div></div>
         <label class="f" for="llm-choice">來源</label>
         <select id="llm-choice"></select>
+        <div id="llm-cc-fields" class="hidden">
+          <label class="f" for="llm-cc-model">模型</label>
+          <select id="llm-cc-model"></select>
+        </div>
         <div id="llm-key-fields">
           <label class="f" for="llm-key">API key（留空＝沿用原本的）</label>
           <input id="llm-key" type="password" autocomplete="off" size="40">
@@ -760,13 +764,19 @@
   function syncLlmFields() {
     var c = selectedChoice();
     $("llm-key-fields").classList.toggle("hidden", c.choice !== "keys");
+    var cc = $("llm-cc-fields");
+    cc.classList.toggle("hidden", c.choice !== "claude_code");
+    if (c.choice === "claude_code" && $("llm-cc-model").options.length === 0) {
+      (c.models || []).forEach(function (m) { var o = el("option", "", m.label); o.value = m.value; $("llm-cc-model").appendChild(o); });
+    }
     $("llm-url-wrap").classList.toggle("hidden", !c.needs_url);
     if (c.model && !$("llm-model").value) { $("llm-model").value = c.model; }
   }
   function llmBody() {
     var c = selectedChoice();
     return { choice: c.choice, provider: c.provider || "", api_key: $("llm-key").value,
-             model: $("llm-model").value, base_url: $("llm-url").value };
+             model: c.choice === "claude_code" ? $("llm-cc-model").value : $("llm-model").value,
+             base_url: $("llm-url").value };
   }
   function loadSettings() {
     api("GET", "/api/settings").then(function (d) {
@@ -799,6 +809,7 @@
     $("llm-now").textContent = "現在：" + d.llm.kind + (d.llm.model ? "（" + d.llm.model + "）" : "") +
       (d.llm.has_key ? "，有金鑰" : "");
     syncLlmFields();
+    if (d.llm.kind === "claude_code") { $("llm-cc-model").value = d.llm.model || ""; }
   }
   $("llm-choice").addEventListener("change", function () { $("llm-model").value = ""; syncLlmFields(); });
   $("llm-test").addEventListener("click", function () {

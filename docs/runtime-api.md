@@ -31,6 +31,7 @@
   },
   "mother": {
     "state": "idle",
+    "ai": true,
     "last_active_at": "2026-11-12T14:30:04+08:00",
     "soul_updated_at": "2026-11-10T21:02:11+08:00"
   },
@@ -47,6 +48,7 @@
 
 | 欄位 | 說明 |
 |---|---|
+| `mother.ai` | 有沒有設定 AI 來源（`false`＝設定頁選了「先不用 AI」，這時 `state` 一定是 `off`；到設定頁存好 AI 來源就立刻變 `true`，不用重開） |
 | `heartbeat.enabled` | 心跳開著沒（`config.json` 的 `runtime.heartbeat.enabled`，預設 `true`） |
 | `heartbeat.interval_min` | 幾分鐘巡一次（預設 45） |
 | `heartbeat.last_run_at` | 上一次巡的時間；從沒巡過＝`null` |

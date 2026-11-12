@@ -114,6 +114,7 @@
       },
       mother: {
         state: mo.state || "off",
+        ai: mo.ai !== false,                     // 沒有這個欄位（舊後端）＝當作有 AI
         last_active_at: mo.last_active_at || null,
         soul_updated_at: mo.soul_updated_at || null
       },
@@ -134,7 +135,9 @@
     var counts = { ok: 0, running: 0, failed: 0, idle: 0 };
     s.tasks.forEach(function (t) { if (counts.hasOwnProperty(t.state)) { counts[t.state] += 1; } });
     return {
-      mother: { tone: ms.tone, label: ms.label, hint: ms.hint,
+      mother: { tone: ms.tone, label: ms.label,
+                hint: (mo.state === "off" && !mo.ai) ?
+                  "還沒設定 AI 來源：到〔設定〕選好並存起來，這裡馬上就會開始跑（不用重開）。" : ms.hint,
                 lastActive: when(mo.last_active_at, now, "還沒有活動"),
                 soulUpdated: when(mo.soul_updated_at, now, "還沒寫過") },
       heartbeat: {

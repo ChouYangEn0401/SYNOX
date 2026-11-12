@@ -63,19 +63,18 @@ def install(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLoop]:
                           private_only=True, **group_policy(app, "member", server))
     g = registry.group("agent")
     llm = getattr(config, "llm", {}) or {}
-    loop: Optional[AgentLoop] = None
     desk = ApprovalDesk(app)
     app.extras["synox_approval_desk"] = desk        # cli pack 的 needs_confirm 也用這張卡（packs/loader.py、packs/confirm.py）
     budget = MemberBudget(app, config) if server else None
     app.extras["synox_budget"] = budget
-    if adapter is not None:
-        loop = AgentLoop(app, adapter, max_steps=int(llm.get("max_steps", 6)),
-                         history_turns=int(llm.get("history_turns", 6)), desk=desk, budget=budget)
-        desk.on_done = loop.note
-        app.dispatcher.fallback = AgentFallback(app, loop)
-    app.extras["synox_agent"] = loop
+    app.extras["synox_agent"] = None
+    set_adapter(app, adapter, config)                # 同一個函式也給網頁設定頁「存起來」用：換了立刻生效，不用重開
+
+    def cur() -> Optional[AgentLoop]:               # 指令每次都看現在的（設定頁可能剛換過 AI 來源）
+        return app.extras.get("synox_agent")
 
     def cmd_ai(api, chat_id, user, args):
+        loop = cur()
         if loop is None:
             api.send_message(chat_id, NOT_SET)
             return
@@ -89,6 +88,7 @@ def install(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLoop]:
         return f"{label}：{b.get('calls', 0)} 次，輸入 {b.get('input', 0):,} / 輸出 {b.get('output', 0):,} token"
 
     def cmd_usage(api, chat_id, user, args):
+        loop = cur()
         if loop is None:
             api.send_message(chat_id, NOT_SET)
             return
@@ -96,15 +96,16 @@ def install(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLoop]:
             s = budget.book(user.tg_id).summary()
             used, limit = budget.month_usd(user.tg_id), budget.limit(user.tg_id)
             api.send_message(chat_id, "\n".join([
-                f"🤖 {adapter.name}", line("今天", s["today"]), line("這個月", s["month"]),
+                f"🤖 {loop.adapter.name}", line("今天", s["today"]), line("這個月", s["month"]),
                 f"這個月的額度：用了約 US${used:.2f}／US${limit:.2f}" + ("（用完了）" if used >= limit else "")]))
             return
         s = loop.usage.summary()
-        api.send_message(chat_id, "\n".join([f"🤖 {adapter.name}（每輪最多 {loop.max_steps} 步）",
+        api.send_message(chat_id, "\n".join([f"🤖 {loop.adapter.name}（每輪最多 {loop.max_steps} 步）",
                                              line("今天", s["today"]), line("這個月", s["month"]),
                                              line("全部", s["total"])]))
 
     def cmd_reset(api, chat_id, user, args):
+        loop = cur()
         n = loop.reset(chat_id, user) if loop is not None else 0
         api.send_message(chat_id, f"🤖 好，忘掉這裡的對話紀錄了（{n // 2} 輪）。")
 
@@ -140,6 +141,37 @@ def install(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLoop]:
         g.leaf("ai_budget", cmd_budget, "設某個人每月的 AI 額度（美元）", usage="<id> <美元|default>",
                effect=WRITE, role=app.users.top_role, ai=False)
     registry.bind_callback(PREFIX, "agent.ai_approve", desk.on_button)
+    return cur()
+
+
+def set_adapter(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLoop]:
+    """設定 AI 來源（啟動時，以及網頁設定頁「存起來」時）：對話助理與常駐助理一起換，立刻生效。
+
+    - adapter=None ＝ 不用 AI：拿掉私訊的自由文字出口，指令照舊。
+    - 原本就有 AgentLoop ＝ 只換它的 adapter（對話紀錄、用量、確認卡都留著；頻道型 bot 的 RoomAgent 讀 base.adapter，跟著換）。
+    - 原本沒有（之前是「先不用 AI」）＝ 現在才建。注意：啟動時沒有 AI 就沒建的 Discord 頻道 AI（room.install_for）
+      要重開 SYNOX 才會出現。
+    """
+    llm = getattr(config, "llm", {}) or {}
+    loop = app.extras.get("synox_agent")
+    if adapter is None:
+        if loop is not None:
+            app.dispatcher.fallback = None
+        loop = None
+    elif loop is not None:
+        loop.adapter = adapter
+        loop.max_steps = int(llm.get("max_steps", loop.max_steps))
+    else:
+        desk = app.extras["synox_approval_desk"]
+        loop = AgentLoop(app, adapter, max_steps=int(llm.get("max_steps", 6)),
+                         history_turns=int(llm.get("history_turns", 6)), desk=desk,
+                         budget=app.extras.get("synox_budget"))
+        desk.on_done = loop.note
+        app.dispatcher.fallback = AgentFallback(app, loop)
+    app.extras["synox_agent"] = loop
+    rt = getattr(app, "extras", {}).get("synox_runtime")
+    if rt is not None:                                  # 常駐助理（母 session）用同一個 adapter
+        rt.mother.adapter = adapter
     return loop
 
 
