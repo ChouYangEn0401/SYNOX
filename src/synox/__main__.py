@@ -140,7 +140,8 @@ def cmd_console(args) -> int:
 
 def cmd_wizard(args) -> int:
     from synox.wizard import pages
-    return pages.main(config_path=args.config or CONFIG_PATH)
+    lang = getattr(args, "lang", None) or os.environ.get("SYNOX_LANG") or None   # Setup.bat 問過的語言
+    return pages.main(config_path=args.config or CONFIG_PATH, lang=lang)
 
 
 def cmd_doctor(args) -> int:
@@ -643,7 +644,9 @@ def main(argv=None) -> int:
     p = sub.add_parser("console", help="在終端機試（不連 Telegram）")
     p.add_argument("--as", dest="as_user", type=int, default=None, help="用這個使用者 id 講話（預設擁有者）")
     p.add_argument("--llm", choices=["fake", "none"], default=None, help="這次改用假 AI 或不用 AI")
-    sub.add_parser("wizard", help="安裝精靈")
+    p = sub.add_parser("wizard", help="安裝精靈")
+    p.add_argument("--lang", default=None,
+                   help="安裝精靈的語言（zh-TW、zh-CN、en、es、fr、de、pt-BR、ru、ar、hi、ja、ko）；沒給就在第一頁問")
     p = sub.add_parser("doctor", help="健康檢查")
     p.add_argument("--offline", action="store_true", help="不實際打 AI")
     sub.add_parser("stop", help="停掉正在跑的 bot")
