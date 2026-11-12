@@ -1,0 +1,11 @@
+{
+  "case": "rewrite-03",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "text": "Thank you for your patience. We will get back to you by Friday."
+      }
+    ]
+  ]
+}

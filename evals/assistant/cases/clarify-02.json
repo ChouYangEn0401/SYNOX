@@ -1,0 +1,30 @@
+{
+  "id": "clarify-02",
+  "category": "clarify",
+  "split": "tune",
+  "title": "開會的時間與對象都沒說：先問清楚",
+  "turns": [
+    "幫我約下週開會"
+  ],
+  "tools": [
+    {
+      "name": "calendar__add"
+    },
+    {
+      "name": "calendar__list"
+    }
+  ],
+  "expect": {
+    "ask_back": true,
+    "must_not_call": [
+      "calendar__add"
+    ],
+    "max_steps": 2
+  },
+  "soft": [
+    {
+      "name": "追問品質",
+      "rubric": "一次問清楚缺的資訊、問題具體好回答；5＝一句話問到重點"
+    }
+  ]
+}

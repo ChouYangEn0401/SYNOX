@@ -4,6 +4,7 @@
 
 Takes the files git tracks (so nothing you did not commit sneaks in) and always leaves out
 .venv/, data/, config.json, runtime/, dist/ and caches -- the zip never contains a token, a key or your data.
+The assistant eval set (evals/, a developer tool) is left out too.
 Falls back to walking the folder when git is not available.
 
 --tools: also put the tool library next to SYNOX as SYNOX/tools/ (index.json + every .synoxpack it lists, sha256
@@ -22,8 +23,8 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXCLUDED_DIRS = {".venv", "data", "dist", ".git", "__pycache__", ".pytest_cache"}
-ROOT_ONLY_DIRS = {"runtime", "tools", "wheelhouse"}   # 只看 SYNOX 資料夾最上層的（執行時的狀態、另外附的東西）；
-#                                                       src/synox/runtime 是程式碼
+ROOT_ONLY_DIRS = {"runtime", "tools", "wheelhouse", "evals"}   # 只看 SYNOX 資料夾最上層的（執行時的狀態、另外附的東西、
+#                                                       開發用的評測資料）；src/synox/runtime、src/synox/evals 是程式碼
 EXCLUDED_FILES = {"config.json"}
 
 

@@ -6,6 +6,9 @@
          "messages": [{"id": 7, "rev": 11, "from": "me"|"bot"|"note", "text": "…",
                        "buttons": [[{"text": "✅ 執行", "data": "agent_ok:go:…"}]], "at": …}]}]}
 
+- "blocks"（選配）：呈現層的區塊（synox/present/web.py 的 wire；config presentation.enabled 開著時 AI 回覆才有），
+  網頁用 static/blocks.js 畫；text 仍是原本的文字（預覽、常駐助理讀的都是它）。改字或刪掉時一起拿掉。
+
 - 檔案：有保管箱 → data/web_chats/<tg_id>.json.enc（那個人的金鑰，vault.for_user(id).at(...)）；
   沒有保管箱 → data/web_chats/<tg_id>.json。
 - 封存：chat 多一個 "archived"（封存的時間）。封存的對話不出現在側欄、不算在 MAX_CHATS 裡（不會被擠掉）、不能再傳訊息；
@@ -186,7 +189,7 @@ class ChatStore:
 
     # ── 訊息 ─────────────────────────────────────────────────────────
 
-    def append(self, tg_id: int, chat_id: str, who: str, text: str, buttons=None) -> dict:
+    def append(self, tg_id: int, chat_id: str, who: str, text: str, buttons=None, blocks=None) -> dict:
         with self._lock:
             data = self._data(tg_id)
             chat = self.get(tg_id, chat_id)
@@ -195,6 +198,8 @@ class ChatStore:
             data["rev"] = int(data.get("rev", 0)) + 1
             msg = {"id": int(data.get("next_id", 1)), "rev": data["rev"], "from": who, "text": str(text),
                    "buttons": buttons or [], "at": self._clock()}
+            if blocks:
+                msg["blocks"] = list(blocks)
             data["next_id"] = msg["id"] + 1
             chat["messages"].append(msg)
             del chat["messages"][:max(0, len(chat["messages"]) - self.keep)]
@@ -221,10 +226,12 @@ class ChatStore:
                 return False
             if text is not None:
                 msg["text"] = str(text)
+                msg.pop("blocks", None)                  # 字換了，舊的區塊就不對了
             if buttons is not _KEEP_BUTTONS:
                 msg["buttons"] = buttons or []
             if deleted:
                 msg["text"], msg["buttons"], msg["deleted"] = "（這則訊息已刪除）", [], True
+                msg.pop("blocks", None)
             data["rev"] = int(data.get("rev", 0)) + 1
             msg["rev"] = data["rev"]
             self._save(tg_id)

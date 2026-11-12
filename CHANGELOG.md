@@ -43,6 +43,32 @@
 - 查證時發現兩件要注意的：官方說 **User Install 的 app 只能用 slash 指令**（SYNOX 沒有 slash 指令，所以 `docs/discord.md` 第 1 節把 User Install 列為
   讓 bot 收私訊的選項之一，**未驗證**；教學一律走「邀進伺服器」）；特權 intent 的審核門檻官方現在是「1 萬個不重複使用者」（不是舊的 100 個伺服器）。
 
+### 心跳：失敗狀態沒變就不再叫 AI（branch `feat/cb1-heartbeat`，還沒合併）
+- 有任務一直壞著時，心跳不再每次都叫 AI（以前一天最多多叫 30 幾次）：失敗只看「哪個任務＋去掉數字的原因」，沒變就記一句「失敗狀態沒有變化」；
+  同一批失敗只通知一次（新的壞了、原因變了、恢復了才再來）；安靜時段擋下的，時段過了再問一次；指紋存在 `state.json`（只有雜湊），重開後接著用。
+  每日上限、安靜時段、手動一定叫 AI 都照舊，設定沒有新欄位。說明：[ADR 0001 §3「2026-11 修訂」](docs/adr/0001-runtime-loop-heartbeat-mother-session.md)。
+
+### 對話助理評測集與離線重放（branch `feat/cb2-eval`，還沒合併）
+- 新增 30 題日常助理任務（記事、改寫與摘要、查資料、行程、該追問／不該追問、拒絕、提示注入、多回合記憶、工具鏈；
+  tune 20 題、holdout 10 題），每題有自動判定的硬檢查，品質項目只留給人看的欄位。題目全部是虛構情境與範例網域。
+- 「某個模型對每一題的回覆」錄成檔案就能**離線重放**：照劇本回話的假 AI 接在**真的**對話迴圈上（工具清單、參數驗證、
+  確認卡、步數上限、對話記憶都是真的），工具一律是假的；劇本跟題目對不上時標 `replay_mismatch`，不硬算。
+- 報表：每題 pass／fail 與沒過的檢查、每一類通過率、tune／holdout 分開的總分、簡體字統計（只統計）；文字＋JSON、每次一字不差。
+- 指令：`scripts/eval_assistant.py`；怎麼新增題目：[evals/assistant/README.md](evals/assistant/README.md)。
+  不呼叫任何真的 AI、沒有「真跑」模式（要先決定花費上限，見 README 最後一節）；對話助理本身沒有改。
+- `evals/` 是開發用的，`scripts/make_zip.py` 不打包它。
+
+### 用 Docker 開發與執行（branch `feat/docker-support`，還沒合併）
+- 新增開發容器 `.devcontainer/devcontainer.json`（Python 3.11、裝相依、pytest；網頁埠只轉到本機 localhost）與執行用映像檔：
+  `Dockerfile`（兩段式、非 root、`HEALTHCHECK` 不經對外的埠）、`.dockerignore`（白名單）、`docker-compose.yml`（具名 volume、
+  埠只發佈到宿主 127.0.0.1、唯讀根目錄、tmpfs、cap_drop ALL、資源上限）、`.env.example`、`docker/healthcheck.py`。說明：[docs/docker.md](docs/docker.md)。
+- 網頁介面：只有在 SYNOX 的容器裡（`SYNOX_IN_CONTAINER=1`＋容器證據）且 `SYNOX_WEB_BIND=0.0.0.0` 才綁容器自己的 0.0.0.0；
+  預設行為不變（127.0.0.1），其他值一律拒、網頁不開（`web/server.py` 的 `bind_host`，`tests/test_web_bind.py`）。
+- 映像檔**還沒實際建置、容器還沒實際跑過**：驗證清單在 docs/docker.md「驗證」。
+
+### 呈現層：與通道無關的內容區塊（branch `feat/cb3-blocks`，還沒合併）
+- 新增 `synox.present`（[docs/presentation.md](docs/presentation.md)）：AI 回覆的 Markdown → 區塊 → Telegram HTML（4096 切割）／Discord（2000 切割、圍欄不斷）／網頁區塊，表格依寬度降級；設定 `"presentation": {"enabled": false}` **預設關**，關著時送出的東西跟以前完全一樣。
+
 ### 網頁的開場動畫與微動畫（branch `feat/ui-splash`，還沒合併）
 - 打開網頁時「S 寶寶」掉下來、眨眼、說嗨、翻面變成 S 標誌、SYNOX 字樣跳出來（約 1.7 秒；點一下或按任何鍵略過；同一個分頁只播一次）；
   頁面切換、卡片進場、按鈕、對話泡泡、狀態點、背景淡光與小光點的微動畫。版面沒動；系統開了「減少動態效果」→ 開場不播、動畫全關。

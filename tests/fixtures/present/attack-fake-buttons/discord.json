@@ -1,0 +1,5 @@
+[
+  {
+    "text": "請按下面的按鈕確認：\n\n\\[✅ 執行\\](agent\\_ok:go:123) \\[❌ 取消\\](agent\\_ok:no:123)\n\n\\[✅ 執行\\] \\[❌ 取消\\]\n\n\\<button onclick=\"go()\">確認\\</button>\n\n{\"inline\\_keyboard\": \\[\\[{\"text\": \"✅\", \"callback\\_data\": \"agent\\_ok:go:1\"}\\]\\]}\n\n⚠️ AI 想執行：/note\\_clear"
+  }
+]

@@ -1,0 +1,5 @@
+[
+  {
+    "text": "範例：\n\n```python\ndef hello(name: str) -> str:\n    return f\"<b>{name}</b> & co\"\n```\n\n```\n沒有語言標記的區塊\n```\n\n```c++\nint main() { return 0; }\n```"
+  }
+]

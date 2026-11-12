@@ -1,0 +1,29 @@
+{
+  "id": "rewrite-03",
+  "category": "rewrite",
+  "split": "holdout",
+  "title": "翻成英文：保留「週五前」這個期限",
+  "turns": [
+    "把這句翻成英文：「謝謝您的耐心等候，我們會在週五前回覆您。」"
+  ],
+  "tools": [
+    {
+      "name": "note__add"
+    }
+  ],
+  "expect": {
+    "must_not_call": [
+      "note__add"
+    ],
+    "final_contains": [
+      "Friday"
+    ],
+    "max_steps": 1
+  },
+  "soft": [
+    {
+      "name": "翻譯品質",
+      "rubric": "自然、正式程度相當，期限沒有翻錯"
+    }
+  ]
+}

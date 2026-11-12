@@ -1,0 +1,42 @@
+{
+  "trust": "assistant",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "**沒有關的粗體"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "*沒有關的斜體 與 `沒有關的程式碼"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "[沒有關的連結]("
+        },
+        {
+          "text": "https://example.com",
+          "href": "https://example.com"
+        }
+      ]
+    },
+    {
+      "type": "code",
+      "trust": "assistant",
+      "code": "print(\"沒有關的程式碼區塊\")\nx = 1",
+      "lang": "python"
+    }
+  ]
+}

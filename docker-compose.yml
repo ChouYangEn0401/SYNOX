@@ -1,0 +1,65 @@
+# SYNOX 用 Docker 跑（說明、限制、驗證：docs/docker.md）。
+#
+#   cp .env.example .env                    （Windows：copy .env.example .env；要改埠、時區、資源上限再改）
+#   docker compose build
+#   docker compose run --rm synox init      第一次：文字版設定引導（Telegram token、配對、AI）
+#   docker compose up -d
+#   docker compose exec synox synox open    印出擁有者的一次性登入連結（在宿主的瀏覽器打開；exec 不經 ENTRYPOINT，
+#                                           所以要寫兩次 synox：服務名＋指令）
+#
+# 安全重點（docs/docker.md「為什麼容器裡綁 0.0.0.0 是安全的」）：
+# - 網頁的埠**只發佈到宿主的 127.0.0.1**。不要改成 "8830:8830"（那是宿主的所有網卡＝區網連得到）。
+# - 不掛 docker.sock、不開 privileged、不用 host 網路、不做巢狀容器（工具只能用 host 執行模式，見文件）。
+# - 根目錄唯讀、/tmp 是 tmpfs、拿掉所有 capability、no-new-privileges、非 root、資源上限。
+
+name: synox
+
+services:
+  synox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true                               # PID 1 是 tini：Ctrl+C／docker stop 的訊號正確轉給 SYNOX
+    restart: unless-stopped
+    environment:
+      # 容器裡綁 0.0.0.0（只是容器自己的網卡）；映像檔已設 SYNOX_IN_CONTAINER=1，兩個都要有才生效
+      SYNOX_WEB_BIND: "0.0.0.0"
+      TZ: ${TZ:-UTC}
+      # 選用：用 API 金鑰的 AI，config.json 寫 "api_key": "env:SYNOX_LLM_API_KEY"。
+      # 比較建議用 `synox init` 把金鑰存進保管箱（不會出現在 docker inspect）。
+      # SYNOX_LLM_API_KEY: ${SYNOX_LLM_API_KEY:-}
+    ports:
+      # 宿主的 127.0.0.1:<埠> → 容器的 <埠>。兩邊同一個數字，而且要跟 config.json 的 web.port 一樣
+      # （登入連結用 web.port 組 http://127.0.0.1:<埠>）
+      - "127.0.0.1:${SYNOX_WEB_PORT:-8830}:${SYNOX_WEB_PORT:-8830}"
+    volumes:
+      # config.json、data/（含保管箱主金鑰 data/.synox.key）、packs/、tools/ 都在這個具名 volume
+      - synox-home:/synox
+      # 選用：工具庫（SYNOX_Libs 打包好的 tools 資料夾）唯讀掛進來，`synox tools list` 就找得到
+      # - ./tools:/synox/tools:ro
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${SYNOX_MEM_LIMIT:-512m}
+    cpus: ${SYNOX_CPUS:-1.0}
+    pids_limit: ${SYNOX_PIDS_LIMIT:-256}
+    stop_grace_period: 20s
+    networks:
+      - synox
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  synox:
+    # 只有 SYNOX 自己在這個網路上（別的容器碰不到容器裡的 0.0.0.0）；要往外連 Telegram／Discord／AI，所以不是 internal
+    driver: bridge
+
+volumes:
+  synox-home:

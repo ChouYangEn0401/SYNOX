@@ -1,0 +1,16 @@
+{
+  "case": "note-03",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "note__clear",
+            "args": {}
+          }
+        ]
+      }
+    ]
+  ]
+}

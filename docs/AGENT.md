@@ -17,6 +17,8 @@
 - 乾淨安裝的模擬：`.venv\Scripts\python.exe scripts\clean_room_check.py [--tools <Libs dist>｜--libs <SYNOX_Libs>]`（暫存資料夾、
   清掉 SYNOX_*／PATH／使用者資料夾；重用這個直譯器，不建 venv、不 pip、不連網）。發佈（lock、wheelhouse、安裝程式）：[adr/0003](adr/0003-distribution-git-clone-and-installer.md)、
   [handoff/clean-machine-test.md](handoff/clean-machine-test.md) B-1
+- 對話助理的離線評測：`.venv\Scripts\python.exe scripts\eval_assistant.py [--split tune|holdout|all] [--replies <資料夾>] [--json <檔>]`
+  （照劇本重放在真的 AgentLoop 上、假工具、不叫真的 AI；怎麼新增題目：[../evals/assistant/README.md](../evals/assistant/README.md)）
 - 主控台是 cp950：跑 Python 前 `$env:PYTHONIOENCODING='utf-8'; $env:PYTHONUTF8='1'`
 
 ## Map
@@ -39,11 +41,13 @@
 | `src/synox/packs/oauth.py` | 遠端 MCP 的 OAuth（選配）：`Flow`（PKCE＋state、貼回網址、換／更新 token 存 PackSecrets、`/<群組>_login／_code／_logout`）、`Listener`／`PasteListener`／`LoopbackListener`（只有介面，叫了就拒） |
 | `src/synox/sdk/` | 給 pack 作者：JSON 信封、`Pack.load`、`init_pack`、`zip_pack`；`synox-sdk init｜check｜zip`（`python -m synox.sdk`）。說明 [sdk.md](sdk.md) |
 | `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec）、`loop.py`（`ai_decision`、一輪、用量）、`validate.py`（第 4 關呼叫驗證）、`delimit.py`（第 5 關工具結果分隔符）、`budget.py`（伺服器版成員每月額度；`BotPool` 頻道型 bot 一池）、`room.py`（頻道 AI：`RoomAgent`、`redact_reply`）、`capture.py`、`approve.py`（核准卡）、`skills.py` |
+| `src/synox/evals/`、`evals/assistant/` | 對話助理的離線評測（量，不改助理）：`cases.py`（題目格式、`DISTRIBUTION`、範例網域檢查）、`fake_tools.py`（假工具掛成指令樹的葉節點）、`replay.py`（`ReplayAdapter` 照劇本回話、`run_case` 用 `app.build` 建暫存的整支 SYNOX 跑真的 `AgentLoop`、不同步＝`replay_mismatch`、`stamp`）、`checks.py`（硬檢查、拒絕／替代標記、簡體字表）、`report.py`（決定性的文字＋JSON）；題目與劇本在 `evals/assistant/`（不進發佈物：`make_zip.ROOT_ONLY_DIRS`）。**沒有真跑的路徑**，要加先看 README 最後一節 |
 | `src/synox/runtime/` | 常駐的排程迴圈與常駐助理（[adr/0001](adr/0001-runtime-loop-heartbeat-mother-session.md)，網頁合約 [runtime-api.md](runtime-api.md)）：`loop.py`（`RuntimeLoop`／`Task`：每 5 秒看、每個任務自己的執行緒、逾時、退避、連續 5 次失敗通知一次、`report`、`peer_states`、`data/runtime/state.json`）、`heartbeat.py`（`system.heartbeat`、快照與「沒事別吵」的規則）、`mother.py`（`MotherSession`：沒有工具、自己的記憶在保管箱、`NOTIFY:`／`SOUL+:` 格式）、`soul.py`（`SoulStore`：保管箱、追加規則、稽核）、`settings.py`（config `runtime` 的預設與檢查）、`web_api.py`（`/api/runtime/...`）、`__init__.py`（`install`、`report`／`ingest_envelope`／`peer_env`，`Runtime.use_fakes` 給測試） |
 | `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（`tick` 由 runtime 的任務 `system.schedule` 每 30 秒叫；沒有 runtime 才自己開執行緒；via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`install_system_remind`＝系統指令「⏰ 提醒（系統）」`/remind_*`，app.build 在載入 pack 之前掛；`/schedule_*`） |
 | `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS）、`__init__.py`（`install`、`/web`、`/web_off`） |
 | `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（30 秒、via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`＝⏰ 提醒（系統）、`/schedule_*`） |
 | `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS）、`__init__.py`（`install`、`/web`、`/web_off`）；工具頁：`toolpage.py`（指令卡與參數表單的資訊 `command_info`、群組排版 `effective`／`parse_layout`、每人的偏好 `UserPrefs`＝`data/web_prefs/<id>.json.enc`）＋`static/tools.js`／`tools.css`（`server.render_app` 換掉 app.html 的 `<!-- include: … -->`，同一個 nonce） |
+| `src/synox/present/` | 呈現層（[presentation.md](presentation.md)，`config.json` `presentation.enabled`，**預設關**）：`blocks.py`（區塊、Span、信任等級 system／assistant／external、`safe_url`、`visible`）、`markdown.py`（Markdown／純文字 → 區塊，不用第三方套件、不丟例外）、`telegram.py`／`discord.py`／`web.py`（輸出；切割在 `split.py`、表格降級在 `tables.py`、寬度在 `width.py`）、`__init__.py`（`render`、`deliver`）。只接 AI 回覆（`AgentLoop.say`、`RoomAgent.say`）；按鈕群／確認卡只有 system 才是真的按鈕；網頁送 JSON 區塊給 `static/blocks.js`（textContent） |
 | `src/synox/packs/admin.py` | `.synoxpack`：stage（zip 檢查＋第 1、2 關；記 zip 的執行位元、不解出 `__pycache__`）→ install_staged（再驗一次＋T2 要 `trust_publisher`＋第 3 關寫鎖）／移除到 `packs/_removed/`／`reload()`（Web UI、`synox install` 共用）；`format_tier`／`red`＝T2 的紅字段 |
 | `src/synox/packs/tier.py` | 信任層級（SDK P7）：`assess`（T0／T1／T2＋掃不到內容的檔、外部程式、runtime auto 套件）、`warning_lines`、`confirm_problem`（publisher 一字不差）、`reconfirm_reasons`（升級）、`lock_fields` |
 | `src/synox/packs/upgrade.py` | 同名再裝＝升級：`staged_upgrade`（「改了什麼」、semver 版本檢查，權限變大的標 alert＝紅字）→ `upgrade_staged`（舊的搬到 `_removed/<name>-<版本>-<時間>`＋旁邊留舊鎖、鎖換新）；`rollback`（`python -m synox packs rollback <name>`）。資料不在 pack 資料夾，不動；資料 schema 升級由 pack 自己負責 |
@@ -81,7 +85,10 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 7. **測試不綁埠、不連網、不開 Telegram、不開 `claude`**；requests 用假的 session，`claude` 用假的 runner/which；
    Web UI 測 `WebUI.handle()`／`route()`，不開 `ThreadingHTTPServer`。
 8. **repo 裡沒有真名、token、Telegram id 或個人資料**；`config.json`、`data/` 在 `.gitignore`。範例一律佔位字。
-9. **Web UI 只綁 127.0.0.1**（`web/server.py` 的 `HOST`，不從 config 讀）；對外是營運者的反向代理＋TLS。每個 API 用 session 的那個人算權限，
+9. **Web UI 只綁 127.0.0.1**（`web/server.py` 的 `HOST`，不從 config 讀）；對外是營運者的反向代理＋TLS。
+   唯一例外只在 `web/server.py` 的 `bind_host`：SYNOX 的容器裡（`SYNOX_IN_CONTAINER=1`＋`CONTAINER_MARKERS`、非 Windows）且
+   `SYNOX_WEB_BIND=0.0.0.0` 才綁容器自己的 0.0.0.0（compose 只發佈到宿主 127.0.0.1，[docker.md](docker.md)）；其他值＝`BindError`、網頁不開。
+   不要再加別的改綁方式，也不要讓 config.json 決定綁哪裡。每個 API 用 session 的那個人算權限，
    非 GET 要 CSRF header；網頁的字一律 `textContent`，伺服器產生的 HTML 一律 escape；沒有外部資源、沒有 inline 事件（nonce CSP）。
    網頁送出的指令與按鈕一律經 `dispatcher.handle`（同一個 authorize），按鈕的 callback_data 還要真的在那則訊息上。
 
