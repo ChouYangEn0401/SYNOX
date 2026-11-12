@@ -71,6 +71,20 @@ SDK 刻意不做排程與 AI。最接近的是 ClawBot 的 routines、companion�
   沒有 AI（`llm.kind=none` 或叫不起來）＝只跑規則，不出錯。
 - 逾時：心跳任務 180 秒。
 
+#### 決定 Q10（2026-11-12）：預設維持 45 分鐘，最短 15 分鐘不變
+
+> 擁有者原話（一字不改）：「Q10 可以先這樣，但我就目前希望預設先45分鐘，因為claude目前1hr，會有 session prompt cache，相對來說會變便宜。還不如一直讓他 beat 下去」
+
+- **預設 45 分鐘**（`runtime/settings.py` 的 `DEFAULT_RUNTIME`、`config.example.json`、精靈寫的新 config、主控面板 `control.js` 的 `INTERVAL_DEFAULT`
+  都是 45；`tests/test_runtime.py::test_heartbeat_default_is_45_everywhere` 對這幾處）。範圍照舊 15～1440 分鐘。
+- **理由（擁有者的）**：Claude 的 prompt 快取可以保留約 1 小時；45 分鐘一次，下一次心跳還在快取時間內，常駐助理那段不變的系統提示
+  （角色說明＋soul.md＋輸出格式）可以用快取讀、相對便宜。所以寧可**固定 45 分鐘一直 beat 下去**，不要拉長到快取已經過期的間隔。
+  搭配原本的「快照沒變就不叫 AI」，沒事的時候本來就不花錢。
+- **要注意（工程上，還沒做）**：Anthropic API 的快取**預設只留 5 分鐘**，要留 1 小時得在請求上標 `cache_control` 的 `ttl: "1h"`（寫入比較貴），
+  而且前綴要超過模型的最低可快取長度、前綴裡不能有每次都變的字。SYNOX 現在的 adapter（`llm/easy_llm.py` 經 ntu_easy_llm、`llm/claude_code.py`
+  經 `claude` 命令列）**都沒有自己標快取**——用 `claude` 命令列時快取由它自己管，SYNOX 看不到也調不了。要真的吃到 1 小時快取，之後要在
+  API 金鑰那條路加 `ttl: "1h"` 的標記、把每次都變的時間放到系統提示後面；擁有者說 MVP 之後再加進階功能，這一版不做。
+
 ### 4. 常駐助理（母 session，`src/synox/runtime/mother.py`）與對話助理的邊界
 
 | | 常駐助理（母 session） | 對話助理（`agent/loop.py`，原本的） |
