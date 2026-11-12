@@ -2,6 +2,9 @@
 
 ## 未發佈（dev，2026-11-12：合併 debug/setup-python-telegram＋跟進 ClawBot／金流簿）
 
+### 呈現層：與通道無關的內容區塊（branch `feat/cb3-blocks`，還沒合併）
+- 新增 `synox.present`（[docs/presentation.md](docs/presentation.md)）：AI 回覆的 Markdown → 區塊 → Telegram HTML（4096 切割）／Discord（2000 切割、圍欄不斷）／網頁區塊，表格依寬度降級；設定 `"presentation": {"enabled": false}` **預設關**，關著時送出的東西跟以前完全一樣。
+
 ### 網頁的開場動畫與微動畫（branch `feat/ui-splash`，還沒合併）
 - 打開網頁時「S 寶寶」掉下來、眨眼、說嗨、翻面變成 S 標誌、SYNOX 字樣跳出來（約 1.7 秒；點一下或按任何鍵略過；同一個分頁只播一次）；
   頁面切換、卡片進場、按鈕、對話泡泡、狀態點、背景淡光與小光點的微動畫。版面沒動；系統開了「減少動態效果」→ 開場不播、動畫全關。
