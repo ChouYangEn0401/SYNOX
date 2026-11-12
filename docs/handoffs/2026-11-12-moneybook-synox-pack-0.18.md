@@ -1,6 +1,6 @@
 # 金流簿（記帳專案）的 synox-pack 跟上 0.18.x
 
-- 狀態：**待處理**（由擁有者轉交給 `C:\Users\user\Documents\記帳專案` 的 session；SYNOX 這邊不改對方的檔）
+- 狀態：**待處理**（由擁有者轉交給 記帳專案（金流簿）repo 的 session；SYNOX 這邊不改對方的檔）
 - 寫的時間：2026-11-12（SYNOX dev，合併 `debug/setup-python-telegram` 之後）
 - 對象：記帳專案 `synox-pack/`（`pack.json`、`SKILL.md`、`README.md`）
 
