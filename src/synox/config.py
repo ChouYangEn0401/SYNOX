@@ -41,7 +41,23 @@ from isdtelekit.host.config import BotConfig, ConfigError
 from synox.policy import parse_policy
 from synox.runtime import settings as runtime_settings
 
-ROOT = os.environ.get("SYNOX_HOME") or os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+def default_root(environ=None, package_file: Optional[str] = None, cwd: Optional[str] = None) -> tuple:
+    """SYNOX 資料夾（config.json、data/、packs/、tools/ 的位置）→ (路徑, 從哪裡決定的)。不寫死任何一台電腦的路徑：
+    1. 環境變數 SYNOX_HOME（相對路徑以目前資料夾為準）——工程師把資料放別處、測試、Libs 的腳本用；
+    2. 原始碼的版面（git clone、zip、安裝程式都是這種）：<SYNOX>/src/synox/config.py → <SYNOX>；
+    3. 其他（`pip install` 進 site-packages、沒有 src/ 這一層）：目前所在的資料夾（doctor 會印出來，要換就設 SYNOX_HOME）。"""
+    environ = os.environ if environ is None else environ
+    home = (environ.get("SYNOX_HOME") or "").strip()
+    if home:
+        return os.path.abspath(os.path.join(cwd or os.getcwd(), home)), "SYNOX_HOME"
+    package = os.path.dirname(os.path.abspath(package_file or __file__))          # …/src/synox
+    src = os.path.dirname(package)
+    if os.path.basename(package) == "synox" and os.path.basename(src).lower() == "src":
+        return os.path.dirname(src), "source"
+    return os.path.abspath(cwd or os.getcwd()), "cwd"
+
+
+ROOT, ROOT_SOURCE = default_root()
 CONFIG_PATH = os.path.join(ROOT, "config.json")
 
 LLM_KINDS = ("openai", "anthropic", "gemini", "openai_compat", "claude_code", "fake", "none")
