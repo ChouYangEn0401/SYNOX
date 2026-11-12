@@ -2,6 +2,16 @@
 
 ## 未發佈（dev，2026-11-12：合併 debug/setup-python-telegram＋跟進 ClawBot／金流簿）
 
+### 終端機的 SYNOX 門面：歡迎畫面、`synox open`（branch `feat/cli-brand`，還沒合併）
+- 新增 `synox open`：在這台電腦上打開網頁介面（好記的名字；行為跟 `web-login` 一樣，`web-login`、`Open-SYNOX.bat` 照舊）。
+- 新增歡迎畫面（`src/synox/brand.py`）：`synox`（沒參數）、`run`、`open`、`wizard`、`doctor`、`about` 開頭印貓頭鷹＋SYNOX logo、
+  「Welcome to SYNOX」、版本、照時段的問候（照 ISDPCS 歡迎頁）、下一步提示。只在互動終端機印；管線／重導向／`CI`／`--quiet`／
+  `SYNOX_NO_BANNER=1` 不印（既有指令被程式讀時輸出不變），`TERM=dumb` 一行純文字，`NO_COLOR` 不上色，Windows 舊主控台（cp950）
+  與 `SYNOX_ASCII=1` 用純 ASCII logo。預覽：[docs/ui/cli-welcome.txt](docs/ui/cli-welcome.txt)（`scripts/make_cli_welcome.py` 產生）。
+- 新增 `synox about`（版本、授權、裝在哪裡；專案網址還沒定所以寫「還沒公開」）、`synox tips`（隨機一則小提示，`--all` 全部）。
+- 全域 `-q`／`--quiet`（放在指令前後都可以）。
+- 要你決定的事：[QuestionToUser.md](QuestionToUser.md) QB1～QB3（專案網址、`synox` 要不要在任何命令列都能打、logo 的樣子）。
+
 ### 常駐助理、心跳、runtime loop（branch `feat/runtime-heartbeat`，還沒合併）
 - 新增 `src/synox/runtime/`：常駐的排程迴圈（每個任務自己的執行緒、逾時、失敗退避、連續 5 次失敗通知一次）、
   心跳（預設每 45 分鐘、下限 15 分鐘、沒有新狀況不叫 AI、安靜時段、每天通知／叫 AI 的上限）、常駐助理（母 session：沒有工具、

@@ -30,6 +30,19 @@
 
 之後要開 bot：雙擊桌面的「SYNOX」捷徑（或 `Start.bat`）。會有一個縮小的視窗，那就是 bot；關掉它（或雙擊 `Stop.bat`）bot 就停了。
 
+在命令列也可以：在 SYNOX 資料夾開命令列，下面的 `synox` 打成 `.venv\Scripts\synox`（或 `.venv\Scripts\python.exe -m synox`；
+啟用了 `.venv` 就直接打 `synox`）：
+
+```
+synox open      在這台電腦上打開網頁介面（沒在跑會先幫你開；跟雙擊 Open-SYNOX.bat 一樣）
+synox doctor    健康檢查
+synox about     版本、授權、裝在哪裡
+synox tips      隨機一則使用小提示
+```
+
+在終端機打這些指令（或只打 `synox`）會先看到 SYNOX 的歡迎畫面；不想看到就加 `--quiet`，或設環境變數 `SYNOX_NO_BANNER=1`
+（長相：[docs/ui/cli-welcome.txt](docs/ui/cli-welcome.txt)）。
+
 ## 在電腦上用網頁（Web UI）
 
 在 Telegram 打 `/web`，bot 會給你一個登入連結（只能用一次、7 天內有效），在**跑 SYNOX 的那台電腦**上打開就登入了
