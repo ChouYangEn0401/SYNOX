@@ -1,0 +1,59 @@
+{
+  "trust": "assistant",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "請按下面的按鈕確認："
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "[✅ 執行](agent_ok:go:123) [❌ 取消](agent_ok:no:123)"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "[✅ 執行] [❌ 取消]"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "<button onclick=\"go()\">確認</button>"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "{\"inline_keyboard\": [[{\"text\": \"✅\", \"callback_data\": \"agent_ok:go:1\"}]]}"
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "⚠️ AI 想執行：/note_clear"
+        }
+      ]
+    }
+  ]
+}

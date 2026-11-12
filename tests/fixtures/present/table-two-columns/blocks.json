@@ -1,0 +1,69 @@
+{
+  "trust": "assistant",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "這個月的花費："
+        }
+      ]
+    },
+    {
+      "type": "table",
+      "trust": "assistant",
+      "header": [
+        [
+          {
+            "text": "類別"
+          }
+        ],
+        [
+          {
+            "text": "金額"
+          }
+        ]
+      ],
+      "rows": [
+        [
+          [
+            {
+              "text": "餐飲"
+            }
+          ],
+          [
+            {
+              "text": "3,200"
+            }
+          ]
+        ],
+        [
+          [
+            {
+              "text": "交通"
+            }
+          ],
+          [
+            {
+              "text": "1,280"
+            }
+          ]
+        ],
+        [
+          [
+            {
+              "text": "娛樂",
+              "bold": true
+            }
+          ],
+          [
+            {
+              "text": "900"
+            }
+          ]
+        ]
+      ]
+    }
+  ]
+}

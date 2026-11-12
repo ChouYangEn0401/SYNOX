@@ -1,0 +1,161 @@
+{
+  "trust": "assistant",
+  "blocks": [
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "購物清單："
+        }
+      ]
+    },
+    {
+      "type": "list",
+      "trust": "assistant",
+      "ordered": false,
+      "items": [
+        {
+          "spans": [
+            {
+              "text": "水果"
+            }
+          ],
+          "children": {
+            "type": "list",
+            "trust": "assistant",
+            "ordered": false,
+            "items": [
+              {
+                "spans": [
+                  {
+                    "text": "蘋果"
+                  }
+                ]
+              },
+              {
+                "spans": [
+                  {
+                    "text": "香蕉"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "spans": [
+            {
+              "text": "牛奶"
+            }
+          ],
+          "children": {
+            "type": "list",
+            "trust": "assistant",
+            "ordered": false,
+            "items": [
+              {
+                "spans": [
+                  {
+                    "text": "第三層會併到第二層"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "spans": [
+            {
+              "text": "麵包",
+              "bold": true
+            },
+            {
+              "text": "（全麥）"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "list",
+      "trust": "assistant",
+      "ordered": true,
+      "items": [
+        {
+          "spans": [
+            {
+              "text": "先去超市"
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "再去郵局"
+            }
+          ],
+          "children": {
+            "type": "list",
+            "trust": "assistant",
+            "ordered": false,
+            "items": [
+              {
+                "spans": [
+                  {
+                    "text": "寄包裹"
+                  }
+                ]
+              },
+              {
+                "spans": [
+                  {
+                    "text": "買郵票"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "spans": [
+            {
+              "text": "回家"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "paragraph",
+      "trust": "assistant",
+      "spans": [
+        {
+          "text": "另一個清單："
+        }
+      ]
+    },
+    {
+      "type": "list",
+      "trust": "assistant",
+      "ordered": true,
+      "items": [
+        {
+          "spans": [
+            {
+              "text": "從 5 開始的清單"
+            }
+          ]
+        },
+        {
+          "spans": [
+            {
+              "text": "第二項"
+            }
+          ]
+        }
+      ],
+      "start": 5
+    }
+  ]
+}
