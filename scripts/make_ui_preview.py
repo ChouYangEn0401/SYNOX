@@ -8,9 +8,12 @@
                               網址參數：?login=1 看登入畫面、?theme=dark|light 強制深淺色、?bar=0 拿掉上方的預覽列、
                               ?tooledit=1 工具頁直接打開「編輯群組」；?ctl=error 主控頁讀不到時的樣子、?member=1 用成員身分看
                               （沒有「主控」）；#chat／#tools／#settings／#control 切頁。
+                              開場動畫（static/splash.js）：同一個分頁只播第一次；?splash=1 重播（預覽列的「重播開場」）、
+                              ?splash=0 不播；?splashat=600 讓開場停在第 600 毫秒（拍關鍵影格用）。
                               工具頁的群組編輯可以真的操作（存在這一頁的記憶體裡，重新整理就回到預設）。
 - docs/ui/preview-phone.html、preview-phone-dark.html
                               六個 390px 寬的框（登入、對話、工具、工具的編輯群組、設定、主控），看手機寬度用。
+                              「登入」那一格每次打開都重播開場，其他格不播。
 - docs/ui/preview-login.html  伺服器產生的「登入確認頁」（server.py 的 login_page，用假的帳號資料）。
 - docs/ui/preview-error.html  伺服器產生的小頁（server.py 的 _page，例如登入連結不能用）。
 
@@ -299,6 +302,21 @@ MOCK = r"""
       else if (tries > 50) { clearInterval(wait); }
     }, 100);
   }
+  // 拍開場的關鍵影格：?splash=1&splashat=600 → 全部動畫停在第 600 毫秒（開場以外的進場從 1250 毫秒、淡出那一刻才開始算）
+  if (q.get("splashat") !== null && Number(q.get("splashat")) >= 0) {
+    var freezeAt = Number(q.get("splashat"));
+    document.addEventListener("DOMContentLoaded", function () {
+      setTimeout(function () {
+        if (!document.getAnimations) { return; }
+        document.getAnimations().forEach(function (a) {
+          var t = a.effect && a.effect.target;
+          var inSplash = !!(t && t.closest && t.closest(".sx-splash"));
+          a.pause();
+          a.currentTime = inSplash ? freezeAt : Math.max(0, freezeAt - 1250);
+        });
+      }, 120);
+    });
+  }
   // 上方的預覽列（?bar=0 拿掉）
   if (q.get("bar") === "0") { return; }
   document.addEventListener("DOMContentLoaded", function () {
@@ -315,7 +333,8 @@ MOCK = r"""
                  ["成員看到的", function () { return "?member=1" + (theme ? "&" + theme : "") + "#control"; }],
                  ["淺色", function () { return "?theme=light" + location.hash; }],
                  ["深色", function () { return "?theme=dark" + location.hash; }],
-                 ["跟隨系統", function () { return "?" + location.hash; }]];
+                 ["跟隨系統", function () { return "?" + location.hash; }],
+                 ["重播開場", function () { return "?splash=1" + (theme ? "&" + theme : "") + location.hash; }]];
     var label = document.createElement("b"); label.textContent = "設計預覽（假資料）";
     bar.appendChild(label);
     items.forEach(function (it) {
@@ -346,7 +365,7 @@ def app_preview() -> str:
             "runtime": RUNTIME, "logs": TASK_LOGS, "soul": SOUL}
     mock = MOCK.replace("__DATA__", json.dumps(data, ensure_ascii=False))
     note = ("<!-- 自動產生：scripts/make_ui_preview.py（不要手改；改 src/synox/web/static/app.html、tools.css、"
-            "tools.js 再重跑） -->\n")
+            "tools.js、splash.css、splash.js 再重跑） -->\n")
     html = html.replace("</style>", BAR_CSS + "</style>", 1)
     head_script = f'<script nonce="preview">{mock}</script>\n<script nonce="preview">'
     return note + html.replace('<script nonce="preview">', head_script, 1)
@@ -401,7 +420,9 @@ def phone_preview() -> str:
     out = []
     for title, q in frames:
         query, _, hash_ = q.partition("#")
-        src = "preview.html?bar=0&amp;theme=__T__" + (("&amp;" + query) if query else "") + (("#" + hash_) if hash_ else "")
+        splash = "splash=1" if title == "登入" else "splash=0"      # 登入那格重播開場，其他格不播（六格一起播太吵）
+        src = (f"preview.html?bar=0&amp;{splash}&amp;theme=__T__" + (("&amp;" + query) if query else "")
+               + (("#" + hash_) if hash_ else ""))
         out.append(f'<figure><figcaption>{title}</figcaption><iframe title="{title}" src="{src}"></iframe></figure>')
     links = '<a href="preview-phone.html">淺色</a>、<a href="preview-phone-dark.html">深色</a>'
     return PHONE.replace("__FRAMES__", "".join(out)).replace("__THEME_LINKS__", links)
