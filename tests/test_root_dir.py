@@ -33,3 +33,8 @@ def test_this_checkout_is_source_layout():
     assert synox_config.ROOT_SOURCE in ("source", "SYNOX_HOME")
     if synox_config.ROOT_SOURCE == "source":
         assert os.path.normcase(synox_config.ROOT) == os.path.normcase(ROOT)
+
+
+def test_redacted_hides_secrets_but_not_max_tokens():
+    shown = synox_config.redacted({"bot_token": "123:abc", "llm": {"api_key": "x", "max_tokens": 1024, "kind": "none"}})
+    assert shown == {"bot_token": "（有填）", "llm": {"api_key": "（有填）", "max_tokens": 1024, "kind": "none"}}
