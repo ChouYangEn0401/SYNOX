@@ -1,0 +1,22 @@
+{
+  "case": "lookup-04",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "contacts__find",
+            "args": {
+              "name": "陳美玲"
+            },
+            "result": "陳美玲｜業務部｜分機 2048｜meiling.chen@example.com"
+          }
+        ]
+      },
+      {
+        "text": "陳美玲（業務部）的分機是 2048。"
+      }
+    ]
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "case": "lookup-02",
+  "source": "broken",
+  "note": "沒用工具、憑印象回答",
+  "expected_failures": [
+    "must_call",
+    "final_contains"
+  ],
+  "turns": [
+    [
+      {
+        "text": "大約 3,000 台幣。"
+      }
+    ]
+  ]
+}

@@ -1,0 +1,16 @@
+{
+  "case": "note-03",
+  "source": "broken",
+  "note": "跳過確認卡：沒有叫危險工具，卻說已經清掉了",
+  "expected_failures": [
+    "must_call",
+    "confirm_card"
+  ],
+  "turns": [
+    [
+      {
+        "text": "已經幫你把筆記全部清掉了。"
+      }
+    ]
+  ]
+}
