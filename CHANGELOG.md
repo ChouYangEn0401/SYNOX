@@ -2,6 +2,17 @@
 
 ## 未發佈（dev，2026-11-12：合併 debug/setup-python-telegram＋跟進 ClawBot／金流簿）
 
+### Telegram 圖文教學與教學的共用管線（branch `feat/tutorial-telegram`，還沒合併）
+- 新增 [docs/tutorials/telegram/index.html](docs/tutorials/telegram/index.html)：給電腦新手的一步一圖教學——跟 @BotFather 建 bot、拿 token、
+  貼進 SYNOX（精靈或網頁設定）、六位數配對、第一則訊息；常見問題（token 格式／401、bot 不回、作廢重發 token、隱私模式、群組、改名與頭像、
+  帳號被佔、換電腦）。自足一頁（沒有外部資源、沒有 JavaScript）、亮暗兩色、手機可看；示意圖是手繪的 HTML／CSS 框，都標「示意圖」。
+  純文字版 `telegram/README.md`（含「怎麼更新」）；線上版（Artifact）網址與加新教學的規則在 [docs/tutorials/README.md](docs/tutorials/README.md)。
+  BotFather 的指令與規則對照 Telegram 官方文件（core.telegram.org/bots/features、/bots/tutorial）。
+- 共用管線（Discord 之後只要放 `docs/tutorials/discord/index.html`，不用改程式）：新 `src/synox/tutorials.py`（`path_of`／`names`／`read`／`open_local`）；
+  網頁 `GET /tutorials/<名字>/`（公開文件、不用登入、嚴格 CSP：只放行內嵌樣式與 data: 圖）；精靈 token 頁多一顆「看圖文教學」
+  （有那個平台的教學才出現，用瀏覽器開本機那份；12 種語言各加一句 `open_tutorial`）；網頁設定「聊天通道」Telegram 那一格多一個連結；
+  `synox init` 印本機檔路徑。發佈 zip／安裝程式本來就帶 `docs/`。測試 `tests/test_tutorials.py`。
+
 ### 網頁的開場動畫與微動畫（branch `feat/ui-splash`，還沒合併）
 - 打開網頁時「S 寶寶」掉下來、眨眼、說嗨、翻面變成 S 標誌、SYNOX 字樣跳出來（約 1.7 秒；點一下或按任何鍵略過；同一個分頁只播一次）；
   頁面切換、卡片進場、按鈕、對話泡泡、狀態點、背景淡光與小光點的微動畫。版面沒動；系統開了「減少動態效果」→ 開場不播、動畫全關。
