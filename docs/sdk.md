@@ -170,8 +170,33 @@ ctx.confirmed, ctx.confirm_token # 是不是人按過 ✅ 的重跑、當時 Con
 
 `secret("api_key")` 和 `secret("WEATHER_API_KEY")` 都可以。SYNOX 叫工具時放這幾個環境變數：
 `SYNOX_USER_DATA_DIR`、`SYNOX_TG_ID`、`SYNOX_MODE`、`SYNOX_PACK_DIR`、`SYNOX_PACK_NAME`、`SYNOX_SECRET_ENV`（「欄位名=環境變數名」，只有名字）、
-`SYNOX_CONFIRMED`（`1`＝按過 ✅ 的重跑，其他一律 `0`）、`SYNOX_CONFIRM_TOKEN`。
+`SYNOX_CONFIRMED`（`1`＝按過 ✅ 的重跑，其他一律 `0`）、`SYNOX_CONFIRM_TOKEN`、`SYNOX_PEER_STATUS`（別人的狀態，見下一節）。
 不是從 SYNOX 叫的（自己在終端機跑）就都是空的——用 `synox-sdk run` 試跑會模擬。
+
+## report_status() 與 peer_status()：回報狀態、看別人的狀態
+
+```python
+from synox_sdk import tool, report_status, peer_status
+
+@tool("READ")
+def sync():
+    """同步一次。"""
+    if peer_status("pack.vpn").get("state") == "failed":
+        report_status("idle", "VPN 斷了，先不同步")
+        return "VPN 斷了，先不同步"
+    n = pull()
+    report_status("ok", f"同步了 {n} 筆")
+    return f"同步了 {n} 筆"
+```
+
+- `report_status(state, message="")`：`state` 是 `ok`／`running`／`failed`／`idle`（其他的丟 `ValueError`）。這一次的 JSON 信封多一個
+  `"status": {"state": "...", "message": "..."}`，SYNOX 收到就更新任務 `pack.<你的 pack 名>`：網頁主控面板看得到、常駐助理巡的時候會看。
+  `message` 最多 200 字，SYNOX 再遮掉像密鑰的片段；**不要放個人資料**（主控面板會顯示、會送給 AI）。
+- `peer_status(task_id="")`：別的任務／工具現在的狀態 `{"pack.weather": {"state": "failed", "at": "<ISO 時間>"}, "system.schedule": {…}}`，
+  **只有狀態與時間、沒有訊息**（別的 pack 的訊息可能有個人資料）。SYNOX 叫你時放在環境變數 `SYNOX_PEER_STATUS`（JSON）。
+- 不用 SDK 的工具也一樣：信封最後一行多帶 `"status"`、讀 `SYNOX_PEER_STATUS`。舊版 SYNOX 不認得 `"status"`，直接忽略。
+- kind=python 的 pack：`pack.report_status(state, message)`、`pack.peer_status()`。kind=mcp（`--mcp`）這一版不送狀態。
+- 設計與規則：[adr/0001](adr/0001-runtime-loop-heartbeat-mother-session.md) §2。
 
 ## synox-sdk 指令
 

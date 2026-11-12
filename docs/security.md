@@ -46,6 +46,8 @@
 | `data/pack_secrets.json.enc`；伺服器版 `data/users/<id>/pack_secrets.json.enc` | pack 要的 API key／token／憑證檔（工具頁「連接」填的，鍵 `packs/<pack>/<欄位>`） | **密文**（伺服器版是那個人的金鑰）。網頁永遠不回傳值，只回「有填」與最後 4 碼（8 字以上才給）。只有 Web UI（CSRF＋Origin，個人版擁有者／伺服器版本人）和 `python -m synox connect` 能設，Telegram 不收。cli pack 只拿到宣告了 `env` 的、放在子程序環境（不進 argv，所以不會出現在程序清單或 log 的 argv）；python pack 用 `pack.secret`。**pack 的程式拿到值之後做什麼（例如送去別的地方）SYNOX 管不了**——裝 pack 前看它連哪裡 |
 | `data/web_chats/<id>.json.enc` | 網頁對話頁的紀錄（每段最近 50 則） | **密文**，那個人的金鑰（個人版是擁有者的） |
 | `data/web_tokens.json`、`data/web_sessions.json` | 網頁登入連結、登入中的 session | 只存 SHA-256（檔案被看到也拿不到能用的連結或 cookie）；session 的 CSRF token 是明文 |
+| `data/runtime_soul.json.enc`、`data/runtime_soul_audit.json.enc`、`data/runtime_mother_memory.json.enc` | 常駐助理的 soul.md、每次改 soul 的紀錄、常駐助理自己的記憶（docs/adr/0001） | **密文**（擁有者的；保管箱打不開＝soul 讀寫都拒，不退回明文）。主控面板可以改 soul、清空記憶 |
+| `data/runtime/state.json` | 背景任務與心跳的狀態（state、時間、連續失敗次數、上一次心跳的結果一句話） | 明文（沒有任務訊息與日誌——那些只在記憶體，重開就沒了）。心跳的「上一次結果」可能帶一句通知內容 |
 | `data/users.json`、`data/llm_usage.json`、`data/users/<id>/llm_usage.json`、`data/ai_budgets.json`、`data/host.lock`、`data/last_update_id`… | 誰傳過訊息、AI 用量與額度、執行狀態 | 明文（沒有內容，只有 id、次數、金額） |
 
 **硬碟被拷走、`data/` 被同步到雲端被看到**：拿到的是密文和 DPAPI 包住的金鑰，解不開（除非也能登入你的 Windows 帳號）。
@@ -79,6 +81,9 @@
 2. **LLM（有設定 AI 時）**：送出去的是你那一句話、系統提示（已裝的功能、技能清單）、最近 6 輪的對話、
    以及 AI 呼叫工具時**那個指令回的那幾行**（例如「記了：咖啡 80 元，這個月共 230 元」）。
    AI 看不到你的整個資料庫，只看得到它叫的指令回了什麼。
+   **常駐助理（心跳，預設每 45 分鐘）**也送給同一個 AI：soul.md、背景任務的狀態與最後訊息、今天還沒到的提醒、
+   你跟對話助理最近 3 輪（每段截到 150 字；`runtime.mother.read_chat=false` 不送）、它自己最近 20 次的紀錄。
+   快照沒變（沒有新狀況）就不送；`runtime.heartbeat.enabled=false` 整個關掉。它沒有工具，不能替你執行指令。
 
 ## 用朋友／公司的 LLM
 

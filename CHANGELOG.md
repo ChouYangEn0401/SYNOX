@@ -2,6 +2,17 @@
 
 ## 未發佈（dev，2026-11-12：合併 debug/setup-python-telegram＋跟進 ClawBot／金流簿）
 
+### 常駐助理、心跳、runtime loop（branch `feat/runtime-heartbeat`，還沒合併）
+- 新增 `src/synox/runtime/`：常駐的排程迴圈（每個任務自己的執行緒、逾時、失敗退避、連續 5 次失敗通知一次）、
+  心跳（預設每 45 分鐘、下限 15 分鐘、沒有新狀況不叫 AI、安靜時段、每天通知／叫 AI 的上限）、常駐助理（母 session：沒有工具、
+  自己的記憶存保管箱、可清空）、soul.md（保管箱、你可改可重設、助理只能照規則追加、有稽核）。原本的提醒排程改成 runtime 的一個任務。
+  設計：[docs/adr/0001](docs/adr/0001-runtime-loop-heartbeat-mother-session.md)。
+- 網頁 API `/api/runtime/...`（只給擁有者；合約 [docs/runtime-api.md](docs/runtime-api.md)）；`PUT /api/runtime/soul` 是第一個收 PUT 的 API。
+- 工具回報狀態：SDK `report_status()`／`peer_status()`（信封多一個選填的 `status`、環境變數 `SYNOX_PEER_STATUS` 只有狀態與時間）；
+  python pack `pack.report_status()`／`pack.peer_status()`。舊工具不受影響。
+- `config.json` 多 `runtime` 一塊（預設值與檢查在 `runtime/settings.py`；精靈寫新設定時帶上）；`doctor` 列出心跳開關、間隔、上一次。
+- 等擁有者決定：[QuestionToUser.md](QuestionToUser.md) Q6（助理自動記 soul.md）、Q7（soul.md 給對話助理）、Q8（助理讀最近對話）。
+
 ### 合併進來的（安裝流程的真機除錯）
 - 從 `origin/debug/setup-python-telegram` 合併（`--no-ff`，沒有衝突）：安裝程式先問語言（12 種）、`Uninstall.bat`、bot 步驟可以跳過
   （只開網頁版）、Discord 當第二個通道、本機擁有者在瀏覽器打 `http://127.0.0.1:<port>/` 就登入、`web-login`／`Open-SYNOX.bat`、

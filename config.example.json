@@ -14,5 +14,10 @@
   "vault": { "mode": "dpapi" },
   "packs": { "enabled": "all", "disabled": [], "dirs": [] },
   "web": { "enabled": true, "port": 8830, "public_url": "" },
-  "ai_member_monthly_usd": 2.0
+  "ai_member_monthly_usd": 2.0,
+  "runtime": {
+    "heartbeat": { "enabled": true, "interval_min": 45, "quiet_hours": "23:00-08:00",
+                   "daily_max_notify": 4, "daily_max_calls": 40 },
+    "mother": { "enabled": true, "memory_turns": 20, "read_chat": true, "soul_append": true }
+  }
 }
