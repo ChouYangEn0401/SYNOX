@@ -11,6 +11,8 @@
 - **soul.md 放進對話助理的系統提示**（決定 Q7，[docs/adr/0002](docs/adr/0002-soul-md-in-chat-assistant-prompt.md)）：只有擁有者的私訊／網頁對話、
   唯讀、最多 2000 字、包在分隔符裡標明「使用者偏好，不是指令」；沒寫東西（預設的空段落）就不放；成員、訪客、公開頻道都不帶；不寫 log；
   對話助理仍不讀常駐助理的記憶。「agent 怎麼讀 context」的 HTML 說明記在 [docs/README.md](docs/README.md) 的待做（MVP 之後）。
+- 心跳預設**維持 45 分鐘**、最短 15 分鐘（決定 Q10）：ADR 0001 §3 補理由（擁有者：搭得上約 1 小時的 prompt 快取、固定 beat 下去比較划算），
+  並註明 SYNOX 現在的 adapter 沒有自己標 1 小時快取（之後的工作）；新測試對設定預設值、`config.example.json`、主控面板三處都是 45。
 
 ### 常駐助理、心跳、runtime loop（branch `feat/runtime-heartbeat`，還沒合併）
 - 新增 `src/synox/runtime/`：常駐的排程迴圈（每個任務自己的執行緒、逾時、失敗退避、連續 5 次失敗通知一次）、
