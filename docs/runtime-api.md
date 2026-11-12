@@ -172,6 +172,14 @@ body（兩個都可以省略；省略＝不改）：
 
 改間隔之後，下一次＝上一次巡的時間＋新間隔（已經過了就是一分鐘後）；從沒巡過＝現在＋新間隔。
 
+## `POST /api/runtime/keep-awake`
+
+保持清醒（[ADR 0006](adr/0006-keep-awake-screen-may-sleep.md)）。只給擁有者；寫回 `config.json`。
+
+- 請求（兩個都選填）：`{"enabled": true, "screen_off_after_min": 10}`。`screen_off_after_min` 要是 0～240 的整數（0＝照 Windows 電源計畫）。
+- 回 200：`{"enabled", "supported", "holding", "screen_off_after_min", "max_screen_off_min", "last_result"}`（`GET /api/runtime/status` 的 `keep_awake` 一樣）。
+- 400：欄位型別或範圍不對。
+
 ## `POST /api/runtime/heartbeat/run-now`
 
 馬上巡一次（在背景跑，**不等它做完**）。心跳關著也可以按（手動的那一次不看安靜時段）。body 可以是空的 `{}`。

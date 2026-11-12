@@ -1,5 +1,19 @@
 # Changelog
 
+## 未發佈（branch feat/screen_protect_awaker：保持清醒——電腦不睡著、螢幕可以熄）
+
+### 新增
+- **保持清醒**（任務 `system.keep_awake`，`src/synox/runtime/keepawake.py`，設計 [ADR 0006](docs/adr/0006-keep-awake-screen-may-sleep.md)）：
+  請 Windows「系統需要保持清醒」，電腦不會自己睡著；**不**請求螢幕常亮，所以螢幕照 Windows 電源計畫熄，動滑鼠或鍵盤 Windows 自己點亮——
+  不需要另外做「黑螢幕小工具」。每 60 秒確認請求還在；SYNOX 停止時放掉（程式結束 Windows 也會自己放掉）。
+- 電源計畫把「關閉螢幕」設成「永不」的人：`screen_off_after_min`（1～240）＝閒置這麼久就請 Windows 關一次螢幕，之後一樣動一下就亮。
+- **設定** `runtime.keep_awake`：`{"enabled": false, "screen_off_after_min": 0}`，**預設關**（不替人改電腦的睡眠行為）。
+  網頁 `POST /api/runtime/keep-awake`（寫回 config.json）、`GET /api/runtime/status` 多 `keep_awake`、`doctor` 多一行。
+
+### 擋不住的（照實說）
+- 闔上筆電蓋、開始選單手動睡眠、電池快沒電、Windows Update 重開機。只有 Windows 有作用，其他系統顯示 idle，不算失敗。
+- 沒有新的相依套件（標準函式庫 ctypes）。
+
 ## 未發佈（branch feat/soul-memory：soul 帳本——助理筆記的來歷、有疑慮先問、取代不刪除、整理與遺忘）
 
 ### 新增

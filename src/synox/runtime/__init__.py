@@ -7,6 +7,7 @@ Runtime：常駐的排程迴圈、心跳、常駐助理（母 session）、soul.
     rt.mother      MotherSession：只給擁有者、沒有工具
     rt.soul        SoulStore：soul.md（保管箱）
     rt.activator   Activator：連動規則（任務狀態一變就做下一件事；防無限連動，docs/adr/0004）
+    rt.keep_awake  KeepAwake：system.keep_awake（電腦不睡著、螢幕可以熄；docs/adr/0006）
     rt.ledger      SoulLedger：助理筆記的來歷、等你確認的提議、整理與遺忘（docs/adr/0005；任務 system.soul_tidy）
 
 pack 回報狀態：`runtime.report(app, pack_name, state, message, tag=)`（loader 收 cli 信封的 status、Pack.report_status 都走這裡）。
@@ -29,7 +30,8 @@ PEER_MAX = 50
 
 class Runtime:
 
-    def __init__(self, loop, heartbeat, mother, soul, config_path: str = "", activator=None, ledger=None):
+    def __init__(self, loop, heartbeat, mother, soul, config_path: str = "", activator=None, ledger=None,
+                 keep_awake=None):
         self.loop = loop
         self.heartbeat = heartbeat
         self.mother = mother
@@ -37,6 +39,7 @@ class Runtime:
         self.ledger = ledger
         self.config_path = config_path
         self.activator = activator
+        self.keep_awake = keep_awake
 
     def use_fakes(self, *, clock: Optional[Callable[[], float]] = None, now: Optional[Callable[[], datetime]] = None,
                   spawn: Optional[Callable] = None) -> "Runtime":
@@ -68,6 +71,8 @@ class Runtime:
                "tasks": self.loop.views()}
         if self.activator is not None:
             out["activator"] = self.activator.view()
+        if self.keep_awake is not None:
+            out["keep_awake"] = self.keep_awake.view()
         return out
 
     def mother_last_active(self) -> Optional[float]:
@@ -79,6 +84,7 @@ def install(app, config, vault=None, *, config_path: str = "") -> Runtime:
     from synox.runtime import settings as rs
     from synox.runtime.activator import Activator, RuleError, rules_from_config
     from synox.runtime.heartbeat import Heartbeat
+    from synox.runtime.keepawake import KeepAwake
     from synox.runtime.ledger import SoulLedger, SoulTidy
     from synox.runtime.loop import RuntimeLoop
     from synox.runtime.mother import MotherSession
@@ -106,10 +112,14 @@ def install(app, config, vault=None, *, config_path: str = "") -> Runtime:
     heartbeat.activator = activator
     heartbeat.register()
     SoulTidy(app, ledger, quiet=heartbeat._in_quiet).register(loop)
-    rt = Runtime(loop, heartbeat, mother, soul, config_path=config_path, activator=activator, ledger=ledger)
+    keep_awake = KeepAwake(loop, settings=conf.get("keep_awake") or rs.defaults()["keep_awake"])
+    rt = Runtime(loop, heartbeat, mother, soul, config_path=config_path, activator=activator, ledger=ledger,
+                 keep_awake=keep_awake)
     app.extras[RUNTIME_KEY] = rt
+    app.on_start.append(lambda _app: keep_awake.register())     # 跑起來才請求（測試、doctor 只 build 不啟動，不會動到電腦的睡眠）
     app.on_start.append(lambda _app: loop.start())
     app.on_stop.append(lambda _app: loop.stop())
+    app.on_stop.append(lambda _app: keep_awake.release())
     return rt
 
 

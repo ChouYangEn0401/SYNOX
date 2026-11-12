@@ -6,8 +6,12 @@ config.json 的 `runtime` 這一塊：預設值與檢查（docs/adr/0001）。�
                     "daily_max_notify": 4, "daily_max_calls": 40},
       "mother": {"enabled": true, "memory_turns": 20, "read_chat": true, "soul_append": true, "soul_review": false},
       "activator": {"enabled": true, "max_depth": 5, "max_chain_actions": 20, "max_fanout": 10,
-                    "budget_window_min": 10, "budget_max_actions": 60, "rules": [ … ]}
+                    "budget_window_min": 10, "budget_max_actions": 60, "rules": [ … ]},
+      "keep_awake": {"enabled": false, "screen_off_after_min": 0}
     }
+
+keep_awake（docs/adr/0006）：true＝請 Windows 不要讓電腦睡著（螢幕照常可以熄，動滑鼠或鍵盤就亮）；
+screen_off_after_min：0＝螢幕照 Windows 電源計畫；1～240＝閒置這麼久就請 Windows 關螢幕（電源計畫設「永不」關時才需要）。
 
 activator（連動，docs/adr/0004）的 rules 每一條（只收資料，不收程式；程式定義的規則見 runtime/activator.py）：
     {"id": "diary-image-ask", "on": "pack.diary", "state": "ok", "from": "failed", "tag": "diary-image",
@@ -32,6 +36,7 @@ DEFAULT_RUNTIME = {
     "mother": {"enabled": True, "memory_turns": 20, "read_chat": True, "soul_append": True, "soul_review": False},
     "activator": {"enabled": True, "max_depth": 5, "max_chain_actions": 20, "max_fanout": 10,
                   "budget_window_min": 10, "budget_max_actions": 60, "rules": []},
+    "keep_awake": {"enabled": False, "screen_off_after_min": 0},
 }
 
 # 連動規則（activator）的欄位與範圍；runtime/activator.py 也用這些（程式定義的規則一樣要過）
@@ -113,7 +118,7 @@ def parse(raw) -> dict:
     if not isinstance(raw, dict):
         raise RuntimeConfigError("config.json 的 runtime 要是一個 {…} 物件。")
     out = defaults()
-    for name in ("heartbeat", "mother", "activator"):
+    for name in ("heartbeat", "mother", "activator", "keep_awake"):
         section = raw.get(name)
         if section is None:
             continue
@@ -142,6 +147,9 @@ def parse(raw) -> dict:
     _int(act, "budget_window_min", "activator", 1, 1440)
     _int(act, "budget_max_actions", "activator", 1, 1000)
     act["rules"] = parse_rules(act.get("rules"))
+    ka = out["keep_awake"]
+    _bool(ka, "enabled", "keep_awake")
+    _int(ka, "screen_off_after_min", "keep_awake", 0, 240)
     return out
 
 
