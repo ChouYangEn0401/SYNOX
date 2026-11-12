@@ -16,6 +16,7 @@
 | [../CHANGELOG.md](../CHANGELOG.md) | 維護者 | 每個版本改了什麼 |
 | [ui/redesign-notes.md](ui/redesign-notes.md) | 維護者 | 網頁介面的設計 token、版面、參考對象；`ui/preview.html` 雙擊看假資料預覽（`scripts/make_ui_preview.py` 產生） |
 | [debug-notes.md](debug-notes.md) | 維護者 | 安裝流程真機除錯：修好的（Fixed）與還開著、等擁有者決定的（Open） |
+| [claude-code-cli.md](claude-code-cli.md) | 維護者 | 預設 AI 來源要的是 `claude` 命令列版：怎麼找、為什麼 Claude Desktop／VS Code 擴充功能不算、設定頁的安裝指令 |
 | [handoffs/](handoffs/) | 維護者 | 請**別的 repo**（金流簿、ISDTeleKitSDK…）做的事，一件一檔，由擁有者轉交（跟上面給使用者的 `handoff/` 不同） |
 | [../QuestionToUser.md](../QuestionToUser.md) | 維護者 | 等擁有者拍板的事（每題有建議，不答就照建議） |
 | [../LICENSING.md](../LICENSING.md) | 全部 | 授權：核心 AGPL-3.0-or-later，工具 SDK 與範例 Apache-2.0 |

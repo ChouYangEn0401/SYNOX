@@ -144,6 +144,11 @@
   .field-row input { flex: 1 1 260px; }
   .msgline { font-size: 13.5px; color: var(--text-2); min-height: 0; margin-top: 8px; }
   .msgline:empty { display: none; }
+  .install { margin-top: 14px; padding: 12px 14px; border-radius: var(--r); background: var(--sunken); font-size: 13.5px; }
+  .install p { margin: 0 0 10px; }
+  .cmd-label { font-size: 12px; font-weight: 650; color: var(--muted); margin: 8px 0 4px; }
+  .cmd { flex: 1 1 260px; display: block; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+         font-family: ui-monospace, Consolas, monospace; font-size: 13px; overflow-x: auto; white-space: nowrap; user-select: all; }
 
   table { width: 100%; border-collapse: collapse; font-size: 14px; }
   th { text-align: left; font-size: 12px; font-weight: 650; letter-spacing: .04em; color: var(--muted);
@@ -455,6 +460,18 @@
           <button id="llm-save" class="primary" type="button">存起來</button>
           <button id="llm-test" type="button">測一下</button>
           <span id="llm-msg" class="muted"></span>
+        </div>
+        <div id="llm-install" class="install hidden">
+          <p><strong>要先裝 Claude Code 命令列版</strong>（不是 Claude Desktop）。複製下面一行，貼到終端機執行；
+            裝完在終端機輸入 <code>claude</code> 登入一次，再回來按「測一下」。</p>
+          <div class="cmd-label">Windows（PowerShell）</div>
+          <div class="field-row"><code id="cmd-win" class="cmd">irm https://claude.ai/install.ps1 | iex</code>
+            <button type="button" class="copy" data-copy="cmd-win">複製</button></div>
+          <div class="cmd-label">Linux／macOS</div>
+          <div class="field-row"><code id="cmd-nix" class="cmd">curl -fsSL https://claude.ai/install.sh | bash</code>
+            <button type="button" class="copy" data-copy="cmd-nix">複製</button></div>
+          <p class="muted"><a id="llm-dl" target="_blank" rel="noopener noreferrer">官方安裝說明</a>
+            ．裝好後如果還是找不到，重開 SYNOX（它啟動時看到的 PATH 才是新的）。</p>
         </div>
       </div>
 
@@ -989,8 +1006,28 @@
   $("llm-choice").addEventListener("change", function () { $("llm-model").value = ""; syncLlmFields(); });
   $("llm-test").addEventListener("click", function () {
     $("llm-msg").textContent = "測試中…";
-    api("POST", "/api/settings/llm/test", llmBody()).then(function (d) { $("llm-msg").textContent = d.message; })
-      .catch(function (e) { $("llm-msg").textContent = "❌ " + e.message; });
+    $("llm-install").classList.add("hidden");
+    api("POST", "/api/settings/llm/test", llmBody()).then(function (d) {
+      $("llm-msg").textContent = d.message;
+      if (d.download_url && d.download_url.indexOf("https://") === 0) {     // 沒裝 claude：顯示安裝指令（只給複製，不替使用者執行）
+        $("llm-dl").href = d.download_url;
+        $("llm-install").classList.remove("hidden");
+      }
+    }).catch(function (e) { $("llm-msg").textContent = "❌ " + e.message; });
+  });
+  document.querySelectorAll("#llm-install .copy").forEach(function (b) {
+    b.addEventListener("click", function () {
+      var node = $(b.getAttribute("data-copy"));
+      var done = function () { b.textContent = "已複製"; setTimeout(function () { b.textContent = "複製"; }, 1500); };
+      var pick = function () {                                               // 沒有剪貼簿權限就選起來，讓使用者自己 Ctrl+C
+        var r = document.createRange(); r.selectNodeContents(node);
+        var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+        b.textContent = "已選起來，按 Ctrl+C";
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(node.textContent).then(done, pick);
+      } else { pick(); }
+    });
   });
   $("llm-save").addEventListener("click", function () {
     api("POST", "/api/settings/llm", llmBody()).then(function (d) { $("llm-msg").textContent = d.message; loadSettings(); })

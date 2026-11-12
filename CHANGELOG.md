@@ -15,6 +15,12 @@
 - 新增 `scripts/make_ui_preview.py`：產生 `docs/ui/preview*.html`（真的 app.html＋假資料，雙擊就能看）；`tests/test_ui_preview.py` 檢查預覽有沒有同步。
 - 主色與深淺色切換鈕、安裝精靈要不要跟著換：[QuestionToUser.md](QuestionToUser.md) Q4、Q5。
 
+### 找不到 Claude Code 時給安裝點
+- 網頁設定頁「測一下」回「找不到 claude」時，顯示 Windows／Linux／macOS 的安裝指令（可複製，不代跑）與官方說明連結；
+  安裝精靈與網頁共用的 `CLAUDE_DOWNLOAD_URL` 改成官方安裝說明頁（原本的行銷頁會讓人裝成 Claude Desktop）。
+- `find_claude()` 除了 PATH，也找 `~/.local/bin/claude(.exe)`（原生安裝程式的位置，不一定在 PATH 上）。
+  背景與「VS Code 能用不代表 SYNOX 找得到」：[docs/claude-code-cli.md](docs/claude-code-cli.md)。
+
 ### 修正
 - 兩個無效的跳脫字元（`src/synox/wizard/shortcuts.py` 的說明、`tests/test_wizard.py` 的位元組字串）改成 raw 字串，內容不變；
   Python 3.12 起會是 SyntaxWarning。

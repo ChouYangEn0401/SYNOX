@@ -356,6 +356,18 @@ def test_save_llm_puts_key_in_vault(make_bot, owner, tmp_path):
     assert c.post("/api/settings/llm", {"choice": "keys", "provider": "gemini"})[0] == 400
 
 
+def test_llm_test_gives_download_url_when_claude_missing(make_bot, owner, monkeypatch):
+    from synox.llm import claude_code
+    from synox.wizard import logic
+    monkeypatch.setattr(claude_code, "find_claude", lambda: None)
+    c = Client(ui_of(make_bot()))
+    c.login(owner)
+    status, data = c.post("/api/settings/llm/test", {"choice": "claude_code"})
+    assert status == 200 and data["ok"] is False and data["download_url"] == logic.CLAUDE_DOWNLOAD_URL
+    status, data = c.post("/api/settings/llm/test", {"choice": "none"})
+    assert "download_url" not in data
+
+
 def _pack_zip(name="hello", top=None, extra=None):
     buf = io.BytesIO()
     prefix = f"{top}/" if top else ""
