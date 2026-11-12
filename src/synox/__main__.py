@@ -6,13 +6,19 @@ python -m synox <指令>
   wizard    安裝精靈（tkinter 視窗；Setup.bat 最後一步）
   doctor    健康檢查（--offline 不實際打 AI）
   stop      停掉正在跑的 bot（Stop.bat）
+  open      在這台電腦上打開網頁介面（好記的名字；跟 web-login 一樣）
   web-login 在這台電腦上打開網頁介面：發一個擁有者的一次性登入連結並打開（Open-SYNOX.bat、桌面捷徑；沒在跑就先開）
+  about     版本、授權、裝在哪裡
+  tips      隨機一則使用小提示（--all 全部）
   install   裝一個 .synoxpack：安全管線第 1–3 關（--yes 在終端機直接核准；沒有 --yes 就開網頁設定頁給你按）
             同名已經裝了＝升級：先印「改了什麼」，版本要比較新（--allow-downgrade 才能降級／重裝同版）
   packs     packs status（每個 pack 的鎖定狀態）｜packs lock --approve <name>（工程師：重跑 1、2 關、寫 packs.lock）
             ｜packs rollback <name>（_removed 裡最近一份舊版搬回、鎖改回）
             ｜packs env rebuild <name>（重建 runtime.python／node = auto 的環境，data/envs/<name>/）
   connect   connect <pack> [--user ID] [--clear]：把 pack 要的帳號存進保管箱（密碼用 getpass，不經聊天）
+
+`synox`（沒參數）、run、open、wizard、doctor、about 開頭會印歡迎畫面（src/synox/brand.py）；只在互動終端機印，
+--quiet／SYNOX_NO_BANNER／管線就不印。
 """
 
 from __future__ import annotations
@@ -265,6 +271,27 @@ def cmd_web_login(args, *, is_up=web_is_up, running=_synox_running, start=_start
     print("🌐 打開網頁介面（一次性登入連結，按頁面上的「登入」；不要轉給別人）：")
     print(link)
     open_url(link)
+    return 0
+
+
+def cmd_open(args, **kw) -> int:
+    """`synox open`：好記的名字，行為就是 web-login（歡迎畫面在 main 印）。kw 跟 cmd_web_login 一樣（測試換掉瀏覽器、啟動）。"""
+    return cmd_web_login(args, **kw)
+
+
+def cmd_about(args) -> int:
+    from synox import brand
+    print(brand.about_text(args.config or None), end="")
+    return 0
+
+
+def cmd_tips(args, *, rng=None) -> int:
+    from synox import brand
+    if getattr(args, "all", False):
+        for i, text in enumerate(brand.all_tips(), 1):
+            print(f"{i:>2}. {text}")
+        return 0
+    print("小提示：" + brand.tip(rng))
     return 0
 
 
@@ -636,6 +663,7 @@ def main(argv=None) -> int:
     _utf8_console()
     parser = argparse.ArgumentParser(prog="python -m synox", description="SYNOX：你自己電腦上的 Telegram 小助手")
     parser.add_argument("--config", default="", help="config.json 的位置（預設在 SYNOX 資料夾）")
+    parser.add_argument("-q", "--quiet", action="store_true", help="不要印歡迎畫面（也可以設環境變數 SYNOX_NO_BANNER=1）")
     sub = parser.add_subparsers(dest="cmd")
     p = sub.add_parser("run", help="開 bot、收 Telegram")
     p.add_argument("--no-browser", action="store_true",
@@ -694,9 +722,18 @@ def main(argv=None) -> int:
                    help="哪個 bot（config.json 的 channels.discord.bots.<名字>）；不寫＝default（舊的單一 bot 寫法）")
     p.add_argument("--clear", action="store_true",
                    help="discord token --clear：從保管箱刪掉這個 bot 的 token（要作廢舊 token 還是要到 Developer Portal 按 Reset Token）")
+    p = sub.add_parser("open", help="在這台電腦上打開網頁介面（沒在跑就先開 SYNOX；跟 web-login 一樣）")
+    sub.add_parser("about", help="SYNOX 的版本、授權、裝在哪裡")
+    p = sub.add_parser("tips", help="隨機一則使用小提示")
+    p.add_argument("--all", action="store_true", help="列出全部小提示")
+    from synox import brand
+    brand.add_quiet_flags(sub, [c for c in brand.BANNER_COMMANDS if c])
     args = parser.parse_args(argv)
     handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop,
-                "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord, "web-login": cmd_web_login}
+                "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord, "web-login": cmd_web_login,
+                "open": cmd_open, "about": cmd_about, "tips": cmd_tips}
+    if args.cmd in brand.BANNER_COMMANDS:
+        brand.show_banner(args.cmd, quiet=args.quiet)
     if args.cmd not in handlers:
         parser.print_help()
         return 1
