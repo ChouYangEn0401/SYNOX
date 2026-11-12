@@ -76,6 +76,8 @@ class MotherSession:
         self.running = False
         self.last_active_at: Optional[float] = None
         self._memory: Optional[List[dict]] = None
+        self._chat_lock = threading.Lock()
+        self._chat_memory: List[Message] = []     # 網頁「常駐助理」聊天的記憶：只在記憶體，重開就清空；跟巡邏記憶分開
 
     # ── 狀態 ─────────────────────────────────────────────────────────
 

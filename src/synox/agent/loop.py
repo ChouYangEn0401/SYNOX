@@ -121,28 +121,47 @@ class AgentLoop:
         self.usage = UsageBook(app.config.path("llm_usage.json"))
         self.history: Dict[object, List[Message]] = defaultdict(list)
         self._locks: Dict[object, threading.Lock] = defaultdict(threading.Lock)
+        self._touched: Dict[object, float] = {}          # 每份記憶最後一次寫入的時間（心跳挑「最近的那段對話」用）
+        self._ctx = threading.local()                    # 這一輪屬於哪一段對話（run_turn 設，同一個執行緒內都看得到）
 
     # ── 記憶 ─────────────────────────────────────────────────────────
 
-    def memory_key(self, chat_id: int, user=None):
+    def memory_key(self, chat_id: int, user=None, thread=None):
         """對話記憶的鍵：私訊＝chat_id（就是這個人）；chat_id 不是這個人（群組）＝(chat_id, 這個人)——
-        同一個群組裡的人不共用彼此的記憶（審查 A #2）。頻道 AI（agent/room.py）換成「頻道」本身。"""
+        同一個群組裡的人不共用彼此的記憶（審查 A #2）。頻道 AI（agent/room.py）換成「頻道」本身。
+        thread：網頁的每一段對話（「新對話」）各自一份記憶，不跟別段、也不跟 Telegram／Discord 私訊共用；
+        沒給就看 run_turn 設的（api.thread）。Telegram／Discord 沒有 thread，照舊整個人一份。"""
+        thread = thread if thread is not None else getattr(self._ctx, "thread", None)
+        if thread is not None:
+            return (chat_id, f"thread:{thread}")
         uid = getattr(user, "tg_id", user)
         if uid is None or uid == chat_id:
             return chat_id
         return (chat_id, uid)
 
-    def remember(self, chat_id: int, said: str, answer: str, user=None) -> None:
-        h = self.history[self.memory_key(chat_id, user)]
+    def remember(self, chat_id: int, said: str, answer: str, user=None, thread=None) -> None:
+        key = self.memory_key(chat_id, user, thread)
+        h = self.history[key]
         h += [Message(USER, said), Message(ASSISTANT, answer)]
         del h[:max(0, len(h) - 2 * self.history_turns)]
+        self._touched[key] = time.time()
 
-    def note(self, chat_id: int, text: str, user=None) -> None:
-        """核准卡按下之後記一筆（下一輪 AI 知道那件事做了沒）。user：卡的主人（記進他自己的那份記憶）。"""
-        self.remember(chat_id, "（系統）確認卡的結果", text, user)
+    def note(self, chat_id: int, text: str, user=None, thread=None) -> None:
+        """核准卡按下之後記一筆（下一輪 AI 知道那件事做了沒）。user：卡的主人（記進他自己的那份記憶）；
+        thread：卡是在網頁哪一段對話按的（記進那一段）。"""
+        self.remember(chat_id, "（系統）確認卡的結果", text, user, thread)
 
-    def reset(self, chat_id: int, user=None) -> int:
-        return len(self.history.pop(self.memory_key(chat_id, user), []))
+    def reset(self, chat_id: int, user=None, thread=None) -> int:
+        return len(self.history.pop(self.memory_key(chat_id, user, thread), []))
+
+    def latest_history(self, user_id: int) -> List[Message]:
+        """這個人最近有動靜的那一份記憶（私訊或網頁的某一段對話）：常駐助理巡的時候看「他最近交代了什麼」用。"""
+        best, best_at = None, -1.0
+        for key, at in list(self._touched.items()):
+            mine = key == user_id or (isinstance(key, tuple) and key[0] == user_id)
+            if mine and at > best_at and self.history.get(key):
+                best, best_at = key, at
+        return list(self.history.get(best, [])) if best is not None else []
 
     # ── 提示 ─────────────────────────────────────────────────────────
 
@@ -206,12 +225,16 @@ class AgentLoop:
         return text
 
     def run_turn(self, api, chat_id: int, user, text: str) -> None:
-        with self._locks[self.memory_key(chat_id, user)]:
-            stop = self.out_of_budget(user)
-            if stop:
-                api.send_message(chat_id, stop)
-                return
-            self._turn(api, chat_id, user, text)
+        self._ctx.thread = getattr(api, "thread", None)        # 網頁：這是哪一段對話（WebChannel.thread）
+        try:
+            with self._locks[self.memory_key(chat_id, user)]:
+                stop = self.out_of_budget(user)
+                if stop:
+                    api.send_message(chat_id, stop)
+                    return
+                self._turn(api, chat_id, user, text)
+        finally:
+            self._ctx.thread = None
 
     def _record(self, user, usage: dict) -> None:
         if self.budget is not None and not self.budget.exempt(user):
