@@ -13,6 +13,10 @@
   對話助理仍不讀常駐助理的記憶。「agent 怎麼讀 context」的 HTML 說明記在 [docs/README.md](docs/README.md) 的待做（MVP 之後）。
 - 心跳預設**維持 45 分鐘**、最短 15 分鐘（決定 Q10）：ADR 0001 §3 補理由（擁有者：搭得上約 1 小時的 prompt 快取、固定 beat 下去比較划算），
   並註明 SYNOX 現在的 adapter 沒有自己標 1 小時快取（之後的工作）；新測試對設定預設值、`config.example.json`、主控面板三處都是 45。
+- 網頁誰進得了（Q11）：[docs/security.md](docs/security.md) 新增白話表；程式沒改。查到伺服器版 `/web` 對每個人（含訪客）都發連結，
+  要不要收緊另開 QuestionToUser **QS1**。
+- [QuestionToUser.md](QuestionToUser.md)：最上面加常駐規則（擁有者 2026-11-12：「你作玩得可以先刪掉，剩下的我沒回就都先留著」）；
+  Q5、Q7、Q10、Q11、QL5 標成已回答、濃縮成結論搬到最下面「已回答」；其他題目不動。
 
 ### 常駐助理、心跳、runtime loop（branch `feat/runtime-heartbeat`，還沒合併）
 - 新增 `src/synox/runtime/`：常駐的排程迴圈（每個任務自己的執行緒、逾時、失敗退避、連續 5 次失敗通知一次）、
