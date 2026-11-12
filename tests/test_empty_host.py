@@ -18,23 +18,22 @@ from synox.sdk import author, zip_pack
 from test_web import Client, ui_of
 
 HINT = "還沒裝任何工具"
-CONNECTORS = os.path.join(ROOT, "connectors")
 
 
 @pytest.fixture
 def empty_dirs(tmp_path, monkeypatch):
-    """這台的 SYNOX：packs/ 是空的（安裝的落點），connectors/ 照出廠。"""
+    """這台的 SYNOX：packs/ 是空的（安裝的落點）；2026-11-12 起連 connector 都沒有（legacy/connectors.md）。"""
     packs = tmp_path / "packs"
     packs.mkdir()
-    monkeypatch.setattr(loader, "PACK_DIRS", (str(packs), CONNECTORS))
+    monkeypatch.setattr(loader, "PACK_DIRS", (str(packs),))
     return packs
 
 
 def test_empty_host_builds_and_says_where_to_get_tools(make_bot, owner, empty_dirs):
     bot = make_bot()
     report = bot.app.extras["synox_pack_report"]
-    assert report.ok and {i.name for i in report.items} == {"notion", "todoist", "google-calendar", "apple-reminders"}
-    assert library.installed_tools(bot.app) == []                       # connector 不算「裝了工具」
+    assert report.ok and report.items == []                             # 真的全空：一個 pack 都沒有
+    assert library.installed_tools(bot.app) == []
     bot.say(owner, "/start")
     assert HINT in bot.last(owner) and "SYNOX_Libs" in bot.last(owner)
     bot.clear()
@@ -46,7 +45,7 @@ def test_empty_host_builds_and_says_where_to_get_tools(make_bot, owner, empty_di
 
 
 def test_nothing_at_all_still_works(make_bot, owner, tmp_path):
-    """連 connector 都沒有：/help 只剩基本指令、AI 照常聊天（沒有工具）。"""
+    """一個 pack 都沒有：/help 只剩基本指令、AI 照常聊天（沒有工具）。"""
     bot = make_bot(["你好，我在。"], pack_dirs=[str(tmp_path / "nothing")])
     assert bot.app.extras["synox_pack_report"].items == []
     bot.say(owner, "/help")
@@ -111,7 +110,7 @@ def test_doctor_on_empty_host(tmp_path, empty_dirs):
 
 def test_doctor_counts_installed_tools(tmp_path, monkeypatch):
     from synox import doctor
-    monkeypatch.setattr(loader, "PACK_DIRS", (FIXTURE_PACKS, CONNECTORS))
+    monkeypatch.setattr(loader, "PACK_DIRS", (FIXTURE_PACKS,))
     lines = []
     doctor.run(offline=True, config_path=_write_config(tmp_path), out=lines.append)
     assert "• 工具：裝了 3 個（money、notes、remind）" in "\n".join(lines)

@@ -48,7 +48,7 @@ def install_server_packs(app) -> None:
 
 def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_dirs=None,
           config_path: Optional[str] = None) -> App:
-    if pack_dirs is None:                      # 沒指定＝內建的 packs/、connectors/ ＋ config.json 的 packs.dirs
+    if pack_dirs is None:                      # 沒指定＝SYNOX 的 packs/（安裝的落點）＋ config.json 的 packs.dirs
         pack_dirs = config.pack_dirs() if hasattr(config, "pack_dirs") else loader.PACK_DIRS
     app = build_app(config, home=home)
     policy.install(app)                        # SDK 的 authorize 改走 synox/policy.py 的 decide（能力上限、bot 範圍）

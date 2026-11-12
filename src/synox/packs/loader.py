@@ -1,5 +1,6 @@
 """
-掃 packs/*/pack.json 與 connectors/*/pack.json，一個資料夾一個 pack，裝進 app。
+掃 packs/*/pack.json（＋config.json 的 packs.dirs），一個資料夾一個 pack，裝進 app。
+SYNOX 出廠不帶任何工具（packs/ 只有說明；工具在 SYNOX_Libs）：以前的 connectors/ 2026-11-12 也搬走了（legacy/connectors.md）。
 
   kind=python     import 資料夾裡的 pack.py，呼叫 install(app, pack)
   kind=cli        pack.json 的 cli.argv＋cli.commands → isdtelekit.packs.service.install（會印 JSON 的命令列程式）
@@ -16,7 +17,7 @@ runtime.python／node = "auto" 的環境在安裝時建（packs/envs.py）；沒
 每次叫 cli 子程序都先過 synox/sandbox.py（PERM-7）：grants 從宣告算、後端包一層 argv（none＝原樣）；
 pack 有 runtime.container、擁有者選了容器、這台找得到引擎 → sandbox.box_for 給容器後端，代換改用容器裡的路徑（view_for）；
 伺服器版 policy.sandbox.required_for 命中又沒有真隔離 → 那個 cli pack 整組 owner_only（detail 寫原因）。
-伺服器版 kind=python 的信任（PERM-8）：出廠的（BUNDLED）＝core；有鎖看 packs.lock 的 trust；沒鎖（手動放的）＝third-party。
+伺服器版 kind=python 的信任（PERM-8）：出廠的（BUNDLED，現在是空的）＝core；有鎖看 packs.lock 的 trust；沒鎖（手動放的）＝third-party。
 third-party 的 python pack 整組 owner_only（成員打了跟不存在一樣、AI 工具清單也沒有；detail 寫原因）。
 伺服器版沒鎖、不是出廠的 pack 載入前補跑一次第 2 關（scan.gate2），沒過＝status rejected、不載入。
 
@@ -61,7 +62,9 @@ from synox.packs.manifest import (Manifest, ManifestError, default_text, missing
                                   secret_env_names, synox_problem)
 from synox.vault.vault import USERS_DIR
 
-PACK_DIRS = (os.path.join(ROOT, "packs"), os.path.join(ROOT, "connectors"))
+# SYNOX 自己的 pack 資料夾＝使用者裝的工具的落點（PACK_DIRS[0]）。2026-11-12 以前還有 connectors/（出廠的 4 個 connector），
+# 搬到 SYNOX_Libs 之後不掃了：從舊版解壓縮蓋過去、留在磁碟上的舊 connectors/ 也不會被載入（legacy/connectors.md）。
+PACK_DIRS = (os.path.join(ROOT, "packs"),)
 EFFECTS = {"read": READ, "write": WRITE, "danger": DANGER}
 
 
@@ -316,13 +319,15 @@ def shared_write_admin(app, m: Manifest, server: bool) -> int:
 
 # ── 伺服器版 python pack 的信任（PERM-8） ─────────────────────────────────
 
-# 出廠的 pack（repo 的 packs/、connectors/ 裡、名字在這張表上）＝core，不看 packs.lock。
-# 2026-11-12 起 SYNOX 出廠不帶工具（money、notes、remind 搬到 SYNOX_Libs，legacy/builtin-packs.md），只剩 connectors/。
-BUNDLED = ("apple-reminders", "google-calendar", "notion", "todoist")
+# 出廠的 pack（在 PACK_DIRS 裡、名字在這張表上）＝core，不看 packs.lock。
+# 2026-11-12 起 SYNOX 出廠不帶任何工具：money、notes、remind（legacy/builtin-packs.md）與 4 個 connector
+# （legacy/connectors.md）都搬到 SYNOX_Libs，這張表是空的。**不要再把工具加回出廠**：新工具放 SYNOX_Libs、走安裝流程。
+# 機制留著（is_bundled 的位置＋名字判斷、審查 A #5 的「有鎖以鎖為準」），測試用 monkeypatch 填名字來測。
+BUNDLED: tuple = ()
 
 
 def is_bundled(m: Manifest) -> bool:
-    """出廠的：名字在 BUNDLED，而且資料夾就在內建的 packs/ 或 connectors/ 底下（packs.dirs 另外放的不算）。
+    """出廠的：名字在 BUNDLED，而且資料夾就在內建的 PACK_DIRS 底下（packs.dirs 另外放的不算）。現在 BUNDLED 是空的＝永遠 False。
     只看名字和位置，所以**只在沒有 packs.lock 那一筆時**拿來決定信任（python_trust、sandbox.trust_of）：
     經安裝／升級流程進來的同名 pack 一定有鎖，以鎖記的 trust 為準（審查 A #5）。"""
     if m.name not in BUNDLED:
@@ -789,7 +794,7 @@ def _install_connector(app, pack: Pack) -> None:
 
     def status(api, chat_id, user, args):
         api.send_message(chat_id, f"🔌 {m.title} 還沒接上（SYNOX v0 只登記 connector，不連外）。\n"
-                                  f"接法的設計寫在 connectors/{os.path.basename(m.folder)}/README.md。")
+                                  f"接法的設計寫在這個 pack 資料夾的 README.md（{os.path.basename(m.folder)}）。")
 
     pack.group.leaf("status", status, "還沒接上（打了看說明）", default=True, ai=False)
 

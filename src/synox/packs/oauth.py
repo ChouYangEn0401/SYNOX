@@ -7,7 +7,7 @@
                        "redirect_uri": "http://127.0.0.1:47232/",      沒寫＝這個；SYNOX 不在這個埠聽
                        "receiver": "paste"}}                          paste（預設）｜loopback（只有介面，執行時拒）
 
-**貼回網址（receiver=paste，這一版唯一能用的）**：仿 connectors/google-calendar——
+**貼回網址（receiver=paste，這一版唯一能用的）**：仿 google-calendar 工具（以前在 connectors/，現在在 SYNOX_Libs）——
 /<群組>_login（只收私訊、不給 AI）→ SYNOX 產 PKCE（S256）＋隨機 state（32 bytes、15 分鐘、只能用一次，
 只放在記憶體）→ 給一個授權網址 → 使用者在瀏覽器登入、按允許 → 瀏覽器被轉到 redirect_uri，**那裡沒有人在聽**
 （SYNOX 不開任何埠），畫面打不開 → 使用者把網址列整串用 /<群組>_code <貼上> 傳回來 → state 對得上才拿 code＋

@@ -131,15 +131,21 @@ def test_oauth_and_none_are_not_managed(tmp_path):
     assert pack_secrets.managed_fields(read(folder)) == []
 
 
-def test_builtin_connectors_are_not_managed():
-    """內建 connector 有自己的 token 指令（/todoist_token…），工具頁不出「連接」按鈕，行為不變。"""
-    root = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "connectors")
+_LIBS = os.environ.get("SYNOX_LIBS") or os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "SYNOX_Libs")
+
+
+@pytest.mark.skipif(not os.path.isdir(os.path.join(_LIBS, "packs")),
+                    reason="沒有工具庫（設環境變數 SYNOX_LIBS=<SYNOX_Libs 資料夾>，或放在 SYNOX 旁邊）")
+def test_connectors_in_the_library_are_not_managed():
+    """工具庫的 4 個 connector（2026-11-12 以前在 SYNOX 的 connectors/）有自己的 token 指令（/todoist_token…），
+    工具頁不出「連接」按鈕，行為不變。只讀工具庫。"""
     names = []
-    for sub in sorted(os.listdir(root)):
-        m = read(os.path.join(root, sub))
+    for sub in ("notion", "todoist", "google-calendar", "apple-reminders"):
+        m = read(os.path.join(_LIBS, "packs", sub))
         names.append(m.name)
         assert pack_secrets.managed_fields(m) == [], m.name
-    assert {"notion", "todoist", "google-calendar", "apple-reminders"} <= set(names)
+    assert names == ["notion", "todoist", "google-calendar", "apple-reminders"]
 
 
 def test_auth_managed_flag_overrides(tmp_path):
