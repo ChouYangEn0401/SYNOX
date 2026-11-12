@@ -57,6 +57,8 @@
 
 - **只綁 `127.0.0.1`**（程式裡寫死，config 改不了）：同一台電腦以外的裝置連不到。預設埠 8830（`config.json` 的 `web.port`；
   `web.enabled: false` 完全不開）。埠被占用時只記一行錯誤（說是哪個埠、改哪個設定），bot 其他功能照常。
+  唯一的例外是 SYNOX 自己的容器：`SYNOX_IN_CONTAINER=1`、看得到容器證據、`SYNOX_WEB_BIND=0.0.0.0` 三個都成立才綁**容器自己的** 0.0.0.0，
+  宿主那一邊由 compose 只發佈到 127.0.0.1；其他值一律拒、網頁不開（[docker.md](docker.md)「為什麼容器裡綁 0.0.0.0 是安全的」）。
 - **登入沒有密碼，連結就是鑰匙**：`/web` 給的連結隨機（256 bit）、只能用一次、7 天、綁一個 Telegram 帳號；
   換到的 cookie 是 HttpOnly、SameSite=Lax，7 天過期；`web.public_url` 是 https 時另外加 `Secure`。
   連結經過 Telegram（跟 bot 訊息一樣不是端對端加密），不要轉給別人。

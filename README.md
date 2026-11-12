@@ -116,6 +116,14 @@ synox tips      隨機一則使用小提示
 `api_key` 可以直接寫、寫 `env:環境變數名`，或 `vault:llm_api_key`（精靈存進保管箱的）。
 用金鑰的四種要先裝 ntu_easy_llm（見 [docs/AGENT.md](docs/AGENT.md) 的「ntu_easy_llm」）；沒裝時 `doctor` 和「測一下」會說怎麼裝。
 
+## 用 Docker（Linux／NAS 長時間跑、或開發用）
+
+- **跑 SYNOX**：`docker compose build` → `docker compose run --rm synox init` → `docker compose up -d`。資料在具名 volume，
+  網頁只發佈到這台電腦的 `127.0.0.1:8830`，Telegram／Discord 只需要往外連。
+- **開發**：VS Code 的 Dev Containers 打開這個資料夾（`.devcontainer/`，Python 3.11，`python -m pytest -q`）。
+- 怎麼做、限制（容器裡的工具只能用 host 模式、AI 來源、Windows／macOS 的注意事項）與驗證清單：[docs/docker.md](docs/docker.md)。
+  ⚠️ 映像檔還**沒有在任何一台機器上實際建置、跑過**。
+
 ## 常見問題
 
 - **手機沒收到「我在了」？** 看 `Start.bat` 開的那個小視窗有沒有紅字；雙擊 `Console.bat` 可以不連 Telegram 直接在電腦上試指令。
