@@ -590,3 +590,38 @@ def test_local_auto_login_is_off_for_server_mode_public_url_and_the_switch(make_
         ui.port = 8830
         _s, resp_headers, _b = ui.handle("GET", "/", dict(NAV))
         assert "Set-Cookie" not in dict(resp_headers), raw
+
+
+# ── 真瀏覽器的登入：同源表單 POST 會帶 Origin: null（Referrer-Policy: no-referrer）──────
+
+def _login_page_for(ui, owner):
+    page = ui.handle("GET", f"/login?t={ui.tokens.issue(owner)}", {"Host": "127.0.0.1:8830"})
+    assert page[0] == 200
+    return page
+
+
+def test_login_confirm_works_with_the_origin_null_a_real_browser_sends(make_bot, owner):
+    ui = ui_of(make_bot())
+    page = _login_page_for(ui, owner)
+    status, _h, _b = confirm_login(ui, page[1], page[2], extra={"Origin": "null", "Sec-Fetch-Site": "same-origin"})
+    assert status == 303
+
+
+@pytest.mark.parametrize("extra", [
+    {"Origin": "null"},                                              # 沒有 Sec-Fetch-Site：分不出是不是自己
+    {"Origin": "null", "Sec-Fetch-Site": "cross-site"},
+    {"Origin": "null", "Sec-Fetch-Site": "same-site"},
+    {"Origin": "http://evil.example.com", "Sec-Fetch-Site": "same-origin"},
+])
+def test_login_confirm_still_refuses_foreign_or_unproven_origins(make_bot, owner, extra):
+    ui = ui_of(make_bot())
+    page = _login_page_for(ui, owner)
+    status, _h, body = confirm_login(ui, page[1], page[2], extra=extra)
+    assert status == 403 and "登入沒有完成".encode() in body
+
+
+def test_login_page_lets_the_browser_send_the_real_origin(make_bot, owner):
+    ui = ui_of(make_bot())
+    headers = _login_page_for(ui, owner)[1]
+    policies = [v for k, v in headers if k == "Referrer-Policy"]
+    assert policies == ["same-origin"]

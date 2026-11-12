@@ -52,6 +52,13 @@ Problems found while testing the installer. "Fixed" items are on this branch; "O
    `lang.txt` in the SYNOX folder (written by Setup; `Uninstall.bat all` deletes it), else ask. Wizard writes `"language"` into
    config.json. Tables: `src/synox/wizard/lang/*.py`, `setup/lang/*.psd1`. Runtime bot/web messages are NOT translated.
 
+12. **Login confirm page failed in real browsers** ("登入沒有完成 / 來源不對（不是從 SYNOX 自己的登入頁送出的）").
+   Root cause: the login page is served with `Referrer-Policy: no-referrer`, and Edge/Chrome then send `Origin: null` even for
+   a same-origin form POST; `login_post` rejected `null`. Unit tests missed it because they hand-built a correct `Origin`.
+   Fix: the login page now uses `Referrer-Policy: same-origin` (real Origin is sent), and `Origin: null` is accepted only when
+   `Sec-Fetch-Site: same-origin` (set by the browser, not forgeable by a page). Verified end to end with real Edge driven over
+   the DevTools protocol (open link, click 登入, land on `/#chat` as owner).
+
 ## Open
 
 1. **Icon artwork** is a placeholder (blue square with an "S"); needs a real design.
