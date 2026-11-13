@@ -57,7 +57,27 @@ KEY_PROVIDERS = OrderedDict([
     ("openai_compat", ("相容端點（公司閘道、Ollama）", "openai_compat", "llama3.1", True)),
 ])
 PROVIDERS = KEY_PROVIDERS                       # 舊名
-CHOICES = ("claude_code", "keys", "none")
+CHOICES = ("claude_code", "keys", "local", "none")
+
+# 本地模型（llm.kind = "local"，docs/adr/0007）：SYNOX 內建，沒有金鑰。伺服器代號 → 下拉選單上的字
+LOCAL_SERVERS = OrderedDict([("ollama", "Ollama"), ("vllm", "vLLM"), ("lmstudio", "LM Studio"),
+                             ("other", "其他 OpenAI 相容伺服器")])
+LOCAL_TITLE = "本地模型（Ollama 等，在這台或家裡網路的電腦上跑）"
+
+
+def local_defaults(server: str = "ollama") -> dict:
+    from synox.llm.local import DEFAULT_MAX_TOTAL, DEFAULT_TIMEOUT, DEFAULT_URLS
+    return {"server": server, "base_url": DEFAULT_URLS.get(server, DEFAULT_URLS["ollama"]),
+            "timeout": int(DEFAULT_TIMEOUT), "max_total_timeout": int(DEFAULT_MAX_TOTAL)}
+
+
+def local_advice(server: str = "ollama", base_url: str = "", model: str = "", *, prompt_chars=None,
+                 max_tokens: int = 1024, opener=None, ram=None) -> dict:
+    """context-size 建議（唯讀探測＋這台的記憶體；連不上退回靜態表）。精靈、文字版 init、網頁設定頁共用。"""
+    from synox.llm.local import SERVERS, LocalAdapter
+    server = server if server in SERVERS else "ollama"
+    adapter = LocalAdapter(model, server=server, base_url=base_url, max_tokens=max_tokens, opener=opener)
+    return adapter.advice(prompt_chars=prompt_chars, ram=ram)
 
 
 def _label(code: str) -> str:
@@ -105,12 +125,34 @@ def default_choice(claude_found: bool) -> str:
 
 
 def llm_settings(choice: str, *, base_url: str = "", api_key: str = "", model: str = "",
-                 provider: str = "openai") -> Tuple[dict, str]:
-    """回 (config 的 llm 那一塊（金鑰先放明文，save() 會換成 vault: 參照）, 錯誤或空字串)。"""
+                 provider: str = "openai", server: str = "ollama", context_size=0, tools: bool = True,
+                 timeout=None, max_total_timeout=None) -> Tuple[dict, str]:
+    """回 (config 的 llm 那一塊（金鑰先放明文，save() 會換成 vault: 參照）, 錯誤或空字串)。
+    choice=local：server／base_url／model／context_size／tools（timeout、max_total_timeout 沒給＝預設 450／1800）。"""
     if choice == "none":
         return {"kind": "none"}, ""
     if choice == "claude_code":
         return {"kind": "claude_code", "model": model.strip()}, ""
+    if choice == "local":
+        from synox.llm.local import validate
+        if not model.strip():
+            return {}, t("err_local_model")
+        if base_url.strip() and not base_url.strip().startswith(("http://", "https://")):
+            return {}, t("err_url")
+        raw = {**local_defaults(server if server in LOCAL_SERVERS else "ollama"), "model": model.strip(),
+               "context_size": context_size, "tools": bool(tools)}
+        if base_url.strip():
+            raw["base_url"] = base_url.strip()
+        if timeout not in (None, ""):
+            raw["timeout"] = timeout
+        if max_total_timeout not in (None, ""):
+            raw["max_total_timeout"] = max_total_timeout
+        try:
+            out = validate(raw)
+        except ValueError as e:
+            return {}, str(e)
+        return {k: out[k] for k in ("kind", "server", "base_url", "model", "context_size", "timeout",
+                                    "max_total_timeout", "tools")}, ""
     if choice == "friend":                         # 舊選項：朋友／公司給的網址＝相容端點
         choice, provider = "keys", "openai_compat"
     if choice == "own":

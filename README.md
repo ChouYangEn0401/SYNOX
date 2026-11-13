@@ -121,9 +121,22 @@ synox tips      隨機一則使用小提示
 自己建環境：`py -3.12 -m venv .venv` → `.venv\Scripts\python.exe -m pip install -r requirements.lock`（有這個檔的話）→
 `… -m pip install --no-deps -e .`（沒有鎖就 `pip install -e .`）。
 
-`llm.kind` 可以是 `claude_code`、`openai`、`anthropic`、`gemini`、`openai_compat`（要 `base_url`）、`fake`、`none`；
+`llm.kind` 可以是 `claude_code`、`local`（本地模型：Ollama、vLLM、LM Studio）、`openai`、`anthropic`、`gemini`、
+`openai_compat`（要 `base_url`）、`fake`、`none`；
 `api_key` 可以直接寫、寫 `env:環境變數名`，或 `vault:llm_api_key`（精靈存進保管箱的）。
-用金鑰的四種要先裝 ntu_easy_llm（見 [docs/AGENT.md](docs/AGENT.md) 的「ntu_easy_llm」）；沒裝時 `doctor` 和「測一下」會說怎麼裝。
+用金鑰的四種要先裝 ntu_easy_llm（`.venv\Scripts\python.exe -m pip install -e .[llm]`，見 [docs/AGENT.md](docs/AGENT.md) 的「ntu_easy_llm」）；
+沒裝時 `doctor` 和「測一下」會說怎麼裝。
+
+**本地模型**（[docs/adr/0007](docs/adr/0007-local-llm-platform.md)）不需要金鑰也不需要 ntu_easy_llm：
+
+```json
+"llm": {"kind": "local", "server": "ollama", "base_url": "http://127.0.0.1:11434", "model": "qwen3.5:9b",
+        "context_size": 8192, "timeout": 450, "max_total_timeout": 1800, "tools": true}
+```
+
+- `context_size` 越大越吃記憶體；不確定就看建議（`synox init`、精靈或網頁設定頁的「看建議」——只讀模型資料，不會載入模型，數字是估算）。
+  太小（Ollama 預設 4096）時 SYNOX 的提示會被截斷，SYNOX 會提醒你。
+- `timeout` 是「多久完全沒有進展」：模型只要還在回就不會被中止；`max_total_timeout` 是總上限。
 
 ## 用 Docker（Linux／NAS 長時間跑、或開發用）
 
@@ -138,6 +151,9 @@ synox tips      隨機一則使用小提示
 - **手機沒收到「我在了」？** 看 `Start.bat` 開的那個小視窗有沒有紅字；雙擊 `Console.bat` 可以不連 Telegram 直接在電腦上試指令。
   也可以在 SYNOX 資料夾開命令列跑 `.venv\Scripts\python.exe -m synox doctor`，它會檢查設定、AI、資料。
 - **提醒沒有響？** 提醒只有 bot 開著（那個小視窗在）的時候才會送。可以在安裝精靈勾「開機自動啟動」。
+- **電腦自己睡著？** 網頁設定頁的「保持清醒」（預設關）：像一個穩定的 heartbeat，維持系統運轉、螢幕可以暗。開啟後會覆蓋 Windows
+  電源選項裡的「睡眠」設定；闔上筆電蓋、手動睡眠、低電量、Windows Update 重開機擋不住。現代待命機型（Google Drive 還是斷線）
+  見 [docs/keep-awake-troubleshooting.md](docs/keep-awake-troubleshooting.md)。
 - **換 AI？** 再雙擊一次 `Setup.bat`，AI 那一頁選別的。或直接改 `config.json` 的 `llm`。
 - **「還沒安裝 ntu_easy_llm」？** 用 API 金鑰的 AI（OpenAI、Anthropic、Gemini、相容端點）要多裝這個套件；Claude Code 不用。
   裝法見 [docs/AGENT.md](docs/AGENT.md) 的「ntu_easy_llm」。

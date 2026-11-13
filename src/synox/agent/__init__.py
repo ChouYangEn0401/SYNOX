@@ -175,4 +175,13 @@ def set_adapter(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLo
     return loop
 
 
+def prompt_chars(app, user) -> int:
+    """這個人每一輪固定要送的提示有多長（字元）：系統提示＋工具規格＋soul.md 上限（本地模型的 context 建議用）。
+    還沒有 AgentLoop（現在不用 AI）就臨時建一個只算長度的（不叫 AI）。"""
+    loop = app.extras.get("synox_agent")
+    if loop is None:
+        loop = AgentLoop(app, None)
+    return loop.prompt_chars(user)
+
+
 __all__ = ["AgentLoop", "ApprovalDesk", "EXHAUSTED", "MemberBudget", "ai_decision", "install"]

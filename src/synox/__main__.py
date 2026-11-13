@@ -747,9 +747,14 @@ def main(argv=None) -> int:
     p.add_argument("--telegram-token", default=None, help=argparse.SUPPRESS)      # 會留在 shell 歷史：建議互動時貼
     p.add_argument("--owner-id", default=None, help="你的 Telegram 數字 id（給了 token 才要）")
     p.add_argument("--llm", default=None,
-                   choices=["none", "claude_code", "openai", "anthropic", "gemini", "openai_compat"], help="AI 來源")
+                   choices=["none", "claude_code", "local", "openai", "anthropic", "gemini", "openai_compat"],
+                   help="AI 來源（local＝本地模型：Ollama、vLLM、LM Studio）")
     p.add_argument("--model", default=None, help="模型名稱")
-    p.add_argument("--base-url", default=None, help="openai_compat 的網址")
+    p.add_argument("--base-url", default=None, help="openai_compat／local 的網址")
+    p.add_argument("--server", default=None, choices=["ollama", "vllm", "lmstudio", "other"],
+                   help="local：本地模型的伺服器（預設 ollama）")
+    p.add_argument("--context-size", type=int, default=None,
+                   help="local：context 長度（0＝用伺服器預設；沒給＝照建議，init 會印出建議表）")
     p.add_argument("--api-key-env", default=None, metavar="NAME", help="金鑰放在哪個環境變數（config 寫 env:NAME）")
     p.add_argument("--library", default=None, help="工具庫資料夾（打包好的 .synoxpack＋index.json；預設 SYNOX 資料夾旁的 tools）")
     p.add_argument("--tools", nargs="*", default=None, help="要裝的工具名字或組合代號（沒給＝互動時問、非互動時不裝）")
