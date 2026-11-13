@@ -196,6 +196,21 @@ class AgentLoop:
             lines += ["", textproto.system_snippet(tools)]
         return "\n".join(lines)
 
+    def prompt_chars(self, user, *, native: bool = True) -> int:
+        """這個人一輪的固定提示有多長（字元）：系統提示＋全部工具規格（JSON）＋soul.md 的上限。
+        本地模型的 context 建議用（synox/llm/local_advice.py：÷ 2.5 估 token）；不叫 AI、不寫 log。"""
+        import json as _json
+        from synox.runtime.soul import PROMPT_MAX_CHARS as PROMPT_LIMIT
+        skills = skills_mod.from_packs(self.visible_packs(user))
+        chat_id = getattr(user, "tg_id", 0)
+        tools = self.tools_for(user, chat_id)
+        if skills:
+            tools.append(skills_mod.read_tool_spec(skills))
+        text = self.system_prompt(skills, tools, native, user, "0" * 16)
+        specs = _json.dumps([{"name": t.name, "description": t.description, "parameters": t.parameters}
+                             for t in tools], ensure_ascii=False) if native else ""
+        return len(text) + len(specs) + PROMPT_LIMIT + 200        # 200：分隔符與 soul 段的標題
+
     def soul_block(self, user, chat_id: int, nonce: str, query: str = "") -> str:
         """soul.md 放進對話助理的系統提示（擁有者 2026-11-12 決定 Q7，docs/adr/0002）。
         只有**擁有者**、只在**私訊／網頁**（chat_id 就是他自己）；唯讀（`SoulStore.for_prompt`：拿掉註解、沒寫東西＝""、
