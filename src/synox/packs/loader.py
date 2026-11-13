@@ -146,6 +146,11 @@ class Pack:
     secret_fields: List[dict] = field(default_factory=list, repr=False)     # auth.fields（SYNOX 收的那些；見 packs/secrets.py）
     secrets: Any = field(repr=False, default=None)                          # PackSecrets（保管箱的 pack_secrets）
     live: Any = field(repr=False, default=None)                             # lock.LiveCheck（有鎖時；每次叫 cli 前再對一次）
+    # 工具服務（ADR 0023；SDK 0.2.3）：pack.json web.app 宣告的讀、動作、匯出各掛哪個函式（重新載入時是新的 Pack，自然清空）
+    app_reads: Dict[str, Callable] = field(default_factory=dict, repr=False)
+    app_actions: Dict[str, Callable] = field(default_factory=dict, repr=False)
+    app_describe: Dict[str, Callable] = field(default_factory=dict, repr=False)
+    app_exports: Dict[str, Callable] = field(default_factory=dict, repr=False)
 
     def tampered_since_load(self) -> List[str]:
         """載入之後檔案被改過嗎（審查 B #D）：有鎖的 pack 每次叫 cli／開 mcp stdio 子程序之前問；[]＝對得上（或沒鎖）。"""
@@ -199,6 +204,32 @@ class Pack:
         if route not in self.manifest.web.get("api", []):
             raise ValueError(f"{self.name}: web route {route!r} is not declared in pack.json web.api")
         self.web_routes[route] = fn
+
+    def _app_decl(self, kind: str) -> list:
+        app = (self.manifest.web or {}).get("app") or {}
+        return list(app.get(kind) or [])
+
+    def app_read(self, name: str, fn: Callable) -> None:
+        """工具畫面的讀：GET /api/read/<name> → fn(user, params) 回可以轉 JSON 的東西。name 要寫在 web.app.reads。"""
+        if name not in self._app_decl("reads"):
+            raise ValueError(f"{self.name}: app read {name!r} is not declared in pack.json web.app.reads")
+        self.app_reads[name] = fn
+
+    def app_action(self, name: str, fn: Callable, *, describe: Optional[Callable] = None) -> None:
+        """工具畫面的動作：POST /api/do/<name> → fn(user, values) 回 dict。name 要寫在 web.app.actions，
+        而且要有同名的指令（群組.名字），危險程度一樣——一個動作＝一個指令（ADR 0023 §2）。
+        describe(user, values) -> str：危險動作確認框的那一句（選填）。"""
+        if name not in self._app_decl("actions"):
+            raise ValueError(f"{self.name}: app action {name!r} is not declared in pack.json web.app.actions")
+        self.app_actions[name] = fn
+        if describe is not None:
+            self.app_describe[name] = describe
+
+    def app_export(self, name: str, fn: Callable) -> None:
+        """工具畫面的匯出：POST /api/export/<name> → fn(user, params) 回 kit.Download。name 要寫在 web.app.exports。"""
+        if name not in self._app_decl("exports"):
+            raise ValueError(f"{self.name}: app export {name!r} is not declared in pack.json web.app.exports")
+        self.app_exports[name] = fn
 
     @property
     def name(self) -> str:

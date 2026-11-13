@@ -20,7 +20,8 @@ from __future__ import annotations
 import logging
 import re
 import threading
-from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
+from dataclasses import dataclass
+from typing import Callable, Dict, Iterable, List, NamedTuple, Optional, Sequence, Tuple
 
 from isdtelekit.core.registry import Field, Group, Node, field_pattern
 
@@ -229,24 +230,85 @@ def parse_args(fields: Sequence[Field], args: Sequence[str], positional: Optiona
         if i >= len(tokens):
             break
         values[f.name] = " ".join(tokens[i:]) if i == len(slots) - 1 else tokens[i]
-    try:                                    # 門禁核心的基本檢查（ADR 0025 §4）：先擋怪字元與太長，訊息是固定的句子
-        inputs.values([f.name for f in fields], values, multiline=True)
-    except inputs.Bad as bad:
-        return {}, [], [bad.text]
-    errors = []
+    return check_values(fields, values)
+
+
+def field_errors(fields: Sequence[Field], values: Dict[str, str]) -> Dict[str, str]:
+    """{欄位名: 錯誤的那一句}（choices、check）。訊息跟 Telegram 那條同一句（「金額要是數字」）。"""
+    out: Dict[str, str] = {}
     for f in fields:
         value = values.get(f.name)
         if value is None:
             continue
         if f.choices and value.strip().lower() not in {c.lower() for c in f.choices}:
-            errors.append(f"{f.ask} 只能是 {'/'.join(f.choices)}")
+            out[f.name] = f"{f.ask} 只能是 {'/'.join(f.choices)}"
         elif f.check is not None and f.check(value):
-            errors.append(f"{f.ask}{f.check(value)}")
+            out[f.name] = f"{f.ask}{f.check(value)}"
+    return out
+
+
+def check_values(fields: Sequence[Field], values: Dict[str, str]
+                 ) -> Tuple[Dict[str, str], List[Field], List[str]]:
+    """已經照名字放好的 values → (clean, 缺的必填, 錯誤)。人打字（parse_args）、AI、工具畫面、手機入口都走這裡：
+    第一步是門禁核心的基本檢查（guard/inputs.py：不認得的欄位、太多、太長、空字元、控制字元、排版字元；固定的句子），
+    再跑欄位自己的 choices／check、補 default、找缺的必填。"""
+    fields = tuple(fields)
+    try:
+        inputs.values([f.name for f in fields], values, multiline=True)
+    except inputs.Bad as bad:
+        return {}, [], [bad.text]
+    clean = dict(values)
+    errors = list(field_errors(fields, clean).values())
     for f in fields:
-        if f.name not in values and f.default:
-            values[f.name] = f.default
-    missing = [f for f in fields if f.required and f.name not in values]
-    return values, missing, errors
+        if f.name not in clean and f.default:
+            clean[f.name] = f.default
+    missing = [f for f in fields if f.required and f.name not in clean]
+    return clean, missing, errors
+
+
+# ── 工具服務（ADR 0023；SDK 0.2.3）：pack.app_read／app_action／app_export 用的小東西 ─────────
+
+class AppError(Exception):
+    """工具的畫面函式裡丟：message 原樣顯示給使用者（所以是寫給人看的一句話）。別的例外的訊息永遠不會出現在回應、log、稽核。"""
+
+    def __init__(self, message: str, code: str = "refused", status: int = 409):
+        super().__init__(message)
+        self.message, self.code, self.status = str(message), str(code or "refused"), int(status or 409)
+
+
+@dataclass(frozen=True)
+class Download:
+    """一個要給使用者存下來的檔（pack.app_export 的函式回這個）。"""
+    filename: str
+    content_type: str
+    data: bytes
+
+
+_FORMULA_START = ("=", "+", "-", "@", "\t", "\r", "\n")
+
+
+def csv_bytes(header: Sequence, rows: Iterable[Sequence]) -> bytes:
+    """CSV：UTF-8、開頭 BOM、CRLF、標準函式庫 csv 的引號規則。int／float 原樣寫；None 寫空的；
+    字串開頭是 = + - @ Tab CR LF 的前面加一個 '（防試算表把它當公式）。每個工具的 CSV 都用它，不要自己組。"""
+    import csv
+    import io
+
+    def cell(value):
+        if value is None:
+            return ""
+        if isinstance(value, bool):
+            return str(value)
+        if isinstance(value, (int, float)):
+            return value
+        text = str(value)
+        return "'" + text if text.startswith(_FORMULA_START) else text
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\r\n")
+    writer.writerow([cell(v) for v in header])
+    for row in rows:
+        writer.writerow([cell(v) for v in row])
+    return ("﻿" + buf.getvalue()).encode("utf-8")
 
 
 def command(group: Group, name: str, fn: Callable, summary: str, *, fields: Sequence[Field] = (),
