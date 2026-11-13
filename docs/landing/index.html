@@ -287,6 +287,33 @@ details.stuck code { word-break: break-all; }
 .install b { font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .ripple { animation: none; } .big-dl { transition: none; } }
 
+/* install animations: zip drops into the tray then becomes a folder; Setup window pops; chat bubbles appear */
+.install > li { display: flex; flex-direction: column; }
+.install .big-dl { align-self: flex-start; margin-top: 14px; font-size: 17px; padding: 12px 22px; }
+.anim-dl .zip { animation: lp-drop 4.2s ease-in-out infinite; transform-origin: 38px 30px; }
+.anim-dl .arrow { animation: lp-fade 4.2s ease-in-out infinite; }
+.anim-dl .folder { animation: lp-folder 4.2s ease-in-out infinite; transform-origin: 121px 44px; }
+@keyframes lp-drop { 0% { transform: translateY(-26px); opacity: 0; } 18%, 70% { transform: none; opacity: 1; } 100% { transform: none; opacity: 1; } }
+@keyframes lp-fade { 0%, 30% { opacity: 0; } 42%, 100% { opacity: 1; } }
+@keyframes lp-folder { 0%, 40% { transform: scale(.4); opacity: 0; } 55% { transform: scale(1.08); opacity: 1; } 62%, 100% { transform: none; opacity: 1; } }
+.install .art { position: relative; }
+.mini-win { position: absolute; right: 18%; top: 22%; width: 54px; height: 40px; border-radius: 6px; background: var(--surface); border: 1.5px solid var(--accent);
+  box-shadow: var(--shadow); display: flex; gap: 3px; padding: 4px; animation: lp-win 3.6s ease-in-out infinite; }
+.mini-win i { width: 5px; height: 5px; border-radius: 50%; background: var(--line-2); }
+@keyframes lp-win { 0%, 45% { transform: scale(.3) translateY(10px); opacity: 0; } 60% { transform: scale(1.06); opacity: 1; } 68%, 92% { transform: none; opacity: 1; } 100% { opacity: 0; } }
+.mini-chat { display: grid; gap: 8px; width: min(220px, 80%); }
+.mini-chat .b { font-size: 13px; padding: 6px 12px; border-radius: 12px; opacity: 0; animation: lp-bubble 4s ease-out infinite; }
+.mini-chat .me { justify-self: end; background: var(--accent-soft); color: var(--ink); border-bottom-right-radius: 4px; }
+.mini-chat .bot { justify-self: start; background: var(--surface); border: 1px solid var(--line); border-bottom-left-radius: 4px; animation-delay: .9s; }
+@keyframes lp-bubble { 0% { opacity: 0; transform: translateY(8px) scale(.9); } 12%, 80% { opacity: 1; transform: none; } 100% { opacity: 0; } }
+.guide-btn { display: inline-flex; align-items: center; gap: 8px; align-self: flex-start; margin-top: 14px; font-weight: 600; font-size: 15px; text-decoration: none;
+  color: var(--accent); border: 1.5px solid var(--accent); border-radius: 12px; padding: 10px 16px; min-height: 46px; }
+.guide-btn:hover { background: var(--accent-soft); }
+.guide-btn.soon { color: var(--muted); border-color: var(--line-2); border-style: dashed; }
+.install .tut { margin-top: 12px; font-size: 14px; background: var(--sunken); border-radius: 12px; padding: 10px 12px; }
+.install .tut-h { font-weight: 600; color: var(--ink); }
+@media (prefers-reduced-motion: reduce) { .anim-dl .zip, .anim-dl .arrow, .anim-dl .folder, .mini-win, .mini-chat .b { animation: none; opacity: 1; transform: none; } }
+
 /* ---------------------------------------------------------------- dev */
 .dev { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 40px; align-items: center; }
 @media (max-width: 900px) { .dev { grid-template-columns: 1fr; } }
@@ -862,46 +889,46 @@ footer a { color: var(--muted); }
 <section id="setup">
   <div class="head">
     <p class="eyebrow">怎麼開始</p>
-    <h2>下載、解開、點兩下</h2>
+    <h2>下載、安裝、開始用</h2>
     <p class="sub">不用打指令，大約 5 分鐘。適用 Windows 10／11。</p>
   </div>
   <ol class="install">
     <li>
-      <div class="art"><a class="big-dl" href="https://github.com/ChouYangEn0401/SYNOX/archive/refs/heads/main.zip"><svg class="ico"><use href="#i-download"/></svg>下載 SYNOX</a></div>
-      <b>下載</b>
-      <p>按上面的按鈕，會下載一個 ZIP 檔（約 8 MB）。</p>
-    </li>
-    <li>
       <div class="art" aria-hidden="true">
-        <svg class="pic" viewBox="0 0 120 64"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
-          <path d="M14 8h22l8 8v40H14z"/><path d="M36 8v8h8"/><path d="M27 14v4M27 22v4M27 30v4"/><rect x="23" y="38" width="8" height="8" rx="1.5"/>
-          <path d="M54 32h14M63 26l6 6-6 6" class="accent"/>
-          <path d="M78 20h12l4 5h18v29H78z" class="accent-fill"/></g></svg>
+        <svg class="pic anim-dl" viewBox="0 0 160 80"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+          <path class="tray" d="M16 58v10h44V58"/>
+          <g class="zip"><path d="M26 10h18l7 7v31H26z"/><path d="M44 10v7h7"/><path d="M36 15v3M36 22v3M36 29v3"/><rect x="32.5" y="35" width="7" height="7" rx="1.4"/></g>
+          <path class="arrow accent" d="M74 40h14M83 34l6 6-6 6"/>
+          <path class="folder accent-fill" d="M100 24h14l4 6h24v34h-42z"/></g></svg>
       </div>
-      <b>解開</b>
-      <p>對下載的檔案按<strong>右鍵</strong>，選<strong>「全部解壓縮」</strong>。</p>
+      <b>下載、解開</b>
+      <p>按下面的按鈕下載（約 8 MB）。對下載的檔案按<strong>右鍵</strong> →<strong>「全部解壓縮」</strong>，把解開的資料夾放在好找的地方（例如「文件」），之後都從這裡開。</p>
+      <a class="big-dl" href="https://github.com/ChouYangEn0401/SYNOX/archive/refs/heads/main.zip"><svg class="ico"><use href="#i-download"/></svg>下載 SYNOX</a>
     </li>
     <li>
       <div class="art" aria-hidden="true">
         <span class="file"><svg class="pic sm" viewBox="0 0 40 48"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M6 4h20l8 8v32H6z"/><path d="M26 4v8h8"/><circle cx="20" cy="29" r="5"/><path d="M20 20v3M20 35v3M11 29h3M26 29h3"/></g></svg><em>Setup.bat</em><i class="ripple"></i><i class="ripple r2"></i></span>
+        <span class="mini-win"><i></i><i></i><i></i></span>
       </div>
-      <b>點兩下 <code>Setup.bat</code></b>
-      <p>打開解開的資料夾，點兩下它，照視窗按幾下就好。</p>
+      <b>安裝設定</b>
+      <p>打開資料夾，<strong>點兩下 <code>Setup.bat</code></strong>，照跳出來的視窗按幾下：</p>
       <div class="chips">
         <span class="chip">自己用或一群人用</span>
         <span class="chip"><svg class="brand c-telegram"><use href="#b-telegram"/></svg>貼上 bot token</span>
         <span class="chip">六位數字配對</span>
         <span class="chip">選一個 AI</span>
       </div>
+      <span class="guide-btn soon">🪜 我真的需要一步一步教學 <i class="wip">⏳ 製作中</i></span>
+    </li>
+    <li>
+      <div class="art" aria-hidden="true">
+        <span class="mini-chat"><span class="b me">幫我記：買牛奶</span><span class="b bot">好，記下來了 📝</span></span>
+      </div>
+      <b>開始使用</b>
+      <p>點兩下桌面的「SYNOX」，到 Telegram 跟它說話。要什麼功能就裝什麼工具（<a href="#what">上面有 ⬇ 下載</a>）。</p>
+      <p class="tut"><span class="tut-h">🎓 新手教學工具</span> <i class="wip">⏳ 尚未完成</i><br>裝了它，SYNOX 會一步一步帶你認識每個畫面、教你怎麼裝工具；不想要了可以刪掉。</p>
     </li>
   </ol>
-
-  <div class="after">
-    <span class="after-h">裝好之後</span>
-    <span><svg class="ico"><use href="#i-monitor"/></svg>點兩下桌面的「SYNOX」</span>
-    <span><svg class="ico"><use href="#i-box"/></svg><a href="#what">下載你要的工具</a></span>
-    <span><svg class="ico"><use href="#i-chat"/></svg>在 Telegram 跟它說話</span>
-  </div>
 
   <div class="cta center">
     <a class="btn primary" href="https://claude.ai/artifact/SjWBzQkdDpUNymrQEZRKHe" target="_blank" rel="noopener"><svg class="brand"><use href="#b-telegram"/></svg>Telegram 圖文教學</a>
@@ -1023,7 +1050,7 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
   <span>Telegram、Discord、Claude、OpenAI、Gemini 等名稱與標誌屬於各自的所有者</span>
   <a href="https://github.com/ChouYangEn0401/SYNOX" target="_blank" rel="noopener">github.com/ChouYangEn0401/SYNOX</a>
 </footer>
-<p class="stamp">線上版 <a href="https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox">claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox</a> · 本機版 docs/landing/index.html · 頁面版本 7602078191 · 2026-11-13</p>
+<p class="stamp">線上版 <a href="https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox">claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox</a> · 本機版 docs/landing/index.html · 頁面版本 27a242d705 · 2026-11-13</p>
 </div>
 
 <script>
