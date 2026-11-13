@@ -50,11 +50,13 @@ def make_adapter(config, vault=None, *, session=None, opener=None) -> Optional[C
     llm = dict(config.get("llm", config) if isinstance(config, dict) else config.llm)
     kind = llm.get("kind", "none")
     max_tokens = int(llm.get("max_tokens") or 1024)
+    from synox.llm.vision import mode_of
+    vision = mode_of(llm)                                             # 看圖（docs/adr/0021）：auto｜on｜off
     if kind in ("none", "", None):
         return None
     if kind == "fake":
         from synox.llm.fake import FakeAdapter
-        return FakeAdapter(llm.get("script"))
+        return FakeAdapter(llm.get("script"), supports_vision=vision == "on")
     if kind == "local":                                               # 內建：本地模型（Ollama、vLLM、LM Studio…）
         from synox.llm.local import LocalAdapter, validate
         try:
@@ -63,12 +65,13 @@ def make_adapter(config, vault=None, *, session=None, opener=None) -> Optional[C
             raise LLMError(f"本地模型的設定不對：{e}")
         return LocalAdapter(s["model"], server=s["server"], base_url=s["base_url"], context_size=s["context_size"],
                             timeout=s["timeout"], max_total_timeout=s["max_total_timeout"], tools=s["tools"],
-                            max_tokens=max_tokens, opener=opener, sampling=s["sampling"], options=s["options"])
+                            max_tokens=max_tokens, opener=opener, sampling=s["sampling"], options=s["options"],
+                            vision=vision)
     if kind in ("openai", "anthropic", "gemini", "openai_compat"):     # API 金鑰的來源都經 ntu_easy_llm
         from synox.llm.easy_llm import EasyLLMAdapter
         return EasyLLMAdapter(kind, resolve_secret(llm.get("api_key", ""), vault), llm.get("model", ""),
                               base_url=llm.get("base_url") or "", tools=llm.get("tools", True),
-                              max_tokens=max_tokens, timeout=easy_timeout(llm), session=session)
+                              max_tokens=max_tokens, timeout=easy_timeout(llm), session=session, vision=vision)
     if kind == "claude_code":
         from synox.llm.claude_code import ClaudeCodeAdapter
         workdir = os.path.join(config.data_dir, "claude_workspace") if hasattr(config, "data_dir") else ""

@@ -228,8 +228,8 @@ def parse_llm_extras(llm: dict) -> dict:
 def parse_harness_extras(llm: dict) -> dict:
     """小模型 harness 的設定（每個 kind 都收；沒寫＝不出現、照預設）：prompt_tail（auto｜on｜off，docs/adr/0017、0018）、
     max_tools（auto｜0｜1～200，docs/adr/0014）、
-    context_size（0＝不裁；kind=local 另由 llm/local.py 檢查）與 tool_result_chars（auto｜0｜字數，docs/adr/0015、0016）。
-    寫錯＝ConfigError。"""
+    context_size（0＝不裁；kind=local 另由 llm/local.py 檢查）與 tool_result_chars（auto｜0｜字數，docs/adr/0015、0016）；
+    看圖的 vision（auto｜on｜off）、vision_model、vision_limits（docs/adr/0021）。寫錯＝ConfigError。"""
     from synox.agent import auto, context, toolpick
     from synox.llm.local import parse_context
     out = dict(llm)
@@ -242,6 +242,13 @@ def parse_harness_extras(llm: dict) -> dict:
             out["tool_result_chars"] = context.parse_result_chars(out["tool_result_chars"])
         if "context_size" in out and out.get("kind") != "local":
             out["context_size"] = parse_context(out["context_size"])
+        from synox.llm import vision                      # 看圖（docs/adr/0021）：沒寫＝不出現、照預設
+        if "vision" in out:
+            out["vision"] = vision.parse_mode(out["vision"])
+        if "vision_model" in out:
+            out["vision_model"] = vision.parse_side_model(out["vision_model"], out)
+        if "vision_limits" in out:
+            out["vision_limits"] = vision.parse_limits(out["vision_limits"])
     except ValueError as e:
         raise ConfigError(f"config.json：{e}")
     return out

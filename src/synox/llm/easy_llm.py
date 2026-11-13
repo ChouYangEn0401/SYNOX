@@ -15,13 +15,22 @@
 - session：測試傳一個假的 requests 風格物件（不連網），原樣交給 ntu_easy_llm.agent.chat。
 - 停止詞（docs/adr/0010）：ntu_easy_llm 0.5.0 的 `agent.chat` 沒有 stop 參數（2026-11-13 看過簽名），所以
   supports_stop=False、不送；doctor 寫「此來源不支援停止詞」。回覆的思考段（<think>）去掉（textproto.strip_think）。
+- 圖片（docs/adr/0021）：2026-11-13 讀過已安裝的 ntu_easy_llm 0.5.0 原始碼（agent.py）：它**沒有**圖片的 API，但
+  `to_openai_messages`／`to_anthropic_messages` 對一般的 user 訊息是把 `content` 原樣放進請求（不檢查是不是字串）。
+  所以 SYNOX 在 `to_neutral` 先把有圖的 user 訊息的 content 換成各家自己的 content parts：
+    openai／gemini（OpenAI 相容端點）／openai_compat：[{"type":"text"}, {"type":"image_url","image_url":{"url":"data:…"}}]
+    anthropic：[{"type":"image","source":{"type":"base64","media_type":…,"data":…}}, {"type":"text"}]
+  這是**依賴原樣傳遞的行為，不是套件公開保證的介面**：套件改版前要重跑 tests/test_vision.py 的 easy_llm 那幾題（用假的
+  session 看實際送出的 JSON）。`vision`＝auto（內建名單，vision.cloud_supports）｜on｜off；不支援卻收到圖＝LLMError
+  「此來源不支援圖片」，不偷偷丟掉圖。
 """
 
 from __future__ import annotations
 
 from typing import List, Optional, Sequence
 
-from synox.llm.base import ChatAdapter, LLMError, Message, Reply, ToolCall, ToolSpec, http_error
+from synox.llm.base import (USER, ChatAdapter, LLMError, Message, Reply, ToolCall, ToolSpec, has_images, http_error,
+                            no_vision)
 
 INSTALL_HINT = ("在 SYNOX 資料夾跑 `.venv\\Scripts\\python.exe -m pip install -e .[llm]`（裝官方 release 的 0.5.0 wheel），"
                 "或改選 Claude Code／本地模型／先不用 AI。")
@@ -65,7 +74,7 @@ def installed() -> bool:
 class EasyLLMAdapter(ChatAdapter):
 
     def __init__(self, kind: str, api_key: str = "", model: str = "", *, base_url: str = "", tools: bool = True,
-                 max_tokens: int = 1024, timeout: float = 90.0, session=None):
+                 max_tokens: int = 1024, timeout: float = 90.0, session=None, vision: str = "auto"):
         if kind not in PROVIDERS:
             raise LLMError(f"不認得的 AI 來源 {kind}。")
         if kind == "openai_compat" and not (base_url or "").strip():
@@ -79,13 +88,15 @@ class EasyLLMAdapter(ChatAdapter):
         self.max_tokens = int(max_tokens)
         self.timeout = timeout
         self._session = session
+        from synox.llm.vision import cloud_supports, resolve
+        self.vision = vision if vision in ("auto", "on", "off") else "auto"
+        self.supports_vision = resolve(self.vision, lambda: cloud_supports(kind, self.model))
         self.name = f"{label}（{self.model or '未指定模型'}）"
 
-    @staticmethod
-    def to_neutral(messages: Sequence[Message]) -> List[dict]:
+    def to_neutral(self, messages: Sequence[Message]) -> List[dict]:
         out = []
         for m in messages:
-            item = {"role": m.role, "content": m.content}
+            item = {"role": m.role, "content": self.content_of(m)}
             if m.tool_calls:
                 item["tool_calls"] = [{"id": c.id, "name": c.name, "arguments": c.args} for c in m.tool_calls]
             if m.tool_call_id:
@@ -95,7 +106,19 @@ class EasyLLMAdapter(ChatAdapter):
             out.append(item)
         return out
 
+    def content_of(self, m: Message):
+        """沒有圖＝原本的字串；有圖（只有 user 訊息）＝這家的 content parts（見檔頭）。"""
+        if not m.images or m.role != USER:
+            return m.content
+        if self.kind == "anthropic":
+            return [{"type": "image", "source": {"type": "base64", "media_type": p.mime, "data": p.b64()}}
+                    for p in m.images] + [{"type": "text", "text": m.content or ""}]
+        return [{"type": "text", "text": m.content or ""}] + \
+            [{"type": "image_url", "image_url": {"url": p.data_uri()}} for p in m.images]
+
     def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = (), *, stop: Sequence[str] = ()) -> Reply:
+        if has_images(messages) and not self.supports_vision:
+            raise no_vision(self.name)
         agent = load_agent_module()                 # stop：ntu_easy_llm 收不了，忽略（supports_stop=False）
         if self.kind != "openai_compat" and not self.api_key:
             raise LLMError(f"還沒填 {PROVIDERS[self.kind][1]} 的 API key。")
