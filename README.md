@@ -2,6 +2,7 @@
 
 **👉 [先看介紹頁：SYNOX 長什麼樣、能做什麼、怎麼裝](https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW)**
 （網頁版的真實畫面、支援哪些平台、哪些還沒做完都在上面；同一份也在 repo 裡：[docs/landing/index.html](docs/landing/index.html)，下載後雙擊就能開）
+**🧰 [工具庫說明頁：有哪些工具、每個做什麼、怎麼裝](https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL)**（工具在另一個專案 [SYNOX_Libs](https://github.com/ChouYangEn0401/SYNOX_Libs)）
 
 > ⚠️ **目前是 alpha，請先別拿來放重要資料。**
 > - 工具庫的工具目前**全部標成 🧪 alpha**（早期版）；接外面服務的（Notion、Todoist、Google 日曆、Apple 提醒事項）與 Discord 通道都**只用假傳輸測過**，還沒對真實服務驗證。
