@@ -45,7 +45,8 @@ def assess(m, report=None, exec_bits=()) -> dict:
     runs＝會執行、掃不到內容的東西（資料夾裡的檔路徑＋外部程式），升級時比「變多了沒」用這個。"""
     from synox.packs import envs
     from synox.packs import scan as pack_scan
-    opaque = list(report.opaque) if report is not None else pack_scan.opaque_files(m.folder, exec_bits)
+    opaque = list(report.opaque) if report is not None else \
+        pack_scan.opaque_files(m.folder, exec_bits, skip=pack_scan.app_exempt(m))
     external = list(report.external) if report is not None else pack_scan.externals(m)
     try:
         packages = envs.all_pins(m)
