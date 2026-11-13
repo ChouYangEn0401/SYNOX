@@ -9,6 +9,7 @@
 | [tutorials/](tutorials/README.md) | 使用者 | 第一次裝、接 Telegram／Discord 的圖文教學；Discord 的名詞在 [discord-concepts.md](discord-concepts.md) |
 | [install-packs.md](install-packs.md) | 使用者 | 怎麼裝一個 `.synoxpack`：點兩下、拖到 Install-Pack.bat、拖進網頁、`synox install`；圖示空白／點兩下沒反應怎麼辦 |
 | [ecosystem.md](ecosystem.md) | 使用者、作者、維護者 | 工具生態：找、裝、更新、移除工具；做一個工具給人裝；之後的路（哪些是提案）；每次發版要更新哪些文件 |
+| [versioning.md](versioning.md) | 使用者、作者、維護者 | 版本號怎麼看（正式版／beta／alpha）、我是不是最新版、**我要怎麼更新**（ZIP、git、安裝程式、工具、SDK）；維護者：升號規則、分支、tag、每版要有什麼、`scripts/release.py`；自己更新的設計在 [adr/0023](adr/0023-updates-and-hotfixes.md)（提案） |
 | [security.md](security.md) | 使用者、作者 | 資料存在哪、誰看得到、裝別人的 pack 時的五關、信任層級、沙盒、沒有做的保護 |
 | [discord.md](discord.md) | 使用者 | Discord 通道的現況與設定（含多個 bot） |
 | [docker.md](docker.md) | 使用者、維護者 | 用 Docker 跑 SYNOX（compose、資料 volume、網頁只發佈到 127.0.0.1）與開發容器；已知限制、驗證清單、檢查表（**還沒實際建置過**） |
