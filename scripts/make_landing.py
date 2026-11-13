@@ -9,8 +9,9 @@
 - 存成 WebP（docs/landing/shots/），組頁面時轉成 data URI 嵌進 index.html，所以整頁只有一個檔。
 網頁介面改了樣子：先重跑 make_ui_preview.py，再跑這支加 --shoot；然後把 index.html 重新發佈成 Artifact（網址在 README）。
 
-開場動畫（S 寶寶）跟網頁介面是同一份：組頁面時把 src/synox/web/static/splash.js 整支、splash.css 裡「開場」那一段
-原封不動塞進 page.html 的 /*{{splash-js}}*/、/*{{splash-css}}*/。網頁版的開場改了，重組一次介紹頁就跟著變。
+開場的 S 寶寶跟網頁介面長得一樣：組頁面時把 src/synox/web/static/splash.css 裡「開場」那一段原封不動塞進 page.html 的
+/*{{splash-css}}*/（網頁版的樣子改了，重組一次就跟著變）。流程不一樣：介紹頁是「網頁載好 → 點一下小方塊 → 說招呼 → 進頁面」，
+寫在 page.html 自己的 <script>（SynoxGate），不用 splash.js。
 """
 from __future__ import annotations
 
@@ -82,19 +83,17 @@ def shoot(chromium: str | None) -> None:
         browser.close()
 
 
-def splash_parts() -> tuple[str, str]:
+def splash_css() -> str:
     """splash.css 只取開場用的部分：最上面的 :root（--sx-* 曲線）和 .sx-splash … .sx-hint；
     後面那些是網頁介面自己的微動畫（側欄、卡片、按鈕），介紹頁用不到。找不到記號就停，不要默默組出壞頁面。"""
     with open(os.path.join(STATIC, "splash.css"), encoding="utf-8") as f:
         css = f.read()
-    with open(os.path.join(STATIC, "splash.js"), encoding="utf-8") as f:
-        js = f.read()
     root = re.search(r":root \{[^}]*\}", css)
     start = css.find(".sx-splash {")
     end = css.find("/* 開場時：")
     if not root or start < 0 or end < start:
         raise SystemExit("splash.css 的結構變了（找不到 :root／.sx-splash／「開場時：」），請更新 make_landing.py 的擷取規則")
-    return root.group(0) + "\n  " + css[start:end].rstrip() + "\n", js
+    return root.group(0) + "\n  " + css[start:end].rstrip() + "\n"
 
 
 def build() -> None:
@@ -107,15 +106,21 @@ def build() -> None:
             return "data:image/webp;base64," + base64.b64encode(f.read()).decode("ascii")
 
     html, n = re.subn(r"\{\{shot:([a-z0-9-]+)\}\}", shot, html)
-    css, js = splash_parts()
-    for mark, text in (("/*{{splash-css}}*/", css), ("/*{{splash-js}}*/", js)):
+    for mark, text in (("/*{{splash-css}}*/", splash_css()),):
         if html.count(mark) != 1:
             raise SystemExit(f"page.html 要剛好有一個 {mark}")
         html = html.replace(mark, text)
+    # 頁面版本＝組出來的內容（版本號那格留空）的 sha256 前 10 碼＋日期；線上版、本機版一樣＝同一份
+    import datetime
+    import hashlib
+    if html.count("{{stamp}}") != 1:
+        raise SystemExit("page.html 要剛好有一個 {{stamp}}")
+    digest = hashlib.sha256(html.replace("{{stamp}}", "").encode("utf-8")).hexdigest()[:10]
+    html = html.replace("{{stamp}}", f"{digest} · {datetime.date.today().isoformat()}")
     out = os.path.join(LANDING, "index.html")
     with open(out, "w", encoding="utf-8", newline="\n") as f:
         f.write(html)
-    print(f"wrote {os.path.relpath(out, ROOT)}: {n} images, {os.path.getsize(out) // 1024} KB")
+    print(f"wrote {os.path.relpath(out, ROOT)}: {n} images, {os.path.getsize(out) // 1024} KB, 頁面版本 {digest}")
 
 
 def main() -> int:
