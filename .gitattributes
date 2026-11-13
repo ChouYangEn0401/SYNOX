@@ -7,3 +7,4 @@
 vendor/** -text
 *.iss text eol=crlf
 *.ico binary
+*.isl text eol=crlf

@@ -111,7 +111,7 @@ STRINGS = {
     "status_add_channel_later": "Doppelklicke später auf Setup.bat, um den Assistenten erneut zu starten und Telegram/Discord zu verbinden.",
     "status_bot_head": "✅ Alles eingerichtet, der Bot läuft.",
     "status_web_head": "✅ Alles eingerichtet, SYNOX läuft (noch ohne Telegram/Discord).",
-    "status_no_tools": "🧰 SYNOX kommt ohne Werkzeuge (Ausgaben, Notizen, Erinnerungen… werden separat installiert): Hol dir die .synoxpack-Dateien aus der Werkzeugbibliothek (SYNOX_Libs) und doppelklicke sie oder lade sie in der Weboberfläche unter Einstellungen → Installieren hoch. Wo die Bibliothek liegt, weiß die Person, die dir SYNOX gegeben hat.",
+    "status_no_tools": "🧰 Als Nächstes: Mach einmal das Tutorial, um zu lernen, wie du mit SYNOX sprichst, und wähle dann die Werkzeuge, die du brauchst (Ausgaben, Notizen…): die offizielle Werkzeugbibliothek (SYNOX_Libs) unter Einstellungen in der Weboberfläche oder per Doppelklick auf eine .synoxpack-Datei.",
     "status_can_close": "Du kannst dieses Fenster schließen.",
     "no_window": "❌ Fenster kann nicht geöffnet werden ({e}). Kopiere config.example.json nach config.json und fülle sie von Hand aus.",
     "llm_local": "Local model (this computer or one on your home network)",
@@ -124,4 +124,8 @@ STRINGS = {
     "llm_local_advice_done": "Options: {options}. Below {least} SYNOX's prompt gets cut off.",
     "llm_local_ok": "✅ Model found and the settings look sane (only model info was read; the model was not loaded).",
     "err_local_model": "Enter a model name (for Ollama, a name shown by `ollama list`, e.g. qwen3.5:9b).",
+    "finish_tutorial": "📘 Zum ersten Mal hier? Mach zuerst das kurze Tutorial (ein paar Minuten) und wähle dann die Werkzeuge, die du brauchst.",
+    "all_tools_running": "⏳ Alle offiziellen Werkzeuge werden installiert (im Setup angehakt). Das kann ein paar Minuten dauern; bitte lass dieses Fenster offen…",
+    "note_all_tools": "Alle offiziellen Werkzeuge",
+    "all_tools_failed": "einige wurden nicht installiert; hol sie später in der Werkzeugbibliothek unter Einstellungen nach (Protokoll: data/logs/all-tools.log)",
 }

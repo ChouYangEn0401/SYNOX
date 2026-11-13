@@ -111,7 +111,7 @@ STRINGS = {
     "status_add_channel_later": "あとで Setup.bat をダブルクリックしてウィザードを再実行すれば、Telegram／Discord に接続できます。",
     "status_bot_head": "✅ 設定完了、bot が起動しました。",
     "status_web_head": "✅ 設定完了、SYNOX が起動しました（Telegram／Discord は未接続）。",
-    "status_no_tools": "🧰 SYNOX には最初はツールが入っていません（家計簿・メモ・リマインダーなどは別途インストール）。ツールライブラリ（SYNOX_Libs）の .synoxpack ファイルをダブルクリックするか、Web 画面の「設定 → 機能を追加」からアップロードしてください。ライブラリの場所は SYNOX をくれた人に聞いてください。",
+    "status_no_tools": "🧰 次は：まずチュートリアルを一度やって SYNOX との話し方を覚え、そのあと必要なツール（家計簿、メモ…）を選びましょう：Web 画面の「設定」にある公式ツールライブラリ（SYNOX_Libs）、または .synoxpack ファイルをダブルクリック。",
     "status_can_close": "このウィンドウは閉じてかまいません。",
     "no_window": "❌ ウィンドウを開けません（{e}）。config.example.json を config.json にコピーして手動で入力してください。",
     "llm_local": "Local model (this computer or one on your home network)",
@@ -124,4 +124,8 @@ STRINGS = {
     "llm_local_advice_done": "Options: {options}. Below {least} SYNOX's prompt gets cut off.",
     "llm_local_ok": "✅ Model found and the settings look sane (only model info was read; the model was not loaded).",
     "err_local_model": "Enter a model name (for Ollama, a name shown by `ollama list`, e.g. qwen3.5:9b).",
+    "finish_tutorial": "📘 はじめてですか？まず短いチュートリアル（数分）をやってから、必要なツールを選びましょう。",
+    "all_tools_running": "⏳ 公式ツールをすべてインストールしています（インストーラーで選んだもの）。数分かかることがあります。このウィンドウは閉じないでください…",
+    "note_all_tools": "公式ツールすべて",
+    "all_tools_failed": "一部はインストールできませんでした。あとで「設定」のツールライブラリから追加してください（ログ：data/logs/all-tools.log）",
 }

@@ -111,7 +111,7 @@ STRINGS = {
     "status_add_channel_later": "나중에 Setup.bat을 더블클릭해 마법사를 다시 실행하면 Telegram/Discord에 연결할 수 있습니다.",
     "status_bot_head": "✅ 설정 완료, bot이 실행 중입니다.",
     "status_web_head": "✅ 설정 완료, SYNOX가 실행 중입니다(Telegram/Discord 미연결).",
-    "status_no_tools": "🧰 SYNOX에는 처음에 도구가 없습니다(가계부, 메모, 알림 등은 따로 설치). 도구 라이브러리(SYNOX_Libs)의 .synoxpack 파일을 더블클릭하거나 웹 화면의 설정 → 기능 설치에서 올리세요. 라이브러리 위치는 SYNOX를 준 사람에게 물어보세요.",
+    "status_no_tools": '🧰 다음 단계: 튜토리얼을 한 번 해서 SYNOX와 대화하는 법을 익힌 뒤 필요한 도구(가계부, 메모…)를 고르세요: 웹 화면 "설정"의 공식 도구 라이브러리(SYNOX_Libs) 또는 .synoxpack 파일 더블클릭.',
     "status_can_close": "이 창을 닫아도 됩니다.",
     "no_window": "❌ 창을 열 수 없습니다({e}). config.example.json을 config.json으로 복사해 직접 입력하세요.",
     "llm_local": "Local model (this computer or one on your home network)",
@@ -124,4 +124,8 @@ STRINGS = {
     "llm_local_advice_done": "Options: {options}. Below {least} SYNOX's prompt gets cut off.",
     "llm_local_ok": "✅ Model found and the settings look sane (only model info was read; the model was not loaded).",
     "err_local_model": "Enter a model name (for Ollama, a name shown by `ollama list`, e.g. qwen3.5:9b).",
+    "finish_tutorial": "📘 처음이신가요? 먼저 짧은 튜토리얼(몇 분)을 하고 필요한 도구를 고르세요.",
+    "all_tools_running": "⏳ 공식 도구를 모두 설치하는 중입니다(설치 프로그램에서 선택함). 몇 분 걸릴 수 있으니 이 창을 닫지 마세요…",
+    "note_all_tools": "공식 도구 전체",
+    "all_tools_failed": '일부는 설치되지 않았습니다. 나중에 "설정"의 도구 라이브러리에서 추가하세요(기록: data/logs/all-tools.log)',
 }

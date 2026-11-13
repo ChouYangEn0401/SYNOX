@@ -111,7 +111,7 @@ STRINGS = {
     "status_add_channel_later": "Позже дважды щёлкните Setup.bat, чтобы снова запустить мастер и подключить Telegram/Discord.",
     "status_bot_head": "✅ Всё готово, бот работает.",
     "status_web_head": "✅ Всё готово, SYNOX работает (без Telegram/Discord).",
-    "status_no_tools": "🧰 SYNOX поставляется без инструментов (расходы, заметки, напоминания… ставятся отдельно): возьмите файлы .synoxpack из библиотеки инструментов (SYNOX_Libs) и откройте двойным щелчком или загрузите в веб-интерфейсе: Настройки → Установить. Где библиотека, спросите у того, кто дал вам SYNOX.",
+    "status_no_tools": "🧰 Дальше: один раз пройдите обучение, чтобы научиться общаться с SYNOX, а затем выберите нужные инструменты (расходы, заметки…): официальная библиотека (SYNOX_Libs) в «Настройках» веб-интерфейса или двойной щелчок по файлу .synoxpack.",
     "status_can_close": "Это окно можно закрыть.",
     "no_window": "❌ Не удаётся открыть окно ({e}). Скопируйте config.example.json в config.json и заполните вручную.",
     "llm_local": "Local model (this computer or one on your home network)",
@@ -124,4 +124,8 @@ STRINGS = {
     "llm_local_advice_done": "Options: {options}. Below {least} SYNOX's prompt gets cut off.",
     "llm_local_ok": "✅ Model found and the settings look sane (only model info was read; the model was not loaded).",
     "err_local_model": "Enter a model name (for Ollama, a name shown by `ollama list`, e.g. qwen3.5:9b).",
+    "finish_tutorial": "📘 Впервые здесь? Сначала пройдите короткое обучение (несколько минут), а потом выберите нужные инструменты.",
+    "all_tools_running": "⏳ Устанавливаются все официальные инструменты (вы отметили это в установщике). Это может занять несколько минут; не закрывайте окно…",
+    "note_all_tools": "Все официальные инструменты",
+    "all_tools_failed": "часть не установилась; добавьте их позже из библиотеки инструментов в «Настройках» (журнал: data/logs/all-tools.log)",
 }

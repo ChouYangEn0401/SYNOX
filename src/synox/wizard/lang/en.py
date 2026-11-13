@@ -111,7 +111,7 @@ STRINGS = {
     "status_add_channel_later": "Double-click Setup.bat later to run the wizard again and connect Telegram/Discord.",
     "status_bot_head": "✅ All set, the bot is running.",
     "status_web_head": "✅ All set, SYNOX is running (no Telegram/Discord yet).",
-    "status_no_tools": "🧰 SYNOX ships with no tools (expenses, notes… are installed separately; reminders are a built-in system command): get the .synoxpack files from the tool library (SYNOX_Libs), then double-click one or upload it in the web UI under Settings → Install. Ask whoever gave you SYNOX where the tool library is.",
+    "status_no_tools": "🧰 Next: do the tutorial once to learn how to talk to SYNOX, then pick the tools you need (expenses, notes…): the official tool library (SYNOX_Libs) under Settings in the web interface, or double-click a .synoxpack file.",
     "status_can_close": "You can close this window.",
     "no_window": "❌ Cannot open a window ({e}). Copy config.example.json to config.json and fill it in by hand.",
     "llm_local": "Local model (this computer or one on your home network)",
@@ -124,4 +124,8 @@ STRINGS = {
     "llm_local_advice_done": "Options: {options}. Below {least} SYNOX's prompt gets cut off.",
     "llm_local_ok": "✅ Model found and the settings look sane (only model info was read; the model was not loaded).",
     "err_local_model": "Enter a model name (for Ollama, a name shown by `ollama list`, e.g. qwen3.5:9b).",
+    "finish_tutorial": "📘 First time? Do the short tutorial first (a few minutes), then pick the tools you need.",
+    "all_tools_running": "⏳ Installing all official tools (you ticked this in Setup). This can take a few minutes; please keep this window open…",
+    "note_all_tools": "All official tools",
+    "all_tools_failed": "some did not install; add them later from the tool library under Settings (log: data/logs/all-tools.log)",
 }
