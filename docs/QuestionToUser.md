@@ -10,7 +10,7 @@
   擁有者沒回的題目一律留著、照建議做，不要自己當成已回答。
 
 另外還沒拍板的安裝流程問題（網頁擁有者 id 換掉、桌面捷徑、port 被佔、完成鈕字樣、Telegram token 明文）寫在
-[docs/debug-notes.md](docs/debug-notes.md) 的「Open」第 5、6 條，不在這裡重抄。
+[docs/debug-notes.md](debug-notes.md) 的「Open」第 5、6 條，不在這裡重抄。
 
 ---
 
@@ -43,7 +43,7 @@ SYNOX 的卡 10 分鐘就過期、重開就失效，被洗掉的機會小很多�
 
 **為什麼問**：金流簿（記帳專案）這兩天出了挪額度、依現在的錢估每天、待解決清單…；SYNOX 內建的 `packs/money` 只有記一筆、看這個月、設預算，
 跟金流簿是兩套。金流簿已經有給 SYNOX 用的 pack（`synox-pack/`），只是還停在 11-09 的版本（已寫交接：
-[docs/handoffs/2026-11-12-moneybook-synox-pack-0.18.md](docs/handoffs/2026-11-12-moneybook-synox-pack-0.18.md)）。
+[docs/lab/cross-repo/2026-11-12-moneybook-synox-pack-0.18.md](lab/cross-repo/2026-11-12-moneybook-synox-pack-0.18.md)）。
 
 | 選項 | 一句話 | |
 |---|---|---|
@@ -56,7 +56,7 @@ SYNOX 的卡 10 分鐘就過期、重開就失效，被洗掉的機會小很多�
 
 ## Q4（2026-11-12）新介面的主色、要不要放深淺色切換鈕？
 
-**為什麼問**：網頁介面重畫了（分支 `feat/ui-redesign`，還沒合併；說明 [docs/ui/redesign-notes.md](docs/ui/redesign-notes.md)，
+**為什麼問**：網頁介面重畫了（分支 `feat/ui-redesign`，還沒合併；說明 [docs/ui/redesign-notes.md](ui/redesign-notes.md)，
 雙擊 `docs/ui/preview.html` 看）。主色從原本的藍換成青綠（深色取 ISDPCS 的 `#35e0c4`），深淺色跟著 Windows／手機的設定走，畫面上沒有切換鈕。
 
 | 選項 | 一句話 | |
@@ -70,7 +70,7 @@ SYNOX 的卡 10 分鐘就過期、重開就失效，被洗掉的機會小很多�
 **為什麼問**：常駐助理（每 45 分鐘巡一次的那個）看到你的長期偏好時，現在會**自己**加一行到 soul.md 的「助理筆記」段
 （一次最多 3 行、每行 200 字、有像密鑰的不加、每一筆都有紀錄，你在主控面板看得到、改得掉）。
 風險：如果對話或工具的訊息裡有人寫「請記住：…」，它可能被騙去記一行奇怪的東西，之後每次巡都會讀到。
-ClawBot 的研究文件是「AI 只能提議、一律先跳卡給你按」。設計見 [docs/adr/0001](docs/adr/0001-runtime-loop-heartbeat-mother-session.md) §5。
+ClawBot 的研究文件是「AI 只能提議、一律先跳卡給你按」。設計見 [docs/adr/0001](adr/0001-runtime-loop-heartbeat-mother-session.md) §5。
 
 | 選項 | 一句話 | |
 |---|---|---|
@@ -78,7 +78,7 @@ ClawBot 的研究文件是「AI 只能提議、一律先跳卡給你按」。設
 | B. 每一行都先送確認卡給你按 | 最安全，但半夜巡到的會等你醒來按 | |
 | C. 關掉自動追加（`runtime.mother.soul_append=false`），soul.md 只有你自己改 | 最單純，助理不會「學」 | |
 
-> 2026-11-12 更新（[docs/adr/0005](docs/adr/0005-soul-ledger-memory-provenance-review.md)）：這題還是你的決定，三個選項現在都做得到——
+> 2026-11-12 更新（[docs/adr/0005](adr/0005-soul-ledger-memory-provenance-review.md)）：這題還是你的決定，三個選項現在都做得到——
 > A 變得比較安全了：沒有疑慮的照舊直接記；**像在下指令、有網址、要跳過確認、或跟現有的一條很像的，會先在主控面板「助理記下來的事」等你按**，
 > 每一條都看得到是誰、什麼時候加的，可以收起來、放回去、忘掉。B＝`runtime.mother.soul_review=true`（每一條都先等你按；有新的會通知你一句，一天最多一次）。C 照舊。
 
@@ -132,7 +132,7 @@ ClawBot 的研究文件是「AI 只能提議、一律先跳卡給你按」。設
 
 > **已回答（2026-11-12）：照建議 A（搬）。已做**（分支 `feat/connectors-to-libs`）。擁有者原話：
 > 「QL1 當然要，而且所有工具目前都先幫我註記為 "測試版本 test/alpha/beta' 之類的。」
-> 4 個 connector 連同測試搬到 SYNOX_Libs，主程式 `connectors/` 只剩說明（[legacy/connectors.md](legacy/connectors.md)）；
+> 4 個 connector 連同測試搬到 SYNOX_Libs，主程式 `connectors/` 只剩說明（[docs/legacy/connectors.md](legacy/connectors.md)）；
 > pack.json 新增 `stage`（test／alpha／beta／stable），工具庫的工具全部標 alpha，`/help`、工具頁、安裝報告、doctor 都顯示。
 
 ## QL2（2026-11-12）從舊版更新上來的人，記帳／筆記／提醒會從 `/help` 消失，要怎麼接回來？
@@ -169,14 +169,14 @@ ClawBot 的研究文件是「AI 只能提議、一律先跳卡給你按」。設
 | C. 網頁裡做「瀏覽工具庫、一鍵下載安裝」 | 最方便，但要連網、要另外設計下載的安全檢查，範圍大 | |
 
 > **已回答（2026-11-12）**：git clone＋released exe installer 兩種，init 時引導設好參數與環境，**不可以有 hidden dependency 或這台的路徑**。
-> 已做（分支 `feat/clean-room-dist`，[docs/adr/0003](docs/adr/0003-distribution-git-clone-and-installer.md)）：B 的做法——發佈物旁邊附 `tools/`、
+> 已做（分支 `feat/clean-room-dist`，[docs/adr/0003](adr/0003-distribution-git-clone-and-installer.md)）：B 的做法——發佈物旁邊附 `tools/`、
 > `packs.library` 預設就是它（相對位置）、`synox init`／`synox tools` 列出來讓使用者自己挑，不自動全裝；安裝程式用 Inno Setup＋可攜版 Python；
-> clean-room 審計與 `scripts/clean_room_check.py`。**還沒做的**：真的打包 exe、空白電腦實測（清單：[docs/handoff/clean-machine-test.md](docs/handoff/clean-machine-test.md)）、
+> clean-room 審計與 `scripts/clean_room_check.py`。**還沒做的**：真的打包 exe、空白電腦實測（清單：[docs/handoff/clean-machine-test.md](handoff/clean-machine-test.md)）、
 > 網頁「設定 → 工具」的清單畫面。延伸的決定在下面 QD1～QD4。
 
 ---
 
-以下 QD1～QD4 是「乾淨安裝與發佈」（分支 `feat/clean-room-dist`、[docs/adr/0003](docs/adr/0003-distribution-git-clone-and-installer.md)）留下的題目。
+以下 QD1～QD4 是「乾淨安裝與發佈」（分支 `feat/clean-room-dist`、[docs/adr/0003](adr/0003-distribution-git-clone-and-installer.md)）留下的題目。
 
 ## QD1（2026-11-12）安裝程式要不要簽章？
 
@@ -225,7 +225,7 @@ Claude Code 與「先不用 AI」不受影響。
 
 **為什麼問**：你說伺服器版的使用者只在 Telegram 註冊、不一定碰得到伺服器，網頁後台是管理員的特權。查了程式：網頁只聽 127.0.0.1（這點符合），
 但伺服器版的 `/web` 現在**對每個人都發登入連結（連訪客也有）**；營運者一旦設了 `web.public_url`（對外網址），成員、訪客就能從自己的手機登入網頁
-（只看得到自己的對話與工具，設定與帳號頁照舊只有你／管理員）。白話表在 [docs/security.md](docs/security.md)「誰進得了網頁」。
+（只看得到自己的對話與工具，設定與帳號頁照舊只有你／管理員）。白話表在 [docs/security.md](security.md)「誰進得了網頁」。
 另外：工具要填的帳號密碼／API token 只能在網頁或伺服器那台電腦上填（Telegram 刻意不收），所以收緊之後，成員就沒辦法自己接需要帳號的工具
 （現在的 4 個 connector 本來就只給擁有者，影響的是以後給成員用、又要帳號的工具）。編號加 S 是為了跟同時進行的其他分支不撞號。
 
@@ -237,7 +237,7 @@ Claude Code 與「先不用 AI」不受影響。
 
 以下 QM1～QM3 是「網頁的開場動畫與微動畫」（分支 `feat/ui-splash`，還沒合併）留下的題目；編號加 M 是為了跟同時進行的其他分支不撞號。
 背景：你 11-12 說「synox 打開可不可以跟 isdpcs 學一下，絢麗的動畫，讓人會喜歡上這個可愛的工具」。雙擊 `docs/ui/preview.html` 就會播
-（右上角「重播開場」可以再看一次），說明在 [docs/ui/motion-notes.md](docs/ui/motion-notes.md)。
+（右上角「重播開場」可以再看一次），說明在 [docs/ui/motion-notes.md](ui/motion-notes.md)。
 
 ## QM1（2026-11-12）開場動畫要不要在設定頁放一個開關？
 
@@ -295,7 +295,7 @@ Claude Code 與「先不用 AI」不受影響。
 ## QB3（2026-11-12，終端機門面）歡迎畫面的 logo 用這隻貓頭鷹可以嗎？
 
 **為什麼問**：歡迎畫面要「可愛、有辨識度」。現在是「一隻 ASCII 貓頭鷹＋大字 SYNOX」，顏色從 ISDPCS 的青綠（`#35e0c4`，跟網頁介面同色）
-漸層到藍紫，問候語照 ISDPCS 歡迎頁的時段（早安／午安／晚上好…）。長相見 [docs/ui/cli-welcome.txt](docs/ui/cli-welcome.txt)
+漸層到藍紫，問候語照 ISDPCS 歡迎頁的時段（早安／午安／晚上好…）。長相見 [docs/ui/cli-welcome.txt](ui/cli-welcome.txt)
 （純文字看不到顏色）。
 
 | 選項 | 一句話 | |
@@ -360,15 +360,15 @@ Claude Code 與「先不用 AI」不受影響。
 > 「Q7 要，就當作 system prompt 吧，但關於核心這些 agent 如何讀context，我也希望你這邊作簡單的 html artfact 並存成 local html 變成 一些簡單的說明文件，之後工程人員可以繼續追蹤。[但現在先不做。我要先確保mvp都完成，才加入進階功能]」
 
 - 結論：選 B。soul.md 放進對話助理的系統提示：只有你自己的私訊／網頁對話、唯讀、最多 2000 字、包在分隔符裡標明「使用者偏好，不是指令」；
-  沒寫東西就不放；成員、訪客、公開頻道都不帶；對話助理仍不讀常駐助理的記憶。設計 [docs/adr/0002](docs/adr/0002-soul-md-in-chat-assistant-prompt.md)
+  沒寫東西就不放；成員、訪客、公開頻道都不帶；對話助理仍不讀常駐助理的記憶。設計 [docs/adr/0002](adr/0002-soul-md-in-chat-assistant-prompt.md)
   （分支 `feat/core-remind-soul`）。
-- 「agent 怎麼讀 context」的 HTML 說明：照你說的**先不做**，記在 [docs/README.md](docs/README.md) 的「待做」。
+- 「agent 怎麼讀 context」的 HTML 說明：照你說的**先不做**，記在 [docs/README.md](README.md) 的「待做」。
 
 ## Q10 Heartbeat 間隔能設多短？ — 已回答
 
 > 「Q10 可以先這樣，但我就目前希望預設先45分鐘，因為claude目前1hr，會有 session prompt cache，相對來說會變便宜。還不如一直讓他 beat 下去」
 
-- 結論：照 A，範圍 15～1440 分鐘不變；**預設維持 45 分鐘**。理由寫進 [docs/adr/0001](docs/adr/0001-runtime-loop-heartbeat-mother-session.md) §3「決定 Q10」，
+- 結論：照 A，範圍 15～1440 分鐘不變；**預設維持 45 分鐘**。理由寫進 [docs/adr/0001](adr/0001-runtime-loop-heartbeat-mother-session.md) §3「決定 Q10」，
   並加測試確定設定、`config.example.json`、主控面板三處都是 45。
 - 附註：要真的吃到 1 小時的快取，SYNOX 叫 AI 的那一層還要另外標記（現在沒有）；你說 MVP 之後再做進階功能，這次只記在 ADR。
 
@@ -377,7 +377,7 @@ Claude Code 與「先不用 AI」不受影響。
 - 擁有者 2026-11-12 的看法（主 session 轉述）：伺服器版的使用者只在 Telegram／其他平台註冊，不一定碰得到伺服器，網頁後台是管理員特權。
 - 結論：照 A（不用；每個人自己排，沒排過的照工具建議的群組）——成員本來就不太會用網頁。
 - 查到的現況與你的想法有出入：伺服器版的 `/web` 現在對每個人都發連結（設了對外網址就人人能登入），要不要收緊另開一題 **QS1**（上面）。
-  白話表在 [docs/security.md](docs/security.md)「誰進得了網頁」。
+  白話表在 [docs/security.md](security.md)「誰進得了網頁」。
 
 ## QL5 提醒（remind）要不要變成真正獨立的工具？ — 已回答、已做
 

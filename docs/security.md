@@ -342,7 +342,7 @@ T2 多做的事（`src/synox/packs/tier.py`）：
 `auto`：個人版、Windows＝none；Linux 伺服器版＝有 bwrap 用 bwrap，沒有就 systemd-run，都沒有＝none。明寫的後端在這台用不了
 （找不到 bwrap…）＝當作 none（fail closed），doctor 說原因。**選了容器的 pack 先看容器**（podman → docker），找不到引擎才照這個順序。
 
-**容器的誠實保證與限制**（S0–S2，`docs/discussions/2026-11-10-isolation-howto.md`）：
+**容器的誠實保證與限制**（S0–S2，`docs/lab/discussions/2026-11-10-isolation-howto.md`）：
 - **保證（指令層面）**：SYNOX 組出來的指令一定帶上面那一整組旗標、一定不帶 `--privileged`、`--network host`、`docker.sock`、
   `--cap-add`、`--device`（第 1 關也不收這些欄位；`mounts` 只能改容器裡的路徑，本機要掛什麼由 SYNOX 照 `data` 算）。
   映像一定指名 digest，執行時不會自己去網路抓（`--pull=never`）。

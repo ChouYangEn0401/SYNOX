@@ -3,7 +3,7 @@
 - 日期：2026-11-12
 - 狀態：已採用設計（分支 `feat/clean-room-dist`）。**安裝程式沒有實際打包過、也還沒在空白電腦上跑過**——實測清單：
   [../handoff/clean-machine-test.md](../handoff/clean-machine-test.md)
-- 回答：[QuestionToUser.md](../../QuestionToUser.md) QL4；留給擁有者的：QD1～QD4
+- 回答：[QuestionToUser.md](../QuestionToUser.md) QL4；留給擁有者的：QD1～QD4
 
 （編號說明：0002 已經被 `feat/core-remind-soul` 用掉，所以這份是 0003。）
 

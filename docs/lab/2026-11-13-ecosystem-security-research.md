@@ -487,7 +487,7 @@ Gemini CLI、Cursor 在 Windows 的沙盒：這次沒查到官方文件（待查
 | 同上，願意按一次 UAC | 專用帳號＋WFP：檔案＋網域白名單（有已知缺口） | 文件上成立 [AN2]；最低 Windows 版本查不到 |
 | 任何 Windows，願意裝 Docker Desktop | 容器：最接近 Linux 伺服器版的行為 | 不符合「不用裝」 |
 
-**到得了一部分，而且取決於 Windows 版本。** 擁有者自己的開發機是 Windows 10 Home（`docs/discussions/2026-11-10-sandbox-and-skill-containers.md:73`），MXC 與 Windows Sandbox 都用不了。
+**到得了一部分，而且取決於 Windows 版本。** 擁有者自己的開發機是 Windows 10 Home（`docs/lab/discussions/2026-11-10-sandbox-and-skill-containers.md:73`），MXC 與 Windows Sandbox 都用不了。
 
 ### 4.5 Windows 實測計畫
 
@@ -987,7 +987,7 @@ Docker Desktop 的安裝檔大小、免費版有沒有容器層級的網域白�
 1. **程式事實**：第四節每一列標「規劃階段複查」的，都在 commit `30f32a4` 上重新開檔對過。跟三份報告不同的地方：
    - 報告 C 引的 `docs/tools.md:420`（`run` 只跑 kind=cli）實際在 `docs/tools.md:324`；
    - 報告 C 列的 `index.json` 欄位少了 kind、group、access、capabilities、bundles（SYNOX_Libs `scripts/build.py:105-111`）；
-   - 報告 B 說「擁有者的開發機是 Windows 10 Home」引的是 isolation-howto，實際寫在 `docs/discussions/2026-11-10-sandbox-and-skill-containers.md:73`；
+   - 報告 B 說「擁有者的開發機是 Windows 10 Home」引的是 isolation-howto，實際寫在 `docs/lab/discussions/2026-11-10-sandbox-and-skill-containers.md:73`；
    - 報告 A 標「待查」的兩件事有答案了：MCP 工具說明事後改變**不會**提醒（`src/synox/packs/mcp.py:978-988`）；pack **沒有**獨立的生命週期稽核紀錄（第四節第 16 列）。
 2. **報告之間的衝突**：MCPB 的 repo，報告 B 寫 `anthropics/mcpb`、報告 C 寫 `modelcontextprotocol/mcpb`。查了：前者 301 轉到後者，是同一個 repo 搬了家。README 寫「Bundle the entire `node_modules` directory with your bundle」「Node.js ships with Claude for macOS and Windows」。**已查證** [WB14]
 3. **MXC 能不能在 Home 版用、`wxc-exec.exe` 去哪裡拿**：再讀一次官方的版本支援頁與 README。版本支援頁只列 build（24H2 `26100.9278`、25H2 `26200.9278`、26H2 `26300.9550`、26H1 `28000.2804`），**完全沒提版別與 Windows 10**；README 只說「Install an SDK through your package manager」（Rust／.NET／Node），獨立執行檔沒有寫下載來源；有一個 streaming standard-I/O 的範例。結論不變：**查不到**，要實測。[MX1][MX2]

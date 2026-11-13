@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""SYNOX 出廠不帶工具（legacy/builtin-packs.md）：沒裝任何工具時 build（＝synox run 會跑的那段）、/start、/help、
+"""SYNOX 出廠不帶工具（docs/legacy/builtin-packs.md）：沒裝任何工具時 build（＝synox run 會跑的那段）、/start、/help、
 AI、網頁、doctor、精靈完成頁都要正常，並告訴擁有者「還沒裝任何工具、去哪裡裝」；從 .synoxpack 裝進來之後提示就消失。
 全部在暫存資料夾，不連網、不開埠、不連 Telegram。"""
 import json
@@ -22,7 +22,7 @@ HINT = "還沒裝任何工具"
 
 @pytest.fixture
 def empty_dirs(tmp_path, monkeypatch):
-    """這台的 SYNOX：packs/ 是空的（安裝的落點）；2026-11-12 起連 connector 都沒有（legacy/connectors.md）。"""
+    """這台的 SYNOX：packs/ 是空的（安裝的落點）；2026-11-12 起連 connector 都沒有（docs/legacy/connectors.md）。"""
     packs = tmp_path / "packs"
     packs.mkdir()
     monkeypatch.setattr(loader, "PACK_DIRS", (str(packs),))

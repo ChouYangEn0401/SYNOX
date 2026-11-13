@@ -4,13 +4,15 @@
 
 | 文件 | 內容 |
 |---|---|
-| [docs/HANDOFF-2026-11-13.md](HANDOFF-2026-11-13.md) | **先讀這份**：這一輪做了什麼、在哪、還沒做什麼、要你決定什麼 |
-| [docs/HANDOFF-2026-11-13-round2.md](HANDOFF-2026-11-13-round2.md) | **第二輪（先讀這份）**：local 平台、虛假完成閘門、小模型 harness、VLM 都已合進 dev；沒驗證的事與測試方法 |
-| [docs/research/](research/) | 中國團隊小模型 harness 技術研究（HTML 交接書＋摘要） |
-| [docs/2026-11-13-local-llm-ollama-test-record.md](2026-11-13-local-llm-ollama-test-record.md) | 本地模型（Ollama）接 SYNOX harness 的測試紀錄 |
-| [docs/2026-11-13-vlm-vision-design.md](2026-11-13-vlm-vision-design.md) | VLM（看圖）接進 harness 的設計（含本地實測） |
-| [docs/2026-11-13-subscription-login-research.md](2026-11-13-subscription-login-research.md) | 各家訂閱登入調查、`ntu_easy_llm` 結構確認 |
+| [HANDOFF-2026-11-13.md](HANDOFF-2026-11-13.md) | **先讀這份**：這一輪做了什麼、在哪、還沒做什麼、要你決定什麼 |
+| [HANDOFF-2026-11-13-round2.md](HANDOFF-2026-11-13-round2.md) | **第二輪（先讀這份）**：local 平台、虛假完成閘門、小模型 harness、VLM 都已合進 dev；沒驗證的事與測試方法 |
+| [research/](research/) | 中國團隊小模型 harness 技術研究（HTML 交接書＋摘要） |
+| [2026-11-13-local-llm-ollama-test-record.md](2026-11-13-local-llm-ollama-test-record.md) | 本地模型（Ollama）接 SYNOX harness 的測試紀錄 |
+| [2026-11-13-vlm-vision-design.md](2026-11-13-vlm-vision-design.md) | VLM（看圖）接進 harness 的設計（含本地實測） |
+| [2026-11-13-subscription-login-research.md](2026-11-13-subscription-login-research.md) | 各家訂閱登入調查、`ntu_easy_llm` 結構確認 |
 | [tools/local-llm-live/](tools/local-llm-live/) | 對真的 Ollama 跑 SYNOX AgentLoop 的測試腳本與原始結果 |
+| [discussions/](discussions/) | 沙盒／容器的設計討論（2026-11-10）：為什麼、比較表、階段 S0–S8，與實作 how-to（原 `docs/discussions/`） |
+| [cross-repo/](cross-repo/) | 請**別的 repo**（金流簿、ISDTeleKitSDK…）做的事，一件一檔，由擁有者轉交（原 `docs/handoffs/`；跟給使用者的 `docs/handoff/` 不同） |
 
 > 這些檔案原本在本機專案 SYNOX_Plans，2026-11-13 併入 SYNOX 的 docs/lab（路徑已改成 <HOME> 佔位）。文中提到「SYNOX_Plans」「尚未 push」的地方是搬進來之前的狀態。
 
