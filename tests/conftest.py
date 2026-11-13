@@ -64,6 +64,17 @@ def _test_pack_dirs(monkeypatch):
 
 
 @pytest.fixture
+def no_sockets(monkeypatch):
+    """新的測試檔一律用（pytestmark = pytest.mark.usefixtures("no_sockets")）：測試不准開埠。"""
+    import socket
+
+    def refuse(*_a, **_k):
+        raise AssertionError("測試不准開埠")
+    monkeypatch.setattr(socket.socket, "bind", refuse)
+    monkeypatch.setattr(socket.socket, "listen", refuse)
+
+
+@pytest.fixture
 def owner():
     return OWNER_ID
 
