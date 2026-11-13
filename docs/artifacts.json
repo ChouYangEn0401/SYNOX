@@ -1,0 +1,110 @@
+{
+  "說明": "每一份線上 Artifact 都要有本機 HTML 副本，頁尾要有線上網址與頁面版本（<span data-stamp>）。repo=SYNOX 的會被 tests/test_artifact_registry.py 檢查；SYNOX_Libs 的在那個 repo 用 scripts/site_stamp.py。更早的頁面見 docs/artifacts/registry-archive.json。",
+  "pages": [
+    {
+      "title": "SYNOX 本機助理（介紹頁）",
+      "url": "https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW",
+      "repo": "SYNOX",
+      "local": "docs/landing/index.html",
+      "note": "原稿 docs/landing/page.html，用 scripts/make_landing.py 組"
+    },
+    {
+      "title": "SYNOX 安裝教學（一步一步）",
+      "url": "https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F",
+      "repo": "SYNOX",
+      "local": "docs/guide/index.html",
+      "note": ""
+    },
+    {
+      "title": "SYNOX 安裝程式規格",
+      "url": "https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB",
+      "repo": "SYNOX",
+      "local": "docs/installer/spec.html",
+      "note": ""
+    },
+    {
+      "title": "SYNOX 品牌提案",
+      "url": "https://claude.ai/artifact/QqdEnR3s25c7tPUW23zfoz",
+      "repo": "SYNOX",
+      "local": "docs/lab/design/2026-11-13-brand-explorations.html",
+      "note": "會繼續加系列（G 之後）"
+    },
+    {
+      "title": "SYNOX 品牌提案 — 內部首發 — share",
+      "url": "https://claude.ai/artifact/QPvmTVeneWme8mBnHiSnuM",
+      "repo": "SYNOX",
+      "local": "docs/lab/design/2026-11-13-brand-explorations-share.html",
+      "note": "固定版本：A–F，不再改"
+    },
+    {
+      "title": "SYNOX 工具庫（入口）",
+      "url": "https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL",
+      "repo": "SYNOX_Libs",
+      "local": "docs/site/index.html",
+      "note": "SYNOX_Libs repo（本機有，GitHub 還沒推上去）"
+    },
+    {
+      "title": "隨手記",
+      "url": "https://claude.ai/artifact/NpYbd3FtMAkXmASXc1pJzh",
+      "repo": "SYNOX_Libs",
+      "local": "docs/site/notes.html",
+      "note": "SYNOX_Libs repo（本機有，GitHub 還沒推上去）"
+    },
+    {
+      "title": "待辦",
+      "url": "https://claude.ai/artifact/JuKURoMhZY58fWyR4j3961",
+      "repo": "SYNOX_Libs",
+      "local": "docs/site/todo.html",
+      "note": "SYNOX_Libs repo（本機有，GitHub 還沒推上去）"
+    },
+    {
+      "title": "記帳",
+      "url": "https://claude.ai/artifact/6kA9jSkwVFPPBthsCjmz6d",
+      "repo": "SYNOX_Libs",
+      "local": "docs/site/money.html",
+      "note": "SYNOX_Libs repo（本機有，GitHub 還沒推上去）"
+    },
+    {
+      "title": "行事曆",
+      "url": "https://claude.ai/artifact/Fm6dXH5oiua8zPY3U5RYQ5",
+      "repo": "SYNOX_Libs",
+      "local": "docs/site/calendar.html",
+      "note": "SYNOX_Libs repo（本機有，GitHub 還沒推上去）"
+    },
+    {
+      "title": "子彈筆記",
+      "url": "https://claude.ai/artifact/BTdPArDtbddRk4ijNqExZ3",
+      "repo": "SYNOX_Libs",
+      "local": "docs/site/bullet.html",
+      "note": "SYNOX_Libs repo（本機有，GitHub 還沒推上去）"
+    },
+    {
+      "title": "Notion",
+      "url": "https://claude.ai/artifact/B36np3VigMinvyFuyz74dJ",
+      "repo": "SYNOX_Libs",
+      "local": "docs/site/notion.html",
+      "note": "SYNOX_Libs repo（本機有，GitHub 還沒推上去）"
+    },
+    {
+      "title": "Todoist",
+      "url": "https://claude.ai/artifact/D3zgGcZ9h1LRrDLu2QD5Mw",
+      "repo": "SYNOX_Libs",
+      "local": "docs/site/todoist.html",
+      "note": "SYNOX_Libs repo（本機有，GitHub 還沒推上去）"
+    },
+    {
+      "title": "Google 日曆",
+      "url": "https://claude.ai/artifact/NyhRhPrRL1n9NMMbMEv3mx",
+      "repo": "SYNOX_Libs",
+      "local": "docs/site/google-calendar.html",
+      "note": "SYNOX_Libs repo（本機有，GitHub 還沒推上去）"
+    },
+    {
+      "title": "Apple 提醒事項",
+      "url": "https://claude.ai/artifact/Jm4tdCTZdaQ1mc1waTatYp",
+      "repo": "SYNOX_Libs",
+      "local": "docs/site/apple-reminders.html",
+      "note": "SYNOX_Libs repo（本機有，GitHub 還沒推上去）"
+    }
+  ]
+}

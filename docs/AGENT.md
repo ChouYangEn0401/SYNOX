@@ -397,3 +397,12 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 4. commit 作者信箱若是個人信箱：要不要改寫成 GitHub 的 noreply 信箱，由維護者決定。
 5. 文件：README 頂端的 alpha 說明仍然屬實；`<待補：…>` 佔位（SECURITY.md、LICENSING.md、CONTRIBUTING.md、MAINTAINERS.md）都填好了。
 6. 測試全過：`.venv\Scripts\python.exe -m pytest -q`。
+
+## 線上頁面（Artifact）的規則（擁有者 2026-11-13）
+
+- **每一份**發佈到 claude.ai 的 Artifact 都要有 repo 裡的本機 HTML 副本（Artifact 壞了也還能給人用），並登記在 `docs/artifacts.json`
+  （更早的頁面在 `docs/artifacts/registry-archive.json`；工具庫的頁面在 SYNOX_Libs 的 `docs/site/`）。
+- 頁尾最下面一行很小的字（使用者不會注意）：線上網址＋本機路徑＋頁面版本 `<span data-stamp>`。頁面版本＝內容的 sha256 前 10 碼＋日期，
+  線上版和本機版一樣＝同一份。改頁面的順序：改本機檔 → `python scripts/page_stamp.py <檔>`（介紹頁用 `scripts/make_landing.py`）→ 重新發佈同一個網址。
+- `tests/test_artifact_registry.py` 會擋：沒有本機副本、頁尾沒有線上網址、改了內容沒重蓋頁面版本。
+- 頁面都要支援手機（360–390px 不能左右滑）與深淺色。
