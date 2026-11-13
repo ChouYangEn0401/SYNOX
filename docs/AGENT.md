@@ -49,6 +49,7 @@
 | `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS；設定頁分頁＝`#settings:<tab>`，安裝 pack 的頁＝`#packs`：待核准清單、步驟 `synox:install-step` 事件、`window.SynoxInstall` 入口）、`__init__.py`（`install`、`/web`、`/web_off`）；工具頁：`toolpage.py`（指令卡與參數表單的資訊 `command_info`、群組排版 `effective`／`parse_layout`、每人的偏好 `UserPrefs`＝`data/web_prefs/<id>.json.enc`）＋`static/tools.js`／`tools.css`（`server.render_app` 換掉 app.html 的 `<!-- include: … -->`，同一個 nonce） |
 | `src/synox/web/apps/` | 工具服務（[adr/0024](adr/0024-tool-apps-services.md)）：`manager.py`（`AppManager`：開關、埠、閒置、交接票；`start` 只收 web／telegram）、`site.py`（`AppSite.handle`：一個工具的站，C4–C6.1）、`listen.py`（唯一開埠的地方，`127.0.0.2`）、`sessions.py`（交接票、app 登入，綁在有 `alive()` 的上一層）、`spec.py`、`audit.py`（`data/apps_audit.jsonl`、`safe_trace`）、`web_api.py`（主機台的 `/api/apps…`、`POST /apps/<名>/open`）、`commands.py`（`/apps`、`/app_open`、`/app_close`）、`testing.py`（`AppClient`、`FakeListen`）；共用元件 `static/appkit.js`／`appkit.css` |
 | `src/synox/guard/` | 門禁核心（[adr/0025](adr/0025-guard-core-and-stepup.md)）：`origin.py`（來源）、`inputs.py`（輸入的基本檢查）、`limits.py`、`audit.py`（`data/security_audit.jsonl`）、`stepup.py`（手機驗證器）、`scope.py`（callers／stepup）、`store.py`、`qr.py`、`commands.py`（/unlock）、`web_api.py`（/api/stepup）、`cli.py`（`python -m synox stepup`）、`testing.py` |
+| `src/synox/web/remote/` | 手機入口（[adr/0026](adr/0026-remote-tool-apps.md)）：`manager.py`（`RemoteManager`：前提、開、關、時間）、`gate.py`（`RemoteGate.handle_raw`：進門頁、鑰匙＋新碼、白名單轉給工具站）、`tunnel.py`（`Tunnel` 介面、`CloudflaredTunnel`）、`binary.py`（通道程式的雜湊與核准）、`commands.py`（`/app_remote`）、`web_api.py`（`/api/remote…`）、`testing.py`（`FakeTunnel`、`RemoteClient`）；請求檢查在 `guard/http.py`；進門頁 `static/remote_enter.*` |
 | `src/synox/present/` | 呈現層（[presentation.md](presentation.md)，`config.json` `presentation.enabled`，**預設關**）：`blocks.py`（區塊、Span、信任等級 system／assistant／external、`safe_url`、`visible`）、`markdown.py`（Markdown／純文字 → 區塊，不用第三方套件、不丟例外）、`telegram.py`／`discord.py`／`web.py`（輸出；切割在 `split.py`、表格降級在 `tables.py`、寬度在 `width.py`）、`__init__.py`（`render`、`deliver`）。只接 AI 回覆（`AgentLoop.say`、`RoomAgent.say`）；按鈕群／確認卡只有 system 才是真的按鈕；網頁送 JSON 區塊給 `static/blocks.js`（textContent） |
 | `src/synox/packs/admin.py` | `.synoxpack`：stage（zip 檢查＋第 1、2 關；記 zip 的執行位元、不解出 `__pycache__`）→ install_staged（再驗一次＋T2 要 `trust_publisher`＋第 3 關寫鎖）／移除到 `packs/_removed/`／`reload()`（Web UI、`synox install` 共用）；`list_staged`（待核准清單，順便清掉過期／半套的暫存）／`discard_staged`；`format_tier`／`red`＝T2 的紅字段 |
 | `src/synox/packs/tier.py` | 信任層級（SDK P7）：`assess`（T0／T1／T2＋掃不到內容的檔、外部程式、runtime auto 套件）、`warning_lines`、`confirm_problem`（publisher 一字不差）、`reconfirm_reasons`（升級）、`lock_fields` |
@@ -273,6 +274,10 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     權限問同一個 `registry.authorize`、欄位走 `kit.check_values`；**開服務只收網頁按鈕與擁有者打字兩種來路**（`AppManager.start` 的 `via`
     只收 `web`／`telegram`，`/app_open` 是 `interactive`），AI、排程、內部呼叫都開不了；AI 可以列與關。稽核欄位固定、沒有自由文字；
     log 用 `audit.safe_trace`（沒有例外的訊息）。
+26. **通道程式只由 `web/remote/tunnel.py` 啟動，啟動前對雜湊；測試不執行它**（[adr/0026](adr/0026-remote-tool-apps.md)）：整個 `src/synox/web/` 只有
+    `tunnel.py` 叫 `subprocess.Popen`（參數清單、不經 shell、空的工作資料夾、最小的環境）；`RemoteManager.open` 先過 `binary.approved`。
+    手機入口的閘門只綁 `127.0.0.2`（經 `listen.open_listener(handler=GuardedHandler)`），通道只指到閘門、永遠不指到主機台或工具服務的埠。
+    測試一律 `FakeTunnel`、假的 Popen，測試檔用 `no_sockets`＋`no_subprocess`。危險的動作與匯出在遠端一律不行（`site.py` 看來源）。
 
 另外：
 - **本地模型（kind=local，[adr/0007](adr/0007-local-llm-platform.md)）**：`llm.timeout` 是**無進展**逾時（每次 socket 讀取；
