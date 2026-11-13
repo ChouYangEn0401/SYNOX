@@ -256,6 +256,13 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     格式轉換只在各 adapter；能不能看只問 `adapter.check_vision()`（經 `vision.route`），**adapter 收到圖卻不支援一律 `LLMError`，不偷偷丟掉**。
     有圖的一輪跟沒圖的走同一個 `_turn_body`（ai_decision、第 4 關、確認卡、完成宣稱檢查都不能為圖開例外）；兩段式的描述一律包進這一輪的分隔符。
     對話記憶、母 session、心跳、soul 只有文字替身；圖不寫 `data/`、不進 log。沒圖的輪次：提示、請求、連線一個字都不變。
+23. **來源：每個入口都要設 `guard.origin`**（[adr/0025](adr/0025-guard-core-and-stepup.md)）：dispatcher 的包裝（Telegram／Discord／終端機；
+    排程造的訊息＝schedule）、`WebUI.route`（認出登入之後＝web）、`agent/loop.py` 的 `call_tool`（ai，`on_behalf`＝這一輪的入口）、
+    `schedule/runner.py`（schedule）、runtime 任務與 health 的重新檢查（system）、遠端閘門（remote）。丟到 `app.tasks` 的工作自動帶著丟的那一刻的來源。
+    **沒設＝不明＝收緊的地方一律拒**（`callers` 宣告、驗證碼、敏感動作）；沒收緊的照舊。新的入口一定要設。
+24. **驗證碼只從人的入口進來；任何給 AI 的工具都不能有收驗證碼的欄位**：`guard/stepup.py` 的 `verify`／`unlock` 看到來源不是人（或遠端）
+    就回 `not_human`、不計次、不碰金鑰；解鎖指令群組 `unlock` 在 `policy.HIDDEN_GROUPS`、`interactive`、`callers=("human",)`。
+    解鎖綁入口（`origin.surface`），只在記憶體。權限的兩題（範圍、要不要解鎖）在 `policy.guard_check`，接在 `decide` 裡，不另開交會點。
 
 另外：
 - **本地模型（kind=local，[adr/0007](adr/0007-local-llm-platform.md)）**：`llm.timeout` 是**無進展**逾時（每次 socket 讀取；

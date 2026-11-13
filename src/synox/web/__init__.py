@@ -50,8 +50,13 @@ def install(app, config, vault=None, *, pack_dirs=None, config_path: Optional[st
         ui.turn_off()
         api.send_message(chat_id, "🌐 網頁介面關掉了，所有網頁登入都登出了。重開 SYNOX 才會再開。")
 
-    g.leaf("web", cmd_web, "拿網頁介面的登入連結（一次性、7 天）", private_only=True, ai=False)
-    g.leaf("web_off", cmd_off, "關掉網頁介面（重開 bot 才會再開）", owner_only=True, effect=WRITE, ai=False)
+    web_node = g.leaf("web", cmd_web, "拿網頁介面的登入連結（一次性、7 天）", private_only=True, ai=False)
+    off_node = g.leaf("web_off", cmd_off, "關掉網頁介面（重開 bot 才會再開）", owner_only=True, effect=WRITE, ai=False)
+    from synox import guard
+    gate = guard.of(app)
+    if gate is not None and gate.scope is not None:          # 核心先收緊的（ADR 0025 §3）：登入連結與關網頁只收人
+        for node in (web_node, off_node):
+            gate.scope.restrict(node.path, callers=("human",))
     if ui.enabled:
         app.on_start.append(lambda _app: ui.start())
         app.on_stop.append(lambda _app: ui.stop())
