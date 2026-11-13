@@ -3,7 +3,7 @@
 狀態：**待驗證**（2026-11-10 寫；已合併進 `dev` 與 `main`）
 為什麼要這份：寫程式的那台 Windows 開發機**不跑任何容器、VM**（擁有者的規定），容器後端（S0–S2）和原本的 bwrap／systemd 後端
 （PERM-7）都只比對過「SYNOX 組出來的指令字串」。這份是帶到**另一台機器**（學校實驗室的 Linux 優先；Windows＋Docker Desktop 其次）
-真的跑一次的清單。背景與每個旗標防什麼：[`docs/discussions/2026-11-10-isolation-howto.md`](../discussions/2026-11-10-isolation-howto.md)。
+真的跑一次的清單。背景與每個旗標防什麼：[`docs/lab/discussions/2026-11-10-isolation-howto.md`](../lab/discussions/2026-11-10-isolation-howto.md)。
 
 開始之前（擁有者做）：
 1. 程式已經在 GitHub 的 `dev` 分支（也在 `main`），那台機器 `git clone` 後 `git checkout dev` 即可。

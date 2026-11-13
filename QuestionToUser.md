@@ -43,7 +43,7 @@ SYNOX 的卡 10 分鐘就過期、重開就失效，被洗掉的機會小很多�
 
 **為什麼問**：金流簿（記帳專案）這兩天出了挪額度、依現在的錢估每天、待解決清單…；SYNOX 內建的 `packs/money` 只有記一筆、看這個月、設預算，
 跟金流簿是兩套。金流簿已經有給 SYNOX 用的 pack（`synox-pack/`），只是還停在 11-09 的版本（已寫交接：
-[docs/handoffs/2026-11-12-moneybook-synox-pack-0.18.md](docs/handoffs/2026-11-12-moneybook-synox-pack-0.18.md)）。
+[docs/lab/cross-repo/2026-11-12-moneybook-synox-pack-0.18.md](docs/lab/cross-repo/2026-11-12-moneybook-synox-pack-0.18.md)）。
 
 | 選項 | 一句話 | |
 |---|---|---|

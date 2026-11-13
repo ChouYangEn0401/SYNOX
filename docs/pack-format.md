@@ -267,7 +267,7 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
 ### 容器（`runtime.container`，kind=cli 與 kind=mcp stdio；建議提供）
 
 作者「建議提供」：有了它，擁有者安裝時可以選「用容器跑」，伺服器版的第三方／T2 pack 選了容器、伺服器又有 podman／docker，
-就能開給成員（沒提供或選不用容器，照舊只給擁有者）。做法與每個旗標防什麼：`docs/discussions/2026-11-10-isolation-howto.md`。
+就能開給成員（沒提供或選不用容器，照舊只給擁有者）。做法與每個旗標防什麼：`docs/lab/discussions/2026-11-10-isolation-howto.md`。
 
 ```json
 "runtime": {"container": {
