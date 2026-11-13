@@ -1,0 +1,14 @@
+/* 🔐 安全（static/security.js）：設定頁的卡＋解鎖的輸入框 */
+.stepup-state { font-weight: 600; }
+.stepup-err { color: var(--danger, #b42318); }
+.stepup-qr { display: block; margin: 8px 0; image-rendering: pixelated; max-width: 260px; width: 100%; height: auto; }
+.stepup-secret, .stepup-codes { font-family: ui-monospace, Consolas, monospace; font-size: 1.05em; letter-spacing: .05em;
+  background: var(--panel-2, rgba(127, 127, 127, .08)); padding: 8px 10px; border-radius: 8px; white-space: pre-wrap; }
+.stepup-code { font-size: 1.3em; letter-spacing: .2em; width: 10em; max-width: 100%; }
+.stepup-toggle { display: block; margin: 8px 0; }
+.stepup-modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); display: flex; align-items: center;
+  justify-content: center; z-index: 1000; padding: 16px; }
+.stepup-box { background: var(--bg, #fff); color: var(--fg, #111); border-radius: 12px; padding: 16px 18px; width: 360px;
+  max-width: 100%; box-shadow: 0 8px 30px rgba(0, 0, 0, .3); }
+.stepup-box .row, #set-security .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+button.danger { background: var(--danger, #b42318); color: #fff; }

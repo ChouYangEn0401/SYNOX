@@ -60,6 +60,7 @@ from isdtelekit.core.channel import CallbackInfo, Inbound
 
 from synox import tutorials
 from synox.guard import origin as guard_origin
+from synox.guard.stepup import SENSITIVE as STEPUP_SENSITIVE
 from synox.packs.manifest import stage_text
 from synox.web import report as reporting, toolpage
 from synox.web.channel import WEB, WebChannel
@@ -559,6 +560,15 @@ class WebUI:
 
     def api(self, method: str, path: str, query, headers, body: bytes, session: Session) -> Resp:
         user = self._user(session)
+        if path == "/api/stepup" or path.startswith("/api/stepup/"):     # 手機驗證器（ADR 0025；guard/web_api.py）
+            from synox.guard import web_api as stepup_api
+            return stepup_api.route(self, user, session, method, path, headers, body)
+        if method != "GET" and path in STEPUP_SENSITIVE:               # 開了開關就要先解鎖的敏感動作（K5）
+            from synox import guard
+            g = guard.of(self.app)
+            blocked = g.stepup.gate(user, path) if g is not None and g.stepup is not None else None
+            if blocked is not None:
+                return _json(blocked[0], json.loads(blocked[2]))
         if path.startswith("/api/runtime/"):          # 主控面板：常駐助理／心跳／任務（docs/runtime-api.md；含 PUT）
             from synox.runtime import web_api as runtime_api
             return runtime_api.route(self, user, method, path, body)
