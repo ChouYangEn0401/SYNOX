@@ -28,6 +28,8 @@ def install(app, config, vault=None, *, pack_dirs=None, config_path: Optional[st
     app.extras["synox_web"] = ui
     from synox.web import apps as tool_apps
     tool_apps.install(app, config, ui)              # 工具服務（ADR 0024）：只建管理員，不開任何東西
+    from synox.web import remote as phone_entry
+    phone_entry.install(app, config, ui)            # 手機入口（ADR 0026）：只建管理員，不開任何東西
     registry = app.registry
     server = getattr(config, "mode", "personal") == "server"
     registry.ensure_group("webui", "🌐 網頁介面", "在電腦的瀏覽器裡用 SYNOX：對話、工具、設定", bare=True,
