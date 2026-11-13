@@ -48,6 +48,14 @@ class AgentFallback:
     def handle(self, api, inbound, user, text: str, age: float) -> Route:
         route = self.app.dispatcher.log_route(inbound, text, Route(FALLBACK, "agent.ai"))
         bot = policy.current_bot()                   # 收訊的 bot：AI 那一輪在別的執行緒，要帶過去（工具清單照它過濾）
+        from synox.agent import media
+        file_id = media.telegram_image(inbound, text)
+        if file_id is not None:                      # 私訊傳的照片（docs/adr/0021）：file_id 不當文字給 AI
+            from synox.llm import vision
+            loader = media.telegram_loader(api, [file_id], vision.limits_of(self.loop.llm))
+            self.app.tasks.run(lambda: policy.run_as(bot, self.loop.run_turn, api, inbound.chat_id, user, "",
+                                                     images=loader), name="agent-turn")
+            return route
         self.app.tasks.run(lambda: policy.run_as(bot, self.loop.run_turn, api, inbound.chat_id, user, text),
                            name="agent-turn")
         return route
