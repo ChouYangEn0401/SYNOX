@@ -224,6 +224,21 @@ def _activator_line(config) -> str:
 HEALTH_MARKS = {"broken": "⏸", "needs_action": "🛠", "quarantined": "⛔"}
 
 
+def _stepup_line(config) -> str:
+    """手機驗證器（ADR 0025）：擁有者設定了沒、危險的動作有沒有開保護。保管箱還沒建（沒有金鑰檔）就不去開它。"""
+    from synox.guard.cli import doctor_line
+    from synox.vault.keyring import key_path
+    if not os.path.exists(key_path(config.data_dir)):        # 還沒建保管箱＝一定沒設定（doctor 不替人建金鑰）
+        return doctor_line(None)
+    try:
+        from synox.guard.store import VaultStore
+        from synox.vault import open_vault
+        store = VaultStore(open_vault(config), getattr(config, "mode", "personal") == "server")
+        return doctor_line(store.load(int(config.owner_id or 0)))
+    except Exception:
+        return "  手機驗證器：（保管箱打不開，看不到；先處理保管箱的問題）"
+
+
 def health_lines(config, default_data: str) -> tuple:
     """工具健康（docs/tool-health.md）：每個不正常的工具一行（狀態、類別碼、原因、下次檢查時間）。
     只讀 data/health/tools.json.enc（保管箱金鑰不在＝不開、不產生）。回 (行, 要看一下的個數)。"""
@@ -289,6 +304,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
             out(_heartbeat_line(config))
             out(_keep_awake_line(config))
             out(_activator_line(config))
+            out(_stepup_line(config))
             if config.discord_enabled:
                 bot_lines, bad = _discord_lines(config)
                 from synox import discord as _dc

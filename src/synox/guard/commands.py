@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 
-from isdtelekit.core.registry import WRITE
+from isdtelekit.core.registry import DANGER, WRITE
 from isdtelekit.core.timing import Pending
 from isdtelekit.packs.basics import EXPIRED_CHOICE
 from isdtelekit.packs.sudo import SudoContinue
@@ -29,7 +29,34 @@ TEXT = {
     "was_off": "本來就沒解鎖。",
     "looks_like": "這看起來是驗證碼，要拿來解鎖嗎？（我不會把它交給 AI。）",
     "use_it": "🔓 拿來解鎖",
+    "hint": "💡 這類動作可以多一道手機驗證：SYNOX 網頁 → 設定 → 安全。",
 }
+HINTS_FILE = "stepup_hints.json"
+
+
+class FirstDangerHint:
+    """第一次自己做危險的動作而沒設定驗證器：提示一次（每人一次，記在 data/stepup_hints.json）。"""
+
+    def __init__(self, app, hub):
+        self.app, self.hub = app, hub
+        import os
+        self.path = os.path.join(str(getattr(app.config, "data_dir", ".") or "."), HINTS_FILE)
+
+    def around(self, kind, api, inbound, user, node, run) -> None:
+        run(api)
+        if kind != "command" or getattr(node, "effect", "") != DANGER or not origin_mod.current().human:
+            return
+        uid = int(getattr(user, "tg_id", 0) or 0)
+        try:
+            from isdtelekit.core import jsonstore
+            seen = jsonstore.load_json(self.path, [])
+            seen = seen if isinstance(seen, list) else []
+            if uid in seen or self.hub.enrolled(uid):
+                return
+            jsonstore.save_json(self.path, seen + [uid])
+        except Exception:
+            return
+        api.send_message(inbound.chat_id, TEXT["hint"])
 
 
 def install(app, hub, scope=None) -> None:
@@ -37,6 +64,7 @@ def install(app, hub, scope=None) -> None:
     registry.ensure_group(GROUP, "🔐 解鎖", "用手機驗證器解鎖危險的動作一段時間", private_only=True)
     cont = SudoContinue(app)
     app.dispatcher.add_observer(cont)
+    app.dispatcher.add_observer(FirstDangerHint(app, hub))
     codes = Pending()
 
     def try_code(api, chat_id, user, code: str) -> None:

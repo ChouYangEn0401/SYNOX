@@ -563,7 +563,8 @@ def test_settings_page_is_split_into_tabs():
             where[card] = tab
     assert where == {"set-llm": "ai", "set-usage": "ai", "set-channels": "channels", "set-install": "packs",
                      "set-packs": "packs", "set-library": "packs", "set-skills": "packs", "set-sandbox": "packs",
-                     "set-accounts": "accounts", "set-awake": "system", "set-backup": "system", "set-help": "help"}
+                     "set-accounts": "accounts", "set-security": "security", "set-awake": "system",
+                     "set-backup": "system", "set-help": "help"}
     tabs = re.findall(r'<a href="(#[a-z:]+)" data-tab="([a-z]+)" role="tab"[^>]*>', section)   # [^>]*：教學的 data-tour
     assert {t for _h, t in tabs} == set(where.values())
     assert ("#packs", "packs") in tabs                              # 安裝頁的穩定網址（拖放之類的入口也用它）
