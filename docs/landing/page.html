@@ -171,10 +171,14 @@ section { padding-block: 88px; }
 .feat { position: relative; }
 .feat .tag { position: absolute; top: 18px; right: 16px; font-style: normal; font-size: 11.5px; font-weight: 600; color: var(--faint); background: var(--sunken); border: 1px solid var(--line); border-radius: 999px; padding: 0 9px; line-height: 20px; }
 .feat .tag.lib { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
-.feat.more { grid-column: 1 / -1; display: flex; align-items: center; gap: 18px; text-decoration: none; color: inherit; background: transparent; border: 1.5px dashed var(--line-2); }
+.feat.more { grid-column: 1 / -1; display: flex; align-items: center; gap: 18px; color: inherit; background: transparent; border: 1.5px dashed var(--line-2); }
+.feat.more:hover { transform: none; }
 .feat.more b { margin-top: 0; }
 .feat.more > div:nth-child(2) { flex: 1; min-width: 0; }
-.feat.more em { font-style: normal; color: var(--accent); font-weight: 500; font-size: 14.5px; white-space: nowrap; }
+.more-links { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+.more-links a { color: var(--accent); font-weight: 500; font-size: 14.5px; white-space: nowrap; text-decoration: none; }
+.more-links a:hover { text-decoration: underline; }
+@media (max-width: 640px) { .more-links { align-items: flex-start; } }
 @media (max-width: 640px) { .feat.more { flex-wrap: wrap; } }
 
 /* ---------------------------------------------------------------- screens */
@@ -289,6 +293,46 @@ details.road summary { cursor: pointer; font-weight: 500; padding: 12px 0; min-h
 :root[data-theme="dark"] .sx-splash { --accent-2: #4aa8ff; --bg-glow: #13222b;
   --highlight: inset 0 1px 0 rgba(255, 255, 255, .045); --shadow-md: 0 14px 34px -12px rgba(0, 0, 0, .75); }
 /*{{splash-css}}*/
+/* 進場的「等你點」：splash.css 的時間表是自動播完；這裡改成分段，由 class 決定播到哪 */
+.sx-splash.lp-gate { animation: none; cursor: default; }
+.lp-gate .sx-stage { animation: none; }
+.lp-gate .sx-mascot { appearance: none; border: 0; padding: 0; background: none; font: inherit; color: inherit; cursor: progress;
+  animation: sx-drop .6s var(--ease) both, lp-bob 2.4s ease-in-out 1s infinite; }
+.lp-gate.lp-ready .sx-mascot { cursor: pointer; }
+.lp-gate .sx-mascot:focus-visible { outline: 3px solid var(--accent); outline-offset: 8px; border-radius: 32px; }
+@keyframes lp-bob { 0%, 100% { transform: none; } 50% { transform: translateY(-5px); } }
+.lp-gate.lp-ready .sx-face { animation: lp-glow 1.6s ease-in-out infinite; }
+@keyframes lp-glow { 50% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 22%, transparent), 0 18px 40px -14px var(--accent); } }
+.lp-gate .sx-flip { animation: none; }
+.lp-gate .sx-hi { animation: none; opacity: 0; }
+.lp-gate .sx-word span { animation: none; opacity: 0; }
+.lp-gate .sx-logo::after { animation: none; }
+.lp-gate .sx-spark { animation: none; opacity: 0; }
+.lp-gate .sx-hint { animation: none; opacity: 1; }
+.lp-gate.lp-ready .sx-dots { visibility: hidden; }
+/* 點下去：說招呼、噴光點 */
+.lp-gate.lp-said .sx-mascot { animation: none; }
+.lp-gate.lp-said .sx-face { animation: none; }
+.lp-gate.lp-said .sx-hi { opacity: 1; animation: lp-hi .45s var(--ease) both; }
+@keyframes lp-hi { 0% { transform: scale(.3) rotate(-12deg); opacity: 0; } 60% { transform: scale(1.08) rotate(3deg); opacity: 1; } 100% { transform: none; opacity: 1; } }
+.lp-gate.lp-said .sx-spark { animation: sx-fly .85s var(--sx-fly) var(--d, .05s) both; }
+.lp-gate.lp-said .sx-eye { animation: sx-blink .5s ease both; }
+/* 翻成 S、SYNOX 一個一個跳出來、掃一道光 */
+.lp-gate.lp-go .sx-flip { animation: sx-flip .5s cubic-bezier(.3, 1.35, .5, 1) both; }
+.lp-gate.lp-go .sx-logo::after { animation: sx-shine .7s ease-out .3s forwards; }
+.lp-gate.lp-go .sx-hi { animation: lp-hi-out .4s ease .45s forwards; }
+@keyframes lp-hi-out { to { opacity: 0; transform: translateY(-6px) scale(.9); } }
+.lp-gate.lp-go .sx-word span { opacity: 1; animation: sx-letter .5s var(--sx-pop) both; }
+.lp-gate.lp-go .sx-word span:nth-child(2) { animation-delay: .05s; }
+.lp-gate.lp-go .sx-word span:nth-child(3) { animation-delay: .1s; }
+.lp-gate.lp-go .sx-word span:nth-child(4) { animation-delay: .15s; }
+.lp-gate.lp-go .sx-word span:nth-child(5) { animation-delay: .2s; }
+/* 淡出進頁面 */
+.sx-splash.lp-gate.lp-out { animation: sx-out .42s var(--ease) forwards; }
+.lp-gate.lp-out .sx-stage { animation: sx-stage-out .42s var(--ease) forwards; }
+.lp-skip { position: absolute; top: calc(16px + env(safe-area-inset-top, 0px)); right: 16px; font: inherit; font-size: 13px; color: var(--muted);
+  background: transparent; border: 1px solid var(--line); border-radius: 999px; padding: 4px 14px; cursor: pointer; min-height: 32px; }
+.lp-skip:hover { color: var(--text); border-color: var(--accent); }
 /* when the splash lifts, the top of the page rises in */
 html.sx-intro .top, html.sx-intro .hero > * { animation: lp-rise .6s var(--sx-rise) backwards; }
 html.sx-intro .hero > *:nth-child(2) { animation-delay: .08s; }
@@ -301,10 +345,112 @@ html.sx-hold .top, html.sx-hold .hero > * { animation-play-state: paused; }
 
 footer { border-top: 1px solid var(--line); margin-top: 72px; padding-block: 32px 56px; color: var(--faint); font-size: 13.5px; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 22px; }
 footer a { color: var(--muted); }
+/* 給開發者對版本：線上版和本機版的「頁面版本」一樣＝同一份 */
+.stamp { font-family: var(--mono); font-size: 10px; color: var(--faint); opacity: .55; margin: -40px 0 24px; word-break: break-all; }
+.stamp a { color: inherit; }
 </style>
 </head>
 <body>
-<script>/*{{splash-js}}*/</script>
+<script>
+/* 進場：S 寶寶先在前面等，網頁在後面載入；載好了點一下小方塊（或按 Enter）→ 隨機說一句招呼 → 翻成 S 標誌 → 進頁面。
+   樣子用網頁介面同一份 splash.css（.sx-*）；這裡只管「等你點」的流程。同一個分頁只出現一次；?splash=1 每次都出現、?splash=0 不出現；
+   系統開了「減少動態效果」不出現。點左上角的 S 可以再看一次。整段包在 try 裡，出錯就直接進頁面。 */
+(function () {
+  var SEEN = "synox.landing.entered";
+  var HELLO = ["你好！", "歡迎！", "很高興認識你！"];
+  var html = document.documentElement;
+  function calm() { try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; } }
+  function seen() { try { return sessionStorage.getItem(SEEN) === "1"; } catch (e) { return false; } }
+  function mark() { try { sessionStorage.setItem(SEEN, "1"); } catch (e) { /* 私密視窗、預覽：不記 */ } }
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
+
+  var loaded = document.readyState === "complete";
+  window.addEventListener("load", function () { loaded = true; if (window.__lpReady) window.__lpReady(); });
+
+  function open() {
+    if (document.querySelector(".sx-splash")) return;
+    var gate = el("div", "sx-splash lp-gate");
+    gate.setAttribute("role", "dialog");
+    gate.setAttribute("aria-label", "SYNOX 開場：點一下小方塊進入");
+    var stage = el("div", "sx-stage");
+    stage.appendChild(el("div", "sx-halo"));
+    var mascot = el("button", "sx-mascot");
+    mascot.type = "button";
+    mascot.setAttribute("aria-label", "點一下進入");
+    var flip = el("div", "sx-flip");
+    var face = el("div", "sx-face");
+    ["sx-eye l", "sx-eye r", "sx-blush l", "sx-blush r", "sx-smile"].forEach(function (c) { face.appendChild(el("i", c)); });
+    flip.appendChild(face);
+    flip.appendChild(el("div", "sx-logo", "S"));
+    mascot.appendChild(flip);
+    var sparks = el("div", "sx-sparks");
+    for (var i = 0; i < 6; i++) sparks.appendChild(el("i", "sx-spark"));
+    sparks.appendChild(el("i", "sx-spark star", "✦"));
+    sparks.appendChild(el("i", "sx-spark star", "✦"));
+    mascot.appendChild(sparks);
+    var hi = el("div", "sx-hi", "…");
+    mascot.appendChild(hi);
+    stage.appendChild(mascot);
+    var word = el("div", "sx-word");
+    "SYNOX".split("").forEach(function (ch) { word.appendChild(el("span", "", ch)); });
+    stage.appendChild(word);
+    var dots = el("div", "sx-dots");
+    for (var j = 0; j < 3; j++) dots.appendChild(el("i"));
+    stage.appendChild(dots);
+    gate.appendChild(stage);
+    var hint = el("p", "sx-hint lp-hint", "載入中…");
+    gate.appendChild(hint);
+    var skip = el("button", "lp-skip", "直接進入");
+    skip.type = "button";
+    gate.appendChild(skip);
+
+    var going = false, done = false;
+    function finish() {
+      if (done) return; done = true;
+      document.removeEventListener("keydown", onKey, true);
+      html.classList.remove("sx-hold");
+      if (gate.parentNode) gate.parentNode.removeChild(gate);
+      setTimeout(function () { html.classList.remove("sx-intro"); }, 800);
+    }
+    function go(fast) {
+      if (going) return; going = true;
+      mark();
+      if (fast) { gate.classList.add("lp-out"); html.classList.remove("sx-hold"); setTimeout(finish, 450); return; }
+      hi.textContent = HELLO[Math.floor(Math.random() * HELLO.length)];
+      gate.classList.add("lp-said");                       // 先說話、噴光點
+      setTimeout(function () { gate.classList.add("lp-go"); }, 650);      // 翻成 S、SYNOX 跳出來
+      setTimeout(function () { gate.classList.add("lp-out"); html.classList.remove("sx-hold"); }, 1500);
+      setTimeout(finish, 1950);
+    }
+    function ready() {
+      if (gate.classList.contains("lp-ready")) return;
+      gate.classList.add("lp-ready");
+      hint.textContent = "點一下小方塊（或按 Enter）進入";
+      try { mascot.focus({ preventScroll: true }); } catch (e) { /* 舊瀏覽器 */ }
+    }
+    function onKey(e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); if (gate.classList.contains("lp-ready")) go(false); }
+      else if (e.key === "Escape") { go(true); }
+    }
+    mascot.addEventListener("click", function () { if (gate.classList.contains("lp-ready")) go(false); });
+    skip.addEventListener("click", function () { go(true); });
+    document.addEventListener("keydown", onKey, true);
+    html.classList.add("sx-intro", "sx-hold");
+    (document.body || html).appendChild(gate);
+    window.__lpReady = ready;
+    // 動畫落地（約 0.7 秒）而且網頁載好了才能點；載太久（8 秒）也放行，不讓人卡在門口
+    setTimeout(function () { if (loaded) ready(); }, 700);
+    setTimeout(ready, 8000);
+  }
+
+  window.SynoxGate = { open: open };
+  try {
+    var m = /[?&]splash=([01])(?:&|#|$)/.exec(location.search || "");
+    var want = m ? m[1] === "1" : !seen();
+    if (!calm() && want) open();
+  } catch (e) { html.classList.remove("sx-hold"); }
+})();
+</script>
 
 <!-- ============================================================ icons (drawn for this page; brand marks from Simple Icons, CC0) -->
 <svg width="0" height="0" style="position:absolute" aria-hidden="true">
@@ -352,7 +498,7 @@ footer a { color: var(--muted); }
 
 <!-- ============================================================ top + hero -->
 <header class="top">
-  <a class="logo" href="#top" aria-label="SYNOX（點一下重播開場）" title="點一下重播開場" id="logo"><span class="mark mark-md" aria-hidden="true">S</span><b>SYNOX</b></a>
+  <a class="logo" href="#top" aria-label="SYNOX（點一下再看一次開場）" title="點一下再看一次開場" id="logo"><span class="mark mark-md" aria-hidden="true">S</span><b>SYNOX</b></a>
   <div class="top-r">
     <span class="ver" title="pyproject.toml 的版本；還沒有正式發佈"><i class="dot" style="background:var(--warn)"></i><b>0.2.0</b>alpha</span>
     <a class="gh" href="https://github.com/ChouYangEn0401/SYNOX" target="_blank" rel="noopener"><svg class="brand"><use href="#b-github"/></svg>GitHub</a>
@@ -395,14 +541,14 @@ footer a { color: var(--muted); }
       <span class="chip"><svg class="brand c-mono"><use href="#b-openai"/></svg>OpenAI</span>
       <span class="chip"><svg class="brand c-gemini"><use href="#b-gemini"/></svg>Gemini</span>
       <span class="chip"><svg class="ico c-accent"><use href="#i-chip"/></svg>本機模型</span>
-      <span class="chip soon" title="GithubCopilotLogin 寫好了，還沒接進 SYNOX、也還沒在真的 Copilot 上測過"><svg class="brand c-mono"><use href="#b-copilot"/></svg>GitHub Copilot<i class="wip">🚧 尚未完成</i></span>
+      <span class="chip soon" title="GithubCopilotLogin 寫好了，還沒接進 SYNOX、也還沒在真的 Copilot 上測過"><svg class="brand c-mono"><use href="#b-copilot"/></svg>GitHub Copilot<i class="wip">⏳ 尚未完成</i></span>
     </div></div>
   <div class="with-group"><span>裝在哪裡、怎麼用</span>
     <div class="chips">
       <span class="chip"><svg class="ico c-accent"><use href="#i-monitor"/></svg>Windows 10／11</span>
       <span class="chip"><svg class="ico c-accent"><use href="#i-user"/></svg>個人版</span>
       <span class="chip" title="一台給一群人用：每個人一份加密資料、各自的 AI 額度與角色"><svg class="ico c-accent"><use href="#i-server"/></svg>伺服器版（多人）</span>
-      <span class="chip soon" title="SYNOX Link：一台當主控台派任務，其他小電腦當哨兵去做；實驗中、還沒真機驗證"><svg class="ico c-accent"><use href="#i-radio"/></svg>哨兵模式<i class="wip">🚧 尚未完成</i></span>
+      <span class="chip soon" title="SYNOX Link：一台當主控台派任務，其他小電腦當哨兵去做；實驗中、還沒真機驗證"><svg class="ico c-accent"><use href="#i-radio"/></svg>哨兵模式<i class="wip">⏳ 尚未完成</i></span>
     </div></div>
 </div>
 
@@ -422,11 +568,14 @@ footer a { color: var(--muted); }
     <div class="feat"><div class="icon"><svg class="ico"><use href="#i-clock"/></svg></div><i class="tag">內建</i><b>排程</b><span>每晚替你跑一次固定的事</span></div>
     <div class="feat"><div class="icon"><svg class="ico"><use href="#i-pulse"/></svg></div><i class="tag">內建</i><b>背景巡邏</b><span>定時看一輪，有事才叫你</span></div>
     <div class="feat"><div class="icon"><svg class="ico"><use href="#i-image"/></svg></div><i class="tag">內建</i><b>看照片</b><span>用 Telegram 傳圖，它看得懂</span><i class="sim">🧪 還沒用真的看圖模型試過</i></div>
-    <a class="feat more" href="#dev">
+    <div class="feat more">
       <div class="icon"><svg class="ico"><use href="#i-plus"/></svg></div>
       <div><b>還想要別的？裝一個就會</b><span>從工具庫挑來裝，或自己寫一個；一個工具一個 <code>.synoxpack</code>，點兩下就裝好。</span></div>
-      <em>看怎麼寫工具 →</em>
-    </a>
+      <div class="more-links">
+        <a href="https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL" target="_blank" rel="noopener">怎麼裝別人的工具 →</a>
+        <a href="#dev">看怎麼寫工具 →</a>
+      </div>
+    </div>
   </div>
   <p class="note">出廠是空的：要記帳就裝記帳，要 Notion 就裝 Notion，不要的不裝。工具庫裡的工具目前都標 alpha。看照片要用看得到圖的 AI 模型。</p>
 </section>
@@ -439,7 +588,7 @@ footer a { color: var(--muted); }
   <div class="head">
     <p class="eyebrow">看畫面</p>
     <h2>網頁版長這樣</h2>
-    <p class="sub">真實畫面、假資料。點圖可以放大。</p>
+    <p class="sub">真實畫面、假資料，在這台電腦的瀏覽器上看。點圖可以放大。</p>
   </div>
 
   <div class="tabs" role="tablist" aria-label="切換畫面">
@@ -449,7 +598,7 @@ footer a { color: var(--muted); }
     <button class="tab" role="tab" aria-selected="false" aria-controls="p-packs" id="t-packs"><svg class="ico"><use href="#i-box"/></svg>裝功能</button>
     <button class="tab" role="tab" aria-selected="false" aria-controls="p-settings" id="t-settings"><svg class="ico"><use href="#i-gear"/></svg>設定</button>
     <button class="tab" role="tab" aria-selected="false" aria-controls="p-channels" id="t-channels"><svg class="ico"><use href="#i-plug"/></svg>接聊天軟體</button>
-    <button class="tab" role="tab" aria-selected="false" aria-controls="p-phone" id="t-phone"><svg class="ico"><use href="#i-phone"/></svg>手機</button>
+    <button class="tab" role="tab" aria-selected="false" aria-controls="p-phone" id="t-phone"><svg class="ico"><use href="#i-phone"/></svg>窄螢幕</button>
   </div>
   <div class="tone" role="group" aria-label="截圖的深淺色">
     <button type="button" data-tone="" aria-pressed="true">跟著系統</button>
@@ -503,19 +652,20 @@ footer a { color: var(--muted); }
     <div class="panel" role="tabpanel" id="p-phone" aria-labelledby="t-phone" hidden>
       <div class="phones">
         <figure style="margin:0"><div class="phone"><button class="shot-btn" type="button" aria-label="放大">
-          <img class="light" src="{{shot:m-chat-light}}" alt="手機版對話頁（淺色）">
-          <img class="dark" src="{{shot:m-chat-dark}}" alt="手機版對話頁（深色）"></button></div>
+          <img class="light" src="{{shot:m-chat-light}}" alt="窄螢幕的對話頁（淺色）">
+          <img class="dark" src="{{shot:m-chat-dark}}" alt="窄螢幕的對話頁（深色）"></button></div>
           <figcaption class="phone-cap">對話</figcaption></figure>
         <figure style="margin:0"><div class="phone"><button class="shot-btn" type="button" aria-label="放大">
-          <img class="light" src="{{shot:m-tools-light}}" alt="手機版工具頁（淺色）">
-          <img class="dark" src="{{shot:m-tools-dark}}" alt="手機版工具頁（深色）"></button></div>
+          <img class="light" src="{{shot:m-tools-light}}" alt="窄螢幕的工具頁（淺色）">
+          <img class="dark" src="{{shot:m-tools-dark}}" alt="窄螢幕的工具頁（深色）"></button></div>
           <figcaption class="phone-cap">工具</figcaption></figure>
         <figure style="margin:0"><div class="phone"><button class="shot-btn" type="button" aria-label="放大">
-          <img class="light" src="{{shot:m-control-light}}" alt="手機版主控頁（淺色）">
-          <img class="dark" src="{{shot:m-control-dark}}" alt="手機版主控頁（深色）"></button></div>
+          <img class="light" src="{{shot:m-control-light}}" alt="窄螢幕的主控頁（淺色）">
+          <img class="dark" src="{{shot:m-control-dark}}" alt="窄螢幕的主控頁（深色）"></button></div>
           <figcaption class="phone-cap">主控</figcaption></figure>
       </div>
-      <p class="caption">手機打開是底部分頁，按鈕夠大、好按。</p>
+      <p class="caption"><i class="wip">⏳ 尚未完成</i> 手機 App 還沒有。上面是網頁版在窄螢幕上的排版（底部分頁、按鈕夠大），
+        但網頁預設只給這台電腦自己用，手機連不進來；在手機上請用 Telegram 或 Discord 跟它說話。</p>
     </div>
   </div>
   <dialog class="lb" id="lb" aria-label="放大的截圖"><img alt=""></dialog>
@@ -548,7 +698,7 @@ footer a { color: var(--muted); }
   <ol class="steps">
     <li><b>雙擊 <code>Setup.bat</code>，照視窗點完</b>
       <p>從 GitHub 下載 ZIP、解開，雙擊 <code>Setup.bat</code>。不用系統管理員、不用打字；第一次會自己準備 Python 和套件（要上網）。</p>
-      <p><i class="wip">🚧 尚未完成</i> 一鍵安裝的 <code>.exe</code>：腳本寫好了，還沒打包出來。</p>
+      <p><i class="wip">⏳ 尚未完成</i> 一鍵安裝的 <code>.exe</code>：腳本寫好了，還沒打包出來。</p>
       <div class="chips">
         <span class="chip">自己用，還是一群人用</span>
         <span class="chip"><svg class="brand c-telegram"><use href="#b-telegram"/></svg>貼上 bot token</span>
@@ -585,6 +735,7 @@ footer a { color: var(--muted); }
         <a href="https://github.com/ChouYangEn0401/SYNOX/blob/main/docs/tools.md" target="_blank" rel="noopener">寫工具從這裡開始</a>
         <a href="https://github.com/ChouYangEn0401/SYNOX/blob/main/docs/sdk.md" target="_blank" rel="noopener">Python SDK</a>
         <a href="https://github.com/ChouYangEn0401/SYNOX/tree/main/examples" target="_blank" rel="noopener">範例</a>
+        <a href="https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL" target="_blank" rel="noopener">工具庫：現有的工具</a>
       </div>
     </div>
     <pre aria-label="Python SDK 範例"><code>from synox_sdk import tool, serve
@@ -611,12 +762,13 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
     <p class="sub">哪些還沒做完、哪些還沒實測，照實寫在這裡。</p>
   </div>
   <div class="status">
-    <h3 class="st-h"><i class="wip">🚧 尚未完成</i></h3>
+    <h3 class="st-h"><i class="wip">⏳ 尚未完成</i></h3>
     <ul class="honest">
       <li><span><b>一鍵安裝的 .exe</b>：打包腳本寫好了，還沒真的打包、也還沒放上 GitHub 下載。</span></li>
       <li><span><b>GitHub Copilot</b>：登入用的小工具另外寫好了，還沒接進 SYNOX。</span></li>
       <li><span><b>哨兵模式</b>（多台電腦連線）：在另一個分支上，還沒合進主線。</span></li>
       <li><span><b>macOS／Linux 安裝器</b>：沒有。程式能跑，但要自己建環境。</span></li>
+      <li><span><b>手機 App</b>：沒有。網頁只給這台電腦用，手機上請用 Telegram 或 Discord。</span></li>
       <li><span><b>換電腦的匯出與還原</b>、<b>AI 的長期記憶</b>：還沒有。對話記憶重開就忘。</span></li>
     </ul>
     <h3 class="st-h"><i class="sim">🧪 寫好了，還沒實測</i></h3>
@@ -669,6 +821,7 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
   <span>Telegram、Discord、Claude、OpenAI、Gemini 等名稱與標誌屬於各自的所有者</span>
   <a href="https://github.com/ChouYangEn0401/SYNOX" target="_blank" rel="noopener">github.com/ChouYangEn0401/SYNOX</a>
 </footer>
+<p class="stamp">線上版 <a href="https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW">claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW</a> · 本機版 docs/landing/index.html · 頁面版本 {{stamp}}</p>
 </div>
 
 <script>
@@ -717,10 +870,10 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
   });
   lb.addEventListener('click', function () { lb.close(); });
 
-  // 點左上角的 S：重播開場（系統開了「減少動態效果」就不播）
+  // 點左上角的 S：再看一次開場（系統開了「減少動態效果」就不出現）
   document.getElementById('logo').addEventListener('click', function () {
     var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if (!calm && window.SynoxSplash && !document.querySelector('.sx-splash')) { window.SynoxSplash.play(document); }
+    if (!calm && window.SynoxGate) { window.SynoxGate.open(); }
   });
 })();
 </script>
