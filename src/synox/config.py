@@ -74,6 +74,7 @@ DEFAULT_LLM = {"kind": "none", "max_steps": 6, "max_tokens": 1024, "completion_g
 DEFAULT_VAULT = {"mode": "dpapi" if os.name == "nt" else "file"}
 DEFAULT_PACKS = {"enabled": "all", "disabled": []}
 DEFAULT_WEB = {"enabled": True, "port": 8830, "public_url": ""}
+DEFAULT_STEPUP_MINUTES = 15                 # 手機驗證器解鎖幾分鐘（ADR 0025；SDK 預設 30）
 DEFAULT_MEMBER_USD = 2.0
 DEFAULT_PRESENTATION = {"enabled": False}
 MODES = ("personal", "server")
@@ -141,6 +142,12 @@ class SynoxConfig(BotConfig):
             runtime = runtime_settings.parse(raw.get("runtime"))
         except runtime_settings.RuntimeConfigError as e:
             raise ConfigError(f"config.json：{e}")
+        try:
+            stepup_minutes = int(raw.get("stepup_minutes", DEFAULT_STEPUP_MINUTES))
+        except (TypeError, ValueError):
+            raise ConfigError("config.json 的 stepup_minutes 要是數字（解鎖幾分鐘，1–120）。")
+        if not 1 <= stepup_minutes <= 120:
+            raise ConfigError("config.json 的 stepup_minutes 要在 1–120 之間（解鎖幾分鐘）。")
         presentation = parse_presentation(raw.get("presentation"))
         try:
             health = health_settings.parse(raw.get("health"))
@@ -148,7 +155,7 @@ class SynoxConfig(BotConfig):
             raise ConfigError(f"config.json：{e}")
         return cls(bot_token=base.bot_token, owner_id=base.owner_id,
                    poll_interval_seconds=base.poll_interval_seconds, data_dir=data_dir,
-                   stepup_minutes=base.stepup_minutes, raw=dict(raw), llm=llm, vault=vault, packs=packs, mode=mode,
+                   stepup_minutes=stepup_minutes, raw=dict(raw), llm=llm, vault=vault, packs=packs, mode=mode,
                    root=root, web=web, ai_member_monthly_usd=max(0.0, member_usd), policy=policy,
                    runtime=runtime, presentation=presentation, health=health)
 
