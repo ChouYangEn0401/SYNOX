@@ -766,6 +766,56 @@
     .tp-fhint, .tp-line { font-size: 13px; }
   }
 </style>
+<style nonce="preview">
+/* 新手教學的畫面（static/tour.js）：聚光圈、小卡、第一次的邀請、對話裡的「在畫面上帶我走」。
+   顏色沿用 app.html 的 token。聚光圈與遮罩都是 pointer-events: none：教學只指給人看，每一下都是使用者自己按。 */
+  .tour-ring { position: fixed; z-index: 70; pointer-events: none; border-radius: 12px;
+               box-shadow: 0 0 0 3px var(--accent), 0 0 0 7px var(--accent-soft), 0 0 0 9999px rgba(8, 12, 18, .38);
+               transition: top .22s var(--ease), left .22s var(--ease), width .22s var(--ease), height .22s var(--ease); }
+  .tour-ring.hidden { display: none; }
+  .tour-card { position: fixed; z-index: 71; width: min(360px, calc(100vw - 24px)); max-height: calc(100vh - 24px);
+               overflow: auto; padding: 14px 16px 12px; border-radius: var(--r-lg); background: var(--surface);
+               color: var(--text); border: 1px solid var(--accent-line); box-shadow: var(--shadow-lg);
+               display: flex; flex-direction: column; gap: 8px; animation: tour-in .2s var(--ease); }
+  .tour-card:focus { outline: none; }
+  .tour-card:focus-visible, .tour-card h2:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .tour-card.center { left: 50%; top: 50%; transform: translate(-50%, -50%); }
+  .tour-card .tour-top { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+  .tour-card .tour-top .count { flex: 1; font-weight: 600; }
+  .tour-card .tour-top button { min-height: 32px; padding: 4px 8px; font-size: 13px; }
+  .tour-card h2 { margin: 0; font-size: 17px; line-height: 1.35; }
+  .tour-card p { margin: 0; line-height: 1.6; }
+  .tour-card .tour-src { font-size: 13px; color: var(--muted); }
+  .tour-card .tour-note { font-size: 14px; color: var(--text-2); }
+  .tour-card .tour-ok { font-size: 14px; color: var(--ok); font-weight: 600; }
+  .tour-card .tour-bar { height: 4px; border-radius: 4px; background: var(--sunken); overflow: hidden; }
+  .tour-card .tour-bar span { display: block; height: 100%; background: var(--accent); transition: width .25s var(--ease); }
+  .tour-card .tour-actions { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-top: 2px; }
+  .tour-card .tour-actions .spacer { flex: 1; }
+  .tour-pill { position: fixed; z-index: 71; right: 16px; bottom: 16px; border-radius: var(--pill);
+               box-shadow: var(--shadow-md); }
+  .tour-offer { position: fixed; z-index: 69; right: 16px; bottom: 16px; width: min(340px, calc(100vw - 24px));
+                padding: 16px; border-radius: var(--r-lg); background: var(--surface); border: 1px solid var(--line);
+                box-shadow: var(--shadow-lg); display: flex; flex-direction: column; gap: 10px; animation: tour-in .25s var(--ease); }
+  .tour-offer h2 { margin: 0; font-size: 16px; }
+  .tour-offer p { margin: 0; color: var(--text-2); font-size: 14px; line-height: 1.6; }
+  .tour-offer .tour-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+  .msg .tour-start { margin-top: 8px; }
+  @keyframes tour-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  .tour-card.center { animation: none; }
+  @media (max-width: 760px) {
+    .tour-card { left: 12px !important; right: 12px; width: auto; max-height: 46vh; }
+    .tour-card.center { left: 12px !important; transform: translateY(-50%); }
+    .tour-card.dock-bottom { top: auto !important; bottom: calc(80px + env(safe-area-inset-bottom)); }
+    .tour-card.dock-top { top: 12px !important; bottom: auto; }
+    .tour-pill, .tour-offer { right: 12px; left: 12px; bottom: calc(80px + env(safe-area-inset-bottom)); width: auto; }
+    .tour-pill { left: auto; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .tour-ring, .tour-card .tour-bar span { transition: none; }
+    .tour-card, .tour-offer { animation: none; }
+  }
+</style>
 <style nonce="preview">  /* ── 拖 .synoxpack 進網頁（static/packdrop.js）：只用 app.html 的 token，不寫死顏色 ─────────── */
   #packdrop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px;
               background: color-mix(in srgb, var(--bg) 70%, transparent); pointer-events: none; }
@@ -1465,23 +1515,23 @@
     </button>
   </div>
   <nav id="nav" class="nav hidden">
-    <a href="#chat" data-view="chat">
+    <a href="#chat" data-view="chat" data-tour="nav.chat">
       <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 0 1-11.6 7.1L4 20l1-4.2A8 8 0 1 1 20 12z"/></svg>
       <span>對話</span></a>
-    <a href="#tools" data-view="tools">
+    <a href="#tools" data-view="tools" data-tour="nav.tools">
       <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="2"/><rect x="13" y="4" width="7" height="7" rx="2"/><rect x="4" y="13" width="7" height="7" rx="2"/><rect x="13" y="13" width="7" height="7" rx="2"/></svg>
       <span>工具</span></a>
     <a href="#control" data-view="control" id="nav-control" class="hidden">
       <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-7 4 14 3-7h4"/></svg>
       <span>主控</span></a>
-    <a href="#settings" data-view="settings">
+    <a href="#settings" data-view="settings" data-tour="nav.settings">
       <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
       <span>設定</span></a>
   </nav>
   <div id="chat-side" class="side-chats">
     <div class="section-label">對話紀錄</div>
-    <button id="new-chat" class="primary block" type="button">＋ 新對話</button>
-    <ul id="chat-list"></ul>
+    <button id="new-chat" class="primary block" type="button" data-tour="chat.new">＋ 新對話</button>
+    <ul id="chat-list" data-tour="chat.list"></ul>
     <a id="open-archive" class="archive-link" href="#archive">🗄 已封存的對話<span id="archive-n"></span></a>
   </div>
   <div id="side-foot" class="side-foot hidden">
@@ -1509,13 +1559,13 @@
     <div id="chat-main">
       <div class="chat-head"><span class="live" aria-hidden="true"></span><span class="t" id="chat-title">對話</span></div>
       <div id="stream"><div class="empty">選一段對話，或按「新對話」。</div></div>
-      <form id="composer">
+      <form id="composer" data-tour="chat.input">
         <textarea id="input" rows="1" placeholder="打字跟 SYNOX 說，或打 /指令"></textarea>
-        <button class="primary" type="submit">
+        <button class="primary" type="submit" data-tour="chat.send">
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
           <span>送出</span></button>
       </form>
-      <p class="hint">Enter 送出，Shift+Enter 換行；打 /help 看全部指令</p>
+      <p class="hint">Enter 送出，Shift+Enter 換行；打 /help 看全部指令，打 /tutorial 看新手教學</p>
     </div>
   </section>
 
@@ -1525,7 +1575,7 @@
         <h1>工具</h1>
         <p class="sub">你看得到、用得到的全部功能，照群組分好。填好參數按「執行」就跑（結果也會留在對話頁的「🧰 工具頁」）；群組可以按「編輯」自己排。</p>
       </header>
-      <div id="tools-root"></div>
+      <div id="tools-root" data-tour="tools.page"></div>
     </div>
   </section>
 
@@ -1557,17 +1607,17 @@
 
       <!-- 分頁：#settings:<tab>（重新整理、貼連結都留在同一頁）。安裝 pack 的頁是 #packs（＝#settings:packs），
            報告、確認、結果都在那頁最上面的「安裝新功能」 -->
-      <div id="set-tabs" class="tabs hidden" role="tablist" aria-label="設定分類">
-        <a href="#settings:ai" data-tab="ai" role="tab">🤖 AI</a>
-        <a href="#settings:channels" data-tab="channels" role="tab">💬 聊天通道</a>
-        <a href="#packs" data-tab="packs" role="tab">🧩 功能與安裝</a>
-        <a href="#settings:accounts" data-tab="accounts" role="tab">👥 帳號</a>
-        <a href="#settings:system" data-tab="system" role="tab">💻 電腦與備份</a>
-        <a href="#settings:help" data-tab="help" role="tab">🙋 遇到問題？</a>
+      <div id="set-tabs" class="tabs hidden" role="tablist" aria-label="設定分類" data-tour="settings.tabs">
+        <a href="#settings:ai" data-tab="ai" role="tab" data-tour="settings.tab.ai">🤖 AI</a>
+        <a href="#settings:channels" data-tab="channels" role="tab" data-tour="settings.tab.channels">💬 聊天通道</a>
+        <a href="#packs" data-tab="packs" role="tab" data-tour="settings.tab.packs">🧩 功能與安裝</a>
+        <a href="#settings:accounts" data-tab="accounts" role="tab" data-tour="settings.tab.accounts">👥 帳號</a>
+        <a href="#settings:system" data-tab="system" role="tab" data-tour="settings.tab.system">💻 電腦與備份</a>
+        <a href="#settings:help" data-tab="help" role="tab" data-tour="settings.tab.help">🙋 遇到問題？</a>
       </div>
 
       <div class="tab-panel hidden" data-tab="ai" role="tabpanel">
-      <div id="set-llm" class="card hidden">
+      <div id="set-llm" class="card hidden" data-tour="settings.ai.source">
         <div class="card-head"><span class="tile" aria-hidden="true">🤖</span>
           <div class="txt"><h2>AI 從哪裡來</h2><p class="sub" id="llm-now"></p></div></div>
         <label class="f" for="llm-choice">來源</label>
@@ -1661,7 +1711,7 @@
         </div>
       </div>
 
-      <div id="set-backup" class="card hidden">
+      <div id="set-backup" class="card hidden" data-tour="settings.backup">
         <div class="card-head"><span class="tile" aria-hidden="true">💾</span>
           <div class="txt"><h2>備份</h2>
             <p class="sub">下載整個 data 資料夾（筆記、記帳、提醒、使用者…），用這台電腦的保管箱金鑰加密。只有同一台電腦、同一個 Windows 帳號解得開。</p></div></div>
@@ -1673,7 +1723,7 @@
       </div>
 
       <div class="tab-panel hidden" data-tab="channels" role="tabpanel">
-      <div id="set-channels" class="card hidden">
+      <div id="set-channels" class="card hidden" data-tour="settings.channels">
         <div class="card-head"><span class="tile" aria-hidden="true">💬</span>
           <div class="txt"><h2>聊天通道</h2>
             <p class="sub">貼上 bot 的 token，先檢查再存（token 存好之後不會再顯示）。改了要重新啟動 SYNOX 才生效。</p></div></div>
@@ -1711,12 +1761,12 @@
       </div>
 
       <div class="tab-panel hidden" data-tab="packs" role="tabpanel">
-      <div id="set-library" class="card hidden">
+      <div id="set-library" class="card hidden" data-tour="settings.packs.catalog">
         <div class="card-head"><span class="tile" aria-hidden="true">🧰</span>
           <div class="txt"><h2>工具庫（官方）</h2><p class="sub">SYNOX 官方做的工具，挑你要的裝。按「載入工具清單」才會連到網路（GitHub）抓清單；
             按「安裝」也一樣先給你看檢查報告，你按確認才會裝。</p></div></div>
         <div class="row">
-          <button id="lib-load" class="primary" type="button">載入工具清單</button>
+          <button id="lib-load" class="primary" type="button" data-tour="settings.packs.catalog.load">載入工具清單</button>
           <a id="lib-overview" class="btn ghost" href="https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL" target="_blank" rel="noopener noreferrer">工具庫介紹</a>
         </div>
         <p id="lib-msg" class="msgline" role="status"></p>
@@ -1738,7 +1788,7 @@
         <p class="muted later-note">進階：規劃寫在 ADR 0022（匯入、隔離執行）。</p>
       </div>
 
-      <div id="set-install" class="card hidden">
+      <div id="set-install" class="card hidden" data-tour="settings.packs.upload">
         <div class="card-head"><span class="tile" aria-hidden="true">📦</span>
           <div class="txt"><h2>安裝新功能</h2><p class="sub">選一個 .synoxpack（pack 資料夾壓成的 zip），先看安全檢查報告，按「確認安裝」才會裝。
             雙擊 .synoxpack、Install-Pack.bat 或 <code>synox install &lt;檔&gt;</code> 開的報告也會直接出現在這裡。</p></div></div>
@@ -1754,11 +1804,11 @@
         <!-- 安裝步驟（檢查 → 看報告 → 確認 → 安裝 → 完成）。每一步會丟 document 的 "synox:install-step" 事件，
              data-step／data-status 也寫在這個 ol 上：之後 pack／工具作者可以掛自己的動畫或狀態 -->
         <ol id="install-steps" class="flow hidden" aria-label="安裝步驟"></ol>
-        <div id="pack-review" class="card hidden" tabindex="-1"></div>
+        <div id="pack-review" class="card hidden" tabindex="-1" data-tour="settings.packs.review"></div>
         <p id="install-msg" class="msgline" role="status"></p>
       </div>
 
-      <div id="set-packs" class="card hidden">
+      <div id="set-packs" class="card hidden" data-tour="settings.packs.installed">
         <div class="card-head"><span class="tile" aria-hidden="true">🧩</span>
           <div class="txt"><h2>功能（pack）</h2><p class="sub">裝了哪些功能、能不能用。移除的會搬到 packs/_removed/，不會刪掉。</p></div></div>
         <div class="tablewrap"><table><thead><tr><th>名字</th><th>狀態</th><th>版本</th><th></th></tr></thead>
@@ -3784,6 +3834,384 @@
 })();
 </script>
 <script nonce="preview">
+/* SYNOX 新手教學的畫面：SYNOX 自己在真的畫面上指給人看（聚光圈＋小卡），內容來自核心（GET /api/tour，synox/tour）。
+ *
+ *   window.SynoxTour.init({ api, toast, fill, go })      app.html 拿到 /api/me 之後呼叫（第一次會問「要不要我帶你走一遍？」）
+ *   window.SynoxTour.start(tourId, stepId)                開始／接著走（/tutorial 的回覆、對話裡的按鈕、邀請卡的「開始」）
+ *   window.SynoxTour.signal(name, value)                  app.html 告訴教學「剛剛發生了什麼」（送出訊息、載入清單、移除…）
+ *   window.SynoxTour.chatButton(block, live, id)          對話裡 tour 區塊的「在畫面上帶我走」按鈕（live＝剛收到的，自動開始）
+ *
+ * 安全（tests/test_tour.py 會掃這個檔）：
+ * - 只畫東西、不按東西：不呼叫任何元素的 click()、不送出表單、不改設定。聚光圈與遮罩是 pointer-events: none。
+ * - 只打三支 API：GET /api/tour、POST /api/tour/progress、POST /api/tour/offer（都只碰這個人自己的教學進度）。
+ * - 「幫我填好」只把字放進輸入框（ctx.fill，不送出）；「帶我去」只換網址的 #（ctx.go）。
+ * - 位置只用 data-tour 名字找（synox/tour/anchors.py 的清單），找不到就退成畫面中央的文字卡：教學永遠走得完。
+ * - 字一律 textContent。
+ */
+(function (root) {
+  "use strict";
+
+  var ctx = null;            // { api, toast, fill(text), go(view, tab) }
+  var data = null;           // GET /api/tour 的結果
+  var cur = null;            // { tour, at, done: {}, shownAt, base, ok, minimized }
+  var ui = { ring: null, card: null, pill: null, offer: null };
+  var started = {};          // 對話裡已經自動開始過的訊息 id（同一則不會一直重開）
+  var timer = null;
+  var advanceTimer = null;
+  var lastFocus = null;
+
+  var TEXT = {
+    count: "教學 {a}／{b}", prev: "上一步", next: "下一步", finish: "完成", leave: "先離開", fill: "幫我填好",
+    go: "帶我去", minimize: "收起", expand: "🎓 教學 {a}／{b}", done: "✓ 做到了！", already: "✓ 你已經在這裡了。",
+    missing: "（這個東西現在不在畫面上，可以按「帶我去」。）", missingNoGo: "（這個東西現在不在畫面上，看字就好。）",
+    from: "這份教學是工具「{s}」附的", offerTitle: "要不要我帶你走一遍？（約 {m} 分鐘）",
+    offerBody: "我會在畫面上指給你看每個地方：怎麼聊天、工具在哪、怎麼裝和移除工具。之後忘了，打 /tutorial 就能再看。",
+    offerStart: "開始", offerLater: "之後再說", laterToast: "好，想看的時候打 /tutorial（或按 /help）。",
+    paused: "先停在這裡。之後打 /tutorial 就會接著走。", finished: "🎉 走完了！忘了隨時打 /tutorial 再看一次。",
+    startButton: "▶ 在畫面上帶我走", none: "現在沒有教學可以看。"
+  };
+
+  function fill(s, vars) { return String(s).replace(/\{(\w+)\}/g, function (_m, k) { return vars[k]; }); }
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) { e.className = cls; }
+    if (text !== undefined && text !== null) { e.textContent = String(text); }
+    return e;
+  }
+  function button(cls, text, fn) {
+    var b = el("button", cls, text);
+    b.type = "button";
+    b.addEventListener("click", fn);
+    return b;
+  }
+  function reduced() {
+    return !!(root.matchMedia && root.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  }
+  function phone() { return !!(root.matchMedia && root.matchMedia("(max-width: 760px)").matches); }
+  function remove(node) { if (node && node.parentNode) { node.parentNode.removeChild(node); } }
+
+  // ── 資料 ───────────────────────────────────────────────────────────
+  function refresh() {
+    return ctx.api("GET", "/api/tour").then(function (d) { data = d; return d; });
+  }
+  function findTour(id) {
+    var list = (data && data.tours) || [];
+    for (var i = 0; i < list.length; i++) { if (list[i].id === id) { return list[i]; } }
+    return list[0] || null;
+  }
+  function save(state) {
+    if (!cur) { return; }
+    var step = cur.tour.steps[cur.at];
+    var done = Object.keys(cur.done);
+    ctx.api("POST", "/api/tour/progress", { tour: cur.tour.id, step: step.id, state: state, done: done })
+      .catch(function () { /* 進度沒存到：下次從上一個存到的地方接，教學照走 */ });
+  }
+
+  // ── 找位置、判斷做完了沒 ───────────────────────────────────────────
+  function visible(node) {
+    if (!node) { return false; }
+    var r = node.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) { return false; }
+    var st = root.getComputedStyle ? root.getComputedStyle(node) : null;
+    return !st || (st.visibility !== "hidden" && st.display !== "none");
+  }
+  function target(step) {
+    var names = step.anchors || [];
+    for (var i = 0; i < names.length; i++) {
+      var list = document.querySelectorAll('[data-tour="' + names[i].replace(/[^a-z0-9._-]/g, "") + '"]');
+      for (var j = 0; j < list.length; j++) { if (visible(list[j])) { return list[j]; } }
+    }
+    return null;
+  }
+  function stateOk(step) {               // 看得出來的狀態（不用等事件）：在哪一頁、哪個分頁
+    var d = step.done_when;
+    if (!d) { return false; }
+    if (d.event === "view") { return document.body.getAttribute("data-view") === d.value; }
+    if (d.event === "tab") {
+      if (document.body.getAttribute("data-view") !== "settings") { return false; }
+      var a = document.querySelector('#set-tabs a[data-tab="' + String(d.value).replace(/[^a-z]/g, "") + '"]');
+      return !!a && a.getAttribute("aria-selected") === "true";
+    }
+    return false;
+  }
+  function signal(name, value) {
+    if (!cur) { return; }
+    var step = cur.tour.steps[cur.at];
+    var d = step.done_when;
+    if (!d || d.event !== name) { return; }
+    if (d.value && String(value || "") !== d.value) { return; }
+    markDone(true);
+  }
+  function markDone(advance) {
+    if (!cur || cur.ok) { return; }
+    var step = cur.tour.steps[cur.at];
+    cur.ok = true;
+    cur.done[step.id] = 1;
+    paint();
+    if (advance && cur.at + 1 < cur.tour.steps.length) {
+      clearTimeout(advanceTimer);
+      var at = cur.at;
+      advanceTimer = setTimeout(function () { if (cur && cur.at === at) { show(at + 1); } }, reduced() ? 1400 : 1100);
+    }
+  }
+
+  // ── 畫 ─────────────────────────────────────────────────────────────
+  function ensure() {
+    if (!ui.ring) {
+      ui.ring = el("div", "tour-ring hidden");
+      ui.ring.setAttribute("aria-hidden", "true");
+      document.body.appendChild(ui.ring);
+    }
+    if (!ui.card) {
+      ui.card = el("div", "tour-card");
+      ui.card.setAttribute("role", "dialog");
+      ui.card.setAttribute("aria-modal", "false");
+      ui.card.setAttribute("aria-labelledby", "tour-title");
+      ui.card.setAttribute("aria-describedby", "tour-body");
+      ui.card.tabIndex = -1;
+      document.body.appendChild(ui.card);
+    }
+  }
+  function paint() {
+    if (!cur) { return; }
+    ensure();
+    var t = cur.tour, step = t.steps[cur.at], n = t.steps.length, last = cur.at + 1 >= n;
+    var card = ui.card;
+    while (card.firstChild) { card.removeChild(card.firstChild); }
+    var top = el("div", "tour-top");
+    top.appendChild(el("span", "count", fill(TEXT.count, { a: cur.at + 1, b: n })));
+    top.appendChild(button("ghost sm", TEXT.minimize, minimize));
+    top.appendChild(button("ghost sm", TEXT.leave, leave));
+    card.appendChild(top);
+    var bar = el("div", "tour-bar"), fillBar = el("span");
+    fillBar.style.width = Math.round(((cur.at + 1) / n) * 100) + "%";
+    bar.appendChild(fillBar);
+    bar.setAttribute("aria-hidden", "true");
+    card.appendChild(bar);
+    if (t.source) { card.appendChild(el("p", "tour-src", fill(TEXT.from, { s: t.source }))); }
+    var h = el("h2", "", step.title);
+    h.id = "tour-title";
+    h.tabIndex = -1;
+    card.appendChild(h);
+    var body = el("p", "", step.body);
+    body.id = "tour-body";
+    card.appendChild(body);
+    var tgt = target(step);
+    if (cur.ok) {
+      card.appendChild(el("p", "tour-ok", cur.base ? TEXT.already : TEXT.done));
+    } else if (!tgt && (step.anchors || []).length) {
+      card.appendChild(el("p", "tour-note", step.go ? TEXT.missing : TEXT.missingNoGo));
+    }
+    var actions = el("div", "tour-actions");
+    if (cur.at > 0) { actions.appendChild(button("ghost", TEXT.prev, function () { show(cur.at - 1); })); }
+    actions.appendChild(el("span", "spacer"));
+    if (step["try"]) {
+      actions.appendChild(button("", TEXT.fill, function () { ctx.fill(step["try"]); }));
+    }
+    if (step.go && (!tgt || last)) {
+      actions.appendChild(button(last ? "" : "primary", TEXT.go, function () { ctx.go(step.go.view, step.go.tab || ""); }));
+    }
+    actions.appendChild(button(step.go && (!tgt || last) && !last ? "" : "primary", last ? TEXT.finish : TEXT.next,
+      function () { if (last) { finish(); } else { cur.done[step.id] = 1; show(cur.at + 1); } }));
+    card.appendChild(actions);
+    place();
+  }
+  function place() {
+    if (!cur || !ui.card || cur.minimized) { return; }
+    var step = cur.tour.steps[cur.at];
+    var tgt = target(step), card = ui.card, ring = ui.ring;
+    card.classList.remove("center", "dock-top", "dock-bottom");
+    card.style.top = ""; card.style.left = ""; card.style.bottom = "";
+    if (!tgt) {
+      ring.classList.add("hidden");
+      card.classList.add("center");
+      return;
+    }
+    var r = tgt.getBoundingClientRect(), vh = root.innerHeight, vw = root.innerWidth;
+    if (r.bottom < 0 || r.top > vh) {
+      tgt.scrollIntoView({ block: "center", behavior: reduced() ? "auto" : "smooth" });
+      r = tgt.getBoundingClientRect();
+    }
+    var pad = 6;
+    ring.classList.remove("hidden");
+    ring.style.top = Math.max(0, r.top - pad) + "px";
+    ring.style.left = Math.max(0, r.left - pad) + "px";
+    ring.style.width = Math.min(vw, r.width + pad * 2) + "px";
+    ring.style.height = Math.min(vh, r.height + pad * 2) + "px";
+    if (phone()) {                       // 手機：小卡貼在上或下，不蓋住要按的地方
+      card.classList.add(r.top + r.height / 2 > vh / 2 ? "dock-top" : "dock-bottom");
+      return;
+    }
+    var cw = card.offsetWidth, ch = card.offsetHeight, gap = 14, top, left;
+    if (r.bottom + gap + ch <= vh - 8) { top = r.bottom + gap; left = r.left; }
+    else if (r.top - gap - ch >= 8) { top = r.top - gap - ch; left = r.left; }
+    else if (r.right + gap + cw <= vw - 8) { top = r.top; left = r.right + gap; }
+    else if (r.left - gap - cw >= 8) { top = r.top; left = r.left - gap - cw; }
+    else { top = vh - ch - 12; left = vw - cw - 12; }
+    card.style.top = Math.max(8, Math.min(top, vh - ch - 8)) + "px";
+    card.style.left = Math.max(8, Math.min(left, vw - cw - 8)) + "px";
+  }
+  function tick() {
+    if (!cur) { return; }
+    var step = cur.tour.steps[cur.at];
+    if (!cur.ok && step.done_when && stateOk(step)) { markDone(!cur.base); }
+    if (!cur.minimized) {
+      var had = !ui.ring.classList.contains("hidden"), has = !!target(step);
+      if (had !== has) { paint(); } else { place(); }
+    }
+  }
+
+  // ── 走 ─────────────────────────────────────────────────────────────
+  function show(at) {
+    if (!cur) { return; }
+    clearTimeout(advanceTimer);
+    var n = cur.tour.steps.length;
+    cur.at = Math.max(0, Math.min(n - 1, at));
+    var step = cur.tour.steps[cur.at];
+    cur.base = !!(step.done_when && stateOk(step));     // 一開始就已經做到了：打個勾，不自動跳
+    cur.ok = cur.base;
+    if (cur.minimized) { expand(); }
+    paint();
+    var h = document.getElementById("tour-title");
+    if (h) { h.focus({ preventScroll: true }); }
+    save("active");
+  }
+  function begin(tour, stepId) {
+    stop(true);
+    var at = 0;
+    for (var i = 0; i < tour.steps.length; i++) { if (tour.steps[i].id === stepId) { at = i; } }
+    var rec = (data.progress || {})[tour.id] || {};
+    var done = {};
+    (rec.done || []).forEach(function (id) { done[id] = 1; });
+    lastFocus = document.activeElement;
+    cur = { tour: tour, at: at, done: done, ok: false, base: false, minimized: false };
+    removeOffer();
+    show(at);
+    timer = setInterval(tick, 400);
+    root.addEventListener("resize", place);
+    root.addEventListener("scroll", place, true);
+  }
+  function start(tourId, stepId) {
+    if (!ctx) { return; }
+    return refresh().then(function () {
+      var tour = findTour(tourId || data["default"]);
+      if (!tour || !tour.steps.length) { ctx.toast(TEXT.none); return; }
+      var rec = (data.progress || {})[tour.id] || {};
+      begin(tour, stepId || (rec.state === "finished" ? "" : rec.step) || "");
+    }).catch(function (e) { ctx.toast(e.message); });
+  }
+  function stop(silent) {
+    clearInterval(timer); timer = null;
+    clearTimeout(advanceTimer);
+    root.removeEventListener("resize", place);
+    root.removeEventListener("scroll", place, true);
+    remove(ui.ring); remove(ui.card); remove(ui.pill);
+    ui.ring = ui.card = ui.pill = null;
+    var was = cur;
+    cur = null;
+    if (!silent && lastFocus && lastFocus.focus && document.body.contains(lastFocus)) { lastFocus.focus(); }
+    return was;
+  }
+  function leave() {
+    save("paused");
+    stop(false);
+    ctx.toast(TEXT.paused);
+  }
+  function finish() {
+    var step = cur.tour.steps[cur.at];
+    cur.done[step.id] = 1;
+    save("finished");
+    stop(false);
+    ctx.toast(TEXT.finished);
+  }
+  function minimize() {
+    if (!cur) { return; }
+    cur.minimized = true;
+    ui.card.classList.add("hidden");
+    ui.card.style.display = "none";
+    ui.ring.classList.add("hidden");
+    ui.pill = button("primary tour-pill", fill(TEXT.expand, { a: cur.at + 1, b: cur.tour.steps.length }), expand);
+    document.body.appendChild(ui.pill);
+    ui.pill.focus();
+  }
+  function expand() {
+    if (!cur) { return; }
+    cur.minimized = false;
+    remove(ui.pill); ui.pill = null;
+    ui.card.classList.remove("hidden");
+    ui.card.style.display = "";
+    paint();
+    ui.card.focus();
+  }
+
+  // ── 第一次打開網頁的邀請 ────────────────────────────────────────────
+  function removeOffer() { remove(ui.offer); ui.offer = null; }
+  function offer(tries) {
+    if (!data || !data.offer || cur || ui.offer) { return; }
+    if (document.querySelector(".sx-splash") && (tries || 0) < 12) {     // 開場動畫還在：等它收掉再問（不要疊在一起）
+      setTimeout(function () { offer((tries || 0) + 1); }, 400);
+      return;
+    }
+    var tour = findTour(data["default"]);
+    if (!tour) { return; }
+    var box = el("div", "tour-offer");
+    box.setAttribute("role", "dialog");
+    box.setAttribute("aria-modal", "false");
+    box.setAttribute("aria-labelledby", "tour-offer-title");
+    var h = el("h2", "", fill(TEXT.offerTitle, { m: tour.minutes }));
+    h.id = "tour-offer-title";
+    box.appendChild(h);
+    box.appendChild(el("p", "", TEXT.offerBody));
+    var actions = el("div", "tour-actions");
+    actions.appendChild(button("ghost", TEXT.offerLater, function () {
+      removeOffer();
+      ctx.api("POST", "/api/tour/offer", { answer: "later" }).catch(function () {});
+      ctx.toast(TEXT.laterToast);
+    }));
+    actions.appendChild(button("primary", TEXT.offerStart, function () {
+      removeOffer();
+      ctx.api("POST", "/api/tour/offer", { answer: "start" }).catch(function () {});
+      start(tour.id, "");
+    }));
+    box.appendChild(actions);
+    ui.offer = box;
+    document.body.appendChild(box);
+  }
+
+  // ── 對話裡的 tour 區塊（/tutorial 的回覆）─────────────────────────────
+  function chatButton(block, live, messageId) {
+    var b = button("primary tour-start", TEXT.startButton, function () { start(block.tour, ""); });
+    if (live && messageId !== undefined && !started[messageId]) {
+      started[messageId] = 1;
+      setTimeout(function () { start(block.tour, block.step || ""); }, 50);
+    }
+    return b;
+  }
+
+  document.addEventListener("keydown", function (ev) {
+    if (!cur || ev.key !== "Escape") { return; }
+    if (cur.minimized) { return; }
+    ev.preventDefault();
+    minimize();
+  });
+  document.addEventListener("synox:install-step", function (ev) {
+    var d = ev.detail || {};
+    if (d.step === "review") { signal("pack_report"); }
+    if (d.step === "done" && d.status !== "fail") { signal("pack_installed"); }
+  });
+
+  function init(c) {
+    ctx = c;
+    return refresh().then(function () { offer(0); }).catch(function () { /* 沒有教學也不影響其他畫面 */ });
+  }
+
+  root.SynoxTour = {
+    init: init, start: start, signal: signal, chatButton: chatButton,
+    active: function () { return !!cur; }, _text: TEXT
+  };
+})(window);
+</script>
+<script nonce="preview">
 /* SYNOX 網頁對話頁：呈現層的區塊（synox/present/web.py 的 wire）→ DOM。
  *
  * config.json 的 presentation.enabled 開著時，AI 回覆的訊息多一個 blocks（JSON），app.html 的 renderMessage
@@ -3909,6 +4337,7 @@
   var rev = 0;                 // 這段已經畫到哪個 rev
   var nodes = {};              // message id → DOM
   var pollTimer = null;
+  var primed = false;          // 這段對話第一次 poll 畫完了：之後收到的才算「剛來的」（/tutorial 的回覆會自動開始教學）
 
   function $(id) { return document.getElementById(id); }
   function el(tag, cls, text) {
@@ -4039,7 +4468,7 @@
   function openChat(id, keep) {
     if (current === id && keep && Object.keys(nodes).length) { markActive(); return; }
     pendSet(false);
-    current = id; rev = 0; nodes = {};
+    current = id; rev = 0; nodes = {}; primed = false;
     var s = $("stream");
     clear(s);
     markActive();
@@ -4098,8 +4527,14 @@
     var who = m.from === "me" ? "me" : (m.from === "note" ? "note" : "bot");
     var box = el("div", "msg " + who);
     // m.blocks：呈現層的區塊（config presentation.enabled 開著時 AI 回覆才有；blocks.js，一律 createElement＋textContent）
-    box.appendChild(Array.isArray(m.blocks) && m.blocks.length ? window.SynoxBlocks.render(document, m.blocks)
-      : el("div", "text", m.text));
+    // type=tour 的區塊是 /tutorial 的回覆（synox/tour/chat.py）：畫成「在畫面上帶我走」，剛收到的就直接開始（static/tour.js）
+    var blocks = Array.isArray(m.blocks) ? m.blocks : [];
+    var tourBlock = blocks.filter(function (b) { return b && b.type === "tour"; })[0];
+    blocks = blocks.filter(function (b) { return !(b && b.type === "tour"); });
+    box.appendChild(blocks.length ? window.SynoxBlocks.render(document, blocks) : el("div", "text", m.text));
+    if (tourBlock && window.SynoxTour && !chat) {
+      box.appendChild(window.SynoxTour.chatButton(tourBlock, primed && !nodes[m.id], m.id));
+    }
     if (m.buttons && m.buttons.length) {
       var kb = el("div", "kb");
       m.buttons.forEach(function (row) {
@@ -4172,11 +4607,16 @@
       });
       if (!Object.keys(nodes).length && !empty) { s.appendChild(el("div", "empty", "還沒有訊息。打字，或打 /help 看指令。")); }
       rev = Math.max(rev, d.rev);
+      primed = true;
       if (pend && pend.node.parentNode === s) { s.appendChild(pend.node); s.scrollTop = s.scrollHeight; }
     }).catch(function () {});
   }
   function send(text) {
     if (!current) { return Promise.resolve(); }
+    if (window.SynoxTour) {                                // 教學的「做完了嗎」：送出了一則訊息／某個指令（不看其他內容）
+      window.SynoxTour.signal("message_sent");
+      if (text.charAt(0) === "/") { window.SynoxTour.signal("command", text.slice(1).split(/\s/)[0].toLowerCase()); }
+    }
     pendSet(true);
     return api("POST", "/api/chat/" + encodeURIComponent(current) + "/send", { text: text })
       .then(function () { poll(); setTimeout(poll, 700); })
@@ -4681,6 +5121,7 @@
           if (!confirm("移除 " + p.name + "？（會搬到 packs/_removed/，不會刪掉）")) { return; }
           api("POST", "/api/packs/remove", { name: p.name }).then(function (d) {
             $("pack-msg").textContent = "搬到 " + d.moved_to; loadSettings();
+            if (window.SynoxTour) { window.SynoxTour.signal("pack_removed"); }
           }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });
         });
         td.appendChild(b);
@@ -5245,6 +5686,7 @@
       $("lib-legend").classList.toggle("hidden", !libTools.length);
       b.className = libTools.length ? "ghost" : "primary";
       renderLib();
+      if (window.SynoxTour) { window.SynoxTour.signal("catalog_loaded"); }
     }).catch(function (e) { libFail(e.message); })
       .then(function () { b.disabled = false; b.textContent = libTools.length ? LIB_TEXT.reload : LIB_TEXT.load; });
   });
@@ -5329,6 +5771,21 @@
     showWho(d);
     if (window.SynoxReport) { window.SynoxReport.init({ api: api, toast: toast }); }   // 遇到問題？（static/report.js）
     route();
+    if (window.SynoxTour) {                    // 新手教學（static/tour.js）：只會填字、換頁，不會替人按任何東西
+      window.SynoxTour.init({
+        api: api, toast: toast,
+        fill: function (text) {
+          if (currentView !== "chat") { location.hash = "#chat"; }
+          var input = $("input");
+          input.value = text;
+          input.dispatchEvent(new Event("input"));
+          input.focus();
+        },
+        go: function (view, tab) {
+          location.hash = view === "settings" && tab ? (tab === "packs" ? "#packs" : "#settings:" + tab) : "#" + view;
+        }
+      });
+    }
   }).catch(function () { showLogin(); });
 })();
 </script>

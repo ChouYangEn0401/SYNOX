@@ -1,5 +1,12 @@
 # Changelog
 
+## 未發佈（新手教學 /tutorial）
+
+### 新增
+- 新手教學（`/tutorial`，也可以打「開始教學」或 `/start tutorial`）：SYNOX 會在網頁上把要按的地方圈起來，一步一步帶你走；Telegram、Discord 用步驟卡。忘了隨時再打一次就能複習（`/tutorial restart` 從頭來）。
+- 第一次打開網頁會問「要不要我帶你走一遍？（約 5 分鐘）」；`/help` 多一行指到 `/tutorial`。
+- 教學是 SYNOX 本體的一部分，每種安裝方式都有；它不是工具，不算進「裝了幾個工具」。教學只會指給你看，不會替你按確認。工具也可以附自己的教學（`docs/tutorials-engine.md`）。
+
 ## 未發佈（「遇到問題？」回報面板）
 
 ### 新增

@@ -1,0 +1,122 @@
+{
+  "schema": 1,
+  "id": "basics",
+  "title": "SYNOX 新手教學",
+  "version": "1.0.0",
+  "minutes": 5,
+  "summary": "認識對話、工具、設定，學會看安裝報告、裝和移除工具，最後自己挑想要的工具。",
+  "steps": [
+    {
+      "id": "welcome",
+      "title": "嗨，我是 SYNOX",
+      "body": "我是在你自己電腦上跑的小助手。你可以跟我聊天，也可以裝「工具」讓我多會一些事。接下來大約 5 分鐘，我帶你把每個地方看一遍。隨時可以按「先離開」，之後打 /tutorial 就會接著走。",
+      "chat": "我是在你自己電腦上跑的小助手。你可以跟我聊天，也可以裝「工具」讓我多會一些事。接下來我帶你把每個地方看一遍。隨時可以按「先離開」，之後打 /tutorial 就會接著走。"
+    },
+    {
+      "id": "open-chat",
+      "title": "這裡是「對話」",
+      "body": "按「對話」。跟我說話、打指令，都在這一頁。",
+      "chat": "網頁上的「對話」頁，跟你現在跟我聊天是一樣的：說話、打指令都可以。",
+      "where": {"anchor": "nav.chat"},
+      "go": {"view": "chat"},
+      "done_when": {"event": "view", "value": "chat"}
+    },
+    {
+      "id": "ask-help",
+      "title": "問我會什麼",
+      "body": "按「幫我填好」，輸入框會出現 /help，再按「送出」。我會列出你現在能用的指令。也可以直接打一句話問我。",
+      "chat": "打 /help 送出，我會列出你現在能用的指令。也可以直接打一句話問我。",
+      "where": {"anchor": "chat.input"},
+      "go": {"view": "chat"},
+      "try": {"text": "/help"},
+      "done_when": {"event": "command", "value": "help"}
+    },
+    {
+      "id": "new-chat",
+      "title": "開一段新對話",
+      "body": "想換個話題，就按「＋ 新對話」。舊的對話會留在清單裡，隨時能點回去看。",
+      "chat": "在網頁上，想換個話題就按「＋ 新對話」，舊的對話會留在清單裡。",
+      "where": {"anchor": "chat.new"},
+      "go": {"view": "chat"}
+    },
+    {
+      "id": "open-tools",
+      "title": "「工具」頁",
+      "body": "按「工具」。你裝好的工具都在這裡，每個都有說明和可以填的表格。現在可能還是空的，等一下我們就去挑。",
+      "chat": "網頁上的「工具」頁會列出你裝好的工具，每個都有說明和可以填的表格。",
+      "where": {"anchor": "nav.tools"},
+      "go": {"view": "tools"},
+      "done_when": {"event": "view", "value": "tools"}
+    },
+    {
+      "id": "open-settings",
+      "title": "「設定」在這裡",
+      "body": "按「設定」。AI 從哪裡來、接 Telegram 或 Discord、裝工具、備份，都在這一頁。",
+      "chat": "網頁上的「設定」頁：AI 從哪裡來、接 Telegram 或 Discord、裝工具、備份，都在那裡。",
+      "where": {"anchor": "nav.settings"},
+      "go": {"view": "settings"},
+      "done_when": {"event": "view", "value": "settings"}
+    },
+    {
+      "id": "packs-tab",
+      "title": "「功能與安裝」",
+      "body": "按「🧩 功能與安裝」。裝工具、移除工具，都在這個分頁。",
+      "chat": "在網頁的「設定 → 🧩 功能與安裝」可以裝工具、移除工具。",
+      "where": {"anchor": "settings.tab.packs"},
+      "go": {"view": "settings", "tab": "packs"},
+      "done_when": {"event": "tab", "value": "packs"},
+      "audience": "owner"
+    },
+    {
+      "id": "catalog",
+      "title": "官方工具庫",
+      "body": "按「載入工具清單」，會列出官方做好的工具，每張卡片寫了它會做什麼。這一步要連網路；連不上也沒關係，按「下一步」。",
+      "chat": "在網頁的「設定 → 🧩 功能與安裝」按「載入工具清單」，會列出官方做好的工具，每張卡片寫了它會做什麼。",
+      "where": {"anchor": "settings.packs.catalog"},
+      "go": {"view": "settings", "tab": "packs"},
+      "done_when": {"event": "catalog_loaded"},
+      "audience": "owner"
+    },
+    {
+      "id": "read-report",
+      "title": "先看報告，你按確認才裝",
+      "body": "在想要的工具上按「安裝」，我會先檢查，給你看一份報告：它會做什麼、要哪些權限（例如連網、讀寫檔案）。看完覺得可以，你自己按「確認安裝」才會裝；不想要就按「不要裝」。現在不想裝也可以，直接按「下一步」。",
+      "chat": "在工具上按「安裝」，我會先給你看一份檢查報告：它會做什麼、要哪些權限。你自己按「確認安裝」才會裝；不想要就按「不要裝」。我不會替你按。",
+      "where": {"anchor": ["settings.packs.review", "settings.packs.catalog"]},
+      "go": {"view": "settings", "tab": "packs"},
+      "done_when": {"event": "pack_installed"},
+      "audience": "owner"
+    },
+    {
+      "id": "remove",
+      "title": "不想要了就移除",
+      "body": "裝好的工具都列在這張表。按那一列的「移除」就拿掉了：會先問你一次，檔案會先收到 packs/_removed/，不會直接刪掉。",
+      "chat": "在網頁的「設定 → 🧩 功能與安裝」最下面，列著裝好的工具。按那一列的「移除」就拿掉了，會先問你一次。",
+      "where": {"anchor": "settings.packs.installed"},
+      "go": {"view": "settings", "tab": "packs"},
+      "audience": "owner"
+    },
+    {
+      "id": "get-help",
+      "title": "卡住了怎麼辦",
+      "body": "打 /help 看你能用的指令。忘了怎麼用，隨時打 /tutorial 再走一次這份教學（/tutorial restart 從頭來）。在 Telegram、Discord 也一樣可以打。",
+      "where": {"anchor": "chat.input"},
+      "go": {"view": "chat"}
+    },
+    {
+      "id": "done-owner",
+      "title": "完成！",
+      "body": "現在你可以自己挑想要的工具了。按「帶我去」打開工具庫，看看哪個用得到。",
+      "chat": "現在你可以自己挑想要的工具了：在網頁打開「設定 → 🧩 功能與安裝」，按「載入工具清單」看看哪個用得到。",
+      "go": {"view": "settings", "tab": "packs"},
+      "audience": "owner"
+    },
+    {
+      "id": "done-member",
+      "title": "完成！",
+      "body": "這台 SYNOX 的工具由擁有者負責裝。想要什麼功能，跟擁有者說一聲；之後到「工具」頁就看得到。",
+      "go": {"view": "tools"},
+      "audience": "member"
+    }
+  ]
+}
