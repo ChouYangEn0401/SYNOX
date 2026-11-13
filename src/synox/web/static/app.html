@@ -1787,7 +1787,7 @@
     var ul = el("ul");
     (s.warnings || []).forEach(function (w) { ul.appendChild(el("li", "", w)); });
     if ((s.warnings || []).length) { box.appendChild(ul); }
-    if (s.app) {                               // 工具服務（ADR 0023 §5）：畫面能做的動作與匯出
+    if (s.app) {                               // 工具服務（ADR 0024 §5）：畫面能做的動作與匯出
       var appUl = el("ul");
       var effText = { write: "會寫入", danger: "危險：會先問你" };
       Object.keys(s.app.actions || {}).forEach(function (n) {

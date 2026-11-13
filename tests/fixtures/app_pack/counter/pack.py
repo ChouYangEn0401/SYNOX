@@ -1,5 +1,5 @@
 """🔢 計數器（工具服務的測試 fixture）：/counter_add <n>、/counter_reset、/counter_show、/counter_poke <how>。
-指令與工具畫面共用同一組核心函式（一個動作＝一個指令，ADR 0023 §2）。"""
+指令與工具畫面共用同一組核心函式（一個動作＝一個指令，ADR 0024 §2）。"""
 
 from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 

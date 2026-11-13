@@ -75,6 +75,43 @@ DEFAULT_VAULT = {"mode": "dpapi" if os.name == "nt" else "file"}
 DEFAULT_PACKS = {"enabled": "all", "disabled": []}
 DEFAULT_WEB = {"enabled": True, "port": 8830, "public_url": ""}
 DEFAULT_STEPUP_MINUTES = 15                 # 手機驗證器解鎖幾分鐘（ADR 0025；SDK 預設 30）
+# 工具服務（ADR 0024、計畫 C1）：enabled 是 true 也不會自己開任何服務，只是允許擁有者開。綁在哪裡不由設定決定（web/apps/listen.py）
+DEFAULT_APPS = {"enabled": True, "port_first": 8841, "port_count": 16, "max_running": 3,
+                "idle_suggest_min": 30, "idle_close_min": 120}
+
+
+def parse_apps(raw, web_port: int) -> dict:
+    """web.apps → 檢查過的設定（不合丟 ConfigError，一句白話）。"""
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise ConfigError("config.json 的 web.apps 要是一個 {…} 物件。")
+    out = {**DEFAULT_APPS, **raw}
+    unknown = sorted(k for k in raw if k not in DEFAULT_APPS)
+    if unknown:
+        raise ConfigError(f"config.json 的 web.apps 不認得 {'、'.join(unknown)}（只能是 {'、'.join(DEFAULT_APPS)}）。")
+    out["enabled"] = bool(out["enabled"])
+
+    def number(key, low, high):
+        value = out[key]
+        if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+            raise ConfigError(f"config.json 的 web.apps.{key} 要是 {low}–{high} 的整數。")
+        return value
+    first = number("port_first", 1024, 65000)
+    count = number("port_count", 1, 40)
+    if first <= int(web_port or 0) < first + count and "port_first" not in raw:
+        # 使用者把網頁介面的埠設在預設的工具服務範圍裡（舊設定沒有 web.apps）：預設範圍往後挪，不讓舊設定開不起來
+        first = out["port_first"] = int(web_port) + 1
+    if first <= int(web_port or 0) < first + count:
+        raise ConfigError(f"config.json 的 web.apps 的埠範圍（{first}–{first + count - 1}）不能包含網頁介面的 web.port。")
+    number("max_running", 1, count)
+    suggest = number("idle_suggest_min", 0, 1440)
+    close = number("idle_close_min", 0, 1440)
+    if suggest and close and close <= suggest:
+        raise ConfigError("config.json 的 web.apps.idle_close_min 要大於 idle_suggest_min（或寫 0＝不自動關）。")
+    return out
+
+
 DEFAULT_MEMBER_USD = 2.0
 DEFAULT_PRESENTATION = {"enabled": False}
 MODES = ("personal", "server")
@@ -133,6 +170,7 @@ class SynoxConfig(BotConfig):
         if not 0 <= web["port"] <= 65535:
             raise ConfigError("config.json 的 web.port 要在 0–65535 之間。")
         web["enabled"] = bool(web.get("enabled", True))
+        web["apps"] = parse_apps(web.get("apps"), web["port"])
         try:
             member_usd = float(raw.get("ai_member_monthly_usd", DEFAULT_MEMBER_USD))
         except (TypeError, ValueError):

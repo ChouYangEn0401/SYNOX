@@ -266,7 +266,7 @@ def check_values(fields: Sequence[Field], values: Dict[str, str]
     return clean, missing, errors
 
 
-# ── 工具服務（ADR 0023；SDK 0.2.3）：pack.app_read／app_action／app_export 用的小東西 ─────────
+# ── 工具服務（ADR 0024；SDK 0.2.3）：pack.app_read／app_action／app_export 用的小東西 ─────────
 
 class AppError(Exception):
     """工具的畫面函式裡丟：message 原樣顯示給使用者（所以是寫給人看的一句話）。別的例外的訊息永遠不會出現在回應、log、稽核。"""
