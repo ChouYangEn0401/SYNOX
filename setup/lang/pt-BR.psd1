@@ -14,6 +14,8 @@
     no_window_text        = 'Este Python não tem suporte a janelas (tkinter): a configuração continua em modo texto (synox init) nesta janela...'
     pip_failed            = 'Falha no pip install (rede?).'
     opening_wizard        = 'Abrindo o assistente de instalação...'
+    assoc_register        = 'Registrando o tipo de arquivo .synoxpack só para este usuário do Windows (HKCU, sem administrador): ícone de instalador, clique duplo = verificação de segurança e depois instalação. + gravado, = já estava'
+    assoc_failed          = 'Não foi possível registrar o tipo de arquivo .synoxpack (a instalação continua). Você ainda pode arrastar um .synoxpack para o Install-Pack.bat ou para a página de configurações web do SYNOX.'
     row_running           = 'SYNOX rodando (pid)'
     row_shortcut          = 'Atalho na área de trabalho'
     row_startup           = 'Inicialização automática'

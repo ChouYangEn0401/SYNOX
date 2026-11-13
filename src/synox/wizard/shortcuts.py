@@ -24,30 +24,103 @@ PACK_EXT = ".synoxpack"
 PACK_PROGID = "SYNOX.Pack"
 
 
-def synoxpack_keys(root: str):
-    """登記 .synoxpack 要寫的 HKCU 機碼：[(子機碼, 值名稱（"" ＝預設值）, 字串), …]。測試只驗這份清單。"""
+PACK_ICON = ("src", "synox", "assets", "synoxpack.ico")   # scripts/make_pack_icon.py 畫的（下載箭頭＋托盤）
+CLASSES = "Software\\Classes"
+
+
+def pack_icon_path(root: str) -> str:
+    return os.path.join(root, *PACK_ICON)
+
+
+def synoxpack_keys(root: str, classes: str = CLASSES):
+    """登記 .synoxpack 要寫的 HKCU 機碼：[(子機碼, 值名稱（"" ＝預設值）, 字串), …]。測試只驗這份清單。
+    DefaultIcon 沒寫的話檔案總管畫一張空白頁（看起來像壞掉的檔）；OpenWithProgids 讓「開啟檔案」清單也有 SYNOX。
+    classes 給測試換成拋棄式的子機碼（不碰真的 .synoxpack 關聯）。"""
     bat = os.path.join(root, "Install-Pack.bat")
-    classes = "Software\\Classes"
     return [
         (f"{classes}\\{PACK_EXT}", "", PACK_PROGID),
         (f"{classes}\\{PACK_EXT}", "Content Type", "application/zip"),
+        (f"{classes}\\{PACK_EXT}\\OpenWithProgids", PACK_PROGID, ""),
         (f"{classes}\\{PACK_PROGID}", "", "SYNOX 功能包"),
+        (f"{classes}\\{PACK_PROGID}\\DefaultIcon", "", f"{pack_icon_path(root)},0"),
+        (f"{classes}\\{PACK_PROGID}\\shell", "", "open"),
         (f"{classes}\\{PACK_PROGID}\\shell\\open", "", "用 SYNOX 安裝"),
         (f"{classes}\\{PACK_PROGID}\\shell\\open\\command", "", f'"{bat}" "%1"'),
     ]
 
 
-def register_synoxpack(root: str, writer=None) -> None:
-    """寫 HKCU（不要管理員權限）。writer(子機碼, 名稱, 值) 給測試換掉；預設用 winreg。"""
-    if writer is None:
-        import winreg
+def _winreg_reader(subkey: str, name: str) -> Optional[str]:
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, subkey) as key:
+            value, _kind = winreg.QueryValueEx(key, name)
+    except OSError:
+        return None
+    return value if isinstance(value, str) else None
 
-        def writer(subkey, name, value):
-            with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, subkey, 0, winreg.KEY_SET_VALUE) as key:
-                winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
-    for subkey, name, value in synoxpack_keys(root):
-        writer(subkey, name, value)
-    _notify_shell()
+
+def _winreg_writer(subkey: str, name: str, value: str) -> None:
+    import winreg
+    with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, subkey, 0, winreg.KEY_SET_VALUE) as key:
+        winreg.SetValueEx(key, name, 0, winreg.REG_SZ, value)
+
+
+def _winreg_delete_tree(subkey: str) -> bool:
+    """刪 HKCU\\subkey 整棵（winreg 沒有 DeleteTree：由下往上刪）。不存在回 False。"""
+    import winreg
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, subkey, 0, winreg.KEY_READ) as key:
+            children = []
+            while True:
+                try:
+                    children.append(winreg.EnumKey(key, len(children)))
+                except OSError:
+                    break
+    except OSError:
+        return False
+    for child in children:
+        _winreg_delete_tree(subkey + "\\" + child)
+    winreg.DeleteKey(winreg.HKEY_CURRENT_USER, subkey)
+    return True
+
+
+def synoxpack_status(root: str, reader=None, classes: str = CLASSES):
+    """[(子機碼, 名稱, 要的值, 現在的值或 None), …]：Setup／`synox filetype status` 用來說「改了什麼」。"""
+    reader = reader or _winreg_reader
+    return [(k, n, v, reader(k, n)) for k, n, v in synoxpack_keys(root, classes)]
+
+
+def register_synoxpack(root: str, writer=None, reader=None, classes: str = CLASSES):
+    """寫 HKCU（不要管理員權限）；重跑是安全的（一樣的值不再寫）。回 [(子機碼, 名稱, 值, 有沒有改), …]。
+    writer(子機碼, 名稱, 值)／reader(子機碼, 名稱) 給測試換掉；只給 writer 時每一筆都寫（舊的呼叫方式）。"""
+    if writer is None:
+        writer = _winreg_writer
+        reader = reader or _winreg_reader
+    done = []
+    for subkey, name, value in synoxpack_keys(root, classes):
+        changed = reader is None or reader(subkey, name) != value
+        if changed:
+            writer(subkey, name, value)
+        done.append((subkey, name, value, changed))
+    if any(c for *_rest, c in done):
+        _notify_shell()
+    return done
+
+
+def unregister_synoxpack(reader=None, deleter=None, classes: str = CLASSES):
+    """拿掉 SYNOX 寫的關聯（Uninstall.bat、精靈沒勾）。.synoxpack 的預設值不是 SYNOX.Pack（別的程式接手了）就
+    不動它。回刪掉的子機碼清單。"""
+    reader = reader or _winreg_reader
+    deleter = deleter or _winreg_delete_tree
+    removed = []
+    ext, progid = f"{classes}\\{PACK_EXT}", f"{classes}\\{PACK_PROGID}"
+    if reader(ext, "") == PACK_PROGID and deleter(ext):
+        removed.append(ext)
+    if deleter(progid):
+        removed.append(progid)
+    if removed:
+        _notify_shell()
+    return removed
 
 
 def _notify_shell() -> None:

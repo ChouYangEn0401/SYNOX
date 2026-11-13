@@ -14,6 +14,8 @@
     no_window_text        = 'This Python has no window support (tkinter): continuing with the text setup (synox init) in this window...'
     pip_failed            = 'pip install failed (network?).'
     opening_wizard        = 'Opening the setup wizard...'
+    assoc_register        = 'Registering the .synoxpack file type for this Windows user only (HKCU, no admin): installer icon, double-click = safety check, then install. + written, = already set'
+    assoc_failed          = 'Could not register the .synoxpack file type (setup continues). You can still drag a .synoxpack onto Install-Pack.bat, or into the SYNOX web settings page.'
     row_running           = 'SYNOX running (pid)'
     row_shortcut          = 'Desktop shortcut'
     row_startup           = 'Startup entry'

@@ -101,6 +101,7 @@ function Remove-Shortcuts {
         foreach ($k in $ClassKeys) {
             if (Test-Path -LiteralPath $k) {
                 Remove-Item -LiteralPath $k -Recurse -Force -ErrorAction SilentlyContinue
+                Say (Tr 'removed' $k)
             }
         }
         Say (Tr 'removed_assoc')

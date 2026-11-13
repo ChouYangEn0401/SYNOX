@@ -6,3 +6,4 @@
 *.psd1 text eol=crlf
 vendor/** -text
 *.iss text eol=crlf
+*.ico binary

@@ -140,6 +140,7 @@ def _fakes(monkeypatch, pages, calls):
     monkeypatch.setattr(pages.shortcuts, "enable_autostart", lambda root_: "x")
     monkeypatch.setattr(pages.shortcuts, "disable_autostart", lambda: None)
     monkeypatch.setattr(pages.shortcuts, "register_synoxpack", lambda root_: None)
+    monkeypatch.setattr(pages.shortcuts, "unregister_synoxpack", lambda: None)
     monkeypatch.setattr(pages.subprocess, "Popen", lambda *a, **k: calls["popen"].append(a))
     monkeypatch.setattr(pages.webbrowser, "open", lambda link: calls["browser"].append(link))
 

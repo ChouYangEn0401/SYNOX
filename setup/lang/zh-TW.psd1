@@ -14,6 +14,8 @@
     no_window_text        = '這個 Python 沒有視窗元件（tkinter）：改在這個視窗用文字版設定（synox init）…'
     pip_failed            = 'pip install 失敗（網路？）。'
     opening_wizard        = '打開安裝精靈…'
+    assoc_register        = '登記 .synoxpack 檔案類型（只有這個 Windows 使用者、HKCU、不要管理員）：檔案有安裝圖示，點兩下＝安全檢查後安裝。+ 寫了，= 本來就是'
+    assoc_failed          = '.synoxpack 檔案類型沒登記成功（不影響安裝）。之後可以把 .synoxpack 拖到 Install-Pack.bat 上，或拖進 SYNOX 網頁的設定頁。'
     row_running           = 'SYNOX 正在執行（pid）'
     row_shortcut          = '桌面捷徑'
     row_startup           = '開機自動啟動'

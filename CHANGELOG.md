@@ -19,6 +19,22 @@
 ### 改變
 - 報告上的「不要裝」現在真的刪掉暫存；多一個「稍後再決定」（收起來，留在待核准清單）。
 
+## 未發佈（.synoxpack 好裝：檔案圖示、拖進網頁、安裝說明）
+
+### 新增
+- **.synoxpack 有圖示、點兩下就裝**：`Setup.bat` 替目前的 Windows 使用者登記檔案類型（只寫 HKCU、不用管理員、重跑一樣），
+  一行一行印出寫了哪些機碼；多了 `DefaultIcon`（`src/synox/assets/synoxpack.ico`：藍綠底白色下載箭頭，`scripts/make_pack_icon.py`
+  只用標準函式庫畫）與 `OpenWithProgids`，檔案總管不再顯示像壞掉的空白圖示。`python -m synox filetype register｜unregister｜status`。
+  精靈最後一頁沒勾「點兩下安裝」＝拿掉；`Uninstall.bat` 照舊拿掉並列出刪了哪些機碼。
+- **把 .synoxpack 拖進網頁**（任何一頁）：出現「放開來檢查」，放開就切到設定頁、交給原本的「上傳並檢查」，顯示同一份報告與確認按鈕
+  （`static/packdrop.js`／`packdrop.css`；不另開 API、不跳過確認）。設定頁上傳框下面多一句「怎麼裝」的提示。
+- 文件 [docs/install-packs.md](docs/install-packs.md)：四種裝法（點兩下、拖到 Install-Pack.bat、拖進網頁、`synox install`）與圖示空白／點兩下沒反應的排查；
+  README、packs/README.md、docs/README.md 連過去。
+
+### 安全
+- 網頁上傳多驗 Content-Type（只收 zip／octet-stream／沒寫，否則 415）與大小（413）；`admin.stage` 要求檔案從 zip 檔頭 `PK\x03\x04` 開始——
+  前面接了東西的自解壓 exe／polyglot 以前 zipfile 打得開，現在一律拒（網頁、`synox install`、點兩下都一樣）。
+
 ## 未發佈（branch feat/vlm_vision：看圖）
 
 ### 新增
