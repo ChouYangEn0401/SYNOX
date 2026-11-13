@@ -168,16 +168,23 @@ section { padding-block: 88px; }
 .feat .icon .ico { width: 24px; height: 24px; }
 .feat b { display: block; font-size: 17px; margin-top: 16px; }
 .feat span { display: block; font-size: 14.5px; color: var(--muted); margin-top: 4px; line-height: 1.6; }
-.feat { position: relative; }
+.feat { position: relative; display: flex; flex-direction: column; }
+.feat .acts { margin-top: auto; padding-top: 14px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 13.5px; }
+.feat .acts a { color: var(--accent); text-decoration: none; font-weight: 500; }
+.feat .acts a:hover { text-decoration: underline; }
+.feat .acts a.dl { background: var(--accent-soft); border-radius: 999px; padding: 4px 12px; min-height: 30px; display: inline-flex; align-items: center; }
+.feat .acts .info { color: var(--faint); font-size: 12.5px; }
+.feat .acts .info a { font-weight: 400; }
 .feat .tag { position: absolute; top: 18px; right: 16px; font-style: normal; font-size: 11.5px; font-weight: 600; color: var(--faint); background: var(--sunken); border: 1px solid var(--line); border-radius: 999px; padding: 0 9px; line-height: 20px; }
 .feat .tag.lib { color: var(--accent); background: var(--accent-soft); border-color: transparent; }
-.feat.more { grid-column: 1 / -1; display: flex; align-items: center; gap: 18px; color: inherit; background: transparent; border: 1.5px dashed var(--line-2); }
+.feat.more { grid-column: 1 / -1; display: flex; flex-direction: row; align-items: center; gap: 18px; color: inherit; background: transparent; border: 1.5px dashed var(--line-2); }
 .feat.more:hover { transform: none; }
 .feat.more b { margin-top: 0; }
 .feat.more > div:nth-child(2) { flex: 1; min-width: 0; }
 .more-links { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
 .more-links a { color: var(--accent); font-weight: 500; font-size: 14.5px; white-space: nowrap; text-decoration: none; }
 .more-links a:hover { text-decoration: underline; }
+.more-links .soon-link { color: var(--faint); font-size: 14px; white-space: nowrap; }
 @media (max-width: 640px) {
   .feat.more { flex-direction: column; align-items: flex-start; gap: 12px; padding: 20px 18px; }
   .more-links { align-items: flex-start; flex-direction: row; flex-wrap: wrap; gap: 6px 18px; }
@@ -683,19 +690,21 @@ footer a { color: var(--muted); }
     <p class="sub">SYNOX 本身是一個殼；它會做什麼，看你裝了哪些工具。</p>
   </div>
   <div class="feats">
-    <div class="feat"><div class="icon"><svg class="ico"><use href="#i-note"/></svg></div><i class="tag lib">工具庫</i><b>隨手記</b><span>「幫我記：買牛奶」</span></div>
-    <div class="feat"><div class="icon"><svg class="ico"><use href="#i-wallet"/></svg></div><i class="tag lib">工具庫</i><b>記帳</b><span>「午餐 120」，月底自己算好</span></div>
-    <div class="feat"><div class="icon"><svg class="ico"><use href="#i-calendar"/></svg></div><i class="tag lib">工具庫</i><b>行事曆與待辦</b><span>「下週二下午三點看牙醫」</span></div>
-    <div class="feat"><div class="icon"><svg class="ico"><use href="#i-link"/></svg></div><i class="tag lib">工具庫</i><b>接你的服務</b><span>Notion、Todoist、Google 日曆</span><i class="sim">🧪 只用模擬測過</i></div>
+    <div class="feat"><div class="icon"><svg class="ico"><use href="#i-note"/></svg></div><i class="tag lib">工具庫</i><b>隨手記</b><span>「幫我記：買牛奶」</span><div class="acts"><a class="dl" href="https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/notes-0.1.1.synoxpack" title="下載 notes-0.1.1.synoxpack">⬇ 下載</a><span class="info">說明：<a href="https://claude.ai/artifact/NpYbd3FtMAkXmASXc1pJzh" target="_blank" rel="noopener">隨手記</a></span></div></div>
+    <div class="feat"><div class="icon"><svg class="ico"><use href="#i-wallet"/></svg></div><i class="tag lib">工具庫</i><b>記帳</b><span>「午餐 120」，月底自己算好</span><div class="acts"><a class="dl" href="https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/money-0.2.0.synoxpack" title="下載 money-0.2.0.synoxpack">⬇ 下載</a><span class="info">說明：<a href="https://claude.ai/artifact/6kA9jSkwVFPPBthsCjmz6d" target="_blank" rel="noopener">記帳</a></span></div></div>
+    <div class="feat"><div class="icon"><svg class="ico"><use href="#i-calendar"/></svg></div><i class="tag lib">工具庫</i><b>行事曆與待辦</b><span>「下週二下午三點看牙醫」</span><div class="acts"><a class="dl" href="https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/calendar-0.1.1.synoxpack" title="下載 calendar-0.1.1.synoxpack">⬇ 行事曆</a> <a class="dl" href="https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/todo-0.1.1.synoxpack" title="下載 todo-0.1.1.synoxpack">⬇ 待辦</a><span class="info">說明：<a href="https://claude.ai/artifact/Fm6dXH5oiua8zPY3U5RYQ5" target="_blank" rel="noopener">行事曆</a> <a href="https://claude.ai/artifact/JuKURoMhZY58fWyR4j3961" target="_blank" rel="noopener">待辦</a></span></div></div>
+    <div class="feat"><div class="icon"><svg class="ico"><use href="#i-link"/></svg></div><i class="tag lib">工具庫</i><b>接你的服務</b><span>Notion、Todoist、Google 日曆</span><i class="sim">🧪 只用模擬測過</i><div class="acts"><a class="dl" href="https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL" target="_blank" rel="noopener">看 4 個服務 →</a></div></div>
     <div class="feat"><div class="icon"><svg class="ico"><use href="#i-bell"/></svg></div><i class="tag">內建</i><b>提醒</b><span>每天 8 點提醒你吃藥</span></div>
     <div class="feat"><div class="icon"><svg class="ico"><use href="#i-clock"/></svg></div><i class="tag">內建</i><b>排程</b><span>每晚替你跑一次固定的事</span></div>
     <div class="feat"><div class="icon"><svg class="ico"><use href="#i-pulse"/></svg></div><i class="tag">內建</i><b>背景巡邏</b><span>定時看一輪，有事才叫你</span></div>
     <div class="feat"><div class="icon"><svg class="ico"><use href="#i-image"/></svg></div><i class="tag">內建</i><b>看照片</b><span>用 Telegram 傳圖，它看得懂</span><i class="sim">🧪 還沒用真的看圖模型試過</i></div>
     <div class="feat more">
       <div class="icon"><svg class="ico"><use href="#i-plus"/></svg></div>
-      <div><b>還想要別的？裝一個就會</b><span>從工具庫挑來裝，或自己寫一個；一個工具一個 <code>.synoxpack</code>，點兩下就裝好。</span></div>
+      <div><b>還想要別的？裝一個就會</b><span>官方工具庫現在有 9 個工具，下載後點兩下或拖進網頁就裝好。之後也要能裝 OpenClaw、Hermes 這些生態的工具（還在研究，見下面）。</span></div>
       <div class="more-links">
-        <a href="https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL" target="_blank" rel="noopener">怎麼裝別人的工具 →</a>
+        <a href="https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/tools-0.2.0.zip">⬇ 一次下載全部 9 個</a>
+        <a href="https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL" target="_blank" rel="noopener">工具庫：每個工具的說明 →</a>
+        <span class="soon-link">裝 OpenClaw／Hermes 的工具 <i class="wip">⏳ 尚未完成</i></span>
         <a href="#dev">看怎麼寫工具 →</a>
       </div>
     </div>
@@ -888,6 +897,7 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
     <h3 class="st-h"><i class="wip">⏳ 尚未完成</i></h3>
     <ul class="honest">
       <li><span><b>一鍵安裝的 .exe</b>：打包腳本寫好了，還沒真的打包、也還沒放上 GitHub 下載。</span></li>
+      <li><span><b>裝 OpenClaw／Hermes 生態的工具</b>：研究做完了（技能文字的格式可以轉、授權允許），規劃等擁有者核准，還沒開始寫。</span></li>
       <li><span><b>GitHub Copilot</b>：登入用的小工具另外寫好了，還沒接進 SYNOX。</span></li>
       <li><span><b>哨兵模式</b>（多台電腦連線）：在另一個分支上，還沒合進主線。</span></li>
       <li><span><b>macOS／Linux 安裝器</b>：沒有。程式能跑，但要自己建環境。</span></li>
@@ -944,7 +954,7 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
   <span>Telegram、Discord、Claude、OpenAI、Gemini 等名稱與標誌屬於各自的所有者</span>
   <a href="https://github.com/ChouYangEn0401/SYNOX" target="_blank" rel="noopener">github.com/ChouYangEn0401/SYNOX</a>
 </footer>
-<p class="stamp">線上版 <a href="https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox">claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox</a> · 本機版 docs/landing/index.html · 頁面版本 7a766199a6 · 2026-11-13</p>
+<p class="stamp">線上版 <a href="https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox">claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox</a> · 本機版 docs/landing/index.html · 頁面版本 6aaa5fae10 · 2026-11-13</p>
 </div>
 
 <script>
