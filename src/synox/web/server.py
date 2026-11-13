@@ -377,6 +377,10 @@ class WebUI:
                 return self.app_page()
             if path == "/login" and method == "GET":
                 return self.login_page((query.get("t") or [""])[0], headers, session)
+            m = re.match(r"^/apps/([a-z][a-z0-9_-]{0,31})/open$", path)
+            if m and method == "POST":                  # 工具服務的「打開」：表單送出 → 303 到 127.0.0.2（交接票）
+                from synox.web.apps import web_api as apps_api
+                return apps_api.open_handoff(self, session, m.group(1), headers, body)
             if path == "/login" and method == "POST":
                 return self.login_post(headers, body)
             m = re.match(r"^/packs/([a-z][a-z0-9_-]{0,31})/panel$", path)
@@ -595,6 +599,15 @@ class WebUI:
             blocked = g.stepup.gate(user, path) if g is not None and g.stepup is not None else None
             if blocked is not None:
                 return _json(blocked[0], json.loads(blocked[2]))
+        if path == "/api/apps" or path.startswith("/api/apps/"):       # 工具服務（ADR 0024；web/apps/web_api.py）
+            from synox.web.apps import web_api as apps_api
+            data = None
+            if method == "POST":
+                try:
+                    data = json.loads(body.decode("utf-8") or "{}") if body else {}
+                except (ValueError, UnicodeDecodeError):
+                    return _err(400, "內容格式不對。")
+            return apps_api.route(self, user, method, path, data, query)
         if path.startswith("/api/runtime/"):          # 主控面板：常駐助理／心跳／任務（docs/runtime-api.md；含 PUT）
             from synox.runtime import web_api as runtime_api
             return runtime_api.route(self, user, method, path, body)
@@ -913,6 +926,7 @@ class WebUI:
                 "stage_text": stage_text(pack.manifest.stage),
                 "status": "要先設定" if connector else "已連接",
                 "panel": f"/packs/{pack.name}/panel" if pack.manifest.web.get("panel") else None,
+                "app": bool(pack.manifest.web.get("app")),          # 工具服務：有完整畫面（卡片在 static/apps.js）
                 "commands": [self._leaf_info(n) for n in leaves]}
             self._health_marks(row, user)
             fields = getattr(pack, "secret_fields", None) or []
