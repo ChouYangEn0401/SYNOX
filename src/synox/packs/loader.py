@@ -59,7 +59,7 @@ from synox.packs import confirm as tool_confirm
 from synox.packs import secrets as pack_secrets
 from synox.packs import lock as pack_lock
 from synox.packs.manifest import (Manifest, ManifestError, default_text, missing_requirements, read, safe_env,
-                                  secret_env_names, synox_problem)
+                                  scenario_of, secret_env_names, synox_problem)
 from synox.vault.vault import USERS_DIR
 
 # SYNOX 自己的 pack 資料夾＝使用者裝的工具的落點（PACK_DIRS[0]）。2026-11-12 以前還有 connectors/（出廠的 4 個 connector），
@@ -804,6 +804,8 @@ def _install_cli(app, pack: Pack) -> None:
         positional = [n for n in kinds if f"{{{n}}}" in c.get("argv", [])]
         # commands[].confirm：AI 呼叫前先送確認卡（effect 照寫的算；agent/loop.py 看這個）
         meta[node.path] = {"argv": True, "positional": positional, "kinds": kinds, "confirm": c.get("confirm") is True,
+                           # commands[].ai.scenario：給 AI 的使用情境（agent/tools.description；docs/adr/0013）
+                           "scenario": scenario_of(c),
                            # 網頁工具頁的表單說明（pack.json fields[].help；只給人看，不進 AI 的 schema）
                            "help": {f["name"]: f["help"] for f in c.get("fields") or []
                                     if isinstance(f.get("help"), str) and f["help"].strip()}}
