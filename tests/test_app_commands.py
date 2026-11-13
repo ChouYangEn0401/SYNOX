@@ -58,8 +58,8 @@ def test_group_chat_and_member(counter, owner):
 
 def test_remote_word_points_to_app_remote(counter, owner):
     bot, manager = counter()
-    bot.say(owner, "/app_open counter remote")
-    assert "/app_remote counter" in bot.last(owner) and manager.running() == []
+    bot.say(owner, "/app_open counter remote")                   # S14 起直接轉給 /app_remote：先問一組碼
+    assert "6 位數" in bot.last(owner) and manager.running() == []
 
 
 def test_schedule_and_ai_cannot_open(counter, owner):
