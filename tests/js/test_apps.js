@@ -110,6 +110,18 @@ test("side badge text", () => {
   assert.ok(s.warn && s.text.includes("很久沒用"));
 });
 
+test("phone entry row: missing list, then the open button", () => {
+  const st = { stepup: true, enabled: false, binary: null, tools: { money: { declared: true, allowed: false } }, open: null };
+  assert.deepStrictEqual(A.remoteMissing(view(), st), ["disabled", "binary", "allowed"]);
+  const row = A.renderRemote(doc, view(), st);
+  assert.ok(row.textContent.includes(A.TEXT.remoteNeed.disabled) && !buttons(row).includes(A.TEXT.remoteOpen));
+  const ready = A.renderRemote(doc, view(), { stepup: true, enabled: true, binary: { sha256: "x" },
+                                             tools: { money: { declared: true, allowed: true } }, open: null });
+  assert.ok(buttons(ready).includes(A.TEXT.remoteOpen));
+  const opened = A.renderRemote(doc, view(), { open: { name: "money", minutes_left: 12 }, tools: {} });
+  assert.ok(opened.textContent.includes("12 分鐘") && buttons(opened).includes(A.TEXT.remoteClose));
+});
+
 test("file rules: no window.open, no 127.0.0.2, texts without jargon", () => {
   const src = fs.readFileSync(FILE, "utf8");
   assert.ok(!src.includes("window.open") && !src.includes("127.0.0.2"));
