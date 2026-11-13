@@ -9,7 +9,10 @@
     "model": "",
     "tools": true,
     "max_steps": 6,
-    "max_tokens": 1024
+    "max_tokens": 1024,
+    "_local_example": { "kind": "local", "server": "ollama", "base_url": "http://127.0.0.1:11434", "model": "qwen3.5:9b",
+                        "context_size": 8192, "timeout": 450, "max_total_timeout": 1800, "tools": true,
+                        "_note": "本地模型（docs/adr/0007）：要用就把這幾個欄位搬到上一層並刪掉 _local_example。timeout＝無進展逾時（模型還在回就不砍），context_size 的建議看 synox init 或網頁設定頁「看建議」。" }
   },
   "vault": { "mode": "dpapi" },
   "packs": { "enabled": "all", "disabled": [], "dirs": [], "library": "" },

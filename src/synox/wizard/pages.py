@@ -347,6 +347,72 @@ class Wizard:
         keys_status = self.label("", parent=bottom)
         ttk.Button(bottom, text=t("test"), command=lambda: test("keys", keys_status)).pack(anchor=self.west)
 
+        # 本地模型（llm.kind = "local"，docs/adr/0007）：伺服器、網址、模型、context-size（附建議）
+        local = ttk.LabelFrame(self.body, text=t("llm_local"), padding=10)
+        local.pack(fill="x", pady=(10, 0))
+        ttk.Radiobutton(local, text=t("llm_local_pick"), value="local", variable=choice,
+                        command=lambda: changed()).pack(anchor=self.west)
+        lv = {"server": tk.StringVar(value=list(logic.LOCAL_SERVERS.values())[0]),
+              "base_url": tk.StringVar(value=logic.local_defaults()["base_url"]),
+              "model": tk.StringVar(), "context": tk.StringVar(value="8192")}
+        local_body = ttk.Frame(local)            # 選了「本地模型」才展開（視窗高度有限）
+        lf = ttk.Frame(local_body)
+        lf.pack(fill="x", pady=4)
+        f2 = ttk.Frame(lf)
+        f2.pack(fill="x", pady=2)
+        ttk.Label(f2, text=t("llm_local_server"), width=label_width, anchor=self.west).pack(side=self.start)
+        server_combo = ttk.Combobox(f2, textvariable=lv["server"], values=list(logic.LOCAL_SERVERS.values()),
+                                    state="readonly")
+        server_combo.pack(side=self.start, fill="x", expand=True)
+        row(lf, t("llm_url"), lv["base_url"])
+        row(lf, t("llm_model"), lv["model"])
+        f3 = ttk.Frame(lf)
+        f3.pack(fill="x", pady=2)
+        ttk.Label(f3, text=t("llm_local_context"), width=label_width, anchor=self.west).pack(side=self.start)
+        from synox.llm.local_advice import OPTIONS as CONTEXT_OPTIONS
+        ctx_combo = ttk.Combobox(f3, textvariable=lv["context"], width=18, values=[str(c) for c in CONTEXT_OPTIONS])
+        ctx_combo.pack(side=self.start)
+        advice_text = self.label(t("llm_local_context_hint"), parent=local_body, foreground="#666")
+        local_status = self.label("", parent=local_body)
+        lb = ttk.Frame(local_body)
+        lb.pack(anchor=self.west)
+        ttk.Button(lb, text=t("llm_local_advice"), command=lambda: advise()).pack(side=self.start)
+        ttk.Button(lb, text=t("test"), command=lambda: test("local", local_status)).pack(side=self.start, padx=(6, 0))
+
+        def server_code():
+            return next((k for k, v in logic.LOCAL_SERVERS.items() if v == lv["server"].get()), "ollama")
+
+        def on_server(_e=None):
+            lv["base_url"].set(logic.local_defaults(server_code())["base_url"])
+            choice.set("local")
+            changed()
+
+        server_combo.bind("<<ComboboxSelected>>", on_server)
+
+        def advise():
+            advice_text.configure(text=t("llm_local_advice_running"))
+            server, url, model = server_code(), lv["base_url"].get(), lv["model"].get()
+
+            def done(result):
+                if isinstance(result, Exception):
+                    advice_text.configure(text=f"❌ {result}")
+                    return
+                from synox.llm.local_advice import option_label
+                ctx_combo.configure(values=[option_label(r) for r in result["options"]])
+                if result.get("recommended"):
+                    lv["context"].set(str(result["recommended"]))
+                summary = "／".join(option_label(r) for r in result["options"])
+                advice_text.configure(text=t("llm_local_advice_done", options=summary,
+                                             least=result["min_context"]) + "\n" + result["notes"][0])
+
+            def work():
+                try:
+                    return logic.local_advice(server, url, model)
+                except Exception as e:                # 建議失敗不該讓精靈當掉
+                    return e
+
+            self.background(work, done)
+
         ttk.Radiobutton(self.body, text=t("llm_none"), value="none", variable=choice,
                         command=lambda: changed()).pack(anchor=self.west, pady=(10, 0))
 
@@ -366,18 +432,29 @@ class Wizard:
         combo.bind("<<ComboboxSelected>>", on_provider)
 
         def settings(which):
+            if which == "local":
+                ctx = lv["context"].get().split("（")[0].strip()
+                return logic.llm_settings("local", server=server_code(), base_url=lv["base_url"].get(),
+                                          model=lv["model"].get(), context_size=int(ctx) if ctx.isdigit() else ctx)
             return logic.llm_settings(which, base_url=v["base_url"].get(), api_key=v["api_key"].get(),
                                       model=v["model"].get() if which == "keys" else "", provider=code())
 
         def changed():
             c = choice.get()
+            if c == "local":
+                local_body.pack(fill="x")
+                form.pack_forget()
+            else:
+                local_body.pack_forget()
+                if not form.winfo_manager():
+                    form.pack(fill="x", pady=4, before=keys_status)
             # Claude（找得到）與「先不用 AI」直接能下一步（測一下是選用的）；金鑰要先測通
             self.set_next(t("next"), lambda: commit(c), enabled=(c == "none" or (c == "claude_code" and found)))
 
         def commit(which):
             llm, err = settings(which)
             if err:
-                (keys_status if which == "keys" else claude_status).configure(text=f"❌ {err}")
+                {"keys": keys_status, "local": local_status}.get(which, claude_status).configure(text=f"❌ {err}")
                 return
             self.llm = llm
             self.page_finish()
@@ -393,7 +470,7 @@ class Wizard:
 
             def done(problem):
                 if problem is None:
-                    status.configure(text=t("llm_ok"))
+                    status.configure(text=t("llm_local_ok") if which == "local" else t("llm_ok"))
                     if choice.get() == which:
                         self.set_next(t("next"), lambda: commit(which))
                 else:

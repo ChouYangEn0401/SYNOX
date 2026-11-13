@@ -26,10 +26,11 @@ from synox.config import redacted
 from synox.wizard import logic
 from synox.wizard import tools as library
 
-AI_CHOICES = ("none", "claude_code", "openai", "anthropic", "gemini", "openai_compat")
+AI_CHOICES = ("none", "claude_code", "openai", "anthropic", "gemini", "openai_compat", "local")   # 新的放最後：編號不變
 AI_LABELS = {"none": "先不用 AI（只用指令和按鈕）", "claude_code": "Claude Code（這台電腦登入的 claude）",
+             "local": "本地模型（Ollama、vLLM、LM Studio；不需要金鑰，SYNOX 內建）",
              "openai": "OpenAI（金鑰）", "anthropic": "Anthropic API（金鑰）", "gemini": "Gemini（金鑰）",
-             "openai_compat": "相容端點（公司閘道、自己電腦上的 Ollama；要網址）"}
+             "openai_compat": "相容端點（公司閘道；要網址與金鑰）"}
 EASY_LLM_HINT = ("用金鑰的 AI 要多裝 ntu_easy_llm（還沒上 PyPI）：裝法見 docs/AGENT.md「ntu_easy_llm」。"
                  "設定先存著，裝好之後 synox doctor 會測。")
 
@@ -172,6 +173,8 @@ def ask_ai(p: Prompter, args, existing: dict) -> tuple:
             notes.append(f"⚠️ {status}（安裝說明：{logic.CLAUDE_DOWNLOAD_URL}）")
         llm, _err = logic.llm_settings("claude_code", model=model or "")
         return llm, notes
+    if kind == "local":
+        return ask_local(p, args, old, notes)
     base_url = getattr(args, "base_url", None) or ""
     if logic.needs_base_url(kind) and not base_url:
         base_url = p.text("相容端點的網址（例如 http://127.0.0.1:11434/v1）", old.get("base_url") or None, required=True)
@@ -193,6 +196,51 @@ def ask_ai(p: Prompter, args, existing: dict) -> tuple:
         raise InitAbort(err)
     if importlib.util.find_spec("ntu_easy_llm") is None:
         notes.append("⚠️ " + EASY_LLM_HINT)
+    return llm, notes
+
+
+def ask_local(p: Prompter, args, old: dict, notes: List[str], advice=None) -> tuple:
+    """本地模型（llm.kind = "local"，docs/adr/0007）：伺服器、網址、模型、context-size（印建議，不載入模型）。
+    advice：測試換掉（預設 logic.local_advice，唯讀探測＋這台的記憶體）。"""
+    from synox.llm import local_advice
+    old = old if old.get("kind") == "local" else {}
+    servers = list(logic.LOCAL_SERVERS)
+    server = getattr(args, "server", None) or old.get("server") or "ollama"
+    if p.interactive and not getattr(args, "server", None):
+        server = p.choice("   本地模型的伺服器？", servers, server, dict(logic.LOCAL_SERVERS))
+    if server not in servers:
+        raise InitAbort(f"--server 只能是 {'、'.join(servers)}")
+    default_url = old.get("base_url") or logic.local_defaults(server)["base_url"]
+    base_url = getattr(args, "base_url", None) or p.text("   網址", default_url)
+    model = getattr(args, "model", None)
+    if model is None:
+        model = p.text("   模型名稱（Ollama：`ollama list` 看得到的名字，例如 qwen3.5:9b）", old.get("model") or None,
+                       required=True)
+    given_ctx = getattr(args, "context_size", None)
+    p.out("   context-size 建議（只讀模型資料與這台的記憶體，不載入模型）：")
+    try:
+        result = (advice or logic.local_advice)(server, base_url, model)
+    except Exception as e:                            # 建議失敗不擋設定
+        result = None
+        p.out(f"   ⚠️ 算不出建議：{e}")
+    if result:
+        for line in local_advice.lines(result):
+            p.out("  " + line)
+    default_ctx = given_ctx if given_ctx is not None else (old.get("context_size") or
+                                                          (result or {}).get("recommended") or 8192)
+    if p.interactive and given_ctx is None:
+        answer = p.text("   context-size（0＝用伺服器預設）", str(default_ctx))
+        default_ctx = int(answer) if answer.strip().isdigit() else answer
+    llm, err = logic.llm_settings("local", server=server, base_url=base_url, model=model or "",
+                                  context_size=default_ctx, tools=old.get("tools", True),
+                                  timeout=old.get("timeout"), max_total_timeout=old.get("max_total_timeout"))
+    if err:
+        raise InitAbort(err)
+    from synox.llm.local import url_warning
+    if url_warning(llm["base_url"]):
+        notes.append(url_warning(llm["base_url"]))
+    notes.append(f"ℹ️ 本地模型：無進展逾時 {llm['timeout']} 秒（模型還在回就不砍）、總上限 {llm['max_total_timeout']} 秒；"
+                 "要改就編 config.json 的 llm.timeout／llm.max_total_timeout。")
     return llm, notes
 
 
