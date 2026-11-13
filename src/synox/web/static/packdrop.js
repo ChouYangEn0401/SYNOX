@@ -39,6 +39,12 @@
     return { ok: true, file: f };
   }
 
+  /* 純函式：拖進來之後要去的網址。一律到安裝頁 #packs（＝#settings:packs）：只設 #settings 的話，設定頁會沿用上次的分頁
+     （例如 AI），報告就出現在看不到的分頁裡。已經在安裝頁就不動網址。 */
+  function installHash(current) {
+    return current === "#packs" || current === "#settings:packs" ? current : "#packs";
+  }
+
   function hasFiles(e) {
     var types = e && e.dataTransfer && e.dataTransfer.types;
     if (!types) { return false; }
@@ -116,7 +122,8 @@
       var fileInput = $("pack-file");
       var button = $("pack-upload");
       if (!fileInput || !button) { say(TEXT.missing); return; }
-      if (root.location.hash.indexOf("#settings") !== 0) { root.location.hash = "#settings"; }
+      var want = installHash(root.location.hash);
+      if (root.location.hash !== want) { root.location.hash = want; }
       try {
         var dt = new root.DataTransfer();
         dt.items.add(file);
@@ -132,7 +139,7 @@
     }
   }
 
-  var api = { check: check, hasFiles: hasFiles, MAX_BYTES: MAX_BYTES, TEXT: TEXT };
+  var api = { check: check, hasFiles: hasFiles, installHash: installHash, MAX_BYTES: MAX_BYTES, TEXT: TEXT };
   if (typeof module === "object" && module && module.exports) { module.exports = api; }
   else {
     root.SynoxPackDrop = api;

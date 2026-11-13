@@ -8,6 +8,7 @@ SYNOX 先看宣告、掃程式（[security.md](security.md)「五關」），把
 | 1. 點兩下 | 在檔案總管點兩下 `.synoxpack` | 最簡單；`Setup.bat` 跑過就有 |
 | 2. 拖到 `Install-Pack.bat` | 把 `.synoxpack` 拖到 SYNOX 資料夾裡的 `Install-Pack.bat` 上放開 | 點兩下沒反應、或檔案被別的程式接走時 |
 | 3. 拖進網頁 | 打開 SYNOX 網頁（`Open-SYNOX.bat`），把 `.synoxpack` 拖進視窗；或「設定 → 功能」選檔按「上傳並檢查」 | SYNOX 已經開著；只有擁有者能裝 |
+| 3b. 網頁的官方工具庫 | 「設定 → 🧩 功能與安裝 → 工具庫（官方）」按「載入工具清單」，挑一個按「安裝」 | 要裝官方工具（SYNOX_Libs）時；**只有按按鈕時才連網**，只連 GitHub 上 SYNOX_Libs 的發佈頁（網址寫死在 `src/synox/packs/catalog.py`）。伺服器下載後先對檔案大小與 sha256（跟清單一樣才收），再走同一份報告與確認 |
 | 4. 命令列 | `.venv\Scripts\python.exe -m synox install <檔>.synoxpack` | 工程師、沒有網頁時（`--yes` 直接在終端機核准） |
 
 ## 1、2：點兩下、拖到 Install-Pack.bat
