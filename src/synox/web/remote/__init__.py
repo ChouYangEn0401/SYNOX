@@ -32,6 +32,8 @@ def install(app, config, ui, **kw) -> Optional[RemoteManager]:
         gate.stepup.on_disable(lambda _uid: manager.close("stepup_disabled"))
     app.on_stop.append(lambda _app: manager.close("shutdown"))
     manager.register_task()
+    from synox.web.remote import commands
+    commands.install(app, manager)
     return manager
 
 

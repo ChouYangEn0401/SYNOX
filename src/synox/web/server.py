@@ -599,6 +599,9 @@ class WebUI:
             blocked = g.stepup.gate(user, path) if g is not None and g.stepup is not None else None
             if blocked is not None:
                 return _json(blocked[0], json.loads(blocked[2]))
+        if path == "/api/remote" or path.startswith("/api/remote/"):   # 手機入口（ADR 0026；web/remote/web_api.py）
+            from synox.web.remote import web_api as remote_api
+            return remote_api.route(self, user, method, path, body)
         if path == "/api/apps" or path.startswith("/api/apps/"):       # 工具服務（ADR 0024；web/apps/web_api.py）
             from synox.web.apps import web_api as apps_api
             data = None

@@ -420,7 +420,9 @@ class RemoteManager:
         link = self.link
         data = self.data()
         specs = self.apps.specs()
+        hub = self.guard.stepup if self.guard is not None else None
         return {"available": ok, "code": code, "why": why, "enabled": bool(self.settings.get("enabled")),
+                "stepup": bool(hub is not None and hub.enrolled(self._owner())),
                 "binary": dict(data["binary"]) if data["binary"] else None,
                 "tools": {n: {"title": s.title, "declared": bool(s.remote), "allowed": bool(data["tools"].get(n))}
                           for n, s in sorted(specs.items())},
