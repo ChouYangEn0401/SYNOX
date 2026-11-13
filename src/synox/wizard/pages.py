@@ -10,8 +10,11 @@
      背景等那則訊息 → 記下 owner_id（Discord 另外把帳號接進 identities.json）。
   4. AI：上面是預設「Claude（這台電腦登入的 Claude Code）」＋狀態＋測一下；下面「其他金鑰來源」
      （OpenAI／Anthropic API／Gemini／相容端點：下拉選單、網址（只有相容端點）、金鑰、模型、測一下）；「先不用 AI」
-  5. 完成：桌面捷徑（預設勾）、開機自動啟動（預設不勾）、完成後立刻開啟 SYNOX（預設勾）→「完成並開始」寫 config.json
-     （連同 "language"）；勾了就開 Start.bat（沒接聊天軟體＝只跑網頁介面，自己會打開瀏覽器）；沒勾就只存設定
+  5. 完成：桌面捷徑（預設勾）、開機自動啟動（預設勾，擁有者 Q1）、.synoxpack 點兩下安裝（預設勾）、完成後立刻開啟
+     SYNOX（預設勾）→「完成並開始」寫 config.json（連同 "language"）；勾了就開 Start.bat（沒接聊天軟體＝只跑網頁介面，
+     自己會打開瀏覽器）；沒勾就只存設定。底下一行「做一次教學」（logic.tutorial_line）。
+     從 .exe 安裝程式來的（SYNOX 資料夾有 installer-choices.json）：前三項安裝程式已經決定了，只留「立刻開啟」；
+     自訂頁勾了「全部官方工具都裝」就在這時從 tools/ 裝（背景，不開黑色視窗），裝完才開 SYNOX。
 
 阿拉伯文（由右至左）盡力而為：文字靠右、右對齊，「下一步」移到左邊，一列裡的元件從右排起；
 Tk 本身不做雙向文字重排，框線、下拉選單、輸入框、捲軸不會鏡像。
@@ -24,6 +27,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import threading
 import webbrowser
 
@@ -546,15 +550,20 @@ class Wizard:
     def page_finish(self):
         self.clear(t("finish_title"), t("last_step"))
         tk, ttk = self.tk, self.ttk
+        folder = os.path.dirname(os.path.abspath(self.config_path))
+        choices = logic.installer_choices(folder)          # .exe 安裝程式已經決定的（沒有＝ZIP／Setup.bat）
         desk = tk.BooleanVar(value=True)
-        # Setup.bat 問過「建議／自訂」（setup/bootstrap.ps1 的 Invoke-SetupPlan）：建議＝勾好；自己開精靈＝照舊不勾
-        auto = tk.BooleanVar(value=os.environ.get("SYNOX_SETUP_AUTOSTART") == "1")
-        packs = tk.BooleanVar(value=True)
+        # 開機自動啟動的預設（擁有者 Q1：預設開）：.exe 裝的看 installer-choices.json（那一格不顯示，安裝程式已經做了）；
+        # ZIP 看 Setup.bat「建議／自訂」的結果（SYNOX_SETUP_AUTOSTART）；自己另外開精靈＝照舊不勾
+        auto = tk.BooleanVar(value=logic.autostart_default(choices))
+        packs = tk.BooleanVar(value=bool(choices.get("file_type", True)))
         launch = tk.BooleanVar(value=True)
-        ttk.Checkbutton(self.body, text=t("finish_desktop"), variable=desk).pack(anchor=self.west, pady=4)
-        ttk.Checkbutton(self.body, text=t("finish_autostart"), variable=auto).pack(anchor=self.west)
-        ttk.Checkbutton(self.body, text=t("finish_packs"), variable=packs).pack(anchor=self.west, pady=4)
+        if not choices:
+            ttk.Checkbutton(self.body, text=t("finish_desktop"), variable=desk).pack(anchor=self.west, pady=4)
+            ttk.Checkbutton(self.body, text=t("finish_autostart"), variable=auto).pack(anchor=self.west)
+            ttk.Checkbutton(self.body, text=t("finish_packs"), variable=packs).pack(anchor=self.west, pady=4)
         ttk.Checkbutton(self.body, text=t("finish_launch"), variable=launch).pack(anchor=self.west)
+        self.label(logic.tutorial_line())
         title, _one, _two = logic.mode_lines(self.mode)
         if self.token:
             who = "bot" if self.platform == "telegram" else t("finish_discord_bot", name=self.bot_name)
@@ -584,17 +593,18 @@ class Wizard:
                 status.configure(text=t("finish_save_failed", e=e))
                 return
             notes = []
-            if desk.get():
-                err = shortcuts.create_desktop_shortcut(ROOT)
-                notes.append(t("note_desktop") + " " + ("✅" if not err else f"❌ {err}"))
-            try:
-                if auto.get():
-                    shortcuts.enable_autostart(ROOT)
-                    notes.append(t("note_autostart") + " ✅")
-                else:
-                    shortcuts.disable_autostart()
-            except OSError as e:
-                notes.append(f"{t('note_autostart')} ❌ {e}")
+            if not choices:                                   # .exe 裝的：桌面捷徑、開機啟動安裝程式已經照使用者選的做了
+                if desk.get():
+                    err = shortcuts.create_desktop_shortcut(ROOT)
+                    notes.append(t("note_desktop") + " " + ("✅" if not err else f"❌ {err}"))
+                try:
+                    if auto.get():
+                        shortcuts.enable_autostart(ROOT)
+                        notes.append(t("note_autostart") + " ✅")
+                    else:
+                        shortcuts.disable_autostart()
+                except OSError as e:
+                    notes.append(f"{t('note_autostart')} ❌ {e}")
             if packs.get():
                 try:
                     shortcuts.register_synoxpack(ROOT)
@@ -606,6 +616,32 @@ class Wizard:
                     shortcuts.unregister_synoxpack()
                 except OSError:
                     pass
+            if logic.wants_all_tools(choices):                # 安裝程式自訂頁勾了「全部官方工具都裝」：先裝完再開 SYNOX
+                status.configure(text=t("all_tools_running"))
+                self.set_next(t("finish_go"), lambda: None, enabled=False)
+
+                def done(ok):
+                    logic.mark_all_tools_done(folder, ok)
+                    notes.append(t("note_all_tools") + (" ✅" if ok else " ❌ " + t("all_tools_failed")))
+                    open_synox(notes)
+
+                self.background(lambda: run_all_tools(folder), done)
+                return
+            open_synox(notes)
+
+        def run_all_tools(root) -> bool:
+            log = os.path.join(root, "data", "logs", "all-tools.log")
+            try:
+                os.makedirs(os.path.dirname(log), exist_ok=True)
+                with open(log, "w", encoding="utf-8") as out:
+                    rc = subprocess.run(logic.all_tools_args(sys.executable, self.config_path), cwd=ROOT,
+                                        stdout=out, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL,
+                                        timeout=1800, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+                return rc.returncode == 0
+            except (OSError, subprocess.SubprocessError):
+                return False
+
+        def open_synox(notes):
             if launch.get():                                  # 勾了才開；不管有沒有接聊天軟體
                 start = os.path.join(ROOT, "Start.bat")
                 subprocess.Popen(["cmd", "/c", start], cwd=ROOT,

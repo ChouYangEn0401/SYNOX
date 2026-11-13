@@ -112,7 +112,7 @@ STRINGS = {
     "status_add_channel_later": "之後雙擊 Setup.bat 重跑精靈可以補接 Telegram／Discord。",
     "status_bot_head": "✅ 設定好了，bot 開起來了。",
     "status_web_head": "✅ 設定好了，SYNOX 開起來了（還沒接 Telegram／Discord）。",
-    "status_no_tools": "🧰 SYNOX 出廠不帶工具（記帳、筆記…都要自己裝；提醒是系統指令，本來就有）：拿到工具庫（SYNOX_Libs）的 .synoxpack 檔後點兩下，或在網頁「設定 → 裝功能」上傳。工具庫在哪裡，問給你 SYNOX 的人。",
+    "status_no_tools": "🧰 下一步：先做一次教學，學會怎麼跟 SYNOX 說話；做完再挑你需要的工具（記帳、筆記…）：網頁「設定」裡的官方工具庫（SYNOX_Libs），或把 .synoxpack 檔點兩下。",
     "status_can_close": "可以關掉這個視窗。",
     "no_window": "❌ 開不了視窗（{e}）。可以複製 config.example.json 成 config.json 手動填。",
     "llm_local": "本地模型（這台或家裡網路的電腦）",
@@ -125,4 +125,9 @@ STRINGS = {
     "llm_local_advice_done": "選項：{options}。小於 {least} 會截斷 SYNOX 的提示。",
     "llm_local_ok": "✅ 找到模型，設定看起來合理（只讀取了模型資料，沒有實際載入模型）。",
     "err_local_model": "請填模型名稱（Ollama 的話是 `ollama list` 看得到的名稱，例如 qwen3.5:9b）。",
+    "finish_tutorial": "📘 第一次用？先做一次教學（幾分鐘），做完再挑你需要的工具。",
+    "finish_tutorial_how": "打開 SYNOX 後打 {cmd}（或在聊天裡打「開始教學」）。",
+    "all_tools_running": "⏳ 正在裝全部官方工具（你在安裝程式勾的），可能要幾分鐘，請不要關掉這個視窗…",
+    "note_all_tools": "全部官方工具",
+    "all_tools_failed": "有些沒裝成，之後到網頁「設定」的工具庫補（紀錄在 data/logs/all-tools.log）",
 }

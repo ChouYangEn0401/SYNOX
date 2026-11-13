@@ -199,7 +199,10 @@ def cmd_tools(args, *, is_up=None, open_url=None, jobs=None) -> int:
             print(line)
         print("裝：python -m synox tools install <名字或組合代號…>（看完報告再核准；不會自動全裝）")
         return 0
-    chosen, unknown = library.pick(lib, args.names)
+    if getattr(args, "all", False):          # 安裝程式自訂頁的「全部官方工具都裝（不建議）」；T2 照樣要發行者名字
+        chosen, unknown = list(lib.entries), []
+    else:
+        chosen, unknown = library.pick(lib, args.names)
     if unknown or not chosen:
         print(f"❌ 工具庫裡沒有：{'、'.join(unknown) or '（沒給名字）'}（有：{'、'.join(e.name for e in lib.entries)}）")
         return 2
@@ -804,6 +807,8 @@ def main(argv=None) -> int:
     p = sub.add_parser("tools", help="工具庫：list（有哪些）｜install <名字…>（裝）")
     p.add_argument("tools_cmd", choices=["list", "install"])
     p.add_argument("names", nargs="*", help="install：工具名字或建議組合的代號")
+    p.add_argument("--all", action="store_true",
+                   help="install：工具庫裡的每一個都裝（不建議：先做教學再挑；安裝程式自訂頁勾了才會用）")
     p.add_argument("--library", default="", help="工具庫資料夾（預設 config.json 的 packs.library，或 SYNOX 資料夾旁的 tools）")
     p.add_argument("--yes", action="store_true", help="看完報告直接在終端機核准")
     p.add_argument("--trust-publisher", default=None, metavar="NAME", help="T2 工具：明確輸入 pack.json 的 publisher 才裝")

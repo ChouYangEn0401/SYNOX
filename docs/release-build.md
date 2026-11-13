@@ -49,7 +49,7 @@ tag 會多做一件事：把 exe 和 `SHA256SUMS.txt` 放進一個 **草稿（dr
 |---|---|---|
 | 1 | checkout（不留 token）；`actions/setup-python` 裝**同一個 X.Y** 的 CPython（只拿來建 venv、挑 cp312 wheel；不會附進安裝程式） | 是 |
 | 2 | `installer_ci.py version`：`pyproject.toml` 與 `synox.__version__` 要一樣；tag 要等於 `v<版本>` | 是 |
-| 3 | `scripts/prepublish_check.py --worktree-only`（密鑰、本機路徑、個人信箱） | 是 |
+| 3 | `scripts/prepublish_check.py --worktree-only`（密鑰、本機路徑、個人信箱）；接著 `installer_ci.py check-iss`（安裝程式腳本的靜態檢查） | 是 |
 | 4 | 下載兩個外部檔，**每個都先對 sha256**：SYNOX_Libs 的 tools zip、Inno Setup 安裝檔；再檢查 Inno 安裝檔的 Authenticode 簽章（發行者要對） | 是 |
 | 5 | 靜默安裝 Inno Setup 到暫存資料夾 | 是 |
 | 6 | 乾淨 venv `pip install .` → `lock_deps.py` → `pip download`（`--only-binary=:all:`，cp312／win_amd64）＋ pip、setuptools → `lock_deps.py --wheelhouse`（寫進 sha256）→ `--check` | 是 |
@@ -105,6 +105,60 @@ action 用 `git ls-remote --tags https://github.com/<owner>/<repo>.git` 找 tag 
 4. 第 10 步的結果（只是參考）。
 5. 下載 exe，到空白 Windows 11 跑 B1～B7。
 
+## 安裝程式的畫面與語言（擁有者 2026-11-13 的決定）
+
+規格：[installer/spec.html](installer/spec.html) 第 8 節 Q1～Q9。`setup/installer/synox.iss` 現在是這樣走：
+
+**選語言 → 歡迎 → 建議｜自訂 → 安裝中 → 完成**（自訂多兩頁：安裝位置、要準備哪些東西）。
+
+- **語言（Q7）**：Inno Setup 自己的選語言視窗，每次都出現，預選 Windows 的顯示語言（對不上就 English）；12 種，每種寫
+  「原文名 (拉丁字母名)」。選的語言寫進 SYNOX 資料夾的 `lang.txt`，再用 `Setup.bat -Lang <代號>` 交給設定精靈。
+  Inno 的視窗是下拉選單＋「確定」，清單照名字排序（不是我們的順序）；要做成規格圖上那種清單，得用 `CreateCustomForm` 自己畫，之後再說。
+- **歡迎（Q4）**：沒有「我同意」那一頁（不設 `LicenseFile`）。歡迎頁一句「歡迎使用 SYNOX，用得開心。」、四個短點，最下面一行
+  「個人使用免費。要拿去做商業用途，請看 AGPL-3.0 授權條款」，點了用記事本打開 `LICENSING.md`（中文介面）或 `LICENSE`（其他語言）。
+  兩個檔照樣裝進 SYNOX 資料夾。左邊與右上角的圖拿掉了（`WizardImageFile=`、`WizardSmallImageFile=`），比較乾淨。
+- **建議（Q3、Q1）**：SYNOX 自己的 Python、桌面與開始功能表捷徑、`.synoxpack` 點兩下安裝、開機自動啟動、教學；不裝工具。
+  選「建議」時按鈕直接寫「安裝」。**自訂**：同樣的預設值，多一項「全部官方工具都裝（不建議）」預設不勾；勾了的話，安裝程式只把它記在
+  `installer-choices.json`，真正的安裝在設定精靈按「完成並開始」時從 `tools\`（安裝程式附的）做（`synox tools install --all --yes`，
+  照原本的安全檢查，T2 不自動裝），安裝程式本身不連網。
+- **Claude Code（Q2）**：安裝中的最後一步，只在這台還沒有時才裝，`setup\installer\claude-code.ps1` 跑官方的
+  `irm https://claude.ai/install.ps1 | iex`（裝在使用者資料夾、不用管理員），最多等 15 分鐘；失敗或逾時不算安裝失敗，完成頁說之後去設定精靈補。
+- **完成**：勾著「現在打開設定精靈」→ 跑 `Setup.bat`（會開一個視窗準備套件，再開精靈）。精靈看到 `installer-choices.json`，完成頁
+  就只剩「完成後立刻開啟 SYNOX」。開始功能表另有「SYNOX 設定精靈」「解除安裝 SYNOX」。
+- **解除安裝（Q9）**：先一個畫面說會移除／會留著什麼，「連我的資料也一起刪除」預設不勾；勾了會再問一次（預設「否」）。不勾就照舊
+  留下 `config.json`、`data\`、`packs\`。`/SILENT` 解除安裝一律留資料。
+- **不簽章（Q6）**：alpha 先不簽。下載的地方要放 exe 的 **SHA-256** 指紋，並說明 SmartScreen 的兩步：按「**其他資訊**」→ 按「**仍要執行**」。
+  核對方法見上面「去哪裡下載」。
+
+靜態檢查：`python scripts/installer_ci.py check-iss`（workflow 第 3 步之後也會跑；`tests/test_installer_script.py`）——頁面相關設定、
+12 種語言、每個語言檔的 key 跟英文一樣、自訂頁的預設值、解除安裝不刪資料。**這台沒有 Windows，`synox.iss` 沒有真的編譯過**，
+第一次在 CI 跑 ISCC 時請看有沒有錯（Pascal 程式碼的語法只有 ISCC 會檢查）。
+
+### 安裝畫面的語言檔（Inno Setup 的按鈕、「瀏覽…」這些內建的字）
+
+我們自己的字（歡迎、建議／自訂、每個勾選、解除安裝畫面）在 `setup/installer/lang/<代號>.isl`，12 種都有（模型翻的，要母語者校對）；
+`lang/en.isl` 先載入，所以哪個語言少了某句就退回英文。Inno 內建的字要靠 Inno 的語言檔：
+
+| 語言 | Inno Setup 6.7.4 | 用哪個檔 |
+|---|---|---|
+| English | 內建 | `compiler:Default.isl` |
+| Español、Français、Deutsch、Português (Brasil)、Русский、العربية、日本語、한국어 | **官方**，隨 Inno Setup 安裝 | `compiler:Languages\Spanish.isl`、`French.isl`、`German.isl`、`BrazilianPortuguese.isl`、`Russian.isl`、`Arabic.isl`、`Japanese.isl`、`Korean.isl` |
+| 繁體中文、简体中文、हिन्दी | **非官方**（使用者貢獻，不隨 Inno Setup 安裝） | 沒放的話按鈕用英文，其他照樣翻好、選的語言照樣存進 `lang.txt` |
+
+（2026-11-13 用 `jrsoftware/issrc` 的 `is-6_7_4` tag 核對：`Files/Languages/` 有上面 8 個官方檔，`Files/Languages/Unofficial/` 才有中文與印地文。）
+
+要讓這三種的按鈕也翻好：把檔案放進 `setup/installer/lang/inno/`（檔名照原樣），`synox.iss` 編譯時看到就會用（`#if FileExists`）。
+
+| 檔名 | 從哪裡拿 | sha256（`is-6_7_4` 的那份） | 檔頭寫的 |
+|---|---|---|---|
+| `ChineseTraditional.isl` | `https://github.com/jrsoftware/issrc/blob/is-6_7_4/Files/Languages/Unofficial/ChineseTraditional.isl`（或 jrsoftware.org/files/istrans/） | `ab22b0ebf82969d1c9a7208e0e9f60e5119c0c95b9dacc00eb8e5582c7d3c604` | 「Inno Setup version 6.1.0+」，Enfeng Tsao（根據 Samuel Lee 的 5.5.3 版） |
+| `ChineseSimplified.isl` | 同一個資料夾；維護者另有 `github.com/kira-96/Inno-Setup-Chinese-Simplified-Translation` | `7d544b9bb1d142cfa11f2e5d3cc8abe2e55f8e066c5124e3772675aa236e1278` | 「6.5.0+」，Zhenghan Yang |
+| `Hindi.islu` | 同一個資料夾 | `fbb1045f3b25842bb926bdd5400d07875f4c8572b04ffab14bb7add9882cc19b` | 「5.5.3+」，Him Prasad Gautam（舊版：6.x 新增的字會退回英文，ISCC 會警告） |
+
+**授權**：這三個檔的檔頭**沒有寫授權**，只寫了譯者；jrsoftware 把它們放在 issrc repo 與網站上公開給大家用，issrc 本身是 Inno Setup License
+（`license.txt`：免費、可商用、可再散布，保留著作權聲明）。這是不是也涵蓋使用者貢獻的翻譯，沒有明文。**放進 repo 前請擁有者決定**
+（建議：放進來、保留檔頭的譯者姓名、在第三方授權清單寫來源與 sha256；或寫信問譯者）。所以這次**沒有**把它們放進 repo。
+
 ## 還沒驗證的
 
 - 整個 workflow 沒跑過：PowerShell 步驟、Inno Setup 的靜默安裝參數、簽章發行者字串、`gh release` 那段都只有語法檢查
@@ -112,15 +166,16 @@ action 用 `git ls-remote --tags https://github.com/<owner>/<repo>.git` 找 tag 
 - 附的 Python（python-build-standalone）在 Windows 上：只在 Linux 上用同一個 release 的 Linux 版做過「解開 → `-m venv` →
   `import tkinter` → 開 Tk 視窗 → `pip install -e .`」，Windows 版只核對了 sha256、檔案內容（python.exe、venv、tkinter、Tcl/Tk 8.6）
   和 stage 的結果，沒有真的在 Windows 上跑過。
-- exe 本身的安裝／解除安裝沒有在 CI 跑：`synox.iss` 的 `[Run]` 那行（跑 `Setup.bat`）沒有 `skipifsilent`，用 `/VERYSILENT` 裝會直接
-  開 Setup.bat 問語言而卡住。所以 CI 只測 stage（第 9 步），安裝程式本身靠 B1～B7。
+- exe 本身的安裝／解除安裝沒有在 CI 跑：`synox.iss` 的 `[Run]` 那行（跑 `Setup.bat -Lang <代號>`）沒有 `skipifsilent`，用 `/VERYSILENT` 裝
+  還是會開 Setup.bat 的視窗（語言已經帶過去、`installer-choices.json` 也在，不會停在語言題或「建議／自訂」那一題）；Claude Code 那一步
+  在 `/VERYSILENT` 也會跑（要上網）。所以 CI 只測 stage（第 9 步），安裝程式本身靠 B1～B7。
 - 視窗精靈（tkinter）在 `.venv` 裡能不能開視窗、SmartScreen 與防毒的反應：只能在真的電腦上看。
 - 第三方授權清單（handoff B-1 第 11 項）還沒放進 stage。
 - `ntu_easy_llm` 不在 wheelhouse（lock 不含 `llm` 組）：安裝程式版用 API 金鑰的 AI 仍要另外裝（QD2）。
 
 ## 留給擁有者決定的
 
-1. **簽章（QD1）**：要簽的話，`synox.iss` 打開 `SignTool=`／`SignedUninstaller=yes`，workflow 加一步簽章（憑證或 Azure Trusted Signing
+1. **簽章（QD1）**：2026-11-13 擁有者決定 alpha 先不簽（規格 Q6）；公開宣傳之前再改用雲端簽章服務。要簽的話，`synox.iss` 打開 `SignTool=`／`SignedUninstaller=yes`，workflow 加一步簽章（憑證或 Azure Trusted Signing
    放 GitHub secret，最好再用 GitHub Environment 要人核准）。到那時這份 workflow 才會需要 secret。
 2. **`requirements.lock` 要不要進 git**：有 sha256 的那份只對 Python 3.12＋Windows 64 位元有效（`cffi`、`charset-normalizer`
    是 cp312 專屬的 wheel）；git clone 的人用 3.11／3.13 照它裝會因為雜湊對不上而失敗。要進 git 的話建議 commit
