@@ -327,7 +327,8 @@ class WebUI:
                              name="WebUI-stop").start()
 
     def turn_off(self) -> None:
-        """/web_off：關掉、把所有網頁 session 登出，到重開 bot 之前不再開。"""
+        """/web_off：關掉、把所有網頁 session 登出，到重開 bot 之前不再開。工具服務全部一起關。"""
+        self._stop_apps("web_off")
         self.disabled = True
         self.sessions.drop_all()
         self.stop()
@@ -1717,6 +1718,7 @@ class WebUI:
         環境要建／重建就跟全新安裝一樣在背景建（升級報告的 env.needed）、重新載入。"""
         from synox.packs.admin import GateRefused, PackAdminError
         from synox.packs.upgrade import upgrade_staged
+        self._stop_apps("reload")
         try:
             done = upgrade_staged(str(data.get("token") or ""), self.config.data_dir, self.pack_dirs[0],
                                   approved_by=user.tg_id, via="web", allow_downgrade=bool(data.get("allow_downgrade")),
@@ -1743,6 +1745,7 @@ class WebUI:
         name = str(data.get("name") or "")
         if not NAME_RE.match(name) or not self.pack_dirs:
             return _err(400, "pack 名字不對。")
+        self._stop_apps("reload")
         try:
             dest = remove(name, self.pack_dirs[0], data_dir=self.config.data_dir)
         except PackAdminError as e:
@@ -1750,8 +1753,14 @@ class WebUI:
         self._reload()
         return _json(200, {"ok": True, "moved_to": os.path.relpath(dest, os.path.dirname(self.pack_dirs[0]))})
 
+    def _stop_apps(self, reason: str) -> None:
+        apps = getattr(self, "apps", None)
+        if apps is not None:
+            apps.stop_all(reason=reason)
+
     def _reload(self):
         from synox.packs.admin import reload
+        self._stop_apps("reload")                  # 工具服務：重新載入、移除、升級之前全部關（ADR 0024）
         return reload(self.app, self.config, self.vault, self.pack_dirs)
 
     def pack_reload(self, user) -> Resp:

@@ -26,6 +26,8 @@ from synox.web.server import HOST, WebUI, login_link
 def install(app, config, vault=None, *, pack_dirs=None, config_path: Optional[str] = None) -> WebUI:
     ui = WebUI(app, config, vault, pack_dirs=pack_dirs, config_path=config_path)
     app.extras["synox_web"] = ui
+    from synox.web import apps as tool_apps
+    tool_apps.install(app, config, ui)              # 工具服務（ADR 0024）：只建管理員，不開任何東西
     registry = app.registry
     server = getattr(config, "mode", "personal") == "server"
     registry.ensure_group("webui", "🌐 網頁介面", "在電腦的瀏覽器裡用 SYNOX：對話、工具、設定", bare=True,

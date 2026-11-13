@@ -3,7 +3,7 @@
 - 日期：2026-11-14
 - 狀態：**提案，等擁有者核准**。這份只有設計，沒有一行程式；核准前不動 `src/`。
 - 基準：分支 `dev`，commit `6b4253c`。前提：[ADR 0025](0025-guard-core-and-stepup.md)（門禁核心與手機驗證器）與「工具服務 ADR」
-  （分支 `feat/tool-apps` 的 `docs/adr/0023-tool-apps-services.md` 第三版；跟 `dev` 的 0023 撞號，見 0025 開頭）。
+  （分支 `feat/tool-apps` 的 `docs/adr/0024-tool-apps-services.md` 第三版；跟 `dev` 的 0023 撞號，見 0025 開頭）。
 - 分工：[實作計畫](../lab/2026-11-14-stepup-remote-plan.md)。攻擊清單：[../security/web-threats.md](../security/web-threats.md)。
 - 標籤：**已查證**／**推測**／**待實測**／**提案值**（同 0025）。
 - 平台現實：維護者的開發機**不開埠、不碰防火牆、不開通道、不跑下載來的程式**。通道程式只會在擁有者自己選的電腦上、由擁有者核准之後執行；
