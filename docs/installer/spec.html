@@ -1,0 +1,1332 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<!-- SYNOX 安裝程式規格（設計稿）。單一檔案、沒有外部 JS；配色與字型沿用 docs/landing/page.html。 -->
+<title>SYNOX 安裝程式規格</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* 版面：桌機左邊一條跟著走的目錄、右邊一欄讀下來；每個安裝畫面＝左邊一個用 HTML 畫的 Windows 安裝視窗＋右邊的說明。
+   配色直接用 SYNOX 介紹頁的 token（青綠主色、藍灰中性色、三個狀態色）。招牌元素：那一排安裝視窗。 */
+:root {
+  --bg:        #f3f5f8;
+  --surface:   #ffffff;
+  --sunken:    #eef1f5;
+  --chrome:    #f8fafc;
+  --line:      #e2e7ee;
+  --line-2:    #cdd5df;
+  --ink:       #131b26;
+  --muted:     #465264;
+  --faint:     #6a7687;
+  --accent:    #0a7c70;
+  --accent-soft:#d9f1ec;
+  --accent-ink:#ffffff;
+  --ok:        #1f7a3a;  --ok-soft:   #dcf3e3;
+  --warn:      #9a5b00;  --warn-soft: #fbeccf;
+  --bad:       #b42318;  --bad-soft:  #fde3df;
+  --smart:     #0b5cab;  --smart-ink: #ffffff;   /* Windows SmartScreen 自己的藍，兩個主題都一樣 */
+  --shadow:    0 1px 2px rgba(19,27,38,.05), 0 10px 28px -14px rgba(19,27,38,.22);
+  --shadow-lg: 0 2px 4px rgba(19,27,38,.04), 0 30px 60px -28px rgba(19,27,38,.35);
+  --glow:      radial-gradient(60% 50% at 85% 0%, rgba(10,124,112,.14), transparent 70%);
+  --display:   "LXGW WenKai TC", "Noto Serif TC", "PMingLiU", serif;
+  --body:      "Noto Sans TC", "Microsoft JhengHei UI", "PingFang TC", system-ui, sans-serif;
+  --mono:      "IBM Plex Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0f14; --surface: #121924; --sunken: #0d131b; --chrome: #172130; --line: #1f2b3b; --line-2: #2d3b4f;
+    --ink: #dbe4ef; --muted: #aab6c6; --faint: #7f90a7;
+    --accent: #35e0c4; --accent-soft: #123b38; --accent-ink: #06201c;
+    --ok: #57d98a; --ok-soft: #10301e; --warn: #e6b04e; --warn-soft: #3a2a0b; --bad: #ff8a7a; --bad-soft: #43171a;
+    --smart: #0b5cab; --smart-ink: #ffffff;
+    --shadow: 0 1px 2px rgba(0,0,0,.45), 0 14px 36px -16px rgba(0,0,0,.75);
+    --shadow-lg: 0 2px 4px rgba(0,0,0,.4), 0 30px 70px -26px rgba(0,0,0,.85);
+    --glow: radial-gradient(60% 50% at 85% 0%, rgba(53,224,196,.16), transparent 70%);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0f14; --surface: #121924; --sunken: #0d131b; --chrome: #172130; --line: #1f2b3b; --line-2: #2d3b4f;
+  --ink: #dbe4ef; --muted: #aab6c6; --faint: #7f90a7;
+  --accent: #35e0c4; --accent-soft: #123b38; --accent-ink: #06201c;
+  --ok: #57d98a; --ok-soft: #10301e; --warn: #e6b04e; --warn-soft: #3a2a0b; --bad: #ff8a7a; --bad-soft: #43171a;
+  --smart: #0b5cab; --smart-ink: #ffffff;
+  --shadow: 0 1px 2px rgba(0,0,0,.45), 0 14px 36px -16px rgba(0,0,0,.75);
+  --shadow-lg: 0 2px 4px rgba(0,0,0,.4), 0 30px 70px -26px rgba(0,0,0,.85);
+  --glow: radial-gradient(60% 50% at 85% 0%, rgba(53,224,196,.16), transparent 70%);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 76px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body {
+  margin: 0;
+  background: var(--bg) var(--glow) no-repeat;
+  color: var(--ink);
+  font-family: var(--body);
+  font-size: 16px;
+  line-height: 1.75;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4 { font-family: var(--display); font-weight: 700; line-height: 1.3; margin: 0; text-wrap: balance; }
+h2 { font-size: clamp(26px, 3.6vw, 36px); }
+h3 { font-size: 20px; }
+h4 { font-family: var(--body); font-size: 13px; letter-spacing: .08em; color: var(--faint); font-weight: 700; }
+p, ul, ol, dl, dd, figure { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+a { color: var(--accent); text-underline-offset: 3px; }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+code, kbd { font-family: var(--mono); font-size: .86em; background: var(--sunken); border: 1px solid var(--line); padding: 1px 6px; border-radius: 5px; overflow-wrap: anywhere; }
+code.nb { white-space: nowrap; }
+pre { font-family: var(--mono); font-size: 13px; line-height: 1.7; background: var(--sunken); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; overflow-x: auto; margin: 0; }
+pre code { background: none; border: 0; padding: 0; font-size: inherit; overflow-wrap: normal; }
+pre i { font-style: normal; color: var(--faint); }
+.ico { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.mark { display: inline-grid; place-items: center; flex: none; font-family: var(--body); font-weight: 700; color: var(--accent-ink); background: var(--accent); }
+.mark-md { width: 36px; height: 36px; font-size: 19px; border-radius: 10px; box-shadow: var(--shadow); }
+.mark-xs { width: 18px; height: 18px; font-size: 11px; border-radius: 5px; }
+
+/* ---------------------------------------------------------------- page frame */
+.page { max-width: 1240px; margin-inline: auto; }
+.top { display: flex; align-items: center; justify-content: space-between; gap: 10px 14px; flex-wrap: wrap; padding-block: 20px; }
+.logo { display: flex; align-items: center; gap: 12px; color: var(--ink); text-decoration: none; }
+.logo b { font-size: 19px; letter-spacing: .14em; }
+.logo span.sub { color: var(--faint); font-size: 14px; }
+.pill { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; white-space: nowrap; }
+.pill b { font-family: var(--mono); color: var(--ink); font-weight: 600; }
+.pills { display: flex; gap: 8px; flex-wrap: wrap; }
+
+.layout { display: grid; grid-template-columns: 208px minmax(0, 1fr); gap: 44px; align-items: start; }
+main { min-width: 0; display: flex; flex-direction: column; gap: 84px; padding-bottom: 40px; }
+section { display: flex; flex-direction: column; gap: 26px; scroll-margin-top: 76px; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.sec-head { display: flex; flex-direction: column; gap: 8px; max-width: 46em; }
+.sec-head p.sub { color: var(--muted); font-size: 16.5px; }
+
+/* ---------------------------------------------------------------- table of contents */
+.toc { position: sticky; top: 20px; font-size: 14.5px; }
+.toc-btn { display: none; }
+.toc ol { display: flex; flex-direction: column; gap: 2px; border-left: 1px solid var(--line-2); }
+.toc a { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 4px 12px; margin-left: -1px; border-left: 2px solid transparent; color: var(--muted); text-decoration: none; }
+.toc a i { font-style: normal; font-family: var(--mono); font-size: 11.5px; color: var(--faint); min-width: 1.4em; }
+.toc a:hover { color: var(--ink); }
+.toc a.on { color: var(--ink); font-weight: 500; border-left-color: var(--accent); }
+.toc a.on i { color: var(--accent); }
+.toc .legend { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; color: var(--faint); }
+.toc .legend span { display: flex; align-items: center; gap: 8px; }
+
+@media (max-width: 960px) {
+  .layout { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  .toc { top: env(safe-area-inset-top, 0px); z-index: 20; margin-inline: -16px; padding-inline: 16px; background: var(--bg); border-bottom: 1px solid var(--line); margin-bottom: 28px; }
+  .toc-btn { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; min-height: 48px; padding: 0; font: inherit; font-size: 14.5px; font-weight: 500; color: var(--ink); background: none; border: 0; cursor: pointer; }
+  .toc-btn .now { color: var(--faint); font-weight: 400; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+  .toc-btn .ico { transition: transform .15s; }
+  .toc.open .toc-btn .ico { transform: rotate(180deg); }
+  .toc ol, .toc .legend { display: none; }
+  .toc.open ol { display: flex; border-left: 0; padding-bottom: 10px; }
+  .toc.no-js ol { display: flex; border-left: 0; padding-bottom: 10px; }
+  .toc a { min-height: 44px; border-left: 0; margin-left: 0; padding-inline: 4px; border-radius: 8px; }
+  .toc a.on { background: var(--accent-soft); }
+  main { gap: 64px; }
+}
+
+/* ---------------------------------------------------------------- hero */
+.hero { display: flex; flex-direction: column; gap: 22px; }
+.hero h1 { font-size: clamp(34px, 5.4vw, 58px); line-height: 1.2; letter-spacing: .01em; max-width: 15em; }
+.hero h1 em { font-style: normal; color: var(--accent); white-space: nowrap; }
+.hero .lede { font-size: 18px; color: var(--muted); max-width: 34em; }
+.facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.facts > div { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 2px; }
+.facts b { font-family: var(--mono); font-size: 28px; line-height: 1.2; color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+.facts span { font-size: 13.5px; color: var(--muted); line-height: 1.5; }
+@media (max-width: 760px) { .facts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* ---------------------------------------------------------------- tags */
+.tag { font-style: normal; display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; line-height: 1.5; padding: 2px 9px; border-radius: 999px; white-space: nowrap; border: 1px solid transparent; }
+.tag.have { color: var(--ok); background: var(--ok-soft); }
+.tag.new  { color: var(--accent); background: var(--accent-soft); }
+.tag.chg  { color: var(--warn); background: var(--warn-soft); }
+.tag.wip  { color: var(--warn); background: none; border-color: var(--warn); }
+.tag.test { color: var(--muted); background: none; border-color: var(--line-2); }
+.tag.q    { color: var(--bad); background: var(--bad-soft); }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ---------------------------------------------------------------- principles */
+.principles { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 14px; }
+.principles > li { grid-column: span 2; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.principles > li:nth-child(n+4) { grid-column: span 3; }
+.principles .icon { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent); margin-bottom: 6px; }
+.principles b { font-family: var(--display); font-size: 18.5px; }
+.principles p { color: var(--muted); font-size: 15px; }
+.principles .test { margin-top: 6px; font-size: 13.5px; color: var(--faint); border-top: 1px dashed var(--line-2); padding-top: 8px; }
+@media (max-width: 760px) { .principles { grid-template-columns: 1fr; } .principles > li, .principles > li:nth-child(n+4) { grid-column: auto; } }
+
+/* ---------------------------------------------------------------- flow strip */
+.flow { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 14px; }
+.flow ol { display: flex; flex-wrap: wrap; gap: 8px 6px; align-items: center; }
+.flow li { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; }
+.flow li a { display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 4px 12px 4px 6px; border-radius: 999px; border: 1px solid var(--line-2); background: var(--sunken); color: var(--ink); text-decoration: none; white-space: nowrap; }
+.flow li a:hover { border-color: var(--accent); }
+.flow li a i { font-style: normal; font-family: var(--mono); font-size: 11.5px; font-weight: 600; min-width: 22px; height: 22px; padding-inline: 5px; border-radius: 999px; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); }
+.flow li.c a { border-style: dashed; background: none; }
+.flow li.c a i { background: none; color: var(--accent); border: 1px solid var(--accent); }
+.flow li.w a i { background: var(--ink); color: var(--bg); }
+.flow li + li::before { content: "→"; color: var(--faint); font-family: var(--mono); margin-right: 2px; }
+.flow .hint { font-size: 13.5px; color: var(--faint); display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.flow .hint span { display: inline-flex; align-items: center; gap: 7px; }
+.flow .hint span.t { display: block; }
+.swatch { width: 18px; height: 12px; border-radius: 999px; background: var(--sunken); border: 1px solid var(--line-2); flex: none; }
+.swatch.d { border-style: dashed; background: none; }
+@media (max-width: 520px) { .flow li a { min-height: 44px; } .flow .hint a { display: inline-block; padding-block: 10px; } .logo { min-height: 44px; } }
+
+/* ---------------------------------------------------------------- one screen = window + notes */
+.screens { display: flex; flex-direction: column; gap: 22px; }
+.screen { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; padding: 22px; display: flex; flex-direction: column; gap: 18px; scroll-margin-top: 76px; }
+.screen.custom { border-style: dashed; border-color: var(--line-2); background: none; }
+.screen-h { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.num { font-family: var(--mono); font-weight: 600; font-size: 14px; min-width: 32px; height: 32px; padding-inline: 8px; border-radius: 10px; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); flex: none; }
+.screen.custom .num { background: none; color: var(--accent); border: 1.5px solid var(--accent); }
+.screen-h h3 { margin-right: auto; }
+.screen-h .who { font-size: 13px; color: var(--faint); }
+.screen-grid { display: grid; grid-template-columns: minmax(0, 1.12fr) minmax(0, 1fr); gap: 26px; align-items: start; }
+@media (max-width: 1100px) { .screen-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 520px) { .screen { padding: 14px; border-radius: 16px; } }
+
+.notes { display: flex; flex-direction: column; gap: 16px; min-width: 0; font-size: 15px; }
+.notes ul.pts { display: flex; flex-direction: column; gap: 7px; color: var(--muted); }
+.notes ul.pts li { padding-left: 18px; position: relative; }
+.notes ul.pts li::before { content: ""; position: absolute; left: 3px; top: .72em; width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+.notes ul.pts strong { color: var(--ink); font-weight: 600; }
+.impl { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 14px; font-size: 13.5px; padding: 12px 14px; background: var(--sunken); border: 1px solid var(--line); border-radius: 12px; }
+.screen.custom .impl { background: var(--surface); }
+.impl dt { font-family: var(--mono); font-size: 12px; color: var(--faint); padding-top: 2px; white-space: nowrap; }
+.impl dd { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+.impl code { background: var(--surface); }
+.screen.custom .impl code { background: var(--sunken); }
+@media (max-width: 420px) { .impl { grid-template-columns: minmax(0, 1fr); gap: 2px; } .impl dt { padding-top: 8px; } .impl dt:first-child { padding-top: 0; } }
+
+/* ---------------------------------------------------------------- the window mock */
+.win { background: var(--surface); border: 1px solid var(--line-2); border-radius: 10px; box-shadow: var(--shadow-lg); overflow: hidden; font-size: 14.5px; line-height: 1.65; display: flex; flex-direction: column; min-width: 0; }
+.win-bar { display: flex; align-items: center; gap: 8px; height: 36px; padding-left: 11px; background: var(--chrome); border-bottom: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+.win-bar .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.win-ctl { margin-left: auto; display: flex; flex: none; color: var(--faint); }
+.win-ctl svg { width: 40px; height: 36px; fill: none; stroke: currentColor; stroke-width: 1; }
+.win-body { padding: 22px 24px 24px; display: flex; flex-direction: column; gap: 12px; min-height: 304px; }
+.win-body .h { font-family: var(--body); font-size: 19px; font-weight: 700; line-height: 1.4; }
+.win-body p { color: var(--muted); }
+.win-body p strong, .win-body li strong { color: var(--ink); font-weight: 600; }
+.win-body .small { font-size: 12.5px; color: var(--faint); margin-top: auto; padding-top: 6px; }
+.win-body .small u { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.win-foot { display: flex; justify-content: flex-end; align-items: center; gap: 8px; padding: 12px 16px; background: var(--sunken); border-top: 1px solid var(--line); }
+.win-foot .gap { width: 6px; flex: none; }
+.wbtn { min-width: 84px; min-height: 34px; padding: 4px 14px; display: inline-grid; place-items: center; border-radius: 6px; border: 1px solid var(--line-2); background: var(--surface); color: var(--ink); font-size: 13.5px; white-space: nowrap; }
+.wbtn.pri { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 500; }
+.wbtn.off { color: var(--faint); background: none; border-color: var(--line); opacity: .7; }
+@media (max-width: 420px) { .win-body { padding: 18px 16px 20px; } .win-foot { padding: 10px 12px; gap: 6px; } .wbtn { min-width: 72px; padding-inline: 8px; } .win-foot .gap { display: none; } }
+
+.ticks { display: flex; flex-direction: column; gap: 6px; }
+.ticks li { position: relative; padding-left: 25px; color: var(--muted); }
+.ticks li::before { content: "✓"; position: absolute; left: 0; top: 0; width: 16px; text-align: center; color: var(--ok); font-weight: 700; }
+.found { display: flex; gap: 10px; align-items: flex-start; font-size: 13.5px; background: var(--warn-soft); color: var(--ink); border-radius: 8px; padding: 10px 12px; }
+.found .ico { color: var(--warn); width: 18px; height: 18px; margin-top: 2px; }
+.found code { background: none; border: 0; padding: 0; font-size: .92em; }
+.field { display: flex; gap: 8px; align-items: stretch; }
+.field .box { flex: 1; min-width: 0; border: 1px solid var(--line-2); border-radius: 6px; background: var(--sunken); padding: 7px 10px; font-family: var(--mono); font-size: 12.5px; overflow-wrap: anywhere; line-height: 1.5; }
+.field .box.sel { display: flex; justify-content: space-between; gap: 8px; font-family: var(--body); font-size: 14px; }
+.field .box.sel::after { content: "▾"; color: var(--faint); }
+.opt { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; }
+.opt.on { border-color: var(--accent); background: var(--accent-soft); }
+.opt > div { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
+.opt b { font-size: 15.5px; font-weight: 700; }
+.opt span.d { font-size: 13.5px; color: var(--muted); line-height: 1.6; }
+.rb, .cb { flex: none; width: 18px; height: 18px; margin-top: 4px; border: 1.5px solid var(--faint); background: var(--surface); display: grid; place-items: center; }
+.rb { border-radius: 50%; }
+.cb { border-radius: 4px; }
+.rb.on { border-color: var(--accent); }
+.rb.on::after { content: ""; width: 9px; height: 9px; border-radius: 50%; background: var(--accent); }
+.cb.on { border-color: var(--accent); background: var(--accent); }
+.cb.on::after { content: ""; width: 9px; height: 5px; border-left: 2px solid var(--accent-ink); border-bottom: 2px solid var(--accent-ink); transform: rotate(-45deg) translate(1px, -1px); }
+.checks { display: flex; flex-direction: column; gap: 9px; }
+.checks li { display: flex; gap: 10px; align-items: flex-start; }
+.checks li > span:last-child { min-width: 0; }
+.checks li em { display: block; font-style: normal; font-size: 12.5px; color: var(--faint); }
+.bar { height: 8px; border-radius: 999px; background: var(--sunken); border: 1px solid var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 46%; background: var(--accent); border-radius: 999px; }
+.steps { display: flex; flex-direction: column; gap: 7px; font-size: 14px; }
+.steps li { position: relative; padding-left: 24px; color: var(--faint); }
+.steps li::before { content: ""; position: absolute; left: 0; top: .36em; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid var(--line-2); }
+.steps li.done { color: var(--muted); }
+.steps li.done::before { border-color: var(--ok); background: var(--ok); box-shadow: inset 0 0 0 3px var(--surface); }
+.steps li.now { color: var(--ink); font-weight: 500; }
+.steps li.now::before { border-color: var(--accent); border-right-color: transparent; animation: spin 1s linear infinite; }
+.steps li.now em { display: block; font-style: normal; font-weight: 400; font-size: 12.5px; color: var(--faint); }
+.steps li.warn { color: var(--warn); }
+.steps li.warn::before { border-color: var(--warn); background: var(--warn-soft); }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .steps li.now::before { animation: none; border-right-color: var(--accent); } }
+.done-badge { width: 44px; height: 44px; border-radius: 50%; background: var(--ok-soft); color: var(--ok); display: grid; place-items: center; }
+.done-badge .ico { width: 24px; height: 24px; stroke-width: 2.2; }
+
+/* ---------------------------------------------------------------- the Tk wizard that follows */
+.wizard { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1180px) { .wizard { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 700px)  { .wizard { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 400px)  { .wizard { grid-template-columns: minmax(0, 1fr); } }
+.win.mini { font-size: 12.5px; box-shadow: var(--shadow); }
+.win.mini .win-bar { height: 28px; font-size: 11.5px; }
+.win.mini .win-body { padding: 12px 14px 14px; gap: 6px; min-height: 172px; }
+.win.mini .step { font-size: 11px; color: var(--faint); }
+.win.mini .h { font-size: 15px; }
+.win.mini ul { display: flex; flex-direction: column; gap: 3px; color: var(--muted); }
+.win.mini ul li { display: flex; gap: 6px; align-items: flex-start; }
+.win.mini .rb, .win.mini .cb { width: 12px; height: 12px; margin-top: 4px; border-width: 1px; }
+.win.mini .rb.on::after { width: 6px; height: 6px; }
+.win.mini .cb.on::after { width: 6px; height: 3px; border-width: 1.5px; }
+.win.mini .win-foot { padding: 7px 10px; }
+.win.mini .wbtn { min-width: 0; min-height: 24px; font-size: 11.5px; padding: 2px 10px; }
+@media (max-width: 400px) { .win.mini .win-body { min-height: 0; } }
+.code6 { font-family: var(--mono); font-size: 19px; font-weight: 600; letter-spacing: .16em; color: var(--ink); }
+.callouts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 860px) { .callouts { grid-template-columns: 1fr; } }
+.callouts > div { border: 1px solid var(--line); border-radius: 14px; background: var(--surface); padding: 16px 18px; display: flex; flex-direction: column; gap: 6px; font-size: 14.5px; color: var(--muted); }
+.callouts b { color: var(--ink); font-size: 15.5px; }
+
+/* ---------------------------------------------------------------- option cards */
+.options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+@media (max-width: 1100px) { .options { grid-template-columns: minmax(0, 1fr); } }
+.option { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.option header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.option header b { font-family: var(--display); font-size: 18.5px; margin-right: auto; }
+.default { display: flex; gap: 10px; align-items: baseline; font-size: 14.5px; padding: 8px 12px; border-radius: 10px; background: var(--accent-soft); }
+.default i { font-style: normal; font-size: 12px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.default span { min-width: 0; overflow-wrap: anywhere; }
+.option dl { display: grid; grid-template-columns: 5.6em minmax(0, 1fr); gap: 7px 12px; font-size: 14px; }
+.option dt { color: var(--faint); font-size: 13px; padding-top: 1px; }
+.option dd { color: var(--muted); min-width: 0; overflow-wrap: anywhere; }
+@media (max-width: 420px) { .option { padding: 16px; } .option dl { grid-template-columns: minmax(0, 1fr); gap: 1px; } .option dt { padding-top: 8px; font-weight: 700; } }
+
+/* ---------------------------------------------------------------- bootstrap flags */
+.flags { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.flags li { display: grid; grid-template-columns: 15.5em minmax(0, 1fr) auto; gap: 4px 16px; align-items: center; padding: 10px 18px; border-bottom: 1px solid var(--line); font-size: 14.5px; color: var(--muted); }
+.flags li:last-child { border-bottom: 0; }
+.flags code { justify-self: start; background: none; border: 0; padding: 0; font-size: 13px; color: var(--ink); font-weight: 600; }
+.flags li:nth-child(n+3) code { padding-left: 1.2em; font-weight: 400; }
+@media (max-width: 640px) { .flags li { grid-template-columns: minmax(0, 1fr) auto; padding: 10px 14px; } .flags code { grid-column: 1 / -1; } .flags li:nth-child(n+3) code { padding-left: 0; } }
+
+/* ---------------------------------------------------------------- compare table */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 14.5px; min-width: 640px; }
+th, td { text-align: left; vertical-align: top; padding: 12px 16px; border-bottom: 1px solid var(--line); }
+tr:last-child > * { border-bottom: 0; }
+thead th { font-family: var(--display); font-size: 17px; background: var(--sunken); }
+thead th small { display: block; font-family: var(--body); font-weight: 400; font-size: 12.5px; color: var(--faint); }
+tbody th { font-weight: 500; color: var(--faint); font-size: 13.5px; width: 9.5em; }
+td { color: var(--muted); }
+td strong { color: var(--ink); font-weight: 600; }
+tr.same td { background: var(--accent-soft); color: var(--ink); text-align: center; font-weight: 500; }
+.duo { display: none; }
+@media (max-width: 700px) {
+  .table-wrap { display: none; }
+  .duo { display: flex; flex-direction: column; gap: 10px; }
+  .duo > div { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; font-size: 14.5px; }
+  .duo h4 { color: var(--ink); font-size: 15px; letter-spacing: 0; }
+  .duo p { color: var(--muted); display: grid; grid-template-columns: 3.2em minmax(0, 1fr); gap: 10px; }
+  .duo p i { font-style: normal; font-family: var(--mono); font-size: 12px; color: var(--accent); padding-top: 3px; }
+  .duo p strong { color: var(--ink); font-weight: 600; }
+  .duo .same { background: var(--accent-soft); border-color: transparent; }
+  .duo .same p { display: block; color: var(--ink); }
+}
+
+/* ---------------------------------------------------------------- failure screens */
+.rule { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; }
+.rule > div { padding: 16px 18px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--muted); }
+.rule > div:last-child { border-right: 0; }
+.rule b { color: var(--ink); font-size: 15px; }
+.rule i { font-style: normal; font-family: var(--mono); font-size: 12px; color: var(--accent); font-weight: 600; }
+@media (max-width: 860px) { .rule { grid-template-columns: repeat(2, minmax(0, 1fr)); } .rule > div:nth-child(2) { border-right: 0; } .rule > div:nth-child(-n+2) { border-bottom: 1px solid var(--line); } }
+@media (max-width: 460px) { .rule { grid-template-columns: 1fr; } .rule > div { border-right: 0; border-bottom: 1px solid var(--line); } .rule > div:last-child { border-bottom: 0; } }
+.fails { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 20px; align-items: start; }
+@media (max-width: 1100px) { .fails { grid-template-columns: minmax(0, 1fr); } }
+@media (min-width: 1101px) { #f3 { grid-row: span 2; } }
+.fail { display: flex; flex-direction: column; gap: 12px; min-width: 0; scroll-margin-top: 76px; }
+.fail-h { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.fail-h h3 { font-size: 18.5px; margin-right: auto; }
+.fail .win-body { min-height: 0; }
+.fail .win-body .h { display: flex; gap: 10px; align-items: flex-start; }
+.fail .win-body .h .ico { color: var(--warn); margin-top: 4px; }
+.next { display: flex; flex-direction: column; gap: 6px; counter-reset: n; }
+.next li { counter-increment: n; position: relative; padding-left: 30px; color: var(--muted); }
+.next li::before { content: counter(n); position: absolute; left: 0; top: .22em; font-family: var(--mono); font-size: 11.5px; font-weight: 600; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--sunken); border: 1px solid var(--line-2); color: var(--ink); }
+.fail > p { font-size: 14px; color: var(--muted); }
+.smart { background: var(--smart); color: var(--smart-ink); border-radius: 4px; padding: 22px 22px 18px; display: flex; flex-direction: column; gap: 10px; font-size: 14px; line-height: 1.6; box-shadow: var(--shadow-lg); }
+.smart .h { font-size: 21px; font-weight: 400; }
+.smart u { text-underline-offset: 3px; position: relative; }
+.smart .meta { font-size: 12.5px; opacity: .9; }
+.smart .row { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.smart .row > span { border: 2px solid var(--smart-ink); padding: 4px 18px; font-size: 13.5px; }
+.smart .row > span.go { background: var(--smart-ink); color: var(--smart); font-weight: 700; }
+.ptr { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--smart-ink); color: var(--smart); font-family: var(--mono); font-size: 11.5px; font-weight: 600; margin-right: 6px; vertical-align: 2px; }
+
+/* ---------------------------------------------------------------- status + questions */
+.status { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+@media (max-width: 1000px) { .status { grid-template-columns: minmax(0, 1fr); } }
+.status > div { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px 20px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.status h3 { font-size: 18px; display: flex; align-items: center; gap: 10px; }
+.dot { width: 10px; height: 10px; border-radius: 50%; flex: none; display: inline-block; }
+.status ul { display: flex; flex-direction: column; gap: 9px; font-size: 14.5px; color: var(--muted); }
+.status li { padding-left: 16px; position: relative; overflow-wrap: anywhere; }
+.status li::before { content: ""; position: absolute; left: 1px; top: .78em; width: 5px; height: 5px; border-radius: 50%; background: var(--line-2); }
+.status li strong { color: var(--ink); font-weight: 600; }
+.banner { display: flex; gap: 14px; align-items: flex-start; border: 1px solid var(--warn); background: var(--warn-soft); border-radius: 16px; padding: 16px 18px; font-size: 15px; }
+.banner .ico { color: var(--warn); margin-top: 4px; }
+.banner b { display: block; font-size: 16px; }
+.qs { display: flex; flex-direction: column; gap: 12px; counter-reset: q; }
+.qs > li { counter-increment: q; background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 16px; scroll-margin-top: 76px; }
+.qs > li::before { content: "Q" counter(q); grid-row: span 3; font-family: var(--mono); font-weight: 600; font-size: 14px; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--bad-soft); color: var(--bad); }
+.qs b { font-family: var(--display); font-size: 18px; line-height: 1.45; }
+.qs p { color: var(--muted); font-size: 14.5px; }
+.qs .rec { margin-top: 6px; display: flex; gap: 10px; align-items: baseline; font-size: 14.5px; padding: 9px 12px; border-radius: 10px; background: var(--accent-soft); color: var(--ink); }
+.qs .rec i { font-style: normal; font-size: 12px; font-weight: 700; color: var(--accent); white-space: nowrap; }
+.qs .rec span { min-width: 0; }
+@media (max-width: 520px) { .qs > li { grid-template-columns: minmax(0, 1fr); padding: 16px; } .qs > li::before { grid-row: auto; width: 36px; height: 30px; border-radius: 9px; margin-bottom: 4px; } }
+
+footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22px 44px; }
+.stamp { font-family: var(--mono); font-size: 11px; color: var(--faint); opacity: .75; overflow-wrap: anywhere; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-hand" viewBox="0 0 24 24"><path d="M9 11V5a1.5 1.5 0 013 0v5m0-1.5a1.5 1.5 0 013 0V11m0-.5a1.5 1.5 0 013 0V15a6 6 0 01-6 6h-1a6 6 0 01-5-2.7L3.6 14a1.5 1.5 0 012.5-1.6L9 15"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9h8M8 12.5h5"/></symbol>
+    <symbol id="i-sign" viewBox="0 0 24 24"><path d="M12 3v18M5 6h11l3 3-3 3H5zM8 14h8"/></symbol>
+    <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.8-5.2 2.8 1-5.8-4.3-4.1 5.9-.9z"/></symbol>
+    <symbol id="i-box" viewBox="0 0 24 24"><path d="M3.5 7.5L12 3l8.5 4.5v9L12 21l-8.5-4.5z"/><path d="M3.5 7.5L12 12l8.5-4.5M12 12v9"/></symbol>
+    <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4l9 16H3z"/><path d="M12 10v4.5M12 17.4v.1"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
+    <symbol id="i-down" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></symbol>
+  </defs>
+</svg>
+
+<div class="page">
+<header class="top" id="top">
+  <a class="logo" href="#top"><span class="mark mark-md" aria-hidden="true">S</span><b>SYNOX</b><span class="sub">安裝程式規格</span></a>
+  <div class="pills">
+    <span class="pill">狀態 <b>設計稿</b></span>
+    <span class="pill">對象 <b>Windows 10／11</b></span>
+    <span class="pill">SYNOX <b>0.2.0</b></span>
+  </div>
+</header>
+
+<div class="layout">
+<nav class="toc no-js" id="toc" aria-label="目錄">
+  <button class="toc-btn" id="toc-btn" type="button" aria-expanded="false" aria-controls="toc-list">
+    <span>目錄</span><span class="now" id="toc-now"></span>
+    <svg class="ico" aria-hidden="true"><use href="#i-down"/></svg>
+  </button>
+  <ol id="toc-list">
+    <li><a href="#goal"><i>1</i>目標與原則</a></li>
+    <li><a href="#screens"><i>2</i>安裝畫面，一頁一頁</a></li>
+    <li><a href="#wizard"><i>3</i>接著的設定精靈</a></li>
+    <li><a href="#options"><i>4</i>每個選項的建議值</a></li>
+    <li><a href="#compare"><i>5</i>ZIP 與 .exe 兩條路</a></li>
+    <li><a href="#fail"><i>6</i>出問題的時候</a></li>
+    <li><a href="#status"><i>7</i>現在做到哪裡</a></li>
+    <li><a href="#questions"><i>8</i>請擁有者決定</a></li>
+  </ol>
+  <div class="legend" aria-label="標籤說明">
+    <span><i class="tag have">已有</i>今天的程式就有</span>
+    <span><i class="tag new">新的</i>這份規格新增</span>
+    <span><i class="tag chg">要改</i>有，但要調整</span>
+    <span><i class="tag wip">⏳ 尚未完成</i></span>
+    <span><i class="tag test">待實測</i>沒在 Windows 試過</span>
+  </div>
+</nav>
+
+<main>
+
+<!-- ============================================================ 1. goal + principles -->
+<section id="goal">
+  <div class="hero">
+    <p class="eyebrow">一句話目標</p>
+    <h1>下載一個檔案，一路按<em>「下一步」</em>，SYNOX 就能用。</h1>
+    <p class="lede">不懂電腦的人用建議值就全部裝好；懂的人可以自己調。這台電腦原本的 Python、Conda 和其他程式，一樣都不動。</p>
+    <div class="facts">
+      <div><b>5</b><span>次點擊走完建議安裝：3 次「下一步」、1 次「安裝」、1 次「完成」</span></div>
+      <div><b>0</b><span>個指令。全程沒有黑色視窗，不用打字</span></div>
+      <div><b>0</b><span>次系統管理員密碼。裝在你自己的使用者資料夾</span></div>
+      <div><b>1</b><span>個資料夾。程式、SYNOX 自己的 Python、你的資料都在裡面</span></div>
+    </div>
+  </div>
+
+  <div class="sec-head">
+    <h2>五條原則</h2>
+    <p class="sub">每一頁畫面、每一句話都拿這五條檢查。有一條不過，就還不能出貨。</p>
+  </div>
+  <ul class="principles">
+    <li>
+      <span class="icon"><svg class="ico"><use href="#i-hand"/></svg></span>
+      <b>不用開終端機</b>
+      <p>從下載到手機收到「我在了」，使用者只按按鈕、貼一次 token。看不到黑色視窗，也不用知道 Python 是什麼。</p>
+      <p class="test">檢查方法：找一位不寫程式的人，不給任何提示，看他能不能自己裝完。</p>
+    </li>
+    <li>
+      <span class="icon"><svg class="ico"><use href="#i-chat"/></svg></span>
+      <b>講白話</b>
+      <p>畫面上不出現 venv、pip、PATH、HKCU 這些字。要講就講它做什麼：「SYNOX 自己的 Python」「點兩下就能安裝」。</p>
+      <p class="test">工程用語只放在「顯示詳細過程」和紀錄檔裡。</p>
+    </li>
+    <li>
+      <span class="icon"><svg class="ico"><use href="#i-sign"/></svg></span>
+      <b>失敗時說下一步</b>
+      <p>每個錯誤畫面都回答三件事：發生什麼事、你的東西有沒有受影響、現在該按哪一顆。不丟錯誤代碼給使用者。</p>
+      <p class="test">見第 6 節的五個失敗畫面。</p>
+    </li>
+    <li>
+      <span class="icon"><svg class="ico"><use href="#i-star"/></svg></span>
+      <b>建議值先選好</b>
+      <p>每個問題都有一個已經選好的答案，直接按「下一步」就是完整可用的 SYNOX。想改的人選「自訂」，像 Git for Windows 那樣一項一項調。</p>
+    </li>
+    <li>
+      <span class="icon"><svg class="ico"><use href="#i-box"/></svg></span>
+      <b>SYNOX 資料夾以外的東西，你選了才動</b>
+      <p>程式、SYNOX 自己的 Python、資料都放在同一個資料夾。資料夾外面只會做你在畫面上看得到、而且勾了的事（捷徑、開機啟動、檔案類型、Claude Code），每一項都能取消，解除安裝時會收乾淨。</p>
+    </li>
+  </ul>
+</section>
+
+<!-- ============================================================ 2. screens -->
+<section id="screens">
+  <div class="sec-head">
+    <p class="eyebrow">安裝程式 SYNOX-Setup-0.2.0.exe</p>
+    <h2>安裝畫面，一頁一頁</h2>
+    <p class="sub">下面的視窗是用 HTML 畫的示意圖，裡面的中文就是要放進安裝程式的字。選「建議」的人看到 6 頁；選「自訂」的人多看 3 頁。</p>
+  </div>
+
+  <div class="flow">
+    <ol>
+      <li><a href="#s1"><i>1</i>歡迎</a></li>
+      <li><a href="#s2"><i>2</i>先說清楚</a></li>
+      <li><a href="#s3"><i>3</i>安裝位置</a></li>
+      <li><a href="#s4"><i>4</i>安裝方式</a></li>
+      <li class="c"><a href="#sa"><i>A</i>哪個 Python</a></li>
+      <li class="c"><a href="#sb"><i>B</i>要裝哪些</a></li>
+      <li class="c"><a href="#sc"><i>C</i>語言</a></li>
+      <li><a href="#s5"><i>5</i>安裝中</a></li>
+      <li><a href="#s6"><i>6</i>完成</a></li>
+      <li class="w"><a href="#wizard"><i>→</i>設定精靈</a></li>
+    </ol>
+    <div class="hint">
+      <span><i class="swatch"></i>每個人都會看到</span>
+      <span><i class="swatch d"></i>選「自訂」才會看到</span>
+      <span class="t">沒有「準備安裝」確認頁，也沒有要按「我同意」的授權頁（見 <a href="#questions">Q4</a>）</span>
+    </div>
+  </div>
+
+  <div class="screens">
+
+    <!-- 1 歡迎 -->
+    <article class="screen" id="s1">
+      <header class="screen-h"><span class="num">1</span><h3>歡迎</h3><span class="tags"><i class="tag new">新的</i></span></header>
+      <div class="screen-grid">
+        <figure class="win" aria-label="安裝視窗示意：歡迎">
+          <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
+          <div class="win-body">
+            <p class="h">歡迎安裝 SYNOX</p>
+            <p>SYNOX 是住在你自己電腦上的小助手。你可以用 Telegram、Discord 或這台電腦的網頁跟它講話。</p>
+            <p>接下來<strong>一路按「下一步」就會裝好</strong>，大約 3 到 5 分鐘。</p>
+            <ul class="ticks">
+              <li>不需要系統管理員密碼</li>
+              <li>不用打任何指令</li>
+              <li>不會改動這台電腦原本的程式</li>
+            </ul>
+            <p class="small">版本 0.2.0（alpha，早期版）。繼續安裝代表你同意 <u>授權條款</u>。</p>
+          </div>
+          <div class="win-foot" aria-hidden="true"><span class="wbtn off">上一步</span><span class="wbtn pri">下一步</span><span class="gap"></span><span class="wbtn">取消</span></div>
+        </figure>
+        <div class="notes">
+          <h4>這頁要做到</h4>
+          <ul class="pts">
+            <li>三句話讓人知道「這是什麼、要多久、會不會弄壞電腦」。</li>
+            <li>安裝程式的語言<strong>自動跟 Windows 的顯示語言一樣</strong>，不先跳一個選語言的小視窗。</li>
+            <li>已經裝過 SYNOX 時，標題改成「更新 SYNOX」，並加一句「你的設定和資料會留著」。</li>
+            <li>「3 到 5 分鐘」是估計值，要在真的電腦上量過再定。<i class="tag test">待實測</i></li>
+          </ul>
+          <h4>怎麼做</h4>
+          <dl class="impl">
+            <dt>Inno Setup</dt><dd><code>wpWelcome</code>。Inno Setup 6 預設會跳過歡迎頁，要設 <code>DisableWelcomePage=no</code>；文字放在 <code>[Messages] WelcomeLabel1／2</code>。</dd>
+            <dt>語言</dt><dd><code>ShowLanguageDialog=no</code>＋<code>LanguageDetectionMethod=uilanguage</code>。今天的 <code>synox.iss</code> 只有英文。</dd>
+            <dt>ZIP 路徑</dt><dd><code>Setup.bat</code> 視窗的前三行印同樣的三句話。</dd>
+          </dl>
+        </div>
+      </div>
+    </article>
+
+    <!-- 2 先說清楚 -->
+    <article class="screen" id="s2">
+      <header class="screen-h"><span class="num">2</span><h3>先說清楚</h3><span class="tags"><i class="tag new">新的</i><i class="tag wip">⏳ 自帶 Python 正在做</i></span></header>
+      <div class="screen-grid">
+        <figure class="win" aria-label="安裝視窗示意：先說清楚">
+          <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
+          <div class="win-body">
+            <p class="h">先說清楚：SYNOX 用它自己的 Python</p>
+            <p>SYNOX 要靠一個叫 Python 的程式才能跑。很多電腦已經裝過 Python（例如 Anaconda、Miniconda，或從 Microsoft Store 裝的），它們的設定常常互相干擾，這是安裝失敗最常見的原因。</p>
+            <p>所以 SYNOX <strong>自己帶一份專用的 Python</strong>，放在 SYNOX 的資料夾裡：</p>
+            <ul class="ticks">
+              <li>這台電腦原本的 Python、Conda <strong>不會被使用，也不會被改動</strong>。</li>
+              <li>不會去 Microsoft Store 裝 Python。</li>
+              <li>解除安裝 SYNOX 時，這份 Python 會一起移除。</li>
+            </ul>
+            <div class="found"><svg class="ico" aria-hidden="true"><use href="#i-alert"/></svg><span>這台電腦上找到：Anaconda（<code>C:\Users\你\anaconda3</code>）、Microsoft Store 的 python 捷徑。SYNOX 不會用到它們。</span></div>
+            <p class="small">想用你自己的 Python？兩頁之後選「自訂」就可以改。</p>
+          </div>
+          <div class="win-foot" aria-hidden="true"><span class="wbtn">上一步</span><span class="wbtn pri">下一步</span><span class="gap"></span><span class="wbtn">取消</span></div>
+        </figure>
+        <div class="notes">
+          <h4>這頁要做到</h4>
+          <ul class="pts">
+            <li>在使用者做任何選擇<strong>之前</strong>就講明白：這台電腦的 Python／Conda 可能會干擾，所以 SYNOX 不碰它們。</li>
+            <li>黃色那一格是<strong>偵測到才出現</strong>的：找到 Conda、Microsoft Store 的 python 捷徑、或 PATH 上別的 Python 時，把找到的東西列出來，再說一次「不會用到」。什麼都沒找到就不顯示。</li>
+            <li>只有說明，沒有要選的東西。直接按「下一步」。</li>
+            <li>不寫「虛擬環境」「PATH」。SYNOX 的 Python 不加進 PATH，別的程式看不到它。</li>
+          </ul>
+          <h4>怎麼做</h4>
+          <dl class="impl">
+            <dt>Inno Setup</dt><dd>自訂頁 <code>CreateCustomPage(wpWelcome, …)</code>。偵測寫在 <code>[Code]</code>：<code>CONDA_PREFIX</code>、<code>%USERPROFILE%\anaconda3</code>／<code>miniconda3</code>、<code>%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe</code>（Store 的捷徑）。只讀，不改。</dd>
+            <dt>bootstrap</dt><dd>預設只用 SYNOX 資料夾裡的 Python；不再找 <code>py</code>、PATH、winget。另一個工作正在改（用 uv 把 Python 裝在 SYNOX 資料夾內）。</dd>
+            <dt>今天</dt><dd><code>bootstrap.ps1</code> 會先找系統的 <code>py</code>／<code>python</code>，找不到才用 winget 或可攜版。這正是要拿掉的行為。</dd>
+          </dl>
+        </div>
+      </div>
+    </article>
+
+    <!-- 3 安裝位置 -->
+    <article class="screen" id="s3">
+      <header class="screen-h"><span class="num">3</span><h3>安裝位置</h3><span class="tags"><i class="tag have">已有</i><i class="tag chg">文字要改</i></span></header>
+      <div class="screen-grid">
+        <figure class="win" aria-label="安裝視窗示意：安裝位置">
+          <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
+          <div class="win-body">
+            <p class="h">要裝在哪裡？</p>
+            <p>SYNOX 會裝在下面這個資料夾。<strong>不知道要選哪裡的話不用改</strong>，直接按「下一步」。</p>
+            <div class="field"><span class="box">C:\Users\你的名字\AppData\Local\Programs\SYNOX</span><span class="wbtn">瀏覽…</span></div>
+            <ul class="ticks">
+              <li>這個位置不需要系統管理員密碼。</li>
+              <li>你的設定、筆記和金鑰也放在這個資料夾裡。</li>
+            </ul>
+            <p class="small">需要大約 600 MB。這顆磁碟還有 128 GB。</p>
+          </div>
+          <div class="win-foot" aria-hidden="true"><span class="wbtn">上一步</span><span class="wbtn pri">下一步</span><span class="gap"></span><span class="wbtn">取消</span></div>
+        </figure>
+        <div class="notes">
+          <h4>這頁要做到</h4>
+          <ul class="pts">
+            <li>預設是 <code>%LOCALAPPDATA%\Programs\SYNOX</code>：每個 Windows 使用者自己一份，不用管理員。</li>
+            <li>選到 <code>C:\Program Files</code> 這類要管理員的位置時，當場擋下並說原因：「SYNOX 要在這個資料夾裡存你的資料，這裡不能寫入。請選別的位置。」</li>
+            <li>路徑有中文、空白都要能裝。<i class="tag test">待實測</i></li>
+            <li>「600 MB」是估計值；空間不夠時在這頁就說，不等到裝一半（見<a href="#f4">失敗畫面 4</a>）。</li>
+            <li>更新時不顯示這頁，沿用上次的位置。</li>
+          </ul>
+          <h4>怎麼做</h4>
+          <dl class="impl">
+            <dt>Inno Setup</dt><dd><code>wpSelectDir</code>；<code>DefaultDirName={localappdata}\Programs\SYNOX</code>、<code>PrivilegesRequired=lowest</code>（<code>synox.iss</code> 已經這樣寫）。擋不可寫的位置：<code>NextButtonClick</code> 裡試寫一個檔。</dd>
+            <dt>ZIP 路徑</dt><dd>沒有這一頁：ZIP 解在哪裡，SYNOX 就在哪裡。</dd>
+          </dl>
+        </div>
+      </div>
+    </article>
+
+    <!-- 4 安裝方式 -->
+    <article class="screen" id="s4">
+      <header class="screen-h"><span class="num">4</span><h3>安裝方式</h3><span class="tags"><i class="tag new">新的</i></span></header>
+      <div class="screen-grid">
+        <figure class="win" aria-label="安裝視窗示意：安裝方式">
+          <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
+          <div class="win-body">
+            <p class="h">要怎麼裝？</p>
+            <div class="opt on"><span class="rb on"></span><div><b>建議（全部幫我裝好）</b>
+              <span class="d">不用做任何決定。會幫你：用 SYNOX 自己的 Python、在桌面和開始功能表放捷徑、讓 .synoxpack 檔案點兩下就能安裝、開機後自動啟動、放好官方工具庫並裝好入門工具、安裝 Claude Code（這台還沒有的話；需要上網）。</span></div></div>
+            <div class="opt"><span class="rb"></span><div><b>自訂</b>
+              <span class="d">我想自己決定每一項。適合本來就在用 Python、或公司電腦有規定的人。</span></div></div>
+            <p class="small">之後想改，再執行一次安裝程式就可以，你的資料不會不見。</p>
+          </div>
+          <div class="win-foot" aria-hidden="true"><span class="wbtn">上一步</span><span class="wbtn pri">安裝</span><span class="gap"></span><span class="wbtn">取消</span></div>
+        </figure>
+        <div class="notes">
+          <h4>這頁要做到</h4>
+          <ul class="pts">
+            <li>「建議」已經選好。它下面那段話把<strong>會動到資料夾外面的每一件事都列出來</strong>，這就是使用者同意的範圍。</li>
+            <li>選「建議」時，主要按鈕直接寫<strong>「安裝」</strong>，按下去就開始；選「自訂」時按鈕變回「下一步」，進入 A、B、C 三頁。</li>
+            <li>「自訂」那三頁的預設值跟「建議」完全一樣：一路按「下一步」的結果相同。</li>
+            <li>「建議」裡的開機自動啟動、Claude Code、入門工具這三項，要先請擁有者點頭（<a href="#questions">Q1～Q3</a>）。<i class="tag q">待決定</i></li>
+          </ul>
+          <h4>怎麼做</h4>
+          <dl class="impl">
+            <dt>Inno Setup</dt><dd><code>CreateInputOptionPage(wpSelectDir, …, Exclusive=True)</code>；A、B、C 三頁用 <code>ShouldSkipPage</code> 在選「建議」時跳過；<code>DisableReadyPage=yes</code>。</dd>
+            <dt>ZIP 路徑</dt><dd><code>Setup.bat</code> 開頭問一題：「按 Enter：照建議全部裝好。輸入 C 再按 Enter：自訂。」也可以直接用 <code>Setup.bat -Custom</code>（<a href="#questions">Q8</a>）。</dd>
+          </dl>
+        </div>
+      </div>
+    </article>
+
+    <!-- A Python -->
+    <article class="screen custom" id="sa">
+      <header class="screen-h"><span class="num">A</span><h3>自訂 1／3：哪個 Python</h3><span class="who">選「自訂」才會看到</span><span class="tags"><i class="tag new">新的</i><i class="tag wip">⏳ 正在做</i></span></header>
+      <div class="screen-grid">
+        <figure class="win" aria-label="安裝視窗示意：自訂，哪個 Python">
+          <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
+          <div class="win-body">
+            <p class="h">SYNOX 要用哪個 Python？</p>
+            <div class="opt on"><span class="rb on"></span><div><b>SYNOX 自帶的（建議）</b>
+              <span class="d">專用的一份，放在 SYNOX 資料夾裡。不受這台電腦其他 Python 影響，解除安裝時一起移除。</span></div></div>
+            <div class="opt"><span class="rb"></span><div><b>用我自己的 Python（進階）</b>
+              <span class="d">用這台電腦已經裝好的 Python 3.11 以上。可能被 Conda、Microsoft Store 版本或 PATH 設定影響；它被更新或移除時，SYNOX 可能要重新安裝。</span>
+              <div class="field" style="margin-top:6px"><span class="box sel"><span>Python 3.12.10（C:\…\Python312）</span></span></div></div></div>
+            <p class="small">清單不會列出 Microsoft Store 的 python 捷徑（它不是真的 Python）。Conda 的 Python 會標「Conda，不建議」。</p>
+          </div>
+          <div class="win-foot" aria-hidden="true"><span class="wbtn">上一步</span><span class="wbtn pri">下一步</span><span class="gap"></span><span class="wbtn">取消</span></div>
+        </figure>
+        <div class="notes">
+          <h4>這頁要做到</h4>
+          <ul class="pts">
+            <li>把風險寫在選項自己的說明裡，不另外跳警告視窗。</li>
+            <li>選「用我自己的」時才出現下拉選單，列出找到的 Python 3.11 以上。一個都沒找到就顯示「這台電腦沒有可用的 Python 3.11 以上，請選 SYNOX 自帶的」，這個選項變灰。</li>
+            <li>就算用自己的 Python，SYNOX 的套件仍然裝在 SYNOX 資料夾裡，不會裝進那個 Python。</li>
+          </ul>
+          <h4>怎麼做</h4>
+          <dl class="impl">
+            <dt>Inno Setup</dt><dd><code>CreateInputOptionPage</code>＋一個下拉選單；結果變成 bootstrap 的參數。</dd>
+            <dt>bootstrap</dt><dd><code class="nb">-UseSystemPython</code>（正在做）；指定哪一個用 <code class="nb">-Python &lt;路徑&gt;</code>（新的提案）。沒給這個旗標就只用 SYNOX 自帶的。</dd>
+            <dt>自帶的來源</dt><dd>.exe：Python 直接附在安裝程式裡（<code>stage_installer.py --python-embed</code>，已有）。ZIP：<code>Setup.bat</code> 用 uv 下載到 SYNOX 資料夾。兩邊要不要用同一種 Python：<a href="#questions">Q5</a>。</dd>
+          </dl>
+        </div>
+      </div>
+    </article>
+
+    <!-- B components -->
+    <article class="screen custom" id="sb">
+      <header class="screen-h"><span class="num">B</span><h3>自訂 2／3：要準備哪些東西</h3><span class="who">選「自訂」才會看到</span><span class="tags"><i class="tag new">新的</i></span></header>
+      <div class="screen-grid">
+        <figure class="win" aria-label="安裝視窗示意：自訂，要準備哪些東西">
+          <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
+          <div class="win-body">
+            <p class="h">要幫你準備哪些東西？</p>
+            <ul class="checks">
+              <li><span class="cb on"></span><span>在桌面放一個「SYNOX」捷徑</span></li>
+              <li><span class="cb on"></span><span>在開始功能表放「SYNOX」</span></li>
+              <li><span class="cb on"></span><span>讓 .synoxpack 檔案點兩下就安裝<em>裝之前一樣會先檢查、給你按確認</em></span></li>
+              <li><span class="cb on"></span><span>開機後自動啟動 SYNOX<em>看得到的小視窗，隨時可以關</em></span></li>
+              <li><span class="cb on"></span><span>放好官方工具庫（9 個工具），並先裝好入門工具<em>其他工具之後在 SYNOX 網頁的設定裡挑</em></span></li>
+              <li><span class="cb on"></span><span>安裝 Claude Code<em>這台還沒有才裝；需要上網；裝在你的使用者資料夾，不在 SYNOX 資料夾裡</em></span></li>
+            </ul>
+            <p class="small">每一項之後都能改：再執行一次安裝程式，或到 SYNOX 的設定。</p>
+          </div>
+          <div class="win-foot" aria-hidden="true"><span class="wbtn">上一步</span><span class="wbtn pri">下一步</span><span class="gap"></span><span class="wbtn">取消</span></div>
+        </figure>
+        <div class="notes">
+          <h4>這頁要做到</h4>
+          <ul class="pts">
+            <li>六項都預先勾好，跟「建議」一樣。前四項的句子沿用設定精靈最後一頁現有的字。</li>
+            <li>每一項的小字只講一件使用者會在意的事：安不安全、要不要上網、裝在哪。</li>
+            <li>Claude Code 那一項：這台已經有 <code>claude</code> 時，改顯示「已經裝好了：C:\…\claude.exe」並變灰。</li>
+            <li>每一項「誰該改、改了會怎樣」寫在<a href="#options">第 4 節</a>。</li>
+          </ul>
+          <h4>怎麼做</h4>
+          <dl class="impl">
+            <dt>Inno Setup</dt><dd><code>[Tasks]</code>：<code>desktopicon</code>、<code>startmenu</code>、<code>assoc</code>、<code>autostart</code>、<code>tools</code>、<code>claudecode</code>，用 <code>wpSelectTasks</code> 顯示；選「建議」時整頁跳過、全部照預設。</dd>
+            <dt>傳給 bootstrap</dt><dd>沒勾的項目變成 <code class="nb">-NoDesktop</code>、<code class="nb">-NoAssoc</code>… 這類旗標（新的提案，清單在<a href="#flags">第 4 節最後</a>）。</dd>
+            <dt>今天</dt><dd>桌面捷徑、開機啟動、.synoxpack 三項在設定精靈最後一頁勾（已有）；開始功能表、工具庫、Claude Code 這三項在安裝階段做是新的。</dd>
+          </dl>
+        </div>
+      </div>
+    </article>
+
+    <!-- C language -->
+    <article class="screen custom" id="sc">
+      <header class="screen-h"><span class="num">C</span><h3>自訂 3／3：語言</h3><span class="who">選「自訂」才會看到</span><span class="tags"><i class="tag have">12 種語言已有</i><i class="tag new">這一頁是新的</i></span></header>
+      <div class="screen-grid">
+        <figure class="win" aria-label="安裝視窗示意：自訂，語言">
+          <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
+          <div class="win-body">
+            <p class="h">SYNOX 要用哪種語言？</p>
+            <p>設定精靈、SYNOX 的畫面，還有它回你的話，都會用這個語言。</p>
+            <div class="field"><span class="box sel"><span>繁體中文（跟 Windows 一樣）</span></span></div>
+            <p class="small">可以選：繁體中文、简体中文、English、日本語、한국어、Español、Français、Deutsch、Português (Brasil)、Русский、العربية、हिन्दी。之後可以在設定裡換。</p>
+          </div>
+          <div class="win-foot" aria-hidden="true"><span class="wbtn">上一步</span><span class="wbtn pri">安裝</span><span class="gap"></span><span class="wbtn">取消</span></div>
+        </figure>
+        <div class="notes">
+          <h4>這頁要做到</h4>
+          <ul class="pts">
+            <li>預設跟 Windows 的顯示語言一樣；Windows 用的是 SYNOX 沒有的語言時，預設 English。</li>
+            <li>這裡選的是 <strong>SYNOX 的語言</strong>。安裝程式自己的畫面先做繁體中文和 English 兩種（<a href="#questions">Q7</a>）。</li>
+            <li>這是自訂的最後一頁，主要按鈕寫「安裝」。</li>
+          </ul>
+          <h4>怎麼做</h4>
+          <dl class="impl">
+            <dt>Inno Setup</dt><dd>自訂頁＋下拉選單；結果用 <code class="nb">-Lang &lt;代碼&gt;</code> 傳下去。</dd>
+            <dt>bootstrap</dt><dd><code class="nb">-Lang</code> 已有：存進 <code>lang.txt</code>，再用 <code class="nb">--lang</code> 交給設定精靈，精靈就不再問語言。</dd>
+            <dt>ZIP 路徑</dt><dd>今天 <code>Setup.bat</code> 第一題就是問語言。建議改成：照建議裝時自動跟 Windows 一樣、不問；自訂時才問。<i class="tag chg">要改</i></dd>
+          </dl>
+        </div>
+      </div>
+    </article>
+
+    <!-- 5 installing -->
+    <article class="screen" id="s5">
+      <header class="screen-h"><span class="num">5</span><h3>安裝中</h3><span class="tags"><i class="tag chg">要改</i><i class="tag test">待實測</i></span></header>
+      <div class="screen-grid">
+        <figure class="win" aria-label="安裝視窗示意：安裝中">
+          <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
+          <div class="win-body">
+            <p class="h">正在安裝，請稍候…</p>
+            <div class="bar" role="img" aria-label="進度大約一半"><i></i></div>
+            <ol class="steps">
+              <li class="done">把 SYNOX 的檔案放進資料夾</li>
+              <li class="done">準備 SYNOX 自己的 Python</li>
+              <li class="now">安裝 SYNOX 需要的套件<em>這一步最久，大約 1 到 2 分鐘</em></li>
+              <li>放好官方工具庫，裝入門工具</li>
+              <li>建立捷徑，讓 .synoxpack 點兩下就能安裝</li>
+              <li>安裝 Claude Code（需要上網）</li>
+              <li>最後檢查一遍</li>
+            </ol>
+            <p class="small">這段時間可以去做別的事。　<u>顯示詳細過程</u></p>
+          </div>
+          <div class="win-foot" aria-hidden="true"><span class="wbtn off">上一步</span><span class="wbtn off">下一步</span><span class="gap"></span><span class="wbtn">取消</span></div>
+        </figure>
+        <div class="notes">
+          <h4>這頁要做到</h4>
+          <ul class="pts">
+            <li>七個步驟用白話寫，做完打勾。沒勾選的項目不出現在清單裡。</li>
+            <li><strong>不跳出黑色視窗。</strong>今天安裝程式最後是開 <code>Setup.bat</code>，使用者會看到命令列視窗；要改成在這一頁背景執行。</li>
+            <li>「顯示詳細過程」點開才看得到原始訊息；同一份也寫進紀錄檔 <code>SYNOX\data\logs\install.log</code>。</li>
+            <li>Claude Code 那一步失敗（沒網路、被擋）<strong>不算安裝失敗</strong>：標成「先跳過」，完成頁說怎麼補。</li>
+            <li>其他步驟失敗就停下來，換成<a href="#fail">第 6 節</a>的畫面，有「再試一次」。重試從失敗那一步接著做。</li>
+            <li>按「取消」會先問一次，然後把已經放進去的東西收掉；更新時不動 <code>config.json</code> 和 <code>data\</code>。</li>
+          </ul>
+          <h4>怎麼做</h4>
+          <dl class="impl">
+            <dt>Inno Setup</dt><dd><code>wpInstalling</code>。複製檔案之後，用 <code>[Run]</code> 一步一行、<code>runhidden</code>、每行一個 <code>StatusMsg</code>；失敗的判斷與重試寫在 <code>[Code]</code>（<code>CurStepChanged(ssPostInstall)</code>＋<code>Exec</code>）。</dd>
+            <dt>bootstrap</dt><dd>要能一步一步叫、而且不開精靈：<code>-Step python|packages|tools|shortcuts|claude|check</code>、<code class="nb">-NoWizard</code>（新的提案）。結束碼 0＝成功，其他＝失敗原因的代號，安裝程式照代號顯示對應的畫面。</dd>
+            <dt>最後檢查</dt><dd><code>python -m synox doctor --offline</code>（已有）。</dd>
+          </dl>
+        </div>
+      </div>
+    </article>
+
+    <!-- 6 done -->
+    <article class="screen" id="s6">
+      <header class="screen-h"><span class="num">6</span><h3>完成</h3><span class="tags"><i class="tag chg">要改</i></span></header>
+      <div class="screen-grid">
+        <figure class="win" aria-label="安裝視窗示意：完成">
+          <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
+          <div class="win-body">
+            <span class="done-badge" aria-hidden="true"><svg class="ico"><use href="#i-check"/></svg></span>
+            <p class="h">SYNOX 裝好了</p>
+            <p>還差最後一件事：告訴它<strong>你的 Telegram</strong> 和<strong>要用哪個 AI</strong>。大約 3 分鐘，照畫面按就好。</p>
+            <ul class="checks">
+              <li><span class="cb on"></span><span>現在打開設定精靈（建議）</span></li>
+            </ul>
+            <ol class="steps">
+              <li class="done">桌面與開始功能表的捷徑、開機自動啟動、工具庫：都好了</li>
+              <li class="warn">Claude Code 先跳過了（剛才連不上網路）。等一下在設定精靈的 AI 那一頁按「一鍵安裝」就能補。</li>
+            </ol>
+            <p class="small">之後想重新設定：開始功能表 → SYNOX → 設定精靈。</p>
+          </div>
+          <div class="win-foot" aria-hidden="true"><span class="wbtn pri">完成</span></div>
+        </figure>
+        <div class="notes">
+          <h4>這頁要做到</h4>
+          <ul class="pts">
+            <li>說清楚「程式裝好了，但還要接上你的帳號」，並把下一步變成預先勾好的一個選項。</li>
+            <li>有被跳過的項目時，用黃色那一行說<strong>去哪裡補</strong>。全部成功就只顯示一行綠色的。</li>
+            <li>按「完成」後直接開出設定精靈的視窗，中間沒有黑色視窗。</li>
+            <li>開始功能表多放兩個入口：「SYNOX 設定精靈」「解除安裝 SYNOX」。<i class="tag new">新的</i></li>
+          </ul>
+          <h4>怎麼做</h4>
+          <dl class="impl">
+            <dt>Inno Setup</dt><dd><code>wpFinished</code>；<code>[Run]</code> 加一行 <code>postinstall</code>：<code>{app}\.venv\Scripts\pythonw.exe -m synox wizard --lang &lt;代碼&gt;</code>。今天這一行是開 <code>Setup.bat</code>。</dd>
+            <dt>沒有視窗時</dt><dd>附的 Python 開不出視窗（沒有 tkinter）時，今天會退到黑色視窗的文字版 <code>synox init</code>。目標是 .exe 一定帶得出視窗（<a href="#questions">Q5</a>）。<i class="tag test">待實測</i></dd>
+          </dl>
+        </div>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ============================================================ 3. wizard -->
+<section id="wizard">
+  <div class="sec-head">
+    <p class="eyebrow">安裝之後</p>
+    <h2>接著的設定精靈</h2>
+    <p class="sub">安裝程式負責「把程式裝好」，設定精靈負責「接上你的帳號」。精靈今天就有，支援 12 種語言；下面是它現有的五頁，字是現在程式裡的字。</p>
+  </div>
+  <div class="wizard">
+    <figure class="win mini" aria-label="設定精靈示意：這台給誰用">
+      <div class="win-bar"><span class="t">SYNOX 安裝精靈</span></div>
+      <div class="win-body"><span class="step">第 1 步，共 4 步</span><p class="h">這台給誰用？</p>
+        <ul><li><span class="rb on"></span>只有我（個人版）</li><li><span class="rb"></span>一群人（伺服器版）</li></ul></div>
+      <div class="win-foot" aria-hidden="true"><span class="wbtn pri">下一步 ▶</span></div>
+    </figure>
+    <figure class="win mini" aria-label="設定精靈示意：Bot 的 token">
+      <div class="win-bar"><span class="t">SYNOX 安裝精靈</span></div>
+      <div class="win-body"><span class="step">第 2 步，共 4 步</span><p class="h">Bot 的 token</p>
+        <ul><li>照畫面三步跟 @BotFather 拿，貼上，按「檢查 token」</li><li>也可以「先跳過，晚點再補 →」</li></ul></div>
+      <div class="win-foot" aria-hidden="true"><span class="wbtn pri">下一步 ▶</span></div>
+    </figure>
+    <figure class="win mini" aria-label="設定精靈示意：你是誰">
+      <div class="win-bar"><span class="t">SYNOX 安裝精靈</span></div>
+      <div class="win-body"><span class="step">第 3 步，共 4 步</span><p class="h">你是誰</p>
+        <ul><li>打開你的 bot，傳這六個數字給它：</li></ul><span class="code6">482 913</span></div>
+      <div class="win-foot" aria-hidden="true"><span class="wbtn pri">下一步 ▶</span></div>
+    </figure>
+    <figure class="win mini" aria-label="設定精靈示意：AI 從哪裡來">
+      <div class="win-bar"><span class="t">SYNOX 安裝精靈</span></div>
+      <div class="win-body"><span class="step">第 4 步，共 4 步</span><p class="h">AI 從哪裡來</p>
+        <ul><li><span class="rb on"></span>預設：Claude（這台電腦登入的 Claude Code）</li><li><span class="rb"></span>其他金鑰來源</li><li><span class="rb"></span>先不用 AI</li></ul></div>
+      <div class="win-foot" aria-hidden="true"><span class="wbtn pri">下一步 ▶</span></div>
+    </figure>
+    <figure class="win mini" aria-label="設定精靈示意：差不多了">
+      <div class="win-bar"><span class="t">SYNOX 安裝精靈</span></div>
+      <div class="win-body"><span class="step">最後一步</span><p class="h">差不多了</p>
+        <ul><li><span class="cb on"></span>完成後立刻開啟 SYNOX</li><li>手機會收到「👋 我在了」</li></ul></div>
+      <div class="win-foot" aria-hidden="true"><span class="wbtn pri">完成並開始</span></div>
+    </figure>
+  </div>
+  <div class="callouts">
+    <div><span class="tags"><i class="tag have">已有</i></span><b>語言那一頁會自動跳過</b><p>安裝程式已經知道語言，用 <code class="nb">--lang</code> 交給精靈。只有直接打開精靈、又沒選過語言的人才會看到「Language / 語言」。</p></div>
+    <div><span class="tags"><i class="tag chg">要改</i></span><b>最後一頁不再重問一次</b><p>今天「差不多了」有四個勾選：桌面捷徑、開機啟動、.synoxpack、立刻開啟。從安裝程式來的人前三項已經決定了，這頁只留「完成後立刻開啟 SYNOX」。從 ZIP 來的人四項照舊，預設值跟安裝程式一樣。</p></div>
+    <div><span class="tags"><i class="tag chg">要改</i></span><b>AI 那一頁接得上</b><p>安裝時已經裝好 Claude Code 的話，這頁直接顯示「✅ 找到了」，只剩登入一次。沒裝成的話，現有的「一鍵安裝（PowerShell）」按鈕還在。視窗標題建議從「安裝精靈」改成「設定精靈」，免得跟安裝程式搞混。</p></div>
+  </div>
+</section>
+
+<!-- ============================================================ 4. options -->
+<section id="options">
+  <div class="sec-head">
+    <p class="eyebrow">Git for Windows 那種作法</p>
+    <h2>每個選項的建議值</h2>
+    <p class="sub">每一項都寫四件事：建議值是什麼、誰才需要改、改了會怎樣、程式上怎麼做。.exe 和 ZIP 兩條路用的是同一張表。</p>
+  </div>
+  <div class="options">
+
+    <article class="option">
+      <header><b>安裝位置</b><i class="tag have">已有</i></header>
+      <p class="default"><i>建議值</i><span><code>%LOCALAPPDATA%\Programs\SYNOX</code></span></p>
+      <dl>
+        <dt>誰該改</dt><dd>C 槽快滿了、想裝在別顆磁碟，或公司規定程式要放特定位置的人。</dd>
+        <dt>改了會怎樣</dt><dd>設定和資料也跟著放在那裡。不能選要管理員才能寫的位置（例如 Program Files）。</dd>
+        <dt>.exe</dt><dd><code>[Setup] DefaultDirName</code>＋<code>wpSelectDir</code>。</dd>
+        <dt>ZIP</dt><dd>解壓縮在哪裡就在哪裡。</dd>
+      </dl>
+    </article>
+
+    <article class="option">
+      <header><b>安裝方式</b><i class="tag new">新的</i></header>
+      <p class="default"><i>建議值</i><span>建議（全部幫我裝好）</span></p>
+      <dl>
+        <dt>誰該改</dt><dd>本來就在用 Python 的人、公司電腦有限制的人、不想要開機啟動或 Claude Code 的人。</dd>
+        <dt>改了會怎樣</dt><dd>多看三頁。每一頁的預設仍然是建議值。</dd>
+        <dt>.exe</dt><dd>自訂頁（單選）＋<code>ShouldSkipPage</code>。</dd>
+        <dt>ZIP</dt><dd><code>Setup.bat</code> 開頭一題，或 <code>Setup.bat -Custom</code>。</dd>
+      </dl>
+    </article>
+
+    <article class="option">
+      <header><b>哪個 Python</b><i class="tag wip">⏳ 正在做</i></header>
+      <p class="default"><i>建議值</i><span>SYNOX 自帶的，放在 <code>SYNOX\runtime\</code></span></p>
+      <dl>
+        <dt>誰該改</dt><dd>公司不准程式自己帶執行檔、一定要用某個版本的 Python、或正在開發 SYNOX 的人。</dd>
+        <dt>改了會怎樣</dt><dd>可能被 Conda、Microsoft Store 版、PATH 影響；那個 Python 被更新或移除時 SYNOX 會壞，要重跑安裝。</dd>
+        <dt>.exe</dt><dd>自訂頁（單選＋下拉）→ <code>-UseSystemPython -Python &lt;路徑&gt;</code>。自帶的那份附在安裝程式裡，不用上網。</dd>
+        <dt>ZIP</dt><dd>預設用 uv 把 Python 下載到 SYNOX 資料夾；<code>Setup.bat -UseSystemPython</code> 才用系統的。</dd>
+      </dl>
+    </article>
+
+    <article class="option">
+      <header><b>桌面與開始功能表的捷徑</b><i class="tag have">桌面：已有</i><i class="tag new">開始功能表：新的</i></header>
+      <p class="default"><i>建議值</i><span>兩個都放</span></p>
+      <dl>
+        <dt>誰該改</dt><dd>桌面想保持乾淨的人。</dd>
+        <dt>改了會怎樣</dt><dd>沒有捷徑就要自己到 SYNOX 資料夾點 <code>Open-SYNOX.bat</code>。</dd>
+        <dt>.exe</dt><dd><code>[Tasks] desktopicon／startmenu</code>；實際建立由 bootstrap 呼叫現有的 <code>shortcuts.create_desktop_shortcut</code>，開始功能表用 <code>[Icons] {userprograms}\SYNOX</code>。</dd>
+        <dt>ZIP</dt><dd>設定精靈最後一頁的勾選（已有，預設勾）；開始功能表要補。</dd>
+      </dl>
+    </article>
+
+    <article class="option">
+      <header><b>.synoxpack 點兩下就安裝</b><i class="tag have">已有</i></header>
+      <p class="default"><i>建議值</i><span>開</span></p>
+      <dl>
+        <dt>誰該改</dt><dd>不想讓 SYNOX 登記檔案類型的人（例如公司電腦）。</dd>
+        <dt>改了會怎樣</dt><dd>關掉之後，裝工具要把檔案拖到 <code>Install-Pack.bat</code> 上，或拖進 SYNOX 網頁。安全檢查不受影響。</dd>
+        <dt>.exe</dt><dd><code>[Tasks] assoc</code> → <code>python -m synox filetype register</code>（只寫這個使用者的登錄檔，不用管理員）。</dd>
+        <dt>ZIP</dt><dd>bootstrap 今天一律登記，精靈最後一頁可以取消。要補 <code class="nb">-NoAssoc</code> 讓它一開始就不登記。</dd>
+      </dl>
+    </article>
+
+    <article class="option">
+      <header><b>開機後自動啟動</b><i class="tag chg">預設值要改</i><i class="tag q">Q1</i></header>
+      <p class="default"><i>建議值</i><span>開（今天精靈的預設是不勾）</span></p>
+      <dl>
+        <dt>誰該改</dt><dd>只想偶爾用、或跟別人共用這台電腦的人。</dd>
+        <dt>改了會怎樣</dt><dd>關掉的話，每次重開機都要自己點捷徑；沒開的時候手機上的助理不會回、提醒也不會響。</dd>
+        <dt>.exe</dt><dd><code>[Tasks] autostart</code> → 現有的 <code>shortcuts.enable_autostart</code>（在「啟動」資料夾放一個捷徑）。</dd>
+        <dt>ZIP</dt><dd>設定精靈最後一頁的勾選（已有），預設從不勾改成勾。</dd>
+      </dl>
+    </article>
+
+    <article class="option">
+      <header><b>官方工具庫</b><i class="tag have">檔案：已有</i><i class="tag new">自動裝：新的</i><i class="tag q">Q3</i></header>
+      <p class="default"><i>建議值</i><span>放好 9 個工具的檔案，並裝好入門組合</span></p>
+      <dl>
+        <dt>誰該改</dt><dd>想要一個空的 SYNOX、只裝自己寫的工具的人。</dd>
+        <dt>改了會怎樣</dt><dd>不裝的話 SYNOX 是空的，<code>/help</code> 會提醒去哪裡裝。之後隨時能在網頁「設定」裡加。</dd>
+        <dt>.exe</dt><dd>工具檔附在安裝程式裡（<code>stage_installer.py --tools</code>）→ 放到 <code>SYNOX\tools\</code> → <code>synox tools install starter --yes</code>，照原本的安全檢查走。</dd>
+        <dt>ZIP</dt><dd>bootstrap 下載 SYNOX_Libs v0.2.0 的 <code>tools-0.2.0.zip</code>、對過 sha256、解到 <code>SYNOX\tools\</code>，再裝入門組合。下載這一段是新的。</dd>
+      </dl>
+    </article>
+
+    <article class="option">
+      <header><b>Claude Code</b><i class="tag chg">搬到安裝階段</i><i class="tag q">Q2</i></header>
+      <p class="default"><i>建議值</i><span>這台還沒有才裝；失敗不擋安裝</span></p>
+      <dl>
+        <dt>誰該改</dt><dd>不用 Claude、要用自己的金鑰或本機模型的人；公司不准裝的人。</dd>
+        <dt>改了會怎樣</dt><dd>不裝的話，設定精靈的 AI 那一頁會顯示「找不到 Claude Code」，可以到時再按一鍵安裝，或選別的 AI、先不用 AI。</dd>
+        <dt>怎麼做</dt><dd>兩條路都一樣：跑官方的 <code>irm https://claude.ai/install.ps1 | iex</code>（精靈「一鍵安裝」今天用的同一行）。需要上網；裝在使用者資料夾，不在 SYNOX 資料夾裡；解除安裝 SYNOX 不會移除它。</dd>
+        <dt>注意</dt><dd>安裝程式去執行網路上抓來的指令，防毒軟體可能會攔。<i class="tag test">待實測</i></dd>
+      </dl>
+    </article>
+
+    <article class="option">
+      <header><b>語言</b><i class="tag have">已有</i><i class="tag chg">自動偵測要補</i></header>
+      <p class="default"><i>建議值</i><span>跟 Windows 的顯示語言一樣；沒有就 English</span></p>
+      <dl>
+        <dt>誰該改</dt><dd>Windows 是一種語言、想讓 SYNOX 用另一種語言的人。</dd>
+        <dt>改了會怎樣</dt><dd>精靈、網頁、SYNOX 回的話都換成那個語言。之後可以在設定裡再換。</dd>
+        <dt>.exe</dt><dd>自訂頁下拉 → <code class="nb">-Lang</code>。</dd>
+        <dt>ZIP</dt><dd><code>Setup.bat -Lang en</code>（已有）；沒給時照建議自動偵測。</dd>
+      </dl>
+    </article>
+
+    <article class="option">
+      <header><b>裝完打開設定精靈</b><i class="tag have">已有</i></header>
+      <p class="default"><i>建議值</i><span>開</span></p>
+      <dl>
+        <dt>誰該改</dt><dd>幫別人先裝好、等本人回來再設定的人；用腳本自動安裝的人。</dd>
+        <dt>改了會怎樣</dt><dd>SYNOX 裝好了但還沒接帳號。之後從開始功能表開「SYNOX 設定精靈」。</dd>
+        <dt>.exe</dt><dd><code>[Run] … Flags: postinstall</code>（完成頁的勾選）。</dd>
+        <dt>ZIP</dt><dd>bootstrap 結束時自動開（已有）；<code class="nb">-NoWizard</code> 不開（新的）。</dd>
+      </dl>
+    </article>
+
+  </div>
+
+  <div class="sec-head" id="flags" style="scroll-margin-top:76px">
+    <h3>Setup.bat 的旗標（提案）</h3>
+    <p class="sub" style="font-size:15px">安裝程式和 ZIP 最後都走同一支 <code>setup\bootstrap.ps1</code>。安裝程式把畫面上的選擇變成這些旗標；懂的人也可以自己打。</p>
+  </div>
+  <ul class="flags">
+    <li><code>Setup.bat</code><span>照建議全部裝好，跟安裝程式的「建議」一樣</span><i class="tag chg">要改</i></li>
+    <li><code>Setup.bat -Custom</code><span>一項一項問</span><i class="tag new">新的</i></li>
+    <li><code class="nb">-Lang zh-TW</code><span>語言</span><i class="tag have">已有</i></li>
+    <li><code class="nb">-UseSystemPython</code><span>用這台電腦的 Python</span><i class="tag wip">⏳ 正在做</i></li>
+    <li><code class="nb">-Python &lt;路徑&gt;</code><span>指定用哪一個 Python</span><i class="tag new">新的</i></li>
+    <li><code class="nb">-NoDesktop　-NoStartMenu</code><span>不放桌面捷徑、不放開始功能表</span><i class="tag new">新的</i></li>
+    <li><code class="nb">-NoAssoc　-NoAutostart</code><span>不登記 .synoxpack、不開機自動啟動</span><i class="tag new">新的</i></li>
+    <li><code class="nb">-NoTools　-NoClaude</code><span>不裝工具庫、不裝 Claude Code</span><i class="tag new">新的</i></li>
+    <li><code class="nb">-NoWizard</code><span>裝完不開設定精靈</span><i class="tag new">新的</i></li>
+    <li><code class="nb">-Step &lt;名字&gt;</code><span>只做一步，給安裝程式顯示進度用</span><i class="tag new">新的</i></li>
+  </ul>
+</section>
+
+<!-- ============================================================ 5. compare -->
+<section id="compare">
+  <div class="sec-head">
+    <p class="eyebrow">兩條路，同一個結果</p>
+    <h2>ZIP＋Setup.bat 與 .exe 安裝程式</h2>
+    <p class="sub">差別只在「怎麼把檔案放到電腦上」和「畫面長什麼樣」。建議值是同一份，裝完是同一個 SYNOX。</p>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th></th><th>ZIP＋Setup.bat<small>今天就能用</small></th><th>SYNOX-Setup-0.2.0.exe<small>⏳ 尚未完成，還沒打包過</small></th></tr></thead>
+      <tbody>
+        <tr><th>怎麼開始</th><td>下載 ZIP、解壓縮、雙擊 <code>Setup.bat</code></td><td>下載一個檔案、雙擊</td></tr>
+        <tr><th>要不要上網</th><td><strong>要</strong>：下載 SYNOX 自己的 Python、套件、工具庫</td><td><strong>不用</strong>：Python、套件、工具庫都附在裡面。只有 Claude Code 那一步要上網</td></tr>
+        <tr><th>畫面</th><td>一個顯示進度的文字視窗，問一題（建議／自訂）</td><td>第 2 節那 6 頁視窗，沒有文字視窗</td></tr>
+        <tr><th>裝在哪</th><td>解壓縮的那個資料夾</td><td><code>%LOCALAPPDATA%\Programs\SYNOX</code>，可以改</td></tr>
+        <tr><th>先說清楚</th><td>視窗一開始印同樣那段話</td><td>第 2 頁</td></tr>
+        <tr class="same"><td colspan="3">建議值完全相同：SYNOX 自帶的 Python、桌面與開始功能表捷徑、.synoxpack、開機啟動、工具庫與入門工具、Claude Code、語言跟 Windows 一樣、裝完打開設定精靈</td></tr>
+        <tr><th>自訂</th><td><code>Setup.bat -Custom</code> 或開頭輸入 C；也可以直接給旗標</td><td>安裝方式選「自訂」，多三頁</td></tr>
+        <tr><th>第一次執行的警告</th><td>解壓縮後雙擊 .bat，Windows 可能問一次「要執行嗎」</td><td>沒簽章時 SmartScreen 會擋一次（<a href="#f3">失敗畫面 3</a>）</td></tr>
+        <tr><th>更新</th><td>下載新的 ZIP 解到同一個資料夾，或 <code>git pull</code>，再跑 <code>Setup.bat</code></td><td>執行新版安裝程式，設定和資料留著</td></tr>
+        <tr><th>解除安裝</th><td>雙擊 <code>Uninstall.bat</code>（文字選單，已有）</td><td>Windows「設定 → 應用程式」裡的 SYNOX → 解除安裝</td></tr>
+        <tr><th>適合誰</th><td>想看原始碼、用 git 更新、幫忙開發的人</td><td>所有其他人。介紹頁的大按鈕應該給這個</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="duo">
+    <div><h4>怎麼開始</h4><p><i>ZIP</i><span>下載、解壓縮、雙擊 <code>Setup.bat</code>。今天就能用。</span></p><p><i>.exe</i><span>下載一個檔案、雙擊。⏳ 尚未完成，還沒打包過。</span></p></div>
+    <div><h4>要不要上網</h4><p><i>ZIP</i><span><strong>要</strong>：下載 SYNOX 自己的 Python、套件、工具庫。</span></p><p><i>.exe</i><span><strong>不用</strong>：都附在裡面。只有 Claude Code 那一步要上網。</span></p></div>
+    <div><h4>畫面</h4><p><i>ZIP</i><span>一個顯示進度的文字視窗，問一題（建議／自訂）。</span></p><p><i>.exe</i><span>第 2 節那 6 頁視窗，沒有文字視窗。</span></p></div>
+    <div><h4>裝在哪</h4><p><i>ZIP</i><span>解壓縮的那個資料夾。</span></p><p><i>.exe</i><span><code>%LOCALAPPDATA%\Programs\SYNOX</code>，可以改。</span></p></div>
+    <div class="same"><h4>建議值完全相同</h4><p>SYNOX 自帶的 Python、桌面與開始功能表捷徑、.synoxpack、開機啟動、工具庫與入門工具、Claude Code、語言跟 Windows 一樣、裝完打開設定精靈。</p></div>
+    <div><h4>自訂</h4><p><i>ZIP</i><span><code>Setup.bat -Custom</code> 或開頭輸入 C；也可以直接給旗標。</span></p><p><i>.exe</i><span>安裝方式選「自訂」，多三頁。</span></p></div>
+    <div><h4>第一次執行的警告</h4><p><i>ZIP</i><span>雙擊 .bat 時 Windows 可能問一次「要執行嗎」。</span></p><p><i>.exe</i><span>沒簽章時 SmartScreen 會擋一次。</span></p></div>
+    <div><h4>更新</h4><p><i>ZIP</i><span>新的 ZIP 解到同一個資料夾（或 <code>git pull</code>），再跑 <code>Setup.bat</code>。</span></p><p><i>.exe</i><span>執行新版安裝程式，設定和資料留著。</span></p></div>
+    <div><h4>解除安裝</h4><p><i>ZIP</i><span>雙擊 <code>Uninstall.bat</code>（文字選單，已有）。</span></p><p><i>.exe</i><span>Windows「設定 → 應用程式」→ SYNOX → 解除安裝。</span></p></div>
+    <div><h4>適合誰</h4><p><i>ZIP</i><span>想看原始碼、用 git 更新、幫忙開發的人。</span></p><p><i>.exe</i><span>所有其他人。</span></p></div>
+  </div>
+</section>
+
+<!-- ============================================================ 6. failures -->
+<section id="fail">
+  <div class="sec-head">
+    <p class="eyebrow">失敗也是畫面的一部分</p>
+    <h2>出問題的時候</h2>
+    <p class="sub">每個失敗畫面都照同一個格式寫，使用者永遠知道下一步。</p>
+  </div>
+  <div class="rule">
+    <div><i>第一句</i><b>發生了什麼事</b>一句白話。不放錯誤代碼。</div>
+    <div><i>第二句</i><b>你的東西有沒有事</b>已經裝好的還在嗎？資料有沒有動到？</div>
+    <div><i>接著</i><b>下一步，最多三個</b>最可能有用的排第一，而且它就是主要按鈕。</div>
+    <div><i>最後</i><b>找人幫忙的出口</b>「複製問題描述」：給幫你的人看的技術細節，不含金鑰和使用者名稱。</div>
+  </div>
+
+  <div class="fails">
+
+    <article class="fail" id="f1">
+      <div class="fail-h"><span class="num">1</span><h3>沒有網路</h3><i class="tag new">新的</i></div>
+      <figure class="win" aria-label="失敗畫面示意：沒有網路">
+        <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span></div>
+        <div class="win-body">
+          <p class="h"><svg class="ico" aria-hidden="true"><use href="#i-alert"/></svg>現在連不上網路</p>
+          <p>這一步要上網下載 SYNOX 自己的 Python 和套件，但這台電腦現在連不上網路。<strong>已經裝好的部分都還在</strong>，不用從頭來。</p>
+          <ol class="next">
+            <li>確認 Wi-Fi 或網路線有接上，再按「再試一次」。</li>
+            <li>這裡一直沒有網路？改用 <strong>SYNOX-Setup-0.2.0.exe</strong>，它不用上網就能裝。</li>
+          </ol>
+        </div>
+        <div class="win-foot" aria-hidden="true"><span class="wbtn pri">再試一次</span><span class="wbtn">取消</span></div>
+      </figure>
+      <p>主要發生在 ZIP 路徑。.exe 只有 Claude Code 那一步要上網，沒網路時不跳這個畫面，直接標成「先跳過」並在完成頁說怎麼補。</p>
+    </article>
+
+    <article class="fail" id="f2">
+      <div class="fail-h"><span class="num">2</span><h3>下載失敗</h3><i class="tag new">新的</i></div>
+      <figure class="win" aria-label="失敗畫面示意：下載失敗">
+        <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span></div>
+        <div class="win-body">
+          <p class="h"><svg class="ico" aria-hidden="true"><use href="#i-alert"/></svg>下載到一半失敗了</p>
+          <p>「SYNOX 自己的 Python」試了 3 次都沒下載成功。網路是通的，但下載被擋住或中斷了。常見的原因是公司或學校的網路會擋、防毒軟體攔下來、或網路不穩。<strong>已經裝好的部分都還在。</strong></p>
+          <ol class="next">
+            <li>按「再試一次」。</li>
+            <li>換一個網路（例如手機分享的熱點）再試。</li>
+            <li>還是不行：改用不用上網的 <strong>SYNOX-Setup-0.2.0.exe</strong>，或按「複製問題描述」貼給幫你的人。</li>
+          </ol>
+        </div>
+        <div class="win-foot" aria-hidden="true"><span class="wbtn pri">再試一次</span><span class="wbtn">複製問題描述</span><span class="wbtn">取消</span></div>
+      </figure>
+      <p>安裝程式自己先重試 3 次才顯示。畫面上寫出是哪一樣東西下載失敗（Python、套件、工具庫、Claude Code）。下載回來的檔案對不上 sha256 時也是這個畫面，第一句改成「下載到的檔案不完整」。</p>
+    </article>
+
+    <article class="fail" id="f3">
+      <div class="fail-h"><span class="num">3</span><h3>SmartScreen 與防毒軟體的警告</h3><i class="tag test">待實測</i></div>
+      <div class="smart" role="img" aria-label="Windows SmartScreen 的藍色警告示意">
+        <p class="h">Windows 已保護您的電腦</p>
+        <p>Microsoft Defender SmartScreen 已防止某個無法辨識的應用程式啟動。執行此應用程式可能會讓您的電腦暴露在風險中。</p>
+        <p><span class="ptr">1</span><u>其他資訊</u></p>
+        <p class="meta">應用程式：SYNOX-Setup-0.2.0.exe<br>發行者：未知的發行者</p>
+        <div class="row"><span class="go"><span class="ptr" style="background:var(--smart);color:var(--smart-ink)">2</span>仍要執行</span><span>不要執行</span></div>
+      </div>
+      <p>這個藍色畫面是 Windows 的，我們改不了它的字，只能<strong>在下載的地方先講</strong>。介紹頁下載按鈕旁邊要放這段：</p>
+      <figure class="win" aria-label="下載頁說明文字示意">
+        <div class="win-body">
+          <p><strong>第一次執行，Windows 會跳一個藍色畫面。</strong>這是因為 SYNOX 還很新、安裝程式還沒有付費簽章，不代表它有問題。</p>
+          <ol class="next">
+            <li>按藍色畫面上的「其他資訊」。</li>
+            <li>按出現的「仍要執行」。</li>
+            <li>想確認檔案沒被動過：對一下這頁寫的 SHA-256 指紋。</li>
+          </ol>
+          <p><strong>防毒軟體把檔案擋掉了？</strong>打開防毒軟體的「隔離區」或「保護歷程記錄」把它還原，再把 SYNOX 資料夾加進「排除項目」，然後重新執行安裝程式。</p>
+        </div>
+      </figure>
+      <p>安裝到一半發現檔案不見（被隔離）時，安裝程式顯示：「有檔案被防毒軟體擋下來了」＋上面那三步＋「再試一次」。要不要簽章：<a href="#questions">Q6</a>。</p>
+    </article>
+
+    <article class="fail" id="f4">
+      <div class="fail-h"><span class="num">4</span><h3>磁碟空間不夠</h3><i class="tag new">新的</i></div>
+      <figure class="win" aria-label="失敗畫面示意：磁碟空間不夠">
+        <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span></div>
+        <div class="win-body">
+          <p class="h"><svg class="ico" aria-hidden="true"><use href="#i-alert"/></svg>這顆磁碟的空間不夠</p>
+          <p>SYNOX 需要大約 600 MB，但 C: 只剩 210 MB。<strong>還沒有裝任何東西。</strong></p>
+          <ol class="next">
+            <li>按「上一步」，把安裝位置換到另一顆磁碟。</li>
+            <li>或是清出一些空間（按「打開磁碟清理」），再按「再試一次」。</li>
+          </ol>
+        </div>
+        <div class="win-foot" aria-hidden="true"><span class="wbtn pri">上一步</span><span class="wbtn">打開磁碟清理</span><span class="wbtn">再試一次</span></div>
+      </figure>
+      <p>在「安裝位置」那一頁按「下一步」時就檢查，不等到裝一半。Inno Setup 的 <code>ExtraDiskSpaceRequired</code> 要把之後才產生的套件資料夾也算進去；600 MB 是估計值。<i class="tag test">待實測</i></p>
+    </article>
+
+    <article class="fail" id="f5">
+      <div class="fail-h"><span class="num">5</span><h3>解除安裝</h3><i class="tag have">已有</i><i class="tag chg">畫面要改</i></div>
+      <figure class="win" aria-label="解除安裝畫面示意">
+        <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">解除安裝 SYNOX</span></div>
+        <div class="win-body">
+          <p class="h">要移除 SYNOX 嗎？</p>
+          <p><strong>會移除：</strong>SYNOX 的程式、它自己的 Python、桌面和開始功能表的捷徑、開機自動啟動、.synoxpack 的點兩下安裝。</p>
+          <p><strong>會留著：</strong>你的設定、筆記、記帳、存好的金鑰、裝過的工具。它們還在 SYNOX 資料夾裡，之後重裝就接著用。</p>
+          <ul class="checks">
+            <li><span class="cb"></span><span>連我的資料也一起刪除<em>刪了救不回來。勾了之後會再問你一次</em></span></li>
+          </ul>
+          <p class="small">這台電腦原本的 Python、Conda，還有 Claude Code，都不會動。</p>
+        </div>
+        <div class="win-foot" aria-hidden="true"><span class="wbtn pri">解除安裝</span><span class="wbtn">取消</span></div>
+      </figure>
+      <p>入口：Windows「設定 → 應用程式 → 已安裝的應用程式 → SYNOX」，或開始功能表的「解除安裝 SYNOX」。<code>synox.iss</code> 的 <code>[UninstallRun]</code> 已經會呼叫 <code>setup\uninstall.ps1 -Mode shortcuts</code> 並留下 <code>config.json</code>、<code>data\</code>、<code>packs\</code>。「連資料一起刪」的勾選是新的（<a href="#questions">Q9</a>）。ZIP 路徑照舊用 <code>Uninstall.bat</code> 的四個選項。</p>
+    </article>
+
+  </div>
+</section>
+
+<!-- ============================================================ 7. status -->
+<section id="status">
+  <div class="sec-head">
+    <p class="eyebrow">照實說</p>
+    <h2>現在做到哪裡</h2>
+    <p class="sub">這一頁是設計稿。上面的視窗都是畫的，還沒有任何一頁在 Windows 上跑過。</p>
+  </div>
+  <div class="banner">
+    <svg class="ico" aria-hidden="true"><use href="#i-alert"/></svg>
+    <div><b>⏳ 尚未完成：SYNOX-Setup-&lt;版本&gt;.exe 從來沒有打包過。</b>Inno Setup 的腳本和備料腳本寫好了，但沒有實際執行過，也沒有在空白的 Windows 上裝過。這份規格裡所有關於 Windows 行為的描述都是<strong>待實測</strong>。</div>
+  </div>
+  <div class="status">
+    <div>
+      <h3><i class="dot" style="background:var(--ok)"></i>已經有的</h3>
+      <ul>
+        <li><strong>Setup.bat＋bootstrap.ps1</strong>：找或裝 Python、建立環境、裝套件、登記 .synoxpack、打開精靈。</li>
+        <li><strong>設定精靈</strong>（Tk 視窗）：語言、給誰用、Telegram token 與配對、AI 來源、完成頁四個勾選；12 種語言。</li>
+        <li>精靈裡的 <strong>Claude Code 一鍵安裝</strong>（官方 PowerShell 指令）。</li>
+        <li><strong>setup\installer\synox.iss</strong>：每個使用者自己裝、不用管理員、裝到 <code>%LOCALAPPDATA%\Programs\SYNOX</code>；只有英文；最後開 <code>Setup.bat</code>。</li>
+        <li><strong>scripts\stage_installer.py</strong>：把 Python、離線套件、工具庫排好給 Inno Setup 用。</li>
+        <li><strong>Uninstall.bat＋uninstall.ps1</strong>：四種程度的移除。</li>
+        <li>工具庫的 <strong>tools-0.2.0.zip</strong>（SYNOX_Libs v0.2.0）。</li>
+      </ul>
+    </div>
+    <div>
+      <h3><i class="dot" style="background:var(--accent)"></i>正在做</h3>
+      <ul>
+        <li><strong>SYNOX 自帶的 Python</strong>：bootstrap 改成用 uv 把 Python 裝在 SYNOX 資料夾裡，預設不碰 Conda、Microsoft Store、系統的 Python。</li>
+        <li><strong>-UseSystemPython</strong>：使用者明確要求時才用系統的 Python。</li>
+        <li>這兩項由另一個工作負責；做完之後要回來對一次這份規格的第 2 頁和 A 頁。</li>
+      </ul>
+    </div>
+    <div>
+      <h3><i class="dot" style="background:var(--warn)"></i>⏳ 尚未完成</h3>
+      <ul>
+        <li><strong>打包出 .exe</strong>，並在空白的 Windows 10 和 11 各裝一次。</li>
+        <li>安裝程式的新畫面：歡迎、先說清楚、安裝方式、自訂三頁、白話進度、完成頁。</li>
+        <li>安裝程式的<strong>繁體中文</strong>（Inno Setup 沒有內附繁中語言檔，要另外放進 repo；待確認）。</li>
+        <li>bootstrap 的旗標：<code class="nb">-Custom</code>、<code class="nb">-No…</code>、<code class="nb">-NoWizard</code>、<code class="nb">-Step</code>，以及不開黑色視窗的執行方式。</li>
+        <li>五個失敗畫面、紀錄檔、「複製問題描述」。</li>
+        <li>ZIP 路徑自動下載工具庫；安裝階段自動裝入門工具與 Claude Code。</li>
+        <li>解除安裝的「連資料一起刪」；開始功能表的入口。</li>
+        <li>簽章；第三方授權清單。</li>
+      </ul>
+    </div>
+  </div>
+  <div class="sec-head"><h3>一定要在真的 Windows 上試的事</h3></div>
+  <div class="callouts">
+    <div><b>畫面與時間</b>附的 Python 能不能開出設定精靈的視窗；整個安裝實際要幾分鐘、佔多少空間；安裝中會不會閃出黑色視窗。</div>
+    <div><b>保護機制</b>沒簽章時 SmartScreen 的實際畫面；Microsoft Defender 會不會攔安裝程式裡的 PowerShell 步驟，特別是安裝 Claude Code 那一行。</div>
+    <div><b>各種電腦</b>使用者名稱或路徑有中文、空白；桌面被 OneDrive 接管；已經裝了 Anaconda；公司電腦限制 PowerShell；沒有網路。</div>
+  </div>
+</section>
+
+<!-- ============================================================ 8. questions -->
+<section id="questions">
+  <div class="sec-head">
+    <p class="eyebrow">請擁有者決定</p>
+    <h2>九個要你點頭的問題</h2>
+    <p class="sub">每一題都附上建議。沒有回覆的話，就照建議做。</p>
+  </div>
+  <ol class="qs">
+    <li><b>「建議」安裝要不要開機後自動啟動？</b>
+      <p>今天設定精靈這一項預設是不勾。但沒開的話，重開機之後手機上的助理就不回了、提醒也不響，不懂電腦的人會以為壞掉。</p>
+      <p class="rec"><i>建議</i><span>要，預設勾。視窗看得到、隨時能關，自訂可以取消。</span></p></li>
+    <li><b>「建議」安裝要不要順便裝 Claude Code？</b>
+      <p>好處是設定精靈預設的 AI 就是它，裝好只剩登入。代價是這一步要上網、會執行官方網站的安裝指令、裝在 SYNOX 資料夾外面，跟 ADR 0003「安裝程式不跑任何從網路下載的東西」不一致，防毒軟體也可能攔。</p>
+      <p class="rec"><i>建議</i><span>要，但只在這台還沒有時才裝、放在最後一步、失敗不擋安裝，並且在畫面上寫明「需要上網、裝在使用者資料夾」。同時修改 ADR 0003 那一句。實測被防毒攔的話，退回成只在設定精靈裡按按鈕才裝。</span></p></li>
+    <li><b>「全部幫我裝好」的工具要裝到什麼程度？</b>
+      <p>ADR 0003 現在寫的是「不自動全裝，要什麼自己挑」。但空的 SYNOX 對新手來說等於什麼都不會。</p>
+      <p class="rec"><i>建議</i><span>9 個工具的檔案都放好，只自動裝「入門組合」（工具庫目錄裡的 starter，例如隨手記、記帳），照原本的安全檢查走，不裝需要輸入發行者名字的那一類。入門組合放哪幾個由你定。</span></p></li>
+    <li><b>要不要有「我同意授權條款」那一頁？</b>
+      <p>今天的 <code>synox.iss</code> 會顯示整份 LICENSE 並要求勾「我同意」。多一頁、全是英文法律文字，而 AGPL 並不要求使用者點同意才能使用。</p>
+      <p class="rec"><i>建議</i><span>拿掉那一頁，在歡迎頁放一行「繼續安裝代表你同意授權條款」加連結，授權檔照樣裝進資料夾。</span></p></li>
+    <li><b>.exe 附的 Python 用哪一種？</b>
+      <p>現在的設計是官方的「可攜版」Python，它沒有視窗元件，要另外複製 tkinter 進去，能不能成功還沒驗證（原本的 QD3）。ZIP 路徑正在改用 uv 下載的獨立版 Python，那種通常本來就帶 tkinter。</p>
+      <p class="rec"><i>建議</i><span>兩條路用同一種：發佈時先用 uv 把同一版獨立 Python 抓好、放進安裝程式。少維護一套，也可能順便解決開不出視窗的問題。等另一個工作做完再確認。</span></p></li>
+    <li><b>安裝程式要不要簽章？（原本的 QD1）</b>
+      <p>沒簽章時每個人第一次執行都會看到 SmartScreen 的藍色警告，這是「一路按下一步」最大的破口。</p>
+      <p class="rec"><i>建議</i><span>alpha 先不簽：下載頁放 SHA-256 和兩步圖解。公開宣傳之前改用雲端簽章服務。</span></p></li>
+    <li><b>安裝程式自己的畫面要做幾種語言？</b>
+      <p>設定精靈有 12 種語言，但安裝程式的每一頁都要另外翻一次。</p>
+      <p class="rec"><i>建議</i><span>先做繁體中文和 English，其他語言的 Windows 顯示 English。SYNOX 本身的語言仍然可以選 12 種。</span></p></li>
+    <li><b>ZIP 路徑的「建議／自訂」要長什麼樣？</b>
+      <p>ZIP 這條路在 Python 裝好之前開不出精靈的視窗，只有 <code>Setup.bat</code> 的文字視窗。今天它第一題是問語言。</p>
+      <p class="rec"><i>建議</i><span>文字視窗開頭先印「先說清楚」那三行，再問一題：按 Enter 照建議全部裝好，輸入 C 自訂。語言自動跟 Windows 一樣。不另外做視窗；想要完整畫面的人用 .exe。</span></p></li>
+    <li><b>解除安裝時要不要提供「連我的資料也一起刪除」？</b>
+      <p>今天安裝程式的解除安裝一律留下設定和資料；要刪資料得到 <code>Uninstall.bat</code> 選第 3 項並輸入 DELETE。</p>
+      <p class="rec"><i>建議</i><span>要，給一個預設不勾的選項，勾了之後再確認一次。預設行為不變：資料留著。</span></p></li>
+  </ol>
+</section>
+
+</main>
+</div>
+
+<footer>
+  <p class="stamp">給開發者：本機路徑 docs/installer/spec.html ・ 線上版：（發佈後填入） ・ 頁面版本：（發佈後填入）</p>
+</footer>
+</div>
+
+<script>
+/* 目錄：手機上收合；捲到哪一節就標哪一節。沒有 JS 時目錄整份攤開，頁面照樣能讀。 */
+(function () {
+  var toc = document.getElementById('toc'), btn = document.getElementById('toc-btn'), now = document.getElementById('toc-now');
+  if (!toc || !btn) return;
+  toc.classList.remove('no-js');
+  var links = Array.prototype.slice.call(toc.querySelectorAll('ol a'));
+  function setOpen(open) { toc.classList.toggle('open', open); btn.setAttribute('aria-expanded', open ? 'true' : 'false'); }
+  btn.addEventListener('click', function () { setOpen(!toc.classList.contains('open')); });
+  links.forEach(function (a) { a.addEventListener('click', function () { setOpen(false); }); });
+  function mark(id) {
+    links.forEach(function (a) {
+      var on = a.getAttribute('href') === '#' + id;
+      a.classList.toggle('on', on);
+      if (on) { a.setAttribute('aria-current', 'true'); now.textContent = a.textContent.replace(/^\d+/, ''); } else { a.removeAttribute('aria-current'); }
+    });
+  }
+  var sections = links.map(function (a) { return document.getElementById(a.getAttribute('href').slice(1)); }).filter(Boolean);
+  function spy() {
+    var y = 140, current = sections[0];
+    sections.forEach(function (s) { if (s.getBoundingClientRect().top <= y) current = s; });
+    if (current) mark(current.id);
+  }
+  var ticking = false;
+  window.addEventListener('scroll', function () { if (!ticking) { ticking = true; requestAnimationFrame(function () { ticking = false; spy(); }); } }, { passive: true });
+  spy();
+})();
+</script>
+</body>
+</html>
