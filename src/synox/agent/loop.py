@@ -36,6 +36,7 @@ from isdtelekit.core.registry import AI, DANGER, Node
 
 from synox import health, policy, present
 from synox.agent import claims as claims_mod
+from synox.agent import context as context_mod
 from synox.agent import delimit
 from synox.agent import skills as skills_mod
 from synox.agent import toolpick
@@ -377,15 +378,69 @@ class AgentLoop:
         return picked
 
     def _chat(self, messages, tools, stop):
+        messages = self._fit(messages, tools)       # context 預算（docs/adr/0015）：送副本，對話紀錄本身不改
         if stop:
             return self.adapter.chat(messages, tools, stop=stop)
         return self.adapter.chat(messages, tools)
+
+    # ── context 預算（docs/adr/0015、0016）──────────────────────────────
+
+    def _fit(self, messages, tools):
+        """llm.context_size 有設：照 agent/context.py 的順序截斷再送（回新的 list）；沒設＝原樣。截了什麼寫 log、記下來，
+        這一輪結束時另送一則提醒（_turn）。"""
+        state = getattr(self._ctx, "budget", None)
+        if not state or not state.get("limit") or state.get("start") is None:
+            return messages
+        reserve = int(self.llm.get("max_tokens") or 1024)
+        if tools:
+            reserve += context_mod.estimate(json.dumps([{"name": t.name, "description": t.description,
+                                                         "parameters": t.parameters} for t in tools], ensure_ascii=False))
+        result = context_mod.fit(messages, state["limit"], reserve=reserve, start=state["start"], soul=state.get("soul", ""))
+        if result.changed or result.over:
+            logging.warning("[AGENT] context budget: %s", result.log_text())
+            stats = state["stats"]
+            for key in ("dropped_turns", "omitted_results", "cut_chars"):
+                stats[key] = max(stats.get(key, 0), getattr(result, key))
+            stats["soul_dropped"] = stats.get("soul_dropped") or result.soul_dropped
+            stats["over"] = stats.get("over") or result.over
+        return result.messages
+
+    def _cap(self, call: ToolCall, result: str) -> str:
+        """工具結果的上限（llm.tool_result_chars；auto＝有 context 預算時 3000 字）：保頭尾，寫 log、記下來給這一輪的提醒。"""
+        cap = context_mod.result_chars(self.llm)
+        if not cap or len(result or "") <= cap:
+            return result
+        logging.warning("[AGENT] tool result of %s capped: %d -> %d chars (llm.tool_result_chars)", call.name,
+                        len(result), cap)
+        state = getattr(self._ctx, "budget", None)
+        if state is not None:
+            state["stats"].setdefault("capped", []).append(call.name)
+        return context_mod.cap_result(result, cap)
+
+    def _budget_note(self, api, chat_id: int) -> None:
+        state = getattr(self._ctx, "budget", None)
+        self._ctx.budget = None
+        if not state or not state["stats"]:
+            return
+        note = context_mod.note_text(limit=state["limit"] or context_mod.context_limit(self.llm), **state["stats"])
+        if note:
+            try:
+                api.send_message(chat_id, note)              # 另一則、不進對話記憶：截斷不靜默
+            except Exception:
+                logging.exception("[AGENT] could not send the context-budget note")
 
     def last_ledger(self) -> List[claims_mod.Evidence]:
         """這個執行緒剛跑完的那一輪的工具證據（評測用；evals/replay.py）。"""
         return list(getattr(self._ctx, "ledger", None) or [])
 
     def _turn(self, api, chat_id: int, user, text: str) -> None:
+        self._ctx.budget = {"limit": context_mod.context_limit(self.llm), "start": None, "soul": "", "stats": {}}
+        try:
+            self._turn_body(api, chat_id, user, text)
+        finally:
+            self._budget_note(api, chat_id)
+
+    def _turn_body(self, api, chat_id: int, user, text: str) -> None:
         registry = self.app.registry
         skills = skills_mod.from_packs(self.visible_packs(user))
         tools = self.tools_for(user, chat_id)
@@ -411,6 +466,7 @@ class AgentLoop:
 
         messages = [Message(SYSTEM, build_prompt(tools))] + \
             list(self.history[self.memory_key(chat_id, user)]) + [Message(USER, text)]
+        self._ctx.budget.update(start=len(messages) - 1, soul=soul)
         typing = getattr(api, "typing", None)
         warned: List[str] = []
         guard = bool(commands) and self.guard_on()       # 閘門只在有工具的對話開（docs/adr/0008）
@@ -500,7 +556,7 @@ class AgentLoop:
                     api.send_message(chat_id, REPEAT_STOP)
                     self.remember(chat_id, text, REPEAT_MEMORY, user)
                     return
-                wrapped = delimit.wrap(result, nonce)
+                wrapped = delimit.wrap(self._cap(call, result), nonce)
                 if fail_count == 2:                         # 第 2 次：結果後面附一行（在分隔符外面，是系統說的）
                     wrapped += "\n" + REPEAT_HINT
                 if native:
