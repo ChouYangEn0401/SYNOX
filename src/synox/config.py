@@ -99,6 +99,9 @@ def parse_apps(raw, web_port: int) -> dict:
         return value
     first = number("port_first", 1024, 65000)
     count = number("port_count", 1, 40)
+    if first <= int(web_port or 0) < first + count and "port_first" not in raw:
+        # 使用者把網頁介面的埠設在預設的工具服務範圍裡（舊設定沒有 web.apps）：預設範圍往後挪，不讓舊設定開不起來
+        first = out["port_first"] = int(web_port) + 1
     if first <= int(web_port or 0) < first + count:
         raise ConfigError(f"config.json 的 web.apps 的埠範圍（{first}–{first + count - 1}）不能包含網頁介面的 web.port。")
     number("max_running", 1, count)
