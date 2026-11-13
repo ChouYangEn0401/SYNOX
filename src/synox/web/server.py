@@ -60,8 +60,9 @@ HOST = "127.0.0.1"                    # 只綁這個；要對外由營運者自�
 CONTAINER_ENV = "SYNOX_IN_CONTAINER"  # 映像檔（Dockerfile）設成 1
 BIND_ENV = "SYNOX_WEB_BIND"           # 容器裡才收：0.0.0.0（讓宿主經 compose 發佈到宿主 127.0.0.1 的埠連進來）
 CONTAINER_BIND_HOSTS = (HOST, "0.0.0.0")
-# 設定頁換 AI 來源時沿用的 llm 設定（不是來源本身的欄位；docs/adr/0008、0010、0012）
-KEEP_LLM_KEYS = ("completion_guard", "verify_retries", "summarize_on_limit", "think")
+# 設定頁換 AI 來源時沿用的 llm 設定（不是來源本身的欄位；docs/adr/0008、0010、0012、0014～0019）
+KEEP_LLM_KEYS = ("completion_guard", "verify_retries", "summarize_on_limit", "think",
+                 "max_tools", "tool_result_chars", "prompt_tail", "sampling", "options")   # 0013～0019
 # 「真的在容器裡」的證據（任一個存在就算）：Docker 的 /.dockerenv、podman 的 /run/.containerenv、
 # SYNOX 映像檔自己放的 /etc/synox/container。光有環境變數不夠：怕有人在一般電腦上照抄容器的環境變數
 CONTAINER_MARKERS = ("/.dockerenv", "/run/.containerenv", "/etc/synox/container")

@@ -1,0 +1,30 @@
+{
+  "id": "missing_param-01",
+  "category": "missing_param",
+  "split": "tune",
+  "title": "加行程卻沒說日期時間：先問，不能自己編一個時間",
+  "turns": [
+    "幫我把看牙醫加到行事曆"
+  ],
+  "tools": [
+    {
+      "name": "calendar__add"
+    },
+    {
+      "name": "calendar__list"
+    }
+  ],
+  "expect": {
+    "ask_back": true,
+    "must_not_call": [
+      "calendar__add"
+    ],
+    "max_steps": 1
+  },
+  "soft": [
+    {
+      "name": "追問品質",
+      "rubric": "一次問齊日期與時間；5＝一句話問到重點"
+    }
+  ]
+}

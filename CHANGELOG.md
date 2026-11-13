@@ -1,5 +1,33 @@
 # Changelog
 
+## 未發佈（branch feat/small_model_harness：工具說明精簡化、每輪工具上限、context 預算、本輪規則與覆誦、Qwen3 取樣、評測擴充）
+
+### 新增
+- **工具說明精簡化**（[ADR 0013](docs/adr/0013-tool-scenario-descriptions.md)）：pack.json `commands[].ai` 可以寫 `{"scenario": "一句話"}`，
+  給 AI 的說明變成「用途。情境：…」，不放人打的用法（第 1 關檢查：120 字內、一行、不准網址或像指令的字）。SDK `@tool(scenario=)`（SDK 0.2.2）。
+  **沒寫 scenario 的工具說明一個字都不變。**
+- **每輪工具數上限**（`src/synox/agent/toolpick.py`，[ADR 0014](docs/adr/0014-per-turn-tool-cap.md)）：工具太多時用使用者這句話的字元 2-gram
+  挑前 N 個；`system__cannot_do`、`skill_read`、系統指令永遠保留；叫了清單外但有權的工具照常執行、下一步給全部。`llm.max_tools`＝auto
+  （本地／私網來源 12，其他不限）｜0｜數字。
+- **Context 預算**（`src/synox/agent/context.py`，[ADR 0015](docs/adr/0015-context-budget.md)、[0016](docs/adr/0016-tool-result-cap.md)）：
+  設了 `llm.context_size` 就在送出前估長度、照 Qwen-Agent 的順序截（舊對話 → 舊的工具結果 → 最後一個工具結果的中間 → soul.md），
+  工具結果超過 `llm.tool_result_chars`（auto＝有預算時 3000 字）保頭尾。截了一定寫 log、另送一則提醒。**沒設 context_size＝不截。**
+- **本輪規則與時間放最後一行、多步覆誦目標**（[ADR 0017](docs/adr/0017-tail-rules-and-time-last.md)、[0018](docs/adr/0018-goal-recitation.md)）：
+  `llm.prompt_tail`＝auto（本地／私網來源開）｜on｜off。開頭整段多輪逐字相同（本地模型的 prefix cache）。
+- **Qwen3 不思考模式取樣參數**（[ADR 0019](docs/adr/0019-qwen3-no-think-sampling.md)）：kind=local 的 Ollama、模型名有 qwen3＝送
+  temperature 0.7／top_p 0.8／top_k 20／min_p 0；`llm.sampling`（auto｜qwen3｜off）、`llm.options` 可蓋過。
+- **評測**（[ADR 0020](docs/adr/0020-eval-missing-tool-param-and-metrics.md)）：新類別 `missing_tool`、`missing_param` 各 2 題（共 36 題）、
+  新檢查 `cannot_do`；報表多 Reliable Pass Rate、工具觸發 F1、第 4 關通過率；`scripts/eval_assistant.py --merge` 合併重跑 N 次的報表。
+- doctor 多一行「小模型 harness」（工具上限、context 預算、工具結果上限、本輪規則開不開）。
+
+### 改變
+- 「auto」的判斷抽成 `src/synox/agent/auto.py`（完成宣稱檢查、步數總結、上面這些共用）；`claims.weak_source` 等舊名字照舊能用。
+- 本地 Ollama 跑 qwen3 系列模型時，請求的 options 多了取樣參數（以前用伺服器／Modelfile 的預設）。
+- 網頁設定頁換 AI 來源時也保留 `max_tools`／`tool_result_chars`／`prompt_tail`／`sampling`／`options`。
+
+### 不變
+- 雲端來源與 Claude Code 預設：工具清單、系統提示、工具結果一個字都不變（沒設 context_size 就不截）。
+
 ## 未發佈（branch feat/completion_guard：本地模型的虛假完成檢測、救回洩漏的工具呼叫、停止詞與「做不到」出口）
 
 ### 新增

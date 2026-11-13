@@ -63,7 +63,7 @@ def make_adapter(config, vault=None, *, session=None, opener=None) -> Optional[C
             raise LLMError(f"本地模型的設定不對：{e}")
         return LocalAdapter(s["model"], server=s["server"], base_url=s["base_url"], context_size=s["context_size"],
                             timeout=s["timeout"], max_total_timeout=s["max_total_timeout"], tools=s["tools"],
-                            max_tokens=max_tokens, opener=opener)
+                            max_tokens=max_tokens, opener=opener, sampling=s["sampling"], options=s["options"])
     if kind in ("openai", "anthropic", "gemini", "openai_compat"):     # API 金鑰的來源都經 ntu_easy_llm
         from synox.llm.easy_llm import EasyLLMAdapter
         return EasyLLMAdapter(kind, resolve_secret(llm.get("api_key", ""), vault), llm.get("model", ""),

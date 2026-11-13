@@ -1,0 +1,11 @@
+{
+  "case": "missing_param-02",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "text": "要換算多少美金？要換成哪一種幣別（例如台幣）？"
+      }
+    ]
+  ]
+}

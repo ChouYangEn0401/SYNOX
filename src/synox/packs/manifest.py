@@ -464,6 +464,46 @@ def _field_doc_problems(where: str, f: dict) -> List[str]:
     return out
 
 
+SCENARIO_MAX = 120
+# scenario 是給 AI 看的字（進工具說明）：不准夾網址、信箱、像在對 AI 下指令或要跳過確認的字、分隔符（規則跟 runtime/ledger.py 的
+# risk_flags 同一套，只取這幾類；「提到寄送／執行」不算——工具本來就是做這些事的）
+SCENARIO_RISKS = ("有網址或網域", "有電子郵件", "像在對 AI 下指令（忽略／改掉規則）", "要跳過確認或核准", "夾了標記或分隔符")
+
+
+def scenario_problem(value) -> str:
+    """commands[].ai.scenario 寫得對不對（""＝對）：一行、120 字內、不像指令。"""
+    problem = one_line_problem(value, "scenario", SCENARIO_MAX)
+    if problem:
+        return problem
+    from synox.runtime.ledger import risk_flags
+    bad = [flag for flag in risk_flags(value) if flag in SCENARIO_RISKS]
+    if bad:
+        return f"scenario 不能{'、'.join(bad)}（這段字會直接給 AI 看）"
+    return ""
+
+
+def scenario_of(command: dict) -> str:
+    """commands[].ai.scenario（沒寫或不合＝""；載入時寬鬆，壞的當作沒寫）。"""
+    ai = command.get("ai") if isinstance(command, dict) else None
+    value = ai.get("scenario") if isinstance(ai, dict) else None
+    return value.strip() if isinstance(value, str) and not scenario_problem(value) else ""
+
+
+def ai_problems(value, where: str) -> List[str]:
+    """commands[].ai 不是布林時：只能是 {"scenario": "一句話"}。"""
+    if not isinstance(value, dict):
+        return [f"{where} 的 ai 要是 true 或 false，或 {{\"scenario\": \"什麼時候用（一句話）\"}}"]
+    out = []
+    unknown = sorted(set(value) - {"scenario"})
+    if unknown:
+        out.append(f"{where} 的 ai 只收 scenario（不認得 {'、'.join(map(str, unknown))}）")
+    if "scenario" in value:
+        problem = scenario_problem(value["scenario"])
+        if problem:
+            out.append(f"{where} 的 ai.{problem}")
+    return out
+
+
 def _check_commands(commands, strict: bool, problems: List[str], install: bool = False) -> List[dict]:
     """cli 的 commands：名字、argv、effect、fields。回整理過的清單（effect 一律大寫）。
     install=True（安裝時的 strict）：另外檢查給人看的說明（summary、fields 的 ask／help／required／default 的型別）。"""
@@ -490,9 +530,11 @@ def _check_commands(commands, strict: bool, problems: List[str], install: bool =
             problems.append(f"{where} 的 effect 只能是 READ、WRITE 或 DANGER")
         elif not effect and strict:
             problems.append(f"{where} 沒寫 effect（READ、WRITE 或 DANGER，一定要寫）")
-        for flag in ("ai", "confirm"):                    # ai: false＝不給 AI；confirm: true＝AI 呼叫前先送確認卡
-            if flag in c and not isinstance(c[flag], bool):
-                problems.append(f"{where} 的 {flag} 要是 true 或 false")
+        # ai: false＝不給 AI；ai: {"scenario": "…"}＝給 AI，附一句使用情境（docs/adr/0013）；confirm: true＝AI 呼叫前先送確認卡
+        if "ai" in c and not isinstance(c["ai"], bool):
+            problems += ai_problems(c["ai"], where)
+        if "confirm" in c and not isinstance(c["confirm"], bool):
+            problems.append(f"{where} 的 confirm 要是 true 或 false")
         if install and "summary" in c:
             problem = one_line_problem(c["summary"], f"{where} 的 summary")
             if problem:
