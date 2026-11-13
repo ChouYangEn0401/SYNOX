@@ -67,7 +67,7 @@
 - [ ] 8. `C:\build\venv\Scripts\python.exe <SYNOX>\scripts\stage_installer.py --fetch-python --wheelhouse C:\build\wheelhouse --tools C:\build\tools`
       （下載 ZIP 用的同一份 Python、核對 SHA256、解到 stage 的 `runtime\python`）→ 最後一行印出 ISCC 指令。
 - [ ] 9. 跑那行 `ISCC.exe ...` → `<SYNOX>\dist\SYNOX-Setup-<版本>.exe`
-- [ ] 10.（選做）簽章：見 QuestionToUser.md QD1。
+- [ ] 10.（選做）簽章：見 [docs/QuestionToUser.md](../QuestionToUser.md) QD1。
 - [ ] 11. 第三方授權清單：把 wheelhouse 每個套件的授權（`pip-licenses` 之類，或手抄）與 CPython 的 LICENSE 放進 stage（之後補進腳本）。
 
 ### B-2 在空白帳號上安裝

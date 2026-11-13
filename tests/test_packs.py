@@ -20,18 +20,23 @@ def _pack(folder, **over):
     return raw
 
 
-def test_ships_with_no_tools_at_all():
-    """出廠真的全空（2026-11-12，docs/legacy/builtin-packs.md、docs/legacy/connectors.md）：packs/ 與 connectors/ 都只有說明、
-    沒有出廠名單、SYNOX 只掃 packs/。用 git 追蹤的檔判斷，開發機自己裝的工具不算。"""
+def test_ships_with_no_tools_at_all(tmp_path):
+    """出廠真的全空（2026-11-12，docs/legacy/builtin-packs.md、docs/legacy/connectors.md）：packs/ 只有說明、
+    以前的 connectors/ 整個拿掉了（2026-11-13）、沒有出廠名單、SYNOX 只掃 packs/。
+    用 git 追蹤的檔判斷，開發機自己裝的工具不算。"""
     import subprocess
 
     from synox.config import ROOT
-    for folder in ("packs", "connectors"):
+    for folder, tracked in (("packs", ["packs/README.md"]), ("connectors", [])):
         done = subprocess.run(["git", "-C", ROOT, "ls-files", folder], capture_output=True, text=True)
         if done.returncode == 0:                                 # 解開的 zip（沒有 .git）就不看這一項
-            assert done.stdout.split() == [f"{folder}/README.md"]
+            assert done.stdout.split() == tracked
     assert loader.BUNDLED == ()
-    assert loader.discover([os.path.join(ROOT, "connectors")]) == []
+    leftover = tmp_path / "connectors"                           # 舊版解壓縮蓋過來可能留下的空殼／不存在的資料夾
+    assert loader.discover([str(leftover)]) == []
+    leftover.mkdir()
+    (leftover / "README.md").write_text("old note", encoding="utf-8")
+    assert loader.discover([str(leftover)]) == []
     src = open(loader.__file__, encoding="utf-8").read()
     assert 'PACK_DIRS = (os.path.join(ROOT, "packs"),)' in src           # conftest 換掉了 PACK_DIRS，看原始碼
 
