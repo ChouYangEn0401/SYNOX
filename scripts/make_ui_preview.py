@@ -6,13 +6,14 @@
 - docs/ui/preview.html        真的 src/synox/web/static/app.html（含 tools.css／tools.js，跟 server.render_app 同一個函式），
                               前面插一段「假的 fetch」（假資料、不送出任何東西）。
                               網址參數：?login=1 看登入畫面、?theme=dark|light 強制深淺色、?bar=0 拿掉上方的預覽列、
-                              ?tooledit=1 工具頁直接打開「編輯群組」；?ctl=error 主控頁讀不到時的樣子、?member=1 用成員身分看
+                              ?tooledit=1 工具頁直接打開「編輯群組」；?lib=1 設定頁「功能與安裝」直接按好「載入工具清單」
+                              （假的清單＝tests/fixtures 裡那份真的 v0.2.0 目錄；預覽不連網）；?ctl=error 主控頁讀不到時的樣子、?member=1 用成員身分看
                               （沒有「主控」）；#chat／#tools／#settings／#control 切頁。
                               開場動畫（static/splash.js）：同一個分頁只播第一次；?splash=1 重播（預覽列的「重播開場」）、
                               ?splash=0 不播；?splashat=600 讓開場停在第 600 毫秒（拍關鍵影格用）。
                               工具頁的群組編輯可以真的操作（存在這一頁的記憶體裡，重新整理就回到預設）。
 - docs/ui/preview-phone.html、preview-phone-dark.html
-                              六個 390px 寬的框（登入、對話、工具、工具的編輯群組、設定、主控），看手機寬度用。
+                              七個 390px 寬的框（登入、對話、工具、工具的編輯群組、設定、功能與安裝、主控），看手機寬度用。
                               「登入」那一格每次打開都重播開場，其他格不播。
 - docs/ui/preview-login.html  伺服器產生的「登入確認頁」（server.py 的 login_page，用假的帳號資料）。
 - docs/ui/preview-error.html  伺服器產生的小頁（server.py 的 _page，例如登入連結不能用）。
@@ -147,13 +148,25 @@ SETTINGS = {
         {"label": "先不用 AI", "choice": "none"},
     ],
     "packs": [
-        {"name": "notes", "status": "loaded", "version": "0.2.0", "lock": "locked", "removable": False},
+        {"name": "notes", "status": "loaded", "version": "0.1.0", "lock": "locked", "removable": False},
         {"name": "money", "status": "loaded", "version": "0.2.0", "lock": "locked", "removable": False},
         {"name": "todoist", "status": "connector", "version": "0.2.0", "lock": "locked", "removable": False},
         {"name": "example-tool", "status": "rejected", "detail": "掃描沒過：用了動態執行程式碼", "version": "1.0.0",
          "lock": "unlocked", "removable": True},
     ],
 }
+
+
+
+def _library() -> dict:
+    """「工具庫（官方）」的假回應：用 tests/fixtures 裡那份真的 v0.2.0 目錄，經 packs/catalog.py 同一個函式排成卡片。"""
+    from synox.packs import catalog
+    with open(os.path.join(ROOT, "tests", "fixtures", "libs_index_v0.2.0.json"), "rb") as f:
+        lib = catalog.parse_index(f.read())
+    have = {p["name"]: p["version"] for p in SETTINGS["packs"]}
+    return {"version": lib.version, "releases": catalog.RELEASES_PAGE, "overview": catalog.OVERVIEW_URL,
+            "tools": catalog.cards(lib, have)}
+
 
 # 主控頁（/api/runtime/*）：時間寫成「離現在幾分鐘」，假 fetch 打開時才換成 ISO 時間，預覽檔才不會每跑一次就變。
 RUNTIME = {
@@ -399,6 +412,11 @@ MOCK = r"""
         scan: { declared_capabilities: ["network"], required_capabilities: ["network"], problems: [], findings: [] },
         warnings: ["會連網：只連到天氣服務"], tier: { tier: "T1", text: "T1：有程式碼，掃描過了" } });
     }
+    if (p === "/api/packs/library") { return reply(D.library); }
+    if (p === "/api/packs/library/install") {     // 預覽：不下載，直接給待核准那一份的報告
+      D.stagedGone = false;
+      return fetch("/api/pack-staged/previewtoken01");
+    }
     if (p === "/api/packs/install") {
       D.stagedGone = true;
       return reply({ ok: true, name: "weather", status: "loaded", detail: "", env: "" });
@@ -437,6 +455,16 @@ MOCK = r"""
     });
   }
   D.defaultLayout = JSON.stringify(D.tools.layout);
+  if (q.get("lib") === "1") {             // 設定頁「功能與安裝」直接按好「載入工具清單」（截圖用）
+    var libTries = 0;
+    var libWait = setInterval(function () {
+      libTries += 1;
+      var b = document.getElementById("lib-load");
+      var card = document.getElementById("set-library");
+      if (b && card && !card.classList.contains("hidden")) { clearInterval(libWait); b.click(); }
+      else if (libTries > 50) { clearInterval(libWait); }
+    }, 100);
+  }
   if (q.get("tooledit") === "1") {        // 工具頁直接打開「編輯群組」（截圖用）
     var tries = 0;
     var wait = setInterval(function () {
@@ -471,6 +499,7 @@ MOCK = r"""
                  ["工具", function () { return "?" + theme + "#tools"; }],
                  ["工具：編輯群組", function () { return "?" + (theme ? theme + "&" : "") + "tooledit=1#tools"; }],
                  ["設定", function () { return "?" + theme + "#settings"; }],
+                 ["功能與安裝", function () { return "?" + (theme ? theme + "&" : "") + "lib=1#packs"; }],
                  ["主控", function () { return "?" + theme + "#control"; }],
                  ["主控讀不到", function () { return "?ctl=error" + (theme ? "&" + theme : "") + "#control"; }],
                  ["成員看到的", function () { return "?member=1" + (theme ? "&" + theme : "") + "#control"; }],
@@ -505,7 +534,7 @@ def app_preview() -> str:
     html = server.render_app("preview")          # 跟伺服器送出的頁面同一個函式（含 tools／control 的 css／js）
     data = {"me": ME, "chats": CHATS, "events": EVENTS, "tools": TOOLS, "secrets": SECRETS,
             "settings": SETTINGS, "channels": CHANNELS, "accounts": ACCOUNTS,
-            "runtime": RUNTIME, "logs": TASK_LOGS, "soul": SOUL, "soul_notes": SOUL_NOTES}
+            "library": _library(), "runtime": RUNTIME, "logs": TASK_LOGS, "soul": SOUL, "soul_notes": SOUL_NOTES}
     mock = MOCK.replace("__DATA__", json.dumps(data, ensure_ascii=False))
     note = ("<!-- 自動產生：scripts/make_ui_preview.py（不要手改；改 src/synox/web/static/app.html、tools.css、"
             "tools.js、splash.css、splash.js 再重跑） -->\n")
@@ -559,7 +588,7 @@ PHONE = """<!doctype html>
 
 def phone_preview() -> str:
     frames = [("登入", "login=1"), ("對話", "#chat"), ("工具", "#tools"), ("工具：編輯群組", "tooledit=1#tools"),
-              ("設定", "#settings"), ("主控", "#control")]
+              ("設定", "#settings"), ("功能與安裝", "lib=1#packs"), ("主控", "#control")]
     out = []
     for title, q in frames:
         query, _, hash_ = q.partition("#")

@@ -33,6 +33,15 @@ test("only file drags are handled (text drags in chat are left alone)", () => {
   assert.strictEqual(P.hasFiles({}), false);
 });
 
+test("a drop always lands on the install tab (#packs), not whatever settings tab was open last", () => {
+  assert.strictEqual(P.installHash(""), "#packs");
+  assert.strictEqual(P.installHash("#chat"), "#packs");
+  assert.strictEqual(P.installHash("#settings"), "#packs");         // 以前停在這裡：會沿用上次的分頁（例如 AI）
+  assert.strictEqual(P.installHash("#settings:ai"), "#packs");
+  assert.strictEqual(P.installHash("#packs"), "#packs");
+  assert.strictEqual(P.installHash("#settings:packs"), "#settings:packs");   // 已經在安裝頁：不動網址
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try { fn(); console.log("ok   " + name); }

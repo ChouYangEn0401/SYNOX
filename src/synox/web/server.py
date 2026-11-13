@@ -13,6 +13,9 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     GET  /api/pack-staged/<token>   `python -m synox install` 暫存好的 pack 的檢查報告（擁有者；網頁 ?pack=<token>#settings:packs）
     GET  /api/packs/staged          擁有者：還沒按確認的暫存 pack（待核准清單，不用 token；過期的順便清掉）
     POST /api/packs/discard         {"token"}：擁有者「不要裝」，刪掉那一份暫存
+    POST /api/packs/library         擁有者按「載入工具清單」：抓官方工具庫的清單（網址寫死在 packs/catalog.py，只有這時才連網）
+    POST /api/packs/library/install {"name"}：伺服器從官方發佈頁下載那個工具、對大小與雜湊 → admin.stage（跟上傳同一條路）
+                                    → 回同一份報告；裝要另外按確認（/api/packs/install）
     GET  /api/pack-secrets/<name>   工具頁「連接」：auth.fields 的狀態（有填、最後 4 碼；secret 的值永遠不回）
     POST /api/pack-secrets/<name>   {"values": {欄位: 值}, "clear": [...]}：存進保管箱（空字串＝沿用原值）
                                     個人版只有擁有者、伺服器版每人設自己的
@@ -238,6 +241,7 @@ class WebUI:
         self._mother_fresh: set = set()       # 這次執行中已經清過「常駐助理」聊天畫面的人（重開 SYNOX＝它的記憶清空）
         self._channels_changed: set = set()   # 這次執行中改過的聊天通道（要重開才生效）
         self.bind_host = bind_host            # 綁哪個位址（start 時讀環境變數；測試換成假的容器證據）
+        self.catalog_opener = None            # 官方工具庫的連網（packs/catalog.py）；None＝真的，測試換假的
 
     # ── 登入連結 ─────────────────────────────────────────────────────
 
@@ -617,6 +621,10 @@ class WebUI:
             return self.pack_remove(user, data)
         if path == "/api/packs/discard":
             return self.pack_discard(user, data)
+        if path == "/api/packs/library":
+            return self.library_list(user)
+        if path == "/api/packs/library/install":
+            return self.library_install(user, data)
         if path == "/api/packs/reload":
             return self.pack_reload(user)
         if path == "/api/accounts/role":
@@ -1468,6 +1476,67 @@ class WebUI:
         except PackAdminError as e:
             return _err(404, str(e))
         return _json(200, {"ok": True})
+
+    # ── 官方工具庫（設定頁「工具庫（官方）」；packs/catalog.py）──────────────
+    # 只在擁有者按按鈕時連網（POST＋CSRF）；網址寫死在 catalog.py，送來的資料只用 name 挑工具。
+    def _installed_versions(self) -> Dict[str, str]:
+        report = self.app.extras.get("synox_pack_report")
+        return {i.name: i.version or "" for i in (report.items if report else [])}
+
+    def _library(self):
+        """(工具庫, 錯誤回應)。"""
+        from synox.packs import catalog
+        try:
+            return catalog.fetch_library(opener=self.catalog_opener), None
+        except catalog.CatalogError as e:
+            return None, _json(502 if e.offline else 400, {"error": str(e), "releases": catalog.RELEASES_PAGE})
+
+    def library_list(self, user) -> Resp:
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from synox.packs import catalog
+        lib, failed = self._library()
+        if failed:
+            return failed
+        have = self._installed_versions()
+        return _json(200, {"version": lib.version, "releases": catalog.RELEASES_PAGE, "overview": catalog.OVERVIEW_URL,
+                           "tools": catalog.cards(lib, have)})
+
+    def library_install(self, user, data: dict) -> Resp:
+        """「安裝」：重新抓清單 → 下載那一個檔（大小、雜湊對清單）→ admin.stage → 同一份報告（升級就多「改了什麼」）。
+        壓縮檔裡的 pack 名字／版本跟清單不一樣＝丟掉暫存、不給確認。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from synox.packs import catalog
+        from synox.packs.admin import GateRefused, PackAdminError, discard_staged, stage
+        name = str(data.get("name") or "")
+        if not catalog.NAME_RE.match(name):
+            return _err(404, catalog.TEXT["unknown"])
+        lib, failed = self._library()
+        if failed:
+            return failed
+        tool = next((t for t in lib.tools if t.name == name), None)
+        if tool is None:
+            return _err(404, catalog.TEXT["unknown"])
+        try:
+            blob = catalog.download(tool, opener=self.catalog_opener)
+        except catalog.CatalogError as e:
+            return _json(502 if e.offline else 400, {"error": str(e), "releases": catalog.RELEASES_PAGE})
+        try:
+            token, summary = stage(blob, self.config.data_dir)          # 安全管線第 1、2 關（跟上傳一樣）
+        except GateRefused as e:
+            return _json(400, {"error": str(e), "refused": e.summary})
+        except PackAdminError as e:
+            return _err(400, str(e))
+        if summary.get("name") != tool.name or summary.get("version") != tool.version:
+            try:
+                discard_staged(token, self.config.data_dir)
+            except PackAdminError:
+                logging.warning("[WEB] could not discard mismatched library download %s", token)
+            return _err(400, catalog.TEXT["not_listed"])
+        return _json(200, self._with_upgrade(summary))
 
     def pack_install(self, user, data: dict) -> Resp:
         denied = self._owner_only(user)
