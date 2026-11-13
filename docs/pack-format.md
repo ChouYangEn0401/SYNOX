@@ -127,6 +127,26 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
     沒過＝狀態 `rejected`、不載入（理由列 `檔名:行號`）。信得過就 `python -m synox packs lock --approve <name> --trust core`。
   - 為什麼只給擁有者，`doctor` 與 `packs status` 都會寫一行 🔐。kind=cli 的第三方 pack 另外看沙盒（見 `docs/security.md`「運行空間（沙盒）」）。
 
+### 範圍：`callers`、`stepup`（只能收緊，ADR 0025 §3）
+
+兩個**可選**的頂層欄位，寫了 SYNOX 在執行時檢查（`policy.decide`），不是相信工具自己說的：
+
+```json
+"callers": { "export": ["human"], "sync": ["human", "schedule"] },
+"stepup":  ["rm_all"]
+```
+
+- `callers`：這個指令只收列出來的幾類叫法。`human`＝你本人在 Telegram／Discord／SYNOX 網頁／終端機；`remote`＝手機入口（ADR 0026）；
+  `ai`＝AI 呼叫工具；`schedule`＝排程；`system`＝SYNOX 自己的背景工作。`["human"]`＝AI、排程、手機入口都不行，
+  AI 的工具清單裡也看不到它；排進排程會被拒。沒寫的指令＝今天的行為。
+- `stepup`：這個指令**一定要**先用手機驗證器解鎖（沒設定驗證器的人不能用它，回一句去哪裡設定），不管「危險的動作也要先解鎖」開不開。
+- 安裝時（第 1 關）：指令名要是這個工具宣告過的（kind=cli／mcp 對 `commands`；kind=python 的指令寫在程式裡，安裝時只看名字的格式、
+  載入時對不到的那一條當作沒寫並記 log）；`callers` 的值是上面五類的非空子集；**危險的指令不准列 `remote`**；不認得的 → 拒，訊息點名。
+  已經裝好的舊工具載入時，壞掉的那一條當作沒寫。
+- 安裝報告多一行白話（「/demo_export 只收你本人；/demo_rm_all 一定要先用手機驗證器解鎖」）。升級時拿掉或放寬一條＝紅字，新增或收緊＝一般字。
+- 工具自己也能再檢查一次（多一層，不是邊界）：python 工具用 `kit.caller()`、`kit.require_human()`；子程序工具用 `synox_sdk` 的
+  `caller()`、`require_human()`（SDK 0.2.3 起，見 docs/sdk.md）。
+
 ## pack.json v2（架構 v1 §4）
 
 在上面之上加的欄位；**舊的 pack 照舊能讀**。有任何一個 v2 欄位（`capabilities`、`publisher`、`integrity`、`mcp`、

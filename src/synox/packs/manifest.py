@@ -301,6 +301,9 @@ class Manifest:
     stage_declared: bool = False
     # 工具健康的自我檢查（選填；{"check": "<這個 pack 的一個唯讀指令名>"}，docs/tool-health.md）
     health: dict = field(default_factory=dict)
+    # 範圍（ADR 0025 §3，只能收緊）：哪些指令只收誰叫（human／remote／ai／schedule／system）、哪些一定要先解鎖
+    callers: Dict[str, List[str]] = field(default_factory=dict)
+    stepup: List[str] = field(default_factory=list)
 
     @property
     def stage_label(self) -> str:
@@ -1173,6 +1176,7 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     web = parse_web(raw.get("web"), folder, problems)
     if kind == "cli" and web["api"] and isinstance(cli.get("commands"), list):
         web["routes"] = _cli_routes(raw.get("web") or {}, web["api"], cli["commands"], problems)
+    extra.update(check_callers(raw, kind, cli, problems, strict))
     health, health_bad = health_problem(raw, kind, cli)
     if health_bad and strict:                  # 新欄位：安裝時說清楚；載入時壞的當作沒寫（只是少了自我檢查）
         problems.append(health_bad)
@@ -1186,6 +1190,56 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
                     stage=stage, stage_declared=stage_declared, health=health,
                     runtime={**{k: v for k, v in runtime.items() if k in ("python", "python_posix", "node")},
                              **({"container": container} if container else {})}, **extra)
+
+
+CALLERS = ("human", "remote", "ai", "schedule", "system")          # 跟 synox/guard/scope.py 的 CALLERS 同一份
+
+
+def check_callers(raw: dict, kind, cli: dict, problems: List[str], strict: bool) -> dict:
+    """`callers`（{"指令名": ["human", …]}）與 `stepup`（["指令名", …]）：只能收緊（ADR 0025 §3；計畫 K4）。
+    安裝時（strict）：不認得的指令名、空清單、不認得的類別、危險的指令列 remote → 拒，訊息點名。
+    載入時（已裝的舊工具）：壞掉的那一條當作沒寫。python pack 的指令寫在程式裡，這裡只能查名字的格式，
+    「有沒有這個指令」由 loader 掛的時候再對（對不到的當作沒寫，記 log）。"""
+    known = None
+    if kind in ("cli", "mcp") and isinstance(cli.get("commands"), list):
+        known = {c.get("name"): norm_effect(c.get("effect")) or "READ"
+                 for c in cli["commands"] if isinstance(c, dict) and isinstance(c.get("name"), str)}
+    bad: List[str] = []
+    callers: Dict[str, List[str]] = {}
+    raw_callers = raw.get("callers")
+    if raw_callers is not None:
+        if not isinstance(raw_callers, dict):
+            bad.append('callers 要是 {"指令名": ["human", …]}')
+        else:
+            for name, value in raw_callers.items():
+                if not isinstance(name, str) or not COMMAND_RE.match(name) or (known is not None and name not in known):
+                    bad.append(f"callers 的 {name!r} 不是這個工具宣告過的指令")
+                    continue
+                if not isinstance(value, list) or not value or not all(isinstance(c, str) for c in value):
+                    bad.append(f"callers.{name} 要是非空的清單（human、remote、ai、schedule、system）")
+                    continue
+                unknown = [c for c in value if c not in CALLERS]
+                if unknown:
+                    bad.append(f"callers.{name} 不認得 {'、'.join(unknown)}（只能是 {'、'.join(CALLERS)}）")
+                    continue
+                if "remote" in value and known is not None and known.get(name) == "DANGER":
+                    bad.append(f"callers.{name}：危險的指令不能列 remote（手機入口做不了危險的動作）")
+                    continue
+                callers[name] = [c for c in CALLERS if c in value]
+    stepup: List[str] = []
+    raw_stepup = raw.get("stepup")
+    if raw_stepup is not None:
+        if not isinstance(raw_stepup, list) or not all(isinstance(s, str) for s in raw_stepup):
+            bad.append('stepup 要是指令名的清單（["rm_all", …]）')
+        else:
+            for name in raw_stepup:
+                if not COMMAND_RE.match(name) or (known is not None and name not in known):
+                    bad.append(f"stepup 的 {name!r} 不是這個工具宣告過的指令")
+                elif name not in stepup:
+                    stepup.append(name)
+    if strict:
+        problems.extend(bad)
+    return {"callers": callers, "stepup": stepup}
 
 
 def doc_warnings(m: Manifest) -> List[str]:

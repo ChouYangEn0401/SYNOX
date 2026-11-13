@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 import re
 import threading
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, NamedTuple, Optional, Sequence, Tuple
 
 from isdtelekit.core.registry import Field, Group, Node, field_pattern
 
@@ -122,6 +122,80 @@ def hhmm(value: str) -> Optional[str]:
     return "要是 HH:MM（例如 08:00）"
 
 
+def amount(value: str) -> Optional[str]:
+    """金額：大於 0、最多兩位小數、不超過十億（可以有千分位逗號）。"""
+    text = value.replace(",", "").strip()
+    if re.match(r"^\d{1,10}(\.\d{1,2})?$", text) and 0 < float(text) <= 1_000_000_000:
+        return None
+    return "要是金額（例如 120 或 99.5）"
+
+
+def iso_date(value: str) -> Optional[str]:
+    from datetime import date
+    try:
+        if re.match(r"^\d{4}-\d{2}-\d{2}$", value.strip()):
+            date.fromisoformat(value.strip())
+            return None
+    except ValueError:
+        pass
+    return "要是日期 YYYY-MM-DD（例如 2026-11-14）"
+
+
+def one_line(value: str) -> Optional[str]:
+    return "要是一行字（不能換行）" if ("\n" in value or "\r" in value) else None
+
+
+def max_len(n: int) -> Callable[[str], Optional[str]]:
+    def check(value: str) -> Optional[str]:
+        return None if len(value) <= n else f"最多 {n} 個字"
+    return check
+
+
+class _Checks:
+    """`Field(check=kit.checks.amount)`：一組現成的欄位檢查（回 None＝對；回一句話＝錯在哪）。
+    基本檢查（長度上限 2000、空字元、控制字元、騙人的排版字元）SYNOX 在這之前已經做完（guard/inputs.py）。"""
+    number = staticmethod(number)
+    positive_int = staticmethod(positive_int)
+    hhmm = staticmethod(hhmm)
+    amount = staticmethod(amount)
+    iso_date = staticmethod(iso_date)
+    one_line = staticmethod(one_line)
+    max_len = staticmethod(max_len)
+
+
+checks = _Checks()
+
+
+# ── 誰叫的（ADR 0025 §2）：工具看得到、改不了；「自己再檢查一次」用，不是邊界 ──────────
+
+class Caller(NamedTuple):
+    kind: str          # telegram／discord／web／console／remote／ai／schedule／system／unknown
+    human: bool        # 人在 Telegram／Discord／SYNOX 網頁／終端機
+
+
+NOT_HUMAN = "🔐 這個動作要你本人在 Telegram 或 SYNOX 網頁做。"
+
+
+class Refused(Exception):
+    """丟出去＝回使用者一句話、不算工具壞掉（kit.command 會接住）。"""
+
+    def __init__(self, text: str):
+        super().__init__(text)
+        self.text = str(text)
+
+
+def caller() -> Caller:
+    from synox.guard import origin
+    o = origin.current()
+    return Caller(o.kind, o.human)
+
+
+def require_human() -> None:
+    """不是人（AI、排程、遠端、背景工作、不明）→ 丟 Refused（使用者看到「這個動作要你本人…」）。"""
+    if not caller().human:
+        raise Refused(NOT_HUMAN)
+
+
 def usage_of(fields: Sequence[Field], positional: int) -> str:
     parts = []
     for i, f in enumerate(fields):
@@ -192,7 +266,10 @@ def command(group: Group, name: str, fn: Callable, summary: str, *, fields: Sequ
         if missing:
             api.send_message(chat_id, f"用法：{node.command} {shown}\n（少了：{'、'.join(f.ask for f in missing)}）")
             return
-        fn(api, chat_id, user, values)
+        try:
+            fn(api, chat_id, user, values)
+        except Refused as refused:
+            api.send_message(chat_id, refused.text)
 
     node = group.leaf(name, run, summary, usage=shown, **kw)
     node.fields = fields
