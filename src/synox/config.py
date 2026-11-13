@@ -6,6 +6,8 @@ SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、�
       "bot_token": "123456:AAH…", "owner_id": 123456789,
       "llm":   {"kind": "openai_compat", "base_url": "https://…/v1", "api_key": "vault:llm_api_key",
                 "model": "…", "tools": true, "max_steps": 6, "max_tokens": 1024},
+               本地模型（docs/adr/0007）：{"kind": "local", "server": "ollama", "base_url": "http://127.0.0.1:11434",
+                "model": "qwen3.5:9b", "context_size": 8192, "timeout": 450, "max_total_timeout": 1800, "tools": true}
       "vault": {"mode": "dpapi"},              dpapi（Windows 預設）｜file（金鑰明文存在 data/.synox.key）
       "packs": {"enabled": "all", "disabled": [], "dirs": [], "library": ""},   library：工具庫（SYNOX_Libs）在哪
                                                （資料夾或網址；沒寫＝SYNOX 資料夾旁的 tools/，有 index.json 才算；
@@ -66,7 +68,7 @@ def default_root(environ=None, package_file: Optional[str] = None, cwd: Optional
 ROOT, ROOT_SOURCE = default_root()
 CONFIG_PATH = os.path.join(ROOT, "config.json")
 
-LLM_KINDS = ("openai", "anthropic", "gemini", "openai_compat", "claude_code", "fake", "none")
+LLM_KINDS = ("openai", "anthropic", "gemini", "openai_compat", "claude_code", "local", "fake", "none")
 DEFAULT_LLM = {"kind": "none", "max_steps": 6, "max_tokens": 1024}
 DEFAULT_VAULT = {"mode": "dpapi" if os.name == "nt" else "file"}
 DEFAULT_PACKS = {"enabled": "all", "disabled": []}
@@ -115,6 +117,7 @@ class SynoxConfig(BotConfig):
         llm = {**DEFAULT_LLM, **(raw.get("llm") or {})}
         if llm.get("kind") not in LLM_KINDS:
             raise ConfigError(f"config.json 的 llm.kind 只能是 {'、'.join(LLM_KINDS)}（現在是 {llm.get('kind')!r}）。")
+        llm = parse_llm_extras(llm)
         vault = {**DEFAULT_VAULT, **(raw.get("vault") or {})}
         if vault.get("mode") not in ("dpapi", "file"):
             raise ConfigError("config.json 的 vault.mode 只能是 dpapi 或 file。")
@@ -192,6 +195,21 @@ def parse_mode(value) -> str:
     if mode not in MODES:
         raise ConfigError(f"config.json 的 mode 只能是 personal（只有我）或 server（一群人）（現在是 {value!r}）。")
     return mode
+
+
+def parse_llm_extras(llm: dict) -> dict:
+    """kind=local：補預設、檢查（synox/llm/local.py 的 validate，docs/adr/0007）；其他 kind 的 llm.timeout 只檢查型別。"""
+    if llm.get("kind") == "local":
+        from synox.llm.local import validate
+        try:
+            return {**llm, **validate(llm)}
+        except ValueError as e:
+            raise ConfigError(f"config.json：{e}")
+    if llm.get("timeout") not in (None, ""):
+        value = llm["timeout"]
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 86400:
+            raise ConfigError("config.json 的 llm.timeout 要是 0～86400 的秒數（0＝自動）。")
+    return llm
 
 
 def parse_presentation(value) -> dict:
