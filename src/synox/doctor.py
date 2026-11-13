@@ -250,6 +250,33 @@ def apps_lines(config, *, environ=None, exists=os.path.exists) -> list:
     return out
 
 
+def remote_lines(config, *, home=None, find=None) -> list:
+    """手機入口（ADR 0026）：關／缺什麼／可以用；使用者資料夾有 cloudflared 的設定檔時提醒。
+    **不執行通道程式、不連任何埠**（只看檔案在不在、雜湊對不對）。"""
+    from isdtelekit.core import jsonstore
+    from synox.web.remote import binary
+    remote = (getattr(config, "web", {}) or {}).get("remote") or {}
+    if not remote.get("enabled"):
+        return ["  手機入口：關（設定 → 🔐 安全 打開；要先設定手機驗證器）"]
+    path = (find or binary.find)(config)
+    record = jsonstore.load_json(os.path.join(config.data_dir, "remote.json"), {})
+    record = record.get("binary") if isinstance(record, dict) else None
+    missing = []
+    if not path:
+        missing.append("找不到通道程式 cloudflared（自己安裝，SYNOX 不替你下載）")
+    elif not record:
+        missing.append("通道程式還沒核准（設定 → 🔐 安全）")
+    elif not binary.approved(path, record):
+        missing.append("通道程式跟核准時不一樣，要重新核准")
+    out = ["  手機入口：" + ("缺 " + "；".join(missing) if missing else "可以用（每次開都要你本人＋一組新的驗證碼）")]
+    home = home if home is not None else os.path.expanduser("~")
+    for name in ("config.yml", "config.yaml"):
+        if os.path.isfile(os.path.join(home, ".cloudflared", name)):
+            out.append(f"    ⚠️ 使用者資料夾有 .cloudflared/{name}：SYNOX 跑通道時不讀它（給的是空的資料夾），"
+                       "但你自己手動跑 cloudflared 時它可能讓臨時通道開不起來")
+    return out
+
+
 def _stepup_line(config) -> str:
     """手機驗證器（ADR 0025）：擁有者設定了沒、危險的動作有沒有開保護。保管箱還沒建（沒有金鑰檔）就不去開它。"""
     from synox.guard.cli import doctor_line
@@ -333,6 +360,8 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
             out(_keep_awake_line(config))
             out(_activator_line(config))
             out(_stepup_line(config))
+            for line in remote_lines(config):
+                out(line)
             if config.discord_enabled:
                 bot_lines, bad = _discord_lines(config)
                 from synox import discord as _dc
