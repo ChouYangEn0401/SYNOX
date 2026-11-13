@@ -1,0 +1,22 @@
+<!--
+  SYNOX research (stage 3, part B): Windows Sandbox smoke test. NEVER RUN BY THE AUTHOR (written on Linux).
+  Needs Windows Pro / Enterprise / Education with the "Windows Sandbox" optional feature already enabled.
+  Before use: create C:\synox-research-wsb\ and put one harmless text file in it; then double-click this file.
+  Expected: a disposable desktop opens, C:\synox-research-wsb is visible read-only on the sandbox desktop,
+  there is no network (ping/curl fail), and everything inside is gone after the window is closed.
+  Element names (Networking, MappedFolders, ReadOnly, LogonCommand) are from Microsoft's ".wsb" configuration page.
+-->
+<Configuration>
+  <Networking>Disable</Networking>
+  <vGPU>Disable</vGPU>
+  <ClipboardRedirection>Disable</ClipboardRedirection>
+  <MappedFolders>
+    <MappedFolder>
+      <HostFolder>C:\synox-research-wsb</HostFolder>
+      <ReadOnly>true</ReadOnly>
+    </MappedFolder>
+  </MappedFolders>
+  <LogonCommand>
+    <Command>cmd.exe /k "echo SYNOX research sandbox &amp; ping -n 1 1.1.1.1 &amp; dir %USERPROFILE%\Desktop"</Command>
+  </LogonCommand>
+</Configuration>
