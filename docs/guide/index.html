@@ -711,7 +711,7 @@ span.hl { display: inline-block; }
     },
     "extract": function () {
       return win("解壓縮壓縮的 (zipped) 資料夾", '<div class="wb"><div class="wz-h" style="font-size:16px;font-weight:500">選取目的地並解壓縮檔案</div>' +
-        '<span class="m-sm">檔案將解壓縮至這個資料夾(F):</span><div class="row"><span class="field" style="flex:1">C:\\Users\\你\\Downloads\\SYNOX-main</span><span class="b">瀏覽(R)…</span></div>' +
+        '<span class="m-sm">檔案將解壓縮至這個資料夾(F):</span><div class="row"><span class="field" style="flex:1">%USERPROFILE%\\Downloads\\SYNOX-main</span><span class="b">瀏覽(R)…</span></div>' +
         '<span class="check on m-sm"><i></i>完成時顯示解壓縮的檔案(H)</span>' +
         '<div class="row" style="justify-content:flex-end;margin-top:14px"><span class="b pri" data-hl="go">解壓縮(E)</span><span class="b">取消</span></div></div>');
     },
@@ -782,7 +782,7 @@ span.hl { display: inline-block; }
     "wizard-ai-found": function () {
       return wizard("第 4 步，共 4 步", "AI 從哪裡來",
         '<div class="frame-l"><span class="lg">預設</span><span class="radio on m-sm"><i></i>預設：Claude（這台電腦登入的 Claude Code）</span>' +
-        '<span class="okc m-sm" data-hl="found" style="overflow-wrap:anywhere">✅ 找到了：C:\\Users\\amy\\.local\\bin\\claude.exe</span><span class="b" style="justify-self:start">測一下</span></div>' +
+        '<span class="okc m-sm" data-hl="found" style="overflow-wrap:anywhere">✅ 找到了：%USERPROFILE%\\.local\\bin\\claude.exe</span><span class="b" style="justify-self:start">測一下</span></div>' +
         '<div class="frame-l"><span class="lg">其他金鑰來源</span><span class="radio m-sm"><i></i>用我自己（或公司）的金鑰</span></div>' +
         '<div class="frame-l"><span class="lg">本地模型（這台或家裡網路的電腦）</span><span class="radio m-sm"><i></i>使用本地模型（Ollama、vLLM、LM Studio；不需要金鑰）</span></div>' +
         '<span class="radio m-sm"><i></i>先不用 AI（只用指令和按鈕）</span>');
