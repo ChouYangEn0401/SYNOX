@@ -8,6 +8,9 @@
 - 電腦版 1360×820、2 倍解析度，淺色＋深色各一張；手機版 390×844（iPhone 尺寸），淺色＋深色各一張。
 - 存成 WebP（docs/landing/shots/），組頁面時轉成 data URI 嵌進 index.html，所以整頁只有一個檔。
 網頁介面改了樣子：先重跑 make_ui_preview.py，再跑這支加 --shoot；然後把 index.html 重新發佈成 Artifact（網址在 README）。
+
+開場動畫（S 寶寶）跟網頁介面是同一份：組頁面時把 src/synox/web/static/splash.js 整支、splash.css 裡「開場」那一段
+原封不動塞進 page.html 的 /*{{splash-js}}*/、/*{{splash-css}}*/。網頁版的開場改了，重組一次介紹頁就跟著變。
 """
 from __future__ import annotations
 
@@ -22,6 +25,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LANDING = os.path.join(ROOT, "docs", "landing")
 SHOTS = os.path.join(LANDING, "shots")
 PREVIEW = os.path.join(ROOT, "docs", "ui", "preview.html")
+STATIC = os.path.join(ROOT, "src", "synox", "web", "static")
 
 # (檔名, 網址 hash, 等多久)；檔名會加 -light／-dark
 DESKTOP = [
@@ -78,6 +82,21 @@ def shoot(chromium: str | None) -> None:
         browser.close()
 
 
+def splash_parts() -> tuple[str, str]:
+    """splash.css 只取開場用的部分：最上面的 :root（--sx-* 曲線）和 .sx-splash … .sx-hint；
+    後面那些是網頁介面自己的微動畫（側欄、卡片、按鈕），介紹頁用不到。找不到記號就停，不要默默組出壞頁面。"""
+    with open(os.path.join(STATIC, "splash.css"), encoding="utf-8") as f:
+        css = f.read()
+    with open(os.path.join(STATIC, "splash.js"), encoding="utf-8") as f:
+        js = f.read()
+    root = re.search(r":root \{[^}]*\}", css)
+    start = css.find(".sx-splash {")
+    end = css.find("/* 開場時：")
+    if not root or start < 0 or end < start:
+        raise SystemExit("splash.css 的結構變了（找不到 :root／.sx-splash／「開場時：」），請更新 make_landing.py 的擷取規則")
+    return root.group(0) + "\n  " + css[start:end].rstrip() + "\n", js
+
+
 def build() -> None:
     with open(os.path.join(LANDING, "page.html"), encoding="utf-8") as f:
         html = f.read()
@@ -88,6 +107,11 @@ def build() -> None:
             return "data:image/webp;base64," + base64.b64encode(f.read()).decode("ascii")
 
     html, n = re.subn(r"\{\{shot:([a-z0-9-]+)\}\}", shot, html)
+    css, js = splash_parts()
+    for mark, text in (("/*{{splash-css}}*/", css), ("/*{{splash-js}}*/", js)):
+        if html.count(mark) != 1:
+            raise SystemExit(f"page.html 要剛好有一個 {mark}")
+        html = html.replace(mark, text)
     out = os.path.join(LANDING, "index.html")
     with open(out, "w", encoding="utf-8", newline="\n") as f:
         f.write(html)
