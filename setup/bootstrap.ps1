@@ -142,6 +142,10 @@ try {
     }
     Say (Tr 'installing')
     Install-Packages
+    # .synoxpack 檔案關聯（圖示＋點兩下＝Install-Pack.bat）：只寫 HKCU，重跑一樣；每一行印動了哪個機碼。失敗不擋安裝
+    Say (Tr 'assoc_register')
+    & $VenvPy -m synox filetype register | Out-Host
+    if ($LASTEXITCODE -ne 0) { Say (Tr 'assoc_failed') }
     if (-not (Test-Window)) {
         Say (Tr 'no_window_text')
         & $VenvPy -m synox init

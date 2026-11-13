@@ -355,7 +355,9 @@ def _finish_page(tmp_path, monkeypatch):
     monkeypatch.setattr(pages.shortcuts, "create_desktop_shortcut", lambda root_: None)
     monkeypatch.setattr(pages.shortcuts, "enable_autostart", lambda root_: "x")
     monkeypatch.setattr(pages.shortcuts, "disable_autostart", lambda: None)
-    monkeypatch.setattr(pages.shortcuts, "register_synoxpack", lambda root_: None)
+    calls["assoc"] = []
+    monkeypatch.setattr(pages.shortcuts, "register_synoxpack", lambda root_: calls["assoc"].append("register"))
+    monkeypatch.setattr(pages.shortcuts, "unregister_synoxpack", lambda: calls["assoc"].append("unregister"))
     monkeypatch.setattr(pages.subprocess, "Popen", lambda *a, **k: calls["popen"].append(a))
     monkeypatch.setattr(pages.webbrowser, "open", lambda link: calls["browser"].append(link))
     wiz = pages.Wizard(root, config_path=str(tmp_path / "config.json"))
@@ -387,6 +389,20 @@ def test_page_finish_launch_checked(tmp_path, monkeypatch):
         wiz.next_btn.invoke()                             # 預設勾著：跟以前一樣開 Start.bat
         assert len(calls["popen"]) == 1 and calls["popen"][0][0][-1].endswith("Start.bat")
         assert "SYNOX 開起來了" in widgets("TLabel")[-1].cget("text")
+        assert calls["assoc"] == ["register"]
+    finally:
+        root.destroy()
+
+
+def test_page_finish_packs_unchecked_removes_association(tmp_path, monkeypatch):
+    """Setup.bat 已經登記了 .synoxpack；精靈裡不勾＝使用者不要，拿掉（假的 unregister，不碰登錄檔）。"""
+    root, wiz, calls, widgets = _finish_page(tmp_path, monkeypatch)
+    try:
+        boxes = {w.cget("text"): w for w in widgets("TCheckbutton")}
+        boxes[next(k for k in boxes if ".synoxpack" in k)].invoke()
+        boxes["完成後立刻開啟 SYNOX"].invoke()
+        wiz.next_btn.invoke()
+        assert calls["assoc"] == ["unregister"]
     finally:
         root.destroy()
 

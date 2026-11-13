@@ -14,6 +14,8 @@
     no_window_text        = '이 Python에는 창 기능(tkinter)이 없습니다: 이 창에서 텍스트 설정(synox init)으로 계속합니다...'
     pip_failed            = 'pip install 실패(네트워크 문제?).'
     opening_wizard        = '설치 마법사를 여는 중...'
+    assoc_register        = '.synoxpack 파일 형식을 이 Windows 사용자에게만 등록합니다(HKCU, 관리자 불필요): 설치 아이콘, 더블클릭 = 안전 검사 후 설치. + 기록함, = 이미 설정됨'
+    assoc_failed          = '.synoxpack 파일 형식을 등록하지 못했습니다(설치는 계속됩니다). .synoxpack을 Install-Pack.bat 위나 SYNOX 웹 설정 페이지로 끌어 놓아도 됩니다.'
     row_running           = 'SYNOX 실행 중(pid)'
     row_shortcut          = '바탕 화면 바로 가기'
     row_startup           = '시작 프로그램 항목'

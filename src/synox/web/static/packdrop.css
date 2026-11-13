@@ -1,0 +1,7 @@
+  /* ── 拖 .synoxpack 進網頁（static/packdrop.js）：只用 app.html 的 token，不寫死顏色 ─────────── */
+  #packdrop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px;
+              background: color-mix(in srgb, var(--bg) 70%, transparent); pointer-events: none; }
+  #packdrop.hidden { display: none; }
+  #packdrop .packdrop-box { max-width: 460px; padding: 28px 24px; text-align: center; font-weight: 650;
+              border: 2px dashed var(--accent); border-radius: var(--r); background: var(--surface); color: var(--text); }
+  .packdrop-hint { margin-top: 8px; font-size: 13px; }

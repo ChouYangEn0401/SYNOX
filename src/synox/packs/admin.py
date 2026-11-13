@@ -42,6 +42,8 @@ from synox.packs.manifest import (DEFAULT_STAGE, Manifest, ManifestError, read, 
 from synox.packs.scan import ScanReport, scan
 
 MAX_UPLOAD = 5 * 1024 * 1024
+ZIP_MAGIC = b"PK\x03\x04"                 # 本機檔頭：.synoxpack 的第一個位元組就要是它（stage 檢查）
+UPLOAD_TYPES = ("", "application/zip", "application/x-zip-compressed", "application/octet-stream")
 MAX_UNZIPPED = 20 * 1024 * 1024
 MAX_FILES = 300
 REMOVED = "_removed"
@@ -328,6 +330,9 @@ def stage(blob: bytes, data_dir: str) -> Tuple[str, Dict]:
         raise PackAdminError("沒有收到檔案")
     if len(blob) > MAX_UPLOAD:
         raise PackAdminError("檔案太大（最多 5 MB）")
+    # zipfile 會從檔尾找目錄，前面接了別的東西（自解壓 exe、polyglot）也打得開；.synoxpack 一律從 zip 檔頭開始
+    if not blob.startswith(ZIP_MAGIC):
+        raise PackAdminError("不是 zip 檔（.synoxpack 要是 pack 資料夾壓成的 zip）")
     try:
         z = zipfile.ZipFile(io.BytesIO(blob))
     except zipfile.BadZipFile:
