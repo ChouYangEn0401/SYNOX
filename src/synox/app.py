@@ -1,6 +1,6 @@
 """
 build()：SynoxConfig → isdtelekit.build_app → 基本指令（伺服器版多 accounts、limits；還沒裝工具時 /start、/help
-多一段「去哪裡裝」，packs/library.py）→ ⏰ 提醒（系統）（schedule.install_system_remind）→ packs.load_all
+多一段「去哪裡裝」，packs/library.py）→ 新手教學 /tutorial（synox/tour）→ ⏰ 提醒（系統）（schedule.install_system_remind）→ packs.load_all
 → agent.install → runtime.install（排程迴圈、心跳、常駐助理）→ health.install（工具健康）→ schedule.install
 → web.install（本機網頁介面）。
 
@@ -20,7 +20,7 @@ from isdtelekit import build_app
 from isdtelekit.host.app import App
 from isdtelekit.packs import accounts, basics, help as help_pack, limits
 
-from synox import agent, discord, health, policy, runtime, schedule, telegram_link, web
+from synox import agent, discord, health, policy, runtime, schedule, telegram_link, tour, web
 from synox.config import SynoxConfig
 from synox.llm import make_adapter
 from synox.llm.base import LLMError
@@ -72,6 +72,7 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
 
     basics.install(app, welcome=greet)
     help_pack.install(app)
+    tour.install(app, config, vault)           # 新手教學（核心，出廠就有、不是工具）：/tutorial、/help 那一行（docs/tutorials-engine.md）
     library.install(app)                       # /help 在還沒裝工具時多一則「去哪裡裝」
     if server:
         install_server_packs(app)

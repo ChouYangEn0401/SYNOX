@@ -23,6 +23,9 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     POST /api/tools/layout          {"groups": [{"id", "title", "tools": [...]}]}｜{"reset": true}：存這個人自己的排版
                                     （web/toolpage.py；不寫進 pack 資料夾，擁有者與成員各自一份）
     POST /api/tools/health          {"key", "action": "recheck"|"release"}：擁有者重新檢查／解除隔離一個工具（docs/tool-health.md）
+    GET  /api/tour                  新手教學：這個人看得到的步驟（純資料）＋進度＋要不要問「要不要我帶你走一遍？」（synox/tour）
+    POST /api/tour/progress         {"tour", "step", "state", "done"}：只存這個人自己的教學進度（教學不呼叫別的會改東西的 API）
+    POST /api/tour/offer            {"answer": "later"|"start"}：第一次打開網頁那句邀請的回答
     GET  /api/usage?period=hour|day|week|month   擁有者：AI 用量與花費（依期間分組；agent/usage_report.py）
     GET  /api/settings/channels     擁有者：Telegram／Discord 的狀態（存了沒、bot 名字、要不要重開；token 永遠不回）
     /api/runtime/...                擁有者：主控面板（心跳、常駐助理、soul.md、任務狀態；合約 docs/runtime-api.md，
@@ -145,7 +148,7 @@ def _page(status: int, title: str, text: str, extra: Optional[List[Tuple[str, st
 
 # app.html 裡的 <!-- include: 檔名 -->：送出頁面時換成 static/ 裡那個檔的內容（同一個 nonce 的 <style>／<script>），
 # CSP 不用放寬、也不多一個靜態檔的路由。只收這張清單裡的檔（工具頁；scripts/make_ui_preview.py 用同一個函式）。
-INCLUDES = {"tools.css": "style", "tools.js": "script"}
+INCLUDES = {"tools.css": "style", "tools.js": "script", "tour.css": "style", "tour.js": "script"}
 INCLUDE_RE = re.compile(r"<!-- include: ([a-z0-9_.-]+) -->")
 
 
@@ -571,6 +574,8 @@ class WebUI:
                 return self.usage_report(user, (query.get("period") or ["day"])[0])
             if path == "/api/accounts":
                 return self.accounts(user)
+            if path == "/api/tour":
+                return self.tour_state(user)
             return _err(404, "沒有這個 API。")
         if method != "POST":
             return _err(405, "只收 GET、POST。")
@@ -631,6 +636,10 @@ class WebUI:
             return self.set_role(user, data)
         if path == "/api/backup":
             return self.backup(user)
+        if path == "/api/tour/progress":
+            return self.tour_progress(user, data)
+        if path == "/api/tour/offer":
+            return self.tour_offer(user, data)
         return _err(404, "沒有這個 API。")
 
     # ── 我 ───────────────────────────────────────────────────────────
@@ -757,6 +766,59 @@ class WebUI:
                                            Inbound(WEB, user.tg_id, user.tg_id, button=cb,
                                                    username=user.username or "web"))
         return _json(200, {"ok": True, "route": getattr(route, "kind", ""), "rev": self.chats.rev(user.tg_id)})
+
+    # ── 新手教學（synox/tour；畫面是 static/tour.js）──────────────────
+
+    def _tour(self):
+        from synox import tour
+        return tour.engine(self.app)
+
+    def tour_state(self, user) -> Resp:
+        """這個人看得到的教學（步驟只給這個人該看的）＋進度＋要不要問「要不要我帶你走一遍？」。"""
+        eng = self._tour()
+        if eng is None:
+            return _json(200, {"tours": [], "progress": {}, "offer": False})
+        from synox.tour import anchors
+        tours, progress = [], {}
+        for t in eng.tours():
+            steps = eng.steps(user, t)
+            if steps:
+                tours.append({"id": t.id, "title": t.title, "minutes": t.minutes, "source": t.source,
+                              "version": t.version, "steps": [s.to_web() for s in steps]})
+                rec = eng.record(user, t)
+                if rec:
+                    progress[t.id] = rec
+        return _json(200, {"anchors_version": anchors.VERSION, "tours": tours, "progress": progress,
+                           "offer": eng.should_offer(user), "default": tours[0]["id"] if tours else ""})
+
+    def tour_progress(self, user, data: dict) -> Resp:
+        """{"tour", "step", "state": active|paused|finished, "done": [步驟 id]}：只存這個人自己的進度。"""
+        eng = self._tour()
+        tour = eng.get(str(data.get("tour") or "")) if eng is not None else None
+        if tour is None:
+            return _err(404, "沒有這份教學。")
+        done = data.get("done")
+        if done is not None and (not isinstance(done, list) or not all(isinstance(d, str) for d in done)):
+            return _err(400, "done 要是步驟 id 的清單。")
+        try:
+            rec = eng.save(user, tour.id, step=str(data.get("step") or ""), state=str(data.get("state") or ""),
+                           done=done)
+        except ValueError:
+            return _err(400, "步驟或狀態不對。")
+        if data.get("state") in ("active", "finished"):
+            eng.answer_offer(user, "started")
+        return _json(200, {"ok": True, "progress": rec})
+
+    def tour_offer(self, user, data: dict) -> Resp:
+        """第一次打開網頁的「要不要我帶你走一遍？」：{"answer": "later"|"start"}。"""
+        eng = self._tour()
+        if eng is None:
+            return _err(404, "沒有教學。")
+        answer = str(data.get("answer") or "")
+        if answer not in ("later", "start"):
+            return _err(400, "answer 只能是 later 或 start。")
+        eng.answer_offer(user, answer)
+        return _json(200, {"ok": True})
 
     # ── 工具頁 ───────────────────────────────────────────────────────
 

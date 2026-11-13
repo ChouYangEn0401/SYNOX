@@ -440,7 +440,7 @@ span.hl { display: inline-block; }
 </nav>
 
 <footer class="wrap">
-  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>f466d91b11 · 2026-11-13</span></p>
+  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>a2aed3928b · 2026-11-13</span></p>
 </footer>
 
 <script>
@@ -616,7 +616,8 @@ span.hl { display: inline-block; }
     { id: "help", chapter: "開始使用", title: "打 /help，看它會什麼",
       body: ["在 Telegram 打 <code>/help</code> 送出。",
              "它會列出你現在能用的指令。用下面的「下一頁 ▶️」翻頁，或按「☰ 分類目錄」挑一類看。"],
-      mock: "tg-help", targets: [{ id: "nextpg", say: "翻頁", place: "a" }] },
+      mock: "tg-help", targets: [{ id: "nextpg", say: "翻頁", place: "a" }],
+      tips: [{ k: "note", t: "想要 SYNOX 一步一步帶你認識每個地方：打 <code>/tutorial</code>（在網頁上它會直接指給你看要按哪裡）。忘了就再打一次，隨時都能複習。" }] },
 
     { id: "done", chapter: "完成", title: "完成！",
       body: ["SYNOX 已經在你的電腦上跑起來了。以後在手機上跟 bot 講話就好。",
