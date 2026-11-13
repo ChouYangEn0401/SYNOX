@@ -40,13 +40,13 @@ def by_id(cases, cid):
 # ── 1. 題目 ─────────────────────────────────────────────────────────────
 
 def test_thirty_cases_load_with_the_planned_distribution(all_cases):
-    assert len(all_cases) == 36                     # 30 題＋fake_done 兩題（0008）＋missing_tool／missing_param 各兩題（0020）
+    assert len(all_cases) == 38                     # 30 題＋fake_done 兩題（0008）＋missing_tool／missing_param 各兩題（0020）＋vision 兩題（0021）
     assert cases_mod.distribution_problems(all_cases) == []
-    assert sum(c.split == "tune" for c in all_cases) == 23
-    assert sum(c.split == "holdout" for c in all_cases) == 13
+    assert sum(c.split == "tune" for c in all_cases) == 24
+    assert sum(c.split == "holdout" for c in all_cases) == 14
     for category, (tune, holdout) in cases_mod.distribution(all_cases).items():
         assert tune >= 1 and holdout >= 1, category
-    assert len({c.id for c in all_cases}) == 36
+    assert len({c.id for c in all_cases}) == 38
     assert all(len(c.turns) >= 2 for c in all_cases if c.category == "memory")
     assert all(len(c.expect.get("must_call", [])) >= 2 for c in all_cases if c.category == "chain")
 
@@ -106,7 +106,7 @@ def test_reference_replies_all_pass(reference_results):
     bad = [(r.case.id, r.status, r.mismatch, [(f.check, f.detail) for f in r.failures]) for r in reference_results
            if r.status != checks.PASS]
     assert bad == []
-    assert len(reference_results) == 36
+    assert len(reference_results) == 38
 
 
 def test_replay_runs_on_the_real_agent_loop(reference_results):
@@ -251,8 +251,8 @@ def test_report_is_deterministic_and_round_trips(tmp_path, all_cases, reference,
     path.write_text(report.dumps(first), encoding="utf-8")
     back = report.load(str(path))
     assert back == json.loads(report.dumps(first))
-    assert back["summary"]["tune"] == {"passed": 23, "total": 23, "rate": 1.0}
-    assert back["summary"]["holdout"] == {"passed": 13, "total": 13, "rate": 1.0}
+    assert back["summary"]["tune"] == {"passed": 24, "total": 24, "rate": 1.0}
+    assert back["summary"]["holdout"] == {"passed": 14, "total": 14, "rate": 1.0}
     assert set(back["categories"]) == set(cases_mod.CATEGORIES)
     assert back["simplified"]["total"] == 0
     assert str(tmp_path) not in report.dumps(first)
@@ -291,9 +291,9 @@ def test_cli_in_temp_folder(tmp_path, capsys):
     out = tmp_path / "out" / "report.json"
     assert eval_assistant.main(["--split", "holdout", "--json", str(out)]) == 0
     text = capsys.readouterr().out
-    assert "holdout：13/13" in text and "[PASS] chain-02" in text
+    assert "holdout：14/14" in text and "[PASS] chain-02" in text
     data = report.load(str(out))
-    assert data["split"] == "holdout" and data["summary"]["all"]["total"] == 13 and data["replies"] == "reference"
+    assert data["split"] == "holdout" and data["summary"]["all"]["total"] == 14 and data["replies"] == "reference"
     assert eval_assistant.main(["--split", "tune", "--replies", BROKEN]) == 1
     assert "[FAIL] note-03" in capsys.readouterr().out
     stamped = tmp_path / "stamped"
@@ -301,7 +301,8 @@ def test_cli_in_temp_folder(tmp_path, capsys):
     assert sorted(os.listdir(stamped)) == sorted(f"{c}.json" for c in
                                                  ("chain-02", "clarify-03", "fake_done-02", "injection-03", "lookup-04", "memory-03",
                                                   "missing_param-02", "missing_tool-02",
-                                                  "no_clarify-02", "note-04", "refuse-03", "rewrite-03", "schedule-03"))
+                                                  "no_clarify-02", "note-04", "refuse-03", "rewrite-03", "schedule-03",
+                                                  "vision-02"))
     assert (stamped / "note-04.json").read_text(encoding="utf-8") == \
         open(os.path.join(REFERENCE, "note-04.json"), encoding="utf-8").read()
     assert eval_assistant.main(["--cases", str(tmp_path / "nowhere")]) == 2

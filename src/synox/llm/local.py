@@ -16,8 +16,10 @@
 - 取樣參數（docs/adr/0019）：`sampling`＝auto（預設：模型名有 qwen3 才送 Qwen3 不思考模式的建議值）｜qwen3｜off，
   `options`＝自己蓋過的 Ollama options（num_ctx／num_predict／stop 由 SYNOX 管，不收）。**只有 server=ollama 會送**；
   vLLM／LM Studio／其他照舊（OpenAI 相容的請求不加任何取樣參數）。
-- 之後的 VLM（docs 2026-11-13-vlm-vision-design）：訊息轉換集中在 `ollama_message`／`openai_message`，
-  Message 多了圖片欄位時只要在這兩個函式加；這一輪不做。
+- 看圖（docs/adr/0021）：訊息轉換集中在 `ollama_message`（原生 /api/chat 的 `images`：純 base64）與 `openai_message`
+  （content parts 的 `image_url`，一律 data URI——Ollama 的 /v1 收到 http 網址回 400）。`vision`＝auto（預設：ollama 唯讀查
+  一次 /api/show 的 capabilities 有沒有 vision；其他伺服器查不到＝不支援）｜on｜off；只在有圖的那一輪才查（check_vision）。
+  不支援卻收到圖＝LLMError（不偷偷丟掉圖）。
 """
 
 from __future__ import annotations
@@ -35,7 +37,8 @@ import urllib.parse
 import urllib.request
 from typing import Callable, Dict, List, Optional, Sequence
 
-from synox.llm.base import ASSISTANT, TOOL, ChatAdapter, LLMError, Message, Reply, ToolCall, ToolSpec, http_error
+from synox.llm.base import (ASSISTANT, TOOL, ChatAdapter, LLMError, Message, Reply, ToolCall, ToolSpec, has_images,
+                            http_error, no_vision)
 
 SERVERS = ("ollama", "vllm", "lmstudio", "other")
 SERVER_LABELS = {"ollama": "Ollama", "vllm": "vLLM", "lmstudio": "LM Studio", "other": "OpenAI 相容伺服器"}
@@ -211,10 +214,12 @@ def estimate_tokens(chars: int) -> int:
     return int(math.ceil(max(0, chars) / CHARS_PER_TOKEN))
 
 
-# ── 訊息轉換（VLM 之後在這兩個函式加圖片）────────────────────────────────
+# ── 訊息轉換（圖片也在這兩個函式，docs/adr/0021）──────────────────────────
 
 def ollama_message(m: Message) -> dict:
     item = {"role": m.role, "content": m.content or ""}
+    if m.images:                                      # 原生 /api/chat：images 是純 base64（不含 data: 前綴）
+        item["images"] = [p.b64() for p in m.images]
     if m.role == ASSISTANT and m.tool_calls:
         item["tool_calls"] = [{"function": {"name": c.name, "arguments": dict(c.args or {})}} for c in m.tool_calls]
     if m.role == TOOL and m.name:
@@ -224,6 +229,9 @@ def ollama_message(m: Message) -> dict:
 
 def openai_message(m: Message) -> dict:
     item = {"role": m.role, "content": m.content or ""}
+    if m.images:                                      # content parts；圖一律 data URI（http 網址在 Ollama 會 400）
+        item["content"] = [{"type": "text", "text": m.content or ""}] + \
+            [{"type": "image_url", "image_url": {"url": p.data_uri()}} for p in m.images]
     if m.role == ASSISTANT and m.tool_calls:
         item["tool_calls"] = [{"id": c.id or f"call_{i}", "type": "function",
                                "function": {"name": c.name, "arguments": json.dumps(c.args or {}, ensure_ascii=False)}}
@@ -265,7 +273,7 @@ class LocalAdapter(ChatAdapter):
     def __init__(self, model: str = "", *, server: str = "ollama", base_url: str = "", context_size: int = 0,
                  timeout: float = 0, max_total_timeout: float = DEFAULT_MAX_TOTAL, tools: bool = True,
                  max_tokens: int = 1024, opener: Optional[Opener] = None, clock: Optional[Callable[[], float]] = None,
-                 sampling: str = "auto", options: Optional[dict] = None):
+                 sampling: str = "auto", options: Optional[dict] = None, vision: str = "auto"):
         if server not in SERVERS:
             raise LLMError(f"不認得的本地模型伺服器 {server}（只能是 {'、'.join(SERVERS)}）。")
         self.server = server
@@ -285,6 +293,9 @@ class LocalAdapter(ChatAdapter):
         self._ctx_looked = False
         self._think = True                            # 送 think=false；伺服器不認得就拿掉再試一次
         self.last_warning = ""
+        self.vision = vision if vision in ("auto", "on", "off") else "auto"
+        self.supports_vision = self.vision == "on"
+        self._vision_looked = self.vision != "auto"
         self.name = f"本地模型 {SERVER_LABELS[server]}（{self.model or '未指定模型'}）"
         warn = url_warning(self.base_url)
         if warn:
@@ -397,6 +408,8 @@ class LocalAdapter(ChatAdapter):
     def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = (), *, stop: Sequence[str] = ()) -> Reply:
         if not self.model:
             raise LLMError("還沒填本地模型的名稱（例如 qwen3.5:9b；Ollama 的話是 `ollama list` 看得到的名字）。")
+        if has_images(messages) and not self.check_vision():
+            raise no_vision(self.name)
         native = bool(tools) and self.supports_tools
         warnings: List[str] = []
         sent_chars = sum(len(m.content or "") for m in messages) + \
@@ -591,6 +604,24 @@ class LocalAdapter(ChatAdapter):
 
     # ── 唯讀的探測 ─────────────────────────────────────────────────────
 
+    def check_vision(self) -> bool:
+        """收不收得下圖（docs/adr/0021）：on／off 照設定；auto＝ollama 唯讀問一次 /api/show（只讀中繼資料，不載入模型）的
+        capabilities 有沒有 vision，記住答案；其他伺服器查不到＝不支援。問不到（連不上）＝這次當不支援，下次再問。"""
+        if self._vision_looked:
+            return self.supports_vision
+        if self.server != "ollama" or not self.model:
+            self._vision_looked = True
+            self.supports_vision = False
+            return False
+        try:
+            show = self._get_json("/api/show", {"model": self.model}, "POST") or {}
+        except (LLMError, _HTTPProblem) as e:
+            logging.warning("[LLM] local: could not read model capabilities: %s", type(e).__name__)
+            return False
+        self._vision_looked = True
+        self.supports_vision = "vision" in (show.get("capabilities") or [])
+        return self.supports_vision
+
     def inspect(self) -> dict:
         """唯讀：模型在不在、最大 context、設定合不合理。不送 chat／generate，不載入模型。"""
         out = {"server": self.server, "base_url": self.root, "model": self.model, "reachable": False,
@@ -643,8 +674,15 @@ class LocalAdapter(ChatAdapter):
         caps = out["capabilities"]
         if self.supports_tools and caps and "tools" not in caps:
             out["problems"].append("這個模型沒有原生工具呼叫（Ollama capabilities 沒有 tools）：把 llm.tools 設成 false（走文字協定）。")
+        if caps and self.vision == "auto":               # 唯讀的 /api/show 已經問過了：順便記住看圖能力
+            self._vision_looked = True
+            self.supports_vision = "vision" in caps
         if "vision" in caps:
-            out["notes"].append("這個模型看得懂圖（vision）；SYNOX 目前還不會把圖送給 AI（之後另做）。")
+            out["notes"].append("這個模型看得懂圖（vision）：" + (
+                "llm.vision＝off，SYNOX 不會把圖送給它。" if self.vision == "off" else
+                "私訊傳的照片會直接給它看（llm.vision）。"))
+        elif self.vision == "on":
+            out["notes"].append("llm.vision＝on，但 Ollama 的 capabilities 沒有 vision：這個模型多半看不懂圖。")
 
     def _inspect_openai(self, out: dict) -> None:
         data = self._get_json("/v1/models") or {}

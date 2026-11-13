@@ -62,7 +62,8 @@ BIND_ENV = "SYNOX_WEB_BIND"           # 容器裡才收：0.0.0.0（讓宿主經
 CONTAINER_BIND_HOSTS = (HOST, "0.0.0.0")
 # 設定頁換 AI 來源時沿用的 llm 設定（不是來源本身的欄位；docs/adr/0008、0010、0012、0014～0019）
 KEEP_LLM_KEYS = ("completion_guard", "verify_retries", "summarize_on_limit", "think",
-                 "max_tools", "tool_result_chars", "prompt_tail", "sampling", "options")   # 0013～0019
+                 "max_tools", "tool_result_chars", "prompt_tail", "sampling", "options",   # 0013～0019
+                 "vision", "vision_model", "vision_limits")                               # 0021
 # 「真的在容器裡」的證據（任一個存在就算）：Docker 的 /.dockerenv、podman 的 /run/.containerenv、
 # SYNOX 映像檔自己放的 /etc/synox/container。光有環境變數不夠：怕有人在一般電腦上照抄容器的環境變數
 CONTAINER_MARKERS = ("/.dockerenv", "/run/.containerenv", "/etc/synox/container")
@@ -958,6 +959,9 @@ class WebUI:
             warning = getattr(getattr(current, "adapter", None), "last_warning", "")
             if warning:
                 out["llm"]["warning"] = warning              # 本地模型最近一次的截斷提醒（不靜默）
+        from synox.llm.vision import summary as vision_summary          # 看圖（docs/adr/0021）：唯讀、不連網
+        current = self.app.extras.get("synox_agent")
+        out["llm"]["vision"] = vision_summary(llm, getattr(current, "adapter", None))
         from synox.llm.local import DEFAULT_URLS
         from synox.llm.local_advice import OPTIONS
         out["llm_choices"] = [{"choice": "claude_code", "label": logic.CLAUDE_TITLE,

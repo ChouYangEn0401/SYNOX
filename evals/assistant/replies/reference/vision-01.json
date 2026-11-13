@@ -1,0 +1,22 @@
+{
+  "case": "vision-01",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "note__add",
+            "args": {
+              "text": "小明便當店 合計 NT$ 155"
+            },
+            "result": "已記下：小明便當店 合計 NT$ 155"
+          }
+        ]
+      },
+      {
+        "text": "記好了：小明便當店，合計 NT$ 155。"
+      }
+    ]
+  ]
+}

@@ -23,7 +23,7 @@ from __future__ import annotations
 import re
 from typing import Callable, List, Optional, Sequence, Union
 
-from synox.llm.base import TOOL, USER, ChatAdapter, Message, Reply, ToolCall, ToolSpec
+from synox.llm.base import TOOL, USER, ChatAdapter, Message, Reply, ToolCall, ToolSpec, has_images, no_vision
 
 Step = Union[str, dict, list, Reply, Callable]
 
@@ -33,15 +33,18 @@ class FakeAdapter(ChatAdapter):
     supports_stop = True
 
     def __init__(self, script: Optional[Sequence[Step]] = None, *, supports_tools: bool = True,
-                 usage: Optional[dict] = None):
+                 usage: Optional[dict] = None, supports_vision: bool = False):
         self.script: Optional[List[Step]] = list(script) if script is not None else None
         self.supports_tools = supports_tools
+        self.supports_vision = supports_vision        # True＝「看得到圖」：收到的 Message.images 留在 calls 裡給測試看
         self.usage = usage if usage is not None else {"input": 10, "output": 5}
         self.calls: List[tuple] = []
         self.stops: List[tuple] = []
         self.name = "假 AI（劇本）" if script is not None else "假 AI（示範模式）"
 
     def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = (), *, stop: Sequence[str] = ()) -> Reply:
+        if has_images(messages) and not self.supports_vision:
+            raise no_vision(self.name)
         self.calls.append((list(messages), list(tools)))
         self.stops.append(tuple(stop))
         if self.script is None:

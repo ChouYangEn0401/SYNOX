@@ -17,7 +17,8 @@ import shutil
 import subprocess
 from typing import Optional, Sequence
 
-from synox.llm.base import ASSISTANT, SYSTEM, TOOL, ChatAdapter, LLMError, Message, Reply, ToolSpec
+from synox.llm.base import (ASSISTANT, SYSTEM, TOOL, ChatAdapter, LLMError, Message, Reply, ToolSpec, has_images,
+                            no_vision)
 
 NOT_FOUND = "這台電腦找不到 claude（Claude Code）。先安裝並登入 Claude Code，或改選其他 AI 來源。"
 
@@ -58,6 +59,10 @@ def flatten(messages: Sequence[Message]) -> str:
 class ClaudeCodeAdapter(ChatAdapter):
     kind = "claude_code"
     supports_tools = False
+    supports_vision = False           # claude -p 只吃一段文字、--tools ""；要看圖得開 Read 工具，會破壞「只回文字」（docs/adr/0021）
+
+    def check_vision(self) -> bool:
+        return False                  # llm.vision＝on 也一樣：不支援就是不支援
 
     def __init__(self, model: str = "", *, workdir: str = "", timeout: float = 180.0, runner=None, which=None):
         self.model = model
@@ -74,6 +79,8 @@ class ClaudeCodeAdapter(ChatAdapter):
         return argv
 
     def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = (), *, stop: Sequence[str] = ()) -> Reply:
+        if has_images(messages):                    # 不偷偷丟掉圖（agent 本來就不會送，這是保險）
+            raise no_vision(self.name)
         exe = self._which()                         # stop：claude -p 沒有停止詞的旗標，忽略（supports_stop=False）
         if not exe:
             raise LLMError(NOT_FOUND)

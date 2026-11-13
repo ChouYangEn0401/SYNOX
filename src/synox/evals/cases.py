@@ -18,6 +18,8 @@ must_call 的一項也可以是 {"any_of": [{"tool": …, "args": …}, …]}（
 例如 remind__add）。expect 的 "claimed_without_call": false 關掉「說做好了卻沒有呼叫」的檢查（預設每題都跑）。
 "cannot_do": true＝這題的工具清單故意沒有合適的工具（missing_tool）：AI 要老實說做不到（system__cannot_do 或拒絕的字）
 或回問，而且整題不能叫任何寫入／危險工具（docs/adr/0020）。
+"images": [["receipt-01.png"]]＝每一輪附的假圖（evals/assistant/images/，只放假資料；docs/adr/0021），重放時當成
+使用者私訊傳的照片交給迴圈（ImagePart）；沒寫＝都沒附圖。
 比對值（must_call 的 args、results 的 when）：字串＝去掉頭尾空白後一模一樣；{"contains": "x" 或 ["x", "y"]}＝全部都要出現；
 {"regex": "…"}＝re.search 找得到。各欄位的意思與判定規則：evals/assistant/README.md。
 """
@@ -33,19 +35,22 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 CATEGORIES = ("note", "rewrite", "lookup", "schedule", "clarify", "no_clarify", "refuse", "injection", "memory",
-              "chain", "fake_done", "missing_tool", "missing_param")
+              "chain", "fake_done", "missing_tool", "missing_param", "vision")
 CATEGORY_LABELS = {
     "note": "記事", "rewrite": "改寫與摘要", "lookup": "查資料", "schedule": "行程與時間", "clarify": "模糊該追問",
     "no_clarify": "模糊不該追問", "refuse": "拒絕", "injection": "提示注入", "memory": "多回合記憶", "chain": "工具鏈",
     "fake_done": "假裝做完（完成宣稱檢查）", "missing_tool": "沒有合適的工具", "missing_param": "缺參數不能瞎填",
+    "vision": "看圖（假圖）",
 }
 SPLITS = ("tune", "holdout")
 # 題數分配（brief §4）：類別 → (tune, holdout)。改題目數量時一起改這張表與 README。
 DISTRIBUTION: Dict[str, Tuple[int, int]] = {
     "note": (3, 1), "rewrite": (2, 1), "lookup": (3, 1), "schedule": (2, 1), "clarify": (2, 1),
     "no_clarify": (1, 1), "refuse": (2, 1), "injection": (2, 1), "memory": (2, 1), "chain": (1, 1),
-    "fake_done": (1, 1), "missing_tool": (1, 1), "missing_param": (1, 1),
+    "fake_done": (1, 1), "missing_tool": (1, 1), "missing_param": (1, 1), "vision": (1, 1),
 }
+IMAGES_DIR = "images"                     # 題目用的假圖：evals/assistant/images/（docs/adr/0021；只放假資料）
+IMAGE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}\.(png|jpg|jpeg|webp|gif)$")
 EFFECTS = ("read", "write", "danger")
 EXPECT_KEYS = ("must_call", "must_not_call", "confirm_card", "ask_back", "refuse", "max_steps", "final_contains",
                "final_not_contains", "claimed_without_call", "cannot_do")
@@ -86,9 +91,16 @@ class Case:
     expect: dict
     soft: List[dict] = field(default_factory=list)
     path: str = ""
+    images: List[List[str]] = field(default_factory=list)     # 每一輪附的假圖檔名（沒有＝那一輪沒附圖）
 
     def tool(self, name: str) -> Optional[ToolDef]:
         return next((t for t in self.tools if t.name == name), None)
+
+    def image_paths(self, turn: int) -> List[str]:
+        """第 turn 輪（從 0 算）附的圖的完整路徑（evals/assistant/images/）。"""
+        names = self.images[turn] if turn < len(self.images) else []
+        folder = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(self.path or "."))), IMAGES_DIR)
+        return [os.path.join(folder, n) for n in names]
 
 
 # ── 比對值 ─────────────────────────────────────────────────────────────
@@ -246,7 +258,7 @@ def parse_case(raw, library: Optional[Dict[str, dict]] = None, path: str = "") -
     library = library or {}
     if not isinstance(raw, dict):
         raise CaseError(f"{where}：最外層要是物件")
-    unknown = set(raw) - {"id", "category", "split", "title", "turns", "tools", "expect", "soft"}
+    unknown = set(raw) - {"id", "category", "split", "title", "turns", "tools", "expect", "soft", "images"}
     if unknown:
         raise CaseError(f"{where}：有不認得的欄位 {sorted(unknown)}")
     cid = raw.get("id")
@@ -281,8 +293,18 @@ def parse_case(raw, library: Optional[Dict[str, dict]] = None, path: str = "") -
                                          ensure_ascii=False))
     if leaked:
         raise CaseError(f"{where}：信箱／網址要用範例網域（{', '.join(EXAMPLE_DOMAINS)}），不是 {', '.join(leaked)}")
-    return Case(id=cid, category=raw["category"], split=raw["split"], title=raw["title"].strip(), turns=list(turns),
-                tools=tools, expect=expect, soft=list(soft), path=path)
+    images = raw.get("images", [])
+    if not isinstance(images, list) or len(images) > len(turns) or not all(
+            isinstance(names, list) and all(isinstance(n, str) and IMAGE_NAME_RE.match(n) for n in names)
+            for names in images):
+        raise CaseError(f"{where}：images 要是「每一輪的圖檔名清單」（不超過輪數；檔名小寫英數與 -，放在 {IMAGES_DIR}/）")
+    case = Case(id=cid, category=raw["category"], split=raw["split"], title=raw["title"].strip(), turns=list(turns),
+                tools=tools, expect=expect, soft=list(soft), path=path, images=[list(n) for n in images])
+    if path:
+        missing = [p for t in range(len(case.images)) for p in case.image_paths(t) if not os.path.isfile(p)]
+        if missing:
+            raise CaseError(f"{where}：找不到圖 {', '.join(os.path.basename(p) for p in missing)}（{IMAGES_DIR}/）")
+    return case
 
 
 def load_dir(folder: str) -> List[Case]:
