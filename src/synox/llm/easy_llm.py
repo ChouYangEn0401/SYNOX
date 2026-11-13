@@ -21,8 +21,8 @@ from typing import List, Optional, Sequence
 
 from synox.llm.base import ChatAdapter, LLMError, Message, Reply, ToolCall, ToolSpec, http_error
 
-INSTALL_HINT = ("在 SYNOX 資料夾跑 `.venv\\Scripts\\python.exe -m pip install ntu_easy_llm-<版本>-py3-none-any.whl`"
-                "（或 `pip install -e .[llm]`），或改選 Claude Code／先不用 AI。")
+INSTALL_HINT = ("在 SYNOX 資料夾跑 `.venv\\Scripts\\python.exe -m pip install -e .[llm]`（裝官方 release 的 0.5.0 wheel），"
+                "或改選 Claude Code／本地模型／先不用 AI。")
 MISSING = "還沒安裝 ntu_easy_llm：用 API 金鑰的 AI（OpenAI、Anthropic、Gemini、相容端點）要靠它。" + INSTALL_HINT
 MIN_VERSION = (0, 5, 0)
 

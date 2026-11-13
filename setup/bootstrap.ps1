@@ -79,8 +79,10 @@ function Install-Packages {
         if ($LASTEXITCODE -ne 0) { throw (Tr 'pip_failed') }
         & $VenvPy @pip --no-deps -e $Root | Out-Host
     } else {
+        # 連網、照 pyproject 的範圍裝：連 llm 組（ntu_easy_llm 的官方 release wheel 網址）一起裝，用金鑰的 AI 裝完就能用。
+        # 上面兩條（wheelhouse 離線、requirements.lock）不變：鎖與 wheelhouse 不含 llm 組（scripts/lock_deps.py）。
         & $VenvPy @pip --upgrade pip | Out-Host
-        & $VenvPy @pip -e $Root | Out-Host
+        & $VenvPy @pip -e "$Root[llm]" | Out-Host
     }
     if ($LASTEXITCODE -ne 0) { throw (Tr 'pip_failed') }
 }
