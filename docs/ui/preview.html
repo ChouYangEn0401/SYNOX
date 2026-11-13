@@ -3273,7 +3273,19 @@ button.danger { background: var(--danger, #b42318); color: #fff; }
     codeLabel: "6 位數",
     wrong: "不對：",
     done: "好了",
-    failed: "沒有成功："
+    failed: "沒有成功：",
+    // 手機入口（ADR 0026）：總開關與通道程式的核准（都要先解鎖）
+    remoteTitle: "📱 手機入口",
+    remoteSwitch: "允許開手機入口（每次開還是要你本人＋一組新的驗證碼）",
+    remoteNeedStepup: "要先設定手機驗證器，才能用手機入口。",
+    binaryTitle: "通道程式（cloudflared）",
+    binaryNone: "還沒核准。請自己安裝 cloudflared（SYNOX 不替你下載），再按下面的按鈕。",
+    binaryCheck: "請跟官方發佈頁上的雜湊對一下，一樣才按核准。檔案一改（例如自己更新了）就要重新核准。",
+    binaryApprove: "我核對過了，核准這個檔",
+    binaryPath: "路徑：",
+    binarySize: "大小：",
+    binarySha: "SHA-256：",
+    binarySigner: "簽署者：讀不到，請自己對雜湊。"
   };
 
   /* 純邏輯（tests/js/test_security.js）：deps = { api(method, path, body) → Promise, prompt() → Promise<碼或 null> } */
@@ -3511,8 +3523,43 @@ button.danger { background: var(--danger, #b42318); color: #fff; }
     return deps.api("GET", "/api/stepup").then(function (s) {
       deps.minutes = s.minutes;
       render(s);
+      loadRemote(s);
       return s;
     });
+  }
+
+  function loadRemote(s) {
+    var card = document.getElementById("set-security-body");
+    if (!card || !deps) { return; }
+    deps.api("GET", "/api/remote").then(function (r) { card.appendChild(renderRemote(r, s)); }, function () {});
+  }
+
+  function renderRemote(r, s) {
+    var box = el("div", "stepup-remote");
+    box.appendChild(el("h3", "", TEXT.remoteTitle));
+    if (!s.enrolled) { box.appendChild(el("p", "sub", TEXT.remoteNeedStepup)); return box; }
+    var label = el("label", "stepup-toggle");
+    var on = el("input", "");
+    on.type = "checkbox";
+    on.checked = !!r.enabled;
+    label.appendChild(on);
+    label.appendChild(document.createTextNode(" " + TEXT.remoteSwitch));
+    on.addEventListener("change", function () { deps.api("POST", "/api/remote/enabled", { on: on.checked }).then(load, load); });
+    box.appendChild(label);
+    box.appendChild(el("h3", "", TEXT.binaryTitle));
+    if (r.binary) {
+      box.appendChild(el("p", "", TEXT.binaryPath + r.binary.path));
+      box.appendChild(el("p", "", TEXT.binarySize + r.binary.size));
+      box.appendChild(el("pre", "stepup-secret", TEXT.binarySha + r.binary.sha256));
+    } else {
+      box.appendChild(el("p", "sub", TEXT.binaryNone));
+    }
+    box.appendChild(el("p", "sub", TEXT.binaryCheck));
+    box.appendChild(el("p", "sub", TEXT.binarySigner));
+    var approve = el("button", "ghost", TEXT.binaryApprove);
+    approve.addEventListener("click", function () { deps.api("POST", "/api/remote/binary/approve", {}).then(load, load); });
+    box.appendChild(approve);
+    return box;
   }
 
   function init(d) {
@@ -3577,8 +3624,19 @@ button.danger { background: var(--danger, #b42318); color: #fff; }
     events: { start: "開了", stop: "關了", auto_stop: "自動關了", suggest: "提醒很久沒用", keep: "按了先留著",
               policy: "改了閒置設定", handoff: "打開了畫面", enter: "進到畫面", leave: "離開畫面", action: "在畫面上做了一個動作",
               "export": "匯出了資料", denied: "擋下一個不對的請求", error: "出錯" },
-    // 手機入口（ADR 0026；S14 填）
-    remoteRow: "📱 手機入口"
+    // 手機入口（ADR 0026）
+    remoteRow: "📱 手機入口",
+    remoteMissing: "要先完成：",
+    remoteNeed: { stepup: "設定手機驗證器（設定 → 🔐 安全）", disabled: "打開手機入口的總開關（設定 → 🔐 安全）",
+                  binary: "核准通道程式 cloudflared（設定 → 🔐 安全）", declared: "這個工具沒有宣告可以從手機用",
+                  allowed: "打開這個工具的「可以從手機用」" },
+    remoteAllow: "可以從手機用",
+    remoteOpen: "開手機入口",
+    remoteCode: "手機驗證器現在的 6 位數（每次都要一組新的）",
+    remoteLink: "用手機打開這個連結（只能用一次，5 分鐘內要進去；進門時要再打一組數字）：",
+    remoteLeft: "手機入口開著，還剩 {m} 分鐘",
+    remoteClose: "關閉手機入口",
+    remoteNote: "通道是 Cloudflare 提供的，資料會經過它的機器；危險的動作與匯出在手機上不能做。"
   };
   var POLICY_CHOICES = [
     { key: "auto120", label: "120 分鐘沒用就關，30 分鐘先提醒（建議）", body: { mode: "auto", close_min: 120 } },
@@ -3814,7 +3872,89 @@ button.danger { background: var(--danger, #b42318); color: #fff; }
     if (!slot || !view) { return; }
     while (slot.firstChild) { slot.removeChild(slot.firstChild); }
     slot.appendChild(renderCard(root.document, view, ctxFor()));
-    if (last && last.can_manage) { drawLog(slot, name); }
+    if (last && last.can_manage) {
+      if (view.remote) {
+        deps.api("GET", "/api/remote").then(function (st) { slot.appendChild(renderRemote(root.document, view, st)); },
+                                            function () {});
+      }
+      drawLog(slot, name);
+    }
+  }
+
+  /* 手機入口那一列（ADR 0026）：前提沒齊就列出缺哪一樣與去哪裡做；齊了有「開手機入口」→ 問碼 → 網址、QR、關閉 */
+  function remoteMissing(view, st) {
+    var tool = (st.tools || {})[view.name] || {};
+    var out = [];
+    if (!st.stepup) { out.push("stepup"); }
+    if (!st.enabled) { out.push("disabled"); }
+    if (!st.binary) { out.push("binary"); }
+    if (!tool.declared) { out.push("declared"); } else if (!tool.allowed) { out.push("allowed"); }
+    return out;
+  }
+
+  function renderRemote(doc, view, st) {
+    var el = make(doc);
+    var box = el("div", "app-remote");
+    box.appendChild(el("div", "section-label", TEXT.remoteRow));
+    var open = st.open && st.open.name === view.name ? st.open : null;
+    if (open) {
+      box.appendChild(el("p", "", fill(TEXT.remoteLeft, { m: open.minutes_left })));
+      var close = el("button", "", TEXT.remoteClose);
+      close.addEventListener("click", function () { act("/api/remote/close"); });
+      box.appendChild(close);
+      return box;
+    }
+    var missing = remoteMissing(view, st);
+    if (missing.length) {
+      box.appendChild(el("p", "sub", TEXT.remoteMissing));
+      var ul = el("ul");
+      missing.forEach(function (k) { ul.appendChild(el("li", "", TEXT.remoteNeed[k])); });
+      box.appendChild(ul);
+      if (missing.length === 1 && missing[0] === "allowed") {
+        var allow = el("button", "", TEXT.remoteAllow);
+        allow.addEventListener("click", function () { act("/api/remote/allow", { name: view.name, on: true }); });
+        box.appendChild(allow);
+      }
+      return box;
+    }
+    var code = el("input");
+    code.setAttribute("inputmode", "numeric");
+    code.setAttribute("aria-label", TEXT.remoteCode);
+    code.placeholder = TEXT.remoteCode;
+    var go = el("button", "primary", TEXT.remoteOpen);
+    var out = el("div", "app-remote-out");
+    go.addEventListener("click", function () {
+      deps.api("POST", "/api/remote/open", { name: view.name, code: String(code.value || "").trim() }).then(function (d) {
+        while (out.firstChild) { out.removeChild(out.firstChild); }
+        out.appendChild(el("p", "", TEXT.remoteLink));
+        out.appendChild(el("p", "app-remote-url", d.url));
+        if (d.qr) {
+          var canvas = el("canvas", "app-remote-qr");
+          drawGrid(canvas, d.qr);
+          out.appendChild(canvas);
+        }
+      }, function (e) { if (deps.toast) { deps.toast(TEXT.failed + (e && e.message ? e.message : "")); } });
+    });
+    box.appendChild(code);
+    box.appendChild(go);
+    box.appendChild(out);
+    box.appendChild(el("p", "sub", TEXT.remoteNote));
+    return box;
+  }
+
+  function drawGrid(canvas, grid) {
+    var n = grid.length, pad = 4, scale = 4;
+    canvas.width = canvas.height = (n + pad * 2) * scale;
+    var ctx = canvas.getContext ? canvas.getContext("2d") : null;
+    if (!ctx) { return; }
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#000";
+    for (var y = 0; y < n; y++) {
+      for (var x = 0; x < n; x++) {
+        if (grid[y].charAt(x) === "1") { ctx.fillRect((x + pad) * scale, (y + pad) * scale, scale, scale); }
+      }
+    }
   }
 
   function drawLog(slot, name) {
@@ -3859,7 +3999,8 @@ button.danger { background: var(--danger, #b42318); color: #fff; }
   }
 
   var api = { TEXT: TEXT, POLICY_CHOICES: POLICY_CHOICES, policyBody: policyBody, stateLine: stateLine, sideText: sideText,
-              openForm: openForm, renderCard: renderCard, init: init, card: card, refresh: refresh };
+              openForm: openForm, renderCard: renderCard, init: init, card: card, refresh: refresh,
+              remoteMissing: remoteMissing, renderRemote: renderRemote };
   if (typeof module === "object" && module && module.exports) { module.exports = api; }
   else { root.SynoxApps = api; }
 })(typeof window !== "undefined" ? window : this);
