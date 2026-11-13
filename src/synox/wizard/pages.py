@@ -547,7 +547,8 @@ class Wizard:
         self.clear(t("finish_title"), t("last_step"))
         tk, ttk = self.tk, self.ttk
         desk = tk.BooleanVar(value=True)
-        auto = tk.BooleanVar(value=False)
+        # Setup.bat 問過「建議／自訂」（setup/bootstrap.ps1 的 Invoke-SetupPlan）：建議＝勾好；自己開精靈＝照舊不勾
+        auto = tk.BooleanVar(value=os.environ.get("SYNOX_SETUP_AUTOSTART") == "1")
         packs = tk.BooleanVar(value=True)
         launch = tk.BooleanVar(value=True)
         ttk.Checkbutton(self.body, text=t("finish_desktop"), variable=desk).pack(anchor=self.west, pady=4)

@@ -2,8 +2,9 @@
 #   check      only report what is installed (changes nothing)
 #   shortcuts  stop SYNOX; remove desktop shortcut, startup entry, .synoxpack association
 #   env        shortcuts + delete .venv and runtime\  (keeps config.json and data\; Setup.bat restores it)
-#              runtime\ = SYNOX's own private Python: the installer's runtime\python, uv (runtime\uv), the CPython
-#              it installed (runtime\python-uv) and uv's cache (runtime\uv-cache). Nothing outside the SYNOX folder.
+#              runtime\ = SYNOX's own private Python (runtime\python: shipped by the installer or downloaded by
+#              Setup.bat), plus anything an older build left there (runtime\uv, runtime\python-uv, runtime\uv-cache
+#              from the short-lived uv version). Nothing outside the SYNOX folder.
 #   all        env + delete config.json and data\    (everything starts over; data is lost)
 # Never deletes the SYNOX folder itself or any source file.
 # Language: -Lang <code> (not saved) / SYNOX_LANG, else lang.txt, else ask first and save (lang.ps1).
@@ -82,7 +83,8 @@ function Remove-Path([string]$Path) {
 }
 
 function Remove-Runtime {
-    # runtime\python-uv has a directory junction per minor version (cpython-3.12-... -> cpython-3.12.x-...). Unlink
+    # runtime\python-uv (left by an older dev build that used uv) has a directory junction per minor version
+    # (cpython-3.12-... -> cpython-3.12.x-...). Unlink
     # junctions/symlinks first (Directory.Delete on a reparse point removes only the link, never what it points to),
     # so the recursive delete below can never follow a link out of the SYNOX folder.
     if (-not (Test-Path -LiteralPath $Runtime)) { return }
