@@ -211,6 +211,7 @@ def parse_llm_extras(llm: dict) -> dict:
         raise ConfigError(f"config.json：{e}")
     if "think" in llm and not isinstance(llm["think"], bool):
         raise ConfigError("config.json 的 llm.think 只能是 true 或 false。")
+    llm = parse_harness_extras(llm)
     if llm.get("kind") == "local":
         from synox.llm.local import validate
         try:
@@ -222,6 +223,19 @@ def parse_llm_extras(llm: dict) -> dict:
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 86400:
             raise ConfigError("config.json 的 llm.timeout 要是 0～86400 的秒數（0＝自動）。")
     return llm
+
+
+def parse_harness_extras(llm: dict) -> dict:
+    """小模型 harness 的設定（每個 kind 都收；沒寫＝不出現、照預設）：max_tools（auto｜0｜1～200，docs/adr/0014）。
+    寫錯＝ConfigError。"""
+    from synox.agent import toolpick
+    out = dict(llm)
+    try:
+        if "max_tools" in out:
+            out["max_tools"] = toolpick.parse_max_tools(out["max_tools"])
+    except ValueError as e:
+        raise ConfigError(f"config.json：{e}")
+    return out
 
 
 def parse_presentation(value) -> dict:
