@@ -31,8 +31,8 @@ AI_LABELS = {"none": "先不用 AI（只用指令和按鈕）", "claude_code": "
              "local": "本地模型（Ollama、vLLM、LM Studio；不需要金鑰，SYNOX 內建）",
              "openai": "OpenAI（金鑰）", "anthropic": "Anthropic API（金鑰）", "gemini": "Gemini（金鑰）",
              "openai_compat": "相容端點（公司閘道；要網址與金鑰）"}
-EASY_LLM_HINT = ("用金鑰的 AI 要多裝 ntu_easy_llm（還沒上 PyPI）：裝法見 docs/AGENT.md「ntu_easy_llm」。"
-                 "設定先存著，裝好之後 synox doctor 會測。")
+EASY_LLM_HINT = ("用金鑰的 AI 要多裝 ntu_easy_llm：在 SYNOX 資料夾跑 `.venv\\Scripts\\python.exe -m pip install -e .[llm]`"
+                 "（見 docs/AGENT.md「ntu_easy_llm」）。設定先存著，裝好之後 synox doctor 會測。")
 
 
 class InitAbort(Exception):
