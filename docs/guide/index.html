@@ -1,0 +1,1034 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SYNOX 安裝教學</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="一步一步教你把 SYNOX 裝到 Windows 電腦上、接上 Telegram、裝第一個工具。一頁只講一件事，每一步都畫出你會看到的畫面。">
+<!--
+  SYNOX 一步一步安裝教學（docs/guide/index.html）。一個檔案、不用網路以外的東西（字型從 Google Fonts，載不到就用系統字）。
+
+  ── 步驟資料的格式（之後 SYNOX 的「教學 pack」可以直接拿 STEPS 這個陣列來用）──────────────────────────
+  STEPS 是一個陣列，一個元素＝一個畫面（一步）。欄位：
+    id        字串，唯一。英文小寫加連字號。主線步驟的網址是 #step-<第幾步>（從 1 數）；branch 步驟的網址是 #step-<id>。
+    chapter   字串，這一步屬於哪一段（顯示在進度條上，例如「安裝精靈」）。
+    title     字串，這一步的標題（一句話，說要做什麼）。
+    body      字串陣列，一個字串＝一段（一兩句白話）。可以有 <b>、<code>。
+    mock      字串，示意畫面的代號，對應 MOCKS 物件裡的函式（例如 "wizard-token"、"tg-pair"）。
+              示意畫面裡可以被標出來的東西都有 data-hl="<名字>"。
+    targets   陣列，要標出來（脈動的圈＋小標籤）的東西：{ id: data-hl 的名字, say: 標籤上的字, place: 標籤位置 }
+              place：b＝下面置中（預設）、bs＝下面靠左、be＝下面靠右、a＝上面置中、as／ae＝上面靠左／右。
+    tips      陣列（可省略）：{ k: 種類, t: 文字 }。k＝"if"（如果出現…）、"note"（小提示）、"warn"（注意）、
+              "wip"（⏳ 尚未完成）、"ok"（好消息）。
+    links     陣列（可省略）：{ href, text, primary? }，顯示成大按鈕（外部連結開新分頁）。
+    jump      物件（可省略）：{ to: 另一步的 id, text } ，顯示成「改走另一條路」的按鈕（例如改用 Discord）。
+    branch    true＝選讀的岔路，不算在「步驟 N／總數」裡；要配 back（回哪一步的 id）和 next（看完接哪一步的 id）。
+  主線的順序就是陣列裡（去掉 branch 之後）的順序。
+  畫面上的字都照 SYNOX 原始碼裡真的字（安裝精靈 src/synox/wizard/lang/zh_TW.py、網頁 src/synox/web/static/app.html、
+  packdrop.js、Setup.bat 的 setup/lang/zh-TW.psd1）。Windows、Telegram 自己的畫面是照常見的樣子畫的示意圖。
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+/* 版面：一次只看一步。手機是一欄（標題 → 說明 → 示意畫面 → 小提示），底下黏著兩顆大按鈕；
+   電腦上左邊說明、右邊示意畫面。配色、字型跟 SYNOX 首頁（docs/landing/page.html）同一套。 */
+:root {
+  --bg: #f3f5f8; --surface: #ffffff; --sunken: #eef1f5; --line: #e2e7ee; --line-2: #cdd5df;
+  --ink: #131b26; --muted: #465264; --faint: #6a7687;
+  --accent: #0a7c70; --accent-soft: #d9f1ec; --accent-ink: #ffffff; --ring: rgba(10,124,112,.55);
+  --ok: #1f7a3a; --ok-soft: #dcf3e3; --warn: #9a5b00; --warn-soft: #fbeccf; --bad: #b42318; --bad-soft: #fde3df;
+  --shadow: 0 1px 2px rgba(19,27,38,.05), 0 10px 28px -14px rgba(19,27,38,.22);
+  --glow: radial-gradient(60% 50% at 85% 0%, rgba(10,124,112,.12), transparent 70%);
+  /* 示意畫面用的顏色 */
+  --frame: #c9d1db; --win-bar: #e8ecf1; --win-sel: #cfe6f7; --menu: #ffffff; --folder: #e8b33a; --folder-ink: #8a6200;
+  --doc: #ffffff; --doc-line: #9aa6b5;
+  --con-bg: #0c0c0c; --con-fg: #cfd6de; --con-dim: #8a96a5; --con-hi: #5fe0c9;
+  --ss-bg: #1f5fa8; --ss-fg: #ffffff; --ss-btn: #ffffff; --ss-btn-ink: #1f5fa8;
+  --tg-bar: #2aabee; --tg-bar-fg: #ffffff; --tg-chat: #dfe7ee; --tg-in: #ffffff; --tg-in-fg: #131b26;
+  --tg-out: #effdde; --tg-out-fg: #131b26; --tg-link: #1a73c5; --tg-compose: #f4f7f9;
+  --display: "LXGW WenKai TC", "Noto Serif TC", "PMingLiU", serif;
+  --body: "Noto Sans TC", "Microsoft JhengHei UI", "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  --r: 14px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0f14; --surface: #121924; --sunken: #0d131b; --line: #1f2b3b; --line-2: #2d3b4f;
+    --ink: #dbe4ef; --muted: #aab6c6; --faint: #7f90a7;
+    --accent: #35e0c4; --accent-soft: #123b38; --accent-ink: #06201c; --ring: rgba(53,224,196,.6);
+    --ok: #57d98a; --ok-soft: #10301e; --warn: #e6b04e; --warn-soft: #3a2a0b; --bad: #ff8a7a; --bad-soft: #43171a;
+    --shadow: 0 1px 2px rgba(0,0,0,.45), 0 14px 36px -16px rgba(0,0,0,.75);
+    --glow: radial-gradient(60% 50% at 85% 0%, rgba(53,224,196,.13), transparent 70%);
+    --frame: #2b3948; --win-bar: #1a2433; --win-sel: #18394f; --menu: #1b2533; --folder: #d9a531; --folder-ink: #6b4b00;
+    --doc: #dfe5ec; --doc-line: #6e7b8c;
+    --ss-bg: #1d4f8a; --ss-btn: #e9f1fb; --ss-btn-ink: #163f6e;
+    --tg-bar: #17212b; --tg-bar-fg: #e6edf3; --tg-chat: #0e1621; --tg-in: #182533; --tg-in-fg: #e6edf3;
+    --tg-out: #2b5278; --tg-out-fg: #ffffff; --tg-link: #6ab3f3; --tg-compose: #17212b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0f14; --surface: #121924; --sunken: #0d131b; --line: #1f2b3b; --line-2: #2d3b4f;
+  --ink: #dbe4ef; --muted: #aab6c6; --faint: #7f90a7;
+  --accent: #35e0c4; --accent-soft: #123b38; --accent-ink: #06201c; --ring: rgba(53,224,196,.6);
+  --ok: #57d98a; --ok-soft: #10301e; --warn: #e6b04e; --warn-soft: #3a2a0b; --bad: #ff8a7a; --bad-soft: #43171a;
+  --shadow: 0 1px 2px rgba(0,0,0,.45), 0 14px 36px -16px rgba(0,0,0,.75);
+  --glow: radial-gradient(60% 50% at 85% 0%, rgba(53,224,196,.13), transparent 70%);
+  --frame: #2b3948; --win-bar: #1a2433; --win-sel: #18394f; --menu: #1b2533; --folder: #d9a531; --folder-ink: #6b4b00;
+  --doc: #dfe5ec; --doc-line: #6e7b8c;
+  --ss-bg: #1d4f8a; --ss-btn: #e9f1fb; --ss-btn-ink: #163f6e;
+  --tg-bar: #17212b; --tg-bar-fg: #e6edf3; --tg-chat: #0e1621; --tg-in: #182533; --tg-in-fg: #e6edf3;
+  --tg-out: #2b5278; --tg-out-fg: #ffffff; --tg-link: #6ab3f3; --tg-compose: #17212b;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); background-image: var(--glow); background-repeat: no-repeat;
+  color: var(--ink); font: 19px/1.75 var(--body); }
+a { color: var(--accent); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 3px; }
+code { font-family: var(--mono); font-size: .88em; background: var(--sunken); border: 1px solid var(--line); padding: 1px 7px; border-radius: 7px; }
+p { margin: 0; }
+
+.wrap { width: min(1120px, 100%); margin: 0 auto;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* 頁首：品牌、全部步驟、進度條 */
+.top { padding-block: 14px 6px; display: grid; gap: 12px; }
+.brand-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; color: var(--ink); font-weight: 700; font-size: 18px; }
+.mark { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink);
+  font-family: var(--display); font-weight: 700; font-size: 20px; flex: none; }
+.brand small { color: var(--faint); font-weight: 500; font-size: 15px; }
+.toc { position: relative; }
+.toc summary { list-style: none; cursor: pointer; min-height: 44px; display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px;
+  border: 1px solid var(--line-2); border-radius: 999px; background: var(--surface); font-size: 16px; font-weight: 500; color: var(--ink); }
+.toc summary::-webkit-details-marker { display: none; }
+.toc summary svg { width: 18px; height: 18px; }
+.toc-panel { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; width: min(380px, calc(100vw - 32px));
+  max-height: min(70vh, 560px); overflow: auto; background: var(--surface); border: 1px solid var(--line-2); border-radius: var(--r);
+  box-shadow: var(--shadow); padding: 8px; }
+.toc-panel ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.toc-panel .ch { font-size: 13px; color: var(--faint); letter-spacing: .08em; padding: 10px 10px 2px; }
+.toc-panel a { display: flex; gap: 10px; align-items: baseline; padding: 8px 10px; border-radius: 10px; text-decoration: none; color: var(--ink);
+  font-size: 16px; line-height: 1.45; min-height: 44px; align-items: center; }
+.toc-panel a .n { flex: none; width: 2.2em; text-align: right; font-family: var(--mono); font-size: 13px; color: var(--faint); font-variant-numeric: tabular-nums; }
+.toc-panel a:hover { background: var(--sunken); }
+.toc-panel a[aria-current="step"] { background: var(--accent-soft); font-weight: 700; }
+
+.progress { display: grid; gap: 6px; }
+.progress-label { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.step-count { font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
+.step-count .of { color: var(--faint); font-weight: 500; }
+.chapter { font-size: 15px; color: var(--muted); }
+.bar { height: 10px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: inherit; transition: width .35s ease; }
+.branch-tag { display: inline-block; font-size: 14px; font-weight: 700; padding: 2px 10px; border-radius: 999px; background: var(--warn-soft); color: var(--warn); }
+
+.resume { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; padding: 12px 14px; border-radius: var(--r);
+  background: var(--accent-soft); color: var(--ink); font-size: 17px; }
+.resume .btn { min-height: 44px; font-size: 16px; padding: 6px 16px; }
+
+/* 一步 */
+main { padding-block: 14px 0; }
+.stage { display: grid; gap: 22px; grid-template-columns: minmax(0, 1fr); align-items: start; }
+.text { display: grid; gap: 14px; min-width: 0; }
+.stage h1 { font-family: var(--display); font-weight: 700; font-size: clamp(27px, 6.2vw, 38px); line-height: 1.3; margin: 0; text-wrap: balance; }
+.stage h1:focus { outline: none; }
+.body { display: grid; gap: 10px; max-width: 34em; }
+.body p { font-size: 19px; }
+.links { display: flex; flex-wrap: wrap; gap: 10px; }
+.tips { display: grid; gap: 10px; }
+.tip { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 4px 10px; align-items: start; padding: 12px 14px; border-radius: 12px;
+  background: var(--sunken); border: 1px solid var(--line); font-size: 17px; line-height: 1.65; }
+.tip .k { font-size: 14px; font-weight: 700; padding: 2px 9px; border-radius: 999px; white-space: nowrap; margin-top: 2px; background: var(--surface); color: var(--muted); border: 1px solid var(--line-2); }
+.tip.if .k { background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.tip.warn { background: var(--bad-soft); border-color: transparent; }
+.tip.warn .k { background: var(--surface); color: var(--bad); border-color: transparent; }
+.tip.wip { background: var(--warn-soft); border-color: transparent; }
+.tip.wip .k { background: var(--surface); color: var(--warn); border-color: transparent; }
+.tip.ok { background: var(--ok-soft); border-color: transparent; }
+.tip.ok .k { background: var(--surface); color: var(--ok); border-color: transparent; }
+.tip > span:last-child { min-width: 0; overflow-wrap: anywhere; }
+
+.figure { margin: 0; display: grid; gap: 8px; min-width: 0; }
+.mock { min-width: 0; padding: 18px 14px 26px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line);
+  box-shadow: var(--shadow); overflow: hidden; display: grid; justify-items: center; }
+.mock > * { width: 100%; max-width: 100%; }
+.figure figcaption { font-size: 14px; color: var(--faint); text-align: center; }
+
+/* 按鈕 */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 56px; padding: 10px 22px; border-radius: 14px;
+  border: 2px solid var(--line-2); background: var(--surface); color: var(--ink); font: 700 19px/1.3 var(--body); text-decoration: none; cursor: pointer; }
+.btn svg { width: 22px; height: 22px; flex: none; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn.soft { background: var(--accent-soft); border-color: transparent; color: var(--ink); }
+.btn:hover { filter: brightness(1.04); }
+.btn[disabled] { opacity: .4; cursor: default; filter: none; }
+
+.navbar { position: sticky; bottom: 0; z-index: 20; margin-top: 26px; background: color-mix(in srgb, var(--bg) 88%, transparent);
+  -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); border-top: 1px solid var(--line);
+  padding-block: 12px calc(12px + env(safe-area-inset-bottom, 0px)); }
+.navbar .btns { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); gap: 12px; }
+.navbar .btn { width: 100%; min-height: 60px; font-size: 20px; white-space: nowrap; padding-inline: 12px; }
+.kbd-hint { display: none; text-align: center; font-size: 13px; color: var(--faint); margin-top: 6px; }
+
+footer { padding-block: 22px 28px; }
+.stamp { font-family: var(--mono); font-size: 11px; color: var(--faint); opacity: .7; overflow-wrap: anywhere; text-align: center; }
+
+@media (min-width: 900px) {
+  body { font-size: 20px; }
+  .stage { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); grid-template-rows: auto 1fr; gap: 22px 40px; padding-top: 10px; }
+  .stage > .text { grid-column: 1; grid-row: 1; }
+  .stage > .tips { grid-column: 1; grid-row: 2; align-self: start; }
+  .stage > .figure { grid-column: 2; grid-row: 1 / span 2; }
+  .body p { font-size: 20px; }
+  .navbar .btns { grid-template-columns: 220px 320px; justify-content: end; }
+  .kbd-hint { display: block; text-align: right; }
+  .mock { padding: 26px 24px 34px; }
+}
+
+/* ── 標出要按的地方：脈動的圈＋小標籤 ─────────────────────────── */
+.hl.room-b { margin-bottom: 42px !important; }
+.hl.room-a { margin-top: 42px !important; }
+.wb > .hl, .frame-l > .hl { justify-self: start; }
+.row > .hl { align-self: flex-start; }
+.kb .r { align-items: end; }
+span.hl { display: inline-block; }
+.hl { position: relative; z-index: 2; border-radius: 8px; box-shadow: 0 0 0 3px var(--accent), 0 0 0 7px var(--ring); }
+.hl::after { content: ""; position: absolute; inset: -4px; border-radius: 12px; border: 3px solid var(--accent); pointer-events: none;
+  animation: pulse 1.6s ease-out infinite; }
+@keyframes pulse { 0% { opacity: .9; transform: scale(1); } 100% { opacity: 0; transform: scale(1.25); } }
+.tap { position: absolute; z-index: 5; top: calc(100% + 12px); left: 50%; transform: translateX(-50%); white-space: nowrap;
+  background: var(--accent); color: var(--accent-ink); font: 700 14px/1.2 var(--body); padding: 6px 10px; border-radius: 9px;
+  box-shadow: 0 6px 16px -6px rgba(0,0,0,.45); pointer-events: none; letter-spacing: .02em; }
+.tap::before { content: ""; position: absolute; left: 50%; top: -6px; margin-left: -6px; border: 6px solid transparent; border-top: 0; border-bottom-color: var(--accent); }
+.tap.bs { left: 0; transform: none; } .tap.bs::before { left: 18px; }
+.tap.be { left: auto; right: 0; transform: none; } .tap.be::before { left: auto; right: 12px; }
+.tap.a, .tap.as, .tap.ae { top: auto; bottom: calc(100% + 12px); }
+.tap.a::before, .tap.as::before, .tap.ae::before { top: auto; bottom: -6px; border-bottom: 0; border-top: 6px solid var(--accent); }
+.tap.as { left: 0; transform: none; } .tap.as::before { left: 18px; }
+.tap.ae { left: auto; right: 0; transform: none; } .tap.ae::before { left: auto; right: 12px; }
+.tap.r { top: 50%; left: calc(100% + 12px); transform: translateY(-50%); }
+.tap.r::before { top: 50%; left: -6px; margin: -6px 0 0; border: 6px solid transparent; border-left: 0; border-right-color: var(--accent); }
+@media (prefers-reduced-motion: reduce) {
+  .hl::after { animation: none; opacity: .5; transform: none; }
+  .bar i { transition: none; }
+}
+
+/* ── 示意畫面：共用 ─────────────────────────────────────────── */
+.m-sm { font-size: 13.5px; line-height: 1.5; }
+.win { border: 1px solid var(--frame); border-radius: 10px; overflow: hidden; background: var(--surface); color: var(--ink);
+  box-shadow: 0 14px 30px -18px rgba(0,0,0,.5); font-size: 14px; line-height: 1.5; text-align: left; }
+.win .tb { display: flex; align-items: center; gap: 8px; padding: 6px 10px 6px 12px; background: var(--win-bar); font-size: 13px; }
+.win .tb .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.win .tb .c { letter-spacing: 6px; color: var(--faint); flex: none; font-size: 12px; }
+.win .wb { padding: 14px; display: grid; gap: 9px; grid-template-columns: minmax(0, 1fr); }
+.win .wb > *, .frame-l > * { min-width: 0; }
+.b { display: inline-flex; align-items: center; justify-content: center; padding: 5px 12px; border-radius: 6px; border: 1px solid var(--line-2);
+  background: var(--sunken); color: var(--ink); font-weight: 600; font-size: 13.5px; line-height: 1.35; }
+.b.pri { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.b.dis { opacity: .45; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
+.row > .field { min-width: 0; flex-basis: 140px; }
+.field { border: 1px solid var(--line-2); border-radius: 6px; padding: 6px 9px; background: var(--sunken); font-family: var(--mono); font-size: 12.5px;
+  min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.radio, .check { display: inline-flex; align-items: flex-start; gap: 7px; }
+.radio i, .check i { flex: none; width: 15px; height: 15px; margin-top: 3px; border: 1.6px solid var(--faint); display: inline-block; }
+.radio i { border-radius: 50%; }
+.check i { border-radius: 3px; }
+.radio.on i { border-color: var(--accent); box-shadow: inset 0 0 0 3.5px var(--surface), inset 0 0 0 9px var(--accent); }
+.check.on i { border-color: var(--accent); background: var(--accent); box-shadow: inset 0 0 0 2.5px var(--surface); }
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+.okc { color: var(--ok); } .badc { color: var(--bad); }
+.sep { height: 1px; background: var(--line); margin: 4px 0; }
+.frame-l { border: 1px solid var(--line-2); border-radius: 8px; padding: 8px 10px 10px; display: grid; gap: 6px; position: relative; grid-template-columns: minmax(0, 1fr); }
+.frame-l > .lg { font-size: 12px; color: var(--faint); margin-top: -2px; }
+.pre { white-space: pre-line; }
+
+/* 安裝精靈（Tk 視窗） */
+.wz-step { font-size: 12.5px; color: var(--faint); }
+.wz-h { font-size: 18px; font-weight: 700; margin-top: -4px; }
+.wz-nav { display: flex; justify-content: flex-end; border-top: 1px solid var(--line); padding-top: 10px; margin-top: 4px; }
+.code6 { font-family: var(--mono); font-size: 27px; font-weight: 600; letter-spacing: .12em; white-space: nowrap; font-variant-numeric: tabular-nums; padding: 0 6px; justify-self: start; }
+
+/* 檔案總管 */
+.exp .addr { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--muted);
+  white-space: nowrap; overflow: hidden; }
+.exp .addr .box { flex: 1; min-width: 0; border: 1px solid var(--line-2); border-radius: 6px; padding: 2px 8px; background: var(--sunken); overflow: hidden; text-overflow: ellipsis; color: var(--ink); }
+.exp .pane { display: grid; grid-template-columns: 88px minmax(0, 1fr); min-height: 190px; }
+.exp .nav { border-right: 1px solid var(--line); padding: 8px 4px; display: grid; align-content: start; gap: 2px; font-size: 13px; }
+.exp .nav span { display: flex; gap: 6px; align-items: center; padding: 4px 6px; border-radius: 6px; white-space: nowrap; }
+.exp .nav .on { background: var(--win-sel); }
+.exp .list { padding: 6px; display: grid; align-content: start; gap: 1px; position: relative; font-size: 13.5px; }
+.exp .f { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto; gap: 8px; align-items: center; padding: 4px 6px; border-radius: 6px; }
+.exp .f .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exp .f .ty { font-size: 12px; color: var(--faint); white-space: nowrap; }
+.exp .f.sel { background: var(--win-sel); }
+.exp .f.dim { opacity: .6; }
+.fi { width: 20px; height: 20px; display: block; }
+.ctx { position: absolute; left: 8px; top: 34px; z-index: 3; background: var(--menu); border: 1px solid var(--line-2); border-radius: 9px; padding: 5px;
+  box-shadow: 0 16px 34px -14px rgba(0,0,0,.55); display: grid; gap: 1px; width: 132px; font-size: 13.5px; }
+.ctx span { padding: 5px 10px; border-radius: 6px; }
+.ctx .ln { height: 1px; padding: 0; background: var(--line); margin: 3px 4px; }
+@media (max-width: 420px) { .exp .f .ty { display: none; } .exp .pane { grid-template-columns: 76px minmax(0, 1fr); } }
+
+/* 黑色視窗（命令列） */
+.con { border-radius: 8px; overflow: hidden; border: 1px solid var(--frame); background: var(--con-bg); box-shadow: 0 14px 30px -18px rgba(0,0,0,.6); text-align: left; }
+.con .ct { display: flex; gap: 8px; align-items: center; padding: 5px 10px; background: #1f1f1f; color: #c8c8c8; font-size: 12px; }
+.con .ct .t { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.con .ct .c { letter-spacing: 6px; color: #8a8a8a; }
+.con pre { margin: 0; padding: 12px; color: var(--con-fg); font: 12.5px/1.6 var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.con .hi { color: var(--con-hi); }
+.con .dm { color: var(--con-dim); }
+.con .key { display: inline-block; color: var(--con-fg); }
+.cursor { display: inline-block; width: .6em; height: 1.1em; vertical-align: -2px; background: var(--con-fg); animation: blink 1.1s steps(1) infinite; }
+@keyframes blink { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .cursor { animation: none; } }
+
+/* Windows SmartScreen */
+.ss { background: var(--ss-bg); color: var(--ss-fg); border-radius: 6px; padding: 18px 18px 16px; display: grid; gap: 10px; text-align: left; line-height: 1.55;
+  box-shadow: 0 14px 30px -18px rgba(0,0,0,.6); }
+.ss .x { justify-self: end; margin: -8px -6px -10px 0; opacity: .8; font-size: 14px; }
+.ss h3 { margin: 0; font-size: 21px; font-weight: 500; }
+.ss p { font-size: 13.5px; }
+.ss .more { text-decoration: underline; font-size: 13.5px; justify-self: start; padding: 0 2px; }
+.ss .kv { font-size: 13px; display: grid; gap: 2px; }
+.ss .row { justify-content: flex-end; }
+.ss .sb { padding: 6px 16px; border: 1.5px solid var(--ss-fg); border-radius: 3px; font-size: 13.5px; color: var(--ss-fg); }
+.ss .sb.fill { background: var(--ss-btn); color: var(--ss-btn-ink); border-color: var(--ss-btn); }
+
+/* 手機 Telegram */
+.phone { max-width: 330px; margin: 0 auto; border: 2px solid var(--frame); border-radius: 26px; overflow: hidden; background: var(--tg-chat);
+  box-shadow: 0 14px 30px -18px rgba(0,0,0,.45); text-align: left; }
+.tg-bar { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: var(--tg-bar); color: var(--tg-bar-fg); font-size: 14px; line-height: 1.25; }
+.tg-bar .bk { font-size: 20px; opacity: .85; }
+.tg-bar .who { display: grid; min-width: 0; }
+.tg-bar .who b { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tg-bar .who small { font-size: 11.5px; opacity: .8; }
+.av { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 14px; color: #fff; background: #2aabee; }
+.av.syn { background: #0a7c70; }
+.tg-chat { padding: 12px 10px; display: grid; gap: 8px; font-size: 13.5px; line-height: 1.5; }
+.msg { max-width: 86%; padding: 7px 10px; border-radius: 13px; overflow-wrap: anywhere; }
+.msg.in { justify-self: start; background: var(--tg-in); color: var(--tg-in-fg); border-bottom-left-radius: 4px; }
+.msg.out { justify-self: end; background: var(--tg-out); color: var(--tg-out-fg); border-bottom-right-radius: 4px; }
+.msg .tm { display: block; text-align: right; font-size: 10.5px; opacity: .6; margin-top: 1px; }
+.msg .tok { display: block; margin: 4px 0; padding: 4px 6px; border-radius: 6px; background: rgba(127,127,127,.16); font-family: var(--mono); font-size: 12px; word-break: break-all; }
+.msg.ghost { background: transparent; border: 1.5px dashed var(--line-2); color: var(--muted); font-style: italic; }
+.msg.pre { white-space: pre-line; }
+.kb { display: grid; gap: 4px; justify-self: stretch; max-width: 92%; }
+.kb .r { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.kb .r.one { grid-template-columns: 1fr; }
+.kb span { text-align: center; padding: 5px 4px; border-radius: 8px; background: rgba(42,171,238,.22); color: var(--tg-in-fg); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sys { justify-self: center; font-size: 11px; color: #fff; background: rgba(20,40,60,.5); padding: 2px 9px; border-radius: 10px; }
+.tg-start { margin: 0 10px 10px; padding: 9px; border-radius: 10px; text-align: center; font-weight: 700; background: var(--tg-bar); color: var(--tg-bar-fg); font-size: 14px; letter-spacing: .05em; }
+.tg-compose { display: flex; align-items: center; gap: 8px; padding: 8px 10px; background: var(--tg-compose); border-top: 1px solid var(--line); font-size: 13px; }
+.tg-compose .in { flex: 1; min-width: 0; background: var(--tg-in); color: var(--tg-in-fg); border-radius: 16px; padding: 5px 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tg-compose .in.ph { color: var(--faint); }
+.tg-compose .send { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #2aabee; color: #fff; }
+.tg-compose .send svg { width: 15px; height: 15px; }
+
+/* 瀏覽器框（網頁） */
+.br .url { display: flex; gap: 8px; align-items: center; padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.br .url .box { flex: 1; min-width: 0; border-radius: 999px; padding: 3px 12px; background: var(--sunken); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-family: var(--mono); font-size: 12px; }
+.br .page { padding: 18px 14px 20px; display: grid; gap: 10px; background: var(--bg); }
+.land { text-align: center; justify-items: center; }
+.land .eb { font-size: 12px; letter-spacing: .14em; color: var(--accent); font-weight: 700; }
+.land h4 { margin: 0; font-family: var(--display); font-size: 24px; }
+.big-dl { display: inline-flex; align-items: center; gap: 10px; padding: 12px 22px; border-radius: 14px; background: var(--accent); color: var(--accent-ink); font-weight: 700; font-size: 17px; }
+.big-dl svg { width: 20px; height: 20px; }
+.login-card { justify-self: center; width: min(300px, 100%); background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 8px; text-align: center; justify-items: center; }
+.login-card h4 { margin: 0; font-size: 20px; }
+.login-card .b { padding: 8px 30px; font-size: 15px; }
+.dlp { background: var(--surface); border: 1px solid var(--line-2); border-radius: 10px; padding: 10px; display: grid; gap: 8px; box-shadow: 0 12px 26px -16px rgba(0,0,0,.5); }
+.dlp .h { font-weight: 700; font-size: 14px; display: flex; justify-content: space-between; }
+.dlp .it { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 8px; align-items: center; padding: 6px; border-radius: 8px; }
+.dlp .it .nm { font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dlp .it small { display: block; font-size: 12px; color: var(--faint); }
+.dlp .it a { color: var(--accent); text-decoration: underline; font-size: 12.5px; }
+
+/* SYNOX 網頁介面 */
+.app { display: grid; grid-template-columns: 112px minmax(0, 1fr); background: var(--bg); min-height: 280px; }
+.app .side { border-right: 1px solid var(--line); background: var(--surface); padding: 10px 8px; display: grid; align-content: start; gap: 4px; font-size: 13px; }
+.app .side .br2 { display: flex; align-items: center; gap: 6px; font-weight: 700; margin-bottom: 6px; }
+.app .side .mk { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 700; }
+.app .side span.nv { padding: 4px 8px; border-radius: 7px; }
+.app .side span.nv.on { background: var(--accent-soft); font-weight: 700; }
+.app .mainp { padding: 12px; display: grid; gap: 9px; min-width: 0; align-content: start; }
+.app .mainp h4 { margin: 0; font-size: 17px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; font-size: 12px; }
+.tabs span { padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); white-space: nowrap; }
+.tabs span.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.card2 { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: grid; gap: 7px; font-size: 13px; min-width: 0; }
+.card2 h5 { margin: 0; font-size: 14.5px; }
+.flow { display: flex; flex-wrap: wrap; gap: 4px; font-size: 12px; margin: 0; padding: 0; list-style: none; }
+.flow li { padding: 2px 8px; border-radius: 999px; background: var(--sunken); color: var(--faint); }
+.flow li.d { background: var(--ok-soft); color: var(--ok); }
+.flow li.a { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.review { background: var(--sunken); }
+.b.danger { color: var(--bad); border-color: var(--bad); background: transparent; }
+.b.ghost { background: transparent; }
+@media (max-width: 460px) { .app { grid-template-columns: minmax(0, 1fr); } .app .side { display: none; } }
+
+/* 開始前、完成 */
+.need { display: grid; gap: 10px; width: 100%; max-width: 420px; }
+.need div { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 12px; align-items: center; padding: 12px; border-radius: 12px; background: var(--sunken); text-align: left; }
+.need svg { width: 40px; height: 40px; justify-self: center; color: var(--accent); }
+.need b { display: block; font-size: 17px; }
+.need small { color: var(--muted); font-size: 14.5px; line-height: 1.5; display: block; }
+.done-card { display: grid; justify-items: center; gap: 14px; text-align: center; padding: 6px 0; }
+.done-card .big { width: 88px; height: 88px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: var(--accent-ink); }
+.done-card .big svg { width: 50px; height: 50px; }
+.done-card h4 { margin: 0; font-family: var(--display); font-size: 30px; }
+.try { display: grid; gap: 8px; width: 100%; max-width: 380px; text-align: left; }
+.try div { display: grid; gap: 2px; padding: 10px 12px; border-radius: 10px; background: var(--sunken); }
+.try code { justify-self: start; font-size: 15px; }
+.try small { color: var(--muted); font-size: 14px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+<header class="wrap top">
+  <div class="brand-row">
+    <a class="brand" href="#step-1"><span class="mark" aria-hidden="true">S</span><span>SYNOX <small>安裝教學</small></span></a>
+    <details class="toc" id="toc">
+      <summary><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>全部步驟</summary>
+      <div class="toc-panel" id="toc-panel"></div>
+    </details>
+  </div>
+  <div class="progress" aria-live="polite">
+    <div class="progress-label">
+      <span class="step-count" id="count">步驟 1<span class="of">／26</span></span>
+      <span class="chapter" id="chapter"></span>
+    </div>
+    <div class="bar" role="progressbar" id="bar" aria-label="進度" aria-valuemin="1" aria-valuemax="26" aria-valuenow="1"><i id="bar-fill"></i></div>
+  </div>
+  <div class="resume" id="resume" hidden>
+    <span id="resume-text">上次看到這裡</span>
+    <button class="btn primary" type="button" id="resume-go">接著看</button>
+    <button class="btn" type="button" id="resume-no">從頭開始</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <noscript><p class="tip warn">這一頁要開 JavaScript 才能一步一步看。</p></noscript>
+  <section class="stage" id="stage" aria-labelledby="title">
+    <div class="text">
+      <h1 id="title" tabindex="-1">開始之前</h1>
+      <div class="body" id="body"></div>
+      <div class="links" id="links"></div>
+    </div>
+    <figure class="figure">
+      <div class="mock" id="mock"></div>
+      <figcaption id="caption">示意圖：畫的是你會看到的畫面，顏色、字型會跟你的電腦有一點不同。</figcaption>
+    </figure>
+    <div class="tips" id="tips"></div>
+  </section>
+</main>
+
+<nav class="navbar" aria-label="換頁">
+  <div class="wrap btns">
+    <button class="btn" type="button" id="prev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>上一步</button>
+    <button class="btn primary" type="button" id="next">下一步<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+  </div>
+  <div class="wrap"><p class="kbd-hint">也可以按鍵盤的 ← → 換頁</p></div>
+</nav>
+
+<footer class="wrap">
+  <p class="stamp">本機版 docs/guide/index.html · 線上版 ONLINE_URL · 頁面版本 <span data-stamp>—</span></p>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ── 步驟資料（格式寫在檔案最上面的註解）──────────────────────────────── */
+  var ZIP_URL = "https://github.com/ChouYangEn0401/SYNOX/archive/refs/heads/main.zip";
+  var NOTES_URL = "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/notes-0.1.1.synoxpack";
+  var LIBS_URL = "https://github.com/ChouYangEn0401/SYNOX_Libs/releases";
+  var TG_GUIDE = "https://claude.ai/artifact/SjWBzQkdDpUNymrQEZRKHe";
+  var DC_GUIDE = "https://claude.ai/artifact/21KFtvB7EVKsV4bjCE5h1h";
+
+  var STEPS = [
+    { id: "welcome", chapter: "準備", title: "開始之前，準備好三樣東西",
+      body: ["這份教學一頁只講一件事。照著做，按畫面最下面的「下一步」往下走。",
+             "全部做完大約 20 分鐘。中途關掉也沒關係，下次打開這一頁會問你要不要接著看。"],
+      mock: "welcome", targets: [],
+      tips: [{ k: "note", t: "畫面裡有<b>綠色圈圈在閃</b>的地方，就是你要按的地方。" }] },
+
+    { id: "download", chapter: "下載與解開", title: "按「下載 SYNOX」",
+      body: ["在 SYNOX 的網站上，按那顆大大的「下載 SYNOX」。",
+             "會下載一個叫 <b>SYNOX-main.zip</b> 的檔案（大約 8 MB）。也可以直接按下面這顆按鈕下載。"],
+      mock: "landing", targets: [{ id: "dl", say: "按這裡" }],
+      links: [{ href: ZIP_URL, text: "下載 SYNOX（ZIP）", primary: true, icon: "download" }],
+      tips: [{ k: "if", t: "瀏覽器問你要不要保留這個檔案，按「保留」。" },
+             { k: "wip", t: "點一下就裝好的 <code>.exe</code> 安裝檔還沒做好。現在請用這個 ZIP。" }] },
+
+    { id: "find", chapter: "下載與解開", title: "打開「下載」資料夾",
+      body: ["按螢幕下方工作列上<b>黃色資料夾</b>的圖示（檔案總管）。",
+             "左邊按「<b>下載</b>」，就會看到剛剛下載的 <b>SYNOX-main.zip</b>。"],
+      mock: "explorer-dl", targets: [{ id: "nav-dl", say: "先按這裡", place: "bs" }, { id: "zip", say: "找到它", place: "a" }],
+      tips: [{ k: "note", t: "ZIP 檔的圖示是一個<b>有拉鍊的資料夾</b>。如果看不到 .zip 三個字，找名字是 SYNOX-main 的那一個。" }] },
+
+    { id: "unzip", chapter: "下載與解開", title: "按右鍵，選「全部解壓縮」",
+      body: ["把滑鼠移到 SYNOX-main.zip 上，按滑鼠<b>右邊</b>的鍵。",
+             "跳出一個選單，按「<b>全部解壓縮…</b>」。"],
+      mock: "explorer-menu", targets: [{ id: "extract", say: "按這裡", place: "r" }],
+      tips: [{ k: "if", t: "選單裡找不到，先按選單最下面的「顯示其他選項」，再找「全部解壓縮…」。" },
+             { k: "warn", t: "不要直接點兩下 ZIP 檔就去找 Setup.bat。沒有解開的話，等一下會失敗。" }] },
+
+    { id: "extract", chapter: "下載與解開", title: "按「解壓縮」",
+      body: ["會跳出一個小視窗。<b>什麼都不用改</b>，直接按右下角的「解壓縮」。",
+             "等幾秒，解好之後 Windows 會自動打開新的資料夾。"],
+      mock: "extract", targets: [{ id: "go", say: "按這裡", place: "ae" }] },
+
+    { id: "setup", chapter: "下載與解開", title: "找到 Setup.bat，點兩下",
+      body: ["在新打開的資料夾裡，找到 <b>Setup.bat</b>，用滑鼠左鍵很快地按兩下。",
+             "如果打開的資料夾裡只有<b>另一個 SYNOX-main 資料夾</b>，先點兩下進去，就會看到很多檔案。"],
+      mock: "explorer-folder", targets: [{ id: "setup", say: "點兩下", place: "a" }],
+      tips: [{ k: "note", t: "看不到 .bat 的話：找名字是 <b>Setup</b>、類型是「Windows 批次檔案」的那一個。" },
+             { k: "warn", t: "旁邊的 Start.bat、Stop.bat、Uninstall.bat 先不要點。" }] },
+
+    { id: "smartscreen", chapter: "下載與解開", title: "如果出現藍色的警告",
+      body: ["如果跳出藍色的「<b>Windows 已保護您的電腦</b>」，先按「<b>其他資訊</b>」，再按「<b>仍要執行</b>」。",
+             "Windows 對所有剛從網路下載、還沒有數位簽章的程式都會這樣說。沒有出現的話，直接按「下一步」。"],
+      mock: "smartscreen", targets: [{ id: "more", say: "1 先按這裡", place: "bs" }, { id: "run", say: "2 再按這裡", place: "be" }],
+      tips: [{ k: "note", t: "按完「其他資訊」，下面才會多出「仍要執行」這顆按鈕。" }] },
+
+    { id: "lang", chapter: "下載與解開", title: "黑色視窗問語言：按 Enter",
+      body: ["會打開一個<b>黑色的視窗</b>，第一句問你要用哪一種語言。",
+             "直接按鍵盤上的 <b>Enter</b> 鍵，就是繁體中文。"],
+      mock: "console-lang", targets: [{ id: "enter", say: "按鍵盤的 Enter", place: "as" }],
+      tips: [{ k: "note", t: "想用別的語言：打前面的數字（例如英文打 3），再按 Enter。" }] },
+
+    { id: "wait", chapter: "下載與解開", title: "等它準備好",
+      body: ["黑色視窗會一行一行跑字。第一次要自己下載 Python 和需要的東西，<b>要上網</b>，大約要等幾分鐘。",
+             "<b>不要關掉黑色視窗。</b>準備好之後，會跳出一個叫「SYNOX 安裝精靈」的視窗。"],
+      mock: "console-wait", targets: [{ id: "last", say: "等到這一行", place: "as" }],
+      tips: [{ k: "if", t: "寫「找不到 Python 3.11 以上，用 winget 安裝 Python 3.12（要幾分鐘）…」也是正常的，會等比較久。" },
+             { k: "if", t: "出現紅字和「安裝沒有完成，請看上面的訊息。」：檢查網路，再點兩下 Setup.bat 一次。重跑是安全的。" }] },
+
+    { id: "mode", chapter: "安裝精靈", title: "精靈第 1 步：這台給誰用？",
+      body: ["自己一個人用，就選「<b>只有我（個人版）</b>」。大部分的人選這個（已經幫你選好了）。",
+             "然後按右下角的「<b>下一步 ▶</b>」。"],
+      mock: "wizard-mode", targets: [{ id: "personal", say: "選這個", place: "b" }, { id: "next", say: "再按這裡", place: "ae" }],
+      tips: [{ k: "note", t: "要讓家人、同事一起用，才選「一群人（伺服器版）」。" }] },
+
+    { id: "botfather", chapter: "安裝精靈", title: "先在手機上拿一把「鑰匙」（token）",
+      body: ["SYNOX 透過 Telegram 跟你聊天，所以要先建一個你自己的 Telegram 機器人（bot）。",
+             "在手機的 Telegram 搜尋 <b>@BotFather</b>（名字旁有藍色勾勾），傳 <code>/newbot</code>，照它問的取名字和帳號。最後它給你的那一長串字就是 <b>token</b>，長按、複製。"],
+      mock: "tg-botfather", targets: [{ id: "token", say: "這一串就是 token", place: "a" }],
+      links: [{ href: TG_GUIDE, text: "看 Telegram 圖文教學（一步一步）", icon: "book" }],
+      jump: { to: "discord", text: "我想用 Discord，不用 Telegram" },
+      tips: [{ k: "warn", t: "token 就像這支 bot 的密碼，<b>不要傳給別人</b>、不要貼到群組。" }] },
+
+    { id: "token", chapter: "安裝精靈", title: "精靈第 2 步：貼上 token，按「檢查 token」",
+      body: ["把剛剛複製的 token 貼到精靈的空白格子裡（在格子上按右鍵 → 貼上，或按 Ctrl+V）。",
+             "按「<b>檢查 token</b>」，看到「✅ 這支 bot 叫 …」之後，按「<b>下一步 ▶</b>」。"],
+      mock: "wizard-token", targets: [{ id: "entry", say: "1 貼在這裡", place: "a" }, { id: "check", say: "2 按這裡", place: "bs" }, { id: "next", say: "3 下一步", place: "ae" }],
+      tips: [{ k: "if", t: "出現「❌ 這看起來不是 token。」：token 沒複製完整，回 BotFather 重新複製整串。" },
+             { k: "note", t: "還沒有 bot？可以按「先跳過，晚點再補 →」，之後再點兩下 Setup.bat 回來補。" }] },
+
+    { id: "pair", chapter: "安裝精靈", title: "精靈第 3 步：你是誰（電腦給你六個數字）",
+      body: ["精靈會顯示<b>六個數字</b>，下面寫著「⏳ 等你傳過來…」。",
+             "按「<b>打開 t.me/你的bot</b>」，手機或電腦的 Telegram 會打開你的 bot。"],
+      mock: "wizard-pair", targets: [{ id: "code", say: "這六個數字", place: "as" }, { id: "open", say: "按這裡", place: "b" }],
+      tips: [{ k: "note", t: "數字每次都不一樣。這樣別人就算找到你的 bot，也沒辦法冒充你。" }] },
+
+    { id: "send-code", chapter: "安裝精靈", title: "在 Telegram 把六個數字傳給 bot",
+      body: ["第一次打開你的 bot，先按最下面的 <b>START</b>（開始）。",
+             "把那六個數字打出來送出。bot 回「✅ 配對成功！」之後，回到電腦，畫面會寫「✅ 認得你了」，按「<b>下一步 ▶</b>」。"],
+      mock: "tg-pair", targets: [{ id: "start", say: "1 先按 START", place: "a" }, { id: "sent", say: "2 傳數字", place: "be" }],
+      tips: [{ k: "if", t: "出現「⌛ 等太久了」：關掉精靈，再點兩下 Setup.bat 重來，不會壞掉什麼。" },
+             { k: "warn", t: "要傳給<b>你自己的 bot</b>，不是傳給 BotFather。" }] },
+
+    { id: "ai", chapter: "安裝精靈", title: "精靈第 4 步：AI 從哪裡來",
+      body: ["SYNOX 預設用這台電腦登入的 <b>Claude Code</b> 當它的腦袋。",
+             "如果寫「<b>✅ 找到了</b>」，什麼都不用改，直接按「<b>下一步 ▶</b>」。"],
+      mock: "wizard-ai-found", targets: [{ id: "found", say: "看到 ✅ 就好", place: "b" }, { id: "next", say: "按這裡", place: "ae" }],
+      tips: [{ k: "if", t: "寫的是「❌ 這台電腦找不到 Claude Code」，看下一步。" }] },
+
+    { id: "ai-install", chapter: "安裝精靈", title: "找不到 Claude Code？按「一鍵安裝」",
+      body: ["按「<b>一鍵安裝（PowerShell）</b>」，會打開一個新的視窗自己安裝。",
+             "裝好後，在那個視窗打 <code>claude</code> 按 Enter，照畫面登入一次。再回到精靈，按「<b>裝好了，重新偵測</b>」。"],
+      mock: "wizard-ai-missing", targets: [{ id: "install", say: "1 先按這裡", place: "a" }, { id: "redetect", say: "2 裝好再按", place: "be" }],
+      tips: [{ k: "note", t: "裝的是 Claude 官方的安裝指令，不用系統管理員。也可以按「打開下載網頁」看官方說明。" },
+             { k: "warn", t: "登入要有 Claude 的帳號（需要付費方案）。沒有的話，看下一步的其他選擇。" }] },
+
+    { id: "ai-other", chapter: "安裝精靈", title: "也可以用別的 AI，或先不用",
+      body: ["有 OpenAI、Gemini 的 API key：選「<b>用我自己（或公司）的金鑰</b>」，貼上 key，按「測一下」，看到「✅ 通了！AI 有回話。」才能按下一步。",
+             "不確定的話，選「<b>先不用 AI（只用指令和按鈕）</b>」，按「下一步 ▶」。之後再點兩下 Setup.bat 就能補上。"],
+      mock: "wizard-ai-other", targets: [{ id: "none", say: "不確定就選這個", place: "a" }],
+      tips: [{ k: "note", t: "家裡有跑 Ollama 這類本地模型的，選「使用本地模型」。不懂這是什麼就跳過。" }] },
+
+    { id: "finish", chapter: "安裝精靈", title: "最後一步：按「完成並開始」",
+      body: ["打勾的地方保留原本的樣子就好。",
+             "按右下角的「<b>完成並開始</b>」。精靈會寫好設定、打開 SYNOX，然後按鈕會變成「關閉」，按它關掉精靈。"],
+      mock: "wizard-finish", targets: [{ id: "next", say: "按這裡", place: "ae" }],
+      tips: [{ k: "note", t: "「開機後自動啟動 SYNOX」想要的話再勾。電腦一開，SYNOX 就自己開好。" }] },
+
+    { id: "login", chapter: "開始使用", title: "SYNOX 開起來了：按「登入」",
+      body: ["過幾秒，瀏覽器會打開「<b>登入 SYNOX</b>」，按「<b>登入</b>」，就看到 SYNOX 的網頁。",
+             "同時，你的手機會收到 bot 傳來的「👋 我在了，按 /help 看我會什麼。」"],
+      mock: "web-login", targets: [{ id: "login", say: "按這裡", place: "b" }],
+      tips: [{ k: "warn", t: "工作列上會多一個縮小的黑色視窗，那就是 SYNOX 本人。<b>關掉它 SYNOX 就停了。</b>" },
+             { k: "note", t: "以後要打開 SYNOX：點兩下桌面上的「SYNOX」捷徑。" }] },
+
+    { id: "first-msg", chapter: "開始使用", title: "在 Telegram 說第一句話",
+      body: ["在手機上，跟你的 bot 打：<b>幫我記：買牛奶</b>，送出。",
+             "剛裝好的 SYNOX <b>還沒有記筆記的工具</b>，所以它沒辦法真的記下來。下一步就來裝。"],
+      mock: "tg-first", targets: [{ id: "say", say: "打這句送出", place: "be" }],
+      tips: [{ k: "note", t: "SYNOX 一開始什麼工具都沒有（只有「提醒」）。工具要自己裝，就像手機裝 App。" }] },
+
+    { id: "get-notes", chapter: "開始使用", title: "下載「隨手記」工具",
+      body: ["在<b>跑 SYNOX 的那台電腦</b>上，按下面的按鈕，下載「隨手記」這個工具。",
+             "下載下來的檔案叫 <b>notes-0.1.1.synoxpack</b>，很小，一下子就好。"],
+      mock: "dl-pack", targets: [{ id: "file", say: "下載好了", place: "b" }],
+      links: [{ href: NOTES_URL, text: "下載「隨手記」工具", primary: true, icon: "download" },
+              { href: LIBS_URL, text: "看全部工具（工具庫）", icon: "book" }] },
+
+    { id: "open-pack", chapter: "開始使用", title: "點兩下下載好的工具檔",
+      body: ["打開「下載」資料夾，找到 <b>notes-0.1.1.synoxpack</b>，點兩下。",
+             "會跳出黑色視窗做安全檢查，然後自動打開 SYNOX 網頁的「功能與安裝」。"],
+      mock: "explorer-pack", targets: [{ id: "pack", say: "點兩下", place: "a" }],
+      tips: [{ k: "if", t: "點兩下沒反應（精靈最後一頁沒勾「讓 .synoxpack 檔案點兩下就安裝」）：把這個檔案<b>拖進 SYNOX 的網頁</b>，看到「放開來檢查這個 .synoxpack（先看安全報告，按確認才會裝）」就放開。" }] },
+
+    { id: "confirm", chapter: "開始使用", title: "看報告，按「確認安裝」",
+      body: ["網頁會列出這個工具是什麼、安全檢查的結果。看到「<b>✅ 宣告檢查、靜態掃描都過了</b>」就可以放心。",
+             "按「<b>確認安裝</b>」。出現「✅ 裝好了：notes」就完成了。"],
+      mock: "web-review", targets: [{ id: "ok", say: "按這裡", place: "bs" }],
+      tips: [{ k: "warn", t: "報告裡出現紅色的「❌ 拒裝：安全檢查沒過」，就不要裝這個檔案。" },
+             { k: "note", t: "沒按確認之前什麼都不會裝。不想裝可以按「不要裝」。" }] },
+
+    { id: "note-ok", chapter: "開始使用", title: "再說一次：幫我記：買牛奶",
+      body: ["回到 Telegram，再傳一次「<b>幫我記：買牛奶</b>」。",
+             "這次它會回「📒 記下了（第 1 筆）：買牛奶」。筆記加密存在你自己的電腦上。"],
+      mock: "tg-note", targets: [{ id: "reply", say: "記下來了", place: "bs" }],
+      tips: [{ k: "if", t: "安裝精靈選了「先不用 AI」：要用指令，打 <code>/note 買牛奶</code>。" }] },
+
+    { id: "help", chapter: "開始使用", title: "打 /help，看它會什麼",
+      body: ["在 Telegram 打 <code>/help</code> 送出。",
+             "它會列出你現在能用的指令。用下面的「下一頁 ▶️」翻頁，或按「☰ 分類目錄」挑一類看。"],
+      mock: "tg-help", targets: [{ id: "nextpg", say: "翻頁", place: "a" }] },
+
+    { id: "done", chapter: "完成", title: "完成！",
+      body: ["SYNOX 已經在你的電腦上跑起來了。以後在手機上跟 bot 講話就好。",
+             "先試試右邊這幾個。想要更多工具（記帳、提醒…），到工具庫下載，裝法跟「隨手記」一樣。"],
+      mock: "done", targets: [],
+      links: [{ href: LIBS_URL, text: "去工具庫找更多工具", primary: true, icon: "box" },
+              { href: TG_GUIDE, text: "Telegram 圖文教學（常見問題）", icon: "book" }],
+      tips: [{ k: "note", t: "電腦關機或睡著時，bot 不會回話。要用的時候讓電腦開著。" }] },
+
+    { id: "discord", branch: true, back: "botfather", next: "ai", chapter: "選讀：改用 Discord", title: "改用 Discord（選讀）",
+      body: ["在精靈第 2 步，上面「用哪一個：」選 <b>Discord</b>，精靈會換成 Discord 的說明。",
+             "Discord 要到它的開發者網站建 bot、打開「MESSAGE CONTENT INTENT」，再把 bot 加進你的伺服器、私訊它六個數字。照 Discord 圖文教學做完，再回來看「精靈第 4 步：AI」。"],
+      mock: "wizard-discord", targets: [{ id: "discord", say: "選 Discord", place: "b" }],
+      links: [{ href: DC_GUIDE, text: "看 Discord 圖文教學", primary: true, icon: "book" }],
+      tips: [{ k: "wip", t: "SYNOX 的 Discord 只用模擬的連線測過，還沒有用真帳號完整跑一遍。第一次用建議選 Telegram。" }] }
+  ];
+
+  /* ── 小圖示 ─────────────────────────────────────────────── */
+  var I = {
+    folder: '<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 6.5A1.5 1.5 0 0 1 3.5 5h5l2 2h10A1.5 1.5 0 0 1 22 8.5v10a1.5 1.5 0 0 1-1.5 1.5h-17A1.5 1.5 0 0 1 2 18.5z" fill="var(--folder)"/></svg>',
+    zip: '<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M2 6.5A1.5 1.5 0 0 1 3.5 5h5l2 2h10A1.5 1.5 0 0 1 22 8.5v10a1.5 1.5 0 0 1-1.5 1.5h-17A1.5 1.5 0 0 1 2 18.5z" fill="var(--folder)"/><path d="M13 7v13" stroke="var(--folder-ink)" stroke-width="2.4" stroke-dasharray="1.6 1.6"/><rect x="11.4" y="12" width="3.2" height="3.6" rx=".8" fill="var(--folder-ink)"/></svg>',
+    bat: '<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 2h10l4 4v16H5z" fill="var(--doc)" stroke="var(--doc-line)" stroke-width="1.2"/><circle cx="12" cy="14" r="3.2" fill="none" stroke="#5b6b7e" stroke-width="1.8"/><path d="M12 9.3v1.4M12 17.3v1.4M7.3 14h1.4M15.3 14h1.4" stroke="#5b6b7e" stroke-width="1.8"/></svg>',
+    doc: '<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 2h10l4 4v16H5z" fill="var(--doc)" stroke="var(--doc-line)" stroke-width="1.2"/><path d="M8 11h8M8 14h8M8 17h5" stroke="var(--doc-line)" stroke-width="1.4"/></svg>',
+    pack: '<svg class="fi" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7l9-4 9 4v10l-9 4-9-4z" fill="var(--accent-soft)" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"/><path d="M3 7l9 4 9-4M12 11v10" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linejoin="round"/></svg>',
+    send: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 11.5 21 3l-8.5 18-2.5-7.5z"/></svg>',
+    download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
+    book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>',
+    box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg>',
+    branch: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4v8a4 4 0 0 0 4 4h8M14 12l4 4-4 4"/></svg>'
+  };
+
+  /* ── 示意畫面 ───────────────────────────────────────────── */
+  function win(title, inner, cls) {
+    return '<div class="win ' + (cls || "") + '"><div class="tb"><span class="t">' + title + '</span><span class="c" aria-hidden="true">— ▢ ✕</span></div>' + inner + '</div>';
+  }
+  function wizard(stepLine, title, inner, nextText, nextOn) {
+    return win("SYNOX 安裝精靈", '<div class="wb">' + (stepLine ? '<div class="wz-step">' + stepLine + '</div>' : '') +
+      '<div class="wz-h">' + title + '</div>' + inner +
+      '<div class="wz-nav"><span class="b ' + (nextOn === false ? "dis" : "") + '" data-hl="next">' + (nextText || "下一步 ▶") + '</span></div></div>');
+  }
+  function explorer(path, navOn, files, extra) {
+    var nav = ["桌面", "下載", "文件", "圖片"].map(function (n) {
+      return '<span class="' + (n === navOn ? "on" : "") + '"' + (n === "下載" ? ' data-hl="nav-dl"' : '') + '>' + (n === "下載" ? "⬇ " : "") + n + '</span>';
+    }).join("");
+    var rows = files.map(function (f) {
+      return '<div class="f ' + (f.cls || "") + '"' + (f.hl ? ' data-hl="' + f.hl + '"' : '') + '>' + I[f.ic] + '<span class="nm">' + f.n + '</span><span class="ty">' + (f.t || "") + '</span></div>';
+    }).join("");
+    return win("檔案總管", '<div class="addr"><span aria-hidden="true">←&nbsp;→</span><span class="box">' + path + '</span></div>' +
+      '<div class="pane"><div class="nav">' + nav + '</div><div class="list">' + rows + (extra || "") + '</div></div>', "exp");
+  }
+  function phone(name, sub, avCls, chat, compose, extra) {
+    return '<div class="phone"><div class="tg-bar"><span class="bk" aria-hidden="true">‹</span><span class="av ' + avCls + '" aria-hidden="true">' + name.charAt(0) + '</span>' +
+      '<span class="who"><b>' + name + '</b><small>' + sub + '</small></span></div><div class="tg-chat">' + chat + '</div>' + (extra || "") +
+      '<div class="tg-compose"><span class="in ' + (compose ? "" : "ph") + '"' + (compose ? ' data-hl="say"' : '') + '>' + (compose || "訊息") + '</span><span class="send">' + I.send + '</span></div></div>';
+  }
+  function msg(dir, text, time, hl, cls) {
+    return '<div class="msg ' + dir + ' ' + (cls || "") + '"' + (hl ? ' data-hl="' + hl + '"' : '') + '>' + text + '<span class="tm">' + time + '</span></div>';
+  }
+  function browser(url, page) {
+    return win("瀏覽器", '<div class="url"><span aria-hidden="true">←&nbsp;→&nbsp;⟳</span><span class="box">' + url + '</span></div>' + page, "br");
+  }
+  function con(title, text) {
+    return '<div class="con"><div class="ct"><span class="t">' + title + '</span><span class="c" aria-hidden="true">— ▢ ✕</span></div><pre>' + text + '</pre></div>';
+  }
+  var BOT = "amy_helper_bot";
+
+  var MOCKS = {
+    "welcome": function () {
+      return '<div class="need">' +
+        '<div><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="8" width="38" height="25" rx="3"/><path d="M17 40h14M24 33v7"/></svg><span><b>一台 Windows 電腦</b><small>Windows 10 或 11。SYNOX 就住在這台電腦裡。</small></span></div>' +
+        '<div><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M6 19a26 26 0 0 1 36 0M12 26a17 17 0 0 1 24 0M18 33a8 8 0 0 1 12 0"/><circle cx="24" cy="39" r="2" fill="currentColor"/></svg><span><b>網路</b><small>第一次安裝要下載一些東西。</small></span></div>' +
+        '<div><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="4" width="20" height="40" rx="4"/><path d="M21 38h6"/></svg><span><b>手機上的 Telegram</b><small>已經裝好、登入。之後就在這裡跟 SYNOX 講話。</small></span></div>' +
+        '</div>';
+    },
+    "landing": function () {
+      return browser("github.com/ChouYangEn0401/SYNOX …（SYNOX 網站）",
+        '<div class="page land"><span class="eb">怎麼開始</span><h4>下載、解開、點兩下</h4><span class="muted m-sm">不用打指令，大約 5 分鐘。適用 Windows 10／11。</span>' +
+        '<span class="big-dl" data-hl="dl">' + I.download + '下載 SYNOX</span><span class="faint m-sm">會下載一個 ZIP 檔（約 8 MB）。</span></div>');
+    },
+    "explorer-dl": function () {
+      return explorer("本機 › 下載", "下載", [
+        { ic: "zip", n: "SYNOX-main.zip", t: "壓縮的 (zipped) 資料夾", hl: "zip" },
+        { ic: "doc", n: "繳費通知.pdf", t: "PDF 文件", cls: "dim" },
+        { ic: "doc", n: "照片.jpg", t: "JPG 檔案", cls: "dim" }]);
+    },
+    "explorer-menu": function () {
+      return explorer("本機 › 下載", "下載", [
+        { ic: "zip", n: "SYNOX-main.zip", t: "壓縮的 (zipped) 資料夾", cls: "sel" },
+        { ic: "doc", n: "繳費通知.pdf", t: "PDF 文件", cls: "dim" },
+        { ic: "doc", n: "照片.jpg", t: "JPG 檔案", cls: "dim" },
+        { ic: "doc", n: "旅遊.docx", t: "Word 文件", cls: "dim" },
+        { ic: "doc", n: "食譜.txt", t: "文字文件", cls: "dim" }],
+        '<div class="ctx" role="presentation"><span>開啟</span><span data-hl="extract">全部解壓縮…</span><span>釘選到快速存取</span><span class="ln"></span><span>複製</span><span>刪除</span><span>內容</span></div>');
+    },
+    "extract": function () {
+      return win("解壓縮壓縮的 (zipped) 資料夾", '<div class="wb"><div class="wz-h" style="font-size:16px;font-weight:500">選取目的地並解壓縮檔案</div>' +
+        '<span class="m-sm">檔案將解壓縮至這個資料夾(F):</span><div class="row"><span class="field" style="flex:1">%USERPROFILE%\\Downloads\\SYNOX-main</span><span class="b">瀏覽(R)…</span></div>' +
+        '<span class="check on m-sm"><i></i>完成時顯示解壓縮的檔案(H)</span>' +
+        '<div class="row" style="justify-content:flex-end;margin-top:14px"><span class="b pri" data-hl="go">解壓縮(E)</span><span class="b">取消</span></div></div>');
+    },
+    "explorer-folder": function () {
+      return explorer("下載 › SYNOX-main › SYNOX-main", "", [
+        { ic: "folder", n: "docs", t: "檔案資料夾", cls: "dim" },
+        { ic: "folder", n: "src", t: "檔案資料夾", cls: "dim" },
+        { ic: "bat", n: "Console.bat", t: "Windows 批次檔案", cls: "dim" },
+        { ic: "bat", n: "Install-Pack.bat", t: "Windows 批次檔案", cls: "dim" },
+        { ic: "doc", n: "README.md", t: "MD 檔案", cls: "dim" },
+        { ic: "bat", n: "Setup.bat", t: "Windows 批次檔案", hl: "setup" },
+        { ic: "bat", n: "Start.bat", t: "Windows 批次檔案", cls: "dim" },
+        { ic: "bat", n: "Stop.bat", t: "Windows 批次檔案", cls: "dim" }]);
+    },
+    "smartscreen": function () {
+      return '<div class="ss"><span class="x" aria-hidden="true">✕</span><h3>Windows 已保護您的電腦</h3>' +
+        '<p>Microsoft Defender SmartScreen 已防止某個無法辨識的應用程式啟動。執行此應用程式可能會讓您的電腦暴露在風險之下。</p>' +
+        '<span class="more" data-hl="more">其他資訊</span>' +
+        '<div class="kv"><span>應用程式：Setup.bat</span><span>發行者：不明的發行者</span></div>' +
+        '<div class="row" style="margin-top:22px"><span class="sb" data-hl="run">仍要執行</span><span class="sb fill">不要執行</span></div></div>';
+    },
+    "console-lang": function () {
+      return con("C:\\Windows\\System32\\cmd.exe",
+        'Language / 語言 / 语言 / Idioma / Langue / …\n' +
+        '  <span class="hi">1) Traditional Chinese / 繁體中文</span>\n  2) Simplified Chinese / 简体中文\n  3) English\n  <span class="dm">…（共 12 種）</span>\n' +
+        '<span data-hl="enter" class="key">Number or code, Enter = 1:</span> <span class="cursor"></span>');
+    },
+    "console-wait": function () {
+      return con("C:\\Windows\\System32\\cmd.exe",
+        '[SYNOX] SYNOX 安裝：準備 Python 和套件，請稍候…\n' +
+        '[SYNOX] 用 py -3.12 建立 .venv …\n' +
+        '[SYNOX] 安裝 SYNOX 需要的套件（第一次要幾分鐘）…\n<span class="dm">（這裡會跑很多行英文，正常的）</span>\n' +
+        '[SYNOX] 登記 .synoxpack 檔案類型（…）\n' +
+        '<span data-hl="last" class="key hi">[SYNOX] 打開安裝精靈…</span>');
+    },
+    "wizard-mode": function () {
+      return wizard("第 1 步，共 4 步", "這台給誰用？",
+        '<span class="radio on" data-hl="personal"><i></i><b>只有我（個人版）</b></span>' +
+        '<span class="muted m-sm" style="padding-left:22px">只有你一個人用：只有配對的那個 Telegram 帳號用得到指令。<br>資料都在這台電腦，筆記、記帳加密存一份。</span>' +
+        '<span class="radio"><i></i><b>一群人（伺服器版）</b></span>' +
+        '<span class="muted m-sm" style="padding-left:22px">家人、同事、社團一起用：陌生人傳訊息會變成訪客，你（或你指定的管理員）決定誰能用什麼。</span>' +
+        '<div class="sep"></div><span class="faint m-sm">工程師？直接改 config.json（範例 config.example.json），不用精靈。</span>');
+    },
+    "wizard-token": function () {
+      return wizard("第 2 步，共 4 步", "Bot 的 token",
+        '<div class="row m-sm">用哪一個：<span class="radio on"><i></i>Telegram</span><span class="radio"><i></i>Discord</span></div>' +
+        '<span class="m-sm pre muted">怎麼拿 Telegram bot 的 token（三步）：\n  1. 在 Telegram 搜尋 @BotFather，打開它\n  2. 傳 /newbot，照它問的取一個名字和帳號（帳號要以 bot 結尾）\n  3. 它會回一串像 123456789:AAH… 的字，整串複製，貼到下面</span>' +
+        '<span class="b" style="justify-self:start">看圖文教學</span>' +
+        '<span class="field" data-hl="entry">123456789:AAH5vQ…8kQ</span>' +
+        '<span class="okc m-sm">✅ 這支 bot 叫 ' + BOT + '</span>' +
+        '<span class="b" data-hl="check" style="justify-self:start">檢查 token</span>' +
+        '<div class="sep"></div><span class="faint m-sm">還沒有 bot，或想先玩玩看？可以先跳過，之後雙擊 Setup.bat 重跑這個精靈就能補填。</span>' +
+        '<span class="b" style="justify-self:start">先跳過，晚點再補 →</span>');
+    },
+    "wizard-discord": function () {
+      return wizard("第 2 步，共 4 步", "Bot 的 token",
+        '<div class="row m-sm">用哪一個：<span class="radio"><i></i>Telegram</span><span class="radio on" data-hl="discord"><i></i>Discord</span></div>' +
+        '<span class="m-sm pre muted" style="margin-top:8px">怎麼拿 Discord bot 的 token（四步）：\n  1. 打開 https://discord.com/developers/applications，用你的 Discord 帳號登入\n  2. 按「New Application」取個名字 → 左邊選「Bot」→「Reset Token」，整串複製\n  3. 同一頁把「MESSAGE CONTENT INTENT」打開（bot 才能讀到你傳的文字）\n  4. 貼到下面，按「檢查 token」</span>' +
+        '<span class="field">&nbsp;</span><span class="b" style="justify-self:start">檢查 token</span>', null, false);
+    },
+    "wizard-pair": function () {
+      return wizard("第 3 步，共 4 步", "你是誰",
+        '<span class="m-sm">打開你的 bot @' + BOT + '，傳這六個數字給它（按下面的按鈕就會打開）：</span>' +
+        '<span class="code6" data-hl="code">4 2 9 1 7 0</span>' +
+        '<span class="b" data-hl="open" style="justify-self:start">打開 t.me/' + BOT + '</span>' +
+        '<span class="m-sm">⏳ 等你傳過來…</span>', null, false);
+    },
+    "wizard-ai-found": function () {
+      return wizard("第 4 步，共 4 步", "AI 從哪裡來",
+        '<div class="frame-l"><span class="lg">預設</span><span class="radio on m-sm"><i></i>預設：Claude（這台電腦登入的 Claude Code）</span>' +
+        '<span class="okc m-sm" data-hl="found" style="overflow-wrap:anywhere">✅ 找到了：%USERPROFILE%\\.local\\bin\\claude.exe</span><span class="b" style="justify-self:start">測一下</span></div>' +
+        '<div class="frame-l"><span class="lg">其他金鑰來源</span><span class="radio m-sm"><i></i>用我自己（或公司）的金鑰</span></div>' +
+        '<div class="frame-l"><span class="lg">本地模型（這台或家裡網路的電腦）</span><span class="radio m-sm"><i></i>使用本地模型（Ollama、vLLM、LM Studio；不需要金鑰）</span></div>' +
+        '<span class="radio m-sm"><i></i>先不用 AI（只用指令和按鈕）</span>');
+    },
+    "wizard-ai-missing": function () {
+      return wizard("第 4 步，共 4 步", "AI 從哪裡來",
+        '<div class="frame-l"><span class="lg">預設</span><span class="radio m-sm"><i></i>預設：Claude（這台電腦登入的 Claude Code）</span>' +
+        '<span class="badc m-sm">❌ 這台電腦找不到 Claude Code（claude）。要用它，先安裝並登入；或在下面填其他金鑰來源。</span>' +
+        '<div class="row"><span class="b" data-hl="install">一鍵安裝（PowerShell）</span><span class="b">打開下載網頁</span><span class="b" data-hl="redetect">裝好了，重新偵測</span></div>' +
+        '<span class="faint m-sm">或複製這一行，貼到 PowerShell 執行（不用系統管理員）：</span>' +
+        '<div class="row"><span class="field" style="flex:1">irm https://claude.ai/install.ps1 | iex</span><span class="b">複製指令</span></div>' +
+        '<span class="b" style="justify-self:start">測一下</span></div>' +
+        '<div class="frame-l"><span class="lg">其他金鑰來源</span><span class="radio on m-sm"><i></i>用我自己（或公司）的金鑰</span></div>', null, false);
+    },
+    "wizard-ai-other": function () {
+      return wizard("第 4 步，共 4 步", "AI 從哪裡來",
+        '<div class="frame-l"><span class="lg">預設</span><span class="radio m-sm"><i></i>預設：Claude（這台電腦登入的 Claude Code）</span></div>' +
+        '<div class="frame-l"><span class="lg">其他金鑰來源</span><span class="radio m-sm"><i></i>用我自己（或公司）的金鑰</span>' +
+        '<div class="row m-sm"><span style="width:62px">哪一家</span><span class="field" style="flex:1">OpenAI ▾</span></div>' +
+        '<div class="row m-sm"><span style="width:62px">API key</span><span class="field" style="flex:1">••••••••••••</span></div>' +
+        '<div class="row m-sm"><span style="width:62px">模型</span><span class="field" style="flex:1">gpt-4.1-mini</span></div>' +
+        '<span class="b" style="justify-self:start">測一下</span></div>' +
+        '<div class="frame-l"><span class="lg">本地模型（這台或家裡網路的電腦）</span><span class="radio m-sm"><i></i>使用本地模型（Ollama、vLLM、LM Studio；不需要金鑰）</span></div>' +
+        '<span class="radio on m-sm" data-hl="none" style="justify-self:start"><i></i>先不用 AI（只用指令和按鈕）</span>');
+    },
+    "wizard-finish": function () {
+      return wizard("最後一步", "差不多了",
+        '<span class="check on m-sm"><i></i>在桌面放一個「SYNOX」捷徑</span>' +
+        '<span class="check m-sm"><i></i>開機後自動啟動 SYNOX（看得到的小視窗，隨時可以關）</span>' +
+        '<span class="check on m-sm"><i></i>讓 .synoxpack 檔案點兩下就安裝（裝之前一樣會先檢查、給你按確認）</span>' +
+        '<span class="check on m-sm"><i></i>完成後立刻開啟 SYNOX</span>' +
+        '<span class="m-sm pre">這台是：只有我（個人版）。\n按「完成並開始」：寫好設定、打開 bot，手機會收到「我在了」。</span>', "完成並開始");
+    },
+    "tg-botfather": function () {
+      return phone("BotFather", "bot", "", msg("out", "/newbot", "10:21") +
+        msg("in", "Alright, a new bot. How are we going to call it? Please choose a name for your bot.", "10:21") +
+        msg("out", "我的小助手", "10:21") + msg("in", "Good. Now let's choose a username for your bot. It must end in <code>bot</code>.", "10:21") +
+        msg("out", BOT, "10:22") +
+        msg("in", "Done! Congratulations on your new bot. …<br>Use this token to access the HTTP API:<span class=\"tok\" data-hl=\"token\">123456789:AAH5vQ…（很長一串）…8kQ</span>Keep your token secure …", "10:22"));
+    },
+    "tg-pair": function () {
+      return phone("我的小助手", "bot", "syn", '<span class="sys">今天</span>' + msg("out", "429170", "10:30", "sent") +
+        msg("in", "✅ 配對成功！回到電腦上的安裝畫面，按「下一步」。", "10:30"), "", '<div class="tg-start" data-hl="start">START</div>');
+    },
+    "web-login": function () {
+      return browser("127.0.0.1:8830/login…",
+        '<div class="page"><div class="login-card"><span class="mark" aria-hidden="true">S</span><h4>登入 SYNOX</h4>' +
+        '<span class="m-sm">你將以 <b>amy（id 123456789）</b> 登入。</span>' +
+        '<span class="faint m-sm">這不是你的帳號（例如別人傳給你的連結）就<b>不要按</b>，直接關掉這一頁。</span>' +
+        '<span class="b pri" data-hl="login">登入</span></div></div>');
+    },
+    "tg-first": function () {
+      return phone("我的小助手", "bot", "syn", msg("in", "👋 我在了，按 /help 看我會什麼。", "10:34") +
+        msg("out", "幫我記：買牛奶", "10:35", "say") +
+        msg("in", "（還沒裝「隨手記」：它會告訴你它現在記不起來，說法每次不一定一樣）", "10:35", "", "ghost"));
+    },
+    "dl-pack": function () {
+      return '<div class="dlp"><div class="h"><span>下載</span><span class="faint" aria-hidden="true">⋯ ✕</span></div>' +
+        '<div class="it" data-hl="file">' + I.pack.replace('class="fi"', 'class="fi" style="width:26px;height:26px"') + '<span><span class="nm">notes-0.1.1.synoxpack</span><small>3.0 KB · 完成</small><a>開啟檔案</a></span></div>' +
+        '<div class="it" style="opacity:.55">' + I.zip + '<span><span class="nm">SYNOX-main.zip</span><small>完成</small></span></div></div>';
+    },
+    "explorer-pack": function () {
+      return explorer("本機 › 下載", "下載", [
+        { ic: "pack", n: "notes-0.1.1.synoxpack", t: "SYNOX 工具", hl: "pack" },
+        { ic: "folder", n: "SYNOX-main", t: "檔案資料夾", cls: "dim" },
+        { ic: "zip", n: "SYNOX-main.zip", t: "壓縮的 (zipped) 資料夾", cls: "dim" },
+        { ic: "doc", n: "繳費通知.pdf", t: "PDF 文件", cls: "dim" }]);
+    },
+    "web-review": function () {
+      return browser("127.0.0.1:8830/#packs",
+        '<div class="app"><div class="side"><span class="br2"><span class="mk">S</span>SYNOX</span><span class="nv">對話</span><span class="nv">工具</span><span class="nv on">設定</span></div>' +
+        '<div class="mainp"><h4>設定</h4><div class="tabs"><span>🤖 AI</span><span>💬 聊天通道</span><span class="on">🧩 功能與安裝</span><span>👥 帳號</span></div>' +
+        '<div class="card2"><h5>📦 安裝新功能</h5><span class="faint">先看安全檢查報告，按「確認安裝」才會裝。</span>' +
+        '<ol class="flow"><li class="d">檢查</li><li class="d">看報告</li><li class="a">確認</li><li>安裝</li><li>完成</li></ol>' +
+        '<div class="card2 review"><h5>📒 隨手記（notes 0.1.1）</h5><span>記一筆、找、刪（加密存在這台電腦）</span>' +
+        '<span class="faint">種類、誰能用、資料存哪裡…（照這個工具寫的）</span><span>✅ 宣告檢查、靜態掃描都過了</span>' +
+        '<div class="row" style="margin-top:4px"><span class="b pri" data-hl="ok">確認安裝</span><span class="b ghost">稍後再決定</span><span class="b danger">不要裝</span></div></div></div></div></div>');
+    },
+    "tg-note": function () {
+      return phone("我的小助手", "bot", "syn", msg("out", "幫我記：買牛奶", "10:41") +
+        msg("in", "📒 記下了（第 1 筆）：買牛奶", "10:41", "reply"));
+    },
+    "tg-help": function () {
+      return phone("我的小助手", "bot", "syn", msg("out", "/help", "10:43") +
+        msg("in", "📖 指令選單  (1/3)\n\n🔰 基本\n  /help …\n  <span style=\"opacity:.6\">（這裡列出你現在能用的指令，依你裝的工具而定）</span>\n\n💡 /help &lt;分類&gt; 直接跳，/help all 看全部；⚠️ 表示會對外產生影響，🔐 表示要先 /sudo 解鎖。", "10:43", "", "pre") +
+        '<div class="kb"><div class="r"><span>◀️ 上一頁</span><span>1/3</span><span data-hl="nextpg">下一頁 ▶️</span></div><div class="r one"><span>☰ 分類目錄</span></div></div>');
+    },
+    "done": function () {
+      return '<div class="done-card"><span class="big"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>' +
+        '<h4>裝好了！</h4><div class="try">' +
+        '<div><code>/note_list</code><small>看你記過的全部筆記</small></div>' +
+        '<div><code>/remind_add 08:00 吃藥</code><small>每天早上八點提醒你吃藥（提醒是內建的）</small></div>' +
+        '<div><code>/web</code><small>拿一個網頁登入連結，在電腦上看 SYNOX 的網頁</small></div>' +
+        '<div><span>有設定 AI 的話，直接用平常說話的方式講也可以。</span></div></div></div>';
+    }
+  };
+
+  /* ── 換頁 ─────────────────────────────────────────────── */
+  var MAIN = STEPS.filter(function (s) { return !s.branch; });
+  var TOTAL = MAIN.length;
+  var KEY = "synox-guide:v1";
+  var $ = function (id) { return document.getElementById(id); };
+
+  function numberOf(id) { for (var i = 0; i < MAIN.length; i++) { if (MAIN[i].id === id) { return i + 1; } } return 0; }
+  function byId(id) { for (var i = 0; i < STEPS.length; i++) { if (STEPS[i].id === id) { return STEPS[i]; } } return null; }
+  function hashFor(step) { return step.branch ? "#step-" + step.id : "#step-" + numberOf(step.id); }
+  function fromHash() {
+    var m = /^#step-(\d+)$/.exec(location.hash);
+    if (m) { var n = +m[1]; return n >= 1 && n <= TOTAL ? MAIN[n - 1] : null; }
+    var b = /^#step-([a-z0-9-]+)$/.exec(location.hash);
+    if (b) { var s = byId(b[1]); return s && s.branch ? s : null; }
+    return null;
+  }
+  function save(step) { try { localStorage.setItem(KEY, JSON.stringify({ step: step.id, at: Date.now() })); } catch (e) { /* 私密視窗：不記也沒關係 */ } }
+  function load() { try { var v = JSON.parse(localStorage.getItem(KEY) || "null"); return v && byId(v.step) ? byId(v.step) : null; } catch (e) { return null; } }
+
+  var current = null;
+  function go(step) { if (!step) { return; } if (location.hash === hashFor(step)) { render(step); } else { location.hash = hashFor(step); } }
+
+  function tipLabel(k) { return { "if": "如果", note: "小提示", warn: "注意", wip: "⏳ 尚未完成", ok: "好消息" }[k] || "小提示"; }
+
+  function render(step, quiet) {
+    current = step;
+    var n = numberOf(step.id);
+    $("title").innerHTML = step.title;
+    document.title = (step.branch ? "選讀" : "步驟 " + n) + "：" + step.title.replace(/<[^>]+>/g, "") + " · SYNOX 安裝教學";
+    $("body").innerHTML = step.body.map(function (p) { return "<p>" + p + "</p>"; }).join("");
+    var links = (step.links || []).map(function (l) {
+      return '<a class="btn ' + (l.primary ? "primary" : "soft") + '" href="' + l.href + '" target="_blank" rel="noopener">' + (I[l.icon] || "") + l.text + '</a>';
+    });
+    if (step.jump) { links.push('<button class="btn" type="button" data-jump="' + step.jump.to + '">' + I.branch + step.jump.text + '</button>'); }
+    $("links").innerHTML = links.join("");
+    $("links").hidden = !links.length;
+    $("tips").innerHTML = (step.tips || []).map(function (t) {
+      return '<p class="tip ' + t.k + '"><span class="k">' + tipLabel(t.k) + '</span><span>' + t.t + '</span></p>';
+    }).join("");
+    $("tips").hidden = !(step.tips || []).length;
+
+    var mock = $("mock");
+    mock.innerHTML = MOCKS[step.mock] ? MOCKS[step.mock]() : "";
+    (step.targets || []).forEach(function (t) {
+      var el = mock.querySelector('[data-hl="' + t.id + '"]');
+      if (!el) { if (window.console) { console.warn("找不到要標的東西：" + step.id + " / " + t.id); } return; }
+      el.classList.add("hl");
+      var pl = t.place || "b";
+      if (pl !== "r") { el.classList.add(pl.charAt(0) === "a" ? "room-a" : "room-b"); }
+      var tap = document.createElement("span");
+      tap.className = "tap " + (t.place || "b");
+      tap.textContent = t.say;
+      el.appendChild(tap);
+    });
+    $("caption").textContent = step.mock === "welcome" || step.mock === "done" ? "" : "示意圖：畫的是你會看到的畫面，顏色、字型會跟你的電腦有一點不同。";
+    $("caption").hidden = !$("caption").textContent;
+
+    // 進度
+    var shown = step.branch ? numberOf(step.back) : n;
+    $("count").innerHTML = step.branch ? '<span class="branch-tag">選讀</span>' : "步驟 " + n + '<span class="of">／' + TOTAL + "</span>";
+    $("chapter").textContent = step.chapter;
+    $("bar-fill").style.width = (shown / TOTAL * 100) + "%";
+    $("bar").setAttribute("aria-valuenow", String(shown));
+    $("bar").setAttribute("aria-valuemax", String(TOTAL));
+    $("bar").setAttribute("aria-valuetext", step.branch ? "選讀" : "步驟 " + n + "，共 " + TOTAL + " 步");
+
+    // 按鈕
+    var prev = $("prev"), next = $("next");
+    prev.disabled = !step.branch && n === 1;
+    prev.lastChild.textContent = step.branch ? "回去" : "上一步";
+    var arrow = next.querySelector("svg");
+    if (step.branch) { next.firstChild.textContent = "接著做"; }
+    else if (n === TOTAL) { next.firstChild.textContent = "從頭再看一次"; }
+    else { next.firstChild.textContent = "下一步"; }
+    arrow.style.display = n === TOTAL && !step.branch ? "none" : "";
+
+    // 目錄
+    Array.prototype.forEach.call(document.querySelectorAll("#toc-panel a"), function (a) {
+      if (a.getAttribute("href") === hashFor(step)) { a.setAttribute("aria-current", "step"); } else { a.removeAttribute("aria-current"); }
+    });
+    $("toc").open = false;
+    if (n !== 1) { $("resume").hidden = true; }
+    if (!quiet) { save(step); }
+  }
+
+  function nextStep() {
+    if (!current) { return; }
+    if (current.branch) { go(byId(current.next)); return; }
+    var n = numberOf(current.id);
+    go(n === TOTAL ? MAIN[0] : MAIN[n]);
+  }
+  function prevStep() {
+    if (!current) { return; }
+    if (current.branch) { go(byId(current.back)); return; }
+    var n = numberOf(current.id);
+    if (n > 1) { go(MAIN[n - 2]); }
+  }
+  function moved() {
+    var s = fromHash() || MAIN[0];
+    render(s);
+    try { window.scrollTo(0, 0); } catch (e) { /* 沒關係 */ }
+    try { $("title").focus({ preventScroll: true }); } catch (e) { $("title").focus(); }
+  }
+
+  // 目錄
+  (function () {
+    var html = "", last = "";
+    MAIN.forEach(function (s, i) {
+      if (s.chapter !== last) { html += (last ? "</ol>" : "") + '<p class="ch">' + s.chapter + "</p><ol>"; last = s.chapter; }
+      html += '<li><a href="#step-' + (i + 1) + '"><span class="n">' + (i + 1) + "</span><span>" + s.title.replace(/<[^>]+>/g, "") + "</span></a></li>";
+    });
+    STEPS.filter(function (s) { return s.branch; }).forEach(function (s) {
+      html += '</ol><p class="ch">選讀</p><ol><li><a href="#step-' + s.id + '"><span class="n">＋</span><span>' + s.title + "</span></a></li>";
+    });
+    $("toc-panel").innerHTML = html + "</ol>";
+  })();
+
+  $("next").addEventListener("click", nextStep);
+  $("prev").addEventListener("click", prevStep);
+  $("links").addEventListener("click", function (e) {
+    var b = e.target.closest ? e.target.closest("[data-jump]") : null;
+    if (b) { go(byId(b.getAttribute("data-jump"))); }
+  });
+  $("toc-panel").addEventListener("click", function (e) {
+    var a = e.target.closest ? e.target.closest("a") : null;
+    if (a) { $("toc").open = false; }
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) { return; }
+    var t = e.target, tag = t && t.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (t && t.isContentEditable)) { return; }
+    if (e.key === "ArrowRight") { e.preventDefault(); nextStep(); }
+    else if (e.key === "ArrowLeft") { e.preventDefault(); prevStep(); }
+    else if (e.key === "Escape") { $("toc").open = false; }
+  });
+  window.addEventListener("hashchange", moved);
+
+  // 第一次打開：網址有 #step-N 就去那一步；沒有的話，記得上次看到哪裡就問要不要接著看
+  var start = fromHash();
+  var saved = load();
+  render(start || MAIN[0], !start);
+  if (!start && saved && saved.id !== MAIN[0].id) {
+    $("resume-text").textContent = "上次看到「" + (saved.branch ? "選讀" : "步驟 " + numberOf(saved.id)) + "：" + saved.title.replace(/<[^>]+>/g, "") + "」";
+    $("resume").hidden = false;
+    $("resume-go").addEventListener("click", function () { $("resume").hidden = true; go(saved); });
+    $("resume-no").addEventListener("click", function () { $("resume").hidden = true; save(MAIN[0]); });
+  }
+  window.SynoxGuide = { STEPS: STEPS, go: function (id) { go(byId(id)); } };
+})();
+</script>
+</body>
+</html>
