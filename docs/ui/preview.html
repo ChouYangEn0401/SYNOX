@@ -1389,6 +1389,24 @@
             <input id="llm-url" type="text" size="40">
           </div>
         </div>
+        <div id="llm-local-fields" class="hidden">
+          <label class="f" for="llm-local-server">伺服器</label>
+          <select id="llm-local-server"></select>
+          <label class="f" for="llm-local-url">網址</label>
+          <input id="llm-local-url" type="text" size="40">
+          <label class="f" for="llm-local-model">模型（Ollama 的話是 <code>ollama list</code> 看得到的名稱，例如 qwen3.5:9b）</label>
+          <input id="llm-local-model" type="text" size="30">
+          <label class="f" for="llm-local-ctx">Context 長度（越大越佔記憶體）</label>
+          <div class="row">
+            <select id="llm-local-ctx"></select>
+            <button id="llm-local-advice" type="button">看建議</button>
+          </div>
+          <p class="muted">不確定電腦撐不撐得住？按「看建議」：只讀取模型資料與這台電腦的記憶體，不會載入模型。建議值都是估算。</p>
+          <ul id="llm-local-notes" class="muted"></ul>
+          <p class="muted">逾時：模型只要還在回應就不會被中止；完全沒有進展超過 <span id="llm-local-timeout">450</span> 秒才中止，
+            總上限 <span id="llm-local-total">1800</span> 秒（config.json 的 llm.timeout／llm.max_total_timeout）。</p>
+        </div>
+        <p id="llm-warning" class="note-line hidden"></p>
         <hr class="rule">
         <div class="row">
           <button id="llm-save" class="primary" type="button">存起來</button>
@@ -1406,6 +1424,21 @@
             <button type="button" class="copy" data-copy="cmd-nix">複製</button></div>
           <p class="muted"><a id="llm-dl" target="_blank" rel="noopener noreferrer">官方安裝說明</a>
             ．裝好後如果還是找不到，重開 SYNOX（它啟動時看到的 PATH 才是新的）。</p>
+        </div>
+      </div>
+
+      <div id="set-awake" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">☕</span>
+          <div class="txt"><h2>保持清醒</h2><p class="sub" id="awake-tagline">像一個穩定的 heartbeat：維持系統運轉，但螢幕可以暗（保護螢幕或省電）。</p></div></div>
+        <p class="note-line" id="awake-notice">⚠️ 開啟後會覆蓋 Windows 電源選項裡的「睡眠」設定：電腦不再自動睡眠。螢幕仍可照電源計畫，或設定「閒置 N 分鐘後主動關螢幕」變暗／關閉，以保護螢幕、省電。闔上筆電蓋、手動睡眠、低電量、Windows Update 重開機擋不住。</p>
+        <label class="f"><input id="awake-enabled" type="checkbox"> 讓電腦不要自動睡眠（預設關閉）</label>
+        <label class="f" for="awake-minutes">閒置幾分鐘後主動關螢幕（0＝照 Windows 電源計畫）</label>
+        <input id="awake-minutes" type="number" min="0" max="240" step="1" size="6">
+        <p class="note-line hidden" id="awake-ms"></p>
+        <hr class="rule">
+        <div class="row">
+          <button id="awake-save" class="primary" type="button">存起來</button>
+          <span id="awake-msg" class="muted"></span>
         </div>
       </div>
 
@@ -3733,9 +3766,46 @@
     }
     $("llm-url-wrap").classList.toggle("hidden", !c.needs_url);
     if (c.model && !$("llm-model").value) { $("llm-model").value = c.model; }
+    $("llm-local-fields").classList.toggle("hidden", c.choice !== "local");
+    if (c.choice === "local") {
+      var srv = $("llm-local-server");
+      if (srv.options.length === 0) {
+        (c.servers || []).forEach(function (s) { var o = el("option", "", s.label); o.value = s.value; srv.appendChild(o); });
+        if (!$("llm-local-url").value && c.servers && c.servers.length) { $("llm-local-url").value = c.servers[0].base_url; }
+      }
+      if ($("llm-local-ctx").options.length === 0) {
+        fillContext((c.context_options || []).map(function (n) { return { ctx: n, label: String(n) }; }), 8192);
+      }
+    }
+  }
+  function fillContext(rows, pick) {                 // 建議表 → 下拉選單（0＝伺服器預設，放最後）
+    var sel = $("llm-local-ctx");
+    var keep = pick !== undefined && pick !== null ? String(pick) : sel.value;
+    clear(sel);
+    rows.concat([{ ctx: 0, label: "0（用伺服器預設，可能被截斷）" }]).forEach(function (r) {
+      var o = el("option", "", r.label || String(r.ctx)); o.value = String(r.ctx); sel.appendChild(o);
+    });
+    if (keep && !Array.prototype.some.call(sel.options, function (o) { return o.value === keep; })) {
+      var extra = el("option", "", keep + "（目前的設定）"); extra.value = keep; sel.appendChild(extra);
+    }
+    if (keep) { sel.value = keep; }
+  }
+  function showNotes(lines) {
+    var ul = $("llm-local-notes");
+    clear(ul);
+    (lines || []).forEach(function (t) { ul.appendChild(el("li", "", t)); });
+  }
+  function localServerBase(value) {
+    var c = selectedChoice();
+    var found = (c.servers || []).filter(function (s) { return s.value === value; })[0];
+    return found ? found.base_url : "";
   }
   function llmBody() {
     var c = selectedChoice();
+    if (c.choice === "local") {
+      return { choice: "local", server: $("llm-local-server").value, base_url: $("llm-local-url").value,
+               model: $("llm-local-model").value, context_size: Number($("llm-local-ctx").value || 0) };
+    }
     return { choice: c.choice, provider: c.provider || "", api_key: $("llm-key").value,
              model: c.choice === "claude_code" ? $("llm-cc-model").value : $("llm-model").value,
              base_url: $("llm-url").value };
@@ -3748,7 +3818,8 @@
       $("my-budget").textContent = d.ai_budget ?
         "這個月的 AI 額度：用了約 US$" + d.ai_budget.used.toFixed(2) + "／US$" + Number(d.ai_budget.limit).toFixed(2) : "";
       $("my-budget").classList.toggle("hidden", !d.ai_budget);
-      if (d.owner) { loadUsage(); fillLlm(d); fillPacks(d.packs || []); loadChannels(); }
+      if (d.owner) { loadUsage(); fillLlm(d); fillPacks(d.packs || []); loadChannels(); loadAwake(); }
+      else { $("set-awake").classList.add("hidden"); }
       if (d.accounts) { loadAccounts(); }
     }).catch(function (e) { toast(e.message); });
   }
@@ -3772,13 +3843,39 @@
       (d.llm.has_key ? "，有金鑰" : "");
     syncLlmFields();
     if (d.llm.kind === "claude_code") { $("llm-cc-model").value = d.llm.model || ""; }
+    if (d.llm.kind === "local") {
+      $("llm-local-server").value = d.llm.server || "ollama";
+      $("llm-local-url").value = d.llm.base_url || "";
+      $("llm-local-model").value = d.llm.model || "";
+      var local = llmChoices.filter(function (c) { return c.choice === "local"; })[0] || {};
+      fillContext((local.context_options || []).map(function (n) { return { ctx: n, label: String(n) }; }),
+                  d.llm.context_size || 0);
+      $("llm-local-timeout").textContent = String(d.llm.timeout || 450);
+      $("llm-local-total").textContent = String(d.llm.max_total_timeout || 1800);
+    }
+    $("llm-warning").textContent = d.llm.warning ? "⚠️ 最近一次的提醒：" + d.llm.warning : "";
+    $("llm-warning").classList.toggle("hidden", !d.llm.warning);
   }
   $("llm-choice").addEventListener("change", function () { $("llm-model").value = ""; syncLlmFields(); });
+  $("llm-local-server").addEventListener("change", function () {
+    var base = localServerBase($("llm-local-server").value);
+    if (base) { $("llm-local-url").value = base; }
+  });
+  $("llm-local-advice").addEventListener("click", function () {
+    showNotes(["讀取中…（不會載入模型）"]);
+    api("POST", "/api/settings/llm/local-advice", { server: $("llm-local-server").value,
+        base_url: $("llm-local-url").value, model: $("llm-local-model").value }).then(function (d) {
+      fillContext(d.options || [], d.recommended || $("llm-local-ctx").value);
+      showNotes((d.options || []).map(function (r) { return r.ctx + "：" + r.text + (r.recommended ? "　← 推薦" : ""); })
+        .concat(d.notes || []));
+    }).catch(function (e) { showNotes(["❌ " + e.message]); });
+  });
   $("llm-test").addEventListener("click", function () {
     $("llm-msg").textContent = "測試中…";
     $("llm-install").classList.add("hidden");
     api("POST", "/api/settings/llm/test", llmBody()).then(function (d) {
       $("llm-msg").textContent = d.message;
+      if (d.lines) { showNotes(d.lines); }
       if (d.download_url && d.download_url.indexOf("https://") === 0) {     // 沒裝 claude：顯示安裝指令（只給複製，不替使用者執行）
         $("llm-dl").href = d.download_url;
         $("llm-install").classList.remove("hidden");
@@ -3802,6 +3899,33 @@
   $("llm-save").addEventListener("click", function () {
     api("POST", "/api/settings/llm", llmBody()).then(function (d) { $("llm-msg").textContent = d.message; loadSettings(); })
       .catch(function (e) { $("llm-msg").textContent = "❌ " + e.message; });
+  });
+
+  // ── 保持清醒（docs/adr/0006；預設關，打開＝覆蓋 Windows 的「睡眠」設定）──────────────
+  function fillAwake(ka) {
+    $("set-awake").classList.remove("hidden");
+    $("awake-enabled").checked = !!ka.enabled;
+    $("awake-minutes").value = String(ka.screen_off_after_min || 0);
+    if (ka.tagline) { $("awake-tagline").textContent = ka.tagline; }
+    if (ka.notice) { $("awake-notice").textContent = "⚠️ " + ka.notice; }
+    $("awake-ms").textContent = ka.modern_standby_note || "";
+    $("awake-ms").classList.toggle("hidden", !ka.modern_standby_note);
+    $("awake-msg").textContent = !ka.supported ? "這個系統不支援（只有 Windows 有作用）。" :
+      (ka.enabled ? (ka.holding ? "開著：電腦不會自動睡眠。" : "開著，但 Windows 還沒接受請求：" + (ka.last_result || "")) : "關著（預設）。");
+  }
+  function loadAwake() {
+    api("GET", "/api/runtime/status").then(function (d) {
+      if (d.keep_awake) { fillAwake(d.keep_awake); } else { $("set-awake").classList.add("hidden"); }
+    }).catch(function () { $("set-awake").classList.add("hidden"); });     // 沒有 runtime：不顯示
+  }
+  $("awake-save").addEventListener("click", function () {
+    var minutes = Number($("awake-minutes").value || 0);
+    if (!(minutes >= 0 && minutes <= 240 && Math.floor(minutes) === minutes)) {
+      $("awake-msg").textContent = "❌ 分鐘要是 0～240 的整數。"; return;
+    }
+    api("POST", "/api/runtime/keep-awake", { enabled: $("awake-enabled").checked, screen_off_after_min: minutes })
+      .then(function (ka) { fillAwake(ka); $("awake-msg").textContent = "存好了。" + $("awake-msg").textContent; })
+      .catch(function (e) { $("awake-msg").textContent = "❌ " + e.message; });
   });
 
   // ── AI 用量與花費（小儀表板）──────────────────────────────────────
