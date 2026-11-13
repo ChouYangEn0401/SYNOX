@@ -32,7 +32,7 @@
 |---|---|---|---|
 | A1 | 有 git：`git clone <SYNOX repo 網址> C:\Users\<測試帳號>\Desktop\SYNOX 測試`（路徑**故意**有空白和中文）；沒 git：GitHub「Code → Download ZIP」解到同一個地方 | 資料夾裡有 `Setup.bat`、`src\`、`vendor\`，**沒有** `.venv`、`config.json`、`data\` | [ ] |
 | A2 | （有拿到 tools 的話）把發佈的 `tools` 資料夾放進 `SYNOX 測試\tools\`（裡面要有 `index.json`） | — | [ ] |
-| A3 | 雙擊 `Setup.bat` | 先問語言；然後「準備 Python 和套件」。沒 Python 時：winget 裝 Python 3.12（可能跳 UAC 或要同意條款）或下載可攜版；**整個過程不用打指令** | [ ] |
+| A3 | 雙擊 `Setup.bat` | 先問語言；然後「準備 Python 和套件」→「準備 SYNOX 自己的 Python」：下載 uv、核對 SHA256、Python 3.12.16 裝進 `SYNOX 測試\runtime\python-uv`（**不管這台有沒有 Python 都一樣**；有 Conda／其他 Python 會先印一行「這台電腦已經有 …，不會動到它們」）。不跳 UAC、不用 winget、不跳 Microsoft Store；**整個過程不用打指令**。記下：使用者 PATH 前後一樣、`%USERPROFILE%\.local\bin` 沒有 python、`HKCU\Software\Python` 沒有新東西（[adr/0003 附記](../adr/0003-distribution-git-clone-and-installer.md)） | [ ] |
 | A4 | 等它跑完 | 開出安裝精靈視窗（四頁）。**如果**出現「這個 Python 沒有視窗元件：改用文字版設定」→ 在同一個黑色視窗照問題回答（這也算通過，記下來） | [ ] |
 | A5 | 精靈：選「只有我」→ 貼 bot token → 配對 → AI 選「先不用 AI」→ 完成並開始 | 手機收到「👋 我在了」 | [ ] |
 | A6 | 手機打 `/help` | 有基本指令；**還沒裝任何工具**的提示，並且寫出工具庫位置（有 A2 的話是 `…\SYNOX 測試\tools`） | [ ] |
@@ -43,6 +43,9 @@
 | A11 | 文字版也試一次：`.venv\Scripts\python.exe -m synox init` | 依序問：這台給誰用、Telegram（Enter 沿用）、AI、工具庫（Enter＝tools）、要裝哪些（打 `money`）→ 報告 → 問「裝 money？」→ 裝好 | [ ] |
 | A12 | 把整個 SYNOX 資料夾**搬到**另一個位置（例如 `D:\SYNOX2` 或桌面另一個資料夾），在新位置跑 `.venv\Scripts\python.exe -m synox doctor --offline` | 預期：**`.venv` 會壞**（venv 記著舊路徑，這是 Python 的限制）→ 刪掉 `.venv` 重跑 `Setup.bat` 就好；config 裡的工具庫位置是相對的，不用改 | [ ] |
 | A13 | 網頁：雙擊 `Open-SYNOX.bat` | 瀏覽器打開 127.0.0.1:8830 並登入 | [ ] |
+| A14 | （有 Conda 的電腦）在 Anaconda Prompt 裡 `conda activate` 之後跑 `Setup.bat`，再從檔案總管雙擊一次 | 兩次都印 Conda 的提醒；`.venv\pyvenv.cfg` 的 `home` 在 `runtime\python-uv`；`Start.bat` 之後 doctor 或 `/about` 看到的 Python 不是 Conda 的 | [ ] |
+| A15 | 擋掉 github.com（例如拔網路線後只開 python.org，或在 hosts 擋）再把 `.venv`、`runtime\` 刪掉重跑 `Setup.bat` | 看到「用 uv 準備 Python 沒成功：…改用備用方法」→ 可攜版 → 文字版 `synox init` | [ ] |
+| A16 | 進階：`Uninstall.bat env`，再在命令提示字元打 `Setup.bat -UseSystemPython` | 印警告；用這台電腦的 Python（只有 Store 捷徑時**不能跳商店**）；`Uninstall.bat env` 之後 `runtime\` 整個不見、沒有錯誤 | [ ] |
 
 ## B. 安裝程式路線
 
@@ -98,4 +101,4 @@ doctor：.venv\Scripts\python.exe -m synox doctor --offline 的完整輸出（�
 - 用 API 金鑰的 AI（OpenAI、Anthropic、Gemini、相容端點）需要 `ntu_easy_llm`，它還不在 PyPI：init／doctor 會說「還沒安裝 ntu_easy_llm」（QD2）。
 - 可攜版 Python 的 tkinter（B4）：沒驗證過，開不了就是文字版。
 - 文字版 init 只有中文。
-- 搬資料夾後 `.venv` 會壞（A12），要重跑 `Setup.bat`。
+- 搬資料夾後 `.venv` 會壞（A12），要重跑 `Setup.bat`。`runtime\python-uv` 是 uv 裝的，搬了照理還能用（`.venv` 一樣要重建）——待實測。

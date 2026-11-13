@@ -2,6 +2,8 @@
 #   check      only report what is installed (changes nothing)
 #   shortcuts  stop SYNOX; remove desktop shortcut, startup entry, .synoxpack association
 #   env        shortcuts + delete .venv and runtime\  (keeps config.json and data\; Setup.bat restores it)
+#              runtime\ = SYNOX's own private Python: the installer's runtime\python, uv (runtime\uv), the CPython
+#              it installed (runtime\python-uv) and uv's cache (runtime\uv-cache). Nothing outside the SYNOX folder.
 #   all        env + delete config.json and data\    (everything starts over; data is lost)
 # Never deletes the SYNOX folder itself or any source file.
 # Language: -Lang <code> (not saved) / SYNOX_LANG, else lang.txt, else ask first and save (lang.ps1).
@@ -79,6 +81,22 @@ function Remove-Path([string]$Path) {
     }
 }
 
+function Remove-Runtime {
+    # runtime\python-uv has a directory junction per minor version (cpython-3.12-... -> cpython-3.12.x-...). Unlink
+    # junctions/symlinks first (Directory.Delete on a reparse point removes only the link, never what it points to),
+    # so the recursive delete below can never follow a link out of the SYNOX folder.
+    if (-not (Test-Path -LiteralPath $Runtime)) { return }
+    foreach ($dir in @($Runtime, (Join-Path $Runtime 'python-uv'))) {
+        if (-not (Test-Path -LiteralPath $dir)) { continue }
+        $links = @(Get-ChildItem -LiteralPath $dir -Force -ErrorAction SilentlyContinue |
+                   Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint })
+        foreach ($link in $links) {
+            try { [IO.Directory]::Delete($link.FullName, $false) } catch { Say (Tr 'could_not_remove' $link.FullName $_.Exception.Message) }
+        }
+    }
+    Remove-Path $Runtime
+}
+
 function Stop-Synox {
     $p = Running-Pid
     if (-not $p) { return }
@@ -132,7 +150,7 @@ if ($Failed) { exit 1 }
 Remove-Shortcuts
 if ($Mode -in @('env', 'all')) {
     Remove-Path $Venv
-    Remove-Path $Runtime
+    Remove-Runtime
 }
 if ($Mode -eq 'all') {
     Remove-Path $Config

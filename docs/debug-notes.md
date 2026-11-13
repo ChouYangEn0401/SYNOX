@@ -34,7 +34,8 @@ Problems found while testing the installer. "Fixed" items are on this branch; "O
 
 9. **Uninstall / reset for testing.** `Uninstall.bat` (menu, or `Uninstall.bat check|shortcuts|env|all [-Yes]`) runs
    `setup/uninstall.ps1`: `check` only lists what is installed; `shortcuts` stops SYNOX and removes the desktop shortcut,
-   startup entry and .synoxpack association; `env` also deletes `.venv` and `runtime\` (config and data kept, Setup.bat
+   startup entry and .synoxpack association; `env` also deletes `.venv` and `runtime\` (SYNOX's own private Python: the
+   installer's `runtime\python`, uv and the CPython it installed in `runtime\python-uv`; config and data kept, Setup.bat
    restores it); `all` also deletes `config.json` and `data\` (asks you to type DELETE unless `-Yes`). It never deletes the
    SYNOX folder. Reinstall = Uninstall + Setup.bat. Repair = re-run Setup.bat (idempotent, reuses `.venv`, prefills the
    wizard from config.json) and `python -m synox doctor`; no separate Repair tool for now.

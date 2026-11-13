@@ -53,4 +53,5 @@ Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -Fil
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\.venv"
+Type: filesandordirs; Name: "{app}\runtime"
 Type: files; Name: "{app}\lang.txt"

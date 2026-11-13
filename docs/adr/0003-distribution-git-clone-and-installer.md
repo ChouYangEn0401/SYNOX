@@ -27,13 +27,17 @@
 
 ## A. git clone 路徑：clone 之後怎麼一路到可用
 
-**需要什麼**：Windows 10／11 64 位元、能上網（裝 Python 與套件時）。Python 不用先裝：`Setup.bat` 會找，找不到就裝。
+**需要什麼**：Windows 10／11 64 位元、能上網（裝 Python 與套件時）。Python 不用先裝：`Setup.bat` 預設裝 SYNOX 自己的一份
+（放在 SYNOX 資料夾的 `runtime\`，不用、也不動這台電腦原本的 Python；見文末附記）。
 git 也不是必要的：沒有 git 的人用 GitHub 的「Code → Download ZIP」解開，效果一樣。
 
 1. `git clone <SYNOX repo>`（或解開 zip）到任何資料夾，路徑可以有中文、空白。
 2. 雙擊 `Setup.bat` → `setup/bootstrap.ps1`：
-   1. **Python ≥ 3.11**：SYNOX 資料夾裡的 `runtime\python`（安裝程式附的）→ `py` 啟動器 → PATH 上的 `python` →
-      `%LOCALAPPDATA%\Programs\Python\Python31x` → `winget install Python.Python.3.12` → 最後退路：python.org 的可攜版解到 `runtime\python`。
+   1. **Python ≥ 3.11**（2026-11-13 改，見文末附記）：預設只用 SYNOX 資料夾裡的——`runtime\python`（安裝程式附的）→
+      釘死版本＋SHA256 的 uv 裝 CPython 到 `runtime\python-uv`（`--python-preference only-managed`）→ uv 失敗才退到 python.org 的
+      可攜版解到 `runtime\python`。不改 PATH、不寫登錄檔、不用 winget。進階的 `Setup.bat -UseSystemPython` 才照舊的順序找這台電腦的
+      Python（`py` 啟動器 → PATH 上的 `python` → `%LOCALAPPDATA%\Programs\Python\Python31x` → `winget install Python.Python.3.12` →
+      可攜版），而且絕不挑 Microsoft Store 的 `python` 捷徑。
    2. 建 `.venv`。
    3. **裝相依**（由嚴到寬）：有 `wheelhouse\` → 完全離線（`--no-index --find-links wheelhouse`）；有 `requirements.lock` →
       照鎖定的版本裝（有雜湊就驗雜湊）；都沒有 → 照 `pyproject.toml` 的範圍裝。最後 `pip install --no-deps -e .`。
@@ -167,3 +171,91 @@ Windows 帳號或 VM 上實測。
 - 好：兩條路徑最後是同一套檔案、同一個 bootstrap、同一份 `config.json`；安裝程式只是「把網路那一段先做好」。工具庫位置不再需要問人。
 - 代價：安裝程式比較大（Python＋wheel 約幾十 MB）；發佈機多幾個步驟（lock、wheelhouse、stage、ISCC、簽章）。
 - 沒做：真的打包 exe、真的空白電腦、網頁的工具庫清單畫面、macOS／Linux 安裝、程式與資料分開放。
+
+## 附記（2026-11-13）：預設用 SYNOX 自己的 Python（uv），不碰這台電腦的 Python
+
+擁有者要的：預設「暴力安裝全部幫你裝好」——SYNOX 用自己資料夾裡的那一份 Python；有經驗的人才選用自己的 Python。
+
+### 為什麼改
+
+原本 `Setup.bat` 先找這台電腦已經有的 Python（`py` 啟動器 → PATH 上的 `python` → `%LOCALAPPDATA%\Programs\Python` → `winget`）。
+這讓每台電腦的環境都不一樣、很難支援：
+
+- **Conda**：PATH 上的 `python` 常常是 Conda 的；`CONDA_PREFIX`、`PYTHONHOME`、`PYTHONPATH` 會漏進 SYNOX 的 Python。
+- **Microsoft Store 的 `python`**：沒裝 Python 時，`%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe` 是一個「打開商店」的捷徑，
+  一執行就跳商店（陷阱）；商店版 Python 本身也在 WindowsApps 底下，有路徑重導。
+- **winget**：會跳條款、可能跳 UAC，而且改了這台電腦的 PATH 與已安裝程式清單——不是「只動 SYNOX 資料夾」。
+- 版本不固定（3.11～3.13、各種修補版），出問題很難重現。
+
+### 現在怎麼做（`setup/bootstrap.ps1`）
+
+**預設（建議）**——全部在 SYNOX 資料夾的 `runtime\` 裡，不改 PATH、不寫登錄檔（除了原本 HKCU 的 `.synoxpack` 關聯）、
+不碰 Conda／其他 Python、不要管理員、不用 winget：
+
+1. `runtime\python` 已經有（安裝程式附的）→ 用它（wheelhouse 離線那條照舊）。
+2. 沒有 → 下載 **uv 0.13.6**（https://github.com/astral-sh/uv 的官方 release，`uv-x86_64-pc-windows-msvc.zip`）到 `runtime\uv\0.13.6\`，
+   先核對 SHA256，對不上就不用。釘死的值 `a2a8820d5eea32f08ef467ef3b7f66883a9b076d5737a2fc2fbb5f458d1bb50f` 抄自同一個 release 的
+   `uv-x86_64-pc-windows-msvc.zip.sha256`（與 `sha256.sum` 那一行相同），2026-11-13 在這台把 zip 下載下來實算也一樣。
+   然後 `uv python install 3.12.16 --python-preference only-managed --no-bin --no-registry`，環境變數：
+   `UV_PYTHON_INSTALL_DIR=runtime\python-uv`、`UV_CACHE_DIR=runtime\uv-cache`、`UV_PYTHON_BIN_DIR=runtime\uv\bin`、
+   `UV_PYTHON_PREFERENCE=only-managed`、`UV_NO_CONFIG=1`（不讀使用者的 uv.toml）。`--no-bin`＝不在 `%USERPROFILE%\.local\bin` 放
+   python.exe；`--no-registry`＝不寫 PEP 514 登錄檔。再用 `runtime\python-uv\cpython-3.12.16-windows-x86_64-none\python.exe -m venv .venv`
+   建 .venv（標準的 venv＋ensurepip，自帶 pip、不連網），之後裝套件的三條路（wheelhouse 離線、requirements.lock、pyproject）不變。
+   換 uv 版本時：版本、SHA256、`$UvPython`（那版 uv 內建的下載清單裡的 3.12.x）一起換，`tests/test_private_python.py` 會擋。
+3. uv 失敗（下載、檢查碼、安裝任何一步）→ 直接說「用 uv 準備 Python 沒成功：…改用備用方法」，退到 python.org 的可攜版
+   （embeddable zip → `runtime\python`；沒有 tkinter，設定改用文字版 `synox init`）。這一步和以前一樣沒有核對檢查碼。
+
+**進階**：`Setup.bat -UseSystemPython`（`Setup.bat` 原樣把參數交給 bootstrap，可以和 `-Lang` 一起用）→ 舊的順序
+（`runtime\python` → `py` → PATH 上的 `python` → `%LOCALAPPDATA%\Programs\Python` → winget → 可攜版），但 WindowsApps 底下的
+`python` **先擋掉、不執行**；`py` 找到的若 `sys.executable` 在 WindowsApps 底下也跳過。開始前印一段警告（環境難預測、會用 winget、
+怎麼換回來）。
+
+**安裝前的提醒**（預設那條，12 種語言）：偵測到 Conda（`CONDA_PREFIX`／`CONDA_EXE`／PATH 上有 `conda`）、Store 的 python 捷徑、
+或其他 Python（`py`／`python`／`python3`、`%LOCALAPPDATA%\Programs\Python`）就印「這台電腦已經有 …。SYNOX 會用自己資料夾裡的那一份
+Python，不會動到它們。」只看、不動。
+
+**不讓使用者的環境漏進來**：bootstrap 先記下上面的線索，再對自己這個程序清掉 `PYTHONHOME`、`PYTHONPATH`、`PYTHONSTARTUP`、
+`PYTHONUSERBASE`、`PYTHONEXECUTABLE`、`VIRTUAL_ENV`、`__PYVENV_LAUNCHER__`、所有 `CONDA_*`、`_CE_CONDA`／`_CE_M`、
+`PIP_USER`／`PIP_TARGET`／`PIP_PREFIX`、會改 uv 挑 Python 的 `UV_PYTHON`／`UV_SYSTEM_PYTHON`／`UV_NO_MANAGED_PYTHON`／`UV_CONFIG_FILE`／
+`UV_OFFLINE`，並設 `PYTHONNOUSERSITE=1`（它開的精靈也繼承）。`Start.bat`、`Console.bat`、`Open-SYNOX.bat`、`Install-Pack.bat`、
+`Connect-Apple.bat`、`Stop.bat` 在 `setlocal` 之後 `call setup\clean-python-env.bat` 做同一件事——只影響那個視窗。代理設定、
+`PIP_INDEX_URL` 這類網路設定照留。PATH 不動。
+
+**舊的安裝**：已經有 `.venv` 的，重跑 `Setup.bat` 照用（不會自己重建）；預設那條會看 `.venv\pyvenv.cfg` 的 `home`，在 `runtime\` 外面就印一行
+「要換成 SYNOX 自己的 Python：Uninstall.bat env，再雙擊 Setup.bat」。
+
+**解除安裝**：`Uninstall.bat env`／`all` 本來就刪 `runtime\`；現在 `runtime\` 裡有 `uv\`、`python-uv\`、`uv-cache\`，一起刪。
+`python-uv\` 裡有指向同一個資料夾內的 junction（`cpython-3.12-…` → `cpython-3.12.16-…`），先拆掉連結本身再遞迴刪，不會跟著連結刪到外面。
+安裝程式的 `[UninstallDelete]` 也加了 `{app}\runtime`。都只在 SYNOX 資料夾裡。
+
+**要連的網址**：github.com（uv 的 zip；uv 抓 Python 也可能走 github.com 或 releases.astral.sh）、pypi.org／files.pythonhosted.org（套件）。
+uv 失敗時：www.python.org、bootstrap.pypa.io。
+
+### 驗證到哪裡
+
+已實測（**Linux** 雲端機，2026-11-13；這台沒有 PowerShell）：
+
+- uv 0.13.6 Windows x64 zip 下載實算的 SHA256＝release 公布的值；zip 裡是平放的 `uv.exe`、`uvw.exe`、`uvx.exe`。
+- 0.13.6 的下載清單裡有 `cpython-3.12.16-windows-x86_64-none`。
+- Linux 版 uv 0.13.6、同樣的環境變數與旗標：`uv python install 3.12.16` 裝出 CPython 3.12.16 到指定資料夾，`tkinter` 可以 import（Tk 9.0）；
+  HOME 換成空資料夾，裝完 HOME 底下沒有任何檔案（沒寫 `~/.local/bin`）；`python -m venv` 建的 .venv 有 pip。用這個 .venv 裝 SYNOX、
+  在 xvfb 跑 `tests/test_wizard.py`、`test_wizard_i18n.py`、`test_web_login.py`：全過（只有一個本來在 Linux 就失敗的 Windows 路徑測試）。
+- 注意：`uv python find` 會先挑目前資料夾（或上層）的 `.venv`，`only-managed` 也擋不住，所以 bootstrap 不用 `uv python find`，直接用
+  uv 固定的資料夾名字找 `python.exe`。
+- 靜態測試：`tests/test_private_python.py`（釘死的版本與 SHA256、旗標、預設那條沒有 winget、`-UseSystemPython` 的傳遞、Store 捷徑、
+  啟動器清變數、.bat 只有 ASCII＋CRLF、解除安裝、這段附記）。`test_wizard_i18n.py` 檢查每個語言的 key 都齊。
+
+**待實測（Windows）**——這台沒跑過 `bootstrap.ps1`，連 PowerShell 語法檢查都沒做（`test_powershell_scripts_parse` 只在 Windows 跑）：
+
+1. 乾淨的 Windows 11、一般使用者帳號：雙擊 `Setup.bat` → 下載 uv、核對 SHA256 → Python 3.12.16 進 `runtime\python-uv` → `.venv` →
+   **視窗精靈打得開**（Windows 上的 tkinter／Tk 9.0 待實測）。
+2. 確認沒有寫到 SYNOX 資料夾外面：使用者與系統的 PATH 不變；`HKCU\Software\Python` 沒有新的項目（`--no-registry`）；
+   `%USERPROFILE%\.local\bin` 沒有 `python*.exe`；`%APPDATA%\uv`、`%LOCALAPPDATA%\uv` 沒有東西。
+3. 有 Conda 的電腦：在 Anaconda Prompt（`conda activate` 之後）跑一次、在檔案總管雙擊一次：都要印 Conda 的提醒；`.venv\pyvenv.cfg` 的 `home`
+   在 `runtime\python-uv`；`Start.bat` 起來之後 `sys.prefix`、`sys.path` 沒有 Conda 的路徑。Conda 的 `Library\bin` 還在 PATH 上（不動 PATH），
+   Python 3.8+ 載入擴充模組的 DLL 不看 PATH，照理沒事——待實測。
+4. 只有 Store 捷徑、沒裝 Python 的電腦：預設和 `-UseSystemPython` 都不能跳出商店。
+5. uv 失敗的退路：擋掉 github.com 再跑 → 看到「用 uv 準備 Python 沒成功」、改用可攜版、文字版 `synox init`。
+6. `Uninstall.bat env`：`runtime\` 整個刪掉、沒有錯誤（junction）。
+7. 公司網路／代理：PowerShell 5.1 的 `Invoke-WebRequest` 用系統代理；uv 讀 `HTTPS_PROXY`，不一定讀系統代理。
+8. 防毒軟體會不會擋 `uv.exe` 或 `runtime\python-uv` 裡的 python.exe。
