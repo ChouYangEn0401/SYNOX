@@ -73,8 +73,8 @@ class ClaudeCodeAdapter(ChatAdapter):
             argv += ["--model", self.model]
         return argv
 
-    def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = ()) -> Reply:
-        exe = self._which()
+    def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = (), *, stop: Sequence[str] = ()) -> Reply:
+        exe = self._which()                         # stop：claude -p 沒有停止詞的旗標，忽略（supports_stop=False）
         if not exe:
             raise LLMError(NOT_FOUND)
         if self.workdir:

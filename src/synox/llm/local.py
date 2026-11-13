@@ -209,6 +209,7 @@ def _timeout_like(e: BaseException) -> bool:
 
 class LocalAdapter(ChatAdapter):
     kind = "local"
+    supports_stop = True              # ollama：options.stop；其他：body.stop（docs/adr/0010）
 
     def __init__(self, model: str = "", *, server: str = "ollama", base_url: str = "", context_size: int = 0,
                  timeout: float = 0, max_total_timeout: float = DEFAULT_MAX_TOTAL, tools: bool = True,
@@ -339,20 +340,23 @@ class LocalAdapter(ChatAdapter):
             return OLLAMA_DEFAULT_CTX, f"沒設 context_size，假設 Ollama 預設 {OLLAMA_DEFAULT_CTX}"
         return 0, "不知道"
 
-    def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = ()) -> Reply:
+    def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = (), *, stop: Sequence[str] = ()) -> Reply:
         if not self.model:
             raise LLMError("還沒填本地模型的名稱（例如 qwen3.5:9b；Ollama 的話是 `ollama list` 看得到的名字）。")
         native = bool(tools) and self.supports_tools
         warnings: List[str] = []
         sent_chars = sum(len(m.content or "") for m in messages) + \
             (len(json.dumps([tool_schema(t) for t in tools], ensure_ascii=False)) if native else 0)
+        stop = [s for s in (stop or ()) if isinstance(s, str) and s]
         try:
             if self.server == "ollama":
-                reply = self._chat_ollama(messages, tools if native else (), warnings)
+                reply = self._chat_ollama(messages, tools if native else (), warnings, stop)
             else:
-                reply = self._chat_openai(messages, tools if native else (), warnings)
+                reply = self._chat_openai(messages, tools if native else (), warnings, stop)
         except _HTTPProblem as p:
             raise LLMError(self._http_text(p))
+        from synox.llm.textproto import strip_think
+        reply.text = strip_think(reply.text)[0]          # 思考段不給人看（think=false 不一定每個模型都照做）
         self._learn_context()
         ctx, how = self.effective_context()
         used = int(reply.usage.get("input", 0) or 0)
@@ -369,11 +373,13 @@ class LocalAdapter(ChatAdapter):
         reply.warnings = warnings
         return reply
 
-    def _chat_ollama(self, messages, tools, warnings) -> Reply:
+    def _chat_ollama(self, messages, tools, warnings, stop=()) -> Reply:
         body = {"model": self.model, "messages": [ollama_message(m) for m in messages], "stream": True,
                 "options": {"num_predict": self.max_tokens}}
         if self.context_size:
             body["options"]["num_ctx"] = self.context_size
+        if stop:
+            body["options"]["stop"] = list(stop)
         if self._think:
             body["think"] = False                    # 關掉推理輸出（CPU 上太慢；測試紀錄）
         if tools:
@@ -384,7 +390,7 @@ class LocalAdapter(ChatAdapter):
         except _HTTPProblem as p:
             if self._think and p.status == 400 and "think" in (p.body or "").lower():
                 self._think = False                  # 舊版 Ollama／不支援的模型：拿掉 think 再試一次
-                return self._chat_ollama(messages, tools, warnings)
+                return self._chat_ollama(messages, tools, warnings, stop)
             raise
         text: List[str] = []
         calls: List[ToolCall] = []
@@ -422,9 +428,11 @@ class LocalAdapter(ChatAdapter):
             raise LLMError("本地模型的回應中途斷了（沒有收到結束訊號）。")
         return Reply(text="".join(text), tool_calls=[c for c in calls if c.name], usage=usage)
 
-    def _chat_openai(self, messages, tools, warnings) -> Reply:
+    def _chat_openai(self, messages, tools, warnings, stop=()) -> Reply:
         body = {"model": self.model, "messages": [openai_message(m) for m in messages], "stream": True,
                 "stream_options": {"include_usage": True}, "max_tokens": self.max_tokens}
+        if stop:
+            body["stop"] = list(stop)[:4]           # OpenAI 相容的伺服器多半最多收 4 個
         if tools:
             body["tools"] = [tool_schema(t) for t in tools]
         start = self._clock()
