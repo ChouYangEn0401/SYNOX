@@ -1,5 +1,8 @@
 # SYNOX：你自己電腦上的 Telegram 小助手
 
+**👉 [先看介紹頁：SYNOX 長什麼樣、能做什麼、怎麼裝](https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW)**
+（網頁版的真實畫面、支援哪些平台、哪些還沒做完都在上面；同一份也在 repo 裡：[docs/landing/index.html](docs/landing/index.html)，下載後雙擊就能開）
+
 > ⚠️ **目前是 alpha，請先別拿來放重要資料。**
 > - 工具庫的工具目前**全部標成 🧪 alpha**（早期版）；接外面服務的（Notion、Todoist、Google 日曆、Apple 提醒事項）與 Discord 通道都**只用假傳輸測過**，還沒對真實服務驗證。
 > - 沙盒後端**還沒在 Linux 實機上驗證**。

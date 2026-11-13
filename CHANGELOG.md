@@ -10,6 +10,13 @@
 - 截圖用目前的網頁介面重拍（`docs/ui/preview.html` 的假資料，電腦版 1360×820 兩倍解析度、手機 390×844），存成 `docs/landing/shots/*.webp`。
 - 新增 `scripts/make_landing.py`：`--shoot` 用 Playwright 重拍截圖；不加就只把原稿 `docs/landing/page.html` 和截圖組成單一檔案的 index.html（約 1.3 MB）。
   品牌圖示取自 Simple Icons（CC0），頁尾註明名稱與標誌屬於各自的所有者。
+- 介紹頁加上網頁版同一隻 S 寶寶的開場動畫：`make_landing.py` 組頁面時把 `static/splash.js` 整支和 `splash.css` 的開場段落原封不動塞進去
+  （網頁版改了，重組就跟著變）；點左上角的 S 重播；系統開了「減少動態效果」就不播。
+- 介紹頁照實標出 **🚧 尚未完成**（一鍵安裝 .exe、GitHub Copilot、哨兵模式、macOS／Linux 安裝器、換電腦匯出、長期記憶）與
+  **🧪 寫好了還沒實測**（Discord、外部服務、看照片、全新 Windows 安裝、Linux 沙盒與容器），並列出測試數字（2,349 個自動測試；
+  2026-11-13 在 Linux 雲端 2,292 過、14 沒過、43 略過；真機驗證清單 0／32）。拿掉「安裝程式版附好 Python、不用上網」這句（exe 還沒打包）。
+- 「功能」每格標「工具庫」或「內建」，加「還想要別的？裝一個就會」；支援列加 GitHub Copilot、個人版／伺服器版、哨兵模式；連結改連 GitHub 與線上教學。
+- README 最上面加介紹頁的連結。
 
 ## 未發佈（網頁設定頁分頁、安裝 pack 的專屬頁）
 
