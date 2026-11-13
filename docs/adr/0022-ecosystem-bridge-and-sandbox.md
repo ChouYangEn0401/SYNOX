@@ -386,7 +386,7 @@ SYNOX 的第 4、5 關方向一致（`docs/security.md:182-183`、`410`）。下
 **建議（決定 13）：MXC 為主；舊系統退到 AppContainer 自製（等級「基本」）；專用帳號＋防火牆之後做成選配的「加強保護」（決定 12）。但先做實測再定案（決定 14）。**
 
 - 先跑 [探測腳本](../lab/tools/windows-sandbox-probe/)（兩個腳本約半小時；**腳本本身也沒在 Windows 跑過**）。MXC 還沒有探測腳本，要先解決 `wxc-exec.exe` 的來源。
-- 擁有者自己的開發機是 Windows 10 Home（`docs/discussions/2026-11-10-sandbox-and-skill-containers.md:73`）：MXC 用不了。所以 Windows 10 的支援等級（決定 11）建議是「基本」，而不是不支援。
+- 擁有者自己的開發機是 Windows 10 Home（`docs/lab/discussions/2026-11-10-sandbox-and-skill-containers.md:73`）：MXC 用不了。所以 Windows 10 的支援等級（決定 11）建議是「基本」，而不是不支援。
 - 實測前**不寫** Windows 後端的程式；Linux 與共用的部分（抽象、連外代理、環境變數白名單、宣告格式）可以先做。
 
 ### 6.4 連外名單怎麼強制

@@ -437,7 +437,7 @@ SYNOX 真機煙霧測試（唯讀）　2026-11-12 14:03
 
 ## 8. 這份教學依據的程式
 
-2026-11-12 起四個服務的工具在 **SYNOX 工具庫（SYNOX_Libs）**（以前在 SYNOX 的 `connectors/`，[legacy/connectors.md](../../legacy/connectors.md)）。
+2026-11-12 起四個服務的工具在 **SYNOX 工具庫（SYNOX_Libs）**（以前在 SYNOX 的 `connectors/`，[docs/legacy/connectors.md](../legacy/connectors.md)）。
 `smoke_real.py` 先找這台裝好的工具，沒裝就讀工具庫的原始碼：設環境變數 `SYNOX_LIBS=<SYNOX_Libs 資料夾>`，或把它放在 SYNOX 旁邊。
 
 | 服務 | 程式（工具庫） | 原本的說明 |

@@ -20,7 +20,7 @@
 > **SYNOX 出廠不帶任何工具**（2026-11-12 起）：記帳、隨手記、行事曆、待辦，以及接 Notion、Todoist、Google 日曆、
 > Apple 提醒事項的工具，都在另一個專案 **SYNOX 工具庫（SYNOX_Libs）**——所有工具在那裡統一管理，
 > 一個工具一個 `.synoxpack` 檔，要什麼自己裝（見下面「裝工具」）。從舊版更新上來的人：資料（含存好的 token、帳號）還在，裝回同名工具就接著用
-> （[legacy/builtin-packs.md](legacy/builtin-packs.md)、[legacy/connectors.md](legacy/connectors.md)）。
+> （[docs/legacy/builtin-packs.md](docs/legacy/builtin-packs.md)、[docs/legacy/connectors.md](docs/legacy/connectors.md)）。
 
 ## 快速開始：三步裝好（Windows 10／11）
 

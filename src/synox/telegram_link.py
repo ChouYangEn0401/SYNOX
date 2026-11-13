@@ -1,6 +1,6 @@
 """Telegram 擁有者配對（身分對應）：讓「只用網頁／Discord 安裝」的擁有者之後也能從 Telegram 用，而且**資料不用搬**。
 
-背景（QuestionToUser.md Q14）：SDK 直接用 Telegram 的數字 id 當內部使用者 id；只用網頁時擁有者的內部 id 是保留的 BASE（10^15）。
+背景（docs/QuestionToUser.md Q14）：SDK 直接用 Telegram 的數字 id 當內部使用者 id；只用網頁時擁有者的內部 id 是保留的 BASE（10^15）。
 你從 Telegram 傳訊息，進來的是你的 Telegram 編號，SYNOX 會當成陌生人（guest）。這裡做跟 Discord 一樣的對照表：
 `data/identities.json` 記「telegram:<你的 Telegram 編號> ＝ 擁有者（BASE）」。
 

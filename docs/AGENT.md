@@ -58,14 +58,15 @@
 | `src/synox/doctor.py` | 健康檢查（不改任何檔、不產生金鑰） |
 | `src/synox/health/` | 工具健康（[tool-health.md](tool-health.md)）：`failure.py`（失敗信封 v1、類別碼表、正規化、`ai_line`）、`state.py`（狀態機、指紋）、`store.py`（`data/health/tools.json.enc`，保管箱）、`settings.py`（config `health`）、`__init__.py`（`HealthRegistry`、fail open 的入口 `observe_*`／`hidden`、runtime 任務 `system.health`）。loader（cli）、`packs/mcp.py`、`agent/loop.py` 只經這些入口；權限仍只看 `policy.decide` |
 | `src/synox/brand.py` | 終端機門面：歡迎畫面（`show_banner`；`BANNER_COMMANDS`＝沒參數／run／open／wizard／init／doctor／about）、`about_text`、`TIPS`。只在互動終端機印；`--quiet`、`SYNOX_NO_BANNER`、`CI`、管線＝不印（既有輸出一個字都不變），`TERM=dumb`＝一行，`NO_COLOR`＝不上色；Windows 主控台 code page 不是 65001（cp950）或 `SYNOX_ASCII=1`＝ASCII logo。預覽 `docs/ui/cli-welcome.txt`（`scripts/make_cli_welcome.py`） |
-| `packs/` | **出廠是空的**（2026-11-12，[../legacy/builtin-packs.md](../legacy/builtin-packs.md)）：使用者裝的工具的落點（`PACK_DIRS` 只有它），只有 `README.md` 進 git。所有工具的正本在 **SYNOX_Libs**（工具庫，另一個 repo；ADR 在它的 `docs/adr/0001`） |
-| `connectors/` | **只剩 README**（2026-11-12，[../legacy/connectors.md](../legacy/connectors.md)）：以前的 notion、todoist、google-calendar、apple-reminders 連同測試搬到 SYNOX_Libs；loader 不再掃這裡、`BUNDLED` 是空的 |
+| `packs/` | **出廠是空的**（2026-11-12，[legacy/builtin-packs.md](legacy/builtin-packs.md)）：使用者裝的工具的落點（`PACK_DIRS` 只有它），只有 `README.md` 進 git。所有工具的正本在 **SYNOX_Libs**（工具庫，另一個 repo；ADR 在它的 `docs/adr/0001`） |
+| ~~`connectors/`~~ | **已拿掉**（2026-11-12 搬走、2026-11-13 連說明都刪了，[legacy/connectors.md](legacy/connectors.md)）：以前的 notion、todoist、google-calendar、apple-reminders 連同測試在 SYNOX_Libs；loader 不掃、`BUNDLED` 是空的；舊版解壓縮蓋過來留下的 `connectors\` 不會被載入 |
 | `src/synox/packs/library.py` | 「還沒裝任何工具、去哪裡裝」：`installed_tools`（不算 `BUNDLED`；現在是空的）、`empty_hint`／`start_hint`（/start、/help 只給擁有者）、`install`（包 SDK 的 /help）、`status`（網頁 `/api/tools`、`/api/settings` 的 `library`）、`doctor_lines`；工具庫位置＝`config.json` 的 `packs.library`（`library_location`，不寫死路徑） |
 | `sdk/` | 單檔 SDK `synox_sdk.py`（產生的）＋`pyproject.toml`（`pip install <SYNOX>/sdk`＝`synox-sdk` 套件，版本讀 `SDK_VERSION`） |
 | `tests/fixtures/packs/` | host 測試用的 money／notes（下架前的凍結複本，不是正本、不加功能）；提醒直接測核心的 `/remind_*` |
 | `src/synox/connect.py` | `python -m synox connect <pack>`（`Connect-Apple.bat`；要先從工具庫裝好那個工具）：照 pack.json `auth.fields` 用 getpass 問帳密，存進 `pack_secrets`（`src/synox/packs/secrets.py`，保管箱的鍵 `packs/<pack>/<field>`；跟 Web UI 工具頁「連接」表單是同一份）。帳密不經聊天：Telegram 會留紀錄、`[ROUTE]` log 印指令全文 |
 | `Setup.bat`、`setup/bootstrap.ps1` | 一鍵安裝；`Start.bat`／`Stop.bat`／`Console.bat` |
 | `tests/` | pytest；`conftest.py` 的 `make_bot` 用測試用的 packs＋真的 Vault＋`FakeAdapter`＋SDK `BotHarness`。測試期間 `loader.PACK_DIRS` 一律換成 `tests/fixtures/packs`（autouse `_test_pack_dirs`；不讀 repo 的 `packs/`），伺服器版的 make_bot 先把三個測試 pack 鎖成 core。空 host 的測試在 `tests/test_empty_host.py`。要讀工具庫的測試（`SYNOX_LIBS=<工具庫>`，沒有就跳過）：`test_empty_host` 的「工具庫每個工具打包→裝進空 host」、`test_smoke_real` 的四個服務、`test_sdk_p2_secret` 的 connector 不被 SYNOX 管 secret。connector 自己的測試在工具庫。穩定度 `stage` 的測試在 `tests/test_stage.py` |
+| `docs/` | 文件，索引在 [README.md](README.md)（新文件要登記在那裡）。產品文件是頂層的 `*.md`；`adr/` 架構決定；`handoff/` 給使用者的真機測試教學；`legacy/` 下架說明；`QuestionToUser.md` 等擁有者拍板的問答；`lab/` 實驗、研究、提案（`lab/discussions/` 設計討論、`lab/cross-repo/` 請別的 repo 做的事）。**已發佈頁面的本機副本不能搬**：`landing/`、`guide/`、`installer/`、`tutorials/`（執行時讀取）、`artifacts/`、`lab/design/`（`artifacts.json` 的 `local`、頁尾路徑、`tests/test_artifact_registry.py`） |
 
 ## Invariants
 

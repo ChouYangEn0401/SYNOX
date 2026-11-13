@@ -2,7 +2,7 @@
 
 一個 pack＝一個資料夾，放在 `packs/`（使用者裝的工具）。SYNOX 啟動時掃
 `packs/*/pack.json`（＋`config.json` 的 `packs.dirs`），一個壞掉只跳過那一個（`python -m synox doctor` 會列出原因）。
-**SYNOX 出廠不帶任何工具**（2026-11-12 起；以前的 `connectors/` 也搬走了，[../legacy/connectors.md](../legacy/connectors.md)）：
+**SYNOX 出廠不帶任何工具**（2026-11-12 起；以前的 `connectors/` 也搬走了，[legacy/connectors.md](legacy/connectors.md)）：
 官方工具全部在 **SYNOX 工具庫（SYNOX_Libs）**，下面的 `money` 是那裡的例子。
 
 ```
@@ -267,7 +267,7 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
 ### 容器（`runtime.container`，kind=cli 與 kind=mcp stdio；建議提供）
 
 作者「建議提供」：有了它，擁有者安裝時可以選「用容器跑」，伺服器版的第三方／T2 pack 選了容器、伺服器又有 podman／docker，
-就能開給成員（沒提供或選不用容器，照舊只給擁有者）。做法與每個旗標防什麼：`docs/discussions/2026-11-10-isolation-howto.md`。
+就能開給成員（沒提供或選不用容器，照舊只給擁有者）。做法與每個旗標防什麼：`docs/lab/discussions/2026-11-10-isolation-howto.md`。
 
 ```json
 "runtime": {"container": {

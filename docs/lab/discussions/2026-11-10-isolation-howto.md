@@ -1,7 +1,7 @@
 # 隔離／容器：具體要怎麼做（給擁有者看的操作版）
 
 狀態：**調查完成，S0–S2 已在分支 `feat/isolation` 實作（只組指令、不執行）；真機驗證見 `docs/handoff/container-verification.md`**
-日期：2026-11-10　前一份（為什麼、比較表、階段 S0–S8）：`docs/discussions/2026-11-10-sandbox-and-skill-containers.md`
+日期：2026-11-10　前一份（為什麼、比較表、階段 S0–S8）：`docs/lab/discussions/2026-11-10-sandbox-and-skill-containers.md`
 標示：**已查證**＝有官方來源（附連結）；**推測**＝照經驗判斷；**待實測**＝要在真的機器上跑過才知道。
 這份文件是用**唯讀**的方式查官方網頁寫的：沒有下載、安裝、執行任何容器引擎或映像。
 
