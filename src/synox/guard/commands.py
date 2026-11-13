@@ -43,9 +43,12 @@ class FirstDangerHint:
         self.path = os.path.join(str(getattr(app.config, "data_dir", ".") or "."), HINTS_FILE)
 
     def around(self, kind, api, inbound, user, node, run) -> None:
+        """提示放在指令的回覆**之前**：指令自己的回覆仍是最後一則（工具的測試與使用者看到的順序都不變）。"""
+        if kind == "command" and getattr(node, "effect", "") == DANGER and origin_mod.current().human:
+            self._hint_once(api, inbound, user)
         run(api)
-        if kind != "command" or getattr(node, "effect", "") != DANGER or not origin_mod.current().human:
-            return
+
+    def _hint_once(self, api, inbound, user) -> None:
         uid = int(getattr(user, "tg_id", 0) or 0)
         try:
             from isdtelekit.core import jsonstore
