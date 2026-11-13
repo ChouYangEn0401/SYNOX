@@ -1,6 +1,6 @@
 """
 掃 packs/*/pack.json（＋config.json 的 packs.dirs），一個資料夾一個 pack，裝進 app。
-SYNOX 出廠不帶任何工具（packs/ 只有說明；工具在 SYNOX_Libs）：以前的 connectors/ 2026-11-12 也搬走了（legacy/connectors.md）。
+SYNOX 出廠不帶任何工具（packs/ 只有說明；工具在 SYNOX_Libs）：以前的 connectors/ 2026-11-12 也搬走了（docs/legacy/connectors.md）。
 
   kind=python     import 資料夾裡的 pack.py，呼叫 install(app, pack)
   kind=cli        pack.json 的 cli.argv＋cli.commands → isdtelekit.packs.service.install（會印 JSON 的命令列程式）
@@ -63,7 +63,7 @@ from synox.packs.manifest import (Manifest, ManifestError, default_text, missing
 from synox.vault.vault import USERS_DIR
 
 # SYNOX 自己的 pack 資料夾＝使用者裝的工具的落點（PACK_DIRS[0]）。2026-11-12 以前還有 connectors/（出廠的 4 個 connector），
-# 搬到 SYNOX_Libs 之後不掃了：從舊版解壓縮蓋過去、留在磁碟上的舊 connectors/ 也不會被載入（legacy/connectors.md）。
+# 搬到 SYNOX_Libs 之後不掃了：從舊版解壓縮蓋過去、留在磁碟上的舊 connectors/ 也不會被載入（docs/legacy/connectors.md）。
 PACK_DIRS = (os.path.join(ROOT, "packs"),)
 EFFECTS = {"read": READ, "write": WRITE, "danger": DANGER}
 
@@ -336,8 +336,8 @@ def shared_write_admin(app, m: Manifest, server: bool) -> int:
 # ── 伺服器版 python pack 的信任（PERM-8） ─────────────────────────────────
 
 # 出廠的 pack（在 PACK_DIRS 裡、名字在這張表上）＝core，不看 packs.lock。
-# 2026-11-12 起 SYNOX 出廠不帶任何工具：money、notes、remind（legacy/builtin-packs.md）與 4 個 connector
-# （legacy/connectors.md）都搬到 SYNOX_Libs，這張表是空的。**不要再把工具加回出廠**：新工具放 SYNOX_Libs、走安裝流程。
+# 2026-11-12 起 SYNOX 出廠不帶任何工具：money、notes、remind（docs/legacy/builtin-packs.md）與 4 個 connector
+# （docs/legacy/connectors.md）都搬到 SYNOX_Libs，這張表是空的。**不要再把工具加回出廠**：新工具放 SYNOX_Libs、走安裝流程。
 # 機制留著（is_bundled 的位置＋名字判斷、審查 A #5 的「有鎖以鎖為準」），測試用 monkeypatch 填名字來測。
 BUNDLED: tuple = ()
 

@@ -132,7 +132,7 @@ ClawBot 的研究文件是「AI 只能提議、一律先跳卡給你按」。設
 
 > **已回答（2026-11-12）：照建議 A（搬）。已做**（分支 `feat/connectors-to-libs`）。擁有者原話：
 > 「QL1 當然要，而且所有工具目前都先幫我註記為 "測試版本 test/alpha/beta' 之類的。」
-> 4 個 connector 連同測試搬到 SYNOX_Libs，主程式 `connectors/` 只剩說明（[legacy/connectors.md](legacy/connectors.md)）；
+> 4 個 connector 連同測試搬到 SYNOX_Libs，主程式 `connectors/` 只剩說明（[docs/legacy/connectors.md](docs/legacy/connectors.md)）；
 > pack.json 新增 `stage`（test／alpha／beta／stable），工具庫的工具全部標 alpha，`/help`、工具頁、安裝報告、doctor 都顯示。
 
 ## QL2（2026-11-12）從舊版更新上來的人，記帳／筆記／提醒會從 `/help` 消失，要怎麼接回來？

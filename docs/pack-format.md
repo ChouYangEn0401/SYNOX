@@ -2,7 +2,7 @@
 
 一個 pack＝一個資料夾，放在 `packs/`（使用者裝的工具）。SYNOX 啟動時掃
 `packs/*/pack.json`（＋`config.json` 的 `packs.dirs`），一個壞掉只跳過那一個（`python -m synox doctor` 會列出原因）。
-**SYNOX 出廠不帶任何工具**（2026-11-12 起；以前的 `connectors/` 也搬走了，[../legacy/connectors.md](../legacy/connectors.md)）：
+**SYNOX 出廠不帶任何工具**（2026-11-12 起；以前的 `connectors/` 也搬走了，[legacy/connectors.md](legacy/connectors.md)）：
 官方工具全部在 **SYNOX 工具庫（SYNOX_Libs）**，下面的 `money` 是那裡的例子。
 
 ```

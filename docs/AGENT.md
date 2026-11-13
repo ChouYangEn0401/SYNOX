@@ -58,8 +58,8 @@
 | `src/synox/doctor.py` | 健康檢查（不改任何檔、不產生金鑰） |
 | `src/synox/health/` | 工具健康（[tool-health.md](tool-health.md)）：`failure.py`（失敗信封 v1、類別碼表、正規化、`ai_line`）、`state.py`（狀態機、指紋）、`store.py`（`data/health/tools.json.enc`，保管箱）、`settings.py`（config `health`）、`__init__.py`（`HealthRegistry`、fail open 的入口 `observe_*`／`hidden`、runtime 任務 `system.health`）。loader（cli）、`packs/mcp.py`、`agent/loop.py` 只經這些入口；權限仍只看 `policy.decide` |
 | `src/synox/brand.py` | 終端機門面：歡迎畫面（`show_banner`；`BANNER_COMMANDS`＝沒參數／run／open／wizard／init／doctor／about）、`about_text`、`TIPS`。只在互動終端機印；`--quiet`、`SYNOX_NO_BANNER`、`CI`、管線＝不印（既有輸出一個字都不變），`TERM=dumb`＝一行，`NO_COLOR`＝不上色；Windows 主控台 code page 不是 65001（cp950）或 `SYNOX_ASCII=1`＝ASCII logo。預覽 `docs/ui/cli-welcome.txt`（`scripts/make_cli_welcome.py`） |
-| `packs/` | **出廠是空的**（2026-11-12，[../legacy/builtin-packs.md](../legacy/builtin-packs.md)）：使用者裝的工具的落點（`PACK_DIRS` 只有它），只有 `README.md` 進 git。所有工具的正本在 **SYNOX_Libs**（工具庫，另一個 repo；ADR 在它的 `docs/adr/0001`） |
-| `connectors/` | **只剩 README**（2026-11-12，[../legacy/connectors.md](../legacy/connectors.md)）：以前的 notion、todoist、google-calendar、apple-reminders 連同測試搬到 SYNOX_Libs；loader 不再掃這裡、`BUNDLED` 是空的 |
+| `packs/` | **出廠是空的**（2026-11-12，[legacy/builtin-packs.md](legacy/builtin-packs.md)）：使用者裝的工具的落點（`PACK_DIRS` 只有它），只有 `README.md` 進 git。所有工具的正本在 **SYNOX_Libs**（工具庫，另一個 repo；ADR 在它的 `docs/adr/0001`） |
+| `connectors/` | **只剩 README**（2026-11-12，[legacy/connectors.md](legacy/connectors.md)）：以前的 notion、todoist、google-calendar、apple-reminders 連同測試搬到 SYNOX_Libs；loader 不再掃這裡、`BUNDLED` 是空的 |
 | `src/synox/packs/library.py` | 「還沒裝任何工具、去哪裡裝」：`installed_tools`（不算 `BUNDLED`；現在是空的）、`empty_hint`／`start_hint`（/start、/help 只給擁有者）、`install`（包 SDK 的 /help）、`status`（網頁 `/api/tools`、`/api/settings` 的 `library`）、`doctor_lines`；工具庫位置＝`config.json` 的 `packs.library`（`library_location`，不寫死路徑） |
 | `sdk/` | 單檔 SDK `synox_sdk.py`（產生的）＋`pyproject.toml`（`pip install <SYNOX>/sdk`＝`synox-sdk` 套件，版本讀 `SDK_VERSION`） |
 | `tests/fixtures/packs/` | host 測試用的 money／notes（下架前的凍結複本，不是正本、不加功能）；提醒直接測核心的 `/remind_*` |

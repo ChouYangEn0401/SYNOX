@@ -18,7 +18,7 @@
 
 ## 為什麼下架
 
-擁有者 2026-11-12 回答 [QuestionToUser.md](../QuestionToUser.md) 的 QL1（「這 4 個要不要也搬去工具庫」，一字不改）：
+擁有者 2026-11-12 回答 [QuestionToUser.md](../../QuestionToUser.md) 的 QL1（「這 4 個要不要也搬去工具庫」，一字不改）：
 
 > QL1 當然要，而且所有工具目前都先幫我註記為 "測試版本 test/alpha/beta' 之類的。
 
