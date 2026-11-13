@@ -59,11 +59,17 @@ from urllib.parse import parse_qs, urlsplit
 from isdtelekit.core.channel import CallbackInfo, Inbound
 
 from synox import tutorials
+from synox.guard import origin as guard_origin
 from synox.packs.manifest import stage_text
 from synox.web import report as reporting, toolpage
 from synox.web.channel import WEB, WebChannel
 from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore
 from synox.web.tokens import LoginTokens, Session, Sessions, digest
+
+
+def web_origin(session: Session) -> "guard_origin.Origin":
+    """主機台的來源：surface＝"web:"＋這個登入的代號（防偽造 token 的雜湊前 16 碼；兩個登入不一樣，不洩漏 cookie）。"""
+    return guard_origin.Origin("web", int(session.tg_id), surface="web:" + digest(session.csrf)[:16])
 
 HOST = "127.0.0.1"                    # 只綁這個；要對外由營運者自己架反向代理＋TLS（docs/security.md）。
 #                                       唯一的例外是 SYNOX 自己的容器（bind_host，docs/docker.md「為什麼容器裡綁 0.0.0.0 是安全的」）
@@ -313,6 +319,14 @@ class WebUI:
 
     def route(self, method: str, target: str, headers: Dict[str, str], body: bytes,
               session: Optional[Session]) -> Resp:
+        """認出登入之後，這個請求裡做的每件事來源都是 web（ADR 0025 §2）；surface 分得出是哪一個登入。"""
+        if session is None:
+            return self._route(method, target, headers, body, session)
+        with guard_origin.using(web_origin(session)):
+            return self._route(method, target, headers, body, session)
+
+    def _route(self, method: str, target: str, headers: Dict[str, str], body: bytes,
+               session: Optional[Session]) -> Resp:
         headers = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
         if self.disabled:
             return _page(503, "網頁介面關掉了", "擁有者用 /web_off 關掉了，重開 SYNOX 才會再開。")

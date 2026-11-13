@@ -24,6 +24,8 @@ from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 from isdtelekit.core.registry import Field, Group, Node, field_pattern
 
+from synox.guard import inputs
+
 
 MASK = "***"
 
@@ -153,6 +155,10 @@ def parse_args(fields: Sequence[Field], args: Sequence[str], positional: Optiona
         if i >= len(tokens):
             break
         values[f.name] = " ".join(tokens[i:]) if i == len(slots) - 1 else tokens[i]
+    try:                                    # 門禁核心的基本檢查（ADR 0025 §4）：先擋怪字元與太長，訊息是固定的句子
+        inputs.values([f.name for f in fields], values, multiline=True)
+    except inputs.Bad as bad:
+        return {}, [], [bad.text]
     errors = []
     for f in fields:
         value = values.get(f.name)
