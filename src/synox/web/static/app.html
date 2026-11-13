@@ -1787,6 +1787,16 @@
     var ul = el("ul");
     (s.warnings || []).forEach(function (w) { ul.appendChild(el("li", "", w)); });
     if ((s.warnings || []).length) { box.appendChild(ul); }
+    if (s.app) {                               // 工具服務（ADR 0023 §5）：畫面能做的動作與匯出
+      var appUl = el("ul");
+      var effText = { write: "會寫入", danger: "危險：會先問你" };
+      Object.keys(s.app.actions || {}).forEach(function (n) {
+        appUl.appendChild(el("li", "", "🖥 畫面的動作 " + n + "：" + (effText[s.app.actions[n]] || s.app.actions[n])));
+      });
+      (s.app.exports || []).forEach(function (n) { appUl.appendChild(el("li", "", "🖥 畫面的匯出 " + n)); });
+      box.appendChild(el("p", "", "🖥 完整網頁畫面" + (s.app.title ? "「" + s.app.title + "」" : "") + "（" + s.app.files + " 個檔）："));
+      box.appendChild(appUl);
+    }
     var upg = s.upgrade, down = null;
     if (upg) { down = showUpgrade(box, upg, s.name); }
     var trust = canInstall && s.token ? showScope(box, s, upg) : null;

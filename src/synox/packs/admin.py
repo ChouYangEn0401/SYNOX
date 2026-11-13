@@ -167,7 +167,24 @@ def summary_of(m: Manifest, report: ScanReport, hashes: Dict[str, str], problems
             "capabilities": list(m.capabilities), "integrity": bool(m.integrity),
             "scan": {**report.to_dict(m), "problems": problems, "ok": not problems},
             "warnings": warnings_for(m, report), "env": env_plan(m).to_dict(), "mcp": mcp_report(m), **scope_of(m),
-            "tier": tier_of(m, report), "runtime": runtime_report(m)}
+            "tier": tier_of(m, report), "runtime": runtime_report(m), "app": app_of(m)}
+
+
+def app_of(m: Manifest):
+    """安裝報告的「完整網頁畫面」那一段（工具服務，ADR 0023 §5）：沒有宣告＝None。"""
+    app = (m.web or {}).get("app")
+    if not app:
+        return None
+    return {"title": app.get("title") or "", "kit": app.get("kit"), "files": len(app.get("files") or []),
+            "reads": list(app.get("reads") or []), "actions": dict(app.get("actions") or {}),
+            "exports": list(app.get("exports") or []), "remote": bool(app.get("remote"))}
+
+
+APP_WARNING = ("這個工具附了完整的網頁畫面（{n} 個檔）。它在你的瀏覽器裡跑，可以不經你同意讀、改、匯出這個工具裡的所有資料"
+               "（僅限下面列的動作）。SYNOX 檢查了格式、不讓它連到外面的網址，但看不懂畫面程式在做什麼——跟 pack.py 一樣，"
+               "是你決定要不要信任的程式。要看服務開著沒、要關掉，以 SYNOX 自己的畫面為準。")
+APP_EXPORT_WARNING = "它的畫面可以把資料匯出成檔案：{names}。"
+APP_REMOTE_WARNING = "這個工具的畫面可以從手機用（要你另外打開手機入口，ADR 0026）。"
 
 
 # ── 執行環境：用容器／不用（S2） ─────────────────────────────────────────
@@ -576,6 +593,13 @@ def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
                    "那台伺服器做什麼掃描看不到。只會用上面列的工具，effect 照這份宣告（不照伺服器自己說的）。")
     elif m.mcp_stdio:
         out.append("這是 MCP（stdio）pack：會在這台電腦上開一個長駐的子程序跑它的 MCP 伺服器。")
+    app = (m.web or {}).get("app")
+    if app:
+        out.append(APP_WARNING.format(n=len(app.get("files") or [])))
+        if app.get("exports"):
+            out.append(APP_EXPORT_WARNING.format(names="、".join(app["exports"])))
+        if app.get("remote"):
+            out.append(APP_REMOTE_WARNING)
     if m.callers or m.stepup:
         out.append("它自己收緊了範圍（SYNOX 執行時檢查）：" + callers_text(m) + "。")
     if m.access == "everyone":
