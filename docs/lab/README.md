@@ -15,3 +15,5 @@
 > 這些檔案原本在本機專案 SYNOX_Plans，2026-11-13 併入 SYNOX 的 docs/lab（路徑已改成 <HOME> 佔位）。文中提到「SYNOX_Plans」「尚未 push」的地方是搬進來之前的狀態。
 
 > **改名（2026-11-13）**：文中的 `openai_login` 已改名為 [ChatGPTLogin](https://github.com/ChouYangEn0401/ChatGPTLogin)（套件 `chatgpt_login`），`copilot_login` 已改名為 [GithubCopilotLogin](https://github.com/ChouYangEn0401/GithubCopilotLogin)（套件 `github_copilot_login`），兩個都已推上 GitHub；文中「本機 git、無 origin」是改名前的狀態。
+
+- 待開的 issue 內容（尚未驗證的項目）：[issues-to-open.md](issues-to-open.md)
