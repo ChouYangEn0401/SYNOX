@@ -1,43 +1,49 @@
 ﻿# bootstrap.ps1 — Setup.bat 叫的安裝步驟（UTF-8 有 BOM：PowerShell 5.1 沒 BOM 會當成 cp950）。
+# 0. 先選語言（lang.ps1）：-Lang／SYNOX_LANG → lang.txt → 問（按 Enter＝Windows 的顯示語言）；存進 lang.txt，再用 --lang 交給精靈。
+#    接著印「先說清楚」，再問一題：按 Enter 照建議（推薦），輸入 C 自訂（Setup.bat -Custom＝直接進自訂）。
+#    建議＝只準備好 SYNOX 本身＋入門教學，開機自動啟動；工具等看完教學再自己挑。自訂可以改：開機自動啟動、
+#    裝 Claude Code（這台沒有才裝）、全部工具都裝（不建議）。輸入被導向（沒有人在看）時照建議、不問。
 # 1. Python（docs/adr/0003 附記「預設用 SYNOX 自己的 Python」）：
-#    預設＝SYNOX 自己的 Python，全部放在 SYNOX 資料夾的 runtime\ 裡，不改 PATH、不寫登錄檔、不要管理員、不碰 Conda／其他 Python：
-#      runtime\python（安裝程式附的；pip、virtualenv 從 wheelhouse 離線裝）→ 用釘死版本＋SHA256 的 uv 裝 CPython 到
-#      runtime\python-uv（--python-preference only-managed：絕不挑這台電腦的 Python）→ uv 失敗才退到 python.org 的
-#      embeddable zip 解到 runtime\python（沒有 tkinter，設定改文字版；會明說）
+#    預設＝SYNOX 自己的 Python，全部放在 SYNOX 資料夾的 runtime\python 裡，不改 PATH、不寫登錄檔、不要管理員、
+#      不碰 Conda／Microsoft Store／其他 Python。runtime\python 已經有（安裝程式附的，或上次下載的）就直接用；
+#      沒有就下載 python-build-standalone 的 CPython（網址與 SHA256 都釘死，跟安裝程式附的是同一個檔案），
+#      用 Windows 內建的 tar.exe 解到 runtime\python。檢查碼不對＝刪掉下載的檔案、停下來，不會改用別的來源。
+#      不用 uv，也不用 python.org 的可攜版（沒有視窗元件）。
 #    進階＝Setup.bat -UseSystemPython：照舊的順序找這台電腦的 Python（runtime\python → py 啟動器 → PATH 上的 python →
-#      %LOCALAPPDATA%\Programs\Python → winget → embeddable zip），但絕不挑 Microsoft Store 的 WindowsApps 捷徑
-# 2. 建 .venv → 裝相依：有 wheelhouse\ 就離線裝（--no-index）；有 requirements.lock 就照鎖定的版本裝；都沒有才照
-#    pyproject 的範圍裝（docs/adr/0003；lock 與 wheelhouse 由 scripts/lock_deps.py 在發佈機產生）→ pip install -e .
-# 3. 打開安裝精靈（pythonw，沒有黑色視窗）；這個 Python 沒有 tkinter（可攜版）就在這個視窗跑文字版 `synox init`
+#      %LOCALAPPDATA%\Programs\Python → winget → 都沒有才用 SYNOX 自己的），但絕不挑 Microsoft Store 的 WindowsApps 捷徑
+# 2. python -m venv 建 .venv → 裝相依：有 wheelhouse\ 就離線裝（--no-index）；有 requirements.lock 就照鎖定的版本裝；
+#    都沒有才照 pyproject 的範圍裝（docs/adr/0003；lock 與 wheelhouse 由 scripts/lock_deps.py 在發佈機產生）→ pip install -e .
+# 3. 照第 0 步的選擇做（Invoke-SetupPlan），再打開安裝精靈（pythonw，沒有黑色視窗）；這個 Python 沒有 tkinter
+#    就在這個視窗跑文字版 `synox init`
 # 重跑是安全的：已經有 .venv 就直接更新套件、打開精靈（要換 Python：Uninstall.bat env，再跑 Setup.bat）。
-# 0. 先選語言（lang.ps1）：-Lang／SYNOX_LANG → lang.txt → 問；存進 lang.txt，再用 --lang 交給精靈。
 # 這個程序（和它開的精靈）先清掉 Conda／PYTHONHOME／PYTHONPATH 這類變數（Clear-PythonEnv），只影響這一次，不改 Windows 的設定。
-param([string]$Lang = '', [switch]$UseSystemPython)
+param([string]$Lang = '', [switch]$UseSystemPython, [switch]$Custom)
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $Root
 . (Join-Path $PSScriptRoot 'lang.ps1')
 $LangCode = Resolve-SynoxLang $Root $Lang -SaveOverride
 Import-SynoxText $LangCode
-Write-Host "[SYNOX] $(Tr 'prep')"
 $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'
 $Venv = Join-Path $Root '.venv'
 $VenvPy = Join-Path $Venv 'Scripts\python.exe'
 $VenvPyw = Join-Path $Venv 'Scripts\pythonw.exe'
 $Runtime = Join-Path $Root 'runtime'
-$EmbedVersion = '3.12.10'
-# uv（https://github.com/astral-sh/uv）：版本與 zip 的 SHA256 都釘死。SHA256 抄自同一個 release 的
-# uv-x86_64-pc-windows-msvc.zip.sha256（和 sha256.sum 那一行一樣）；換版本時兩個一起換，並更新 tests/test_private_python.py。
-$UvVersion = '0.13.6'
-$UvSha256 = 'a2a8820d5eea32f08ef467ef3b7f66883a9b076d5737a2fc2fbb5f458d1bb50f'
-$UvUrl = "https://github.com/astral-sh/uv/releases/download/$UvVersion/uv-x86_64-pc-windows-msvc.zip"
-$UvPython = '3.12.16'                                   # 這版 uv 內建的下載清單裡的 CPython；換 uv 版本時一起看
-$UvHome = Join-Path $Runtime 'uv'
-$UvDir = Join-Path $UvHome $UvVersion
-$UvExe = Join-Path $UvDir 'uv.exe'
-$UvPythonDir = Join-Path $Runtime 'python-uv'
-$UvCache = Join-Path $Runtime 'uv-cache'
+$PythonDir = Join-Path $Runtime 'python'
+# SYNOX 自己的 Python：python-build-standalone（https://github.com/astral-sh/python-build-standalone）的
+# install_only_stripped（Windows x64：python.exe、pip、venv、tkinter＋Tcl/Tk 8.6 都在裡面；去掉除錯符號，約 22 MB）。
+# 網址與 SHA256 都釘死；SHA256 跟那個 release 的 SHA256SUMS 那一行一樣，也實際下載算過。換版本時這四行一起換，
+# 並更新 tests/test_private_python.py。安裝程式（scripts/stage_installer.py）讀的也是這四行，所以兩邊是同一個 Python。
+$PythonVersion = '3.12.16'
+$PythonBuild = '20261026'
+$PythonSha256 = '1f2ab53880fc67ea323398c6388e05af28addc99a8e389209f08a51fdff4b149'
+$PythonUrl = "https://github.com/astral-sh/python-build-standalone/releases/download/$PythonBuild/cpython-$PythonVersion%2B$PythonBuild-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
+# 只有 .tar.gz（這個專案的 Windows 版沒有 .zip）：PowerShell 5.1 的 Expand-Archive 只會解 zip，所以用 Windows 10 1803
+# 以後內建的 tar.exe。寫完整路徑，不用 PATH 上的 tar（Git 附的 GNU tar 會把 C: 當成遠端主機）。
+$WindowsTar = Join-Path $env:SystemRoot 'System32\tar.exe'
+# Claude Code 的官方安裝指令：跟精靈「一鍵安裝」同一行（src/synox/wizard/logic.py 的 CLAUDE_INSTALL_PS）
+$ClaudeInstallPs = 'irm https://claude.ai/install.ps1 | iex'
 
 function Say([string]$Text) { Write-Host "[SYNOX] $Text" }
 
@@ -51,6 +57,11 @@ function Test-Python([string]$Exe, [string[]]$Pre) {
 function Test-StoreAlias([string]$Path) {
     # Microsoft Store 的 python 捷徑（沒裝時一執行就打開商店）與商店版 Python 都在 ...\WindowsApps\ 底下
     return ("$Path" -like '*\WindowsApps\*')
+}
+
+function Test-OldEmbedded([string]$Dir) {
+    # python.org 的可攜版（embeddable）有 python3XX._pth：沒有 tkinter、沒有 venv。舊版的 Setup.bat 和安裝程式裝過這種
+    return [bool](Get-ChildItem -LiteralPath $Dir -Filter 'python*._pth' -ErrorAction SilentlyContinue | Select-Object -First 1)
 }
 
 function Find-OtherPythons {
@@ -73,33 +84,116 @@ function Find-OtherPythons {
 function Clear-PythonEnv {
     # 只清這個程序的：別人的 Python 設定不能漏進 SYNOX 的 Python（Start.bat 等用 setup\clean-python-env.bat 做同一件事）
     $names = @('PYTHONHOME', 'PYTHONPATH', 'PYTHONSTARTUP', 'PYTHONUSERBASE', 'PYTHONEXECUTABLE', 'VIRTUAL_ENV',
-               '__PYVENV_LAUNCHER__', '_CE_CONDA', '_CE_M', 'PIP_USER', 'PIP_TARGET', 'PIP_PREFIX',
-               'UV_PYTHON', 'UV_SYSTEM_PYTHON', 'UV_NO_MANAGED_PYTHON', 'UV_CONFIG_FILE', 'UV_OFFLINE')
+               '__PYVENV_LAUNCHER__', '_CE_CONDA', '_CE_M', 'PIP_USER', 'PIP_TARGET', 'PIP_PREFIX')
     foreach ($n in $names) { Remove-Item -LiteralPath "Env:$n" -ErrorAction SilentlyContinue }
     Get-ChildItem Env: | Where-Object { $_.Name -like 'CONDA_*' } |
         ForEach-Object { Remove-Item -LiteralPath "Env:$($_.Name)" -ErrorAction SilentlyContinue }
     $env:PYTHONNOUSERSITE = '1'
 }
 
+# ── 先說清楚、建議／自訂 ───────────────────────────────────────────
+
+function Test-Interactive {
+    # 輸入被導向（自動測試、沒有人在看）就不問，照建議
+    try { return (-not [Console]::IsInputRedirected) } catch { return $true }
+}
+
+function Show-SetupIntro {
+    Write-Host ''
+    Say (Tr 'intro_title')
+    foreach ($key in @('intro_1', 'intro_2', 'intro_3')) { Write-Host "        - $(Tr $key)" }
+}
+
+function Read-SetupPlan([bool]$GoCustom) {
+    # 建議（按 Enter）＝只準備好 SYNOX＋入門教學、開機自動啟動；Claude Code 和全部工具都不裝（工具看完教學自己挑）。
+    # 自訂的預設值跟建議一樣：一路按 Enter 結果相同。
+    $plan = @{ Custom = $false; Autostart = $true; ClaudeCode = $false; AllTools = $false }
+    if (-not (Test-Interactive)) { return $plan }
+    if (-not $GoCustom) {
+        Write-Host ''
+        Write-Host "  Enter = $(Tr 'plan_recommended')"
+        Write-Host "  C     = $(Tr 'plan_custom')"
+        $answer = "$(Read-Host (Tr 'plan_question'))".Trim()
+        if ($answer -notmatch '^[cC]') { return $plan }
+    }
+    $plan.Custom = $true
+    $items = @(@{ Key = 'Autostart'; Text = (Tr 'custom_autostart') },
+               @{ Key = 'ClaudeCode'; Text = (Tr 'custom_claude') },
+               @{ Key = 'AllTools'; Text = (Tr 'custom_all_tools') })
+    while ($true) {
+        Write-Host ''
+        Say (Tr 'custom_title')
+        for ($i = 0; $i -lt $items.Count; $i++) {
+            $mark = if ($plan[$items[$i].Key]) { '[x]' } else { '[ ]' }
+            Write-Host ('  {0}) {1} {2}' -f ($i + 1), $mark, $items[$i].Text)
+        }
+        $answer = "$(Read-Host (Tr 'custom_prompt'))".Trim()
+        if (-not $answer) { return $plan }
+        $n = 0
+        if ([int]::TryParse($answer, [ref]$n) -and $n -ge 1 -and $n -le $items.Count) {
+            $key = $items[$n - 1].Key
+            $plan[$key] = -not $plan[$key]
+        }
+    }
+}
+
+function Install-ClaudeCode {
+    # 只有自訂裡勾了才會走到這裡。這台已經有 claude 就不裝；沒有就另開一個視窗跑官方安裝指令（裝在使用者自己的資料夾，
+    # 不在 SYNOX 資料夾裡、不要管理員），跟精靈的「一鍵安裝」一樣。
+    $found = ''
+    try { $found = "$(& $VenvPy -c "from synox.llm.claude_code import find_claude; print(find_claude() or '')" 2>$null)".Trim() } catch { }
+    if ($found) { Say (Tr 'claude_found' $found); return }
+    Say (Tr 'claude_opening')
+    try {
+        Start-Process -FilePath 'powershell.exe' -ArgumentList "-NoExit -NoProfile -ExecutionPolicy Bypass -Command `"$ClaudeInstallPs`""
+    } catch { Say (Tr 'claude_failed' $_.Exception.Message) }
+}
+
+function Enable-Autostart {
+    # 文字版設定（沒有精靈的完成頁可以勾）才用：跟精靈一樣，在啟動資料夾放 SYNOX.cmd（src/synox/wizard/shortcuts.py）
+    try {
+        $out = & $VenvPy -c "import sys; from synox.wizard import shortcuts; print(shortcuts.enable_autostart(sys.argv[1]))" $Root 2>$null
+        if ($LASTEXITCODE -eq 0) { Say (Tr 'autostart_on' ("$out".Trim())); return }
+    } catch { }
+    Say (Tr 'autostart_failed')
+}
+
+function Invoke-SetupPlan($Plan) {
+    # 精靈完成頁「開機自動啟動」那一格的預設勾選（src/synox/wizard/pages.py 讀這個變數；使用者在那裡還能改）
+    $env:SYNOX_SETUP_AUTOSTART = if ($Plan.Autostart) { '1' } else { '0' }
+    if ($Plan.ClaudeCode) { Install-ClaudeCode }
+    if ($Plan.AllTools) {
+        # TODO(工具庫／教學包)：「全部工具都裝」還沒有做。一次裝完整個工具庫（每個工具一樣先看安全報告、核准）的流程
+        # 做好之後接在這裡，例如 & $VenvPy -m synox tools install <全部> 。現在只說一聲、不裝。
+        Say (Tr 'all_tools_later')
+    }
+    # TODO(教學包)：建議和自訂都要在設定完之後打開入門教學（另一個工作正在做教學包）。做好之後在這裡，或在精靈的
+    # 完成頁打開它（src/synox/tutorials.py：tutorials.open_local(<名字>)）。現在還沒有，所以什麼都不做、也不說。
+}
+
+# ── Python ─────────────────────────────────────────────────────────
+
 function Find-SystemPython {
-    # -UseSystemPython：舊的找法（SYNOX 資料夾自己帶的可攜版 Python 還是第一個），但絕不挑 Store 的捷徑
-    $rt = Join-Path $Root 'runtime\python\python.exe'
-    if ((Test-Path -LiteralPath $rt) -and (Test-Python $rt @())) { return @{ Exe = $rt; Pre = @(); Embedded = $true } }
+    # -UseSystemPython：舊的找法（SYNOX 資料夾自己的 Python 還是第一個），但絕不挑 Store 的捷徑
+    $rt = Join-Path $PythonDir 'python.exe'
+    if ((Test-Path -LiteralPath $rt) -and -not (Test-OldEmbedded $PythonDir) -and (Test-Python $rt @())) {
+        return @{ Exe = $rt; Pre = @() }
+    }
     if (Get-Command py -CommandType Application -ErrorAction SilentlyContinue) {
         foreach ($v in @('-3.13', '-3.12', '-3.11')) {
             if ((Test-Python 'py' @($v)) -and -not (Test-StoreAlias (Get-PythonPath 'py' @($v)))) {
-                return @{ Exe = 'py'; Pre = @($v); Embedded = $false }
+                return @{ Exe = 'py'; Pre = @($v) }
             }
         }
     }
     foreach ($cmd in @(Get-Command python -CommandType Application -All -ErrorAction SilentlyContinue)) {
         if (Test-StoreAlias $cmd.Source) { continue }               # 先擋掉再執行：那個捷徑一跑就開商店
-        if (Test-Python $cmd.Source @()) { return @{ Exe = $cmd.Source; Pre = @(); Embedded = $false } }
+        if (Test-Python $cmd.Source @()) { return @{ Exe = $cmd.Source; Pre = @() } }
     }
     foreach ($p in @("$env:LOCALAPPDATA\Programs\Python\Python313\python.exe",
                      "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
                      "$env:LOCALAPPDATA\Programs\Python\Python311\python.exe")) {
-        if ((Test-Path -LiteralPath $p) -and (Test-Python $p @())) { return @{ Exe = $p; Pre = @(); Embedded = $false } }
+        if ((Test-Path -LiteralPath $p) -and (Test-Python $p @())) { return @{ Exe = $p; Pre = @() } }
     }
     return $null
 }
@@ -115,75 +209,71 @@ function Get-SystemPython {
     $py = Find-SystemPython
     if (-not $py) { Install-WithWinget; $py = Find-SystemPython }
     if (-not $py) {
-        try { Install-Embedded } catch { Say $_.Exception.Message }
+        # 還是沒有：改用 SYNOX 自己的（跟預設同一個：釘死網址＋SHA256，放在 runtime\python）
+        try { Install-StandalonePython | Out-Null } catch { Say $_.Exception.Message }
         $py = Find-SystemPython
     }
     return $py
 }
 
-function Set-UvEnv {
-    # uv 的所有東西都在 runtime\ 裡；不讀使用者的 uv.toml；只用 uv 自己裝的 Python（不挑 PATH／Conda／Store 的）
-    $env:UV_PYTHON_INSTALL_DIR = $UvPythonDir
-    $env:UV_CACHE_DIR = $UvCache
-    $env:UV_PYTHON_BIN_DIR = Join-Path $UvHome 'bin'          # 另外有 --no-bin；萬一還是寫了，也寫在 SYNOX 資料夾裡
-    $env:UV_PYTHON_PREFERENCE = 'only-managed'
-    $env:UV_PYTHON_DOWNLOADS = 'automatic'
-    $env:UV_NO_CONFIG = '1'
+function Remove-Folder([string]$Path) {
+    if (Test-Path -LiteralPath $Path) { Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction SilentlyContinue }
 }
 
-function Install-Uv {
-    if (Test-Path -LiteralPath $UvExe) { return $UvExe }
-    Say (Tr 'uv_download' $UvVersion)
+function Install-StandalonePython {
+    # 下載 → 核對 SHA256（不對就刪掉、停下來）→ 用 Windows 的 tar.exe 解開 → 搬到 runtime\python。全部在 runtime\ 裡。
+    if (-not (Test-Path -LiteralPath $WindowsTar)) { throw (Tr 'py_no_tar') }
+    Say (Tr 'py_download' $PythonVersion)
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
     $ProgressPreference = 'SilentlyContinue'                  # PowerShell 5.1 的進度條會讓下載慢很多
-    New-Item -ItemType Directory -Force -Path $UvHome | Out-Null
-    $zip = Join-Path $UvHome "uv-$UvVersion.zip"
-    Invoke-WebRequest -UseBasicParsing -Uri $UvUrl -OutFile $zip
-    $hash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash
-    if ($hash -ne $UvSha256) {                                # -ne 不分大小寫
-        Remove-Item -LiteralPath $zip -Force
-        throw (Tr 'uv_hash_bad' $hash)
+    $work = Join-Path $Runtime 'python.download'
+    Remove-Folder $work
+    New-Item -ItemType Directory -Force -Path $work | Out-Null
+    $archive = Join-Path $work 'python.tar.gz'
+    try {
+        Invoke-WebRequest -UseBasicParsing -Uri $PythonUrl -OutFile $archive
+    } catch {
+        Remove-Folder $work
+        throw (Tr 'py_download_failed' $_.Exception.Message)
     }
-    $tmp = "$UvDir.tmp"
-    if (Test-Path -LiteralPath $tmp) { Remove-Item -LiteralPath $tmp -Recurse -Force }
-    Expand-Archive -LiteralPath $zip -DestinationPath $tmp -Force
-    Remove-Item -LiteralPath $zip -Force
-    if (Test-Path -LiteralPath $UvDir) { Remove-Item -LiteralPath $UvDir -Recurse -Force }
-    Move-Item -LiteralPath $tmp -Destination $UvDir
-    if (-not (Test-Path -LiteralPath $UvExe)) { throw "uv.exe not found in $UvUrl" }
-    return $UvExe
-}
-
-function Install-UvPython {
-    $uv = Install-Uv
-    Set-UvEnv
-    Say (Tr 'uv_python' $UvPython)
-    $ErrorActionPreference = 'Continue'                       # uv 把進度寫在 stderr；只看結束碼
-    & $uv python install $UvPython --python-preference only-managed --no-bin --no-registry | Out-Host
-    if ($LASTEXITCODE -ne 0) { throw "uv python install $UvPython (exit $LASTEXITCODE)" }
-    # uv 的資料夾名字是固定的（cpython-<版本>-windows-x86_64-none\python.exe）；只收 runtime\python-uv 底下的
-    $exe = Get-ChildItem -LiteralPath $UvPythonDir -Directory -Filter "cpython-$UvPython-windows-*" -ErrorAction SilentlyContinue |
-           ForEach-Object { Join-Path $_.FullName 'python.exe' } |
-           Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
-    if (-not $exe) { throw "python.exe not found in $UvPythonDir" }
-    return $exe
+    $hash = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash
+    if ($hash -ne $PythonSha256) {                            # -ne 不分大小寫
+        Remove-Folder $work                                   # 刪掉下載的檔案，絕不解開、不執行
+        throw (Tr 'py_hash_bad' $hash)
+    }
+    Say (Tr 'py_extract')
+    # 先切到下載資料夾、只給 tar 相對路徑：SYNOX 資料夾的路徑可能有中文，不交給 tar 處理
+    Push-Location -LiteralPath $work
+    try {
+        & $WindowsTar -xzf 'python.tar.gz' | Out-Host
+        $rc = $LASTEXITCODE
+    } finally { Pop-Location }
+    $extracted = Join-Path $work 'python'
+    if ($rc -ne 0 -or -not (Test-Path -LiteralPath (Join-Path $extracted 'python.exe'))) {
+        Remove-Folder $work
+        throw (Tr 'py_extract_failed' $rc)
+    }
+    Remove-Folder $PythonDir                                  # 舊的（可攜版或壞掉的）換掉；只在 runtime\ 裡
+    if (Test-Path -LiteralPath $PythonDir) {                  # 刪不掉（有程式正在用）：不能搬進去，不然會變成 python\python
+        Remove-Folder $work
+        throw (Tr 'py_in_use')
+    }
+    Move-Item -LiteralPath $extracted -Destination $PythonDir
+    Remove-Folder $work
+    return (Join-Path $PythonDir 'python.exe')
 }
 
 function Get-PrivatePython {
-    # 預設：只用 SYNOX 資料夾裡的 Python。1. 安裝程式附的
-    $rt = Join-Path $Root 'runtime\python\python.exe'
-    if ((Test-Path -LiteralPath $rt) -and (Test-Python $rt @())) { return @{ Exe = $rt; Pre = @(); Embedded = $true } }
-    # 2. uv 裝的 CPython（有 tkinter，可以開視窗精靈）
+    # 預設：只用 SYNOX 資料夾裡的 Python（runtime\python：安裝程式附的，或上次下載的）
+    $exe = Join-Path $PythonDir 'python.exe'
+    if (Test-Path -LiteralPath $exe) {
+        if (Test-OldEmbedded $PythonDir) { Say (Tr 'py_old_embedded') }
+        elseif (Test-Python $exe @()) { return @{ Exe = $exe; Pre = @() } }
+    }
     Say (Tr 'private_python')
-    try {
-        $exe = Install-UvPython
-        if (Test-Python $exe @()) { return @{ Exe = $exe; Pre = @(); Embedded = $false } }
-        throw "$exe does not run"
-    } catch { Say (Tr 'uv_failed' $_.Exception.Message) }
-    # 3. 最後退路：python.org 的可攜版（沒有 tkinter → 文字版設定）
-    try { Install-Embedded } catch { Say $_.Exception.Message }
-    if ((Test-Path -LiteralPath $rt) -and (Test-Python $rt @())) { return @{ Exe = $rt; Pre = @(); Embedded = $true } }
-    return $null
+    $exe = Install-StandalonePython
+    if (-not (Test-Python $exe @())) { throw (Tr 'py_does_not_run' $exe) }
+    return @{ Exe = $exe; Pre = @() }
 }
 
 function Test-VenvHome {
@@ -198,7 +288,7 @@ function Test-VenvHome {
 }
 
 function Test-Window {
-    # 可攜版（embeddable）Python 沒有 tkinter：精靈開不了視窗，改用文字版
+    # 沒有 tkinter（-UseSystemPython 挑到的 Python 沒裝 tcl/tk，或舊的可攜版建的 .venv）：精靈開不了視窗，改用文字版
     try {
         & $VenvPy -c "import tkinter, _tkinter" 2>$null | Out-Null
         return ($LASTEXITCODE -eq 0)
@@ -233,20 +323,6 @@ function Install-Packages {
     if ($LASTEXITCODE -ne 0) { throw (Tr 'pip_failed') }
 }
 
-function Ensure-Virtualenv([string]$Exe) {
-    # 安裝程式附的可攜版 Python（runtime\python）：pip、virtualenv 從 wheelhouse 離線裝，不跑 get-pip.py、不連網
-    try {
-        & $Exe -c "import virtualenv" 2>$null | Out-Null
-        if ($LASTEXITCODE -eq 0) { return }
-    } catch {}
-    $wheels = Join-Path $Root 'wheelhouse'
-    if (-not (Test-Path -LiteralPath $wheels)) { return }
-    $pipWheel = Get-ChildItem -LiteralPath $wheels -Filter 'pip-*.whl' | Select-Object -First 1
-    if (-not $pipWheel) { return }
-    Say (Tr 'offline_wheels')
-    & $Exe (Join-Path $pipWheel.FullName 'pip') install --disable-pip-version-check --no-warn-script-location -q --no-index --find-links $wheels pip virtualenv | Out-Host
-}
-
 function Install-WithWinget {
     # 只有 -UseSystemPython 會走到這裡（會改這台電腦的 Python 與 PATH）
     if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { return }
@@ -256,42 +332,27 @@ function Install-WithWinget {
     } catch { Say (Tr 'winget_failed' $_.Exception.Message) }
 }
 
-function Install-Embedded {
-    Say (Tr 'embedded' $EmbedVersion)
-    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
-    $dir = Join-Path $Root 'runtime\python'
-    New-Item -ItemType Directory -Force -Path $dir | Out-Null
-    $zip = Join-Path $Root 'runtime\python-embed.zip'
-    Invoke-WebRequest -UseBasicParsing -Uri "https://www.python.org/ftp/python/$EmbedVersion/python-$EmbedVersion-embed-amd64.zip" -OutFile $zip
-    Expand-Archive -LiteralPath $zip -DestinationPath $dir -Force
-    Remove-Item -LiteralPath $zip
-    # 可攜版預設不載 site-packages：把 ._pth 裡的 "#import site" 打開
-    Get-ChildItem -LiteralPath $dir -Filter 'python*._pth' | ForEach-Object {
-        $text = (Get-Content -LiteralPath $_.FullName) -replace '^#\s*import site', 'import site'
-        Set-Content -LiteralPath $_.FullName -Value $text -Encoding ascii
-    }
-    $getpip = Join-Path $Root 'runtime\get-pip.py'
-    Invoke-WebRequest -UseBasicParsing -Uri 'https://bootstrap.pypa.io/get-pip.py' -OutFile $getpip
-    & (Join-Path $dir 'python.exe') $getpip --no-warn-script-location | Out-Host
-    & (Join-Path $dir 'python.exe') -m pip install --no-warn-script-location -q virtualenv | Out-Host
-}
-
 try {
     $others = @(Find-OtherPythons)
     Clear-PythonEnv
+    if (-not $UseSystemPython) {
+        Show-SetupIntro
+        if ($others.Count) { Say (Tr 'env_note' ($others -join ', ')) }
+    }
+    $plan = Read-SetupPlan $Custom.IsPresent
+    Write-Host ''
+    Say (Tr 'prep')
     if (-not (Test-Path -LiteralPath $VenvPy)) {
         if ($UseSystemPython) {
             Say (Tr 'system_python')
             Say (Tr 'system_python_warning')
             $py = Get-SystemPython
         } else {
-            if ($others.Count) { Say (Tr 'env_note' ($others -join ', ')) }
             $py = Get-PrivatePython
         }
         if (-not $py) { throw (Tr 'cannot_install_python') }
-        Say (Tr 'creating_venv' "$($py.Exe) $($py.Pre -join ' ')".Trim())
-        if ($py.Embedded) { Ensure-Virtualenv $py.Exe; & $py.Exe @($py.Pre) -m virtualenv $Venv | Out-Host }
-        else { & $py.Exe @($py.Pre) -m venv $Venv | Out-Host }
+        Say (Tr 'creating_venv' ("$($py.Exe) $($py.Pre -join ' ')".Trim()))   # 括號：參數模式不會叫 .Trim()
+        & $py.Exe @($py.Pre) -m venv $Venv | Out-Host
         if (-not (Test-Path -LiteralPath $VenvPy)) { throw (Tr 'venv_failed') }
     } elseif (-not $UseSystemPython) {
         Test-VenvHome
@@ -302,10 +363,13 @@ try {
     Say (Tr 'assoc_register')
     & $VenvPy -m synox filetype register | Out-Host
     if ($LASTEXITCODE -ne 0) { Say (Tr 'assoc_failed') }
+    Invoke-SetupPlan $plan
     if (-not (Test-Window)) {
         Say (Tr 'no_window_text')
         & $VenvPy -m synox init
-        exit $LASTEXITCODE
+        $rc = $LASTEXITCODE
+        if ($rc -eq 0 -and $plan.Autostart) { Enable-Autostart }
+        exit $rc
     }
     Say (Tr 'opening_wizard')
     $exe = if (Test-Path -LiteralPath $VenvPyw) { $VenvPyw } else { $VenvPy }
