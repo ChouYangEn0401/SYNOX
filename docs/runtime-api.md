@@ -174,11 +174,41 @@ body（兩個都可以省略；省略＝不改）：
 
 ## `POST /api/runtime/keep-awake`
 
-保持清醒（[ADR 0006](adr/0006-keep-awake-screen-may-sleep.md)）。只給擁有者；寫回 `config.json`。
+保持清醒（[ADR 0006](adr/0006-keep-awake-screen-may-sleep.md)）：像一個穩定的 heartbeat——維持系統運轉，但螢幕可以暗（保護螢幕或省電）。
+只給擁有者；寫回 `config.json`。**預設關**（新安裝、舊 config 沒寫這一塊都是關）。
+
+> ⚠️ 開啟後會覆蓋 Windows 電源選項裡的「睡眠」設定：電腦不再自動睡眠。螢幕仍可照電源計畫，或設定「閒置 N 分鐘後主動關螢幕」
+> 變暗／關閉，以保護螢幕、省電。闔上筆電蓋、手動睡眠、低電量、Windows Update 重開機擋不住。
+> （這段字就是回應裡的 `notice`，介面照著顯示。）
 
 - 請求（兩個都選填）：`{"enabled": true, "screen_off_after_min": 10}`。`screen_off_after_min` 要是 0～240 的整數（0＝照 Windows 電源計畫）。
-- 回 200：`{"enabled", "supported", "holding", "screen_off_after_min", "max_screen_off_min", "last_result"}`（`GET /api/runtime/status` 的 `keep_awake` 一樣）。
+- 回 200（`GET /api/runtime/status` 的 `keep_awake` 一樣）：
+
+  ```json
+  {"enabled": true, "supported": true, "holding": true, "execution_required": true,
+   "screen_off_after_min": 10, "max_screen_off_min": 240, "last_result": "電腦保持清醒中（…）。",
+   "tagline": "像一個穩定的 heartbeat：…", "notice": "開啟後會覆蓋 Windows 電源選項裡的「睡眠」設定：…",
+   "modern_standby": true, "modern_standby_note": "這台是「現代待命」（Modern Standby）機型：…"}
+  ```
+
+  `execution_required`：除了「系統清醒」，也拿到了「行程繼續執行」的請求（現代待命用，舊版 Windows 可能沒有，不算失敗）。
+  `modern_standby`：`true`／`false`／`null`（量不到或不是 Windows）；`true` 時 `modern_standby_note` 是一句說明，指向
+  [keep-awake-troubleshooting.md](keep-awake-troubleshooting.md)。網頁設定頁的「保持清醒」卡片就是用這兩個 API。
 - 400：欄位型別或範圍不對。
+
+## `POST /api/settings/llm/local-advice`（不在 runtime 前綴下，順便記在這裡）
+
+本地模型的 context-size 建議（[ADR 0007](adr/0007-local-llm-platform.md)）。只給擁有者、要 CSRF（用 POST 是因為它會讓 SYNOX
+去連使用者填的網址，不能被別的網頁用連結觸發）。
+
+- 請求：`{"server": "ollama", "base_url": "http://127.0.0.1:11434", "model": "qwen3.5:9b"}`（都選填；server 只收
+  `ollama`／`vllm`／`lmstudio`／`other`，網址要 http(s)）。
+- 只做唯讀的探測（Ollama：`GET /api/tags`、`POST /api/show` 讀模型資料；其他：`GET /v1/models`），**不載入模型、不送對話**。
+- 回 200：`{"options": [{"ctx": 8192, "level": "ok|tight|risky|unknown", "truncates": false, "recommended": true,
+  "need_bytes": …, "text": "建議（估計要 8.1 GB）", "label": "8192（推薦）"}, …], "recommended": 8192, "min_context": …,
+  "comfortable": …, "prompt_tokens": …, "prompt_measured": true, "source": "ollama|static", "notes": ["⚠️ 以下都是估算…", …]}`。
+  連不上伺服器時 `source` 是 `static`（用常見 7–9B 模型的假設），`notes` 會說明。
+- `POST /api/settings/llm/test` 對 `choice: "local"` 也是唯讀探測，回 `{"ok", "message", "lines": [...]}`。
 
 ## `POST /api/runtime/heartbeat/run-now`
 
