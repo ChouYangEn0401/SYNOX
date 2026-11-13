@@ -59,3 +59,16 @@
 - [ ] 「閒置 N 分鐘後主動關螢幕」沒在真螢幕上實測
 - [ ] 現代待命（S0）機型：插電時請求可擋閒置睡眠、用電池時 5 分鐘後被取消，是依 Microsoft 文件推論，沒有實機驗證
 - [ ] 排查步驟見 `docs/keep-awake-troubleshooting.md`（`powercfg /requests`、`/sleepstudy`）
+
+---
+
+## 5. SYNOX — 主機台的登入只靠 cookie：同一台電腦上別的程式聽任何一個本機埠就收得到
+倉庫：https://github.com/ChouYangEn0401/SYNOX
+標題：`web: console login cookie is sent to any 127.0.0.1 port (cookies ignore ports)`
+
+內容：
+瀏覽器的 cookie 只看主機、不看埠。同一台電腦上的另一個 Windows 帳號或程式去聽 `127.0.0.1` 的任何一個埠，再讓擁有者的瀏覽器連過去一次
+（一個連結就夠），就收得到主機台的 `synox_session` cookie。這是主機台原本就有的問題，不是工具服務帶來的（ADR 0023 第三版「擋不住的」第 2 點）；
+工具服務第三版的做法是 app 改綁 `127.0.0.2`、app 的埠完全不用 cookie，不讓 app 的網址變成誘餌。
+- [ ] 想一個不只靠 cookie 的登入（例如每個請求另外帶分頁裡的 token）
+- [ ] 在那之前，共用電腦的人要知道這件事（docs/security.md「沒有做的保護」已寫）
