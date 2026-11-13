@@ -47,6 +47,16 @@ CLAUDE_TITLE = "預設：Claude（這台電腦登入的 Claude Code）"
 # 找不到 Claude Code 時，精靈與網頁設定頁的按鈕帶使用者去裝。要的是終端機的 `claude`（CLI），不是 Claude Desktop；
 # 這頁是官方安裝說明（Windows：irm https://claude.ai/install.ps1 | iex）。
 CLAUDE_DOWNLOAD_URL = "https://code.claude.com/docs/en/setup"
+# 一鍵安裝：開一個 PowerShell 視窗跑官方的安裝指令（跟網頁設定頁「複製」的是同一行）。裝在使用者自己的資料夾，
+# 不需要系統管理員；裝完同一個視窗接著打 claude 登入。
+CLAUDE_INSTALL_PS = "irm https://claude.ai/install.ps1 | iex"
+
+
+def claude_install_args(after: str) -> list:
+    """PowerShell 的參數：跑官方安裝指令，跑完印一句接下來怎麼做，視窗留著（-NoExit）讓使用者看結果、接著登入。"""
+    note = after.replace("'", "''")                  # PowerShell 單引號字串裡的 ' 要寫兩次
+    return ["powershell", "-NoExit", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command",
+            f"{CLAUDE_INSTALL_PS}; Write-Host ''; Write-Host '{note}' -ForegroundColor Cyan"]
 
 # 其他金鑰來源：代號 → (下拉選單上的字, config 的 llm.kind, 預填的模型, 要不要填網址)
 # 模型名稱只是預填，使用者可以改，「測一下」會驗。
