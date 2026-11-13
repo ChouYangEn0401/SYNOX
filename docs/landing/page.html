@@ -250,6 +250,43 @@ dialog.lb img { display: block; max-width: 96vw; max-height: 94vh; width: auto; 
 .steps .chip { font-size: 13px; font-weight: 400; padding: 4px 10px; }
 .center { justify-content: center; }
 
+/* ---------------------------------------------------------------- install (download → unzip → double-click) */
+.install { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; counter-reset: s; }
+@media (max-width: 860px) { .install { grid-template-columns: 1fr; } }
+.install > li { counter-increment: s; background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 16px 18px 22px; min-width: 0; position: relative; }
+.install > li::before { content: counter(s); position: absolute; top: 14px; left: 14px; z-index: 1; font-family: var(--mono); font-weight: 600; font-size: 14px; color: var(--accent-ink); background: var(--accent); border-radius: 9px; width: 30px; height: 30px; display: grid; place-items: center; }
+.install .art { height: 132px; border-radius: 12px; background: var(--sunken); display: grid; place-items: center; color: var(--muted); margin-bottom: 16px; }
+.install b { display: block; font-size: 19px; font-family: var(--display); }
+.install p { color: var(--muted); font-size: 15px; margin-top: 4px; }
+.install p strong { color: var(--ink); font-weight: 600; }
+.install .chips { margin-top: 12px; }
+.install .chip { font-size: 12.5px; font-weight: 400; padding: 3px 10px; }
+.big-dl { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; font-weight: 700; font-size: 18px; color: var(--accent-ink); background: var(--accent);
+  padding: 14px 26px; border-radius: 14px; box-shadow: var(--shadow); min-height: 54px; transition: transform .15s; }
+.big-dl .ico { width: 22px; height: 22px; }
+.big-dl:hover { transform: translateY(-2px); }
+.pic { width: 150px; height: 80px; }
+.pic .accent { stroke: var(--accent); }
+.pic .accent-fill { stroke: var(--accent); fill: var(--accent-soft); }
+.pic.sm { width: 44px; height: 52px; color: var(--accent); }
+.file { position: relative; display: grid; justify-items: center; gap: 4px; }
+.file em { font-style: normal; font-family: var(--mono); font-size: 13px; color: var(--ink); background: var(--accent-soft); padding: 0 8px; border-radius: 5px; }
+.ripple { position: absolute; top: 20px; left: 50%; width: 22px; height: 22px; margin-left: -11px; border-radius: 50%; border: 2px solid var(--accent); opacity: 0; animation: lp-ripple 2.4s ease-out infinite; }
+.ripple.r2 { animation-delay: .25s; }
+@keyframes lp-ripple { 0% { transform: scale(.4); opacity: .9; } 30% { transform: scale(2.2); opacity: 0; } 100% { opacity: 0; } }
+.after { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 10px 22px; margin-top: 22px; font-size: 15px; color: var(--muted); }
+.after span { display: inline-flex; align-items: center; gap: 8px; }
+.after .ico { width: 20px; height: 20px; color: var(--accent); }
+.after .after-h { font-weight: 600; color: var(--ink); }
+.after a { color: var(--accent); }
+details.stuck { max-width: 760px; margin: 22px auto 0; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 2px 18px; }
+details.stuck summary { cursor: pointer; font-weight: 500; padding: 12px 0; min-height: 44px; }
+details.stuck ul { margin: 0 0 14px; padding-left: 1.2em; color: var(--muted); font-size: 14.5px; display: grid; gap: 6px; }
+details.stuck b { color: var(--ink); font-weight: 500; }
+details.stuck code { word-break: break-all; }
+.install b { font-weight: 700; }
+@media (prefers-reduced-motion: reduce) { .ripple { animation: none; } .big-dl { transition: none; } }
+
 /* ---------------------------------------------------------------- dev */
 .dev { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 40px; align-items: center; }
 @media (max-width: 900px) { .dev { grid-template-columns: 1fr; } }
@@ -715,30 +752,62 @@ footer a { color: var(--muted); }
 <section id="setup">
   <div class="head">
     <p class="eyebrow">怎麼開始</p>
-    <h2>三步就能用，不用打指令</h2>
+    <h2>下載、解開、點兩下</h2>
+    <p class="sub">不用打指令，大約 5 分鐘。適用 Windows 10／11。</p>
   </div>
-  <ol class="steps">
-    <li><b>雙擊 <code>Setup.bat</code>，照視窗點完</b>
-      <p>從 GitHub 下載 ZIP、解開，雙擊 <code>Setup.bat</code>。不用系統管理員、不用打字；第一次會自己準備 Python 和套件（要上網）。</p>
-      <p><i class="wip">⏳ 尚未完成</i> 一鍵安裝的 <code>.exe</code>：腳本寫好了，還沒打包出來。</p>
+  <ol class="install">
+    <li>
+      <div class="art"><a class="big-dl" href="https://github.com/ChouYangEn0401/SYNOX/archive/refs/heads/main.zip"><svg class="ico"><use href="#i-download"/></svg>下載 SYNOX</a></div>
+      <b>下載</b>
+      <p>按上面的按鈕，會下載一個 ZIP 檔（約 8 MB）。</p>
+    </li>
+    <li>
+      <div class="art" aria-hidden="true">
+        <svg class="pic" viewBox="0 0 120 64"><g fill="none" stroke="currentColor" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round">
+          <path d="M14 8h22l8 8v40H14z"/><path d="M36 8v8h8"/><path d="M27 14v4M27 22v4M27 30v4"/><rect x="23" y="38" width="8" height="8" rx="1.5"/>
+          <path d="M54 32h14M63 26l6 6-6 6" class="accent"/>
+          <path d="M78 20h12l4 5h18v29H78z" class="accent-fill"/></g></svg>
+      </div>
+      <b>解開</b>
+      <p>對下載的檔案按<strong>右鍵</strong>，選<strong>「全部解壓縮」</strong>。</p>
+    </li>
+    <li>
+      <div class="art" aria-hidden="true">
+        <span class="file"><svg class="pic sm" viewBox="0 0 40 48"><g fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M6 4h20l8 8v32H6z"/><path d="M26 4v8h8"/><circle cx="20" cy="29" r="5"/><path d="M20 20v3M20 35v3M11 29h3M26 29h3"/></g></svg><em>Setup.bat</em><i class="ripple"></i><i class="ripple r2"></i></span>
+      </div>
+      <b>點兩下 <code>Setup.bat</code></b>
+      <p>打開解開的資料夾，點兩下它，照視窗按幾下就好。</p>
       <div class="chips">
-        <span class="chip">自己用，還是一群人用</span>
+        <span class="chip">自己用或一群人用</span>
         <span class="chip"><svg class="brand c-telegram"><use href="#b-telegram"/></svg>貼上 bot token</span>
-        <span class="chip">六位數字配對你</span>
+        <span class="chip">六位數字配對</span>
         <span class="chip">選一個 AI</span>
-      </div></li>
-    <li><b>打開 SYNOX，裝你要的工具</b>
-      <p>雙擊桌面的「SYNOX」捷徑，主程式就開始跑，網頁也會打開（第一次裝完會自己開）。
-        接著點兩下 <code>.synoxpack</code>，或直接拖進網頁，看完報告按確認就裝好。
-        工具放在另一個專案 <a href="https://github.com/ChouYangEn0401/SYNOX_Libs" target="_blank" rel="noopener">SYNOX_Libs（工具庫）</a>。</p></li>
-    <li><b>開始用你的助理</b>
-      <p>到 Telegram、Discord 或網頁跟它說話，像是「幫我記：買牛奶」。打 <code>/help</code> 看它現在會什麼。</p></li>
+      </div>
+    </li>
   </ol>
+
+  <div class="after">
+    <span class="after-h">裝好之後</span>
+    <span><svg class="ico"><use href="#i-monitor"/></svg>點兩下桌面的「SYNOX」</span>
+    <span><svg class="ico"><use href="#i-box"/></svg><a href="#what">下載你要的工具</a></span>
+    <span><svg class="ico"><use href="#i-chat"/></svg>在 Telegram 跟它說話</span>
+  </div>
+
   <div class="cta center">
     <a class="btn primary" href="https://claude.ai/artifact/SjWBzQkdDpUNymrQEZRKHe" target="_blank" rel="noopener"><svg class="brand"><use href="#b-telegram"/></svg>Telegram 圖文教學</a>
     <a class="btn" href="https://claude.ai/artifact/21KFtvB7EVKsV4bjCE5h1h" target="_blank" rel="noopener"><svg class="brand"><use href="#b-discord"/></svg>Discord 圖文教學</a>
   </div>
-  <p class="note">完整說明與常見問題：<a href="https://github.com/ChouYangEn0401/SYNOX#readme" target="_blank" rel="noopener">GitHub 上的 README</a>。教學也有離線版，在 <code>docs/tutorials/</code>。</p>
+
+  <details class="stuck">
+    <summary>卡住了？</summary>
+    <ul>
+      <li><b>跳出「Windows 已保護您的電腦」</b>：按「其他資訊」→「仍要執行」。</li>
+      <li><b>點兩下之後好像沒反應</b>：第一次會自己準備 Python 和需要的東西（要上網），視窗出現前可能要等一兩分鐘。</li>
+      <li><b>還沒有 Telegram 的 bot</b>：先看上面的 Telegram 圖文教學，5 分鐘就能拿到。</li>
+      <li><i class="wip">⏳ 尚未完成</i> 一鍵安裝的 <code>.exe</code>：腳本寫好了，還沒打包出來。</li>
+      <li><b>會用 git 的人</b>（進階）：<code>git clone https://github.com/ChouYangEn0401/SYNOX.git</code>，再點兩下 <code>Setup.bat</code>。完整說明在 <a href="https://github.com/ChouYangEn0401/SYNOX#readme" target="_blank" rel="noopener">README</a>。</li>
+    </ul>
+  </details>
 </section>
 
 <!-- ============================================================ dev -->
