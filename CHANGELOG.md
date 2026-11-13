@@ -1,5 +1,20 @@
 # Changelog
 
+## 未發佈（設定頁的官方工具庫、預設用 SYNOX 自己的 Python）
+
+### 新增
+- **設定 →「功能與安裝」多了「工具庫（官方）」**：按「載入工具清單」才連網（固定只抓 SYNOX_Libs 發佈頁 v0.2.0 的清單），每個工具一張卡（徽章、「安裝」「⬇ 下載」「說明」，已裝的顯示版本／有新版）。
+  「安裝」由 SYNOX 自己下載：只走 GitHub 發佈頁與它的下載主機、檔名要對、大小有上限、sha256 要等於清單，之後走跟上傳一樣的檢查報告→按確認（`src/synox/packs/catalog.py`）。
+  另有「別人做的技能（OpenClaw、Hermes）」說明卡（⏳ 尚未完成、沒有安裝鈕）與「沙盒模式」預留卡（⏳ 尚未完成、開關關著）。
+- **Setup.bat 預設用 SYNOX 自己的 Python**：沒有 `runtime\python` 時，下載釘死版本與 sha256 的 uv，把 CPython 3.12 裝進 `runtime\python-uv`（只用它自己管的 Python，不看系統、Conda、商店版），
+  不改 PATH、不寫登錄檔、不用 winget；偵測到 Conda／其他 Python 會先白話說明；`Setup.bat -UseSystemPython` 可改用自己的 Python（進階）。所有啟動用的 .bat 先清掉 PYTHONHOME、PYTHONPATH、CONDA_* 再跑。
+  **Windows 上都還沒實測**（步驟見 docs/handoff/clean-machine-test.md 的 A14–A16）。
+- 設計稿：`docs/installer/spec.html`（安裝程式規格，線上版 https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB ）、
+  `docs/lab/design/2026-11-13-brand-explorations.html`（六套品牌提案，線上版 https://claude.ai/artifact/QqdEnR3s25c7tPUW23zfoz ）；`scripts/page_stamp.py` 替這類網頁蓋頁面版本。
+
+### 修正
+- 把 .synoxpack 拖進網頁：一定跳到「功能與安裝」分頁（以前跳到上次開的分頁，報告藏在看不到的地方）。
+
 ## 未發佈（安裝精靈：一鍵安裝 Claude Code、「下一步」不再被擠掉）
 
 ### 新增
