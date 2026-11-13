@@ -115,7 +115,7 @@ def build() -> None:
     import hashlib
     if html.count("{{stamp}}") != 1:
         raise SystemExit("page.html 要剛好有一個 {{stamp}}")
-    digest = hashlib.sha256(html.replace("{{stamp}}", "").encode("utf-8")).hexdigest()[:10]
+    digest = hashlib.sha256(html.replace("{{stamp}}", "").encode("utf-8")).hexdigest()[:10]   # 等於 scripts/page_stamp.py 的 digest_of
     html = html.replace("{{stamp}}", f"{digest} · {datetime.date.today().isoformat()}")
     out = os.path.join(LANDING, "index.html")
     with open(out, "w", encoding="utf-8", newline="\n") as f:
