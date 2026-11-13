@@ -34,7 +34,9 @@ from synox.packs.manifest import STAGES, stage_label, stage_text
 from synox.wizard.tools import MAX_INDEX_BYTES
 
 REPO_PATH = "/ChouYangEn0401/SYNOX_Libs/releases/"
-OFFICIAL_INDEX_URL = "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/latest/download/index.json"
+# 工具庫目前唯一的發佈 v0.2.0 標成「預先發行」，latest/download 會 404，所以先釘在這一版；
+# 之後有正式發佈（不是 pre-release）就改回 releases/latest/download/index.json。
+OFFICIAL_INDEX_URL = "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/index.json"
 DOWNLOAD_PREFIX = "https://github.com" + REPO_PATH + "download/"
 RELEASES_PAGE = "https://github.com/ChouYangEn0401/SYNOX_Libs/releases"
 OVERVIEW_URL = "https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL"          # 工具庫介紹（線上）

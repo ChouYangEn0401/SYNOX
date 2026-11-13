@@ -96,7 +96,7 @@ def _staged(bot):
 
 def test_constants_are_the_fixed_official_source():
     assert catalog.OFFICIAL_INDEX_URL == \
-        "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/latest/download/index.json"
+        "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/index.json"
     assert catalog.DOWNLOAD_PREFIX == "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/"
     assert catalog.RELEASES_PAGE == "https://github.com/ChouYangEn0401/SYNOX_Libs/releases"
     assert set(catalog.REDIRECT_HOSTS) == {"github.com", "objects.githubusercontent.com",
