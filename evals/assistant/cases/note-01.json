@@ -2,7 +2,7 @@
   "id": "note-01",
   "category": "note",
   "split": "tune",
-  "title": "明確的記事：照使用者的話新增一則筆記",
+  "title": "明確的記事：照使用者的話新增一則筆記（設成內建提醒也合理）",
   "turns": [
     "幫我記一下：明天早上要帶雨傘"
   ],
@@ -20,12 +20,24 @@
   "expect": {
     "must_call": [
       {
-        "tool": "note__add",
-        "args": {
-          "text": {
-            "contains": "雨傘"
+        "any_of": [
+          {
+            "tool": "note__add",
+            "args": {
+              "text": {
+                "contains": "雨傘"
+              }
+            }
+          },
+          {
+            "tool": "remind__add",
+            "args": {
+              "text": {
+                "contains": "雨傘"
+              }
+            }
           }
-        }
+        ]
       }
     ],
     "must_not_call": [

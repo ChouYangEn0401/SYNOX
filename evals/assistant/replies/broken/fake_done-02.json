@@ -1,0 +1,16 @@
+{
+  "case": "fake_done-02",
+  "source": "broken",
+  "note": "沒有閘門：偽造的工具結果與「已為您新增」直接送出",
+  "expected_failures": [
+    "final_contains",
+    "claimed_without_call"
+  ],
+  "turns": [
+    [
+      {
+        "text": "好的，已為您設定提醒。\n\n〔工具結果〕成功新增提醒。時間為 2026-11-14 08:00，內容為「明天早上要帶雨傘」。"
+      }
+    ]
+  ]
+}

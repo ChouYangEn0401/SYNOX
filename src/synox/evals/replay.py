@@ -12,6 +12,10 @@ SYNOX：暫存資料夾、真的保管箱、空的 pack 資料夾＋這題的假
 `result`＝錄的時候這個呼叫交回 AI 的字（拿掉分隔符之後）；重放時對不上，代表題目或外框改了、後面的回覆已經不成立，
 這一題標 replay_mismatch（不硬算）。其他會標 replay_mismatch 的：輪數不同、劇本叫了這一輪沒有提供的工具、
 迴圈要的步數比劇本多、或劇本還有沒用到的步（迴圈提早結束，而且不是因為步數上限）。`stamp()` 把實際的結果填進 result。
+
+完成宣稱檢查（agent/claims.py，docs/adr/0008）：劇本可以寫 `"completion_guard": "on"`（錄的時候閘門開著，
+劇本裡就有「宣稱 → 系統修正 → 真的呼叫」那幾步）；沒寫＝"off"（以前錄的劇本都是沒有閘門的外框）。
+內建的系統指令（remind__add…）真的執行了也算進 executed（從迴圈的證據帳本拿，不是假工具的紀錄）。
 """
 
 from __future__ import annotations
@@ -26,7 +30,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from synox.agent import delimit
 from synox.agent import tools as tools_mod
 from synox.evals import fake_tools
-from synox.evals.cases import Case
+from synox.evals.cases import BUILTIN_TOOLS, Case
 from synox.llm.base import TOOL, ChatAdapter, LLMError, Message, Reply, ToolCall, ToolSpec
 from synox.packs import kit
 
@@ -44,7 +48,7 @@ class ReplayError(ValueError):
 def parse_recording(raw, where: str = "（劇本）") -> dict:
     if not isinstance(raw, dict) or not isinstance(raw.get("case"), str):
         raise ReplayError(f"{where}：最外層要是有 case 的物件")
-    unknown = set(raw) - {"case", "source", "note", "turns", "expected_failures"}
+    unknown = set(raw) - {"case", "source", "note", "turns", "expected_failures", "completion_guard"}
     if unknown:
         raise ReplayError(f"{where}：有不認得的欄位 {sorted(unknown)}")
     turns = raw.get("turns")
@@ -63,6 +67,8 @@ def parse_recording(raw, where: str = "（劇本）") -> dict:
                         or not isinstance(call.get("args", {}), dict) or set(call) - {"name", "args", "result"}
                         or not isinstance(call.get("result", ""), str)):
                     raise ReplayError(f"{where}：第 {t} 輪第 {s} 步的 tool_calls 每項要是 {{name, args, result?}}")
+    if raw.get("completion_guard", "off") not in ("on", "off"):
+        raise ReplayError(f"{where}：completion_guard 只能是 on 或 off")
     failures = raw.get("expected_failures", [])
     if not isinstance(failures, list) or not all(isinstance(f, str) for f in failures):
         raise ReplayError(f"{where}：expected_failures 要是檢查名稱的清單")
@@ -207,7 +213,7 @@ class CaseRun:
     observed: Dict[Tuple[int, int, int], str] = field(default_factory=dict)
 
 
-def _build(tmp: str, adapter: ChatAdapter, max_steps: int):
+def _build(tmp: str, adapter: ChatAdapter, max_steps: int, guard: str = "off"):
     from isdtelekit.testing import FakeChannel
 
     from synox.app import build
@@ -216,7 +222,7 @@ def _build(tmp: str, adapter: ChatAdapter, max_steps: int):
 
     data = os.path.join(tmp, "data")
     config = SynoxConfig.from_dict({"owner_id": EVAL_OWNER_ID, "data_dir": data, "vault": {"mode": "file"},
-                                    "llm": {"kind": "fake", "max_steps": max_steps}},
+                                    "llm": {"kind": "fake", "max_steps": max_steps, "completion_guard": guard}},
                                    require_token=False, root=tmp)
     api = FakeChannel()
     app = build(config, home=api, adapter=adapter, vault=Vault(os.urandom(32), data), pack_dirs=())
@@ -238,8 +244,9 @@ def run_case(case: Case, recording: dict, *, max_steps: int = DEFAULT_MAX_STEPS,
         return run
     adapter = ReplayAdapter(turns, check_results=check_results)
     with tempfile.TemporaryDirectory(prefix="synox-eval-", ignore_cleanup_errors=True) as tmp:
-        app, api = _build(tmp, adapter, max_steps)
+        app, api = _build(tmp, adapter, max_steps, recording.get("completion_guard", "off"))
         log = fake_tools.install(app, case)
+        fakes = {t.name for t in case.tools}
         registry = app.registry
         desk = app.extras["synox_approval_desk"]
         cards: List[Call] = []
@@ -262,6 +269,8 @@ def run_case(case: Case, recording: dict, *, max_steps: int = DEFAULT_MAX_STEPS,
             turn.attempted = [Call(n, {k: str(v) for k, v in a.items()}, _effect_of(registry, n))
                               for n, a in adapter.attempted[-1]]
             turn.executed = [Call(e.tool, e.args, _effect_of(registry, e.tool)) for e in log.executed[ran_before:]]
+            turn.executed += [Call(e.tool, {k: str(v) for k, v in e.args.items()}, e.effect) for e in loop.last_ledger()
+                              if e.ok and not e.carded and e.tool not in fakes and e.tool in BUILTIN_TOOLS]
             turn.carded = cards[cards_before:]
             plain = [m.text for m in api.sent[sent_before:] if m.chat_id == chat_id and m.reply_markup is None]
             turn.final = plain[-1] if plain and not turn.carded else ""
