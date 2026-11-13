@@ -1,0 +1,45 @@
+name: 遇到問題（不太會用電腦也沒關係）
+description: SYNOX 卡住、出錯，或跟你想的不一樣。照著填就好，寫不出來的地方可以空著。
+title: "[遇到問題] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        謝謝你願意花時間告訴我們！你的回報會讓 SYNOX 變得更好用 🙏
+        不用寫得很專業，用你平常講話的方式寫就好。
+
+        ⚠️ **請不要貼**：token、API 金鑰、密碼、`config.json` 全文、`data/` 裡的檔案、別人的對話或個人資料。
+        🔒 **安全問題**（例如別人能看到不該看到的東西）請不要寫在這裡，照 [SECURITY.md](https://github.com/ChouYangEn0401/SYNOX/security/policy) 私下寄信。
+  - type: textarea
+    id: what
+    attributes:
+      label: 發生了什麼？
+      description: 你看到什麼畫面、出現什麼字？照實寫就好。
+      placeholder: 例如：我在設定頁按了「測一下」，畫面跳出紅色的「出錯了」。
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 你本來以為會怎樣？
+      placeholder: 例如：我以為會顯示「測試通過」。
+  - type: textarea
+    id: steps
+    attributes:
+      label: 怎麼做會遇到？（想得起來就寫，想不起來可以空著）
+      value: |
+        1.
+        2.
+        3.
+  - type: textarea
+    id: summary
+    attributes:
+      label: SYNOX 幫你準備的回報內容
+      description: 在 SYNOX 網頁的「設定 → 🙋 遇到問題？」按「幫我準備好回報內容」，再按「到 GitHub 開一張問題單」就會自動填在這裡；如果 SYNOX 說內容太長、已經複製了，就在這一格按 Ctrl+V 貼上。
+      render: text
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截圖（可以不放）
+      description: 把圖片拖進這一格就會上傳。放之前看一下，畫面裡有沒有 token、密碼或別人的對話。
