@@ -1,0 +1,253 @@
+<!doctype html>
+<title>SYNOX 部署測試板</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* 版面：一欄工作台。上方狀態摘要，中間驗證清單（分組），下方問題與筆記。全部可編輯、即時存檔。 */
+:root {
+  --bg: #f3f5f7; --panel: #ffffff; --ink: #17212b; --muted: #5d6b79; --line: #d9e0e6;
+  --accent: #0a6d78; --accent-ink: #ffffff;
+  --pass: #17794a; --pass-bg: #e2f3ea; --fail: #b3261e; --fail-bg: #fbe7e5;
+  --todo: #8a5a00; --todo-bg: #fbf0d9; --skip: #5d6b79; --skip-bg: #e8ecf0;
+  --font: "IBM Plex Sans", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11171d; --panel: #1a232c; --ink: #e6ecf1; --muted: #93a2b1; --line: #2c3945;
+  --accent: #4cc3d1; --accent-ink: #08272b;
+  --pass: #5fd49a; --pass-bg: #163325; --fail: #ff8a80; --fail-bg: #3a1d1b;
+  --todo: #f0c36a; --todo-bg: #3a2e12; --skip: #93a2b1; --skip-bg: #232e38; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #11171d; --panel: #1a232c; --ink: #e6ecf1; --muted: #93a2b1; --line: #2c3945;
+  --accent: #4cc3d1; --accent-ink: #08272b;
+  --pass: #5fd49a; --pass-bg: #163325; --fail: #ff8a80; --fail-bg: #3a1d1b;
+  --todo: #f0c36a; --todo-bg: #3a2e12; --skip: #93a2b1; --skip-bg: #232e38; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 15px; line-height: 1.55;
+  padding-block: 20px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+main { max-width: 860px; margin: 0 auto; display: flex; flex-direction: column; gap: 22px; }
+h1 { font-size: 1.5rem; margin: 0; letter-spacing: -0.01em; text-wrap: balance; }
+h2 { font-size: 0.78rem; margin: 0; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.sub { color: var(--muted); margin: 4px 0 0; }
+.mono { font-family: var(--mono); font-size: 0.86em; }
+.summary { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip { display: inline-flex; align-items: baseline; gap: 6px; padding: 6px 12px; border-radius: 999px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.chip b { font-size: 1.15rem; }
+.s-pass { background: var(--pass-bg); color: var(--pass); } .s-fail { background: var(--fail-bg); color: var(--fail); }
+.s-todo { background: var(--todo-bg); color: var(--todo); } .s-skip { background: var(--skip-bg); color: var(--skip); }
+section { display: flex; flex-direction: column; gap: 10px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; }
+.group { padding: 4px 0; }
+.group > .gh { display: flex; justify-content: space-between; gap: 8px; padding: 8px 14px; border-bottom: 1px solid var(--line); font-weight: 600; }
+.group > .gh span:last-child { color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
+.row { display: grid; grid-template-columns: 76px minmax(0, 1fr) auto; gap: 8px 10px; align-items: start; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.row:last-child { border-bottom: 0; }
+.row .stack { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.st { font: inherit; font-weight: 600; border: 0; border-radius: 6px; padding: 6px 0; cursor: pointer; width: 76px; }
+.st[data-s="pass"] { background: var(--pass-bg); color: var(--pass); } .st[data-s="fail"] { background: var(--fail-bg); color: var(--fail); }
+.st[data-s="todo"] { background: var(--todo-bg); color: var(--todo); } .st[data-s="skip"] { background: var(--skip-bg); color: var(--skip); }
+input[type=text], textarea, select { font: inherit; color: var(--ink); background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 4px 8px; width: 100%; min-width: 0; }
+input[type=text]:hover, textarea:hover { border-color: var(--line); }
+input[type=text]:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: transparent; background: var(--panel); }
+.note { color: var(--muted); font-size: 0.92em; }
+textarea { min-height: 120px; resize: vertical; border-color: var(--line); background: var(--panel); line-height: 1.6; }
+.x { background: none; border: 0; color: var(--muted); cursor: pointer; font: inherit; padding: 4px 8px; border-radius: 6px; }
+.x:hover { color: var(--fail); background: var(--fail-bg); }
+button.primary { font: inherit; font-weight: 600; background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 6px; padding: 8px 16px; cursor: pointer; }
+button:focus-visible, .st:focus-visible, .x:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.add { display: grid; grid-template-columns: 160px minmax(0, 1fr) auto; gap: 8px; padding: 12px 14px; align-items: center; }
+.add input, .add select { border-color: var(--line); background: var(--panel); }
+.empty { padding: 18px 14px; color: var(--muted); }
+.bug { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 8px 10px; padding: 10px 14px; border-bottom: 1px solid var(--line); align-items: start; }
+.bug:last-child { border-bottom: 0; }
+.bug.fixed input.t { text-decoration: line-through; color: var(--muted); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+.cols > div { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.cols label { font-weight: 600; }
+.state { color: var(--muted); font-size: 0.85em; min-height: 1.3em; }
+@media (max-width: 560px) { .add { grid-template-columns: 1fr; } .row { grid-template-columns: 70px minmax(0, 1fr); } .row .x { grid-column: 2; justify-self: end; } .st { width: 70px; } }
+@media (prefers-reduced-motion: no-preference) { .st, .x, button { transition: background .12s, color .12s; } }
+</style>
+
+<main>
+  <header>
+    <h1>SYNOX 部署測試板</h1>
+    <p class="sub">在別台電腦測試時，直接在這裡改狀態、記問題、更新筆記。改完自動存檔，我這邊也會同步更新。</p>
+  </header>
+
+  <div class="summary" id="summary" aria-live="polite"></div>
+  <div class="state" id="state">連線中…</div>
+
+  <section>
+    <h2>真機驗證清單</h2>
+    <div id="checks"></div>
+    <div class="card add">
+      <input type="text" id="new-group" list="groups" placeholder="分組（例如 Discord）" aria-label="分組">
+      <datalist id="groups"></datalist>
+      <input type="text" id="new-title" placeholder="新增一項要驗證的事" aria-label="新項目">
+      <button class="primary" id="add-check">新增</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>問題紀錄</h2>
+    <div class="card" id="bugs"></div>
+    <div class="card add">
+      <span class="note" style="grid-column: 1 / -1">在別台電腦修 bug 時，把發現的問題記在這裡（一個問題一行）。</span>
+      <input type="text" id="new-bug" placeholder="發生了什麼事" aria-label="新問題" style="grid-column: 1 / 3">
+      <button class="primary" id="add-bug">記下來</button>
+    </div>
+  </section>
+
+  <section>
+    <h2>筆記</h2>
+    <div class="cols">
+      <div><label for="info-env">環境與分支</label><textarea id="info-env" data-doc="env"></textarea></div>
+      <div><label for="info-steps">部署步驟</label><textarea id="info-steps" data-doc="steps"></textarea></div>
+      <div><label for="info-decisions">待決定與已決定</label><textarea id="info-decisions" data-doc="decisions"></textarea></div>
+    </div>
+    <div class="cols" style="margin-top:12px">
+      <div style="grid-column: 1 / -1"><label for="info-prompt">貼給另一台電腦上 Claude 的驗證 prompt（容器與 Linux 沙盒）</label>
+        <textarea id="info-prompt" data-doc="prompt" style="min-height:260px"></textarea>
+        <div><button class="primary" id="copy-prompt" type="button">複製這段 prompt</button> <span class="note" id="copy-state"></span></div></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  var NEXT = { todo: "pass", pass: "fail", fail: "skip", skip: "todo" };
+  var LABEL = { todo: "待測", pass: "通過", fail: "失敗", skip: "略過" };
+  var db = null, checks = [], bugs = [], pending = false, queues = {};
+  var $ = function (id) { return document.getElementById(id); };
+  var el = function (tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+
+  function setState(msg) { $("state").textContent = msg || ""; }
+
+  // 每份文件一次只寫一筆
+  function write(path, fn) {
+    var q = queues[path] || Promise.resolve();
+    queues[path] = q.then(fn).catch(function (e) { setState("沒存成功：" + (e && e.message ? e.message : "未知錯誤") + "（需要有編輯權限）"); });
+    return queues[path];
+  }
+  function patch(coll, id, data) { return write(coll + "/" + id, function () { return db.doc(coll + "/" + id).update(data); }); }
+  function remove(coll, id) { return write(coll + "/" + id, function () { return db.doc(coll + "/" + id).delete(); }); }
+
+  function busyTyping() {
+    var a = document.activeElement;
+    return a && a !== document.body && (a.tagName === "INPUT" || a.tagName === "TEXTAREA" || a.tagName === "SELECT");
+  }
+
+  function renderSummary() {
+    var n = { todo: 0, pass: 0, fail: 0, skip: 0 };
+    checks.forEach(function (c) { n[c.status in n ? c.status : "todo"]++; });
+    var box = $("summary"); box.textContent = "";
+    ["pass", "fail", "todo", "skip"].forEach(function (k) {
+      var c = el("span", "chip s-" + k); c.appendChild(el("b", null, String(n[k]))); c.appendChild(el("span", null, LABEL[k])); box.appendChild(c);
+    });
+    var open = bugs.filter(function (b) { return !b.fixed; }).length;
+    var b = el("span", "chip s-" + (open ? "fail" : "skip")); b.appendChild(el("b", null, String(open))); b.appendChild(el("span", null, "未修問題")); box.appendChild(b);
+  }
+
+  function renderChecks() {
+    var host = $("checks"); host.textContent = "";
+    var dl = $("groups"); dl.textContent = "";
+    if (!checks.length) {
+      var empty = el("div", "card empty", "還沒有驗證項目。用下方的欄位新增第一項，例如「Discord：私訊 bot 收得到回覆」。");
+      host.appendChild(empty); return;
+    }
+    var order = [], by = {};
+    checks.forEach(function (c) { var g = c.group || "未分組"; if (!by[g]) { by[g] = []; order.push(g); } by[g].push(c); });
+    order.forEach(function (g) {
+      var opt = document.createElement("option"); opt.value = g; dl.appendChild(opt);
+      var card = el("div", "card group"); card.style.marginBottom = "10px";
+      var done = by[g].filter(function (c) { return c.status === "pass"; }).length;
+      var gh = el("div", "gh"); gh.appendChild(el("span", null, g)); gh.appendChild(el("span", null, done + " / " + by[g].length)); card.appendChild(gh);
+      by[g].forEach(function (c) {
+        var row = el("div", "row");
+        var st = el("button", "st", LABEL[c.status] || "待測"); st.dataset.s = c.status in LABEL ? c.status : "todo"; st.title = "點一下換狀態";
+        st.addEventListener("click", function () { patch("checks", c.id, { status: NEXT[c.status] || "pass" }); });
+        var stack = el("div", "stack");
+        var t = el("input"); t.type = "text"; t.value = c.title || ""; t.setAttribute("aria-label", "項目");
+        t.addEventListener("change", function () { patch("checks", c.id, { title: t.value }); });
+        var n = el("input", "note"); n.type = "text"; n.value = c.note || ""; n.placeholder = "備註（看到什麼、錯誤訊息）"; n.setAttribute("aria-label", "備註");
+        n.addEventListener("change", function () { patch("checks", c.id, { note: n.value }); });
+        stack.appendChild(t); stack.appendChild(n);
+        var x = el("button", "x", "刪除"); x.addEventListener("click", function () { remove("checks", c.id); });
+        row.appendChild(st); row.appendChild(stack); row.appendChild(x); card.appendChild(row);
+      });
+      host.appendChild(card);
+    });
+  }
+
+  function renderBugs() {
+    var host = $("bugs"); host.textContent = "";
+    if (!bugs.length) { host.appendChild(el("div", "empty", "目前沒有記錄的問題。")); return; }
+    bugs.forEach(function (b) {
+      var row = el("div", "bug" + (b.fixed ? " fixed" : ""));
+      var cb = el("input"); cb.type = "checkbox"; cb.checked = !!b.fixed; cb.setAttribute("aria-label", "已修");
+      cb.addEventListener("change", function () { patch("bugs", b.id, { fixed: cb.checked }); });
+      var t = el("input", "t"); t.type = "text"; t.value = b.title || ""; t.setAttribute("aria-label", "問題");
+      t.addEventListener("change", function () { patch("bugs", b.id, { title: t.value }); });
+      var x = el("button", "x", "刪除"); x.addEventListener("click", function () { remove("bugs", b.id); });
+      row.appendChild(cb); row.appendChild(t); row.appendChild(x); host.appendChild(row);
+    });
+  }
+
+  function renderAll() {
+    if (busyTyping()) { pending = true; return; }
+    pending = false; renderSummary(); renderChecks(); renderBugs();
+  }
+  document.addEventListener("focusout", function () { setTimeout(function () { if (pending && !busyTyping()) renderAll(); }, 0); });
+
+  function bySort(a, b) { return (a.order || 0) - (b.order || 0); }
+  function docs(snap) { return snap.docs.map(function (d) { var o = d.data() || {}; o.id = d.id; return o; }).sort(bySort); }
+
+  function addCheck() {
+    var title = $("new-title").value.trim(); if (!title) { $("new-title").focus(); return; }
+    var group = $("new-group").value.trim() || "未分組";
+    db.collection("checks").add({ title: title, group: group, status: "todo", note: "", order: Date.now() })
+      .then(function () { $("new-title").value = ""; }).catch(function (e) { setState("沒存成功：" + e.message); });
+  }
+  function addBug() {
+    var title = $("new-bug").value.trim(); if (!title) { $("new-bug").focus(); return; }
+    db.collection("bugs").add({ title: title, fixed: false, order: Date.now() })
+      .then(function () { $("new-bug").value = ""; }).catch(function (e) { setState("沒存成功：" + e.message); });
+  }
+
+  function start(d) {
+    db = d; setState("");
+    var timer = setTimeout(function () { setState("還連不上資料，可能是網路慢；已顯示的內容可能不是最新。"); }, 10000);
+    var failed = function (e) { clearTimeout(timer); setState("讀取失敗：" + (e && e.message ? e.message : "未知錯誤")); };
+    db.collection("checks").onSnapshot(function (s) { clearTimeout(timer); setState(""); checks = docs(s); renderAll(); }, failed);
+    db.collection("bugs").onSnapshot(function (s) { bugs = docs(s); renderAll(); }, failed);
+    db.collection("info").onSnapshot(function (s) {
+      s.docs.forEach(function (d) {
+        var ta = document.querySelector('textarea[data-doc="' + d.id + '"]');
+        var text = (d.data() || {}).text || "";
+        if (ta && document.activeElement !== ta && ta.value !== text) ta.value = text;
+      });
+    }, failed);
+    Array.prototype.forEach.call(document.querySelectorAll("textarea[data-doc]"), function (ta) {
+      ta.addEventListener("change", function () { write("info/" + ta.dataset.doc, function () { return db.doc("info/" + ta.dataset.doc).set({ text: ta.value }); }); });
+    });
+    $("copy-prompt").addEventListener("click", function () {
+      var ta = $("info-prompt"), msg = $("copy-state");
+      var done = function (ok) { msg.textContent = ok ? "已複製" : "沒複製成功，請手動全選複製"; };
+      try { navigator.clipboard.writeText(ta.value).then(function () { done(true); }, function () { ta.select(); done(false); }); }
+      catch (e) { ta.select(); done(false); }
+    });
+    $("add-check").addEventListener("click", addCheck);
+    $("new-title").addEventListener("keydown", function (e) { if (e.key === "Enter") addCheck(); });
+    $("add-bug").addEventListener("click", addBug);
+    $("new-bug").addEventListener("keydown", function (e) { if (e.key === "Enter") addBug(); });
+  }
+
+  renderSummary(); renderChecks(); renderBugs();
+  if (window.claude && window.claude.use) {
+    window.claude.use("db").then(function (d) { if (d) start(d); else setState("這個檢視不能存資料，內容只能看。"); },
+      function () { setState("這個檢視不能存資料，內容只能看。"); });
+  } else { setState("在 claude.ai 開啟才能編輯。"); }
+})();
+</script>
+<p style="font:10px/1.4 ui-monospace,monospace;opacity:.5;margin:24px 16px">線上版 <a href="https://claude.ai/artifact/TbBvkqLMBi3sWyHSuodgZq">https://claude.ai/artifact/TbBvkqLMBi3sWyHSuodgZq</a> · 本機版 docs/artifacts/2026-11-10-synox-deploy-test-board.html · 頁面版本 <span data-stamp>4ca781d34e · 2026-11-13</span>（線上版未重新發佈：本機版是 1794299223-d88a 的副本）</p>

@@ -1,0 +1,114 @@
+[
+  {
+    "title": "SYNOX Telegram 設定教學",
+    "url": "https://claude.ai/artifact/SjWBzQkdDpUNymrQEZRKHe",
+    "local": "docs/tutorials/telegram/index.html",
+    "republished": true,
+    "artifact_version": "1794592796-b30f"
+  },
+  {
+    "title": "SYNOX 接 Discord",
+    "url": "https://claude.ai/artifact/21KFtvB7EVKsV4bjCE5h1h",
+    "local": "docs/tutorials/discord/index.html",
+    "republished": true,
+    "artifact_version": "1794592810-a7b5"
+  },
+  {
+    "title": "SYNOX 第三方工具安全研究",
+    "url": "https://claude.ai/artifact/KLRedhYsgivrkfM1EBuMve",
+    "local": "docs/artifacts/2026-11-13-synox-third-party-tool-security.html",
+    "republished": true,
+    "artifact_version": "1794593216-0aad"
+  },
+  {
+    "title": "SYNOX 生態系調查",
+    "url": "https://claude.ai/artifact/EusqfAx3htYoHKMjRoNYYA",
+    "local": "docs/artifacts/2026-11-13-synox-ecosystem-survey.html",
+    "republished": true,
+    "artifact_version": "1794593170-5978"
+  },
+  {
+    "title": "CC Open 實作調查",
+    "url": "https://claude.ai/artifact/E2Q54krfbQ8xdr3aruA6bs",
+    "local": "docs/artifacts/2026-11-13-cc-open-investigation.html",
+    "republished": true,
+    "artifact_version": "1794593217-692a"
+  },
+  {
+    "title": "雲端任務 Brief",
+    "url": "https://claude.ai/artifact/WC3PxggZceAC6HGPgA83Mz",
+    "local": "docs/artifacts/2026-11-13-cloud-task-briefs.html",
+    "republished": true,
+    "artifact_version": "1794593218-5b4d"
+  },
+  {
+    "title": "本地模型接法調查",
+    "url": "https://claude.ai/artifact/186MpL73jCqZXMtAu9D2RS",
+    "local": "docs/artifacts/2026-11-12-local-model-integration.html",
+    "republished": true,
+    "artifact_version": "1794593234-a953"
+  },
+  {
+    "title": "連動技術交接",
+    "url": "https://claude.ai/artifact/FAY5Jn4fSsidPhGiWeLAjB",
+    "local": "docs/artifacts/2026-11-12-activator-handoff.html",
+    "republished": true,
+    "artifact_version": "1794593235-0cae"
+  },
+  {
+    "title": "SYNOX 記憶與身分檔：業界做法與 soul 帳本交接",
+    "url": "https://claude.ai/artifact/4HBNmt2UhU6MBg2PzHd4BM",
+    "local": "docs/artifacts/2026-11-12-synox-memory-identity.html",
+    "republished": true,
+    "artifact_version": "1794593236-80bd"
+  },
+  {
+    "title": "SYNOX Link 實作交接",
+    "url": "https://claude.ai/artifact/JPj778qxYKb5RKmhBHTgiq",
+    "local": "docs/artifacts/2026-11-12-synox-link-handoff.html",
+    "republished": true,
+    "artifact_version": "1794593263-1cad"
+  },
+  {
+    "title": "SYNOX Link 架構研究",
+    "url": "https://claude.ai/artifact/CH1LJWZV9VtAwuYr7z3JLc",
+    "local": "docs/artifacts/2026-11-12-synox-link-research.html",
+    "republished": true,
+    "artifact_version": "1794593264-f1e1"
+  },
+  {
+    "title": "交接報告",
+    "url": "https://claude.ai/artifact/5CRh4tXjAP41dfnVixjA9M",
+    "local": "docs/artifacts/2026-11-12-handoff-report.html",
+    "republished": true,
+    "artifact_version": "1794593265-59df"
+  },
+  {
+    "title": "SYNOX 全貌",
+    "url": "https://claude.ai/artifact/J1cez1iRtkXA6pNoPnhipk",
+    "local": "docs/artifacts/2026-11-12-synox-overview.html",
+    "republished": true,
+    "artifact_version": "1794593112-e986"
+  },
+  {
+    "title": "SYNOX 計畫書",
+    "url": "https://claude.ai/artifact/JW4917Q193CYN5sBPZ7QrP",
+    "local": "docs/artifacts/2026-11-12-synox-plan.html",
+    "republished": true,
+    "artifact_version": "1794593168-067e"
+  },
+  {
+    "title": "SYNOX 部署測試板",
+    "url": "https://claude.ai/artifact/TbBvkqLMBi3sWyHSuodgZq",
+    "local": "docs/artifacts/2026-11-10-synox-deploy-test-board.html",
+    "republished": false,
+    "artifact_version": "1794299223-d88a"
+  },
+  {
+    "title": "SYNOX 通用化盤點",
+    "url": "https://claude.ai/artifact/JQuv6H3LeV4jdjD15z4Lyp",
+    "local": "docs/artifacts/2026-11-09-synox-generalization-audit.html",
+    "republished": true,
+    "artifact_version": "1794593169-a8f1"
+  }
+]

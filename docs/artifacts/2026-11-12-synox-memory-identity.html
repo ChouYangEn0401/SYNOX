@@ -1,0 +1,535 @@
+<!doctype html>
+<html lang="zh-Hant">
+<meta charset="utf-8">
+<title>SYNOX 記憶與身分檔：業界做法與 soul 帳本交接</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+/* 頂部分頁、每頁單欄、青綠色票、右上角版本泡泡。沒有任何外部資源。 */
+:root {
+  --bg: #f6f8f8; --surface: #ffffff; --ink: #14201f; --muted: #566766; --line: #d9e2e1;
+  --accent: #0b7d71; --accent-soft: #dff1ee; --ok: #1a7f46; --ok-soft: #e0f3e8;
+  --warn: #9a5b00; --warn-soft: #fbefd6; --risk: #b3261e; --risk-soft: #fbe3e1; --todo: #5a4bb0; --todo-soft: #e9e6f7; --code: #eef2f2;
+  --body: "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1717; --surface: #152221; --ink: #e6f0ef; --muted: #9bb0ae; --line: #264240;
+    --accent: #3fd0bd; --accent-soft: #123a36; --ok: #5fd28d; --ok-soft: #14352a;
+    --warn: #f0b861; --warn-soft: #3a2c12; --risk: #ff8d84; --risk-soft: #3d1a18; --todo: #b3a8f5; --todo-soft: #2a2550; --code: #1a2b2a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1717; --surface: #152221; --ink: #e6f0ef; --muted: #9bb0ae; --line: #264240;
+  --accent: #3fd0bd; --accent-soft: #123a36; --ok: #5fd28d; --ok-soft: #14352a;
+  --warn: #f0b861; --warn-soft: #3a2c12; --risk: #ff8d84; --risk-soft: #3d1a18; --todo: #b3a8f5; --todo-soft: #2a2550; --code: #1a2b2a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); line-height: 1.65; font-size: 15px; margin: 0; padding: 24px 16px 80px; }
+.wrap { max-width: 1040px; margin: 0 auto; }
+h1, h2, h3 { line-height: 1.25; margin: 0; text-wrap: balance; }
+h1 { font-size: 30px; padding-right: 110px; } h2 { font-size: 21px; margin: 26px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 15.5px; margin: 16px 0 6px; }
+p { margin: 0 0 10px; max-width: 76ch; } .lead { color: var(--muted); font-size: 16px; max-width: 70ch; margin-top: 8px; }
+ul, ol { margin: 0 0 10px; padding-left: 22px; max-width: 80ch; } li { margin: 2px 0; }
+a { color: var(--accent); overflow-wrap: anywhere; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: 0; background: var(--bg); padding: 8px 0; z-index: 5; border-bottom: 1px solid var(--line); margin: 14px 0 18px; }
+.tabs button { font: 500 13.5px var(--body); color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 99px; padding: 6px 14px; cursor: pointer; }
+.tabs button[aria-selected="true"] { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+.tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ver { position: fixed; top: 10px; right: 12px; z-index: 20; font: 600 12px var(--mono); padding: 4px 10px; border-radius: 99px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
+.chip { display: inline-block; font-size: 11.5px; padding: 2px 9px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-weight: 600; white-space: nowrap; }
+.chip.ok { background: var(--ok-soft); color: var(--ok); } .chip.warn { background: var(--warn-soft); color: var(--warn); } .chip.risk { background: var(--risk-soft); color: var(--risk); } .chip.todo { background: var(--todo-soft); color: var(--todo); }
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); margin: 8px 0 14px; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; color: var(--muted); background: var(--code); white-space: nowrap; } tr:last-child td { border-bottom: 0; }
+code { font-family: var(--mono); font-size: 12.5px; background: var(--code); padding: 1px 6px; border-radius: 4px; overflow-wrap: anywhere; }
+pre { font-family: var(--mono); font-size: 12.5px; background: var(--code); padding: 12px 14px; border-radius: 8px; overflow-x: auto; margin: 8px 0 12px; line-height: 1.5; border-left: 3px solid var(--accent); }
+.note { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; padding: 10px 14px; margin: 10px 0; }
+.note.warn { border-left-color: var(--warn); } .note.risk { border-left-color: var(--risk); }
+.note p:last-child, .note ul:last-child { margin-bottom: 0; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 10px 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; min-width: 0; } .card h3 { margin-top: 0; } .card p { font-size: 13.5px; color: var(--muted); margin: 0; }
+section[hidden] { display: none; }
+.rec { font-weight: 700; color: var(--ok); }
+@media (max-width: 640px) { h1 { font-size: 24px; padding-right: 0; } .ver { position: static; display: inline-block; margin-bottom: 8px; } }
+</style>
+<div class="wrap">
+<span class="ver">v1 · 2026-11-12</span>
+<header>
+  <h1>記憶與身分檔：業界現在怎麼做，SYNOX 這一版做了什麼</h1>
+  <p class="lead">研究＋功能交接。對象：擁有者（看「結論」「要你決定」兩頁就夠）與下一個接手的 session（其餘各頁）。
+  公開 repo 裡對應的是 <code>docs/adr/0005-soul-ledger-memory-provenance-review.md</code>；這一份是私人的，不進 SYNOX。</p>
+</header>
+
+<nav class="tabs" role="tablist" aria-label="章節">
+  <button role="tab" data-tab="t0" aria-selected="true">結論</button>
+  <button role="tab" data-tab="t1">外面怎麼做</button>
+  <button role="tab" data-tab="t2">比較與證據</button>
+  <button role="tab" data-tab="t3">採用與不採用</button>
+  <button role="tab" data-tab="t4">設計</button>
+  <button role="tab" data-tab="t5">怎麼用、怎麼擴充</button>
+  <button role="tab" data-tab="t6">測試與還沒驗證的</button>
+  <button role="tab" data-tab="t7">要你決定</button>
+  <button role="tab" data-tab="t8">來源</button>
+</nav>
+
+<!-- ───────────────────────────── 結論 ───────────────────────────── -->
+<section id="t0" role="tabpanel">
+<h2>先講結論</h2>
+<ul>
+  <li><b>做了什麼</b>：SYNOX 多了一本「soul 帳本」。常駐助理記進 soul.md 的每一條筆記，現在知道是誰加的、什麼時候、還對不對；
+  看起來像指令、有網址、或跟現有的很像的，<b>不會自己寫進去</b>，在主控面板等你按。</li>
+  <li><b>為什麼先做這個</b>：2024～2026 的公開事故與論文一致指出，「會被每一輪讀到、又是 AI 自己寫的記憶」是最容易被一句話污染的地方；
+  而評測顯示複雜的記憶系統（向量庫、知識圖）在這個資料量下不比「一份小而清楚的檔」好。所以這一版把力氣放在<b>寫入的閘門、來歷、可以反悔</b>，不是放在檢索。</li>
+  <li><b>預設行為幾乎不變</b>：沒有疑慮的偏好照舊直接記。差別只在有疑慮的那幾種會先問你。</li>
+  <li><b>沒有新的相依套件、不連網、不開埠、不多叫 AI</b>（整理是純字串比對，每 6 小時一次）。</li>
+  <li><b>要你決定的有 5 題</b>，都有建議的預設；不答＝照建議（見「要你決定」）。</li>
+</ul>
+
+<div class="grid">
+  <div class="card"><h3>有疑慮先問</h3><p>11 類樣式（下指令、網址、跳過確認、把資料傳出去、「請記住」…）中了就變成提議。你拒絕過的不會再來。</p></div>
+  <div class="card"><h3>取代不刪除</h3><p>新舊矛盾時你選「取代／都留／不要」；被取代的搬到「收起來的」，可以放回去。</p></div>
+  <div class="card"><h3>忘掉與匯出</h3><p>打一個詞，筆記、提議、紀錄、常駐助理的記憶裡提到的一起拿掉；全部資料可以下載一份。</p></div>
+  <div class="card"><h3>超過上限時挑著放</h3><p>對話助理每輪最多讀 2000 字。以前從尾巴硬切；現在你寫的全留，筆記挑跟這句話相關、比較新的。</p></div>
+</div>
+
+<h3>狀態</h3>
+<div class="scroll"><table>
+<tr><th>項目</th><th>狀態</th></tr>
+<tr><td>程式（<code>src/synox/runtime/ledger.py</code> 等）</td><td><span class="chip ok">已合併進本機的 dev</span> 合併 commit <code>288ca33</code>（疊在連動功能 <code>5792bc4</code> 之上）。<span class="chip ok">已推送到 GitHub dev</span>（2026-11-13，防洩漏檢查乾淨、擋 0 筆，沒有 force）</td></tr>
+<tr><td>自動測試</td><td><span class="chip ok">通過</span> 全套 2051 個通過、15 個略過（合併連動功能之後的樹）；其中新測試 58 個 Python＋4 個 JS</td></tr>
+<tr><td>真的瀏覽器上按過主控面板的新卡片</td><td><span class="chip warn">還沒</span></td></tr>
+<tr><td>真的 AI 跑過（不是假 AI）</td><td><span class="chip warn">還沒</span></td></tr>
+</table></div>
+</section>
+
+<!-- ───────────────────────────── 外面怎麼做 ───────────────────────────── -->
+<section id="t1" role="tabpanel" hidden>
+<h2>外面怎麼做（2026-11-12 查）</h2>
+<div class="note warn"><p><b>怎麼讀這一頁</b>：資料由兩個唯讀的研究子代理各自上網查、開過頁面後回報。Anthropic 的三頁文件是原文；其餘頁面是經過摘要模型讀的，
+引用的數字要付印前請再抽查。標「未確認」的是沒有在開到的頁面上看到的說法。查詢字串都是通用主題，沒有帶任何個人或專案資訊。</p></div>
+
+<h3>1. 身分檔慣例：SOUL.md／USER.md／AGENTS.md／MEMORY.md（OpenClaw 一系）</h3>
+<ul>
+  <li>每段對話都載入：<code>AGENTS.md</code>（怎麼工作、怎麼用記憶）、<code>SOUL.md</code>（性格、語氣、界線）、<code>IDENTITY.md</code>、<code>USER.md</code>、有的話 <code>MEMORY.md</code>。</li>
+  <li>上限由框架硬性執行：每檔 20,000 字、合計 60,000 字；<code>USER.md</code> 另有 4,000 字預算。超過只截「注入的那一份」，磁碟上的檔不動，並告訴模型被截了。</li>
+  <li><code>USER.md</code>＝現在式的指示（Always／Never／Prefer），改了就取代舊的那行，歷史放每日筆記；<code>MEMORY.md</code>＝整理過的長期事實，只在私人主對話載入，群組不載。</li>
+  <li>每日筆記 <code>memory/YYYY-MM-DD.md</code> 不每輪注入，要用時搜尋。壓縮脈絡之前有一輪安靜的「把該記的寫下來」。</li>
+  <li>背景整理叫 dreaming（每天凌晨）：模型回的是「加／合併／取代」的決定，不是整份重寫；先快照，重寫如果掉了超過 25% 的舊條目就拒絕；有給人看的整理日記與「預覽不套用」模式。</li>
+  <li>SOUL.md 範本寫著「你改了這個檔要告訴使用者」。不受信任的 MEMORY.md／USER.md 不自動載入。</li>
+  <li>2026 的變化：<code>HEARTBEAT.md</code> 不再是執行時讀的檔，心跳改成一般的自動化工作（預設 30 分鐘）。</li>
+</ul>
+
+<h3>2. AGENTS.md 標準與 Claude Code 的 CLAUDE.md、自動記憶</h3>
+<ul>
+  <li>AGENTS.md：純 Markdown、沒有必填欄位；巢狀時「離被改的檔最近的那一份優先」，使用者當下說的話優先於一切。</li>
+  <li>CLAUDE.md：分層（組織、專案、本機、使用者），是<b>串接</b>不是覆蓋；建議每檔 200 行以內；可以 <code>@路徑</code> 匯入（最多四層）；HTML 註解在注入前會被拿掉。
+  文件明講：這些是「脈絡，不是強制設定」，要硬擋得用 hook 或權限設定。</li>
+  <li>自動記憶：一份 <code>MEMORY.md</code> 索引（一行一件）＋每件一個主題檔；每次對話只載索引的前 200 行或 25KB，主題檔用到才讀；寫完會量大小、提醒合併過時的條目。</li>
+</ul>
+
+<h3>3. Anthropic 的記憶工具（Claude API）與官方對注入的說法</h3>
+<ul>
+  <li>記憶工具是<b>用戶端執行</b>的檔案操作（看、建、取代字串、插入、刪、改名），資料放哪由開發者決定（文件舉例可以是加密檔）。</li>
+  <li>文件要求開發者自己做：路徑檢查（擋 <code>../</code>）、寫入前濾敏感資料、檔案大小上限、很久沒讀的檔要過期。</li>
+  <li>受管代理的記憶庫文件明講：預設可讀寫；代理如果處理不受信任的輸入，「成功的注入可以把惡意內容寫進記憶庫，之後的對話會把它當成可信的記憶讀回來」，參考資料請掛唯讀。每次變更留不可變的版本供稽核與還原。</li>
+  <li>2026-05 的工程文章把「持久化的記憶污染」列為要處理的問題：注入一旦落在會被重新載入的地方，每次啟動都會回來。</li>
+</ul>
+
+<h3>4. Letta／MemGPT</h3>
+<ul>
+  <li>核心記憶＝幾個有標籤、說明、<b>字數上限</b>的區塊，永遠在脈絡裡；可以設唯讀。另外有可搜尋、不常駐的封存記憶。</li>
+  <li>sleep-time：背景另一個代理負責改核心記憶，主代理沒有改的工具。論文（數學題評測）說離線先想可以讓線上少花約 5 倍運算。</li>
+  <li>2026 的變化：記憶改成一個代理自己擁有的 git 檔案樹（Markdown＋frontmatter，每次改都是一個 commit），背景整理改名 dreaming，預設沒有向量索引。</li>
+</ul>
+
+<h3>5. Mem0</h3>
+<ul>
+  <li>論文：兩階段——先從對話抽出事實，再對每個事實找最像的舊記憶，由 LLM 選 ADD／UPDATE／DELETE／NOOP。圖版本把過時的關係標成無效而不刪。</li>
+  <li>2026 的變化（官方部落格與升級文件）：改成<b>只加不改</b>，一次 LLM 呼叫；理由是「覆寫有時抹掉關鍵資訊、刪除有時刪掉之後會用到的」。新舊並存，靠檢索排序讓新的浮上來。</li>
+</ul>
+
+<h3>6. Zep／Graphiti（時間知識圖）</h3>
+<ul>
+  <li>每個事實有四個時間：什麼時候成立、什麼時候失效、系統什麼時候知道、什麼時候作廢。新事實跟舊的矛盾時，把舊的「失效時間」設成新的「成立時間」——<b>不刪</b>。</li>
+  <li>原始對話（episode）留著當來歷，事實與來源雙向索引。需要圖資料庫（Neo4j 等）。</li>
+</ul>
+
+<h3>7. LangMem</h3>
+<ul>
+  <li>三種記憶：語意（事實；可以是一份原地更新的 profile，或很多筆）、情節（成功的過往互動）、程序（代理該怎麼做，用改提示的方式存）。</li>
+  <li>兩條寫入路：對話當下用工具寫（馬上生效但變慢），或回答之後在背景整理。</li>
+</ul>
+
+<h3>8. A-MEM 與 Generative Agents</h3>
+<ul>
+  <li>A-MEM：卡片盒式的筆記（關鍵字、標籤、連結），新筆記會回頭改寫鄰居的描述——舊版本不留。</li>
+  <li>Generative Agents：取回的分數＝新舊（每小時 ×0.995）＋重要度（寫入時 LLM 給 1～10）＋相關度；累積的重要度超過門檻就做一次「反思」，寫出帶引用的心得。</li>
+</ul>
+
+<h3>9. 消費型產品的記憶設定（使用者看得到什麼）</h3>
+<ul>
+  <li>Claude：記憶可以逐條看、改、刪；可以暫停、重設；無痕對話不進記憶；每個專案各自一份；有匯入匯出；敏感主題預設不存；刪掉對話不會刪掉從它得來的記憶。</li>
+  <li>Gemini：存下資訊時畫面有標示；可以逐條改、刪。</li>
+  <li>ChatGPT：官方說明頁這次開不了（403），以下<span class="chip warn">未確認</span>：有「存下的記憶」與「參考過去對話」兩種，存下的記憶跟對話分開存。</li>
+</ul>
+</section>
+
+<!-- ───────────────────────────── 比較與證據 ───────────────────────────── -->
+<section id="t2" role="tabpanel" hidden>
+<h2>比較表</h2>
+<div class="scroll"><table>
+<tr><th>做法</th><th>記憶長什麼樣</th><th>誰寫、什麼時候</th><th>新舊矛盾怎麼辦</th><th>要人同意嗎</th><th>需要的東西</th></tr>
+<tr><td>OpenClaw 一系</td><td>幾份 Markdown＋每日筆記</td><td>代理隨時寫；背景 dreaming 整理</td><td>整理時「取代」的決定；25% 流失保護</td><td>預設不用（有預覽模式）</td><td>檔案；搜尋用向量＋關鍵字</td></tr>
+<tr><td>Claude Code</td><td>CLAUDE.md（人寫）＋索引與主題檔（模型寫）</td><td>模型在工作中寫</td><td>提醒模型合併過時的</td><td>不用（可以整個關）</td><td>檔案</td></tr>
+<tr><td>Anthropic 記憶工具</td><td>一個目錄的檔案</td><td>模型呼叫工具，開發者的程式執行</td><td>交給模型</td><td>看開發者怎麼做</td><td>開發者自己的儲存</td></tr>
+<tr><td>Letta</td><td>有上限的核心區塊＋封存（2026：git 檔案樹）</td><td>主代理或背景代理用工具改</td><td>改寫區塊</td><td>不用（有第二個代理複查的選項）</td><td>伺服器＋資料庫</td></tr>
+<tr><td>Mem0</td><td>一筆一筆的事實（向量庫）</td><td>每輪之後 LLM 抽取</td><td>早期覆寫／刪除；2026 起新舊並存</td><td>不用</td><td>向量庫＋額外的 LLM 呼叫</td></tr>
+<tr><td>Zep／Graphiti</td><td>帶時間的知識圖</td><td>每筆對話進來時 LLM 抽取</td><td>舊的標失效，不刪</td><td>不用</td><td>圖資料庫＋多次 LLM 呼叫</td></tr>
+<tr><td>LangMem</td><td>profile 或集合，分三種</td><td>當下或背景</td><td>LLM 被要求「跟舊的看法對帳」</td><td>不用</td><td>LangGraph 的儲存</td></tr>
+<tr><td>A-MEM</td><td>互相連結的筆記</td><td>每次新增時 LLM 改鄰居</td><td>直接改寫（不留舊版）</td><td>不用</td><td>embedding 模型</td></tr>
+<tr><td><b>SYNOX（這一版）</b></td><td>一份有上限的 soul.md＋帳本（來歷、提議、收起來的）</td><td>你直接改；常駐助理提、程式檢查</td><td><b>問你</b>：取代／都留／不要；舊的收起來不刪</td><td><b>有疑慮的要</b>；可以設成全部都要</td><td>只有標準函式庫與現有的保管箱</td></tr>
+</table></div>
+
+<h2>反覆出現的 12 個做法</h2>
+<ol>
+  <li>小而有上限、永遠在脈絡裡的核心，加上用到才取的其餘部分。上限由程式執行；截的是注入的那一份，不是磁碟上的檔。</li>
+  <li>索引檔＋主題檔（一行一件的索引常駐，細節用到才讀）。</li>
+  <li>穩定的 profile 跟有日期的紀錄分開：profile 寫現在式、原地取代；歷史只加不改。</li>
+  <li>兩條寫入路：當下明說的「記住」，和背景整理；另外在壓縮脈絡前先寫一次。</li>
+  <li>作廢或取代，不直接刪（Graphiti 的時間窗、Mem0 2026 的只加不改、OpenClaw 的取代決定）。A-MEM 與早期 Mem0 是會覆寫的反例。</li>
+  <li>來歷與版本（原始對話當來源、git commit、不可變的版本、修改時間、整理前快照）。</li>
+  <li>提議→看過→套用。大多數系統還是自動套用；<b>真的要人按的很少</b>。</li>
+  <li>記憶是注入的持久化管道：參考資料唯讀、最小寫入權限、不受信任的記憶檔不載、只在私人對話載入、啟動時掃一遍。</li>
+  <li>有明確先後順序的分層（最近的檔優先，或全部串接）。指示檔是脈絡，不是強制。</li>
+  <li>新舊、重要度、相關度的加權與衰減（0.995／小時、30 天半衰期、常青的豁免）。</li>
+  <li>使用者的控制面：逐條看、改、刪；總開關；不留記憶的模式；真的刪乾淨要把每一個來源都刪。</li>
+  <li>子代理只拿最少的身分（只給 AGENTS.md；不給自動記憶）。</li>
+</ol>
+
+<h2>評測怎麼說</h2>
+<div class="scroll"><table>
+<tr><th>評測</th><th>測什麼</th><th>跟我們有關的發現</th></tr>
+<tr><td>LongMemEval（ICLR 2025）</td><td>500 題；抽取、跨段推理、時間推理、<b>知識更新</b>、該拒答時拒答</td><td>把整段歷史塞進脈絡，GPT-4o 從 0.870 掉到 0.606；商用聊天產品在長歷史下掉更多，會把重要資訊覆寫掉；不管時間的設計在時間題上很差</td></tr>
+<tr><td>LoCoMo（2024）</td><td>多段長對話問答</td><td>被批評：對話其實塞得進脈絡、沒有知識更新題；獨立稽核說答案有 6.4% 是錯的、評分模型會放過含糊的錯答</td></tr>
+<tr><td>MemoryAgentBench（2025–2026）</td><td>取回、當場學、長程理解、<b>選擇性遺忘</b></td><td>遺忘最弱：多跳題所有方法都失敗（表列各法只有個位數的正確率）</td></tr>
+<tr><td>PersonaMem（2025）</td><td>追蹤會變的使用者輪廓</td><td>最好的模型也只有約 50%</td></tr>
+<tr><td>BEAM、LoCoMo-Plus（2025–2026）</td><td>到千萬 token 的對話；隱含的限制（狀態、目標、價值）</td><td>百萬脈絡的模型有沒有檢索都吃力；隱含的偏好仍然難</td></tr>
+</table></div>
+<div class="note"><p><b>簡單的做法不輸</b>：Mem0 自己的論文裡，整段歷史全放的分數（約 72.9%）高於 Mem0（66.9%），Mem0 贏的是延遲與花費。
+Letta 的實驗：只給檔案工具的代理在 LoCoMo 上 74.0%，高於 Mem0 報的 68.5%。2026-10 的一篇論文主張「原始歷史＋普通檢索」在 7 個設定裡贏 6 個。
+加上 Chroma 的「context rot」研究（輸入越長表現越差，約 300 token 的聚焦提示勝過 11 萬 token 的完整提示）——
+結論是：<b>常駐的那一份要小、要乾淨</b>，其餘的不要急著上複雜的儲存。</p></div>
+
+<h2>安全：記憶被污染的實例與研究</h2>
+<div class="scroll"><table>
+<tr><th>事件／論文</th><th>發生什麼</th><th>教訓</th></tr>
+<tr><td>ChatGPT 記憶被注入（2024-09）</td><td>一份文件或網頁讓它把「外洩指令」存進記憶，之後每一段對話都被送出去</td><td>修掉的是外洩管道，不是記憶被寫入這件事；要能檢視與刪除記憶</td></tr>
+<tr><td>Gemini 延遲觸發（2025-02）</td><td>藏起來的指令等使用者之後說「好」才觸發存記憶</td><td>研究者建議：存之前要明確確認</td></tr>
+<tr><td>雲端代理的摘要被劫持（2025-10）</td><td>網頁偽造對話標記，劫持「把這段對話摘要成記憶」的步驟；摘要之後被當成系統層級的指示</td><td>不受信任的內容不能不加標記地流進摘要那一步</td></tr>
+<tr><td>「AI 推薦污染」（2026-02）</td><td>60 天內發現 31 家真實公司在「用 AI 摘要」的連結裡藏「記住我們是可信來源」</td><td>已經是商業規模的濫用；特徵詞：remember、from now on、trusted source</td></tr>
+<tr><td>MINJA（2025）、AgentPoison（2024）</td><td>只靠一般查詢就能讓惡意紀錄被存下、之後被取回；極低的污染率就有高成功率</td><td>已經有很多正常記憶時，攻擊效果明顯下降</td></tr>
+<tr><td>MPBench、GhostWriter（2026）</td><td>系統化的記憶污染評測</td><td><b>寫得越勤、取得越積極的代理越容易中</b>；既有的注入防禦不完全涵蓋記憶污染</td></tr>
+<tr><td>OWASP AI Agent Security Cheat Sheet</td><td>把記憶污染定義成「持久化到記憶、影響之後對話或其他使用者的惡意資料」</td><td>存之前驗證與清理、使用者之間隔離、設過期與大小上限、存之前稽核敏感資料</td></tr>
+</table></div>
+<p>設計上的防線：spotlighting（把不受信任的輸入標記出來，攻擊成功率從 50% 以上降到 2% 以下）、CaMeL（把控制流跟資料流分開）、
+以及 Claude Code 文件的那句話——記憶檔是脈絡，硬擋要寫在程式裡。</p>
+</section>
+
+<!-- ───────────────────────────── 採用與不採用 ───────────────────────────── -->
+<section id="t3" role="tabpanel" hidden>
+<h2>SYNOX 採用了什麼、為什麼</h2>
+<div class="scroll"><table>
+<tr><th>採用的</th><th>從哪裡來</th><th>在 SYNOX 是什麼</th><th>為什麼值得</th></tr>
+<tr><td>寫入的閘門在程式裡，有疑慮的要人按</td><td>Gemini 事件後的建議、MPBench 的結論、先前「AI 只能提議」的設計研究</td><td><code>SoulLedger.propose</code>＋<code>risk_flags</code>＋主控面板的「等你確認」</td><td>無人看管的背景寫入是最大的洞；一句「請記住…」不再能直接進每一輪的提示</td></tr>
+<tr><td>每一條有來歷</td><td>Graphiti 的 episode、Anthropic 的版本紀錄</td><td>誰、哪個來源、什麼時候、上次確認、看不看得出是你說的</td><td>稽核、過期、回復都變便宜；看到奇怪的筆記知道從哪來</td></tr>
+<tr><td>取代與收起，不刪</td><td>Graphiti、Mem0 2026、LongMemEval 的「覆寫」失敗</td><td>「收起來的」＋「放回去」</td><td>更新是最容易出錯的一步，錯了要救得回來</td></tr>
+<tr><td>矛盾時問人</td><td>沒有研究量過這個策略；評測顯示自動做很差</td><td>很像的新舊兩條→你選取代／都留／不要</td><td>單一使用者、量小，問得起</td></tr>
+<tr><td>有上限的常駐核心</td><td>Letta 的區塊上限、Claude Code 的 200 行、context rot</td><td>筆記 40 條、每天自動 6 條、全文 6000 字、每輪 2000 字</td><td>常駐的東西越長，AI 越不照做</td></tr>
+<tr><td>新舊＋相關度挑選</td><td>Generative Agents、OpenClaw 的 30 天半衰期與常青豁免</td><td>只在超過 2000 字時用；你寫的不衰減</td><td>比從尾巴硬切好，沒超過時零成本</td></tr>
+<tr><td>背景整理產生「要人看的差異」</td><td>OpenClaw dreaming 的預覽與流失保護</td><td>任務 <code>system.soul_tidy</code>，不叫 AI，只自動做不會掉東西的事</td><td>整理本身不能變成新的污染來源</td></tr>
+<tr><td>看得到、改得掉、帶得走、忘得掉</td><td>各家的記憶設定頁、GDPR 第 17 條的精神</td><td>主控面板的卡片；忘掉會連稽核與常駐助理的記憶一起清</td><td>刪要刪到衍生出來的地方才算刪</td></tr>
+<tr><td>拒絕過的不再來</td><td>先前設計研究的「不對→變成下次的預設」</td><td>只存雜湊的 suppress 清單</td><td>不會被同一句話反覆打擾；也不留下被拒絕的字</td></tr>
+</table></div>
+
+<h2>沒採用的、為什麼</h2>
+<div class="scroll"><table>
+<tr><th>沒採用</th><th>原因</th><th>什麼時候該回頭看</th></tr>
+<tr><td>向量庫、embedding、知識圖</td><td>資料是幾十條、6000 字；評測顯示這個量全放就好。會多相依套件、多一份會漂移的索引</td><td>要做「可搜尋的長期封存」（幾千筆）時</td></tr>
+<tr><td>讓 AI 自動抽取每一輪對話的事實（Mem0 式）</td><td>每輪多一次 AI 呼叫；寫得越勤越容易被污染</td><td>擁有者覺得助理「學得太慢」時，而且只能產生提議</td></tr>
+<tr><td>讓 AI 整理、合併、改寫筆記</td><td>AI 改寫＝AI 自己產生下一輪的提示；A-MEM 式的改寫不留舊版</td><td>筆記常常超過 20 條、字面規則抓不到的矛盾變多時；做成每天一次、只產生提議</td></tr>
+<tr><td>自動覆蓋、自動過期刪除</td><td>安靜地忘掉比多一條舊筆記更糟；Mem0 自己也退回只加不改</td><td>不建議</td></tr>
+<tr><td>對話助理的「記住這件事」工具</td><td>會改 ADR 0001 的邊界（對話助理不寫 soul.md）——是擁有者的決定</td><td>見「要你決定」第 2 題</td></tr>
+<tr><td>把 soul.md 拆成 SOUL／USER／MEMORY 多個檔</td><td>現在的四段已經是同一個意思（偏好、語氣、長期注意事項、助理筆記），量小不用拆</td><td>筆記要超過 6000 字時，照「索引＋主題檔」拆</td></tr>
+<tr><td>常駐助理的提示裡把 soul.md 包進每次隨機的分隔符</td><td>會讓那段每次都變、吃不到提示快取；它沒有工具，寫入又已經有程式檢查</td><td>常駐助理有工具的那一天</td></tr>
+<tr><td>每日紀錄檔、壓縮前先寫記憶</td><td>對話助理只留最近 6 輪、沒有壓縮這件事；對話封存是另一個功能</td><td>做長對話時</td></tr>
+<tr><td>成員各自的 soul.md 與帳本</td><td>照 ADR 0002，這一版只有擁有者一份</td><td>伺服器版要給成員個人化時（保管箱已經有每人一把金鑰）</td></tr>
+<tr><td>啟動時用分類器掃記憶</td><td>要多一個模型或多一次 AI 呼叫；現在用樣式比對擋在寫入那一步</td><td>有便宜的本機分類器時</td></tr>
+</table></div>
+</section>
+
+<!-- ───────────────────────────── 設計 ───────────────────────────── -->
+<section id="t4" role="tabpanel" hidden>
+<h2>資料長什麼樣</h2>
+<p>soul.md 的字仍然只在 <code>SoulStore</code>（保管箱 <code>runtime_soul</code>）——你直接改的那一份才是正本。帳本只記「關於那些行的事」，
+存同一個保管箱的 <code>runtime_soul_ledger</code>（加密）。帳本壞了或不見，筆記照舊在，只是沒有來歷。沒有事情發生之前不建這個檔。</p>
+<pre>{
+  "v": 1,
+  "notes":   { "&lt;筆記代號&gt;": { "added_at", "by", "source", "confirmed_at", "confirmations", "grounded"?, "approved"? } },
+  "pending": [ { "id": "p-…", "kind": "add" | "retire", "text", "by", "source", "at",
+                 "why": ["為什麼先問你", …], "related", "related_in_notes", "grounded"?, "told",
+                 "nid"?, "reason"?, "pair"? } ],
+  "archive": [ { "id": "a-…", "text", "added_at", "by", "source", "retired_at", "reason", "replaced_by" } ],
+  "suppress": [ "&lt;雜湊&gt;", … ],          // 你拒絕、收起、要它忘掉的；只有雜湊，沒有字
+  "day": "2026-11-12", "auto_today": 2,   // 每日自動寫入的計數
+  "told_day": "2026-11-12"                // 今天通知過了沒
+}</pre>
+<ul>
+  <li><b>筆記代號</b>＝那一行去掉開頭的 <code>-</code>、空白、標點並轉小寫之後的 SHA-256 前 12 碼。你改了字＝另一條，原本的來歷不跟過去（畫面顯示「你寫的或以前就有的」）。</li>
+  <li>上限（<code>ledger.py</code> 最上面的常數）：筆記 40 條、每天自動 6 條、提議 20 則、提議 30 天過期、收起來的 200 條、90 天沒確認算舊、挑選時 30 天半衰期。</li>
+</ul>
+
+<h2>流程</h2>
+<h3>常駐助理想記一條（心跳的 <code>SOUL+:</code>）</h3>
+<pre>常駐助理回 "SOUL+: 一行"
+   │  heartbeat._soul_lines → SoulLedger.propose(lines, by="mother", source="heartbeat", evidence=你最近說的話)
+   ▼
+空的／超過 200 字／像密鑰 ──────────────▶ 丟掉（連提議都不留）
+soul.md 已經有一樣的 ──────────────────▶ 只更新那一條的「上次確認」
+已經在等確認／你拒絕過 ─────────────────▶ 不再排
+有任何一個理由（設定成全部先問、risk_flags 中了、
+  跟現有的很像、筆記滿了、今天加太多、全文快滿）─▶ 變成提議（pending），soul.md 不動，稽核記一筆
+都沒有 ───────────────────────────────▶ SoulStore.append_notes（照舊的規則）＋記來歷</pre>
+
+<h3>你在主控面板按</h3>
+<pre>加進去   → 寫進「助理筆記」，來歷標 approved
+取代舊的 → 舊的搬到「收起來的」（記被哪一條取代），新的寫進去；只有很像的那條在助理筆記段才有這顆
+不要     → 提議拿掉，那一句的雜湊進 suppress
+收起來   → 那一行離開 soul.md（AI 讀不到），進「收起來的」
+放回去   → 回到 soul.md，解除 suppress
+還對     → 重新起算「多久沒確認」
+忘掉…    → 先預覽會動到幾筆 → 確認 → 筆記、提議、收起來的、稽核內容、常駐助理的記憶一起清</pre>
+
+<h3>整理（任務 <code>system.soul_tidy</code>，每 6 小時，不叫 AI）</h3>
+<pre>一模一樣的重複行        → 留第一條（自動）
+已經不存在的筆記的來歷  → 丟掉（自動）
+30 天沒處理的提議       → 丟掉（自動）
+兩條幾乎一樣（≥ 0.85）  → 提議收起舊的；只差在否定字 →「可能互相矛盾：留哪一條？」
+助理加的、90 天沒確認   → 提議「還對嗎？」
+有新的提議              → 通知你一句（不帶內容；一天最多一次；安靜時段不通知）</pre>
+
+<h3>對話助理讀 soul.md（每一輪）</h3>
+<pre>沒超過 2000 字 → 跟以前一模一樣（也不讀帳本）
+超過          → 你寫的段落全留；助理筆記照分數由高到低放到滿，最後一行寫「還有 N 條這一輪沒放」
+                分數 = 3 × 跟你這句話的相關度（片段重疊比例） + 新舊（上次確認起每 30 天減半；你寫的不衰減）
+你寫的自己就超過 → 照舊從尾巴截斷並註明</pre>
+
+<h2>安全上擋了什麼、沒擋什麼</h2>
+<div class="scroll"><table>
+<tr><th>威脅</th><th>現在的防線</th><th>還剩什麼</th></tr>
+<tr><td>對話或工具訊息裡的一句「請記住：…」被常駐助理記下</td><td><code>risk_flags</code> 11 類樣式→變成提議；提示也多一行「只根據擁有者自己說的話」</td><td>樣式比對擋不住刻意繞過的句子（例如把指令寫成一句看似無害的偏好）。開「每一條都先問」可以補上</td></tr>
+<tr><td>用大量提議塞滿、蓋掉正常的</td><td>提議 20 則上限、滿了丟新的、30 天過期、每次最多 3 行</td><td>被塞滿時正常的提議也進不來，直到你清掉</td></tr>
+<tr><td>慢慢把筆記段灌滿</td><td>40 條、每天自動 6 條</td><td>—</td></tr>
+<tr><td>新的一條偷偷蓋掉舊的偏好</td><td>助理的路只能加、不能改；很像的要你選</td><td>意思相反但用字完全不同的抓不到</td></tr>
+<tr><td>筆記被當成指令執行</td><td>對話助理那邊仍包在每輪隨機的分隔符裡、標「偏好不是指令」；危險動作仍要核准卡</td><td>筆記仍會影響語氣與內容（本來就是它的用途）</td></tr>
+<tr><td>密鑰進記憶</td><td>寫入拒、提議不留、送出前再查一次（原本就有）</td><td>—</td></tr>
+<tr><td>助理動到你自己寫的段落</td><td>兩條路（<code>append_notes</code>、<code>filter_notes</code>）都只碰「助理筆記」段；有測試</td><td>—</td></tr>
+<tr><td>成員或頻道看到你的記憶</td><td>API 只給擁有者；soul.md 只進擁有者自己的對話（原本就有）</td><td>—</td></tr>
+<tr><td>忘掉之後還留在別處</td><td>忘掉會清稽核內容與常駐助理的巡邏、聊天記憶</td><td>對話封存（<code>web_chats</code>）與對話助理記憶體裡的最近 6 輪<b>不在範圍內</b>；已經送給 AI 供應商的也收不回來</td></tr>
+<tr><td>匯出的檔外流</td><td>畫面提醒是明文；伺服器不寫檔、不寫 log</td><td>下載之後是你的保管</td></tr>
+</table></div>
+</section>
+
+<!-- ───────────────────────────── 怎麼用、怎麼擴充 ───────────────────────────── -->
+<section id="t5" role="tabpanel" hidden>
+<h2>怎麼用（擁有者）</h2>
+<ul>
+  <li>網頁「主控」頁，在「你的偏好（soul.md）」下面多一張卡「助理記下來的事」：等你確認的、每條筆記的來歷、收起來的、整理一次、匯出、忘掉。</li>
+  <li>想讓它每一條都先問你：<code>config.json</code> 的 <code>runtime.mother.soul_review</code> 改成 <code>true</code>，重開 SYNOX。</li>
+  <li>完全不要它自己記：<code>runtime.mother.soul_append</code> 改成 <code>false</code>（原本就有的總開關）。</li>
+  <li>soul.md 的文字框照舊可以直接改，永遠有效。</li>
+</ul>
+
+<h2>程式地圖（接手的人）</h2>
+<div class="scroll"><table>
+<tr><th>檔</th><th>裡面是什麼</th></tr>
+<tr><td><code>src/synox/runtime/ledger.py</code></td><td><code>SoulLedger</code>（propose／approve／reject／retire／restore／confirm／tidy／forget／export／view／weigher）、<code>risk_flags</code> 與 <code>RISK_RULES</code>、相似度與否定字判斷、<code>SoulTidy</code>（任務）、所有上限常數</td></tr>
+<tr><td><code>src/synox/runtime/soul.py</code></td><td>新增：<code>note_lines</code>／<code>owner_lines</code>（切段）、<code>grams</code>／<code>relevance</code>（片段比對）、<code>prompt_text(query, weight)</code> 與 <code>_pick_notes</code>（挑筆記）、<code>SoulStore.filter_notes</code>（只能拿掉助理筆記）、<code>record</code>／<code>redact_audit</code></td></tr>
+<tr><td><code>src/synox/runtime/heartbeat.py</code></td><td><code>_soul_lines</code>（有帳本走 propose）、<code>_owner_said</code>（給「看不看得出是你說的」用）</td></tr>
+<tr><td><code>src/synox/runtime/mother.py</code></td><td><code>scrub_memory</code>（忘掉用）；ROLE 多一行</td></tr>
+<tr><td><code>src/synox/runtime/__init__.py</code></td><td><code>install</code> 建帳本、登記整理任務；<code>Runtime.ledger</code></td></tr>
+<tr><td><code>src/synox/runtime/web_api.py</code></td><td>六個 <code>/api/runtime/soul/*</code>（合約在 <code>docs/runtime-api.md</code>）</td></tr>
+<tr><td><code>src/synox/agent/loop.py</code>、<code>room.py</code></td><td><code>soul_block(…, query)</code>：把使用者這一句傳下去</td></tr>
+<tr><td><code>src/synox/web/static/control.js</code>、<code>control.css</code></td><td>卡片；純函式 <code>normalizeNotes</code>／<code>notesModel</code>／<code>forgetSummary</code></td></tr>
+<tr><td><code>scripts/make_ui_preview.py</code></td><td>靜態預覽的假資料（改了介面要重跑，測試會比對）</td></tr>
+<tr><td><code>tests/test_soul_ledger.py</code>、<code>tests/js/test_control.js</code></td><td>測試</td></tr>
+</table></div>
+
+<h2>怎麼擴充</h2>
+<div class="scroll"><table>
+<tr><th>想做</th><th>怎麼做</th><th>注意</th></tr>
+<tr><td>多一種要先問的樣式</td><td>在 <code>RISK_RULES</code> 加一組（理由, 正規式）；英文字用 <code>_en()</code> 包（中文旁邊的英文字 <code>\b</code> 會漏）</td><td>只能加嚴；在 <code>test_risk_flags_*</code> 兩邊各加例子（該中的、不該中的）</td></tr>
+<tr><td>新的記憶來源（例如對話助理的「記住」）</td><td><code>rt.ledger.propose([行], by="chat", source="chat", evidence=[使用者那句話])</code></td><td>先過「要你決定」第 2 題；不要直接叫 <code>append_notes</code></td></tr>
+<tr><td>讓 AI 參與整理</td><td>另一個任務叫 AI 看筆記，回「收起哪一條、為什麼」→ 寫成 <code>pending</code> 的 <code>retire</code> 提議（照 <code>tidy</code> 裡的 <code>ask</code>）</td><td>AI 只能產生提議；一天最多一次；筆記要包在分隔符裡給它</td></tr>
+<tr><td>調上限</td><td><code>ledger.py</code> 最上面的常數</td><td>測試引用常數，不寫死數字</td></tr>
+<tr><td>成員各自一份</td><td><code>SoulStore(vault.for_user(id))</code>＋<code>SoulLedger</code> 各建一組</td><td>要先改 ADR 0002「只有擁有者」那一格</td></tr>
+<tr><td>把通知換成核准卡（Telegram／Discord 上直接按）</td><td><code>SoulTidy.run</code> 的通知那裡改成送卡；按鈕叫 <code>approve</code>／<code>reject</code></td><td>卡要顯示實際要寫的那一行，不是代號</td></tr>
+<tr><td>長期封存與搜尋</td><td>另開一個功能（每日紀錄＋關鍵字搜尋），不要塞進 soul.md</td><td>先證明 6000 字不夠</td></tr>
+</table></div>
+
+<h2>不變的規矩（寫進 <code>docs/AGENT.md</code> 第 18 條）</h2>
+<ul>
+  <li>AI 想記進 soul.md 的字一律走 <code>SoulLedger.propose</code>。</li>
+  <li>AI 要改或刪既有的筆記，只能產生提議。</li>
+  <li>拿掉筆記用收起（可放回），真的刪只有擁有者的「忘掉」。</li>
+  <li>助理的路只碰得到「助理筆記」段。</li>
+</ul>
+</section>
+
+<!-- ───────────────────────────── 測試與還沒驗證的 ───────────────────────────── -->
+<section id="t6" role="tabpanel" hidden>
+<h2>測試</h2>
+<div class="scroll"><table>
+<tr><th>範圍</th><th>在哪</th><th>測了什麼</th></tr>
+<tr><td>樣式與比對</td><td><code>tests/test_soul_ledger.py</code> 前段</td><td>12 句該擋的、7 句不該擋的；中文旁邊的英文字；相似度；只差否定字；看不看得出是你說的</td></tr>
+<tr><td>提議的每條規則</td><td>同上</td><td>直接加＋來歷、有疑慮的等確認、像密鑰的不留、全部先問、重複只確認、很像的不覆蓋、碰不到你寫的、每日與條數上限、提議上限、拒絕過的不再收</td></tr>
+<tr><td>收起、放回、確認</td><td>同上</td><td>包含「全部拿掉」也只拿得到助理筆記段</td></tr>
+<tr><td>整理</td><td>同上</td><td>重複行、可能矛盾、90 天沒確認、提議過期、你直接改字之後帳本跟上</td></tr>
+<tr><td>忘掉、匯出</td><td>同上</td><td>先預覽再動；稽核與常駐助理記憶一起清；你寫的不動；匯出可存成 JSON；落地只有密文</td></tr>
+<tr><td>系統提示</td><td>同上</td><td>沒超過不變；超過時你寫的全留、相關的被挑到；退回舊的截斷；新舊權重；真的走一輪對話</td></tr>
+<tr><td>心跳與任務</td><td>同上</td><td>被注入的一行沒進 soul.md、也沒進對話助理的提示；全部先問的設定；總開關優先；沒事不多一個檔；通知一天一次、安靜時段不吵</td></tr>
+<tr><td>網頁 API</td><td>同上</td><td>每個端點、輸入錯誤 400、CSRF、成員 403、保管箱沒開 503、內容不進 log</td></tr>
+<tr><td>主控面板</td><td><code>tests/js/test_control.js</code></td><td>API 路徑與 body、壞資料不讓畫面壞、每種提議給哪些按鈕、忘掉的確認文字</td></tr>
+</table></div>
+<p>全部假時鐘、假 AI、假通道；不連網、不開埠。全套（<code>python -m pytest tests</code>）在合併連動功能之後的分支上跑：<b>2051 個通過、15 個略過</b>，約 5 分鐘；
+合併進 dev 之後（同一棵樹）再跑相關的 12 個測試檔：232 個通過。JS：<code>node tests/js/test_control.js</code> 19 個通過。</p>
+<div class="note warn"><p><b>跑測試要注意</b>：這台電腦的 <code>synox</code> 是以可編輯方式裝在主要的工作目錄；在別的 worktree 裡直接跑 pytest 會測到主要目錄的程式，
+不是 worktree 的。要先把 <code>PYTHONPATH</code> 設成那個 worktree 的 <code>src</code>（用 Windows 寫法的路徑）。這次一開始就踩到，第一輪「通過」其實測的是舊程式。</p></div>
+
+<h2>還沒驗證的（接手的人請先做這幾件）</h2>
+<div class="scroll"><table>
+<tr><th>#</th><th>還沒驗證</th><th>怎麼驗</th><th>風險</th></tr>
+<tr><td>1</td><td>主控面板的新卡片沒有在真的瀏覽器上按過（只測了純函式，靜態預覽有重產）</td><td>雙擊 <code>docs/ui/preview.html</code> 切到主控頁看排版；再開真的 SYNOX 按一輪</td><td><span class="chip warn">中</span> 排版或事件接線可能有錯</td></tr>
+<tr><td>2</td><td>「匯出（下載）」用瀏覽器的 Blob 下載，在這一頁的內容安全政策下沒實測</td><td>真的按一次；不行的話改成伺服器回 <code>Content-Disposition</code></td><td><span class="chip warn">中</span></td></tr>
+<tr><td>3</td><td>真的 AI 會不會照新的提示行（只根據擁有者說的話記）</td><td>用真的 AI 跑幾次心跳，看 <code>SOUL+</code> 的內容</td><td><span class="chip">低</span> 程式檢查不靠它</td></tr>
+<tr><td>4</td><td><code>risk_flags</code> 在真實筆記上的誤擋率、相似度門檻（0.6／0.85）在真實中文筆記上的表現</td><td>用兩週；看「等你確認」裡有多少其實是正常的</td><td><span class="chip">低</span> 誤擋只是多按一下</td></tr>
+<tr><td>5</td><td>你直接存 soul.md 與帳本操作同時發生（兩把不同的鎖）</td><td>理論上的競爭；單一使用者幾乎不會遇到</td><td><span class="chip">低</span></td></tr>
+<tr><td>6</td><td>真的保管箱（DPAPI）下每次存檔的時間：一次提議最多存 3～4 個檔，每個都要重新衍生金鑰</td><td>計時一次心跳</td><td><span class="chip">低</span></td></tr>
+<tr><td>7</td><td>沒有跑任何公開的記憶評測（LongMemEval 之類）</td><td>不建議跑：公開評測測的是長對話問答，不是這裡做的事。建議改成自己的 10 題小回歸（更新、時間、該拒答）</td><td>—</td></tr>
+<tr><td>8</td><td>研究頁裡 2026 年的幾個說法（OpenClaw 取消 HEARTBEAT.md、Mem0 改成只加不改、Letta 改成 git 檔案樹）與 2026 年的 arXiv 編號，是子代理讀頁面後回報的，我沒有逐一複查</td><td>引用到對外文件前，照「來源」頁的網址再開一次</td><td><span class="chip">低</span> 不影響程式</td></tr>
+</table></div>
+</section>
+
+<!-- ───────────────────────────── 要你決定 ───────────────────────────── -->
+<section id="t7" role="tabpanel" hidden>
+<h2>要你決定的（不答＝照建議）</h2>
+
+<h3>1. 常駐助理想記的事，要不要「每一條」都先問你？</h3>
+<p>這題接的是 SYNOX 的 Q6（還沒回答的那題）。這一版<b>沒有替你回答</b>，只是把原本的「全部直接記」改安全了一點。</p>
+<div class="scroll"><table>
+<tr><th>選項</th><th>一句話</th><th></th></tr>
+<tr><td>A. 照現在這一版：沒疑慮的直接記，有疑慮的先問</td><td>平常不用按；奇怪的那幾種進不去</td><td class="rec">建議（預設）</td></tr>
+<tr><td>B. 每一條都先問（<code>soul_review: true</code>）</td><td>最安全，研究上最被推薦；但每一條都要你按</td><td></td></tr>
+<tr><td>C. 完全不讓它自己記（<code>soul_append: false</code>）</td><td>soul.md 只有你自己改</td><td></td></tr>
+</table></div>
+<p>建議 A 用兩週，看「等你確認」與筆記的品質；出現過一次你覺得不該自己進去的筆記就改 B。</p>
+
+<h3>2. 你在聊天裡說「記住這件事」時，對話助理可以把它送成提議嗎？</h3>
+<p>現在對話助理不能寫 soul.md（ADR 0001 的邊界）。你親口說的是最可信的來源，各家都有這條路。</p>
+<div class="scroll"><table>
+<tr><th>選項</th><th>一句話</th><th></th></tr>
+<tr><td>A. 可以，但只能送成提議（你在主控面板或卡片上按了才進去）</td><td>說一句就好，不用自己去改文字框；仍然過同一套檢查</td><td class="rec">建議（下一版做）</td></tr>
+<tr><td>B. 可以，而且你明說的直接寫進去</td><td>最順；但「你說的」跟「貼進來的內容裡寫的」AI 不一定分得清</td><td></td></tr>
+<tr><td>C. 不要，維持現在</td><td>要記的事自己到主控面板打</td><td></td></tr>
+</table></div>
+
+<h3>3. 有新的提議時要不要通知你？</h3>
+<div class="scroll"><table>
+<tr><th>選項</th><th>一句話</th><th></th></tr>
+<tr><td>A. 照現在：一天最多一句、不帶內容、安靜時段不通知</td><td>不會漏、也不吵</td><td class="rec">建議（預設）</td></tr>
+<tr><td>B. 不通知，自己到主控面板看</td><td>最安靜；可能放到過期（30 天）</td><td></td></tr>
+<tr><td>C. 直接在 Telegram／Discord 送卡片讓你按</td><td>最方便；要另外做（半天左右）</td><td></td></tr>
+</table></div>
+
+<h3>4. 要不要讓 AI 幫忙整理筆記（合併、找矛盾）？</h3>
+<div class="scroll"><table>
+<tr><th>選項</th><th>一句話</th><th></th></tr>
+<tr><td>A. 先不要：現在用字面規則，不多花 AI 的錢</td><td>筆記還少，規則夠用</td><td class="rec">建議（預設）</td></tr>
+<tr><td>B. 每天一次讓 AI 看一遍，但它只能提議、不能自己改</td><td>抓得到用字不同的矛盾；一天多一次 AI 呼叫</td><td></td></tr>
+</table></div>
+
+<h3>5. 公開 repo 裡的 ADR 0001～0003、兩份交接單與待決題檔，有逐字引用你說的話的段落，和私人專案的名字</h3>
+<p>這次寫 ADR 0005 時看到的（不是這次造成的；這次的 ADR 沒有這些）。它們已經在公開的 dev 上。這次<b>沒有動</b>。工作單：<code>_inbox/20261112-233952-public-adr-verbatim-quotes.md</code>。</p>
+<div class="scroll"><table>
+<tr><th>選項</th><th>一句話</th><th></th></tr>
+<tr><td>A. 把那幾段改寫成轉述、專案名換成通稱（之後的版本不再出現；歷史紀錄裡還在）</td><td>花十幾分鐘；最划算</td><td class="rec">建議</td></tr>
+<tr><td>B. 維持現狀</td><td>你覺得那些話可以公開就不用動</td><td></td></tr>
+<tr><td>C. 連歷史一起清（改寫 git 歷史）</td><td>要強制推送，會影響所有拉過的人；這台電腦的規矩是不強推</td><td></td></tr>
+</table></div>
+</section>
+
+<!-- ───────────────────────────── 來源 ───────────────────────────── -->
+<section id="t8" role="tabpanel" hidden>
+<h2>來源</h2>
+<p>「開過」＝研究子代理回報用工具實際開啟過該頁。2026 年的 arXiv 條目與各產品 2026 年的變化，我本人沒有逐一複查。</p>
+
+<h3>身分檔與框架文件</h3>
+<ul>
+  <li>OpenClaw：<a href="https://docs.openclaw.ai/concepts/agent-workspace">agent-workspace</a>、<a href="https://docs.openclaw.ai/concepts/memory">memory</a>、<a href="https://docs.openclaw.ai/concepts/system-prompt">system-prompt</a>、<a href="https://docs.openclaw.ai/concepts/dreaming">dreaming</a>、<a href="https://docs.openclaw.ai/reference/memory-config">memory-config</a>、<a href="https://docs.openclaw.ai/gateway/heartbeat">heartbeat</a>、<a href="https://docs.openclaw.ai/reference/templates/SOUL">SOUL 範本</a>、<a href="https://docs.openclaw.ai/reference/templates/USER">USER 範本</a>、<a href="https://github.com/openclaw/openclaw">repo</a></li>
+  <li>AGENTS.md：<a href="https://agents.md/">agents.md</a></li>
+  <li>Claude Code 記憶：<a href="https://code.claude.com/docs/en/memory">code.claude.com/docs/en/memory</a>（原文）</li>
+  <li>Anthropic 記憶工具：<a href="https://platform.claude.com/docs/en/agents-and-tools/tool-use/memory-tool">memory-tool</a>（原文）、<a href="https://platform.claude.com/docs/en/build-with-claude/context-editing">context-editing</a>、<a href="https://platform.claude.com/docs/en/managed-agents/memory">managed-agents/memory</a>（原文）、<a href="https://www.anthropic.com/engineering/how-we-contain-claude">how-we-contain-claude</a></li>
+  <li>Anthropic context engineering：<a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">effective-context-engineering-for-ai-agents</a></li>
+  <li>Letta：<a href="https://docs.letta.com/guides/agents/memory-blocks">memory-blocks</a>、<a href="https://docs.letta.com/concepts/memfs/index.md">memfs</a>、<a href="https://www.letta.com/blog/sleep-time-compute/">sleep-time 部落格</a>、<a href="https://www.letta.com/blog/benchmarking-ai-agent-memory">檔案工具評測</a>、<a href="https://github.com/letta-ai/letta">repo</a></li>
+  <li>Mem0：<a href="https://docs.mem0.ai/core-concepts/memory-operations/add">add</a>、<a href="https://docs.mem0.ai/migration/oss-v2-to-v3.md">v2→v3</a>、<a href="https://mem0.ai/blog/mem0-the-token-efficient-memory-algorithm">部落格</a></li>
+  <li>Graphiti：<a href="https://github.com/getzep/graphiti">repo</a></li>
+  <li>LangMem：<a href="https://langchain-ai.github.io/langmem/">首頁</a>、<a href="https://langchain-ai.github.io/langmem/concepts/conceptual_guide/">概念</a></li>
+</ul>
+
+<h3>論文</h3>
+<ul>
+  <li>MemGPT <a href="https://arxiv.org/abs/2310.08560">2310.08560</a>；sleep-time compute <a href="https://arxiv.org/abs/2504.13171">2504.13171</a></li>
+  <li>Mem0 <a href="https://arxiv.org/abs/2504.19413">2504.19413</a>；Zep <a href="https://arxiv.org/abs/2501.13956">2501.13956</a>；A-MEM <a href="https://arxiv.org/abs/2502.12110">2502.12110</a></li>
+  <li>Generative Agents <a href="https://arxiv.org/abs/2304.03442">2304.03442</a>；MemoryBank <a href="https://arxiv.org/abs/2305.10250">2305.10250</a></li>
+  <li>綜述：<a href="https://arxiv.org/abs/2404.13501">2404.13501</a>、<a href="https://arxiv.org/abs/2505.00675">2505.00675</a>、<a href="https://arxiv.org/abs/2512.13564">2512.13564</a>、<a href="https://arxiv.org/abs/2603.07670">2603.07670</a></li>
+  <li>評測：LongMemEval <a href="https://arxiv.org/abs/2410.10813">2410.10813</a>；LoCoMo <a href="https://arxiv.org/abs/2402.17753">2402.17753</a>；MemoryAgentBench <a href="https://arxiv.org/abs/2507.05257">2507.05257</a>；PersonaMem <a href="https://arxiv.org/abs/2504.14225">2504.14225</a>；MemBench <a href="https://arxiv.org/abs/2506.21605">2506.21605</a>；BEAM <a href="https://arxiv.org/abs/2510.27246">2510.27246</a>；LoCoMo-Plus <a href="https://arxiv.org/abs/2602.10715">2602.10715</a>；原始歷史＋檢索 <a href="https://arxiv.org/abs/2610.30755">2610.30755</a>；EMem <a href="https://arxiv.org/abs/2511.17208">2511.17208</a></li>
+  <li>LoCoMo 的批評：<a href="https://www.getzep.com/blog/lies-damn-lies-statistics-is-mem0-really-sota-in-agent-memory/">Zep 的文章（廠商）</a>、<a href="https://github.com/dial481/locomo-audit">獨立稽核 repo</a></li>
+  <li>攻擊：AgentPoison <a href="https://arxiv.org/abs/2407.12784">2407.12784</a>；MINJA <a href="https://arxiv.org/abs/2503.03704">2503.03704</a>、後續 <a href="https://arxiv.org/abs/2601.05504">2601.05504</a>；MPBench <a href="https://arxiv.org/abs/2606.04329">2606.04329</a>；GhostWriter <a href="https://arxiv.org/abs/2607.06595">2607.06595</a></li>
+  <li>防禦：spotlighting <a href="https://arxiv.org/abs/2403.14720">2403.14720</a>；CaMeL <a href="https://arxiv.org/abs/2503.18813">2503.18813</a>；contextual integrity <a href="https://arxiv.org/abs/2408.02373">2408.02373</a></li>
+  <li>Context rot：<a href="https://www.trychroma.com/research/context-rot">Chroma 研究</a></li>
+</ul>
+
+<h3>安全與隱私</h3>
+<ul>
+  <li>OWASP：<a href="https://genai.owasp.org/llmrisk/llm01-prompt-injection/">LLM01 Prompt Injection</a>、<a href="https://genai.owasp.org/llmrisk/llm082025-vector-and-embedding-weaknesses/">LLM08</a>、<a href="https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html">AI Agent Security Cheat Sheet</a>、<a href="https://genai.owasp.org/resource/owasp-top-10-for-agentic-applications-for-2026/">Agentic Top 10（2026）</a></li>
+  <li>事件：<a href="https://embracethered.com/blog/posts/2024/chatgpt-macos-app-persistent-data-exfiltration/">ChatGPT 記憶外洩</a>、<a href="https://embracethered.com/blog/posts/2025/gemini-memory-persistence-prompt-injection/">Gemini 延遲觸發</a>、<a href="https://unit42.paloaltonetworks.com/indirect-prompt-injection-poisons-ai-longterm-memory/">摘要被劫持</a>、<a href="https://www.microsoft.com/security/blog/2026/02/10/ai-recommendation-poisoning/">AI 推薦污染</a></li>
+  <li>使用者控制：<a href="https://support.claude.com/en/articles/11817273-using-claude-s-chat-search-and-memory-to-build-on-previous-context">Claude 記憶說明</a>、<a href="https://support.google.com/gemini/answer/16413516">Gemini 說明</a>、<a href="https://gdpr-info.eu/art-17-gdpr/">GDPR 第 17 條</a></li>
+</ul>
+
+<h3>沒確認到的</h3>
+<ul>
+  <li>OWASP Agentic Top 10 裡記憶污染那一條（ASI06）的名稱與緩解措施：只確認到資源頁與日期，內文在讀不到的 PDF 裡。</li>
+  <li>OpenAI 的記憶說明頁（403）：ChatGPT 的控制項只有間接確認。</li>
+  <li>Letta 的工具名（<code>memory_insert</code> 等）與 sleep-time 的預設頻率：只在搜尋摘要看到。</li>
+  <li>OpenClaw 壓縮前寫記憶的數字門檻、dreaming 的門檻值：文件有名字沒有值。</li>
+</ul>
+</section>
+</div>
+<script>
+(function () {
+  var tabs = document.querySelectorAll(".tabs button");
+  function show(id) {
+    tabs.forEach(function (b) { b.setAttribute("aria-selected", b.dataset.tab === id ? "true" : "false"); });
+    document.querySelectorAll("section[role=tabpanel]").forEach(function (s) { s.hidden = s.id !== id; });
+    try { history.replaceState(null, "", "#" + id); } catch (e) {}
+    window.scrollTo(0, 0);
+  }
+  tabs.forEach(function (b) { b.addEventListener("click", function () { show(b.dataset.tab); }); });
+  var want = (location.hash || "").slice(1);
+  if (want && document.getElementById(want)) { show(want); }
+})();
+</script>
+<p style="font:10px/1.4 ui-monospace,monospace;opacity:.5;margin:24px 16px">線上版 <a href="https://claude.ai/artifact/4HBNmt2UhU6MBg2PzHd4BM">https://claude.ai/artifact/4HBNmt2UhU6MBg2PzHd4BM</a> · 本機版 docs/artifacts/2026-11-12-synox-memory-identity.html · 頁面版本 <span data-stamp>8e0cb2baa1 · 2026-11-13</span></p>
+</html>
