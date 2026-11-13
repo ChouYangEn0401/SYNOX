@@ -78,9 +78,12 @@ APP_PACKS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures",
 
 
 @pytest.fixture
-def counter(make_bot):
-    """有工具服務 fixture（counter）的 bot＋它的管理員（假 listener：不開埠）。counter(raw=…, script=…)。"""
+def counter(make_bot, tmp_path):
+    """有工具服務 fixture（counter）的 bot＋它的管理員（假 listener：不開埠）。counter(raw=…, script=…)。
+    伺服器版先把 counter 鎖成 core（跟其他 fixture 一樣，不然第三方 python pack 只給擁有者）。"""
     def factory(script=None, **kw):
+        if (kw.get("raw") or {}).get("mode") == "server":
+            trust_core(tmp_path / "data", os.path.join(APP_PACKS, "counter"))
         bot = make_bot(script, pack_dirs=(FIXTURE_PACKS, APP_PACKS), **kw)
         from synox.web import apps
         from synox.web.apps.testing import FakeListen
