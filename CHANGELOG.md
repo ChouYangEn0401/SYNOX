@@ -9,6 +9,10 @@
 - **Setup.bat 預設用 SYNOX 自己的 Python**：沒有 `runtime\python` 時，下載釘死版本與 sha256 的 uv，把 CPython 3.12 裝進 `runtime\python-uv`（只用它自己管的 Python，不看系統、Conda、商店版），
   不改 PATH、不寫登錄檔、不用 winget；偵測到 Conda／其他 Python 會先白話說明；`Setup.bat -UseSystemPython` 可改用自己的 Python（進階）。所有啟動用的 .bat 先清掉 PYTHONHOME、PYTHONPATH、CONDA_* 再跑。
   **Windows 上都還沒實測**（步驟見 docs/handoff/clean-machine-test.md 的 A14–A16）。
+- **一步一步教學網頁** `docs/guide/index.html`（線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F ）：26 步＋Discord 選讀，每一步一個畫面、要按的地方會亮；
+  步驟資料集中在一個陣列，之後可以給教學工具共用。介紹頁「安裝設定」卡片與「怎麼開始」標題下都有連結。
+- **自動打包 Windows 安裝程式**：`.github/workflows/build-installer.yml`（手動觸發或推 `v*` 標籤；附到草稿 release，不會自動發佈），`docs/release-build.md`。**還沒跑過**。
+- 規劃：`docs/lab/2026-11-13-onboarding-help-aliases-plan.md`（新 /help、範例、教學引擎與教學工具、自訂指令）。
 - 設計稿：`docs/installer/spec.html`（安裝程式規格，線上版 https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB ）、
   `docs/lab/design/2026-11-13-brand-explorations.html`（六套品牌提案，線上版 https://claude.ai/artifact/QqdEnR3s25c7tPUW23zfoz ）；`scripts/page_stamp.py` 替這類網頁蓋頁面版本。
 
