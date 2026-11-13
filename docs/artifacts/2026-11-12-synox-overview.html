@@ -1,0 +1,205 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SYNOX 全貌</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* 版面：左側細導覽＋單欄長頁；頁首是定位與版本，接著由「怎麼運作」到「還缺什麼」。色票取自 SYNOX 介面的青綠主色。 */
+:root {
+  --bg: #f6f8f8; --surface: #ffffff; --ink: #14201f; --muted: #566766; --line: #d9e2e1;
+  --accent: #0b7d71; --accent-soft: #dff1ee; --ok: #1a7f46; --ok-soft: #e0f3e8;
+  --warn: #9a5b00; --warn-soft: #fbefd6; --todo: #5a4bb0; --todo-soft: #e9e6f7; --code: #eef2f2;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", "Segoe UI", "Noto Sans TC", system-ui, sans-serif;
+  --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1717; --surface: #152221; --ink: #e6f0ef; --muted: #9bb0ae; --line: #264240;
+    --accent: #3fd0bd; --accent-soft: #123a36; --ok: #5fd28d; --ok-soft: #14352a;
+    --warn: #f0b861; --warn-soft: #3a2c12; --todo: #b3a8f5; --todo-soft: #2a2550; --code: #1a2b2a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1717; --surface: #152221; --ink: #e6f0ef; --muted: #9bb0ae; --line: #264240;
+  --accent: #3fd0bd; --accent-soft: #123a36; --ok: #5fd28d; --ok-soft: #14352a;
+  --warn: #f0b861; --warn-soft: #3a2c12; --todo: #b3a8f5; --todo-soft: #2a2550; --code: #1a2b2a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); line-height: 1.65; font-size: 15px;
+  padding-block: 28px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1040px; margin: 0 auto; display: grid; grid-template-columns: 180px minmax(0, 1fr); gap: 40px; }
+nav { position: sticky; top: 20px; align-self: start; font-size: 13px; display: flex; flex-direction: column; gap: 2px; }
+nav a { color: var(--muted); text-decoration: none; padding: 5px 10px; border-left: 2px solid var(--line); }
+nav a:hover, nav a:focus-visible { color: var(--accent); border-left-color: var(--accent); outline: none; }
+main { min-width: 0; display: flex; flex-direction: column; gap: 44px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; line-height: 1.2; margin: 0; }
+h1 { font-size: 34px; letter-spacing: -0.01em; }
+h2 { font-size: 22px; padding-bottom: 8px; border-bottom: 1px solid var(--line); margin-bottom: 16px; }
+h3 { font-size: 16px; margin: 20px 0 6px; }
+p { margin: 0 0 10px; max-width: 70ch; }
+.lead { font-size: 17px; color: var(--muted); max-width: 62ch; }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+.chip { font-size: 12px; padding: 3px 10px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.chip.ok { background: var(--ok-soft); color: var(--ok); } .chip.warn { background: var(--warn-soft); color: var(--warn); } .chip.todo { background: var(--todo-soft); color: var(--todo); }
+.ver { position: fixed; top: max(10px, env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); z-index: 20;
+  font: 600 12px var(--mono); padding: 4px 10px; border-radius: 99px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); background: var(--code); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+code { font-family: var(--mono); font-size: 12.5px; background: var(--code); padding: 1px 6px; border-radius: 4px; }
+pre.cmd { font-family: var(--mono); font-size: 13px; background: var(--code); padding: 12px 14px; border-radius: 8px; overflow-x: auto; margin: 8px 0 12px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 12px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.card h3 { margin-top: 0; }
+.card p { font-size: 13.5px; color: var(--muted); margin: 0; }
+.diagram { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow-x: auto; }
+ul { margin: 0 0 10px; padding-left: 20px; } li { margin-bottom: 4px; max-width: 70ch; }
+.note { border-left: 3px solid var(--warn); background: var(--warn-soft); padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: 14px; }
+@media (max-width: 760px) { .wrap { grid-template-columns: minmax(0, 1fr); gap: 20px; } nav { position: static; flex-direction: row; flex-wrap: wrap; gap: 6px; }
+  nav a { border: 1px solid var(--line); border-radius: 99px; padding: 4px 12px; } h1 { font-size: 28px; } }
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="ver" title="這份文件的版本">v1 · 2026-11-12</div>
+<div class="wrap">
+  <nav aria-label="章節">
+    <a href="#what">是什麼</a><a href="#arch">怎麼運作</a><a href="#install">安裝與工具</a><a href="#tools">工具一覽</a>
+    <a href="#runtime">常駐與心跳</a><a href="#web">網頁介面</a><a href="#security">安全</a><a href="#status">現況與缺口</a><a href="#next">接下來</a>
+  </nav>
+  <main>
+    <section id="what">
+      <h1>SYNOX 全貌</h1>
+      <p class="lead">一個裝在自己電腦上的小助手核心：聊天通道（Telegram、Discord、網頁）接上 AI，再用可安裝的「工具」擴充能力。核心本身不帶任何工具，要什麼自己裝。</p>
+      <div class="meta"><span class="chip">SYNOX 0.2.0</span><span class="chip">SDK 0.2.0</span><span class="chip warn">9 個工具・0.1.1・alpha</span><span class="chip warn">測試版本，尚未在空白電腦驗證</span></div>
+      <h3>三個角色</h3>
+      <div class="grid">
+        <div class="card"><h3>核心（SYNOX）</h3><p>通道、對話助理、權限、排程、保管箱、網頁介面、安裝檢查。出廠沒有任何工具。</p></div>
+        <div class="card"><h3>SDK</h3><p>工具與核心之間的合約。工具在 <code>pack.json</code> 宣告 <code>requires.sdk</code>，版本不合就不裝、不載入。</p></div>
+        <div class="card"><h3>工具庫（SYNOX_Libs）</h3><p>所有工具的統一管理處。打包成 <code>.synoxpack</code>，附 <code>index.json</code>（版本、雜湊、穩定度、建議群組）。</p></div>
+      </div>
+    </section>
+
+    <section id="arch">
+      <h2>怎麼運作</h2>
+      <div class="diagram"><pre class="mermaid">
+flowchart LR
+  U[使用者] --> C[通道 Telegram / Discord / 網頁]
+  C --> A[對話助理 + 權限檢查]
+  A -->|呼叫| T[已安裝的工具 packs/]
+  A --> L[AI 來源 Claude Code / API 金鑰]
+  R[Runtime 迴圈] --> H[Heartbeat 每 45 分鐘]
+  H --> M[常駐助理 + soul.md]
+  M -->|有事才通知| C
+  T -->|回報狀態| R
+  LIB[(SYNOX_Libs .synoxpack)] -->|安裝檢查後| T
+      </pre></div>
+      <h3>一則訊息的路</h3>
+      <p>通道收到訊息 → 核心認出是誰、是什麼角色 → 對話助理決定要不要呼叫工具 → 每個工具指令先過權限檢查，危險指令要使用者按確認卡 → 結果包在隨機分隔符裡交回 AI，標明是資料不是指令。</p>
+    </section>
+
+    <section id="install">
+      <h2>安裝與工具</h2>
+      <p>安裝分兩段，彼此獨立：先裝空殼 SYNOX，再自己挑工具。</p>
+      <div class="scroll"><table>
+        <thead><tr><th>步驟</th><th>git clone 路線</th><th>安裝程式路線（設計完成，未打包）</th></tr></thead>
+        <tbody>
+          <tr><td>取得</td><td>clone 或下載 zip</td><td>SYNOX-Setup.exe（Inno Setup＋可攜版 Python）</td></tr>
+          <tr><td>裝核心</td><td>雙擊 <code>Setup.bat</code>：找 Python、建 <code>.venv</code>、裝套件（有 wheelhouse 就離線）</td><td>每個使用者自己裝，不需管理員</td></tr>
+          <tr><td>引導</td><td><code>synox init</code>（視窗精靈，沒有 tkinter 就退到文字版）</td><td>裝完自動跑引導</td></tr>
+          <tr><td>裝工具</td><td colspan="2"><code>synox tools list</code>、<code>synox tools install &lt;名字&gt;</code>，或網頁「設定 → 裝功能」上傳 <code>.synoxpack</code>。先對 sha256，再走安裝檢查，使用者核准才裝，不提供「全部裝」。</td></tr>
+        </tbody>
+      </table></div>
+      <pre class="cmd">synox init               # 引導：模式、通道、AI 來源、工具庫位置、挑工具
+synox tools list         # 工具庫有哪些、裝了哪些
+synox tools install notes todo
+synox open               # 打開網頁介面
+synox doctor             # 健康檢查（含 heartbeat 與工具狀態）</pre>
+      <p>工具裝在 SYNOX 資料夾的 <code>packs/&lt;名字&gt;/</code>，鎖定資訊在 <code>data/packs.lock</code>，兩者都不進 git。</p>
+      <div class="note">已知風險：程式與資料目前在同一個資料夾，用 zip 覆蓋升級時會不會洗掉已裝工具與資料，還沒驗證。計畫把資料與工具移到獨立資料夾（見「接下來」A）。</div>
+    </section>
+
+    <section id="tools">
+      <h2>工具一覽（SYNOX_Libs）</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>工具</th><th>做什麼</th><th>版本</th><th>穩定度</th></tr></thead>
+        <tbody>
+          <tr><td>notes</td><td>隨手記</td><td>0.1.1</td><td><span class="chip warn">🧪 alpha</span></td></tr>
+          <tr><td>money</td><td>記帳</td><td>0.1.1</td><td><span class="chip warn">🧪 alpha</span></td></tr>
+          <tr><td>todo</td><td>待辦（重要度、標籤、到期）</td><td>0.1.1</td><td><span class="chip warn">🧪 alpha</span></td></tr>
+          <tr><td>calendar</td><td>行事曆（中文時間輸入、匯出 .ics）</td><td>0.1.1</td><td><span class="chip warn">🧪 alpha</span></td></tr>
+          <tr><td>bullet</td><td>子彈筆記</td><td>0.1.1</td><td><span class="chip warn">🧪 alpha</span></td></tr>
+          <tr><td>notion</td><td>接 Notion</td><td>0.1.1</td><td><span class="chip warn">🧪 alpha</span></td></tr>
+          <tr><td>todoist</td><td>接 Todoist</td><td>0.1.1</td><td><span class="chip warn">🧪 alpha</span></td></tr>
+          <tr><td>google-calendar</td><td>接 Google 日曆</td><td>0.1.1</td><td><span class="chip warn">🧪 alpha</span></td></tr>
+          <tr><td>apple-reminders</td><td>接 Apple 提醒事項（CalDAV）</td><td>0.1.1</td><td><span class="chip warn">🧪 alpha</span></td></tr>
+        </tbody>
+      </table></div>
+      <p style="margin-top:10px">穩定度分 🔧 test、🧪 alpha、🚧 beta、⭐ stable，顯示在 <code>/help</code>、網頁工具頁、安裝報告與 doctor。「提醒」是核心的系統指令（<code>/remind_*</code>，標示「⏰ 提醒（系統）」），不是工具，也不同於 Apple 提醒事項。</p>
+    </section>
+
+    <section id="runtime">
+      <h2>常駐與心跳</h2>
+      <div class="grid">
+        <div class="card"><h3>Runtime 迴圈</h3><p>常駐排程：每個任務有逾時、退避重試、狀態與日誌。工具可用 SDK 回報狀態，也讀得到其他工具的狀態。</p></div>
+        <div class="card"><h3>Heartbeat</h3><p>預設每 45 分鐘（15～1440 可調、可關）喚起常駐助理巡一次。沒有新狀況就不叫 AI；有安靜時段與每日上限。</p></div>
+        <div class="card"><h3>常駐助理與 soul.md</h3><p>常駐助理沒有工具，只決定要不要通知、要不要追加偏好。soul.md 記使用者偏好，加密存放，也以唯讀方式進入對話助理的 system prompt（僅擁有者）。</p></div>
+      </div>
+      <div class="note" style="margin-top:12px">Claude 的 prompt cache 預設只留 5 分鐘，要留 1 小時得在請求上另外標記。SYNOX 目前沒有標，所以 45 分鐘的 heartbeat 還吃不到快取，列為 MVP 之後的工作。</div>
+    </section>
+
+    <section id="web">
+      <h2>網頁介面</h2>
+      <ul>
+        <li><b>對話</b>：左側歷史，全幅聊天。</li>
+        <li><b>工具</b>：頁內左側是「群組」，群組內用 tab 分工具；每個工具有說明、指令、參數表單與執行。使用者可自行新增、改名、搬移群組，排法每人一份、加密存放。</li>
+        <li><b>主控</b>（僅擁有者）：heartbeat 開關與間隔、常駐助理狀態、任務清單與日誌、清空記憶、soul.md 編輯。</li>
+        <li><b>設定</b>：AI 來源、聊天通道、功能（工具）、帳號、備份。</li>
+        <li>打開時有約 1.7 秒的開場動畫，尊重「減少動態效果」；深淺色跟隨系統；離線可用，沒有外部資源。</li>
+      </ul>
+      <p>網頁只綁本機位址。伺服器版若設了 <code>web.public_url</code>，成員與訪客也能登入，只看得到自己的對話與工具；是否收緊為只給管理員，待決定。</p>
+    </section>
+
+    <section id="security">
+      <h2>安全</h2>
+      <ul>
+        <li>安裝前：宣告檢查與靜態掃描；使用者看過報告並核准才裝；每個工具記錄信任層級。</li>
+        <li>執行時：可選沙盒或容器；每個指令過角色權限；危險指令需確認卡；確認憑證綁工具、指令、參數與使用者，用一次就失效。</li>
+        <li>資料：金鑰存加密保管箱；soul.md、網頁排法加密；工具只能寫自己的資料夾。</li>
+        <li>不寫死任何一台電腦的路徑；測試會擋下追蹤檔案中的本機路徑與未標記的兄弟資料夾猜測。</li>
+      </ul>
+    </section>
+
+    <section id="status">
+      <h2>現況與缺口</h2>
+      <div class="scroll"><table>
+        <thead><tr><th>項目</th><th>狀態</th><th>說明</th></tr></thead>
+        <tbody>
+          <tr><td>核心空殼，工具全搬到工具庫</td><td><span class="chip ok">完成</span></td><td>9 個工具已可打包、安裝（自動測試通過）</td></tr>
+          <tr><td>打包 zip（含 tools/）</td><td><span class="chip ok">完成</span></td><td>SYNOX-0.2.0.zip，約 5 MB</td></tr>
+          <tr><td>exe 安裝程式</td><td><span class="chip todo">只有設計</span></td><td>Inno 腳本未編譯</td></tr>
+          <tr><td>空白電腦實測</td><td><span class="chip warn">未驗證</span></td><td>清單在 <code>docs/handoff/clean-machine-test.md</code></td></tr>
+          <tr><td>升級不洗掉資料</td><td><span class="chip warn">未驗證</span></td><td>資料與程式同資料夾</td></tr>
+          <tr><td>線上工具清單</td><td><span class="chip todo">未做</span></td><td>目前只能讀本機或隨附的 tools/</td></tr>
+          <tr><td>網頁「設定 → 工具」清單</td><td><span class="chip todo">未做</span></td><td>終端機 <code>synox tools</code> 可用</td></tr>
+          <tr><td>真實通道與 AI</td><td><span class="chip warn">未驗證</span></td><td>測試全用假傳輸與假 AI</td></tr>
+          <tr><td>網頁互動與動畫</td><td><span class="chip warn">只看過截圖</span></td><td>需在真實瀏覽器確認</td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="next">
+      <h2>接下來</h2>
+      <div class="grid">
+        <div class="card"><h3>A. 資料與工具獨立存放</h3><p>使用者資料、已裝工具、config 移到獨立資料夾，升級程式不碰。</p></div>
+        <div class="card"><h3>B. 線上工具清單</h3><p>讀網址型 index.json，下載後驗證雜湊並安裝；網頁也做出清單與一鍵安裝。</p></div>
+        <div class="card"><h3>C. 網頁型工具（web-app）</h3><p>工具可宣告自己帶一個本機網頁前端；工具頁加「打開」按鈕，由 SYNOX 代理並帶登入驗證，內嵌顯示。需新增能力宣告與審查。</p></div>
+        <div class="card"><h3>D. 把既有小工具接上 SDK</h3><p>PersonalToolZoo 的工具直接在原專案加 SDK 與 pack.json，不搬進工具庫；ClawBot 的天氣、地圖等也可抽成工具。</p></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<p style="font:10px/1.4 ui-monospace,monospace;opacity:.5;margin:24px 16px">線上版 <a href="https://claude.ai/artifact/J1cez1iRtkXA6pNoPnhipk">https://claude.ai/artifact/J1cez1iRtkXA6pNoPnhipk</a> · 本機版 docs/artifacts/2026-11-12-synox-overview.html · 頁面版本 <span data-stamp>a88756dda6 · 2026-11-13</span></p>

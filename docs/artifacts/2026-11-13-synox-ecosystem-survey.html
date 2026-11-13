@@ -1,0 +1,761 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>SYNOX 生態系調查</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap">
+<style>
+/* 版面：頂部分頁（摘要／小工具點子／外部生態／橋接架構／安全審查／統合與商業／下一步／來源清單），每頁單欄。色票沿用 synox-plan-book.html 的 SYNOX 青綠。 */
+:root {
+  --bg: #f6f8f8; --surface: #ffffff; --ink: #14201f; --muted: #566766; --line: #d9e2e1;
+  --accent: #0b7d71; --accent-soft: #dff1ee; --ok: #1a7f46; --ok-soft: #e0f3e8;
+  --warn: #9a5b00; --warn-soft: #fbefd6; --risk: #b3261e; --risk-soft: #fbe3e1; --todo: #5a4bb0; --todo-soft: #e9e6f7; --code: #eef2f2;
+  --display: "Space Grotesk", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", "Segoe UI", "Noto Sans TC", system-ui, sans-serif;
+  --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1717; --surface: #152221; --ink: #e6f0ef; --muted: #9bb0ae; --line: #264240;
+    --accent: #3fd0bd; --accent-soft: #123a36; --ok: #5fd28d; --ok-soft: #14352a;
+    --warn: #f0b861; --warn-soft: #3a2c12; --risk: #ff8d84; --risk-soft: #3d1a18; --todo: #b3a8f5; --todo-soft: #2a2550; --code: #1a2b2a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1717; --surface: #152221; --ink: #e6f0ef; --muted: #9bb0ae; --line: #264240;
+  --accent: #3fd0bd; --accent-soft: #123a36; --ok: #5fd28d; --ok-soft: #14352a;
+  --warn: #f0b861; --warn-soft: #3a2c12; --risk: #ff8d84; --risk-soft: #3d1a18; --todo: #b3a8f5; --todo-soft: #2a2550; --code: #1a2b2a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); line-height: 1.65; font-size: 15px;
+  padding-block: 24px 80px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.wrap { max-width: 1080px; margin: 0 auto; }
+header { margin-bottom: 18px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; line-height: 1.25; margin: 0; }
+h1 { font-size: 32px; letter-spacing: -0.01em; } h2 { font-size: 21px; margin: 26px 0 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 15.5px; margin: 16px 0 6px; }
+p { margin: 0 0 10px; max-width: 76ch; } .lead { color: var(--muted); font-size: 16px; max-width: 68ch; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; position: sticky; top: env(safe-area-inset-top, 0px); background: var(--bg); padding-block: 8px; z-index: 5; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.tabs button { font: 500 13.5px var(--body); color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 99px; padding: 6px 14px; cursor: pointer; }
+.tabs button[aria-selected="true"] { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+.tabs button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.ver { position: fixed; top: max(10px, env(safe-area-inset-top, 0px)); right: max(12px, env(safe-area-inset-right, 0px)); z-index: 20; font: 600 12px var(--mono); padding: 4px 10px; border-radius: 99px; background: var(--surface); border: 1px solid var(--line); color: var(--muted); }
+.chip { display: inline-block; font-size: 11.5px; padding: 2px 9px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-weight: 600; white-space: nowrap; }
+.chip.ok { background: var(--ok-soft); color: var(--ok); } .chip.warn { background: var(--warn-soft); color: var(--warn); } .chip.risk { background: var(--risk-soft); color: var(--risk); } .chip.todo { background: var(--todo-soft); color: var(--todo); }
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); margin: 8px 0 14px; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); background: var(--code); white-space: nowrap; } tr:last-child td { border-bottom: 0; }
+td.n { white-space: nowrap; font-weight: 600; }
+code { font-family: var(--mono); font-size: 12.5px; background: var(--code); padding: 1px 6px; border-radius: 4px; }
+pre.cmd { font-family: var(--mono); font-size: 12.5px; background: var(--code); padding: 12px 14px; border-radius: 8px; overflow-x: auto; margin: 8px 0 12px; white-space: pre-wrap; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; margin: 10px 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; min-width: 0; } .card h3 { margin-top: 0; } .card p { font-size: 13.5px; color: var(--muted); margin: 0; }
+details.wp { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; margin: 10px 0; }
+details.wp > summary { cursor: pointer; padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; font-weight: 600; list-style: none; }
+details.wp > summary::-webkit-details-marker { display: none; }
+details.wp > summary::before { content: "▸"; color: var(--accent); }
+details.wp[open] > summary::before { content: "▾"; }
+details.wp .body { padding: 0 16px 14px; border-top: 1px solid var(--line); }
+.id { font-family: var(--mono); color: var(--accent); }
+.src { font-family: var(--mono); font-size: 11.5px; color: var(--muted); }
+ul, ol { margin: 0 0 10px; padding-left: 20px; } li { margin-bottom: 4px; max-width: 78ch; }
+.note { border-left: 3px solid var(--warn); background: var(--warn-soft); padding: 10px 14px; border-radius: 0 8px 8px 0; font-size: 14px; margin: 10px 0; }
+.note.risk { border-left-color: var(--risk); background: var(--risk-soft); }
+.note.ok { border-left-color: var(--ok); background: var(--ok-soft); }
+.quote { border-left: 3px solid var(--line); padding: 8px 14px; color: var(--muted); font-size: 14px; margin: 10px 0; background: var(--surface); border-radius: 0 8px 8px 0; }
+section[hidden] { display: none; }
+a { color: var(--accent); word-break: break-all; }
+@media (max-width: 640px) { h1 { font-size: 26px; } th, td { padding: 7px 9px; } }
+</style>
+
+<div class="ver" title="這份調查的版本">v2 · 2026-11-13</div>
+<div class="wrap">
+<header>
+  <h1>SYNOX 生態系調查與橋接架構</h1>
+  <p class="lead">擁有者問了兩件事：還能多做哪些小工具，以及能不能把 OpenClaw、Hermes 這些大平台的 skill「接過來用」。這份只調查和規劃，不實作；每個結論標「已查證（附來源編號）」或「推測／未查證」，來源編號對到最後一頁。</p>
+  <p class="lead"><b>v2（2026-11-13）新增「現成工具」頁：</b>兩邊的市集和 MCP／Claude Code 外掛目錄上，哪些工具別人已經做好、你可以不用自己做。v1 其他各頁內容沒改。</p>
+</header>
+<div class="tabs" role="tablist" id="tabs">
+  <button role="tab" data-t="tools">現成工具（v2）</button><button role="tab" data-t="summary">摘要</button><button role="tab" data-t="ideas">小工具點子</button><button role="tab" data-t="eco">外部生態</button>
+  <button role="tab" data-t="bridge">橋接架構</button><button role="tab" data-t="security">安全審查</button><button role="tab" data-t="strategy">統合與商業</button>
+  <button role="tab" data-t="next">下一步</button><button role="tab" data-t="sources">來源清單</button>
+</div>
+
+<!-- ───────────────────────── 現成工具（v2，2026-11-13） ───────────────────────── -->
+<section id="tools">
+  <h2>結論：哪些可以不用再自己做</h2>
+  <div class="grid">
+    <div class="card"><h3><span class="chip ok">不用做</span> 直接用別人的</h3><p><b>GitHub PR／issue 摘要</b>（GitHub 官方 MCP）、<b>網頁轉文字</b>（MCP 官方 Fetch）、<b>git 唯讀查詢</b>（MCP 官方 Git）。這三項本來在「小工具點子」裡，現在改成「接上去就好」。</p></div>
+    <div class="card"><h3><span class="chip">不要再加功能</span> 等改接官方</h3><p><b>Notion、Todoist、Google 日曆</b>三家都出了官方 MCP。SYNOX_Libs 這三個工具<b>維持現狀、不要再加功能</b>，等 SYNOX 能接官方 MCP（工作包 E3）之後，改成「接官方 MCP 的薄殼」。卡點：Notion 和 Todoist 的雲端版用 OAuth，SYNOX 現在<b>不支援動態註冊</b>（<code>packs/oauth.py</code>），接不接得上<span class="chip warn">未驗證</span>。</p></div>
+    <div class="card"><h3><span class="chip warn">還是要自己做</span> 外面沒有合用的</h3><p><b>Windows 上的 Apple 提醒事項</b>（外面的版本都只能在 macOS 跑）、<b>繁中快速記帳</b>（money）、<b>本機 todo／notes／子彈筆記</b>、<b>Windows 效能監測</b>、<b>devlog</b>。現成的都是「接別家 App」，或只能在 Mac 上用。</p></div>
+    <div class="card"><h3><span class="chip risk">不建議裝</span></h3><p><b>Windows-MCP</b>（等於把整台桌面交給 AI）、<b>OpenClaw healthcheck</b>（會建議改防火牆，跟這台的規矩衝突）、ClawHub 熱門的<b>「自我進化／自動更新」類 skill</b>（會自己改指示或自己更新，正是過去資安事件的手法）。</p></div>
+  </div>
+  <div class="note"><b>兩邊的現況（2026-11-13 複查）：</b>OpenClaw 約 394.4k 星，由 OpenClaw Foundation（501(c)(3) 非營利）維護，幾乎每週發一個穩定版（官方發版說明查到 v2026.11.1，11-05；二手部落格說 11-10 已經出 v2026.11.3）<span class="src">[S3][S38][S39]</span>。Hermes Agent 約 263.1k 星，內建排程和長期記憶，接得上 MCP；查得到的最新版是 v0.21.5（2026-09-24），但只有二手來源，可能已有更新版 <span class="src">[S11][S40]</span>。兩邊都內建<b>定時排程</b>（OpenClaw 叫 Automations、Hermes 是內建 cron）<span class="src">[S41][S11]</span>，跟 SYNOX 的 <code>/remind</code>、<code>/schedule</code> 重疊，這部分不用再加強。</div>
+
+  <h2>現成工具清單</h2>
+  <p>「對應」是指擁有者已經有的工具（SYNOX_Libs）或「小工具點子」頁裡的構想。<b>可直接用</b>＝接上去就能用，不用寫程式；<b>參考即可</b>＝讀它的做法，不安裝；<b>仍需自己做</b>＝外面沒有合用的。所有項目都<b>沒有下載、沒有安裝、沒有執行</b>，只讀過網頁。</p>
+
+  <h3>一、你已經做過的工具：外面有沒有官方版</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>工具</th><th>做什麼</th><th>出處</th><th>成熟度</th><th>風險備註</th><th>對應</th><th>建議</th></tr></thead>
+    <tbody>
+      <tr><td class="n">Notion 官方 MCP（雲端）</td><td>搜尋、讀寫 Notion 頁面、資料庫、留言</td><td><a href="https://mcp.notion.com/mcp">mcp.notion.com/mcp</a> <span class="src">[S42]</span></td><td>Notion 官方架設；舊的本機版 <code>@notionhq/notion-mcp-server</code> 官方已不再維護 <span class="chip warn">二手</span></td><td>OAuth 登入；SYNOX 不做動態註冊，可能接不上 <span class="chip warn">未驗證</span></td><td>Libs <code>notion</code></td><td><span class="chip">參考即可</span> 中期改接</td></tr>
+      <tr><td class="n">Todoist 官方 MCP</td><td>任務、專案、標籤、提醒、留言的讀寫</td><td><a href="https://github.com/doist/todoist-mcp">github.com/doist/todoist-mcp</a>；雲端 <code>ai.todoist.net/mcp</code> <span class="src">[S43]</span></td><td>Doist 官方；npm 套件 <code>@doist/todoist-mcp</code>；工具數量 <span class="chip warn">二手</span></td><td>雲端版走 OAuth；本機版用 <code>npx</code> 加 API token，在 SYNOX 算 T2（第三方程式），Windows 個人版沒有沙盒</td><td>Libs <code>todoist</code></td><td><span class="chip">參考即可</span> 中期改接</td></tr>
+      <tr><td class="n">Google 日曆官方 MCP</td><td>8 個工具：列行事曆、列／讀／建／改／刪活動、回覆邀請、建議時間</td><td><a href="https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server">developers.google.com（設定說明）</a> <span class="src">[S44]</span></td><td>Google 官方，<b>還在 Developer Preview</b></td><td>要自己在 Google Cloud 建 OAuth 用戶端。<span class="chip warn">推測</span> 這種「先登記 client_id」的方式剛好合 SYNOX 現在的「貼回網址」授權流程</td><td>Libs <code>google-calendar</code></td><td><span class="chip">參考即可</span> 正式版出來再改接</td></tr>
+      <tr><td class="n">Apple 提醒事項 skill</td><td>用 <code>remindctl</code> 在終端機管 Apple 提醒事項</td><td><a href="https://github.com/openclaw/openclaw/tree/main/skills">OpenClaw skills/apple-reminders</a>、<a href="https://github.com/NousResearch/hermes-agent/tree/main/skills/apple">Hermes skills/apple</a> <span class="src">[S45][S46]</span></td><td>兩邊都是隨主程式附的 skill</td><td><b>只能在 macOS 用</b>（<code>"os": ["darwin"]</code>，要用 brew 裝）</td><td>Libs <code>apple-reminders</code>（CalDAV，Windows 可用）</td><td><span class="chip warn">仍需自己做</span></td></tr>
+      <tr><td class="n">記帳類 MCP</td><td>Beancount 帳本查詢、記帳</td><td>StdioA/beancount-mcp、vanto/beanquery-mcp（<a href="https://glama.ai/mcp/servers/vanto/beanquery-mcp">glama 頁</a>） <span class="src">[S47]</span></td><td>個人專案；beanquery 約 24 星、實驗性 <span class="chip warn">二手</span></td><td>要先改用 Beancount 格式；不是繁中、不是 Telegram 快記</td><td>Libs <code>money</code></td><td><span class="chip warn">仍需自己做</span></td></tr>
+      <tr><td class="n">筆記類 skill（Obsidian、Apple Notes、Bear、Things）</td><td>操作別家筆記或待辦 App</td><td>OpenClaw <code>obsidian</code>、<code>apple-notes</code>、<code>bear-notes</code>、<code>things-mac</code>；Hermes <code>note-taking/obsidian</code> <span class="src">[S45][S46]</span></td><td>隨主程式附</td><td>多半只能在 macOS 用，或要先裝那個 App</td><td>Libs <code>notes</code>、<code>todo</code>、<code>bullet</code></td><td><span class="chip warn">仍需自己做</span>（本機輕量版外面沒有）</td></tr>
+      <tr><td class="n">排程／提醒（內建）</td><td>定時跑任務、一次性提醒</td><td>OpenClaw Automations、Hermes 內建 cron <span class="src">[S41][S11]</span></td><td>兩邊核心功能</td><td>—</td><td>SYNOX <code>/remind</code>、<code>/schedule</code></td><td><span class="chip">參考即可</span> SYNOX 已經有</td></tr>
+      <tr><td class="n">Telegram／Discord 通道</td><td>在聊天軟體裡跟 agent 對話</td><td>Claude Code 官方外掛目錄有 Telegram、Discord 通道外掛；OpenClaw 支援 20 多種通道 <span class="src">[S48][S3]</span></td><td>官方</td><td>—</td><td>SYNOX 本體</td><td><span class="chip">參考即可</span> 這是 SYNOX 本身的功能，不用換</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>二、「小工具點子」裡的構想：外面是否已經有</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>工具</th><th>做什麼</th><th>出處</th><th>成熟度</th><th>風險備註</th><th>對應</th><th>建議</th></tr></thead>
+    <tbody>
+      <tr><td class="n">GitHub 官方 MCP</td><td>PR、issue、repo、Actions 的查詢與操作</td><td><a href="https://github.com/github/github-mcp-server">github.com/github/github-mcp-server</a>；雲端 <code>api.githubcopilot.com/mcp/</code> <span class="src">[S49]</span></td><td>約 34.4k 星、MIT、GitHub 官方維護</td><td>寫入類工具要在 SYNOX 標 DANGER；能不能只用個人 token 登入 <span class="chip warn">未驗證</span></td><td>點子「GitHub PR／issue 摘要」</td><td><span class="chip ok">可直接用</span></td></tr>
+      <tr><td class="n">MCP 官方 Fetch</td><td>抓網頁、轉成給 AI 讀的文字</td><td><a href="https://github.com/modelcontextprotocol/servers">modelcontextprotocol/servers</a> <span class="src">[S50]</span></td><td>約 92.0k 星；MCP 指導小組維護的「參考實作」</td><td>官方寫明「不是正式產品等級」；網頁內容可能藏提示注入（SYNOX 已經會包分隔符）</td><td>點子「網頁轉純文字」</td><td><span class="chip ok">可直接用</span></td></tr>
+      <tr><td class="n">MCP 官方 Git</td><td>讀 git 狀態、紀錄、差異</td><td>同上 <span class="src">[S50]</span></td><td>同上</td><td>同上；只開唯讀工具</td><td>點子「專案儀表」「devlog」的 git 部分</td><td><span class="chip ok">可直接用</span>（devlog 本身仍要自己做）</td></tr>
+      <tr><td class="n">Everything 檔案搜尋 MCP</td><td>用 voidtools Everything 的索引秒找檔案</td><td>essovius/mcp-everything-search、mamertofabian/mcp-everything-search <span class="src">[S51]</span></td><td>個人專案，星數和更新時間 <span class="chip warn">未驗證</span></td><td>要先裝 Everything 和 <code>es.exe</code>；在 SYNOX 算 T2</td><td>點子「找檔案／定位資料夾」</td><td><span class="chip">參考即可</span>（自己寫一個呼叫 es.exe 的 cli 工具不難）</td></tr>
+      <tr><td class="n">Windows-MCP（CursorTouch）</td><td>截圖、點滑鼠、打字、開關程式、操作視窗</td><td><a href="https://lobehub.com/mcp/cursortouch-windows-mcp">lobehub 介紹頁</a> <span class="src">[S52]</span></td><td>MIT；星數各家說法差很多（6.4k～11k）<span class="chip warn">未驗證</span></td><td><b>等於把整台桌面交給 AI</b>；擁有者「截圖」只要求唯讀、每次確認</td><td>點子「截圖」</td><td><span class="chip risk">不建議裝</span>，參考做法即可</td></tr>
+      <tr><td class="n">OpenClaw <code>healthcheck</code></td><td>主機安全稽核：SSH、防火牆、更新、磁碟加密，之後提出修改建議</td><td>OpenClaw skills/healthcheck <span class="src">[S45]</span></td><td>隨主程式附</td><td><b>是安全加固，不是效能監測</b>；會建議改防火牆，跟這台的規矩衝突</td><td>點子「電腦效能監測」</td><td><span class="chip warn">仍需自己做</span>（效能監測沒找到合用的 Windows 工具）</td></tr>
+      <tr><td class="n">OpenClaw <code>weather</code>、<code>summarize</code></td><td>天氣；文件、網址、對話的摘要</td><td>OpenClaw skills <span class="src">[S45]</span>；ClawHub 下載排行 <span class="src">[S53]</span></td><td>隨主程式附；排行數字是 2026-03 的二手資料</td><td>要 agent 本身有 shell</td><td>ClawBot weather、點子「PDF 摘要」</td><td><span class="chip">參考即可</span></td></tr>
+      <tr><td class="n">Hermes 生產力 skill</td><td><code>meeting-action-items</code>、<code>document-to-action-items</code>、<code>weekly-review-planning</code>、<code>pdf</code>、<code>google-workspace</code></td><td><a href="https://github.com/NousResearch/hermes-agent/tree/main/skills/productivity">Hermes skills/productivity</a> <span class="src">[S46]</span></td><td>Hermes 官方附的 skill，MIT</td><td>有沒有附腳本 <span class="chip warn">未逐一確認</span>；如果是純說明，就是路線 A 的第一批候選</td><td>點子「會議記錄 → 待辦」「週報產生器」</td><td><span class="chip">參考即可</span> 寫法直接拿來用</td></tr>
+      <tr><td class="n">Anthropic 文件 skill（docx／pdf／pptx／xlsx）</td><td>讀寫 Office 檔和 PDF 的做法說明加腳本</td><td><a href="https://github.com/anthropics/skills">github.com/anthropics/skills</a> <span class="src">[S18]</span></td><td>約 193.9k 星；這四個標 Apache-2.0</td><td>要 shell 和 Python 套件；官方說是示範用</td><td>點子「報價單 PDF」「PDF 重點摘要」</td><td><span class="chip">參考即可</span></td></tr>
+      <tr><td class="n">skill 安全審查（Skill Vetter、Hermes 掃描器、<code>claude-security</code>）</td><td>安裝前檢查 skill 有沒有可疑內容</td><td>ClawHub「Skill Vetter」<span class="src">[S53]</span>、Hermes 內建掃描器 <span class="src">[S10]</span>、Claude 官方外掛 <code>claude-security</code>、<code>security-guidance</code> <span class="src">[S48]</span></td><td>Skill Vetter 下載數約 25.6 萬 <span class="chip warn">二手</span></td><td>它們自己也只是「建議」，不能保證安全（見「安全審查」頁）</td><td>工作包 E2「文字層掃描」</td><td><span class="chip">參考即可</span> 讀規則，不安裝</td></tr>
+      <tr><td class="n">skill-creator</td><td>引導寫出一個新的 skill</td><td>Anthropic skills、OpenClaw skills、Claude 官方外掛 <span class="src">[S18][S45][S48]</span></td><td>官方</td><td>—</td><td>SYNOX SDK <code>synox-sdk init</code></td><td><span class="chip">參考即可</span></td></tr>
+      <tr><td class="n">Claude Code 開發外掛（<code>commit-commands</code>、<code>code-review</code>、<code>pr-review-toolkit</code>、<code>hookify</code>、<code>session-report</code>）</td><td>commit、審查、做 hook、session 報告</td><td><a href="https://github.com/anthropics/claude-plugins-official">anthropics/claude-plugins-official</a> <span class="src">[S48]</span></td><td>約 47.1k 星、Apache-2.0、Anthropic 維護</td><td>官方提醒外掛內容 Anthropic 不保證，裝前要看</td><td>點子「分支／commit 規範檢查」（只是部分重疊）</td><td><span class="chip ok">可直接用</span>（你用 Claude Code 開發時）</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>市集本身（去哪裡找）</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>市集</th><th>現況</th><th>出處</th></tr></thead>
+    <tbody>
+      <tr><td class="n">ClawHub（OpenClaw）</td><td>沒有官方公布的總數；第三方排行說法互相矛盾（2026-03 的榜首是 Capability Evolver 約 3.6 萬次下載；另一份說 Skill Vetter 約 25.6 萬次）。有公開 API 可以查下載排行，但這次沒有呼叫</td><td><span class="src">[S8][S53]</span></td></tr>
+      <tr><td class="n">Hermes Skills Hub</td><td>來源有 official、skills-sh、well-known、url、github、clawhub、lobehub、browse-sh；預設接 <code>huggingface/skills</code>；科學類約 480 個、browse.sh 200 多個。v0.17 起安裝前會預覽全文、掃描</td><td><span class="src">[S10][S40]</span></td></tr>
+      <tr><td class="n">Claude Code 官方外掛目錄</td><td>Anthropic 自己的外掛約 42 個；第三方外掛改從 claude.ai 的目錄投稿</td><td><span class="src">[S48]</span></td></tr>
+      <tr><td class="n">MCP 官方 Registry</td><td>官網沒寫總數，頁面清單這次沒載入成功；官方參考伺服器剩 7 個（Everything、Fetch、Filesystem、Git、Memory、Sequential Thinking、Time），GitHub、Google Drive 等已經搬到封存 repo</td><td><span class="src">[S20][S50][S54]</span></td></tr>
+    </tbody>
+  </table></div>
+  <div class="note">這頁<b>沒有</b>做的：沒下載、沒安裝、沒執行任何東西；也沒有呼叫 ClawHub 的 API。星數是 2026-11-13 讀 GitHub 頁面看到的；標「二手」的只來自第三方網站。</div>
+</section>
+
+<!-- ───────────────────────── 摘要 ───────────────────────── -->
+<section id="summary" hidden>
+  <h2>最重要的 5 個發現</h2>
+  <ol>
+    <li><b>名字查證了。</b>「Open Cloud／Cloud bot」是 <b>OpenClaw</b>（龍蝦；MIT 授權、Node／TypeScript，GitHub 約 39.4 萬星）<span class="src">[S3]</span>；「Hermes」是 Nous Research 的 <b>Hermes Agent</b>（MIT、Python，約 26.3 萬星）<span class="src">[S11]</span>。兩邊的 skill 都是 <b>SKILL.md 格式（agentskills.io 標準）</b><span class="src">[S1][S10][S13]</span>——<b>SYNOX 現在用的就是同一個格式</b>（<code>docs/pack-format.md</code>「SKILL.md」）。所以「格式」不是障礙。
+      <br><span class="chip warn">推測</span> OpenClaw 的前身叫 Clawdbot、Moltbot：官方格式文件還收 <code>metadata.clawdbot</code>、<code>.clawdhub</code> 這些舊名當別名 <span class="src">[S1]</span>，資安報導的網址也用這些名字 <span class="src">[S29][S31]</span>，但官方 README 沒寫改名經過。也要分清楚：計畫書裡的「ClawBot」是你自己的本機專案，跟 OpenClaw 不是同一個。</li>
+    <li><b>真正的障礙是「執行方式」，不是格式。</b>OpenClaw、Hermes、Claude Code 的 skill＝「說明書」＋「agent 本來就有的萬用 shell」：SKILL.md 叫 agent 自己去打指令 <span class="src">[S2][S17]</span>。<b>SYNOX 的 AI 沒有 shell</b>，只能叫 pack.json 宣告過、標好危險程度的指令（<code>src/synox/agent/tools.py</code>）。所以別人的 skill 裡「去跑 <code>gh pr list</code>」這種內容，直接丟進 SYNOX 沒辦法用，得先轉成宣告過的 cli 指令。這也正是 SYNOX 比較安全的原因。</li>
+    <li><b>外部市集的安全狀況很差，而且主要攻擊手法剛好被 SYNOX 的結構擋掉。</b>2026 年 ClawHub 一次又一次出現惡意 skill：Koi 稽核 2,857 個，抓到 341 個 <span class="src">[S25]</span>；Snyk 掃 3,984 個，確認 76 個是惡意的，13.4% 至少有一個嚴重問題 <span class="src">[S23]</span>；Unit 42 在 2026 年 6 月還找到 5 個躲過 VirusTotal 掃描的 <span class="src">[S24]</span>。主要手法是在 SKILL.md 裡用<b>文字</b>叫人或 agent 先「安裝前置程式」（curl | bash、有密碼的 zip）。OpenClaw 自己也寫：「掃描乾淨不代表 skill 安全」<span class="src">[S9]</span>。SYNOX 的 AI 沒有 shell，危險指令一定要人按確認卡，這一類攻擊在結構上就成不了。</li>
+    <li><b>最便宜的接法是 MCP，而且 SYNOX 兩頭都已經有一半。</b>SYNOX 已經接得上 MCP 伺服器（<code>kind: mcp</code>，本機 stdio 和遠端 http 都可以），SDK 的 <code>serve() --mcp</code> 也能把 SYNOX 工具反過來變成 MCP 伺服器（<code>docs/sdk.md</code>）。MCP 在 2026-09 正式定案了「用 MCP 傳 skill」的擴充（SEP-2640），每個檔案都附 sha256 清單、內容改了就要重新核准 <span class="src">[S21][S22]</span>，跟 SYNOX 鎖住 pack 檔案的做法同一個思路。你說的「雙向轉接」，用 MCP 加 SKILL.md 就能做成，不必自己另訂標準。</li>
+    <li><b>授權沒有問題；「把它們的開發者流量吃下來」要打折看。</b>ClawHub 上的 skill 一律是 MIT-0 授權 <span class="src">[S1]</span>，Hermes 是 MIT，Anthropic 的 skills 是 Apache-2.0 <span class="src">[S18]</span>，都能跟 AGPL 的 SYNOX 一起散佈。但 Hermes 早就有 <code>hermes import-agent openclaw</code>，還把 ClawHub 列成自己的 skill 來源 <span class="src">[S10][S11]</span>：「吃 OpenClaw」已經有一個比 SYNOX 大很多的對手在做。<span class="chip warn">推測</span> SYNOX 比較站得住的位置是「審查過、能安心裝的精選目錄＋比較安全的執行端」，主打繁中、Telegram／Discord、個人和小團體、對 Windows 友善，不是比誰收的 skill 多。</li>
+  </ol>
+
+  <h2>建議路線（一句話版）</h2>
+  <div class="grid">
+    <div class="card"><h3>第 1 步（最小可行）</h3><p>先接<b>不含程式的純說明 skill</b>（新增「只有說明」的 pack 種類，路線 A），加上 <b>MCP 伺服器匯入</b>（路線 C，用現成的 <code>kind: mcp</code>）。兩條都不會在這台電腦跑別人的程式。</p></div>
+    <div class="card"><h3>第 2 步</h3><p><code>synox import-skill</code> 轉換器：把帶腳本的 skill 轉成 <b>cli pack 草稿</b>（路線 B），每個指令的危險程度由擁有者標，預設放進容器跑；Windows 個人版沒有沙盒，預設不准跑。</p></div>
+    <div class="card"><h3>不建議（現在）</h3><p>路線 D：做原生相容層、讓 SYNOX 給 AI 一個萬用 shell。這會打掉 SYNOX 最大的安全優勢，工作量也最大。</p></div>
+  </div>
+
+  <h2>小工具：建議第一批</h2>
+  <p>電腦效能監測、簡單 to-do、開發狀態紀錄（含目前在做哪個專案、分支規範檢查）、找檔案／定位資料夾。這四個用 SYNOX 現在的能力就做得出來。<b>截圖</b>要先補三樣能力（螢幕權限宣告、cli 回傳圖片、桌面工作階段），所以放第二批。完整清單在「小工具點子」頁。</p>
+
+  <div class="note">這份<b>沒有</b>做的：沒下載任何 skill、沒 clone 任何專案、沒執行任何外部程式；外部資料都只透過網頁搜尋和讀網頁文字取得（2026-11-12）。ClawHub 現在到底有幾個 skill、裡面有多少能在 Windows 上用，都查不到可靠的數字，列在「下一步」當成要抽樣調查的工作。</div>
+</section>
+
+<!-- ───────────────────────── 小工具點子 ───────────────────────── -->
+<section id="ideas" hidden>
+  <h2>怎麼讀這一頁</h2>
+  <ul>
+    <li><b>接法</b>：<code>cli</code>（指令進、文字出；AI 和網頁表單都能用）、<code>排程</code>（用 <code>/schedule_add HH:MM /指令</code> 每天跑，SYNOX 已經有）、<code>webapp</code>（本機網頁，計畫書工作包 W）、<code>launch</code>（只開桌面程式）、<code>mcp</code>（接現成的 MCP 伺服器）。</li>
+    <li><b>權限</b>對照 pack.json 的 <code>capabilities</code>：<code>network</code>（連網）、<code>subprocess</code>（開別的程式）、<code>fs:own</code>（只讀寫自己的資料夾）、<code>fs:any</code>（讀寫任何資料夾）。標 <span class="chip todo">新</span> 的是 SYNOX 現在<b>還沒有</b>的權限類別。</li>
+    <li><b>敏感度</b>：低／中／高（高＝可能碰到密碼、私訊、個人身分、財務）。</li>
+    <li><b>優先序</b>：P0 先做、P1 第二批、P2 有空再做、P3 先不做；<b>工作量</b>：S＜半天、M 約一天、L 好幾天（照 agent 的工作量估）。</li>
+    <li><b>SYNOX 現在</b>：✅ 現在的能力就做得出來；⚠️ 做得出來但有限制；❌ 要先補能力。</li>
+    <li>開源參考只寫名字讓之後查；<span class="chip warn">未查證</span> 授權和現況都沒有逐一確認，<b>也沒有下載或執行過</b>，參考時只讀它的文件。</li>
+  </ul>
+
+  <h2>工程師</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>點子</th><th>一句話（對 SYNOX 的價值）</th><th>接法</th><th>權限</th><th>敏感度</th><th>開源參考</th><th>優先／量</th><th>SYNOX 現在</th></tr></thead>
+    <tbody>
+      <tr><td class="n">開發狀態紀錄（devlog）</td><td>一句話記下「現在在做什麼、卡在哪、下一步」，每天晚上整理成摘要；回答「我上週在做什麼」。擁有者直接點名要的</td><td>cli＋排程</td><td>fs:own</td><td>中</td><td>jrnl、git log</td><td>P0／M</td><td>✅</td></tr>
+      <tr><td class="n">專案儀表（現在在做哪些專案）</td><td>掃使用者登記過的 repo 資料夾：目前分支、還沒 commit 的檔案數、最後一次 commit、落後遠端多少</td><td>cli（可加網頁面板）</td><td>fs:any 讀、subprocess（git）</td><td>中</td><td>gita、mgitstatus</td><td>P0／M</td><td>✅ 只有擁有者能用（fs:any）</td></tr>
+      <tr><td class="n">分支／commit 規範檢查</td><td>照自己設的規則（例如 <code>feat/&lt;名&gt;</code>、<code>type(scope): …</code>）檢查分支名和最近的 commit 訊息；也能把規範本身存成一份給 AI 看的說明</td><td>cli</td><td>subprocess（git）</td><td>低</td><td>commitlint、Conventional Commits</td><td>P1／S</td><td>✅</td></tr>
+      <tr><td class="n">GitHub PR／issue 摘要</td><td>直接接 GitHub 官方的 MCP 伺服器，不用自己寫程式</td><td>mcp（http）</td><td>network＋token</td><td>中</td><td>github-mcp-server</td><td>P1／S</td><td>✅ 只要寫 pack.json（路線 C 的示範）</td></tr>
+      <tr><td class="n">開發環境健檢</td><td>列出 python、node、git、docker 的版本，PATH 裡缺什麼</td><td>cli</td><td>subprocess</td><td>低</td><td>—</td><td>P2／S</td><td>✅</td></tr>
+      <tr><td class="n">日誌錯誤摘要</td><td>指定一個 log 檔，抓最近的錯誤並分類計數</td><td>cli</td><td>fs:any 讀</td><td>中</td><td>lnav</td><td>P2／S</td><td>✅</td></tr>
+      <tr><td class="n">埠／行程查詢</td><td>計畫書已列（PIDKiller）：查詢是唯讀，結束行程標 DANGER</td><td>cli</td><td>subprocess</td><td>中</td><td>本機 PIDKiller</td><td>（已在計畫書 X2）</td><td>✅</td></tr>
+      <tr><td class="n">各專案花的時間</td><td>定時記錄目前在前景的視窗或專案，週末出統計</td><td>排程</td><td><span class="chip todo">新</span> 桌面資訊</td><td>高</td><td>ActivityWatch、WakaTime</td><td>P3／L</td><td>❌ 要讀桌面視窗</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>電腦與系統（每個人都用得到）</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>點子</th><th>一句話</th><th>接法</th><th>權限</th><th>敏感度</th><th>開源參考</th><th>優先／量</th><th>SYNOX 現在</th></tr></thead>
+    <tbody>
+      <tr><td class="n">電腦效能監測</td><td>CPU、記憶體、磁碟、（能讀到的話）溫度一次看；超過門檻時通知；「哪個程式最吃記憶體」。擁有者點名要的</td><td>cli＋排程</td><td><span class="chip todo">新</span> 系統資訊</td><td>低～中（行程清單會洩漏你在用什麼）</td><td>psutil</td><td>P0／S</td><td>✅ psutil 用 <code>runtime.python: auto</code> 安裝；但現在沒有「讀系統資訊」這個權限類別可以宣告</td></tr>
+      <tr><td class="n">截圖</td><td>在手機上打一句話，就拿到電腦目前的畫面（確認下載跑完了沒、程式卡住沒）。擁有者點名要的</td><td>cli（手動觸發）</td><td><span class="chip todo">新</span> 螢幕</td><td><b>高</b>（可能拍到密碼、私訊）</td><td>mss、Pillow ImageGrab</td><td>P1／M</td><td>❌ 缺三樣：螢幕權限宣告、cli 回傳圖片（cli 現在只能回文字，<code>packs/render.py</code>）、SYNOX 要在使用者的桌面工作階段裡跑</td></tr>
+      <tr><td class="n">找檔案／定位資料夾</td><td>「上個月那份報價單放哪？」：用檔名、關鍵字、日期找，回完整路徑；可以加一個按鈕在檔案總管開那個資料夾</td><td>cli（開資料夾＝launch）</td><td>fs:any 讀</td><td>中</td><td>Everything（es.exe）、fd</td><td>P0／M</td><td>⚠️ 找得到；「在檔案總管開資料夾」要 launch 能力（計畫書 W）</td></tr>
+      <tr><td class="n">整理下載資料夾</td><td>照副檔名或日期分類搬檔案；先給「會搬哪些」的預覽，按確認才搬</td><td>cli＋排程</td><td>fs:any 寫</td><td>中</td><td>organize（organize-tool）</td><td>P1／M</td><td>✅ 用確認來回（needs_confirm）</td></tr>
+      <tr><td class="n">磁碟空間分析</td><td>哪些資料夾最大、最近多出哪些大檔案</td><td>cli</td><td>fs:any 讀</td><td>中</td><td>ncdu、dust、WizTree</td><td>P1／S</td><td>✅</td></tr>
+      <tr><td class="n">重複檔案</td><td>用雜湊找出重複的檔案，列清單（刪除要確認）</td><td>cli</td><td>fs:any</td><td>中</td><td>czkawka、dupeGuru、本機 HashMyFile</td><td>P2／M</td><td>✅</td></tr>
+      <tr><td class="n">網路速度／連線檢查</td><td>測速、看對外連不連得上</td><td>cli</td><td>network</td><td>低</td><td>speedtest-cli</td><td>P3／S</td><td>✅</td></tr>
+      <tr><td class="n">剪貼簿歷史</td><td>把最近複製過的東西存起來，之後可以查</td><td>常駐</td><td><span class="chip todo">新</span> 剪貼簿</td><td><b>高</b></td><td>CopyQ、Ditto</td><td>P3（不建議）</td><td>❌ 而且很容易存到密碼</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>學生</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>點子</th><th>一句話</th><th>接法</th><th>權限</th><th>敏感度</th><th>開源參考</th><th>優先／量</th><th>SYNOX 現在</th></tr></thead>
+    <tbody>
+      <tr><td class="n">作業與考試截止提醒</td><td>記一筆「週五交報告」，前一天和當天早上提醒</td><td>cli＋排程</td><td>fs:own</td><td>低</td><td>（可以跟 to-do 共用）</td><td>P1／S</td><td>✅</td></tr>
+      <tr><td class="n">讀書卡片（間隔複習）</td><td>每天推幾張該複習的卡片，回「記得／忘了」就排下次</td><td>cli＋排程</td><td>fs:own</td><td>低</td><td>Anki、SM-2 演算法</td><td>P2／M</td><td>✅</td></tr>
+      <tr><td class="n">番茄鐘／專注計時</td><td>開始 25 分鐘，時間到就通知</td><td>排程</td><td>—</td><td>低</td><td>本機 ISDPCS 已經有</td><td>P2／S</td><td>✅</td></tr>
+      <tr><td class="n">引用格式產生</td><td>給 DOI 就產生 APA／IEEE 格式的引用</td><td>cli</td><td>network</td><td>低</td><td>Crossref API</td><td>P2／S</td><td>✅</td></tr>
+      <tr><td class="n">PDF／講義重點摘要</td><td>把一份 PDF 濃縮成重點和自我測驗題</td><td>cli＋AI</td><td>fs:own</td><td>中</td><td>pypdf</td><td>P2／M</td><td>⚠️ 要確定 AI 的費用由誰付（擁有者在意 token）</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>上班族</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>點子</th><th>一句話</th><th>接法</th><th>權限</th><th>敏感度</th><th>開源參考</th><th>優先／量</th><th>SYNOX 現在</th></tr></thead>
+    <tbody>
+      <tr><td class="n">簡單 to-do</td><td>加一筆、完成、今天要做什麼、逾期的；資料存在本機，不用註冊任何服務（工具庫的 Todoist 要有帳號）。擁有者點名要的</td><td>cli＋排程（早上推今天的清單）</td><td>fs:own</td><td>低～中</td><td>todo.txt 格式、Taskwarrior</td><td>P0／S</td><td>✅</td></tr>
+      <tr><td class="n">會議記錄 → 待辦</td><td>貼上會議記錄，抓出「誰、做什麼、什麼時候」，一鍵加進 to-do</td><td>cli＋AI</td><td>fs:own</td><td>中～高</td><td>—</td><td>P1／M</td><td>⚠️ 依賴 to-do；AI 費用</td></tr>
+      <tr><td class="n">週報產生器</td><td>把 devlog、完成的 to-do、commit 整理成一份週報草稿</td><td>cli＋AI＋排程</td><td>fs:own</td><td>中</td><td>—</td><td>P1／M</td><td>⚠️ 依賴 devlog 和 to-do</td></tr>
+      <tr><td class="n">匯率／單位換算</td><td>「100 美金多少台幣」「5 英呎幾公分」</td><td>cli</td><td>network（匯率）</td><td>低</td><td>（各國央行公開匯率）</td><td>P2／S</td><td>✅</td></tr>
+      <tr><td class="n">電子發票整理</td><td>整理財政部電子發票載具的資料，分類加總</td><td>cli</td><td>network＋token</td><td><b>高</b></td><td>財政部電子發票 API</td><td>P3／L</td><td>⚠️ 要申請 API、資料很敏感</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>設計、內容創作</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>點子</th><th>一句話</th><th>接法</th><th>權限</th><th>敏感度</th><th>開源參考</th><th>優先／量</th><th>SYNOX 現在</th></tr></thead>
+    <tbody>
+      <tr><td class="n">圖片批次縮圖／轉檔／壓縮</td><td>把一整個資料夾的圖片轉成 WebP、限制寬度、去掉 EXIF（拍攝地點）</td><td>cli</td><td>fs:any</td><td>中（EXIF 有 GPS 位置）</td><td>Pillow</td><td>P1／M</td><td>⚠️ 結果圖片傳不回聊天，只能寫回資料夾</td></tr>
+      <tr><td class="n">色票與對比檢查</td><td>給主色就產生一組色票，並檢查文字對比夠不夠（WCAG）</td><td>cli</td><td>—</td><td>低</td><td>（公式公開）</td><td>P2／S</td><td>✅ 純函式，適合當範例</td></tr>
+      <tr><td class="n">貼文草稿與排程提醒</td><td>寫一次草稿，產生不同平台的長短版本，到時間提醒你發</td><td>cli＋AI＋排程</td><td>fs:own</td><td>低</td><td>—</td><td>P2／M</td><td>✅（不代發，只提醒）</td></tr>
+      <tr><td class="n">影片逐字稿／筆記</td><td>計畫書已列（video-notes）</td><td>webapp</td><td>—</td><td>—</td><td>本機專案</td><td>（已在計畫書 X3）</td><td>⚠️ 要先有 W</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>研究、資料</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>點子</th><th>一句話</th><th>接法</th><th>權限</th><th>敏感度</th><th>開源參考</th><th>優先／量</th><th>SYNOX 現在</th></tr></thead>
+    <tbody>
+      <tr><td class="n">CSV 快速統計</td><td>丟一個 CSV，回每一欄的型別、缺值、平均和最大最小</td><td>cli</td><td>fs:own</td><td>中</td><td>Python 內建 csv、pandas</td><td>P1／S</td><td>✅（只用標準函式庫就是 T1）</td></tr>
+      <tr><td class="n">網頁轉純文字</td><td>給網址，回乾淨的正文（給 AI 讀或存起來）</td><td>cli</td><td>network</td><td>中（網頁內容可能藏提示注入）</td><td>trafilatura</td><td>P1／M</td><td>✅ 結果會包在分隔符裡交給 AI（第 5 關）</td></tr>
+      <tr><td class="n">論文／RSS 追蹤</td><td>每天抓 arXiv 或 RSS 的新文章，照關鍵字過濾後送摘要</td><td>cli＋排程</td><td>network</td><td>低</td><td>arXiv API、本機 ClawBot news_digest</td><td>P1／M</td><td>✅（計畫書 X2 已列 news_digest）</td></tr>
+      <tr><td class="n">資料夾全文搜尋</td><td>在指定資料夾的文字檔裡找關鍵字</td><td>cli</td><td>fs:any 讀</td><td>中</td><td>ripgrep</td><td>P2／S</td><td>⚠️ 叫 ripgrep 算 T2（外部程式）；用純 Python 寫就是 T1</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>小店家、自由工作者</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>點子</th><th>一句話</th><th>接法</th><th>權限</th><th>敏感度</th><th>開源參考</th><th>優先／量</th><th>SYNOX 現在</th></tr></thead>
+    <tbody>
+      <tr><td class="n">工時記錄＋請款</td><td>「開始做 A 客戶」「停」，月底照時薪算出請款金額</td><td>cli</td><td>fs:own</td><td>中</td><td>Timewarrior</td><td>P1／M</td><td>✅</td></tr>
+      <tr><td class="n">報價單／收據 PDF</td><td>填品項和數量，產生有抬頭的 PDF</td><td>cli</td><td>fs:own</td><td>中</td><td>reportlab</td><td>P2／M</td><td>⚠️ PDF 傳不回聊天（同截圖的缺口）</td></tr>
+      <tr><td class="n">簡易客戶名單（mini CRM）</td><td>客戶、上次聯絡時間、下次要跟進的日子，到期提醒</td><td>cli＋排程</td><td>fs:own</td><td><b>高</b>（別人的個資）</td><td>—</td><td>P2／M</td><td>✅ 建議 <code>storage: vault</code> 加密</td></tr>
+      <tr><td class="n">庫存低量提醒</td><td>記庫存數量，低於門檻就提醒補貨</td><td>cli＋排程</td><td>fs:own</td><td>低</td><td>—</td><td>P3／S</td><td>✅</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>家庭生活</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>點子</th><th>一句話</th><th>接法</th><th>權限</th><th>敏感度</th><th>開源參考</th><th>優先／量</th><th>SYNOX 現在</th></tr></thead>
+    <tbody>
+      <tr><td class="n">家庭共用購物清單</td><td>家人都能在群組裡加，買到就勾掉</td><td>cli</td><td>fs:own（<code>data: shared</code>、<code>surfaces: dm＋channel</code>）</td><td>低</td><td>—</td><td>P1／S</td><td>✅ 剛好示範「共用資料＋群組可用」</td></tr>
+      <tr><td class="n">帳單到期提醒</td><td>每月固定日提醒繳電費、卡費</td><td>排程</td><td>—</td><td>中</td><td>（系統提醒 <code>/remind_*</code> 已經有）</td><td>P2／S</td><td>✅ 可能只要寫一份使用說明</td></tr>
+      <tr><td class="n">家務輪值</td><td>每週輪流排誰倒垃圾、洗碗，到時間提醒那個人</td><td>cli＋排程</td><td>fs:own（shared）</td><td>低</td><td>—</td><td>P2／S</td><td>⚠️ 伺服器版才有「每個人」</td></tr>
+      <tr><td class="n">吃藥提醒</td><td>按時提醒，回「吃了」做記錄</td><td>排程</td><td>fs:own</td><td><b>高</b>（健康資料）</td><td>—</td><td>P2／S</td><td>✅ 建議 vault</td></tr>
+      <tr><td class="n">天氣＋穿衣建議</td><td>計畫書已列（ClawBot weather）</td><td>cli＋排程</td><td>network</td><td>低</td><td>本機 ClawBot</td><td>（已在計畫書 X2）</td><td>✅</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>SYNOX 現在缺的能力（做小工具時會撞到）</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>#</th><th>缺什麼</th><th>誰需要</th><th>建議</th></tr></thead>
+    <tbody>
+      <tr><td class="id">G1</td><td><b>cli 回傳檔案／圖片</b>：cli 工具現在只能回文字（<code>packs/render.py</code> 會把結果攤平成文字）；只有在 SYNOX 程序裡跑的 python pack 能直接叫 <code>send_photo</code></td><td>截圖、縮圖、報價單 PDF、Random Icon Maker</td><td>在 JSON 結果裡加 <code>files: [...]</code>，路徑只准在 <code>{user_data_dir}/&lt;pack&gt;/</code> 底下，並限制大小和種類；通道照樣用 <code>send_photo</code>／<code>send_document</code>。先寫 ADR</td></tr>
+      <tr><td class="id">G2</td><td><b>螢幕權限</b>（<code>screen</code>）宣告</td><td>截圖、時間追蹤</td><td>新的權限類別：預設只給擁有者，而且每次都要確認（<code>confirm: true</code>）；伺服器版不開放</td></tr>
+      <tr><td class="id">G3</td><td><b>讀系統資訊</b>（<code>system:read</code>）宣告：行程清單、硬體資訊</td><td>效能監測、埠／行程查詢</td><td>新的權限類別，讓安裝報告看得到；第 2 關掃到 psutil 就要求宣告</td></tr>
+      <tr><td class="id">G4</td><td><b>只有說明的 pack</b>（沒有指令）</td><td>分支規範、寫作風格指南、外部的純說明 skill（橋接路線 A）</td><td>新增 <code>kind: skill</code>（T0），內容只進 <code>skill_read</code></td></tr>
+      <tr><td class="id">G5</td><td><b>平台限制欄位</b>（只能在 Windows／macOS 用）</td><td>截圖、開資料夾、外部 skill 的 <code>os</code>／<code>platforms</code></td><td>pack.json 加 <code>platforms</code>；平台不合就不裝，doctor 說明原因</td></tr>
+      <tr><td class="id">G6</td><td><b>桌面動作</b>（開資料夾、開程式）</td><td>定位資料夾、launch 類工具</td><td>跟計畫書工作包 W 的 <code>launch</code> 一起做</td></tr>
+      <tr><td class="id">G7</td><td><b>Windows 上的沙盒</b>（AppContainer 只有介面，還沒實作）</td><td>任何第三方 cli 工具、匯入的腳本</td><td>短期做不到；所以匯入的程式在 Windows 個人版預設不准跑（見「安全審查」）</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ───────────────────────── 外部生態 ───────────────────────── -->
+<section id="eco" hidden>
+  <h2>OpenClaw（龍蝦）</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>項目</th><th>內容</th><th>查證</th></tr></thead>
+    <tbody>
+      <tr><td class="n">是什麼</td><td>自己架的個人 AI 助理，透過 Discord、Slack、Telegram、WhatsApp、iMessage 對話；MIT 授權；Node／TypeScript；約 39.4 萬星；由非營利基金會維護</td><td><span class="chip ok">已查證</span> <span class="src">[S3]</span></td></tr>
+      <tr><td class="n">skill 格式</td><td>一個資料夾，裡面一定有 <code>SKILL.md</code>（YAML 前言＋Markdown 正文），其他檔案可有可無。前言最上層有 <code>name</code>、<code>description</code>、<code>version</code>；OpenClaw 自己的欄位放在 <code>metadata.openclaw</code>：<code>requires.bins／anyBins／env／config</code>、<code>primaryEnv</code>、<code>envVars</code>、<code>os</code>、<code>install</code>（<code>brew</code>／<code>node</code>／<code>go</code>／<code>uv</code>）、<code>always</code>、<code>emoji</code>、<code>homepage</code>。舊別名是 <code>metadata.clawdbot</code>、<code>metadata.clawdis</code></td><td><span class="chip ok">已查證</span> <span class="src">[S1]</span></td></tr>
+      <tr><td class="n">執行方式</td><td>skill 是「教 agent 怎麼用它本來就有的工具」的說明，<b>沒有另外的 skill 執行環境</b>；能用的 skill 會被編成一段 XML 放進系統提示（每個 skill 約 24 token 加上欄位長度）；<code>skills_read</code> 可以讀附屬檔，但「不列目錄、不執行腳本」；真正執行靠 agent 的 <code>exec</code></td><td><span class="chip ok">已查證</span> <span class="src">[S2]</span></td></tr>
+      <tr><td class="n">另一種擴充：plugin</td><td><code>openclaw.plugin.json</code>＋在 Gateway 程序<b>裡面</b>載入的模組（TS 編成 JS），可以註冊工具、通道、模型、skill、hook；文件寫「Treat plugin installs like running code」。官方說新功能通常應該做成 plugin</td><td><span class="chip ok">已查證</span> <span class="src">[S3][S5]</span></td></tr>
+      <tr><td class="n">權限與沙盒</td><td>沙盒<b>預設關閉</b>；開了之後只有「工具執行」搬進容器（Docker、Podman、SSH…），Gateway 一直在主機上跑；<code>tools.elevated</code> 是刻意留的出口；文件寫沙盒「不是完美的安全邊界」。skill 的 <code>env</code>／<code>apiKey</code> 只注入主機那一側，進沙盒就無效</td><td><span class="chip ok">已查證</span> <span class="src">[S2][S6]</span></td></tr>
+      <tr><td class="n">信任模型</td><td>一個 Gateway 只有「一個可信任的操作者」（或成員彼此互信的一組人）；「不是一個能防彼此敵對的多租戶安全邊界」；有 <code>openclaw security audit</code> 指令</td><td><span class="chip ok">已查證</span> <span class="src">[S7]</span></td></tr>
+      <tr><td class="n">對第三方 skill 的立場</td><td>「Treat third-party skills as untrusted code. Read them before enabling.」</td><td><span class="chip ok">已查證</span> <span class="src">[S2]</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>ClawHub（OpenClaw 的 skill 市集）</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>項目</th><th>內容</th><th>查證</th></tr></thead>
+    <tbody>
+      <tr><td class="n">放什麼</td><td>skill（有版本的文字包）、code plugin、bundle plugin；每一項有 semver 版本、<code>latest</code> 標籤、變更紀錄、下載數、掃描結果摘要</td><td><span class="chip ok">已查證</span> <span class="src">[S4]</span></td></tr>
+      <tr><td class="n">安裝與鎖檔</td><td><code>openclaw skills install …</code> 或 <code>clawhub install …</code>，會寫 <code>.clawhub/lock.json</code> 和 <code>&lt;skill&gt;/.clawhub/origin.json</code>；有 HTTP API（<code>CLAWHUB_REGISTRY</code> 可以換成別的 registry）</td><td><span class="chip ok">已查證</span> <span class="src">[S1][S4]</span>；API 的細節<b>沒查</b></td></tr>
+      <tr><td class="n">上架門檻</td><td>要用 GitHub 登入，帳號要「夠老」才能上傳（文件沒寫幾天）；有人檢舉就由管理員審查、隱藏或封號</td><td><span class="chip ok">已查證</span> <span class="src">[S4]</span></td></tr>
+      <tr><td class="n">授權</td><td><b>所有上架的 skill 一律是 MIT-0</b>：任何人都能用、改、再散佈、商用，不用標出處；不支援每個 skill 自己選授權；沒有付費 skill</td><td><span class="chip ok">已查證</span> <span class="src">[S1]</span></td></tr>
+      <tr><td class="n">大小限制</td><td>一個 skill 最大 50 MB；文字分析只看 SKILL.md 加大約 40 個文字檔</td><td><span class="chip ok">已查證</span> <span class="src">[S1]</span></td></tr>
+      <tr><td class="n">掃描</td><td>2026-02-07 起，每個 skill 都送 VirusTotal（包括用 Gemini 做的 Code Insight）掃描；判定惡意的直接擋、可疑的加警告、每天重掃。官方自己寫的限制：「this is not a silver bullet」「A clean scan doesn't mean a skill is safe」。Unit 42 提到 2026-06-01 又宣布跟 NVIDIA 合作掃描</td><td><span class="chip ok">已查證</span> <span class="src">[S9][S24]</span></td></tr>
+      <tr><td class="n">規模</td><td>說法差很多：2026-02 稽核時 2,857 個 <span class="src">[S25]</span>；第三方說 2026-02 底約 13,729 個，也有人說之後清到剩 3,286 個 <span class="src">[S36]</span>。官網首頁抓不到可靠的總數 <span class="src">[S8]</span></td><td><span class="chip warn">查不到可靠數字</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>ClawHub 的安全事件（時間順序）</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>時間</th><th>誰</th><th>發現</th><th>手法</th><th>查證</th></tr></thead>
+    <tbody>
+      <tr><td class="n">2026-02 初</td><td>Koi Security（「ClawHavoc」）</td><td>稽核 2,857 個，341 個是惡意的，其中 335 個是同一波攻擊</td><td>SKILL.md 寫「使用前要先安裝前置程式」：Windows 下載有密碼的 zip（躲防毒），macOS 叫你貼一段 glot.io 上的指令（base64 解碼後下載 Atomic macOS Stealer）。偽裝成加密錢包、Polymarket、YouTube 工具、自動更新；也有反向 shell、偷 <code>~/.clawdbot/.env</code> 的</td><td><span class="chip ok">已查證</span> <span class="src">[S25]</span>（Koi 原文已經轉到別處，讀不到）</td></tr>
+      <tr><td class="n">2026-02-05</td><td>Snyk（「ToxicSkills」）</td><td>ClawHub 加 skills.sh 共 3,984 個：13.4%（534 個）至少一個嚴重問題、36.82% 至少一個安全缺陷、人工確認 76 個惡意，其中 91% 同時用了提示注入</td><td>假的前置安裝、base64 的 <code>curl | bash</code>、偷 <code>~/.aws/credentials</code>、叫 agent 忽略安全警告、<b>改 agent 的記憶檔（<code>SOUL.md</code>、<code>MEMORY.md</code>）讓攻擊在之後的對話繼續存在</b>、約 21% 在執行時才從遠端抓指令</td><td><span class="chip ok">已查證</span> <span class="src">[S23]</span></td></tr>
+      <tr><td class="n">2026-02-07</td><td>OpenClaw</td><td>開始用 VirusTotal 掃描</td><td>—</td><td><span class="chip ok">已查證</span> <span class="src">[S9]</span></td></tr>
+      <tr><td class="n">2026-06-23</td><td>Palo Alto Unit 42</td><td>分析 2026-02 到 05 的資料，找到 5 個當時<b>沒被擋下</b>的 skill（之後下架、帳號被封）</td><td>在惡意指令後面塞約 22 MB 的填充字元，超過掃描器的大小上限；「有掃描過」的 skill 裡面照樣有貼文網站的誘餌；<b>完全不含惡意程式碼的「行為型」攻擊</b>：叫 agent 一律推薦作者的聯盟行銷連結、叫 agent 把加密貨幣匯進作者的錢包。報告的結論是每一個都「passed existing detection tools」</td><td><span class="chip ok">已查證</span> <span class="src">[S24]</span></td></tr>
+      <tr><td class="n">之後</td><td>Antiy CERT 等</td><td>累計 1,184 個惡意 skill、某一個作者就上傳了 677 個</td><td>—</td><td><span class="chip warn">只在搜尋結果看到</span> <span class="src">[S30]</span></td></tr>
+    </tbody>
+  </table></div>
+  <div class="note risk"><b>對 SYNOX 的意思：</b>(1) 主要的攻擊不在程式碼，而在 <b>SKILL.md 的文字</b>：用文字叫人或 AI 去下載、執行東西；(2) 掃描器（就算是 VirusTotal）抓不到純文字的惡意指示，也抓不到「行為型」攻擊；(3) 有攻擊會去改 agent 的記憶檔：SYNOX 也有 <code>soul.md</code>（ADR 0002），要確定任何 skill 都碰不到它。</div>
+
+  <h2>Hermes Agent（Nous Research）</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>項目</th><th>內容</th><th>查證</th></tr></thead>
+    <tbody>
+      <tr><td class="n">是什麼</td><td>會「自己學習」的 agent：會自己寫和修改 skill、有長期記憶；MIT 授權；主要用 Python；約 26.3 萬星；40 多個工具；指令可以在本機、Docker、SSH、Modal 等環境執行；支援 MCP</td><td><span class="chip ok">已查證</span> <span class="src">[S11]</span></td></tr>
+      <tr><td class="n">skill 格式</td><td><code>SKILL.md</code>，前言有 <code>name</code>、<code>description</code>、<code>version</code>、<code>platforms</code>（macos／linux／windows）、<code>metadata.hermes</code>（<code>tags</code>、<code>category</code>、<code>requires_tools</code>、<code>fallback_for_tools</code>…、<code>config</code>）、<code>required_environment_variables</code>；附屬資料夾 <code>references/ templates/ scripts/ examples/ assets/</code>；文件說跟 agentskills.io 相容</td><td><span class="chip ok">已查證</span> <span class="src">[S10]</span></td></tr>
+      <tr><td class="n">分層載入</td><td><code>skills_list()</code> 先列名字和說明，<code>skill_view(name)</code> 讀全文，<code>skill_view(name, path)</code> 讀附屬檔</td><td><span class="chip ok">已查證</span> <span class="src">[S10]</span></td></tr>
+      <tr><td class="n">市集來源</td><td><code>official</code>、<code>skills-sh</code>、<code>well-known</code>、<code>url</code>、<code>github</code>、<b><code>clawhub</code></b>、<code>lobehub</code>、<code>browse-sh</code>：<b>Hermes 已經直接能裝 ClawHub 的 skill</b></td><td><span class="chip ok">已查證</span> <span class="src">[S10]</span></td></tr>
+      <tr><td class="n">搬家工具</td><td><code>hermes import-agent openclaw</code>（舊寫法 <code>hermes claw migrate</code>）：把 OpenClaw 的人設、記憶、skill、通道設定搬過來，可以先 <code>--dry-run</code> 預覽</td><td><span class="chip ok">已查證</span> <span class="src">[S11]</span></td></tr>
+      <tr><td class="n">信任與掃描</td><td>四級：<code>builtin</code>、<code>official</code>、<code>trusted</code>、<code>community</code>；內建掃描器查「資料外流、提示注入、破壞性指令、供應鏈訊號」，判成 <code>dangerous</code> 的連 <code>--force</code> 都裝不了；可以另外加 NVIDIA SkillEvaluator，但只是「建議性質」</td><td><span class="chip ok">已查證</span> <span class="src">[S10]</span></td></tr>
+      <tr><td class="n">agent 自己寫的 skill</td><td><code>skill_manage</code> 可以建立、修改、刪除 skill；<b>預設不用核准</b>（<code>skills.write_approval: false</code>）</td><td><span class="chip ok">已查證</span> <span class="src">[S10]</span></td></tr>
+      <tr><td class="n">執行安全</td><td>危險指令先比對規則，<code>approvals.mode</code> 有 <code>smart</code>（交給另一個 LLM 判斷）、<code>manual</code>、<code>off</code>；毀滅性指令一律擋；子程序拿不到敏感的環境變數；<code>AGENTS.md</code>、<code>SOUL.md</code> 載入前會掃提示注入（文件自己說是啟發式判斷）；用容器時就不檢查危險指令，因為「容器本身就是安全邊界」</td><td><span class="chip ok">已查證</span> <span class="src">[S12]</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>通用標準與其他平台</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>標準／平台</th><th>重點</th><th>查證</th></tr></thead>
+    <tbody>
+      <tr><td class="n">Agent Skills（agentskills.io）</td><td>Anthropic 開發、後來開放成公開標準。<code>name</code>（1–64 字、小寫英數字和 <code>-</code>、要跟資料夾同名）、<code>description</code>（1–1024 字）必填；<code>license</code>、<code>compatibility</code>（≤500 字）、<code>metadata</code>（<b>規格寫的是字串對字串</b>）、<code>allowed-tools</code>（實驗性）選填；建議的資料夾是 <code>scripts/ references/ assets/</code>；分三層載入（介紹約 100 token、全文建議 &lt;5000 token、其他檔案用到才讀）；驗證工具 <code>skills-ref</code></td><td><span class="chip ok">已查證</span> <span class="src">[S13][S14]</span></td></tr>
+      <tr><td class="n">採用的產品</td><td>二手來源說有 30～40 多個工具支援：OpenAI Codex（<code>.agents/skills/</code>）、GitHub Copilot、Gemini CLI、Cursor（各家支援程度不同）。官方的展示頁讀不出清單</td><td><span class="chip warn">二手、未查證</span> <span class="src">[S15][S34]</span></td></tr>
+      <tr><td class="n">Anthropic Agent Skills（API／claude.ai）</td><td>在 API 上，skill 跑在<b>不能連網、不能安裝套件</b>的容器裡；在 Claude Code 裡就跟電腦上的一般程式一樣能連網。安全提醒：「Use Skills only from trusted sources」，要檢查所有檔案（SKILL.md、腳本、圖片），從外部網址抓資料的 skill 特別危險</td><td><span class="chip ok">已查證</span> <span class="src">[S17]</span></td></tr>
+      <tr><td class="n">Claude Code skills</td><td>多了很多自己的欄位：<code>disable-model-invocation</code>、<code>user-invocable</code>、<code>allowed-tools</code>（「不跳詢問」的白名單，<b>不是限制</b>）、<code>context: fork</code>、<code>hooks</code>…；<code>!`指令`</code> 會在 skill <b>載入時</b>就在你電腦上跑；在 claude.ai／API 上傳時只收 <code>name</code>、<code>description</code>、<code>license</code>、<code>compatibility</code>、<code>metadata</code>、<code>allowed-tools</code></td><td><span class="chip ok">已查證</span> <span class="src">[S16]</span></td></tr>
+      <tr><td class="n">MCP</td><td>JSON-RPC 2.0；伺服器提供 tools、resources、prompts；目前的規格是 2026-07-28 版。安全原則：「Tools represent arbitrary code execution」、工具的自我描述（annotations）要當作不可信、叫工具前要使用者同意</td><td><span class="chip ok">已查證</span> <span class="src">[S19]</span></td></tr>
+      <tr><td class="n">MCP Registry</td><td>官方目錄（還在預覽版），<b>只放介紹資料、不放程式</b>（<code>server.json</code> 指向 npm、PyPI、Docker 映像或遠端網址），用 DNS 或 GitHub 驗證名字的擁有權；<b>不做安全掃描</b>（交給套件來源和下游市集）；官方建議主程式不要直接讀它，改讀下游的目錄</td><td><span class="chip ok">已查證</span> <span class="src">[S20]</span></td></tr>
+      <tr><td class="n">MCP Skills 擴充</td><td>SEP-2640 在 2026-09-13 定案。伺服器用 <code>skills/list</code>、<code>skills/get</code>、<code>resources/read</code> 提供 skill，<b>每個檔案附 sha256 和大小</b>；主程式要逐檔驗證，內容改了核准就作廢、要重新核准；skill 內容要當作不可信的輸入，<code>allowed-tools</code> 這類放權要每個 skill 由使用者明確同意；上限建議 512 個檔、16 MiB</td><td><span class="chip ok">已查證</span> <span class="src">[S21][S22]</span></td></tr>
+      <tr><td class="n">Cursor 規則</td><td><code>.cursor/rules/*.mdc</code>，前言有 <code>description</code>、<code>globs</code>、<code>alwaysApply</code>；也讀 <code>AGENTS.md</code>。那一頁沒提到 SKILL.md</td><td><span class="chip ok">已查證</span> <span class="src">[S26]</span></td></tr>
+      <tr><td class="n">LangChain tools</td><td>用 <code>@tool</code> 把函式變成工具，型別註記就是參數格式（跟 SYNOX SDK 的 <code>@tool</code> 同樣的想法）；有 MCP 轉接器（beta）</td><td><span class="chip ok">已查證</span> <span class="src">[S27]</span></td></tr>
+      <tr><td class="n">Cline 等</td><td>沒有查</td><td><span class="chip warn">未查證</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>各平台的共同點與差異</h2>
+  <div class="scroll"><table>
+    <thead><tr><th></th><th>OpenClaw</th><th>Hermes</th><th>Claude Code</th><th>MCP</th><th><b>SYNOX</b></th></tr></thead>
+    <tbody>
+      <tr><td class="n">說明書格式</td><td>SKILL.md</td><td>SKILL.md</td><td>SKILL.md</td><td>SKILL.md（Skills 擴充）</td><td>SKILL.md（同一個標準）</td></tr>
+      <tr><td class="n">自訂欄位放哪</td><td><code>metadata.openclaw</code></td><td><code>metadata.hermes</code>＋最上層</td><td>最上層（很多）</td><td>原樣保留</td><td><b>pack.json</b>（說明書和執行宣告分開放）</td></tr>
+      <tr><td class="n">怎麼做事</td><td>agent 的 exec／shell</td><td>agent 的終端機工具</td><td>Bash（加 <code>!</code> 預先執行）</td><td>伺服器自己的 tools</td><td><b>只有宣告過的指令</b>，AI 沒有 shell</td></tr>
+      <tr><td class="n">危險程度怎麼宣告</td><td>沒有每個指令的宣告</td><td>執行時比對危險指令規則</td><td>權限規則／<code>allowed-tools</code></td><td>annotations（不可信）</td><td><b>每個指令都要標 <code>effect</code></b>（READ／WRITE／DANGER），DANGER 一定出確認卡</td></tr>
+      <tr><td class="n">需求宣告</td><td><code>requires.bins/env</code>、<code>install</code></td><td><code>required_environment_variables</code>、<code>platforms</code></td><td>（沒有）</td><td><code>server.json</code> 的 env</td><td><code>requires</code>、<code>capabilities</code>、<code>auth.fields</code></td></tr>
+      <tr><td class="n">隔離</td><td>沙盒預設關，可選容器</td><td>可選容器（推薦）</td><td>可選沙盒</td><td>看主程式</td><td>Linux 有 bwrap／systemd／容器（還沒在真機驗證）；<b>Windows 沒有</b></td></tr>
+      <tr><td class="n">完整性</td><td>lock.json、ClawPack 雜湊</td><td>（沒查）</td><td>（沒查）</td><td>每檔 sha256 清單</td><td>packs.lock 鎖每個檔案、每次載入都驗</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>結論：</b>格式這一層大家已經統一成 SKILL.md；差別在「做事」這一層。SYNOX 獨有的是<b>每個指令的危險程度宣告、能力宣告和確認卡</b>，別的平台沒有這一層。所以橋接時，SYNOX 要補上的就是「把別人的 skill 補成有宣告的指令」。這是工作量，也是 SYNOX 拿得出來的價值。</p>
+  <div class="note">SYNOX 自己有一個小落差：<code>src/synox/agent/skills.py</code> 只讀<b>單行</b>的 <code>key: value</code>。agentskills 允許 YAML 多行寫法（<code>description: &gt;</code> 換行接文字），OpenClaw 也把巢狀的 <code>metadata.openclaw</code> 放在前言裡。拿別人的 SKILL.md 來用時，description 可能會被讀成一個「&gt;」。要接外部 skill 就得先換成一個安全的 YAML 子集解析器（工作包 E1）。另外 SYNOX 的 pack <code>name</code> 上限是 32 字，agentskills 是 64 字，要準備一個對照規則。</div>
+</section>
+
+<!-- ───────────────────────── 橋接架構 ───────────────────────── -->
+<section id="bridge" hidden>
+  <h2>你說的「雙向轉接」，拆開來看</h2>
+  <pre class="cmd">  外部 ──►  [轉接頭 1：匯入]  ──►  SYNOX 中間格式  ──►  SYNOX 執行端（五關、確認卡、沙盒）
+ （OpenClaw／Hermes／MCP／agentskills）     （pack.json＋SKILL.md）
+
+  SYNOX 工具 ──►  [轉接頭 2：匯出]  ──►  MCP 伺服器（SDK 的 serve --mcp 已經有）＋ SKILL.md
+                                          ──►  Claude Code／Hermes／OpenClaw 等也能用</pre>
+  <p>核心不用改成「吃 OpenClaw 的核心」：<b>pack.json 本身就是中間格式</b>。轉接頭 1 負責把外部的東西翻成 pack.json（缺的宣告由擁有者補），之後走 SYNOX 原本的安裝流程。轉接頭 2 有一半已經做好了：SDK 的 <code>serve() --mcp</code> 能把 SYNOX 的工具變成 MCP 伺服器。</p>
+
+  <h2>四條路線比較</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>路線</th><th>吃什麼</th><th>這台會跑別人的程式嗎</th><th>要新增的能力</th><th>工作量</th><th>風險</th><th>建議</th></tr></thead>
+    <tbody>
+      <tr><td class="id">A</td><td>只吃 SKILL.md（純說明：寫作指南、檢查清單、流程）</td><td>不會</td><td><code>kind: skill</code>、YAML 子集解析、<code>skill_read</code> 讀附屬檔、文字層掃描</td><td>S～M</td><td><span class="chip">低</span> 提示注入（已經有分隔符，AI 也沒有 shell）</td><td><span class="chip ok">先做</span></td></tr>
+      <tr><td class="id">B</td><td>帶腳本的 skill → 轉成 cli pack</td><td><b>會</b></td><td>轉換器、指令草稿、平台欄位、容器預設</td><td>M～L</td><td><span class="chip risk">高</span> 腳本本身、外部套件、前置安裝</td><td><span class="chip">第二步</span></td></tr>
+      <tr><td class="id">C</td><td>MCP 伺服器 → 現成的 <code>kind: mcp</code></td><td>http：不會；stdio：會</td><td><code>server.json</code> → pack.json 產生器；（之後）MCP Skills 擴充的用戶端</td><td>S～M</td><td>http <span class="chip">低～中</span>；stdio＋npx <span class="chip warn">中高</span></td><td><span class="chip ok">先做</span>（先做 http）</td></tr>
+      <tr><td class="id">D</td><td>原生相容：直接讀 OpenClaw／Hermes 的資料夾，SYNOX 當執行端，給 AI 一個萬用 shell</td><td><b>會，而且範圍最大</b></td><td>shell 工具、每條指令的核准流程（類似 Hermes approvals）、強制容器</td><td>XL</td><td><span class="chip risk">最高</span> 打掉「AI 沒有 shell」這個優勢</td><td><span class="chip risk">不建議</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <details class="wp" open><summary><span class="id">A</span> 只吃 SKILL.md（純說明） <span class="chip ok">建議先做</span></summary><div class="body">
+    <h3>對應關係</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>外部欄位</th><th>SYNOX</th><th>規則</th></tr></thead>
+      <tbody>
+        <tr><td><code>name</code></td><td><code>pack.json name</code>、SKILL.md <code>name</code></td><td>agentskills 允許 64 字，SYNOX 上限 32 字：太長就截斷並加 4 字雜湊，原名記在 <code>source.name</code></td></tr>
+        <tr><td><code>description</code></td><td>SKILL.md <code>description</code>、pack <code>summary</code></td><td>拿掉控制字元和隱藏的 Unicode，截到 1024 字；summary 截到 200 字</td></tr>
+        <tr><td><code>version</code>／<code>metadata.version</code></td><td><code>version</code></td><td>不是 semver 就用 <code>0.0.0-&lt;commit 前 7 碼&gt;</code></td></tr>
+        <tr><td><code>license</code></td><td><span class="chip todo">新</span> <code>source.license</code></td><td>ClawHub 來的一律寫 MIT-0；沒寫授權的只准自己用，不准放進工具庫再散佈</td></tr>
+        <tr><td>正文</td><td>SKILL.md 正文（只透過 <code>skill_read</code> 給 AI）</td><td>原樣保留，包在 nonce 分隔符裡；正文裡的「去執行 X」SYNOX 做不到，也不會去做</td></tr>
+        <tr><td><code>references/*.md</code>、<code>assets/</code></td><td>pack 資料夾</td><td><span class="chip todo">新</span> <code>skill_read(name, path)</code>，只准讀清單內的檔案</td></tr>
+        <tr><td><code>scripts/</code>、<code>metadata.openclaw.requires.bins</code>、<code>install</code></td><td>—</td><td><b>有任何一項就不屬於路線 A</b>，改走 B（或拒絕）</td></tr>
+        <tr><td><code>allowed-tools</code>、<code>hooks</code>、<code>!`…`</code></td><td>—</td><td>一律忽略並在報告寫出來（SYNOX 不給 shell，也不預先執行任何東西）</td></tr>
+        <tr><td>（來源）</td><td><span class="chip todo">新</span> <code>source</code>：<code>{type: "openclaw|hermes|github|mcp", url, ref, sha256}</code></td><td>寫進 packs.lock，升級時比對</td></tr>
+      </tbody>
+    </table></div>
+    <h3>轉換流程</h3>
+    <pre class="cmd">synox import-skill &lt;本機資料夾或 .zip&gt; [--from openclaw|hermes|agentskills]
+  1. 只讀：檢查大小上限（沿用 5 MB／20 MB／300 檔；超過＝拒）、檔名規則（沿用 admin.py）
+  2. 解析前言（YAML 安全子集：不收自訂標籤、錨點）→ 判斷是哪一條路線
+  3. 文字層掃描（見「安全審查」S3）→ 有紅字就停
+  4. 產生 pack 草稿：pack.json（kind: skill）＋原 SKILL.md＋IMPORT_REPORT.md（轉了什麼、丟了什麼、為什麼）
+  5. 交給原本的安裝流程（第 1～3 關、擁有者按確認、寫 packs.lock）</pre>
+    <p><b>資料流：</b>使用者講話 → AI 從系統提示看到 skill 的 name＋description（約 100 token）→ 需要時呼叫 <code>skill_read</code> → 正文包在分隔符裡交回 → AI 只能用<b>其他已裝 pack</b> 的指令做事。<b>輸出：</b>只有文字回覆。</p>
+    <p><b>注意 token：</b>每多一個 skill，每輪系統提示都多幾十到一百 token（擁有者在意 token）。建議裝了不等於啟用：網頁上每個 skill 有開關，預設只開擁有者勾的。</p>
+  </div></details>
+
+  <details class="wp"><summary><span class="id">B</span> 帶腳本的 skill → cli pack <span class="chip">第二步</span></summary><div class="body">
+    <h3>對應關係</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>外部</th><th>SYNOX pack.json</th><th>規則</th></tr></thead>
+      <tbody>
+        <tr><td><code>scripts/*.py</code></td><td><code>cli.argv: ["{python}", "./scripts/x.py"]</code></td><td>T1（第 2 關掃得到）</td></tr>
+        <tr><td><code>scripts/*.sh</code>、<code>.js</code>、<code>.ts</code>、執行檔</td><td>同上，argv 開頭換成對應的直譯器</td><td>T2：要宣告 <code>exec</code>、要寫 <code>publisher</code>；<b>Windows 個人版預設不准</b>（沒有沙盒）</td></tr>
+        <tr><td>SKILL.md 正文提到的指令行（例如 <code>python scripts/fill.py --in X</code>）</td><td><code>cli.commands[]</code>：<code>name</code>、<code>argv</code>、<code>fields[]</code>、<code>effect</code></td><td>轉換器只能<b>起草</b>（找出程式碼區塊和腳本的參數）；<b><code>effect</code> 一律先填 DANGER</b>，由擁有者逐個改小。可以選擇用 LLM 幫忙起草（要花錢，預設關）</td></tr>
+        <tr><td><code>requires.env</code>、<code>envVars</code>、<code>required_environment_variables</code></td><td><code>requires.env</code></td><td>名字像密鑰的 → <code>auth.fields[]</code>（<code>secret: true</code>，經網頁「連接」表單收）</td></tr>
+        <tr><td><code>primaryEnv</code></td><td><code>auth.fields[0]</code></td><td>同上</td></tr>
+        <tr><td><code>requires.bins</code>／<code>anyBins</code></td><td>報告的「外部程式」一段</td><td>T2；只用 PATH 查在不在，<b>不執行</b>；鎖記錄解析後的路徑</td></tr>
+        <tr><td><code>install: uv</code>（Python 套件）</td><td><code>runtime.python: "auto"</code>＋<code>requires.pip</code></td><td>每一項都要 <code>名字==版本</code>（最好加 <code>--hash</code>）；來源固定 PyPI（沿用現有規則）</td></tr>
+        <tr><td><code>install: node</code></td><td><code>runtime.node: "auto"</code></td><td>要有 <code>package-lock.json</code>；<code>npm ci --ignore-scripts</code>（沿用）</td></tr>
+        <tr><td><code>install: brew</code>、<code>go</code></td><td>—</td><td><b>不自動安裝</b>：報告寫「請自己裝」，或直接拒絕</td></tr>
+        <tr><td><code>os</code>、<code>platforms</code></td><td><span class="chip todo">新</span> <code>platforms</code></td><td>不合這台＝不裝</td></tr>
+        <tr><td>（隔離）</td><td><code>runtime.container</code></td><td>匯入的 pack 預設要求容器、<code>network: false</code>；擁有者可以逐個放寬</td></tr>
+      </tbody>
+    </table></div>
+    <h3>轉換流程</h3>
+    <pre class="cmd">synox import-skill &lt;來源&gt;
+  1～3 同路線 A
+  4. 程式層：.py 跑現有第 2 關；其他語言列成 T2，做簡單的樣式比對（curl|bash、base64、讀 ~/.ssh…）當提醒
+  5. 宣告和實際行為比對 → 推出 capabilities 草稿 → 「權限差異報告」
+  6. 產生 pack 草稿＋IMPORT_REPORT.md；草稿的 commands 每一個都是 DANGER、ai: false
+  7. 擁有者在網頁逐個指令確認：effect、要不要給 AI 用、參數
+  8. 走原本的安裝流程（T2 要輸入 publisher；容器要先拉好映像）</pre>
+    <p><b>資料流：</b>AI 或人呼叫 <code>/&lt;群組&gt;_&lt;指令&gt;</code> → 第 4 關驗參數 → DANGER 出確認卡 → 開子程序（容器或沙盒）→ 最後一行印出 JSON → SYNOX 攤平成文字交回。<b>新需求：</b>G1（回傳檔案）、G5（平台）、轉換器、權限差異報告。</p>
+    <p><b>現實：</b><span class="chip warn">推測</span> 很多 ClawHub skill 要 macOS、brew、或 agent 自己的 shell（例如 iMessage、Apple Notes），真的能轉成 Windows 上可用 pack 的比例可能不高；要抽樣統計才知道（工作包 E2 的前置調查）。</p>
+  </div></details>
+
+  <details class="wp"><summary><span class="id">C</span> MCP 伺服器 → 現成的 kind: mcp <span class="chip ok">建議先做（http 優先）</span></summary><div class="body">
+    <h3>對應關係（MCP Registry 的 <code>server.json</code>）</h3>
+    <div class="scroll"><table>
+      <thead><tr><th>server.json</th><th>SYNOX pack.json</th><th>規則</th></tr></thead>
+      <tbody>
+        <tr><td><code>name</code>（<code>io.github.user/server</code>）</td><td><code>name</code>、<code>publisher</code></td><td>name 取最後一段；publisher＝驗證過的命名空間（比 SYNOX 現在「作者自己填的字串」可信一些）</td></tr>
+        <tr><td><code>remotes[].url</code></td><td><code>mcp.transport: "http"</code>、<code>mcp.url</code></td><td>一定要 https（沿用第 1 關）；T0</td></tr>
+        <tr><td><code>packages[]</code>（npm）</td><td><code>mcp.transport: "stdio"</code>、<code>argv: ["npx", "-y", "套件@版本"]</code></td><td>T2、「未鎖定執行環境」；<b>建議改成 <code>runtime.node: auto</code>＋package-lock</b>，不要每次 npx 去網路抓</td></tr>
+        <tr><td><code>packages[]</code>（PyPI）</td><td><code>runtime.python: auto</code>＋<code>{python} -m 模組</code></td><td>要釘版本加雜湊</td></tr>
+        <tr><td><code>packages[]</code>（OCI 映像）</td><td><code>runtime.container.image</code></td><td>一定要 <code>@sha256:</code>；registry 要在白名單</td></tr>
+        <tr><td>環境變數清單</td><td><code>requires.env</code>／<code>auth.fields</code></td><td>同路線 B</td></tr>
+        <tr><td><code>tools/list</code>（第一次連上後）</td><td><code>tools_allow</code>、<code>effects</code></td><td>由擁有者勾選；<b>伺服器自己說的 annotations 不算</b>（SYNOX 本來就這樣）；沒標的一律 DANGER</td></tr>
+        <tr><td>（Skills 擴充）<code>skills/list</code></td><td>pack 裡的 SKILL.md</td><td>照 SEP-2640：逐檔驗 sha256、清單變了核准就作廢</td></tr>
+      </tbody>
+    </table></div>
+    <h3>流程</h3>
+    <pre class="cmd">synox import-mcp &lt;server.json 檔&gt;     （只讀本機檔案；要不要讓 SYNOX 自己去 Registry 抓，請擁有者決定，見 QE5）
+  → 產生 kind: mcp 的 pack 草稿（tools_allow 先空著）
+  → 安裝後第一次連線讀 tools/list → 網頁讓擁有者勾要開放的工具、標 effect → 再核准一次</pre>
+    <p><b>為什麼先做：</b>程式碼幾乎都有了（<code>packs/mcp.py</code>、<code>packs/mcp_http.py</code>、<code>packs/mcp_schema.py</code>），只差一個產生器；遠端 MCP 不在這台跑任何程式。MCP 是業界共通的接口，Hermes、Claude Code、LangChain 都吃 <span class="src">[S11][S27]</span>。</p>
+  </div></details>
+
+  <details class="wp"><summary><span class="id">D</span> 原生相容層 <span class="chip risk">不建議</span></summary><div class="body">
+    <ul>
+      <li><b>做法：</b>SYNOX 直接掃 <code>~/.openclaw/skills</code>、<code>~/.hermes/skills</code>，或直接打 ClawHub API；給 AI 一個「執行 shell 指令」的工具，讓 SKILL.md 照原樣運作。</li>
+      <li><b>要新增：</b>萬用 shell 工具、每條指令的核准（像 Hermes 的 <code>approvals</code>）、危險指令規則、強制容器、指令輸出遮罩。</li>
+      <li><b>為什麼不建議：</b>(1) 等於回到 OpenClaw 的安全模型，SYNOX「每個指令都有宣告、DANGER 一定確認」的優勢就沒了；(2) ClawHavoc 那一類攻擊剛好就是用 shell 執行「前置安裝」；(3) Windows 個人版沒有沙盒；(4) 外部格式一直在變（OpenClaw 就改過名、留了好幾個別名），維護起來沒完沒了。</li>
+      <li><b>如果將來真的要做：</b>只在「伺服器版＋容器＋不能連網」的環境開放，每條指令都要人按。</li>
+    </ul>
+  </div></details>
+
+  <h2>反方向：把 SYNOX 的工具給別人用</h2>
+  <ul>
+    <li><b>MCP（已經有一半）：</b>SDK 寫的 cli 工具加 <code>--mcp</code> 就是 MCP stdio 伺服器。差的是：產生一份 <code>server.json</code>、可以選擇上架 MCP Registry、在 README 寫明「DANGER 的工具在一般 MCP 用戶端會停在『還沒做』」（<code>docs/sdk.md</code> 已經這樣設計）。</li>
+    <li><b>SKILL.md：</b>SYNOX 的 SKILL.md 正文寫的是 SYNOX 的工具名（例如 <code>money__add</code>），別人拿去用看不懂。匯出時要把正文改寫成「呼叫 MCP 工具 <code>add</code>」的版本，或在 SDK 加一個 <code>synox-sdk export-skill</code>。</li>
+    <li><b>價值：</b>這才是真正會帶來開發者的方向：別人寫一次 SDK 工具，SYNOX、Claude Code、Hermes 都能用，就有理由用 SYNOX 的 SDK。</li>
+  </ul>
+</section>
+
+<!-- ───────────────────────── 安全審查 ───────────────────────── -->
+<section id="security" hidden>
+  <h2>原則</h2>
+  <div class="note risk">擁有者說「只要確保別人做的 skill 安全性夠，就可以 clone 下來吃進來」。查證後要先講清楚：<b>沒有任何掃描能「確保」安全</b>。VirusTotal 加 Code Insight 都還漏掉純文字指示和「行為型」攻擊 <span class="src">[S9][S24]</span>，SYNOX 自己的文件也寫「掃描是提醒不是門」（<code>docs/security.md</code>）。能做到的是三件事：<b>(1) 讓壞東西在裝之前被看見；(2) 讓它就算裝了也碰不到要緊的東西（沒有 shell、要宣告、容器、不能連網）；(3) 危險的動作一定要人按。</b>SYNOX 原本的結構剛好在 (2)、(3) 很強。</div>
+
+  <h2>匯入審查管線（建議）</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>#</th><th>關卡</th><th>做什麼</th><th>擋什麼（對照真實事件）</th><th>現況</th></tr></thead>
+    <tbody>
+      <tr><td class="id">S0</td><td>取得方式</td><td>只收<b>本機已有</b>的資料夾或 zip，或擁有者手動下載的檔案；SYNOX 不自己 <code>git clone</code>、不執行任何下載腳本；下載的東西放專用的隔離資料夾、只當資料讀</td><td>「先跑這個安裝指令」類誘餌</td><td><span class="chip todo">新</span>（政策已經有：開發機家規）</td></tr>
+      <tr><td class="id">S1</td><td>來源釘選</td><td>記錄來源網址＋commit hash 或 ClawHub 的版本＋整包 sha256，寫進 packs.lock 的 <code>source</code>；之後換了內容一律重審</td><td>上架後偷換內容（ClawHub 才會每天重掃）</td><td><span class="chip ok">部分有</span> packs.lock 鎖每個檔案；<span class="chip todo">新</span> <code>source</code></td></tr>
+      <tr><td class="id">S2</td><td>格式與大小</td><td>agentskills 的名字規則、description 上限；YAML 安全子集；整包大小、檔案數、單檔大小、<b>單行長度</b>上限</td><td>Unit 42 的 22 MB 填充繞過掃描器</td><td><span class="chip ok">部分有</span> zip 5 MB／20 MB／300 檔；<span class="chip todo">新</span> 單行長度、YAML</td></tr>
+      <tr><td class="id">S3</td><td><b>文字層掃描</b>（新的重點）</td><td>掃 SKILL.md 和所有 .md／.txt：叫人或 AI 去下載執行的句型（<code>curl … | bash</code>、<code>iwr … | iex</code>、<code>base64 -d</code>、「先安裝」「prerequisite」、有密碼的 zip）、貼文網站和短網址（glot.io、rentry、pastebin…）、裸 IP、讀 <code>~/.ssh</code>／<code>~/.aws</code>／<code>.env</code>、改 <code>soul.md</code>／<code>MEMORY.md</code>、排程常駐（cron、launchd、<code>schtasks</code>）、「忽略之前的指示」、錢包地址、聯盟行銷導流；隱藏字元（零寬字元、雙向控制字元）、HTML 註解、超長 base64</td><td>ClawHavoc、ToxicSkills 的主要手法；Unit 42 的行為型攻擊（只能部分抓到）</td><td><span class="chip todo">新</span></td></tr>
+      <tr><td class="id">S4</td><td>程式層掃描</td><td>.py 走現有第 2 關；其他語言＝T2，再加簡單樣式比對當提醒</td><td>腳本裡的外連、偷金鑰</td><td><span class="chip ok">已有</span>（.py）；<span class="chip todo">新</span>（其他語言的提醒）</td></tr>
+      <tr><td class="id">S5</td><td>宣告和行為比對</td><td>程式裡讀了哪些環境變數 vs 宣告的；連了哪些主機 vs 文件寫的；用了什麼能力 vs <code>capabilities</code></td><td>ClawHub 也做「env 沒宣告就標記」<span class="src">[S1]</span></td><td><span class="chip ok">部分有</span>（能力沒宣告就拒裝）；<span class="chip todo">新</span>（環境變數、主機清單）</td></tr>
+      <tr><td class="id">S6</td><td>權限差異報告</td><td>一張給人看的表：「它說要做的事」vs「掃描看到的事」vs「SYNOX 會給的權限」；每一列都要擁有者勾</td><td>讓「說是天氣工具，卻要讀整個家目錄」一眼看出來</td><td><span class="chip ok">部分有</span>（安裝報告）；<span class="chip todo">新</span>（三欄對照＋逐列勾選）</td></tr>
+      <tr><td class="id">S7</td><td>黑名單</td><td>本機一個清單檔：已知惡意的作者、整包雜湊、網域、IP（從 Snyk、Koi、Unit 42 公開的 IOC 手抄進來）；命中＝拒，不能強制</td><td>已知的惡意作者、重新上架的同一批東西</td><td><span class="chip todo">新</span></td></tr>
+      <tr><td class="id">S8</td><td>信任層級</td><td>匯入的一律 <code>third-party</code>，另外標 <code>origin</code>（openclaw、hermes、mcp…）；T2 要輸入 publisher；<b>不准一次核准全部</b>，每個指令、每個密鑰、每個外連主機逐項按</td><td>按一下「全部同意」就裝進來</td><td><span class="chip ok">部分有</span>（T0/T1/T2、trust、publisher）；<span class="chip todo">新</span>（origin、逐項核准）</td></tr>
+      <tr><td class="id">S9</td><td>執行隔離</td><td>匯入的程式預設：容器＋不能連網＋非 root＋唯讀根目錄（已經有的旗標）；<b>Windows 個人版沒有沙盒 → 預設只准沒有程式的（路線 A、遠端 MCP）</b></td><td>就算漏網，也碰不到你的檔案和金鑰</td><td><span class="chip ok">已有</span>（容器旗標，還沒在真機驗證）；<span class="chip todo">新</span>（匯入的預設規則）</td></tr>
+      <tr><td class="id">S10</td><td>提示注入防護</td><td>SKILL.md 正文一律當資料（包分隔符，已經有）；不理 <code>allowed-tools</code>、<code>hooks</code>、<code>!`…`</code>；<b>skill 不能寫 soul.md、記憶、設定</b>（SYNOX 現在本來就沒有這種工具；以後加的時候要保持）；AI 沒有 shell</td><td>ToxicSkills 的「改記憶檔」、「忽略安全警告」</td><td><span class="chip ok">大致已有</span>；<span class="chip todo">新</span>（明文規定在 ADR 裡）</td></tr>
+      <tr><td class="id">S11</td><td>更新時重審</td><td>同名再匯入＝升級：除了現有的紅字項目，再加<b>SKILL.md 文字差異</b>（新增的網址、指令、安裝步驟用紅字）</td><td>先上架乾淨版，之後再夾帶（Unit 42 提到的自動更新）</td><td><span class="chip ok">部分有</span>（<code>packs/upgrade.py</code>）；<span class="chip todo">新</span>（文字差異）</td></tr>
+      <tr><td class="id">S12</td><td>LLM 輔助審查（選用）</td><td>擁有者按了才做：把 SKILL.md 和腳本交給 AI，請它列「跟宣稱用途不合的地方」；<b>結果只是建議，不能讓裝不了的變成裝得了</b>；送出前先顯示預估 token 量，只用擁有者設定的 AI 來源</td><td>行為型攻擊（例如「一律推薦某個連結」）比較可能被讀出來</td><td><span class="chip todo">新</span>（預設關，因為要花錢）</td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>對照 SYNOX 現在的五關</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>現有的關</th><th>對匯入的 skill 夠不夠</th><th>要補什麼</th></tr></thead>
+    <tbody>
+      <tr><td class="n">打包檔檢查（第 1 關之前）</td><td>夠用：擋絕對路徑、<code>..</code>、符號連結、保留檔名、大小</td><td>單行長度上限（S2）</td></tr>
+      <tr><td class="n">第 1 關 宣告</td><td>對 pack.json 夠；但外部 skill <b>沒有</b> pack.json，要由轉換器產生</td><td>轉換器、<code>kind: skill</code>、<code>platforms</code>、<code>source</code></td></tr>
+      <tr><td class="n">第 2 關 靜態掃描</td><td>只看 .py；<b>完全不看 Markdown 的文字</b>，而外部攻擊主要在文字裡</td><td>文字層掃描（S3）、黑名單（S7）、環境變數和主機比對（S5）</td></tr>
+      <tr><td class="n">第 3 關 完整性鎖定</td><td>夠用：鎖每個檔案、每次載入都驗</td><td>記錄來源（S1）</td></tr>
+      <tr><td class="n">第 4 關 呼叫驗證</td><td>夠用：擋參數夾帶、路徑跳出、把密鑰當參數送出</td><td>—</td></tr>
+      <tr><td class="n">第 5 關 授權與核准</td><td>夠用而且是關鍵：DANGER 確認卡、結果包分隔符</td><td>匯入的指令預設 DANGER、預設不給 AI（直到擁有者改）</td></tr>
+      <tr><td class="n">沙盒／容器</td><td>Linux 有（還沒在真機驗證）；<b>Windows 沒有</b></td><td>匯入的預設規則（S9）；長期是 AppContainer</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note">「宣告」這件事 SYNOX 比 OpenClaw、Hermes 都嚴：別人只宣告「要哪些程式和環境變數」，SYNOX 要宣告「每個指令多危險、要什麼能力、資料屬於誰、能不能在群組用」。所以匯入時最花工夫的一步，是讓擁有者把這些補上。好處是補完之後，這個 skill 在 SYNOX 裡比在原平台上安全。</div>
+</section>
+
+<!-- ───────────────────────── 統合與商業 ───────────────────────── -->
+<section id="strategy" hidden>
+  <h2>跟其他平台的關係：三種選擇</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>選擇</th><th>意思</th><th>好處</th><th>壞處</th><th>建議</th></tr></thead>
+    <tbody>
+      <tr><td class="n">相容層（只吃別人的）</td><td>能讀 SKILL.md 和 MCP，別人的東西轉進來用</td><td>馬上有東西可以裝</td><td>永遠在追別人的格式；品質和安全看別人</td><td>—</td></tr>
+      <tr><td class="n">自家標準</td><td>只認 pack.json，別人要來就照 SYNOX 的寫法</td><td>安全模型最一致</td><td>沒人會為一個小平台另外寫一份</td><td>—</td></tr>
+      <tr><td class="n"><b>雙向</b></td><td>說明書用大家共通的 SKILL.md、接口用 MCP；SYNOX 自己只多一層 pack.json（安全宣告）；進得來，也出得去</td><td>不另訂格式；SDK 寫的工具到處都能用；pack.json 成為賣點</td><td>兩邊都要維護</td><td><span class="chip ok">建議</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h2>授權</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>來源</th><th>授權</th><th>能不能跟 SYNOX（AGPL 核心）一起散佈</th><th>查證</th></tr></thead>
+    <tbody>
+      <tr><td class="n">ClawHub 的 skill</td><td>MIT-0（一律）</td><td>可以，連出處都不用標（建議還是標）</td><td><span class="chip ok">已查證</span> <span class="src">[S1]</span></td></tr>
+      <tr><td class="n">OpenClaw 本體</td><td>MIT</td><td>可以（要保留 MIT 授權聲明）</td><td><span class="chip ok">已查證</span> <span class="src">[S3]</span></td></tr>
+      <tr><td class="n">Hermes Agent 本體</td><td>MIT</td><td>可以</td><td><span class="chip ok">已查證</span> <span class="src">[S11]</span></td></tr>
+      <tr><td class="n">Hermes 市集裡的 skill</td><td>各自不同（來源很多種）</td><td>逐一看</td><td><span class="chip warn">未查證</span></td></tr>
+      <tr><td class="n">Anthropic skills repo</td><td>Apache-2.0（README 寫「Many skills」，不是全部）</td><td>可以，但要保留 LICENSE／NOTICE</td><td><span class="chip ok">已查證</span> <span class="src">[S18]</span></td></tr>
+      <tr><td class="n">GitHub 上沒寫授權的 skill</td><td>預設保留所有權利</td><td><b>不行</b>：只能讓使用者自己匯入、自己用，不能放進工具庫</td><td><span class="chip warn">一般著作權常識，不是法律意見</span></td></tr>
+      <tr><td class="n">skill 叫的外部程式（brew、npm、pip 套件）</td><td>各自不同（可能有 GPL）</td><td>SYNOX 不散佈它們，只是在使用者電腦上叫用；要放進容器映像一起發，就要逐一看</td><td><span class="chip warn">推測</span></td></tr>
+    </tbody>
+  </table></div>
+  <ul>
+    <li>方向上沒有衝突：MIT、MIT-0、Apache-2.0 的東西都能被 AGPL 專案帶著散佈；反過來，SYNOX 的 SDK 是 Apache-2.0，別人把 SYNOX 工具拿去用也沒問題（<code>LICENSING.md</code>）。</li>
+    <li><span class="chip warn">未查證</span> ClawHub 的服務條款准不准大量鏡像或自動抓取。真的要做「SYNOX 精選目錄」之前要先讀條款；建議用「指向原處＋釘雜湊」，不要整批複製。</li>
+    <li><span class="chip warn">推測</span> 說「相容 OpenClaw skill」這種描述性用法一般沒問題，但不要把 OpenClaw、ClawHub、Hermes 放進產品名或圖示（SYNOX 自己也有 <code>TRADEMARK.md</code>）。正式對外前找懂的人看。</li>
+  </ul>
+
+  <h2>開發者流量：誠實評估</h2>
+  <div class="grid">
+    <div class="card"><h3>好的一面</h3><p>格式已經統一（SKILL.md），接進來的成本確實低；MCP 讓一份工具能在很多平台用；SYNOX 有一層別人沒有的「指令級安全宣告＋確認卡」，在一連串 ClawHub 事件之後，「裝了比較放心」是講得出口的賣點。</p></div>
+    <div class="card"><h3>不確定的地方</h3><p>ClawHub 實際有多少 skill 能在 Windows、而且不需要 shell 的情況下用，<b>沒有數字</b>（推測不多）；一般使用者會不會在意「指令級宣告」，也還不知道。</p></div>
+    <div class="card"><h3>風險</h3><p>(1) Hermes 已經在吃 OpenClaw，規模大很多；(2) 外部 skill 出事，使用者會怪 SYNOX；(3) 外部格式一直變，維護會吃掉時間；(4) 每多一個 skill，每輪對話就多一點 token。</p></div>
+  </div>
+  <p><b>比較實際的期待：</b>不是「把 OpenClaw 的流量吃下來」，而是 (a) SYNOX 的使用者不用重寫，就能用到一部分現成的 skill 和 MCP 伺服器；(b) 用 SYNOX SDK 寫的工具能拿到別的平台用，這才是吸引開發者的理由；(c) 「SYNOX 審查過」的精選清單成為一種品牌，量不必大，但每一個都可信。</p>
+
+  <h2>建議的分階段路線</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>階段</th><th>做什麼</th><th>這台會跑別人的程式嗎</th><th>出口條件</th></tr></thead>
+    <tbody>
+      <tr><td class="id">E-0</td><td>小工具第一批（自己做，不碰外部）＋補 YAML 解析、<code>kind: skill</code></td><td>不會</td><td>4 個 P0 小工具在 SYNOX_Libs、測試全過</td></tr>
+      <tr><td class="id">E-1（最小可行）</td><td>路線 A（純說明 skill）＋路線 C（遠端 MCP 匯入）＋文字層掃描＋黑名單檔</td><td>不會</td><td>用一個手寫的「良性」skill 和一個「惡意樣本」（只用文字假造，<b>不從網路抓真的惡意 skill</b>）測過：良性的裝得起來、惡意的被擋</td></tr>
+      <tr><td class="id">E-2</td><td>路線 B 轉換器（起草＋逐項核准）、MCP stdio 匯入（改用 package-lock）、G1 回傳檔案</td><td>會，只在容器裡；Windows 個人版預設不准</td><td>在 Linux 伺服器照容器驗證清單跑過</td></tr>
+      <tr><td class="id">E-3</td><td>反方向：<code>server.json</code> 產生、<code>export-skill</code>、MCP Skills 擴充（伺服器端或用戶端）</td><td>不會</td><td>一個 SYNOX 工具在另一個 MCP 用戶端跑得起來（由擁有者在別台電腦驗）</td></tr>
+      <tr><td class="id">E-4（看情況）</td><td>「SYNOX 精選」：工具庫 <code>source: external</code> 收錄審查過的外部 skill</td><td>—</td><td>先讀 ClawHub 條款、建立審查紀錄格式</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ───────────────────────── 下一步 ───────────────────────── -->
+<section id="next" hidden>
+  <h2>可以交給 agent 的工作包</h2>
+  <p>工作量估法同計畫書（S＜半天、M 約一天、L 好幾天）。每包一個 worktree、一個分支，<code>--no-ff</code> 合回 dev。全部<b>不需要</b>在這台電腦跑別人的程式。</p>
+
+  <details class="wp" open><summary><span class="id">E1</span> SKILL.md 解析升級＋只有說明的 pack <span class="chip">E-0</span><span class="chip">M</span></summary><div class="body">
+    <ul>
+      <li><b>範圍：</b><code>src/synox/agent/skills.py</code> 換成 YAML 安全子集解析（多行字串、巢狀 mapping 只保留、不執行；不收自訂標籤和錨點）；新增 <code>kind: skill</code>（T0：沒有指令、不能附程式檔，第 1、2 關的規則）；<code>skill_read(name, path)</code> 能讀附屬檔（只准讀 pack 裡、副檔名白名單、大小上限）；網頁每個 skill 有「放進 AI 提示」的開關。</li>
+      <li><b>驗收：</b>新測試覆蓋：agentskills 規格裡的範例、多行 description、<code>metadata.openclaw</code> 巢狀、壞掉的前言；<code>kind: skill</code> 附 .py 會被拒；全套 pytest 全綠；<code>docs/pack-format.md</code>、<code>docs/security.md</code> 同步更新。</li>
+      <li><b>相依：</b>無。</li>
+    </ul>
+  </div></details>
+
+  <details class="wp"><summary><span class="id">E2</span> <code>synox import-skill</code>（路線 A＋B 草稿）與文字層掃描 <span class="chip">E-1</span><span class="chip warn">L</span></summary><div class="body">
+    <ul>
+      <li><b>範圍：</b>新指令 <code>python -m synox import-skill &lt;資料夾或 zip&gt;</code>，<b>只讀本機檔案</b>：判斷路線、產生 pack 草稿和 <code>IMPORT_REPORT.md</code>（不自動安裝）；新模組 <code>packs/textscan.py</code>（S3 的句型、隱藏字元、單行長度）；黑名單檔 <code>config</code> 旁邊的 <code>blocklist.json</code>（格式和讀取，內容由擁有者填）；pack.json 新欄位 <code>source</code>、<code>platforms</code>；路線 B 只做「起草」：每個指令都是 DANGER、<code>ai: false</code>。</li>
+      <li><b>前置調查（S）：</b>只用網頁讀取 ClawHub 上 30～50 個熱門 skill 的 SKILL.md 文字（不下載整包、不執行），統計：純說明的有幾個、要 shell 的有幾個、要 macOS 的有幾個、要 brew 的有幾個。結果決定路線 B 值不值得做。</li>
+      <li><b>驗收：</b>測試用的「惡意樣本」全部用文字假造在 <code>tests/fixtures/</code>（<code>curl|bash</code>、base64、零寬字元、改 soul.md 的句子、22 MB 填充用產生器在測試時造），全部被標紅；良性的純說明 skill 能產生草稿並裝起來；文件寫清楚「掃描是提醒不是門」。</li>
+      <li><b>相依：</b>E1。</li>
+    </ul>
+  </div></details>
+
+  <details class="wp"><summary><span class="id">E3</span> MCP 匯入與匯出 <span class="chip">E-1／E-3</span><span class="chip">M</span></summary><div class="body">
+    <ul>
+      <li><b>範圍：</b><code>python -m synox import-mcp &lt;server.json&gt;</code>（只讀本機檔）→ <code>kind: mcp</code> 草稿（remotes → http；npm → 建議 <code>runtime.node: auto</code>；OCI → <code>runtime.container</code>）；第一次連上後在網頁勾 <code>tools_allow</code> 和 effect。反方向：<code>synox-sdk export-mcp</code> 產生 <code>server.json</code>。MCP Skills 擴充先寫一份設計（ADR），不實作。</li>
+      <li><b>驗收：</b>用假的 server.json 和假的 MCP 伺服器（測試裡的假傳輸）測；<b>不連真的網路、不開埠</b>；真的遠端 MCP 由擁有者在別台電腦驗。</li>
+      <li><b>相依：</b>無（可以跟 E1 同時做）。</li>
+    </ul>
+  </div></details>
+
+  <details class="wp"><summary><span class="id">E4</span> 小工具第一批（SYNOX_Libs） <span class="chip">E-0</span><span class="chip warn">L</span></summary><div class="body">
+    <ul>
+      <li><b>範圍：</b>四個 cli pack，用 SDK 寫：<b>sysmon</b>（效能監測，psutil，加排程門檻提醒）、<b>todo</b>（本機 to-do，todo.txt 格式，早上推今天的清單）、<b>devlog</b>（開發狀態紀錄＋專案儀表＋分支規範檢查，git 唯讀）、<b>findfile</b>（找檔案、定位資料夾，限定在使用者登記的根資料夾）。每個都寫 <code>stage: alpha</code>、<code>category</code>、<code>requires.sdk</code>。</li>
+      <li><b>驗收：</b><code>synox-sdk check</code> 乾淨、T1（findfile 若用 es.exe 就是 T2 並寫明）；SYNOX_Libs 測試和 <code>public_check</code> 乾淨；不讀真的使用者資料（測試全用暫存資料夾）。</li>
+      <li><b>相依：</b>效能監測要不要等 G3（<code>system:read</code>）由擁有者決定（QE6）；其餘無。</li>
+    </ul>
+  </div></details>
+
+  <details class="wp"><summary><span class="id">E5</span> 回傳檔案＋螢幕權限＋截圖（先寫 ADR） <span class="chip">E-2</span><span class="chip risk">M・高敏感</span></summary><div class="body">
+    <ul>
+      <li><b>範圍：</b>ADR：cli 結果加 <code>files</code>（只准在自己的資料夾、大小和種類限制、通道用 send_photo／send_document）；新能力 <code>screen</code>、<code>system:read</code>（角色上限：只有擁有者）；pack.json <code>platforms</code>；然後才做 <b>screenshot</b> 工具（<code>confirm: true</code>、預設不給 AI 自動叫）。</li>
+      <li><b>驗收：</b>ADR 經擁有者同意後才寫程式；測試用假的擷取函式（不在這台真的截圖）；真的截圖由擁有者自己按一次驗。</li>
+      <li><b>相依：</b>E4 之後；跟計畫書 W（launch）有關，要一起看。</li>
+    </ul>
+  </div></details>
+
+  <h2>要擁有者決定的事（不答就照建議）</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>#</th><th>問題</th><th>選項</th><th>建議</th></tr></thead>
+    <tbody>
+      <tr><td class="id">QE1</td><td>外部 skill 先接哪一條？</td><td>A 只接純說明｜C 接 MCP｜B 腳本轉 cli｜D 原生相容（給 AI shell）</td><td><b>A＋C 先做，B 第二步，D 不做</b></td></tr>
+      <tr><td class="id">QE2</td><td>匯入的程式能不能在你的 Windows 個人版跑？（這台沒有沙盒）</td><td>(a) 只准沒有程式的｜(b) 有程式的要容器｜(c) 你逐個核准就能在本機直接跑</td><td><b>(a)＋(b)</b>；(c) 不建議</td></tr>
+      <tr><td class="id">QE3</td><td>要不要 LLM 幫忙審查 skill？（會花 token）</td><td>不要｜你按了才做｜每次匯入都自動做</td><td><b>你按了才做</b>，先顯示預估用量；結果只當參考</td></tr>
+      <tr><td class="id">QE4</td><td>對外定位</td><td>相容層｜自家標準｜雙向</td><td><b>雙向</b>：SKILL.md＋MCP 對外，pack.json 當安全層</td></tr>
+      <tr><td class="id">QE5</td><td>SYNOX 要不要自己上網抓 skill／MCP 清單（ClawHub API、MCP Registry）？</td><td>不要，只吃你手動下載的檔｜你按了才抓（只抓文字資料）｜定期自動抓</td><td><b>現在：只吃手動下載的檔</b>；E-3 之後再考慮「你按了才抓」</td></tr>
+      <tr><td class="id">QE6</td><td>小工具第一批選哪幾個？效能監測要不要等新的「系統資訊」權限？</td><td>建議的 4 個（效能監測、to-do、devlog、找檔案）｜換掉某幾個</td><td><b>照建議的 4 個</b>；效能監測先做，<code>system:read</code> 等 E5 一起補</td></tr>
+      <tr><td class="id">QE7</td><td>截圖要不要做？（高敏感）</td><td>不做｜做，只給你、每次確認、AI 不能自己叫｜做，AI 可以叫</td><td><b>做，只給你、每次確認、AI 不能自己叫</b></td></tr>
+      <tr><td class="id">QE8</td><td>黑名單（已知惡意清單）誰維護？</td><td>你手動｜SYNOX 定期從網路更新</td><td><b>先手動</b>（附一份從公開報告整理的初始清單）</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note">這些題目還沒寫進 <code>QuestionToUser.md</code>（這次只新增文件，不改既有的檔案）；合併時可以照上面的題號加進去。</div>
+</section>
+
+<!-- ───────────────────────── 來源清單 ───────────────────────── -->
+<section id="sources" hidden>
+  <h2>來源清單（查證日期：2026-11-12）</h2>
+  <p>全部只用網頁搜尋和讀網頁文字取得，<b>沒有下載或執行任何東西</b>。「讀過」＝讀了頁面內容；「只看搜尋結果」＝只看到搜尋摘要，沒有打開原文，可信度比較低。</p>
+  <div class="scroll"><table>
+    <thead><tr><th>#</th><th>網址</th><th>內容</th><th>狀態</th></tr></thead>
+    <tbody>
+      <tr><td class="id">S1</td><td><a href="https://docs.openclaw.ai/clawhub/skill-format">https://docs.openclaw.ai/clawhub/skill-format</a></td><td>ClawHub skill 格式、前言欄位、MIT-0、大小限制</td><td>讀過</td></tr>
+      <tr><td class="id">S2</td><td><a href="https://docs.openclaw.ai/tools/skills">https://docs.openclaw.ai/tools/skills</a></td><td>OpenClaw skill 載入、門檻、執行、安全</td><td>讀過</td></tr>
+      <tr><td class="id">S3</td><td><a href="https://github.com/openclaw/openclaw">https://github.com/openclaw/openclaw</a></td><td>OpenClaw 簡介、MIT、星數</td><td>讀過（前 10 萬字）</td></tr>
+      <tr><td class="id">S4</td><td><a href="https://docs.openclaw.ai/clawhub">https://docs.openclaw.ai/clawhub</a></td><td>ClawHub 機制、安裝、上架、審查</td><td>讀過</td></tr>
+      <tr><td class="id">S5</td><td><a href="https://docs.openclaw.ai/tools/plugin">https://docs.openclaw.ai/tools/plugin</a></td><td>OpenClaw plugin</td><td>讀過</td></tr>
+      <tr><td class="id">S6</td><td><a href="https://docs.openclaw.ai/gateway/sandboxing">https://docs.openclaw.ai/gateway/sandboxing</a></td><td>OpenClaw 沙盒</td><td>讀過</td></tr>
+      <tr><td class="id">S7</td><td><a href="https://docs.openclaw.ai/gateway/security">https://docs.openclaw.ai/gateway/security</a></td><td>OpenClaw 信任模型</td><td>讀過（部分段落沒有內容）</td></tr>
+      <tr><td class="id">S8</td><td><a href="https://clawhub.ai/">https://clawhub.ai/</a></td><td>ClawHub 首頁（沒有可靠的總數）</td><td>讀過</td></tr>
+      <tr><td class="id">S9</td><td><a href="https://www.openclaw.ai/blog/virustotal-partnership">https://www.openclaw.ai/blog/virustotal-partnership</a></td><td>VirusTotal 掃描（2026-02-07）與限制</td><td>讀過</td></tr>
+      <tr><td class="id">S10</td><td><a href="https://hermes-agent.nousresearch.com/docs/user-guide/features/skills">https://hermes-agent.nousresearch.com/docs/user-guide/features/skills</a></td><td>Hermes skill 系統</td><td>讀過</td></tr>
+      <tr><td class="id">S11</td><td><a href="https://github.com/NousResearch/hermes-agent">https://github.com/NousResearch/hermes-agent</a></td><td>Hermes 簡介、MIT、搬家工具</td><td>讀過</td></tr>
+      <tr><td class="id">S12</td><td><a href="https://hermes-agent.nousresearch.com/docs/user-guide/security">https://hermes-agent.nousresearch.com/docs/user-guide/security</a></td><td>Hermes 安全模型</td><td>讀過</td></tr>
+      <tr><td class="id">S13</td><td><a href="https://agentskills.io/specification">https://agentskills.io/specification</a></td><td>Agent Skills 規格</td><td>讀過</td></tr>
+      <tr><td class="id">S14</td><td><a href="https://agentskills.io/">https://agentskills.io/</a></td><td>Agent Skills 總覽、起源</td><td>讀過</td></tr>
+      <tr><td class="id">S15</td><td><a href="https://agentskills.io/clients">https://agentskills.io/clients</a></td><td>採用清單</td><td>讀過，但頁面沒列出名單</td></tr>
+      <tr><td class="id">S16</td><td><a href="https://code.claude.com/docs/en/skills">https://code.claude.com/docs/en/skills</a></td><td>Claude Code skills 欄位與安全</td><td>讀過（前 10 萬字）</td></tr>
+      <tr><td class="id">S17</td><td><a href="https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview">https://platform.claude.com/docs/en/agents-and-tools/agent-skills/overview</a></td><td>Anthropic Agent Skills 總覽與安全考量</td><td>讀過</td></tr>
+      <tr><td class="id">S18</td><td><a href="https://github.com/anthropics/skills">https://github.com/anthropics/skills</a></td><td>Anthropic skills repo 授權</td><td>讀過</td></tr>
+      <tr><td class="id">S19</td><td><a href="https://modelcontextprotocol.io/specification/latest">https://modelcontextprotocol.io/specification/latest</a></td><td>MCP 規格（2026-07-28）、安全原則</td><td>讀過</td></tr>
+      <tr><td class="id">S20</td><td><a href="https://modelcontextprotocol.io/registry/about">https://modelcontextprotocol.io/registry/about</a></td><td>MCP Registry</td><td>讀過</td></tr>
+      <tr><td class="id">S21</td><td><a href="https://modelcontextprotocol.io/community/working-groups/skills-over-mcp">https://modelcontextprotocol.io/community/working-groups/skills-over-mcp</a></td><td>Skills over MCP 工作小組、SEP-2640 定案</td><td>讀過</td></tr>
+      <tr><td class="id">S22</td><td><a href="https://modelcontextprotocol.io/extensions/skills/overview">https://modelcontextprotocol.io/extensions/skills/overview</a></td><td>MCP Skills 擴充細節</td><td>讀過</td></tr>
+      <tr><td class="id">S23</td><td><a href="https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/">https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/</a></td><td>Snyk ToxicSkills（2026-02-05）</td><td>讀過</td></tr>
+      <tr><td class="id">S24</td><td><a href="https://unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/">https://unit42.paloaltonetworks.com/openclaw-ai-supply-chain-risk/</a></td><td>Unit 42 報告（2026-06-23）</td><td>讀過</td></tr>
+      <tr><td class="id">S25</td><td><a href="https://esecurityplanet.com/threats/hundreds-of-malicious-skills-found-in-openclaws-clawhub">https://esecurityplanet.com/threats/hundreds-of-malicious-skills-found-in-openclaws-clawhub</a></td><td>Koi「ClawHavoc」報導（2026-02-03）</td><td>讀過</td></tr>
+      <tr><td class="id">S26</td><td><a href="https://cursor.com/docs/context/rules">https://cursor.com/docs/context/rules</a></td><td>Cursor 規則</td><td>讀過</td></tr>
+      <tr><td class="id">S27</td><td><a href="https://docs.langchain.com/oss/python/langchain/tools">https://docs.langchain.com/oss/python/langchain/tools</a></td><td>LangChain tools</td><td>讀過</td></tr>
+      <tr><td class="id">S28</td><td><a href="https://thehackernews.com/2026/02/researchers-find-341-malicious-clawhub.html">https://thehackernews.com/2026/02/researchers-find-341-malicious-clawhub.html</a></td><td>ClawHavoc 報導</td><td>讀不到（403）</td></tr>
+      <tr><td class="id">S29</td><td><a href="https://koi.ai/blog/clawhavoc-341-malicious-clawedbot-skills-found-by-the-bot-they-were-targeting">https://koi.ai/blog/clawhavoc-341-malicious-clawedbot-skills-found-by-the-bot-they-were-targeting</a></td><td>Koi 原文</td><td>讀不到（轉到別的網站的產品頁，沒有跟過去）</td></tr>
+      <tr><td class="id">S30</td><td><a href="https://www.antiy.net/p/clawhavoc-analysis-of-large-scale-poisoning-campaign-targeting-the-openclaw-skill-market-for-ai-agents/">https://www.antiy.net/p/clawhavoc-analysis-of-large-scale-poisoning-campaign-targeting-the-openclaw-skill-market-for-ai-agents/</a></td><td>Antiy CERT：累計 1,184 個</td><td>只看搜尋結果</td></tr>
+      <tr><td class="id">S31</td><td><a href="https://www.tomshardware.com/tech-industry/cyber-security/malicious-moltbot-skill-targets-crypto-users-on-clawhub">https://www.tomshardware.com/tech-industry/cyber-security/malicious-moltbot-skill-targets-crypto-users-on-clawhub</a></td><td>網址裡的舊名「moltbot」（改名的推測依據之一）</td><td>只看搜尋結果</td></tr>
+      <tr><td class="id">S32</td><td><a href="https://techradar.com/pro/security/multiple-malicious-openclaw-skills-found-online-including-two-macos-infostealers">https://techradar.com/pro/security/multiple-malicious-openclaw-skills-found-online-including-two-macos-infostealers</a></td><td>惡意 skill 報導</td><td>只看搜尋結果</td></tr>
+      <tr><td class="id">S33</td><td><a href="https://www.scworld.com/news/openclaw-agents-targeted-with-341-malicious-clawhub-skills">https://www.scworld.com/news/openclaw-agents-targeted-with-341-malicious-clawhub-skills</a></td><td>ClawHavoc 報導</td><td>只看搜尋結果</td></tr>
+      <tr><td class="id">S34</td><td><a href="https://www.noqta.tn/en/news/skill-md-open-standard-30-ai-coding-tools-adoption-2026">https://www.noqta.tn/en/news/skill-md-open-standard-30-ai-coding-tools-adoption-2026</a>、<a href="https://codex.danielvaughan.com/2026/05/05/agent-skills-open-standard-portable-skills-codex-cli-cross-agent/">codex.danielvaughan.com（2026-05-05）</a></td><td>SKILL.md 採用（二手）</td><td>只看搜尋結果</td></tr>
+      <tr><td class="id">S35</td><td><a href="https://cybersecuritynews.com/openclaw-and-virustotal/amp/">https://cybersecuritynews.com/openclaw-and-virustotal/amp/</a></td><td>VirusTotal 合作報導</td><td>只看搜尋結果</td></tr>
+      <tr><td class="id">S36</td><td><a href="https://aiskill.market/blog/top-clawhub-skills-2026">https://aiskill.market/blog/top-clawhub-skills-2026</a>、<a href="https://clawbot.ai/wiki/skills/clawhub-skill-market-deep-analysis.html">clawbot.ai wiki</a></td><td>ClawHub 規模（13,729／3,286 等，互相矛盾）</td><td>只看搜尋結果</td></tr>
+      <tr><td class="id">S37</td><td><a href="https://www.mintlify.com/NousResearch/hermes-agent/user-guide/features/skills">https://www.mintlify.com/NousResearch/hermes-agent/user-guide/features/skills</a></td><td>Hermes 文件鏡像</td><td>只看搜尋結果（以 S10 為準）</td></tr>
+    </tbody>
+  </table></div>
+  <h3>v2 新增來源（查證日期：2026-11-13）</h3>
+  <p>S3、S10、S11、S18 這次也重讀過（星數：OpenClaw 394.4k、Hermes 263.1k、anthropics/skills 193.9k）。</p>
+  <div class="scroll"><table>
+    <thead><tr><th>#</th><th>網址</th><th>內容</th><th>狀態</th></tr></thead>
+    <tbody>
+      <tr><td class="id">S38</td><td><a href="https://docs.openclaw.ai/releases/2026.11.1">https://docs.openclaw.ai/releases/2026.11.1</a></td><td>OpenClaw v2026.11.1（2026-11-05）官方發版說明</td><td>只看搜尋結果</td></tr>
+      <tr><td class="id">S39</td><td><a href="https://labmemo.com/?p=63132">https://labmemo.com/?p=63132</a></td><td>v2026.11.3（11-10）日文二手報導</td><td>只看搜尋結果</td></tr>
+      <tr><td class="id">S40</td><td><a href="https://releases.sh/nousresearch/hermes-agent.md">https://releases.sh/nousresearch/hermes-agent.md</a></td><td>Hermes 版本紀錄（v0.21.5、Skills Hub 改版）</td><td>只看搜尋結果</td></tr>
+      <tr><td class="id">S41</td><td><a href="https://docs.openclaw.ai/automation/cron-jobs">https://docs.openclaw.ai/automation/cron-jobs</a></td><td>OpenClaw Automations（內建排程）</td><td>讀過</td></tr>
+      <tr><td class="id">S42</td><td><a href="https://docs.stacklok.com/toolhive/guides-mcp/notion-remote">https://docs.stacklok.com/toolhive/guides-mcp/notion-remote</a>、<a href="https://getunblocked.com/blog/notion-mcp/">getunblocked.com</a></td><td>Notion 官方雲端 MCP 網址、舊本機版停止維護</td><td>只看搜尋結果</td></tr>
+      <tr><td class="id">S43</td><td><a href="https://mcp.directory/blog/todoist-mcp-complete-guide-2026">https://mcp.directory/blog/todoist-mcp-complete-guide-2026</a>、<a href="https://socket.dev/npm/package/@doist/todoist-mcp">socket.dev</a></td><td>Todoist 官方 MCP（雲端／本機）</td><td>只看搜尋結果</td></tr>
+      <tr><td class="id">S44</td><td><a href="https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server">https://developers.google.com/workspace/calendar/api/guides/configure-mcp-server</a></td><td>Google 日曆 MCP：Developer Preview、8 個工具、OAuth</td><td>讀過</td></tr>
+      <tr><td class="id">S45</td><td><a href="https://github.com/openclaw/openclaw/tree/main/skills">https://github.com/openclaw/openclaw/tree/main/skills</a></td><td>OpenClaw 附的 51 個 skill 名稱；另讀 apple-reminders、gog、healthcheck 的 SKILL.md 文字</td><td>讀過</td></tr>
+      <tr><td class="id">S46</td><td><a href="https://github.com/NousResearch/hermes-agent/tree/main/skills">https://github.com/NousResearch/hermes-agent/tree/main/skills</a></td><td>Hermes 附的 skill 分類，另讀 productivity、note-taking、apple 子資料夾</td><td>讀過</td></tr>
+      <tr><td class="id">S47</td><td><a href="https://glama.ai/mcp/servers/vanto/beanquery-mcp">https://glama.ai/mcp/servers/vanto/beanquery-mcp</a>、<a href="https://mcpservers.org/ko/servers/StdioA/beancount-mcp">mcpservers.org</a></td><td>Beancount 記帳 MCP</td><td>只看搜尋結果</td></tr>
+      <tr><td class="id">S48</td><td><a href="https://github.com/anthropics/claude-plugins-official">https://github.com/anthropics/claude-plugins-official</a></td><td>Claude Code 官方外掛目錄（42 個外掛名稱、通道外掛、安全提醒）</td><td>讀過</td></tr>
+      <tr><td class="id">S49</td><td><a href="https://github.com/github/github-mcp-server">https://github.com/github/github-mcp-server</a></td><td>GitHub 官方 MCP：星數、MIT、雲端網址</td><td>讀過（前 10 萬字）</td></tr>
+      <tr><td class="id">S50</td><td><a href="https://github.com/modelcontextprotocol/servers">https://github.com/modelcontextprotocol/servers</a></td><td>MCP 官方參考伺服器（7 個）、封存清單、非正式產品聲明</td><td>讀過</td></tr>
+      <tr><td class="id">S51</td><td><a href="https://mcpservers.org/servers/essovius/mcp-everything-search">https://mcpservers.org/servers/essovius/mcp-everything-search</a></td><td>Everything 檔案搜尋 MCP</td><td>只看搜尋結果</td></tr>
+      <tr><td class="id">S52</td><td><a href="https://lobehub.com/mcp/cursortouch-windows-mcp">https://lobehub.com/mcp/cursortouch-windows-mcp</a></td><td>Windows-MCP</td><td>只看搜尋結果</td></tr>
+      <tr><td class="id">S53</td><td><a href="https://aiskill.market/blog/top-clawhub-skills-2026">https://aiskill.market/blog/top-clawhub-skills-2026</a>（2026-03-20）、<a href="https://solvea.cx/glossary/most-popular-openclaw-skills">solvea.cx</a></td><td>ClawHub 下載排行（兩份互相矛盾）</td><td>前者讀過；後者只看搜尋結果</td></tr>
+      <tr><td class="id">S54</td><td><a href="https://registry.modelcontextprotocol.io/">https://registry.modelcontextprotocol.io/</a></td><td>MCP 官方 Registry 首頁</td><td>讀過（清單沒載入）</td></tr>
+    </tbody>
+  </table></div>
+  <h3>v2 參考的擁有者既有工具（只讀）</h3>
+  <ul>
+    <li>SYNOX：<code>README.md</code>、<code>docs/ecosystem.md</code>、<code>packs/</code>（money、notes、remind）、<code>src/synox/packs/oauth.py</code>（只有「貼回網址」流程、不做動態註冊）、<code>src/synox/packs/mcp_http.py</code>（http MCP 支援 token 和 OAuth）。</li>
+    <li>SYNOX_Libs：<code>README.md</code>、<code>packs/</code>（apple-reminders、bullet、calendar、google-calendar、money、notes、notion、todo、todoist）。</li>
+  </ul>
+  <h3>SYNOX 內部依據（worktree 內，只讀）</h3>
+  <ul>
+    <li><code>docs/pack-format.md</code>（kind、SKILL.md、容器、信任層級）、<code>docs/security.md</code>（五關、沙盒、誠實清單）、<code>docs/tools.md</code>、<code>docs/sdk.md</code>（<code>serve --mcp</code>）、<code>LICENSING.md</code>、<code>docs/overview/synox-plan-book.html</code>（工具盤點、工作包 W／X）。</li>
+    <li><code>src/synox/agent/skills.py</code>（前言只讀單行）、<code>src/synox/agent/tools.py</code>（AI 的工具只來自已登記的指令＋<code>skill_read</code>）、<code>src/synox/packs/render.py</code>（cli 結果只有文字）、<code>src/synox/schedule/</code>（每天固定時間的排程）。</li>
+  </ul>
+</section>
+</div>
+
+<script>
+(function () {
+  var tabs = document.getElementById("tabs"), ids = ["tools","summary","ideas","eco","bridge","security","strategy","next","sources"];
+  function show(id) {
+    if (ids.indexOf(id) < 0) { id = "tools"; }
+    ids.forEach(function (t) { document.getElementById(t).hidden = (t !== id); });
+    Array.prototype.forEach.call(tabs.querySelectorAll("button"), function (b) { b.setAttribute("aria-selected", b.getAttribute("data-t") === id ? "true" : "false"); });
+  }
+  tabs.addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) { return; }
+    var id = b.getAttribute("data-t"); show(id);
+    try { location.hash = id; } catch (x) {}
+  });
+  window.addEventListener("hashchange", function () { show((location.hash || "").slice(1)); });
+  show((location.hash || "").slice(1));
+})();
+</script>
+<p style="font:10px/1.4 ui-monospace,monospace;opacity:.5;margin:24px 16px">線上版 <a href="https://claude.ai/artifact/EusqfAx3htYoHKMjRoNYYA">https://claude.ai/artifact/EusqfAx3htYoHKMjRoNYYA</a> · 本機版 docs/artifacts/2026-11-13-synox-ecosystem-survey.html · 頁面版本 <span data-stamp>b40b2b5f55 · 2026-11-13</span></p>

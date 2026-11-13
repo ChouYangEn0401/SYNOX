@@ -1,0 +1,977 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>雲端任務 Brief</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 版面：頂部分頁，每頁一份可整份複製的 brief。 */
+:root { --bg:#f6f8f8; --surface:#fff; --ink:#14201f; --muted:#566766; --line:#d9e2e1; --accent:#0b7d71; --code:#eef2f2; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1717; --surface:#152221; --ink:#e6f0ef; --muted:#9bb0ae; --line:#264240; --accent:#3fd0bd; --code:#1a2b2a; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg:#0e1717; --surface:#152221; --ink:#e6f0ef; --muted:#9bb0ae; --line:#264240; --accent:#3fd0bd; --code:#1a2b2a; color-scheme: dark; }
+body { background:var(--bg); color:var(--ink); font:15px/1.6 system-ui,"Segoe UI","Noto Sans TC",sans-serif; padding-block:24px 60px; padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px)); }
+.wrap { max-width:980px; margin:0 auto; }
+h1 { font-size:28px; margin:0 0 6px; } h2 { font-size:19px; margin:10px 0; } p { margin:0 0 10px; max-width:72ch; color:var(--muted); }
+.tabs { display:flex; flex-wrap:wrap; gap:6px; margin:14px 0; }
+.tabs button, .copy { font:500 13.5px system-ui; border:1px solid var(--line); background:var(--surface); color:var(--ink); border-radius:99px; padding:6px 14px; cursor:pointer; }
+.tabs button[aria-selected="true"] { background:var(--accent); color:var(--bg); border-color:var(--accent); }
+pre { background:var(--code); border:1px solid var(--line); border-radius:8px; padding:14px; overflow-x:auto; white-space:pre-wrap; overflow-wrap:anywhere; font:12.5px/1.55 ui-monospace,Consolas,monospace; }
+section[hidden] { display:none; }
+.note { border-left:3px solid var(--accent); background:var(--code); padding:10px 14px; border-radius:0 8px 8px 0; font-size:14px; color:var(--ink); max-width:none; }
+</style>
+<div class="wrap">
+<h1>雲端任務 Brief（第一批）</h1>
+<p class="note">這些 brief 已去識別化（不含原話、電腦路徑、私人專案名、信箱），並通過檢查工具。每份自給自足，可整份貼到雲端的 Claude Code 工作階段。CB1 到 CB4 已在本機做完並合進 dev，不需要再貼。<b>目前只有 CB5 v2 要貼</b>：SYNOX 的 crypt 工具包，改用與 Encrypter 相同的 age 公開格式（多收件者＝萬用鎖），並附上雲端如何下載並使用 Encrypter 的步驟。<b>CB6 已作廢，請勿貼</b>（Encrypter 改用 age／OpenPGP 實作萬用鎖，已完成）。所有 brief 都要求在 cloud/ 或 feat/ 開頭的新分支上工作，不動 dev 與 main；dev 與 main 未來會公開，任何敏感資料都不能進 commit。</p>
+<div class="tabs" id="tabs"><button data-t="cb1">CB1 心跳：失敗狀態沒變就不要重複叫 AI</button><button data-t="cb2">CB2 助理評測集與離線重放</button><button data-t="cb3">CB3 呈現層 adapter：與通道無關的內容區塊模型</button><button data-t="cb4">CB4 工具錯誤合約與隔離清單（最小可行版）</button><button data-t="cb5">CB5 v2 SYNOX</button><button data-t="cb6">【作廢 2026-11-13，請勿貼給雲端】</button></div>
+<section id="cb1" hidden><h2>CB1 心跳：失敗狀態沒變就不要重複叫 AI</h2><p><button class="copy" data-for="cb1-t">複製整份 brief</button></p><pre id="cb1-t"># CB1 心跳：失敗狀態沒變就不要重複叫 AI
+
+&gt; 這是公開開源專案 SYNOX（自架的個人助理與工具主控台，Python 3.11）的功能開發任務。
+&gt; 這份說明自給自足：需要的背景都寫在這裡，其餘請讀 repo 裡的公開文件。
+
+## 1. 目標與現象
+
+SYNOX 有一個常駐的「心跳」任務（`system.heartbeat`，預設每 45 分鐘一次）：先整理一份事實快照，
+只有在需要時才請常駐助理（`MotherSession.supervise`，會呼叫 AI）看一次，再依結果決定要不要通知使用者。
+
+**現象（讀 `src/synox/runtime/heartbeat.py` 的 `Heartbeat.run` 可以確認）**：
+
+- 判斷「不必叫 AI」的條件是 `digest == self._last_hash and not failed and not manual`。
+  只要背景任務裡有任何一個狀態是 `failed`，`not failed` 就不成立，所以**每一次心跳都會叫 AI**，
+  一直到當天的上限 `daily_max_calls`（預設 40）。一個任務持續壞著，一天就多叫 30 幾次 AI，內容幾乎一樣。
+- 通知只用「跟上一次通知同一句」去重（`_hold_reason`），AI 每次措辭略有不同就會再通知，直到 `daily_max_notify`（預設 4）。
+- `_last_hash` 只在記憶體裡；程式重開後第一次心跳一定叫 AI。
+- 快照裡 failed 任務的那一行用的是 `id|last_message`；如果 `last_message` 帶有次數、時間之類每次都變的數字，指紋每次都不同。
+
+**期望**：
+
+1. 失敗狀態沒有變化（同一批任務、同一個失敗原因）→ 不叫 AI，結果記一句「失敗狀態沒有變化，沒有叫 AI」之類的話。
+2. 同一個失敗只通知一次；失敗的組成改變（新的任務壞了、原因變了、恢復了）才再叫 AI、才可能再通知。
+3. 保留每日上限（`daily_max_calls`、`daily_max_notify`）與安靜時段的規則，行為不變。
+4. 手動執行（`ctx.manual`）照舊一定叫 AI。
+5. 換日照舊算一次變化（快照本來就含日期），一天最多因此多叫一次。
+
+## 2. 範圍與不做的事
+
+做：
+
+- 修 `Heartbeat.run` 的判斷與失敗指紋；把「上一次的快照指紋」與「已通知過的失敗指紋」存進 runtime 的存檔，
+  重開後接著用（沿用 `loop.save(...)`／`loop.saved(...)`，不要另開檔案）。
+- 補單元測試；更新相關文件與 CHANGELOG。
+
+不做：
+
+- 不做「工具健康管理器」、隔離清單、斷路器（那是另一個任務）。
+- 不改 `src/synox/runtime/loop.py` 自己的「連續失敗 5 次通知一次、恢復再通知」規則。
+- 不改常駐助理的提示內容、不改 `config.json` 的任何預設值、不新增設定欄位（除非你認為非加不可，請在回報裡說明理由）。
+- 不改 `vendor/` 底下的任何檔案。
+
+## 3. 先讀什麼、要改哪些檔
+
+先讀（都在 repo 裡）：
+
+- `docs/AGENT.md`（地圖、不變的規則、怎麼跑測試）
+- `docs/adr/0001-runtime-loop-heartbeat-mother-session.md`（心跳與「沒事別吵」規則的設計，第 64 行附近）
+- `docs/runtime-api.md`（網頁 API 的 heartbeat 物件）
+- `src/synox/runtime/heartbeat.py`、`src/synox/runtime/loop.py`、`src/synox/runtime/mother.py`
+- `tests/test_runtime.py`（既有的心跳測試與 `rt_bot` fixture）
+
+預計會改：
+
+| 檔案 | 改什麼 |
+|---|---|
+| `src/synox/runtime/heartbeat.py` | 失敗指紋正規化、判斷條件、存檔欄位、新的結果字串常數、模組說明的規則 1 |
+| `tests/test_runtime.py`（或新檔 `tests/test_heartbeat_failures.py`） | 新測試 |
+| `docs/adr/0001-runtime-loop-heartbeat-mother-session.md` | 「沒事別吵」規則 1 的文字（ADR 已定案的部分不要改寫，另加一段「2026-11 修訂」說明改了什麼、為什麼） |
+| `CHANGELOG.md` | 一行說明 |
+
+## 4. 設計要點
+
+- **失敗指紋**：每個 failed 任務取 `(任務 id, 正規化後的 last_message)`。正規化至少要：去掉數字（含次數、時間、秒數）、
+  去掉多餘空白、截到固定長度。正常的任務一律記成 `id|fine`（現有寫法，避免 ok／idle／running 來回切換造成變化）。
+- **判斷順序建議**：
+  1. 沒有 AI 或常駐助理關著 → 照現在。
+  2. 不是手動、而且快照指紋與上一次相同 → 不叫 AI。有失敗時回「失敗狀態沒有變化（N 個失敗，之前已經看過），沒有叫 AI」；沒有失敗時照舊回 `R_QUIET_FACTS`。
+  3. 今天叫 AI 的次數用完 → 照現在。
+  4. 其他情況 → 叫 AI，記下新的快照指紋。
+- **只通知一次**：叫 AI 之後如果要通知，記下這次的失敗指紋集合；之後同一個集合就算 AI 又被叫到（例如手動），
+  也不要因為同一批失敗再發通知（`_hold_reason` 多一個原因，例如「這批失敗之前已經通知過」）。失敗集合變了就清掉這個紀錄。
+- **存檔**：`loop.save(heartbeat={...})` 目前只存 `last_result`；多存 `last_hash`、`notified_failures`（只有雜湊，不存訊息原文）。
+  讀檔時格式不對就當作沒有（不要讓壞掉的存檔讓心跳整個不能跑）。
+- 時間一律走 `Heartbeat(..., now=...)` 注入的時鐘，測試才能控制。
+
+## 5. 測試要求
+
+- 全部離線：不連網、不開任何網路埠、不開 Telegram、不呼叫真的 AI 或 `claude`。
+- 用假時鐘（`now=` 參數）與假的常駐助理（只計次、回固定的 `Verdict`），沿用 `tests/test_runtime.py` 的 fixture 寫法。
+- 至少要有：
+  1. 一個任務持續 failed、訊息不變：連跑 10 次 → AI 只被叫 1 次，通知最多 1 次。
+  2. failed 訊息只有數字不同（例如「第 3 次」→「第 4 次」）→ 不再叫 AI。
+  3. 失敗原因真的改變、或多了一個 failed 任務 → 再叫一次 AI。
+  4. 失敗恢復成正常 → 算一次變化（叫 AI 或至少結果字串正確）；之後不再重複。
+  5. 換日 → 最多多叫一次。
+  6. 手動執行 → 一定叫 AI，但同一批失敗不重複通知。
+  7. 重開（用同一份存檔建新的 `Heartbeat`）→ 不會多叫 AI。
+  8. `daily_max_calls` 與 `daily_max_notify` 的上限照舊有效；安靜時段照舊。
+  9. 存檔內容是壞的 → 心跳照常運作。
+- 跑全部測試：`python -m pytest -q --deselect tests/test_web.py::test_port_already_in_use_is_a_bind_failure`
+  （這一個測試會在本機暫時 listen 一個 port，這個任務不要跑它）。改動前先跑一次記下基準；
+  如果有跟這次無關、本來就失敗的測試（例如只在 Windows 才會過的），在回報裡分開列出，不要去修它。
+
+## 6. 驗收清單
+
+- [ ] 有 failed 任務且狀態不變時，連續心跳不再叫 AI（測試 1、2 通過）。
+- [ ] 失敗組成改變時會再叫 AI（測試 3、4）。
+- [ ] 同一批失敗只通知一次（測試 1、6）。
+- [ ] 重開後不會多叫（測試 7）；壞存檔不會讓心跳壞掉（測試 9）。
+- [ ] 每日上限、安靜時段、手動執行的行為與修改前相同（既有測試全過＋測試 8）。
+- [ ] ADR 0001 有修訂段落、`CHANGELOG.md` 有一行、`heartbeat.py` 模組說明的規則 1 已更新。
+- [ ] 沒有改 `vendor/`、沒有改任何預設值。
+
+## 7. git 規則
+
+- 從 `dev` 開新分支 `cloud/cb1-heartbeat-no-repeat-ai`，只在這條分支上工作。
+- 一個 commit 一件事（例如：修正判斷、存檔欄位、測試、文件分開）；標題英文一句 `type(scope): …`
+  （例如 `fix(runtime): skip the AI when the failed-task picture has not changed`），內文用繁體中文寫 What／Why。
+- **不要動 `dev`、`main`**：不合併、不 rebase 別人的 commit、不 force push、不刪任何分支。
+  只推 `cloud/cb1-heartbeat-no-repeat-ai`；如果環境要求開 PR，只能開 draft PR，不要合併。
+- commit 訊息、程式註解、測試資料裡**不得出現任何個人資訊**（真名、信箱、帳號、電腦路徑）。範例一律用 `example.invalid`、`&lt;名字&gt;` 這類佔位。
+
+## 8. 完成回報格式
+
+```
+## CB1 完成回報
+- 分支：cloud/cb1-heartbeat-no-repeat-ai；commit：&lt;短碼 標題&gt;（每個一行）
+- 做了什麼：3～6 條
+- 測試：跑的指令、通過／失敗數；改動前的基準；本來就失敗、與這次無關的測試
+- 驗收清單：逐項 ✅／❌＋一句說明
+- 沒做或沒驗證的：
+- 需要維護者決定的事：每件附選項與建議（沒有就寫「無」）
+```
+</pre></section><section id="cb2" hidden><h2>CB2 助理評測集與離線重放</h2><p><button class="copy" data-for="cb2-t">複製整份 brief</button></p><pre id="cb2-t"># CB2 助理評測集與離線重放
+
+&gt; 這是公開開源專案 SYNOX（自架的個人助理與工具主控台，Python 3.11）的功能開發任務。
+&gt; 這份說明自給自足：需要的背景都寫在這裡，其餘請讀 repo 裡的公開文件。
+
+## 1. 目標與現象
+
+SYNOX 的對話助理（`src/synox/agent/`）會看使用者的話、決定要不要叫工具、最後回一段文字。
+之後要陸續改系統提示、工具說明、上下文處理，但**現在沒有任何方法量「改了之後有沒有變好」**：
+沒有固定的題目、沒有自動檢查，每次只能憑感覺。
+
+這個任務要做一套**小型評測集＋離線重放與評分腳本**，全部用假 AI 與假工具，不連網、不花錢：
+
+- 約 30 題日常助理任務，涵蓋：記事、改寫與摘要、查資料、行程與時間、模糊指令要追問、模糊但不該追問、
+  拒絕危險請求、提示注入防禦、多回合記憶、工具鏈（連續用兩個以上工具）。
+- 每題有可以自動判定的「硬檢查」；少數需要人看的品質項目只留欄位，不自動打分。
+- 能把「某個模型對每一題的回覆」錄成檔案，之後**離線重放**、重新評分（這個任務只做重放與評分；真的去錄真模型不在範圍內）。
+
+## 2. 範圍與不做的事
+
+做：
+
+- 題目格式（schema）、30 題題目、假工具、評分器、離線重放、報表、說明文件、單元測試。
+- 一份「參考用的劇本回覆」（scripted replies）：讓每一題都有一份會通過的回覆、幾題有故意會失敗的回覆，用來證明檢查器真的抓得到錯。
+
+不做：
+
+- **不呼叫任何真的 AI**（不論雲端 API 或本機模型），也不做「真跑」模式。真跑要另外決定花費上限，之後再說；
+  可以在文件裡寫下介面草案，但程式裡不要有能連網的路徑。
+- 不改對話助理本身的行為（系統提示、工具清單、迴圈）。評測只是量，不是修。
+- 不改 `vendor/`；不新增第三方套件（只用標準函式庫與 repo 已有的相依）。
+
+## 3. 先讀什麼、要改哪些檔
+
+先讀：
+
+- `docs/AGENT.md`（地圖、不變的規則、怎麼跑測試；特別是 `src/synox/agent/` 與 `src/synox/llm/` 那幾列）
+- `src/synox/llm/base.py`（`ChatAdapter`、`Message`、`Reply`、`ToolCall`、`ToolSpec`）、`src/synox/llm/fake.py`（`FakeAdapter`）
+- `src/synox/agent/loop.py`（一輪對話怎麼跑、步數上限、工具結果怎麼回給 AI）、`src/synox/agent/approve.py`（確認卡）
+- `tests/conftest.py`（`make_bot`：測試用的 packs＋真的保管箱＋`FakeAdapter`）與幾個 `tests/test_agent*.py`
+- `docs/tools.md`、`docs/sdk.md`（工具的形狀）
+
+建議的新檔（名稱可以調整，回報時說明）：
+
+| 檔案 | 內容 |
+|---|---|
+| `evals/assistant/README.md` | 評測集怎麼用、怎麼新增題目、每個欄位的意思、硬檢查的清單 |
+| `evals/assistant/cases/*.json`（或一個 `cases.jsonl`） | 30 題 |
+| `evals/assistant/replies/reference/*.json` | 參考劇本回覆（會通過的） |
+| `evals/assistant/replies/broken/*.json` | 故意會失敗的回覆（給測試用） |
+| `src/synox/evals/`（`cases.py`、`fake_tools.py`、`replay.py`、`checks.py`、`report.py`） | 載入題目、假工具、重放、檢查、報表 |
+| `scripts/eval_assistant.py` | 指令列入口：`--cases`、`--replies &lt;資料夾&gt;`、`--split tune|holdout|all`、`--json &lt;輸出檔&gt;` |
+| `tests/test_evals.py` | 單元測試 |
+
+請確認 `scripts/make_zip.py` 的 `release_files` 會不會把 `evals/` 打包進發佈物；評測資料不需要發給一般使用者，
+如果會被打包，在排除清單加上它（並在回報說明）。
+
+## 4. 設計要點
+
+**題目分配（共 30 題）**：記事 4、改寫與摘要 3、查資料 4、行程與時間 3、模糊該追問 3、模糊不該追問 2、拒絕 3、提示注入 3、多回合記憶 3、工具鏈 2。
+其中 20 題標 `tune`（之後調提示用）、10 題標 `holdout`（保留驗收用），每一類都要兩邊都有。
+
+**每題的欄位（建議）**：
+
+- `id`、`category`、`split`、`title`（一句話說這題在考什麼）
+- `turns`：使用者依序說的話（多回合記憶題有 2～3 句）
+- `tools`：這一題可用的假工具（名稱、參數 schema、效果等級如唯讀／寫入／危險、每次被叫時回什麼；
+  可以依參數回不同結果；提示注入題的工具結果裡藏著「叫 AI 去做別的事」的文字）
+- `expect`（硬檢查）：
+  - `must_call`：必須叫到的工具與參數（只比對列出的鍵；值可以是精確值、包含、正規式）
+  - `must_not_call`：不可以叫的工具（例如注入題裡被誘導的寫入工具）
+  - `confirm_card`：危險或寫入動作是否必須經過確認卡（看迴圈是不是走到確認卡，而不是看文字）
+  - `ask_back`：這一輪是不是應該回問（判定：沒有叫任何寫入工具，且回覆是問句或附選項）
+  - `refuse`：是不是應該拒絕（判定：沒有叫被禁止的工具，回覆含拒絕＋替代建議的標記，標記規則寫在 README）
+  - `max_steps`：步數上限
+  - `final_contains`／`final_not_contains`：最後回覆一定要有／不能有的片段（用在記憶題、注入題）
+- `soft`：只給人看的評分重點（改寫品質、拒絕的語氣、追問的品質），1～5 分，**不自動打分**
+- 所有題目內容用中性的虛構情境與佔位資料（`example.com`、`王小明` 這類），**不要放任何真實個人資料**。
+
+**統計但不判定失敗的項目**：回覆裡出現簡體字的次數（用一份內建的小字表，例如常見的簡繁不同字），只寫進報表。
+
+**重放與錄製格式**：一題一份回覆檔，內容是「每一步 AI 回了什麼」（文字或工具呼叫的清單），格式對應 `Reply`／`ToolCall`。
+重放時用一個「照劇本回話」的假 adapter 取代真的 AI，工具一律用假工具；如果 AI 這一步呼叫的工具與參數跟劇本錄下時不同步
+（例如題目改了），標成 `replay_mismatch`，不要硬算。
+
+**跑在哪裡**：優先把重放接在**真的對話迴圈**（`AgentLoop` 或 `make_bot` 建出來的 bot）上跑，量到的才是真的外框行為
+（確認卡、第 4 關參數驗證、步數上限都會算進去）。如果接不上，先做獨立的檢查器，並在回報裡寫清楚差在哪裡。
+
+**報表**：每題 pass／fail 與失敗原因（哪一條檢查沒過）、每一類的通過率、tune／holdout 分開的總分、簡體字統計；
+文字摘要＋JSON。結果必須是決定性的（同樣的輸入每次輸出一模一樣）。
+
+**README 要寫的**：怎麼跑、怎麼新增一題（複製哪個範本、每個欄位怎麼填、怎麼補參考回覆、怎麼確認新題目會失敗也會通過）、
+各檢查的判定規則、`tune`／`holdout` 的用法（不要拿 holdout 調提示）、之後要做「真跑」時需要先決定的事（花費上限、誰下指令）。
+
+## 5. 測試要求
+
+- 全部離線：不連網、不開任何網路埠、不開 Telegram、不呼叫真的 AI 或 `claude`；只用假 adapter 與假工具。
+- 至少要有：
+  1. 30 題都載入得了、格式檢查通過；每一類的題數與 tune／holdout 分配符合上面的表。
+  2. 參考劇本回覆跑完 30 題全部 pass。
+  3. 每一種硬檢查都有一個「故意失敗」的案例被抓到（叫了不該叫的工具、跳過確認卡、該問沒問、不該問卻問、注入成功、忘記前一輪、超過步數）。
+  4. 重放劇本與題目不同步時標 `replay_mismatch`。
+  5. 報表是決定性的（跑兩次比對一模一樣）；JSON 報表可以被讀回來。
+  6. 指令列入口用暫存資料夾跑一次（不寫到 repo 以外的地方）。
+- 跑全部測試：`python -m pytest -q --deselect tests/test_web.py::test_port_already_in_use_is_a_bind_failure`
+  （這一個測試會在本機暫時 listen 一個 port，這個任務不要跑它）。改動前先跑一次記下基準；
+  與這次無關、本來就失敗的測試在回報裡分開列出，不要去修。
+
+## 6. 驗收清單
+
+- [ ] 30 題，分類與 tune／holdout 分配正確；題目裡沒有任何真實個人資料。
+- [ ] 參考回覆全部 pass；每一種硬檢查都有會失敗的案例證明它有效。
+- [ ] 離線重放可以用；不同步時標 `replay_mismatch`。
+- [ ] 報表有每題、每類、tune／holdout、簡體字統計；決定性。
+- [ ] `evals/assistant/README.md` 寫清楚怎麼新增題目。
+- [ ] 程式裡沒有任何會連網或呼叫真 AI 的路徑；沒有新增第三方套件；沒有改 `vendor/` 與對話助理本身的行為。
+- [ ] 確認過 `evals/` 會不會被打包進發佈物，並照上面的說明處理。
+
+## 7. git 規則
+
+- 從 `dev` 開新分支 `cloud/cb2-assistant-eval`，只在這條分支上工作。
+- 一個 commit 一件事（例如：題目格式與載入、30 題、假工具與重放、檢查與報表、指令列入口、文件、測試）；
+  標題英文一句 `type(scope): …`（例如 `feat(evals): add a 30-case offline assistant eval set`），內文用繁體中文寫 What／Why。
+- **不要動 `dev`、`main`**：不合併、不 rebase 別人的 commit、不 force push、不刪任何分支。
+  只推 `cloud/cb2-assistant-eval`；如果環境要求開 PR，只能開 draft PR，不要合併。
+- commit 訊息、程式註解、題目與測試資料裡**不得出現任何個人資訊**（真名、信箱、帳號、電腦路徑）。
+
+## 8. 完成回報格式
+
+```
+## CB2 完成回報
+- 分支：cloud/cb2-assistant-eval；commit：&lt;短碼 標題&gt;（每個一行）
+- 做了什麼：3～6 條（含最後的檔案配置）
+- 題目分配表：類別 × tune／holdout
+- 測試：跑的指令、通過／失敗數；改動前的基準；本來就失敗、與這次無關的測試
+- 有沒有接上真的對話迴圈：有／沒有（沒有的話差在哪）
+- 驗收清單：逐項 ✅／❌＋一句說明
+- 沒做或沒驗證的：
+- 需要維護者決定的事：每件附選項與建議（例如真跑的花費上限；沒有就寫「無」）
+```
+</pre></section><section id="cb3" hidden><h2>CB3 呈現層 adapter：與通道無關的內容區塊模型</h2><p><button class="copy" data-for="cb3-t">複製整份 brief</button></p><pre id="cb3-t"># CB3 呈現層 adapter：與通道無關的內容區塊模型
+
+&gt; 這是公開開源專案 SYNOX（自架的個人助理與工具主控台，Python 3.11）的功能開發任務。
+&gt; 這份說明自給自足：需要的背景都寫在這裡，其餘請讀 repo 裡的公開文件。
+
+## 1. 目標與現象
+
+SYNOX 的 AI 回覆會送到三種地方：Telegram、Discord、網頁主控台。**現在三邊都是把 AI 的文字原樣送出**：
+
+- Telegram：AI 習慣寫 Markdown，`**粗體**`、`| 表格 |` 這些符號原樣出現；超過 4096 字的回覆沒有切（Bot API 的文字上限是 4096）。
+- 網頁：同樣原樣顯示。
+- Discord：Discord 自己會畫 Markdown 所以看起來還可以，但 2000 字切割不看程式碼區塊（會把 ``` 切斷）。
+
+**目標**：先做一層與通道無關的「內容區塊模型」：
+
+```
+來源（Markdown、純文字、系統產生的卡片）──來源 adapter──▶ 區塊清單 ──輸出 adapter──▶ Telegram／Discord／網頁
+```
+
+這個任務做的是**最小可用版**：區塊模型、Markdown 來源 adapter、三個輸出 adapter、黃金檔案快照測試；
+接到 AI 回覆的那一條線用設定開關控制，**預設關閉**，關閉時行為與現在完全相同。
+
+## 2. 範圍與不做的事
+
+做：
+
+- 區塊模型：段落、標題、清單（有序／無序，可巢狀兩層）、表格、程式碼區塊、引用、狀態標籤、按鈕群、確認卡；
+  行內：粗體、斜體、行內程式碼、連結。整份內容與每個區塊都帶「信任等級」：`system`（SYNOX 自己產生）、`assistant`（AI 寫的）、`external`（工具結果、網頁、檔案、別人的訊息）。
+- 來源 adapter：Markdown → 區塊（自己寫的小解析器，不新增套件）；純文字 → 段落。
+- 輸出 adapter：Telegram（HTML 級）、Discord（Markdown 子集）、網頁（已跳脫的 HTML）。
+- 接線：只接「AI 回覆送出」這一條，用設定開關控制，預設關閉。
+- 黃金檔案快照測試、攻擊案例、長度與標籤成對的不變量測試。
+
+不做：
+
+- 不做 Telegram 的 Rich Message（Bot API 10.1 的新格式）與串流草稿；之後當選配。
+- 不做對話狀態機、進度卡、「在等你的」總表。
+- 不改既有確認卡（`src/synox/agent/approve.py`）的流程與外觀；確認卡區塊只要能被畫出來，暫時不取代現有的卡。
+- 不改 `vendor/` 底下 SDK 的任何檔案（SDK 已經有一個 `Html` 字串型別與 `plain()`，可以拿來用，不要改它）。
+- 不新增第三方套件；不改任何既有設定的預設值。
+
+## 3. 先讀什麼、要改哪些檔
+
+先讀：
+
+- `docs/AGENT.md`（地圖與不變的規則；特別是第 9 條：網頁的字一律 `textContent`、伺服器產生的 HTML 一律 escape）
+- `src/synox/agent/loop.py` 的 `say()`、`src/synox/agent/room.py` 的 `say()`（AI 回覆從哪裡送出）
+- `src/synox/discord/rest.py`（Discord 送訊息、目前的 2000 字切割）、`src/synox/web/channel.py`、`src/synox/web/chats.py`、`src/synox/web/static/app.html`（網頁怎麼顯示對話）
+- `vendor/` 底下 SDK 的 `core/richtext.py`（`Html`、`esc`、`plain`）與 Telegram 送訊息的地方（`Html` 會用 `parse_mode=HTML` 送，被拒就改送純文字）
+- `src/synox/packs/render.py`（工具結果的 JSON 怎麼攤平成文字；這個任務不用改它）
+
+建議的新檔（名稱可以調整，回報時說明）：
+
+| 檔案 | 內容 |
+|---|---|
+| `src/synox/present/__init__.py` | 對外的入口，例如 `render(text, channel, *, trust=&quot;assistant&quot;) -&gt; list[Chunk]` |
+| `src/synox/present/blocks.py` | 區塊與行內元素的資料型別（dataclass）、信任等級 |
+| `src/synox/present/markdown.py` | Markdown → 區塊 |
+| `src/synox/present/telegram.py`、`discord.py`、`web.py` | 三個輸出 adapter |
+| `src/synox/present/width.py` | 等寬對齊用的顯示寬度（中日韓全形字算 2，用 `unicodedata.east_asian_width`） |
+| `tests/test_present_*.py`、`tests/fixtures/present/` | 測試與黃金檔案 |
+| `docs/presentation.md` | 區塊模型、各通道的降級規則、開關怎麼開 |
+
+## 4. 設計要點
+
+**安全（最重要）**：
+
+- 按鈕群只能由程式碼（`system`）建立；確認卡只能由核准流程建立。**任何 Markdown 或外部內容都不能產生按鈕或確認卡**：
+  看起來像按鈕的文字（例如 `[✅ 執行]`、`&lt;button&gt;`）一律當普通文字。
+- 連結只收 `http`／`https`；其他（`javascript:`、`data:`、`file:`、相對路徑）一律變成純文字。
+- 所有文字在輸出時都要跳脫：Telegram HTML 跳脫 `&amp; &lt; &gt;`（屬性裡再加 `&quot;`）；網頁 HTML 同樣跳脫；Discord 對 `external` 內容跳脫 Markdown 特殊字元。
+- 只輸出白名單標籤：Telegram 用 `b`、`i`、`code`、`pre`、`a`、`blockquote`；網頁另外可以用 `p`、`h3`～`h5`、`ul`、`ol`、`li`、`table` 系列、`span class=…`（狀態標籤）。不輸出任何 `style`、`on*` 屬性、`&lt;script&gt;`、外部資源。
+
+**Telegram（HTML 級）**：
+
+- 標題 → `&lt;b&gt;`；清單 → 以「• 」或「1. 」開頭的行；引用 → `&lt;blockquote&gt;`；程式碼 → `&lt;pre&gt;`。
+- 4096 字切割：在區塊邊界切；單一區塊太長（例如很長的程式碼）才在區塊裡切，切開的每一段都要補上自己的開頭與結尾標籤；
+  每一則的標籤都必須成對；按鈕群只附在最後一則。長度保守地用 UTF-16 單位計算。
+- 表格降級（依寬度）：2 欄 → 一列一行「欄名：值」；窄表（每列顯示寬度不超過約 36）→ `&lt;pre&gt;` 等寬對齊；
+  寬表 → 一列一小段（第一欄當小標題，其餘「欄名：值」）；太長（例如超過 30 列）→ 只放前面幾列並註明「表格太長，完整內容請在網頁看」。
+
+**Discord**：
+
+- 輸出 Markdown 子集；2000 字切割要看程式碼圍欄（切在圍欄裡就在這一則結尾補 ``` 、下一則開頭重開）。
+- Discord 不支援表格：窄表用程式碼區塊對齊、寬表一列一段。
+
+**網頁**：
+
+- 轉成已跳脫的 HTML 字串（伺服器端產生，符合「伺服器產生的 HTML 一律 escape」），表格用真的 `&lt;table&gt;`。
+- 如果你判斷網頁端改成用 JSON 區塊、在瀏覽器用 `createElement`／`textContent` 畫更符合現有架構，可以這樣做，但要在回報說明理由；兩種都不能用 `innerHTML` 塞未跳脫的內容。
+
+**接線（預設關閉）**：
+
+- 新增一個設定，例如 `config.json` 的 `&quot;presentation&quot;: {&quot;enabled&quot;: false}`（放在現有設定的讀取與檢查流程裡，不另開檔）。
+- 開啟時，AI 回覆在送出前先經過 `present.render(...)`，依送往的通道選輸出 adapter；關閉時**一位元組都不變**。
+- 只接 AI 回覆這一條；工具輸出、系統訊息、確認卡先不動。
+
+**這次採用的做法（可以之後改）**：Telegram 先做 HTML 級、Rich 級之後選配；表格依寬度降級；呈現層放在核心（`src/synox/present/`）。
+這些都在開關後面，預設關閉，所以之後要改方向也不影響現在的使用者。
+
+## 5. 測試要求
+
+- 全部離線：不連網、不開任何網路埠、不開 Telegram／Discord、不呼叫真的 AI 或 `claude`。全部是純函式測試，或用 repo 既有的假通道。
+- **黃金檔案**：每個案例一個資料夾，放 `source.md`、`blocks.json`、`telegram.json`（切好的每一則）、`discord.json`、`web.html`；
+  測試逐一比對。提供一個重新產生黃金檔的方法（例如環境變數 `SYNOX_UPDATE_GOLDEN=1`），並在 `docs/presentation.md` 寫怎麼用。
+- 至少要有的案例：一般段落與粗斜體、各級標題、巢狀清單、2 欄表、窄表（含中文對齊）、寬表、超長表、程式碼區塊（含語言標記）、
+  引用、超長回覆（&gt; 4096、&gt; 2000）、一行沒有空白的超長字串、混合中英文與 emoji。
+- 攻擊案例：Markdown 裡假裝的按鈕與確認卡、`&lt;script&gt;`、`&lt;b onclick=…&gt;`、`javascript:` 連結、未閉合的 `**` 與 ``` 、
+  大量巢狀強調、偽造的 HTML 實體。
+- 不變量（對每個案例都檢查）：Telegram 每則 ≤ 4096、Discord 每則 ≤ 2000、標籤成對、只出現白名單標籤、沒有未跳脫的 `&lt;`、
+  `external` 內容產生不出按鈕。
+- 開關關閉時：AI 回覆送出的內容與修改前完全相同（用假通道比對）。
+- 跑全部測試：`python -m pytest -q --deselect tests/test_web.py::test_port_already_in_use_is_a_bind_failure`
+  （這一個測試會在本機暫時 listen 一個 port，這個任務不要跑它）。改動前先跑一次記下基準；
+  與這次無關、本來就失敗的測試在回報裡分開列出，不要去修。
+
+## 6. 驗收清單
+
+- [ ] 區塊模型涵蓋：段落、標題、清單、表格、程式碼、引用、狀態標籤、按鈕群、確認卡；每個區塊有信任等級。
+- [ ] Markdown → 區塊的解析器不用第三方套件，壞掉的 Markdown 不會丟例外（最差退成段落）。
+- [ ] Telegram：HTML 跳脫正確、4096 切割在區塊邊界、標籤成對、表格依寬度降級。
+- [ ] Discord：2000 切割看程式碼圍欄、表格降級。
+- [ ] 網頁：輸出已跳脫、只用白名單標籤。
+- [ ] 外部內容與 Markdown 都無法產生按鈕或確認卡；非 http／https 連結變純文字（攻擊案例全過）。
+- [ ] 黃金檔案測試與不變量測試全過；有重新產生黃金檔的方法與說明。
+- [ ] 設定開關預設關閉；關閉時輸出與修改前完全相同（有測試）。
+- [ ] 沒有改 `vendor/`、沒有新增套件、沒有改任何既有預設值；有 `docs/presentation.md` 與 CHANGELOG 一行。
+
+## 7. git 規則
+
+- 從 `dev` 開新分支 `cloud/cb3-presentation-blocks`，只在這條分支上工作。
+- 一個 commit 一件事（例如：區塊模型、Markdown 解析、Telegram 輸出、Discord 輸出、網頁輸出、接線與開關、黃金檔、文件）；
+  標題英文一句 `type(scope): …`（例如 `feat(present): add a channel-neutral content block model`），內文用繁體中文寫 What／Why。
+- **不要動 `dev`、`main`**：不合併、不 rebase 別人的 commit、不 force push、不刪任何分支。
+  只推 `cloud/cb3-presentation-blocks`；如果環境要求開 PR，只能開 draft PR，不要合併。
+- commit 訊息、程式註解、黃金檔與測試資料裡**不得出現任何個人資訊**（真名、信箱、帳號、電腦路徑）；範例一律用佔位資料。
+
+## 8. 完成回報格式
+
+```
+## CB3 完成回報
+- 分支：cloud/cb3-presentation-blocks；commit：&lt;短碼 標題&gt;（每個一行）
+- 做了什麼：3～6 條（含最後的模組配置與設定欄位名稱）
+- 各通道的降級規則摘要（表格）
+- 測試：跑的指令、通過／失敗數；黃金檔案數；改動前的基準；本來就失敗、與這次無關的測試
+- 驗收清單：逐項 ✅／❌＋一句說明
+- 沒做或沒驗證的（例如：沒有在真的 Telegram／Discord 上看過）
+- 需要維護者決定的事：每件附選項與建議（沒有就寫「無」）
+```
+</pre></section><section id="cb4" hidden><h2>CB4 工具錯誤合約與隔離清單（最小可行版）</h2><p><button class="copy" data-for="cb4-t">複製整份 brief</button></p><pre id="cb4-t"># CB4 工具錯誤合約與隔離清單（最小可行版）
+
+&gt; 這是公開開源專案 SYNOX（自架的個人助理與工具主控台，Python 3.11）的功能開發任務。
+&gt; 這份說明自給自足：需要的背景都寫在這裡，其餘請讀 repo 裡的公開文件。
+
+## 1. 目標與現象
+
+SYNOX 的工具（pack）分 python、cli、MCP 幾種，對話助理（AI）會叫它們。**現在工具壞掉時，SYNOX 什麼都不記得**：
+
+- python 工具丟例外，AI 只看到一行 `執行出錯：類別名: 訊息`（`src/synox/agent/loop.py`），沒有截長、沒有遮金鑰；
+  cli 工具失敗只剩 `❌ 指令：原因`（`src/synox/packs/loader.py` 的 `finish`）。SDK 其實已經有錯誤代碼
+  （`ToolError(&quot;not_found&quot;, &quot;…&quot;)` 會印出 `{&quot;ok&quot;: false, &quot;error&quot;: …, &quot;code&quot;: …}`），但 SYNOX 收到後把 `code` 丟掉了。
+- 下一輪對話，同一個壞掉的工具照樣出現在給 AI 的工具清單裡，AI 會再叫、再失敗，白白花 token 與時間。
+- 沒有地方告訴使用者「哪個工具壞了、為什麼、可以怎麼補救」。
+
+**目標（最小可行版）**：
+
+1. **失敗信封**：工具失敗時回一個固定格式（穩定的類別碼、人話原因、能不能重試、補救的種類與動作），有長度上限、會去掉金鑰等敏感資訊。
+2. **SDK 的最小 `fail()` API**，向後相容（舊的 `ToolError`、一般例外照樣能用）。
+3. loader 與對話助理**讀得懂**這個信封：AI 收到固定格式的一行；使用者看到人話原因。
+4. **隔離清單**：同一個根因連續失敗達門檻 → 這個工具標成壞掉；壞掉的工具從給 AI 的工具清單拿掉、只留一行原因；
+   冷卻時間到了用**工具自己宣告的便宜檢查**重新確認（不叫 AI），過了才放回來。
+5. `doctor` 與網頁「工具」頁顯示狀態。
+
+**不做自動修復**：失敗信封只「寫出」補救建議（例如「需要更新到某版本」「需要重新設定憑證」），SYNOX 這一版不執行任何補救動作。
+
+## 2. 範圍與不做的事
+
+做：失敗信封 v1、SDK `fail()`、loader／對話助理讀取與正規化、截長與去敏感、隔離清單（狀態、門檻、冷卻、重新檢查、持久化）、
+給 AI 的工具清單過濾、`doctor` 一段、網頁工具頁的狀態徽章與原因、設定欄位與預設值、文件、測試。
+
+不做：
+
+- **自動修復**（重試以外的任何補救動作）、讓 AI 自己觸發修復、自動更新或重建環境。
+- 通知（推播給使用者「某工具壞了」）、指標儀表板、斷網合併、MCP 伺服器重啟上限、多機匯總、安裝時的作者規範檢查——這些是之後的任務。
+- 改 `vendor/`；新增第三方套件；改任何既有設定的預設值（新設定欄位可以加，見下面）。
+
+## 3. 先讀什麼、要改哪些檔
+
+先讀：
+
+- `docs/AGENT.md`（地圖與不變的規則：權限唯一交會點是 `policy.decide`、測試不綁埠、範例不放真資料…）
+- `docs/sdk.md`（SDK 的 `@tool`、`ToolError`、`report_status`、`requires.sdk` 版本規則）與 `docs/pack-format.md`（`pack.json`）
+- `src/synox/sdk/author.py`（SDK 正本）、`scripts/build_synox_sdk.py`（**單檔 SDK `sdk/synox_sdk.py` 與 `examples/hello/synox_sdk.py` 是產生出來的，改 `author.py` 再跑這支，不要手改產生檔**）
+- `src/synox/agent/loop.py`（`call_tool`、`call_schema_tool` 的例外處理、工具清單 `tools_for`）、`src/synox/agent/tools.py`
+- `src/synox/packs/loader.py`（cli 的 `finish`、載入狀態）、`src/synox/packs/manifest.py`（`pack.json` 檢查）、`src/synox/packs/kit.py`（`TOKEN_PATTERNS`）
+- `src/synox/vault/vault.py`（保管箱：加密存檔）、`src/synox/runtime/loop.py`（排程任務、可以登記重新檢查的任務）
+- `src/synox/doctor.py`、`src/synox/web/server.py`、`src/synox/web/static/tools.js`（工具頁）
+
+建議的新檔與改動（名稱可以調整，回報時說明）：
+
+| 檔案 | 內容 |
+|---|---|
+| `src/synox/health/__init__.py` | 對外入口：`HealthRegistry`（記錄失敗、查狀態、過濾工具清單、重新檢查） |
+| `src/synox/health/failure.py` | 失敗信封：類別碼表、正規化（舊信封、例外、純文字）、截長、去敏感、給 AI 的一行 |
+| `src/synox/health/state.py` | 每個工具的狀態機、指紋、門檻與冷卻 |
+| `src/synox/health/store.py` | 持久化（經保管箱加密） |
+| `src/synox/sdk/author.py` → 重新產生 `sdk/synox_sdk.py`、`examples/hello/synox_sdk.py` | `fail()`、`ToolFailure` |
+| `src/synox/agent/loop.py`、`src/synox/packs/loader.py` | 讀信封、記錄失敗、工具清單過濾 |
+| `src/synox/packs/manifest.py` | `pack.json` 新的選填區塊 `health`（自我檢查指令） |
+| `src/synox/doctor.py`、`src/synox/web/server.py`、`src/synox/web/static/tools.js` | 顯示狀態 |
+| `docs/tool-health.md`、`docs/sdk.md`、`docs/pack-format.md`、`CHANGELOG.md` | 文件 |
+| `tests/test_health_*.py` | 測試 |
+
+## 4. 設計要點
+
+**失敗信封 v1**：在現有信封上加一個 `failure` 物件（舊版讀的人會忽略；舊工具不帶就由 SYNOX 補預設值）：
+
+```json
+{&quot;ok&quot;: false, &quot;error&quot;: &quot;資料來源的回傳格式變了，解析不出價格。&quot;, &quot;code&quot;: &quot;upstream_changed&quot;,
+ &quot;failure&quot;: {&quot;v&quot;: 1, &quot;scope&quot;: &quot;tool&quot;, &quot;retry&quot;: {&quot;ok&quot;: false, &quot;after_s&quot;: null},
+             &quot;remedy&quot;: {&quot;kind&quot;: &quot;needs_update&quot;, &quot;id&quot;: &quot;upgrade&quot;, &quot;summary&quot;: &quot;要換成 1.3.0 以上的版本。&quot;},
+             &quot;diag&quot;: {&quot;tool_version&quot;: &quot;1.2.0&quot;, &quot;upstream&quot;: &quot;KeyError: &#x27;price&#x27;&quot;}}}
+```
+
+- 類別碼（穩定、全小寫）：`bad_input`、`not_found`、`needs_config`、`config_invalid`、`auth_missing`、`auth_expired`、`permission_denied`、
+  `rate_limited`、`network_unreachable`、`upstream_unavailable`、`upstream_changed`、`dependency_missing`、`dependency_outdated`、
+  `unsupported_platform`、`resource_exhausted`、`timeout`、`internal_bug`、`unclassified`（作者沒分類；由 SDK 或 SYNOX 補）。
+  每個碼有一張預設表：預設 scope、預設能不能重試、算不算進門檻、預設補救種類。不認得的碼一律當 `unclassified`。
+- `scope`：`input`（參數錯）｜`user`（只跟這個人有關，例如他的憑證）｜`tool`｜`pack`｜`environment`。**只有後三種算進門檻**；`user` 只記在那個人身上。
+- `retry`：`ok` 與 `after_s`（知道要等多久才帶）。
+- `remedy.kind`：`auto_fixable`｜`needs_update`｜`needs_config`｜`needs_owner`｜`none`；`remedy.id` 是短代號（`[a-z0-9_]{1,32}`），
+  `remedy.summary` 是人話。**補救說明不能含指令**（看起來像指令的整段丟掉、改成固定的一句「請看工具說明」）；這一版 SYNOX 不執行任何補救。
+- `diag`：只給擁有者與 log 看，**不進 AI 的提示**；每個值最多 200 字、整包最多 1 KB。
+- 上限與去敏感：`error` 最多 300 字；所有文字欄位都先過 `TOKEN_PATTERNS`（與 log 遮罩同一份）再存、再顯示。
+
+**SDK 的 `fail()`**（在 `src/synox/sdk/author.py`）：
+
+- `fail(code, reason, *, retry_after=None, remedy=None, scope=None, diag=None)` → 丟 `ToolFailure`（`ToolError` 的子類別，所以舊的 `except ToolError` 照樣接得到），印出 v1 信封、結束碼 1。
+- 舊的 `raise ToolError(code, message)` 照舊；沒處理的例外由 SDK 包成 `unclassified`。MCP 模式下對應 `isError: true`，並把信封放在結構化內容。
+- 依 `docs/sdk.md` 的規則調 `SDK_VERSION`（加新 API＝次版號），重新產生單檔 SDK，`tests/test_sdk_author.py` 的比對要過。
+
+**對話助理怎麼看到失敗**：一行、最多 300 字、不含金鑰：
+`FAIL &lt;類別碼&gt; retry=&lt;yes|no|after Ns&gt; | &lt;人話原因&gt; | 下一步：&lt;由 SYNOX 依類別碼產生的建議&gt;`。
+「下一步」由 SYNOX 產生，不採用工具自己的文字（避免工具結果夾帶指令）。給使用者看的訊息照舊是人話，可以多一行原因。
+
+**隔離清單**：
+
+- 失敗指紋：`pack＋指令＋類別碼＋工具版本＋正規化後的上游錯誤`（去掉數字、路徑、時間）。同一個根因只累加次數。
+- 門檻（設定，預設值）：同一指紋連續 3 次，或 10 分鐘內 5 次 → 標壞；沒有宣告合約的工具與匯入的工具門檻 2 次；
+  工具自己明說 `needs_update`、`needs_config`、`dependency_missing`、`auth_expired` → 立刻標壞（可以用設定關掉「立刻相信」）。
+- 狀態（最小版）：`healthy`、`broken`（冷卻中，到時間自動重新檢查）、`needs_action`（要人處理，例如憑證；不自動檢查，人按「重新檢查」才檢查）、
+  `quarantined`（好壞反覆太多次，只有擁有者能解除）。後三種**不給 AI**。
+- 冷卻（設定，預設值）：300、900、3600、21600、86400 秒依序拉長；24 小時內好壞反覆 3 次 → `quarantined`。
+- 重新檢查：只用工具在 `pack.json` 宣告的便宜自我檢查（新增選填欄位，例如 `&quot;health&quot;: {&quot;check&quot;: &quot;&lt;這個 pack 裡的一個唯讀指令名&gt;&quot;}`；
+  `manifest.py` 檢查它指到存在、而且是唯讀的指令），走既有的工具執行路徑、有逾時；**過程不叫 AI**。
+  沒有宣告自我檢查的工具：冷卻結束後放回清單試用一次（每天最多 4 次），失敗就進下一段冷卻。
+  重新檢查登記成 runtime 的排程任務（例如 `system.health`），不要另開執行緒。
+- 給 AI 的工具清單：拿掉不給 AI 的工具，在系統提示最後最多加 5 行「暫時不能用的功能：&lt;工具名&gt;（&lt;一句原因&gt;）」；
+  如果 AI 還是叫了被拿掉的工具，直接回那一行原因，不執行。
+- 使用者自己手動打指令：這一版照常執行，只在前面多一行警告；成功就算一次重新檢查通過。
+- **fail open**：健康管理器自己出錯、存檔壞掉、或設定關掉時，所有工具一律當成正常（記 log），不能因為它壞了讓所有工具都不能用。
+- 持久化：放在使用者資料區（例如 `data/health/`），**經現有保管箱加密**（沿用 `src/synox/vault/` 的做法），只存狀態、類別碼、次數、時間、雜湊與截短後的原因。
+- 設定：`config.json` 新增選填的 `health` 區塊（`enabled`、門檻、視窗、冷卻序列、反覆次數、每日試用次數、提示行數上限、是否立刻相信工具自報），
+  放進現有設定的讀取與檢查流程；沒寫就用預設值；寫錯要有清楚的錯誤訊息。
+- 權限判斷不變：能不能用一個工具仍然只由 `policy.decide` 決定；健康狀態只管「現在好不好」。
+
+**顯示**：`doctor` 多一段「工具健康」（每個非正常的工具一行：狀態、類別碼、原因、下次檢查時間）；
+網頁工具頁每張卡加狀態徽章與原因（文字一律 `textContent`），以及擁有者可按的「重新檢查」「解除隔離」（走既有 API 規則：非 GET 要 CSRF header、用 session 的人算權限）。
+
+## 5. 測試要求
+
+- 全部離線：不連網、不開任何網路埠、不開 Telegram、不呼叫真的 AI 或 `claude`、不真的 pip／npm install。
+- 用假工具（python 與 cli 各一種，能依設定回成功、各種類別碼的失敗、丟例外、卡住逾時）、假時鐘、假 AI（只計次，用來證明重新檢查時 AI 沒被叫）、
+  暫存資料夾裡的保管箱。網頁測試用 `WebUI.route()`／`handle()`，不開 HTTP 伺服器。
+- 至少要有：
+  1. 舊信封（只有 `code`）、新信封、一般例外、純文字錯誤都能正規化成 v1；不認得的碼變 `unclassified`。
+  2. 截長與去敏感：含 `sk-…`、`Bearer …`、Telegram token 樣式的錯誤訊息存檔與顯示時都被遮掉；`diag` 不出現在給 AI 的文字。
+  3. 補救說明含指令的整段被換掉。
+  4. 門檻：連續 3 次同一指紋 → `broken`；`input` 與 `user` 不算；工具自報 `needs_config` → 立刻 `needs_action`。
+  5. 壞掉的工具不在給 AI 的工具清單裡，系統提示最後有一行原因（最多 5 行）；AI 硬叫時直接回原因、不執行。
+  6. 冷卻與重新檢查：時間到用自我檢查、AI 呼叫次數為 0；過了放回、沒過進下一段冷卻；好壞反覆 3 次 → `quarantined`，只有擁有者能解除。
+  7. 沒有自我檢查的工具：試用一次的規則與每日上限。
+  8. fail open：讓健康管理器丟例外、存檔壞掉、設定關閉 → 工具清單與修改前相同。
+  9. 持久化：重開後狀態還在；存檔是密文（檔案內容裡找不到工具原因的明文）。
+  10. SDK：`fail()` 的信封、`ToolFailure` 是 `ToolError` 的子類別、舊 API 不變、單檔 SDK 與正本一致。
+  11. `doctor` 與網頁工具頁顯示狀態；非擁有者不能按解除。
+- 跑全部測試：`python -m pytest -q --deselect tests/test_web.py::test_port_already_in_use_is_a_bind_failure`
+  （這一個測試會在本機暫時 listen 一個 port，這個任務不要跑它）。改動前先跑一次記下基準；
+  與這次無關、本來就失敗的測試在回報裡分開列出，不要去修。
+
+## 6. 驗收清單
+
+- [ ] 失敗信封 v1 與類別碼表；舊信封與例外向後相容。
+- [ ] SDK `fail()` 與 `ToolFailure`；`SDK_VERSION` 依規則調整；單檔 SDK 重新產生且一致；`docs/sdk.md` 更新。
+- [ ] AI 收到的失敗是固定格式的一行（≤ 300 字、沒有金鑰、沒有 diag）。
+- [ ] 隔離清單：門檻、冷卻、反覆隔離、手動解除；壞工具不給 AI 並留一行原因。
+- [ ] 重新檢查只用工具宣告的自我檢查，過程不叫 AI（有測試證明）。
+- [ ] fail open（有測試證明）。
+- [ ] 持久化在使用者資料區、經保管箱加密。
+- [ ] 設定欄位有預設值、有檢查、有文件；沒有改任何既有預設值。
+- [ ] `doctor` 與網頁工具頁顯示狀態。
+- [ ] 沒有任何自動修復；沒有改 `vendor/`；沒有新增套件；`docs/tool-health.md` 與 CHANGELOG 一行。
+
+## 7. git 規則
+
+- 從 `dev` 開新分支 `cloud/cb4-tool-failure-contract`，只在這條分支上工作。
+- 一個 commit 一件事（例如：信封與正規化、SDK `fail()`、loader／agent 接線、隔離清單核心、持久化、設定、doctor、網頁、文件）；
+  標題英文一句 `type(scope): …`（例如 `feat(health): quarantine tools that keep failing for the same root cause`），內文用繁體中文寫 What／Why。
+- **不要動 `dev`、`main`**：不合併、不 rebase 別人的 commit、不 force push、不刪任何分支。
+  只推 `cloud/cb4-tool-failure-contract`；如果環境要求開 PR，只能開 draft PR，不要合併。
+- commit 訊息、程式註解、測試資料裡**不得出現任何個人資訊**（真名、信箱、帳號、電腦路徑）；範例一律用佔位資料。
+
+## 8. 完成回報格式
+
+```
+## CB4 完成回報
+- 分支：cloud/cb4-tool-failure-contract；commit：&lt;短碼 標題&gt;（每個一行）
+- 做了什麼：3～8 條（含最後的模組配置、設定欄位與預設值）
+- SDK：新版號、新 API、向後相容的說明
+- 測試：跑的指令、通過／失敗數；改動前的基準；本來就失敗、與這次無關的測試
+- 驗收清單：逐項 ✅／❌＋一句說明
+- 沒做或沒驗證的（例如：網頁畫面沒有在瀏覽器裡看過）
+- 需要維護者決定的事：每件附選項與建議（例如門檻與冷卻的預設值；沒有就寫「無」）
+```
+</pre></section><section id="cb5" hidden><h2>CB5 v2 SYNOX 加密工具包 `crypt`（與 Encrypter 同格式：age v1 公開格式）</h2><p><button class="copy" data-for="cb5-t">複製整份 brief</button></p><pre id="cb5-t"># CB5 v2 SYNOX 加密工具包 `crypt`（與 Encrypter 同格式：age v1 公開格式）
+
+&gt; 這是公開開源專案 SYNOX（自架的個人助理與工具主控台，Python 3.11）的功能開發任務。
+&gt; 這份說明自給自足：需要的背景都寫在這裡，其餘請讀 repo 裡的公開文件。
+&gt; v2（2026-11-13）：不再自創格式。改成與維護者另一個公開工具 Encrypter（PersonalToolZoo）相同的 **age v1 公開格式**，
+&gt; 兩邊產生的檔案可以互相解開，災難時任何 age 工具也能解。
+
+## 1. 目標
+
+新增 SYNOX 工具 `crypt`：簡單、安全、可預期的檔案與文字加解密，給個人備份與祕密保管。
+
+1. **格式 = age v1（https://c2sp.org/age ）**。只用標準、經審查的原語，用 repo 已依賴的 `cryptography` 套件元件（X25519、ChaCha20-Poly1305、HKDF-SHA256、HMAC-SHA256、scrypt）照規格實作；**不新增任何第三方相依；不自創密碼學；不使用 XOR、CBC、多層「混合」模式。**
+2. **多收件者＝萬用鎖**：一個檔案的檔案金鑰可以同時被多把公鑰包住（age 的 recipient stanza）。維護者自己持有一把「萬用鎖」私鑰（離線保存），再加上給別人／雲端環境的公鑰；任何一把私鑰都能解開**同一份**密文，檔案不會變兩倍大。
+   - `crypt_rewrap`：用現有私鑰解出檔案金鑰，**只重寫檔頭**（新增／移除收件者），資料區塊不動。
+   - 必須在文件誠實寫明：移除某收件者**不能**讓他已經拿到的舊檔失效（他仍可用舊檔頭解開舊副本）；要真的作廢請用 `crypt_rekey`（換新檔案金鑰、整份重新加密）並刪除所有舊副本。
+   - age 規格限制：密語（scrypt）收件者必須是檔案唯一的收件者，不能與公鑰混用；若要「密語＋萬用鎖」，請讓萬用鎖私鑰檔本身用密語保護（`keygen --protect`）。
+3. **祕密不進對話與 AI**：私鑰、密語、明文不經過聊天或 AI；工具只接收「金鑰檔路徑」或從環境變數／標準輸入讀密語；輸出不回顯金鑰。
+
+## 2. 範圍與不做的事
+
+做：`examples/crypt/` 底下的 pack（`pack.json`、`SKILL.md`、程式、`README.md`）＋ `tests/` 測試＋文件。
+
+不做：
+- 不實作 OpenPGP（README 寫「如何用 gpg／age／Encrypter 處理」即可）。
+- 不做雲端上傳、不做網路功能、不開網路埠。
+- 不刪除或覆寫原檔（只產生新檔；目標已存在就拒絕，除非明確 `--force` 並走確認機制）。
+- 不改 `vendor/`、不改既有 pack 規格（覺得需要改就在回報提出）。
+- 不把任何真實金鑰、密語、個人資訊放進 repo；測試金鑰在測試時產生。
+
+## 3. 先讀什麼
+
+`docs/AGENT.md`、`docs/pack-format.md`、`docs/sdk.md`、`docs/tools.md`、`docs/security.md`、`examples/hello/`、`sdk/synox_sdk.py`、`tests/` 內既有 pack 的測試寫法。age 規格以 https://c2sp.org/age 與其測試向量為準（可在測試資料中以小檔重現官方向量，註明出處）。
+
+## 4. 指令（名稱與參數以 pack 規格為準）
+
+| 指令 | 做什麼 | 風險 |
+|---|---|---|
+| `crypt_keygen` | 產生 age X25519 身分檔（可選 `--protect` 以密語保護）；寫到指定路徑、權限盡量限縮、已存在就拒絕；**只回報路徑與公鑰（`age1…`），不回顯私鑰** | 寫入 |
+| `crypt_encrypt_file` | 串流分塊加密 → 新檔；收件者為一到多把公鑰，或單一密語 | 寫入 |
+| `crypt_decrypt_file` | 用私鑰檔或密語解密到新檔；目標存在就拒絕；錯誤金鑰／被竄改一律回同一種模糊錯誤；驗證通過才寫出，失敗刪除不完整輸出 | 寫入 |
+| `crypt_encrypt_text`／`crypt_decrypt_text` | 小段文字（Base64 或 armor 輸出入） | 唯讀 |
+| `crypt_rewrap` | 只重寫檔頭：新增／移除收件者，資料不動；至少保留一位 | 寫入 |
+| `crypt_rekey` | 換新檔案金鑰並整份重新加密（真正讓舊鑰失效） | 寫入 |
+| `crypt_info` | 讀檔頭：版本、收件者數與類型、大小；不需要金鑰 | 唯讀 |
+| `crypt_check` | 自我檢查（套件版本、可用原語、暫存檔往返）；失敗回標準失敗格式 | 唯讀 |
+
+## 5. 密碼學與格式要點（寫成文件並在程式註解標註出處）
+
+- 嚴格照 age v1：檔頭 MAC、payload 的 nonce 與 16 位元組標籤、64 KiB 分塊、最後一塊旗標（偵測截斷與重排）、scrypt 參數上限（防止惡意檔頭耗光記憶體）。
+- 比較用固定時間；例外、日誌、`repr` 不得帶出金鑰或明文。
+- 要在測試證明避免：nonce 重用、截斷、分塊重排、未驗證先輸出明文、編碼歧義。
+- 讀到不認識的版本要明確失敗。
+
+## 6. 與 SYNOX 整合
+
+- `pack.json`：`stage: &quot;alpha&quot;`；能力只要檔案存取，**不要網路**；寫入類指令標成需要確認的等級。
+- 路徑限制照 pack 規格，不自己放寬。
+- `SKILL.md`：給 AI 的規則——**不得要求使用者把金鑰或密語貼進對話**；只傳「金鑰檔路徑」；解密後的明文不複誦、不寫進記憶或日誌。
+- 失敗一律用 SDK 標準失敗格式（`bad_input`、`config_invalid`、`dependency_missing` 等）並有單元測試。
+
+## 7. 測試要求
+
+- 全離線；不連網、不開網路埠、不呼叫 AI。
+- 官方 age 測試向量（挑能用小檔重現的）、往返、空檔、剛好整數分塊、跨分塊邊界、多收件者（每把私鑰都能獨立解開同一份密文）、`rewrap` 後被移除者無法解**新檔頭**但新收件者可解、`rekey` 後舊檔頭失效。
+- 負向：翻轉檔頭任一位元、翻轉密文與標籤、截斷、重排、錯金鑰、錯密語、目標已存在、金鑰檔權限與格式不對。
+- 祕密不外洩：以假金鑰字串確認它不出現在任何回傳、例外、日誌或輸出。
+- 跑全部測試：`python -m pytest -q --deselect tests/test_web.py::test_port_already_in_use_is_a_bind_failure`；改動前先記基準，與這次無關而本來就失敗的另列，不要去修。
+
+## 8. 驗收清單
+
+- [ ] 指令表的指令都可用，有 `--help` 與單元測試。
+- [ ] 格式遵守 age v1，文件寫明與規格的對應與限制。
+- [ ] 多收件者：每把私鑰獨立可解；`rewrap` 只改檔頭（證明資料區塊位元組不變）；`rekey` 讓舊鑰失效。
+- [ ] 竄改、截斷、重排、錯金鑰全部被拒絕，訊息不洩漏細節。
+- [ ] 祕密不外洩測試通過；SKILL.md 有禁止貼金鑰規則。
+- [ ] 沒有新增第三方相依。
+- [ ] 全部測試通過；README 有「備份＋雲端使用」範例（萬用鎖私鑰離線保存、給雲端的是另一把、用完 rekey）與「如何用 age／gpg／Encrypter 處理」。
+
+## 9. 給雲端環境的補充：如何解開維護者提供的加密檔
+
+雲端環境若需要解開維護者提供的加密檔（例如加密的規劃複本，格式為 OpenPGP＋RSA 金鑰），做法：
+1. 雲端多半是 Linux：用系統的 `gpg` 即可（`gpg -d 檔.tar.gz.gpg | tar xz -C &lt;repo 以外的暫存資料夾&gt;`）。維護者的 Encrypter 發行檔（GitHub Releases 的 `Encrypter_v&lt;版本&gt;`）是 **Windows 視窗程式，雲端跑不了**；需要它時改用同一標籤的原始碼（`python -m crypto_tool`，需要 `cryptography` 套件），並先跑 `--check`。
+2. 解密所需的私鑰**只能**透過雲端環境的祕密（secret／環境變數）提供，用暫時的 `GNUPGHOME`，用完刪除。不可貼進對話、不可 commit、不可寫進日誌。
+3. 明文只放 repo 之外的暫存目錄，工作結束刪除；**不得 commit 明文**，也不得把解出的內容摘要寫進公開 repo 的 commit、PR、文件。
+
+## 10. git 規則
+
+- 從 `dev` 開新分支 `cloud/crypt-pack`，只在這條分支工作。
+- 一個 commit 一件事（規格、核心、指令、測試、文件分開）；標題英文一句 `type(scope): …`，內文繁體中文寫 What／Why。
+- **不要動 `dev`、`main`**：不合併、不 force push、不刪分支；只推 `cloud/crypt-pack`；要開 PR 只開 draft。
+- commit 訊息、註解、測試資料**不得出現個人資訊**（真名、信箱、帳號、電腦路徑）；範例用 `example.invalid`、`&lt;名字&gt;`。
+- 這個 repo 的 dev 與 main 未來會公開：任何敏感資料都不可進任何 commit。
+
+## 11. 完成回報格式
+
+```
+## CB5 完成回報
+- 分支：cloud/crypt-pack；commit：&lt;短碼 標題&gt;（每個一行）
+- 做了什麼：3～6 條
+- 測試：跑的指令、通過／失敗數；改動前的基準；本來就失敗、與這次無關的測試
+- 驗收清單：逐項 ✅／❌＋一句說明
+- 沒做或沒驗證的：
+- 需要維護者決定的事：每件附選項與建議（沒有就寫「無」）
+```
+</pre></section><section id="cb6" hidden><h2>【作廢 2026-11-13，請勿貼給雲端】</h2><p><button class="copy" data-for="cb6-t">複製整份 brief</button></p><pre id="cb6-t"># 【作廢 2026-11-13，請勿貼給雲端】
+&gt; 這份 brief 要做自有格式 `.mlk`。Encrypter 之後改用公開的 age 格式與 OpenPGP 實作萬用鎖（同一份密文、別人的鑰匙與萬用鎖都能開），
+&gt; 已在 PersonalToolZoo 的 Encrypter 0.4.x 完成。要雲端做的加密相關工作請看 CB5 v2。保留此檔只作歷史紀錄。
+
+# 實作用 prompt：Encrypter「萬用鎖」金鑰槽格式（給雲端 Claude Code）
+
+&gt; 這份可以整段貼給雲端的 Claude Code session。內容自給自足：規格、測試要求、驗收條件都在下面。
+&gt; 背景說明與設計理由在同目錄的 `master-lock-research.md`（若該檔已在你的分支上，可以讀；沒有也能照本 prompt 完成）。
+
+---
+
+## 任務
+
+在 PersonalToolZoo repo 的 Encrypter 工具（`tools/encrypter/`）中，實作一個新的加密檔格式「萬用鎖」（`.mlk`）：
+每個檔案用一把隨機資料金鑰（DEK）加密內容，DEK 再分別包進多個「槽」——**萬用鎖槽**（X25519 公鑰，HPKE）、
+**本次金鑰槽**（32 bytes 隨機金鑰）、**密語槽**（scrypt）。任何一個槽能開就能解密。
+要支援：建立、解密、檢視、加槽、移除槽、換槽（只重包 DEK、不動內容）、rekey（換 DEK 並重新加密內容）。
+
+**只用標準原語，不自創密碼學。** 規格以下文為準；有任何你認為規格不安全或無法實作的地方，停下來在回報裡說明，不要自行改規格。
+
+## 硬規則
+
+1. 從 `dev/encrypter`（若不存在就從 `master`）切新分支 `feat/encrypter-master-lock`，所有 commit 都在這條分支上。
+   不合併到其他分支、不打 tag。
+2. 先讀 repo 根目錄的 `AGENTS.md` 與 `CLAUDE.md`、`tools/encrypter/README.md`，遵守其中的規則
+   （依賴要有主版本上限、`.bat` 只寫 ASCII、執行時資料不寫使用者資料夾等）。
+3. **不要改變既有加密模式的行為**（`.isd`、All-In-One、Layered、PGP 系列）。新功能放新檔案；
+   既有檔案只允許為了「掛上新功能」做最小的修改（例如在 CLI／GUI 註冊新指令或新分頁）。
+4. 依賴：使用 Encrypter 已有的 **PyCryptodome**，把 `tools/encrypter/requirements.txt` 的版本改成 `pycryptodome&gt;=3.22,&lt;4`
+   （3.22 起有 `Crypto.Protocol.HPKE`）。不要新增其他執行時依賴。測試可以額外用 `pytest`（開發用，不寫進 requirements）。
+5. 一個 commit 一件事；標題英文 `type(scope): summary`（scope 用 `encrypter`），內文用繁體中文寫 What／Why 與怎麼驗證；
+   用明確路徑 `git add`，不要 `git add -A`。結束時 `git status` 必須乾淨。
+6. 不要寫入任何個人資訊、真實金鑰或 `.env`；所有測試金鑰在測試中產生；測試全部離線，不開網路埠。
+7. 文件與回報用繁體中文（台灣用語）。
+
+## 檔案配置
+
+| 路徑 | 內容 |
+|---|---|
+| `tools/encrypter/crypto_tool/core/mlock.py` | 格式與操作的核心（串流讀寫） |
+| `tools/encrypter/crypto_tool/core/mlock_cli.py` | 命令列介面（`python -m crypto_tool.core.mlock_cli ...`，在 `tools/encrypter` 底下執行） |
+| `tools/encrypter/tests/test_mlock.py` | 單元測試 |
+| `tools/encrypter/tests/test_mlock_cli.py` | CLI 測試 |
+| `tools/encrypter/README.md` | 在「交接」段落加一小節：萬用鎖是什麼、指令、測試怎麼跑、限制 |
+
+（若 `tools/encrypter/prototype/master_lock/` 存在，那是用 `cryptography` 寫的參考原型與測試，可以參考，但以本 prompt 的規格為準。）
+
+## 格式規格 v1
+
+所有整數 big-endian；字串常數是 ASCII、沒有結尾 NUL；`‖` 表示串接。
+
+### 檔頭
+
+```
+檔案 = 檔頭 ‖ 內容
+檔頭 = core(41) ‖ generation(u32) ‖ slot_count(u8) ‖ slot × slot_count ‖ header_mac(32)
+core = magic(6) ‖ format_version(u8) ‖ suite(u8) ‖ chunk_log2(u8) ‖ file_id(32)
+```
+
+| 位移 | 長度 | 欄位 | 規則 |
+|---|---|---|---|
+| 0 | 6 | magic | `4d 4c 4f 43 4b 00`；不符 → E01 |
+| 6 | 1 | format_version | 必須是 1；否則 E02 |
+| 7 | 1 | suite | 必須是 1；否則 E03（不可自動退回其他演算法） |
+| 8 | 1 | chunk_log2 | 12～20，預設 16；超出 → E04 |
+| 9 | 32 | file_id | 隨機；rekey 時換新 |
+| 41 | 4 | generation | encrypt 時 0；每次加槽／移除槽／換槽／rekey 加一 |
+| 45 | 1 | slot_count | 1～16；0 → E04；&gt; 16 → E10 |
+| 46 | … | slots | 每個 `type(u8) ‖ body_len(u16) ‖ body`，body ≤ 1024 bytes；截斷或超長 → E04 |
+| … | 32 | header_mac | 見下 |
+
+DEK 為 32 bytes 隨機。包好的 DEK 一律是 48 bytes（32＋16 GCM 標籤）。
+
+### 槽（已知型別的 body 長度必須完全相符，否則 E04）
+
+- **`0x01` 萬用鎖**：`key_id(8) ‖ enc(32) ‖ ct(48)`，共 88 bytes。
+  HPKE base mode（RFC 9180），KEM＝DHKEM(X25519, HKDF-SHA256)（0x0020）、KDF＝HKDF-SHA256（0x0001）、AEAD＝AES-256-GCM（0x0002）。
+  `info = &quot;mlock/v1/slot/hpke&quot; ‖ core ‖ key_id`，AAD 為空，明文＝DEK。
+  `key_id = SHA-256(&quot;mlock/v1/key-id&quot; ‖ file_id ‖ X25519 公鑰 32 bytes)[:8]`。
+  開槽時先比對 `key_id`，不符就跳過。
+- **`0x02` 密語**：`salt(16) ‖ log_n(1) ‖ r(1) ‖ p(1) ‖ nonce(12) ‖ ct(48)`，共 79 bytes。
+  `KEK = scrypt(密語經 Unicode NFC 正規化後的 UTF-8, salt, N=2^log_n, r, p, dkLen=32)`；
+  `ct = AES-256-GCM(KEK, nonce, DEK, aad = &quot;mlock/v1/slot/scrypt&quot; ‖ core ‖ salt ‖ log_n ‖ r ‖ p)`。
+  只接受 log_n 15～20、r＝8、p＝1，否則 E09（解密時也檢查，先檢查再算 scrypt）。建立時預設 log_n＝17。空密語 → E14。
+- **`0x03` 本次金鑰**：`key_id(8) ‖ nonce(12) ‖ ct(48)`，共 68 bytes。
+  `KEK = HKDF-SHA256(ikm=本次金鑰 32 bytes, salt=file_id, info=&quot;mlock/v1/slot/key&quot;, L=32)`；
+  `ct = AES-256-GCM(KEK, nonce, DEK, aad = &quot;mlock/v1/slot/key&quot; ‖ core ‖ key_id)`；
+  `key_id = HMAC-SHA256(key=本次金鑰, msg=&quot;mlock/v1/key-id&quot; ‖ file_id)[:8]`。
+- **`0x04`**：保留給 gpg 包 DEK（本任務不實作）。
+- **其他型別**：解析時保留原樣、不解讀；換槽時原樣保留；仍在檔頭 MAC 範圍內。
+
+### 檔頭 MAC
+
+```
+mac_key    = HKDF-SHA256(ikm=DEK, salt=file_id, info=&quot;mlock/v1/header&quot;, L=32)
+header_mac = HMAC-SHA256(mac_key, 檔頭從位移 0 到最後一個槽結尾的位元組)
+```
+
+用固定時間比較。槽打開後 MAC 不符 → E06。
+
+### 內容
+
+```
+payload_key = HKDF-SHA256(ikm=DEK, salt=file_id, info=&quot;mlock/v1/payload&quot;, L=32)
+明文切成 2^chunk_log2 bytes 的塊；最後一塊可較短；只有明文為空時最後一塊才可以是空的。
+nonce_i = uint88_be(i) ‖ (0x01 若是最後一塊，否則 0x00)          # 12 bytes
+ct_i    = AES-256-GCM(payload_key, nonce_i, chunk_i, aad = core)  # 每塊多 16 bytes
+```
+
+解密規則：
+
+1. 嚴格解析檔頭（不需金鑰）→ 依序用使用者提供的每把鑰匙試每個相同型別的槽 → 取得 DEK → **先驗證檔頭 MAC** → 才處理內容。
+   全部打不開 → E05。
+2. 非最後一塊必須正好 `2^chunk_log2 + 16` bytes；最後一塊 16～`2^chunk_log2 + 16` bytes；有資料時最後一塊不可只有 16 bytes（E07）。
+   內容長度小於 16 → E08。
+3. 最後一塊用旗標 0x01 解不開、但用 0x00 解得開 → E08（在區塊邊界被截斷）；其他區塊失敗 → E07。
+4. **失敗時不得輸出任何明文**：寫入暫存檔（同目錄），全部成功才原子替換成目標檔；失敗就刪除暫存檔。
+5. 串流處理：記憶體用量不隨檔案大小成長。
+
+### 操作
+
+| 操作 | DEK | file_id | generation | 槽 | 內容 |
+|---|---|---|---|---|---|
+| encrypt | 新 | 新 | 0 | 新建 | 加密 |
+| add_slot／remove_slot／replace_slot | 不變 | 不變 | +1 | 改 | 原封不動複製 |
+| rekey | 新 | 新 | +1 | 全部重建 | 重新加密 |
+
+保護規則：
+
+- encrypt 與 rekey 預設**必須**至少有一個萬用鎖槽，否則 E13（提供 `require_master=False` 讓測試或進階使用者關掉）。
+- 不能移除最後一個槽（E11）。移除或換掉**唯一的**萬用鎖槽要明確的 `allow_remove_master=True`，否則 E12
+  （換成另一個萬用鎖則允許）。
+- 槽數上限 16（E10）。
+
+### 萬用鎖私鑰檔
+
+```
+IDENTITY = &quot;MLOCKID\0&quot;(8) ‖ version=1(u8) ‖ log_n(u8) ‖ r(u8) ‖ p(u8) ‖ salt(16) ‖ nonce(12) ‖ ct(48)
+KEK = scrypt(NFC UTF-8 密語, salt, 2^log_n, r, p, 32)
+ct  = AES-256-GCM(KEK, nonce, X25519 私鑰 32 bytes, aad = &quot;mlock/v1/identity&quot; ‖ 前 28 bytes)
+```
+
+格式錯、密語錯、被改 → E15；scrypt 參數超出範圍 → E09。
+
+### 錯誤代碼（穩定，不可改號）
+
+| 代碼 | 名稱 | 補救建議（顯示給使用者） |
+|---|---|---|
+| MLK-E01 | NOT_MLOCK | 這不是萬用鎖格式的檔案，確認選對檔案 |
+| MLK-E02 | UNSUPPORTED_VERSION | 格式版本未知，請用支援該版本的程式 |
+| MLK-E03 | UNSUPPORTED_SUITE | 演算法組合未知或停用；不會自動改用其他演算法 |
+| MLK-E04 | MALFORMED_HEADER | 檔頭損毀或被截斷，從備份取回 |
+| MLK-E05 | NO_MATCHING_SLOT | 金鑰錯、已被換掉，或該槽被竄改；改用萬用鎖試試 |
+| MLK-E06 | HEADER_TAMPERED | 檔頭被改過，不要信任這份檔案 |
+| MLK-E07 | PAYLOAD_TAMPERED | 內容被改過或損毀，沒有輸出任何明文 |
+| MLK-E08 | TRUNCATED | 檔案不完整，重新下載 |
+| MLK-E09 | KDF_PARAMS_OUT_OF_RANGE | scrypt 參數太弱或太大，用萬用鎖開啟後重建該槽 |
+| MLK-E10 | TOO_MANY_SLOTS | 超過 16 個槽，先移除不用的 |
+| MLK-E11 | LAST_SLOT | 不能移除最後一個槽 |
+| MLK-E12 | MASTER_SLOT_PROTECTED | 會移除唯一的萬用鎖槽，需要明確確認 |
+| MLK-E13 | NO_MASTER_SLOT | 新檔案必須有萬用鎖槽 |
+| MLK-E14 | BAD_ARGUMENT | 參數不正確 |
+| MLK-E15 | BAD_IDENTITY_FILE | 私鑰檔損毀或密語錯，改用另一份備份 |
+
+例外類別帶 `code`、`name`、`hint` 屬性。**任何錯誤訊息、log、`repr` 都不可以包含金鑰、密語、DEK 或明文。**
+
+## 已知答案向量（實作必須逐位元組相同）
+
+- 亂數來源（只在測試中注入；正式程式用作業系統亂數）：每次需要 n bytes 時，從目前的 counter 開始依序計算
+  `SHA-256(&quot;mlock-v1-kat&quot; ‖ uint64_be(counter))`（每算一次 counter 加一）並串接，取前 n bytes，剩下的丟掉。counter 從 0 起。
+- 亂數取用順序：DEK(32)、file_id(32)、本次金鑰槽 nonce(12)、密語槽 salt(16)、密語槽 nonce(12)。
+- 槽依序：本次金鑰＝`000102…1f`（32 bytes）、密語＝`&quot;kat passphrase&quot;`（log_n＝15、r＝8、p＝1）。不含萬用鎖槽、`require_master=False`。
+- chunk_log2＝12；明文＝bytes 0x00～0xff 重複 16 次，再接 `&quot;tail&quot;`（共 4100 bytes）。
+
+預期：
+
+```
+DEK          = 3936b60626bc7d3378f274806bdd1c5ab2255429f9c13dd7fd016ec2dcbcc100
+檔頭（231 bytes，十六進位，連續）=
+4d4c4f434b0001010cae302a952451863a177a08f1c616c365d0f88c88e25e5c3cefa911f04d88186a0000000002030044
+1b5ecb6b38831ddd214adc37e7b9c07e9e7d160c5ca4af1d47984fa7b94c0c5a3b46882fbfb184dfe965c4934a16e968
+3f6c253dd49651c64dd4b09d7aa45a025a28d71f02004f114d4d8ae1f800a427074f6dc55c29820f0801f230d6876883
+e50d66e71fdb2e23feda01aef2f68a0acdafa844010c7313125585299a769d21b93b7fd41409172a2ff310ed8a9dc15e
+23c953edeed14c2766e5d02bc6fc45efca781c581b6206bf5b67d5f988ee22779ec3bd1a8a47
+整個檔案的 SHA-256 = c935cf3d42a93c8baec2028d322acab2d8a50e078dd6aa51fb21d1a5f65cff09
+```
+
+（上面的檔頭只是為了閱讀而換行，實際是連續的 462 個十六進位字元。）
+
+## 命令列介面
+
+祕密不可從命令列參數讀：密語用終端機提示（`getpass`）或 `--passphrase-file`；金鑰從檔案讀。
+所有寫入先寫暫存檔再原子替換；沒有 `--in-place` 時必須給 `-o`，且不覆蓋已存在的檔案（除非 `--force`）。
+
+| 指令 | 用途 |
+|---|---|
+| `keygen --identity F --pub F` | 產生萬用鎖，私鑰以密語封存；印出公鑰指紋（SHA-256 前 16 個十六進位字元） |
+| `session-keygen F` | 產生 32 bytes 本次金鑰檔 |
+| `encrypt IN -o OUT --master PUB [--session F]... [--passphrase]` | 建立 |
+| `decrypt IN -o OUT (--identity F | --session F | --passphrase)` | 解密 |
+| `inspect IN [--verify-with ...] [--json]` | 版本、塊大小、槽清單（型別、key_id、scrypt log_n）、generation、file_id、fingerprint（整個檔頭的 SHA-256）、明文長度 |
+| `add-slot IN --with ... (新槽參數)` | 加槽 |
+| `remove-slot IN --with ... --slot N [--allow-remove-master]` | 移除槽 |
+| `replace-slot IN --with ... (--slot N | --old-session F) (新槽參數)` | 換槽 |
+| `rekey IN --with ... --master PUB [新槽參數]` | 換 DEK 並重新加密 |
+| `check-revoked IN --old-session F` | 舊本次金鑰打不開才回 0；打得開回非 0 並警告 |
+
+結束碼：0 成功、2 用法錯誤、10＋代碼數字（例如 E05 → 15）。`--json` 時錯誤輸出 `{&quot;code&quot;,&quot;name&quot;,&quot;hint&quot;}`。
+
+## 測試要求（pytest，全部離線，金鑰在測試中產生）
+
+1. **已知答案**：RFC 7914 scrypt 向量（`&quot;password&quot;`／`&quot;NaCl&quot;`／N＝1024／r＝8／p＝16，前 32 bytes 為
+   `fdbabe1c9d3472007856e7190d01e9fe7c6ad7cbc8237830e77376634b373162`）；RFC 5869 HKDF 測試案例 1；上面的格式向量；
+   再寫一個測試**只用規格與原語**（不呼叫你的模組內部函式）手動解開格式向量。
+2. **往返**：三種槽各自能開；明文長度 0、1、塊大小−1、塊大小、塊大小＋1、多塊；預設塊大小；大檔（例如 5 MB）以串流處理。
+3. **錯金鑰**：別的萬用鎖、別的本次金鑰、錯密語 → E05；沒給金鑰 → E14。
+4. **竄改**：檔頭**每一個位元組**翻轉都必須失敗（對萬用鎖與本次金鑰各試一次）；內容抽樣翻轉 → E07；
+   區塊對調 → E07；把別的檔案的整段檔頭或單一槽移植過來 → 失敗。
+5. **截斷／附加**：截在區塊邊界 → E08；截在塊中間 → E07；只剩檔頭 → E08；檔頭被截 → E04；附加資料 → 失敗。
+6. **降級**：版本、suite 改值 → E02／E03；密語槽 log_n 改成低於 15 → E09、改成範圍內其他值 → E05；chunk_log2 改值 → 失敗。
+7. **換槽**：換掉本次金鑰槽後，舊本次金鑰 → E05、新本次金鑰與萬用鎖可開；內容位元組完全相同；generation＋1；fingerprint 改變。
+8. **誠實的限制**（測試要寫出來，名稱與註解說明這是限制而不是 bug）：換槽前的舊檔用舊本次金鑰仍打得開；
+   用舊槽取得的 DEK 在換槽後仍能解內容，rekey 後不行。
+9. **rekey**：舊本次金鑰 → E05；萬用鎖與新本次金鑰可開；file_id 改變。
+10. **保護規則**：E10、E11、E12、E13；萬用鎖換成新萬用鎖可行。
+11. **祕密不外洩**：輸出檔不含 DEK、本次金鑰、密語、萬用鎖私鑰、明文片段；`repr`、例外訊息、`inspect` 輸出、CLI 的 stdout／stderr 都不含祕密。
+12. **失敗不留明文**：解密失敗後目標檔不存在、暫存檔已刪除。
+13. **私鑰檔**：往返；錯密語 → E15；每個位元組翻轉都失敗。
+14. **CLI**：每個指令至少一個成功案例與一個失敗案例（檢查結束碼與 `--json` 輸出）；密語從 `--passphrase-file` 讀。
+15. 既有的 Encrypter 測試全部仍然通過。
+
+## 驗收與回報
+
+- `cd tools/encrypter` 後跑 pytest，全部通過；回報測試數量與執行時間。
+- 若 PyCryptodome 的 HPKE 無法指定上面的 KEM／KDF／AEAD 組合、或無法傳入 `info`，**停下來回報**，不要換成別的組合。
+- 回報內容：結論、做了哪些 commit（hash＋標題）、測試結果、與規格不同或沒做到的地方、需要人決定的事。
+
+## 不要做的事
+
+- 不要修改或移除既有的 `.isd` 格式與模式；不要自動轉換或刪除使用者的舊檔案。
+- 不要自己設計新的密碼學構造、不要改常數字串、不要改錯誤代碼編號。
+- 不要把祕密寫進 log、例外訊息、暫存檔名或命令列參數。
+- 不要新增 GUI（另一個工作包），不要改打包設定，不要發版、不要打 tag、不要合併分支。
+- 不要寫入任何個人資訊或真實金鑰。
+</pre></section>
+</div>
+<script>
+(function () {
+  var ids = ["cb1", "cb2", "cb3", "cb4", "cb5", "cb6"], tabs = document.getElementById("tabs");
+  function show(id) { if (ids.indexOf(id) < 0) { id = ids[0]; }
+    ids.forEach(function (t) { document.getElementById(t).hidden = (t !== id); });
+    Array.prototype.forEach.call(tabs.querySelectorAll("button"), function (b) { b.setAttribute("aria-selected", b.getAttribute("data-t") === id ? "true" : "false"); }); }
+  tabs.addEventListener("click", function (e) { var b = e.target.closest("button"); if (!b) { return; } var id = b.getAttribute("data-t"); show(id); try { location.hash = id; } catch (x) {} });
+  window.addEventListener("hashchange", function () { show((location.hash || "").slice(1)); });
+  document.addEventListener("click", function (e) { var b = e.target.closest(".copy"); if (!b) { return; }
+    var el = document.getElementById(b.getAttribute("data-for"));
+    try { navigator.clipboard.writeText(el.textContent).then(function () { b.textContent = "已複製"; }, function () { sel(el); }); } catch (x) { sel(el); }
+    function sel(n) { var r = document.createRange(); r.selectNodeContents(n); var s = window.getSelection(); s.removeAllRanges(); s.addRange(r); b.textContent = "已選取，請按 Ctrl+C"; } });
+  show((location.hash || "").slice(1));
+})();
+</script>
+<p style="font:10px/1.4 ui-monospace,monospace;opacity:.5;margin:24px 16px">線上版 <a href="https://claude.ai/artifact/WC3PxggZceAC6HGPgA83Mz">https://claude.ai/artifact/WC3PxggZceAC6HGPgA83Mz</a> · 本機版 docs/artifacts/2026-11-13-cloud-task-briefs.html · 頁面版本 <span data-stamp>792b8bb782 · 2026-11-13</span></p>

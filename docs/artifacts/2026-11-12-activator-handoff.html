@@ -1,0 +1,830 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>連動技術交接</title>
+<style>
+/* 單一檔案、沒有外部資源。顏色全部走 :root 變數；深色模式在下面兩段。 */
+:root {
+  --bg: #f6f8f8; --surface: #ffffff; --ink: #14201f; --muted: #566766; --line: #d9e2e1;
+  --accent: #0b7d71; --accent-soft: #dff1ee; --ok: #1a7f46; --ok-soft: #e0f3e8;
+  --warn: #9a5b00; --warn-soft: #fbefd6; --risk: #b3261e; --risk-soft: #fbe3e1;
+  --todo: #5a4bb0; --todo-soft: #e9e6f7; --code: #eef2f2;
+  --body: "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --mono: ui-monospace, "Cascadia Code", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1717; --surface: #152221; --ink: #e6f0ef; --muted: #9bb0ae; --line: #2d4a48;
+    --accent: #3fd0bd; --accent-soft: #123a36; --ok: #5fd28d; --ok-soft: #14352a;
+    --warn: #f0b861; --warn-soft: #3a2c12; --risk: #ff8d84; --risk-soft: #3d1a18;
+    --todo: #b3a8f5; --todo-soft: #2a2550; --code: #1a2b2a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1717; --surface: #152221; --ink: #e6f0ef; --muted: #9bb0ae; --line: #2d4a48;
+  --accent: #3fd0bd; --accent-soft: #123a36; --ok: #5fd28d; --ok-soft: #14352a;
+  --warn: #f0b861; --warn-soft: #3a2c12; --risk: #ff8d84; --risk-soft: #3d1a18;
+  --todo: #b3a8f5; --todo-soft: #2a2550; --code: #1a2b2a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); line-height: 1.7; font-size: 15px; margin: 0; padding: 24px 16px 80px; }
+.wrap { max-width: 1000px; margin: 0 auto; }
+h1, h2, h3, h4 { line-height: 1.3; margin: 0; text-wrap: balance; }
+h1 { font-size: 28px; }
+h2 { font-size: 21px; margin: 40px 0 12px; padding-bottom: 6px; border-bottom: 1px solid var(--line); scroll-margin-top: 12px; }
+h3 { font-size: 16px; margin: 22px 0 8px; scroll-margin-top: 12px; }
+h4 { font-size: 14.5px; margin: 0 0 4px; }
+p { margin: 0 0 10px; max-width: 78ch; }
+ul, ol { margin: 0 0 12px; padding-left: 22px; max-width: 82ch; }
+li { margin: 3px 0; }
+a { color: var(--accent); overflow-wrap: anywhere; }
+code { font-family: var(--mono); font-size: .9em; background: var(--code); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+pre { font-family: var(--mono); font-size: 12.5px; line-height: 1.55; background: var(--code); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto; margin: 6px 0 14px; }
+pre code { background: none; padding: 0; font-size: inherit; overflow-wrap: normal; }
+.lead { color: var(--muted); font-size: 15.5px; margin-top: 8px; max-width: 80ch; }
+.meta { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0 0; }
+.chip { display: inline-block; font-size: 12px; padding: 2px 10px; border-radius: 99px; background: var(--accent-soft); color: var(--accent); font-weight: 600; white-space: nowrap; }
+.chip.ok { background: var(--ok-soft); color: var(--ok); }
+.chip.warn { background: var(--warn-soft); color: var(--warn); }
+.chip.risk { background: var(--risk-soft); color: var(--risk); }
+.chip.todo { background: var(--todo-soft); color: var(--todo); }
+.toc { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin: 20px 0; }
+.toc ol { columns: 2; column-gap: 28px; margin: 6px 0 0; }
+@media (max-width: 640px) { .toc ol { columns: 1; } }
+.callout { background: var(--accent-soft); border-left: 4px solid var(--accent); border-radius: 8px; padding: 14px 16px; margin: 14px 0; }
+.callout p:last-child, .callout ul:last-child { margin-bottom: 0; }
+.callout.warn { background: var(--warn-soft); border-left-color: var(--warn); }
+.callout.risk { background: var(--risk-soft); border-left-color: var(--risk); }
+.callout .big { font-size: 16.5px; font-weight: 600; max-width: 82ch; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+@media (max-width: 720px) { .grid2 { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+.card p:last-child, .card ul:last-child { margin-bottom: 0; }
+.tbl { overflow-x: auto; margin: 8px 0 16px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; vertical-align: top; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+th { background: var(--code); font-weight: 600; white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+td.rec { color: var(--ok); font-weight: 600; }
+.mark-rec { color: var(--ok); font-weight: 700; }
+/* 流程圖（HTML，會跟著手機寬度重排） */
+.flow { margin: 10px 0 18px; }
+.node { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+.node p { margin: 0; font-size: 13.5px; }
+.node ul { margin: 4px 0 0; font-size: 13.5px; padding-left: 18px; }
+.node .no { display: inline-block; min-width: 22px; height: 22px; line-height: 22px; text-align: center; border-radius: 99px; background: var(--accent); color: var(--bg); font-size: 12px; font-weight: 700; margin-right: 6px; }
+.node.accent { border-color: var(--accent); background: var(--accent-soft); }
+.node.loop { border: 1.5px dashed var(--accent); }
+.node.side { background: var(--code); }
+.node.slow { border: 1.5px dashed var(--muted); }
+.arr { text-align: center; color: var(--muted); font-size: 12.5px; padding: 3px 0; }
+.arr::before { content: "↓"; display: block; font-size: 18px; line-height: 1.1; color: var(--accent); }
+.split { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 640px) { .split { grid-template-columns: 1fr; } }
+.split > div { display: flex; flex-direction: column; }
+.lane-title { font-size: 12.5px; font-weight: 700; color: var(--muted); margin: 0 0 4px; }
+/* SVG 圖：窄螢幕在圖框內左右捲，不讓整頁變寬 */
+figure { margin: 14px 0 20px; }
+.svgbox { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 8px; }
+.svgbox svg { display: block; width: 100%; min-width: 640px; height: auto; color: var(--ink); }
+figcaption { color: var(--muted); font-size: 13px; margin-top: 6px; max-width: 82ch; }
+svg text { fill: currentColor; font-family: var(--body); font-size: 12.5px; }
+svg .sm { font-size: 11px; fill: var(--muted); }
+svg .b { font-weight: 700; }
+svg .box { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+svg .box-ac { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 1.5; }
+svg .box-risk { fill: var(--risk-soft); stroke: var(--risk); stroke-width: 1.5; }
+svg .box-warn { fill: var(--warn-soft); stroke: var(--warn); stroke-width: 1.5; }
+svg .box-ghost { fill: none; stroke: var(--muted); stroke-width: 1.3; stroke-dasharray: 5 4; }
+svg .ln { stroke: currentColor; stroke-width: 1.4; fill: none; }
+svg .ln-ac { stroke: var(--accent); stroke-width: 1.8; fill: none; }
+svg .ln-risk { stroke: var(--risk); stroke-width: 1.8; fill: none; }
+svg .ln-mut { stroke: var(--muted); stroke-width: 1.4; fill: none; stroke-dasharray: 5 4; }
+svg .axis { stroke: var(--line); stroke-width: 2; }
+svg .hb { fill: var(--muted); }
+svg .dot { fill: var(--accent); }
+svg .mk { fill: currentColor; }
+svg .mk-ac { fill: var(--accent); }
+svg .mk-risk { fill: var(--risk); }
+svg .mk-mut { fill: var(--muted); }
+svg .t-ac { fill: var(--accent); }
+svg .t-risk { fill: var(--risk); }
+svg .t-warn { fill: var(--warn); }
+.foot { color: var(--muted); font-size: 13px; margin-top: 40px; border-top: 1px solid var(--line); padding-top: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>連動（Activator）技術交接：做完 A → 馬上做 B，而且不會失控</h1>
+<p class="lead">「任務 A 做完（或狀態變了）就立刻觸發任務 B；不急的留給心跳；整串由監督機制防止無限連動」——這個技術剛在兩個專案各自獨立做了一次。這份文件把兩份實作的原理、差異、怎麼用、怎麼除錯、還沒決定的事寫在一起，讓下一個 session 讀完就能接手或把它用到新功能上。</p>
+<div class="meta">
+  <span class="chip">2026-11-13</span>
+  <span class="chip">SYNOX · dev · merge 5792bc4</span>
+  <span class="chip">Telegram bot· master-init · merge 8badd62</span>
+  <span class="chip ok">今天重跑：SYNOX 30 passed</span>
+  <span class="chip ok">今天重跑：bot 67 項檢查全部通過</span>
+  <span class="chip warn">bot：Host 還沒重開，真機上未生效</span>
+</div>
+
+<nav class="toc" aria-label="目錄">
+  <strong>目錄</strong>
+  <ol>
+    <li><a href="#tldr">一句話結論與現況</a></li>
+    <li><a href="#why">為什麼要有它：輪詢 vs. 事件</a></li>
+    <li><a href="#vocab">名詞與概念</a></li>
+    <li><a href="#arch">架構：兩份實作的事件流</a></li>
+    <li><a href="#guard">防失控的原理（每一道保險擋什麼、擋不到什麼）</a></li>
+    <li><a href="#gaps">讀程式時發現的缺口</a></li>
+    <li><a href="#compare">SYNOX vs. bot 對照與差異的理由</a></li>
+    <li><a href="#converge">收斂建議</a></li>
+    <li><a href="#howto">怎麼做：加規則、加動作、丟事件、測試、除錯</a></li>
+    <li><a href="#prior">業界前例</a></li>
+    <li><a href="#decide">待擁有者決定（附建議）</a></li>
+    <li><a href="#verify">還沒驗證的與下一步</a></li>
+    <li><a href="#accept">下一個 session 可以直接跑的驗收</a></li>
+  </ol>
+</nav>
+
+<!-- ───────────────────────────── 1 ───────────────────────────── -->
+<h2 id="tldr">1. 一句話結論與現況</h2>
+<div class="callout">
+  <p class="big">連動把「等下一次巡邏才發現」改成「狀態一變就接著做」：功能做完時丟出一個小、可存檔的事件，照「資料寫的規則」馬上觸發一個「程式登記過的動作」；不急的排進待處理、等心跳；每一串都帶著「是誰引起的」，再加上循環偵測、層數、頻率、總量與斷路器多層保險，任何失控最多跑幾步就停下、通知一次、看得到原因、可以恢復。</p>
+</div>
+<ul>
+  <li><strong>兩份實作都已合併、測試通過。</strong>SYNOX 的是通用平台版（系統、工具 pack、設定檔都能定義規則，有網頁主控面板）；bot 的是個人助理版（第一條規則：日記做成圖 → 問今天的日記與靈修要不要打卡）。</li>
+  <li><strong>骨架一樣、保險的取捨不一樣。</strong>SYNOX 偏「平台、未知的程式碼」：登記時就找循環、全部總量上限、只能手動恢復。bot 偏「對人說話、不能嘮叨」：一天只做一次（存檔，重開也不重來）、遵守開口閘、12 小時自動解除。</li>
+  <li><strong>最根本的限制（兩邊都有）：</strong>「是誰引起的」只能跟著同一條執行緒傳（SYNOX 另外也跟著被觸發的任務傳）。動作自己另開執行緒、經過外部程式再回報、或隔一段時間才繞回來的迴圈，會變成新的一串，只能靠頻率與總量上限擋。</li>
+  <li><strong>建議：</strong>寫一份兩邊共用的「連動核心規格」，各自補齊對方有、自己沒有的保險（<a href="#converge">第 8 節</a>）；先不急著抽成共用套件。</li>
+  <li><strong>還要做：</strong>bot 重開 Host 才會生效、真手機走一次、瀏覽器看一次 SYNOX 主控面板的 🔗 連動卡（<a href="#verify">第 12 節</a>）。</li>
+</ul>
+
+<!-- ───────────────────────────── 2 ───────────────────────────── -->
+<h2 id="why">2. 為什麼要有它：輪詢 vs. 事件</h2>
+<p>在連動之前，背景任務照<strong>間隔</strong>跑，心跳（SYNOX 預設每 45 分鐘）叫常駐助理「看一輪」。「A 做完就做 B」只能等下一次排程或心跳，最慢要等一整個間隔；而且每一輪不管有沒有變化都要看一次，看的成本（例如叫 AI）跟變化多寡無關。</p>
+<p>連動是另一條路：<strong>狀態變化本身</strong>就是訊號。變化發生的那一刻寫一筆快速、可存檔的紀錄（SYNOX 是 <code>data/runtime/state.json</code> 的一小塊；bot 是 <code>data/triggers_state.json</code>），符合規則的動作馬上在背景執行緒開始，下一個動作又產生新的變化，形成<strong>連鎖反應</strong>。不急、需要批次、或想避開打擾的事，留在<strong>慢路徑</strong>：排進待處理，下一次心跳再一起做掉。</p>
+
+<figure>
+  <div class="svgbox">
+  <svg viewBox="0 0 760 270" role="img" aria-label="同樣是 A 做完：只靠心跳時 B 要等到下一次心跳，最多 45 分鐘；有連動時 B 幾秒內開始、C 接著做，不急的才排進待處理等心跳。">
+    <defs>
+      <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-ac" d="M0,0 L10,5 L0,10 z"/></marker>
+      <marker id="a1m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-mut" d="M0,0 L10,5 L0,10 z"/></marker>
+    </defs>
+    <!-- 第一道：只靠心跳 -->
+    <text x="10" y="76" class="b">以前：只靠心跳</text>
+    <text x="10" y="94" class="sm">每 45 分鐘看一輪</text>
+    <line class="axis" x1="150" y1="80" x2="745" y2="80"/>
+    <rect class="hb" x="165" y="75" width="10" height="10" transform="rotate(45 170 80)"/>
+    <rect class="hb" x="425" y="75" width="10" height="10" transform="rotate(45 430 80)"/>
+    <rect class="hb" x="685" y="75" width="10" height="10" transform="rotate(45 690 80)"/>
+    <text x="170" y="60" text-anchor="middle" class="sm">心跳</text>
+    <text x="430" y="60" text-anchor="middle" class="sm">心跳</text>
+    <text x="690" y="60" text-anchor="middle" class="sm">心跳</text>
+    <circle class="dot" cx="215" cy="80" r="6"/>
+    <text x="215" y="104" text-anchor="middle">A 做完</text>
+    <rect class="box" x="445" y="66" width="80" height="28" rx="6"/>
+    <text x="485" y="85" text-anchor="middle">B 才開始</text>
+    <path class="ln-mut" d="M215,118 L215,124 L430,124 L430,118"/>
+    <text x="322" y="142" text-anchor="middle" class="sm">等到下一次心跳：最多 45 分鐘</text>
+    <!-- 第二道：連動 -->
+    <text x="10" y="196" class="b">現在：連動</text>
+    <text x="10" y="214" class="sm">狀態一變就接著做</text>
+    <line class="axis" x1="150" y1="200" x2="745" y2="200"/>
+    <rect class="hb" x="165" y="195" width="10" height="10" transform="rotate(45 170 200)"/>
+    <rect class="hb" x="425" y="195" width="10" height="10" transform="rotate(45 430 200)"/>
+    <rect class="hb" x="685" y="195" width="10" height="10" transform="rotate(45 690 200)"/>
+    <text x="430" y="180" text-anchor="middle" class="sm">心跳</text>
+    <text x="690" y="180" text-anchor="middle" class="sm">心跳</text>
+    <circle class="dot" cx="215" cy="200" r="6"/>
+    <text x="215" y="180" text-anchor="middle">A 做完</text>
+    <line class="ln-ac" x1="222" y1="200" x2="246" y2="200" marker-end="url(#a1)"/>
+    <rect class="box-ac" x="248" y="186" width="74" height="28" rx="6"/>
+    <text x="285" y="205" text-anchor="middle">B 馬上做</text>
+    <line class="ln-ac" x1="322" y1="200" x2="342" y2="200" marker-end="url(#a1)"/>
+    <rect class="box-ac" x="344" y="186" width="74" height="28" rx="6"/>
+    <text x="381" y="205" text-anchor="middle">C 接著做</text>
+    <text x="333" y="174" text-anchor="middle" class="sm t-ac">幾秒內・同一串</text>
+    <path class="ln-mut" d="M215,207 L215,244 L246,244" marker-end="url(#a1m)"/>
+    <rect class="box-ghost" x="248" y="230" width="112" height="28" rx="6"/>
+    <text x="304" y="249" text-anchor="middle">待處理（不急）</text>
+    <path class="ln-mut" d="M360,244 L430,244 L430,210" marker-end="url(#a1m)"/>
+    <text x="440" y="240" class="sm">下一次心跳一起做掉</text>
+  </svg>
+  </div>
+  <figcaption>圖 1　同樣是「A 做完」。上：只能等下一次心跳才發現。下：有規則在聽，B 在幾秒內開始、C 接在同一串；標成「留給心跳」的才排進待處理。bot 目前只有「馬上」這條路，沒有待處理。</figcaption>
+</figure>
+
+<h3>四條設計原則（兩份實作都遵守）</h3>
+<ol>
+  <li><strong>事件要小、可存檔、不含私人內容。</strong>SYNOX 的事件只有任務 id、狀態、標籤、時間；bot 的事件只有來源、結果、幾個小欄位（日期、題組、是不是今天）。內容留在原本的功能裡。</li>
+  <li><strong>規則是資料，動作是程式。</strong>設定檔只能挑已經登記的動作，不能叫任意指令、不能塞程式碼。要新的動作，得有人寫程式、登記、測試。</li>
+  <li><strong>丟事件的一方絕不被拖累。</strong>SYNOX 的 listener 在鎖外呼叫、例外只記 log；bot 的 <code>emit</code> 永遠不丟例外。動作都在自己的背景執行緒跑，日記匯出、pack 回報不會被卡住。</li>
+  <li><strong>寧可多擋。</strong>失控時停下（斷路）、只通知一次、原因看得到、一個按鈕或一行指令恢復。</li>
+</ol>
+
+<!-- ───────────────────────────── 3 ───────────────────────────── -->
+<h2 id="vocab">3. 名詞與概念</h2>
+<div class="tbl"><table>
+  <tr><th>名詞</th><th>意思</th><th>SYNOX 的形狀</th><th>bot 的形狀</th></tr>
+  <tr><td><strong>事件</strong></td><td>「某件事的狀態變了」的一筆紀錄</td><td><code>Event(task, state, prev, tag, owner, at, chain, depth, path, message)</code>；由 <code>RuntimeLoop._emit</code> 產生。只有<em>有規則在聽</em>的才記（最近 50 筆）</td><td><code>Event(source, outcome, data, key, chain)</code>；功能自己 <code>bus.emit(...)</code></td></tr>
+  <tr><td><strong>規則</strong></td><td>條件 → 一個動作</td><td><code>Rule(on, states, from_states, tag, when, run_task | notify | do, timing, cooldown_s, max_per_hour, emits)</code></td><td><code>{"when": {source, outcome, data}, "do", "args", "once_per", "cooldown_min", "enabled"}</code></td></tr>
+  <tr><td><strong>動作</strong></td><td>真的去做的那段程式</td><td>三種：<code>run_task</code>（跑一個登記了 fn 的任務）、<code>notify</code>（通知一句話，前面加 🔗）、<code>do(event)</code>（程式，只有系統與 python pack 能給）</td><td>任意多種，但都要在 <code>main.build</code> 用 <code>bus.action(name, fn)</code> 登記；<code>fn(event, rule, ctx) → Result</code></td></tr>
+  <tr><td><strong>標籤／範圍</strong></td><td>分得出「同一個來源的哪一件事」</td><td><code>tag</code>：一個 pack 只有一個任務 <code>pack.&lt;名字&gt;</code>，用標籤分「圖片好了」（<code>diary-image</code>）與「問過了」（<code>checkin-asked</code>）</td><td><code>key</code>：這件事的範圍（日記的那一天）；<code>data</code>：要對上的小欄位（<code>is_today</code>）</td></tr>
+  <tr><td><strong>連動串（因果）</strong></td><td>同一個起點引起的所有事件</td><td><code>Cause(chain, depth, path)</code>：串 id、第幾層、走過哪些規則</td><td><code>event.chain</code>：走過的規則 id（長度就是層數）；沒有串 id</td></tr>
+  <tr><td><strong>時機</strong></td><td>什麼時候做</td><td><code>timing: "now"</code>（馬上）或 <code>"heartbeat"</code>（排進待處理）</td><td>只有馬上（背景執行緒）</td></tr>
+  <tr><td><strong>待處理</strong></td><td>留給心跳的工作</td><td>最多 100 件、超過 24 小時丟掉、存檔；主控面板可「現在處理」「不用做了」</td><td>沒有。動作回 <code>pass</code>＝這次不算，等下一個事件再試</td></tr>
+  <tr><td><strong>斷路（暫停）</strong></td><td>保險被觸發後停下那條規則</td><td>規則 <code>tripped</code>（按「重設」）；全部 <code>paused</code>（按「恢復」）；都只能手動</td><td>規則 <code>paused</code>，12 小時自動解除或 <code>/sys_triggers reset</code></td></tr>
+  <tr><td><strong>同時只跑一個</strong>（single-flight）</td><td>上一次還沒做完，這次不開新的</td><td>有（<code>st.running</code>，對應 Home Assistant 的 <code>single</code>）</td><td>沒有（見<a href="#gaps">缺口 1</a>）</td></tr>
+  <tr><td><strong>去重</strong></td><td>同一件事只做一次</td><td>沒有（只有 <code>cooldown_s</code> 近似）</td><td><code>once_per: key | day</code>，存檔 14 天，重開不重來</td></tr>
+</table></div>
+
+<!-- ───────────────────────────── 4 ───────────────────────────── -->
+<h2 id="arch">4. 架構：兩份實作的事件流</h2>
+
+<h3>4.1 SYNOX：任務狀態機上的連動</h3>
+<p>SYNOX 的事件<strong>就是任務的狀態轉換</strong>（<code>idle / running / ok / failed</code>）。所有東西——排程任務、pack 的回報、cli 工具信封裡的 <code>status</code>——都已經在 runtime loop 裡有一個任務 id，所以連動只要掛在「狀態變了」這一個點上。</p>
+<div class="flow" role="img" aria-label="SYNOX 事件流：任務狀態變化經 loop 的 listener 進到 Activator，比對規則、過保險，馬上做或排進待處理；動作造成的新狀態帶著因果回到 loop。">
+  <div class="node"><span class="no">1</span><strong>狀態變化的來源</strong>
+    <ul>
+      <li>排程任務一次執行做完或逾時（<code>loop._execute</code>、<code>loop.tick</code>）</li>
+      <li>python pack：<code>pack.report_status(state, message, tag=)</code></li>
+      <li>cli 工具：SDK <code>report_status(state, message, tag=)</code> → 信封的 <code>status.tag</code> → <code>runtime.ingest_envelope</code></li>
+    </ul></div>
+  <div class="arr">在鎖外呼叫 <code>loop.listeners</code>；例外只記 log</div>
+  <div class="node"><span class="no">2</span><strong><code>RuntimeLoop._emit(change)</code></strong>
+    <p>change＝任務、owner、state、prev、tag、時間、訊息（只在記憶體）、<code>cause</code>。有 cause＝接在那一串；沒有＝開新串、第 0 層。</p></div>
+  <div class="arr"><code>Activator.observe</code> 組成 Event</div>
+  <div class="node"><span class="no">3</span><strong><code>dispatch</code>：找規則</strong>
+    <p>規則的 <code>on / states / from / tag</code> 都對上，再跑程式條件 <code>when</code>。沒有規則在聽＝什麼都不記（不然每 30 秒的排程會把紀錄洗掉）。</p></div>
+  <div class="arr">每條候選規則依序過 <code>_guard</code>（11 道，見第 5 節）</div>
+  <div class="node accent"><span class="no">4</span><strong>通過 → <code>_book</code></strong>
+    <p>記這條規則的觸發時間、全部總量、這一串做了幾件；接著看 <code>timing</code>。</p></div>
+  <div class="arr">分兩條路</div>
+  <div class="split">
+    <div>
+      <p class="lane-title">快路徑：timing "now"</p>
+      <div class="node accent"><span class="no">5a</span><strong>開執行緒 <code>_act</code></strong>
+        <ul>
+          <li><code>run_task</code> → <code>loop.run_now(task, cause=child)</code>（cause 存在任務上，跨執行緒也接得上）</li>
+          <li><code>notify</code> → 🔗 一句話給擁有者</li>
+          <li><code>do</code> → 在 <code>caused_by(child)</code> 裡執行 <code>do(event)</code></li>
+        </ul>
+        <p>child＝<code>Cause(chain, depth+1, path+(規則 id,))</code>。動作失敗累計，連續 5 次暫停。</p></div>
+    </div>
+    <div>
+      <p class="lane-title">慢路徑：timing "heartbeat"</p>
+      <div class="node slow"><span class="no">5b</span><strong>排進待處理（存檔）</strong>
+        <p>只存規則、任務、state、標籤、時間、串 id、層數、路徑；沒有訊息。</p></div>
+      <div class="arr">心跳 <code>system.heartbeat</code> 每次開頭 <code>activator.drain()</code>；或主控面板「現在處理」</div>
+      <div class="node slow"><strong>同一個 <code>_act</code></strong>
+        <p>規則暫停中＝留著；規則不見或關掉＝丟掉；超過 24 小時＝丟掉。drain 的件數只寫進心跳結果那句，不放進給 AI 的快照。</p></div>
+    </div>
+  </div>
+  <div class="arr">動作造成的新狀態</div>
+  <div class="node loop"><span class="no">↺</span><strong>回到 2</strong>：被跑的任務做完、<code>do</code> 裡的回報 → 帶著 child cause 再進 <code>_emit</code>，第幾層＋1、路徑多一條規則。</div>
+  <div class="arr">旁邊</div>
+  <div class="node side"><strong>看得到、按得到</strong>
+    <p>存檔：<code>state.json</code> 的 <code>"activator"</code>（暫停原因與時間、上次觸發、連續失敗、全部暫停、待處理、最近 50 個事件）。<br>
+    <code>GET /api/runtime/status</code> 的 <code>activator</code> 物件；主控頁的「🔗 連動」卡；<code>synox doctor</code> 一行摘要；<br>
+    <code>POST /api/runtime/activator/rules/&lt;id&gt;/reset</code>、<code>/activator/resume</code>、<code>/activator/pending/run</code>、<code>/activator/pending/&lt;id&gt;/dismiss</code>（只給擁有者、寫入要 CSRF）。</p></div>
+</div>
+
+<h3>4.2 Telegram bot：功能事件匯流排</h3>
+<p>bot 沒有統一的任務狀態機，功能各自是一個「桌子」（desk）。所以它的事件是<strong>領域事件</strong>：「哪個功能（source）做完了、結果是什麼（outcome）、幾個小欄位（data）、範圍（key）」。規則每次 <code>emit</code> 都重新讀檔，改規則檔不用重開；改程式要重開 Host。</p>
+<div class="flow" role="img" aria-label="bot 事件流：日記匯出成圖後丟 diary.export 事件，TriggerBus 讀規則、過保險，在背景執行緒跑 checkin_ask，它過開口閘、看打卡清單後送出一則帶按鈕的訊息。">
+  <div class="node"><span class="no">1</span><strong>功能做完</strong>
+    <p><code>/diary_export</code> → <code>DiaryDesk.export</code> 做出 PNG → <code>_emit_done(day, template, image)</code></p></div>
+  <div class="arr"><code>Event("diary.export", "image", {day, template, is_today, by_ai}, key=day)</code></div>
+  <div class="node"><span class="no">2</span><strong><code>TriggerBus.emit</code></strong>（絕不丟例外）
+    <p>這條執行緒若已經在某一串裡（thread-local），就把事件接上那一串；讀規則：<code>defaults/triggers.json</code> 被 <code>data/triggers.json</code> 同鍵蓋過。</p></div>
+  <div class="arr">每條規則：<code>rule.matches</code> → <code>_admit</code></div>
+  <div class="node accent"><span class="no">3</span><strong><code>_admit</code>：依序 6 道</strong>
+    <p>暫停中？→ 繞回自己？→ 太深？→ 這個範圍做過？→ 冷卻中？→ 10 分鐘內太多次？擋下的記一行、回 <code>blocked:&lt;原因&gt;</code>。通過才記一次觸發（斷路器數的是觸發，不是成功）。</p></div>
+  <div class="arr">新的背景執行緒（測試用 <code>inline=True</code> 同步）</div>
+  <div class="node accent"><span class="no">4</span><strong><code>_run</code></strong>
+    <p>把 thread-local 設成 <code>chain + (規則 id,)</code> → <code>fn(event, rule, ctx)</code>；例外變成 <code>Result("error")</code>，不往外丟。</p></div>
+  <div class="arr">第一個動作</div>
+  <div class="node"><span class="no">5</span><strong><code>checkin_ask</code></strong>（<code>routines/checkin_ask.py</code>）
+    <ul>
+      <li>開口閘：今天安靜、專心、睡覺 → 不問，留一行中性紀錄，回 <code>skip</code>（今天不再試）</li>
+      <li>向打卡系統更新今天的項目；叫不到又沒有快取 → <code>pass</code>（下次可以再試）</li>
+      <li>今天已經說過「夠了」、名字對不上、全部打過 → <code>skip</code></li>
+      <li>送一則（主機、不響）：「🖼 日記做成圖了。要不要順手打卡？」＋ ✓ 日記、✓ 靈修、先不用；按鈕 180 分鐘有效、綁既有節點 <code>now.check</code>；有新的一則時把舊的收起來</li>
+    </ul></div>
+  <div class="arr">結果</div>
+  <div class="node"><span class="no">6</span><strong>記帳</strong>
+    <p><code>sent</code>／<code>skip</code> → 記 <code>done[規則|那一天]</code>（存檔，重開 Host 不重問）；<code>pass</code>、<code>error</code> → 不記。</p></div>
+  <div class="arr">動作裡 <code>ctx.emit(...)</code>，或同一條執行緒裡任何 <code>bus.emit(...)</code></div>
+  <div class="node loop"><span class="no">↺</span><strong>回到 2</strong>：事件帶著 <code>chain</code>（多一條規則），第幾層＝chain 長度。</div>
+  <div class="arr">旁邊</div>
+  <div class="node side"><strong>看得到、按得到</strong>
+    <p>存檔：<code>data/triggers_state.json</code>（<code>done</code>、<code>runs</code>、<code>paused</code>、最近 50 行 <code>log</code>，只有規則、結果、原因）。<br>
+    <code>/sys_triggers</code>：規則、暫停中的、最近 10 行；<code>/sys_triggers reset &lt;規則&gt;</code> 提早恢復（只有擁有者、不給 AI）。<br>
+    斷路通知走 <code>system.trigger</code> 流（主機、會響）。</p></div>
+</div>
+
+<h3>4.3 同一個例子在兩邊怎麼走</h3>
+<div class="grid2">
+  <div class="card">
+    <h4>SYNOX：示範 pack <code>tests/fixtures/chain_pack</code>（diarydemo）</h4>
+    <ol>
+      <li><code>/diarydemo_image</code> → <code>pack.report_status("ok", "日記圖片", tag="diary-image")</code></li>
+      <li>任務 <code>pack.diarydemo</code> 變成 ok、標籤 <code>diary-image</code> → 事件（新串、第 0 層）</li>
+      <li>規則 <code>pack.diarydemo.ask-checkin</code>（<code>on_event</code> 登記，<code>cooldown_s=60</code>）符合 → 馬上 <code>do</code></li>
+      <li><code>do</code> 通知擁有者「要打卡今天的日記嗎？」，再回報 <code>tag="checkin-asked"</code></li>
+      <li>那個回報是第 1 層事件，但標籤不是 <code>diary-image</code> → 沒有規則聽 → 結束</li>
+      <li>因為宣告了 <code>emits=["pack.diarydemo#checkin-asked"]</code>，登記時靜態檢查就知道它不會繞回自己</li>
+    </ol>
+  </div>
+  <div class="card">
+    <h4>bot：<code>diary_image_checkin</code>（<code>defaults/triggers.json</code>）</h4>
+    <ol>
+      <li>日記匯出成功做出 PNG → <code>diary.export / image</code>，<code>is_today=true</code>、<code>key=那一天</code></li>
+      <li>規則 <code>when</code> 對上 → <code>_admit</code>：沒暫停、沒繞回、第 0 層、今天這個 key 沒做過</li>
+      <li>背景執行緒跑 <code>checkin_ask</code>，參數 <code>habits: ["日記","靈修"]</code>、<code>ttl_min: 180</code></li>
+      <li>過開口閘 → 看打卡清單 → 送一則帶按鈕的訊息 → <code>sent</code></li>
+      <li>記 <code>done["diary_image_checkin|那一天"]</code>；同一天再匯出 → <code>blocked:done</code></li>
+      <li>只有 HTML、不是今天的日記 → 規則不符合，不問</li>
+    </ol>
+  </div>
+</div>
+
+<!-- ───────────────────────────── 5 ───────────────────────────── -->
+<h2 id="guard">5. 防失控的原理</h2>
+<p>「無限連動」有四種形狀，各自需要不同的保險：</p>
+<ul>
+  <li><strong>環</strong>：A → B → A，或自己觸發自己。每一步都很快，會一直轉。</li>
+  <li><strong>爆炸</strong>：一個事件觸發十條規則，每條再觸發十條（寬），或一條接一條很長（深）。</li>
+  <li><strong>慢性洪水</strong>：每一步都合法、也不是同一串，但總量太多（例如外部系統一直回報、或環被打斷成很多串）。</li>
+  <li><strong>壞掉的動作</strong>：每次都失敗，但每次事件來都再試。</li>
+</ul>
+
+<h3>5.1 登記時：靜態找循環（只有 SYNOX）</h3>
+<p>把規則畫成圖：<strong>節點是規則</strong>；如果規則 A 的動作會讓任務 T 有新狀態（<code>run_task</code> 的那個任務，或程式動作宣告的 <code>emits</code>），而規則 B 在聽 T、標籤也對得上，就畫一條 A → B。圖上有環＝會繞回自己。實作是 <code>settings.find_cycle</code>：三色深度優先搜尋，找到就回傳環上的規則路徑（頭尾同一條），錯誤訊息直接印出來。</p>
+<ul>
+  <li><strong>寧可多擋</strong>：不看 state（ok、failed 都可能），標籤 <code>None</code>（不知道）當作什麼都對得上；<code>run_task</code> 做完的事件沒有標籤（<code>""</code>）。</li>
+  <li><strong>碰到時</strong>：config.json 的規則＝啟動時設定錯誤；系統程式＝丟 <code>RuleError</code>；pack＝<strong>不收那一條</strong>、記在主控面板「沒有收的規則」，但整個 pack 照常載入。</li>
+  <li><strong>擋不到</strong>：沒宣告 <code>emits</code> 的程式動作（看不到它會回報什麼）、經外部世界繞回來的。這些交給執行時。</li>
+  <li><strong>bot 沒有</strong>：動作是不透明的函式，也沒有宣告會丟哪些事件。</li>
+</ul>
+
+<h3>5.2 執行時：因果傳遞</h3>
+<p>每個事件都帶著「這一串」：串 id、第幾層、走過哪些規則。動作開始前把下一層的因果準備好，動作造成的新事件就自動接上。只要一條規則在同一串裡出現第二次，就是環。</p>
+<figure>
+  <div class="svgbox">
+  <svg viewBox="0 0 760 300" role="img" aria-label="因果傳遞：事件帶著串 id、層數與走過的規則；規則 A 觸發 B、B 又觸發 A 時，A 已經在路徑裡，被暫停並通知一次。若動作另開執行緒或經外部程式，因果遺失，變成新的一串，只剩頻率與總量上限擋。">
+    <defs>
+      <marker id="a2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+      <marker id="a2r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-risk" d="M0,0 L10,5 L0,10 z"/></marker>
+      <marker id="a2m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-mut" d="M0,0 L10,5 L0,10 z"/></marker>
+    </defs>
+    <!-- 第一列 -->
+    <rect class="box" x="10" y="30" width="170" height="48" rx="8"/>
+    <text x="95" y="50" text-anchor="middle">事件：pack.a → ok</text>
+    <text x="95" y="68" text-anchor="middle" class="sm">串 c1 · 第 0 層 · 路徑 []</text>
+    <line class="ln" x1="180" y1="54" x2="213" y2="54" marker-end="url(#a2)"/>
+    <rect class="box-ac" x="215" y="30" width="120" height="48" rx="8"/>
+    <text x="275" y="50" text-anchor="middle" class="b">規則 A</text>
+    <text x="275" y="68" text-anchor="middle" class="sm">動作：回報 pack.b</text>
+    <line class="ln" x1="335" y1="54" x2="438" y2="54" marker-end="url(#a2)"/>
+    <text x="387" y="44" text-anchor="middle" class="sm">帶 (c1, 1, [A])</text>
+    <rect class="box" x="440" y="30" width="170" height="48" rx="8"/>
+    <text x="525" y="50" text-anchor="middle">事件：pack.b → ok</text>
+    <text x="525" y="68" text-anchor="middle" class="sm">串 c1 · 第 1 層 · [A]</text>
+    <line class="ln" x1="610" y1="54" x2="638" y2="54" marker-end="url(#a2)"/>
+    <rect class="box-ac" x="640" y="30" width="110" height="48" rx="8"/>
+    <text x="695" y="50" text-anchor="middle" class="b">規則 B</text>
+    <text x="695" y="68" text-anchor="middle" class="sm">動作：回報 pack.a</text>
+    <!-- 第二列 -->
+    <polyline class="ln" points="695,78 695,164 614,164" marker-end="url(#a2)"/>
+    <text x="688" y="122" text-anchor="end" class="sm">帶 (c1, 2, [A, B])</text>
+    <rect class="box" x="440" y="140" width="170" height="48" rx="8"/>
+    <text x="525" y="160" text-anchor="middle">事件：pack.a → ok</text>
+    <text x="525" y="178" text-anchor="middle" class="sm">串 c1 · 第 2 層 · [A, B]</text>
+    <line class="ln-risk" x1="440" y1="164" x2="337" y2="164" marker-end="url(#a2r)"/>
+    <rect class="box-risk" x="215" y="140" width="120" height="48" rx="8"/>
+    <text x="275" y="160" text-anchor="middle" class="b t-risk">規則 A 又來</text>
+    <text x="275" y="178" text-anchor="middle" class="sm">路徑裡已經有 A</text>
+    <line class="ln-risk" x1="215" y1="164" x2="182" y2="164" marker-end="url(#a2r)"/>
+    <rect class="box-risk" x="10" y="140" width="170" height="48" rx="8"/>
+    <text x="95" y="160" text-anchor="middle" class="b t-risk">暫停 A・通知一次</text>
+    <text x="95" y="178" text-anchor="middle" class="sm">B 不受影響</text>
+    <!-- 第三列：因果遺失 -->
+    <line class="axis" x1="10" y1="214" x2="750" y2="214"/>
+    <rect class="box-ghost" x="10" y="232" width="170" height="52" rx="8"/>
+    <text x="95" y="253" text-anchor="middle">動作另開執行緒</text>
+    <text x="95" y="271" text-anchor="middle" class="sm">或經外部程式、隔一段時間</text>
+    <line class="ln-mut" x1="180" y1="258" x2="236" y2="258" marker-end="url(#a2m)"/>
+    <text x="208" y="250" text-anchor="middle" class="sm">因果遺失</text>
+    <rect class="box" x="238" y="232" width="200" height="52" rx="8"/>
+    <text x="338" y="253" text-anchor="middle">事件：pack.a → ok</text>
+    <text x="338" y="271" text-anchor="middle" class="sm">新串 c2 · 第 0 層（看不出是環）</text>
+    <line class="ln" x1="438" y1="258" x2="476" y2="258" marker-end="url(#a2)"/>
+    <rect class="box-warn" x="478" y="232" width="272" height="52" rx="8"/>
+    <text x="614" y="253" text-anchor="middle" class="b t-warn">只剩頻率／總量上限擋</text>
+    <text x="614" y="271" text-anchor="middle" class="sm">SYNOX 30 次/時・60 件/10 分；bot 5 次/10 分</text>
+  </svg>
+  </div>
+  <figcaption>圖 2　上兩列：因果一路傳下去，同一條規則在同一串裡第二次出現就斷路（測試 <code>test_runtime_cycle_through_code_is_caught_and_tripped_once</code>、bot 的「A → B → A」）。最下一列：因果斷掉時，環會被切成很多個看起來無害的新串，只能靠頻率與總量擋下來。</figcaption>
+</figure>
+<p><strong>因果怎麼傳過去：</strong></p>
+<div class="tbl"><table>
+  <tr><th>路徑</th><th>SYNOX</th><th>bot</th></tr>
+  <tr><td>動作明確地觸發下一件</td><td><code>run_now(task, cause=child)</code>：cause <strong>存在任務物件上</strong>，任務在另一條執行緒做完時仍帶得出來</td><td><code>ctx.emit(source, outcome, …)</code>：chain＝目前 chain＋這條規則</td></tr>
+  <tr><td>動作裡呼叫別的功能，功能自己丟事件</td><td><code>with caused_by(child)</code>（thread-local）：裡面的 <code>report</code>、<code>run_now</code> 自動接上</td><td><code>_run</code> 設 thread-local；同執行緒的 <code>bus.emit</code> 自動接上（測試「間接繞回」）</td></tr>
+  <tr><td>動作另開執行緒、cli 子程序、排程延後</td><td colspan="2">接不上 → 新串。兩邊都靠每條規則的頻率上限擋；SYNOX 另外有全部總量。</td></tr>
+</table></div>
+
+<h3>5.3 每一道保險擋什麼、擋不到什麼</h3>
+<p>SYNOX 的 <code>_guard</code> 檢查順序就是下表 SYNOX 欄的順序（前面的先擋）；bot 的 <code>_admit</code> 是「暫停 → 繞回 → 層數 → 做過 → 冷卻 → 爆量」。</p>
+<div class="tbl"><table>
+  <tr><th>保險</th><th>擋什麼</th><th>擋不到什麼</th><th>SYNOX（預設）</th><th>bot（預設）</th><th>碰到時</th></tr>
+  <tr><td>靜態找循環</td><td>寫死在規則裡的環</td><td>沒宣告 emits 的程式；外部繞回</td><td>登記時</td><td>—</td><td>不收那一條</td></tr>
+  <tr><td>暫停中</td><td>已斷路的不再動</td><td>—</td><td>規則或全部暫停</td><td>規則暫停</td><td>略過、不再通知</td></tr>
+  <tr><td>同一串裡同一條規則第二次</td><td>執行時的環，包含經過別的功能的間接環</td><td>因果斷掉的環</td><td>有</td><td>有</td><td>斷路那條規則</td></tr>
+  <tr><td>層數上限</td><td>很長的鏈（就算不是環）</td><td>寬而淺的爆炸</td><td><code>max_depth</code> 5</td><td><code>max_depth</code> 3</td><td>斷路那條規則</td></tr>
+  <tr><td>同一串做的總件數</td><td>扇出樹（一個觸發十個、十個再觸發十個）</td><td>跨串</td><td><code>max_chain_actions</code> 20</td><td>—</td><td>斷路那條規則</td></tr>
+  <tr><td>扇出上限</td><td>一個事件觸發太多條規則</td><td>—</td><td><code>max_fanout</code> 10</td><td>—</td><td>多的這次略過（不斷路）</td></tr>
+  <tr><td>同時只跑一個</td><td>動作卡住時一直疊</td><td>—</td><td>有（<code>timing: now</code>）</td><td>—</td><td>這次略過</td></tr>
+  <tr><td>待處理上限</td><td>心跳關著時一直堆</td><td>—</td><td>100 件、24 小時丟</td><td>（沒有待處理）</td><td>新的略過</td></tr>
+  <tr><td>去重（一個範圍一次）</td><td>同一件事做兩次，重開也算</td><td>同時進來的兩個事件（<a href="#gaps">缺口 1</a>）</td><td>—</td><td><code>once_per</code> key／day，存 14 天</td><td>安靜略過</td></tr>
+  <tr><td>冷卻</td><td>短時間重複</td><td>—</td><td><code>cooldown_s</code> 0</td><td><code>cooldown_min</code> 0</td><td>安靜略過</td></tr>
+  <tr><td>每條規則的頻率</td><td>慢性重複，<strong>包含因果斷掉的環</strong></td><td>很多條規則各自低頻但加起來很多</td><td><code>max_per_hour</code> 30（第 31 次）</td><td>10 分鐘內超過 5 次（第 6 次）</td><td>斷路那條規則</td></tr>
+  <tr><td>全部總量</td><td>多條規則合起來的洪水</td><td>—</td><td>10 分鐘 60 件</td><td>—</td><td><strong>全部暫停</strong></td></tr>
+  <tr><td>連續失敗</td><td>一直壞的動作</td><td>—</td><td>連續 5 次</td><td>—（錯誤只記一行、不算做過）</td><td>斷路那條規則</td></tr>
+</table></div>
+<p>兩邊的設定都有下限：寫 0 或負數關不掉保險（SYNOX 由 <code>settings.parse</code> 的範圍檢查擋，bot 由 <code>Settings.from_dict</code> 夾在下限）。</p>
+
+<h3>5.4 斷路器：停下、通知一次、恢復</h3>
+<figure>
+  <div class="svgbox">
+  <svg viewBox="0 0 760 236" role="img" aria-label="斷路器狀態：正常時觸發任一保險就進入暫停並通知一次。SYNOX 只能按重設或恢復回到正常；bot 12 小時後自動回到正常，或用 reset 指令提早。兩邊都還沒做半開試跑。">
+    <defs>
+      <marker id="a3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk" d="M0,0 L10,5 L0,10 z"/></marker>
+      <marker id="a3r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-risk" d="M0,0 L10,5 L0,10 z"/></marker>
+      <marker id="a3a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-ac" d="M0,0 L10,5 L0,10 z"/></marker>
+      <marker id="a3m" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-mut" d="M0,0 L10,5 L0,10 z"/></marker>
+    </defs>
+    <rect class="box-ac" x="40" y="92" width="150" height="54" rx="10"/>
+    <text x="115" y="115" text-anchor="middle" class="b">正常</text>
+    <text x="115" y="133" text-anchor="middle" class="sm">照規則動作</text>
+    <line class="ln-risk" x1="190" y1="119" x2="328" y2="119" marker-end="url(#a3r)"/>
+    <text x="259" y="110" text-anchor="middle" class="sm t-risk">觸發任一保險</text>
+    <text x="259" y="138" text-anchor="middle" class="sm">通知擁有者一次</text>
+    <rect class="box-risk" x="330" y="92" width="150" height="54" rx="10"/>
+    <text x="405" y="115" text-anchor="middle" class="b t-risk">暫停</text>
+    <text x="405" y="133" text-anchor="middle" class="sm">不再做・原因看得到</text>
+    <!-- bot：上方回路 -->
+    <polyline class="ln-ac" points="405,92 405,48 115,48 115,90" marker-end="url(#a3a)"/>
+    <text x="260" y="38" text-anchor="middle">bot：12 小時到自動解除，或 /sys_triggers reset</text>
+    <!-- SYNOX：下方回路 -->
+    <polyline class="ln" points="405,146 405,192 115,192 115,148" marker-end="url(#a3)"/>
+    <text x="260" y="212" text-anchor="middle">SYNOX：只能按「重設」（一條）／「恢復」（全部）</text>
+    <!-- 半開：沒做 -->
+    <line class="ln-mut" x1="480" y1="119" x2="578" y2="119" marker-end="url(#a3m)"/>
+    <text x="529" y="110" text-anchor="middle" class="sm">兩邊都沒做</text>
+    <rect class="box-ghost" x="580" y="92" width="160" height="54" rx="10"/>
+    <text x="660" y="115" text-anchor="middle">半開：試跑一次</text>
+    <text x="660" y="133" text-anchor="middle" class="sm">好了才完全恢復</text>
+  </svg>
+  </div>
+  <figcaption>圖 3　兩邊都是「斷開 → 不再做 → 通知一次」。差別在回來的路：SYNOX 只認人按；bot 時間到自動恢復（恢復時歸零計數），若問題還在，幾次觸發內會再斷一次、再通知一次——最壞每 12 小時一則。</figcaption>
+</figure>
+<ul>
+  <li><strong>通知節流</strong>：SYNOX 10 分鐘內只說一則，下一則附「另外還有 N 條也被暫停」；全部暫停另外說一次（之後的檢查先撞到「全部暫停中」，不會重複說）。bot 每條規則每次暫停只說一次（<code>notified</code> 存檔）。</li>
+  <li><strong>暫停時的待處理</strong>（SYNOX）：留著，重設後下一次心跳再做；不會因為暫停就丟掉該做的事。</li>
+  <li><strong>暫停存檔</strong>：兩邊重開都還是暫停的。</li>
+</ul>
+
+<!-- ───────────────────────────── 6 ───────────────────────────── -->
+<h2 id="gaps">6. 讀程式時發現的缺口</h2>
+<p>以下都是今天讀程式碼時看出來的，<strong>都還沒改</strong>（這份交接只記錄、不動程式）。嚴重度是對目前用途的判斷。</p>
+<div class="tbl"><table>
+  <tr><th>#</th><th>在哪</th><th>缺口</th><th>目前的影響</th><th>建議修法</th></tr>
+  <tr><td>1</td><td>bot <code>core/triggers.py</code></td><td>沒有「同時只跑一個」；<code>once_per</code> 的「做過了」是在動作<strong>做完</strong>才寫進 <code>done</code>。兩個同一天的匯出幾乎同時進來，兩次 <code>_admit</code> 都會放行。</td><td><span class="chip ok">小</span> <code>checkin_ask</code> 送新的一則時會把舊的收起來，畫面上最多一則開著；但可能多送一則。</td><td><code>_admit</code> 通過時先寫「進行中」（或記在記憶體的 running 集合），<code>_run</code> 結束時換成 done 或清掉（<code>pass</code>）。</td></tr>
+  <tr><td>2</td><td>bot</td><td>動作出錯不累計：錯誤只記一行、不算做過，下一個事件會再試。</td><td><span class="chip ok">小</span> 受「10 分鐘 5 次」限制；目前事件很稀疏。</td><td>照 SYNOX：連續失敗 5 次斷路。</td></tr>
+  <tr><td>3</td><td>bot</td><td>沒有全部總量、沒有扇出上限、沒有靜態找循環。</td><td><span class="chip ok">小</span> 現在只有一條規則。規則變多就會變重要。</td><td>見第 8 節。</td></tr>
+  <tr><td>4</td><td>SYNOX <code>runtime/activator.py</code></td><td>每條規則「這一小時幾次」和全部總量只在記憶體，重開就歸零（暫停狀態有存）。</td><td><span class="chip ok">小</span> 一個每次重開都觸發的環，在頻繁重開時可以多跑幾次；仍會被同串偵測擋。</td><td>把最近一小時的觸發時間也存進 <code>state.json</code>（bot 的 <code>runs</code> 就是這樣做的）。</td></tr>
+  <tr><td>5</td><td>SYNOX <code>runtime/heartbeat.py</code></td><td>心跳在安靜時段照常執行 <code>drain()</code>；<code>notify</code> 動作直接送出、不看安靜時段。所以「不急的改用 <code>timing: heartbeat</code>」<strong>不保證</strong>半夜不響。</td><td><span class="chip warn">中</span> 目前沒有 heartbeat 時機的 notify 規則；一旦有人照 ADR 的建議寫，就可能半夜送。</td><td><code>drain</code> 在安靜時段把 <code>notify</code> 類留著不做（見<a href="#decide">決定 Q3</a>）。</td></tr>
+  <tr><td>6</td><td>兩邊</td><td>斷路／暫停通知本身不看安靜時段。</td><td><span class="chip ok">小</span> 這是系統警告，可能本來就該響；值得明說。</td><td>維持現狀，寫進共同規格。</td></tr>
+  <tr><td>7</td><td>兩邊</td><td>動作另開執行緒、或經外部程式（cli 工具、打卡系統）回來，因果會斷。</td><td><span class="chip warn">中</span> 這是結構性限制；bot 沒有總量上限，只剩每條規則的 5 次／10 分。</td><td>短期：寫進作者須知（不要在動作裡自己開執行緒）；長期：信封／外部回報可選擇帶回串 id。</td></tr>
+</table></div>
+
+<!-- ───────────────────────────── 7 ───────────────────────────── -->
+<h2 id="compare">7. SYNOX vs. bot 對照與差異的理由</h2>
+<div class="tbl"><table>
+  <tr><th>面向</th><th>SYNOX</th><th>Telegram bot</th><th>為什麼不一樣</th></tr>
+  <tr><td>事件模型</td><td>任務狀態轉換（state／prev＋標籤）</td><td>領域事件（source／outcome＋data＋key）</td><td>SYNOX 已經有統一的任務狀態機；bot 的功能各自獨立，沒有共同的狀態可以掛。</td></tr>
+  <tr><td>規則寫在哪</td><td>三處：<code>config.json</code> 的 <code>runtime.activator.rules</code>、系統程式、python pack 的 <code>pack.on_event</code></td><td>兩層資料檔：<code>defaults/triggers.json</code>（repo）＋<code>data/triggers.json</code>（這台電腦，同鍵蓋過）</td><td>SYNOX 是平台，工具作者要能自帶規則；bot 是單一擁有者，規則由他（或 session）改資料檔。</td></tr>
+  <tr><td>條件</td><td><code>on</code>＋<code>state</code>＋<code>from</code>＋<code>tag</code>，程式規則可加 <code>when</code></td><td><code>source</code>＋<code>outcome</code>（<code>*</code>＝都算）＋<code>data</code> 全等</td><td>兩邊都刻意不做運算式語言（設定檔不能變成程式）。</td></tr>
+  <tr><td>動作</td><td>三種固定：<code>run_task</code>、<code>notify</code>、<code>do</code></td><td>任意多種，程式登記</td><td>SYNOX 要讓沒有程式的 config 也能用；bot 的動作都是對人說話，需要客製（開口閘、按鈕）。</td></tr>
+  <tr><td>權限</td><td>依 owner：config 不收程式；系統規則 id 要 <code>system.</code>；pack 規則 id 要 <code>pack.&lt;自己&gt;.</code>、只能跑自己的任務；別人的事件訊息清空</td><td>規則只能挑登記過的動作；動作送出的按鈕綁既有節點（<code>now.check</code>）；恢復指令只給擁有者、不給 AI</td><td>SYNOX 要面對第三方 pack；bot 的權限沿用既有指令樹，不另做一套。</td></tr>
+  <tr><td>時機</td><td>now／heartbeat</td><td>只有 now</td><td>bot 的「不急」由開口閘處理（不該說就跳過），沒有需要排隊的工作。</td></tr>
+  <tr><td>存檔</td><td><code>state.json</code>：暫停、上次觸發、失敗數、全部暫停、待處理、最近 50 事件（沒有訊息）</td><td><code>triggers_state.json</code>：done（14 天）、runs、paused、50 行 log</td><td>兩邊都只存沒有個人內容的結構。bot 多存了 runs，所以頻率計數重開不歸零。</td></tr>
+  <tr><td>預設上限</td><td>層數 5、同串 20 件、扇出 10、每條 30 次／時、全部 60 件／10 分、連續失敗 5、待處理 100／24 小時</td><td>層數 3、每條 5 次／10 分、暫停 12 小時、一天從 5 點算</td><td>SYNOX 的規則可能來自很多 pack，要給正常的長鏈空間、靠總量兜底；bot 的鏈都很短、而且每一步都可能對人說話，所以嚴得多。</td></tr>
+  <tr><td>恢復</td><td>只能手動（重設一條／恢復全部）</td><td>12 小時自動解除，或手動 reset</td><td>SYNOX 偏保守：未知程式碼失控，等人看過；bot 的使用者在手機上，不該要他記得去按。</td></tr>
+  <tr><td>通知</td><td>10 分鐘最多一則（附「還有 N 條」），走一般 <code>notify_owner</code></td><td>每條每次暫停一則，<code>system.trigger</code> 流（主機、響）</td><td>SYNOX 規則多，要合併；bot 的通知分流表已經有系統警告這一類。</td></tr>
+  <tr><td>對人說話的節制</td><td>沒有（notify 就送）</td><td>開口閘、一天一次、按鈕有期限、有新的就收舊的</td><td>bot 的動作本身就是陪伴提醒，要照陪伴的語氣與節制。</td></tr>
+  <tr><td>看與操作</td><td>網頁 API、主控面板 🔗 卡、<code>synox doctor</code></td><td><code>/sys_triggers</code>、<code>/sys_triggers reset</code></td><td>各自既有的操作介面。</td></tr>
+  <tr><td>測試</td><td>pytest：假時鐘、<code>spawn=sync</code>、假通道（30 個）</td><td>腳本式：假時鐘、<code>inline=True</code>、假打卡系統與假日記（67 項）</td><td>各 repo 既有的測試風格。</td></tr>
+  <tr><td>生效方式</td><td>config 規則啟動時讀；pack 規則載入時登記</td><td>規則檔每次 emit 重讀；程式改動要重開 Host</td><td>—</td></tr>
+</table></div>
+
+<!-- ───────────────────────────── 8 ───────────────────────────── -->
+<h2 id="converge">8. 收斂建議</h2>
+<div class="callout">
+  <p><strong>建議（預設）：</strong>先寫一份「連動核心規格」（語意，不是程式），兩邊各自補齊；兩邊各用一段時間、規格不再變了，再考慮抽成共用套件。理由：兩邊的事件模型（任務狀態 vs. 領域事件）和執行環境不同，現在硬抽共用程式，會把兩邊都綁住。</p>
+</div>
+<h3>核心規格：每一份實作都應該有的</h3>
+<ol>
+  <li>事件小、可存檔、沒有私人內容；丟事件永不失敗、不被卡住。</li>
+  <li>規則是資料、動作是程式登記的；設定檔不能叫任意指令。</li>
+  <li>因果：串 id＋層數＋路徑；明確觸發與同執行緒的間接觸發都要接上。</li>
+  <li>五道必備保險：同串同規則（環）、層數、每條規則頻率、全部總量、連續失敗。</li>
+  <li>同時只跑一個（或明確選別的模式）。</li>
+  <li>需要時的去重：<code>once_per</code> key／day，存檔，判斷「做過」在放行時就佔位。</li>
+  <li>結果三態：做了／看過決定不做（都算做過）／現在做不了（不算，下次再試）。</li>
+  <li>斷路：停下、通知一次（有節流）、原因看得到、可以手動恢復；自動恢復是規則層級的選項。</li>
+  <li>設定有下限，寫 0 關不掉保險。</li>
+  <li>計數與暫停都存檔，重開不歸零。</li>
+</ol>
+<div class="grid2">
+  <div class="card">
+    <h4>SYNOX 可以從 bot 拿的</h4>
+    <ul>
+      <li><strong><code>once_per</code> key／day 去重</strong>：之後「問打卡」「每日摘要」這類對人說話的規則一定會用到。</li>
+      <li><strong>結果三態</strong>（sent／skip／pass）：讓「打卡系統叫不到」這種情況不算做過。</li>
+      <li><strong>頻率計數存檔</strong>（修缺口 4）。</li>
+      <li><strong>可選的自動解除</strong>：規則層級的 <code>auto_reset_min</code>，預設關（維持手動，見 Q2）。</li>
+      <li><strong>對人說話的節制</strong>：notify 類在安靜時段留著（修缺口 5）。</li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>bot 可以從 SYNOX 拿的</h4>
+    <ul>
+      <li><strong>同時只跑一個＋放行時佔位</strong>（修缺口 1）。</li>
+      <li><strong>全部總量上限</strong>：因果斷掉時唯一的跨規則兜底。</li>
+      <li><strong>連續失敗斷路</strong>（修缺口 2）。</li>
+      <li><strong>動作宣告會丟哪些事件</strong>＋載入時靜態找循環：規則變多後，在寫錯的當下就擋。</li>
+      <li><strong>串 id</strong>：log 每一行帶串 id，追「這則訊息是哪一串引起的」比較容易。</li>
+      <li>扇出上限（便宜，順手加）。</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ───────────────────────────── 9 ───────────────────────────── -->
+<h2 id="howto">9. 怎麼做</h2>
+
+<h3>9.1 SYNOX</h3>
+<p><strong>A. 在 config.json 加一條規則</strong>（擁有者自己寫；只收 <code>run_task</code> 或 <code>notify</code>；id 不能用 <code>system.</code>、<code>pack.</code> 開頭；有環＝啟動錯誤）</p>
+<pre><code>"runtime": {"activator": {"rules": [
+  {"id": "weather-back", "on": "pack.weather", "state": "ok", "from": "failed",
+   "notify": "天氣恢復了（{task} {state}）"},
+  {"id": "after-sync", "on": "pack.syncer", "tag": "nightly",
+   "run_task": "system.schedule", "timing": "heartbeat", "cooldown_s": 600}
+]}}</code></pre>
+
+<p><strong>B. 在 python pack 裡加規則</strong>（<code>install(app, pack)</code> 裡；規則 id 會是 <code>pack.&lt;名字&gt;.&lt;rule_id&gt;</code>；有環＝不收那一條、pack 照常載入）</p>
+<pre><code>def install(app, pack):
+    def ask_checkin(event):                       # event.task / state / prev / tag / chain / depth
+        app.notify_owner("今天的日記圖片好了。要打卡今天的日記嗎？")
+        pack.report_status("ok", "問過打卡了", tag="checkin-asked")   # 自動接在同一串
+
+    pack.on_event("pack.diarydemo", "ask-checkin", ask_checkin,
+                  state="ok", tag="diary-image",
+                  emits=["pack.diarydemo#checkin-asked"],   # 一定要寫：登記時就能找循環
+                  cooldown_s=60, name="日記圖片好了 → 問要不要打卡")</code></pre>
+
+<p><strong>C. 系統程式的規則</strong>（id 要 <code>system.</code> 開頭；有環＝丟 <code>RuleError</code>）</p>
+<pre><code>from synox import runtime
+from synox.runtime.activator import Rule
+runtime.of(app).activator.add(Rule(id="system.weather-alert", on="pack.weather",
+                                   states=("failed",), do=fn, emits=()))</code></pre>
+
+<p><strong>D. 從新功能丟事件</strong>：不用「丟事件」，只要回報狀態。</p>
+<ul>
+  <li>python pack：<code>pack.report_status("ok", "一句話", tag="xxx")</code></li>
+  <li>cli 工具：SDK <code>report_status("ok", "一句話", tag="xxx")</code>，跟著這次的 JSON 信封送回</li>
+  <li>系統程式：<code>loop.report("system.x", "ok", "…", tag="xxx")</code>，或註冊成有 fn 的任務，做完自動有事件</li>
+  <li>標籤：小寫英數字與 <code>. _ -</code>、32 字內；不合格式＝當作沒有。同一個 pack 的不同「做完」一定要用不同標籤，否則自己聽自己。</li>
+</ul>
+
+<p><strong>E. 加一種新的動作</strong>（例如「跑一個 pack 指令」——目前刻意不做，見 Q1）。要改的地方：</p>
+<ol>
+  <li><code>Rule</code> 加欄位；<code>Rule.check()</code> 寫清楚誰能用（config／系統／pack）。</li>
+  <li><code>Rule.emitted()</code>：這個動作會讓哪些任務有新狀態——靜態找循環靠它。</li>
+  <li><code>Rule.action_text()</code>：主控面板顯示的字。</li>
+  <li><code>Activator._act</code> 加分支，並確保因果傳下去（帶 <code>cause=child</code> 或包在 <code>caused_by(child)</code> 裡）。</li>
+  <li>若 config 也能用：<code>runtime/settings.py</code> 的 <code>RULE_KEYS</code>、<code>parse_rule</code>、<code>parse_rules</code> 的 <code>find_cycle</code> 輸入。</li>
+  <li><code>web/static/control.js</code> 的文字、<code>docs/runtime-api.md</code>、ADR 0004 的動作表、<code>tests/test_activator.py</code>。</li>
+</ol>
+
+<p><strong>F. 測試</strong>（不連網、不開埠；假時鐘、同步執行）</p>
+<pre><code>from test_runtime import Clock, FakeApp, sync
+from synox.runtime.loop import RuntimeLoop
+from synox.runtime.activator import Activator, Rule
+
+def test_my_chain(tmp_path):
+    clock, app = Clock(), FakeApp()
+    loop = RuntimeLoop(app, clock=clock, spawn=sync, state_path=str(tmp_path / "state.json"))
+    act = Activator(loop, settings={"max_depth": 2})        # 想測哪道保險就把上限調小
+    act.add(Rule(id="system.a", on="pack.a", notify="收到 {task}", owner="system"))
+    loop.report("pack.a", "ok", owner="a")
+    assert app.sent == ["🔗 收到 pack.a"]
+    clock.advance(minutes=11)                                  # 測冷卻、頻率、通知節流
+    assert act.view()["rules"][0]["status"] == "active"</code></pre>
+<p>要測「上一次還沒做完」：把 <code>loop._spawn</code> 換成只把函式收進清單、不執行。整個 bot 的整合測試用 <code>rt_bot</code> fixture（見 <code>test_example_diary_image_done_asks_checkin_via_pack</code>）。</p>
+
+<p><strong>G. 除錯一條被暫停的規則</strong></p>
+<ol>
+  <li>手機上會收到一則「⏸ 連動規則「…」暫停了：原因」。</li>
+  <li>打開網頁主控面板的「🔗 連動」卡：每條規則的狀態徽章、暫停原因與時間、上次觸發、這一小時幾次、連續失敗；「最近的連動」列出每個事件的串 id、層數、做了哪些、略過哪些與原因。</li>
+  <li>或 <code>GET /api/runtime/status</code> 的 <code>activator</code>：<code>rules[].reason</code>、<code>events[].chain/depth/fired/skipped</code>、<code>rejected</code>（登記時就沒收的）、<code>budget_used</code>。</li>
+  <li>原因是「循環」：照事件的串 id 把同一串的事件排起來，就是那個環；改規則（換標籤、加 <code>from</code>、改成 notify）。</li>
+  <li>修好後按「重設」（<code>POST …/activator/rules/&lt;id&gt;/reset</code>）；全部暫停的按「恢復」。暫停中的待處理會在下一次心跳做掉，不想要就按「不用做了」。</li>
+  <li><code>synox doctor</code> 也印開關、規則數、暫停中的規則、待處理件數。</li>
+</ol>
+
+<h3>9.2 Telegram bot</h3>
+<p><strong>A. 改規則或加規則</strong>（資料檔；改了就生效，不用重開）</p>
+<pre><code>// data/triggers.json（這台電腦）：同一個鍵蓋過 defaults
+{"rules": {"diary_image_checkin": {"enabled": false}}}
+
+// 新規則（defaults/triggers.json 進版控，或只放 data/）
+{"rules": {"my_rule": {
+  "enabled": true,
+  "when": {"source": "diary.export", "outcome": "image", "data": {"is_today": true}},
+  "do": "checkin_ask",
+  "args": {"habits": ["日記"], "ttl_min": 120},
+  "once_per": "key",          // key＝同一個範圍一次；day＝每天一次；不寫＝不限
+  "cooldown_min": 0
+}}}</code></pre>
+<p>規則 id 以 <code>_</code> 開頭的會被忽略（拿來寫註解）。<code>do</code> 指到沒登記的動作＝記一行 <code>blocked:no_action</code>。</p>
+
+<p><strong>B. 加一個新動作</strong></p>
+<pre><code>from &lt;bot 套件&gt;.core.triggers import PASS, SENT, SKIP, Result
+
+def my_action(event, rule, ctx):        # 在自己的背景執行緒跑
+    if not ready():
+        return Result(PASS, "not_ready")        # 這次不算，下一個事件可以再試
+    if nothing_to_do():
+        return Result(SKIP, "nothing")          # 看過、決定不做；算做過（once_per 不再試）
+    do_it(ctx.args)
+    ctx.emit("my.feature", "done", {"day": event.key}, key=event.key)   # 要接下一件就用 ctx.emit
+    return Result(SENT)
+
+# main.build 裡
+triggers.action("my_action", my_action)</code></pre>
+<ul>
+  <li>會主動開口的動作：先過開口閘（<code>companion.may_speak()</code>），被擋就記中性紀錄、回 <code>skip</code>；照通知分流表標流與 kind，並在 <code>docs/notifications.md</code> 加一列。</li>
+  <li>送出的按鈕綁既有的節點（例：<code>now.check</code>），不另做權限；要「替他執行指令」的動作得走 dispatcher 並以擁有者身分授權（invariant 6）。</li>
+  <li>不要在動作裡自己開執行緒去丟事件（因果會斷，見缺口 7）。</li>
+  <li>invariant 22 的「現在的規則」那一行要更新。</li>
+</ul>
+
+<p><strong>C. 從新功能丟事件</strong>：在功能做完的地方（例：<code>DiaryDesk._emit_done</code>）</p>
+<pre><code>if self.triggers is not None:
+    from &lt;bot 套件&gt;.core.triggers import Event
+    self.triggers.emit(Event("my.feature", "done",
+                             {"day": day, "is_today": day == today},   # 只放小欄位，不放內容
+                             key=day))                                  # 這件事的範圍</code></pre>
+<p>並在 <code>main.build</code> 把 bus 接給那個 desk（<code>desk.triggers = triggers</code>）、在 <code>defaults/triggers.json</code> 的 <code>_doc</code> 寫上這個新事件的 source／outcome／data。</p>
+
+<p><strong>D. 測試</strong>（腳本式；假時鐘、同步）</p>
+<pre><code>clock = [datetime(2026, 11, 12, 22, 40)]
+bus = T.TriggerBus(table=Layered(rules_path, none_path), state_path="data/t.json",
+                   clock=lambda: clock[0], notify=notes.append, inline=True)
+bus.action("note", lambda e, r, c: T.Result())
+assert bus.emit(T.Event("x.done", "ok", {"is_today": True}, key="d1")) == [("a", "sent")]
+clock[0] += timedelta(minutes=61)          # 測冷卻、暫停自動解除</code></pre>
+
+<p><strong>E. 除錯一條被斷路的規則</strong></p>
+<ol>
+  <li>手機收到「⛔ 連動「…」停下來了：原因」，附暫停到幾點與 reset 指令。</li>
+  <li><code>/sys_triggers</code>：每條規則（● 開、○ 關、⏸ 暫停）、暫停到幾點與原因、保險設定、最近 10 行紀錄。</li>
+  <li>完整 50 行在 <code>data/triggers_state.json</code> 的 <code>log</code>；<code>done</code> 看哪個範圍算做過了；<code>runs</code> 看最近的觸發時間。</li>
+  <li>修好後 <code>/sys_triggers reset &lt;規則&gt;</code>（計數一起歸零），或等 12 小時自動解除。</li>
+  <li>完全沒反應：先確認 Host 重開過（程式改動才會載入），再看 <code>/sys_triggers</code> 有沒有那條規則、是不是 ●。</li>
+</ol>
+
+<!-- ───────────────────────────── 10 ───────────────────────────── -->
+<h2 id="prior">10. 業界前例</h2>
+<div class="tbl"><table>
+  <tr><th>系統</th><th>它怎麼做</th><th>這裡拿來用的</th></tr>
+  <tr><td>Home Assistant automations</td><td>每個 automation 有 <code>mode</code>：<code>single</code>（預設，還在跑時新的觸發不開）、<code>restart</code>、<code>queued</code>、<code>parallel</code>；事件帶 context（id＋parent_id）</td><td>SYNOX 的「同時只跑一個」；事件帶因果</td></tr>
+  <tr><td>GitHub Actions</td><td>用 workflow 自己的 token 觸發的事件不會再開新的 workflow（防遞迴）；reusable workflow 有巢狀層數上限</td><td>層數上限；同串同規則不能再出現</td></tr>
+  <tr><td>Apache Airflow</td><td>DAG 一定無環，解析時就檢查；trigger rule（<code>all_success</code>、<code>one_failed</code>…）決定下游何時跑</td><td>登記時靜態找循環；條件寫成「變成哪個狀態、從哪個狀態來」</td></tr>
+  <tr><td>Zapier</td><td>flood protection：一次來太多觸發就先扣住，讓人決定放不放行</td><td>全部總量上限 → 全部暫停、等人按恢復</td></tr>
+  <tr><td>斷路器模式（circuit breaker）</td><td>一直失敗就斷開；過一段時間「半開」試一次，成功才閉合</td><td>斷路＋通知一次；半開兩邊都還沒做（bot 是時間到直接閉合）</td></tr>
+</table></div>
+<p>刻意不照抄的：Home Assistant 的 <code>queued</code>／<code>parallel</code>（現在沒需要）、Zapier 的「每一筆扣住等放行」（改成整條暫停＋待處理留著，比較好懂）、完整的工作流程引擎（太大，這裡只要「做完 → 做下一件」）。</p>
+
+<!-- ───────────────────────────── 11 ───────────────────────────── -->
+<h2 id="decide">11. 待擁有者決定（附建議）</h2>
+<p>每一題都有建議值，<strong>沒有回覆就照建議做</strong>（打 <span class="mark-rec">★</span> 的那個）。現況已經是建議值的，標「現況」。</p>
+<div class="tbl"><table>
+  <tr><th>#</th><th>問題</th><th>選項</th><th>建議</th></tr>
+  <tr><td>Q1</td><td>SYNOX：cli／mcp 工具能不能在 <code>pack.json</code> 宣告自己的連動規則？</td>
+    <td><span class="mark-rec">★</span> A 先不做：只有系統與 python pack 能定義，cli 工具的回報可以被別人的規則聽到。<br>B 只允許宣告 notify：沒有執行，風險小。<br>C 允許「做完 → 跑我自己的某個指令」：要先決定以誰的身分跑、要不要過確認卡。</td>
+    <td class="rec">A（現況）</td></tr>
+  <tr><td>Q2</td><td>SYNOX：被暫停的規則要不要自動恢復？</td>
+    <td><span class="mark-rec">★</span> A 維持只能手動按：未知程式碼失控，等人看過最安全。<br>B 每條規則可選自動解除（像 bot 的 12 小時），預設關。<br>C 半開：時間到試跑一次，再失控就再停並通知。</td>
+    <td class="rec">A（現況）</td></tr>
+  <tr><td>Q3</td><td>SYNOX：「馬上」的通知要不要看安靜時段？</td>
+    <td><span class="mark-rec">★</span> A 不看；不急的寫 <code>timing: heartbeat</code>，並補一個小修正：心跳在安靜時段把 notify 類待處理留到之後（缺口 5）。<br>B 看：安靜時段所有連動通知一律延後。<br>C 每條規則自己選。</td>
+    <td class="rec">A＋補修正</td></tr>
+  <tr><td>Q4</td><td>SYNOX：預設上限（層數 5、同串 20、扇出 10、每條 30／時、全部 60／10 分）</td>
+    <td><span class="mark-rec">★</span> A 維持，用一段時間看主控面板的數字再調。<br>B 現在調嚴（向 bot 看齊）。<br>C 現在調鬆。</td>
+    <td class="rec">A（現況）</td></tr>
+  <tr><td>Q5</td><td>bot：專心或睡覺時，日記做成圖要不要還是問打卡？</td>
+    <td><span class="mark-rec">★</span> A 照完整開口閘：今天安靜、專心、睡覺都跳過，不補問。<br>B 延到可以說話時再問一次。<br>C 只看「安靜」，專心時照問。</td>
+    <td class="rec">A（現況）</td></tr>
+  <tr><td>Q6</td><td>bot：問打卡那一則用哪個 bot、響不響？</td>
+    <td><span class="mark-rec">★</span> A 主機、不響：人剛在主機上收到圖，問題跟在圖後面。<br>B 主機、會響。<br>C 改由陪伴用的那個 bot 送。</td>
+    <td class="rec">A（現況）</td></tr>
+  <tr><td>Q7</td><td>bot：斷路後怎麼恢復？</td>
+    <td><span class="mark-rec">★</span> A 12 小時自動解除，也可以提早 reset。<br>B 只能手動 reset（跟 SYNOX 一樣）。<br>C 縮短成 1 小時自動解除。</td>
+    <td class="rec">A（現況）</td></tr>
+  <tr><td>Q8</td><td>兩份實作要不要收斂？</td>
+    <td><span class="mark-rec">★</span> A 先寫共同規格，各自補齊缺的保險（第 8 節），規格穩定後再談共用程式。<br>B 現在就抽成共用套件。<br>C 維持各做各的，不寫共同規格。</td>
+    <td class="rec">A</td></tr>
+</table></div>
+
+<!-- ───────────────────────────── 12 ───────────────────────────── -->
+<h2 id="verify">12. 還沒驗證的與下一步</h2>
+<div class="tbl"><table>
+  <tr><th>項目</th><th>狀態</th><th>下一步</th></tr>
+  <tr><td>bot 的連動在真機上生效</td><td><span class="chip warn">未做</span> Host 還沒重開，執行中的還是舊程式</td><td>重開 Host；<code>/sys_triggers</code> 應看到 <code>● diary_image_checkin</code></td></tr>
+  <tr><td>真手機走一次日記 → 問打卡</td><td><span class="chip warn">未做</span> 只有假打卡系統、假日記的整合測試</td><td>今天的日記匯出成圖 → 主機收到一則（不響）→ 按 ✓ 日記 → 打卡系統那邊打勾、那一則原地更新 → 再匯出一次不再問</td></tr>
+  <tr><td>bot 安靜／專心時不問</td><td><span class="chip todo">只有自動測試</span></td><td>在安靜時段匯出一次，確認沒有訊息、紀錄裡有一行中性紀錄</td></tr>
+  <tr><td>SYNOX 主控面板「🔗 連動」卡</td><td><span class="chip todo">只有 JS 單元測試與產生的預覽</span></td><td>用瀏覽器看亮色、暗色、手機寬度；按一次「重設」「現在處理」</td></tr>
+  <tr><td>兩邊的斷路通知真的送到</td><td><span class="chip todo">只有假通道</span></td><td>用示範規則刻意做一個環，確認只收到一則通知</td></tr>
+  <tr><td>第 6 節的缺口 1、2、4、5</td><td><span class="chip">記錄了，沒改</span></td><td>各開一張工作單（一件一檔，放各 repo 收工作單的地方），照第 8 節修</td></tr>
+</table></div>
+
+<!-- ───────────────────────────── 13 ───────────────────────────── -->
+<h2 id="accept">13. 下一個 session 可以直接跑的驗收</h2>
+<p>全部都不連網、不開埠、不碰 Unity，負載很輕。</p>
+<h3>自動測試</h3>
+<pre><code># SYNOX（repo 根目錄）
+.venv\Scripts\python.exe -m pytest -q tests/test_activator.py          → 30 passed（2026-11-13 實測）
+.venv\Scripts\python.exe -m pytest -q tests/test_control_panel.py      → 主控面板 JS（這台沒有 node 會 skip）
+
+# bot（repo 根目錄）；Windows 主控台是 cp950，不設 UTF-8 會在印 ⛔ 時當掉
+set PYTHONIOENCODING=utf-8
+.venv\Scripts\python.exe -B tests\test_triggers.py                    → 67 個 PASS、最後一行「全部通過」</code></pre>
+<h3>行為驗收（照做、看結果）</h3>
+<ol>
+  <li><strong>SYNOX 快路徑</strong>：在開發用的 <code>config.json</code> 加 <code>{"id": "t1", "on": "system.heartbeat", "state": "ok", "notify": "心跳巡完了（{task}）"}</code>，重開，在主控面板按「現在巡一次」→ 巡完幾秒內收到「🔗 心跳巡完了（system.heartbeat）」；「🔗 連動」卡的最近紀錄有一筆、第 0 層。測完把 t1 拿掉。</li>
+  <li><strong>SYNOX 靜態環</strong>：加兩條互相 <code>run_task</code> 的 config 規則（a：聽任務 X、跑 Y；b：聽 Y、跑 X）→ 啟動時報「會繞回自己（無限連動）：a → b → a」。</li>
+  <li><strong>SYNOX 慢路徑</strong>：把 t1 改成 <code>"timing": "heartbeat"</code>，再按一次「現在巡一次」→ 卡上出現一件待處理；按「現在處理」→ 收到通知（或等下一次心跳，結果那句多「另外處理了 1 件留給心跳的連動」）。</li>
+  <li><strong>SYNOX 示範 pack</strong>：<code>tests/fixtures/chain_pack</code> 放進開發用的 packs 資料夾 → <code>/diarydemo_image</code> 收到一次問打卡；60 秒內再打不再問；<code>/diarydemo_image failed</code> 不問。</li>
+  <li><strong>bot 去重</strong>：同一天匯出兩次 → 只問一次；<code>/sys_triggers</code> 最近紀錄有一行 <code>blocked</code>（這個範圍跑過了）。重開 Host 後再匯出一次 → 還是不問。</li>
+  <li><strong>bot 斷路</strong>：<code>/sys_triggers</code> 顯示保險設定「最多 3 層、同一條 10 分內超過 5 次就暫停 12 小時並通知一次」。</li>
+  <li><strong>文件與程式一致</strong>：上限的預設值以 <code>src/synox/runtime/settings.py</code> 的 <code>DEFAULT_RUNTIME</code> 和 bot 的 <code>defaults/triggers.json</code> 為準；有出入就改這份文件。</li>
+</ol>
+
+<h3>主要檔案</h3>
+<div class="grid2">
+  <div class="card">
+    <h4>SYNOX</h4>
+    <ul>
+      <li><code>src/synox/runtime/activator.py</code>：規則、保險、斷路、待處理</li>
+      <li><code>src/synox/runtime/loop.py</code>：<code>_emit</code>、listeners、<code>Cause</code>、<code>caused_by</code>、<code>run_now(cause=)</code></li>
+      <li><code>src/synox/runtime/settings.py</code>：預設值、<code>parse_rule</code>、<code>find_cycle</code></li>
+      <li><code>src/synox/runtime/heartbeat.py</code>：<code>_drain</code></li>
+      <li><code>src/synox/runtime/__init__.py</code>：<code>install</code>、<code>add_rule</code>、<code>report</code></li>
+      <li><code>src/synox/runtime/web_api.py</code>：連動的 POST</li>
+      <li><code>src/synox/packs/loader.py</code>：<code>pack.on_event</code>、<code>report_status(tag=)</code></li>
+      <li><code>src/synox/sdk/author.py</code>：SDK <code>report_status(tag=)</code></li>
+      <li><code>docs/adr/0004-activator-event-driven-rules.md</code>、<code>docs/runtime-api.md</code></li>
+      <li><code>tests/test_activator.py</code>、<code>tests/fixtures/chain_pack/</code></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h4>Telegram bot</h4>
+    <p>（bot 的程式路徑都相對於它的 Python 套件根目錄 <code>src/&lt;套件&gt;/</code>；<code>docs/</code>、<code>tests/</code> 相對於 repo 根目錄。）</p>
+    <ul>
+      <li><code>core/triggers.py</code>：事件、規則、保險、斷路、存檔</li>
+      <li><code>routines/checkin_ask.py</code>：第一個動作</li>
+      <li><code>commands/trigger_commands.py</code>：<code>/sys_triggers</code>、按鈕</li>
+      <li><code>defaults/triggers.json</code>：預設規則與保險設定</li>
+      <li><code>commands/diary_commands.py</code>：<code>_emit_done</code></li>
+      <li><code>main.py</code>：<code>TriggerBus</code>、<code>bus.action</code> 的接線</li>
+      <li><code>docs/invariants.md</code>：invariant 22</li>
+      <li><code>tests/test_triggers.py</code></li>
+    </ul>
+  </div>
+</div>
+<p>SYNOX 之後合進來的 soul 帳本（ADR 0005）跟連動沒有直接關係：它沒有登記連動規則，也不靠連動觸發。之後如果要「常駐助理想記一筆 → 等擁有者審」這類流程，可以考慮用 <code>timing: heartbeat</code> 的規則接，但那是另一個決定。</p>
+
+<p class="foot">來源：SYNOX dev（merge 5792bc4，feat/activator；目前 HEAD 288ca33 已含 soul 帳本）與 Telegram bot master-init（merge 8badd62，feat/diary-image-checkin-trigger）。所有數字與行為取自 2026-11-13 的程式碼與當天重跑的測試；這份文件沒有改動兩個 repo。</p>
+
+</div>
+<p style="font:10px/1.4 ui-monospace,monospace;opacity:.5;margin:24px 16px">線上版 <a href="https://claude.ai/artifact/FAY5Jn4fSsidPhGiWeLAjB">https://claude.ai/artifact/FAY5Jn4fSsidPhGiWeLAjB</a> · 本機版 docs/artifacts/2026-11-12-activator-handoff.html · 頁面版本 <span data-stamp>8001dfcf19 · 2026-11-13</span></p>
+</body>
+</html>
