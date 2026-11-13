@@ -66,6 +66,7 @@
 | `src/synox/connect.py` | `python -m synox connect <pack>`（`Connect-Apple.bat`；要先從工具庫裝好那個工具）：照 pack.json `auth.fields` 用 getpass 問帳密，存進 `pack_secrets`（`src/synox/packs/secrets.py`，保管箱的鍵 `packs/<pack>/<field>`；跟 Web UI 工具頁「連接」表單是同一份）。帳密不經聊天：Telegram 會留紀錄、`[ROUTE]` log 印指令全文 |
 | `Setup.bat`、`setup/bootstrap.ps1` | 一鍵安裝；`Start.bat`／`Stop.bat`／`Console.bat` |
 | `tests/` | pytest；`conftest.py` 的 `make_bot` 用測試用的 packs＋真的 Vault＋`FakeAdapter`＋SDK `BotHarness`。測試期間 `loader.PACK_DIRS` 一律換成 `tests/fixtures/packs`（autouse `_test_pack_dirs`；不讀 repo 的 `packs/`），伺服器版的 make_bot 先把三個測試 pack 鎖成 core。空 host 的測試在 `tests/test_empty_host.py`。要讀工具庫的測試（`SYNOX_LIBS=<工具庫>`，沒有就跳過）：`test_empty_host` 的「工具庫每個工具打包→裝進空 host」、`test_smoke_real` 的四個服務、`test_sdk_p2_secret` 的 connector 不被 SYNOX 管 secret。connector 自己的測試在工具庫。穩定度 `stage` 的測試在 `tests/test_stage.py` |
+| `docs/` | 文件，索引在 [README.md](README.md)（新文件要登記在那裡）。產品文件是頂層的 `*.md`；`adr/` 架構決定；`handoff/` 給使用者的真機測試教學；`legacy/` 下架說明；`QuestionToUser.md` 等擁有者拍板的問答；`lab/` 實驗、研究、提案（`lab/discussions/` 設計討論、`lab/cross-repo/` 請別的 repo 做的事）。**已發佈頁面的本機副本不能搬**：`landing/`、`guide/`、`installer/`、`tutorials/`（執行時讀取）、`artifacts/`、`lab/design/`（`artifacts.json` 的 `local`、頁尾路徑、`tests/test_artifact_registry.py`） |
 
 ## Invariants
 
