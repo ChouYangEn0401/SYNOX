@@ -45,6 +45,8 @@ TEXT = {
     "not_human": "🔐 驗證碼只能由你本人在 Telegram 或 SYNOX 網頁打。",
     "recovery_here": "備用碼只能在這台電腦的 SYNOX 網頁上用。",
     "expired": "設定的時間過了，請重新按「設定手機驗證器」。",
+    "unreadable": "🔒 手機驗證器的資料現在讀不出來（保管箱打不開或壞了），為了安全先擋住需要驗證的動作。"
+                  "修好保管箱，或在這台電腦跑 python -m synox stepup reset 重新設定。",
     "already": "已經設定過手機驗證器了。",
     "unlocked": "🔓 已解鎖 {m} 分鐘。用完可以 /unlock_off 馬上鎖回去。",
     "locked_now": "🔒 驗證碼連續錯了好幾次，先鎖 15 分鐘。不是你本人在試的話，請檢查 Telegram 的登入裝置。",
@@ -65,6 +67,25 @@ SENSITIVE = {
     "/api/accounts/role": "改帳號的角色",
 }
 
+# 預設就擋（deny-by-default）：這幾個前綴底下的非 GET 都算敏感（改設定、裝工具、金鑰、背景任務、帳號、備份），
+# 除了下面明列的例外（不改任何東西、或只是丟掉一個還沒裝的上傳）。新加的路由沒列進例外就自動受保護。
+SENSITIVE_PREFIXES = ("/api/settings/", "/api/packs/", "/api/pack-secrets/", "/api/runtime/", "/api/backup",
+                      "/api/accounts/", "/api/tools/health")
+SENSITIVE_EXEMPT = ("/api/packs/discard", "/api/packs/library", "/api/settings/llm/test", "/api/settings/llm/local-advice")
+SENSITIVE_DEFAULT_LABEL = "改 SYNOX 的設定"
+
+
+def sensitive_action(method: str, path: str) -> Optional[str]:
+    """這個主機台請求要不要過 gate()：回白話的動作名，不用回 None。"""
+    if str(method).upper() == "GET" or path in SENSITIVE_EXEMPT:
+        return None
+    if path in SENSITIVE:
+        return SENSITIVE[path]
+    if any(path == p.rstrip("/") or path.startswith(p) for p in SENSITIVE_PREFIXES):
+        return SENSITIVE_DEFAULT_LABEL
+    return None
+
+
 Resp = Tuple[int, List[Tuple[str, str]], bytes]
 
 
@@ -78,6 +99,15 @@ class Refused(Exception):
     def __init__(self, result: Result):
         self.result = result
         super().__init__(result.code)
+
+
+def match_code(secret: str, code, now: float):
+    """SDK 的 totp.match 前面先擋「不是 ASCII 的數字」（"١٢٣٤٥٦".isdigit() 是 True，compare_digest 會丟 TypeError）。
+    vendor/ 不改，所以在這裡擋。回時段或 None。"""
+    text = str(code or "").strip().replace(" ", "")
+    if not text.isascii() or not text.isdigit():
+        return None
+    return totp.match(secret, text, now=now)
 
 
 def _norm_recovery(code: str) -> str:
@@ -127,15 +157,26 @@ class StepUp:
 
     # ── 小工具 ───────────────────────────────────────────────────────
 
-    def _load(self, uid: int) -> Optional[dict]:
+    def _read(self, uid: int):
+        """("ok", data)｜("unset", None)｜("broken", None)：保管箱讀不出來（或內容壞了）≠ 沒設定。"""
         try:
             data = self.store.load(int(uid))
-        except Exception as e:                     # 保管箱壞掉：當作沒設定（不讓 SYNOX 卡住），但記 log
+        except Exception as e:
             logging.error("[STEPUP] cannot read store: %s", type(e).__name__)
-            return None
+            return "broken", None
+        if data is None:
+            return "unset", None
         if isinstance(data, dict) and data.get("v") == 1 and isinstance(data.get("secret"), str):
-            return data
-        return None
+            return "ok", data
+        return "broken", None
+
+    def _load(self, uid: int) -> Optional[dict]:
+        return self._read(uid)[1]
+
+    def unreadable(self, user_id) -> bool:
+        """設定過、但現在讀不出來：**當作有設定、而且沒有人解鎖得了**（危險的動作一律擋、不能重新設定），
+        直到保管箱修好或在這台電腦跑 `python -m synox stepup reset`。"""
+        return self._read(int(user_id))[0] == "broken"
 
     def _log(self, event: str, uid: int, o=None, ok: bool = True, code: str = "", **nums) -> None:
         if self.audit is not None:
@@ -166,11 +207,11 @@ class StepUp:
     # ── 狀態 ─────────────────────────────────────────────────────────
 
     def enrolled(self, user_id) -> bool:
-        return self._load(int(user_id)) is not None
+        return self._read(int(user_id))[0] != "unset"
 
     def protects_danger(self, user_id) -> bool:
-        data = self._load(int(user_id))
-        return bool(data and data.get("protect_danger"))
+        status, data = self._read(int(user_id))
+        return status == "broken" or bool(data and data.get("protect_danger"))
 
     def unlocked(self, user_id, o) -> bool:
         return self.remaining(user_id, o) > 0
@@ -237,7 +278,7 @@ class StepUp:
             wait = self.attempts.locked(uid)
             if wait:
                 raise Refused(Result(False, "locked", TEXT["locked"].format(m=int(wait // 60) + 1)))
-            counter = totp.match(pending[0], str(code or ""), now=self.clock())
+            counter = match_code(pending[0], code, self.clock())
             if counter is None:
                 self._failed(uid, o)
                 raise Refused(Result(False, "bad", TEXT["bad"]))
@@ -273,7 +314,9 @@ class StepUp:
             return Result(False, "not_human", TEXT["not_human"])
         code = str(code or "").strip()
         with self._mu:
-            data = self._load(uid)
+            status, data = self._read(uid)
+            if status == "broken":
+                return Result(False, "unreadable", TEXT["unreadable"])
             if data is None:
                 return Result(False, "unset", TEXT["unset"])
             wait = self.attempts.locked(uid)
@@ -283,7 +326,7 @@ class StepUp:
                 if not allow_recovery:
                     return Result(False, "recovery_here", TEXT["recovery_here"])
                 return self._use_recovery(uid, data, code, o)
-            counter = totp.match(data["secret"], code, now=self.clock())
+            counter = match_code(data["secret"], code, self.clock())
             last = data.get("last_counter")
             if counter is not None and counter == last:
                 return Result(False, "replay", TEXT["replay"])
@@ -394,7 +437,8 @@ class StepUp:
         uid = int(getattr(user, "tg_id", 0) or 0)
         if not self.protects_danger(uid) or self.unlocked(uid, origin_mod.current()):
             return None
-        body = json.dumps({"error": f"「{SENSITIVE.get(action, action)}」要先解鎖。", "code": "stepup"},
+        label = SENSITIVE.get(action) or (SENSITIVE_DEFAULT_LABEL if str(action).startswith("/") else str(action))
+        body = json.dumps({"error": f"「{label}」要先解鎖。", "code": "stepup"},
                           ensure_ascii=False).encode("utf-8")
         return 403, [("Content-Type", "application/json; charset=utf-8"), ("Cache-Control", "no-store")], body
 
@@ -447,7 +491,7 @@ class SdkStepUp:
     def check(self, code: str, factor: str = "A") -> bool:
         data = self._hub._load(self._hub.owner_id)
         return factor == "A" and data is not None and \
-            totp.match(data["secret"], code, now=self._hub.clock()) is not None
+            match_code(data["secret"], code, self._hub.clock()) is not None
 
     def drop(self, tg_id: int) -> bool:
         return self._hub.lock(tg_id, origin_mod.current())

@@ -103,21 +103,30 @@ def redact_in_logs(command: str) -> None:
     install_log_redaction()
 
 
+def _ascii_digits(text: str) -> bool:
+    """只收 0-9（"²"、"١" 的 isdigit() 也是 True，int() 卻會丟例外）。"""
+    return bool(text) and text.isascii() and text.isdigit()
+
+
 def number(value: str) -> Optional[str]:
+    """一般的數字：只收 ASCII、有限的數（nan、inf、1e999 都不收）。"""
+    import math
+    text = value.replace(",", "").strip()
     try:
-        float(value.replace(",", ""))
+        if not text.isascii() or not math.isfinite(float(text)):
+            return "要是數字"
     except ValueError:
         return "要是數字"
     return None
 
 
 def positive_int(value: str) -> Optional[str]:
-    return None if value.isdigit() and int(value) > 0 else "要是正整數（例如 1）"
+    return None if _ascii_digits(value) and int(value) > 0 else "要是正整數（例如 1）"
 
 
 def hhmm(value: str) -> Optional[str]:
     parts = value.split(":")
-    if len(parts) == 2 and all(p.isdigit() for p in parts) and 0 <= int(parts[0]) < 24 and 0 <= int(parts[1]) < 60 \
+    if len(parts) == 2 and all(_ascii_digits(p) for p in parts) and 0 <= int(parts[0]) < 24 and 0 <= int(parts[1]) < 60 \
             and len(parts[1]) == 2:
         return None
     return "要是 HH:MM（例如 08:00）"
@@ -126,7 +135,7 @@ def hhmm(value: str) -> Optional[str]:
 def amount(value: str) -> Optional[str]:
     """金額：大於 0、最多兩位小數、不超過十億（可以有千分位逗號）。"""
     text = value.replace(",", "").strip()
-    if re.match(r"^\d{1,10}(\.\d{1,2})?$", text) and 0 < float(text) <= 1_000_000_000:
+    if re.match(r"^[0-9]{1,10}(\.[0-9]{1,2})?$", text) and 0 < float(text) <= 1_000_000_000:
         return None
     return "要是金額（例如 120 或 99.5）"
 
@@ -134,7 +143,7 @@ def amount(value: str) -> Optional[str]:
 def iso_date(value: str) -> Optional[str]:
     from datetime import date
     try:
-        if re.match(r"^\d{4}-\d{2}-\d{2}$", value.strip()):
+        if re.match(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$", value.strip()):
             date.fromisoformat(value.strip())
             return None
     except ValueError:
