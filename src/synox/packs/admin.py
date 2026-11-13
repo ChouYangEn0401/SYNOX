@@ -274,10 +274,27 @@ TRUST_TEXT = {pack_lock.CORE: "核心（core）：信得過，跟出廠的一樣
 def scope_of(m: Manifest) -> dict:
     """安裝報告的「在哪裡用、資料屬於誰、信任」那一段（trust 由擁有者在報告上選，預設 third-party）。"""
     surfaces = list(m.surfaces)
-    return {"surfaces": surfaces, "surfaces_text": SURFACE_TEXT["channel" if "channel" in surfaces else "dm"],
+    extra = {}
+    if m.callers or m.stepup:                      # 範圍（ADR 0025 §3）：有寫才多這幾欄（沒寫的工具報告跟以前一樣）
+        extra = {"callers": {k: list(v) for k, v in m.callers.items()}, "stepup": list(m.stepup),
+                 "callers_text": callers_text(m)}
+    return {**extra, "surfaces": surfaces, "surfaces_text": SURFACE_TEXT["channel" if "channel" in surfaces else "dm"],
             "data": m.data, "data_text": DATA_TEXT.get(m.data, m.data), "data_declared": m.data_declared,
             "trust_choices": [{"value": t, "text": TRUST_TEXT[t]} for t in pack_lock.TRUSTS],
             "trust_default": pack_lock.DEFAULT_TRUST}
+
+
+CALLER_WORDS = {"human": "你本人", "remote": "手機入口", "ai": "AI", "schedule": "排程", "system": "SYNOX 的背景工作"}
+
+
+def callers_text(m: Manifest) -> str:
+    """範圍的白話：「/money_export 只收你本人；/money_rmall 一定要先解鎖」。沒寫回 ""。"""
+    parts = []
+    for name, callers in sorted(m.callers.items()):
+        parts.append(f"/{m.group}_{name} 只收{'、'.join(CALLER_WORDS.get(c, c) for c in callers)}")
+    for name in m.stepup:
+        parts.append(f"/{m.group}_{name} 一定要先用手機驗證器解鎖")
+    return "；".join(parts)
 
 
 def _trust(trust) -> str:
@@ -559,6 +576,8 @@ def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
                    "那台伺服器做什麼掃描看不到。只會用上面列的工具，effect 照這份宣告（不照伺服器自己說的）。")
     elif m.mcp_stdio:
         out.append("這是 MCP（stdio）pack：會在這台電腦上開一個長駐的子程序跑它的 MCP 伺服器。")
+    if m.callers or m.stepup:
+        out.append("它自己收緊了範圍（SYNOX 執行時檢查）：" + callers_text(m) + "。")
     if m.access == "everyone":
         out.append("access 是 everyone：伺服器版裡任何傳訊息給 bot 的人都用得到。")
     if "channel" in m.surfaces:
