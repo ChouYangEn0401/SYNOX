@@ -100,6 +100,13 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           & $env:PY scripts/prepublish_check.py --worktree-only
 
+      - name: Static check of the installer script (12 languages, pages, tasks, texts)
+        env:
+          PY: ${{ steps.py.outputs.python-path }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          & $env:PY scripts/installer_ci.py check-iss
+
       - name: Download pinned inputs and verify sha256
         env:
           PY: ${{ steps.py.outputs.python-path }}

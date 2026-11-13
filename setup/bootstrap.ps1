@@ -104,10 +104,24 @@ function Show-SetupIntro {
     foreach ($key in @('intro_1', 'intro_2', 'intro_3')) { Write-Host "        - $(Tr $key)" }
 }
 
+function Test-FromExeInstaller {
+    # .exe 安裝程式（setup/installer/synox.iss）已經問過建議／自訂，結果寫在 installer-choices.json（synox.wizard.logic.installer_choices）
+    try {
+        $data = Get-Content -LiteralPath (Join-Path $Root 'installer-choices.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        return ($data.source -eq 'exe-installer')
+    } catch { return $false }
+}
+
 function Read-SetupPlan([bool]$GoCustom) {
     # 建議（按 Enter）＝只準備好 SYNOX＋入門教學、開機自動啟動；Claude Code 和全部工具都不裝（工具看完教學自己挑）。
     # 自訂的預設值跟建議一樣：一路按 Enter 結果相同。
     $plan = @{ Custom = $false; Autostart = $true; ClaudeCode = $false; AllTools = $false }
+    if ($FromExe) {
+        # .exe 裝的：不再問一次。開機啟動、Claude Code 安裝程式已經照使用者選的做了；「全部官方工具」由精靈完成頁照
+        # installer-choices.json 裝。這裡全部不動（Autostart 也關掉，免得文字版再放一個 SYNOX.cmd 進啟動資料夾）。
+        $plan.Autostart = $false
+        return $plan
+    }
     if (-not (Test-Interactive)) { return $plan }
     if (-not $GoCustom) {
         Write-Host ''
@@ -335,7 +349,8 @@ function Install-WithWinget {
 try {
     $others = @(Find-OtherPythons)
     Clear-PythonEnv
-    if (-not $UseSystemPython) {
+    $FromExe = Test-FromExeInstaller
+    if (-not $UseSystemPython -and -not $FromExe) {
         Show-SetupIntro
         if ($others.Count) { Say (Tr 'env_note' ($others -join ', ')) }
     }

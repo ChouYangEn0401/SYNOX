@@ -111,7 +111,7 @@ STRINGS = {
     "status_add_channel_later": "Haz doble clic en Setup.bat más tarde para volver a ejecutar el asistente y conectar Telegram/Discord.",
     "status_bot_head": "✅ Todo listo, el bot está en marcha.",
     "status_web_head": "✅ Todo listo, SYNOX está en marcha (aún sin Telegram/Discord).",
-    "status_no_tools": "🧰 SYNOX viene sin herramientas (gastos, notas, recordatorios… se instalan aparte): consigue los archivos .synoxpack de la biblioteca de herramientas (SYNOX_Libs) y haz doble clic en uno o súbelo en la interfaz web, en Configuración → Instalar. Pregunta a quien te dio SYNOX dónde está la biblioteca.",
+    "status_no_tools": "🧰 Siguiente: haz el tutorial una vez para aprender a hablar con SYNOX y luego elige las herramientas que necesites (gastos, notas…): la biblioteca oficial (SYNOX_Libs) en Configuración de la interfaz web, o haz doble clic en un archivo .synoxpack.",
     "status_can_close": "Puedes cerrar esta ventana.",
     "no_window": "❌ No se puede abrir una ventana ({e}). Copia config.example.json a config.json y rellénalo a mano.",
     "llm_local": "Local model (this computer or one on your home network)",
@@ -124,4 +124,9 @@ STRINGS = {
     "llm_local_advice_done": "Options: {options}. Below {least} SYNOX's prompt gets cut off.",
     "llm_local_ok": "✅ Model found and the settings look sane (only model info was read; the model was not loaded).",
     "err_local_model": "Enter a model name (for Ollama, a name shown by `ollama list`, e.g. qwen3.5:9b).",
+    "finish_tutorial": "📘 ¿Primera vez? Haz primero el tutorial corto (unos minutos) y luego elige las herramientas que necesites.",
+    "finish_tutorial_how": "En SYNOX, escribe {cmd} (o «start tutorial» en el chat).",
+    "all_tools_running": "⏳ Instalando todas las herramientas oficiales (lo marcaste en el instalador). Puede tardar unos minutos; no cierres esta ventana…",
+    "note_all_tools": "Todas las herramientas oficiales",
+    "all_tools_failed": "algunas no se instalaron; añádelas luego desde la biblioteca de herramientas en Configuración (registro: data/logs/all-tools.log)",
 }
