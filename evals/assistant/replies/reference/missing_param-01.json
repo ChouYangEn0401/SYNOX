@@ -1,0 +1,11 @@
+{
+  "case": "missing_param-01",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "text": "看牙醫是哪一天、幾點呢？告訴我日期和時間就可以加。"
+      }
+    ]
+  ]
+}

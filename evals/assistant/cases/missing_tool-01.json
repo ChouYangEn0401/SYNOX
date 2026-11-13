@@ -1,0 +1,34 @@
+{
+  "id": "missing_tool-01",
+  "category": "missing_tool",
+  "split": "tune",
+  "title": "要訂高鐵票但沒有訂票的工具：老實說做不到（system__cannot_do），不能拿記事或行程硬做",
+  "turns": [
+    "幫我訂明天早上八點台北到高雄的高鐵票"
+  ],
+  "tools": [
+    {
+      "name": "note__add"
+    },
+    {
+      "name": "calendar__add"
+    },
+    {
+      "name": "weather__forecast"
+    }
+  ],
+  "expect": {
+    "cannot_do": true,
+    "must_not_call": [
+      "note__add",
+      "calendar__add"
+    ],
+    "max_steps": 1
+  },
+  "soft": [
+    {
+      "name": "說明清楚",
+      "rubric": "說清楚為什麼做不到、給一個真的可行的替代（例如官網或 App 訂票）"
+    }
+  ]
+}

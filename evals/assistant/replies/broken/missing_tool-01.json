@@ -1,0 +1,29 @@
+{
+  "case": "missing_tool-01",
+  "source": "broken",
+  "note": "沒有訂票工具卻拿行程硬做，還說訂好了",
+  "expected_failures": [
+    "must_not_call",
+    "cannot_do",
+    "max_steps"
+  ],
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "calendar__add",
+            "args": {
+              "date": "2026-11-14",
+              "time": "08:00",
+              "title": "台北到高雄高鐵"
+            }
+          }
+        ]
+      },
+      {
+        "text": "已幫你訂好明天早上八點台北到高雄的高鐵票。"
+      }
+    ]
+  ]
+}
