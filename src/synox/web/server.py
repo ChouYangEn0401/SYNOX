@@ -67,6 +67,18 @@ from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore
 from synox.web.tokens import LoginTokens, Session, Sessions, digest
 
 
+_UNLOCK_LINE = re.compile(r"^(/(?:unlock|sudo)(?:_on)?)(?:@\w+)?\s+\S.*$", re.IGNORECASE | re.DOTALL)
+_CODE_ONLY = re.compile(r"^\d{3} ?\d{3}$")
+
+
+def mask_code(text: str) -> str:
+    """`/unlock 123456` → `/unlock ······`；只有 6 位數的一則 → `······`。"""
+    m = _UNLOCK_LINE.match(text)
+    if m:
+        return m.group(1) + " ······"
+    return "······" if _CODE_ONLY.match(text) else text
+
+
 def web_origin(session: Session) -> "guard_origin.Origin":
     """主機台的來源：surface＝"web:"＋這個登入的代號（防偽造 token 的雜湊前 16 碼；兩個登入不一樣，不洩漏 cookie）。"""
     return guard_origin.Origin("web", int(session.tg_id), surface="web:" + digest(session.csrf)[:16])
@@ -741,7 +753,7 @@ class WebUI:
             return _err(400, f"太長了（最多 {MAX_TEXT} 字）。")
         if (self._chat(user, chat_id) or {}).get("archived"):
             return _err(409, "這段對話封存了：先還原才能繼續。")
-        self.chats.append(user.tg_id, chat_id, "me", text)
+        self.chats.append(user.tg_id, chat_id, "me", mask_code(text))      # 驗證碼不進對話紀錄（ADR 0025 §5.3）
         if chat_id == MOTHER_CHAT:
             return self._send_mother(user, text)
         inbound = Inbound(WEB, user.tg_id, user.tg_id, text, username=user.username or "web", sent_at=time.time())
