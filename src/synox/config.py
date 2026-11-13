@@ -226,13 +226,16 @@ def parse_llm_extras(llm: dict) -> dict:
 
 
 def parse_harness_extras(llm: dict) -> dict:
-    """小模型 harness 的設定（每個 kind 都收；沒寫＝不出現、照預設）：max_tools（auto｜0｜1～200，docs/adr/0014）、
+    """小模型 harness 的設定（每個 kind 都收；沒寫＝不出現、照預設）：prompt_tail（auto｜on｜off，docs/adr/0017、0018）、
+    max_tools（auto｜0｜1～200，docs/adr/0014）、
     context_size（0＝不裁；kind=local 另由 llm/local.py 檢查）與 tool_result_chars（auto｜0｜字數，docs/adr/0015、0016）。
     寫錯＝ConfigError。"""
-    from synox.agent import context, toolpick
+    from synox.agent import auto, context, toolpick
     from synox.llm.local import parse_context
     out = dict(llm)
     try:
+        if "prompt_tail" in out:
+            out["prompt_tail"] = auto.parse_switch(out["prompt_tail"], "prompt_tail")
         if "max_tools" in out:
             out["max_tools"] = toolpick.parse_max_tools(out["max_tools"])
         if "tool_result_chars" in out:

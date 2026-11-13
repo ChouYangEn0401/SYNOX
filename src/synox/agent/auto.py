@@ -51,3 +51,17 @@ def switch_on(llm: Optional[dict], name: str, adapter) -> bool:
     except ValueError:
         return False
     return resolve(mode, adapter)
+
+
+def doctor_line(llm: Optional[dict], adapter) -> str:
+    """doctor 的一行：小模型 harness 這幾個設定現在實際是什麼（docs/adr/0014～0017）。"""
+    from synox.agent import context, toolpick
+    tools = toolpick.limit_for(llm, adapter)
+    ctx = context.context_limit(llm)
+    cap = context.result_chars(llm)
+    tail = switch_on(llm, "prompt_tail", adapter)
+    return ("小模型 harness：每輪工具上限 " + (str(tools) if tools else "不限")
+            + "；context 預算 " + (f"{ctx}（llm.context_size）" if ctx else "不裁（沒設 llm.context_size）")
+            + "；工具結果上限 " + (f"{cap} 字" if cap else "不限")
+            + "；本輪規則與覆誦 " + ("開" if tail else "關")
+            + ("（auto：本地／私網來源）" if weak_source(adapter) else ""))
