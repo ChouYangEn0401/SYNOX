@@ -150,16 +150,48 @@ def _heartbeat_line(config) -> str:
     return head + "\n    上一次：還沒巡過（SYNOX 跑起來之後才會巡）"
 
 
+def _local_lines(adapter, offline: bool, out) -> int:
+    """本地模型（docs/adr/0007）：設定、網址提醒；不是 --offline 時唯讀探測（/api/tags、/api/show，不載入模型）
+    ＋context 建議。回問題數。"""
+    from synox.llm.local import report_lines, url_warning
+    out(f"• AI：{adapter.name}　{adapter.root}　context_size {adapter.context_size or '0（伺服器預設）'}　"
+        f"無進展逾時 {int(adapter.timeout)} 秒（還在回就不砍）、總上限 {int(adapter.max_total)} 秒"
+        + ("" if adapter.supports_tools else "　文字協定（tools=false）"))
+    if url_warning(adapter.base_url):
+        out("  " + url_warning(adapter.base_url))
+    if offline:
+        out("  （--offline：沒有探測伺服器）")
+        return 0
+    report = adapter.inspect()
+    for line in report_lines(report):
+        out("  " + line)
+    if report.get("reachable") and report.get("model_found"):
+        from synox.llm import local_advice
+        advice = local_advice.from_report(report, max_tokens=adapter.max_tokens, server=adapter.server)
+        out(f"  context 建議（估算；沒量到這台實際的提示，用 {advice['prompt_tokens']} tokens 估）："
+            + "／".join(local_advice.option_label(r) for r in advice["options"]))
+        if adapter.server == "ollama" and adapter.context_size and advice["options"] and \
+                adapter.context_size < advice["min_context"]:
+            out(f"  ❌ context_size {adapter.context_size} 小於 {advice['min_context']}：SYNOX 的提示會被截斷")
+            return 1 + len(report["problems"])
+    return len(report["problems"])
+
+
 def _keep_awake_line(config) -> str:
     """保持清醒（docs/adr/0006）：開關、熄螢幕設定、這個系統有沒有作用。"""
+    from synox.runtime.keepawake import MS_NOTE, NOTICE, TAGLINE, WinPower
     ka = (getattr(config, "runtime", None) or {}).get("keep_awake") or {}
     if not ka.get("enabled", False):
-        return "  保持清醒：關（runtime.keep_awake.enabled=true 或網頁主控面板打開，電腦才不會睡著）"
+        return ("  保持清醒：關（預設）。" + TAGLINE + "要打開：網頁設定頁「保持清醒」或 runtime.keep_awake.enabled=true。"
+                f"\n    ℹ️ {NOTICE}")
     if sys.platform != "win32":
         return "  保持清醒：開，但只有 Windows 有作用，這個系統什麼都不會做"
     minutes = ka.get("screen_off_after_min", 0)
     screen = f"閒置 {minutes} 分鐘後請 Windows 關螢幕" if minutes else "螢幕照 Windows 電源計畫（動滑鼠或鍵盤就亮）"
-    return f"  保持清醒：開，電腦不會自己睡著；{screen}（闔上筆電蓋、手動睡眠、Windows Update 重開機擋不住）"
+    line = f"  保持清醒：開，電腦不會自己睡著；{screen}\n    ℹ️ {NOTICE}"
+    if WinPower().modern_standby():
+        line += f"\n    ⚠️ {MS_NOTE}"
+    return line
 
 
 def _activator_line(config) -> str:
@@ -287,6 +319,8 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
             if adapter is None:
                 out(f"• AI：❌ 不認得的 kind {kind}")
                 problems += 1
+            elif kind == "local":
+                problems += _local_lines(adapter, offline, out)
             elif offline:
                 out(f"• AI：{adapter.name}（--offline：沒有實際測試）")
             else:

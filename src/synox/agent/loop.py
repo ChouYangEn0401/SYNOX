@@ -196,6 +196,21 @@ class AgentLoop:
             lines += ["", textproto.system_snippet(tools)]
         return "\n".join(lines)
 
+    def prompt_chars(self, user, *, native: bool = True) -> int:
+        """這個人一輪的固定提示有多長（字元）：系統提示＋全部工具規格（JSON）＋soul.md 的上限。
+        本地模型的 context 建議用（synox/llm/local_advice.py：÷ 2.5 估 token）；不叫 AI、不寫 log。"""
+        import json as _json
+        from synox.runtime.soul import PROMPT_MAX_CHARS as PROMPT_LIMIT
+        skills = skills_mod.from_packs(self.visible_packs(user))
+        chat_id = getattr(user, "tg_id", 0)
+        tools = self.tools_for(user, chat_id)
+        if skills:
+            tools.append(skills_mod.read_tool_spec(skills))
+        text = self.system_prompt(skills, tools, native, user, "0" * 16)
+        specs = _json.dumps([{"name": t.name, "description": t.description, "parameters": t.parameters}
+                             for t in tools], ensure_ascii=False) if native else ""
+        return len(text) + len(specs) + PROMPT_LIMIT + 200        # 200：分隔符與 soul 段的標題
+
     def soul_block(self, user, chat_id: int, nonce: str, query: str = "") -> str:
         """soul.md 放進對話助理的系統提示（擁有者 2026-11-12 決定 Q7，docs/adr/0002）。
         只有**擁有者**、只在**私訊／網頁**（chat_id 就是他自己）；唯讀（`SoulStore.for_prompt`：拿掉註解、沒寫東西＝""、
@@ -316,6 +331,7 @@ class AgentLoop:
         messages = [Message(SYSTEM, prompt)] + \
             list(self.history[self.memory_key(chat_id, user)]) + [Message(USER, text)]
         typing = getattr(api, "typing", None)
+        warned: List[str] = []
         for step in range(self.max_steps):
             stop = self.out_of_budget(user) if step else ""
             if stop:
@@ -334,6 +350,9 @@ class AgentLoop:
                 api.send_message(chat_id, f"⚠️ AI 出錯了：{type(e).__name__}: {e}")
                 return
             self._record(user, reply.usage)
+            for w in getattr(reply, "warnings", None) or []:
+                if w not in warned:
+                    warned.append(w)
             calls, said = list(reply.tool_calls) if native else [], reply.text or ""
             if not native:
                 call, rest = textproto.parse(said)
@@ -342,6 +361,8 @@ class AgentLoop:
             if not calls:
                 answer = self.say(api, chat_id, said.strip() or "（AI 沒有說話）")
                 self.remember(chat_id, text, answer, user)
+                if warned:                       # 本地模型的提醒（例如提示很可能被截斷）：另一則、不進對話記憶，不靜默
+                    api.send_message(chat_id, "⚠️ AI 來源的提醒：" + warned[0])
                 return
             messages.append(Message(ASSISTANT, said if native else reply.text, tool_calls=calls if native else []))
             for call in calls:

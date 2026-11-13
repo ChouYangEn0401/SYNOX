@@ -1,5 +1,33 @@
 # Changelog
 
+## 未發佈（branch feat/local_llm_platform：本地模型是內建能力、context 建議、無進展逾時；保持清醒加固）
+
+### 新增
+- **本地模型**（`llm.kind = "local"`，`src/synox/llm/local.py`，設計 [ADR 0007](docs/adr/0007-local-llm-platform.md)）：SYNOX 內建，
+  不需要金鑰、不需要 ntu_easy_llm。`server`：`ollama`（預設，原生 `/api/chat`，`num_ctx`、`think: false`、原生工具）｜
+  `vllm`｜`lmstudio`｜`other`（OpenAI 相容 `/v1/chat/completions`）。真的串流（Ollama NDJSON、SSE，工具呼叫的增量會組回來）。
+- **逾時改成「無進展」**：`llm.timeout`（預設 **450 秒**＝以前 90 秒的 5 倍）是「多久完全沒有新的字」，模型只要還在回就不砍；
+  另有很寬的總上限 `llm.max_total_timeout`（預設 1800 秒）。錯誤訊息會說是哪一種。
+- **context-size 設定與建議**：`llm.context_size`（0＝伺服器預設；512～1048576）。建議選項 4096～131072，依這台可用的記憶體、
+  模型權重大小與 KV cache 估出「建議／吃緊／可能撐不住」，並標出「會截斷 SYNOX 提示」的選項（`src/synox/llm/local_advice.py`；
+  **都是估算**，偏保守）。文字版 `synox init`、視窗精靈、網頁設定頁（「看建議」）、`doctor` 都有。
+- **截斷不再靜默**：提示用掉 context 的 97% 以上＝提醒（log、對話裡另一則、設定頁），不再讓 Ollama 悄悄丟掉系統提示。
+- **唯讀的「測一下」**：本地模型只讀模型清單與中繼資料（不載入模型、不送對話），說模型在不在、最大 context、設定合不合理；
+  模型不在會提示 `ollama pull <名字>`。
+- `synox init` 多 `--llm local`、`--server`、`--context-size`；網頁新 API `POST /api/settings/llm/local-advice`（[runtime-api.md](docs/runtime-api.md)）。
+- **保持清醒加固**（[ADR 0006 附記](docs/adr/0006-keep-awake-screen-may-sleep.md)）：同時請求 `PowerRequestExecutionRequired`；
+  偵測「現代待命」（Modern Standby）機型並說明效果有限；新的排查文件 [keep-awake-troubleshooting.md](docs/keep-awake-troubleshooting.md)
+  （`powercfg /requests`、`/sleepstudy`、網路卡省電、DAM）。網頁**設定頁**新增「保持清醒」卡片（開關＋閒置幾分鐘關螢幕）。
+  打開它的每個地方都講明：**會覆蓋 Windows 電源選項的「睡眠」設定**；螢幕仍可變暗／關閉；闔蓋、手動睡眠、低電量、Windows Update 重開機擋不住。
+
+### 改變
+- `openai_compat` 現在真的會用 `llm.timeout`（以前沒傳下去）；沒寫時網址是這台或家裡網路＝450 秒，其他維持 90 秒。
+- `pyproject.toml` 的 `llm` 組改成 ntu_easy_llm 0.5.0 官方 release wheel 的網址；`setup/bootstrap.ps1` 連網安裝那一條改裝 `-e .[llm]`。
+- `Reply` 多 `warnings`（給人看的提醒，不是錯誤）。
+
+### 不變
+- 保持清醒仍然**預設關**（有測試鎖住）；SYNOX 不修改任何電源設定。雲端 AI 來源的行為不變。
+
 ## 未發佈（branch feat/screen_protect_awaker：保持清醒——電腦不睡著、螢幕可以熄）
 
 ### 新增

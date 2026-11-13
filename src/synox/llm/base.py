@@ -33,7 +33,9 @@ class ToolCall:
 
 @dataclass
 class Message:
-    role: str                                        # system | user | assistant | tool
+    # 之後加圖片（VLM，見 docs/adr/0007「不擋 VLM」）：加一個有預設值的欄位（例如 images），各 adapter 的轉換函式各自處理；
+    # 不要把圖塞進 content。
+    role: str                                       # system | user | assistant | tool
     content: str = ""
     tool_calls: List[ToolCall] = field(default_factory=list)    # assistant 要呼叫的工具（原生 tool-calling）
     tool_call_id: str = ""                           # role=tool：回的是哪一個呼叫
@@ -45,6 +47,7 @@ class Reply:
     text: str = ""
     tool_calls: List[ToolCall] = field(default_factory=list)
     usage: Dict[str, int] = field(default_factory=dict)   # {"input": n, "output": n}
+    warnings: List[str] = field(default_factory=list)     # 給人看的提醒（例如本地模型的提示很可能被截斷）；不是錯誤
 
 
 class LLMError(Exception):

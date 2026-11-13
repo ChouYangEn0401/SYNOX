@@ -33,7 +33,7 @@
 | `src/synox/sandbox.py` | 運行空間（PERM-7）：`Sandbox.wrap(argv, env, cwd, grants)`、`Grants`、後端 none／jobobject／bwrap／systemd／container（每個 pack 自己的，S1）／appcontainer（介面）、`set_factory`／`sandbox_for`、`box_for`／`view_for`／`set_engine_which`／`set_container_factory`、`grants_for`、`data_scope`（推斷集中處）、`trust_of`、`restricted_reason`、`doctor_line`；jobobject 的 launcher（`python -I sandbox.py jobobject …`） |
 | `src/synox/discord/scope.py` | bot 範圍報告：`/bot_status`（`install`）、`report`／`lines`（doctor 也用）、`REASONS`（不會出現的原因，可擴充）、`channel_line`（頻道型的收訊設定） |
 | `src/synox/discord/` 其他 | `bots.py`（BotSpec、設定檢查；頻道型 `guilds`／`role_map`／`trigger`／`rate_per_minute`）、`events.py`（`parse_event` 私訊、`parse_room_event` 頻道）、`rest.py`（`DiscordChannel`）、`gateway.py`（`INTENTS`／`CHANNEL_INTENTS`、`on_ready`）、`__init__.py`（`install`、`DiscordEntry`、`RoomEntry`／`RoomReply`／`RoomThrottle`、`MultiHome`、配對）。見 [discord.md](discord.md) |
-| `src/synox/llm/` | `base.py`（`ChatAdapter`、`Message`、`Reply`、`ToolCall`、`ToolSpec`）、`easy_llm.py`（openai／anthropic／gemini／openai_compat，經 `ntu_easy_llm.agent`，lazy import）、`claude_code`、`fake`、`textproto`、`factory.make_adapter` |
+| `src/synox/llm/` | `base.py`（`ChatAdapter`、`Message`、`Reply`（含 `warnings`）、`ToolCall`、`ToolSpec`）、`easy_llm.py`（openai／anthropic／gemini／openai_compat，經 `ntu_easy_llm.agent`，lazy import）、`claude_code`、`local.py`（kind=local 本地模型，SYNOX 內建、只用 urllib：`LocalAdapter`（ollama 的 `/api/chat` NDJSON、vllm／lmstudio／other 的 `/v1/chat/completions` SSE、無進展逾時＋總上限、截斷提醒）、`validate`（config 檢查）、`host_kind`／`url_warning`、唯讀的 `inspect`／`probe`、`report_lines`；[adr/0007](adr/0007-local-llm-platform.md)）、`local_advice.py`（context-size 建議：純函式 `advise`、`kv_bytes_per_token`、`system_ram`、`from_report`、`lines`、`option_label`）、`fake`、`textproto`、`factory.make_adapter`（`opener=` 給測試；`easy_timeout`：`llm.timeout`，openai_compat 指到 loopback／私網預設 450 秒） |
 | `src/synox/vault/` | `vault.py`（Fernet＋每檔 scrypt、`*.json.enc`；`for_user(id)`＝伺服器版每人的保管箱，HKDF 衍生）、`keyring.py`（DPAPI 包住主金鑰 `data/.synox.key`） |
 | `src/synox/packs/` | `manifest.py`（pack.json v2 檢查＝第 1 關；`surfaces`／`data`（`_check_scope`、`default_data`、`cli_templates`）；`requires.synox`＝`synox_problem`、`requires.env`→`secret_env_names`、`fields[].kind`、`auth.fields`；工具頁用的 `category`、穩定度 `stage`（`STAGES`、`stage_label`／`stage_text`，沒寫＝alpha；/help 標題用 `loader.help_title`）、strict 時的說明欄位型別 `_field_doc_problems`、提醒 `doc_warnings`）、`secrets.py`（pack 的 secret：`PackSecrets`、`managed_fields`）、`scan.py`（ast 靜態掃描＝第 2 關；`_check_data_python`／`_check_data_cli`＝data 宣告的規則；`ImportContext`＝import 的來源、`_fold`＝拼出來的字串，審查 C #C5）、`lock.py`（`data/packs.lock`＝第 3 關；`trust`、`trust_of`）、`loader.py`（掃 `packs/`（＋`packs.dirs`）、`Pack`／`PackStore`／`store.of(user)`、`group_policy`、`surface_policy`（沒有 channel＝private_only）、`shared_write_admin`、cli 代換與 `build_argv`）、`kit.py`（照位置填的指令）、`envs.py`（`runtime.python／node = "auto"`：`Builder.plan`／`build(m, jobs, on_done)` 建 `data/envs/<pack>/`、`python_of`／`node_of`／`node_env` 給 loader 代換、`env_problem` 給 loader／doctor；`set_factory` 換實作） |
 | `src/synox/packs/mcp.py` | kind=mcp stdio（P4a）：`Session`（JSON-RPC over stdio、讀執行緒、`request`／`notify`）、`handshake`（initialize／initialized／tools/list）、`spawn`（Windows Job Object）、`McpPool`（每個 key 一個長駐程序、`reap()` 閒置回收、`close_all`；`clock`／`spawner` 可換）、`Scope`／`PerUserScope`／`SharedScope`（介面）、`shape_of`（inputSchema → fields）、`to_arguments`、`needs_confirm_of`、`render_result`、快取 `data/mcp/<pack>.tools.json`、`doctor_notes`、`Backend`／`StdioBackend`（連法）、`redact`、`install`（loader 叫，兩種連法共用） |
@@ -237,6 +237,15 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     不要在任務裡自己叫下一個任務：連動規則才有循環檢查、層數與次數上限、斷路器。交給 pack 程式的事件，別人的任務**沒有訊息**。
 
 另外：
+- **本地模型（kind=local，[adr/0007](adr/0007-local-llm-platform.md)）**：`llm.timeout` 是**無進展**逾時（每次 socket 讀取；
+  0＝450 秒），`llm.max_total_timeout` 是很寬的總上限（1800）——不要改回「總時限」，CPU 上的模型一直在吐字時不能砍。
+  `inspect`／`probe`／建議**只能唯讀**（`/api/tags`、`/api/show`、`/api/ps`、`/v1/models`），絕不送 chat／generate（不載入模型）。
+  截斷一律大聲說（`Reply.warnings` → AgentLoop 另送一則提醒、不進對話記憶；`adapter.last_warning` → 設定頁）。
+  訊息轉換只在 `local.ollama_message`／`openai_message`（VLM 之後加圖片的地方）。**測試一律用假 opener**（`tests/test_local_llm.py`）：
+  不 listen、不連網、不開 Ollama。
+- **保持清醒（`runtime/keepawake.py`，[adr/0006](adr/0006-keep-awake-screen-may-sleep.md)）預設關**；打開它的每個地方都要顯示
+  `keepawake.NOTICE`（會覆蓋 Windows 的「睡眠」設定）。測試一律假電源（`FakePower`／假 kernel32），不碰真的電源請求；
+  SYNOX 不修改任何電源設定（排查步驟 [keep-awake-troubleshooting.md](keep-awake-troubleshooting.md) 只叫人自己看）。
 - **⏰ 提醒（系統）＝系統指令，不是 pack**（擁有者 2026-11-12，QuestionToUser QL5）：`/remind_add`／`/remind_list`／`/remind_rm` 由
   `schedule.install_system_remind` 在 `loader.load_all` **之前**掛，群組名 `remind` 登記在 `app.extras[loader.SYSTEM_GROUPS_KEY]`；
   pack 宣告 `group: remind`（例如工具庫的舊 remind 工具）＝`loader.system_group_problem` → 狀態 `incompatible`＋一句「不需要了、去移除」，不載入。
@@ -310,18 +319,21 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 
 - 用 API 金鑰的四種 kind（`openai`、`anthropic`、`gemini`、`openai_compat`）都經 `ntu_easy_llm.agent.chat`（0.5.0 起才有；舊的 `ask*` 沒有工具呼叫）。
   `claude_code`、`fake`、`none` 不需要它。`easy_llm.py` 用到時才 import；沒裝 → `LLMError("還沒安裝 ntu_easy_llm：…")`。
-- **現在（還沒發佈）**：`pyproject.toml` 的選用組 `llm = ["ntu_easy_llm>=0.5.0"]`；開發機手動裝 wheel：
-  `.venv\Scripts\python.exe -m pip install <你的資料夾>\ntu_easy_llm-0.5.0-py3-none-any.whl`
-  （它會一起裝 openai、anthropic、google-genai 三個 SDK——那是舊 API 要的；SYNOX 用的 `agent` 只用標準函式庫打 HTTP）。
-- **ntu_easy_llm 發佈 GitHub release 之後**：把 `pyproject.toml` 那一行換成（pip 的直接網址寫法）
+- **已發佈 0.5.0 GitHub release**（2026-11-13）：`pyproject.toml` 的選用組是官方 release wheel 的直接網址
 
   ```
   llm = ["ntu_easy_llm @ https://github.com/ChouYangEn0401/ntu_easy_llm/releases/download/ntu_easy_llm-0.5.0/ntu_easy_llm-0.5.0-py3-none-any.whl"]
   ```
 
-  並把 `setup/bootstrap.ps1` 的 `pip install -e $Root` 改成 `pip install -e "$Root[llm]"`，一般使用者裝完就有。
+  開發機：`.venv\Scripts\python.exe -m pip install -e .[llm]`（它會一起裝 openai、anthropic、google-genai 三個 SDK——
+  那是舊 API 要的；SYNOX 用的 `agent` 只用標準函式庫打 HTTP）。
+  `setup/bootstrap.ps1` **連網、照 pyproject 範圍裝**的那一條已改成 `pip install -e "$Root[llm]"`；wheelhouse 離線與
+  `requirements.lock` 那兩條沒動（鎖與 wheelhouse 不含 llm 組，`scripts/lock_deps.py` 的 `top_level` 只看 dependencies）。
+  `requirements.txt` **刻意沒加**：Dockerfile（`pip wheel -r requirements.txt`）與 devcontainer 也讀它，加了會把三個 SDK
+  帶進每個映像檔，而且這台不 build 容器、驗不了；要加請在能 build 的機器上一起改（同一行網址，本身是 ASCII）。
   **不要**寫成只有名字的 `ntu_easy_llm>=…` 給一般使用者裝：它不在 PyPI 上，萬一有人在 PyPI 註冊了同名套件，pip 會去裝那個。
-  `requirements.txt` 只用 ASCII（要加的話就是同一行網址，本身是 ASCII）。
+- **本地模型（kind=local）不經 ntu_easy_llm**：SYNOX 內建（`llm/local.py`，標準函式庫 urllib），沒有登入要包，所以不像
+  claude_login／openai_login 另做套件（[adr/0007](adr/0007-local-llm-platform.md)）。
 
 ## Known limitations / next steps
 

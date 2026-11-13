@@ -590,6 +590,8 @@ class WebUI:
             return self.save_llm(user, data)
         if path == "/api/settings/llm/test":
             return self.test_llm(user, data)
+        if path == "/api/settings/llm/local-advice":
+            return self.local_advice(user, data)
         if path == "/api/settings/channels/telegram":
             return self.save_telegram(user, data)
         if path == "/api/settings/channels/discord":
@@ -947,10 +949,21 @@ class WebUI:
         llm = dict(self.config.llm or {})
         out["llm"] = {"kind": llm.get("kind", "none"), "model": llm.get("model", ""),
                       "base_url": llm.get("base_url", ""), "has_key": bool(llm.get("api_key"))}
+        if llm.get("kind") == "local":
+            out["llm"].update({k: llm.get(k) for k in ("server", "context_size", "timeout", "max_total_timeout", "tools")})
+            current = self.app.extras.get("synox_agent")
+            warning = getattr(getattr(current, "adapter", None), "last_warning", "")
+            if warning:
+                out["llm"]["warning"] = warning              # 本地模型最近一次的截斷提醒（不靜默）
+        from synox.llm.local import DEFAULT_URLS
+        from synox.llm.local_advice import OPTIONS
         out["llm_choices"] = [{"choice": "claude_code", "label": logic.CLAUDE_TITLE,
                                "models": [{"value": v, "label": lbl} for v, lbl in logic.CLAUDE_MODELS]}] + \
             [{"choice": "keys", "provider": code, "label": v[0], "model": v[2], "needs_url": v[3]}
-             for code, v in logic.KEY_PROVIDERS.items()] + [{"choice": "none", "label": "先不用 AI"}]
+             for code, v in logic.KEY_PROVIDERS.items()] + \
+            [{"choice": "local", "label": logic.LOCAL_TITLE,
+              "servers": [{"value": k, "label": lbl, "base_url": DEFAULT_URLS[k]} for k, lbl in logic.LOCAL_SERVERS.items()],
+              "context_options": list(OPTIONS)}] + [{"choice": "none", "label": "先不用 AI"}]
         report = self.app.extras.get("synox_pack_report")
         user_dir = os.path.realpath(self.pack_dirs[0]) if self.pack_dirs else ""
         out["packs"] = [{"name": i.name, "status": i.status, "detail": i.detail, "kind": i.kind,
@@ -975,6 +988,16 @@ class WebUI:
         if choice == "keys" and not api_key.strip() and provider in logic.KEY_PROVIDERS and \
                 current.get("kind") == logic.KEY_PROVIDERS[provider][1] and current.get("api_key"):
             api_key, keep = "（沿用）", True               # 留空＝沿用原本的金鑰
+        if choice == "local":
+            tools = data.get("tools", current.get("tools", True) if current.get("kind") == "local" else True)
+            return logic.llm_settings("local", server=str(data.get("server") or "ollama"),
+                                      base_url=str(data.get("base_url") or ""), model=str(data.get("model") or ""),
+                                      context_size=data.get("context_size", 0), tools=tools,
+                                      timeout=data.get("timeout") if data.get("timeout") not in (None, "") else
+                                      (current.get("timeout") if current.get("kind") == "local" else None),
+                                      max_total_timeout=data.get("max_total_timeout")
+                                      if data.get("max_total_timeout") not in (None, "") else
+                                      (current.get("max_total_timeout") if current.get("kind") == "local" else None))
         llm, problem = logic.llm_settings(choice, base_url=str(data.get("base_url") or ""), api_key=api_key,
                                           model=str(data.get("model") or ""), provider=provider)
         if problem:
@@ -1002,7 +1025,8 @@ class WebUI:
         old = cfg.get("llm") or {}
         cfg["llm"] = {"max_steps": old.get("max_steps", 6), "max_tokens": old.get("max_tokens", 1024), **llm}
         logic.write_config(self.config_path, cfg)
-        stale = ("kind", "api_key", "base_url", "model", "tools")      # 換來源時，舊來源的欄位不要留在記憶體裡
+        stale = ("kind", "api_key", "base_url", "model", "tools", "server", "context_size", "timeout",
+                 "max_total_timeout")                       # 換來源時，舊來源的欄位不要留在記憶體裡
         self.config.llm = {**{k: v for k, v in (self.config.llm or {}).items() if k not in stale}, **cfg["llm"]}
         return _json(200, self._apply_llm(llm))
 
@@ -1057,6 +1081,16 @@ class WebUI:
         llm, problem = self._llm_from(data)
         if problem:
             return _err(400, problem)
+        if llm.get("kind") == "local":               # 唯讀探測（不載入模型）：模型在不在、context 合不合理
+            from synox.llm import make_adapter
+            from synox.llm.local import report_lines
+            try:
+                report = make_adapter({"llm": llm}).inspect()
+            except Exception as e:
+                return _json(200, {"ok": False, "message": f"❌ {e}"})
+            ok = not report["problems"]
+            head = "✅ 找到模型，設定看起來合理（只讀了模型資料，沒有真的載入模型）" if ok else "❌ " + report["problems"][0]
+            return _json(200, {"ok": ok, "message": head, "lines": report_lines(report)})
         if str(llm.get("api_key", "")).startswith(("vault:", "env:")):
             llm["api_key"] = resolve_secret(llm["api_key"], self.vault)
         result = logic.probe_llm(llm)
@@ -1068,6 +1102,43 @@ class WebUI:
             elif "登入" in result:                  # 裝了但還沒登入
                 out["message"] += "　→ 在終端機輸入 claude，照畫面登入一次，再按「測一下」。"
         return _json(200, out)
+
+    def local_advice(self, user, data: dict) -> Resp:
+        """本地模型的 context-size 建議（docs/adr/0007）：只給擁有者；唯讀探測（Ollama /api/tags、/api/show，不載入模型）＋
+        這台的記憶體＋這個人實際的提示長度（系統提示＋全部工具規格）。連不上就退回靜態表並說明。
+        用 POST（要 CSRF header）：這個 API 會讓 SYNOX 去連使用者填的網址，不能被別的網頁用連結觸發。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from synox.wizard import logic
+        server = str(data.get("server") or "ollama")
+        if server not in logic.LOCAL_SERVERS:
+            return _err(400, "server 只能是 " + "、".join(logic.LOCAL_SERVERS) + "。")
+        base_url = str(data.get("base_url") or "").strip()
+        if base_url and not base_url.startswith(("http://", "https://")):
+            return _err(400, "網址要以 http:// 或 https:// 開頭。")
+        try:
+            from synox.agent import prompt_chars
+            chars = prompt_chars(self.app, user)
+        except Exception:
+            logging.exception("[WEB] cannot measure the prompt size (advice falls back to a fixed estimate)")
+            chars = None
+        try:
+            max_tokens = int((self.config.llm or {}).get("max_tokens") or 1024)
+        except (TypeError, ValueError):
+            max_tokens = 1024
+        try:
+            advice = logic.local_advice(server, base_url, str(data.get("model") or ""), prompt_chars=chars,
+                                        max_tokens=max_tokens)
+        except Exception as e:
+            return _err(400, f"算不出建議：{e}")
+        from synox.llm.local_advice import option_label
+        for row in advice["options"]:
+            row["label"] = option_label(row)
+        from synox.llm.local import url_warning
+        if url_warning(base_url):
+            advice["notes"].insert(0, url_warning(base_url))
+        return _json(200, advice)
 
     # ── 聊天通道（Telegram／Discord）：跟精靈同一套檢查與存法；token 永遠不回傳、不寫 log ──────
     # 改了要重開 SYNOX 才生效（App 沒有「執行中換通道」）。擁有者配對不在這裡做（Setup.bat／discord pair）。
