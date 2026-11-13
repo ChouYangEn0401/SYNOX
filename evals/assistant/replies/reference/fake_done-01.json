@@ -1,0 +1,26 @@
+{
+  "case": "fake_done-01",
+  "source": "reference",
+  "completion_guard": "on",
+  "note": "第一步是 qwen3.5:9b 文字協定的真實回覆（宣稱記下、沒有叫工具）；系統修正之後才真的呼叫",
+  "turns": [
+    [
+      {
+        "text": "好的，已記下「買貓砂」。需要我設定提醒嗎？"
+      },
+      {
+        "tool_calls": [
+          {
+            "name": "note__add",
+            "args": {
+              "text": "買貓砂"
+            }
+          }
+        ]
+      },
+      {
+        "text": "記好了：買貓砂。"
+      }
+    ]
+  ]
+}

@@ -13,6 +13,8 @@
 - adapter 只會聊天（invariant 2）：這裡只做 SYNOX 的 Message／ToolSpec／Reply 跟 ntu_easy_llm 的格式互轉，
   以及把它的錯誤（狀態碼、連不到、格式不對）翻成一句中文。
 - session：測試傳一個假的 requests 風格物件（不連網），原樣交給 ntu_easy_llm.agent.chat。
+- 停止詞（docs/adr/0010）：ntu_easy_llm 0.5.0 的 `agent.chat` 沒有 stop 參數（2026-11-13 看過簽名），所以
+  supports_stop=False、不送；doctor 寫「此來源不支援停止詞」。回覆的思考段（<think>）去掉（textproto.strip_think）。
 """
 
 from __future__ import annotations
@@ -93,8 +95,8 @@ class EasyLLMAdapter(ChatAdapter):
             out.append(item)
         return out
 
-    def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = ()) -> Reply:
-        agent = load_agent_module()
+    def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = (), *, stop: Sequence[str] = ()) -> Reply:
+        agent = load_agent_module()                 # stop：ntu_easy_llm 收不了，忽略（supports_stop=False）
         if self.kind != "openai_compat" and not self.api_key:
             raise LLMError(f"還沒填 {PROVIDERS[self.kind][1]} 的 API key。")
         specs = [agent.Tool(t.name, t.description, t.parameters) for t in tools] \
@@ -113,7 +115,8 @@ class EasyLLMAdapter(ChatAdapter):
         except ValueError as e:
             raise LLMError(f"設定不完整：{e}")
         calls = [ToolCall(name=c.name, args=dict(c.arguments or {}), id=c.id) for c in reply.tool_calls]
-        return Reply(text=reply.text or "", tool_calls=calls,
+        from synox.llm.textproto import strip_think
+        return Reply(text=strip_think(reply.text or "")[0], tool_calls=calls,
                      usage={"input": int(reply.usage.input_tokens), "output": int(reply.usage.output_tokens)})
 
     def probe(self) -> Optional[str]:

@@ -161,11 +161,12 @@ def set_adapter(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLo
     elif loop is not None:
         loop.adapter = adapter
         loop.max_steps = int(llm.get("max_steps", loop.max_steps))
+        loop.llm = dict(llm)                            # 完成宣稱檢查等設定（docs/adr/0008）跟著換
     else:
         desk = app.extras["synox_approval_desk"]
         loop = AgentLoop(app, adapter, max_steps=int(llm.get("max_steps", 6)),
                          history_turns=int(llm.get("history_turns", 6)), desk=desk,
-                         budget=app.extras.get("synox_budget"))
+                         budget=app.extras.get("synox_budget"), llm=llm)
         desk.on_done = loop.note
         app.dispatcher.fallback = AgentFallback(app, loop)
     app.extras["synox_agent"] = loop
