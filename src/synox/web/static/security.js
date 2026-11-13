@@ -44,7 +44,19 @@
     codeLabel: "6 位數",
     wrong: "不對：",
     done: "好了",
-    failed: "沒有成功："
+    failed: "沒有成功：",
+    // 手機入口（ADR 0026）：總開關與通道程式的核准（都要先解鎖）
+    remoteTitle: "📱 手機入口",
+    remoteSwitch: "允許開手機入口（每次開還是要你本人＋一組新的驗證碼）",
+    remoteNeedStepup: "要先設定手機驗證器，才能用手機入口。",
+    binaryTitle: "通道程式（cloudflared）",
+    binaryNone: "還沒核准。請自己安裝 cloudflared（SYNOX 不替你下載），再按下面的按鈕。",
+    binaryCheck: "請跟官方發佈頁上的雜湊對一下，一樣才按核准。檔案一改（例如自己更新了）就要重新核准。",
+    binaryApprove: "我核對過了，核准這個檔",
+    binaryPath: "路徑：",
+    binarySize: "大小：",
+    binarySha: "SHA-256：",
+    binarySigner: "簽署者：讀不到，請自己對雜湊。"
   };
 
   /* 純邏輯（tests/js/test_security.js）：deps = { api(method, path, body) → Promise, prompt() → Promise<碼或 null> } */
@@ -282,8 +294,43 @@
     return deps.api("GET", "/api/stepup").then(function (s) {
       deps.minutes = s.minutes;
       render(s);
+      loadRemote(s);
       return s;
     });
+  }
+
+  function loadRemote(s) {
+    var card = document.getElementById("set-security-body");
+    if (!card || !deps) { return; }
+    deps.api("GET", "/api/remote").then(function (r) { card.appendChild(renderRemote(r, s)); }, function () {});
+  }
+
+  function renderRemote(r, s) {
+    var box = el("div", "stepup-remote");
+    box.appendChild(el("h3", "", TEXT.remoteTitle));
+    if (!s.enrolled) { box.appendChild(el("p", "sub", TEXT.remoteNeedStepup)); return box; }
+    var label = el("label", "stepup-toggle");
+    var on = el("input", "");
+    on.type = "checkbox";
+    on.checked = !!r.enabled;
+    label.appendChild(on);
+    label.appendChild(document.createTextNode(" " + TEXT.remoteSwitch));
+    on.addEventListener("change", function () { deps.api("POST", "/api/remote/enabled", { on: on.checked }).then(load, load); });
+    box.appendChild(label);
+    box.appendChild(el("h3", "", TEXT.binaryTitle));
+    if (r.binary) {
+      box.appendChild(el("p", "", TEXT.binaryPath + r.binary.path));
+      box.appendChild(el("p", "", TEXT.binarySize + r.binary.size));
+      box.appendChild(el("pre", "stepup-secret", TEXT.binarySha + r.binary.sha256));
+    } else {
+      box.appendChild(el("p", "sub", TEXT.binaryNone));
+    }
+    box.appendChild(el("p", "sub", TEXT.binaryCheck));
+    box.appendChild(el("p", "sub", TEXT.binarySigner));
+    var approve = el("button", "ghost", TEXT.binaryApprove);
+    approve.addEventListener("click", function () { deps.api("POST", "/api/remote/binary/approve", {}).then(load, load); });
+    box.appendChild(approve);
+    return box;
   }
 
   function init(d) {
