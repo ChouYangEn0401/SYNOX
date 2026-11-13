@@ -553,6 +553,7 @@
             總上限 <span id="llm-local-total">1800</span> 秒（config.json 的 llm.timeout／llm.max_total_timeout）。</p>
         </div>
         <p id="llm-warning" class="note-line hidden"></p>
+        <p id="llm-vision" class="muted hidden"></p>
         <hr class="rule">
         <div class="row">
           <button id="llm-save" class="primary" type="button">存起來</button>
@@ -1062,6 +1063,8 @@
     }
     $("llm-warning").textContent = d.llm.warning ? "⚠️ 最近一次的提醒：" + d.llm.warning : "";
     $("llm-warning").classList.toggle("hidden", !d.llm.warning);
+    $("llm-vision").textContent = d.llm.vision ? "🖼️ " + d.llm.vision + "（config.json 的 llm.vision／llm.vision_model）" : "";
+    $("llm-vision").classList.toggle("hidden", !d.llm.vision);
   }
   $("llm-choice").addEventListener("change", function () { $("llm-model").value = ""; syncLlmFields(); });
   $("llm-local-server").addEventListener("change", function () {
