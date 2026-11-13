@@ -202,6 +202,31 @@ def scope_changes(old: Manifest, new: Manifest) -> List[dict]:
         wider = DATA_RANK.get(db, 2) > DATA_RANK.get(da, 2)
         out.append({"kind": "data", "text": f"資料歸屬 data {da} → {db}" + ("（變寬）" if wider else "（變窄）"),
                     "alert": wider})
+    out += caller_changes(old, new)
+    return out
+
+
+def caller_changes(old: Manifest, new: Manifest) -> List[dict]:
+    """callers／stepup 的變化（ADR 0025 §3）：拿掉或放寬一條＝紅字；新增或收緊＝一般字。"""
+    out: List[dict] = []
+    a, b = dict(getattr(old, "callers", {}) or {}), dict(getattr(new, "callers", {}) or {})
+    for name in sorted(set(a) | set(b)):
+        before, after = set(a.get(name) or ()), set(b.get(name) or ())
+        if name not in b:
+            out.append({"kind": "callers", "text": f"指令 {name} 原本只收 {'、'.join(sorted(before))}，新版拿掉了限制（變寬）",
+                        "alert": True})
+        elif name not in a:
+            out.append({"kind": "callers", "text": f"指令 {name} 新版只收 {'、'.join(sorted(after))}（收緊）",
+                        "alert": False})
+        elif before != after:
+            wider = bool(after - before)
+            out.append({"kind": "callers", "text": f"指令 {name} 收誰叫：{'、'.join(sorted(before))} → "
+                        f"{'、'.join(sorted(after))}" + ("（變寬）" if wider else "（收緊）"), "alert": wider})
+    sa, sb = set(getattr(old, "stepup", []) or ()), set(getattr(new, "stepup", []) or ())
+    for name in sorted(sa - sb):
+        out.append({"kind": "stepup", "text": f"指令 {name} 原本一定要先解鎖，新版不用了（變寬）", "alert": True})
+    for name in sorted(sb - sa):
+        out.append({"kind": "stepup", "text": f"指令 {name} 新版一定要先解鎖（收緊）", "alert": False})
     return out
 
 
