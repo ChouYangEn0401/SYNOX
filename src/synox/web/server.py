@@ -567,7 +567,7 @@ class WebUI:
         if method != "POST":
             return _err(405, "只收 GET、POST。")
         if path == "/api/packs/upload":
-            return self.pack_upload(user, body)
+            return self.pack_upload(user, body, headers)
         try:
             data = json.loads(body.decode("utf-8") or "{}") if body else {}
         except (ValueError, UnicodeDecodeError):
@@ -1400,11 +1400,18 @@ class WebUI:
                                       "私訊 bot 畫面上的六個數字（配對前 bot 不認得你的 Discord 帳號）；"
                                       "③ 重新啟動 SYNOX（雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑）才會生效。"})
 
-    def pack_upload(self, user, body: bytes) -> Resp:
+    def pack_upload(self, user, body: bytes, headers: Optional[Dict[str, str]] = None) -> Resp:
+        """設定頁的「上傳並檢查」與拖進網頁的 .synoxpack（static/packdrop.js 交給同一個按鈕）：只暫存＋第 1、2 關，
+        回報告；裝要另外按確認（/api/packs/install）。大小、zip 檔頭在 admin.stage 驗（_Handler 先擋超過的 Content-Length）。"""
         denied = self._owner_only(user)
         if denied:
             return denied
-        from synox.packs.admin import GateRefused, PackAdminError, stage
+        from synox.packs.admin import MAX_UPLOAD, UPLOAD_TYPES, GateRefused, PackAdminError, stage
+        ctype = (headers or {}).get("content-type", "").split(";")[0].strip().lower()
+        if ctype not in UPLOAD_TYPES:
+            return _err(415, "只收 .synoxpack（zip）檔。")
+        if len(body) > MAX_UPLOAD:
+            return _err(413, f"檔案太大（最多 {MAX_UPLOAD // (1024 * 1024)} MB）。")
         try:
             _token, summary = stage(body, self.config.data_dir)        # 安全管線第 1、2 關
         except GateRefused as e:

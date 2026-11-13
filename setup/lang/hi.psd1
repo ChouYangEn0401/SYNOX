@@ -14,6 +14,8 @@
     no_window_text        = 'इस Python में विंडो सपोर्ट (tkinter) नहीं है: सेटअप इसी विंडो में टेक्स्ट रूप (synox init) में चलेगा...'
     pip_failed            = 'pip install विफल (नेटवर्क?)।'
     opening_wizard        = 'सेटअप विज़ार्ड खुल रहा है...'
+    assoc_register        = '.synoxpack फ़ाइल प्रकार केवल इस Windows उपयोगकर्ता के लिए दर्ज किया जा रहा है (HKCU, एडमिन नहीं): इंस्टॉलर आइकन, डबल-क्लिक = सुरक्षा जाँच, फिर इंस्टॉल। + लिखा गया, = पहले से था'
+    assoc_failed          = '.synoxpack फ़ाइल प्रकार दर्ज नहीं हो सका (सेटअप जारी है)। आप अब भी .synoxpack को Install-Pack.bat पर या SYNOX वेब सेटिंग्स पेज में खींच सकते हैं।'
     row_running           = 'SYNOX चल रहा है (pid)'
     row_shortcut          = 'डेस्कटॉप शॉर्टकट'
     row_startup           = 'स्टार्टअप प्रविष्टि'
