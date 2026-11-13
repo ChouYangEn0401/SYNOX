@@ -1,5 +1,29 @@
 # Changelog
 
+## 未發佈（branch feat/completion_guard：本地模型的虛假完成檢測、救回洩漏的工具呼叫、停止詞與「做不到」出口）
+
+### 新增
+- **完成宣稱檢查**（`src/synox/agent/claims.py`，[ADR 0008](docs/adr/0008-completion-guard.md)）：AI 說「已記下／已新增／記好了」，
+  這一輪卻沒有成功的寫入工具呼叫（或回覆裡自己寫了「工具結果」、分隔符）＝不送出，用中性的修正字句重試（`llm.verify_retries`，預設 2）；
+  用完就照實告訴使用者「沒有執行」，並附上 AI 原本的回覆（不吞掉、不假裝成功）。`llm.completion_guard`＝`auto`（預設：只對本地模型、
+  指到這台或家裡網路的 openai_compat 開）｜`on`｜`off`。用已存的真實 9b／27b 回覆標定：真實回覆 20 則不該攔的 0 誤判、3 則該攔的全抓到
+  （樣本很小，統計意義有限，見 ADR）。doctor 多一行說開了沒。
+- **救回文字裡的工具呼叫**（[ADR 0009](docs/adr/0009-leaked-tool-call-recovery.md)）：模型把呼叫印成文字（`<tool_call>` JSON、Qwen 的
+  `<function=…>`、MiniMax 的 `<invoke>`）時救回來，**照常過權限判斷、參數驗證、確認卡**；壞掉的 JSON 會寬鬆修復。思考段 `<think>` 一律拿掉、不從裡面找呼叫。
+- **停止詞**（[ADR 0010](docs/adr/0010-stop-words.md)）：本地模型在模型開始寫「〔工具結果〕」／`<tool_response>` 時就截斷。
+- **「做不到」的出口** `system__cannot_do`（[ADR 0011](docs/adr/0011-cannot-do-exit.md)）：AI 呼叫它＝這一輪結束、回「做不到：原因」。
+- **同一個呼叫連續失敗**：第 2 次提醒 AI 換做法、第 3 次停下來；**步數用完的總結**（本地來源預設開，`llm.summarize_on_limit`）
+  （[ADR 0012](docs/adr/0012-repeat-failure-and-step-limit-summary.md)）。
+- 評測：新檢查 `claimed_without_call`（每一題都跑）、`must_call` 的 `any_of`、新類別 `fake_done` 兩題（共 32 題）。
+
+### 改變
+- `note-01` 的檢查改成「`note__add` 或內建 `remind__add`」都算對。
+- 系統提示第 2 行：有工具時說明「沒有呼叫工具就什麼都沒做」並指向 `system__cannot_do`。
+- `AgentLoop.call_tool` 回三個值（結果、是否出卡、ok）；`ChatAdapter.chat` 多一個關鍵字參數 `stop`（只傳給 `supports_stop=True` 的 adapter）。
+- 網頁設定頁換 AI 來源時保留 `completion_guard`／`verify_retries`／`summarize_on_limit`／`think`。
+
+### 不變
+- 雲端來源與 Claude Code 預設不開完成宣稱檢查、不做步數總結；正常的對話一個字都不變。
 ## 未發佈（branch feat/local_llm_platform：本地模型是內建能力、context 建議、無進展逾時；保持清醒加固）
 
 ### 新增
