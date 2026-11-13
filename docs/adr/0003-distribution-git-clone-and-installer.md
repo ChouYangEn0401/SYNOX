@@ -20,7 +20,7 @@
 | 問題 | 決定 |
 |---|---|
 | 怎麼發 | 兩條：**(A) git clone**（或 GitHub 的 Download ZIP）＋`Setup.bat`；**(B) 安裝程式** `SYNOX-Setup-<版本>.exe` |
-| 安裝程式用什麼做 | **Inno Setup 6＋官方可攜版 CPython（embeddable）＋離線套件（wheelhouse）**；不用 PyInstaller／Nuitka（理由見 B） |
+| 安裝程式用什麼做 | **Inno Setup 6＋SYNOX 自己的 CPython（python-build-standalone，跟 ZIP 同一個檔案，有 tkinter）＋離線套件（wheelhouse）**；不用 PyInstaller／Nuitka（理由見 B）。原本是官方可攜版（embeddable），2026-11-13 改，見文末附記之二 |
 | 參數在哪裡設 | 安裝最後一步一律進「設定引導」：有視窗用原本的精靈（tkinter），沒有視窗就用文字版 `python -m synox init`。兩個寫同一份 `config.json` |
 | 工具庫（QL4 原題） | 發佈物旁邊附 `tools/`（SYNOX_Libs 打包好的 `.synoxpack`＋`index.json`）；`packs.library` 沒寫時就找 `<SYNOX>/tools`（**相對於 SYNOX 資料夾**）；init 列出來、**使用者自己挑**，不自動全裝 |
 | hidden dependency | 路徑一律相對於 SYNOX 資料夾或可設定；「剛好在旁邊的兄弟資料夾」只能當有標記的後備；`scripts/clean_room_check.py` 在這台模擬；真的空白電腦由擁有者實測 |
@@ -33,16 +33,17 @@ git 也不是必要的：沒有 git 的人用 GitHub 的「Code → Download ZIP
 
 1. `git clone <SYNOX repo>`（或解開 zip）到任何資料夾，路徑可以有中文、空白。
 2. 雙擊 `Setup.bat` → `setup/bootstrap.ps1`：
-   1. **Python ≥ 3.11**（2026-11-13 改，見文末附記）：預設只用 SYNOX 資料夾裡的——`runtime\python`（安裝程式附的）→
-      釘死版本＋SHA256 的 uv 裝 CPython 到 `runtime\python-uv`（`--python-preference only-managed`）→ uv 失敗才退到 python.org 的
-      可攜版解到 `runtime\python`。不改 PATH、不寫登錄檔、不用 winget。進階的 `Setup.bat -UseSystemPython` 才照舊的順序找這台電腦的
+   1. **Python ≥ 3.11**（2026-11-13 改，見文末兩則附記）：預設只用 SYNOX 資料夾裡的 `runtime\python`——安裝程式附的，或
+      `Setup.bat` 照釘死的網址＋SHA256 下載的 python-build-standalone CPython 3.12.16（兩邊同一個檔案；有 tkinter）。不用 uv、
+      不改 PATH、不寫登錄檔、不用 winget。進階的 `Setup.bat -UseSystemPython` 才照舊的順序找這台電腦的
       Python（`py` 啟動器 → PATH 上的 `python` → `%LOCALAPPDATA%\Programs\Python\Python31x` → `winget install Python.Python.3.12` →
-      可攜版），而且絕不挑 Microsoft Store 的 `python` 捷徑。
-   2. 建 `.venv`。
+      都沒有才用 SYNOX 自己的），而且絕不挑 Microsoft Store 的 `python` 捷徑。
+   2. `python -m venv .venv`。
    3. **裝相依**（由嚴到寬）：有 `wheelhouse\` → 完全離線（`--no-index --find-links wheelhouse`）；有 `requirements.lock` →
       照鎖定的版本裝（有雜湊就驗雜湊）；都沒有 → 照 `pyproject.toml` 的範圍裝。最後 `pip install --no-deps -e .`。
       鎖檔由 `scripts/lock_deps.py` 在發佈機產生（從「剛裝好的乾淨 venv」讀版本，不下載；加 `--wheelhouse` 會寫進每個 wheel 的 sha256）。
-   4. **設定引導**：這個 Python 有 tkinter → 開視窗精靈（原本的四頁）；沒有（可攜版）→ 同一個視窗跑 `python -m synox init`。
+   4. **設定引導**：這個 Python 有 tkinter → 開視窗精靈（原本的四頁）；沒有（`-UseSystemPython` 挑到沒裝 tcl/tk 的 Python）→
+      同一個視窗跑 `python -m synox init`。
 3. 引導會問、寫進 `config.json` 的參數：
 
    | 參數 | 視窗精靈 | `synox init` | 寫到哪 |
@@ -81,23 +82,23 @@ SYNOX 不只是「一支程式」：工具（pack）要用**真的 Python 直譯
 
 - **發佈機**（不是擁有者每天用的這台，也不是使用者的電腦）依序：
   1. 乾淨 venv 裡 `pip install -e .` → `scripts\lock_deps.py` 產生 `requirements.lock`（進 git）；
-  2. `pip download -r requirements.lock -d wheelhouse --only-binary=:all:`＋`pip`、`virtualenv`、`setuptools` 的 wheel
-     （版本照可攜版 Python 的版本挑）→ `scripts\lock_deps.py --wheelhouse wheelhouse` 把雜湊寫進鎖；
+  2. `pip download -r requirements.lock -d wheelhouse --only-binary=:all:`＋`pip`、`setuptools` 的 wheel
+     （版本照附的 Python 的 X.Y 挑）→ `scripts\lock_deps.py --wheelhouse wheelhouse` 把雜湊寫進鎖；
   3. SYNOX_Libs：`scripts\build.py` → `dist\`；
-  4. `scripts\stage_installer.py --python-embed <解開的 python-3.12.x-embed-amd64> --wheelhouse wheelhouse --tools <Libs>\dist
-     [--tk-from <同版本、裝好的 CPython>]`：只複製檔案，產生 `dist\installer-stage\SYNOX\`；
+  4. `scripts\stage_installer.py --fetch-python --wheelhouse wheelhouse --tools <Libs>\dist`：照 `setup\bootstrap.ps1` 釘的網址
+     下載 SYNOX 自己的 Python、對 SHA256、解到 `runtime\python`，再複製其他檔案，產生 `dist\installer-stage\SYNOX\`；
   5. `ISCC.exe /DAppVersion=<版本> /DStageDir=<stage>\SYNOX setup\installer\synox.iss` → `dist\SYNOX-Setup-<版本>.exe`；
   6. 簽章（QD1）。
 - **使用者那邊**：安裝程式把檔案放到 `%LOCALAPPDATA%\Programs\SYNOX`（每個使用者自己一份、不要管理員、資料夾可寫——SYNOX 的
   `config.json`、`data/` 就在安裝資料夾裡，所以**不能**裝進 Program Files）→ 最後一步跑 `Setup.bat`：bootstrap 先用
-  `runtime\python`，從 wheelhouse 離線裝 pip／virtualenv、建 `.venv`、裝套件 → 精靈或 `synox init`。
-- **tkinter**：可攜版 CPython 沒有 tkinter。`--tk-from` 會把同版本 CPython 的 `_tkinter.pyd`、`tcl86t.dll`、`tk86t.dll`、`Lib\tkinter`、
-  `tcl\` 一起帶，並在 `._pth` 加 `Lib`。**這招能不能在 virtualenv 建的 .venv 裡開出視窗，沒有驗證過**；不行的話自動退到文字版 init，
-  功能一樣（QD3）。
+  `runtime\python`，`python -m venv .venv`、從 wheelhouse 離線裝套件 → 精靈（沒有 tkinter 才用 `synox init`）。
+- **tkinter**：（2026-11-13 改）附的 Python 是 python-build-standalone 的 `install_only_stripped`，本來就有 tkinter＋Tcl/Tk 8.6，
+  不用再從別的 Python 複製（原本的 `--tk-from` 拿掉了）。QD3 因此不用再選；Windows 上真的開出視窗仍待實測。
 - **解除安裝**：先跑 `setup\uninstall.ps1 -Mode shortcuts -Yes`（捷徑、開機啟動、`.synoxpack` 關聯），再刪安裝的檔案與 `.venv`；
   **`config.json`、`data\`（筆記、保管箱、金鑰）、裝過的工具（`packs\`）都留著**。
 - **防毒與 SmartScreen**：沒簽章的安裝程式第一次會被 SmartScreen 擋（「其他資訊 → 仍要執行」）；簽了章、下載量累積之後才會消失。
-  可攜版 Python 本身有 PSF 的簽章。安裝程式不跑任何從網路下載的東西（全部離線）。
+  附的 Python（python-build-standalone）沒有 Authenticode 簽章，只靠釘死的 SHA256；防毒會不會擋待實測。安裝程式不跑任何從網路
+  下載的東西（全部離線）。
 - **授權義務**：安裝程式裡有 CPython（PSF）、各個 wheel（Apache／BSD／MIT／MPL-2.0 的 certifi…）。發佈前要附一份第三方授權清單（handoff 有一項）。
 
 ## C. 工具庫放哪裡（QL4 原題）
@@ -173,6 +174,9 @@ Windows 帳號或 VM 上實測。
 - 沒做：真的打包 exe、真的空白電腦、網頁的工具庫清單畫面、macOS／Linux 安裝、程式與資料分開放。
 
 ## 附記（2026-11-13）：預設用 SYNOX 自己的 Python（uv），不碰這台電腦的 Python
+
+> 這則附記裡「用 uv 裝 Python」的做法已經被下一則附記（之二）取代：擁有者不想要 uv。其他規則（預設只用 SYNOX 資料夾裡的
+> Python、`-UseSystemPython`、不碰 Conda／Store、清環境變數、解除安裝）照舊。留著當紀錄。
 
 擁有者要的：預設「暴力安裝全部幫你裝好」——SYNOX 用自己資料夾裡的那一份 Python；有經驗的人才選用自己的 Python。
 
@@ -259,3 +263,62 @@ uv 失敗時：www.python.org、bootstrap.pypa.io。
 6. `Uninstall.bat env`：`runtime\` 整個刪掉、沒有錯誤（junction）。
 7. 公司網路／代理：PowerShell 5.1 的 `Invoke-WebRequest` 用系統代理；uv 讀 `HTTPS_PROXY`，不一定讀系統代理。
 8. 防毒軟體會不會擋 `uv.exe` 或 `runtime\python-uv` 裡的 python.exe。
+
+## 附記（2026-11-13，之二）：不用 uv，直接下載同一份獨立版 CPython；.exe 和 ZIP 同一個 Python
+
+擁有者：「怕你裝這個 UV 把我的本地電腦用壞」，比較喜歡單純的 `python -m venv`。決定：**uv 整個拿掉**。
+
+### 現在怎麼做
+
+- **哪一個 Python**：python-build-standalone（uv 本來替我們下載的就是它）的 CPython **3.12.16**、release `20261026`、
+  `x86_64-pc-windows-msvc-install_only_stripped.tar.gz`（約 22 MB；python.exe、pythonw.exe、pip、`venv`、`ensurepip`、tkinter＋
+  Tcl/Tk 8.6、vcruntime 都在裡面；`stripped`＝去掉除錯符號）。
+  - 網址：`https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.12.16%2B20261026-x86_64-pc-windows-msvc-install_only_stripped.tar.gz`
+  - SHA256：`1f2ab53880fc67ea323398c6388e05af28addc99a8e389209f08a51fdff4b149`
+  - 三個來源一致：那個 release 的 `SHA256SUMS`、uv 0.13.6 內建的下載清單、2026-11-13 實際下載後自己算。
+  - 釘在 `setup/bootstrap.ps1` 的 `$PythonVersion`、`$PythonBuild`、`$PythonSha256`、`$PythonUrl`；`scripts/stage_installer.py`
+    讀同樣這四行，所以 **.exe 附的和 ZIP 下載的是同一個檔案**。`tests/test_private_python.py` 檢查值、
+    `tests/test_release_layout.py` 檢查 stage 讀得到。
+- **ZIP（`Setup.bat`）**：`runtime\python\python.exe` 已經有、跑得起來 → 用它。沒有 → 下載到 `runtime\python.download\` →
+  `Get-FileHash` 核對；**不對就刪掉下載的檔案、停下來**（不解開、不執行、不改用別的來源）→ 用
+  `%SystemRoot%\System32\tar.exe` 解開 → 搬到 `runtime\python` → `python -m venv .venv`。
+  - 為什麼用 tar.exe：這個專案的 Windows 版只有 `.tar.gz`（沒有 zip）；PowerShell 5.1 的 `Expand-Archive` 只會解 zip。
+    Windows 10 1803（2018）以後都內建 `tar.exe`（bsdtar，看得懂 gzip 和 GNU 長檔名）。寫完整路徑，不用 PATH 上的 tar
+    （Git 附的 GNU tar 會把 `C:` 當成遠端主機）。先切到下載資料夾、只給相對檔名，SYNOX 路徑有中文也不交給 tar 處理。
+    沒有 tar.exe 就停下來，說請更新 Windows 或改用 .exe。
+  - `runtime\python` 裡如果是舊的 python.org 可攜版（有 `python3XX._pth`）→ 說一聲、換成新的。
+- **.exe**：發佈機 `stage_installer.py --fetch-python`（或 `--python-archive <已下載的檔案>`）→ 對 SHA256 → 用 Python 的
+  `tarfile` 解（擋絕對路徑、`..`、連結；只收 `python/` 底下）→ `runtime\python`。`--python-embed`、`--tk-from` 拿掉；
+  wheelhouse 不再需要 virtualenv。`synox.iss` 加 `[InstallDelete]`：更新時先刪舊的 `runtime\python`（舊版附的可攜版留下的
+  `python312._pth` 會讓新的 python.exe 進入隔離模式）和 `.venv`（安裝完跑的 `Setup.bat` 離線重建）。
+- **python.org 的退路拿掉了**：原本 uv 失敗會退到 python.org 的可攜版（沒有 tkinter、沒核對檢查碼、`get-pip.py` 也是現抓的）。
+  現在只剩一個來源、一定核對；下載不了就停下來，清楚說三條路：確認連得上 github.com 再試、改用 .exe（不用下載 Python）、
+  或 `Setup.bat -UseSystemPython`。`-UseSystemPython` 那條找不到任何 Python、winget 也不行時，退到 SYNOX 自己的這一份（同樣核對），
+  不再退到可攜版。
+- **舊的東西**：`runtime\uv`、`runtime\python-uv`、`runtime\uv-cache`（只有開發中的版本裝過）照樣由 `Uninstall.bat env` 刪掉
+  （junction 照樣先拆）。已經用 `runtime\python-uv` 建好的 `.venv` 照用（在 `runtime\` 裡，不會被當成外面的 Python）。
+- 清環境變數：`UV_*` 那幾個拿掉（不再用 uv）；`setup\clean-python-env.bat` 補上 `PIP_USER`／`PIP_TARGET`／`PIP_PREFIX`，
+  跟 bootstrap 的 `Clear-PythonEnv` 同一份清單。
+- **要連的網址**（ZIP）：github.com（Python 檔案；會轉到 release-assets.githubusercontent.com）、pypi.org／files.pythonhosted.org（套件）。
+
+### 驗證到哪裡（Linux 雲端機，2026-11-13；沒有 Windows、沒有 PowerShell）
+
+- Windows 的 `install_only_stripped` 下載實算 SHA256＝`SHA256SUMS`＝uv 清單。用 `tarfile` 看內容：3348 個一般檔案、沒有連結、
+  6 個超過 100 字元的檔名（GNU 長檔名）、最上層只有 `python/`；有 `python.exe`、`pythonw.exe`、`DLLs\_tkinter.pyd`、`tcl86t.dll`、
+  `tk86t.dll`、`tcl\tcl8.6`、`tcl\tk8.6`、`Lib\venv`（含 `scripts\nt\python.exe` 啟動器）、`Lib\ensurepip`、vcruntime。
+- `stage_installer.py --python-archive`（和 `--fetch-python`）在 Linux 上做出的 `runtime\python` 跟直接 `tar -xzf` 解出來的逐檔相同；
+  換成 `install_only`（沒 strip）的檔案會因 SHA256 不對而拒絕。
+- 同一個 release 的 **Linux** 版（`x86_64-unknown-linux-gnu-install_only_stripped`，SHA256 也對得上）：解開 → `python -m venv` →
+  `.venv` 裡 `import tkinter`（Tcl 9.0.4）、在 xvfb 開出 Tk 視窗、`pip install -e .` 裝好 SYNOX、`import synox.wizard`。
+- 靜態測試：`tests/test_private_python.py`、`tests/test_release_layout.py`、`tests/test_installer_ci.py`、`tests/test_wizard_i18n.py`。
+
+**待實測（Windows）**——`bootstrap.ps1` 在這台沒跑過，連 PowerShell 語法檢查都沒做（`test_powershell_scripts_parse` 只在 Windows 跑）：
+
+1. 乾淨的 Windows 11／10（1803 以後）、一般使用者帳號：雙擊 `Setup.bat` → 下載、核對 → `tar.exe` 解到 `runtime\python` →
+   `.venv` → **視窗精靈打得開**（Windows 版是 Tcl/Tk 8.6）。路徑有中文的資料夾（例如桌面的「SYNOX 測試」）再做一次。
+2. 沒寫到 SYNOX 資料夾外面：PATH 不變、`HKCU\Software\Python` 沒有新項目、`%LOCALAPPDATA%`／`%APPDATA%` 沒有新的 Python 資料夾。
+3. 檢查碼不對（例如把 `$PythonSha256` 改一個字）→ 看到紅字、`runtime\python.download` 被刪掉、`runtime\python` 沒出現。
+4. 擋掉 github.com → 看到「下載 Python 沒成功」、停下來（不再退到可攜版）。
+5. 防毒軟體（Defender 等）會不會擋沒簽章的 `python.exe`；公司代理（`Invoke-WebRequest` 用系統代理）。
+   有 Conda 的電腦：照上一則附記第 3 項做一次，只是 `.venv\pyvenv.cfg` 的 `home` 現在要在 `runtime\python`。
+6. 舊版 .exe 裝過的電腦裝新版 .exe：`runtime\python` 與 `.venv` 換新、`config.json`／`data\` 還在。

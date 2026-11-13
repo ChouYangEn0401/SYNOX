@@ -1,5 +1,12 @@
 # Changelog
 
+## 未發佈（不用 uv：直接下載固定版本的 Python；Setup.bat 先問「照建議／自訂」）
+
+### 變更
+- **Setup.bat 不再用 uv**：沒有 `runtime\python` 時，直接下載釘死網址＋SHA256 的獨立版 CPython 3.12.16（python-build-standalone 20261026，`install_only_stripped`，約 22 MB），用 Windows 內建的 `tar.exe` 解到 `runtime\python`，再用一般的 `python -m venv` 建 `.venv`。檢查碼不對就刪掉下載的檔案、停下來。不再退到 python.org 的可攜版。仍然只動 SYNOX 資料夾。
+- **安裝程式和 ZIP 用同一個 Python**：`stage_installer.py --fetch-python` 讀 `setup/bootstrap.ps1` 的網址與 SHA256，附的 Python 一定有視窗元件；拿掉 `--python-embed`、`--tk-from` 和 virtualenv。
+- **Setup.bat 先問語言（按 Enter＝Windows 的顯示語言），再說清楚、問一題**：按 Enter 照建議（只準備 SYNOX、開機自動啟動，工具做完教學再挑），輸入 C 自訂（開機自動啟動、Claude Code、全部工具都裝）；`Setup.bat -Custom` 直接進自訂。「全部工具都裝」還沒做。
+
 ## 未發佈（新手教學 /tutorial）
 
 ### 新增

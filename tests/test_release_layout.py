@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """發佈物的版面（docs/adr/0003）：zip 旁邊附 tools/、安裝程式的 stage。只複製檔案；不執行任何 Python、不 pip、不打包 exe。
-假的可攜版 Python 只是幾個位元組的檔案（不會被執行）。"""
+假的 Python（python-build-standalone 的 .tar.gz）只是幾個位元組的檔案（不會被執行）。"""
 import os
 import sys
 import zipfile
@@ -50,18 +50,8 @@ def test_eval_set_is_not_shipped():
     assert not make_zip.excluded("src/synox/evals/cases.py")
 
 
-def fake_embed(folder, minor=12):
-    os.makedirs(folder)
-    with open(os.path.join(folder, f"python3{minor}._pth"), "w", encoding="ascii") as f:
-        f.write(f"python3{minor}.zip\n.\n\n# Uncomment to run site.main() automatically\n#import site\n")
-    for name in ("python.exe", f"python3{minor}.dll"):
-        with open(os.path.join(folder, name), "wb") as f:
-            f.write(b"not a real program")
-    return str(folder)
-
-
-def fake_wheels(folder, names=("pip-24.0-py3-none-any.whl", "virtualenv-20.0-py3-none-any.whl",
-                               "setuptools-70.0-py3-none-any.whl", "requests-2.0-py3-none-any.whl")):
+def fake_wheels(folder, names=("pip-24.0-py3-none-any.whl", "setuptools-70.0-py3-none-any.whl",
+                               "requests-2.0-py3-none-any.whl")):
     os.makedirs(folder)
     for n in names:
         with open(os.path.join(folder, n), "wb") as f:
@@ -69,52 +59,90 @@ def fake_wheels(folder, names=("pip-24.0-py3-none-any.whl", "virtualenv-20.0-py3
     return str(folder)
 
 
-def fake_full_python(folder, minor=12):
-    os.makedirs(os.path.join(folder, "DLLs"))
-    os.makedirs(os.path.join(folder, "Lib", "tkinter", "test"))
-    os.makedirs(os.path.join(folder, "tcl", "tcl8.6"))
-    for name in stage_installer.TK_FILES:
-        with open(os.path.join(folder, "DLLs", name), "wb") as f:
-            f.write(b"x")
-    for rel in (f"python3{minor}.dll", os.path.join("Lib", "tkinter", "__init__.py"),
-                os.path.join("Lib", "tkinter", "test", "t.py"), os.path.join("tcl", "tcl8.6", "init.tcl")):
-        with open(os.path.join(folder, rel), "wb") as f:
-            f.write(b"x")
-    return str(folder)
+PY_FILES = ("python/python.exe", "python/pythonw.exe", "python/python3.dll", "python/python312.dll",
+            "python/DLLs/_tkinter.pyd", "python/DLLs/tcl86t.dll", "python/Lib/venv/__init__.py",
+            "python/Lib/tkinter/__init__.py", "python/tcl/tcl8.6/init.tcl")
 
 
-def test_stage_installer_layout(tmp_path):
-    result = stage_installer.stage(str(tmp_path / "stage"), python_embed=fake_embed(tmp_path / "embed"),
+def fake_standalone(path, files=PY_FILES, extra=()):
+    """A tiny stand-in for python-build-standalone's Windows install_only .tar.gz (bytes only, never run).
+    Returns (path, sha256, pin) with the pin pointing at this file."""
+    import hashlib
+    import io
+    import tarfile
+    with tarfile.open(path, "w:gz", format=tarfile.GNU_FORMAT) as tar:
+        for name in files:
+            data = b"not a real program: " + name.encode()
+            info = tarfile.TarInfo(name)
+            info.size = len(data)
+            tar.addfile(info, io.BytesIO(data))
+        for info in extra:
+            tar.addfile(info, io.BytesIO(b"x" * info.size) if info.isfile() else None)
+    digest = hashlib.sha256(open(path, "rb").read()).hexdigest()
+    pin = {"version": "3.12.16", "build": "20261026", "sha256": digest, "url": path.as_uri()}
+    return str(path), digest, pin
+
+
+def test_stage_installer_ships_the_pinned_standalone_python(tmp_path):
+    archive, digest, pin = fake_standalone(tmp_path / "py.tar.gz")
+    result = stage_installer.stage(str(tmp_path / "stage"), python_archive=archive, pin=pin,
                                    wheelhouse=fake_wheels(tmp_path / "wheels"),
-                                   tools=make_tools(tmp_path / "libs-dist", ("notes",)),
-                                   tk_from=fake_full_python(tmp_path / "cpython"))
+                                   tools=make_tools(tmp_path / "libs-dist", ("notes",)))
     synox = tmp_path / "stage" / "SYNOX"
-    assert result["tk"] and result["python"] == "3.12"
+    assert result["python"] == "3.12.16"
     for rel in ("Setup.bat", "tools/index.json", "wheelhouse/pip-24.0-py3-none-any.whl", "runtime/python/python.exe",
-                "runtime/python/_tkinter.pyd", "runtime/python/Lib/tkinter/__init__.py",
+                "runtime/python/DLLs/_tkinter.pyd", "runtime/python/Lib/tkinter/__init__.py",
                 "runtime/python/tcl/tcl8.6/init.tcl", "STAGE-MANIFEST.txt", "setup/installer/synox.iss"):
         assert (synox / rel).is_file(), rel
-    assert not (synox / "runtime" / "python" / "Lib" / "tkinter" / "test").exists()
-    pth = (synox / "runtime" / "python" / "python312._pth").read_text(encoding="ascii").splitlines()
-    assert "import site" in pth and "#import site" not in pth and pth[0] == "Lib"
+    assert (synox / "runtime" / "python" / "python.exe").read_bytes() == b"not a real program: python/python.exe"
+    assert not list((synox / "runtime" / "python").glob("*._pth"))            # 不是可攜版：沒有 ._pth
+    assert sorted(p.name for p in (synox / "runtime").iterdir()) == ["python"]  # 沒有留下 .tmp
     manifest = (synox / "STAGE-MANIFEST.txt").read_text(encoding="utf-8")
+    assert digest in manifest.splitlines()[0] and "3.12.16" in manifest.splitlines()[0]
     assert str(tmp_path) not in manifest and "tools/index.json" in manifest      # 沒有發佈機的路徑
     assert not (synox / "data").exists() and not (synox / "config.json").exists()
 
 
-def test_stage_installer_refuses_incomplete_inputs(tmp_path):
-    embed = fake_embed(tmp_path / "embed")
-    with pytest.raises(stage_installer.StageError, match="virtualenv"):
-        stage_installer.stage(str(tmp_path / "s1"), python_embed=embed,
+def test_stage_installer_can_fetch_the_pinned_file(tmp_path):
+    archive, digest, pin = fake_standalone(tmp_path / "py.tar.gz")
+    stage_installer.stage(str(tmp_path / "stage"), fetch=True, pin=pin, wheelhouse=fake_wheels(tmp_path / "w"))
+    assert (tmp_path / "stage" / "SYNOX" / "runtime" / "python" / "python.exe").is_file()
+    assert (tmp_path / "stage" / "downloads" / "py.tar.gz").is_file()          # 下載的檔案在 stage 外面，不會被打包
+
+
+def test_stage_installer_reads_the_same_pin_as_bootstrap():
+    pin = stage_installer.pinned_python()
+    text = open(os.path.join(ROOT, "setup", "bootstrap.ps1"), encoding="utf-8-sig").read()
+    assert f"$PythonSha256 = '{pin['sha256']}'" in text and f"$PythonVersion = '{pin['version']}'" in text
+    assert pin["url"].startswith("https://github.com/astral-sh/python-build-standalone/releases/download/")
+    assert pin["url"].endswith("-x86_64-pc-windows-msvc-install_only_stripped.tar.gz") and "$" not in pin["url"]
+
+
+def test_stage_installer_refuses_bad_or_incomplete_inputs(tmp_path):
+    import tarfile
+    archive, digest, pin = fake_standalone(tmp_path / "py.tar.gz")
+    with pytest.raises(stage_installer.StageError, match="setuptools"):
+        stage_installer.stage(str(tmp_path / "s1"), python_archive=archive, pin=pin,
                               wheelhouse=fake_wheels(tmp_path / "w1", ("pip-24.0-py3-none-any.whl",)))
-    with pytest.raises(stage_installer.StageError, match="3.11"):
-        stage_installer.stage(str(tmp_path / "s2"), python_embed=fake_embed(tmp_path / "old", minor=10),
+    with pytest.raises(stage_installer.StageError, match="sha256"):
+        stage_installer.stage(str(tmp_path / "s2"), python_archive=archive, pin={**pin, "sha256": "0" * 64},
                               wheelhouse=fake_wheels(tmp_path / "w2"))
-    with pytest.raises(stage_installer.StageError, match="embeddable"):
-        stage_installer.stage(str(tmp_path / "s3"), python_embed=str(tmp_path), wheelhouse=fake_wheels(tmp_path / "w3"))
-    with pytest.raises(stage_installer.StageError, match="3.12"):
-        stage_installer.stage(str(tmp_path / "s4"), python_embed=embed, wheelhouse=fake_wheels(tmp_path / "w4"),
-                              tk_from=fake_full_python(tmp_path / "py311", minor=11))
+    assert not (tmp_path / "s2" / "SYNOX").exists()
+    with pytest.raises(stage_installer.StageError, match="exactly one"):
+        stage_installer.stage(str(tmp_path / "s3"), python_archive=archive, fetch=True, pin=pin,
+                              wheelhouse=fake_wheels(tmp_path / "w3"))
+    evil = tarfile.TarInfo("python/../../evil.txt")
+    evil.size = 1
+    link = tarfile.TarInfo("python/Lib/link")
+    link.type, link.linkname = tarfile.SYMTYPE, "/etc/passwd"
+    for i, (extra, files) in enumerate((((evil,), PY_FILES), ((link,), PY_FILES),
+                                        ((), [f for f in PY_FILES if "tkinter" not in f]),
+                                        ((), [f.replace("312", "311") for f in PY_FILES]))):
+        bad, _, bad_pin = fake_standalone(tmp_path / f"bad{i}.tar.gz", files=files, extra=extra)
+        with pytest.raises(stage_installer.StageError):
+            stage_installer.stage(str(tmp_path / f"b{i}"), python_archive=bad, pin=bad_pin,
+                                  wheelhouse=fake_wheels(tmp_path / f"wb{i}"))
+        assert not (tmp_path / "evil.txt").exists() and not (tmp_path / f"b{i}" / "evil.txt").exists()
 
 
 def test_inno_script_is_per_user_and_keeps_user_data():
