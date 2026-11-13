@@ -446,9 +446,9 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
     web = (getattr(config, "web", None) or {}) if config is not None else {}
     port = int(web.get("port") or 0)
     if config is not None and web.get("enabled", True) and is_up(port):
-        url = f"http://127.0.0.1:{port}/?pack={token}#settings"
+        url = f"http://127.0.0.1:{port}/?pack={token}#packs"
         (open_url or _open_browser)(url)
-        print("🌐 已經打開網頁設定頁：看完報告，按「確認安裝」才會裝。")
+        print("🌐 已經打開網頁的「功能與安裝」頁：看完報告，按「確認安裝」才會裝。")
         print(f"   {url}")
         print("   （網頁要先登入：雙擊 Open-SYNOX.bat，或在 Telegram 打 /web 拿登入連結。）")
         return 0
@@ -456,7 +456,7 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
     tier = summary.get("tier") or {}
     extra = f' --trust-publisher "{tier.get("publisher")}"' if tier.get("needs_publisher") and tier.get("publisher") else ""
     print(f'   • 在這裡核准：python -m synox install "{args.file}" --yes{extra}')
-    print("   • 或開 SYNOX 之後，在網頁設定頁「裝一個 .synoxpack」選這個檔")
+    print("   • 或開 SYNOX 之後，在網頁「設定 → 功能與安裝」選這個檔（還沒按確認的會列在「等你核准」）")
     return 1
 
 

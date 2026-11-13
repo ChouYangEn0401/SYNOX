@@ -387,6 +387,22 @@ MOCK = r"""
       return reply({ pairing: ch.pairing, paired_as: ch.paired_as, just_paired: null, ok: true });
     }
     if (p === "/api/accounts") { return reply(D.accounts); }
+    // 「功能與安裝」的待核准清單（一筆假的暫存；時間寫成「10 分鐘前」，預覽檔才不會每跑一次就變）
+    if (p === "/api/packs/staged") {
+      return reply({ max_age_days: 7, staged: D.stagedGone ? [] : [{ token: "previewtoken01", name: "weather", version: "0.3.0",
+        title: "天氣", tier: "T1", staged_at: Math.floor(Date.now() / 1000) - 600, expires_in: 7 * 86400 - 600 }] });
+    }
+    if (p === "/api/packs/discard") { D.stagedGone = true; return reply({ ok: true }); }
+    if (p.indexOf("/api/pack-staged/") === 0) {
+      return reply({ token: "previewtoken01", name: "weather", title: "天氣", version: "0.3.0", summary: "查天氣預報（預覽的假資料）",
+        kind: "python", access: "owner", storage: "user", files: ["pack.json", "pack.py", "SKILL.md"], publisher: "",
+        scan: { declared_capabilities: ["network"], required_capabilities: ["network"], problems: [], findings: [] },
+        warnings: ["會連網：只連到天氣服務"], tier: { tier: "T1", text: "T1：有程式碼，掃描過了" } });
+    }
+    if (p === "/api/packs/install") {
+      D.stagedGone = true;
+      return reply({ ok: true, name: "weather", status: "loaded", detail: "", env: "" });
+    }
     if (p === "/api/usage") {                     // 假的用量：讓設定頁的「AI 用量與花費」有東西看
       var per = (String(path).split("period=")[1] || "day").split("&")[0];
       var n = { hour: 24, day: 14, week: 12, month: 12 }[per] || 14, pts = [], total = { calls: 0, input: 0, output: 0, usd: 0 };

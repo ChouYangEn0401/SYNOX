@@ -337,8 +337,9 @@ def test_owner_only_settings(make_bot, owner):
     assert settings["owner"] is False and "llm" not in settings and "ai_budget" in settings
     for path, body in [("/api/settings/llm", {"choice": "none"}), ("/api/packs/reload", {}),
                        ("/api/packs/remove", {"name": "money"}), ("/api/backup", {}),
-                       ("/api/packs/install", {"token": "x" * 10})]:
+                       ("/api/packs/install", {"token": "x" * 10}), ("/api/packs/discard", {"token": "x" * 10})]:
         assert m.post(path, body)[0] == 403, path
+    assert m.get("/api/packs/staged")[0] == 403
     assert m.post("/api/accounts/role", {"id": GUEST_ID, "role": "admin"})[0] == 403
     assert m.raw("POST", "/api/packs/upload", b"PK")[0] == 403
 
@@ -493,6 +494,88 @@ def test_pack_upload_rejects_non_zip_and_bad_manifest(owner_client):
         z.writestr("pack.json", json.dumps({"name": "Bad Name"}))
     status, _h, body = c.raw("POST", "/api/packs/upload", buf.getvalue())
     assert status == 400 and "pack.json" in json.loads(body)["error"]
+
+
+def test_staged_packs_are_listed_without_token_and_can_be_discarded(make_bot, owner, tmp_path):
+    user_packs = tmp_path / "userpacks"
+    user_packs.mkdir()
+    from synox.packs import loader
+    bot = make_bot(pack_dirs=(str(user_packs),) + loader.PACK_DIRS)
+    c = Client(ui_of(bot))
+    c.login(owner)
+    assert c.get("/api/packs/staged")[1]["staged"] == []
+    first = json.loads(c.raw("POST", "/api/packs/upload", _pack_zip())[2])["token"]
+    second = json.loads(c.raw("POST", "/api/packs/upload", _pack_zip(name="howdy"))[2])["token"]
+    status, data = c.get("/api/packs/staged")                    # 沒有 ?pack=<token> 也看得到等核准的
+    assert status == 200 and data["max_age_days"] == 7
+    rows = {s["token"]: s for s in data["staged"]}
+    assert set(rows) == {first, second}
+    assert rows[first]["name"] == "hello" and rows[first]["version"] == "0.1.0" and rows[first]["title"] == "👋 打招呼"
+    assert 0 < rows[first]["expires_in"] <= 7 * 86400
+    assert c.post("/api/packs/discard", {"token": first}) == (200, {"ok": True})
+    assert not os.path.exists(os.path.join(bot.app.config.data_dir, "web_uploads", first))
+    assert c.post("/api/packs/discard", {"token": first})[0] == 404
+    assert c.post("/api/packs/discard", {"token": "../../etc"})[0] == 404
+    assert c.get("/api/pack-staged/" + first)[0] == 404
+    assert [s["token"] for s in c.get("/api/packs/staged")[1]["staged"]] == [second]
+    assert c.post("/api/packs/install", {"token": second})[0] == 200
+    assert c.get("/api/packs/staged")[1]["staged"] == []          # 裝好了＝不在待核准清單
+
+
+def test_stale_and_half_done_staged_uploads_are_cleaned(tmp_path):
+    import time
+    from synox.packs import admin
+    data = str(tmp_path / "data")
+    token, _summary = admin.stage(_pack_zip(), data)
+    root = admin.staging_root(data)
+    half = os.path.join(root, "HalfDoneToken123")                 # 解到一半就當機：沒有 staged.json
+    os.makedirs(os.path.join(half, "pack"))
+    fresh_half = os.path.join(root, "StillUnpacking12")
+    os.makedirs(fresh_half)
+    other = os.path.join(root, "not a token")                     # 不像 token 的不碰
+    os.makedirs(other)
+    old = time.time() - 2 * admin.STAGED_HALF_DONE
+    os.utime(half, (old, old))
+    listed = admin.list_staged(data)
+    assert [s["token"] for s in listed] == [token]
+    assert not os.path.exists(half) and os.path.isdir(fresh_half) and os.path.isdir(other)
+    later = time.time() + admin.STAGED_MAX_AGE + 60               # 7 天沒處理：過期清掉
+    assert admin.list_staged(data, now=later) == []
+    assert not os.path.exists(os.path.join(root, token)) and os.path.isdir(other)
+    with pytest.raises(admin.PackAdminError):
+        admin.discard_staged("..", data)
+
+
+def _settings_html():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "src", "synox", "web", "static", "app.html"), encoding="utf-8") as f:
+        return f.read()
+
+
+def test_settings_page_is_split_into_tabs():
+    html = _settings_html()
+    section = html.split('<section id="view-settings"')[1].split("</section>")[0]
+    panels = re.split(r'<div class="tab-panel hidden" data-tab="([a-z]+)" role="tabpanel">', section)
+    where = {}
+    for tab, body in zip(panels[1::2], panels[2::2]):
+        for card in re.findall(r'<div id="(set-[a-z]+)" class="card', body):
+            where[card] = tab
+    assert where == {"set-llm": "ai", "set-usage": "ai", "set-channels": "channels", "set-install": "packs",
+                     "set-packs": "packs", "set-accounts": "accounts", "set-awake": "system", "set-backup": "system"}
+    tabs = re.findall(r'<a href="(#[a-z:]+)" data-tab="([a-z]+)" role="tab">', section)
+    assert {t for _h, t in tabs} == set(where.values())
+    assert ("#packs", "packs") in tabs                              # 安裝頁的穩定網址（拖放之類的入口也用它）
+    assert section.index('id="set-install"') < section.index('id="set-packs"')   # 報告在清單上面，不用往下找
+
+
+def test_install_view_flow_and_hooks():
+    html = _settings_html()
+    for needle in ('id="install-steps"', 'id="staged-list"', "/api/packs/staged", "/api/packs/discard",
+                   '"synox:install-step"', "window.SynoxInstall", "history.replaceState",
+                   'location.pathname + "#packs"', "@keyframes flow-pulse"):
+        assert needle in html, needle
+    order = re.search(r'var STEP_ORDER = \[([^\]]+)\]', html).group(1)
+    assert [s.strip().strip('"') for s in order.split(",")] == ["check", "review", "confirm", "installing", "done"]
 
 
 def test_accounts_page(make_bot, owner):
