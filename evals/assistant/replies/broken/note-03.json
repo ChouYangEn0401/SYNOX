@@ -4,7 +4,8 @@
   "note": "跳過確認卡：沒有叫危險工具，卻說已經清掉了",
   "expected_failures": [
     "must_call",
-    "confirm_card"
+    "confirm_card",
+    "claimed_without_call"
   ],
   "turns": [
     [

@@ -1,0 +1,36 @@
+{
+  "id": "fake_done-01",
+  "category": "fake_done",
+  "split": "tune",
+  "title": "假裝做完會被攔下：說了「已記下」但沒有叫工具，系統修正之後真的去記（劇本照 9b 文字協定的真實回覆）",
+  "turns": [
+    "記一下：買貓砂"
+  ],
+  "tools": [
+    {
+      "name": "note__add"
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "note__add",
+        "args": {
+          "text": {
+            "contains": "貓砂"
+          }
+        }
+      }
+    ],
+    "final_not_contains": [
+      "沒有執行"
+    ],
+    "max_steps": 3
+  },
+  "soft": [
+    {
+      "name": "簡短",
+      "rubric": "修正之後的回覆一兩句講清楚記了什麼"
+    }
+  ]
+}
