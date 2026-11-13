@@ -512,6 +512,7 @@
 <style nonce="{{NONCE}}">/*{{INCLUDE:packdrop.css}}*/</style>
 <style nonce="{{NONCE}}">/*{{INCLUDE:report.css}}*/</style>
 <style nonce="{{NONCE}}">/*{{INCLUDE:security.css}}*/</style>
+<style nonce="{{NONCE}}">/*{{INCLUDE:apps.css}}*/</style>
 <style nonce="{{NONCE}}">/*{{INCLUDE:splash.css}}*/</style>
 </head>
 <body data-view="login">
@@ -545,6 +546,7 @@
     <ul id="chat-list" data-tour="chat.list"></ul>
     <a id="open-archive" class="archive-link" href="#archive">🗄 已封存的對話<span id="archive-n"></span></a>
   </div>
+  <a id="apps-side" class="hidden" href="#tools" title="工具服務：到工具頁看、關掉"></a>
   <div id="side-foot" class="side-foot hidden">
     <span class="avatar" id="avatar" aria-hidden="true"></span>
     <span class="who" id="who"></span>
@@ -930,6 +932,7 @@
 <script nonce="{{NONCE}}">/*{{INCLUDE:control.js}}*/</script>
 <script nonce="{{NONCE}}">/*{{INCLUDE:report.js}}*/</script>
 <script nonce="{{NONCE}}">/*{{INCLUDE:security.js}}*/</script>
+<script nonce="{{NONCE}}">/*{{INCLUDE:apps.js}}*/</script>
 <!-- include: tools.js -->
 <!-- include: tour.js -->
 <script nonce="{{NONCE}}">
@@ -2390,6 +2393,9 @@
     showWho(d);
     if (window.SynoxReport) { window.SynoxReport.init({ api: api, toast: toast }); }   // 遇到問題？（static/report.js）
     if (window.SynoxStepUp) { window.SynoxStepUp.init({ api: api, toast: toast }); }   // 🔐 安全（static/security.js）
+    if (window.SynoxApps) {                                                             // 工具服務（static/apps.js）
+      window.SynoxApps.init({ api: api, toast: toast, csrf: function () { return me ? me.csrf : ""; } });
+    }
     route();
     if (window.SynoxTour) {                    // 新手教學（static/tour.js）：只會填字、換頁，不會替人按任何東西
       window.SynoxTour.init({
