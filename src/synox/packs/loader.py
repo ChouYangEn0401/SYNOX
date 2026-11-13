@@ -146,7 +146,7 @@ class Pack:
     secret_fields: List[dict] = field(default_factory=list, repr=False)     # auth.fields（SYNOX 收的那些；見 packs/secrets.py）
     secrets: Any = field(repr=False, default=None)                          # PackSecrets（保管箱的 pack_secrets）
     live: Any = field(repr=False, default=None)                             # lock.LiveCheck（有鎖時；每次叫 cli 前再對一次）
-    # 工具服務（ADR 0023；SDK 0.2.3）：pack.json web.app 宣告的讀、動作、匯出各掛哪個函式（重新載入時是新的 Pack，自然清空）
+    # 工具服務（ADR 0024；SDK 0.2.3）：pack.json web.app 宣告的讀、動作、匯出各掛哪個函式（重新載入時是新的 Pack，自然清空）
     app_reads: Dict[str, Callable] = field(default_factory=dict, repr=False)
     app_actions: Dict[str, Callable] = field(default_factory=dict, repr=False)
     app_describe: Dict[str, Callable] = field(default_factory=dict, repr=False)
@@ -217,7 +217,7 @@ class Pack:
 
     def app_action(self, name: str, fn: Callable, *, describe: Optional[Callable] = None) -> None:
         """工具畫面的動作：POST /api/do/<name> → fn(user, values) 回 dict。name 要寫在 web.app.actions，
-        而且要有同名的指令（群組.名字），危險程度一樣——一個動作＝一個指令（ADR 0023 §2）。
+        而且要有同名的指令（群組.名字），危險程度一樣——一個動作＝一個指令（ADR 0024 §2）。
         describe(user, values) -> str：危險動作確認框的那一句（選填）。"""
         if name not in self._app_decl("actions"):
             raise ValueError(f"{self.name}: app action {name!r} is not declared in pack.json web.app.actions")

@@ -365,7 +365,7 @@ def _inside(folder: str, rel: str) -> bool:
         return False
 
 
-# ── 工具服務：web.app（ADR 0023 第三版、計畫 C2／WP1） ────────────────────────────
+# ── 工具服務：web.app（ADR 0024 第三版、計畫 C2／WP1） ────────────────────────────
 KIT_VERSIONS = (1,)                                  # 共用元件（appkit.js）的版本：這台 SYNOX 認得的
 APP_EXT = (".html", ".js", ".css", ".json", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".ico", ".woff2")
 APP_MAX_FILES = 100

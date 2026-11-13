@@ -74,6 +74,22 @@ def no_sockets(monkeypatch):
     monkeypatch.setattr(socket.socket, "listen", refuse)
 
 
+APP_PACKS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "app_pack")
+
+
+@pytest.fixture
+def counter(make_bot):
+    """有工具服務 fixture（counter）的 bot＋它的管理員（假 listener：不開埠）。counter(raw=…, script=…)。"""
+    def factory(script=None, **kw):
+        bot = make_bot(script, pack_dirs=(FIXTURE_PACKS, APP_PACKS), **kw)
+        from synox.web import apps
+        from synox.web.apps.testing import FakeListen
+        manager = apps.of(bot.app)
+        manager.listen = FakeListen()
+        return bot, manager
+    return factory
+
+
 @pytest.fixture
 def owner():
     return OWNER_ID

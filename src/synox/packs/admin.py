@@ -171,7 +171,7 @@ def summary_of(m: Manifest, report: ScanReport, hashes: Dict[str, str], problems
 
 
 def app_of(m: Manifest):
-    """安裝報告的「完整網頁畫面」那一段（工具服務，ADR 0023 §5）：沒有宣告＝None。"""
+    """安裝報告的「完整網頁畫面」那一段（工具服務，ADR 0024 §5）：沒有宣告＝None。"""
     app = (m.web or {}).get("app")
     if not app:
         return None

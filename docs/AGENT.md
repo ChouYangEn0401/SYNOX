@@ -47,6 +47,8 @@
 | `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS）、`__init__.py`（`install`、`/web`、`/web_off`） |
 | `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（30 秒、via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`＝⏰ 提醒（系統）、`/schedule_*`） |
 | `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS；設定頁分頁＝`#settings:<tab>`，安裝 pack 的頁＝`#packs`：待核准清單、步驟 `synox:install-step` 事件、`window.SynoxInstall` 入口）、`__init__.py`（`install`、`/web`、`/web_off`）；工具頁：`toolpage.py`（指令卡與參數表單的資訊 `command_info`、群組排版 `effective`／`parse_layout`、每人的偏好 `UserPrefs`＝`data/web_prefs/<id>.json.enc`）＋`static/tools.js`／`tools.css`（`server.render_app` 換掉 app.html 的 `<!-- include: … -->`，同一個 nonce） |
+| `src/synox/web/apps/` | 工具服務（[adr/0024](adr/0024-tool-apps-services.md)）：`manager.py`（`AppManager`：開關、埠、閒置、交接票；`start` 只收 web／telegram）、`site.py`（`AppSite.handle`：一個工具的站，C4–C6.1）、`listen.py`（唯一開埠的地方，`127.0.0.2`）、`sessions.py`（交接票、app 登入，綁在有 `alive()` 的上一層）、`spec.py`、`audit.py`（`data/apps_audit.jsonl`、`safe_trace`）、`web_api.py`（主機台的 `/api/apps…`、`POST /apps/<名>/open`）、`commands.py`（`/apps`、`/app_open`、`/app_close`）、`testing.py`（`AppClient`、`FakeListen`）；共用元件 `static/appkit.js`／`appkit.css` |
+| `src/synox/guard/` | 門禁核心（[adr/0025](adr/0025-guard-core-and-stepup.md)）：`origin.py`（來源）、`inputs.py`（輸入的基本檢查）、`limits.py`、`audit.py`（`data/security_audit.jsonl`）、`stepup.py`（手機驗證器）、`scope.py`（callers／stepup）、`store.py`、`qr.py`、`commands.py`（/unlock）、`web_api.py`（/api/stepup）、`cli.py`（`python -m synox stepup`）、`testing.py` |
 | `src/synox/present/` | 呈現層（[presentation.md](presentation.md)，`config.json` `presentation.enabled`，**預設關**）：`blocks.py`（區塊、Span、信任等級 system／assistant／external、`safe_url`、`visible`）、`markdown.py`（Markdown／純文字 → 區塊，不用第三方套件、不丟例外）、`telegram.py`／`discord.py`／`web.py`（輸出；切割在 `split.py`、表格降級在 `tables.py`、寬度在 `width.py`）、`__init__.py`（`render`、`deliver`）。只接 AI 回覆（`AgentLoop.say`、`RoomAgent.say`）；按鈕群／確認卡只有 system 才是真的按鈕；網頁送 JSON 區塊給 `static/blocks.js`（textContent） |
 | `src/synox/packs/admin.py` | `.synoxpack`：stage（zip 檢查＋第 1、2 關；記 zip 的執行位元、不解出 `__pycache__`）→ install_staged（再驗一次＋T2 要 `trust_publisher`＋第 3 關寫鎖）／移除到 `packs/_removed/`／`reload()`（Web UI、`synox install` 共用）；`list_staged`（待核准清單，順便清掉過期／半套的暫存）／`discard_staged`；`format_tier`／`red`＝T2 的紅字段 |
 | `src/synox/packs/tier.py` | 信任層級（SDK P7）：`assess`（T0／T1／T2＋掃不到內容的檔、外部程式、runtime auto 套件）、`warning_lines`、`confirm_problem`（publisher 一字不差）、`reconfirm_reasons`（升級）、`lock_fields` |
@@ -86,7 +88,10 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 7. **測試不綁埠、不連網、不開 Telegram、不開 `claude`**；requests 用假的 session，`claude` 用假的 runner/which；
    Web UI 測 `WebUI.handle()`／`route()`，不開 `ThreadingHTTPServer`。
 8. **repo 裡沒有真名、token、Telegram id 或個人資料**；`config.json`、`data/` 在 `.gitignore`。範例一律佔位字。
-9. **Web UI 只綁 127.0.0.1**（`web/server.py` 的 `HOST`，不從 config 讀）；對外是營運者的反向代理＋TLS。
+9. **主機台只綁 127.0.0.1；工具服務（與之後的遠端閘門）只綁 127.0.0.2、只由 `web/apps/listen.py` 開埠**。
+   主機台：`web/server.py` 的 `HOST`，不從 config 讀；對外是營運者的反向代理＋TLS。
+   工具服務（[adr/0024](adr/0024-tool-apps-services.md)）：`listen.APP_HOST = "127.0.0.2"`，不從 config.json 讀、沒有環境變數、不經 `bind_host()`；
+   整個 repo 新增的 `_Server(` 只有 `listen.py` 那一個。app 的埠**不用 cookie**（不讀、不發），只能用主機台發的一次性交接票進（30 秒、只能用一次）。
    唯一例外只在 `web/server.py` 的 `bind_host`：SYNOX 的容器裡（`SYNOX_IN_CONTAINER=1`＋`CONTAINER_MARKERS`、非 Windows）且
    `SYNOX_WEB_BIND=0.0.0.0` 才綁容器自己的 0.0.0.0（compose 只發佈到宿主 127.0.0.1，[docker.md](docker.md)）；其他值＝`BindError`、網頁不開。
    不要再加別的改綁方式，也不要讓 config.json 決定綁哪裡。每個 API 用 session 的那個人算權限，
@@ -263,6 +268,11 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 24. **驗證碼只從人的入口進來；任何給 AI 的工具都不能有收驗證碼的欄位**：`guard/stepup.py` 的 `verify`／`unlock` 看到來源不是人（或遠端）
     就回 `not_human`、不計次、不碰金鑰；解鎖指令群組 `unlock` 在 `policy.HIDDEN_GROUPS`、`interactive`、`callers=("human",)`。
     解鎖綁入口（`origin.surface`），只在記憶體。權限的兩題（範圍、要不要解鎖）在 `policy.guard_check`，接在 `decide` 裡，不另開交會點。
+25. **工具服務的每個請求照計畫 C4 檢查**（`web/apps/site.py`）：Host 一字不差、帶代理標頭就拒、`/api/` 檢查來源、每個請求都重查登入
+    （token 雜湊、沒過期、上一層 `alive()`、這個人現在看得到這個工具）。**動作一定對到同名指令的葉節點**（`spec.py` 核對危險程度），
+    權限問同一個 `registry.authorize`、欄位走 `kit.check_values`；**開服務只收網頁按鈕與擁有者打字兩種來路**（`AppManager.start` 的 `via`
+    只收 `web`／`telegram`，`/app_open` 是 `interactive`），AI、排程、內部呼叫都開不了；AI 可以列與關。稽核欄位固定、沒有自由文字；
+    log 用 `audit.safe_trace`（沒有例外的訊息）。
 
 另外：
 - **本地模型（kind=local，[adr/0007](adr/0007-local-llm-platform.md)）**：`llm.timeout` 是**無進展**逾時（每次 socket 讀取；

@@ -3,7 +3,7 @@
 - 狀態：**待處理**（提案；[ADR 0025](../adr/0025-guard-core-and-stepup.md)、[ADR 0026](../adr/0026-remote-tool-apps.md) 等擁有者核准。核准前不動 `src/`）
 - 寫的時間：2026-11-14（分支 `feat/remote-access`，基準 `dev` 的 `6b4253c`）
 - 讀者：**一個**實作的 session，照下面 S1→S15 的順序一包一包做（擁有者要求：一個 session 依序做，不要一次開很多代理）。手上只有這份文件、兩份 ADR、工具服務的 ADR 與計畫、repo。
-- 相關：工具服務＝分支 `feat/tool-apps` 的 `docs/adr/0023-tool-apps-services.md`（第三版）與 `docs/lab/2026-11-14-tool-apps-implementation-plan.md`。
+- 相關：工具服務＝分支 `feat/tool-apps` 的 `docs/adr/0024-tool-apps-services.md`（第三版）與 `docs/lab/2026-11-14-tool-apps-implementation-plan.md`。
   **注意**：寫這份的時候，那份計畫還停在第二版（用 cookie 進門），ADR 已經是第三版（不用 cookie、交接票）。動手前先看那個分支最新的計畫；兩邊不一致時以 ADR 第三版為準，並回報。
 
 ## 擁有者的話（協調者轉述；原話是中文語音，這裡拿到的是整理過的英文摘要，照錄不改）
