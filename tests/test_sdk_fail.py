@@ -51,7 +51,8 @@ def _cli(name):
 
 def test_version_and_class_hierarchy():
     assert issubclass(author.ToolFailure, author.ToolError)
-    assert author.SDK_VERSION == "0.2.1" and author.SDK_REQUIRES == ">=0.2,<0.3"     # 只加 API：範圍不變
+    # 只加 API（0.2.1 的 fail()、0.2.2 的 @tool(scenario=)）：PATCH 往上、範圍不變
+    assert tuple(int(x) for x in author.SDK_VERSION.split(".")) >= (0, 2, 1) and author.SDK_REQUIRES == ">=0.2,<0.3"
     assert "fail" in author.__all__ and "ToolFailure" in author.__all__
     assert set(author.FAILURE_SCOPES) == {"input", "user", "tool", "pack", "environment"}
     assert "unclassified" in author.FAILURE_CODES and len(author.FAILURE_CODES) == 18
