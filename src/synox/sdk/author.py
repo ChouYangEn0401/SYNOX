@@ -13,7 +13,8 @@ synox_sdk：寫一個 Python 函式，就是一個 SYNOX 工具（也是一個 M
     if __name__ == "__main__":
         serve()
 
-- `@tool(effect, summary="", default=False, ai=True, confirm=False)`：effect 一定要寫（READ／WRITE／DANGER）。
+- `@tool(effect, summary="", default=False, ai=True, confirm=False, scenario="")`：effect 一定要寫（READ／WRITE／DANGER）。
+  scenario＝給 AI 的「什麼時候用」一句話（pack.json 的 commands[].ai.scenario，120 字內、一行；SDK 0.2.2 起）。
   參數的型別註記就是欄位：int→int、float→number、bool→bool、str→text、Path→path、Literal["a","b"]→choice；
   有預設值或 Optional[...] ＝選填。summary 沒寫就用 docstring 第一段；docstring 的 Args: 段落是欄位說明。
 - `serve()`：同一組函式兩種殼。
@@ -57,7 +58,7 @@ __all__ = ["tool", "serve", "secret", "context", "confirmed", "Context", "ToolEr
            "Ok", "SpecError", "tool_spec", "commands_for", "run_cli", "run_mcp", "registered", "report_status",
            "peer_status"]
 
-SDK_VERSION = "0.2.1"                  # SYNOX 給工具的介面合約的版本（pack.json 的 requires.sdk 對這個；docs/sdk.md「SDK 版本」）
+SDK_VERSION = "0.2.2"                  # SYNOX 給工具的介面合約的版本（pack.json 的 requires.sdk 對這個；docs/sdk.md「SDK 版本」）
 SYNOX_REQUIRES = ">=0.2"               # 產生的 pack.json 的 requires.synox（SYNOX_* 環境變數、ai／confirm 從這版起）
 
 
@@ -237,16 +238,18 @@ def confirm_envelope(summary: str, token: str) -> dict:
 # ── @tool ──────────────────────────────────────────────────────────────
 
 def tool(effect: Any = None, summary: str = "", *, default: bool = False, ai: bool = True, confirm: bool = False,
-         name: str = ""):
+         name: str = "", scenario: str = ""):
     """把函式登記成工具。`@tool("READ")`、`@tool("WRITE", "記一筆")`；也可以 `@tool`（但 init 會因為沒寫 effect 拒絕）。
-    default＝打 /<群組> 就是它；ai=False＝不給 AI（也不在 MCP 列出）；confirm=True＝AI 要呼叫時先送確認卡給人按。"""
+    default＝打 /<群組> 就是它；ai=False＝不給 AI（也不在 MCP 列出）；confirm=True＝AI 要呼叫時先送確認卡給人按。
+    scenario＝給 AI 看的使用情境（一句話，例如「使用者說『記一下…』時」）：寫進 pack.json 的 commands[].ai.scenario，
+    SYNOX 給 AI 的工具說明就變成「用途。情境：…」（EasyTool 式的精簡說明）；沒寫＝照舊。"""
     if callable(effect) and not isinstance(effect, str):
         register = tool()
         return register(effect)
 
     def wrap(fn: Callable) -> Callable:
         spec = {"name": name or fn.__name__, "effect": effect, "summary": summary, "default": bool(default),
-                "ai": bool(ai), "confirm": bool(confirm)}
+                "ai": bool(ai), "confirm": bool(confirm), "scenario": scenario}
         fn.synox_tool_spec = spec
         if fn not in _REGISTRY:
             _REGISTRY.append(fn)
@@ -372,7 +375,21 @@ def tool_spec(fn: Callable) -> dict:
         field["_type"] = annotation
         fields.append(field)
     return {"name": name, "effect": effect, "summary": summary, "default": raw["default"], "ai": raw["ai"],
-            "confirm": raw["confirm"], "fields": fields, "fn": fn}
+            "confirm": raw["confirm"], "scenario": _scenario_of(raw, name), "fields": fields, "fn": fn}
+
+
+SCENARIO_MAX = 120
+
+
+def _scenario_of(raw: dict, name: str) -> str:
+    """@tool 的 scenario：沒寫＝""；要是一行、120 字內的字串（安裝時 SYNOX 第 1 關還會再查網址與像指令的字）。"""
+    value = raw.get("scenario") or ""
+    if not isinstance(value, str):
+        raise SpecError(f"{name}：scenario 要是字串（一句話說什麼時候用）")
+    value = value.strip()
+    if len(value) > SCENARIO_MAX or any(ch in value for ch in "\r\n"):
+        raise SpecError(f"{name}：scenario 要是一行、{SCENARIO_MAX} 字內")
+    return value
 
 
 def _name_of(fn) -> str:
@@ -428,6 +445,8 @@ def commands_for(tools: Optional[Sequence[Callable]] = None) -> List[dict]:
             cmd["default"] = True
         if not spec["ai"]:
             cmd["ai"] = False
+        elif spec.get("scenario"):
+            cmd["ai"] = {"scenario": spec["scenario"]}
         if spec["confirm"]:
             cmd["confirm"] = True
         if fields:

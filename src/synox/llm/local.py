@@ -13,6 +13,9 @@
   其他打 GET /v1/models；絕不送 chat／generate。
 - 截斷：回報的 prompt token ≥ context 的 97%＝「很可能被截斷」（Ollama 超過 num_ctx 是靜默截掉前面），
   寫 logging.warning、放進 Reply.warnings 與 adapter.last_warning（網頁設定頁、doctor 看得到），不靜默。
+- 取樣參數（docs/adr/0019）：`sampling`＝auto（預設：模型名有 qwen3 才送 Qwen3 不思考模式的建議值）｜qwen3｜off，
+  `options`＝自己蓋過的 Ollama options（num_ctx／num_predict／stop 由 SYNOX 管，不收）。**只有 server=ollama 會送**；
+  vLLM／LM Studio／其他照舊（OpenAI 相容的請求不加任何取樣參數）。
 - 之後的 VLM（docs 2026-11-13-vlm-vision-design）：訊息轉換集中在 `ollama_message`／`openai_message`，
   Message 多了圖片欄位時只要在這兩個函式加；這一輪不做。
 """
@@ -24,6 +27,7 @@ import ipaddress
 import json
 import logging
 import math
+import re
 import socket
 import time
 import urllib.error
@@ -48,6 +52,12 @@ PROBE_TIMEOUT = 15.0
 
 DEFAULTS = {"server": "ollama", "base_url": "", "model": "", "context_size": 0, "timeout": 0,
             "max_total_timeout": DEFAULT_MAX_TOTAL, "tools": True}
+# Qwen3 模型卡的「不思考模式」建議（temperature 0.7、top_p 0.8、top_k 20、min_p 0；不要 greedy，會無限重複）
+QWEN3_NO_THINK = {"temperature": 0.7, "top_p": 0.8, "top_k": 20, "min_p": 0}
+SAMPLINGS = ("auto", "qwen3", "off")
+RESERVED_OPTIONS = ("num_ctx", "num_predict", "stop")      # SYNOX 自己管（context_size、max_tokens、停止詞）
+MAX_OPTIONS = 20
+_OPTION_KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 
 Opener = Callable[[urllib.request.Request, float], object]
 
@@ -105,7 +115,48 @@ def validate(llm: dict) -> dict:
         raise ValueError("llm.max_total_timeout（總上限）不能比 llm.timeout（無進展逾時）小。")
     if not isinstance(out.get("tools"), bool):
         raise ValueError("llm.tools 只能是 true 或 false（false＝走文字協定）。")
+    out["sampling"] = parse_sampling(out.get("sampling"))
+    out["options"] = parse_options(out.get("options"))
     return out
+
+
+def parse_sampling(value) -> str:
+    """llm.sampling：auto（模型名有 qwen3 才送建議值）｜qwen3｜off。"""
+    if value in (None, ""):
+        return "auto"
+    mode = str(value).strip().lower()
+    if mode not in SAMPLINGS:
+        raise ValueError(f"llm.sampling 只能是 {'、'.join(SAMPLINGS)}（現在是 {value!r}）。")
+    return mode
+
+
+def parse_options(value) -> dict:
+    """llm.options：自己蓋過的 Ollama options（數字、布林、短字串）；num_ctx／num_predict／stop 不收（用 context_size、
+    max_tokens，停止詞 SYNOX 自己送）。"""
+    if value in (None, ""):
+        return {}
+    if not isinstance(value, dict):
+        raise ValueError('llm.options 要是物件，例如 {"temperature": 0.6}。')
+    if len(value) > MAX_OPTIONS:
+        raise ValueError(f"llm.options 最多 {MAX_OPTIONS} 個。")
+    out = {}
+    for key, v in value.items():
+        if not isinstance(key, str) or not _OPTION_KEY.match(key):
+            raise ValueError(f"llm.options 的名字只能是小寫英數字與 _（{key!r}）。")
+        if key in RESERVED_OPTIONS:
+            raise ValueError(f"llm.options 不能設 {key}（num_ctx 用 llm.context_size、num_predict 用 llm.max_tokens；"
+                             "停止詞 SYNOX 自己送）。")
+        if not (isinstance(v, (bool, int, float)) or (isinstance(v, str) and len(v) <= 100)):
+            raise ValueError(f"llm.options.{key} 只能是數字、true／false 或短字串。")
+        out[key] = v
+    return out
+
+
+def sampling_options(model: str, sampling: str = "auto") -> dict:
+    """要送的取樣參數：qwen3＝Qwen3 不思考模式的建議值；auto＝模型名有 qwen3 才送；off＝不送（伺服器／Modelfile 預設）。"""
+    if sampling == "qwen3" or (sampling == "auto" and "qwen3" in (model or "").lower()):
+        return dict(QWEN3_NO_THINK)
+    return {}
 
 
 # ── 網址 ──────────────────────────────────────────────────────────────
@@ -213,7 +264,8 @@ class LocalAdapter(ChatAdapter):
 
     def __init__(self, model: str = "", *, server: str = "ollama", base_url: str = "", context_size: int = 0,
                  timeout: float = 0, max_total_timeout: float = DEFAULT_MAX_TOTAL, tools: bool = True,
-                 max_tokens: int = 1024, opener: Optional[Opener] = None, clock: Optional[Callable[[], float]] = None):
+                 max_tokens: int = 1024, opener: Optional[Opener] = None, clock: Optional[Callable[[], float]] = None,
+                 sampling: str = "auto", options: Optional[dict] = None):
         if server not in SERVERS:
             raise LLMError(f"不認得的本地模型伺服器 {server}（只能是 {'、'.join(SERVERS)}）。")
         self.server = server
@@ -225,6 +277,8 @@ class LocalAdapter(ChatAdapter):
         self.max_total = max(float(max_total_timeout or DEFAULT_MAX_TOTAL), self.timeout)
         self.supports_tools = bool(tools)
         self.max_tokens = int(max_tokens or 1024)
+        self.sampling = sampling if sampling in SAMPLINGS else "auto"
+        self.options = dict(options or {})                # 只給 Ollama（docs/adr/0019）
         self._open = opener or default_opener
         self._clock = clock or time.monotonic
         self.server_ctx: Optional[int] = None        # 從伺服器讀到的 context（Ollama /api/ps、vLLM max_model_len）
@@ -376,6 +430,8 @@ class LocalAdapter(ChatAdapter):
     def _chat_ollama(self, messages, tools, warnings, stop=()) -> Reply:
         body = {"model": self.model, "messages": [ollama_message(m) for m in messages], "stream": True,
                 "options": {"num_predict": self.max_tokens}}
+        body["options"].update(sampling_options(self.model, self.sampling))      # Qwen3 不思考模式（docs/adr/0019）
+        body["options"].update({k: v for k, v in self.options.items() if k not in RESERVED_OPTIONS})
         if self.context_size:
             body["options"]["num_ctx"] = self.context_size
         if stop:

@@ -11,7 +11,8 @@
 - 排除（控誤判）：同一個子句裡宣稱前面有否定、條件、未來式、過去／現況描述（之前、目前…）；宣稱所在的句子以問號結尾；
   宣稱後面接「的」（「已設定的提醒」是在描述現況）。
 - 誰開：`guard_on(llm, adapter)`：config `llm.completion_guard` = "auto"（預設）｜"on"｜"off"。auto＝本地／較弱的來源才開：
-  kind=local，或 kind=openai_compat 指到 loopback／私網；claude_code 與雲端來源預設不開。`llm.verify_retries`（預設 2，0＝關）。
+  kind=local，或 kind=openai_compat 指到 loopback／私網；claude_code 與雲端來源預設不開（判斷共用 agent/auto.py）。
+  `llm.verify_retries`（預設 2，0＝關）。
 - 標定（誤判率）：tests/test_claims_calibration.py，用真實的本地模型回覆與 evals 劇本；數字寫在 ADR 0008。
 """
 
@@ -21,15 +22,16 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Sequence
 
+from synox.agent import auto as auto_mod
 from synox.agent import delimit
 
 PASS, REJECT, NUDGE = "pass", "reject", "nudge"
 FORGED, CLAIM_WITHOUT_CALL, PROGRESS_ONLY = "forged", "claim_without_call", "progress_only"
 WRITE, DANGER = "write", "danger"
-GUARD_MODES = ("auto", "on", "off")
+GUARD_MODES = auto_mod.MODES
 DEFAULT_RETRIES = 2
 MAX_RETRIES = 5
-LOCAL_KINDS = ("local",)
+LOCAL_KINDS = auto_mod.LOCAL_KINDS
 
 # ── 偽造的工具結果／洩漏的呼叫標記 ─────────────────────────────────────────
 
@@ -294,31 +296,10 @@ def parse_retries(value) -> int:
     return value
 
 
-def parse_switch(value, name: str) -> str:
-    """auto｜on｜off 的開關（llm.summarize_on_limit），true／false 也收。"""
-    if value is None or value == "":
-        return "auto"
-    if isinstance(value, bool):
-        return "on" if value else "off"
-    mode = str(value).strip().lower()
-    if mode not in GUARD_MODES:
-        raise ValueError(f"llm.{name} 只能是 auto、on、off（或 true／false）。")
-    return mode
-
-
-def weak_source(adapter) -> bool:
-    """auto 的判斷：本地／較弱的來源（kind=local；openai_compat 指到 loopback／私網）。claude_code、雲端＝False。"""
-    kind = getattr(adapter, "kind", "") or ""
-    if kind in LOCAL_KINDS:
-        return True
-    if kind == "openai_compat":
-        from synox.llm.local import is_local_url
-        return is_local_url(str(getattr(adapter, "base_url", "") or ""))
-    return False
-
-
-def _resolve(mode: str, adapter) -> bool:
-    return mode == "on" or (mode == "auto" and weak_source(adapter))
+# auto 的判斷與 auto｜on｜off 的開關是共用的（agent/auto.py）：這裡留舊名字給既有的呼叫端
+parse_switch = auto_mod.parse_switch
+weak_source = auto_mod.weak_source
+_resolve = auto_mod.resolve
 
 
 def guard_on(llm: Optional[dict], adapter) -> bool:

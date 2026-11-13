@@ -2,7 +2,8 @@
 指令樹的葉節點 → AI 的工具（ToolSpec）。
 
 - 名稱＝節點路徑，`.` 換成 `__`（money.add → money__add）；node_for(name) 反查。
-- 說明＝summary＋用法（＋危險的會先送確認卡）。
+- 說明＝summary＋用法（＋危險的會先送確認卡）；pack.json 寫了 commands[].ai.scenario 的＝「用途。情境：…」
+  （EasyTool 式的精簡說明，不放人打的用法；docs/adr/0013）。
 - 參數＝node.fields → JSON schema（全部 string；required 照 Field.required）。**驗證碼欄位（fresh_code）不給**——
   驗證碼永遠不經 AI（spec §7.1）。沒有 fields 但有 usage 的節點給一個 `args` 字串參數。
 - 哪些節點給 AI：由呼叫端傳入的 decide(node)（loop.ai_decision）決定，這裡不自己判斷——AI 能不能用一個節點只有一個判斷。
@@ -69,11 +70,28 @@ def schema(node: Node, app=None) -> dict:
     return out
 
 
-def description(node: Node) -> str:
-    parts = [node.summary or node.title]
+def scenario_of(app, node: Node) -> str:
+    """pack.json 的 commands[].ai.scenario（loader 放在 synox_tool_meta；沒寫＝""）。"""
+    if app is None:
+        return ""
+    meta = (getattr(app, "extras", {}) or {}).get("synox_tool_meta", {}).get(node.path) or {}
+    value = meta.get("scenario")
+    return value.strip() if isinstance(value, str) else ""
+
+
+def description(node: Node, app=None) -> str:
+    """給 AI 的工具說明。pack 寫了 scenario（docs/adr/0013，EasyTool 式）＝「用途。情境：…」＋要確認的一句，
+    不放「人打的用法」（那是給 /help 的，對 AI 是雜訊）；沒寫＝照舊（summary＋人打的用法＋危險提示）。"""
+    summary = node.summary or node.title
+    danger = node.effect == DANGER or node.wraps is not None
+    scenario = scenario_of(app, node)
+    if scenario:
+        text = summary.rstrip("。.!！ ") + "。情境：" + scenario.rstrip("。.") + "。"
+        return text + ("需使用者確認（系統會先送確認卡）。" if danger else "")
+    parts = [summary]
     if node.usage:
         parts.append(f"（人打的用法：{node.command} {node.usage}）")
-    if node.effect == DANGER or node.wraps is not None:
+    if danger:
         parts.append("危險或包著別的指令：系統會先送確認卡給使用者按，按了才執行。")
     return " ".join(parts)
 
@@ -87,7 +105,7 @@ def schema_mode(app, node: Node) -> Optional[dict]:
 
 
 def build(registry: CommandRegistry, decide: Callable[[Node], object], app=None) -> List[ToolSpec]:
-    return [ToolSpec(tool_name(n), description(n), schema(n, app)) for n in registry.leaves() if decide(n) is not None]
+    return [ToolSpec(tool_name(n), description(n, app), schema(n, app)) for n in registry.leaves() if decide(n) is not None]
 
 
 def to_argv(node: Node, args: dict) -> List[str]:

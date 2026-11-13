@@ -1,0 +1,18 @@
+{
+  "case": "missing_tool-01",
+  "source": "reference",
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "system__cannot_do",
+            "args": {
+              "reason": "我沒有訂票的工具，沒辦法幫你訂高鐵票。你可以用高鐵官網或 App 訂；要的話我可以把搭車時間加進行事曆。"
+            }
+          }
+        ]
+      }
+    ]
+  ]
+}

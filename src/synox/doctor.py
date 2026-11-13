@@ -330,6 +330,8 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
             if adapter is not None:                         # 完成宣稱檢查、停止詞（docs/adr/0008、0010）
                 from synox.agent.claims import doctor_line
                 out("  " + doctor_line(llm, adapter))
+                from synox.agent.auto import doctor_line as harness_line          # docs/adr/0014～0017
+                out("  " + harness_line(llm, adapter))
         except Exception as e:
             out(f"• AI：❌ {e}")
             problems += 1
