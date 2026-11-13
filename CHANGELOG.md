@@ -5,6 +5,7 @@
 ### 新增
 - `docs/versioning.md`：版本號、分支、tag、每版要有什麼、「我要怎麼更新？」；`scripts/release.py`（bump／check／notes）；ADR 0023 自己更新與緊急修補（提案）。
 - `synox about`、`synox doctor` 多一行：到 GitHub 發佈頁看有沒有新版（不自己連網）。
+- `docs/advanced-install.md`：給工程師的進階安裝（原始碼＋venv、Docker、無畫面執行、背景服務），每項標 ✅ 跑過／🧪 未實測／⏳ 未完成。
 
 ## 未發佈（設定頁的官方工具庫、預設用 SYNOX 自己的 Python）
 

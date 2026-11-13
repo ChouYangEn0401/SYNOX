@@ -92,6 +92,8 @@ synox tips      隨機一則使用小提示
 
 個人版：只有你（安裝時配對的那個 Telegram 帳號）用得到這些指令；別人傳訊息給你的 bot，看不到也用不了。
 
+**工程師**：要自己從原始碼裝、用 Docker、放伺服器或當背景服務跑，看 [docs/advanced-install.md](docs/advanced-install.md)。
+
 **更新**：看 `synox about` 的版本，跟 [GitHub 發佈頁](https://github.com/ChouYangEn0401/SYNOX/releases) 標 Latest 的那一版比；怎麼更新（ZIP、git、工具、SDK）見 [docs/versioning.md](docs/versioning.md)。
 
 ## 個人版和伺服器版
