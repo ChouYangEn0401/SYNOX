@@ -113,13 +113,14 @@ NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 Resp = Tuple[int, List[Tuple[str, str]], bytes]
 
 BASE_HEADERS = [("X-Content-Type-Options", "nosniff"), ("Referrer-Policy", "no-referrer"),
-                ("Cache-Control", "no-store")]
+                ("Cache-Control", "no-store"), ("Cross-Origin-Opener-Policy", "same-origin")]
 
 
 def _json(status: int, data, extra: Optional[List[Tuple[str, str]]] = None) -> Resp:
     body = json.dumps(data, ensure_ascii=False).encode("utf-8")
     return status, BASE_HEADERS + [("Content-Type", "application/json; charset=utf-8"),
-                                   ("X-Frame-Options", "DENY")] + (extra or []), body
+                                   ("X-Frame-Options", "DENY"),
+                                   ("Cross-Origin-Resource-Policy", "same-origin")] + (extra or []), body
 
 
 def _err(status: int, message: str) -> Resp:
@@ -194,6 +195,16 @@ def render_app(nonce: str) -> str:
 
 
 app_html = render_app          # 主控頁的測試與預覽沿用的舊名字
+
+
+def _cookies(headers: Dict[str, str], name: str) -> List[str]:
+    """同名的 cookie 全部（有人在同一台電腦的別的埠種了一個同名的假 cookie 時，真的那個還認得出來）。"""
+    out = []
+    for part in (headers.get("cookie") or "").split(";"):
+        key, _, value = part.strip().partition("=")
+        if key == name:
+            out.append(value)
+    return out
 
 
 def _cookie(headers: Dict[str, str], name: str) -> Optional[str]:
@@ -324,7 +335,19 @@ class WebUI:
     # ── 入口 ─────────────────────────────────────────────────────────
 
     def session_from(self, headers: Dict[str, str]) -> Optional[Session]:
-        return self.sessions.get(_cookie(headers, COOKIE))
+        for sid in _cookies(headers, COOKIE):
+            session = self.sessions.get(sid)
+            if session is not None:
+                return session
+        return None
+
+    def session_key(self, headers: Dict[str, str]) -> Optional[str]:
+        """這個請求有效的那個登入的雜湊（工具服務的交接票、app 的登入綁在它上面；Sessions.has 查）。"""
+        headers = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
+        for sid in _cookies(headers, COOKIE):
+            if self.sessions.get(sid) is not None:
+                return digest(sid)
+        return None
 
     def handle(self, method: str, target: str, headers: Dict[str, str], body: bytes = b"") -> Resp:
         headers = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
@@ -364,6 +387,8 @@ class WebUI:
             if m and method == "GET":
                 return self.tutorial(m.group(1))
             if path.startswith("/api/"):
+                if headers.get("sec-fetch-site") in ("same-site", "cross-site"):    # 別的網頁（含本機別的埠）送來的
+                    return _err(403, "來源不對（不是從 SYNOX 自己的頁面送出的）。")
                 if session is None:
                     return _err(401, "請先登入：" + LOGIN_HOW)
                 if method != "GET":
