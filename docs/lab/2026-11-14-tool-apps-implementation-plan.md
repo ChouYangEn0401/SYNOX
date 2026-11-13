@@ -1,6 +1,6 @@
 # 工具服務（每個工具自己的完整網頁）：實作計畫
 
-- 狀態：**待處理**（提案；[ADR 0024](../adr/0024-tool-apps-services.md) 等擁有者核准。核准前不動 `src/`；核准後照下面的工作包做）
+- 狀態：**已修**（第三版照做，併在 分支 `feat/secure-apps`（S1–S14 的程式；最後一包程式的合併是 `ccf6049`，S15 收尾另一筆合併）；WP7 在 SYNOX_Libs `feat/tool-apps` 的 `9d84318`）。G1 未做（要別台電腦）。
 - 寫的時間：2026-11-14（分支 `feat/tool-apps`，基準 `dev` 的 `b5f48e2`）。**這是第三版，整份重寫過**；前兩版在 git 歷史裡，不要照舊版做。
 - 讀者：實作的代理（每個工作包一個，手上只有這份文件與 repo）。行號都是基準 commit 的。
 - 工具那一側（記帳 app）：SYNOX_Libs 的 `docs/adr/0003-tool-apps-and-money-app.md`（工作包 7）。
