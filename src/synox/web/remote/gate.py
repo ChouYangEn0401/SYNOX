@@ -111,10 +111,24 @@ class RemoteGate:
         ua = hmac.compare_digest(digest(headers.get("user-agent", "")), link.ua_digest or "")
         return ok and ua
 
-    def _enter(self, req) -> Resp:
-        link = self.link
-        fail = self._finish((403, [("Content-Type", "application/json; charset=utf-8")],
+    def _fail_page(self) -> Resp:
+        return self._finish((403, [("Content-Type", "application/json; charset=utf-8")],
                              json.dumps(ENTER_FAIL, ensure_ascii=False).encode("utf-8")))
+
+    def _enter(self, req) -> Resp:
+        """進門。已經有人進門了（這條入口只發一個登入）：一律回固定的失敗、**不計次**——知道網域的外人不能靠亂敲把擁有者踢出去。
+        任何意外（例如怪字元的驗證碼）都變成同一個、有計次的失敗，不會變成別的狀態碼。"""
+        if self.link.state != "waiting":
+            return self._fail_page()
+        try:
+            return self._enter_checked(req)
+        except Exception:
+            self.manager.enter_failed(self.link)
+            return self._fail_page()
+
+    def _enter_checked(self, req) -> Resp:
+        link = self.link
+        fail = self._fail_page()
         try:
             data = inputs.json_object(req.body, max_bytes=4096, max_depth=2)
             key, code = data.get("k"), data.get("code")

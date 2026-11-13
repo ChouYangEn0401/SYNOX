@@ -205,8 +205,9 @@ class RemoteManager:
         with self.lock:
             if self.link is not None and self.link.state != "closed":
                 raise self._refuse("busy", TEXT["busy"].format(title=self._title(self.link.name)), uid, o)
-            self.link = Link(id=secrets.token_hex(6), name=name, owner=uid, host="", key_digest="",
-                             entry_deadline=0, hard_deadline=0, state="closed")
+            # 佔位：「正在開」也算有一條（同時再按一次＝busy）；只有自己能清掉自己的佔位
+            placeholder = self.link = Link(id=secrets.token_hex(6), name=name, owner=uid, host="", key_digest="",
+                                           entry_deadline=0, hard_deadline=0, state="opening")
         started_here = False
         listener = None
         tunnel = None
@@ -234,29 +235,47 @@ class RemoteManager:
                 raise self._refuse("tunnel_failed", TEXT["tunnel_failed"].format(code=e.code), uid, o)
             if not URL_RE.match(str(url or "")):
                 raise self._refuse("tunnel_failed", TEXT["tunnel_failed"].format(code="url"), uid, o)
-        except RemoteError:
+        except BaseException:                          # 任何失敗都把前面開的收掉（通道、閘門、這裡開的服務）
             self._cleanup(tunnel, listener, name if started_here else None)
             with self.lock:
-                self.link = None
+                if self.link is placeholder:
+                    self.link = None
             raise
         key = secrets.token_urlsafe(32)
         now = self.clock()
+        link = placeholder
         with self.lock:
-            link = self.link
-            link.host = urlsplit(url).hostname or ""
-            link.key_digest = digest(key)
-            link.entry_deadline = now + ENTRY_S
-            link.hard_deadline = now + want * 60
-            link.last_activity = now
-            link.started_here = started_here
-            link.listener = listener
-            link.state = "waiting"
-            self.tunnel, self.gate = tunnel, gate
-            gate.link = link
-            self.enter_attempts.ok(link.id)
-        self.apps.remote_until = self._until_text
-        self._audit("remote_open", by=uid, origin=o.kind, minutes=want)
-        self._reschedule()
+            stale = self.link is not link or link.state != "opening"     # 開的途中被關掉了（服務停了、SYNOX 要結束…）
+        if stale:
+            self._cleanup(tunnel, listener, name if started_here else None)
+            raise self._refuse("busy", TEXT["closed"].format(why="開的途中被關掉了"), uid, o)
+        try:
+            with self.lock:
+                link.host = urlsplit(url).hostname or ""
+                link.key_digest = digest(key)
+                link.entry_deadline = now + ENTRY_S
+                link.hard_deadline = now + want * 60
+                link.last_activity = now
+                link.started_here = started_here
+                link.listener = listener
+                link.state = "waiting"
+                self.tunnel, self.gate = tunnel, gate
+                gate.link = link
+                self.enter_attempts.ok(link.id)
+            self.apps.remote_until = self._until_text
+            self._audit("remote_open", by=uid, origin=o.kind, minutes=want)
+            self._reschedule()
+        except BaseException:                                  # 收尾出錯：一樣整組收掉，不留下沒人管的通道與閘門
+            with self.lock:
+                link.state = "closed"
+                link.key_digest = ""
+                if self.link is link:
+                    self.link = None
+                if self.tunnel is tunnel:
+                    self.tunnel = None
+            self.apps.remote_until = None
+            self._cleanup(tunnel, listener, name if started_here else None)
+            raise
         return {"url": f"https://{link.host}/#k={key}", "minutes": want, "name": name, "title": self._title(name)}
 
     def _make_tunnel(self):
@@ -324,7 +343,9 @@ class RemoteManager:
         if now - self._last_reject_audit.get(code, -1e9) >= 60:
             self._last_reject_audit[code] = now
             self._audit("remote_reject", by=link.owner, origin="remote", ok=False, code=code)
-        if link.rejects >= REJECT_LIMIT:
+        # 還沒進門：被拒太多次就收掉（有人在掃）。已經進門：不收——不然知道網域的外人亂敲就能把擁有者踢出去；
+        # 外人的請求另外有「沒進門」那一桶的每分鐘上限（不吃擁有者那一桶），所以還是塞不爆。
+        if link.state == "waiting" and link.rejects >= REJECT_LIMIT:
             self.close("abuse", notify_text=TEXT["knock"])
 
     def verify_entry(self, link: Link, code: str, remote_origin) -> bool:
@@ -334,6 +355,8 @@ class RemoteManager:
 
     def enter_failed(self, link: Link) -> None:
         self._audit("remote_enter_fail", by=link.owner, origin="remote", ok=False, code="enter")
+        if link.state != "waiting":
+            return
         if self.enter_attempts.fail(link.id) or self.enter_attempts.count(link.id) >= 5:
             self.close("bad_code", notify_text=TEXT["knock"])
 
@@ -352,6 +375,9 @@ class RemoteManager:
         with self.lock:
             link = self.link
             if link is None or link.state == "closed":
+                return False
+            if link.state == "opening":                        # 還在開：標成關，開的那一邊看到之後自己收掉它開的東西
+                link.state = "closed"
                 return False
             link.state = "closed"                              # 閘門立刻全回 404；工具站的登入看 alive() 也立刻失效
             link.session_digest = link.key_digest = ""
@@ -373,7 +399,7 @@ class RemoteManager:
 
     def tick(self, ctx=None) -> str:
         link = self.link
-        if link is None or link.state == "closed":
+        if link is None or link.state in ("closed", "opening"):
             return "沒有開著的手機入口"
         now = self.clock()
         idle_s = int(self.settings["idle_min"]) * 60

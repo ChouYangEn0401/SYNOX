@@ -42,6 +42,7 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
 
 from __future__ import annotations
 
+import contextvars
 import hmac
 import json
 import logging
@@ -60,7 +61,7 @@ from isdtelekit.core.channel import CallbackInfo, Inbound
 
 from synox import tutorials
 from synox.guard import origin as guard_origin
-from synox.guard.stepup import SENSITIVE as STEPUP_SENSITIVE
+from synox.guard.stepup import sensitive_action as stepup_sensitive
 from synox.packs.manifest import stage_text
 from synox.web import report as reporting, toolpage
 from synox.web.channel import WEB, WebChannel
@@ -78,6 +79,19 @@ def mask_code(text: str) -> str:
     if m:
         return m.group(1) + " ······"
     return "······" if _CODE_ONLY.match(text) else text
+
+
+_PEER: "contextvars.ContextVar[str]" = contextvars.ContextVar("synox_web_peer", default="")
+
+
+def current_peer() -> str:
+    """這個請求連線的對方位址（WebUI.handle 設；沒有＝空字串＝當作不是本機）。"""
+    return _PEER.get()
+
+
+def in_container(environ=None, exists=os.path.exists) -> bool:
+    environ = os.environ if environ is None else environ
+    return str(environ.get(CONTAINER_ENV, "")).strip() == "1" or any(exists(p) for p in CONTAINER_MARKERS)
 
 
 def web_origin(session: Session) -> "guard_origin.Origin":
@@ -350,9 +364,15 @@ class WebUI:
                 return digest(sid)
         return None
 
-    def handle(self, method: str, target: str, headers: Dict[str, str], body: bytes = b"") -> Resp:
+    def handle(self, method: str, target: str, headers: Dict[str, str], body: bytes = b"",
+               peer: str = "127.0.0.1") -> Resp:
+        """peer：連線的對方位址（_Handler 給真的；測試直接呼叫＝本機）。「本機的請求」除了 Host 還要對方真的是 loopback。"""
         headers = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
-        return self.route(method, target, headers, body, self.session_from(headers))
+        token = _PEER.set(str(peer or ""))
+        try:
+            return self.route(method, target, headers, body, self.session_from(headers))
+        finally:
+            _PEER.reset(token)
 
     def route(self, method: str, target: str, headers: Dict[str, str], body: bytes,
               session: Optional[Session]) -> Resp:
@@ -593,7 +613,7 @@ class WebUI:
         if path == "/api/stepup" or path.startswith("/api/stepup/"):     # 手機驗證器（ADR 0025；guard/web_api.py）
             from synox.guard import web_api as stepup_api
             return stepup_api.route(self, user, session, method, path, headers, body)
-        if method != "GET" and path in STEPUP_SENSITIVE:               # 開了開關就要先解鎖的敏感動作（K5）
+        if stepup_sensitive(method, path):                             # 開了開關就要先解鎖的敏感動作（K5；預設就擋）
             from synox import guard
             g = guard.of(self.app)
             blocked = g.stepup.gate(user, path) if g is not None and g.stepup is not None else None
@@ -1919,7 +1939,8 @@ class _Handler(BaseHTTPRequestHandler):
             status, headers, body = _err(413, "送來的東西太大。")
         else:
             data = self.rfile.read(length) if length else b""
-            status, headers, body = self.server.ui.handle(method, self.path, dict(self.headers.items()), data)
+            status, headers, body = self.server.ui.handle(method, self.path, dict(self.headers.items()), data,
+                                                          peer=str(self.client_address[0]))
         self.send_response(status)
         for key, value in headers:
             self.send_header(key, value)

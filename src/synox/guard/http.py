@@ -95,7 +95,7 @@ def parse(method, target, header_items, body, *, host: str, limits: Limits = Lim
     body = bytes(body or b"")
     if "content-length" in headers:
         cl = headers["content-length"].strip()
-        if not cl.isdigit() or int(cl) != len(body):
+        if not (cl.isascii() and cl.isdigit()) or int(cl) != len(body):
             raise Reject(400)
     if len(body) > limits.body:
         raise Reject(413)
@@ -161,9 +161,13 @@ class GuardedHandler(BaseHTTPRequestHandler):
 
     def handle(self) -> None:
         if not GuardedHandler._slots.acquire(blocking=False):
+            # 還沒讀請求行（send_response 要用到它）：直接寫一個完整、固定的回應
             self.close_connection = True
+            status, headers, body = reply(429)
+            head = "HTTP/1.1 429 Too Many Requests\r\n" + "".join(f"{k}: {v}\r\n" for k, v in headers) + \
+                f"Content-Length: {len(body)}\r\nConnection: close\r\n\r\n"
             try:
-                self._write(reply(429))
+                self.wfile.write(head.encode("ascii") + body)
             except Exception:
                 pass
             return
@@ -205,7 +209,7 @@ class GuardedHandler(BaseHTTPRequestHandler):
             raw = self.headers.get("Content-Length")
             length = 0
             if raw is not None:
-                if not raw.strip().isdigit():
+                if not (raw.strip().isascii() and raw.strip().isdigit()):
                     return self._write(reply(400))
                 length = int(raw.strip())
             if length > self.limits.body:

@@ -442,8 +442,14 @@ def guard_check(app, user, node: Node, via: str) -> Optional[Decision]:
         return None
     need_always = bool(node.policy.elevated) or (g.scope is not None and g.scope.always_stepup(node))
     need_toggle = node.effect == DANGER and node.path not in TOGGLE_CARRIERS and hub.protects_danger(user.tg_id)
-    if not (need_always or need_toggle) or (via == AI and not node.policy.elevated):
+    if not (need_always or need_toggle):
         return None
+    if via == AI and not node.policy.elevated:
+        # AI 不在這裡擋，但一定走確認卡（危險的本來就要；`stepup` 列的由 agent/validate.wants_confirm 補上）：
+        # 人按 ✅ 時以 BUTTON 再判一次，要在那個人的入口解鎖過才執行
+        return None
+    if hub.unreadable(user.tg_id):                # 設定過但讀不出來：擋住，說清楚（不當作沒設定）
+        return Decision(False, "stepup", stepup_mod.TEXT["unreadable"])
     if not hub.enrolled(user.tg_id):              # 只有 need_always 會走到這裡（沒設定時 need_toggle 是 False）
         return Decision(False, "stepup_unset", stepup_mod.TEXT["unset"])
     if not hub.unlocked(user.tg_id, o):
