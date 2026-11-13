@@ -125,6 +125,7 @@ STRINGS = {
     "llm_local_ok": "✅ Model found and the settings look sane (only model info was read; the model was not loaded).",
     "err_local_model": "Enter a model name (for Ollama, a name shown by `ollama list`, e.g. qwen3.5:9b).",
     "finish_tutorial": "📘 처음이신가요? 먼저 짧은 튜토리얼(몇 분)을 하고 필요한 도구를 고르세요.",
+    "finish_tutorial_how": "SYNOX에서 {cmd}를 입력하세요(채팅에 “start tutorial”이라고 써도 됩니다).",
     "all_tools_running": "⏳ 공식 도구를 모두 설치하는 중입니다(설치 프로그램에서 선택함). 몇 분 걸릴 수 있으니 이 창을 닫지 마세요…",
     "note_all_tools": "공식 도구 전체",
     "all_tools_failed": '일부는 설치되지 않았습니다. 나중에 "설정"의 도구 라이브러리에서 추가하세요(기록: data/logs/all-tools.log)',

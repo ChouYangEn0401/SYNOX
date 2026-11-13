@@ -119,6 +119,7 @@ STRINGS = {
     "llm_local_ok": "✅ 找到模型，设置看起来合理（只读取了模型资料，没有实际加载模型）。",
     "err_local_model": "请填模型名称（Ollama 的话是 `ollama list` 看得到的名称，例如 qwen3.5:9b）。",
     "finish_tutorial": "📘 第一次用？先做一次教程（几分钟），做完再挑你需要的工具。",
+    "finish_tutorial_how": "打开 SYNOX 后输入 {cmd}（或在聊天里输入「start tutorial」）。",
     "all_tools_running": "⏳ 正在安装全部官方工具（你在安装程序里勾选的），可能要几分钟，请不要关闭这个窗口…",
     "note_all_tools": "全部官方工具",
     "all_tools_failed": "有些没装成，之后到网页“设置”的工具库补装（记录在 data/logs/all-tools.log）",

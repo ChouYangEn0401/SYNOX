@@ -9,9 +9,11 @@
 | [tutorials/](tutorials/README.md) | 使用者 | 第一次裝、接 Telegram／Discord 的圖文教學；Discord 的名詞在 [discord-concepts.md](discord-concepts.md) |
 | [install-packs.md](install-packs.md) | 使用者 | 怎麼裝一個 `.synoxpack`：點兩下、拖到 Install-Pack.bat、拖進網頁、`synox install`；圖示空白／點兩下沒反應怎麼辦 |
 | [ecosystem.md](ecosystem.md) | 使用者、作者、維護者 | 工具生態：找、裝、更新、移除工具；做一個工具給人裝；之後的路（哪些是提案）；每次發版要更新哪些文件 |
+| [versioning.md](versioning.md) | 使用者、作者、維護者 | 版本號怎麼看（正式版／beta／alpha）、我是不是最新版、**我要怎麼更新**（ZIP、git、安裝程式、工具、SDK）；維護者：升號規則、分支、tag、每版要有什麼、`scripts/release.py`；自己更新的設計在 [adr/0023](adr/0023-updates-and-hotfixes.md)（提案） |
 | [security.md](security.md) | 使用者、作者 | 資料存在哪、誰看得到、裝別人的 pack 時的五關、信任層級、沙盒、沒有做的保護 |
 | [discord.md](discord.md) | 使用者 | Discord 通道的現況與設定（含多個 bot） |
 | [docker.md](docker.md) | 使用者、維護者 | 用 Docker 跑 SYNOX（compose、資料 volume、網頁只發佈到 127.0.0.1）與開發容器；已知限制、驗證清單、檢查表（**還沒實際建置過**） |
+| [advanced-install.md](advanced-install.md) | 使用者（工程師） | 進階安裝：從原始碼裝（venv）、Docker 指令速查、沒有螢幕的伺服器、背景服務（Windows 自動啟動、systemd 範例）、測試與打包；標出哪些沒驗證過 |
 | [handoff/](handoff/README.md) | 使用者 | 到另一台電腦用真的帳號測 connector 與 Discord：教學、Discord 交接、煙霧測試 `scripts/smoke_real.py` |
 | [tools.md](tools.md) | 作者 | **從這裡開始**：三條接入路怎麼選、權限欄位、secret、確認來回、測試、安全自檢表 |
 | [sdk.md](sdk.md) | 作者 | Python 工具 SDK（`@tool`、`serve()`、`secret()`、`context()`、`synox-sdk` 指令） |

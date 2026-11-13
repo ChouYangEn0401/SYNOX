@@ -125,6 +125,7 @@ STRINGS = {
     "llm_local_ok": "✅ Model found and the settings look sane (only model info was read; the model was not loaded).",
     "err_local_model": "Enter a model name (for Ollama, a name shown by `ollama list`, e.g. qwen3.5:9b).",
     "finish_tutorial": "📘 أول مرة؟ قم أولًا بالدرس القصير (بضع دقائق)، ثم اختر الأدوات التي تحتاجها.",
+    "finish_tutorial_how": "في SYNOX اكتب {cmd} (أو «start tutorial» في الدردشة).",
     "all_tools_running": "⏳ جارٍ تثبيت كل الأدوات الرسمية (اخترت ذلك في برنامج التثبيت). قد يستغرق بضع دقائق؛ أبقِ هذه النافذة مفتوحة…",
     "note_all_tools": "كل الأدوات الرسمية",
     "all_tools_failed": "لم يُثبَّت بعضها؛ أضفها لاحقًا من مكتبة الأدوات في الإعدادات (السجل: data/logs/all-tools.log)",

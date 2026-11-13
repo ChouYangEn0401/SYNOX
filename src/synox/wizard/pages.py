@@ -553,7 +553,9 @@ class Wizard:
         folder = os.path.dirname(os.path.abspath(self.config_path))
         choices = logic.installer_choices(folder)          # .exe 安裝程式已經決定的（沒有＝ZIP／Setup.bat）
         desk = tk.BooleanVar(value=True)
-        auto = tk.BooleanVar(value=True)                   # 擁有者 Q1：預設開機自動啟動
+        # 開機自動啟動的預設（擁有者 Q1：預設開）：.exe 裝的看 installer-choices.json（那一格不顯示，安裝程式已經做了）；
+        # ZIP 看 Setup.bat「建議／自訂」的結果（SYNOX_SETUP_AUTOSTART）；自己另外開精靈＝照舊不勾
+        auto = tk.BooleanVar(value=logic.autostart_default(choices))
         packs = tk.BooleanVar(value=bool(choices.get("file_type", True)))
         launch = tk.BooleanVar(value=True)
         if not choices:

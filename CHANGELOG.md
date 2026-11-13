@@ -1,5 +1,33 @@
 # Changelog
 
+## 未發佈（不用 uv：直接下載固定版本的 Python；Setup.bat 先問「照建議／自訂」）
+
+### 變更
+- **Setup.bat 不再用 uv**：沒有 `runtime\python` 時，直接下載釘死網址＋SHA256 的獨立版 CPython 3.12.16（python-build-standalone 20261026，`install_only_stripped`，約 22 MB），用 Windows 內建的 `tar.exe` 解到 `runtime\python`，再用一般的 `python -m venv` 建 `.venv`。檢查碼不對就刪掉下載的檔案、停下來。不再退到 python.org 的可攜版。仍然只動 SYNOX 資料夾。
+- **安裝程式和 ZIP 用同一個 Python**：`stage_installer.py --fetch-python` 讀 `setup/bootstrap.ps1` 的網址與 SHA256，附的 Python 一定有視窗元件；拿掉 `--python-embed`、`--tk-from` 和 virtualenv。
+- **Setup.bat 先問語言（按 Enter＝Windows 的顯示語言），再說清楚、問一題**：按 Enter 照建議（只準備 SYNOX、開機自動啟動，工具做完教學再挑），輸入 C 自訂（開機自動啟動、Claude Code、全部工具都裝）；`Setup.bat -Custom` 直接進自訂。「全部工具都裝」還沒做。
+
+## 未發佈（新手教學 /tutorial）
+
+### 新增
+- 新手教學（`/tutorial`，也可以打「開始教學」或 `/start tutorial`）：SYNOX 會在網頁上把要按的地方圈起來，一步一步帶你走；Telegram、Discord 用步驟卡。忘了隨時再打一次就能複習（`/tutorial restart` 從頭來）。
+- 第一次打開網頁會問「要不要我帶你走一遍？（約 5 分鐘）」；`/help` 多一行指到 `/tutorial`。
+- 教學是 SYNOX 本體的一部分，每種安裝方式都有；它不是工具，不算進「裝了幾個工具」。教學只會指給你看，不會替你按確認。工具也可以附自己的教學（`docs/tutorials-engine.md`）。
+
+## 未發佈（「遇到問題？」回報面板）
+
+### 新增
+- 設定頁多一個「🙋 遇到問題？」分頁（側欄和設定頁標題也有小連結）：三步——沒有 GitHub 帳號先免費註冊、「幫我準備好回報內容」、帶著內容到 GitHub 開問題單（你自己按送出）。
+- 回報內容先遮掉金鑰、token、密碼、email、長數字、含使用者名稱的路徑；給你看、你可以改。SYNOX 不連網、不寫檔、不會自己送出。
+- GitHub 白話中文的問題單表單（`.github/ISSUE_TEMPLATE/problem.yml`）與 `config.yml`（資安問題請看 SECURITY.md，不要公開回報）。
+
+## 未發佈（版本與發佈規則）
+
+### 新增
+- `docs/versioning.md`：版本號、分支、tag、每版要有什麼、「我要怎麼更新？」；`scripts/release.py`（bump／check／notes）；ADR 0023 自己更新與緊急修補（提案）。
+- `synox about`、`synox doctor` 多一行：到 GitHub 發佈頁看有沒有新版（不自己連網）。
+- `docs/advanced-install.md`：給工程師的進階安裝（原始碼＋venv、Docker、無畫面執行、背景服務），每項標 ✅ 跑過／🧪 未實測／⏳ 未完成。
+
 ## 未發佈（設定頁的官方工具庫、預設用 SYNOX 自己的 Python）
 
 ### 新增

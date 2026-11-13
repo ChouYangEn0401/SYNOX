@@ -125,6 +125,7 @@ STRINGS = {
     "llm_local_ok": "✅ Model found and the settings look sane (only model info was read; the model was not loaded).",
     "err_local_model": "Enter a model name (for Ollama, a name shown by `ollama list`, e.g. qwen3.5:9b).",
     "finish_tutorial": "📘 पहली बार? पहले छोटा ट्यूटोरियल करें (कुछ मिनट), फिर अपने ज़रूरी टूल चुनें।",
+    "finish_tutorial_how": "SYNOX में {cmd} लिखें (या चैट में “start tutorial” लिखें)।",
     "all_tools_running": "⏳ सभी आधिकारिक टूल इंस्टॉल हो रहे हैं (आपने सेटअप में चुना था)। कुछ मिनट लग सकते हैं; कृपया यह विंडो खुली रखें…",
     "note_all_tools": "सभी आधिकारिक टूल",
     "all_tools_failed": "कुछ इंस्टॉल नहीं हुए; बाद में सेटिंग्स की टूल लाइब्रेरी से जोड़ें (लॉग: data/logs/all-tools.log)",

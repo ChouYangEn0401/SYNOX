@@ -174,9 +174,26 @@ def test_installer_choices_helpers(tmp_path):
 
 
 def test_tutorial_line_hook(monkeypatch):
+    from synox.tour import chat as tour_chat
+    line = logic.tutorial_line()                                            # the built-in tutorial (src/synox/tour/)
+    assert line.startswith(i18n.t("finish_tutorial")) and "/tutorial" in line
+    assert tour_chat.is_phrase("開始教學") and tour_chat.is_phrase("start tutorial")   # the phrases the line mentions
+    for code in i18n.LANGS:                                                 # every wizard language says how to start
+        text = i18n.table(code).get("finish_tutorial_how")
+        assert text and "{cmd}" in text, code
+    monkeypatch.setattr(logic, "TUTORIAL_HOW", "")
     assert logic.tutorial_line() == i18n.t("finish_tutorial")
-    monkeypatch.setattr(logic, "TUTORIAL_HOW", "/tutorial")
-    assert logic.tutorial_line().endswith("/tutorial")
+
+
+def test_autostart_default_from_exe_or_zip(monkeypatch):
+    monkeypatch.delenv("SYNOX_SETUP_AUTOSTART", raising=False)
+    assert logic.autostart_default({"source": "exe-installer", "autostart": True})
+    assert not logic.autostart_default({"source": "exe-installer", "autostart": False})
+    assert not logic.autostart_default({})                                  # wizard opened on its own: unchanged
+    monkeypatch.setenv("SYNOX_SETUP_AUTOSTART", "1")
+    assert logic.autostart_default({})
+    monkeypatch.setenv("SYNOX_SETUP_AUTOSTART", "0")
+    assert not logic.autostart_default({})
 
 
 def _finish_page(tmp_path, monkeypatch, run_result=0):
@@ -207,6 +224,7 @@ def _finish_page(tmp_path, monkeypatch, run_result=0):
 
 
 def test_finish_page_from_zip_has_autostart_on_by_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("SYNOX_SETUP_AUTOSTART", "1")                          # Setup.bat, Recommended (the default)
     root, wiz, calls, boxes = _finish_page(tmp_path, monkeypatch)
     try:
         assert len(boxes) == 4 and i18n.t("finish_autostart") in boxes
@@ -220,6 +238,7 @@ def test_finish_page_from_zip_has_autostart_on_by_default(tmp_path, monkeypatch)
 
 
 def test_finish_page_from_the_exe_only_asks_to_open_synox(tmp_path, monkeypatch):
+    monkeypatch.setenv("SYNOX_SETUP_AUTOSTART", "0")                          # ignored: installer-choices.json wins
     _choices(str(tmp_path), file_type=False)
     root, wiz, calls, boxes = _finish_page(tmp_path, monkeypatch)
     try:

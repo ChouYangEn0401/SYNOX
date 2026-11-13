@@ -10,8 +10,7 @@
 ## 怎麼開始建置
 
 **A. 手動（最常用）**：GitHub 上 SYNOX repo → **Actions** → 左邊 **Build Windows installer** → 右邊 **Run workflow** →
-選分支（例如 `dev`）→ 「Bundle tkinter…」預設打勾（帶視窗精靈；取消就只有文字版 `synox init`）→ **Run workflow**。
-約 10～20 分鐘。
+選分支（例如 `dev`）→ **Run workflow**。約 10～20 分鐘。附的 Python 一定有 tkinter（視窗精靈），不用再勾選。
 
 **B. 打 tag（要發版時）**：tag 一定要是 `v`＋`pyproject.toml` 的版本（例如版本 `0.2.0` → `v0.2.0`），不一樣會在第一步就失敗。
 
@@ -48,15 +47,15 @@ tag 會多做一件事：把 exe 和 `SHA256SUMS.txt` 放進一個 **草稿（dr
 
 | # | 步驟 | 失敗就停？ |
 |---|---|---|
-| 1 | checkout（不留 token）；`actions/setup-python` 裝**同一版**完整 CPython（建 venv、挑 wheel、拿 tkinter） | 是 |
+| 1 | checkout（不留 token）；`actions/setup-python` 裝**同一個 X.Y** 的 CPython（只拿來建 venv、挑 cp312 wheel；不會附進安裝程式） | 是 |
 | 2 | `installer_ci.py version`：`pyproject.toml` 與 `synox.__version__` 要一樣；tag 要等於 `v<版本>` | 是 |
 | 3 | `scripts/prepublish_check.py --worktree-only`（密鑰、本機路徑、個人信箱）；接著 `installer_ci.py check-iss`（安裝程式腳本的靜態檢查） | 是 |
-| 4 | 下載三個外部檔，**每個都先對 sha256**：python.org 的 embeddable zip、SYNOX_Libs 的 tools zip、Inno Setup 安裝檔；再檢查 `python.exe` 與 Inno 安裝檔的 Authenticode 簽章（發行者要對） | 是 |
+| 4 | 下載兩個外部檔，**每個都先對 sha256**：SYNOX_Libs 的 tools zip、Inno Setup 安裝檔；再檢查 Inno 安裝檔的 Authenticode 簽章（發行者要對） | 是 |
 | 5 | 靜默安裝 Inno Setup 到暫存資料夾 | 是 |
-| 6 | 乾淨 venv `pip install .` → `lock_deps.py` → `pip download`（`--only-binary=:all:`，cp312／win_amd64）＋ pip、virtualenv、setuptools → `lock_deps.py --wheelhouse`（寫進 sha256）→ `--check` | 是 |
-| 7 | `stage_installer.py --python-embed … --wheelhouse … --tools … [--tk-from <setup-python 的資料夾>]` | 是 |
+| 6 | 乾淨 venv `pip install .` → `lock_deps.py` → `pip download`（`--only-binary=:all:`，cp312／win_amd64）＋ pip、setuptools → `lock_deps.py --wheelhouse`（寫進 sha256）→ `--check` | 是 |
+| 7 | `stage_installer.py --fetch-python --wheelhouse … --tools …`：照 `setup/bootstrap.ps1` 釘的網址下載 SYNOX 自己的 Python、對 sha256、檢查路徑後解到 `runtime\python`（跟 ZIP 的 `Setup.bat` 下載的是**同一個檔案**） | 是 |
 | 8 | `ISCC.exe /DAppVersion=<版本> /DStageDir=<stage> setup\installer\synox.iss` → 算 sha256 → 上傳 artifact | 是 |
-| 9 | **離線煙霧測試**：複製一份 stage，照 bootstrap 對 `runtime\python` 做的事做一次（wheelhouse 裝 pip／virtualenv → `virtualenv .venv` → `--no-index` 裝 lock → `--no-deps -e .`）→ import、`synox tools list`；`doctor --offline` 與 tkinter 只出警告 | 是（但 exe 已經先上傳了，方便查） |
+| 9 | **離線煙霧測試**：複製一份 stage，照 bootstrap 對 `runtime\python` 做的事做一次（`python -m venv .venv` → `--no-index` 裝 lock → `--no-deps -e .`）→ import、`synox tools list`、`.venv` 裡 `import tkinter` 載得起 Tcl（不行就停）；`doctor --offline` 只出警告 | 是（但 exe 已經先上傳了，方便查） |
 | 10 | `scripts/clean_room_check.py --tools …` | **否**（先觀察；在 CI 上綠過之後可以把 `continue-on-error` 拿掉） |
 | 11 | （只有 tag）另一個 job，只有這裡有 `contents: write`：建立／更新**草稿** release | 是 |
 
@@ -64,14 +63,17 @@ tag 會多做一件事：把 exe 和 `SHA256SUMS.txt` 放進一個 **草稿（dr
 
 ## 釘住的版本與 sha256（從哪裡來）
 
-都在 workflow 最上面的 `env:`；`tests/test_installer_ci.py` 會檢查格式，也檢查這份文件跟 workflow 的值一樣。
+都在 workflow 最上面的 `env:`，只有附的 Python 例外：它釘在 `setup/bootstrap.ps1`（`$PythonVersion`、`$PythonBuild`、
+`$PythonSha256`、`$PythonUrl`），ZIP 的 `Setup.bat` 和這裡的 `stage_installer.py --fetch-python` 都讀那四行，所以兩邊一定是同一個
+Python。`tests/test_installer_ci.py` 會檢查格式，也檢查這份文件跟 workflow、bootstrap 的值一樣。
 
 | 東西 | 版本 | sha256 | 來源／怎麼核對 |
 |---|---|---|---|
-| Python embeddable（64-bit） | 3.12.10 | `4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3` | 寫的那台**連不到 python.org**，所以這個值是跟 8 個互不相關的公開 repo 釘的同一個檔案交叉比對出來的（8 個都一樣）。CI 另外檢查 `python.exe` 是 Python Software Foundation 簽的。**請擁有者到 python.org 的 3.12.10 release 頁面核對一次**。3.12.10 是 3.12 最後一個有 Windows 二進位檔的版本，也是 `setup/bootstrap.ps1` 的 `$EmbedVersion` |
+| SYNOX 自己的 Python（附在安裝程式裡；ZIP 由 `Setup.bat` 下載） | CPython 3.12.16，python-build-standalone `20261026`，`x86_64-pc-windows-msvc-install_only_stripped.tar.gz` | `1f2ab53880fc67ea323398c6388e05af28addc99a8e389209f08a51fdff4b149` | 網址：`https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.12.16%2B20261026-x86_64-pc-windows-msvc-install_only_stripped.tar.gz`。三個來源一致：那個 release 的 `SHA256SUMS`、uv 0.13.6 內建的下載清單、2026-11-13 實際下載後自己算。只有 `.tar.gz`（沒有 zip）。這個專案的執行檔**沒有 Authenticode 簽章**，所以只靠 sha256。裡面有 python.exe、pip、venv、tkinter＋Tcl/Tk 8.6、vcruntime |
+| CI 建置用的 CPython（`actions/setup-python`） | 3.12.10 | 不附進安裝程式 | 只用來建 venv、下載 cp312 wheel。3.12 之後的修補版在 python.org 只有原始碼，setup-python 沒有 Windows 版，所以停在 3.12.10；X.Y 跟上面一樣就好（測試會檢查） |
 | SYNOX_Libs tools | `v0.2.0` / `tools-0.2.0.zip` | `f573252dfbbb374c427bc7b2091ac09cacf50b3747ec0b9c970517d047d6658c` | 下載後自己算，並且跟 GitHub releases API 給這個 asset 的 `digest` 一致 |
 | Inno Setup | 6.7.4（`is-6_7_4`） | `a549929319f9120716677c685535ca4671e4b937b5fdc87e2585f32d8eb30e8c` | 從 `jrsoftware/issrc` 的 GitHub release 下載後自己算（jrsoftware.org 這台也連不到）；CI 另外檢查簽章發行者是 `Pyrsys B.V.`（安裝檔裡的憑證）。授權：該 tag 的 `license.txt`，可商用。選 6 不選 7：`synox.iss` 是照 6 寫的，7 要另外測 |
-| pip／virtualenv／setuptools | 26.3／21.15.6／84.2.1 | 不釘；每個 wheel 的 sha256 在 `STAGE-MANIFEST.txt` | PyPI。virtualenv 自己的相依（distlib、filelock、platformdirs、packaging、python-discovery）建置當下解析 |
+| pip／setuptools | 26.3／84.2.1 | 不釘；每個 wheel 的 sha256 在 `STAGE-MANIFEST.txt` | PyPI。不再需要 virtualenv：附的 Python 有 `venv`（`.venv` 裡先用它自帶的 pip，再從 wheelhouse 離線裝） |
 | SYNOX 的相依 | 每次建置當下產生 `requirements.lock` | 寫在 lock 裡（`--hash=sha256:`） | 有 commit 進 git 的 `requirements.lock` 時先照它裝 |
 | actions/checkout | v7.0.1 | commit `3d3c42e5aac5ba805825da76410c181273ba90b1` | `git ls-remote --tags` |
 | actions/setup-python | v7.1.0 | commit `6d4fd22b20465ccc0f7354476588e8df7c9ca0e0` | 同上 |
@@ -79,26 +81,27 @@ tag 會多做一件事：把 exe 和 `SHA256SUMS.txt` 放進一個 **草稿（dr
 | actions/download-artifact | v8.0.2 | commit `9000827ccba6bdab643e8b6fd33ac0654aef8333` | 同上 |
 
 **換版本**：版本和 sha256 一起改。檔案的 sha256 自己下載後算（PowerShell `Get-FileHash`），能的話再跟官方頁面公布的值比；
-action 用 `git ls-remote --tags https://github.com/<owner>/<repo>.git` 找 tag 指的 commit。換 Python 時也要看
-`setup/bootstrap.ps1` 的 `$EmbedVersion`（測試會檢查兩邊的 X.Y 一樣）。
+action 用 `git ls-remote --tags https://github.com/<owner>/<repo>.git` 找 tag 指的 commit。換附的 Python：只改
+`setup/bootstrap.ps1` 那四行（sha256 抄那個 release 的 `SHA256SUMS`，再自己下載算一次），X.Y 變了的話 workflow 的
+`PYTHON_VERSION` 也要跟著換（測試會檢查兩邊的 X.Y 一樣）。
 
-## 跟「bootstrap 改用 uv 管理的私有 Python」的關係
+## .exe 和 ZIP 用同一個 Python
 
-另一個工作正在把 `Setup.bat`／`setup/bootstrap.ps1` 改成用 uv 準備一份私有 Python。安裝程式這邊**不受影響**：
-
-- 安裝程式照 ADR 0003 仍然附 `runtime\python`（官方 embeddable）＋ `wheelhouse\`；bootstrap 找 Python 時**第一個**就是
-  `runtime\python`，所以安裝程式版不會去叫 uv、也不用連網。
-- 那邊改完後，請確認兩件事還成立（第 9 步的煙霧測試就是照「現在的」bootstrap 寫的）：
-  1. 有 `runtime\python` 時仍然先用它，並且從 `wheelhouse\` 離線裝 pip、virtualenv、相依；
-  2. 如果 bootstrap 改用別的方式建 `.venv`（例如 `uv venv`），wheelhouse 也要有它需要的東西，或者在 workflow 第 6 步多下載；
-     第 9 步也要跟著改成同一套指令。
+- 不用 uv，也不再附 python.org 的可攜版（embeddable，沒有 tkinter）。兩條路都是 python-build-standalone 的同一個
+  `install_only_stripped` 檔案（釘在 `setup/bootstrap.ps1`）：
+  - **.exe**：建置時 `stage_installer.py --fetch-python` 下載、對 sha256、解到 `runtime\python`，附在安裝程式裡；使用者那邊不用連網。
+  - **ZIP**：`Setup.bat` 看到沒有 `runtime\python` 才下載同一個檔案、對 sha256（不對就刪掉、停下來），用 Windows 內建的
+    `%SystemRoot%\System32\tar.exe` 解開（Windows 10 1803 以後才有；PowerShell 5.1 的 `Expand-Archive` 只會解 zip）。
+- 兩邊接下來都一樣：`runtime\python\python.exe -m venv .venv` → 有 `wheelhouse\` 就離線裝。第 9 步的煙霧測試就是照這套指令寫的。
+- 安裝程式更新時（`synox.iss` 的 `[InstallDelete]`）先刪掉舊的 `runtime\python` 和 `.venv`：舊版附的可攜版留下的
+  `python312._pth` 會讓新的 python.exe 進入隔離模式；`.venv` 由安裝完跑的 `Setup.bat` 離線重建。
 
 ## 第一次跑要看什麼
 
-1. 第 4 步：三個 sha256 和兩個簽章都過（python.org 的值是交叉比對來的，這一步就是真正的核對）。
+1. 第 4 步：兩個 sha256 和 Inno 的簽章都過；第 7 步：附的 Python 的 sha256 過（`STAGE-MANIFEST.txt` 第一行印出來）。
 2. 第 6 步印出的 `requirements.lock` 與 wheel 清單：每個都是 `cp312`／`win_amd64` 或 `py3-none-any`。
-3. 第 9 步：`virtualenv` 能不能從 embeddable Python 建出 `.venv`、`tools list` 列出 9 個工具；tkinter 那行是警告還是印出 `tcl 8.6.x`
-   （這回答了 ADR 0003 的 QD3 的一半：Tcl 能不能在 `.venv` 裡載入；真的開視窗還是要在空白電腦上看）。
+3. 第 9 步：`python -m venv` 能不能建出 `.venv`、`tools list` 列出 9 個工具、tkinter 那行印出 `tcl 8.6.x`
+   （Tcl 能在 `.venv` 裡載入；真的開視窗還是要在空白電腦上看）。
 4. 第 10 步的結果（只是參考）。
 5. 下載 exe，到空白 Windows 11 跑 B1～B7。
 
@@ -160,9 +163,12 @@ action 用 `git ls-remote --tags https://github.com/<owner>/<repo>.git` 找 tag 
 
 - 整個 workflow 沒跑過：PowerShell 步驟、Inno Setup 的靜默安裝參數、簽章發行者字串、`gh release` 那段都只有語法檢查
   （YAML 解析＋ actionlint 1.7.12＋ shellcheck，0 個問題）。
-- Python embeddable 的 sha256 沒有直接從 python.org 核對（見上表）。
+- 附的 Python（python-build-standalone）在 Windows 上：只在 Linux 上用同一個 release 的 Linux 版做過「解開 → `-m venv` →
+  `import tkinter` → 開 Tk 視窗 → `pip install -e .`」，Windows 版只核對了 sha256、檔案內容（python.exe、venv、tkinter、Tcl/Tk 8.6）
+  和 stage 的結果，沒有真的在 Windows 上跑過。
 - exe 本身的安裝／解除安裝沒有在 CI 跑：`synox.iss` 的 `[Run]` 那行（跑 `Setup.bat -Lang <代號>`）沒有 `skipifsilent`，用 `/VERYSILENT` 裝
-  還是會開 Setup.bat 的視窗（語言已經帶過去，不會停在語言題）；Claude Code 那一步在 `/VERYSILENT` 也會跑（要上網）。所以 CI 只測 stage（第 9 步），安裝程式本身靠 B1～B7。
+  還是會開 Setup.bat 的視窗（語言已經帶過去、`installer-choices.json` 也在，不會停在語言題或「建議／自訂」那一題）；Claude Code 那一步
+  在 `/VERYSILENT` 也會跑（要上網）。所以 CI 只測 stage（第 9 步），安裝程式本身靠 B1～B7。
 - 視窗精靈（tkinter）在 `.venv` 裡能不能開視窗、SmartScreen 與防毒的反應：只能在真的電腦上看。
 - 第三方授權清單（handoff B-1 第 11 項）還沒放進 stage。
 - `ntu_easy_llm` 不在 wheelhouse（lock 不含 `llm` 組）：安裝程式版用 API 金鑰的 AI 仍要另外裝（QD2）。
@@ -175,6 +181,6 @@ action 用 `git ls-remote --tags https://github.com/<owner>/<repo>.git` 找 tag 
    是 cp312 專屬的 wheel）；git clone 的人用 3.11／3.13 照它裝會因為雜湊對不上而失敗。要進 git 的話建議 commit
    `build-records` 裡的 `requirements-unhashed.lock`（改名成 `requirements.lock`）。
 3. `synox.iss` 的 `[Run]` 要不要加 `skipifsilent`（這樣 CI 和大量部署可以用 `/VERYSILENT`）；那個檔不在這次的範圍。
-4. 什麼時候升 Inno Setup 7；clean-room 檢查要不要改成會擋（`continue-on-error` 拿掉）；tkinter 要不要一直預設帶。
+4. 什麼時候升 Inno Setup 7；clean-room 檢查要不要改成會擋（`continue-on-error` 拿掉）。
 5. `pyproject.toml` 的 `license = {text = …}`：新版 setuptools 說 2027-02-18 之後不再支援這種寫法。這裡釘了 setuptools 84.2.1
    （現在只是警告），之後要升 setuptools 前先改成 SPDX 字串（例如 `license = "AGPL-3.0-or-later AND Apache-2.0"`）。

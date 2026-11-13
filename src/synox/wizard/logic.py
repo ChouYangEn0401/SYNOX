@@ -347,6 +347,15 @@ def installer_choices(root: str) -> dict:
     return data if data.get("source") == "exe-installer" else {}
 
 
+def autostart_default(choices: dict) -> bool:
+    """完成頁「開機自動啟動」預設勾不勾。兩種安裝方式預設都是開（擁有者 Q1）：
+    .exe＝installer-choices.json 的 autostart；ZIP＝Setup.bat（setup/bootstrap.ps1 的 Invoke-SetupPlan）設的
+    SYNOX_SETUP_AUTOSTART（建議＝1，自訂可以關成 0）。兩個都沒有＝使用者自己另外開精靈，照舊不勾，不會偷偷改他關掉的設定。"""
+    if choices:
+        return bool(choices.get("autostart", True))
+    return os.environ.get("SYNOX_SETUP_AUTOSTART") == "1"
+
+
 def wants_all_tools(choices: dict) -> bool:
     """自訂頁勾了「全部官方工具都裝（不建議）」而且還沒裝過。"""
     return bool(choices.get("all_tools")) and not choices.get("all_tools_done")
@@ -370,12 +379,13 @@ def all_tools_args(python: str, config_path: str) -> list:
 
 # ── 第一次用：先做一次教學 ─────────────────────────────────────────
 
-# HOOK（教學）：教學 pack 由另一個工作做，會放在 SYNOX repo 裡（每一種安裝方式都有）。接好之後把「怎麼開始」寫在這裡
-# （例如在 SYNOX 打的指令，或網頁上的按鈕名稱），完成頁那一行就會帶上它；空字串＝只說「做一次教學」。
-TUTORIAL_HOW = ""
+# 教學是 SYNOX 本身的一部分（src/synox/tour/，每一種安裝方式都有，不是工具 pack）：在 SYNOX 打 /tutorial，或在聊天裡說
+# 「開始教學」「start tutorial」（synox.tour.chat.PHRASES）。完成頁那一行帶上「怎麼開始」（finish_tutorial_how，
+# 各語言自己的句子；少了就退回英文）。空字串＝只說「做一次教學」。
+TUTORIAL_HOW = "/tutorial"
 
 
 def tutorial_line() -> str:
     """完成頁「做一次教學」那一行（Q3：建議安裝只裝環境＋教學，做完教學再挑工具）。"""
     line = t("finish_tutorial")
-    return f"{line} {TUTORIAL_HOW}".strip() if TUTORIAL_HOW else line
+    return f"{line}\n{t('finish_tutorial_how', cmd=TUTORIAL_HOW)}" if TUTORIAL_HOW else line
