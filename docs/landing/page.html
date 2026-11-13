@@ -226,7 +226,7 @@ dialog.lb img { display: block; max-width: 96vw; max-height: 94vh; width: auto; 
 .steps > li::before { content: counter(s); font-family: var(--mono); font-size: 15px; font-weight: 600; color: var(--accent-ink); background: var(--accent); border-radius: 10px; width: 34px; height: 34px; display: grid; place-items: center; }
 .steps b { display: block; font-size: 17.5px; margin-top: 14px; }
 .steps p { color: var(--muted); font-size: 14.5px; margin-top: 6px; line-height: 1.65; }
-.steps .chips { margin-top: 12px; }
+.steps .chips { margin-top: 14px; }
 .steps .chip { font-size: 13px; font-weight: 400; padding: 4px 10px; }
 .center { justify-content: center; }
 
@@ -508,20 +508,22 @@ footer a { color: var(--muted); }
 <section id="setup">
   <div class="head">
     <p class="eyebrow">怎麼開始</p>
-    <h2>三步裝好，不用打指令</h2>
+    <h2>三步就能用，不用打指令</h2>
   </div>
   <ol class="steps">
-    <li><b>雙擊 <code>Setup.bat</code></b>
-      <p>不用系統管理員。安裝程式版連 Python 都附好了，不用上網。</p></li>
-    <li><b>照視窗點四頁</b>
+    <li><b>雙擊 <code>Setup.bat</code>，照視窗點完</b>
+      <p>不用系統管理員、不用打字。安裝程式版連 Python 都附好了，不用上網。</p>
       <div class="chips">
         <span class="chip">自己用，還是一群人用</span>
         <span class="chip"><svg class="brand c-telegram"><use href="#b-telegram"/></svg>貼上 bot token</span>
         <span class="chip">六位數字配對你</span>
         <span class="chip">選一個 AI</span>
       </div></li>
-    <li><b>挑工具裝</b>
-      <p>點兩下 <code>.synoxpack</code>，或直接拖進網頁。每個都先給你看報告。</p></li>
+    <li><b>打開 SYNOX，裝你要的工具</b>
+      <p>雙擊桌面的「SYNOX」捷徑，主程式就開始跑，網頁也會打開（第一次裝完會自己開）。
+        接著點兩下 <code>.synoxpack</code>，或直接拖進網頁，看完報告按確認就裝好。</p></li>
+    <li><b>開始用你的助理</b>
+      <p>到 Telegram、Discord 或網頁跟它說話，像是「幫我記：買牛奶」。打 <code>/help</code> 看它現在會什麼。</p></li>
   </ol>
   <div class="cta center">
     <a class="btn primary" href="https://claude.ai/artifact/SjWBzQkdDpUNymrQEZRKHe" target="_blank" rel="noopener"><svg class="brand"><use href="#b-telegram"/></svg>Telegram 圖文教學</a>
