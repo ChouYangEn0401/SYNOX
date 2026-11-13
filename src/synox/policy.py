@@ -49,7 +49,8 @@ import logging
 from types import SimpleNamespace
 from typing import Callable, Dict, FrozenSet, Iterable, Optional
 
-from isdtelekit.core.registry import AI, DANGER, EFFECT_LABELS, READ, WRITE, CommandRegistry, Decision, Node
+from isdtelekit.core.registry import (AI, DANGER, EFFECT_LABELS, READ, ROUTINE, SCHEDULE, WRITE, CommandRegistry,
+                                      Decision, Node)
 from isdtelekit.users.roles import BasicRoles
 
 ROLE_NAMES = tuple(r.name.lower() for r in sorted(set(BasicRoles)))          # guest、member、admin
@@ -60,7 +61,10 @@ DEFAULT_ROLES: Dict[str, tuple] = {
     "admin": ("network", "filesystem:own", "subprocess"),
 }
 DEFAULT_SANDBOX = {"backend": "auto", "required_for": "third-party"}          # 細節與其他預設值見 synox/sandbox.py
-HIDDEN_GROUPS = ("agent", "sudo")                                             # 不給 AI 當工具的內建群組
+HIDDEN_GROUPS = ("agent", "sudo", "unlock")                                   # 不給 AI 當工具的內建群組
+# 確認卡的按鈕節點（DANGER 只是為了讓按鈕有期限）：按下去時 approve.py 會用按的人的身分再判一次「真正的那個指令」，
+# 所以「開了開關就要解鎖」不擋按鈕本身（不然連 ❌ 取消都要先解鎖）。
+TOGGLE_CARRIERS = ("agent.ai_approve",)
 AGENT_GROUP = "agent"
 EFFECT_ORDER = (READ, WRITE, DANGER)
 HIDDEN_REASONS = ("capability", "bot_pack", "bot_ai", "bot_channel")         # 對這個人／這個 bot 當作不存在
@@ -414,7 +418,37 @@ def decide(app, user, node: Node, *, via: str, chat_id: Optional[int] = None, bo
         return blocked
     if not capability_ok(app, user, pack_of(app, node)):
         return Decision(False, "capability")
+    blocked = guard_check(app, user, node, via)
+    if blocked is not None:
+        return blocked
     return _sdk_authorize(registry)(user, node, via, chat_id)
+
+
+def guard_check(app, user, node: Node, via: str) -> Optional[Decision]:
+    """門禁核心的兩題（ADR 0025 §3、§5.3；計畫 K3）：誰叫的可不可以（scope）、要不要先解鎖（stepup）。
+    排程到點（ROUTINE）不問解鎖（建立的那一刻問過了）；AI 叫「開關那一類」不在這裡擋（照舊出確認卡，人按 ✅ 時再判一次）。
+    沒有門禁核心（測試直接給 CommandRegistry）＝不檢查。"""
+    from synox import guard
+    from synox.guard import origin as guard_origin, scope as scope_mod, stepup as stepup_mod
+    g = guard.of(app)
+    if g is None or node is None or node.is_group:
+        return None
+    o = guard_origin.current()
+    caller = "ai" if via == AI else "schedule" if via in (ROUTINE, SCHEDULE) else o.caller
+    if g.scope is not None and not g.scope.allows(node, caller):
+        return Decision(False, "caller", scope_mod.TEXT["caller"])
+    hub = g.stepup
+    if hub is None or via == ROUTINE:
+        return None
+    need_always = bool(node.policy.elevated) or (g.scope is not None and g.scope.always_stepup(node))
+    need_toggle = node.effect == DANGER and node.path not in TOGGLE_CARRIERS and hub.protects_danger(user.tg_id)
+    if not (need_always or need_toggle) or (via == AI and not node.policy.elevated):
+        return None
+    if not hub.enrolled(user.tg_id):              # 只有 need_always 會走到這裡（沒設定時 need_toggle 是 False）
+        return Decision(False, "stepup_unset", stepup_mod.TEXT["unset"])
+    if not hub.unlocked(user.tg_id, o):
+        return Decision(False, "stepup", stepup_mod.TEXT["need"])
+    return None
 
 
 def authorize_for(app):
