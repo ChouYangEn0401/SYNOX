@@ -66,10 +66,23 @@ class Wizard:
         except Exception:
             pass
         root.protocol("WM_DELETE_WINDOW", self.close)
-        self.body = ttk.Frame(root, padding=18)
-        self.body.pack(fill="both", expand=True)
-        self.nav = ttk.Frame(root, padding=(18, 0, 18, 14))
-        self.nav.pack(fill="x")
+        # 「下一步」那一列先釘在視窗最下面：內容再長也不會把它擠出畫面（擁有者回報過按鈕被藏起來）
+        self.nav = ttk.Frame(root, padding=(18, 8, 18, 14))
+        self.nav.pack(side="bottom", fill="x")
+        # 內容放在可以捲動的畫布裡：比視窗高時出現捲軸、可以用滑鼠滾輪
+        holder = ttk.Frame(root)
+        holder.pack(side="top", fill="both", expand=True)
+        self.canvas = tk.Canvas(holder, highlightthickness=0, borderwidth=0)
+        self.scroll = ttk.Scrollbar(holder, orient="vertical", command=self.canvas.yview)
+        self.canvas.configure(yscrollcommand=self.scroll.set)
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.body = ttk.Frame(self.canvas, padding=18)
+        self._body_id = self.canvas.create_window((0, 0), window=self.body, anchor="nw")
+        self.body.bind("<Configure>", lambda e: self._fit())
+        self.canvas.bind("<Configure>", lambda e: (self.canvas.itemconfigure(self._body_id, width=e.width), self._fit()))
+        root.bind_all("<MouseWheel>", self._wheel)
+        root.bind_all("<Button-4>", lambda e: self._scroll_by(-3))
+        root.bind_all("<Button-5>", lambda e: self._scroll_by(3))
         self.next_btn = ttk.Button(self.nav, text=t("next"), command=lambda: None, state="disabled")
         self.apply_lang()
         if self.ask_lang:
@@ -113,6 +126,10 @@ class Wizard:
     def clear(self, title: str, step: str):
         for w in self.body.winfo_children():
             w.destroy()
+        try:
+            self.canvas.yview_moveto(0)                   # 換頁回到最上面
+        except Exception:
+            pass
         self.ttk.Label(self.body, text=step, foreground="#666").pack(anchor=self.west)
         self.ttk.Label(self.body, text=title, font=(self.family, 15, "bold")).pack(anchor=self.west, pady=(2, 10))
 
@@ -127,6 +144,26 @@ class Wizard:
 
     def background(self, work, done):
         threading.Thread(target=lambda: self.later(done, work()), daemon=True).start()
+
+    def _fit(self):
+        """內容高度變了：更新可捲範圍；放得下就藏起捲軸。"""
+        try:
+            self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+            need = self.body.winfo_reqheight() > self.canvas.winfo_height() + 1
+        except self.tk.TclError:
+            return
+        if need and not self.scroll.winfo_ismapped():
+            self.scroll.pack(side="right", fill="y")
+        elif not need and self.scroll.winfo_ismapped():
+            self.scroll.pack_forget()
+            self.canvas.yview_moveto(0)
+
+    def _scroll_by(self, units: int):
+        if self.scroll.winfo_ismapped():
+            self.canvas.yview_scroll(units, "units")
+
+    def _wheel(self, event):
+        self._scroll_by(-1 if event.delta > 0 else 1)
 
     def set_next(self, text: str, command, enabled: bool = True):
         self.next_btn.configure(text=text, command=command, state="normal" if enabled else "disabled")
@@ -291,6 +328,14 @@ class Wizard:
 
     # ── 4. AI ────────────────────────────────────────────────────────
 
+    def install_claude(self):
+        """開一個 PowerShell 視窗跑官方安裝指令（不用系統管理員）；裝完在那個視窗打 claude 登入，再回來按「重新偵測」。"""
+        try:
+            flags = getattr(subprocess, "CREATE_NEW_CONSOLE", 0)
+            subprocess.Popen(logic.claude_install_args(t("install_ps_after")), creationflags=flags)
+        except OSError:
+            webbrowser.open(logic.CLAUDE_DOWNLOAD_URL)       # 沒有 PowerShell（不是 Windows）：改開官方說明
+
     def page_llm(self):
         self.stop.set()
         self.clear(t("llm_title"), t("step", n=4, total=STEPS))
@@ -308,12 +353,28 @@ class Wizard:
         ttk.Radiobutton(top, text=t("claude_title"), value="claude_code", variable=choice,
                         command=lambda: changed()).pack(anchor=self.west)
         self.label(claude_text, parent=top, foreground="#2a6" if found else "#a33")
-        if not found:                               # 沒裝：一鍵去下載頁；裝好登入後按「重新偵測」
+        if not found:                               # 沒裝：一鍵安裝（PowerShell）或去下載頁；裝好登入後按「重新偵測」
             helper = ttk.Frame(top)
             helper.pack(anchor=self.west)
+            ttk.Button(helper, text=t("install_ps"), command=self.install_claude).pack(side=self.start)
             ttk.Button(helper, text=t("open_download"), command=lambda: webbrowser.open(logic.CLAUDE_DOWNLOAD_URL)
-                       ).pack(side=self.start)
+                       ).pack(side=self.start, padx=(6, 0))
             ttk.Button(helper, text=t("redetect"), command=self.page_llm).pack(side=self.start, padx=(6, 0))
+            self.label(t("install_ps_note"), parent=top, foreground="#666")
+            cmd_row = ttk.Frame(top)
+            cmd_row.pack(anchor=self.west, fill="x")
+            cmd = ttk.Entry(cmd_row, width=44)
+            cmd.insert(0, logic.CLAUDE_INSTALL_PS)
+            cmd.configure(state="readonly")
+            cmd.pack(side=self.start)
+            copied = ttk.Label(cmd_row, text="")
+
+            def copy_cmd():
+                self.root.clipboard_clear()
+                self.root.clipboard_append(logic.CLAUDE_INSTALL_PS)
+                copied.configure(text=t("copied"))
+            ttk.Button(cmd_row, text=t("copy_cmd"), command=copy_cmd).pack(side=self.start, padx=(6, 0))
+            copied.pack(side=self.start, padx=(6, 0))
         claude_status = self.label("", parent=top)
         ttk.Button(top, text=t("test"), command=lambda: test("claude_code", claude_status)).pack(anchor=self.west)
 

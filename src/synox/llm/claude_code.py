@@ -24,7 +24,7 @@ NOT_FOUND = "這台電腦找不到 claude（Claude Code）。先安裝並登入 
 
 
 def find_claude() -> Optional[str]:
-    """PATH 上的 claude；沒有就看官方安裝程式的固定位置（~/.local/bin）。
+    """PATH 上的 claude；沒有就看官方安裝程式的固定位置（~/.local/bin）和 npm 全域安裝的位置（%APPDATA%\\npm）。
 
     原生安裝程式把 claude 放在 ~/.local/bin，但不一定替使用者加進 PATH（或 SYNOX 是在安裝前啟動的、PATH 還是舊的），
     只靠 PATH 會誤報「找不到」。VS Code 擴充功能自帶的 claude.exe 不算（它不在這些位置、也不是給別的程式叫的）。
@@ -32,11 +32,15 @@ def find_claude() -> Optional[str]:
     found = shutil.which("claude")
     if found:
         return found
-    base = os.path.join(os.path.expanduser("~"), ".local", "bin")
-    for name in ("claude.exe", "claude"):
-        path = os.path.join(base, name)
-        if os.path.isfile(path):
-            return path
+    places = [(os.path.join(os.path.expanduser("~"), ".local", "bin"), ("claude.exe", "claude"))]
+    appdata = os.environ.get("APPDATA")
+    if appdata:                                       # 用 npm 裝的（npm install -g @anthropic-ai/claude-code）
+        places.append((os.path.join(appdata, "npm"), ("claude.cmd",)))
+    for base, names in places:
+        for name in names:
+            path = os.path.join(base, name)
+            if os.path.isfile(path):
+                return path
     return None
 
 

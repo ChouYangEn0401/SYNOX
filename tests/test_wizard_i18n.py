@@ -330,3 +330,62 @@ def test_uninstall_reads_saved_language(tmp_path):
                          capture_output=True, timeout=120, env=env, stdin=subprocess.DEVNULL)
     text = out.stdout.decode("utf-8", "replace")
     assert out.returncode == 0 and _psd1("de")["row_shortcut"] in text, text
+
+
+def test_wizard_next_button_stays_visible_when_page_is_tall(tk_root, tmp_path, monkeypatch):
+    """擁有者回報：AI 那頁內容太長時「下一步」被擠出視窗。下一步那一列要釘在最下面，內容可以捲。"""
+    from synox.wizard import pages
+    _fakes(monkeypatch, pages, {"popen": [], "browser": [], "saved": []})
+    wiz = pages.Wizard(tk_root, config_path=str(tmp_path / "config.json"), lang="zh-TW")
+    tk_root.deiconify()
+    tk_root.geometry("640x420")                                   # 故意比 AI 頁的內容矮
+    wiz.page_llm()
+    tk_root.update()
+    assert wiz.nav.pack_info()["side"] == "bottom"
+    win_h = tk_root.winfo_height()
+    bottom = wiz.next_btn.winfo_rooty() - tk_root.winfo_rooty() + wiz.next_btn.winfo_height()
+    assert wiz.next_btn.winfo_ismapped() and bottom <= win_h, (bottom, win_h)
+    assert wiz.scroll.winfo_ismapped()                            # 內容比視窗高：出現捲軸
+    tk_root.geometry("720x1400")
+    wiz.page_mode()                                               # 換到短的頁：捲軸收起來
+    tk_root.update()
+    assert not wiz.scroll.winfo_ismapped()
+
+
+def test_wizard_claude_missing_offers_one_click_install(tk_root, tmp_path, monkeypatch):
+    """找不到 Claude Code：有「一鍵安裝（PowerShell）」「打開下載網頁」「重新偵測」，還有可以複製的那一行指令。"""
+    from synox.wizard import pages
+    calls = {"popen": [], "browser": [], "saved": []}
+    _fakes(monkeypatch, pages, calls)
+    wiz = pages.Wizard(tk_root, config_path=str(tmp_path / "config.json"), lang="zh-TW")
+    wiz.page_llm()
+    texts = _texts(wiz.body)
+    for key in ("install_ps", "open_download", "redetect", "copy_cmd", "install_ps_note"):
+        assert i18n.t(key) in texts, key
+
+    def find(widget, text):
+        for w in widget.winfo_children():
+            try:
+                if w.cget("text") == text:
+                    return w
+            except Exception:
+                pass
+            hit = find(w, text)
+            if hit is not None:
+                return hit
+        return None
+
+    find(wiz.body, i18n.t("install_ps")).invoke()
+    args = calls["popen"][-1][0]
+    assert args[0] == "powershell" and "-NoExit" in args
+    assert args[-1].startswith(logic.CLAUDE_INSTALL_PS)
+    assert "runas" not in " ".join(args).lower()                  # 不要求系統管理員
+    find(wiz.body, i18n.t("copy_cmd")).invoke()
+    assert tk_root.clipboard_get() == logic.CLAUDE_INSTALL_PS
+    assert i18n.t("copied") in _texts(wiz.body)
+
+
+def test_claude_install_args_quote_the_note():
+    args = logic.claude_install_args("it's done")
+    assert args[-1].endswith("Write-Host 'it''s done' -ForegroundColor Cyan")
+    assert logic.CLAUDE_INSTALL_PS == "irm https://claude.ai/install.ps1 | iex"

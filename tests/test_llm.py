@@ -195,6 +195,20 @@ def test_find_claude_falls_back_to_native_install_dir(tmp_path, monkeypatch):
     assert claude_code.find_claude() == str(exe)
 
 
+def test_find_claude_falls_back_to_npm_global_dir(tmp_path, monkeypatch):
+    """用 npm 裝的 claude（%APPDATA%\\npm\\claude.cmd）：PATH 還是舊的時候也要找得到。"""
+    from synox.llm import claude_code
+    monkeypatch.setattr(claude_code.shutil, "which", lambda name: None)
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "Roaming"))
+    assert claude_code.find_claude() is None
+    cmd = tmp_path / "Roaming" / "npm" / "claude.cmd"
+    cmd.parent.mkdir(parents=True)
+    cmd.write_bytes(b"")
+    assert claude_code.find_claude() == str(cmd)
+
+
 def test_claude_code_passes_through_the_cost_it_reports():
     def runner(argv, **kw):
         return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(
