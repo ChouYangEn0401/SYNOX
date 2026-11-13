@@ -271,6 +271,80 @@ def install(app, pack):
     pack.web_route("summary", summary)
 '''
 
+PACK_APP_PY = '''"""__TITLE__：SYNOX python pack，附完整的網頁畫面（工具服務，docs/tool-apps.md）。
+指令與畫面共用同一組核心函式：一個動作＝一個指令（同名、同樣的危險程度、同一份欄位檢查）。"""
+
+from isdtelekit.core.registry import WRITE, Field
+from synox.packs import kit
+
+
+def install(app, pack):
+    # ── 核心函式（指令與畫面都叫它們）──
+    def items(user):
+        return pack.store.of(user).load({"items": []})["items"]
+
+    def add_core(user, text):
+        return pack.store.of(user).update(lambda d: (d.setdefault("items", []).append(text), len(d["items"]))[1],
+                                          {"items": []})
+
+    # ── 指令 ──
+    def add(api, chat_id, user, values):
+        api.send_message(chat_id, f"記下了（第 {add_core(user, values['text'])} 筆）")
+
+    def summary(user):
+        return {"message": f"共 {len(items(user))} 筆", "data": {"count": len(items(user))}}
+
+    kit.command(pack.group, "add", add, "記一筆", default=True, effect=WRITE,
+                fields=[Field("text", "要記的內容", required=True, check=kit.checks.max_len(200))])
+    pack.web_route("summary", summary)
+
+    # ── 畫面（舊版 SYNOX 沒有這些方法：照樣能用指令）──
+    if hasattr(pack, "app_read"):
+        pack.app_read("items", lambda user, params: {"items": items(user)})
+        pack.app_action("add", lambda user, values: {"count": add_core(user, values["text"])})
+'''
+
+APP_HTML = """<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<link rel="stylesheet" href="/_synox/kit.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<main id="app"></main>
+<script src="/_synox/kit.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
+"""
+
+APP_JS = """/* 畫面程式：只用 SynoxApp.*（SYNOX 的共用元件）。不要自己連線、不要內嵌程式、不要碰瀏覽器存的登入資料。 */
+SynoxApp.ready(function () {
+  "use strict";
+  var main = document.getElementById("app");
+  var table = SynoxApp.el("table", "table");
+  var card = SynoxApp.el("div", "card");
+  card.appendChild(table);
+  main.appendChild(card);
+  function load() {
+    SynoxApp.read("items").then(function (d) {
+      SynoxApp.clear(table);
+      (d.items || []).forEach(function (text, i) {
+        var tr = SynoxApp.el("tr");
+        tr.appendChild(SynoxApp.el("td", "num", String(i + 1)));
+        tr.appendChild(SynoxApp.el("td", "", text));
+        table.appendChild(tr);
+      });
+    });
+  }
+  main.appendChild(SynoxApp.form("add", { onDone: load }));
+  load();
+});
+"""
+
 TOOL_PY = '''"""範例工具：任何語言都可以，只要最後一行印一個 JSON 物件。這支用 synox.sdk 的信封（沒裝 SYNOX 也能照形狀自己印）。"""
 
 import json
@@ -300,10 +374,13 @@ if __name__ == "__main__":
 '''
 
 
-def init_pack(folder: str, kind: str, name: str, title: str) -> List[str]:
-    """產生一個新的 pack 資料夾（已存在的檔不蓋）。回寫了哪些檔。"""
+def init_pack(folder: str, kind: str, name: str, title: str, app: bool = False) -> List[str]:
+    """產生一個新的 pack 資料夾（已存在的檔不蓋）。回寫了哪些檔。
+    app=True（只給 kind=python）：多一個完整的網頁畫面（app/index.html、app.js、app.css、pack.json 的 web.app）。"""
     if kind not in KINDS:
         raise ValueError(f"kind 只能是 {'、'.join(KINDS)}")
+    if app and kind != "python":
+        raise ValueError("--app 只給 kind=python")
     from synox.packs.manifest import NAME_RE
     if not NAME_RE.match(name or ""):
         raise ValueError("name 只能用小寫英數字、-、_（32 字內，英文字母開頭）")
@@ -318,6 +395,13 @@ def init_pack(folder: str, kind: str, name: str, title: str) -> List[str]:
     if kind == "python":
         manifest.update({"python": {"module": "pack"}, "storage": "vault"})
         files["pack.py"] = PACK_PY.format(title=title)
+        if app:
+            manifest["web"]["app"] = {"entry": "app/index.html", "root": "app", "title": title[:24], "kit": 1,
+                                      "reads": ["items"], "actions": {"add": "WRITE"}}
+            files["pack.py"] = PACK_APP_PY.replace("__TITLE__", title)
+            files["app/index.html"] = APP_HTML.replace("__TITLE__", title)
+            files["app/app.js"] = APP_JS
+            files["app/app.css"] = "/* 這個畫面自己的樣式（共用的在 /_synox/kit.css）。只用這個資料夾裡的檔，不連外面的網址。 */\n"
     else:
         manifest["cli"] = {"argv": ["{python}", "./tool.py"], "cwd": ".", "json_flag": "--json", "timeout": 60,
                            "commands": [
@@ -339,6 +423,7 @@ def init_pack(folder: str, kind: str, name: str, title: str) -> List[str]:
         path = os.path.join(folder, rel)
         if os.path.exists(path):
             continue
+        os.makedirs(os.path.dirname(path) or folder, exist_ok=True)
         with open(path, "w", encoding="utf-8", newline="\n") as f:
             f.write(text)
         written.append(rel)
@@ -675,6 +760,7 @@ def main(argv=None) -> int:
     p.add_argument("--kind", choices=KINDS, default="cli")
     p.add_argument("--name", required=True)
     p.add_argument("--title", default="")
+    p.add_argument("--app", action="store_true", help="多一個完整的網頁畫面（工具服務；只給 --kind python）")
     p = sub.add_parser("run", help="本機試跑一個指令（照 SYNOX 的代換與參數檢查，不用開 SYNOX）")
     p.add_argument("command")
     p.add_argument("args", nargs="*", help="跟在 Telegram 打的一樣：照位置填，或 key=value")
@@ -699,7 +785,7 @@ def main(argv=None) -> int:
             if not args.folder:
                 print("❌ 要給資料夾（或用 --from tool.py）")
                 return 2
-            written = init_pack(args.folder, args.kind, args.name, args.title or args.name)
+            written = init_pack(args.folder, args.kind, args.name, args.title or args.name, app=args.app)
             print(f"✅ 寫了 {len(written)} 個檔：{'、'.join(written) or '（都已經存在，沒動）'}")
             return 0
         if args.cmd == "check":
