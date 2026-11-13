@@ -9,6 +9,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<!-- 只為第 1 頁語言清單裡的阿拉伯文、天城文、韓文那幾個字（text= 只下載用到的字） -->
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@400;700&family=Noto+Sans+Devanagari:wght@400;700&family=Noto+Sans+KR:wght@400;700&text=%D8%A7%D9%84%D8%B9%D8%B1%D8%A8%D9%8A%D8%A9%D8%BA%E0%A4%B9%E0%A4%BF%E0%A4%A8%E0%A5%8D%E0%A4%A6%E0%A5%80%E0%A4%AD%E0%A4%BE%E0%A4%B7%ED%95%9C%EA%B5%AD%EC%96%B4%EC%96%B8&display=swap">
 <style>
 /* 版面：桌機左邊一條跟著走的目錄、右邊一欄讀下來；每個安裝畫面＝左邊一個用 HTML 畫的 Windows 安裝視窗＋右邊的說明。
    配色直接用 SYNOX 介紹頁的 token（青綠主色、藍灰中性色、三個狀態色）。招牌元素：那一排安裝視窗。 */
@@ -272,6 +274,17 @@ section { display: flex; flex-direction: column; gap: 26px; scroll-margin-top: 7
 .steps li.warn::before { border-color: var(--warn); background: var(--warn-soft); }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .steps li.now::before { animation: none; border-right-color: var(--accent); } }
+/* 第 1 頁：選語言（原文名＋拉丁字母名） */
+.langs-also { font-size: 12.5px; color: var(--faint); line-height: 1.6; font-family: var(--body), "Noto Sans Arabic", "Noto Sans Devanagari", "Noto Sans KR", sans-serif; }
+.langs { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 124px), 1fr)); gap: 6px; font-family: var(--body), "Noto Sans Arabic", "Noto Sans Devanagari", "Noto Sans KR", sans-serif; }
+.langs li { display: flex; gap: 8px; align-items: flex-start; padding: 6px 9px; border: 1px solid var(--line); border-radius: 8px; min-width: 0; }
+.langs li.on { border-color: var(--accent); background: var(--accent-soft); }
+.langs .rb { width: 14px; height: 14px; margin-top: 4px; border-width: 1.5px; }
+.langs .rb.on::after { width: 7px; height: 7px; }
+.langs li > span:last-child { min-width: 0; display: flex; flex-direction: column; line-height: 1.4; }
+.langs b { font-size: 14px; font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+.langs em { font-style: normal; font-size: 11.5px; color: var(--faint); overflow-wrap: anywhere; }
+.qs > li.ok::before { background: var(--ok-soft); color: var(--ok); }
 .done-badge { width: 44px; height: 44px; border-radius: 50%; background: var(--ok-soft); color: var(--ok); display: grid; place-items: center; }
 .done-badge .ico { width: 24px; height: 24px; stroke-width: 2.2; }
 
@@ -460,7 +473,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
     <h1>下載一個檔案，一路按<em>「下一步」</em>，SYNOX 就能用。</h1>
     <p class="lede">不懂電腦的人用建議值就全部裝好；懂的人可以自己調。這台電腦原本的 Python、Conda 和其他程式，一樣都不動。</p>
     <div class="facts">
-      <div><b>5</b><span>次點擊走完建議安裝：3 次「下一步」、1 次「安裝」、1 次「完成」</span></div>
+      <div><b>6</b><span>次點擊走完建議安裝：4 次「下一步」（第一次是選好語言）、1 次「安裝」、1 次「完成」</span></div>
       <div><b>0</b><span>個指令。全程沒有黑色視窗，不用打字</span></div>
       <div><b>0</b><span>次系統管理員密碼。裝在你自己的使用者資料夾</span></div>
       <div><b>1</b><span>個資料夾。程式、SYNOX 自己的 Python、你的資料都在裡面</span></div>
@@ -508,20 +521,20 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
   <div class="sec-head">
     <p class="eyebrow">安裝程式 SYNOX-Setup-0.2.0.exe</p>
     <h2>安裝畫面，一頁一頁</h2>
-    <p class="sub">下面的視窗是用 HTML 畫的示意圖，裡面的中文就是要放進安裝程式的字。選「建議」的人看到 6 頁；選「自訂」的人多看 3 頁。</p>
+    <p class="sub">下面的視窗是用 HTML 畫的示意圖，裡面的中文就是要放進安裝程式的字（示意的是繁體中文的 Windows）。<strong>第一件事是選語言</strong>，之後每一頁都用那個語言。選「建議」的人看到 7 頁；選「自訂」的人多看 2 頁。</p>
   </div>
 
   <div class="flow">
     <ol>
-      <li><a href="#s1"><i>1</i>歡迎</a></li>
-      <li><a href="#s2"><i>2</i>先說清楚</a></li>
-      <li><a href="#s3"><i>3</i>安裝位置</a></li>
-      <li><a href="#s4"><i>4</i>安裝方式</a></li>
+      <li><a href="#s1"><i>1</i>選語言</a></li>
+      <li><a href="#s2"><i>2</i>歡迎</a></li>
+      <li><a href="#s3"><i>3</i>先說清楚</a></li>
+      <li><a href="#s4"><i>4</i>安裝位置</a></li>
+      <li><a href="#s5"><i>5</i>安裝方式</a></li>
       <li class="c"><a href="#sa"><i>A</i>哪個 Python</a></li>
       <li class="c"><a href="#sb"><i>B</i>要裝哪些</a></li>
-      <li class="c"><a href="#sc"><i>C</i>語言</a></li>
-      <li><a href="#s5"><i>5</i>安裝中</a></li>
-      <li><a href="#s6"><i>6</i>完成</a></li>
+      <li><a href="#s6"><i>6</i>安裝中</a></li>
+      <li><a href="#s7"><i>7</i>完成</a></li>
       <li class="w"><a href="#wizard"><i>→</i>設定精靈</a></li>
     </ol>
     <div class="hint">
@@ -533,9 +546,60 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
 
   <div class="screens">
 
-    <!-- 1 歡迎 -->
+    <!-- 1 選語言 -->
     <article class="screen" id="s1">
-      <header class="screen-h"><span class="num">1</span><h3>歡迎</h3><span class="tags"><i class="tag new">新的</i></span></header>
+      <header class="screen-h"><span class="num">1</span><h3>選語言</h3><span class="tags"><i class="tag have">12 種語言：Setup.bat 與精靈已有</i><i class="tag new">.exe 的這一頁是新的</i></span></header>
+      <div class="screen-grid">
+        <figure class="win" aria-label="安裝視窗示意：選語言">
+          <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
+          <div class="win-body">
+            <p class="h">請選擇語言</p>
+            <p class="langs-also">Language · <span lang="zh-Hans">语言</span> · <span lang="es">Idioma</span> · <span lang="fr">Langue</span> · <span lang="de">Sprache</span> · <span lang="ru">Язык</span> · <span lang="ar" dir="rtl">اللغة</span> · <span lang="hi">भाषा</span> · <span lang="ja">言語</span> · <span lang="ko">언어</span></p>
+            <ul class="langs" aria-label="可以選的 12 種語言">
+              <li class="on"><span class="rb on"></span><span><b lang="zh-Hant">繁體中文</b><em>Traditional Chinese</em></span></li>
+              <li><span class="rb"></span><span><b lang="zh-Hans">简体中文</b><em>Simplified Chinese</em></span></li>
+              <li><span class="rb"></span><span><b lang="en">English</b><em>English</em></span></li>
+              <li><span class="rb"></span><span><b lang="es">Español</b><em>Spanish</em></span></li>
+              <li><span class="rb"></span><span><b lang="fr">Français</b><em>French</em></span></li>
+              <li><span class="rb"></span><span><b lang="de">Deutsch</b><em>German</em></span></li>
+              <li><span class="rb"></span><span><b lang="pt-BR">Português (Brasil)</b><em>Portuguese (Brazil)</em></span></li>
+              <li><span class="rb"></span><span><b lang="ru">Русский</b><em>Russian</em></span></li>
+              <li><span class="rb"></span><span><b lang="ar" dir="rtl">العربية</b><em>Arabic</em></span></li>
+              <li><span class="rb"></span><span><b lang="hi">हिन्दी</b><em>Hindi</em></span></li>
+              <li><span class="rb"></span><span><b lang="ja">日本語</b><em>Japanese</em></span></li>
+              <li><span class="rb"></span><span><b lang="ko">한국어</b><em>Korean</em></span></li>
+            </ul>
+            <p class="small">已經先選好這台 Windows 的顯示語言。安裝程式接下來的每一頁、設定精靈和 SYNOX 本身，都會用你選的語言。</p>
+          </div>
+          <div class="win-foot" aria-hidden="true"><span class="wbtn pri">下一步</span><span class="gap"></span><span class="wbtn">取消</span></div>
+        </figure>
+        <div class="notes">
+          <h4>這頁要做到</h4>
+          <ul class="pts">
+            <li><strong>安裝程式一打開，第一件事就是選語言</strong>，在歡迎頁之前。之後安裝程式的每一頁、設定精靈、SYNOX 本身都用這個語言，不會再問一次。</li>
+            <li><strong>預選 Windows 的顯示語言</strong>：對得上 12 種之一就選它（<code>zh-HK</code> 算繁體中文、<code>zh-SG</code> 算简体中文、<code>pt-PT</code> 算 Português (Brasil)、<code>es-MX</code> 算 Español，規則同 <code>i18n.normalize</code>）；對不上就預選 English。大多數人直接按「下一步」。</li>
+            <li>清單的順序和代號跟 <code>setup/lang.ps1</code> 的 <code>$SynoxLangs</code>、<code>i18n.LANGS</code> 一樣：zh-TW、zh-CN、en、es、fr、de、pt-BR、ru、ar、hi、ja、ko。</li>
+            <li>每一種都寫<strong>它自己的名字</strong>，下面再寫拉丁字母的名字（跟 <code>lang.ps1</code> 的選單一樣），看不懂這頁現在的字、或這台電腦缺某種字型的人，也找得到自己的語言。</li>
+            <li>標題下那一行把「語言」用十種語言各寫一次，誰打開都知道這頁在問什麼。</li>
+            <li>只有一個「下一步」（加上「取消」），沒有「上一步」。</li>
+            <li>更新時（SYNOX 資料夾已經有 <code>lang.txt</code>）照樣顯示這頁，預選 <code>lang.txt</code> 裡的語言。</li>
+            <li>選 العربية 時，之後的安裝畫面由右到左排（精靈已經會：<code>i18n.RTL</code>）。<i class="tag test">待實測</i></li>
+            <li><strong>SYNOX 本身也要照這個語言開。</strong>設定精靈今天會把語言寫進 <code>config.json</code> 的 <code>"language"</code>，但 SYNOX 的網頁介面和 bot 的話還不讀它。<i class="tag chg">要改</i></li>
+          </ul>
+          <h4>怎麼做</h4>
+          <dl class="impl">
+            <dt>Inno Setup</dt><dd>精靈視窗一開，Inno Setup 就不能再換語言，所以這頁要在精靈之前出現。簡單版：<code>ShowLanguageDialog=yes</code>＋<code>LanguageDetectionMethod=uilanguage</code>（Inno 自己的選語言小視窗，下拉選單、按鈕叫「確定」），每個語言的名字在 <code>[LangOptions]</code> 用 <code>LanguageName</code> 改成「原文名 (拉丁字母名)」。要長得跟上圖一樣（清單＋「下一步」）：在 <code>InitializeSetup</code> 用 <code>CreateCustomForm</code> 畫這頁，選的不是目前的語言時，帶 <code class="nb">/LANG=&lt;名字&gt;</code> 重新啟動自己。</dd>
+            <dt>語言檔</dt><dd><code>[Languages]</code> 列 12 種，每種一個 Inno Setup 語言檔（<code>.isl</code>，按鈕、「瀏覽…」這類內建的字）；我們自己的字（歡迎、先說清楚…）放 <code>[CustomMessages]</code>。哪幾種有現成的語言檔，見 <a href="#q7">Q7</a>。</dd>
+            <dt>交下去</dt><dd>選的語言換成 SYNOX 的代號，用 <code class="nb">-Lang &lt;代號&gt;</code> 交給 bootstrap（已有）：bootstrap 存進 SYNOX 資料夾的 <code>lang.txt</code>，再用 <code class="nb">--lang</code> 開設定精靈，精靈就跳過自己的語言頁；精靈把它寫進 <code>config.json</code>。<code>Uninstall.bat</code> 也讀同一個 <code>lang.txt</code>。</dd>
+            <dt>ZIP 路徑</dt><dd>今天就是這樣：<code>Setup.bat</code> 的文字視窗第一題就是語言（<code>lang.ps1</code> 的 <code>Ask-SynoxLang</code>）。12 種排兩欄，每種寫「拉丁字母名 / 原文名」，打數字或代號；選完存進 <code>lang.txt</code>，之後的訊息用 <code>setup\lang\&lt;代號&gt;.psd1</code>。給了 <code class="nb">-Lang</code>／<code>SYNOX_LANG</code>，或已經有 <code>lang.txt</code>，就不問。今天直接按 Enter＝第 1 項繁體中文；建議改成預選 Windows 的顯示語言，跟 .exe 一樣。<i class="tag chg">要改</i></dd>
+          </dl>
+        </div>
+      </div>
+    </article>
+
+    <!-- 2 歡迎 -->
+    <article class="screen" id="s2">
+      <header class="screen-h"><span class="num">2</span><h3>歡迎</h3><span class="tags"><i class="tag new">新的</i></span></header>
       <div class="screen-grid">
         <figure class="win" aria-label="安裝視窗示意：歡迎">
           <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
@@ -556,23 +620,23 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
           <h4>這頁要做到</h4>
           <ul class="pts">
             <li>三句話讓人知道「這是什麼、要多久、會不會弄壞電腦」。</li>
-            <li>安裝程式的語言<strong>自動跟 Windows 的顯示語言一樣</strong>，不先跳一個選語言的小視窗。</li>
+            <li>用<strong>第 1 頁選的語言</strong>顯示。語言在精靈視窗之前就決定了，所以這頁的「上一步」是灰的；選錯了按「取消」再開一次安裝程式。</li>
             <li>已經裝過 SYNOX 時，標題改成「更新 SYNOX」，並加一句「你的設定和資料會留著」。</li>
             <li>「3 到 5 分鐘」是估計值，要在真的電腦上量過再定。<i class="tag test">待實測</i></li>
           </ul>
           <h4>怎麼做</h4>
           <dl class="impl">
             <dt>Inno Setup</dt><dd><code>wpWelcome</code>。Inno Setup 6 預設會跳過歡迎頁，要設 <code>DisableWelcomePage=no</code>；文字放在 <code>[Messages] WelcomeLabel1／2</code>。</dd>
-            <dt>語言</dt><dd><code>ShowLanguageDialog=no</code>＋<code>LanguageDetectionMethod=uilanguage</code>。今天的 <code>synox.iss</code> 只有英文。</dd>
-            <dt>ZIP 路徑</dt><dd><code>Setup.bat</code> 視窗的前三行印同樣的三句話。</dd>
+            <dt>語言</dt><dd>第 1 頁選好的語言（<code>ActiveLanguage</code>）。今天的 <code>synox.iss</code> 只有英文。</dd>
+            <dt>ZIP 路徑</dt><dd>選完語言之後，<code>Setup.bat</code> 視窗先用那個語言印同樣的三句話。</dd>
           </dl>
         </div>
       </div>
     </article>
 
-    <!-- 2 先說清楚 -->
-    <article class="screen" id="s2">
-      <header class="screen-h"><span class="num">2</span><h3>先說清楚</h3><span class="tags"><i class="tag new">新的</i><i class="tag wip">⏳ 自帶 Python 正在做</i></span></header>
+    <!-- 3 先說清楚 -->
+    <article class="screen" id="s3">
+      <header class="screen-h"><span class="num">3</span><h3>先說清楚</h3><span class="tags"><i class="tag new">新的</i><i class="tag wip">⏳ 自帶 Python 正在做</i></span></header>
       <div class="screen-grid">
         <figure class="win" aria-label="安裝視窗示意：先說清楚">
           <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
@@ -608,9 +672,9 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
       </div>
     </article>
 
-    <!-- 3 安裝位置 -->
-    <article class="screen" id="s3">
-      <header class="screen-h"><span class="num">3</span><h3>安裝位置</h3><span class="tags"><i class="tag have">已有</i><i class="tag chg">文字要改</i></span></header>
+    <!-- 4 安裝位置 -->
+    <article class="screen" id="s4">
+      <header class="screen-h"><span class="num">4</span><h3>安裝位置</h3><span class="tags"><i class="tag have">已有</i><i class="tag chg">文字要改</i></span></header>
       <div class="screen-grid">
         <figure class="win" aria-label="安裝視窗示意：安裝位置">
           <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
@@ -644,9 +708,9 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
       </div>
     </article>
 
-    <!-- 4 安裝方式 -->
-    <article class="screen" id="s4">
-      <header class="screen-h"><span class="num">4</span><h3>安裝方式</h3><span class="tags"><i class="tag new">新的</i></span></header>
+    <!-- 5 安裝方式 -->
+    <article class="screen" id="s5">
+      <header class="screen-h"><span class="num">5</span><h3>安裝方式</h3><span class="tags"><i class="tag new">新的</i></span></header>
       <div class="screen-grid">
         <figure class="win" aria-label="安裝視窗示意：安裝方式">
           <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
@@ -664,14 +728,14 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
           <h4>這頁要做到</h4>
           <ul class="pts">
             <li>「建議」已經選好。它下面那段話把<strong>會動到資料夾外面的每一件事都列出來</strong>，這就是使用者同意的範圍。</li>
-            <li>選「建議」時，主要按鈕直接寫<strong>「安裝」</strong>，按下去就開始；選「自訂」時按鈕變回「下一步」，進入 A、B、C 三頁。</li>
-            <li>「自訂」那三頁的預設值跟「建議」完全一樣：一路按「下一步」的結果相同。</li>
+            <li>選「建議」時，主要按鈕直接寫<strong>「安裝」</strong>，按下去就開始；選「自訂」時按鈕變回「下一步」，進入 A、B 兩頁。</li>
+            <li>「自訂」那兩頁的預設值跟「建議」完全一樣：一路按「下一步」的結果相同。</li>
             <li>「建議」裡的開機自動啟動、Claude Code、入門工具這三項，要先請擁有者點頭（<a href="#questions">Q1～Q3</a>）。<i class="tag q">待決定</i></li>
           </ul>
           <h4>怎麼做</h4>
           <dl class="impl">
-            <dt>Inno Setup</dt><dd><code>CreateInputOptionPage(wpSelectDir, …, Exclusive=True)</code>；A、B、C 三頁用 <code>ShouldSkipPage</code> 在選「建議」時跳過；<code>DisableReadyPage=yes</code>。</dd>
-            <dt>ZIP 路徑</dt><dd><code>Setup.bat</code> 開頭問一題：「按 Enter：照建議全部裝好。輸入 C 再按 Enter：自訂。」也可以直接用 <code>Setup.bat -Custom</code>（<a href="#questions">Q8</a>）。</dd>
+            <dt>Inno Setup</dt><dd><code>CreateInputOptionPage(wpSelectDir, …, Exclusive=True)</code>；A、B 兩頁用 <code>ShouldSkipPage</code> 在選「建議」時跳過；<code>DisableReadyPage=yes</code>。</dd>
+            <dt>ZIP 路徑</dt><dd>選完語言後，<code>Setup.bat</code> 問一題：「按 Enter：照建議全部裝好。輸入 C 再按 Enter：自訂。」也可以直接用 <code>Setup.bat -Custom</code>（<a href="#questions">Q8</a>）。</dd>
           </dl>
         </div>
       </div>
@@ -679,7 +743,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
 
     <!-- A Python -->
     <article class="screen custom" id="sa">
-      <header class="screen-h"><span class="num">A</span><h3>自訂 1／3：哪個 Python</h3><span class="who">選「自訂」才會看到</span><span class="tags"><i class="tag new">新的</i><i class="tag wip">⏳ 正在做</i></span></header>
+      <header class="screen-h"><span class="num">A</span><h3>自訂 1／2：哪個 Python</h3><span class="who">選「自訂」才會看到</span><span class="tags"><i class="tag new">新的</i><i class="tag wip">⏳ 正在做</i></span></header>
       <div class="screen-grid">
         <figure class="win" aria-label="安裝視窗示意：自訂，哪個 Python">
           <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
@@ -713,7 +777,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
 
     <!-- B components -->
     <article class="screen custom" id="sb">
-      <header class="screen-h"><span class="num">B</span><h3>自訂 2／3：要準備哪些東西</h3><span class="who">選「自訂」才會看到</span><span class="tags"><i class="tag new">新的</i></span></header>
+      <header class="screen-h"><span class="num">B</span><h3>自訂 2／2：要準備哪些東西</h3><span class="who">選「自訂」才會看到</span><span class="tags"><i class="tag new">新的</i></span></header>
       <div class="screen-grid">
         <figure class="win" aria-label="安裝視窗示意：自訂，要準備哪些東西">
           <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
@@ -729,7 +793,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
             </ul>
             <p class="small">每一項之後都能改：再執行一次安裝程式，或到 SYNOX 的設定。</p>
           </div>
-          <div class="win-foot" aria-hidden="true"><span class="wbtn">上一步</span><span class="wbtn pri">下一步</span><span class="gap"></span><span class="wbtn">取消</span></div>
+          <div class="win-foot" aria-hidden="true"><span class="wbtn">上一步</span><span class="wbtn pri">安裝</span><span class="gap"></span><span class="wbtn">取消</span></div>
         </figure>
         <div class="notes">
           <h4>這頁要做到</h4>
@@ -738,6 +802,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
             <li>每一項的小字只講一件使用者會在意的事：安不安全、要不要上網、裝在哪。</li>
             <li>Claude Code 那一項：這台已經有 <code>claude</code> 時，改顯示「已經裝好了：C:\…\claude.exe」並變灰。</li>
             <li>每一項「誰該改、改了會怎樣」寫在<a href="#options">第 4 節</a>。</li>
+            <li>這是自訂的最後一頁，主要按鈕寫「安裝」。語言已經在<a href="#s1">第 1 頁</a>選過，自訂裡不再有語言頁。</li>
           </ul>
           <h4>怎麼做</h4>
           <dl class="impl">
@@ -749,40 +814,9 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
       </div>
     </article>
 
-    <!-- C language -->
-    <article class="screen custom" id="sc">
-      <header class="screen-h"><span class="num">C</span><h3>自訂 3／3：語言</h3><span class="who">選「自訂」才會看到</span><span class="tags"><i class="tag have">12 種語言已有</i><i class="tag new">這一頁是新的</i></span></header>
-      <div class="screen-grid">
-        <figure class="win" aria-label="安裝視窗示意：自訂，語言">
-          <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
-          <div class="win-body">
-            <p class="h">SYNOX 要用哪種語言？</p>
-            <p>設定精靈、SYNOX 的畫面，還有它回你的話，都會用這個語言。</p>
-            <div class="field"><span class="box sel"><span>繁體中文（跟 Windows 一樣）</span></span></div>
-            <p class="small">可以選：繁體中文、简体中文、English、日本語、한국어、Español、Français、Deutsch、Português (Brasil)、Русский、العربية、हिन्दी。之後可以在設定裡換。</p>
-          </div>
-          <div class="win-foot" aria-hidden="true"><span class="wbtn">上一步</span><span class="wbtn pri">安裝</span><span class="gap"></span><span class="wbtn">取消</span></div>
-        </figure>
-        <div class="notes">
-          <h4>這頁要做到</h4>
-          <ul class="pts">
-            <li>預設跟 Windows 的顯示語言一樣；Windows 用的是 SYNOX 沒有的語言時，預設 English。</li>
-            <li>這裡選的是 <strong>SYNOX 的語言</strong>。安裝程式自己的畫面先做繁體中文和 English 兩種（<a href="#questions">Q7</a>）。</li>
-            <li>這是自訂的最後一頁，主要按鈕寫「安裝」。</li>
-          </ul>
-          <h4>怎麼做</h4>
-          <dl class="impl">
-            <dt>Inno Setup</dt><dd>自訂頁＋下拉選單；結果用 <code class="nb">-Lang &lt;代碼&gt;</code> 傳下去。</dd>
-            <dt>bootstrap</dt><dd><code class="nb">-Lang</code> 已有：存進 <code>lang.txt</code>，再用 <code class="nb">--lang</code> 交給設定精靈，精靈就不再問語言。</dd>
-            <dt>ZIP 路徑</dt><dd>今天 <code>Setup.bat</code> 第一題就是問語言。建議改成：照建議裝時自動跟 Windows 一樣、不問；自訂時才問。<i class="tag chg">要改</i></dd>
-          </dl>
-        </div>
-      </div>
-    </article>
-
-    <!-- 5 installing -->
-    <article class="screen" id="s5">
-      <header class="screen-h"><span class="num">5</span><h3>安裝中</h3><span class="tags"><i class="tag chg">要改</i><i class="tag test">待實測</i></span></header>
+    <!-- 6 installing -->
+    <article class="screen" id="s6">
+      <header class="screen-h"><span class="num">6</span><h3>安裝中</h3><span class="tags"><i class="tag chg">要改</i><i class="tag test">待實測</i></span></header>
       <div class="screen-grid">
         <figure class="win" aria-label="安裝視窗示意：安裝中">
           <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
@@ -822,9 +856,9 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
       </div>
     </article>
 
-    <!-- 6 done -->
-    <article class="screen" id="s6">
-      <header class="screen-h"><span class="num">6</span><h3>完成</h3><span class="tags"><i class="tag chg">要改</i></span></header>
+    <!-- 7 done -->
+    <article class="screen" id="s7">
+      <header class="screen-h"><span class="num">7</span><h3>完成</h3><span class="tags"><i class="tag chg">要改</i></span></header>
       <div class="screen-grid">
         <figure class="win" aria-label="安裝視窗示意：完成">
           <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
@@ -903,7 +937,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
     </figure>
   </div>
   <div class="callouts">
-    <div><span class="tags"><i class="tag have">已有</i></span><b>語言那一頁會自動跳過</b><p>安裝程式已經知道語言，用 <code class="nb">--lang</code> 交給精靈。只有直接打開精靈、又沒選過語言的人才會看到「Language / 語言」。</p></div>
+    <div><span class="tags"><i class="tag have">已有</i></span><b>語言那一頁會自動跳過</b><p>語言在安裝程式第 1 頁（ZIP：<code>Setup.bat</code> 第一題）就選好了，用 <code class="nb">--lang</code> 交給精靈。只有直接打開精靈、又沒選過語言的人才會看到「Language / 語言」。</p></div>
     <div><span class="tags"><i class="tag chg">要改</i></span><b>最後一頁不再重問一次</b><p>今天「差不多了」有四個勾選：桌面捷徑、開機啟動、.synoxpack、立刻開啟。從安裝程式來的人前三項已經決定了，這頁只留「完成後立刻開啟 SYNOX」。從 ZIP 來的人四項照舊，預設值跟安裝程式一樣。</p></div>
     <div><span class="tags"><i class="tag chg">要改</i></span><b>AI 那一頁接得上</b><p>安裝時已經裝好 Claude Code 的話，這頁直接顯示「✅ 找到了」，只剩登入一次。沒裝成的話，現有的「一鍵安裝（PowerShell）」按鈕還在。視窗標題建議從「安裝精靈」改成「設定精靈」，免得跟安裝程式搞混。</p></div>
   </div>
@@ -934,9 +968,9 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
       <p class="default"><i>建議值</i><span>建議（全部幫我裝好）</span></p>
       <dl>
         <dt>誰該改</dt><dd>本來就在用 Python 的人、公司電腦有限制的人、不想要開機啟動或 Claude Code 的人。</dd>
-        <dt>改了會怎樣</dt><dd>多看三頁。每一頁的預設仍然是建議值。</dd>
+        <dt>改了會怎樣</dt><dd>多看兩頁。每一頁的預設仍然是建議值。</dd>
         <dt>.exe</dt><dd>自訂頁（單選）＋<code>ShouldSkipPage</code>。</dd>
-        <dt>ZIP</dt><dd><code>Setup.bat</code> 開頭一題，或 <code>Setup.bat -Custom</code>。</dd>
+        <dt>ZIP</dt><dd>語言之後的那一題，或 <code>Setup.bat -Custom</code>。</dd>
       </dl>
     </article>
 
@@ -1007,13 +1041,13 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
     </article>
 
     <article class="option">
-      <header><b>語言</b><i class="tag have">已有</i><i class="tag chg">自動偵測要補</i></header>
-      <p class="default"><i>建議值</i><span>跟 Windows 的顯示語言一樣；沒有就 English</span></p>
+      <header><b>語言</b><i class="tag have">已有</i><i class="tag chg">.exe 第 1 頁、預選 Windows 要補</i></header>
+      <p class="default"><i>建議值</i><span>第一件事就選；預選 Windows 的顯示語言，對不上就 English</span></p>
       <dl>
-        <dt>誰該改</dt><dd>Windows 是一種語言、想讓 SYNOX 用另一種語言的人。</dd>
-        <dt>改了會怎樣</dt><dd>精靈、網頁、SYNOX 回的話都換成那個語言。之後可以在設定裡再換。</dd>
-        <dt>.exe</dt><dd>自訂頁下拉 → <code class="nb">-Lang</code>。</dd>
-        <dt>ZIP</dt><dd><code>Setup.bat -Lang en</code>（已有）；沒給時照建議自動偵測。</dd>
+        <dt>誰該改</dt><dd>每個人都會看到（<a href="#s1">第 1 頁</a>）。Windows 是一種語言、想讓 SYNOX 用另一種語言的人在這裡改。</dd>
+        <dt>改了會怎樣</dt><dd>安裝程式之後的每一頁、設定精靈、SYNOX 的網頁和它回的話都用那個語言。之後想換：從開始功能表開「SYNOX 設定精靈」，它第一頁就是語言（預選 <code>lang.txt</code> 裡的）。</dd>
+        <dt>.exe</dt><dd>第 1 頁 → <code class="nb">-Lang &lt;代號&gt;</code> → <code>lang.txt</code>。</dd>
+        <dt>ZIP</dt><dd><code>Setup.bat</code> 第一題（<code>Ask-SynoxLang</code>，已有）或 <code>Setup.bat -Lang en</code>（已有）；都存進 <code>lang.txt</code>，精靈和 <code>Uninstall.bat</code> 沿用。</dd>
       </dl>
     </article>
 
@@ -1037,7 +1071,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
   <ul class="flags">
     <li><code>Setup.bat</code><span>照建議全部裝好，跟安裝程式的「建議」一樣</span><i class="tag chg">要改</i></li>
     <li><code>Setup.bat -Custom</code><span>一項一項問</span><i class="tag new">新的</i></li>
-    <li><code class="nb">-Lang zh-TW</code><span>語言</span><i class="tag have">已有</i></li>
+    <li><code class="nb">-Lang zh-TW</code><span>語言；給了就不問，存進 <code>lang.txt</code></span><i class="tag have">已有</i></li>
     <li><code class="nb">-UseSystemPython</code><span>用這台電腦的 Python</span><i class="tag wip">⏳ 正在做</i></li>
     <li><code class="nb">-Python &lt;路徑&gt;</code><span>指定用哪一個 Python</span><i class="tag new">新的</i></li>
     <li><code class="nb">-NoDesktop　-NoStartMenu</code><span>不放桌面捷徑、不放開始功能表</span><i class="tag new">新的</i></li>
@@ -1061,11 +1095,12 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
       <tbody>
         <tr><th>怎麼開始</th><td>下載 ZIP、解壓縮、雙擊 <code>Setup.bat</code></td><td>下載一個檔案、雙擊</td></tr>
         <tr><th>要不要上網</th><td><strong>要</strong>：下載 SYNOX 自己的 Python、套件、工具庫</td><td><strong>不用</strong>：Python、套件、工具庫都附在裡面。只有 Claude Code 那一步要上網</td></tr>
-        <tr><th>畫面</th><td>一個顯示進度的文字視窗，問一題（建議／自訂）</td><td>第 2 節那 6 頁視窗，沒有文字視窗</td></tr>
+        <tr><th>先選語言</th><td>文字視窗<strong>第一題就問語言</strong>（<code>setup\lang.ps1</code> 的 <code>Ask-SynoxLang</code>，已有）：12 種排兩欄，每種寫「拉丁字母名 / 原文名」，打數字或代號。存進 SYNOX 資料夾的 <code>lang.txt</code>，之後的訊息就用那個語言；設定精靈拿到 <code class="nb">--lang</code> 不再問，<code>Uninstall.bat</code> 也讀同一個 <code>lang.txt</code>。給了 <code class="nb">-Lang</code> 或已經有 <code>lang.txt</code> 就不問</td><td><a href="#s1">第 1 頁</a>，預選 Windows 的顯示語言；之後每一頁都用它，再用 <code class="nb">-Lang</code> 交給 bootstrap，一樣存進 <code>lang.txt</code></td></tr>
+        <tr><th>畫面</th><td>一個顯示進度的文字視窗，選完語言後問一題（建議／自訂）</td><td>第 2 節那 7 頁視窗，沒有文字視窗</td></tr>
         <tr><th>裝在哪</th><td>解壓縮的那個資料夾</td><td><code>%LOCALAPPDATA%\Programs\SYNOX</code>，可以改</td></tr>
-        <tr><th>先說清楚</th><td>視窗一開始印同樣那段話</td><td>第 2 頁</td></tr>
-        <tr class="same"><td colspan="3">建議值完全相同：SYNOX 自帶的 Python、桌面與開始功能表捷徑、.synoxpack、開機啟動、工具庫與入門工具、Claude Code、語言跟 Windows 一樣、裝完打開設定精靈</td></tr>
-        <tr><th>自訂</th><td><code>Setup.bat -Custom</code> 或開頭輸入 C；也可以直接給旗標</td><td>安裝方式選「自訂」，多三頁</td></tr>
+        <tr><th>先說清楚</th><td>選完語言後印同樣那段話</td><td>第 3 頁</td></tr>
+        <tr class="same"><td colspan="3">一樣先選語言、選一次就一路用到 SYNOX。建議值完全相同：SYNOX 自帶的 Python、桌面與開始功能表捷徑、.synoxpack、開機啟動、工具庫與入門工具、Claude Code、裝完打開設定精靈</td></tr>
+        <tr><th>自訂</th><td><code>Setup.bat -Custom</code> 或在語言之後那題輸入 C；也可以直接給旗標</td><td>安裝方式選「自訂」，多兩頁</td></tr>
         <tr><th>第一次執行的警告</th><td>解壓縮後雙擊 .bat，Windows 可能問一次「要執行嗎」</td><td>沒簽章時 SmartScreen 會擋一次（<a href="#f3">失敗畫面 3</a>）</td></tr>
         <tr><th>更新</th><td>下載新的 ZIP 解到同一個資料夾，或 <code>git pull</code>，再跑 <code>Setup.bat</code></td><td>執行新版安裝程式，設定和資料留著</td></tr>
         <tr><th>解除安裝</th><td>雙擊 <code>Uninstall.bat</code>（文字選單，已有）</td><td>Windows「設定 → 應用程式」裡的 SYNOX → 解除安裝</td></tr>
@@ -1076,10 +1111,11 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
   <div class="duo">
     <div><h4>怎麼開始</h4><p><i>ZIP</i><span>下載、解壓縮、雙擊 <code>Setup.bat</code>。今天就能用。</span></p><p><i>.exe</i><span>下載一個檔案、雙擊。⏳ 尚未完成，還沒打包過。</span></p></div>
     <div><h4>要不要上網</h4><p><i>ZIP</i><span><strong>要</strong>：下載 SYNOX 自己的 Python、套件、工具庫。</span></p><p><i>.exe</i><span><strong>不用</strong>：都附在裡面。只有 Claude Code 那一步要上網。</span></p></div>
-    <div><h4>畫面</h4><p><i>ZIP</i><span>一個顯示進度的文字視窗，問一題（建議／自訂）。</span></p><p><i>.exe</i><span>第 2 節那 6 頁視窗，沒有文字視窗。</span></p></div>
+    <div><h4>先選語言</h4><p><i>ZIP</i><span>文字視窗<strong>第一題就問語言</strong>（<code>lang.ps1</code> 的 <code>Ask-SynoxLang</code>，已有），存進 <code>lang.txt</code>；之後的訊息、設定精靈、<code>Uninstall.bat</code> 都用它。給了 <code class="nb">-Lang</code> 或已經有 <code>lang.txt</code> 就不問。</span></p><p><i>.exe</i><span><a href="#s1">第 1 頁</a>，預選 Windows 的顯示語言；用 <code class="nb">-Lang</code> 交下去，一樣存進 <code>lang.txt</code>。</span></p></div>
+    <div><h4>畫面</h4><p><i>ZIP</i><span>一個顯示進度的文字視窗，選完語言後問一題（建議／自訂）。</span></p><p><i>.exe</i><span>第 2 節那 7 頁視窗，沒有文字視窗。</span></p></div>
     <div><h4>裝在哪</h4><p><i>ZIP</i><span>解壓縮的那個資料夾。</span></p><p><i>.exe</i><span><code>%LOCALAPPDATA%\Programs\SYNOX</code>，可以改。</span></p></div>
-    <div class="same"><h4>建議值完全相同</h4><p>SYNOX 自帶的 Python、桌面與開始功能表捷徑、.synoxpack、開機啟動、工具庫與入門工具、Claude Code、語言跟 Windows 一樣、裝完打開設定精靈。</p></div>
-    <div><h4>自訂</h4><p><i>ZIP</i><span><code>Setup.bat -Custom</code> 或開頭輸入 C；也可以直接給旗標。</span></p><p><i>.exe</i><span>安裝方式選「自訂」，多三頁。</span></p></div>
+    <div class="same"><h4>建議值完全相同</h4><p>一樣先選語言、選一次就一路用到 SYNOX。SYNOX 自帶的 Python、桌面與開始功能表捷徑、.synoxpack、開機啟動、工具庫與入門工具、Claude Code、裝完打開設定精靈。</p></div>
+    <div><h4>自訂</h4><p><i>ZIP</i><span><code>Setup.bat -Custom</code> 或在語言之後那題輸入 C；也可以直接給旗標。</span></p><p><i>.exe</i><span>安裝方式選「自訂」，多兩頁。</span></p></div>
     <div><h4>第一次執行的警告</h4><p><i>ZIP</i><span>雙擊 .bat 時 Windows 可能問一次「要執行嗎」。</span></p><p><i>.exe</i><span>沒簽章時 SmartScreen 會擋一次。</span></p></div>
     <div><h4>更新</h4><p><i>ZIP</i><span>新的 ZIP 解到同一個資料夾（或 <code>git pull</code>），再跑 <code>Setup.bat</code>。</span></p><p><i>.exe</i><span>執行新版安裝程式，設定和資料留著。</span></p></div>
     <div><h4>解除安裝</h4><p><i>ZIP</i><span>雙擊 <code>Uninstall.bat</code>（文字選單，已有）。</span></p><p><i>.exe</i><span>Windows「設定 → 應用程式」→ SYNOX → 解除安裝。</span></p></div>
@@ -1215,7 +1251,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
     <div>
       <h3><i class="dot" style="background:var(--ok)"></i>已經有的</h3>
       <ul>
-        <li><strong>Setup.bat＋bootstrap.ps1</strong>：找或裝 Python、建立環境、裝套件、登記 .synoxpack、打開精靈。</li>
+        <li><strong>Setup.bat＋bootstrap.ps1</strong>：第一題先問語言（12 種，存進 <code>lang.txt</code>）、找或裝 Python、建立環境、裝套件、登記 .synoxpack、用同一個語言打開精靈。</li>
         <li><strong>設定精靈</strong>（Tk 視窗）：語言、給誰用、Telegram token 與配對、AI 來源、完成頁四個勾選；12 種語言。</li>
         <li>精靈裡的 <strong>Claude Code 一鍵安裝</strong>（官方 PowerShell 指令）。</li>
         <li><strong>setup\installer\synox.iss</strong>：每個使用者自己裝、不用管理員、裝到 <code>%LOCALAPPDATA%\Programs\SYNOX</code>；只有英文；最後開 <code>Setup.bat</code>。</li>
@@ -1229,15 +1265,17 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
       <ul>
         <li><strong>SYNOX 自帶的 Python</strong>：bootstrap 改成用 uv 把 Python 裝在 SYNOX 資料夾裡，預設不碰 Conda、Microsoft Store、系統的 Python。</li>
         <li><strong>-UseSystemPython</strong>：使用者明確要求時才用系統的 Python。</li>
-        <li>這兩項由另一個工作負責；做完之後要回來對一次這份規格的第 2 頁和 A 頁。</li>
+        <li>這兩項由另一個工作負責；做完之後要回來對一次這份規格的第 3 頁和 A 頁。</li>
       </ul>
     </div>
     <div>
       <h3><i class="dot" style="background:var(--warn)"></i>⏳ 尚未完成</h3>
       <ul>
         <li><strong>打包出 .exe</strong>，並在空白的 Windows 10 和 11 各裝一次。</li>
-        <li>安裝程式的新畫面：歡迎、先說清楚、安裝方式、自訂三頁、白話進度、完成頁。</li>
-        <li>安裝程式的<strong>繁體中文</strong>（Inno Setup 沒有內附繁中語言檔，要另外放進 repo；待確認）。</li>
+        <li>安裝程式的新畫面：選語言、歡迎、先說清楚、安裝方式、自訂兩頁、白話進度、完成頁。</li>
+        <li>安裝程式的 <strong>12 種語言</strong>：每種一個 Inno Setup 語言檔，加上我們自己的字（<a href="#q7">Q7</a>）。</li>
+        <li>SYNOX 本身（網頁介面、bot 的話）照 <code>lang.txt</code>／<code>config.json</code> 的語言開。</li>
+        <li><code>Setup.bat</code> 語言題按 Enter 改成預選 Windows 的顯示語言。</li>
         <li>bootstrap 的旗標：<code class="nb">-Custom</code>、<code class="nb">-No…</code>、<code class="nb">-NoWizard</code>、<code class="nb">-Step</code>，以及不開黑色視窗的執行方式。</li>
         <li>五個失敗畫面、紀錄檔、「複製問題描述」。</li>
         <li>ZIP 路徑自動下載工具庫；安裝階段自動裝入門工具與 Claude Code。</li>
@@ -1259,7 +1297,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
   <div class="sec-head">
     <p class="eyebrow">請擁有者決定</p>
     <h2>九個要你點頭的問題</h2>
-    <p class="sub">每一題都附上建議。沒有回覆的話，就照建議做。</p>
+    <p class="sub">每一題都附上建議。沒有回覆的話，就照建議做。Q7（語言）已經決定了，綠色的就是。</p>
   </div>
   <ol class="qs">
     <li><b>「建議」安裝要不要開機後自動啟動？</b>
@@ -1280,12 +1318,12 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
     <li><b>安裝程式要不要簽章？（原本的 QD1）</b>
       <p>沒簽章時每個人第一次執行都會看到 SmartScreen 的藍色警告，這是「一路按下一步」最大的破口。</p>
       <p class="rec"><i>建議</i><span>alpha 先不簽：下載頁放 SHA-256 和兩步圖解。公開宣傳之前改用雲端簽章服務。</span></p></li>
-    <li><b>安裝程式自己的畫面要做幾種語言？</b>
-      <p>設定精靈有 12 種語言，但安裝程式的每一頁都要另外翻一次。</p>
-      <p class="rec"><i>建議</i><span>先做繁體中文和 English，其他語言的 Windows 顯示 English。SYNOX 本身的語言仍然可以選 12 種。</span></p></li>
+    <li class="ok" id="q7"><b>安裝程式的語言怎麼選？（已決定）</b>
+      <p><strong>擁有者決定：語言最先選。</strong>安裝程式一打開就是<a href="#s1">第 1 頁「選語言」</a>（預選 Windows 的顯示語言，列 12 種，原文名＋拉丁字母名）；之後安裝程式的每一頁、設定精靈、SYNOX 本身都用這個語言。原本「跟 Windows 一樣、不問」和「自訂裡才有語言頁」都拿掉了。ZIP 路徑今天就是先問語言，不用改流程。</p>
+      <p class="rec"><i>還要確認</i><span>安裝程式畫面能顯示哪幾種，要看 Inno Setup 的語言檔（<code>.isl</code>）：English 是預設；Español、Français、Deutsch、Português (Brasil)、Русский、日本語 這類 Inno Setup 6 有附官方的；繁體中文、简体中文、한국어、العربية、हिन्दी 要逐一確認有沒有附，沒有就從 Inno Setup 網站的非官方翻譯拿來放進 repo，並確認授權。我們自己的字放 <code>[CustomMessages]</code>，12 種都要翻（像精靈一樣，缺的字退回 English）。哪一種暫時湊不齊，第 1 頁仍然列它：安裝畫面先用 English，選的語言照樣存進 <code>lang.txt</code> 給精靈和 SYNOX 用。</span></p></li>
     <li><b>ZIP 路徑的「建議／自訂」要長什麼樣？</b>
-      <p>ZIP 這條路在 Python 裝好之前開不出精靈的視窗，只有 <code>Setup.bat</code> 的文字視窗。今天它第一題是問語言。</p>
-      <p class="rec"><i>建議</i><span>文字視窗開頭先印「先說清楚」那三行，再問一題：按 Enter 照建議全部裝好，輸入 C 自訂。語言自動跟 Windows 一樣。不另外做視窗；想要完整畫面的人用 .exe。</span></p></li>
+      <p>ZIP 這條路在 Python 裝好之前開不出精靈的視窗，只有 <code>Setup.bat</code> 的文字視窗。今天它第一題是問語言（<code>Ask-SynoxLang</code>），這一題照 <a href="#q7">Q7</a> 留在最前面。</p>
+      <p class="rec"><i>建議</i><span>第一題照舊問語言，只把按 Enter 的預設從繁體中文改成 Windows 的顯示語言。選完後用那個語言印「先說清楚」那三行，再問一題：按 Enter 照建議全部裝好，輸入 C 自訂。不另外做視窗；想要完整畫面的人用 .exe。</span></p></li>
     <li><b>解除安裝時要不要提供「連我的資料也一起刪除」？</b>
       <p>今天安裝程式的解除安裝一律留下設定和資料；要刪資料得到 <code>Uninstall.bat</code> 選第 3 項並輸入 DELETE。</p>
       <p class="rec"><i>建議</i><span>要，給一個預設不勾的選項，勾了之後再確認一次。預設行為不變：資料留著。</span></p></li>
@@ -1296,7 +1334,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
 </div>
 
 <footer>
-  <p class="stamp">給開發者：本機路徑 docs/installer/spec.html ・ 線上版 <a href="https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB">https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB</a> ・ 頁面版本 <span data-stamp>7449f84a1d · 2026-11-13</span></p>
+  <p class="stamp">給開發者：本機路徑 docs/installer/spec.html ・ 線上版 <a href="https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB">https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB</a> ・ 頁面版本 <span data-stamp>—</span></p>
 </footer>
 </div>
 
