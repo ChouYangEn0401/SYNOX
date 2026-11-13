@@ -696,6 +696,26 @@ def cmd_connect(args) -> int:
         return 1
 
 
+def cmd_stepup(args) -> int:
+    """stepup setup｜status｜reset：手機驗證器（ADR 0025；guard/cli.py）。在這台電腦上做，金鑰不經聊天。"""
+    from synox.guard import cli as stepup_cli
+    from synox.vault import KeyringError, VaultError, open_vault
+    try:
+        config = SynoxConfig.load(args.config or None, require_token=False)
+    except ConfigError as e:
+        print(f"❌ {e}")
+        return 2
+    try:
+        vault = open_vault(config)
+        return stepup_cli.run(args.stepup_cmd, config, vault, user=args.user)
+    except (KeyringError, VaultError) as e:
+        print(f"❌ 保管箱打不開：{e}")
+        return 2
+    except (KeyboardInterrupt, EOFError):
+        print("\n（取消了，沒有存）")
+        return 1
+
+
 def cmd_discord(args) -> int:
     """discord token：把 bot token 存進保管箱（getpass，不經聊天）；加 --clear＝從保管箱刪掉｜
     discord pair：私訊配對碼，把你的 Discord 帳號接到擁有者。"""
@@ -856,6 +876,9 @@ def main(argv=None) -> int:
                    help="哪個 bot（config.json 的 channels.discord.bots.<名字>）；不寫＝default（舊的單一 bot 寫法）")
     p.add_argument("--clear", action="store_true",
                    help="discord token --clear：從保管箱刪掉這個 bot 的 token（要作廢舊 token 還是要到 Developer Portal 按 Reset Token）")
+    p = sub.add_parser("stepup", help="手機驗證器：setup（設定）｜status（狀態）｜reset（重設）")
+    p.add_argument("stepup_cmd", choices=["setup", "status", "reset"])
+    p.add_argument("--user", type=int, default=None, help="伺服器版：替哪個 Telegram id（預設擁有者）")
     p = sub.add_parser("open", help="在這台電腦上打開網頁介面（沒在跑就先開 SYNOX；跟 web-login 一樣）")
     sub.add_parser("about", help="SYNOX 的版本、授權、裝在哪裡")
     p = sub.add_parser("tips", help="隨機一則使用小提示")
@@ -865,6 +888,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop,
                 "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord, "web-login": cmd_web_login,
+                "stepup": cmd_stepup,
                 "open": cmd_open, "about": cmd_about, "tips": cmd_tips,
                 "init": cmd_init, "tools": cmd_tools, "filetype": cmd_filetype}
     if args.cmd in brand.BANNER_COMMANDS:
