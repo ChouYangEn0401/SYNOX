@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 🔒 安全問題（請不要開公開的問題單）
+    url: https://github.com/ChouYangEn0401/SYNOX/security/policy
+    about: 找到安全漏洞，請照 SECURITY.md 私下寄信，不要寫在公開的地方。
+  - name: 📘 第一次回報？一步一步的教學
+    url: https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F
+    about: 從註冊 GitHub 帳號、到開出第一張問題單，用圖一步一步說明。

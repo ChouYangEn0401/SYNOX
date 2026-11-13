@@ -1,6 +1,8 @@
 ; synox.iss -- SYNOX per-user Windows installer (Inno Setup 6). Design: docs/adr/0003, screens: docs/installer/spec.html.
 ; Build on the release machine, never on a user's machine:
-;   1. scripts\stage_installer.py --python-embed ... --wheelhouse ... --tools ...   (copy only)
+;   1. scripts\stage_installer.py --fetch-python --wheelhouse ... --tools ...
+;      (runtime\python = the same pinned python-build-standalone CPython that Setup.bat downloads for the ZIP:
+;      URL + SHA256 come from setup\bootstrap.ps1, so the .exe and the ZIP run an identical Python with tkinter)
 ;   2. ISCC.exe /DAppVersion=0.2.0 /DStageDir=<stage>\SYNOX setup\installer\synox.iss
 ; Pages (owner's decisions 2026-11-13, spec section 8): Language -> Welcome -> Recommended | Custom -> Installing -> Done.
 ;   - Language: Inno's own language dialog, always shown, preselects the Windows display language (English when there
@@ -11,7 +13,11 @@
 ;   - Claude Code (Q2): optional last step, only when missing, never blocks (setup\installer\claude-code.ps1).
 ;   - Uninstall (Q9): "also delete my data" is offered unchecked, with a second confirmation.
 ; Per-user (no admin): installs to %LOCALAPPDATA%\Programs\SYNOX. On the last page it runs Setup.bat, which builds
-; .venv from the bundled Python and wheelhouse (offline) and opens the setup wizard (or the text synox init).
+; .venv from the bundled Python ("python -m venv") and wheelhouse (offline) and opens the setup wizard (or the text
+; synox init). Setup.bat sees installer-choices.json and does not ask Recommended/Custom again.
+; Uninstall removes shortcuts/startup/.synoxpack association (setup\uninstall.ps1 -Mode shortcuts) and the
+; installed files + .venv; config.json, data\ (notes, vault, keys) and installed tools in packs\ are KEPT
+; unless the user ticks "also delete my data" (Q9).
 ; installer-choices.json (written after copying) tells the setup wizard what was already decided here.
 ; Texts live in lang\<code>.isl (UTF-8); this file stays ASCII on purpose. Static checks: scripts/installer_ci.py check-iss.
 
@@ -101,6 +107,13 @@ Name: "fileassoc"; Description: "{cm:TaskFileType}"
 Name: "autostart"; Description: "{cm:TaskAutostart}"
 Name: "claudecode"; Description: "{cm:TaskClaude}"
 Name: "alltools"; Description: "{cm:TaskAllTools}"; Flags: unchecked
+
+[InstallDelete]
+; An update replaces the Python wholesale: an older installer shipped python.org's embeddable package there, whose
+; leftover python3XX._pth would put the new python.exe into isolated mode. .venv was built on the old interpreter,
+; so it goes too; Setup.bat (run below) rebuilds it offline. config.json, data\ and packs\ are not touched.
+Type: filesandordirs; Name: "{app}\runtime\python"
+Type: filesandordirs; Name: "{app}\.venv"
 
 [Files]
 ; The two license files again, extract-only, so the welcome page can open them before anything is installed.

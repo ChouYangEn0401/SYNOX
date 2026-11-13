@@ -56,7 +56,7 @@ def test_version_cli_rejects_wrong_tag(capsys):
 
 def test_fetch_keeps_the_file_only_when_sha256_matches(tmp_path):
     src = tmp_path / "in.bin"
-    src.write_bytes(b"embeddable python, pretend")
+    src.write_bytes(b"a downloaded file, pretend")
     good = hashlib.sha256(src.read_bytes()).hexdigest()
     out = tmp_path / "dl" / "out.bin"
     assert installer_ci.main(["fetch", src.as_uri(), "--sha256", good.upper(), "--out", str(out)]) == 0
@@ -105,15 +105,18 @@ def test_every_action_is_pinned_to_a_full_commit_sha():
 
 
 def test_downloads_are_pinned_with_sha256():
-    for name in ("PYTHON_EMBED_SHA256", "LIBS_TOOLS_SHA256", "INNO_SHA256"):
+    for name in ("LIBS_TOOLS_SHA256", "INNO_SHA256"):
         assert re.match(r"^[0-9a-f]{64}$", _env(name)), name
     assert re.match(r"^\d+\.\d+\.\d+$", _env("PYTHON_VERSION"))
     assert re.match(r"^6\.\d+\.\d+$", _env("INNO_VERSION")), "synox.iss is written for Inno Setup 6"
     assert _env("INNO_TAG") == "is-" + _env("INNO_VERSION").replace(".", "_")
-    for name in ("PIP_VERSION", "VIRTUALENV_VERSION", "SETUPTOOLS_VERSION"):
+    for name in ("PIP_VERSION", "SETUPTOOLS_VERSION"):
         assert re.match(r"^\d+(\.\d+)+$", _env(name)), name
     text = _text(WORKFLOW)
-    assert text.count("installer_ci.py fetch") == 3        # python embed, tools zip, Inno Setup: all verified
+    assert text.count("installer_ci.py fetch") == 2        # tools zip, Inno Setup: both verified
+    assert "'--fetch-python'" in text                      # the shipped Python: pinned in setup/bootstrap.ps1, sha256 checked
+    for gone in ("PYTHON_EMBED_SHA256", "embed-amd64", "--python-embed", "--tk-from", "virtualenv", "WITH_TK"):
+        assert gone not in text, gone
 
 
 def test_least_privilege_and_draft_only_release():
@@ -138,19 +141,19 @@ def test_workflow_matches_the_installer_script_and_stage_tool():
     for macro in ("AppVersion", "StageDir"):
         assert f"#ifndef {macro}" in iss and f"/D{macro}=" in text
     assert "setup\\installer\\synox.iss" in text
-    for flag in ("--python-embed", "--wheelhouse", "--tools", "--tk-from"):
+    for flag in ("--fetch-python", "--wheelhouse", "--tools"):
         assert flag in text
         assert flag in _text(os.path.join(ROOT, "scripts", "stage_installer.py"))
+    smoke = text[text.index("Offline smoke test of the stage"):]
+    assert "& $rt -m venv" in smoke and "import tkinter" in smoke    # same as bootstrap: python -m venv, tkinter must load
     assert "windows-latest" in text
     assert "workflow_dispatch" in text and '"v*"' in text
 
 
-def test_embeddable_minor_version_matches_bootstrap_fallback():
-    """The wheelhouse is built for the embeddable CPython's X.Y; bootstrap's own fallback download should agree."""
-    path = os.path.join(ROOT, "setup", "bootstrap.ps1")
-    m = re.search(r"^\$EmbedVersion\s*=\s*'(\d+\.\d+)\.\d+'", _text(path), re.M) if os.path.isfile(path) else None
-    if not m:
-        pytest.skip("setup/bootstrap.ps1 has no $EmbedVersion any more")
+def test_build_python_minor_version_matches_the_shipped_python():
+    """The wheelhouse is built with setup-python's X.Y; the shipped Python (pinned in bootstrap.ps1) must be the same X.Y."""
+    m = re.search(r"^\$PythonVersion = '(\d+\.\d+)\.\d+'", _text(os.path.join(ROOT, "setup", "bootstrap.ps1")), re.M)
+    assert m, "setup/bootstrap.ps1 has no $PythonVersion"
     assert _env("PYTHON_VERSION").rsplit(".", 1)[0] == m.group(1)
 
 
@@ -170,5 +173,7 @@ def test_workflow_parses_as_yaml():
 def test_release_build_doc_exists_and_links_the_clean_machine_test():
     doc = _text(os.path.join(ROOT, "docs", "release-build.md"))
     assert "handoff/clean-machine-test.md" in doc and "SmartScreen" in doc
-    for name in ("PYTHON_EMBED_SHA256", "LIBS_TOOLS_SHA256", "INNO_SHA256"):
+    for name in ("LIBS_TOOLS_SHA256", "INNO_SHA256"):
         assert _env(name) in doc, f"{name} in the doc is out of date"
+    sha = re.search(r"^\$PythonSha256 = '([0-9a-f]{64})'", _text(os.path.join(ROOT, "setup", "bootstrap.ps1")), re.M)
+    assert sha and sha.group(1) in doc, "the shipped Python's sha256 in the doc is out of date"

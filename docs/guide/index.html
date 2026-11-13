@@ -440,7 +440,7 @@ span.hl { display: inline-block; }
 </nav>
 
 <footer class="wrap">
-  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>f466d91b11 · 2026-11-13</span></p>
+  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>13f37b7043 · 2026-11-13</span></p>
 </footer>
 
 <script>
@@ -503,10 +503,16 @@ span.hl { display: inline-block; }
     { id: "lang", chapter: "下載與解開", title: "第一件事：選語言",
       body: ["會打開一個<b>黑色的視窗</b>。它第一件事就是問你要用<b>哪一種語言</b>。",
              "你選的語言會一直用下去：<b>接下來的安裝訊息、設定精靈，還有之後的 SYNOX</b>，都會用這個語言。",
-             "要用<b>繁體中文</b>：直接按鍵盤上的 <b>Enter</b> 鍵就好。"],
+             "直接按 <b>Enter</b>＝跟你的 Windows 一樣的語言。Windows 是<b>繁體中文</b>的話，按鍵盤上的 <b>Enter</b> 鍵就好。"],
       mock: "console-lang", targets: [{ id: "enter", say: "繁體中文：按 Enter", place: "as" }],
       tips: [{ k: "note", t: "想用別的語言：打那個語言前面的數字（例如英文打 3），再按 Enter。一共有 12 種。" },
              { k: "note", t: "選過一次就會記住，下次點 Setup.bat 不會再問。之後想換語言：刪掉 SYNOX 資料夾裡的 lang.txt，再點兩下 Setup.bat，就會重新問一次。" }] },
+
+    { id: "plan", chapter: "下載與解開", title: "先說清楚，然後按 Enter",
+      body: ["接著會印幾行「<b>先說清楚</b>」：SYNOX 用它自己帶的一份 Python，放在 SYNOX 資料夾裡，<b>不會動到</b>這台電腦原本的 Python 或 Conda。",
+             "然後問你一題。直接按 <b>Enter</b>＝<b>照建議</b>（推薦）：只準備好 SYNOX 本身，登入 Windows 後自動啟動；工具等看完入門教學再自己挑。"],
+      mock: "console-plan", targets: [{ id: "enter", say: "照建議：按 Enter", place: "as" }],
+      tips: [{ k: "note", t: "想自己決定（要不要開機自動啟動、要不要裝 Claude Code）：打 C 再按 Enter，用號碼打勾或取消，好了再按 Enter。" }] },
 
     { id: "wait", chapter: "下載與解開", title: "等它準備好",
       body: ["黑色視窗會一行一行跑字。第一次要自己下載 Python 和需要的東西，<b>要上網</b>，大約要等幾分鐘。",
@@ -616,7 +622,8 @@ span.hl { display: inline-block; }
     { id: "help", chapter: "開始使用", title: "打 /help，看它會什麼",
       body: ["在 Telegram 打 <code>/help</code> 送出。",
              "它會列出你現在能用的指令。用下面的「下一頁 ▶️」翻頁，或按「☰ 分類目錄」挑一類看。"],
-      mock: "tg-help", targets: [{ id: "nextpg", say: "翻頁", place: "a" }] },
+      mock: "tg-help", targets: [{ id: "nextpg", say: "翻頁", place: "a" }],
+      tips: [{ k: "note", t: "想要 SYNOX 一步一步帶你認識每個地方：打 <code>/tutorial</code>（在網頁上它會直接指給你看要按哪裡）。忘了就再打一次，隨時都能複習。" }] },
 
     { id: "done", chapter: "完成", title: "完成！",
       body: ["SYNOX 已經在你的電腦上跑起來了。以後在手機上跟 bot 講話就好。",
@@ -739,13 +746,25 @@ span.hl { display: inline-block; }
       return con("C:\\Windows\\System32\\cmd.exe",
         'Language / 語言 / 语言 / Idioma / Langue / …\n' +
         '  <span class="hi">1) Traditional Chinese / 繁體中文</span>\n  2) Simplified Chinese / 简体中文\n  3) English\n  <span class="dm">…（共 12 種）</span>\n' +
-        '<span data-hl="enter" class="key">Number or code, Enter = 1:</span> <span class="cursor"></span>');
+        '<span data-hl="enter" class="key">Number or code, Enter = 1 (Traditional Chinese / 繁體中文):</span> <span class="cursor"></span>');
+    },
+    "console-plan": function () {
+      return con("C:\\Windows\\System32\\cmd.exe",
+        '[SYNOX] 先說清楚：SYNOX 用它自己的 Python\n' +
+        '        - SYNOX 自己帶一份 Python，放在這個資料夾的 runtime\\python 裡：不改 PATH、不寫登錄檔、不用系統管理員。\n' +
+        '        - 這台電腦原本的 Python、Conda 不會被使用，也不會被改動；也不會去 Microsoft Store 裝 Python。\n' +
+        '        - 不想用了：Uninstall.bat 會把這份 Python 一起刪掉。<span class="dm">…</span>\n\n' +
+        '  Enter = 照建議（推薦）：只準備好 SYNOX 本身，登入 Windows 後自動啟動。工具等看完入門教學再自己挑。\n' +
+        '  C     = 自訂：自己決定要不要開機自動啟動、要不要裝 Claude Code、要不要全部工具都裝。\n' +
+        '<span data-hl="enter" class="key">按 Enter 照建議；輸入 C 再按 Enter 自訂:</span> <span class="cursor"></span>');
     },
     "console-wait": function () {
       return con("C:\\Windows\\System32\\cmd.exe",
         '[SYNOX] SYNOX 安裝：準備 Python 和套件，請稍候…\n' +
         '[SYNOX] 準備 SYNOX 自己的 Python：全部放在 SYNOX 資料夾的 runtime\\ 裡，不改 PATH、不寫登錄檔、不要管理員…\n' +
-        '[SYNOX] 用 uv 下載 Python 3.12 到 runtime\\python-uv（第一次要幾分鐘）…\n' +
+        '[SYNOX] 下載 Python 3.12.16（python-build-standalone 在 GitHub 的官方檔案，約 22 MB，先核對 SHA256）到 runtime\\python …\n' +
+        '[SYNOX] 解開 Python 到 runtime\\python …\n' +
+        '[SYNOX] 用 …\\runtime\\python\\python.exe 建立 .venv …\n' +
         '[SYNOX] 安裝 SYNOX 需要的套件（第一次要幾分鐘）…\n<span class="dm">（這裡會跑很多行英文，正常的）</span>\n' +
         '[SYNOX] 登記 .synoxpack 檔案類型（…）\n' +
         '<span data-hl="last" class="key hi">[SYNOX] 打開安裝精靈…</span>');

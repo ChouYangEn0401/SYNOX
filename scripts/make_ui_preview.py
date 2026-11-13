@@ -8,12 +8,13 @@
                               網址參數：?login=1 看登入畫面、?theme=dark|light 強制深淺色、?bar=0 拿掉上方的預覽列、
                               ?tooledit=1 工具頁直接打開「編輯群組」；?lib=1 設定頁「功能與安裝」直接按好「載入工具清單」
                               （假的清單＝tests/fixtures 裡那份真的 v0.2.0 目錄；預覽不連網）；?ctl=error 主控頁讀不到時的樣子、?member=1 用成員身分看
-                              （沒有「主控」）；#chat／#tools／#settings／#control 切頁。
+                              （沒有「主控」）；?help=1 設定頁「遇到問題？」直接按好「幫我準備好回報內容」（假的摘要）；
+                              #chat／#tools／#settings／#control／#settings:help 切頁。
                               開場動畫（static/splash.js）：同一個分頁只播第一次；?splash=1 重播（預覽列的「重播開場」）、
                               ?splash=0 不播；?splashat=600 讓開場停在第 600 毫秒（拍關鍵影格用）。
                               工具頁的群組編輯可以真的操作（存在這一頁的記憶體裡，重新整理就回到預設）。
 - docs/ui/preview-phone.html、preview-phone-dark.html
-                              七個 390px 寬的框（登入、對話、工具、工具的編輯群組、設定、功能與安裝、主控），看手機寬度用。
+                              八個 390px 寬的框（登入、對話、工具、工具的編輯群組、設定、功能與安裝、遇到問題？、主控），看手機寬度用。
                               「登入」那一格每次打開都重播開場，其他格不播。
 - docs/ui/preview-login.html  伺服器產生的「登入確認頁」（server.py 的 login_page，用假的帳號資料）。
 - docs/ui/preview-error.html  伺服器產生的小頁（server.py 的 _page，例如登入連結不能用）。
@@ -235,6 +236,27 @@ ACCOUNTS = {"roles": ["guest", "member", "admin"], "users": [
      "ai_month_usd": 0.4, "ai_limit_usd": 2},
     {"id": 100003, "username": "新朋友", "role": "guest", "pending": True}]}
 
+# 「遇到問題？」的假摘要（形狀照 web/report.py 的 summary；寫死，預覽檔才不會因為產生的電腦不同而變）
+REPORT = {
+    "full": True,
+    "summary": "\n".join([
+        "【SYNOX 回報摘要】（SYNOX 自動整理：token、金鑰、對話內容、有使用者名稱的路徑都拿掉了）",
+        "SYNOX 版本：0.2.0", "作業系統：Windows 11（10.0.22631）", "Python：3.11.9", "用法：個人版",
+        "AI：claude_code", "聊天通道：Telegram、網頁",
+        "裝了的工具（4 個）：notes 0.1.0、money 0.2.0、todoist 0.2.0、example-tool 1.0.0（rejected）",
+        "最近的錯誤或警告（最多 15 行）：",
+        "  11-13 09:12:40 WARNING [TG] getUpdates 逾時，5 秒後重試（重複 3 次）",
+        "  11-13 09:20:03 ERROR [WEB] POST /api/settings/llm/test failed（TimeoutError，claude_code.py:212）",
+        "  11-13 09:21:17 WARNING [PACK] example-tool 沒有載入：%USERPROFILE%\\SYNOX\\packs\\example-tool 掃描沒過",
+    ]),
+    "member": "\n".join([
+        "【SYNOX 回報摘要】（成員版：只有版本。這台 SYNOX 的設定、工具和錯誤紀錄只有擁有者看得到）",
+        "SYNOX 版本：0.2.0", "用法：伺服器版（我不是擁有者）",
+    ]),
+    "issue": {"url": "https://github.com/ChouYangEn0401/SYNOX/issues/new", "template": "problem.yml",
+              "field": "summary", "max_url": 6000},
+}
+
 MOCK = r"""
 (function () {
   "use strict";
@@ -243,7 +265,10 @@ MOCK = r"""
   if (q.get("theme")) { document.documentElement.setAttribute("data-theme", q.get("theme")); }
   var D = __DATA__;
   var loggedOut = q.get("login") === "1";
-  if (q.get("member") === "1") { D.me.owner = false; D.me.role = "member"; D.me.username = "阿華"; }
+  if (q.get("member") === "1") {
+    D.me.owner = false; D.me.role = "member"; D.me.username = "阿華";
+    D.settings = { owner: false, mode: "server", accounts: false, ai_budget: { used: 0.42, limit: 2 } };
+  }
   var seq = 100;
   function reply(body, status) {
     return Promise.resolve(new Response(JSON.stringify(body), {
@@ -400,6 +425,9 @@ MOCK = r"""
       return reply({ pairing: ch.pairing, paired_as: ch.paired_as, just_paired: null, ok: true });
     }
     if (p === "/api/accounts") { return reply(D.accounts); }
+    if (p === "/api/report") {                    // 遇到問題？：假的摘要（擁有者完整、成員只有版本）
+      return reply({ full: D.me.owner, summary: D.me.owner ? D.report.summary : D.report.member, issue: D.report.issue });
+    }
     // 「功能與安裝」的待核准清單（一筆假的暫存；時間寫成「10 分鐘前」，預覽檔才不會每跑一次就變）
     if (p === "/api/packs/staged") {
       return reply({ max_age_days: 7, staged: D.stagedGone ? [] : [{ token: "previewtoken01", name: "weather", version: "0.3.0",
@@ -465,6 +493,16 @@ MOCK = r"""
       else if (libTries > 50) { clearInterval(libWait); }
     }, 100);
   }
+  if (q.get("help") === "1") {            // 「遇到問題？」直接按好「幫我準備好回報內容」（截圖用）
+    var helpTries = 0;
+    var helpWait = setInterval(function () {
+      helpTries += 1;
+      var b = document.getElementById("report-prepare");
+      var panel = b && b.closest(".tab-panel");
+      if (b && panel && !panel.classList.contains("hidden")) { clearInterval(helpWait); b.click(); }
+      else if (helpTries > 50) { clearInterval(helpWait); }
+    }, 100);
+  }
   if (q.get("tooledit") === "1") {        // 工具頁直接打開「編輯群組」（截圖用）
     var tries = 0;
     var wait = setInterval(function () {
@@ -500,6 +538,7 @@ MOCK = r"""
                  ["工具：編輯群組", function () { return "?" + (theme ? theme + "&" : "") + "tooledit=1#tools"; }],
                  ["設定", function () { return "?" + theme + "#settings"; }],
                  ["功能與安裝", function () { return "?" + (theme ? theme + "&" : "") + "lib=1#packs"; }],
+                 ["遇到問題？", function () { return "?" + (theme ? theme + "&" : "") + "help=1#settings:help"; }],
                  ["主控", function () { return "?" + theme + "#control"; }],
                  ["主控讀不到", function () { return "?ctl=error" + (theme ? "&" + theme : "") + "#control"; }],
                  ["成員看到的", function () { return "?member=1" + (theme ? "&" + theme : "") + "#control"; }],
@@ -534,7 +573,7 @@ def app_preview() -> str:
     html = server.render_app("preview")          # 跟伺服器送出的頁面同一個函式（含 tools／control 的 css／js）
     data = {"me": ME, "chats": CHATS, "events": EVENTS, "tools": TOOLS, "secrets": SECRETS,
             "settings": SETTINGS, "channels": CHANNELS, "accounts": ACCOUNTS,
-            "library": _library(), "runtime": RUNTIME, "logs": TASK_LOGS, "soul": SOUL, "soul_notes": SOUL_NOTES}
+            "library": _library(), "runtime": RUNTIME, "report": REPORT, "logs": TASK_LOGS, "soul": SOUL, "soul_notes": SOUL_NOTES}
     mock = MOCK.replace("__DATA__", json.dumps(data, ensure_ascii=False))
     note = ("<!-- 自動產生：scripts/make_ui_preview.py（不要手改；改 src/synox/web/static/app.html、tools.css、"
             "tools.js、splash.css、splash.js 再重跑） -->\n")
@@ -588,7 +627,8 @@ PHONE = """<!doctype html>
 
 def phone_preview() -> str:
     frames = [("登入", "login=1"), ("對話", "#chat"), ("工具", "#tools"), ("工具：編輯群組", "tooledit=1#tools"),
-              ("設定", "#settings"), ("功能與安裝", "lib=1#packs"), ("主控", "#control")]
+              ("設定", "#settings"), ("功能與安裝", "lib=1#packs"), ("遇到問題？", "help=1#settings:help"),
+              ("主控", "#control")]
     out = []
     for title, q in frames:
         query, _, hash_ = q.partition("#")

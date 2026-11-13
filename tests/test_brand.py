@@ -3,6 +3,7 @@
 
 import argparse
 import io
+import os
 import random
 import re
 import sys
@@ -156,11 +157,27 @@ def test_command_banner_says_what_is_starting():
     assert "正在啟動 SYNOX" in text and "下一步" not in text
 
 
-def test_about_does_not_invent_a_url(tmp_path):
+def test_about_says_where_the_project_and_the_latest_version_are(tmp_path):
     text = brand.about_text(str(tmp_path / "config.json"), root=str(tmp_path))
     assert brand.version() in text and "AGPL-3.0-or-later" in text and "Apache-2.0" in text
-    assert "http" not in text and "還沒公開" in text
+    assert "https://github.com/ChouYangEn0401/SYNOX" in text and "還沒公開" not in text
+    assert brand.RELEASES_URL == brand.PROJECT_URL + "/releases" and brand.RELEASES_URL in text
+    assert "有沒有新版" in text and "不會自己連網" in text
+    assert [u for u in re.findall(r"https?://\S+", text) if not u.startswith(brand.PROJECT_URL)] == []   # 只有官方網址
     assert "還沒有" in text                                     # 沒有 config.json 時告訴你怎麼做
+
+
+def test_doctor_points_to_the_releases_page(tmp_path):
+    from synox import doctor
+    lines = []
+    doctor.run(offline=True, config_path=str(tmp_path / "config.json"), out=lines.append)
+    assert lines[0].startswith("🩺 SYNOX ") and lines[1] == f"• 有沒有新版：{brand.latest_hint()}"
+
+
+def test_release_script_uses_the_same_official_url():
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
+    import release
+    assert release.REPO_URL == brand.PROJECT_URL and release.RELEASES_URL == brand.RELEASES_URL
 
 
 # ---------------------------------------------------------------- CLI

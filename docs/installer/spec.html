@@ -433,7 +433,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
 <header class="top" id="top">
   <a class="logo" href="#top"><span class="mark mark-md" aria-hidden="true">S</span><b>SYNOX</b><span class="sub">安裝程式規格</span></a>
   <div class="pills">
-    <span class="pill">狀態 <b>設計稿</b></span>
+    <span class="pill">狀態 <b>實作中 🧪</b></span>
     <span class="pill">對象 <b>Windows 10／11</b></span>
     <span class="pill">SYNOX <b>0.2.0</b></span>
   </div>
@@ -453,7 +453,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
     <li><a href="#compare"><i>5</i>ZIP 與 .exe 兩條路</a></li>
     <li><a href="#fail"><i>6</i>出問題的時候</a></li>
     <li><a href="#status"><i>7</i>現在做到哪裡</a></li>
-    <li><a href="#questions"><i>8</i>請擁有者決定</a></li>
+    <li><a href="#questions"><i>8</i>擁有者的決定</a></li>
   </ol>
   <div class="legend" aria-label="標籤說明">
     <span><i class="tag have">已有</i>今天的程式就有</span>
@@ -479,6 +479,43 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
       <div><b>1</b><span>個資料夾。程式、SYNOX 自己的 Python、你的資料都在裡面</span></div>
     </div>
   </div>
+
+  <div class="banner">
+    <svg class="ico" aria-hidden="true"><use href="#i-alert"/></svg>
+    <div><b>現在的狀態（2026-11-13）：九個問題都決定了，開始實作。</b>正在做三件事：<strong>安裝程式的畫面</strong>、<strong>不用 uv 的自帶 Python</strong>、<strong>入門教學</strong>。🧪 還沒有任何一項在真的 Windows 上試過。細節見<a href="#status">第 7 節</a>和<a href="#questions">第 8 節</a>。</div>
+  </div>
+
+  <div class="sec-head" id="docs" style="scroll-margin-top:76px">
+    <h2>這份規格跟其他文件的關係</h2>
+    <p class="sub">擁有者問：文字視窗要不要丟？安裝程式要不要留？跟「一步一步教學」有沒有連在一起？答案：都留著，各管各的事，而且一起更新。</p>
+  </div>
+  <ul class="principles">
+    <li>
+      <span class="icon"><svg class="ico"><use href="#i-chat"/></svg></span>
+      <b>一步一步教學：給使用者</b>
+      <p><a href="https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F">一步一步教學</a>是使用手冊，只寫<strong>今天就能裝的方法</strong>：下載 ZIP、雙擊 <code>Setup.bat</code>。</p>
+    </li>
+    <li>
+      <span class="icon"><svg class="ico"><use href="#i-sign"/></svg></span>
+      <b>這份規格：給開發者</b>
+      <p>這一頁是<strong>新安裝程式的藍圖</strong>，正在照著做。給開發者和 agent 看，不是給使用者照著裝的。</p>
+    </li>
+    <li>
+      <span class="icon"><svg class="ico"><use href="#i-check"/></svg></span>
+      <b>.exe 出來時，一起改</b>
+      <p>新的 .exe 出貨時，教學的主要方法換成 .exe，ZIP 留作「另一種方法」。教學和安裝程式在<strong>同一次修改</strong>裡更新。</p>
+    </li>
+    <li>
+      <span class="icon"><svg class="ico"><use href="#i-box"/></svg></span>
+      <b>文字視窗不丟</b>
+      <p><code>Setup.bat</code> 的文字視窗留著：ZIP 這條路要用它，開不了 .exe 的人也靠它。大多數人走 .exe，看不到文字視窗。</p>
+    </li>
+    <li>
+      <span class="icon"><svg class="ico"><use href="#i-hand"/></svg></span>
+      <b>工程師的作法：另外寫</b>
+      <p>Docker、<code>git clone</code>＋venv 這類進階作法，會另外寫一份短的進階文件，不放進教學，也不放在這裡。<i class="tag wip">⏳ 尚未完成</i></p>
+    </li>
+  </ul>
 
   <div class="sec-head">
     <h2>五條原則</h2>
@@ -591,7 +628,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
             <dt>Inno Setup</dt><dd>精靈視窗一開，Inno Setup 就不能再換語言，所以這頁要在精靈之前出現。簡單版：<code>ShowLanguageDialog=yes</code>＋<code>LanguageDetectionMethod=uilanguage</code>（Inno 自己的選語言小視窗，下拉選單、按鈕叫「確定」），每個語言的名字在 <code>[LangOptions]</code> 用 <code>LanguageName</code> 改成「原文名 (拉丁字母名)」。要長得跟上圖一樣（清單＋「下一步」）：在 <code>InitializeSetup</code> 用 <code>CreateCustomForm</code> 畫這頁，選的不是目前的語言時，帶 <code class="nb">/LANG=&lt;名字&gt;</code> 重新啟動自己。</dd>
             <dt>語言檔</dt><dd><code>[Languages]</code> 列 12 種，每種一個 Inno Setup 語言檔（<code>.isl</code>，按鈕、「瀏覽…」這類內建的字）；我們自己的字（歡迎、先說清楚…）放 <code>[CustomMessages]</code>。哪幾種有現成的語言檔，見 <a href="#q7">Q7</a>。</dd>
             <dt>交下去</dt><dd>選的語言換成 SYNOX 的代號，用 <code class="nb">-Lang &lt;代號&gt;</code> 交給 bootstrap（已有）：bootstrap 存進 SYNOX 資料夾的 <code>lang.txt</code>，再用 <code class="nb">--lang</code> 開設定精靈，精靈就跳過自己的語言頁；精靈把它寫進 <code>config.json</code>。<code>Uninstall.bat</code> 也讀同一個 <code>lang.txt</code>。</dd>
-            <dt>ZIP 路徑</dt><dd>今天就是這樣：<code>Setup.bat</code> 的文字視窗第一題就是語言（<code>lang.ps1</code> 的 <code>Ask-SynoxLang</code>）。12 種排兩欄，每種寫「拉丁字母名 / 原文名」，打數字或代號；選完存進 <code>lang.txt</code>，之後的訊息用 <code>setup\lang\&lt;代號&gt;.psd1</code>。給了 <code class="nb">-Lang</code>／<code>SYNOX_LANG</code>，或已經有 <code>lang.txt</code>，就不問。今天直接按 Enter＝第 1 項繁體中文；建議改成預選 Windows 的顯示語言，跟 .exe 一樣。<i class="tag chg">要改</i></dd>
+            <dt>ZIP 路徑</dt><dd>今天就是這樣：<code>Setup.bat</code> 的文字視窗第一題就是語言（<code>lang.ps1</code> 的 <code>Ask-SynoxLang</code>）。12 種排兩欄，每種寫「拉丁字母名 / 原文名」，打數字或代號；選完存進 <code>lang.txt</code>，之後的訊息用 <code>setup\lang\&lt;代號&gt;.psd1</code>。給了 <code class="nb">-Lang</code>／<code>SYNOX_LANG</code>，或已經有 <code>lang.txt</code>，就不問。今天直接按 Enter＝第 1 項繁體中文；已決定改成預選 Windows 的顯示語言，跟 .exe 一樣（<a href="#questions">Q8</a>）。<i class="tag chg">要改</i></dd>
           </dl>
         </div>
       </div>
@@ -604,31 +641,30 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
         <figure class="win" aria-label="安裝視窗示意：歡迎">
           <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
           <div class="win-body">
-            <p class="h">歡迎安裝 SYNOX</p>
-            <p>SYNOX 是住在你自己電腦上的小助手。你可以用 Telegram、Discord 或這台電腦的網頁跟它講話。</p>
-            <p>接下來<strong>一路按「下一步」就會裝好</strong>，大約 3 到 5 分鐘。</p>
+            <p class="h">歡迎使用 SYNOX，用得開心。</p>
             <ul class="ticks">
-              <li>不需要系統管理員密碼</li>
-              <li>不用打任何指令</li>
-              <li>不會改動這台電腦原本的程式</li>
+              <li>一路按「下一步」就會裝好</li>
+              <li>不用密碼，不用打指令</li>
+              <li>不會動這台電腦原本的程式</li>
             </ul>
-            <p class="small">版本 0.2.0（alpha，早期版）。繼續安裝代表你同意 <u>授權條款</u>。</p>
+            <p class="small">個人使用免費。商業使用請看 <u>AGPL-3.0 條款</u>。</p>
           </div>
           <div class="win-foot" aria-hidden="true"><span class="wbtn off">上一步</span><span class="wbtn pri">下一步</span><span class="gap"></span><span class="wbtn">取消</span></div>
         </figure>
         <div class="notes">
           <h4>這頁要做到</h4>
           <ul class="pts">
-            <li>三句話讓人知道「這是什麼、要多久、會不會弄壞電腦」。</li>
+            <li><strong>越少越好</strong>（像 Apple 的歡迎畫面）：一句歡迎、2 到 4 個短句、一行小字。看一眼就能按「下一步」。<i class="tag have">Q4 已決定</i></li>
+            <li><strong>沒有「我同意」那一頁，也沒有要勾的東西。</strong>小字只說：個人使用免費；商業使用請看 AGPL-3.0 條款（連結）。繼續安裝就代表同意，不另外問。</li>
             <li>用<strong>第 1 頁選的語言</strong>顯示。語言在精靈視窗之前就決定了，所以這頁的「上一步」是灰的；選錯了按「取消」再開一次安裝程式。</li>
             <li>已經裝過 SYNOX 時，標題改成「更新 SYNOX」，並加一句「你的設定和資料會留著」。</li>
-            <li>「3 到 5 分鐘」是估計值，要在真的電腦上量過再定。<i class="tag test">待實測</i></li>
+            <li>這頁不寫要幾分鐘：還沒在真的電腦上量過。<i class="tag test">待實測</i></li>
           </ul>
           <h4>怎麼做</h4>
           <dl class="impl">
-            <dt>Inno Setup</dt><dd><code>wpWelcome</code>。Inno Setup 6 預設會跳過歡迎頁，要設 <code>DisableWelcomePage=no</code>；文字放在 <code>[Messages] WelcomeLabel1／2</code>。</dd>
+            <dt>Inno Setup</dt><dd><code>wpWelcome</code>。Inno Setup 6 預設會跳過歡迎頁，要設 <code>DisableWelcomePage=no</code>；文字放在 <code>[Messages] WelcomeLabel1／2</code>。拿掉 <code>LicenseFile</code>，就不會出現「我同意」那一頁；授權檔照樣裝進 SYNOX 資料夾，小字的連結打開它。</dd>
             <dt>語言</dt><dd>第 1 頁選好的語言（<code>ActiveLanguage</code>）。今天的 <code>synox.iss</code> 只有英文。</dd>
-            <dt>ZIP 路徑</dt><dd>選完語言之後，<code>Setup.bat</code> 視窗先用那個語言印同樣的三句話。</dd>
+            <dt>ZIP 路徑</dt><dd>選完語言之後，<code>Setup.bat</code> 視窗先用那個語言印同一句歡迎和那一行小字。</dd>
           </dl>
         </div>
       </div>
@@ -665,7 +701,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
           <h4>怎麼做</h4>
           <dl class="impl">
             <dt>Inno Setup</dt><dd>自訂頁 <code>CreateCustomPage(wpWelcome, …)</code>。偵測寫在 <code>[Code]</code>：<code>CONDA_PREFIX</code>、<code>%USERPROFILE%\anaconda3</code>／<code>miniconda3</code>、<code>%LOCALAPPDATA%\Microsoft\WindowsApps\python.exe</code>（Store 的捷徑）。只讀，不改。</dd>
-            <dt>bootstrap</dt><dd>預設只用 SYNOX 資料夾裡的 Python；不再找 <code>py</code>、PATH、winget。另一個工作正在改（用 uv 把 Python 裝在 SYNOX 資料夾內）。</dd>
+            <dt>bootstrap</dt><dd>預設只用 SYNOX 資料夾裡的 Python；不再找 <code>py</code>、PATH、winget。正在改：照固定的網址和 SHA256 把獨立版 Python 放進 SYNOX 資料夾，再用一般的 <code>python -m venv .venv</code>。不用 uv（<a href="#questions">Q5</a>）。</dd>
             <dt>今天</dt><dd><code>bootstrap.ps1</code> 會先找系統的 <code>py</code>／<code>python</code>，找不到才用 winget 或可攜版。這正是要拿掉的行為。</dd>
           </dl>
         </div>
@@ -716,8 +752,8 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
           <div class="win-bar"><span class="mark mark-xs" aria-hidden="true">S</span><span class="t">SYNOX 安裝程式</span><span class="win-ctl" aria-hidden="true"><svg viewBox="0 0 40 36"><path d="M15 18h10"/></svg><svg viewBox="0 0 40 36"><path d="M15.5 13.5l9 9m0-9l-9 9"/></svg></span></div>
           <div class="win-body">
             <p class="h">要怎麼裝？</p>
-            <div class="opt on"><span class="rb on"></span><div><b>建議（全部幫我裝好）</b>
-              <span class="d">不用做任何決定。會幫你：用 SYNOX 自己的 Python、在桌面和開始功能表放捷徑、讓 .synoxpack 檔案點兩下就能安裝、開機後自動啟動、放好官方工具庫並裝好入門工具、安裝 Claude Code（這台還沒有的話；需要上網）。</span></div></div>
+            <div class="opt on"><span class="rb on"></span><div><b>建議（準備好環境和入門教學）</b>
+              <span class="d">不用做任何決定。會幫你：用 SYNOX 自己的 Python、在桌面和開始功能表放捷徑、讓 .synoxpack 檔案點兩下就能安裝、開機後自動啟動、安裝 Claude Code（這台還沒有的話；需要上網，裝在你的使用者資料夾）。工具先不裝：裝好後跟著入門教學走一遍，再自己挑。</span></div></div>
             <div class="opt"><span class="rb"></span><div><b>自訂</b>
               <span class="d">我想自己決定每一項。適合本來就在用 Python、或公司電腦有規定的人。</span></div></div>
             <p class="small">之後想改，再執行一次安裝程式就可以，你的資料不會不見。</p>
@@ -730,12 +766,13 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
             <li>「建議」已經選好。它下面那段話把<strong>會動到資料夾外面的每一件事都列出來</strong>，這就是使用者同意的範圍。</li>
             <li>選「建議」時，主要按鈕直接寫<strong>「安裝」</strong>，按下去就開始；選「自訂」時按鈕變回「下一步」，進入 A、B 兩頁。</li>
             <li>「自訂」那兩頁的預設值跟「建議」完全一樣：一路按「下一步」的結果相同。</li>
-            <li>「建議」裡的開機自動啟動、Claude Code、入門工具這三項，要先請擁有者點頭（<a href="#questions">Q1～Q3</a>）。<i class="tag q">待決定</i></li>
+            <li><strong>「建議」＝只有環境＋入門教學。</strong>SYNOX 一開始是空的，不預先裝任何工具。擁有者的理由：希望大家先了解、再自己選，不要一裝好就一堆東西。</li>
+            <li>開機自動啟動（預設開）、Claude Code（還沒有才裝，失敗不擋）、工具（不先裝）這三項都定了（<a href="#questions">Q1～Q3</a>）。<i class="tag have">已決定</i></li>
           </ul>
           <h4>怎麼做</h4>
           <dl class="impl">
             <dt>Inno Setup</dt><dd><code>CreateInputOptionPage(wpSelectDir, …, Exclusive=True)</code>；A、B 兩頁用 <code>ShouldSkipPage</code> 在選「建議」時跳過；<code>DisableReadyPage=yes</code>。</dd>
-            <dt>ZIP 路徑</dt><dd>選完語言後，<code>Setup.bat</code> 問一題：「按 Enter：照建議全部裝好。輸入 C 再按 Enter：自訂。」也可以直接用 <code>Setup.bat -Custom</code>（<a href="#questions">Q8</a>）。</dd>
+            <dt>ZIP 路徑</dt><dd>選完語言後，<code>Setup.bat</code> 問一題：「按 Enter：照建議裝。輸入 C 再按 Enter：自訂。」也可以直接用 <code>Setup.bat -Custom</code>（<a href="#questions">Q8</a>，已決定）。</dd>
           </dl>
         </div>
       </div>
@@ -769,7 +806,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
           <dl class="impl">
             <dt>Inno Setup</dt><dd><code>CreateInputOptionPage</code>＋一個下拉選單；結果變成 bootstrap 的參數。</dd>
             <dt>bootstrap</dt><dd><code class="nb">-UseSystemPython</code>（正在做）；指定哪一個用 <code class="nb">-Python &lt;路徑&gt;</code>（新的提案）。沒給這個旗標就只用 SYNOX 自帶的。</dd>
-            <dt>自帶的來源</dt><dd>.exe：Python 直接附在安裝程式裡（<code>stage_installer.py --python-embed</code>，已有）。ZIP：<code>Setup.bat</code> 用 uv 下載到 SYNOX 資料夾。兩邊要不要用同一種 Python：<a href="#questions">Q5</a>。</dd>
+            <dt>自帶的來源</dt><dd>兩條路用<strong>同一份</strong>固定版本的獨立版 CPython（python-build-standalone，本來就帶 tkinter）。.exe：打包時就放進安裝程式，使用者不用下載。ZIP：<code>Setup.bat</code> 照固定的網址下載、對過 SHA256，放進 SYNOX 資料夾。接著都是一般的 <code>python -m venv .venv</code>。不用 uv；不碰 PATH、登錄檔，不用管理員（<a href="#questions">Q5</a>）。<code>stage_installer.py --python-embed</code> 今天備的是官方可攜版，要換成這一份。<i class="tag chg">要改</i></dd>
           </dl>
         </div>
       </div>
@@ -788,8 +825,8 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
               <li><span class="cb on"></span><span>在開始功能表放「SYNOX」</span></li>
               <li><span class="cb on"></span><span>讓 .synoxpack 檔案點兩下就安裝<em>裝之前一樣會先檢查、給你按確認</em></span></li>
               <li><span class="cb on"></span><span>開機後自動啟動 SYNOX<em>看得到的小視窗，隨時可以關</em></span></li>
-              <li><span class="cb on"></span><span>放好官方工具庫（9 個工具），並先裝好入門工具<em>其他工具之後在 SYNOX 網頁的設定裡挑</em></span></li>
               <li><span class="cb on"></span><span>安裝 Claude Code<em>這台還沒有才裝；需要上網；裝在你的使用者資料夾，不在 SYNOX 資料夾裡</em></span></li>
+              <li><span class="cb"></span><span>全部官方工具都裝（不建議）<em>建議做完教學後再自己挑</em></span></li>
             </ul>
             <p class="small">每一項之後都能改：再執行一次安裝程式，或到 SYNOX 的設定。</p>
           </div>
@@ -798,7 +835,9 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
         <div class="notes">
           <h4>這頁要做到</h4>
           <ul class="pts">
-            <li>六項都預先勾好，跟「建議」一樣。前四項的句子沿用設定精靈最後一頁現有的字。</li>
+            <li>前五項預先勾好，跟「建議」一樣。前四項的句子沿用設定精靈最後一頁現有的字。</li>
+            <li><strong>「全部官方工具都裝（不建議）」預設不勾</strong>，小字寫「建議做完教學後再自己挑」。不勾的話 SYNOX 是空的，先跑入門教學。<i class="tag have">Q3 已決定</i></li>
+            <li>開機自動啟動預設勾，這裡可以取消（<a href="#questions">Q1</a>）。</li>
             <li>每一項的小字只講一件使用者會在意的事：安不安全、要不要上網、裝在哪。</li>
             <li>Claude Code 那一項：這台已經有 <code>claude</code> 時，改顯示「已經裝好了：C:\…\claude.exe」並變灰。</li>
             <li>每一項「誰該改、改了會怎樣」寫在<a href="#options">第 4 節</a>。</li>
@@ -806,9 +845,9 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
           </ul>
           <h4>怎麼做</h4>
           <dl class="impl">
-            <dt>Inno Setup</dt><dd><code>[Tasks]</code>：<code>desktopicon</code>、<code>startmenu</code>、<code>assoc</code>、<code>autostart</code>、<code>tools</code>、<code>claudecode</code>，用 <code>wpSelectTasks</code> 顯示；選「建議」時整頁跳過、全部照預設。</dd>
-            <dt>傳給 bootstrap</dt><dd>沒勾的項目變成 <code class="nb">-NoDesktop</code>、<code class="nb">-NoAssoc</code>… 這類旗標（新的提案，清單在<a href="#flags">第 4 節最後</a>）。</dd>
-            <dt>今天</dt><dd>桌面捷徑、開機啟動、.synoxpack 三項在設定精靈最後一頁勾（已有）；開始功能表、工具庫、Claude Code 這三項在安裝階段做是新的。</dd>
+            <dt>Inno Setup</dt><dd><code>[Tasks]</code>：<code>desktopicon</code>、<code>startmenu</code>、<code>assoc</code>、<code>autostart</code>、<code>claudecode</code>，再加一個預設不勾的 <code>alltools</code>（<code>Flags: unchecked</code>），用 <code>wpSelectTasks</code> 顯示；選「建議」時整頁跳過、全部照預設。</dd>
+            <dt>傳給 bootstrap</dt><dd>沒勾的項目變成 <code class="nb">-NoDesktop</code>、<code class="nb">-NoAssoc</code>… 這類旗標；勾了「全部官方工具」才多給 <code class="nb">-AllTools</code>（新的提案，清單在<a href="#flags">第 4 節最後</a>）。</dd>
+            <dt>今天</dt><dd>桌面捷徑、開機啟動、.synoxpack 三項在設定精靈最後一頁勾（已有）；開始功能表、Claude Code、「全部官方工具」這三項在安裝階段做是新的。</dd>
           </dl>
         </div>
       </div>
@@ -827,7 +866,6 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
               <li class="done">把 SYNOX 的檔案放進資料夾</li>
               <li class="done">準備 SYNOX 自己的 Python</li>
               <li class="now">安裝 SYNOX 需要的套件<em>這一步最久，大約 1 到 2 分鐘</em></li>
-              <li>放好官方工具庫，裝入門工具</li>
               <li>建立捷徑，讓 .synoxpack 點兩下就能安裝</li>
               <li>安裝 Claude Code（需要上網）</li>
               <li>最後檢查一遍</li>
@@ -839,17 +877,17 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
         <div class="notes">
           <h4>這頁要做到</h4>
           <ul class="pts">
-            <li>七個步驟用白話寫，做完打勾。沒勾選的項目不出現在清單裡。</li>
+            <li>六個步驟用白話寫，做完打勾。沒勾選的項目不出現在清單裡；自訂勾了「全部官方工具都裝」才多一步「安裝官方工具」。</li>
             <li><strong>不跳出黑色視窗。</strong>今天安裝程式最後是開 <code>Setup.bat</code>，使用者會看到命令列視窗；要改成在這一頁背景執行。</li>
             <li>「顯示詳細過程」點開才看得到原始訊息；同一份也寫進紀錄檔 <code>SYNOX\data\logs\install.log</code>。</li>
-            <li>Claude Code 那一步失敗（沒網路、被擋）<strong>不算安裝失敗</strong>：標成「先跳過」，完成頁說怎麼補。</li>
+            <li>Claude Code 排在<strong>最後才做</strong>，這台已經有就不做。這一步失敗（沒網路、被擋）<strong>不算安裝失敗</strong>：標成「先跳過」，完成頁說怎麼補（<a href="#questions">Q2</a>）。</li>
             <li>其他步驟失敗就停下來，換成<a href="#fail">第 6 節</a>的畫面，有「再試一次」。重試從失敗那一步接著做。</li>
             <li>按「取消」會先問一次，然後把已經放進去的東西收掉；更新時不動 <code>config.json</code> 和 <code>data\</code>。</li>
           </ul>
           <h4>怎麼做</h4>
           <dl class="impl">
             <dt>Inno Setup</dt><dd><code>wpInstalling</code>。複製檔案之後，用 <code>[Run]</code> 一步一行、<code>runhidden</code>、每行一個 <code>StatusMsg</code>；失敗的判斷與重試寫在 <code>[Code]</code>（<code>CurStepChanged(ssPostInstall)</code>＋<code>Exec</code>）。</dd>
-            <dt>bootstrap</dt><dd>要能一步一步叫、而且不開精靈：<code>-Step python|packages|tools|shortcuts|claude|check</code>、<code class="nb">-NoWizard</code>（新的提案）。結束碼 0＝成功，其他＝失敗原因的代號，安裝程式照代號顯示對應的畫面。</dd>
+            <dt>bootstrap</dt><dd>要能一步一步叫、而且不開精靈：<code>-Step python|packages|shortcuts|claude|check</code>（選了全部官方工具才多一個 <code>tools</code>）、<code class="nb">-NoWizard</code>（新的提案）。結束碼 0＝成功，其他＝失敗原因的代號，安裝程式照代號顯示對應的畫面。</dd>
             <dt>最後檢查</dt><dd><code>python -m synox doctor --offline</code>（已有）。</dd>
           </dl>
         </div>
@@ -870,10 +908,10 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
               <li><span class="cb on"></span><span>現在打開設定精靈（建議）</span></li>
             </ul>
             <ol class="steps">
-              <li class="done">桌面與開始功能表的捷徑、開機自動啟動、工具庫：都好了</li>
+              <li class="done">桌面與開始功能表的捷徑、開機自動啟動：都好了</li>
               <li class="warn">Claude Code 先跳過了（剛才連不上網路）。等一下在設定精靈的 AI 那一頁按「一鍵安裝」就能補。</li>
             </ol>
-            <p class="small">之後想重新設定：開始功能表 → SYNOX → 設定精靈。</p>
+            <p class="small">設定好之後，SYNOX 會問你要不要「開始教學」。想重新設定：開始功能表 → SYNOX → 設定精靈。</p>
           </div>
           <div class="win-foot" aria-hidden="true"><span class="wbtn pri">完成</span></div>
         </figure>
@@ -883,12 +921,13 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
             <li>說清楚「程式裝好了，但還要接上你的帳號」，並把下一步變成預先勾好的一個選項。</li>
             <li>有被跳過的項目時，用黃色那一行說<strong>去哪裡補</strong>。全部成功就只顯示一行綠色的。</li>
             <li>按「完成」後直接開出設定精靈的視窗，中間沒有黑色視窗。</li>
+            <li>先講一聲接下來有<strong>入門教學</strong>：SYNOX 一開始是空的，教學帶你認識它（<a href="#tutorial">見第 3 節</a>）。</li>
             <li>開始功能表多放兩個入口：「SYNOX 設定精靈」「解除安裝 SYNOX」。<i class="tag new">新的</i></li>
           </ul>
           <h4>怎麼做</h4>
           <dl class="impl">
             <dt>Inno Setup</dt><dd><code>wpFinished</code>；<code>[Run]</code> 加一行 <code>postinstall</code>：<code>{app}\.venv\Scripts\pythonw.exe -m synox wizard --lang &lt;代碼&gt;</code>。今天這一行是開 <code>Setup.bat</code>。</dd>
-            <dt>沒有視窗時</dt><dd>附的 Python 開不出視窗（沒有 tkinter）時，今天會退到黑色視窗的文字版 <code>synox init</code>。目標是 .exe 一定帶得出視窗（<a href="#questions">Q5</a>）。<i class="tag test">待實測</i></dd>
+            <dt>沒有視窗時</dt><dd><a href="#questions">Q5</a> 決定用的獨立版 Python 本來就帶 tkinter，所以 .exe 和 ZIP 都應該開得出視窗。萬一開不出，還是退到黑色視窗的文字版 <code>synox init</code>。<i class="tag test">待實測</i></dd>
           </dl>
         </div>
       </div>
@@ -941,6 +980,16 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
     <div><span class="tags"><i class="tag chg">要改</i></span><b>最後一頁不再重問一次</b><p>今天「差不多了」有四個勾選：桌面捷徑、開機啟動、.synoxpack、立刻開啟。從安裝程式來的人前三項已經決定了，這頁只留「完成後立刻開啟 SYNOX」。從 ZIP 來的人四項照舊，預設值跟安裝程式一樣。</p></div>
     <div><span class="tags"><i class="tag chg">要改</i></span><b>AI 那一頁接得上</b><p>安裝時已經裝好 Claude Code 的話，這頁直接顯示「✅ 找到了」，只剩登入一次。沒裝成的話，現有的「一鍵安裝（PowerShell）」按鈕還在。視窗標題建議從「安裝精靈」改成「設定精靈」，免得跟安裝程式搞混。</p></div>
   </div>
+
+  <div class="sec-head" id="tutorial" style="scroll-margin-top:76px">
+    <h3>再接著：入門教學</h3>
+    <p class="sub" style="font-size:15px">擁有者決定（<a href="#questions">Q3</a>）：SYNOX 裝好是空的。先跑教學、看懂了，再自己挑工具。</p>
+  </div>
+  <div class="callouts">
+    <div><span class="tags"><i class="tag wip">⏳ 正在做</i></span><b>從空的開始</b><p>第一次打開 SYNOX，它會問要不要「開始教學」；也可以自己打 <code>/tutorial</code>。教學帶你走一遍：怎麼跟它講話、畫面上每一塊是什麼、工具去哪裡挑。</p></div>
+    <div><span class="tags"><i class="tag wip">⏳ 正在做</i></span><b>教學是 SYNOX 的一部分</b><p>它跟 SYNOX 是同一個核心，不是另外裝的工具，所以能直接把畫面上的按鈕亮起來給你看。不用上網，也不用另外下載。</p></div>
+    <div><span class="tags"><i class="tag wip">⏳ 正在做</i></span><b>隨時能重看</b><p>做完之後還在：再打一次 <code>/tutorial</code> 或按「開始教學」就能重來。做完教學，再到 SYNOX 網頁的「設定」挑自己要的工具。</p></div>
+  </div>
 </section>
 
 <!-- ============================================================ 4. options -->
@@ -965,9 +1014,9 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
 
     <article class="option">
       <header><b>安裝方式</b><i class="tag new">新的</i></header>
-      <p class="default"><i>建議值</i><span>建議（全部幫我裝好）</span></p>
+      <p class="default"><i>建議值</i><span>建議（準備好環境和入門教學）</span></p>
       <dl>
-        <dt>誰該改</dt><dd>本來就在用 Python 的人、公司電腦有限制的人、不想要開機啟動或 Claude Code 的人。</dd>
+        <dt>誰該改</dt><dd>本來就在用 Python 的人、公司電腦有限制的人、不想要開機啟動或 Claude Code 的人、想一次裝完全部官方工具的人。</dd>
         <dt>改了會怎樣</dt><dd>多看兩頁。每一頁的預設仍然是建議值。</dd>
         <dt>.exe</dt><dd>自訂頁（單選）＋<code>ShouldSkipPage</code>。</dd>
         <dt>ZIP</dt><dd>語言之後的那一題，或 <code>Setup.bat -Custom</code>。</dd>
@@ -980,8 +1029,8 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
       <dl>
         <dt>誰該改</dt><dd>公司不准程式自己帶執行檔、一定要用某個版本的 Python、或正在開發 SYNOX 的人。</dd>
         <dt>改了會怎樣</dt><dd>可能被 Conda、Microsoft Store 版、PATH 影響；那個 Python 被更新或移除時 SYNOX 會壞，要重跑安裝。</dd>
-        <dt>.exe</dt><dd>自訂頁（單選＋下拉）→ <code>-UseSystemPython -Python &lt;路徑&gt;</code>。自帶的那份附在安裝程式裡，不用上網。</dd>
-        <dt>ZIP</dt><dd>預設用 uv 把 Python 下載到 SYNOX 資料夾；<code>Setup.bat -UseSystemPython</code> 才用系統的。</dd>
+        <dt>.exe</dt><dd>自訂頁（單選＋下拉）→ <code>-UseSystemPython -Python &lt;路徑&gt;</code>。自帶的那份在打包時就放進安裝程式，不用上網；接著一樣是 <code>python -m venv .venv</code>。</dd>
+        <dt>ZIP</dt><dd>預設照固定的網址下載同一份獨立版 Python、對過 SHA256，放進 SYNOX 資料夾，再 <code>python -m venv .venv</code>；<code>Setup.bat -UseSystemPython</code> 才用系統的。不用 uv。</dd>
       </dl>
     </article>
 
@@ -1008,7 +1057,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
     </article>
 
     <article class="option">
-      <header><b>開機後自動啟動</b><i class="tag chg">預設值要改</i><i class="tag q">Q1</i></header>
+      <header><b>開機後自動啟動</b><i class="tag chg">預設值要改</i><i class="tag have">Q1 已決定</i></header>
       <p class="default"><i>建議值</i><span>開（今天精靈的預設是不勾）</span></p>
       <dl>
         <dt>誰該改</dt><dd>只想偶爾用、或跟別人共用這台電腦的人。</dd>
@@ -1019,19 +1068,19 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
     </article>
 
     <article class="option">
-      <header><b>官方工具庫</b><i class="tag have">檔案：已有</i><i class="tag new">自動裝：新的</i><i class="tag q">Q3</i></header>
-      <p class="default"><i>建議值</i><span>放好 9 個工具的檔案，並裝好入門組合</span></p>
+      <header><b>官方工具</b><i class="tag have">檔案：已有</i><i class="tag new">教學：新的</i><i class="tag have">Q3 已決定</i></header>
+      <p class="default"><i>建議值</i><span>先不裝。SYNOX 是空的，跑完入門教學再自己挑</span></p>
       <dl>
-        <dt>誰該改</dt><dd>想要一個空的 SYNOX、只裝自己寫的工具的人。</dd>
-        <dt>改了會怎樣</dt><dd>不裝的話 SYNOX 是空的，<code>/help</code> 會提醒去哪裡裝。之後隨時能在網頁「設定」裡加。</dd>
-        <dt>.exe</dt><dd>工具檔附在安裝程式裡（<code>stage_installer.py --tools</code>）→ 放到 <code>SYNOX\tools\</code> → <code>synox tools install starter --yes</code>，照原本的安全檢查走。</dd>
-        <dt>ZIP</dt><dd>bootstrap 下載 SYNOX_Libs v0.2.0 的 <code>tools-0.2.0.zip</code>、對過 sha256、解到 <code>SYNOX\tools\</code>，再裝入門組合。下載這一段是新的。</dd>
+        <dt>誰該改</dt><dd>已經用過 SYNOX、確定全部都要的人。自訂裡勾「全部官方工具都裝（不建議）」。</dd>
+        <dt>改了會怎樣</dt><dd>一裝好就有 9 個工具，畫面比較滿，新手不容易看懂每個是做什麼的。不勾也沒差：之後隨時能在 SYNOX 網頁的「設定」裡加。</dd>
+        <dt>.exe</dt><dd>工具檔附在安裝程式裡（<code>stage_installer.py --tools</code>）→ 放到 <code>SYNOX\tools\</code>，<strong>只是放著，不安裝</strong>。勾了才 <code class="nb">-AllTools</code>，一個一個照原本的安全檢查裝。</dd>
+        <dt>ZIP</dt><dd>預設不下載工具。<code class="nb">-AllTools</code> 才下載 SYNOX_Libs v0.2.0 的 <code>tools-0.2.0.zip</code>、對過 sha256、解到 <code>SYNOX\tools\</code> 再裝。下載這一段是新的。</dd>
       </dl>
     </article>
 
     <article class="option">
-      <header><b>Claude Code</b><i class="tag chg">搬到安裝階段</i><i class="tag q">Q2</i></header>
-      <p class="default"><i>建議值</i><span>這台還沒有才裝；失敗不擋安裝</span></p>
+      <header><b>Claude Code</b><i class="tag chg">搬到安裝階段</i><i class="tag have">Q2 已決定</i></header>
+      <p class="default"><i>建議值</i><span>這台還沒有才裝；放在最後一步；失敗不擋安裝</span></p>
       <dl>
         <dt>誰該改</dt><dd>不用 Claude、要用自己的金鑰或本機模型的人；公司不准裝的人。</dd>
         <dt>改了會怎樣</dt><dd>不裝的話，設定精靈的 AI 那一頁會顯示「找不到 Claude Code」，可以到時再按一鍵安裝，或選別的 AI、先不用 AI。</dd>
@@ -1069,14 +1118,15 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
     <p class="sub" style="font-size:15px">安裝程式和 ZIP 最後都走同一支 <code>setup\bootstrap.ps1</code>。安裝程式把畫面上的選擇變成這些旗標；懂的人也可以自己打。</p>
   </div>
   <ul class="flags">
-    <li><code>Setup.bat</code><span>照建議全部裝好，跟安裝程式的「建議」一樣</span><i class="tag chg">要改</i></li>
+    <li><code>Setup.bat</code><span>先問語言，再問一題：Enter＝建議，C＝自訂</span><i class="tag chg">要改</i></li>
     <li><code>Setup.bat -Custom</code><span>一項一項問</span><i class="tag new">新的</i></li>
     <li><code class="nb">-Lang zh-TW</code><span>語言；給了就不問，存進 <code>lang.txt</code></span><i class="tag have">已有</i></li>
     <li><code class="nb">-UseSystemPython</code><span>用這台電腦的 Python</span><i class="tag wip">⏳ 正在做</i></li>
     <li><code class="nb">-Python &lt;路徑&gt;</code><span>指定用哪一個 Python</span><i class="tag new">新的</i></li>
     <li><code class="nb">-NoDesktop　-NoStartMenu</code><span>不放桌面捷徑、不放開始功能表</span><i class="tag new">新的</i></li>
     <li><code class="nb">-NoAssoc　-NoAutostart</code><span>不登記 .synoxpack、不開機自動啟動</span><i class="tag new">新的</i></li>
-    <li><code class="nb">-NoTools　-NoClaude</code><span>不裝工具庫、不裝 Claude Code</span><i class="tag new">新的</i></li>
+    <li><code class="nb">-NoClaude</code><span>不裝 Claude Code</span><i class="tag new">新的</i></li>
+    <li><code class="nb">-AllTools</code><span>全部官方工具都裝（不建議；預設不裝）</span><i class="tag new">新的</i></li>
     <li><code class="nb">-NoWizard</code><span>裝完不開設定精靈</span><i class="tag new">新的</i></li>
     <li><code class="nb">-Step &lt;名字&gt;</code><span>只做一步，給安裝程式顯示進度用</span><i class="tag new">新的</i></li>
   </ul>
@@ -1087,39 +1137,39 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
   <div class="sec-head">
     <p class="eyebrow">兩條路，同一個結果</p>
     <h2>ZIP＋Setup.bat 與 .exe 安裝程式</h2>
-    <p class="sub">差別只在「怎麼把檔案放到電腦上」和「畫面長什麼樣」。建議值是同一份，裝完是同一個 SYNOX。</p>
+    <p class="sub">差別只在「怎麼把檔案放到電腦上」和「畫面長什麼樣」。建議值是同一份，裝完是同一個 SYNOX。<strong>.exe 是給大多數人的主要方法</strong>；ZIP＋<code>Setup.bat</code> 留作另一種方法。</p>
   </div>
   <div class="table-wrap">
     <table>
       <thead><tr><th></th><th>ZIP＋Setup.bat<small>今天就能用</small></th><th>SYNOX-Setup-0.2.0.exe<small>⏳ 尚未完成，還沒打包過</small></th></tr></thead>
       <tbody>
         <tr><th>怎麼開始</th><td>下載 ZIP、解壓縮、雙擊 <code>Setup.bat</code></td><td>下載一個檔案、雙擊</td></tr>
-        <tr><th>要不要上網</th><td><strong>要</strong>：下載 SYNOX 自己的 Python、套件、工具庫</td><td><strong>不用</strong>：Python、套件、工具庫都附在裡面。只有 Claude Code 那一步要上網</td></tr>
+        <tr><th>要不要上網</th><td><strong>要</strong>：下載 SYNOX 自己的 Python（固定網址＋SHA256）和套件</td><td><strong>不用</strong>：同一份 Python 和套件都附在裡面。只有 Claude Code 那一步要上網</td></tr>
         <tr><th>先選語言</th><td>文字視窗<strong>第一題就問語言</strong>（<code>setup\lang.ps1</code> 的 <code>Ask-SynoxLang</code>，已有）：12 種排兩欄，每種寫「拉丁字母名 / 原文名」，打數字或代號。存進 SYNOX 資料夾的 <code>lang.txt</code>，之後的訊息就用那個語言；設定精靈拿到 <code class="nb">--lang</code> 不再問，<code>Uninstall.bat</code> 也讀同一個 <code>lang.txt</code>。給了 <code class="nb">-Lang</code> 或已經有 <code>lang.txt</code> 就不問</td><td><a href="#s1">第 1 頁</a>，預選 Windows 的顯示語言；之後每一頁都用它，再用 <code class="nb">-Lang</code> 交給 bootstrap，一樣存進 <code>lang.txt</code></td></tr>
-        <tr><th>畫面</th><td>一個顯示進度的文字視窗，選完語言後問一題（建議／自訂）</td><td>第 2 節那 7 頁視窗，沒有文字視窗</td></tr>
+        <tr><th>畫面</th><td>一個顯示進度的文字視窗：先問語言（預設是 Windows 的顯示語言），再問一題（Enter＝建議，C＝自訂）</td><td>第 2 節那 7 頁視窗，沒有文字視窗</td></tr>
         <tr><th>裝在哪</th><td>解壓縮的那個資料夾</td><td><code>%LOCALAPPDATA%\Programs\SYNOX</code>，可以改</td></tr>
         <tr><th>先說清楚</th><td>選完語言後印同樣那段話</td><td>第 3 頁</td></tr>
-        <tr class="same"><td colspan="3">一樣先選語言、選一次就一路用到 SYNOX。建議值完全相同：SYNOX 自帶的 Python、桌面與開始功能表捷徑、.synoxpack、開機啟動、工具庫與入門工具、Claude Code、裝完打開設定精靈</td></tr>
+        <tr class="same"><td colspan="3">一樣先選語言、選一次就一路用到 SYNOX。建議值完全相同：SYNOX 自帶的 Python（同一份）、桌面與開始功能表捷徑、.synoxpack、開機啟動、Claude Code、裝完打開設定精靈；工具先不裝，從入門教學開始</td></tr>
         <tr><th>自訂</th><td><code>Setup.bat -Custom</code> 或在語言之後那題輸入 C；也可以直接給旗標</td><td>安裝方式選「自訂」，多兩頁</td></tr>
-        <tr><th>第一次執行的警告</th><td>解壓縮後雙擊 .bat，Windows 可能問一次「要執行嗎」</td><td>沒簽章時 SmartScreen 會擋一次（<a href="#f3">失敗畫面 3</a>）</td></tr>
+        <tr><th>第一次執行的警告</th><td>解壓縮後雙擊 .bat，Windows 可能問一次「要執行嗎」</td><td>alpha 不簽章，SmartScreen 會擋一次（<a href="#f3">失敗畫面 3</a>）</td></tr>
         <tr><th>更新</th><td>下載新的 ZIP 解到同一個資料夾，或 <code>git pull</code>，再跑 <code>Setup.bat</code></td><td>執行新版安裝程式，設定和資料留著</td></tr>
         <tr><th>解除安裝</th><td>雙擊 <code>Uninstall.bat</code>（文字選單，已有）</td><td>Windows「設定 → 應用程式」裡的 SYNOX → 解除安裝</td></tr>
-        <tr><th>適合誰</th><td>想看原始碼、用 git 更新、幫忙開發的人</td><td>所有其他人。介紹頁的大按鈕應該給這個</td></tr>
+        <tr><th>適合誰</th><td>開不了 .exe 的人；想看原始碼、用 git 更新、幫忙開發的人</td><td>大多數人。介紹頁的大按鈕給這個</td></tr>
       </tbody>
     </table>
   </div>
   <div class="duo">
     <div><h4>怎麼開始</h4><p><i>ZIP</i><span>下載、解壓縮、雙擊 <code>Setup.bat</code>。今天就能用。</span></p><p><i>.exe</i><span>下載一個檔案、雙擊。⏳ 尚未完成，還沒打包過。</span></p></div>
-    <div><h4>要不要上網</h4><p><i>ZIP</i><span><strong>要</strong>：下載 SYNOX 自己的 Python、套件、工具庫。</span></p><p><i>.exe</i><span><strong>不用</strong>：都附在裡面。只有 Claude Code 那一步要上網。</span></p></div>
+    <div><h4>要不要上網</h4><p><i>ZIP</i><span><strong>要</strong>：下載 SYNOX 自己的 Python（固定網址＋SHA256）和套件。</span></p><p><i>.exe</i><span><strong>不用</strong>：同一份 Python 和套件都附在裡面。只有 Claude Code 那一步要上網。</span></p></div>
     <div><h4>先選語言</h4><p><i>ZIP</i><span>文字視窗<strong>第一題就問語言</strong>（<code>lang.ps1</code> 的 <code>Ask-SynoxLang</code>，已有），存進 <code>lang.txt</code>；之後的訊息、設定精靈、<code>Uninstall.bat</code> 都用它。給了 <code class="nb">-Lang</code> 或已經有 <code>lang.txt</code> 就不問。</span></p><p><i>.exe</i><span><a href="#s1">第 1 頁</a>，預選 Windows 的顯示語言；用 <code class="nb">-Lang</code> 交下去，一樣存進 <code>lang.txt</code>。</span></p></div>
-    <div><h4>畫面</h4><p><i>ZIP</i><span>一個顯示進度的文字視窗，選完語言後問一題（建議／自訂）。</span></p><p><i>.exe</i><span>第 2 節那 7 頁視窗，沒有文字視窗。</span></p></div>
+    <div><h4>畫面</h4><p><i>ZIP</i><span>一個顯示進度的文字視窗：先問語言（預設是 Windows 的顯示語言），再問一題（Enter＝建議，C＝自訂）。</span></p><p><i>.exe</i><span>第 2 節那 7 頁視窗，沒有文字視窗。</span></p></div>
     <div><h4>裝在哪</h4><p><i>ZIP</i><span>解壓縮的那個資料夾。</span></p><p><i>.exe</i><span><code>%LOCALAPPDATA%\Programs\SYNOX</code>，可以改。</span></p></div>
-    <div class="same"><h4>建議值完全相同</h4><p>一樣先選語言、選一次就一路用到 SYNOX。SYNOX 自帶的 Python、桌面與開始功能表捷徑、.synoxpack、開機啟動、工具庫與入門工具、Claude Code、裝完打開設定精靈。</p></div>
+    <div class="same"><h4>建議值完全相同</h4><p>一樣先選語言、選一次就一路用到 SYNOX。SYNOX 自帶的 Python（同一份）、桌面與開始功能表捷徑、.synoxpack、開機啟動、Claude Code、裝完打開設定精靈；工具先不裝，從入門教學開始。</p></div>
     <div><h4>自訂</h4><p><i>ZIP</i><span><code>Setup.bat -Custom</code> 或在語言之後那題輸入 C；也可以直接給旗標。</span></p><p><i>.exe</i><span>安裝方式選「自訂」，多兩頁。</span></p></div>
-    <div><h4>第一次執行的警告</h4><p><i>ZIP</i><span>雙擊 .bat 時 Windows 可能問一次「要執行嗎」。</span></p><p><i>.exe</i><span>沒簽章時 SmartScreen 會擋一次。</span></p></div>
+    <div><h4>第一次執行的警告</h4><p><i>ZIP</i><span>雙擊 .bat 時 Windows 可能問一次「要執行嗎」。</span></p><p><i>.exe</i><span>alpha 不簽章，SmartScreen 會擋一次。</span></p></div>
     <div><h4>更新</h4><p><i>ZIP</i><span>新的 ZIP 解到同一個資料夾（或 <code>git pull</code>），再跑 <code>Setup.bat</code>。</span></p><p><i>.exe</i><span>執行新版安裝程式，設定和資料留著。</span></p></div>
     <div><h4>解除安裝</h4><p><i>ZIP</i><span>雙擊 <code>Uninstall.bat</code>（文字選單，已有）。</span></p><p><i>.exe</i><span>Windows「設定 → 應用程式」→ SYNOX → 解除安裝。</span></p></div>
-    <div><h4>適合誰</h4><p><i>ZIP</i><span>想看原始碼、用 git 更新、幫忙開發的人。</span></p><p><i>.exe</i><span>所有其他人。</span></p></div>
+    <div><h4>適合誰</h4><p><i>ZIP</i><span>開不了 .exe 的人；想看原始碼、用 git 更新、幫忙開發的人。</span></p><p><i>.exe</i><span>大多數人。</span></p></div>
   </div>
 </section>
 
@@ -1171,7 +1221,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
         </div>
         <div class="win-foot" aria-hidden="true"><span class="wbtn pri">再試一次</span><span class="wbtn">複製問題描述</span><span class="wbtn">取消</span></div>
       </figure>
-      <p>安裝程式自己先重試 3 次才顯示。畫面上寫出是哪一樣東西下載失敗（Python、套件、工具庫、Claude Code）。下載回來的檔案對不上 sha256 時也是這個畫面，第一句改成「下載到的檔案不完整」。</p>
+      <p>安裝程式自己先重試 3 次才顯示。畫面上寫出是哪一樣東西下載失敗（Python、套件、Claude Code；選了全部官方工具時還有工具庫）。下載回來的檔案對不上 sha256 時也是這個畫面，第一句改成「下載到的檔案不完整」。</p>
     </article>
 
     <article class="fail" id="f3">
@@ -1186,7 +1236,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
       <p>這個藍色畫面是 Windows 的，我們改不了它的字，只能<strong>在下載的地方先講</strong>。介紹頁下載按鈕旁邊要放這段：</p>
       <figure class="win" aria-label="下載頁說明文字示意">
         <div class="win-body">
-          <p><strong>第一次執行，Windows 會跳一個藍色畫面。</strong>這是因為 SYNOX 還很新、安裝程式還沒有付費簽章，不代表它有問題。</p>
+          <p><strong>第一次執行，Windows 會跳一個藍色畫面。</strong>這是因為 SYNOX 還很新、安裝程式還沒有簽章，不代表它有問題。</p>
           <ol class="next">
             <li>按藍色畫面上的「其他資訊」。</li>
             <li>按出現的「仍要執行」。</li>
@@ -1195,7 +1245,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
           <p><strong>防毒軟體把檔案擋掉了？</strong>打開防毒軟體的「隔離區」或「保護歷程記錄」把它還原，再把 SYNOX 資料夾加進「排除項目」，然後重新執行安裝程式。</p>
         </div>
       </figure>
-      <p>安裝到一半發現檔案不見（被隔離）時，安裝程式顯示：「有檔案被防毒軟體擋下來了」＋上面那三步＋「再試一次」。要不要簽章：<a href="#questions">Q6</a>。</p>
+      <p>安裝到一半發現檔案不見（被隔離）時，安裝程式顯示：「有檔案被防毒軟體擋下來了」＋上面那三步＋「再試一次」。簽章的決定（<a href="#questions">Q6</a>）：alpha 不簽，下載頁放 SHA-256 和上面這兩步；公開宣傳前再看雲端簽章。</p>
     </article>
 
     <article class="fail" id="f4">
@@ -1230,7 +1280,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
         </div>
         <div class="win-foot" aria-hidden="true"><span class="wbtn pri">解除安裝</span><span class="wbtn">取消</span></div>
       </figure>
-      <p>入口：Windows「設定 → 應用程式 → 已安裝的應用程式 → SYNOX」，或開始功能表的「解除安裝 SYNOX」。<code>synox.iss</code> 的 <code>[UninstallRun]</code> 已經會呼叫 <code>setup\uninstall.ps1 -Mode shortcuts</code> 並留下 <code>config.json</code>、<code>data\</code>、<code>packs\</code>。「連資料一起刪」的勾選是新的（<a href="#questions">Q9</a>）。ZIP 路徑照舊用 <code>Uninstall.bat</code> 的四個選項。</p>
+      <p>入口：Windows「設定 → 應用程式 → 已安裝的應用程式 → SYNOX」，或開始功能表的「解除安裝 SYNOX」。<code>synox.iss</code> 的 <code>[UninstallRun]</code> 已經會呼叫 <code>setup\uninstall.ps1 -Mode shortcuts</code> 並留下 <code>config.json</code>、<code>data\</code>、<code>packs\</code>。「連資料一起刪」的勾選是新的：預設不勾，勾了再確認一次（<a href="#questions">Q9</a>，已決定）。ZIP 路徑照舊用 <code>Uninstall.bat</code> 的四個選項。</p>
     </article>
 
   </div>
@@ -1241,7 +1291,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
   <div class="sec-head">
     <p class="eyebrow">照實說</p>
     <h2>現在做到哪裡</h2>
-    <p class="sub">這一頁是設計稿。上面的視窗都是畫的，還沒有任何一頁在 Windows 上跑過。</p>
+    <p class="sub">九個問題都決定了，已經開始照這份規格做。上面的視窗還是畫的：🧪 沒有任何一頁在真的 Windows 上跑過。</p>
   </div>
   <div class="banner">
     <svg class="ico" aria-hidden="true"><use href="#i-alert"/></svg>
@@ -1254,8 +1304,8 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
         <li><strong>Setup.bat＋bootstrap.ps1</strong>：第一題先問語言（12 種，存進 <code>lang.txt</code>）、找或裝 Python、建立環境、裝套件、登記 .synoxpack、用同一個語言打開精靈。</li>
         <li><strong>設定精靈</strong>（Tk 視窗）：語言、給誰用、Telegram token 與配對、AI 來源、完成頁四個勾選；12 種語言。</li>
         <li>精靈裡的 <strong>Claude Code 一鍵安裝</strong>（官方 PowerShell 指令）。</li>
-        <li><strong>setup\installer\synox.iss</strong>：每個使用者自己裝、不用管理員、裝到 <code>%LOCALAPPDATA%\Programs\SYNOX</code>；只有英文；最後開 <code>Setup.bat</code>。</li>
-        <li><strong>scripts\stage_installer.py</strong>：把 Python、離線套件、工具庫排好給 Inno Setup 用。</li>
+        <li><strong>setup\installer\synox.iss</strong>：每個使用者自己裝、不用管理員、裝到 <code>%LOCALAPPDATA%\Programs\SYNOX</code>；只有英文；有「我同意」那一頁（要拿掉）；最後開 <code>Setup.bat</code>。</li>
+        <li><strong>scripts\stage_installer.py</strong>：把 Python（今天是官方可攜版，要換）、離線套件、工具庫排好給 Inno Setup 用。</li>
         <li><strong>Uninstall.bat＋uninstall.ps1</strong>：四種程度的移除。</li>
         <li>工具庫的 <strong>tools-0.2.0.zip</strong>（SYNOX_Libs v0.2.0）。</li>
       </ul>
@@ -1263,30 +1313,33 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
     <div>
       <h3><i class="dot" style="background:var(--accent)"></i>正在做</h3>
       <ul>
-        <li><strong>SYNOX 自帶的 Python</strong>：bootstrap 改成用 uv 把 Python 裝在 SYNOX 資料夾裡，預設不碰 Conda、Microsoft Store、系統的 Python。</li>
+        <li><strong>安裝程式的畫面</strong>：選語言、歡迎、先說清楚、安裝方式、自訂兩頁、白話進度、完成頁。🧪</li>
+        <li><strong>不用 uv 的自帶 Python</strong>：照固定網址＋SHA256 抓同一份獨立版 Python 放進 SYNOX 資料夾，再用一般的 <code>python -m venv .venv</code>。預設不碰 Conda、Microsoft Store、系統的 Python。🧪</li>
         <li><strong>-UseSystemPython</strong>：使用者明確要求時才用系統的 Python。</li>
-        <li>這兩項由另一個工作負責；做完之後要回來對一次這份規格的第 3 頁和 A 頁。</li>
+        <li><strong>入門教學</strong>：<code>/tutorial</code> 和「開始教學」，SYNOX 核心的一部分。🧪</li>
+        <li>🧪＝寫了也還沒在真的 Windows 上試過。做完要回來對一次這份規格。</li>
       </ul>
     </div>
     <div>
       <h3><i class="dot" style="background:var(--warn)"></i>⏳ 尚未完成</h3>
       <ul>
         <li><strong>打包出 .exe</strong>，並在空白的 Windows 10 和 11 各裝一次。</li>
-        <li>安裝程式的新畫面：選語言、歡迎、先說清楚、安裝方式、自訂兩頁、白話進度、完成頁。</li>
         <li>安裝程式的 <strong>12 種語言</strong>：每種一個 Inno Setup 語言檔，加上我們自己的字（<a href="#q7">Q7</a>）。</li>
         <li>SYNOX 本身（網頁介面、bot 的話）照 <code>lang.txt</code>／<code>config.json</code> 的語言開。</li>
         <li><code>Setup.bat</code> 語言題按 Enter 改成預選 Windows 的顯示語言。</li>
         <li>bootstrap 的旗標：<code class="nb">-Custom</code>、<code class="nb">-No…</code>、<code class="nb">-NoWizard</code>、<code class="nb">-Step</code>，以及不開黑色視窗的執行方式。</li>
         <li>五個失敗畫面、紀錄檔、「複製問題描述」。</li>
-        <li>ZIP 路徑自動下載工具庫；安裝階段自動裝入門工具與 Claude Code。</li>
+        <li>安裝階段最後一步裝 Claude Code；<code class="nb">-AllTools</code>（ZIP 路徑這時才下載工具庫）。</li>
+        <li><code>stage_installer.py</code> 換成備同一份獨立版 Python；修改 ADR 0003 關於 Claude Code 的那一句。</li>
         <li>解除安裝的「連資料一起刪」；開始功能表的入口。</li>
-        <li>簽章；第三方授權清單。</li>
+        <li>下載頁的 SHA-256 和 SmartScreen 兩步圖解；第三方授權清單。簽章之後再決定（<a href="#questions">Q6</a>）。</li>
+        <li>一步一步教學改成以 .exe 為主；給工程師的進階文件（Docker、<code>git clone</code>＋venv）。</li>
       </ul>
     </div>
   </div>
   <div class="sec-head"><h3>一定要在真的 Windows 上試的事</h3></div>
   <div class="callouts">
-    <div><b>畫面與時間</b>附的 Python 能不能開出設定精靈的視窗；整個安裝實際要幾分鐘、佔多少空間；安裝中會不會閃出黑色視窗。</div>
+    <div><b>畫面與時間</b>獨立版 Python 能不能開出設定精靈的視窗、<code>python -m venv</code> 建不建得起來；整個安裝實際要幾分鐘、佔多少空間；安裝中會不會閃出黑色視窗。</div>
     <div><b>保護機制</b>沒簽章時 SmartScreen 的實際畫面；Microsoft Defender 會不會攔安裝程式裡的 PowerShell 步驟，特別是安裝 Claude Code 那一行。</div>
     <div><b>各種電腦</b>使用者名稱或路徑有中文、空白；桌面被 OneDrive 接管；已經裝了 Anaconda；公司電腦限制 PowerShell；沒有網路。</div>
   </div>
@@ -1295,38 +1348,38 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
 <!-- ============================================================ 8. questions -->
 <section id="questions">
   <div class="sec-head">
-    <p class="eyebrow">請擁有者決定</p>
-    <h2>九個要你點頭的問題</h2>
-    <p class="sub">每一題都附上建議。沒有回覆的話，就照建議做。Q7（語言）已經決定了，綠色的就是。</p>
+    <p class="eyebrow">擁有者的決定・2026-11-13</p>
+    <h2>九個問題，都決定了</h2>
+    <p class="sub">綠色＝已決定。Q1、Q2 沒有另外回覆，照建議做。只有 Q6 的簽章留一半之後再決定。</p>
   </div>
   <ol class="qs">
-    <li><b>「建議」安裝要不要開機後自動啟動？</b>
-      <p>今天設定精靈這一項預設是不勾。但沒開的話，重開機之後手機上的助理就不回了、提醒也不響，不懂電腦的人會以為壞掉。</p>
-      <p class="rec"><i>建議</i><span>要，預設勾。視窗看得到、隨時能關，自訂可以取消。</span></p></li>
-    <li><b>「建議」安裝要不要順便裝 Claude Code？</b>
-      <p>好處是設定精靈預設的 AI 就是它，裝好只剩登入。代價是這一步要上網、會執行官方網站的安裝指令、裝在 SYNOX 資料夾外面，跟 ADR 0003「安裝程式不跑任何從網路下載的東西」不一致，防毒軟體也可能攔。</p>
-      <p class="rec"><i>建議</i><span>要，但只在這台還沒有時才裝、放在最後一步、失敗不擋安裝，並且在畫面上寫明「需要上網、裝在使用者資料夾」。同時修改 ADR 0003 那一句。實測被防毒攔的話，退回成只在設定精靈裡按按鈕才裝。</span></p></li>
-    <li><b>「全部幫我裝好」的工具要裝到什麼程度？</b>
-      <p>ADR 0003 現在寫的是「不自動全裝，要什麼自己挑」。但空的 SYNOX 對新手來說等於什麼都不會。</p>
-      <p class="rec"><i>建議</i><span>9 個工具的檔案都放好，只自動裝「入門組合」（工具庫目錄裡的 starter，例如隨手記、記帳），照原本的安全檢查走，不裝需要輸入發行者名字的那一類。入門組合放哪幾個由你定。</span></p></li>
-    <li><b>要不要有「我同意授權條款」那一頁？</b>
-      <p>今天的 <code>synox.iss</code> 會顯示整份 LICENSE 並要求勾「我同意」。多一頁、全是英文法律文字，而 AGPL 並不要求使用者點同意才能使用。</p>
-      <p class="rec"><i>建議</i><span>拿掉那一頁，在歡迎頁放一行「繼續安裝代表你同意授權條款」加連結，授權檔照樣裝進資料夾。</span></p></li>
-    <li><b>.exe 附的 Python 用哪一種？</b>
-      <p>現在的設計是官方的「可攜版」Python，它沒有視窗元件，要另外複製 tkinter 進去，能不能成功還沒驗證（原本的 QD3）。ZIP 路徑正在改用 uv 下載的獨立版 Python，那種通常本來就帶 tkinter。</p>
-      <p class="rec"><i>建議</i><span>兩條路用同一種：發佈時先用 uv 把同一版獨立 Python 抓好、放進安裝程式。少維護一套，也可能順便解決開不出視窗的問題。等另一個工作做完再確認。</span></p></li>
-    <li><b>安裝程式要不要簽章？（原本的 QD1）</b>
-      <p>沒簽章時每個人第一次執行都會看到 SmartScreen 的藍色警告，這是「一路按下一步」最大的破口。</p>
-      <p class="rec"><i>建議</i><span>alpha 先不簽：下載頁放 SHA-256 和兩步圖解。公開宣傳之前改用雲端簽章服務。</span></p></li>
+    <li class="ok"><b>「建議」安裝要不要開機後自動啟動？（已決定）</b>
+      <p>沒開的話，重開機之後手機上的助理就不回了、提醒也不響，不懂電腦的人會以為壞掉。沒有另外回覆，照建議做。</p>
+      <p class="rec"><i>決定</i><span>要，預設勾。視窗看得到、隨時能關；在「自訂」可以取消。</span></p></li>
+    <li class="ok"><b>「建議」安裝要不要順便裝 Claude Code？（已決定）</b>
+      <p>好處是設定精靈預設的 AI 就是它，裝好只剩登入。代價是要上網、會執行官方網站的安裝指令、裝在 SYNOX 資料夾外面。沒有另外回覆，照建議做。</p>
+      <p class="rec"><i>決定</i><span>要，當成可以不裝的最後一步：這台還沒有才裝，失敗不擋安裝，畫面上寫明「需要上網、裝在你的使用者資料夾」。同時修改 ADR 0003 那一句。實測被防毒攔的話，退回成只在設定精靈裡按按鈕才裝。</span></p></li>
+    <li class="ok"><b>「建議」要裝哪些工具？（已決定）</b>
+      <p><strong>擁有者決定：「建議」＝只有環境＋入門教學。</strong>SYNOX 一開始是空的；使用者跑教學（<code>/tutorial</code>、「開始教學」）、看懂這個程式，再自己挑工具。理由：希望大家先了解、再選擇，不要一裝好就一堆東西。</p>
+      <p class="rec"><i>決定</i><span>不預先裝任何工具，也沒有「入門組合」。教學是 SYNOX 核心的一部分（同一個核心，能把畫面上的按鈕亮起來），隨時能重看。「自訂」裡有一項「全部官方工具都裝（不建議）」，預設不勾，小字寫「建議做完教學後再自己挑」。</span></p></li>
+    <li class="ok"><b>要不要有「我同意授權條款」那一頁？（已決定）</b>
+      <p><strong>擁有者決定：不要。</strong>歡迎頁像 Apple 那樣越少越好：「歡迎使用 SYNOX，用得開心。」加 2 到 4 個短句，讓人不用多想。</p>
+      <p class="rec"><i>決定</i><span>拿掉「我同意」那一頁。歡迎頁只放一行小字：個人使用免費；商業使用請看 AGPL-3.0 條款（連結）。繼續安裝就代表同意。授權檔照樣裝進資料夾。</span></p></li>
+    <li class="ok"><b>SYNOX 自帶的 Python 用哪一種？（已決定）</b>
+      <p><strong>擁有者決定：不用 uv。</strong>擁有者比較喜歡一般的 venv，也不想在電腦上多一個 uv。.exe 和 ZIP 用同一份固定版本的獨立版 CPython（python-build-standalone，本來就帶 tkinter）。</p>
+      <p class="rec"><i>決定</i><span>照固定的網址＋SHA256 取得，放進 SYNOX 資料夾：ZIP 在安裝時下載；.exe 在打包時就放進去，使用者什麼都不用下載。接著是一般的 <code>python -m venv .venv</code>。SYNOX 資料夾以外什麼都不動：不碰 PATH、登錄檔，不用管理員。</span></p></li>
+    <li class="ok"><b>安裝程式要不要簽章？（alpha 已決定）</b>
+      <p><strong>alpha 先不簽。</strong>下載頁放 SHA-256，加上過 SmartScreen 的兩步圖解（<a href="#f3">失敗畫面 3</a>）。</p>
+      <p class="rec"><i>之後再決定</i><span>公開宣傳之前，再看要不要用雲端簽章服務（例如 Microsoft 的 Trusted Signing，大約是每月付費）。</span></p></li>
     <li class="ok" id="q7"><b>安裝程式的語言怎麼選？（已決定）</b>
       <p><strong>擁有者決定：語言最先選。</strong>安裝程式一打開就是<a href="#s1">第 1 頁「選語言」</a>（預選 Windows 的顯示語言，列 12 種，原文名＋拉丁字母名）；之後安裝程式的每一頁、設定精靈、SYNOX 本身都用這個語言。原本「跟 Windows 一樣、不問」和「自訂裡才有語言頁」都拿掉了。ZIP 路徑今天就是先問語言，不用改流程。</p>
       <p class="rec"><i>還要確認</i><span>安裝程式畫面能顯示哪幾種，要看 Inno Setup 的語言檔（<code>.isl</code>）：English 是預設；Español、Français、Deutsch、Português (Brasil)、Русский、日本語 這類 Inno Setup 6 有附官方的；繁體中文、简体中文、한국어、العربية、हिन्दी 要逐一確認有沒有附，沒有就從 Inno Setup 網站的非官方翻譯拿來放進 repo，並確認授權。我們自己的字放 <code>[CustomMessages]</code>，12 種都要翻（像精靈一樣，缺的字退回 English）。哪一種暫時湊不齊，第 1 頁仍然列它：安裝畫面先用 English，選的語言照樣存進 <code>lang.txt</code> 給精靈和 SYNOX 用。</span></p></li>
-    <li><b>ZIP 路徑的「建議／自訂」要長什麼樣？</b>
-      <p>ZIP 這條路在 Python 裝好之前開不出精靈的視窗，只有 <code>Setup.bat</code> 的文字視窗。今天它第一題是問語言（<code>Ask-SynoxLang</code>），這一題照 <a href="#q7">Q7</a> 留在最前面。</p>
-      <p class="rec"><i>建議</i><span>第一題照舊問語言，只把按 Enter 的預設從繁體中文改成 Windows 的顯示語言。選完後用那個語言印「先說清楚」那三行，再問一題：按 Enter 照建議全部裝好，輸入 C 自訂。不另外做視窗；想要完整畫面的人用 .exe。</span></p></li>
-    <li><b>解除安裝時要不要提供「連我的資料也一起刪除」？</b>
+    <li class="ok"><b>ZIP 路徑的「建議／自訂」要長什麼樣？（已決定）</b>
+      <p><strong>文字視窗留著。</strong>大多數人走 .exe；ZIP＋<code>Setup.bat</code> 是另一種方法，也給開不了 .exe 的人用。</p>
+      <p class="rec"><i>決定</i><span>第一題問語言，按 Enter 的預設是 Windows 的顯示語言。接著問一題：按 Enter＝建議，輸入 C＝自訂。不另外做視窗。</span></p></li>
+    <li class="ok"><b>解除安裝時要不要提供「連我的資料也一起刪除」？（已決定）</b>
       <p>今天安裝程式的解除安裝一律留下設定和資料；要刪資料得到 <code>Uninstall.bat</code> 選第 3 項並輸入 DELETE。</p>
-      <p class="rec"><i>建議</i><span>要，給一個預設不勾的選項，勾了之後再確認一次。預設行為不變：資料留著。</span></p></li>
+      <p class="rec"><i>決定</i><span>要，給一個預設不勾的選項，勾了之後再確認一次。預設行為不變：資料留著。</span></p></li>
   </ol>
 </section>
 
@@ -1334,7 +1387,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
 </div>
 
 <footer>
-  <p class="stamp">給開發者：本機路徑 docs/installer/spec.html ・ 線上版 <a href="https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB">https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB</a> ・ 頁面版本 <span data-stamp>6cc24d9e65 · 2026-11-13</span></p>
+  <p class="stamp">給開發者：本機路徑 docs/installer/spec.html ・ 線上版 <a href="https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB">https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB</a> ・ 頁面版本 <span data-stamp>2da64ba298 · 2026-11-13</span></p>
 </footer>
 </div>
 

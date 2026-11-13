@@ -1,21 +1,18 @@
 # Build SYNOX-Setup-<version>.exe on a clean GitHub-hosted Windows runner, the way docs/adr/0003 (B) describes:
-# official embeddable CPython (pinned + sha256) -> requirements.lock + offline wheelhouse -> SYNOX_Libs tools zip
-# (pinned + sha256) -> optional tkinter from the same full CPython -> scripts/stage_installer.py -> Inno Setup (pinned
-# + sha256) -> artifact. On a v* tag the exe is attached to a DRAFT release; nothing is ever published automatically.
+# requirements.lock + offline wheelhouse -> SYNOX_Libs tools zip (pinned + sha256) -> scripts/stage_installer.py
+# --fetch-python (the python-build-standalone CPython pinned in setup/bootstrap.ps1, the SAME file Setup.bat downloads
+# for the ZIP, sha256 checked; it has tkinter, so the window wizard opens) -> Inno Setup (pinned + sha256) -> artifact.
+# On a v* tag the exe is attached to a DRAFT release; nothing is ever published automatically.
 # How to run it, where the exe lands and how to test it: docs/release-build.md. Unsigned (no secrets used).
 #
-# Every pin lives in `env:` below. To bump one: change the version AND its sha256 together (docs/release-build.md
+# Every pin lives in `env:` below, except the shipped Python ($PythonUrl / $PythonSha256 in setup/bootstrap.ps1, one
+# place for the .exe and the ZIP). To bump one: change the version AND its sha256 together (docs/release-build.md
 # says where each checksum comes from). Third-party actions are pinned to full commit SHAs.
 
 name: Build Windows installer
 
 on:
   workflow_dispatch:
-    inputs:
-      tkinter:
-        description: "Bundle tkinter from the matching full CPython (--tk-from) so the window wizard can open"
-        type: boolean
-        default: true
   push:
     tags:
       - "v*"
@@ -28,10 +25,10 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Official "Windows embeddable package (64-bit)" from python.org. Keep equal to $EmbedVersion in setup/bootstrap.ps1
-  # and to the CPython that actions/setup-python installs (wheels and tkinter must match X.Y.Z).
+  # The CPython actions/setup-python installs for the build venv (lock + wheel downloads). Only its X.Y matters: it
+  # must equal the X.Y of the shipped Python ($PythonVersion in setup/bootstrap.ps1) so the cp3XX wheels fit.
+  # (Later 3.12.x patch releases are source-only on python.org, so setup-python stays on the last binary one.)
   PYTHON_VERSION: "3.12.10"
-  PYTHON_EMBED_SHA256: "4acbed6dd1c744b0376e3b1cf57ce906f9dc9e95e68824584c8099a63025a3c3"
   # Tool library: SYNOX_Libs release asset (index.json + every .synoxpack, under tools/ inside the zip).
   LIBS_REPO: "ChouYangEn0401/SYNOX_Libs"
   LIBS_TAG: "v0.2.0"
@@ -42,9 +39,9 @@ env:
   INNO_TAG: "is-6_7_4"
   INNO_SHA256: "a549929319f9120716677c685535ca4671e4b937b5fdc87e2585f32d8eb30e8c"
   INNO_SIGNER: "Pyrsys B.V."
-  # Wheels shipped next to requirements.lock so bootstrap can build .venv offline from runtime\python.
+  # Wheels shipped next to requirements.lock so bootstrap can install offline into the .venv it makes with
+  # runtime\python -m venv (its own pip is used first; setuptools builds the editable SYNOX install).
   PIP_VERSION: "26.3"
-  VIRTUALENV_VERSION: "21.15.6"
   SETUPTOOLS_VERSION: "84.2.1"
   PIP_DISABLE_PIP_VERSION_CHECK: "1"
   PYTHONIOENCODING: "utf-8"
@@ -63,15 +60,13 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       artifact: ${{ steps.version.outputs.artifact }}
-    env:
-      WITH_TK: ${{ github.event_name != 'workflow_dispatch' || inputs.tkinter }}
     steps:
       - name: Check out SYNOX
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Set up the full CPython of the same version (build venv, wheel tags, tkinter source)
+      - name: Set up a CPython of the same X.Y (build venv, wheel tags)
         id: py
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
@@ -96,7 +91,7 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
           "artifact=SYNOX-Setup-$version-$short" >> $env:GITHUB_OUTPUT
           "VERSION=$version" >> $env:GITHUB_ENV
-          Write-Host "SYNOX $version ($short), tkinter: $env:WITH_TK"
+          Write-Host "SYNOX $version ($short)"
 
       - name: Pre-publication scan of the checked-out files (secrets, local paths, personal e-mails)
         env:
@@ -118,15 +113,13 @@ jobs:
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           $dl = Join-Path $env:RUNNER_TEMP 'downloads'
-          & $env:PY scripts/installer_ci.py fetch "https://www.python.org/ftp/python/$env:PYTHON_VERSION/python-$env:PYTHON_VERSION-embed-amd64.zip" --sha256 $env:PYTHON_EMBED_SHA256 --out (Join-Path $dl 'python-embed.zip')
           & $env:PY scripts/installer_ci.py fetch "https://github.com/$env:LIBS_REPO/releases/download/$env:LIBS_TAG/$env:LIBS_TOOLS_ZIP" --sha256 $env:LIBS_TOOLS_SHA256 --out (Join-Path $dl 'tools.zip')
           & $env:PY scripts/installer_ci.py fetch "https://github.com/jrsoftware/issrc/releases/download/$env:INNO_TAG/innosetup-$env:INNO_VERSION.exe" --sha256 $env:INNO_SHA256 --out (Join-Path $dl 'innosetup.exe')
-          & $env:PY scripts/installer_ci.py extract (Join-Path $dl 'python-embed.zip') --out (Join-Path $env:RUNNER_TEMP 'python-embed')
           & $env:PY scripts/installer_ci.py extract (Join-Path $dl 'tools.zip') --out (Join-Path $env:RUNNER_TEMP 'libs')
           if (-not (Test-Path -LiteralPath (Join-Path $env:RUNNER_TEMP 'libs\tools\index.json'))) { throw "$env:LIBS_TOOLS_ZIP has no tools/index.json" }
-          # Second, independent check: both executables carry a valid Authenticode signature from the expected publisher.
+          # Second, independent check: the Inno Setup installer carries a valid Authenticode signature from its publisher.
+          # (The shipped Python is checked by sha256 in the stage step; python-build-standalone binaries are not signed.)
           $checks = @(
-            @{ File = (Join-Path $env:RUNNER_TEMP 'python-embed\python.exe'); Signer = 'Python Software Foundation' },
             @{ File = (Join-Path $dl 'innosetup.exe'); Signer = $env:INNO_SIGNER }
           )
           foreach ($c in $checks) {
@@ -167,7 +160,7 @@ jobs:
           & $vpy scripts/lock_deps.py
           Copy-Item requirements.lock (Join-Path $records 'requirements-unhashed.lock')
           & $vpy -m pip download -q -r requirements.lock -d $wh --only-binary=:all:
-          & $vpy -m pip download -q "pip==$env:PIP_VERSION" "virtualenv==$env:VIRTUALENV_VERSION" "setuptools==$env:SETUPTOOLS_VERSION" -d $wh --only-binary=:all:
+          & $vpy -m pip download -q "pip==$env:PIP_VERSION" "setuptools==$env:SETUPTOOLS_VERSION" -d $wh --only-binary=:all:
           & $vpy scripts/lock_deps.py --wheelhouse $wh
           & $vpy scripts/lock_deps.py --check
           Copy-Item requirements.lock (Join-Path $records 'requirements.lock')
@@ -179,17 +172,13 @@ jobs:
           "BUILD_PY=$vpy" >> $env:GITHUB_ENV
           "WHEELHOUSE=$wh" >> $env:GITHUB_ENV
 
-      - name: Stage the installer contents (scripts/stage_installer.py, copy only)
-        env:
-          PY: ${{ steps.py.outputs.python-path }}
+      - name: Stage the installer contents (scripts/stage_installer.py; downloads the pinned Python, checks its sha256)
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
-          $cmd = @('scripts/stage_installer.py',
-                   '--python-embed', (Join-Path $env:RUNNER_TEMP 'python-embed'),
+          $cmd = @('scripts/stage_installer.py', '--fetch-python',
                    '--wheelhouse', $env:WHEELHOUSE,
                    '--tools', (Join-Path $env:RUNNER_TEMP 'libs\tools'),
                    '--out', (Join-Path $env:RUNNER_TEMP 'stage'))
-          if ($env:WITH_TK -eq 'true') { $cmd += @('--tk-from', (Split-Path -Parent $env:PY)) }
           & $env:BUILD_PY @cmd
           $manifest = Join-Path $env:RUNNER_TEMP 'stage\SYNOX\STAGE-MANIFEST.txt'
           Get-Content $manifest
@@ -210,9 +199,9 @@ jobs:
             "## SYNOX-Setup-$env:VERSION.exe",
             "",
             "- sha256: ``$hash``  ($mb MB, unsigned)",
-            "- Python $env:PYTHON_VERSION embeddable; tkinter bundled: $env:WITH_TK",
+            "- $((Get-Content (Join-Path $stage 'STAGE-MANIFEST.txt') -TotalCount 1))",
             "- tools: $env:LIBS_REPO $env:LIBS_TAG ($env:LIBS_TOOLS_ZIP); Inno Setup $env:INNO_VERSION",
-            "- pip $env:PIP_VERSION, virtualenv $env:VIRTUALENV_VERSION, setuptools $env:SETUPTOOLS_VERSION"
+            "- pip $env:PIP_VERSION, setuptools $env:SETUPTOOLS_VERSION"
           ) -join "`n" >> $env:GITHUB_STEP_SUMMARY
 
       - name: Upload the installer
@@ -243,9 +232,7 @@ jobs:
           $wh = Join-Path $S 'wheelhouse'
           $rt = Join-Path $S 'runtime\python\python.exe'
           & $rt -c "import sys; print(sys.version)"
-          $pipWheel = Get-ChildItem -LiteralPath $wh -Filter 'pip-*.whl' | Select-Object -First 1
-          & $rt (Join-Path $pipWheel.FullName 'pip') install --disable-pip-version-check --no-warn-script-location -q --no-index --find-links $wh pip virtualenv
-          & $rt -m virtualenv (Join-Path $S '.venv')
+          & $rt -m venv (Join-Path $S '.venv')
           $vpy = Join-Path $S '.venv\Scripts\python.exe'
           & $vpy -m pip install -q --no-index --find-links $wh -r (Join-Path $S 'requirements.lock')
           & $vpy -m pip install -q --no-index --find-links $wh --no-deps -e $S
@@ -254,12 +241,10 @@ jobs:
             & $vpy -c "import synox, isdtelekit, requests, cryptography, websocket, synox.config as c; print(synox.__version__, c.ROOT)"
             & $vpy -m synox tools list
             try { & $vpy -m synox doctor --offline } catch { Write-Host "::warning::doctor --offline did not exit 0 (no config.json yet): $_" }
-            if ($env:WITH_TK -eq 'true') {
-              try { & $vpy -c "import tkinter; print('tcl', tkinter.Tcl().eval('info patchlevel'))" }
-              catch { Write-Host "::warning::tkinter does not load inside .venv: Setup would fall back to the text synox init (ADR 0003 QD3)" }
-            }
+            # The shipped Python always has tkinter: the window wizard must be able to open (a failure stops the build).
+            & $vpy -c "import tkinter; print('tcl', tkinter.Tcl().eval('info patchlevel'))"
           } finally { Pop-Location }
-          $global:LASTEXITCODE = 0   # the two checks above are warnings only; the runner's wrapper exits with LASTEXITCODE
+          $global:LASTEXITCODE = 0   # doctor above is a warning only; the runner's wrapper exits with LASTEXITCODE
 
       - name: Clean-room check (scripts/clean_room_check.py; informational until it has passed on CI once)
         continue-on-error: true
