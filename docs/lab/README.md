@@ -11,7 +11,7 @@
 | [docs/2026-11-13-vlm-vision-design.md](2026-11-13-vlm-vision-design.md) | VLM（看圖）接進 harness 的設計（含本地實測） |
 | [docs/2026-11-13-subscription-login-research.md](2026-11-13-subscription-login-research.md) | 各家訂閱登入調查、`ntu_easy_llm` 結構確認 |
 | [tools/local-llm-live/](tools/local-llm-live/) | 對真的 Ollama 跑 SYNOX AgentLoop 的測試腳本與原始結果 |
-| [docs/2026-11-14-tool-apps-implementation-plan.md](2026-11-14-tool-apps-implementation-plan.md) | 工具服務（每個工具自己的完整網頁）的實作計畫：合約、八個工作包、只有擁有者能做的真機驗收；設計在 [adr/0023](../adr/0023-tool-apps-services.md)（提案） |
+| [docs/2026-11-14-tool-apps-implementation-plan.md](2026-11-14-tool-apps-implementation-plan.md) | 工具服務（每個工具自己的完整網頁）的實作計畫：合約、八個工作包、只有擁有者能做的真機驗收；設計在 [adr/0023](../adr/0024-tool-apps-services.md)（提案） |
 
 > 這些檔案原本在本機專案 SYNOX_Plans，2026-11-13 併入 SYNOX 的 docs/lab（路徑已改成 <HOME> 佔位）。文中提到「SYNOX_Plans」「尚未 push」的地方是搬進來之前的狀態。
 

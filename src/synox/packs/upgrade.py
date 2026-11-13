@@ -208,7 +208,7 @@ def scope_changes(old: Manifest, new: Manifest) -> List[dict]:
 
 
 def app_changes(old: Manifest, new: Manifest) -> List[dict]:
-    """web.app 的變化（工具服務，ADR 0023 §5）：新加畫面、多了動作或匯出、動作變危險、可以從手機用＝紅字；拿掉的＝一般字。"""
+    """web.app 的變化（工具服務，ADR 0024 §5）：新加畫面、多了動作或匯出、動作變危險、可以從手機用＝紅字；拿掉的＝一般字。"""
     a = (getattr(old, "web", None) or {}).get("app") or None
     b = (getattr(new, "web", None) or {}).get("app") or None
     out: List[dict] = []

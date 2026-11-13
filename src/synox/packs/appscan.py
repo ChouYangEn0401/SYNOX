@@ -1,4 +1,4 @@
-"""第 2 關的「網頁畫面」那一段（工具服務，ADR 0023 第三版、計畫 WP1）：只讀檔、不執行，只用標準函式庫。
+"""第 2 關的「網頁畫面」那一段（工具服務，ADR 0024 第三版、計畫 WP1）：只讀檔、不執行，只用標準函式庫。
 
 - **擋（種類 app）**——只有解析 HTML 就能確定的：有內容的 `<script>`；`on*` 屬性；`<base>`；`<meta http-equiv>`；
   `<iframe>`／`<object>`／`<embed>`／`<frame>`；`script`／`link`／`img`／`source`／`video`／`audio`／`form` 的
