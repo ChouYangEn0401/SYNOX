@@ -169,8 +169,8 @@ SYNOX 出廠不帶任何工具；官方的工具都在 **SYNOX 工具庫（SYNOX
 放別處就寫進 `config.json`：`"packs": {"library": "<打包好的工具庫資料夾>"}`（相對於 SYNOX 資料夾，或絕對路徑；網址只會顯示、不會自動下載）。
 `synox init`、`synox tools list｜install` 從這裡列出、對雜湊、再走同一條安全檢查。
 
-拿到 `.synoxpack`：在網頁設定頁上傳，或點兩下檔案，或 `.venv\Scripts\python.exe -m synox install <檔>`；
-SYNOX 先檢查、把報告給你看，你按確認才裝。裝好 `/help` 就多一組，AI 也會自己學會怎麼用。
+拿到 `.synoxpack`：在網頁「設定 → 功能與安裝」（網址 `#packs`）上傳，或點兩下檔案，或 `.venv\Scripts\python.exe -m synox install <檔>`；
+SYNOX 先檢查、把報告給你看（就在那一頁最上面；還沒決定的會留在「等你核准」，7 天沒處理自動清掉），你按確認才裝。裝好 `/help` 就多一組，AI 也會自己學會怎麼用。
 每個工具會宣告它照哪一版 SDK 寫（`requires.sdk`）；跟這台不合的會明說、不裝。
 每個工具也標了**穩定度**（`stage`）：🔧 test（測試中）、🧪 alpha（早期版）、🚧 beta（公測版）、⭐ stable（穩定版），
 `/help`、網頁工具頁、安裝報告、`doctor` 都看得到；沒標的當 alpha。

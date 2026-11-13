@@ -1,5 +1,24 @@
 # Changelog
 
+## 未發佈（網頁設定頁分頁、安裝 pack 的專屬頁）
+
+### 新增
+- **設定頁分成分頁**：AI（來源＋用量）／聊天通道／功能與安裝／帳號（伺服器版、有權限才有）／電腦與備份（保持清醒＋備份）。
+  分頁在網址上（`#settings:ai`、`#settings:channels`、`#packs`、`#settings:accounts`、`#settings:system`），重新整理、貼連結都留在同一頁；
+  換分頁不重抓資料、不清掉正在填的表單。
+- **安裝 pack 的專屬頁 `#packs`**（＝`#settings:packs`）：「安裝新功能」在最上面，報告、確認、結果都在同一格，不用往下捲。
+  雙擊 .synoxpack／Install-Pack.bat／`synox install <檔>` 開的網址改成 `/?pack=<token>#packs`；不管帶什麼 hash，有 `?pack=` 一律到這頁、
+  打開那一份，然後用 `history.replaceState` 把 token 從網址拿掉（留乾淨的 `#packs`）。
+- **待核准清單**：還沒按確認的暫存 pack（`data/web_uploads/`）不用 token 也看得到（名字、版本、T2 標記、幾天後清掉），可以「看報告」或「不要裝」。
+  新 API（擁有者）：`GET /api/packs/staged`、`POST /api/packs/discard {"token"}`；`admin.list_staged`（順便清掉 7 天沒處理的、
+  沒有 staged.json 超過 1 小時的半套暫存；只看像 token 的資料夾、不跟符號連結）、`admin.discard_staged`。
+- **安裝步驟**：檢查 → 看報告 → 確認 → 安裝 → 完成，有狀態動畫（遵守 reduced-motion）。每一步丟 `document` 的 `synox:install-step` 事件
+  （detail：step、status、token、name），`#install-steps` 上也有 `data-step`／`data-status`：pack／工具作者之後可以掛自己的動畫或狀態。
+  給其他程式碼用的入口 `window.SynoxInstall`（`open`、`reviewFile(file)`、`reviewToken(token)`、`onStep(fn)`、`state()`），之後的拖放也走它。
+
+### 改變
+- 報告上的「不要裝」現在真的刪掉暫存；多一個「稍後再決定」（收起來，留在待核准清單）。
+
 ## 未發佈（branch feat/vlm_vision：看圖）
 
 ### 新增

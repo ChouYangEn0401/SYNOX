@@ -215,7 +215,7 @@ def test_install_cli_command(tmp_path, monkeypatch, capsys):
     opened = []
     args = cli.argparse.Namespace(config=str(cfg), file=str(path), yes=False, packs_dir=str(tmp_path / "packs"))
     assert cli.cmd_install(args, is_up=lambda port: port == 18830, open_url=opened.append) == 0
-    assert opened and "?pack=" in opened[0] and opened[0].endswith("#settings")
+    assert opened and "?pack=" in opened[0] and opened[0].endswith("#packs")
     assert not (tmp_path / "packs" / "hello").exists()                                 # 沒按確認：沒裝
     args.yes = True
     assert cli.cmd_install(args, is_up=lambda port: False) == 0
