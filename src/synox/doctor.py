@@ -12,6 +12,7 @@ import sys
 from typing import Callable, List
 
 from synox import __version__
+from synox.brand import latest_hint
 from synox.config import CONFIG_PATH, MODE_LABELS, ROOT, ROOT_SOURCE, SynoxConfig, redacted
 
 
@@ -258,6 +259,7 @@ ROOT_NOTES = {"SYNOX_HOME": "（來自環境變數 SYNOX_HOME；不是你要的�
 def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] = print) -> int:
     problems = 0
     out(f"🩺 SYNOX {__version__} 健康檢查")
+    out(f"• 有沒有新版：{latest_hint()}")
     out(f"• Python：{platform.python_version()}（{sys.executable}）")
     out(f"• SDK：{_sdk_line()}")
     out(f"• 資料夾：{ROOT}" + ROOT_NOTES.get(ROOT_SOURCE, ""))
