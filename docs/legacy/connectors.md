@@ -18,7 +18,7 @@
 
 ## 為什麼下架
 
-擁有者 2026-11-12 回答 [QuestionToUser.md](../QuestionToUser.md) 的 QL1（「這 4 個要不要也搬去工具庫」，原文不公開）。
+擁有者 2026-11-12 回答 [QuestionToUser.md](../../QuestionToUser.md) 的 QL1（「這 4 個要不要也搬去工具庫」，原文不公開）。
 
 寫死在主程式裡的工具繞過安裝流程（五關、雜湊鎖），而且新裝的 SYNOX `/help` 還是會看到它們（「還沒裝任何工具」的提示得把它們扣掉）。
 搬到工具庫之後：主程式沒有任何工具、`BUNDLED` 是空的；四個工具在工具庫宣告 `requires.sdk`、`stage: alpha`、打包成 `.synoxpack`、有自己的測試。

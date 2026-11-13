@@ -1,6 +1,6 @@
 """共用的假東西：整支 SYNOX（測試用的 pack、真的 vault 加密）跑在記憶體裡，不連 Telegram、不連網、不開埠。
 
-SYNOX 出廠不帶工具（2026-11-12，legacy/builtin-packs.md、legacy/connectors.md）。測試期間 `loader.PACK_DIRS`（「SYNOX 自己的 pack 資料夾」）
+SYNOX 出廠不帶工具（2026-11-12，docs/legacy/builtin-packs.md、docs/legacy/connectors.md）。測試期間 `loader.PACK_DIRS`（「SYNOX 自己的 pack 資料夾」）
 一律換成 tests/fixtures/packs/（money、notes：下架前內建版本的凍結複本，正本在 SYNOX_Libs；以前還加 connectors/，
 那 4 個連同測試搬到 SYNOX_Libs 了）
 （_test_pack_dirs，autouse）：make_bot、doctor、/bot_status、web 的 reload 看到的都是這一份，不讀 repo 的 packs/

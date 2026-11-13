@@ -19,8 +19,8 @@
 | [sdk.md](sdk.md) | 作者 | Python 工具 SDK（`@tool`、`serve()`、`secret()`、`context()`、`synox-sdk` 指令） |
 | [pack-format.md](pack-format.md) | 作者、維護者 | pack.json 每個欄位的完整規則、kind=cli／mcp／python 的細節、升級與環境建置 |
 | [../packs/README.md](../packs/README.md) | 使用者 | SYNOX 出廠不帶工具：工具在 SYNOX 工具庫（SYNOX_Libs，另一個 repo），怎麼裝 |
-| [../legacy/builtin-packs.md](../legacy/builtin-packs.md) | 使用者、維護者 | 下架的內建工具（記帳、隨手記、提醒）：為什麼、舊資料怎麼接回、怎麼救回 |
-| [../legacy/connectors.md](../legacy/connectors.md) | 使用者、維護者 | 搬到工具庫的 4 個 connector（Notion、Todoist、Google 日曆、Apple 提醒事項）：為什麼、token／帳號怎麼接回、怎麼救回 |
+| [legacy/builtin-packs.md](legacy/builtin-packs.md) | 使用者、維護者 | 下架的內建工具（記帳、隨手記、提醒）：為什麼、舊資料怎麼接回、怎麼救回 |
+| [legacy/connectors.md](legacy/connectors.md) | 使用者、維護者 | 搬到工具庫的 4 個 connector（Notion、Todoist、Google 日曆、Apple 提醒事項）：為什麼、token／帳號怎麼接回、怎麼救回 |
 | [../examples/](../examples/) | 作者 | 可以照抄的範例：`hello`（SDK）、`any-language-cli`（不用 SDK）、`node-mcp-tool`（MCP stdio）、`mcp-remote-*`（遠端 MCP） |
 | [AGENT.md](AGENT.md) | 維護者 | 程式地圖、不能破壞的規則（invariants）、已知限制 |
 | [adr/](adr/) | 維護者 | 架構決定（一件一檔）：[0001](adr/0001-runtime-loop-heartbeat-mother-session.md) runtime loop、心跳、常駐助理、soul.md；[0002](adr/0002-soul-md-in-chat-assistant-prompt.md) soul.md 放進對話助理的系統提示（Q7）；[0005](adr/0005-soul-ledger-memory-provenance-review.md) soul 帳本（助理筆記的來歷、有疑慮先問、取代不刪除、整理與遺忘）；[0004](adr/0004-activator-event-driven-rules.md) 連動：任務做完馬上觸發下一件、防無限連動；[0006](adr/0006-keep-awake-screen-may-sleep.md) 保持清醒（含現代待命附記）；[0007](adr/0007-local-llm-platform.md) 本地模型是內建能力（context 建議、無進展逾時） |

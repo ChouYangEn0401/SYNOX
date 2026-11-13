@@ -97,7 +97,7 @@ def test_locked_trust_decides(make_bot, tmp_path):
 
 
 def test_nothing_is_bundled_anymore(tmp_path, monkeypatch):
-    """2026-11-12 起出廠真的全空（legacy/connectors.md）：叫 notion、放在內建 packs/ 的 pack 沒鎖＝third-party。"""
+    """2026-11-12 起出廠真的全空（docs/legacy/connectors.md）：叫 notion、放在內建 packs/ 的 pack 沒鎖＝third-party。"""
     packs = tmp_path / "packs"
     monkeypatch.setattr(loader, "PACK_DIRS", (str(packs),))
     notion = read(_pack(packs, "notion"))

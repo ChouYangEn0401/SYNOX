@@ -21,7 +21,7 @@ def _pack(folder, **over):
 
 
 def test_ships_with_no_tools_at_all():
-    """出廠真的全空（2026-11-12，legacy/builtin-packs.md、legacy/connectors.md）：packs/ 與 connectors/ 都只有說明、
+    """出廠真的全空（2026-11-12，docs/legacy/builtin-packs.md、docs/legacy/connectors.md）：packs/ 與 connectors/ 都只有說明、
     沒有出廠名單、SYNOX 只掃 packs/。用 git 追蹤的檔判斷，開發機自己裝的工具不算。"""
     import subprocess
 
