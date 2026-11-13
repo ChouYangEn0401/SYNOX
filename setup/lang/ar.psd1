@@ -14,6 +14,8 @@
     no_window_text        = 'لا يدعم Python هذا النوافذ (tkinter): سيكمل الإعداد نصيًا (synox init) في هذه النافذة...'
     pip_failed            = 'فشل pip install (مشكلة في الشبكة؟).'
     opening_wizard        = 'جارٍ فتح معالج الإعداد...'
+    assoc_register        = 'تسجيل نوع الملف .synoxpack لمستخدم Windows هذا فقط (HKCU، دون صلاحيات المسؤول): أيقونة تثبيت، والنقر المزدوج = فحص أمان ثم تثبيت. + كُتب، = موجود مسبقًا'
+    assoc_failed          = 'تعذّر تسجيل نوع الملف .synoxpack (يستمر الإعداد). لا يزال بإمكانك سحب ملف .synoxpack إلى Install-Pack.bat أو إلى صفحة إعدادات الويب في SYNOX.'
     row_running           = 'SYNOX قيد التشغيل (pid)'
     row_shortcut          = 'اختصار سطح المكتب'
     row_startup           = 'عنصر بدء التشغيل'

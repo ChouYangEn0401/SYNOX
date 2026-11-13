@@ -41,7 +41,7 @@
 3. **按「完成並開始」**。手機會收到「👋 我在了，按 /help 看我會什麼」。
 4. **裝工具**：剛裝好的 SYNOX 是空的（`/help` 會提醒你）。發佈版旁邊的 `tools\` 就是工具庫，自己挑：
    `.venv\Scripts\python.exe -m synox tools list` 看有哪些、`… -m synox tools install notes money` 裝（看完報告才裝，不會自動全裝）；
-   或點兩下 `.synoxpack`、在網頁「設定 → 裝功能」上傳。
+   或點兩下 `.synoxpack`、拖到 `Install-Pack.bat` 上、拖進 SYNOX 網頁（四種方法：[docs/install-packs.md](docs/install-packs.md)）。
 
 之後要開 bot：雙擊桌面的「SYNOX」捷徑（或 `Start.bat`）。會有一個縮小的視窗，那就是 bot；關掉它（或雙擊 `Stop.bat`）bot 就停了。
 
@@ -169,8 +169,14 @@ SYNOX 出廠不帶任何工具；官方的工具都在 **SYNOX 工具庫（SYNOX
 放別處就寫進 `config.json`：`"packs": {"library": "<打包好的工具庫資料夾>"}`（相對於 SYNOX 資料夾，或絕對路徑；網址只會顯示、不會自動下載）。
 `synox init`、`synox tools list｜install` 從這裡列出、對雜湊、再走同一條安全檢查。
 
-拿到 `.synoxpack`：在網頁「設定 → 功能與安裝」（網址 `#packs`）上傳，或點兩下檔案，或 `.venv\Scripts\python.exe -m synox install <檔>`；
-SYNOX 先檢查、把報告給你看（就在那一頁最上面；還沒決定的會留在「等你核准」，7 天沒處理自動清掉），你按確認才裝。裝好 `/help` 就多一組，AI 也會自己學會怎麼用。
+拿到 `.synoxpack`，四種裝法（詳細：[docs/install-packs.md](docs/install-packs.md)）：
+
+1. **點兩下**檔案（`Setup.bat` 已經替這個 Windows 使用者登記好檔案類型與圖示，不用管理員）；
+2. **拖到** SYNOX 資料夾的 `Install-Pack.bat` 上；
+3. **拖進** SYNOX 網頁（任何一頁都行），或在「設定 → 功能與安裝」（`#packs`）選檔按「上傳並檢查」；
+4. 命令列 `.venv\Scripts\python.exe -m synox install <檔>`。
+
+不管哪一種，SYNOX 都先檢查、把報告給你看，你按確認才裝（還沒決定的會留在「等你核准」，7 天沒處理自動清掉）。裝好 `/help` 就多一組，AI 也會自己學會怎麼用。
 每個工具會宣告它照哪一版 SDK 寫（`requires.sdk`）；跟這台不合的會明說、不裝。
 每個工具也標了**穩定度**（`stage`）：🔧 test（測試中）、🧪 alpha（早期版）、🚧 beta（公測版）、⭐ stable（穩定版），
 `/help`、網頁工具頁、安裝報告、`doctor` 都看得到；沒標的當 alpha。

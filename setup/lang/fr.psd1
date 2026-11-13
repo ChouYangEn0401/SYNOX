@@ -14,6 +14,8 @@
     no_window_text        = 'Ce Python n''a pas de fenêtres (tkinter) : la configuration continue en mode texte (synox init) dans cette fenêtre...'
     pip_failed            = 'Échec de pip install (réseau ?).'
     opening_wizard        = 'Ouverture de l''assistant d''installation...'
+    assoc_register        = 'Enregistrement du type de fichier .synoxpack pour cet utilisateur Windows uniquement (HKCU, sans administrateur) : icône d''installation, double-clic = vérification de sécurité puis installation. + écrit, = déjà en place'
+    assoc_failed          = 'Impossible denregistrer le type de fichier .synoxpack (linstallation continue). Vous pouvez toujours glisser un .synoxpack sur Install-Pack.bat ou dans la page Paramètres web de SYNOX.'
     row_running           = 'SYNOX en cours (pid)'
     row_shortcut          = 'Raccourci sur le bureau'
     row_startup           = 'Démarrage auto'

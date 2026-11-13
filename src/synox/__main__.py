@@ -15,6 +15,8 @@ python -m synox <指令>
   packs     packs status（每個 pack 的鎖定狀態）｜packs lock --approve <name>（工程師：重跑 1、2 關、寫 packs.lock）
             ｜packs rollback <name>（_removed 裡最近一份舊版搬回、鎖改回）
             ｜packs env rebuild <name>（重建 runtime.python／node = auto 的環境，data/envs/<name>/）
+  filetype  filetype register｜unregister｜status：.synoxpack 的檔案關聯（圖示、點兩下＝Install-Pack.bat；HKCU，
+            Setup.bat／Uninstall.bat 叫；印出動了哪些機碼）
   connect   connect <pack> [--user ID] [--clear]：把 pack 要的帳號存進保管箱（密碼用 getpass，不經聊天）
   init      文字版的安裝引導（沒有視窗也能用）：模式、Telegram、AI、工具庫位置、挑工具裝 → config.json
             （--non-interactive 全部用參數給；--dry-run 只印出來不寫；wizard/init_cli.py）
@@ -460,6 +462,47 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
     return 1
 
 
+def cmd_filetype(args, *, root=None, writer=None, reader=None, deleter=None, classes=None) -> int:
+    """`synox filetype register|unregister|status`：.synoxpack 的檔案關聯（HKCU，只有這個 Windows 使用者、不要管理員）。
+    Setup.bat 叫 register、Uninstall.bat 叫 unregister；每一行印出動了哪個機碼（+ 寫了、= 本來就一樣、- 刪了），
+    只用 ASCII 與機碼路徑，Setup 的說明文字在 setup/lang/*.psd1。關鍵字參數給測試換成拋棄式的機碼。"""
+    from synox.wizard import shortcuts
+    if sys.platform != "win32" and writer is None and reader is None:
+        print("filetype: Windows only (nothing to do)")
+        return 0
+    if root is None:
+        from synox.config import ROOT as root
+    kw = {"classes": classes} if classes else {}
+
+    def show(subkey, name):
+        return f"HKCU\\{subkey}  [{name or '(default)'}]"
+    try:
+        if args.filetype_cmd == "register":
+            if not os.path.isfile(shortcuts.pack_icon_path(root)):
+                print(f"! icon missing: {shortcuts.pack_icon_path(root)} (Explorer will show a blank icon)")
+            done = shortcuts.register_synoxpack(root, writer=writer, reader=reader, **kw)
+            for subkey, name, value, changed in done:
+                print(f"  {'+' if changed else '='} {show(subkey, name)} = {value}")
+            print(f"filetype: {sum(1 for d in done if d[3])} written, {sum(1 for d in done if not d[3])} unchanged")
+            return 0
+        if args.filetype_cmd == "unregister":
+            removed = shortcuts.unregister_synoxpack(reader=reader, deleter=deleter, **kw)
+            for subkey in removed:
+                print(f"  - HKCU\\{subkey}")
+            print(f"filetype: {len(removed)} key(s) removed" if removed else "filetype: nothing registered")
+            return 0
+        rows = shortcuts.synoxpack_status(root, reader=reader, **kw)
+        for subkey, name, want, now in rows:
+            mark = "=" if now == want else ("x" if now is None else "~")
+            print(f"  {mark} {show(subkey, name)} = {now if now is not None else '(missing)'}")
+        ok = all(now == want for *_k, want, now in rows)
+        print("filetype: registered" if ok else "filetype: not registered (run Setup.bat, or: python -m synox filetype register)")
+        return 0 if ok else 1
+    except OSError as e:
+        print(f"filetype: registry error: {e}")
+        return 2
+
+
 def _staged_upgrade(token: str, data_dir: str, packs_dir: str, trust=None):
     from synox.packs import admin, upgrade
     try:
@@ -779,6 +822,8 @@ def main(argv=None) -> int:
     p.add_argument("--runtime", choices=["container", "host"], default=None,
                    help="用容器（pack 有提供 runtime.container 時的預設）｜host（不用容器；升級沒給＝沿用）")
     p.add_argument("--packs-dir", default="", help=argparse.SUPPRESS)
+    p = sub.add_parser("filetype", help=".synoxpack 檔案關聯（圖示＋點兩下安裝；HKCU，不要管理員）")
+    p.add_argument("filetype_cmd", choices=["register", "unregister", "status"])
     p = sub.add_parser("packs", help="pack 的鎖定狀態、重新核准、退回上一版")
     psub = p.add_subparsers(dest="packs_cmd")
     psub.add_parser("status", help="每個 pack 鎖了沒、有沒有被改過")
@@ -821,7 +866,7 @@ def main(argv=None) -> int:
     handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop,
                 "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord, "web-login": cmd_web_login,
                 "open": cmd_open, "about": cmd_about, "tips": cmd_tips,
-                "init": cmd_init, "tools": cmd_tools}
+                "init": cmd_init, "tools": cmd_tools, "filetype": cmd_filetype}
     if args.cmd in brand.BANNER_COMMANDS:
         brand.show_banner(args.cmd, quiet=args.quiet)
     if args.cmd not in handlers:

@@ -539,6 +539,11 @@ class Wizard:
                     notes.append(t("note_packs") + " ✅")
                 except OSError as e:
                     notes.append(f"{t('note_packs')} ❌ {e}")
+            else:                                             # Setup.bat 先登記了；沒勾＝使用者不要，拿掉
+                try:
+                    shortcuts.unregister_synoxpack()
+                except OSError:
+                    pass
             if launch.get():                                  # 勾了才開；不管有沒有接聊天軟體
                 start = os.path.join(ROOT, "Start.bat")
                 subprocess.Popen(["cmd", "/c", start], cwd=ROOT,
