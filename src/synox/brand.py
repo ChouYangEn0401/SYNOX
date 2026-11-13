@@ -21,7 +21,8 @@ import random
 import sys
 from datetime import datetime
 
-PROJECT_URL = ""          # 還沒公開；定了再填（QuestionToUser.md QB1）。about 不編網址。
+PROJECT_URL = "https://github.com/ChouYangEn0401/SYNOX"     # repo 公開了（QuestionToUser.md QB1 的 A：公開那天再填）
+RELEASES_URL = PROJECT_URL + "/releases"                     # 每一版的發佈頁：看自己是不是最新版（docs/versioning.md）
 
 #: 印歡迎畫面的指令（None＝`synox` 什麼都沒打）。init 是之後安裝流程會加的指令，先列著。
 BANNER_COMMANDS = frozenset({None, "run", "open", "wizard", "init", "doctor", "about"})
@@ -399,12 +400,18 @@ def about_text(config_path: str | None = None, *, root: str | None = None) -> st
         ("設定檔", config_path + ("" if has_config else "（還沒有：雙擊 Setup.bat，或照 config.example.json 寫一份）")),
         ("文件", "README.md · docs/README.md · 安全問題請看 SECURITY.md（不要開公開 issue）"),
         ("專案網址", PROJECT_URL or "還沒公開"),
+        ("有沒有新版", latest_hint()),
     ]
     width = max(_display_width(k) for k, _ in rows)
     out = [f"SYNOX v{version()} · {TAGLINE}", ""]
     for k, v in rows:
         out.append(f"  {k}{' ' * (width - _display_width(k))}  {v}")
     return "\n".join(out) + "\n"
+
+
+def latest_hint() -> str:
+    """一行：去哪裡看最新版。SYNOX 不會自己連網檢查（docs/adr/0023）。"""
+    return f"到 {RELEASES_URL} 看最新版，跟這台的版本比（SYNOX 不會自己連網檢查）"
 
 
 def _display_width(text: str) -> int:
