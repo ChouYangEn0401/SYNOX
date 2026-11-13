@@ -133,7 +133,9 @@ def heartbeat_post(ui, rt, data: dict):
 
 
 def keep_awake_post(ui, rt, data: dict):
-    """保持清醒（docs/adr/0006）：開關、閒置幾分鐘請 Windows 關螢幕。"""
+    """保持清醒（docs/adr/0006）：開關、閒置幾分鐘請 Windows 關螢幕。預設關。
+    打開＝覆蓋 Windows 電源選項的「睡眠」設定（電腦不再自動睡眠）；螢幕仍可照電源計畫或閒置 N 分鐘後關。
+    回的 view 帶 notice（這段提醒）、tagline、modern_standby／modern_standby_note，介面照著顯示。"""
     ka = rt.keep_awake
     if ka is None:
         return _err(503, "保持清醒沒有裝上。")

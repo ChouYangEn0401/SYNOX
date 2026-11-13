@@ -179,14 +179,19 @@ def _local_lines(adapter, offline: bool, out) -> int:
 
 def _keep_awake_line(config) -> str:
     """保持清醒（docs/adr/0006）：開關、熄螢幕設定、這個系統有沒有作用。"""
+    from synox.runtime.keepawake import MS_NOTE, NOTICE, TAGLINE, WinPower
     ka = (getattr(config, "runtime", None) or {}).get("keep_awake") or {}
     if not ka.get("enabled", False):
-        return "  保持清醒：關（runtime.keep_awake.enabled=true 或網頁主控面板打開，電腦才不會睡著）"
+        return ("  保持清醒：關（預設）。" + TAGLINE + "要打開：網頁設定頁「保持清醒」或 runtime.keep_awake.enabled=true。"
+                f"\n    ℹ️ {NOTICE}")
     if sys.platform != "win32":
         return "  保持清醒：開，但只有 Windows 有作用，這個系統什麼都不會做"
     minutes = ka.get("screen_off_after_min", 0)
     screen = f"閒置 {minutes} 分鐘後請 Windows 關螢幕" if minutes else "螢幕照 Windows 電源計畫（動滑鼠或鍵盤就亮）"
-    return f"  保持清醒：開，電腦不會自己睡著；{screen}（闔上筆電蓋、手動睡眠、Windows Update 重開機擋不住）"
+    line = f"  保持清醒：開，電腦不會自己睡著；{screen}\n    ℹ️ {NOTICE}"
+    if WinPower().modern_standby():
+        line += f"\n    ⚠️ {MS_NOTE}"
+    return line
 
 
 def _activator_line(config) -> str:

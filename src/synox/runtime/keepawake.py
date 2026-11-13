@@ -1,5 +1,7 @@
 """
-保持清醒（docs/adr/0006）：任務 system.keep_awake。電腦不要睡著，但螢幕可以照常熄，動滑鼠或鍵盤 Windows 自己會點亮。
+保持清醒（docs/adr/0006）：任務 system.keep_awake。它像一個穩定的 heartbeat——維持系統運轉（maintain），
+但螢幕可以暗（保護螢幕或省電）。電腦不要睡著，螢幕照常可以熄，動滑鼠或鍵盤 Windows 自己會點亮。
+**預設關**；打開＝覆蓋 Windows 電源選項裡的「睡眠」設定（NOTICE，網頁與 doctor 都顯示這段）。
 
     ka = KeepAwake(loop, settings=config.runtime["keep_awake"])
     ka.register()        任務每 60 秒確認一次請求還在（被別的程式清掉就重要一次），並看要不要熄螢幕
@@ -13,6 +15,12 @@ Windows 電源計畫裡「幾分鐘後關閉螢幕」照樣生效，而且任何
 
 做不到的（照實說）：闔上筆電蓋、按電源鍵／開始選單的睡眠、電池快沒電、Windows Update 重開機，這個請求都擋不住。
 只有 Windows 有作用；其他系統任務會顯示「idle：這個系統不支援」，不算失敗（不會吵心跳）。
+
+現代待命（Modern Standby／S0 低電源閒置，ADR 0006 附記）：同一個請求物件同時設 PowerRequestSystemRequired 與
+PowerRequestExecutionRequired（後者盡力而為：設不上不算失敗）。Microsoft 文件：插電時電源請求會讓系統一直停在進入待命前的
+階段（不會睡）、用電池時最多 5 分鐘；使用者主動睡眠（電源鍵、闔蓋、開始選單）會終止所有請求。
+是不是現代待命機型用 CallNtPowerInformation(SystemPowerCapabilities).AoAc 判斷，view()／doctor 多一行說明（MS_NOTE）。
+不修改任何電源設定。
 """
 
 from __future__ import annotations
@@ -31,10 +39,23 @@ MAX_SCREEN_OFF_MIN = 240
 R_OFF = "沒有開（runtime.keep_awake.enabled=false）。"
 R_UNSUPPORTED = "這個系統不支援（只有 Windows 有作用）。"
 
+# 打開它的每個地方都要顯示這段（網頁設定頁、doctor、runtime-api.md、ADR 0006）
+TAGLINE = "像一個穩定的 heartbeat：維持系統運轉，但螢幕可以暗（保護螢幕或省電）。"
+NOTICE = ("開啟後會覆蓋 Windows 電源選項裡的「睡眠」設定：電腦不再自動睡眠。螢幕仍可照電源計畫，"
+          "或設定「閒置 N 分鐘後主動關螢幕」變暗／關閉，以保護螢幕、省電。"
+          "闔上筆電蓋、手動睡眠、低電量、Windows Update 重開機擋不住。")
+MS_NOTE = ("這台是「現代待命」（Modern Standby）機型：系統清醒請求在現代待命的效果有限"
+           "（插電時可擋住閒置睡眠；用電池時 Windows 最多再撐 5 分鐘；闔蓋、按電源鍵仍會睡）。"
+           "若 Google Drive 仍斷線，請見 docs/keep-awake-troubleshooting.md 的排查步驟。")
+
 # Windows 常數
 POWER_REQUEST_CONTEXT_VERSION = 0
 POWER_REQUEST_CONTEXT_SIMPLE_STRING = 0x1
 POWER_REQUEST_SYSTEM_REQUIRED = 1               # PowerRequestSystemRequired
+POWER_REQUEST_EXECUTION_REQUIRED = 3            # PowerRequestExecutionRequired（Windows 8 起）
+SYSTEM_POWER_CAPABILITIES = 4                   # POWER_INFORMATION_LEVEL：SystemPowerCapabilities
+AOAC_OFFSET = 20                                # SYSTEM_POWER_CAPABILITIES.AoAc 的位移（winnt.h：15 個 BOOLEAN＋5 個位元組之後）
+CAPABILITIES_SIZE = 76
 WM_SYSCOMMAND, SC_MONITORPOWER, MONITOR_OFF = 0x0112, 0xF170, 2
 HWND_BROADCAST = 0xFFFF
 
@@ -46,9 +67,11 @@ class WinPower:
 
     def __init__(self):
         self._handle = None
+        self.execution = False                       # PowerRequestExecutionRequired 有沒有設上（盡力而為）
+        self._aoac: Optional[bool] = None
 
     def hold(self, reason: str) -> bool:
-        """請求「系統清醒」（不含螢幕）。已經有就不重複；成功＝True。"""
+        """請求「系統清醒」（不含螢幕）＋「行程繼續執行」。已經有就不重複；系統清醒成功＝True。"""
         if self._handle:
             return True
         import ctypes
@@ -68,6 +91,11 @@ class WinPower:
         if not k32.PowerSetRequest(handle, POWER_REQUEST_SYSTEM_REQUIRED):
             k32.CloseHandle(handle)
             return False
+        # 現代待命（ADR 0006 附記）：ExecutionRequired 讓行程不被行程生命週期管理暫停；S3 機型上它本來就含 SystemRequired。
+        # 舊版 Windows 不認得就算了，不影響上面那個。
+        self.execution = bool(k32.PowerSetRequest(handle, POWER_REQUEST_EXECUTION_REQUIRED))
+        if not self.execution:
+            logging.info("[KEEPAWAKE] PowerRequestExecutionRequired not accepted (older Windows?); system request still held")
         self._handle = handle
         return True
 
@@ -76,9 +104,28 @@ class WinPower:
             return
         import ctypes
         k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        if self.execution:
+            k32.PowerClearRequest(self._handle, POWER_REQUEST_EXECUTION_REQUIRED)
         k32.PowerClearRequest(self._handle, POWER_REQUEST_SYSTEM_REQUIRED)
         k32.CloseHandle(self._handle)
         self._handle = None
+        self.execution = False
+
+    def modern_standby(self) -> Optional[bool]:
+        """這台是不是現代待命（S0 低電源閒置）：CallNtPowerInformation(SystemPowerCapabilities).AoAc。只讀；量不到＝None。"""
+        if self._aoac is not None:
+            return self._aoac
+        try:
+            import ctypes
+            buf = (ctypes.c_ubyte * CAPABILITIES_SIZE)()
+            status = ctypes.WinDLL("powrprof").CallNtPowerInformation(
+                SYSTEM_POWER_CAPABILITIES, None, 0, ctypes.byref(buf), CAPABILITIES_SIZE)
+            if status != 0:
+                return None
+            self._aoac = bool(buf[AOAC_OFFSET])
+        except Exception:
+            return None
+        return self._aoac
 
     def idle_seconds(self) -> float:
         """距離上次滑鼠或鍵盤動作幾秒（取不到＝0，當作剛有人用過）。"""
@@ -148,11 +195,23 @@ class KeepAwake:
             task.set_schedule_text("" if self.enabled else "關閉")
         return self.view()
 
+    def modern_standby(self) -> Optional[bool]:
+        if not self.power.available:
+            return None
+        probe = getattr(self.power, "modern_standby", None)
+        try:
+            return probe() if callable(probe) else None
+        except Exception:
+            return None
+
     def view(self) -> dict:
+        ms = self.modern_standby()
+        holding = bool(getattr(self.power, "_handle", None)) if self.power.available else False
         return {"enabled": self.enabled, "supported": bool(self.power.available),
-                "holding": bool(getattr(self.power, "_handle", None)) if self.power.available else False,
+                "holding": holding, "execution_required": holding and bool(getattr(self.power, "execution", False)),
                 "screen_off_after_min": self.screen_off_after_min, "max_screen_off_min": MAX_SCREEN_OFF_MIN,
-                "last_result": self.last_result}
+                "last_result": self.last_result, "tagline": TAGLINE, "notice": NOTICE,
+                "modern_standby": ms, "modern_standby_note": MS_NOTE if ms else ""}
 
     def run(self, ctx=None) -> str:
         with self._lock:

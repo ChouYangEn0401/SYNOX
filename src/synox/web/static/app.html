@@ -573,6 +573,21 @@
         </div>
       </div>
 
+      <div id="set-awake" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">☕</span>
+          <div class="txt"><h2>保持清醒</h2><p class="sub" id="awake-tagline">像一個穩定的 heartbeat：維持系統運轉，但螢幕可以暗（保護螢幕或省電）。</p></div></div>
+        <p class="note-line" id="awake-notice">⚠️ 開啟後會覆蓋 Windows 電源選項裡的「睡眠」設定：電腦不再自動睡眠。螢幕仍可照電源計畫，或設定「閒置 N 分鐘後主動關螢幕」變暗／關閉，以保護螢幕、省電。闔上筆電蓋、手動睡眠、低電量、Windows Update 重開機擋不住。</p>
+        <label class="f"><input id="awake-enabled" type="checkbox"> 讓電腦不要自動睡眠（預設關閉）</label>
+        <label class="f" for="awake-minutes">閒置幾分鐘後主動關螢幕（0＝照 Windows 電源計畫）</label>
+        <input id="awake-minutes" type="number" min="0" max="240" step="1" size="6">
+        <p class="note-line hidden" id="awake-ms"></p>
+        <hr class="rule">
+        <div class="row">
+          <button id="awake-save" class="primary" type="button">存起來</button>
+          <span id="awake-msg" class="muted"></span>
+        </div>
+      </div>
+
       <div id="set-usage" class="card hidden">
         <div class="card-head"><span class="tile" aria-hidden="true">💰</span>
           <div class="txt"><h2>AI 用量與花費</h2><p class="sub" id="usage-sub"></p></div></div>
@@ -1010,7 +1025,8 @@
       $("my-budget").textContent = d.ai_budget ?
         "這個月的 AI 額度：用了約 US$" + d.ai_budget.used.toFixed(2) + "／US$" + Number(d.ai_budget.limit).toFixed(2) : "";
       $("my-budget").classList.toggle("hidden", !d.ai_budget);
-      if (d.owner) { loadUsage(); fillLlm(d); fillPacks(d.packs || []); loadChannels(); }
+      if (d.owner) { loadUsage(); fillLlm(d); fillPacks(d.packs || []); loadChannels(); loadAwake(); }
+      else { $("set-awake").classList.add("hidden"); }
       if (d.accounts) { loadAccounts(); }
     }).catch(function (e) { toast(e.message); });
   }
@@ -1090,6 +1106,33 @@
   $("llm-save").addEventListener("click", function () {
     api("POST", "/api/settings/llm", llmBody()).then(function (d) { $("llm-msg").textContent = d.message; loadSettings(); })
       .catch(function (e) { $("llm-msg").textContent = "❌ " + e.message; });
+  });
+
+  // ── 保持清醒（docs/adr/0006；預設關，打開＝覆蓋 Windows 的「睡眠」設定）──────────────
+  function fillAwake(ka) {
+    $("set-awake").classList.remove("hidden");
+    $("awake-enabled").checked = !!ka.enabled;
+    $("awake-minutes").value = String(ka.screen_off_after_min || 0);
+    if (ka.tagline) { $("awake-tagline").textContent = ka.tagline; }
+    if (ka.notice) { $("awake-notice").textContent = "⚠️ " + ka.notice; }
+    $("awake-ms").textContent = ka.modern_standby_note || "";
+    $("awake-ms").classList.toggle("hidden", !ka.modern_standby_note);
+    $("awake-msg").textContent = !ka.supported ? "這個系統不支援（只有 Windows 有作用）。" :
+      (ka.enabled ? (ka.holding ? "開著：電腦不會自動睡眠。" : "開著，但 Windows 還沒接受請求：" + (ka.last_result || "")) : "關著（預設）。");
+  }
+  function loadAwake() {
+    api("GET", "/api/runtime/status").then(function (d) {
+      if (d.keep_awake) { fillAwake(d.keep_awake); } else { $("set-awake").classList.add("hidden"); }
+    }).catch(function () { $("set-awake").classList.add("hidden"); });     // 沒有 runtime：不顯示
+  }
+  $("awake-save").addEventListener("click", function () {
+    var minutes = Number($("awake-minutes").value || 0);
+    if (!(minutes >= 0 && minutes <= 240 && Math.floor(minutes) === minutes)) {
+      $("awake-msg").textContent = "❌ 分鐘要是 0～240 的整數。"; return;
+    }
+    api("POST", "/api/runtime/keep-awake", { enabled: $("awake-enabled").checked, screen_off_after_min: minutes })
+      .then(function (ka) { fillAwake(ka); $("awake-msg").textContent = "存好了。" + $("awake-msg").textContent; })
+      .catch(function (e) { $("awake-msg").textContent = "❌ " + e.message; });
   });
 
   // ── AI 用量與花費（小儀表板）──────────────────────────────────────
