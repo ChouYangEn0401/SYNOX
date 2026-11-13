@@ -112,6 +112,48 @@ def parse_apps(raw, web_port: int) -> dict:
     return out
 
 
+# 手機入口（ADR 0026、計畫 K7）：預設關。綁在哪裡不由設定決定（閘門也只綁 127.0.0.2，web/apps/listen.py）
+DEFAULT_REMOTE = {"enabled": False, "minutes": 30, "max_minutes": 120, "idle_min": 10, "gate_port": 8861,
+                  "tunnel": {"kind": "cloudflared", "path": ""}}
+TUNNEL_KINDS = ("cloudflared",)
+
+
+def parse_remote(raw, web_port: int, apps: dict) -> dict:
+    """web.remote → 檢查過的設定（不合丟 ConfigError，一句白話）。"""
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise ConfigError("config.json 的 web.remote 要是一個 {…} 物件。")
+    unknown = sorted(k for k in raw if k not in DEFAULT_REMOTE)
+    if unknown:
+        raise ConfigError(f"config.json 的 web.remote 不認得 {'、'.join(unknown)}（只能是 {'、'.join(DEFAULT_REMOTE)}）。")
+    out = {**DEFAULT_REMOTE, **raw}
+    out["enabled"] = bool(out["enabled"])
+
+    def number(key, low, high):
+        value = out[key]
+        if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+            raise ConfigError(f"config.json 的 web.remote.{key} 要是 {low}–{high} 的整數。")
+        return value
+    top = number("max_minutes", 5, 240)
+    number("minutes", 5, top)
+    number("idle_min", 1, 120)
+    port = number("gate_port", 1024, 65000)
+    first, count = int(apps.get("port_first", 0)), int(apps.get("port_count", 0))
+    if (port == int(web_port or 0) or first <= port < first + count) and "gate_port" not in raw:
+        port = out["gate_port"] = max(first + count, int(web_port or 0) + 1)       # 舊設定：預設的閘門埠往後挪
+    if port == int(web_port or 0) or first <= port < first + count:
+        raise ConfigError("config.json 的 web.remote.gate_port 不能跟網頁介面或工具服務的埠重疊。")
+    tunnel = out.get("tunnel")
+    if not isinstance(tunnel, dict) or set(tunnel) - {"kind", "path"}:
+        raise ConfigError('config.json 的 web.remote.tunnel 要寫成 {"kind": "cloudflared", "path": ""}。')
+    tunnel = {"kind": "cloudflared", "path": "", **tunnel}
+    if tunnel["kind"] not in TUNNEL_KINDS or not isinstance(tunnel["path"], str):
+        raise ConfigError("config.json 的 web.remote.tunnel.kind 只能是 cloudflared；path 是通道程式的路徑（可以空著）。")
+    out["tunnel"] = tunnel
+    return out
+
+
 DEFAULT_MEMBER_USD = 2.0
 DEFAULT_PRESENTATION = {"enabled": False}
 MODES = ("personal", "server")
@@ -171,6 +213,7 @@ class SynoxConfig(BotConfig):
             raise ConfigError("config.json 的 web.port 要在 0–65535 之間。")
         web["enabled"] = bool(web.get("enabled", True))
         web["apps"] = parse_apps(web.get("apps"), web["port"])
+        web["remote"] = parse_remote(web.get("remote"), web["port"], web["apps"])
         try:
             member_usd = float(raw.get("ai_member_monthly_usd", DEFAULT_MEMBER_USD))
         except (TypeError, ValueError):

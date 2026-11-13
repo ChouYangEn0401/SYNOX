@@ -1,0 +1,10 @@
+/* SYNOX 手機入口的進門頁（不是工具的檔；不載入任何外部資源） */
+:root { color-scheme: light dark; --bg: #f3f5f8; --text: #131b26; --accent: #0a7c70; --bad: #c62f2f; }
+@media (prefers-color-scheme: dark) { :root { --bg: #0b0f14; --text: #dbe4ef; --accent: #35e0c4; --bad: #ff6b78; } }
+body { margin: 0; background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+.enter { max-width: 420px; margin: 10vh auto; padding: 0 16px; }
+h1 { font-size: 1.3em; }
+#enter-code { font-size: 1.6em; letter-spacing: .3em; width: 8em; max-width: 100%; padding: 6px; }
+button { font: inherit; padding: 8px 16px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; }
+.msg { min-height: 1.5em; color: var(--bad); }
+.small { font-size: 13px; opacity: .8; }
