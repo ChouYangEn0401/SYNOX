@@ -242,7 +242,7 @@ def test_app_page_inlines_tools_files_with_the_nonce(tools_bot, owner):
     nonce = re.search(r"script-src 'nonce-([^']+)'", dict(headers)["Content-Security-Policy"]).group(1)
     assert status == 200 and "<!-- include:" not in html
     assert f'<style nonce="{nonce}">\n  /* ── 工具頁' in html and "window.SynoxTools" in html
-    assert html.count(f'<script nonce="{nonce}">') == 5 and 'id="tools-root"' in html   # inline app script + tools.js + control.js + splash.js + packdrop.js
+    assert html.count(f'<script nonce="{nonce}">') == 6 and 'id="tools-root"' in html   # inline app script + tools.js + control.js + splash.js + packdrop.js + report.js
 
 
 def test_render_app_refuses_unknown_includes(monkeypatch, tmp_path):
