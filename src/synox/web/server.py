@@ -60,6 +60,8 @@ HOST = "127.0.0.1"                    # 只綁這個；要對外由營運者自�
 CONTAINER_ENV = "SYNOX_IN_CONTAINER"  # 映像檔（Dockerfile）設成 1
 BIND_ENV = "SYNOX_WEB_BIND"           # 容器裡才收：0.0.0.0（讓宿主經 compose 發佈到宿主 127.0.0.1 的埠連進來）
 CONTAINER_BIND_HOSTS = (HOST, "0.0.0.0")
+# 設定頁換 AI 來源時沿用的 llm 設定（不是來源本身的欄位；docs/adr/0008、0010、0012）
+KEEP_LLM_KEYS = ("completion_guard", "verify_retries", "summarize_on_limit", "think")
 # 「真的在容器裡」的證據（任一個存在就算）：Docker 的 /.dockerenv、podman 的 /run/.containerenv、
 # SYNOX 映像檔自己放的 /etc/synox/container。光有環境變數不夠：怕有人在一般電腦上照抄容器的環境變數
 CONTAINER_MARKERS = ("/.dockerenv", "/run/.containerenv", "/etc/synox/container")
@@ -1023,7 +1025,8 @@ class WebUI:
             llm["api_key"] = VAULT_PREFIX + logic.SECRET_NAME
         cfg = logic.read_existing(self.config_path)
         old = cfg.get("llm") or {}
-        cfg["llm"] = {"max_steps": old.get("max_steps", 6), "max_tokens": old.get("max_tokens", 1024), **llm}
+        cfg["llm"] = {"max_steps": old.get("max_steps", 6), "max_tokens": old.get("max_tokens", 1024),
+                      **{k: old[k] for k in KEEP_LLM_KEYS if k in old}, **llm}     # 換來源不洗掉完成宣稱檢查等設定
         logic.write_config(self.config_path, cfg)
         stale = ("kind", "api_key", "base_url", "model", "tools", "server", "context_size", "timeout",
                  "max_total_timeout")                       # 換來源時，舊來源的欄位不要留在記憶體裡

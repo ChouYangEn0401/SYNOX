@@ -22,6 +22,18 @@ from synox.agent.validate import MAX_LEN
 from synox.llm.base import ToolSpec
 
 SEP = "__"
+# 「做不到」的出口（docs/adr/0011）：像 skill_read 一樣是迴圈自己附的偽工具，不是指令樹的節點、不經 ai_decision，
+# 也不能做任何事——呼叫它＝這一輪結束、送「做不到：<原因>」。ToolBeHonest 的 UnsolvableQuery 同一個想法。
+CANNOT_DO = "system__cannot_do"
+CANNOT_DO_REASON_MAX = 200
+
+
+def cannot_do_spec() -> ToolSpec:
+    return ToolSpec(CANNOT_DO, "沒有適合的工具、或做不到使用者要的事時呼叫：說明原因，這一輪就結束。"
+                               "不要用它假裝做了什麼；它不會執行任何動作。",
+                    {"type": "object", "properties": {"reason": {"type": "string", "description": "做不到的原因（一兩句）",
+                                                                  "maxLength": CANNOT_DO_REASON_MAX}},
+                     "required": ["reason"], "additionalProperties": False})
 
 
 def tool_name(node: Node) -> str:
