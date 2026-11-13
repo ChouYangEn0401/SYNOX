@@ -1,5 +1,16 @@
 # Changelog
 
+## 未發佈（介紹頁改版）
+
+### 改變
+- **介紹頁 `docs/landing/index.html` 改版**（線上版同一個網址 <https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW>）：
+  開頭改成標語「聊天就能用，資料不出門。」，下面用圖示列出支援的地方（Telegram、Discord、網頁）、AI（Claude、OpenAI、Gemini、本機模型）與 Windows；
+  「它能幫你做什麼」縮成 8 格一句話；「看畫面」改成大圖、可切換 7 個畫面（對話、工具、主控、裝功能、設定、接聊天軟體、手機）和深淺色、點圖放大；
+  安全、安裝、開發者、alpha 現況都縮短。修掉「三步裝好」第 2 步的子清單被套成步驟格、文字一字一行的跑版。
+- 截圖用目前的網頁介面重拍（`docs/ui/preview.html` 的假資料，電腦版 1360×820 兩倍解析度、手機 390×844），存成 `docs/landing/shots/*.webp`。
+- 新增 `scripts/make_landing.py`：`--shoot` 用 Playwright 重拍截圖；不加就只把原稿 `docs/landing/page.html` 和截圖組成單一檔案的 index.html（約 1.3 MB）。
+  品牌圖示取自 Simple Icons（CC0），頁尾註明名稱與標誌屬於各自的所有者。
+
 ## 未發佈（網頁設定頁分頁、安裝 pack 的專屬頁）
 
 ### 新增

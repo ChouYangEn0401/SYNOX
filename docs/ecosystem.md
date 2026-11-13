@@ -115,7 +115,7 @@ synox-sdk zip .                                                → dist/hello-0.
 | 版本號（`pyproject.toml`） | `CHANGELOG.md` 開一節；[landing/index.html](landing/index.html) 右上角的版本徽章與頁尾；`setup/installer/synox.iss` 的 `/DAppVersion`；README 頂端 alpha 說明仍屬實？ |
 | 安裝流程（精靈頁面、`Setup.bat`、安裝程式） | README「快速開始」；[tutorials/telegram/](tutorials/telegram/)、[tutorials/discord/](tutorials/discord/)（截圖要重拍）；landing 的「三步裝好」「安裝」兩節；[handoff/clean-machine-test.md](handoff/clean-machine-test.md) |
 | Discord 的設定方式或名詞 | [discord.md](discord.md)、[discord-concepts.md](discord-concepts.md)、[tutorials/discord/](tutorials/discord/) |
-| 網頁介面的畫面 | 重跑 `scripts/make_ui_preview.py`（`tests/test_ui_preview.py` 會擋沒同步的）；重拍 `docs/ui/screenshots/*.png`；[ui/redesign-notes.md](ui/redesign-notes.md)；landing 的「看畫面」一節要**重新嵌圖**（圖是 WebP data URI，從截圖轉的；頁面也要重新發佈成 Artifact，網址在 README「文件與教學」） |
+| 網頁介面的畫面 | 重跑 `scripts/make_ui_preview.py`（`tests/test_ui_preview.py` 會擋沒同步的）；重拍 `docs/ui/screenshots/*.png`；[ui/redesign-notes.md](ui/redesign-notes.md)；介紹頁的截圖重拍、重組：`python scripts/make_landing.py --shoot`（原稿 `docs/landing/page.html`，截圖在 `docs/landing/shots/`，組出 `index.html`；之後重新發佈成 Artifact，網址在 README） |
 | pack.json 欄位、SDK 介面（`SDK_VERSION`） | [pack-format.md](pack-format.md)、[sdk.md](sdk.md)、[tools.md](tools.md)、`sdk/synox_sdk.py` 重產（`scripts/build_synox_sdk.py`）、`examples/*/pack.json` 的 `requires.sdk`；通知 SYNOX_Libs 重新打包 |
 | 工具庫的工具（新增、下架、改穩定度） | SYNOX_Libs 的 `index.json` 與 README；這裡的 README「每天怎麼用」表（指令範例）、[../packs/README.md](../packs/README.md)、landing「它是什麼」的工具庫那格 |
 | 安全邊界（新的關卡、沙盒、驗證過的東西） | [security.md](security.md)「能保證什麼」「沒有做的保護」；README 頂端的 alpha 警告；landing「安全」「現在的狀態」「接下來」三節；[AGENT.md](AGENT.md) 的 invariants 與 Known limitations |
