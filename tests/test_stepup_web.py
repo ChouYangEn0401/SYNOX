@@ -230,6 +230,7 @@ def test_first_danger_hint_once(make_bot, owner):
     bot.say(owner, "/note_clear")
     texts = bot.texts(owner)
     assert any("多一道手機驗證" in t for t in texts)
+    assert "多一道手機驗證" not in bot.last(owner)              # 指令自己的回覆仍是最後一則
     n = len([t for t in texts if "多一道手機驗證" in t])
     bot.say(owner, "/note 再一筆")
     bot.say(owner, "/note_clear")
