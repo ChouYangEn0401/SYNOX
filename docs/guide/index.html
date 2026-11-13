@@ -440,7 +440,7 @@ span.hl { display: inline-block; }
 </nav>
 
 <footer class="wrap">
-  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>bf71ee4f54 · 2026-11-13</span></p>
+  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>f466d91b11 · 2026-11-13</span></p>
 </footer>
 
 <script>
@@ -500,17 +500,19 @@ span.hl { display: inline-block; }
       mock: "smartscreen", targets: [{ id: "more", say: "1 先按這裡", place: "bs" }, { id: "run", say: "2 再按這裡", place: "be" }],
       tips: [{ k: "note", t: "按完「其他資訊」，下面才會多出「仍要執行」這顆按鈕。" }] },
 
-    { id: "lang", chapter: "下載與解開", title: "黑色視窗問語言：按 Enter",
-      body: ["會打開一個<b>黑色的視窗</b>，第一句問你要用哪一種語言。",
-             "直接按鍵盤上的 <b>Enter</b> 鍵，就是繁體中文。"],
-      mock: "console-lang", targets: [{ id: "enter", say: "按鍵盤的 Enter", place: "as" }],
-      tips: [{ k: "note", t: "想用別的語言：打前面的數字（例如英文打 3），再按 Enter。" }] },
+    { id: "lang", chapter: "下載與解開", title: "第一件事：選語言",
+      body: ["會打開一個<b>黑色的視窗</b>。它第一件事就是問你要用<b>哪一種語言</b>。",
+             "你選的語言會一直用下去：<b>接下來的安裝訊息、設定精靈，還有之後的 SYNOX</b>，都會用這個語言。",
+             "要用<b>繁體中文</b>：直接按鍵盤上的 <b>Enter</b> 鍵就好。"],
+      mock: "console-lang", targets: [{ id: "enter", say: "繁體中文：按 Enter", place: "as" }],
+      tips: [{ k: "note", t: "想用別的語言：打那個語言前面的數字（例如英文打 3），再按 Enter。一共有 12 種。" },
+             { k: "note", t: "選過一次就會記住，下次點 Setup.bat 不會再問。之後想換語言：刪掉 SYNOX 資料夾裡的 lang.txt，再點兩下 Setup.bat，就會重新問一次。" }] },
 
     { id: "wait", chapter: "下載與解開", title: "等它準備好",
       body: ["黑色視窗會一行一行跑字。第一次要自己下載 Python 和需要的東西，<b>要上網</b>，大約要等幾分鐘。",
              "<b>不要關掉黑色視窗。</b>準備好之後，會跳出一個叫「SYNOX 安裝精靈」的視窗。"],
       mock: "console-wait", targets: [{ id: "last", say: "等到這一行", place: "as" }],
-      tips: [{ k: "if", t: "寫「找不到 Python 3.11 以上，用 winget 安裝 Python 3.12（要幾分鐘）…」也是正常的，會等比較久。" },
+      tips: [{ k: "note", t: "如果你的電腦已經裝過 Conda 或別的 Python，黑色視窗會先多一行說明：SYNOX 會用自己的那一份，不會動到它們。不用理它。" }, { k: "if", t: "寫「找不到 Python 3.11 以上，用 winget 安裝 Python 3.12（要幾分鐘）…」也是正常的，會等比較久。" },
              { k: "if", t: "出現紅字和「安裝沒有完成，請看上面的訊息。」：檢查網路，再點兩下 Setup.bat 一次。重跑是安全的。" }] },
 
     { id: "mode", chapter: "安裝精靈", title: "精靈第 1 步：這台給誰用？",
@@ -742,7 +744,8 @@ span.hl { display: inline-block; }
     "console-wait": function () {
       return con("C:\\Windows\\System32\\cmd.exe",
         '[SYNOX] SYNOX 安裝：準備 Python 和套件，請稍候…\n' +
-        '[SYNOX] 用 py -3.12 建立 .venv …\n' +
+        '[SYNOX] 準備 SYNOX 自己的 Python：全部放在 SYNOX 資料夾的 runtime\\ 裡，不改 PATH、不寫登錄檔、不要管理員…\n' +
+        '[SYNOX] 用 uv 下載 Python 3.12 到 runtime\\python-uv（第一次要幾分鐘）…\n' +
         '[SYNOX] 安裝 SYNOX 需要的套件（第一次要幾分鐘）…\n<span class="dm">（這裡會跑很多行英文，正常的）</span>\n' +
         '[SYNOX] 登記 .synoxpack 檔案類型（…）\n' +
         '<span data-hl="last" class="key hi">[SYNOX] 打開安裝精靈…</span>');
