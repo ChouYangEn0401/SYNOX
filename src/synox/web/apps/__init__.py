@@ -38,6 +38,8 @@ def install(app, config, ui, **kw) -> AppManager:
     app.on_start.append(on_start)
     app.on_stop.append(on_stop)
     manager.register_task()
+    from synox.web.apps import commands
+    commands.install(app, manager)
     return manager
 
 
