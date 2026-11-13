@@ -1,6 +1,6 @@
 # SYNOX：你自己電腦上的 Telegram 小助手
 
-**👉 [先看介紹頁：SYNOX 長什麼樣、能做什麼、怎麼裝](https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW)**
+**👉 [先看介紹頁：SYNOX 長什麼樣、能做什麼、怎麼裝](https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox)**
 （網頁版的真實畫面、支援哪些平台、哪些還沒做完都在上面；同一份也在 repo 裡：[docs/landing/index.html](docs/landing/index.html)，下載後雙擊就能開）
 **🧰 [工具庫說明頁：有哪些工具、每個做什麼、怎麼裝](https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL)**（工具在另一個專案 [SYNOX_Libs](https://github.com/ChouYangEn0401/SYNOX_Libs)）
 
@@ -14,7 +14,7 @@
 在手機的 Telegram（或 Discord 私訊、這台電腦的網頁）跟它講話：記帳、隨手記、提醒；接了 AI 之後，直接說人話它就會替你按指令
 （刪東西這類危險的事，會先送一張確認卡給你按）。資料都在**你自己的電腦**上，筆記和記帳是加密存的。
 
-想先看看長什麼樣：**介紹頁** [docs/landing/index.html](docs/landing/index.html)（雙擊就能開；線上版 <https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW>）。
+想先看看長什麼樣：**介紹頁** [docs/landing/index.html](docs/landing/index.html)（雙擊就能開；線上版 <https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox>）。
 圖文教學：[Telegram](docs/tutorials/telegram/)、[Discord](docs/tutorials/discord/)（Discord 的名詞：[docs/discord-concepts.md](docs/discord-concepts.md)）。
 
 > **SYNOX 出廠不帶任何工具**（2026-11-12 起）：記帳、隨手記、行事曆、待辦，以及接 Notion、Todoist、Google 日曆、
@@ -213,7 +213,7 @@ pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的
 
 | 給誰 | 看哪裡 |
 |---|---|
-| 想先看長什麼樣 | 介紹頁 [docs/landing/index.html](docs/landing/index.html)（線上版 <https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW>） |
+| 想先看長什麼樣 | 介紹頁 [docs/landing/index.html](docs/landing/index.html)（線上版 <https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox>） |
 | 第一次裝、接 Telegram | [docs/tutorials/telegram/](docs/tutorials/telegram/) |
 | 接 Discord | [docs/tutorials/discord/](docs/tutorials/discord/)；名詞解釋 [docs/discord-concepts.md](docs/discord-concepts.md)；現況與多 bot 設定 [docs/discord.md](docs/discord.md) |
 | 多裝幾個工具、做工具給人 | [docs/ecosystem.md](docs/ecosystem.md)、[docs/tools.md](docs/tools.md) |
