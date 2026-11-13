@@ -9,6 +9,8 @@ Web UI 設定頁、`python -m synox install <檔>`、`python -m synox packs lock
     （給人看報告＋「要建環境」那一段（runtime.python／node = auto，packs/envs.py）、按確認）
     install_staged(token, …)         再跑一次 1、2 關、確認檔案跟看報告時一樣 → 搬進 packs/ → 第 3 關：寫 packs.lock（誰、何時、
                                      trust、runtime：用容器／不用，S2；報告的「🧱 執行環境」＝runtime_report）
+    list_staged(data_dir)            還沒按確認的暫存（網頁的待核准清單）；順便清掉過期（STAGED_MAX_AGE）與半套的
+    discard_staged(token, …)         「不要裝」：刪掉那一份暫存
     build_env(name, …, jobs, on_done)  裝好之後才建環境（JobRunner、最多 10 分鐘）；失敗＝pack 已裝、doctor 標環境沒建好
 
 zip 本身：不能有絕對路徑、`..`、磁碟代號、符號連結；檔名不能是 Windows 保留名（CON、NUL、COM1…）、
@@ -31,6 +33,7 @@ import re
 import secrets
 import shutil
 import stat
+import time
 import zipfile
 from typing import Dict, List, Optional, Tuple
 
@@ -410,6 +413,59 @@ def staged_summary(token: str, data_dir: str) -> dict:
             return json.load(f)["summary"]
     except (OSError, ValueError, KeyError):
         raise PackAdminError("找不到這次上傳的檢查結果（重新上傳一次）")
+
+
+STAGED_MAX_AGE = 7 * 24 * 3600      # 暫存（還沒按確認）超過 7 天＝過期，list_staged 時清掉
+STAGED_HALF_DONE = 3600             # 沒有 staged.json 的暫存（解壓縮到一半、或當機留下的）超過 1 小時才清
+
+
+def list_staged(data_dir: str, now: Optional[float] = None, max_age: float = STAGED_MAX_AGE) -> List[dict]:
+    """等擁有者核准的暫存 pack（網頁「功能與安裝」的待核准清單；不用知道 token 也看得到）。
+    順便清掉過期的（staged.json 超過 max_age）與半套的（沒有 staged.json、超過 STAGED_HALF_DONE）。
+    只看 staging_root 底下名字像 token 的資料夾；符號連結一律不跟、不刪。新的排前面。"""
+    now = time.time() if now is None else now
+    base = staging_root(data_dir)
+    try:
+        names = os.listdir(base)
+    except OSError:
+        return []
+    out = []
+    for token in names:
+        root = os.path.join(base, token)
+        if not TOKEN_RE.match(token) or os.path.islink(root) or not os.path.isdir(root):
+            continue
+        meta_path = os.path.join(root, STAGED_META)
+        try:
+            age = now - os.path.getmtime(meta_path)
+            with open(meta_path, "r", encoding="utf-8") as f:
+                meta = json.load(f)
+            summary = meta["summary"]
+        except (OSError, ValueError, KeyError, TypeError):
+            try:
+                half_done = now - os.path.getmtime(root) > STAGED_HALF_DONE
+            except OSError:
+                half_done = False
+            if half_done:
+                shutil.rmtree(root, ignore_errors=True)
+            continue
+        if age > max_age or not os.path.isdir(os.path.join(root, "pack")):
+            shutil.rmtree(root, ignore_errors=True)
+            logging.info("[PACKS] dropped stale staged upload %s (%s)", token[:6], summary.get("name"))
+            continue
+        tier = summary.get("tier") or {}
+        out.append({"token": token, "name": str(summary.get("name") or ""), "version": str(summary.get("version") or ""),
+                    "title": str(summary.get("title") or ""), "tier": str(tier.get("tier") or ""),
+                    "staged_at": int(now - age), "expires_in": int(max(0, max_age - age))})
+    out.sort(key=lambda s: -s["staged_at"])
+    return out
+
+
+def discard_staged(token: str, data_dir: str) -> None:
+    """「不要裝」：把暫存那一份整個刪掉（staging_root 底下；token 格式不對或找不到丟 PackAdminError）。"""
+    root = _staged_root(token, data_dir)
+    if os.path.islink(root):
+        raise PackAdminError("找不到這次上傳（重新上傳一次）")
+    shutil.rmtree(root, ignore_errors=True)
 
 
 def format_summary(summary: dict) -> str:

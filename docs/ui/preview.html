@@ -362,6 +362,44 @@
   .upload { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; padding: 14px;
             border: 1px dashed var(--line-strong); border-radius: var(--r); background: var(--surface-2); }
   .upload input[type="file"] { flex: 1 1 220px; }
+  #set-install .upload { margin-top: 4px; }
+  /* 設定的分頁（#settings:<tab>）：窄的時候橫向捲，不換行 */
+  .tabs { display: flex; gap: 4px; margin: 0 0 16px; padding: 4px; overflow-x: auto; border: 1px solid var(--line);
+          border-radius: var(--r-lg); background: var(--sunken); scrollbar-width: thin; }
+  .tabs a { flex: none; padding: 7px 12px; border-radius: var(--r); color: var(--text-2); text-decoration: none;
+            font-weight: 550; font-size: 14px; white-space: nowrap; border: 1px solid transparent;
+            transition: background .15s var(--ease), color .15s var(--ease); }
+  .tabs a:hover { color: var(--text); background: var(--surface-2); }
+  .tabs a[aria-selected="true"] { background: var(--surface); color: var(--text); font-weight: 650; border-color: var(--line);
+                                  box-shadow: var(--shadow-sm), var(--highlight); }
+  #set-notowner:not(.hidden) { margin-bottom: 16px; }
+  /* 安裝：待核准清單＋步驟（檢查 → 看報告 → 確認 → 安裝 → 完成） */
+  .staged { margin-top: 14px; }
+  .staged h3 { font-size: 15px; color: var(--text); }
+  .staged-item { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; margin-top: 8px;
+                 border: 1px solid var(--line); border-radius: var(--r); background: var(--surface-2); }
+  .staged-item.selected { border-color: var(--accent-line); background: var(--accent-soft); }
+  .staged-item .txt { flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .staged-item .name { font-weight: 650; }
+  .flow { list-style: none; display: flex; gap: 4px; margin: 16px 0 0; padding: 0; counter-reset: flow; }
+  .flow li { flex: 1 1 0; min-width: 0; margin: 0; display: flex; flex-direction: column; align-items: center; gap: 6px;
+             position: relative; font-size: 12.5px; color: var(--muted); text-align: center; }
+  .flow li::before { counter-increment: flow; content: counter(flow); width: 28px; height: 28px; border-radius: 50%;
+                     display: grid; place-items: center; font-weight: 700; position: relative; z-index: 1;
+                     background: var(--surface); border: 2px solid var(--line-strong); color: var(--muted);
+                     transition: background .2s var(--ease), border-color .2s var(--ease), color .2s var(--ease); }
+  .flow li + li::after { content: ""; position: absolute; top: 13px; right: 50%; width: 100%; height: 2px;
+                         background: var(--line); transition: background .3s var(--ease); }
+  .flow li.is-done::before { content: "\2713"; background: var(--ok-soft); border-color: var(--ok); color: var(--ok); }
+  .flow li.is-done + li::after, .flow li.is-active::after, .flow li.is-fail::after { background: var(--ok); }
+  .flow li.is-active { color: var(--text); font-weight: 650; }
+  .flow li.is-active::before { background: var(--accent-soft); border-color: var(--accent); color: var(--accent);
+                               animation: flow-pulse 1.4s var(--ease) infinite; }
+  .flow li.is-fail { color: var(--bad); font-weight: 650; }
+  .flow li.is-fail::before { content: "!"; background: var(--bad-soft); border-color: var(--bad); color: var(--bad); }
+  .flow[data-step="installing"] li.is-active::before { animation-duration: .8s; }
+  @keyframes flow-pulse { 0%, 100% { box-shadow: 0 0 0 0 var(--accent-soft); } 50% { box-shadow: 0 0 0 6px var(--accent-soft); } }
+  #pack-review.result { border-color: var(--ok); animation: rise .25s var(--ease); }
 
   #toast { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); background: var(--text);
            color: var(--bg); padding: 10px 16px; border-radius: 12px; max-width: calc(100% - 32px); z-index: 50;
@@ -1057,6 +1095,22 @@
       return reply({ pairing: ch.pairing, paired_as: ch.paired_as, just_paired: null, ok: true });
     }
     if (p === "/api/accounts") { return reply(D.accounts); }
+    // 「功能與安裝」的待核准清單（一筆假的暫存；時間寫成「10 分鐘前」，預覽檔才不會每跑一次就變）
+    if (p === "/api/packs/staged") {
+      return reply({ max_age_days: 7, staged: D.stagedGone ? [] : [{ token: "previewtoken01", name: "weather", version: "0.3.0",
+        title: "天氣", tier: "T1", staged_at: Math.floor(Date.now() / 1000) - 600, expires_in: 7 * 86400 - 600 }] });
+    }
+    if (p === "/api/packs/discard") { D.stagedGone = true; return reply({ ok: true }); }
+    if (p.indexOf("/api/pack-staged/") === 0) {
+      return reply({ token: "previewtoken01", name: "weather", title: "天氣", version: "0.3.0", summary: "查天氣預報（預覽的假資料）",
+        kind: "python", access: "owner", storage: "user", files: ["pack.json", "pack.py", "SKILL.md"], publisher: "",
+        scan: { declared_capabilities: ["network"], required_capabilities: ["network"], problems: [], findings: [] },
+        warnings: ["會連網：只連到天氣服務"], tier: { tier: "T1", text: "T1：有程式碼，掃描過了" } });
+    }
+    if (p === "/api/packs/install") {
+      D.stagedGone = true;
+      return reply({ ok: true, name: "weather", status: "loaded", detail: "", env: "" });
+    }
     if (p === "/api/usage") {                     // 假的用量：讓設定頁的「AI 用量與花費」有東西看
       var per = (String(path).split("period=")[1] || "day").split("&")[0];
       var n = { hour: 24, day: 14, week: 12, month: 12 }[per] || 14, pts = [], total = { calls: 0, input: 0, output: 0, usd: 0 };
@@ -1370,6 +1424,17 @@
         <p id="my-budget" class="note-line"></p>
       </div>
 
+      <!-- 分頁：#settings:<tab>（重新整理、貼連結都留在同一頁）。安裝 pack 的頁是 #packs（＝#settings:packs），
+           報告、確認、結果都在那頁最上面的「安裝新功能」 -->
+      <div id="set-tabs" class="tabs hidden" role="tablist" aria-label="設定分類">
+        <a href="#settings:ai" data-tab="ai" role="tab">🤖 AI</a>
+        <a href="#settings:channels" data-tab="channels" role="tab">💬 聊天通道</a>
+        <a href="#packs" data-tab="packs" role="tab">🧩 功能與安裝</a>
+        <a href="#settings:accounts" data-tab="accounts" role="tab">👥 帳號</a>
+        <a href="#settings:system" data-tab="system" role="tab">💻 電腦與備份</a>
+      </div>
+
+      <div class="tab-panel hidden" data-tab="ai" role="tabpanel">
       <div id="set-llm" class="card hidden">
         <div class="card-head"><span class="tile" aria-hidden="true">🤖</span>
           <div class="txt"><h2>AI 從哪裡來</h2><p class="sub" id="llm-now"></p></div></div>
@@ -1428,21 +1493,6 @@
         </div>
       </div>
 
-      <div id="set-awake" class="card hidden">
-        <div class="card-head"><span class="tile" aria-hidden="true">☕</span>
-          <div class="txt"><h2>保持清醒</h2><p class="sub" id="awake-tagline">像一個穩定的 heartbeat：維持系統運轉，但螢幕可以暗（保護螢幕或省電）。</p></div></div>
-        <p class="note-line" id="awake-notice">⚠️ 開啟後會覆蓋 Windows 電源選項裡的「睡眠」設定：電腦不再自動睡眠。螢幕仍可照電源計畫，或設定「閒置 N 分鐘後主動關螢幕」變暗／關閉，以保護螢幕、省電。闔上筆電蓋、手動睡眠、低電量、Windows Update 重開機擋不住。</p>
-        <label class="f"><input id="awake-enabled" type="checkbox"> 讓電腦不要自動睡眠（預設關閉）</label>
-        <label class="f" for="awake-minutes">閒置幾分鐘後主動關螢幕（0＝照 Windows 電源計畫）</label>
-        <input id="awake-minutes" type="number" min="0" max="240" step="1" size="6">
-        <p class="note-line hidden" id="awake-ms"></p>
-        <hr class="rule">
-        <div class="row">
-          <button id="awake-save" class="primary" type="button">存起來</button>
-          <span id="awake-msg" class="muted"></span>
-        </div>
-      </div>
-
       <div id="set-usage" class="card hidden">
         <div class="card-head"><span class="tile" aria-hidden="true">💰</span>
           <div class="txt"><h2>AI 用量與花費</h2><p class="sub" id="usage-sub"></p></div></div>
@@ -1461,7 +1511,36 @@
         <div id="usage-table-wrap" class="hidden"><table id="usage-table"></table></div>
         <p id="usage-note" class="muted"></p>
       </div>
+      </div>
 
+      <div class="tab-panel hidden" data-tab="system" role="tabpanel">
+      <div id="set-awake" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">☕</span>
+          <div class="txt"><h2>保持清醒</h2><p class="sub" id="awake-tagline">像一個穩定的 heartbeat：維持系統運轉，但螢幕可以暗（保護螢幕或省電）。</p></div></div>
+        <p class="note-line" id="awake-notice">⚠️ 開啟後會覆蓋 Windows 電源選項裡的「睡眠」設定：電腦不再自動睡眠。螢幕仍可照電源計畫，或設定「閒置 N 分鐘後主動關螢幕」變暗／關閉，以保護螢幕、省電。闔上筆電蓋、手動睡眠、低電量、Windows Update 重開機擋不住。</p>
+        <label class="f"><input id="awake-enabled" type="checkbox"> 讓電腦不要自動睡眠（預設關閉）</label>
+        <label class="f" for="awake-minutes">閒置幾分鐘後主動關螢幕（0＝照 Windows 電源計畫）</label>
+        <input id="awake-minutes" type="number" min="0" max="240" step="1" size="6">
+        <p class="note-line hidden" id="awake-ms"></p>
+        <hr class="rule">
+        <div class="row">
+          <button id="awake-save" class="primary" type="button">存起來</button>
+          <span id="awake-msg" class="muted"></span>
+        </div>
+      </div>
+
+      <div id="set-backup" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">💾</span>
+          <div class="txt"><h2>備份</h2>
+            <p class="sub">下載整個 data 資料夾（筆記、記帳、提醒、使用者…），用這台電腦的保管箱金鑰加密。只有同一台電腦、同一個 Windows 帳號解得開。</p></div></div>
+        <div class="row">
+          <button id="backup" type="button">下載備份</button>
+          <span id="backup-msg" class="muted"></span>
+        </div>
+      </div>
+      </div>
+
+      <div class="tab-panel hidden" data-tab="channels" role="tabpanel">
       <div id="set-channels" class="card hidden">
         <div class="card-head"><span class="tile" aria-hidden="true">💬</span>
           <div class="txt"><h2>聊天通道</h2>
@@ -1497,22 +1576,42 @@
           <div id="ch-dc-pair" class="pair hidden"></div>
         </div>
       </div>
+      </div>
+
+      <div class="tab-panel hidden" data-tab="packs" role="tabpanel">
+      <div id="set-install" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">📦</span>
+          <div class="txt"><h2>安裝新功能</h2><p class="sub">選一個 .synoxpack（pack 資料夾壓成的 zip），先看安全檢查報告，按「確認安裝」才會裝。
+            雙擊 .synoxpack、Install-Pack.bat 或 <code>synox install &lt;檔&gt;</code> 開的報告也會直接出現在這裡。</p></div></div>
+        <div class="upload">
+          <input id="pack-file" type="file" accept=".synoxpack,.zip" aria-label=".synoxpack 檔">
+          <button id="pack-upload" class="primary" type="button">上傳並檢查</button>
+        </div>
+        <div id="staged-wrap" class="staged hidden">
+          <h3>等你核准</h3>
+          <p class="muted" id="staged-note"></p>
+          <div id="staged-list"></div>
+        </div>
+        <!-- 安裝步驟（檢查 → 看報告 → 確認 → 安裝 → 完成）。每一步會丟 document 的 "synox:install-step" 事件，
+             data-step／data-status 也寫在這個 ol 上：之後 pack／工具作者可以掛自己的動畫或狀態 -->
+        <ol id="install-steps" class="flow hidden" aria-label="安裝步驟"></ol>
+        <div id="pack-review" class="card hidden" tabindex="-1"></div>
+        <p id="install-msg" class="msgline" role="status"></p>
+      </div>
 
       <div id="set-packs" class="card hidden">
         <div class="card-head"><span class="tile" aria-hidden="true">🧩</span>
           <div class="txt"><h2>功能（pack）</h2><p class="sub">裝了哪些功能、能不能用。移除的會搬到 packs/_removed/，不會刪掉。</p></div></div>
         <div class="tablewrap"><table><thead><tr><th>名字</th><th>狀態</th><th>版本</th><th></th></tr></thead>
           <tbody id="pack-rows"></tbody></table></div>
-        <label class="f" for="pack-file">裝一個 .synoxpack（pack 資料夾壓成的 zip）</label>
-        <div class="upload">
-          <input id="pack-file" type="file" accept=".synoxpack,.zip">
-          <button id="pack-upload" class="primary" type="button">上傳並檢查</button>
+        <div class="row">
           <button id="pack-reload" class="ghost" type="button">重新載入全部</button>
+          <span id="pack-msg" class="msgline"></span>
         </div>
-        <div id="pack-review" class="card hidden"></div>
-        <p id="pack-msg" class="msgline"></p>
+      </div>
       </div>
 
+      <div class="tab-panel hidden" data-tab="accounts" role="tabpanel">
       <div id="set-accounts" class="card hidden">
         <div class="card-head"><span class="tile" aria-hidden="true">👥</span>
           <div class="txt"><h2>帳號（伺服器版）</h2><p class="sub">誰能用、用了多少；角色改了馬上生效。</p></div></div>
@@ -1520,16 +1619,8 @@
           <tbody id="account-rows"></tbody></table></div>
         <p id="account-msg" class="msgline"></p>
       </div>
-
-      <div id="set-backup" class="card hidden">
-        <div class="card-head"><span class="tile" aria-hidden="true">💾</span>
-          <div class="txt"><h2>備份</h2>
-            <p class="sub">下載整個 data 資料夾（筆記、記帳、提醒、使用者…），用這台電腦的保管箱金鑰加密。只有同一台電腦、同一個 Windows 帳號解得開。</p></div></div>
-        <div class="row">
-          <button id="backup" type="button">下載備份</button>
-          <span id="backup-msg" class="muted"></span>
-        </div>
       </div>
+
     </div>
   </section>
 
@@ -3534,7 +3625,9 @@
   // ── 切換畫面 ──────────────────────────────────────────────────────
   var VIEWS = ["login", "chat", "tools", "settings", "control", "archive"];
   var control = window.SynoxControl;        // 主控頁（control.js，只有擁有者）
+  var currentView = "";
   function show(view) {
+    currentView = view;
     VIEWS.forEach(function (v) { $("view-" + v).classList.toggle("hidden", v !== view); });
     document.body.setAttribute("data-view", view);
     Array.prototype.forEach.call(document.querySelectorAll("#nav a"), function (a) {
@@ -3557,6 +3650,11 @@
     var parts = (location.hash || "#chat").slice(1).split(":");       // #chat:mother＝直接打開「常駐助理」那段
     var v = parts[0];
     if (v === "control" && !(control && control.canSee(me))) { v = "chat"; }
+    // 設定的分頁：#settings:<tab>；#packs＝安裝 pack 的頁（＝#settings:packs）。帶 ?pack=<token> 進來一律到那頁
+    var tab = v === "settings" ? (parts[1] || "") : "";
+    if (v === "packs" || (stagedToken && me.owner)) { v = "settings"; tab = "packs"; }
+    if (v === "settings" && currentView === "settings") { pickTab(tab); openStaged(); return; }   // 只換分頁：不重抓、不清表單
+    if (v === "settings") { pickTab(tab); }
     show(VIEWS.indexOf(v) > 0 ? v : "chat");
     if (v === "chat" && parts[1] === "mother" && me) { openChat("mother"); }
   }
@@ -3811,15 +3909,37 @@
              model: c.choice === "claude_code" ? $("llm-cc-model").value : $("llm-model").value,
              base_url: $("llm-url").value };
   }
+  // ── 設定的分頁（#settings:<tab>；packs 的網址是 #packs）──────────────
+  var TABS = ["ai", "channels", "packs", "accounts", "system"];
+  var tabWanted = "";          // 網址要的分頁（空＝沿用上次的，或第一個）
+  var tabsOn = [];             // 這個人看得到的分頁（loadSettings 依擁有者／帳號權限決定）
+  function pickTab(t) {
+    if (t) { tabWanted = t; }
+    applyTabs();
+  }
+  function applyTabs() {
+    var cur = tabsOn.indexOf(tabWanted) >= 0 ? tabWanted : (tabsOn[0] || "");
+    Array.prototype.forEach.call(document.querySelectorAll("#view-settings .tab-panel"), function (p) {
+      p.classList.toggle("hidden", p.getAttribute("data-tab") !== cur);
+    });
+    Array.prototype.forEach.call(document.querySelectorAll("#set-tabs a"), function (a) {
+      var t = a.getAttribute("data-tab");
+      a.classList.toggle("hidden", tabsOn.indexOf(t) < 0);
+      a.setAttribute("aria-selected", t === cur ? "true" : "false");
+    });
+    $("set-tabs").classList.toggle("hidden", tabsOn.length < 2);
+  }
   function loadSettings() {
     api("GET", "/api/settings").then(function (d) {
       $("set-notowner").classList.toggle("hidden", d.owner);
-      ["set-llm", "set-usage", "set-channels", "set-packs", "set-backup"].forEach(function (id) { $(id).classList.toggle("hidden", !d.owner); });
+      ["set-llm", "set-usage", "set-channels", "set-install", "set-packs", "set-backup"].forEach(function (id) { $(id).classList.toggle("hidden", !d.owner); });
       $("set-accounts").classList.toggle("hidden", !d.accounts);
+      tabsOn = TABS.filter(function (t) { return t === "accounts" ? !!d.accounts : !!d.owner; });
+      applyTabs();
       $("my-budget").textContent = d.ai_budget ?
         "這個月的 AI 額度：用了約 US$" + d.ai_budget.used.toFixed(2) + "／US$" + Number(d.ai_budget.limit).toFixed(2) : "";
       $("my-budget").classList.toggle("hidden", !d.ai_budget);
-      if (d.owner) { loadUsage(); fillLlm(d); fillPacks(d.packs || []); loadChannels(); loadAwake(); }
+      if (d.owner) { loadUsage(); fillLlm(d); fillPacks(d.packs || []); loadChannels(); loadAwake(); loadStaged(); }
       else { $("set-awake").classList.add("hidden"); }
       if (d.accounts) { loadAccounts(); }
     }).catch(function (e) { toast(e.message); });
@@ -4203,7 +4323,9 @@
   function showReview(s, canInstall) {
     var box = $("pack-review");
     clear(box);
-    box.classList.remove("hidden");
+    box.classList.remove("hidden", "result");
+    $("install-msg").textContent = "";
+    if (s.token) { selectedToken = s.token; markStaged(); }
     box.appendChild(el("h3", "", s.title + "（" + s.name + " " + s.version + "）"));
     box.appendChild(el("p", "", s.summary));
     box.appendChild(el("p", "muted", "種類 " + s.kind + "，誰能用 " + s.access + "，資料 " + s.storage +
@@ -4245,12 +4367,15 @@
     var runtime = canInstall && s.token ? showRuntime(box, s, upg) : null;
     var pub = showTier(box, s, upg, canInstall && s.token);
     var row = el("div", "row");
+    var info = { token: s.token || "", name: s.name };
     if (canInstall && s.token) {
       var ok = el("button", "primary", upg ? "確認升級" : "確認安裝");
       ok.type = "button";
-      var refresh = function () {
+      var busy = false;
+      var refresh = function () {             // 該勾的都勾了＝走到「確認」那一步
         var versionOk = !(upg && !upg.version_ok) || !!(down && down.checked);
-        ok.disabled = !versionOk || (pub && !pub.ready());
+        ok.disabled = busy || !versionOk || (pub && !pub.ready());
+        if (!busy) { setStep(ok.disabled ? "review" : "confirm", "active", info); }
       };
       if (down) { down.addEventListener("change", refresh); }
       if (pub) { pub.onchange(refresh); }
@@ -4261,22 +4386,172 @@
         if (trust) { body.trust = trust.value; }
         if (runtime) { body.runtime = runtime.value; }
         if (pub) { body.trust_publisher = pub.value(); }
+        busy = true; ok.disabled = true; later.disabled = true; no.disabled = true;
+        ok.textContent = upg ? "升級中…" : "安裝中…";
+        setStep("installing", "active", info);
+        $("install-msg").textContent = "";
         api("POST", "/api/packs/install", body).then(function (d) {
-          $("pack-msg").textContent = (d.upgraded ? "升級好了：" + d.name + " " + d.from + " → " + d.to + "（舊的在 " + d.backup + "）"
-            : "裝好了：" + d.name) + "（" + (STATUS[d.status] || d.status) + (d.detail ? "：" + d.detail : "") + "）" +
-            (d.env === "building" ? "。環境在背景建，好了會在 Telegram 通知你。" :
-              (d.env && d.env.indexOf("failed") === 0 ? "。環境沒建好：" + d.env.slice(8) : ""));
-          box.classList.add("hidden");
+          showInstalled(d, info);
           loadSettings();
-        }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });
+        }).catch(function (e) {
+          busy = false; later.disabled = false; no.disabled = false;
+          ok.textContent = upg ? "確認升級" : "確認安裝";
+          $("install-msg").textContent = "❌ " + e.message;
+          refresh();                                   // 按鈕回來，可以修正（例如 publisher 打錯）再按一次
+          setStep("installing", "fail", info);
+          loadStaged();
+        });
       });
       row.appendChild(ok);
     }
-    var no = el("button", "", canInstall ? "不要裝" : "關掉");
+    // 「稍後再決定」：收起來，留在待核准清單；「不要裝」：把暫存刪掉（還沒裝，不進 _removed）
+    var later = el("button", "ghost", canInstall && s.token ? "稍後再決定" : "關掉");
+    later.type = "button";
+    later.addEventListener("click", function () { closeReview(); });
+    row.appendChild(later);
+    var no = el("button", "danger", "不要裝");
     no.type = "button";
-    no.addEventListener("click", function () { box.classList.add("hidden"); });
-    row.appendChild(no);
+    no.addEventListener("click", function () { discardStaged(s.token); });
+    if (canInstall && s.token) { row.appendChild(no); }
     box.appendChild(row);
+    if (!(canInstall && s.token)) { setStep("check", "fail", info); }
+    reveal(box);
+  }
+  // 確認之後：結果留在同一個地方（報告那一格換成結果）
+  function showInstalled(d, info) {
+    var box = $("pack-review");
+    clear(box);
+    box.classList.remove("hidden");
+    box.classList.add("result");
+    box.appendChild(el("h3", "", d.upgraded ? "✅ 升級好了：" + d.name + " " + d.from + " → " + d.to : "✅ 裝好了：" + d.name));
+    var st = el("p");
+    var tone = TONE.hasOwnProperty(d.status) ? TONE[d.status] : "bad";
+    st.appendChild(el("span", "badge " + tone, STATUS[d.status] || d.status || "？"));
+    if (d.detail) { st.appendChild(document.createTextNode(" " + d.detail)); }
+    box.appendChild(st);
+    if (d.upgraded && d.backup) { box.appendChild(el("p", "muted", "舊的在 " + d.backup + "（要退回：python -m synox packs rollback " + d.name + "）")); }
+    if (d.env === "building") { box.appendChild(el("p", "note-line", "🧱 環境在背景建（最多 10 分鐘），好了會通知你；在那之前狀態可能是「環境沒建好」。")); }
+    else if (d.env && d.env.indexOf("failed") === 0) { box.appendChild(el("p", "alert", "⚠️ 環境沒建好：" + d.env.slice(8))); }
+    box.appendChild(el("p", "muted", "已經重新載入，可以到工具頁用了。"));
+    var row = el("div", "row");
+    var go = el("button", "primary", "去工具頁");
+    go.type = "button";
+    go.addEventListener("click", function () { location.hash = "#tools"; });
+    var again = el("button", "ghost", "再裝一個");
+    again.type = "button";
+    again.addEventListener("click", function () { closeReview(); $("pack-file").value = ""; $("pack-file").focus(); });
+    row.appendChild(go); row.appendChild(again);
+    box.appendChild(row);
+    selectedToken = "";
+    setStep("done", "ok", info);
+    loadStaged();
+    reveal(box);
+  }
+  function closeReview() {
+    $("pack-review").classList.add("hidden");
+    selectedToken = "";
+    markStaged();
+    setStep("idle");
+  }
+  // 報告／結果出現時捲到它（在分頁最上面，通常不用捲；窄螢幕才會動）
+  function reveal(node) {
+    try { node.scrollIntoView({ block: "nearest", behavior: "smooth" }); } catch (e) { node.scrollIntoView(); }
+  }
+
+  // ── 安裝步驟：檢查 → 看報告 → 確認 → 安裝 → 完成 ─────────────────────
+  // 每次換步驟都丟 document 的 "synox:install-step"（detail：step、status、token、name），ol 上也有 data-step／data-status。
+  // pack／工具作者之後要掛自己的動畫或狀態，聽這個事件就好（window.SynoxInstall.onStep 是同一件事）。
+  var STEP_ORDER = ["check", "review", "confirm", "installing", "done"];
+  var STEP_TEXT = { check: "檢查", review: "看報告", confirm: "確認", installing: "安裝", done: "完成" };
+  var flow = { step: "idle", status: "", token: "", name: "" };
+  (function () {
+    var ol = $("install-steps");
+    STEP_ORDER.forEach(function (k) { var li = el("li", "", STEP_TEXT[k]); li.setAttribute("data-step", k); ol.appendChild(li); });
+  })();
+  function setStep(step, status, info) {
+    flow.step = step; flow.status = status || "active";
+    if (info) { flow.token = info.token || ""; flow.name = info.name || ""; }
+    if (step === "idle") { flow.token = ""; flow.name = ""; }
+    var ol = $("install-steps");
+    ol.setAttribute("data-step", step);
+    ol.setAttribute("data-status", flow.status);
+    ol.classList.toggle("hidden", step === "idle");
+    var at = STEP_ORDER.indexOf(step);
+    Array.prototype.forEach.call(ol.children, function (li, i) {
+      var cls = i < at ? "is-done" : (i === at ? (flow.status === "fail" ? "is-fail" : (flow.status === "ok" ? "is-done" : "is-active")) : "");
+      li.className = cls;
+      if (i === at) { li.setAttribute("aria-current", "step"); } else { li.removeAttribute("aria-current"); }
+    });
+    try {
+      document.dispatchEvent(new CustomEvent("synox:install-step",
+        { detail: { step: step, status: flow.status, token: flow.token, name: flow.name } }));
+    } catch (e) { /* 舊瀏覽器沒有 CustomEvent：步驟照樣畫 */ }
+  }
+
+  // ── 待核准清單（暫存在 data/web_uploads/，不用 token 也看得到；過期的伺服器會清掉）──
+  var selectedToken = "";
+  var stagedRows = [];
+  function loadStaged() {
+    if (!me || !me.owner) { return Promise.resolve(); }
+    return api("GET", "/api/packs/staged").then(function (d) {
+      stagedRows = d.staged || [];
+      $("staged-note").textContent = "還沒按確認的 pack；" + (d.max_age_days || 7) + " 天沒處理會自動清掉。";
+      renderStaged();
+    }).catch(function () {});
+  }
+  function ago(sec) {
+    var s = Math.max(0, Math.floor(Date.now() / 1000 - sec));
+    if (s < 60) { return "剛剛"; }
+    if (s < 3600) { return Math.floor(s / 60) + " 分鐘前"; }
+    if (s < 86400) { return Math.floor(s / 3600) + " 小時前"; }
+    return Math.floor(s / 86400) + " 天前";
+  }
+  function renderStaged() {
+    var box = $("staged-list");
+    clear(box);
+    $("staged-wrap").classList.toggle("hidden", !stagedRows.length);
+    stagedRows.forEach(function (s) {
+      var row = el("div", "staged-item");
+      row.setAttribute("data-token", s.token);
+      var txt = el("div", "txt");
+      var name = el("span", "name", (s.title || s.name) + " " + s.version + " ");
+      if (s.tier === "T2") { name.appendChild(el("span", "badge bad", "T2")); }
+      txt.appendChild(name);
+      txt.appendChild(el("span", "muted", s.name + "・" + ago(s.staged_at) + "上傳・" +
+        Math.max(1, Math.ceil(s.expires_in / 86400)) + " 天內沒處理會清掉"));
+      row.appendChild(txt);
+      var open = el("button", "sm", "看報告");
+      open.type = "button";
+      open.addEventListener("click", function () { openStagedToken(s.token); });
+      var drop = el("button", "danger sm", "不要裝");
+      drop.type = "button";
+      drop.addEventListener("click", function () { discardStaged(s.token); });
+      row.appendChild(open); row.appendChild(drop);
+      box.appendChild(row);
+    });
+    markStaged();
+  }
+  function markStaged() {
+    Array.prototype.forEach.call(document.querySelectorAll("#staged-list .staged-item"), function (r) {
+      var on = !!selectedToken && r.getAttribute("data-token") === selectedToken;
+      r.classList.toggle("selected", on);
+      if (on) { r.setAttribute("aria-current", "true"); } else { r.removeAttribute("aria-current"); }
+    });
+  }
+  function openStagedToken(t) {
+    selectedToken = t;
+    markStaged();
+    setStep("check", "ok", { token: t, name: "" });          // 暫存的都過了 1、2 關（stage 時跑的）
+    return api("GET", "/api/pack-staged/" + encodeURIComponent(t)).then(function (s) { showReview(s, true); })
+      .catch(function (e) { reviewFailed(e); loadStaged(); });
+  }
+  function discardStaged(t) {
+    if (!t) { closeReview(); return; }
+    api("POST", "/api/packs/discard", { token: t }).then(function () {
+      if (t === selectedToken || t === flow.token) { closeReview(); }
+      $("install-msg").textContent = "丟掉了（沒有裝）。";
+      loadStaged();
+    }).catch(function (e) { $("install-msg").textContent = "❌ " + e.message; loadStaged(); });
   }
   // 同名已經裝了＝升級：「改了什麼」（alert 的用紅字）、版本檢查；版本不對時回「降級」勾選框（沒勾不能按）
   function showUpgrade(box, upg, name) {
@@ -4424,22 +4699,50 @@
   }
   function reviewFailed(e) {
     if (e.data && e.data.refused && e.data.refused.name) { showReview(e.data.refused, false); }
-    $("pack-msg").textContent = "❌ " + e.message;
+    else { setStep("check", "fail", { token: "", name: "" }); }
+    $("install-msg").textContent = "❌ " + e.message;
   }
-  $("pack-upload").addEventListener("click", function () {
-    var f = $("pack-file").files[0];
-    if (!f) { toast("先選一個 .synoxpack 檔"); return; }
-    f.arrayBuffer().then(function (buf) { return api("POST", "/api/packs/upload", null, buf); })
-      .then(function (s) { showReview(s, true); }).catch(reviewFailed);
-  });
-  // python -m synox install <檔>（或點兩下 .synoxpack）暫存好之後開的網址：/?pack=<token>#settings
+  // 上傳一個檔 → 第 1、2 關（伺服器）→ 報告。拖放（之後另外做）也走這裡：window.SynoxInstall.reviewFile(file)
+  function uploadFile(f) {
+    if (!f) { toast("先選一個 .synoxpack 檔"); return Promise.resolve(); }
+    $("pack-review").classList.add("hidden");
+    $("install-msg").textContent = "";
+    selectedToken = ""; markStaged();
+    setStep("check", "active", { token: "", name: f.name || "" });
+    $("pack-upload").disabled = true;
+    return f.arrayBuffer().then(function (buf) { return api("POST", "/api/packs/upload", null, buf); })
+      .then(function (s) { showReview(s, true); loadStaged(); }).catch(reviewFailed)
+      .then(function () { $("pack-upload").disabled = false; });
+  }
+  $("pack-upload").addEventListener("click", function () { uploadFile($("pack-file").files[0]); });
+  // python -m synox install <檔>（或點兩下 .synoxpack、Install-Pack.bat）暫存好之後開的網址：/?pack=<token>#packs
+  // 一進來就到安裝頁、打開那一份，然後把 token 從網址拿掉（留乾淨的 #packs；那一份在待核准清單裡照樣是選取的）
   var stagedToken = (/[?&]pack=([A-Za-z0-9_-]{8,64})/.exec(location.search) || [])[1];
   function openStaged() {
     if (!stagedToken || !me || !me.owner) { return; }
     var t = stagedToken;
     stagedToken = "";
-    api("GET", "/api/pack-staged/" + t).then(function (s) { showReview(s, true); }).catch(reviewFailed);
+    try { history.replaceState(null, "", location.pathname + "#packs"); } catch (e) { /* 預覽頁（file://）可能不准 */ }
+    openStagedToken(t);
   }
+  // 給其他程式碼（例如之後的拖放 .synoxpack）用的入口；網址 #packs 是同一個頁。
+  window.SynoxInstall = {
+    open: function () { if (location.hash !== "#packs") { location.hash = "#packs"; } },
+    reviewFile: function (file) {
+      if (!me || !me.owner) { toast("只有擁有者能裝功能"); return Promise.resolve(); }
+      window.SynoxInstall.open();
+      return uploadFile(file);
+    },
+    reviewToken: function (token) {
+      if (!me || !me.owner || !/^[A-Za-z0-9_-]{8,64}$/.test(token || "")) { return Promise.resolve(); }
+      window.SynoxInstall.open();
+      return openStagedToken(token);
+    },
+    onStep: function (fn) {
+      document.addEventListener("synox:install-step", function (ev) { fn(ev.detail); });
+    },
+    state: function () { return { step: flow.step, status: flow.status, token: flow.token, name: flow.name }; }
+  };
   $("pack-reload").addEventListener("click", function () {
     api("POST", "/api/packs/reload", {}).then(function (d) {
       $("pack-msg").textContent = d.ok ? "重新載入好了。" : "重新載入了，但有 pack 有問題（看上面的狀態）。";

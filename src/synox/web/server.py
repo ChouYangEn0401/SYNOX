@@ -10,7 +10,9 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
                                     → 用掉連結 → cookie session → 303 到 /#chat
     GET  /packs/<name>/panel        pack 的 web.panel（工具頁用 <iframe sandbox> 掛）
     GET  /tutorials/<name>/         圖文教學 docs/tutorials/<name>/index.html（公開文件，不用登入；synox/tutorials.py）
-    GET  /api/pack-staged/<token>   `python -m synox install` 暫存好的 pack 的檢查報告（擁有者；網頁 ?pack=<token>#settings）
+    GET  /api/pack-staged/<token>   `python -m synox install` 暫存好的 pack 的檢查報告（擁有者；網頁 ?pack=<token>#settings:packs）
+    GET  /api/packs/staged          擁有者：還沒按確認的暫存 pack（待核准清單，不用 token；過期的順便清掉）
+    POST /api/packs/discard         {"token"}：擁有者「不要裝」，刪掉那一份暫存
     GET  /api/pack-secrets/<name>   工具頁「連接」：auth.fields 的狀態（有填、最後 4 碼；secret 的值永遠不回）
     POST /api/pack-secrets/<name>   {"values": {欄位: 值}, "clear": [...]}：存進保管箱（空字串＝沿用原值）
                                     個人版只有擁有者、伺服器版每人設自己的
@@ -545,6 +547,8 @@ class WebUI:
             m = re.match(r"^/api/pack-staged/([A-Za-z0-9_-]{8,64})$", path)
             if m:
                 return self.pack_staged(user, m.group(1))
+            if path == "/api/packs/staged":
+                return self.pack_staged_list(user)
             m = re.match(r"^/api/packs/([a-z][a-z0-9_-]{0,31})/([a-z0-9][a-z0-9_-]{0,31})$", path)
             if m:
                 return self.pack_api(user, m.group(1), m.group(2))
@@ -611,6 +615,8 @@ class WebUI:
             return self.pack_install(user, data)
         if path == "/api/packs/remove":
             return self.pack_remove(user, data)
+        if path == "/api/packs/discard":
+            return self.pack_discard(user, data)
         if path == "/api/packs/reload":
             return self.pack_reload(user)
         if path == "/api/accounts/role":
@@ -1435,6 +1441,26 @@ class WebUI:
             return _json(200, self._with_upgrade(staged_summary(token, self.config.data_dir)))
         except PackAdminError as e:
             return _err(404, str(e))
+
+    def pack_staged_list(self, user) -> Resp:
+        """等核准的暫存 pack（不用 token 也看得到；網頁「功能與安裝」的待核准清單）。過期的順便清掉。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from synox.packs.admin import STAGED_MAX_AGE, list_staged
+        return _json(200, {"staged": list_staged(self.config.data_dir), "max_age_days": STAGED_MAX_AGE // 86400})
+
+    def pack_discard(self, user, data: dict) -> Resp:
+        """「不要裝」：刪掉那一份暫存（沒裝過的東西，不進 _removed）。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from synox.packs.admin import PackAdminError, discard_staged
+        try:
+            discard_staged(str(data.get("token") or ""), self.config.data_dir)
+        except PackAdminError as e:
+            return _err(404, str(e))
+        return _json(200, {"ok": True})
 
     def pack_install(self, user, data: dict) -> Resp:
         denied = self._owner_only(user)
