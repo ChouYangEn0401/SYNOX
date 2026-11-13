@@ -327,6 +327,9 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 err = adapter.probe()
                 out(f"• AI：{adapter.name}　" + ("✅ 測試通過" if err is None else f"❌ {err}"))
                 problems += 0 if err is None else 1
+            if adapter is not None:                         # 完成宣稱檢查、停止詞（docs/adr/0008、0010）
+                from synox.agent.claims import doctor_line
+                out("  " + doctor_line(llm, adapter))
         except Exception as e:
             out(f"• AI：❌ {e}")
             problems += 1
