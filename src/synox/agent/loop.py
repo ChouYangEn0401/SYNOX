@@ -316,6 +316,7 @@ class AgentLoop:
         messages = [Message(SYSTEM, prompt)] + \
             list(self.history[self.memory_key(chat_id, user)]) + [Message(USER, text)]
         typing = getattr(api, "typing", None)
+        warned: List[str] = []
         for step in range(self.max_steps):
             stop = self.out_of_budget(user) if step else ""
             if stop:
@@ -334,6 +335,9 @@ class AgentLoop:
                 api.send_message(chat_id, f"⚠️ AI 出錯了：{type(e).__name__}: {e}")
                 return
             self._record(user, reply.usage)
+            for w in getattr(reply, "warnings", None) or []:
+                if w not in warned:
+                    warned.append(w)
             calls, said = list(reply.tool_calls) if native else [], reply.text or ""
             if not native:
                 call, rest = textproto.parse(said)
@@ -342,6 +346,8 @@ class AgentLoop:
             if not calls:
                 answer = self.say(api, chat_id, said.strip() or "（AI 沒有說話）")
                 self.remember(chat_id, text, answer, user)
+                if warned:                       # 本地模型的提醒（例如提示很可能被截斷）：另一則、不進對話記憶，不靜默
+                    api.send_message(chat_id, "⚠️ AI 來源的提醒：" + warned[0])
                 return
             messages.append(Message(ASSISTANT, said if native else reply.text, tool_calls=calls if native else []))
             for call in calls:
