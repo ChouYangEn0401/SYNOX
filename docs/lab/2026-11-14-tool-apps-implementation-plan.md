@@ -1,17 +1,20 @@
 # 工具服務（每個工具自己的完整網頁）：實作計畫
 
 - 狀態：**待處理**（提案；[ADR 0023](../adr/0023-tool-apps-services.md) 等擁有者核准。核准前不動 `src/`；核准後照下面的工作包做）
-- 寫的時間：2026-11-14 01:54（分支 `feat/tool-apps`，基準 `dev` 的 `b5f48e2`）
+- 寫的時間：2026-11-14 01:54（分支 `feat/tool-apps`，基準 `dev` 的 `b5f48e2`）；**同日第二版**：照擁有者的回覆改了閒置設定（每個工具自己選）、「有在用」的定義、匯出、`kit` 版本欄位（搜尋「第二版」看得到每一處）
 - 讀者：實作的代理（每個工作包一個，手上只有這份文件與 repo）。行號都是基準 commit 的。
 - 工具那一側（記帳 app）：SYNOX_Libs 的 `docs/adr/0003-tool-apps-and-money-app.md`（工作包 7）。
 
-## 擁有者的話
+## 擁有者原話（語音轉文字，一字不改）
 
-原話不在寫這份計畫的人手上，下面是協調者的轉述；拿到原話時一字不改貼在這裡。
+> 我會希望未來從 Synox 的主機台，我可以開一個新的服務，然後這個服務就會去開 port 幫我把這個軟體把它架上去。然後呃我們那邊就可以在這個網頁裡面去看它的。結果這樣，然後如果把它關掉了嘛，就回到 Synox 那邊，然後 Synox 這邊就會一直有一個狀態去顯示說你某一個後端有開，那不要用的時候就會建議把它關掉。等於說就是真的是做到我本機的 Telegram 這個感覺，就是 Telegram 會控制某一個服務去幫我做記賬啊，幫我做行事曆的的記錄，可是然後我也有個前端可以看，然後我不用的時候可以關掉，不會有資安的風險。
 
-> 工具（記帳、行事曆、待辦、筆記…）裝進 SYNOX 之後，每個也要是自己的 app、有完整的網頁畫面。從主機台（網頁，Telegram 也要）可以「開啟某個工具的服務」：
-> 開一個埠、放那個工具的畫面，用瀏覽器看與改資料；可以再關掉。主機台隨時看得到哪些開著，並建議把沒在用的關掉。
-> 像我本機的 Telegram：Telegram 下指令，每個工具另外有畫面可以看；不用就關，就沒有資安風險。一般使用者要看得懂什麼是服務、為什麼要關。
+關於閒置（2026-11-14）：
+
+> 有些東西他可以決定不開有些東西可以決定不關有些東西可以用例如說三十分鐘一百二十分鐘沒有用自己關然後這個東西就在 synox 上面可以讓別人看到它可以自己設定……如果使用者堅持要自己開著那當然也沒有問題。原則上我們的 skills 從我們這邊出發的當然就是儘可能做好不要做出這種意外的漏洞
+
+其餘的回覆（協調者整理，不是原話）：任何裝好的工具都可以附 app（報告明講＋紅字）；app 框架是工具自己選用的，沒選用就沒有這一面；要可以匯出、不擋個人使用者，
+多人共用的只給加密的（加密格式還在討論）；AI 能不能開服務還在討論，先維持「不能開」；一般使用者要看得懂什麼是服務、為什麼要關。
 
 ## 問題一句話
 
@@ -60,7 +63,7 @@
 | `enabled` | 布林，預設 true。true 也**不會自己開任何服務**；只是允許擁有者開 |
 | `port_first`／`port_count` | 1024–65000／1–20；範圍不能包含 `web.port` |
 | `max_running` | 1–`port_count` |
-| `idle_suggest_min`／`idle_close_min` | 0–1440；0＝不提醒／不自動關；兩個都不是 0 時 `idle_close_min` 要大於 `idle_suggest_min` |
+| `idle_suggest_min`／`idle_close_min` | 0–1440；0＝不提醒／不自動關；兩個都不是 0 時 `idle_close_min` 要大於 `idle_suggest_min`。**（第二版）這兩個只是「擁有者還沒替它選過的工具」用的預設；每個工具自己的設定在 `data/apps.json`（C8、C10）** |
 
 功能不可用的情況（`AppManager.available()` 回 `(False, 原因)`，任何「開啟」都拒）：`web.enabled` 是 false、`web.apps.enabled` 是 false、`/web_off` 之後、
 `bind_host()` 不是 `127.0.0.1`（＝在容器裡；原因：「容器版還沒開放工具服務」）、`bind_host()` 丟 `BindError`。
@@ -68,13 +71,18 @@
 ### C2 `pack.json` 的 `web.app`
 
 ```json
-"web": { "app": { "entry": "app/index.html", "root": "app", "title": "記帳本",
-                  "reads": ["month", "entries"], "actions": { "add": "WRITE", "rm": "DANGER" } } }
+"web": { "app": { "entry": "app/index.html", "root": "app", "title": "記帳本", "kit": 1,
+                  "reads": ["month", "entries"], "actions": { "add": "WRITE", "rm": "DANGER" },
+                  "exports": ["entries_csv"] } }
 ```
 
 解析後放在 `Manifest.web["app"]`：沒有宣告＝`None`；有＝
-`{"entry": "app/index.html", "root": "app", "title": "記帳本", "reads": ["month", "entries"], "actions": {"add": "write", "rm": "danger"}, "files": ["app/app.js", "app/index.html", …]}`
+`{"entry": "app/index.html", "root": "app", "title": "記帳本", "kit": 1, "reads": ["month", "entries"], "actions": {"add": "write", "rm": "danger"}, "exports": ["entries_csv"], "files": ["app/app.js", "app/index.html", …]}`
 （`files`＝`root` 底下全部檔的相對路徑，正斜線、排序過）。規則見工作包 1。
+
+（第二版）`kit`：必填的整數，這個 app 照哪一版共用元件寫的；現在只收 `1`（常數 `KIT_VERSIONS = (1,)`）。`exports`：選填。
+**沒有 `web.app` 的工具沒有任何 app 表面**：不在 `specs()`、不在 `GET /api/apps` 的清單、`start` 回 404、沒有任何埠與路由——工作包 2 有測試鎖住。
+工具不能在宣告裡替自己選閒置設定（沒有這種欄位；多寫的鍵在安裝時＝拒）。
 
 ### C3 工具端的 Python 介面（SDK 0.2.3 新增，只加不改）
 
@@ -84,9 +92,11 @@ pack.app_action(name: str, fn, *, describe=None)   # fn(user, values: Dict[str, 
                                                    # describe(user, values) -> str：危險動作確認框的那一句（選填）
 kit.check_values(fields, values) -> (clean: Dict[str, str], missing: List[Field], errors: List[str])
 kit.AppError(message: str, code: str = "refused", status: int = 409)   # fn 裡丟：照 message 回給畫面
+pack.app_export(name: str, fn)                     # （第二版）fn(user, params: Dict[str, str]) -> kit.Download
+kit.Download(filename: str, content_type: str, data: bytes)            # （第二版）一個要給使用者存下來的檔
 ```
 
-- 名字沒寫在 `web.app.reads`／`actions` 裡就掛 → `ValueError`（跟 `web_route` 一樣）。存放：`pack.app_reads: Dict[str, Callable]`、`pack.app_actions`、`pack.app_describe`。
+- 名字沒寫在 `web.app.reads`／`actions`／`exports` 裡就掛 → `ValueError`（跟 `web_route` 一樣）。存放：`pack.app_reads: Dict[str, Callable]`、`pack.app_actions`、`pack.app_describe`、`pack.app_exports`。
 - `kit.check_values`：對**已經照名字放好的** `values` 做 `kit.parse_args` 後半段那些事（`choices`、`check`、補 `default`、找缺的必填）。`parse_args` 改成「切字 → 叫 `check_values`」，行為與訊息一個字都不變（現有測試不改就要過）。
 - 工具要相容舊的 SYNOX：`if hasattr(pack, "app_read"): …`（同 money 現在對 `web_route` 的寫法）。
 
@@ -107,6 +117,8 @@ kit.AppError(message: str, code: str = "refused", status: int = 409)   # fn 裡�
 | `GET /api/me` | 要 | 見 C5 |
 | `GET /api/read/<name>?k=v` | 要 | `{"ok": true, "data": fn(user, params)}`；`params` 每個鍵取第一個值 |
 | `POST /api/do/<name>` | 要＋CSRF | 見 C6 |
+| `POST /api/export/<name>` | 要＋CSRF（表單欄位） | （第二版）見 C6.1 |
+| `POST /api/alive` | 要＋CSRF | （第二版）「人還在」：見 C11。回 `{"ok": true}`；不記稽核 |
 | `POST /api/keep` | 要＋CSRF | 「先留著」：`manager.keep(name)` → `{"ok": true}` |
 | `POST /api/leave` | 要＋CSRF | 登出這個 app（刪這個登入、清 cookie） |
 | `POST /api/close-service` | 要＋CSRF＋擁有者 | `manager.stop(name, by=user, via="app")`；先回 `{"ok": true}` 再關 |
@@ -125,7 +137,7 @@ API 路由（`/api/…`、`/_synox/…`、靜態檔）**不發登入**，沒登�
 - 帶了 `Origin`：netloc 要等於 `Host`；`Origin: null` 只有在 `Sec-Fetch-Site: same-origin` 時放行。否則 403 `code: "origin"`。
 - POST：`X-SYNOX-CSRF` 要等於這個 app 登入的 csrf（`hmac.compare_digest`），否則 403 `code: "csrf"`；`Content-Type` 要以 `application/json` 開頭、內容是 JSON 物件，否則 400。
 - cookie：`synox_app_<name>=<sid>; HttpOnly; SameSite=Strict; Path=/`（不設 Max-Age）。同名 cookie 有好幾個時每個都試，第一個有效的算數。
-- 每個**有登入**的請求都叫 `manager.touch(name)`（算「有在用」）。被拒絕的請求（origin／csrf／host）寫一行稽核 `denied`（同一個原因每分鐘最多記一行，免得被灌爆）。
+- 「有在用」的精確規則在 C11（第二版）。被拒絕的請求（origin／csrf／host）寫一行稽核 `denied`（同一個原因每分鐘最多記一行，免得被灌爆）。
 
 錯誤一律 `{"ok": false, "code": "<代碼>", "error": "<白話>"}`。代碼：`login` 401、`origin`／`csrf`／`forbidden` 403、`not_found` 404、`invalid` 400（多一個 `fields: {欄位名: 訊息}`）、
 `confirm` 409（多一個 `confirm`）、`refused`（工具丟的 `AppError`，用它的 status）、`too_large` 413、`error` 500（只說「出錯了：<例外類別名>」，細節進 log）。
@@ -140,8 +152,12 @@ API 路由（`/api/…`、`/_synox/…`、靜態檔）**不發登入**，沒登�
  "reads": ["month", "entries"],
  "actions": {"rm": {"effect": "danger", "summary": "刪掉某一筆…", "fields": [{"name": "n", "label": "編號", "required": true, "kind": "int", "default": ""}]}},
  "console_url": "http://127.0.0.1:8830/#tools",
- "idle": {"suggest_min": 30, "close_min": 120}}
+ "exports": {"entries_csv": {"available": true, "reason": ""}},
+ "policy": {"mode": "auto", "suggest_min": 30, "close_min": 120, "text": "120 分鐘沒用就關，30 分鐘先提醒"},
+ "alive_every_s": 60}
 ```
+
+（第二版）`exports[*].available`：個人版 true；伺服器版 false，`reason` 是 C6.1 那句話（畫面據此把按鈕變灰並說明）。`policy` 見 C10；`alive_every_s` 是 C11 的間隔。
 
 `actions[*].summary`／`fields` 取自那個葉節點（`fields` 用 `toolpage.field_info`，`src/synox/web/toolpage.py:66-77`），所以畫面的表單說明跟 `/help`、工具頁同一份。
 
@@ -159,13 +175,35 @@ API 路由（`/api/…`、`/_synox/…`、靜態檔）**不發登入**，沒登�
 5. 呼叫 `fn(user, clean)`。回傳值要是 `dict`。`kit.AppError` → 照它的 `status`／`code`／`message`；其他例外 → 500 `error`、`logging.exception`。
 6. 稽核一行（成功或失敗都記）。回 `{"ok": true, "data": <fn 的回傳>}`。
 
+### C6.1 `POST /api/export/<name>`（第二版；ADR §2.1）
+
+這一條是**表單送出**（瀏覽器才會把回應當附件存檔），所以跟其他 POST 有兩點不同：`Content-Type` 是 `application/x-www-form-urlencoded`；
+CSRF token 放在表單欄位 `csrf`（一樣用 `hmac.compare_digest` 對這個 app 登入的 csrf）。來源檢查照 C4（同源表單在 `no-referrer` 下會送 `Origin: null`，
+所以這條特別依賴「`Origin: null` 只在 `Sec-Fetch-Site: same-origin` 時放行」那一條）。其他表單欄位：`confirm`（票，選填）、其餘的都當 `params`（字串）。
+
+伺服器依序：
+
+1. `name` 在 `spec.exports` 而且工具掛了函式，否則 404。這個人要看得到這個工具（`registry.visible`），否則 403。
+2. **伺服器版（`config.mode == "server"`）一律拒**：403 `code: "export_encrypted_only"`，`error`：「這台 SYNOX 是多人共用的，只能匯出加密的檔；這個功能還沒做好。」`fn` 不會被叫到。稽核 `export`、`ok: false`。
+   （加密匯出的格式擁有者還沒定——ADR「還沒定的」第 2 題。**不要自己挑一種做。**）
+3. 沒帶 `confirm` → 409 JSON：`{"ok": false, "code": "confirm", "confirm": {"token", "expires_in": 60, "text": "匯出的檔案沒有加密，打得開這個檔的人都看得到內容。存在你放心的地方，用完就刪。", "button": "下載"}}`。
+   票跟危險動作同一個 `ConfirmTickets`（綁登入、`export:<name>`、`params` 的雜湊）。這段字是 SYNOX 的常數，工具改不了。
+4. 帶了有效的票 → `result = fn(user, params)`，必須是 `kit.Download`：`filename` 只留英數與 `-_.`（其他換成 `_`，最多 80 字，一定要有副檔名）；
+   `content_type` 只收白名單（`EXPORT_TYPES = ("text/csv; charset=utf-8",)`）；`data` 是 `bytes`、最多 20 MB。不合 → 500 `error`（工具寫錯了，進 log）。`kit.AppError` 照舊。
+5. 回 200：`Content-Type` 照白名單、`Content-Disposition: attachment; filename="<檔名>"`、其餘標頭照 C4 第 3 點。
+6. 稽核 `export`：`action`＝名字、`ok`、`bytes`＝大小。**不記 `params` 的值、不記檔案內容。**
+
+共用元件的流程（工作包 3）：先用 `fetch` 送一次（不帶票，`Content-Type` 一樣是表單格式、`csrf` 在內容裡）拿到 409 的那段字 → 畫確認框 → 按「下載」→ 建一個看不見的 `<form method="post">` 帶 `csrf`、`confirm`、參數送出。
+`available` 是 false 時不送任何請求，直接顯示 `reason`。
+
 ### C7 主機台的 API（8830；照現有規矩：要登入、非 GET 要 CSRF）
 
 | 路由 | 誰 | 回 |
 |---|---|---|
 | `GET /api/apps` | 登入的人 | 下面的清單（成員只看得到自己看得到的工具；`can_manage` 只有擁有者是 true） |
-| `POST /api/apps/<name>/start` | 擁有者 | `{"ok": true, "app": <一筆>}`；錯：403、404、409（`code: "max_running"`，訊息列出開著的）、409（`code: "unavailable"`）、503（`code: "port"`） |
+| `POST /api/apps/<name>/start` | 擁有者 | `{"ok": true, "app": <一筆>}`；錯：403、404、409（`code: "max_running"`，訊息列出開著的）、409（`code: "unavailable"`）、409（`code: "blocked"`，第二版：這個工具被設成不開放）、503（`code: "port"`） |
 | `POST /api/apps/<name>/stop`、`/keep` | 擁有者 | `{"ok": true, "app": <一筆>}` |
+| `POST /api/apps/<name>/policy` | 擁有者 | （第二版）內容見 C10 → `{"ok": true, "app": <一筆>}`；不合 400 |
 | `POST /api/apps/stop-all` | 擁有者 | `{"ok": true, "stopped": ["money"]}` |
 | `GET /api/apps/log?limit=50` | 擁有者 | `{"events": [<稽核行>…]}`（新的在前，最多 200） |
 
@@ -176,16 +214,21 @@ API 路由（`/api/…`、`/_synox/…`、靜態檔）**不發登入**，沒登�
            "url": "http://127.0.0.1:8841/", "port": 8841,
            "since": "2026-11-14T10:00:00", "last_used": "2026-11-14T10:20:00", "idle_min": 12,
            "suggest_close": false, "auto_close_in_min": 108, "error": "",
-           "actions": {"write": 9, "danger": 1}, "problem": ""}]}
+           "policy": {"mode": "auto", "suggest_min": 30, "close_min": 120, "default": true,
+                      "text": "120 分鐘沒用就關，30 分鐘先提醒"},
+           "actions": {"write": 9, "danger": 1}, "exports": ["entries_csv"], "problem": ""}]}
 ```
+
+（第二版）`policy` 給**每個看得到這個工具的人**（成員也看得到，只是不能改）；`auto_close_in_min` 在不會自動關的設定下是 `null`。
 
 `state`：`off`｜`on`｜`error`。`problem`：宣告了 app 但掛不起來的原因（例如「動作 rm 宣告是 WRITE，指令是 DANGER」）；有 `problem` 的不能開。`explain` 的三句照 ADR 0023「給使用者的說法」。
 
 ### C8 稽核與狀態檔
 
-- `data/apps_audit.jsonl`，一行一個 JSON：`{"at": "<ISO 秒>", "event": "start|stop|auto_stop|suggest|keep|enter|leave|action|denied|error", "app": "money", "by": <tg_id 或 0＝系統>, "via": "web|telegram|app|system", "action": "", "effect": "", "ok": true, "code": "", "port": 8841, "note": ""}`。
+- `data/apps_audit.jsonl`，一行一個 JSON：`{"at": "<ISO 秒>", "event": "start|stop|auto_stop|suggest|keep|enter|leave|action|export|policy|denied|error", "app": "money", "by": <tg_id 或 0＝系統>, "via": "web|telegram|app|system", "action": "", "effect": "", "ok": true, "code": "", "port": 8841, "bytes": 0, "note": ""}`
+  （第二版：`export`、`policy` 兩種事件與 `bytes`；`policy` 的 `note` 寫新設定的 `text`）。
   **不寫參數的值、不寫 cookie／token。** 超過 1 MB：改名成 `apps_audit.jsonl.1`（蓋掉舊的）再開新檔。寫檔持鎖。
-- `data/apps.json`：`{"ports": {"money": 8841}, "explained": true}`（配過的埠；擁有者看過第一次說明了沒）。
+- `data/apps.json`：`{"ports": {"money": 8841}, "explained": true, "policy": {"money": {"mode": "auto", "close_min": 120}}}`（配過的埠；擁有者看過第一次說明了沒；（第二版）每個工具的閒置設定，沒有那一筆＝用預設）。
 - `data/apps_state.json`：`{"pid": 1234, "at": "<ISO>", "running": [{"name": "money", "port": 8841, "since": "<ISO>"}]}`。SYNOX 啟動與結束時都寫成空清單；每次開關更新。給 `doctor` 讀（doctor 是另一支程序）。
 
 ### C9 Telegram／指令
@@ -199,6 +242,41 @@ API 路由（`/api/…`、`/_synox/…`、靜態檔）**不發登入**，沒登�
 | `/app_close <名字｜all>` | 會寫入 | 擁有者 | 可 | 「關好了。資料都在，Telegram 照樣可以用。」 |
 
 `<名字>` 認：pack 名、群組名、標題（去掉 emoji 與空白）、`app.title`，不分大小寫；對不到 → 列出有哪些。
+
+（第二版）`/apps` 每一行後面加這個工具的閒置設定（`policy.text`）；設成「不開放」的工具 `/app_open` 回「你把<標題>設成不開放了；要開先到 SYNOX 網頁的工具頁改設定。」
+這一輪**沒有**改閒置設定的 Telegram 指令。AI 能不能開服務擁有者還在考慮，定案前 `/app_open` 維持 `ai=False`，不要預留 AI 的路。
+
+### C10 每個工具的閒置設定（第二版；ADR §4.2）
+
+`POST /api/apps/<name>/policy` 的內容與 `data/apps.json` 存的形狀：
+
+| `mode` | 其他欄位 | 行為（`AppManager.tick()`） | `text`（給人看） |
+|---|---|---|---|
+| `auto` | `close_min`：5–1440 的整數 | 閒置滿 `close_min` → 自動關＋通知。`close_min > 30` 時，閒置滿 30 分鐘先提醒一次；`≤ 30` 不另外提醒 | 「120 分鐘沒用就關，30 分鐘先提醒」／「30 分鐘沒用就關」／「N 分鐘沒用就關…」 |
+| `suggest` | — | 閒置滿 30 分鐘提醒一次（同一段閒置只一次），不關 | 「只提醒，不自動關」 |
+| `keep` | 請求要帶 `"understood": true`，否則 400 | 不提醒、不關 | 「一直開著」 |
+| `blocked` | — | 不能開；設定當下開著的先關掉（稽核 `stop`，`note`「設成不開放」） | 「不開放這個工具的畫面」 |
+
+- 沒有存過設定的工具：`mode: "auto"`、`suggest`／`close` 用 `web.apps.idle_suggest_min`／`idle_close_min`（預設 30／120），`policy.default` 是 true。
+  `config.json` 的 `idle_close_min` 是 0 時預設等同 `suggest`；兩個都是 0 等同 `keep`（這是擁有者自己改設定檔的選擇，不用再問）。
+- 提醒的 30 分鐘是常數 `SUGGEST_MIN = 30`（`auto` 與 `suggest` 共用；預設那一組用設定檔的值）。
+- 只有擁有者能改；每次改寫一行稽核 `policy`。改設定算一次「先留著」（重新計時）。
+- 「一直開著」**不保存「開著」這件事**：SYNOX 重開之後它一樣是關的，只是下次開了之後不會被閒置關掉。
+- 畫面上的選項與警告文字在 ADR §4.2 的表（工作包 4 照抄進 `TEXT`）。
+
+### C11 什麼算「有在用」（第二版；ADR §4.1）
+
+`manager.touch(name)`（更新 `last_used`、清掉「這一段閒置已經提醒過」）**只在**這些時候叫：
+
+1. app 埠上任何**已登入而且通過 C4 檢查**的請求：`GET /`（進門成功）、靜態檔、`/_synox/*`、`/api/me`、`/api/read/*`、`/api/do/*`（不管成功失敗）、`/api/export/*`、`/api/keep`。
+2. `POST /api/alive`：同一個 app 登入**每 60 秒最多算一次**（`AppSession.last_alive`；太頻繁的照樣回 200 但不 `touch`）。
+3. 主機台的「先留著」與改閒置設定。
+
+不叫的：沒登入、被擋的請求；主機台的 `GET /api/apps`（看狀態不算用）；`tick()` 自己。
+
+共用元件什麼時候送 `/api/alive`（工作包 3）：在 `mousemove`、`keydown`、`pointerdown`、`wheel`、`scroll`、`touchstart` 的監聽裡（`passive: true`），
+`event.isTrusted` 而且 `document.visibilityState === "visible"` 而且距離上次送出（或上次任何 `read`／`act` 成功）超過 `alive_every_s` 秒 → 送一次。
+**沒有 `setInterval`／`setTimeout` 迴圈**：沒有輸入就什麼都不送。失敗不重試、不顯示任何東西（連不上時由下一次真的操作去顯示遮罩）。
 
 ---
 
@@ -243,14 +321,14 @@ WP0、WP1、WP3 可以同時做（檔案不重疊）；WP2 等 WP1 合進來；W
 
 | 檔 | 做什麼 |
 |---|---|
-| `src/synox/packs/manifest.py` | `parse_web` 多解析 `app`（C2）。規則：kind 不是 python → 拒；`root` 是 pack 裡的子資料夾（不能是 `.`、不准 `..`、絕對路徑；沿用 `_inside`）；`entry` 是 `root` 裡的 `.html`、檔案存在；`title` 選填、一行、24 字內；`reads` 清單、名字合 `WEB_ROUTE_RE` 的名字規則、不重複、最多 40；`actions` 物件、名字同規則、值只收 `WRITE`／`DANGER`（不分大小寫，存小寫）、最多 40；`reads` 與 `actions` 至少一邊有東西；`root` 底下：副檔名只准 `.html .js .css .json .png .jpg .jpeg .webp .svg .ico .woff2`、最多 100 個、單檔 ≤ 512 KB、合計 ≤ 3 MB、不准符號連結。`_unc_strings` 加 `web.app.root`、`web.app.entry`（strict）。常數集中放檔頭（`APP_EXT`、`APP_MAX_FILES`…）。已裝的舊 pack 寫壞了＝當作沒有 app（不要讓整個工具載不起來），安裝時（strict）＝拒 |
-| `src/synox/packs/appscan.py`（新） | `scan_app(m) -> List[Finding]`（沿用 `scan.Finding`）。HTML 用 `html.parser`：有內容的 `<script>`、`on*` 屬性、`<base>`、`<meta http-equiv>`、`<iframe>`／`<object>`／`<embed>`／`<frame>` → 擋；`entry` 沒有 `<script src="/_synox/kit.js">` → 擋。所有文字檔（html／js／css／json／svg）：出現 `http://`、`https://`、或引號後面接 `//主機` → 擋，`http://www.w3.org/` 開頭的除外；CSS 的 `@import` → 擋。JS 的提醒（不擋）：`eval(`、`new Function`、`document.cookie`、`window.open`、`location.href =`／`location =`／`location.assign`／`location.replace`、`sendBeacon`、`WebSocket`、`importScripts`。每筆有檔名與行號。新的 finding 種類 `app`（擋）與 `app_note`（提醒），加進 `scan.LABELS`（「網頁畫面不合規則」／「網頁畫面（提醒）」）與 `CAPABILITY_OF`（`""`） |
+| `src/synox/packs/manifest.py` | `parse_web` 多解析 `app`（C2）。規則：kind 不是 python → 拒；`root` 是 pack 裡的子資料夾（不能是 `.`、不准 `..`、絕對路徑；沿用 `_inside`）；`entry` 是 `root` 裡的 `.html`、檔案存在；`title` 選填、一行、24 字內；`reads` 清單、名字合 `WEB_ROUTE_RE` 的名字規則、不重複、最多 40；`actions` 物件、名字同規則、值只收 `WRITE`／`DANGER`（不分大小寫，存小寫）、最多 40；（第二版）`kit` 必填、整數、要在 `KIT_VERSIONS` 裡（不認得的版本＝拒，訊息說這台 SYNOX 認得哪幾版）；`exports` 選填、清單、名字同規則、不重複、最多 10；`web.app` 裡不認得的鍵＝拒（安裝時）；`reads` 與 `actions` 至少一邊有東西；`root` 底下：副檔名只准 `.html .js .css .json .png .jpg .jpeg .webp .svg .ico .woff2`、最多 100 個、單檔 ≤ 512 KB、合計 ≤ 3 MB、不准符號連結。`_unc_strings` 加 `web.app.root`、`web.app.entry`（strict）。常數集中放檔頭（`APP_EXT`、`APP_MAX_FILES`…）。已裝的舊 pack 寫壞了＝當作沒有 app（不要讓整個工具載不起來），安裝時（strict）＝拒 |
+| `src/synox/packs/appscan.py`（新） | `scan_app(m) -> List[Finding]`（沿用 `scan.Finding`）。HTML 用 `html.parser`：有內容的 `<script>`、`on*` 屬性、`<base>`、`<meta http-equiv>`、`<iframe>`／`<object>`／`<embed>`／`<frame>` → 擋；`entry` 沒有 `<script src="/_synox/kit.js">` → 擋。所有文字檔（html／js／css／json／svg）：出現 `http://`、`https://`、或引號後面接 `//主機` → 擋，`http://www.w3.org/` 開頭的除外；CSS 的 `@import` → 擋。JS 的提醒（不擋）：`eval(`、`new Function`、`document.cookie`、`window.open`、`location.href =`／`location =`／`location.assign`／`location.replace`、`sendBeacon`、`WebSocket`、`importScripts`、（第二版）`fetch(`／`XMLHttpRequest`（「畫面程式自己連線，沒經過共用元件」）。每筆有檔名與行號。新的 finding 種類 `app`（擋）與 `app_note`（提醒），加進 `scan.LABELS`（「網頁畫面不合規則」／「網頁畫面（提醒）」）與 `CAPABILITY_OF`（`""`） |
 | `src/synox/packs/scan.py` | `opaque_files`／`opaque_reason`：宣告了 `web.app` 時，`root` 底下副檔名在 `APP_EXT` 的檔**不算**掃不到的檔（要把 manifest 或 app root 傳進來；簽名怎麼改自己定，但 `tier.assess` 兩條路都要一致）。`scan()` 把 `appscan.scan_app(m)` 的結果併進報告 |
-| `src/synox/packs/admin.py` | `summary_of` 多 `"app": None 或 {"title", "files": 個數, "reads": [...], "actions": {...}}`；`warnings_for` 多 ADR §5 那一段白話（有 app 一定顯示） |
-| `src/synox/packs/upgrade.py` | 三條：`app`「新加了完整的網頁畫面（工具服務）」紅；`app_action_added`「畫面多了動作 <名>（<危險程度>）」紅；`app_effect`「畫面動作 <名> 的危險程度 a → b」變寬紅、變窄一般；拿掉 app／動作一般字 |
-| `src/synox/packs/loader.py` | `Pack` 加 `app_reads`、`app_actions`、`app_describe` 三個 dict 與 `app_read()`、`app_action()`（C3）；重新載入時清空 |
-| `src/synox/packs/kit.py` | `check_values`、`AppError`；`parse_args` 改用 `check_values` |
-| `tests/fixtures/app_pack/` | 測試用的小工具 `counter`：`pack.json`（python、`data: user`、`storage: vault`、`web.app`：reads `state`，actions `add: WRITE`、`reset: DANGER`）、`pack.py`（指令 `add <n>`（WRITE，`check=kit.positive_int`）、`reset`（DANGER）＋ `app_read`／`app_action`，核心函式共用）、`app/index.html`、`app/app.js`、`app/app.css`、`SKILL.md`。**之後每個工作包的測試都用它** |
+| `src/synox/packs/admin.py` | `summary_of` 多 `"app": None 或 {"title", "kit", "files": 個數, "reads": [...], "actions": {...}, "exports": [...]}`；`warnings_for` 多 ADR §5 那一段白話（有 app 一定顯示）；（第二版）有 `exports` 再多一句「它的畫面可以把資料匯出成檔案：<名字>。」 |
+| `src/synox/packs/upgrade.py` | 三條：`app`「新加了完整的網頁畫面（工具服務）」紅；`app_action_added`「畫面多了動作 <名>（<危險程度>）」紅；`app_effect`「畫面動作 <名> 的危險程度 a → b」變寬紅、變窄一般；拿掉 app／動作一般字；（第二版）`app_export_added`「畫面多了匯出 <名>」紅 |
+| `src/synox/packs/loader.py` | `Pack` 加 `app_reads`、`app_actions`、`app_describe`、`app_exports` 四個 dict 與 `app_read()`、`app_action()`、`app_export()`（C3）；重新載入時清空 |
+| `src/synox/packs/kit.py` | `check_values`、`AppError`、（第二版）`Download`（dataclass）；`parse_args` 改用 `check_values` |
+| `tests/fixtures/app_pack/` | 測試用的小工具 `counter`：`pack.json`（python、`data: user`、`storage: vault`、`web.app`：`kit: 1`、reads `state`，actions `add: WRITE`、`reset: DANGER`、exports `state_csv`）、`pack.py`（指令 `add <n>`（WRITE，`check=kit.positive_int`）、`reset`（DANGER）＋ `app_read`／`app_action`／`app_export`，核心函式共用）、`app/index.html`、`app/app.js`（只用 `SynoxApp.*`，沒有 `fetch`）、`app/app.css`、`SKILL.md`。**之後每個工作包的測試都用它** |
 | `src/synox/web/static/app.html`（安裝報告那一段） | 報告顯示 `summary.app`：一段白話＋動作清單（沿用 `EFFECT` 的字）。只加顯示，不動流程 |
 
 測試 `tests/test_app_manifest.py`：
@@ -260,7 +338,9 @@ WP0、WP1、WP3 可以同時做（檔案不重疊）；WP2 等 WP1 合進來；W
 - `app/` 外面的 `.js` 照舊算掃不到的檔（T2）；`app/` 裡放 `.py` → 拒。
 - appscan：內嵌 script、`onclick=`、`<base>`、`<iframe>`、`https://evil.example/x.js`、CSS `@import`、入口頁沒有 kit → 各自被擋、有檔名行號；SVG 的 `xmlns="http://www.w3.org/2000/svg"` 不擋；`eval(` 只是提醒。
 - 升級：舊版沒有 app → 新版有 ＝紅；多一個動作＝紅；`WRITE`→`DANGER`＝紅；`DANGER`→`WRITE`＝一般。
-- `pack.app_read`／`app_action`：沒宣告的名字丟 `ValueError`；宣告的掛得上。
+- `pack.app_read`／`app_action`／`app_export`：沒宣告的名字丟 `ValueError`；宣告的掛得上。
+- （第二版）`kit`：沒寫、寫 `2`、寫 `"1"`（字串）→ 拒，訊息點名；`web.app` 多一個 `idle` 之類不認得的鍵 → 拒。`exports` 的壞例子（不是清單、名字不合、重複）。
+  JS 裡直接 `fetch(` → 報告有一筆提醒、**不擋**；fixture 的 `app.js` 沒有這筆提醒。升級多一個匯出＝紅。
 - `kit.check_values` 與 `parse_args`：同一組輸入，錯誤訊息一樣；現有 `tests/test_packs.py`、`test_tools.py` 不改就過。
 - 舊的 SYNOX 行為不變：沒有 `web.app` 的 pack，`summary_of`、tier、報告跟以前一模一樣（拿現有 fixture 比）。
 
@@ -273,7 +353,7 @@ WP0、WP1、WP3 可以同時做（檔案不重疊）；WP2 等 WP1 合進來；W
 | 檔 | 內容 |
 |---|---|
 | `__init__.py` | `install(app, config, ui) -> AppManager`：建管理員、`app.extras["synox_apps"] = manager`、`ui.apps = manager`；`app.on_start`：清狀態檔、登記 runtime 任務；`app.on_stop`：`stop_all(reason="SYNOX 結束")`。由 `web.install` 在建好 `ui` 之後呼叫 |
-| `spec.py` | `AppSpec`（name、group、title、app_title、version、entry、root、reads、actions、files、pack）；`specs_of(app) -> (Dict[name, AppSpec], Dict[name, problem])`：從 `app.extras["synox_packs"]` 現算。核對：`reads` 每個都掛了函式；`actions` 每個都掛了函式、`registry.node(f"{group}.{name}")` 存在、`node.effect` 等於宣告。任何一條不合 → 這個 app 進 `problems`、不能開 |
+| `spec.py` | `AppSpec`（name、group、title、app_title、version、entry、root、reads、actions、files、pack）；`specs_of(app) -> (Dict[name, AppSpec], Dict[name, problem])`：從 `app.extras["synox_packs"]` 現算。核對：`reads` 每個都掛了函式；`actions` 每個都掛了函式、`registry.node(f"{group}.{name}")` 存在、`node.effect` 等於宣告；（第二版）`exports` 每個都掛了函式。任何一條不合 → 這個 app 進 `problems`、不能開 |
 | `sessions.py` | `AppSessions`（記憶體：`create(tg_id) -> (sid, AppSession)`、`get(sid)`、`drop(sid)`、`drop_all()`；`AppSession` 有 `tg_id`、`csrf`、`created`；只存 sid 的 SHA-256，沿用 `tokens.digest`）；`ConfirmTickets`（`issue(session, action, values) -> token`、`redeem(session, action, values, token) -> bool`；一次性、60 秒、上限 200 張） |
 | `audit.py` | `Audit(path, clock)`：`write(event, app, by=0, via="system", **kw)`、`tail(limit)`；格式與換檔照 C8 |
 | `site.py` | `AppSite(manager, spec, port, *, clock)`：`handle()` 照 C4–C6。建構時 `snapshot = load_snapshot(spec, pack.locked_files)`：讀 `files` 進記憶體、有鎖就逐檔對 SHA-256，不符丟 `AppsError("檔案跟安裝時不一樣：<檔>")`；沒鎖（`packs.dirs` 開發用）照讀 |
@@ -290,9 +370,10 @@ WP0、WP1、WP3 可以同時做（檔案不重疊）；WP2 等 WP1 合進來；W
   配埠：`data/apps.json` 記的那個；沒有就取範圍內還沒配給別人的第一個。`listen` 丟 `OSError` → 換範圍內下一個沒人用的再試，全部失敗 → `AppsError("port", …, 503)`，訊息說範圍與怎麼改設定。
   成功：存 `apps.json`、更新狀態檔、稽核 `start`、`reschedule` runtime 任務成 60 秒。
 - `stop(name, by=0, via="system", reason="") -> bool`：關 listener、`site.sessions.drop_all()`、清確認票、狀態檔、稽核（`stop` 或 `auto_stop`）；都關了就 `reschedule(None)`。
-- `stop_all(...)`、`keep(name, by, via)`（把 `last_used` 設成現在、清掉「已提醒」）、`touch(name)`、`views(user) -> dict`（C7）、`resolve(text) -> Optional[str]`（C9 的名字比對）。
-- `tick()`（runtime 任務 `system.tool_apps`「工具服務」的 `fn`）：每個開著的 app：閒置 ≥ `idle_close_min`（不是 0）→ `stop(via="system", reason="太久沒用")`＋`app.notify_owner("🧩 <標題>的服務 <N> 分鐘沒有用，我先關掉了。資料都在；要用再 /app_open <名>。")`；
-  否則閒置 ≥ `idle_suggest_min`（不是 0）而且這一段閒置還沒提醒過 → 稽核 `suggest`、`notify_owner("🧩 <標題>的服務 <N> 分鐘沒有用了。要關：/app_close <名>。不理我的話再 <M> 分鐘我會自己關。")`（`idle_close_min` 是 0 時後半句換成「它會一直開著，直到你關掉或重開 SYNOX。」）。
+- `stop_all(...)`、`keep(name, by, via)`（把 `last_used` 設成現在、清掉「已提醒」）、`touch(name)`（什麼時候叫：C11）、`views(user) -> dict`（C7）、`resolve(text) -> Optional[str]`（C9 的名字比對）。
+- （第二版）`policy_of(name) -> dict`（C10：存過的，或預設）、`set_policy(name, data, by) -> dict`（檢查、存 `apps.json`、稽核 `policy`、`keep`；`blocked` 時先 `stop`）。`start` 遇到 `blocked` → `AppsError("blocked", …, 409)`。
+- `tick()`（runtime 任務 `system.tool_apps`「工具服務」的 `fn`）：每個開著的 app 照**它自己的** `policy_of(name)`（C10 的表）：該關的 → `stop(via="system", reason="太久沒用")`＋`app.notify_owner("🧩 <標題>的服務 <N> 分鐘沒有用，我先關掉了。資料都在；要用再 /app_open <名>。")`；
+  該提醒而且這一段閒置還沒提醒過 → 稽核 `suggest`、`notify_owner("🧩 <標題>的服務 <N> 分鐘沒有用了。要關：/app_close <名>。不理我的話再 <M> 分鐘我會自己關。")`（`suggest` 模式後半句換成「它會一直開著，直到你關掉或重開 SYNOX。想改成自動關，到 SYNOX 網頁的工具頁設定。」）；`keep` 什麼都不做。
   任務的狀態訊息：有開著的 → `running`「開著：記帳（8841，閒置 12 分）」；沒有 → `idle`。
 - 該自動關的時機都要接上：`WebUI.turn_off()`（`/web_off`）→ `stop_all`；`WebUI._reload()`、`pack_remove`、升級（`_pack_upgrade`）之前 → 關那個工具（或全部，簡單為主）；健康檢查把某個工具隔離時 → 關它（看 `src/synox/health/` 的事件點；接不乾淨就在 `tick()` 裡檢查 spec 還在不在、不在就關）。
 
@@ -315,6 +396,11 @@ WP0、WP1、WP3 可以同時做（檔案不重疊）；WP2 等 WP1 合進來；W
 - `/api/me`：形狀符合 C5；`csrf` 不等於主機台 session 的 csrf。
 - `/api/leave`：之後同一個 cookie → 401。`/api/close-service`：成員 → 403；擁有者 → 200，之後 manager 說它關著。
 - 稽核：進門、動作（含失敗）、被拒各有一行；整個檔案裡**找不到**動作的參數值（例如測試用的特殊字串）。
+- （第二版）匯出（C6.1）：個人版沒帶票 → 409＋那段固定的字；帶票 → 200、`Content-Disposition: attachment`、內容對、標頭齊；票再用一次 → 409；
+  `csrf` 欄位沒有／錯 → 403；`Sec-Fetch-Site: same-site` → 403；`Origin: null`＋`same-origin` → 過。**伺服器版 → 403 `export_encrypted_only`，而且工具的函式沒被叫到**（用計數器證明）。
+  工具回的不是 `kit.Download`、`content_type` 不在白名單、檔名有 `../` 或中文 → 前兩個 500、檔名被清乾淨。稽核有 `export` 與 `bytes`，沒有內容與參數值。
+- （第二版）有在用（C11）：`/api/alive` 第一次 → `last_used` 更新；30 秒後再一次 → 200 但**不更新**；61 秒後 → 更新。沒登入／沒 CSRF 的 alive → 401／403、不更新。
+  被擋的請求（origin 錯）不更新。`/api/alive` 不寫稽核。`/api/me` 的 `exports`／`policy`／`alive_every_s` 形狀符合 C5。
 
 測試 `tests/test_app_manager.py`（假 listener、假時鐘）：
 
@@ -325,6 +411,11 @@ WP0、WP1、WP3 可以同時做（檔案不重疊）；WP2 等 WP1 合進來；W
 - `open_listener`：把 `server._Server` 換成假的類別，確認拿到的位址是 `(bind_host(), port)`、`ui` 是 site、`daemon_threads` 是 True（**不真的綁**）。
 - `stop`：site 的登入全部失效（關之前拿到的 cookie 再打 → 找不到 site／401）、狀態檔清掉、稽核有 `stop`。
 - 閒置：假時鐘推 29 分 → 沒事；30 分 → `notify_owner` 被叫一次、稽核 `suggest`；再 tick → 不重複提醒；中間有請求（`touch`）→ 重新計時、之後會再提醒；`keep` 同理；120 分 → 關、稽核 `auto_stop`、通知一次。`idle_close_min=0` → 永不關；`idle_suggest_min=0` → 不提醒。
+- （第二版）每個工具自己的設定（C10）：`auto` 30 → 29 分沒事、30 分直接關、**沒有先提醒**；`auto` 45 → 30 分提醒、45 分關；`suggest` → 30 分提醒一次、之後怎麼推都不關；
+  `keep` 沒帶 `understood` → 400，帶了 → 永不提醒不關；`blocked` → 開著的被關、`start` 回 409 `blocked`；`close_min` 是 4、1441、小數、字串 → 400。
+  兩個工具不同設定同時開著，各走各的。成員改設定 → 403。改設定寫稽核 `policy`、存進 `apps.json`、重開（新的 `AppManager`）讀得回來。
+  `keep` 的工具在新的 `AppManager` 裡**不是開著的**。沒存過設定的工具 `policy.default` 是 true、數字來自設定檔。
+- （第二版）**沒宣告 `web.app` 的工具沒有表面**：拿 repo 裡現成沒有 app 的 fixture pack：不在 `specs()`／`problems()`、不在 `views()`、`start` → 404、`set_policy` → 404、假 listener 沒被叫過。
 - 一個都沒開時 runtime 任務沒有排程（`task.next_due is None`）；開一個之後有；全關之後又沒有。
 - `turn_off()`、重新載入、移除工具 → 那個（或全部）服務關掉。
 - 啟動時狀態檔被寫成空的；`on_stop` 全關。
@@ -345,6 +436,10 @@ WP0、WP1、WP3 可以同時做（檔案不重疊）；WP2 等 WP1 合進來；W
 | `form(actionName, opts)` | 照 `actions[name].fields` 產生表單（label 用 `label`、`required`、`kind` 決定 input 型別、`choices` 變下拉）；送出＝`act`；欄位錯誤顯示在欄位下面。`opts.values` 預填、`opts.submitText`、`opts.onDone(data)` |
 | `toast(text, tone)`、`confirmBox(text) -> Promise<boolean>`、`el(tag, cls, text)`、`clear(node)`、`fmt.number(n)`、`fmt.date(iso)` | 小工具 |
 | `keep()` | POST `/api/keep` |
+| `download(name, params)`（第二版） | 匯出，流程照 C6.1：`me.exports[name].available` 是 false → 只顯示 `reason`、不送請求；否則先拿確認的字 → `confirmBox`（按鈕字用回應的 `button`）→ 用看不見的表單送出。resolve 在表單送出之後（瀏覽器接手存檔，這裡不知道存好了沒） |
+
+（第二版）**「人還在」的訊號**（C11）：kit 載入後自己掛那六種事件的監聽，條件與節流照 C11；工具不用叫、也沒有對外的函式可以叫。
+`read`／`act` 成功時順便把「上次送出時間」設成現在（已經有真的請求了，不用再送 alive）。
 
 - 頁首列（kit 自己畫，插在 `<body>` 最前面）：`app.title`、登入的人、連結「回 SYNOX」（`console_url`，`rel="noopener noreferrer"`）、「離開」（`/api/leave`）、擁有者才有的「關閉服務」（`confirmBox` 之後 `/api/close-service`）、小字「這是 SYNOX 在這台電腦上開的工具畫面，不用的時候可以關掉。」
 - 請求一律 `credentials: "same-origin"`、POST 帶 `X-SYNOX-CSRF` 與 `Content-Type: application/json`。
@@ -357,6 +452,10 @@ WP0、WP1、WP3 可以同時做（檔案不重疊）；WP2 等 WP1 合進來；W
 - `read`：參數正確編碼（中文、`&`）。
 - 連不上 → 出現遮罩、文字對；401 → 另一種文字。
 - `form`：必填、`choices`、欄位錯誤顯示在對的欄位。
+- （第二版）人還在：假 DOM 發一個 `isTrusted: true` 的 `mousemove`、`visibilityState` 是 `visible`、假時鐘離上次 61 秒 → 送一次 `POST /api/alive`（帶 CSRF）；
+  馬上再發十個事件 → 沒有第二個請求；`visibilityState` 是 `hidden` → 不送；`isTrusted: false` → 不送；完全沒有事件、時鐘推一小時 → **一個請求都沒有**；
+  剛 `read` 成功過 30 秒內的事件 → 不送；alive 失敗 → 沒有遮罩、沒有 toast、不重試。
+- （第二版）`download`：`available: false` → 沒有任何請求、顯示 `reason`；可用 → 第一個請求是表單格式且沒有票，確認框顯示伺服器給的字，按下載後建立的表單有 `csrf`、`confirm` 與參數、`method` 是 post；按取消 → 沒有表單。
 - 檔案裡沒有 `setInterval`、`innerHTML`、`eval`、`http://`、`https://`（`tests/test_appkit.py` 直接讀檔檢查；CSS 沒有 `url(`、`@import`）。
 - 兩個檔都過 WP1 的 `appscan` 文字規則（對外網址那幾條）。
 
@@ -372,6 +471,10 @@ WP0、WP1、WP3 可以同時做（檔案不重疊）；WP2 等 WP1 合進來；W
 
 1. **側欄常駐標記**（`#side-foot` 上方）：`running > 0` 才顯示「● N 個工具服務開著」（有 `suggest_close` 的時候用提醒色、字變成「● 記帳的服務很久沒用了」）。點了開一個小清單：每個開著的一列（標題、開多久、多久沒用、「打開」「關掉」）、底下「全部關掉」「這是什麼？」。
 2. **工具頁的卡片**（有 app 的工具才有，放在說明與指令之間）：標題「完整畫面」。關著：一句 `explain.what`＋按鈕「開啟並打開」；開著：狀態徽章「開著 · 12 分鐘沒用」＋「打開」「關掉」「先留著」（只有 `suggest_close` 時）；`error`／`problem`：原因＋下一步。底下可展開「這是什麼？為什麼要關？」（三句說明）與「最近紀錄」（`/api/apps/log` 前 5 筆，白話：「10:20 你開了記帳的服務」）。不是擁有者：只有「打開」（開著時）與一句「服務由擁有者開關」。
+2a. （第二版）**卡片上的閒置設定**（C10；ADR §4.2 的表與字）：一行現況「沒在用的時候：<policy.text>」，每個看得到的人都看得到；擁有者旁邊有「改」→ 六個選項的單選
+   （120 分鐘〔建議〕／30 分鐘／自己填 N／只提醒／一直開著／不開放），「自己填」有一個數字欄（5–1440）。選「一直開著」先跳警告、按「我知道，一直開著」才送（帶 `understood: true`）；
+   之後卡片與側欄清單上那個工具一直帶一個提醒色的「一直開著」標籤。選「不開放」而它正開著 → 先問「會先把它關掉，確定？」。
+   「什麼叫有在用」的那句白話（ADR「給使用者的說法」）放在設定旁邊的說明裡。
 3. **第一次開**：`explained` 是 false 時先出一個對話框（三句說明）＋「知道了，開啟」／「先不要」；按了才送 `start`（請求帶 `{"explained": true}`，伺服器記進 `apps.json`）。
 4. 「打開」一律 `window.open(url, "_blank", "noopener,noreferrer")`。
 5. 更新：進到工具頁、按任何按鈕之後、以及頁面看得到時每 30 秒抓一次 `GET /api/apps`（`document.hidden` 時不抓）。
@@ -379,6 +482,8 @@ WP0、WP1、WP3 可以同時做（檔案不重疊）；WP2 等 WP1 合進來；W
 
 測試 `tests/test_app_console.py`（用 `tests/test_web.py` 的 `Client`＋假 listener）：C7 每條路由的權限（成員 `start`／`stop`／`log` → 403；成員的清單沒有 `can_manage`、看不到自己看不到的工具）、CSRF、`start` 的四種錯誤碼、`explained` 只記一次、`/api/tools` 的 `app` 欄位、清單形狀符合 C7、`log` 的上限。
 `tests/js/test_apps.js`：三種狀態的卡片、不是擁有者的樣子、第一次的對話框、`window.open` 帶 `noopener`、`document.hidden` 不輪詢、字串都在 `TEXT`。
+（第二版）`test_app_console.py` 加：`/policy` 的權限與每種 `mode`（含 `keep` 沒帶 `understood`）、成員的清單裡有 `policy` 但改不了、`blocked` 之後 `start` 的錯誤碼。
+`test_apps.js` 加：六個選項、「一直開著」的警告流程（沒按確認不送請求）、「不開放」時沒有開啟的按鈕、成員只看得到現況那一行、`blocked` 的工具卡片的樣子。
 
 驗收：測試過；`render_app()` 產生的頁面仍只有 nonce 的 script／style（現有 `test_web.py` 的 CSP 測試不改就過）；主流程的字裡沒有 port、session、CSRF（寫一個讀 `apps.js` `TEXT` 的測試）。
 
@@ -392,6 +497,9 @@ WP0、WP1、WP3 可以同時做（檔案不重疊）；WP2 等 WP1 合進來；W
 - `doctor`：在「網頁介面」那行下面多一行 `工具服務：開放（埠 8841–8848，最多同時 3 個；30 分鐘沒用提醒、120 分鐘自動關）`／`關（web.apps.enabled=false）`；再讀 `data/apps_state.json`：
   `running` 不是空的 →「上次紀錄：記帳開在 8841（由程序 1234 寫的；SYNOX 沒在跑的話這些都已經關了）」。**doctor 不連任何埠。** 有 app 宣告掛不起來的（`problems`）列成 ⚠️。
 
+（第二版）`/apps` 每行帶閒置設定；`blocked` 的工具 `/app_open` 回 C9 那句；doctor 那一行的閒置數字改寫成「預設：30 分鐘沒用提醒、120 分鐘自動關；各工具可以自己設」，
+有工具設成「一直開著」時多一行 ⚠️ 列出是哪幾個。
+
 測試：三個指令在個人版／伺服器版成員／擁有者的結果；群組裡打 `/app_open` 被擋；AI 的工具清單裡有 `apps`、`app_close`、沒有 `app_open`（照 `tests/test_agent.py` 怎麼看工具清單）；名字比對（`money`、`記帳`、`💰 記帳`、`記帳本`、大小寫）；`all`；不存在的名字列出有哪些；doctor 的三種輸出（用假的狀態檔）。
 
 驗收：測試過；`/help` 多一頁「🧩 工具服務」而且三個指令的說明是白話。
@@ -403,6 +511,8 @@ WP0、WP1、WP3 可以同時做（檔案不重疊）；WP2 等 WP1 合進來；W
 - `synox-sdk check`：自然會跑到 WP1 的規則；確認錯誤訊息從這條路出得來。
 - 文件：新 `docs/tool-apps.md`（給寫工具的人：三分鐘範例、`web.app` 每個欄位、`app_read`／`app_action`／`AppError`／`check_values`、kit 的每個函式、怎麼用 `AppClient` 寫測試、能做與不能做的事（不能連外、不能內嵌程式、不能輪詢）、畫面上的字怎麼寫）；
   `docs/pack-format.md`（連過去）；`docs/security.md`「網頁介面」加一節「工具服務」（ADR §3 的對策表與「擋不住的」，白話）＋「沒有做的保護」加兩條；`README.md` 功能清單一行；`CHANGELOG.md`；`docs/AGENT.md` Map。
+- （第二版）`docs/tool-apps.md` 另外要有：`kit` 欄位與「框架是宣告來選用的，沒宣告就沒有 app 這一面；框架在 SYNOX 不在工具裡，為什麼」（ADR §5）；`app_export`／`kit.Download` 與匯出的規則（個人版先講清楚、多人版不給沒加密的、工具不要自己做下載）；
+  「有在用」的定義與「不要自己送 alive、不要自己用 `fetch`」；範本（`init --app`）產生的 `pack.json` 帶 `"kit": 1`、不帶 `exports`。
 - **不做**：`synox-sdk` 的本機預覽伺服器（會開埠）。
 
 測試 `tests/test_sdk_app.py`：`init --app` 產生的資料夾過第 1、2 關、`specs_of` 沒有 problem、用 `AppClient` 能進門、讀、做一個動作；不加 `--app` 的輸出跟基準的雜湊一樣（或逐檔比對）；單檔版與正本一致。
@@ -433,6 +543,12 @@ WP0、WP1、WP3 可以同時做（檔案不重疊）；WP2 等 WP1 合進來；W
 | R10 | 把記帳的網址加書籤，服務開著時從書籤進 | 直接進（個人版）；服務關著時瀏覽器說連不上 |
 | R11（選做） | 瀏覽器開 `http://money.localhost:8841/` | 記下「打得開／打不開」與瀏覽器名稱版本（ADR 要擁有者決定的第 4 題要用） |
 | R12 | 用 Edge 與 Chrome 各做一次 R1、R3、R6 | 一樣 |
+| R13（第二版） | 把記帳設成「自己填 3 分鐘」。開著 app 分頁、切到別的分頁放 4 分鐘 | 服務被關（背景的分頁不算在用） |
+| R14（第二版） | 同樣設定，app 分頁留在眼前，每分鐘動一下滑鼠，共 5 分鐘 | 服務沒被關；主機台的「多久沒用」一直很小 |
+| R15（第二版） | 同樣設定，app 分頁留在眼前但完全不碰滑鼠鍵盤 4 分鐘 | 服務被關 |
+| R16（第二版） | 設成「一直開著」 | 先看到警告；之後卡片一直有「一直開著」的標籤；重開 SYNOX 後它是關的 |
+| R17（第二版） | 個人版在記帳的帳目頁按「匯出」 | 先看到「沒有加密」那段字；按下載後瀏覽器存了一個 `.csv`，頁面沒有跳走；Excel 打開中文沒有亂碼 |
+| R18（第二版） | 另開一份伺服器版的設定做同一件事 | 按鈕是灰的、有一句說明；沒有檔案被下載 |
 
 ## 選項表（實作中遇到要選的；預設照建議，不用回頭問）
 
@@ -443,7 +559,8 @@ WP0、WP1、WP3 可以同時做（檔案不重疊）；WP2 等 WP1 合進來；W
 | 稽核紀錄要不要進保管箱 | 明文 JSONL、不記內容／加密 | **明文、不記內容**（要能在 SYNOX 沒開時用記事本看） |
 | app 的靜態檔要不要登入 | 要／不要 | **要**（沒登入什麼都拿不到） |
 
-真的是擁有者才能定的五題在 ADR 0023 最後一節；沒回答之前照那裡的建議做（都是可以之後改設定或加嚴的）。
+（第二版）擁有者已經回答的在 ADR 0023「擁有者已經決定的」；**還沒定的兩題**（AI 能不能開服務、伺服器版加密匯出的格式）照 ADR「現在先這樣」那一欄做：
+`/app_open` 不給 AI；伺服器版的匯出一律擋。這兩題不要自己往前做。
 
 ## 驗收（整體）
 
@@ -459,5 +576,7 @@ WP0、WP1、WP3 可以同時做（檔案不重疊）；WP2 等 WP1 合進來；W
 - 不要改 `vendor/`、不要改 `web.panel`／`web.api` 的行為、不要改三份教學頁。
 - 不要加 CORS、不要加 `'unsafe-inline'`、不要讓 `config.json` 決定綁哪個位址、不要讓工具自己開伺服器。
 - 不要把動作的參數值寫進稽核或 log。
-- 不要做容器版、`*.localhost`、匯出、WebSocket、kind=cli 的 app——都在 ADR 的「不做」。
+- 不要做容器版、`*.localhost`、WebSocket、kind=cli 的 app、開機自動開服務、在 Telegram 改閒置設定——都在 ADR 的「不做」。
+- 不要做伺服器版的加密匯出（格式還沒定）、不要讓 AI 開服務（還沒定）、不要做任何「人不在電腦前也連得到」的東西（通道、雲端轉送；那是另一份 ADR）。
+- 不要讓工具在 `pack.json` 裡替自己選閒置設定；不要在共用元件裡放計時器去送請求。
 - 不要合併、不要推；不要改這份計畫的合約而不回報。
