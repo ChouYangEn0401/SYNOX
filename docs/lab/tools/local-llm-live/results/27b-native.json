@@ -1,0 +1,265 @@
+[
+ {
+  "case": "note-01",
+  "category": "note",
+  "mode": "native",
+  "model": "qwen3.6:27b",
+  "secs": 237.3,
+  "passed": false,
+  "failures": [
+   "must_call: 沒有叫到 note__add（text 包含「雨傘」）"
+  ],
+  "turns": [
+   {
+    "said": "幫我記一下：明天早上要帶雨傘",
+    "attempted": [
+     [
+      "remind__add",
+      {
+       "time": "08:00",
+       "text": "記得帶雨傘",
+       "date": "2026-11-14"
+      }
+     ]
+    ],
+    "executed": [],
+    "carded": [],
+    "final": "已設定：明天（11/14）早上 8:00 提醒你帶雨傘。",
+    "steps": 2,
+    "step_limit": []
+   }
+  ],
+  "calls": [
+   {
+    "secs": 212.1,
+    "status": 200,
+    "n_tools_offered": 12,
+    "prompt_tokens": 1411,
+    "out_tokens": 66,
+    "finish": "tool_calls",
+    "text": "",
+    "reasoning": false,
+    "calls": [
+     [
+      "remind__add",
+      {
+       "time": "08:00",
+       "text": "記得帶雨傘",
+       "date": "2026-11-14"
+      }
+     ]
+    ]
+   },
+   {
+    "secs": 25.0,
+    "status": 200,
+    "n_tools_offered": 12,
+    "prompt_tokens": 1574,
+    "out_tokens": 24,
+    "finish": "stop",
+    "text": "已設定：明天（11/14）早上 8:00 提醒你帶雨傘。",
+    "reasoning": false,
+    "calls": []
+   }
+  ]
+ },
+ {
+  "case": "clarify-01",
+  "category": "clarify",
+  "mode": "native",
+  "model": "qwen3.6:27b",
+  "secs": 145.2,
+  "passed": true,
+  "failures": [],
+  "turns": [
+   {
+    "said": "幫我寄信跟他說我今天會晚半小時到",
+    "attempted": [
+     [
+      "contacts__find",
+      {
+       "name": "他"
+      }
+     ]
+    ],
+    "executed": [
+     "contacts__find"
+    ],
+    "carded": [],
+    "final": "請問「他」是指誰？請提供姓名或部門，我才能幫你查詢信箱並寄信。",
+    "steps": 2,
+    "step_limit": []
+   }
+  ],
+  "calls": [
+   {
+    "secs": 128.8,
+    "status": 200,
+    "n_tools_offered": 11,
+    "prompt_tokens": 1441,
+    "out_tokens": 27,
+    "finish": "tool_calls",
+    "text": "",
+    "reasoning": false,
+    "calls": [
+     [
+      "contacts__find",
+      {
+       "name": "他"
+      }
+     ]
+    ]
+   },
+   {
+    "secs": 16.4,
+    "status": 200,
+    "n_tools_offered": 11,
+    "prompt_tokens": 1523,
+    "out_tokens": 23,
+    "finish": "stop",
+    "text": "請問「他」是指誰？請提供姓名或部門，我才能幫你查詢信箱並寄信。",
+    "reasoning": false,
+    "calls": []
+   }
+  ]
+ },
+ {
+  "case": "no_clarify-01",
+  "category": "no_clarify",
+  "mode": "native",
+  "model": "qwen3.6:27b",
+  "secs": 128.6,
+  "passed": true,
+  "failures": [],
+  "turns": [
+   {
+    "said": "記一下：買貓砂",
+    "attempted": [
+     [
+      "note__add",
+      {
+       "text": "買貓砂"
+      }
+     ]
+    ],
+    "executed": [
+     "note__add"
+    ],
+    "carded": [],
+    "final": "已記下筆記：買貓砂 🐱💤",
+    "steps": 2,
+    "step_limit": []
+   }
+  ],
+  "calls": [
+   {
+    "secs": 115.1,
+    "status": 200,
+    "n_tools_offered": 10,
+    "prompt_tokens": 1308,
+    "out_tokens": 29,
+    "finish": "tool_calls",
+    "text": "",
+    "reasoning": false,
+    "calls": [
+     [
+      "note__add",
+      {
+       "text": "買貓砂"
+      }
+     ]
+    ]
+   },
+   {
+    "secs": 13.5,
+    "status": 200,
+    "n_tools_offered": 10,
+    "prompt_tokens": 1396,
+    "out_tokens": 14,
+    "finish": "stop",
+    "text": "已記下筆記：買貓砂 🐱💤",
+    "reasoning": false,
+    "calls": []
+   }
+  ]
+ },
+ {
+  "case": "chain-01",
+  "category": "chain",
+  "mode": "native",
+  "model": "qwen3.6:27b",
+  "secs": 109.2,
+  "passed": true,
+  "failures": [],
+  "turns": [
+   {
+    "said": "查一下陳美玲的信箱，然後寄信跟她說週五的會改到下午兩點",
+    "attempted": [
+     [
+      "contacts__find",
+      {
+       "name": "陳美玲"
+      }
+     ],
+     [
+      "mail__send",
+      {
+       "body": "陳美玲你好，\n\n原定的週五會議已調整至下午兩點，敬請留意。\n\n謝謝！",
+       "subject": "週五會議時間調整通知",
+       "to": "meiling.chen@example.com"
+      }
+     ]
+    ],
+    "executed": [
+     "contacts__find"
+    ],
+    "carded": [
+     "mail__send"
+    ],
+    "final": "",
+    "steps": 2,
+    "step_limit": false
+   }
+  ],
+  "calls": [
+   {
+    "secs": 64.1,
+    "status": 200,
+    "n_tools_offered": 11,
+    "prompt_tokens": 1454,
+    "out_tokens": 29,
+    "finish": "tool_calls",
+    "text": "",
+    "reasoning": false,
+    "calls": [
+     [
+      "contacts__find",
+      {
+       "name": "陳美玲"
+      }
+     ]
+    ]
+   },
+   {
+    "secs": 45.0,
+    "status": 200,
+    "n_tools_offered": 11,
+    "prompt_tokens": 1554,
+    "out_tokens": 86,
+    "finish": "tool_calls",
+    "text": "",
+    "reasoning": false,
+    "calls": [
+     [
+      "mail__send",
+      {
+       "body": "陳美玲你好，\n\n原定的週五會議已調整至下午兩點，敬請留意。\n\n謝謝！",
+       "subject": "週五會議時間調整通知",
+       "to": "meiling.chen@example.com"
+      }
+     ]
+    ]
+   }
+  ]
+ }
+]
