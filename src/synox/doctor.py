@@ -224,6 +224,32 @@ def _activator_line(config) -> str:
 HEALTH_MARKS = {"broken": "⏸", "needs_action": "🛠", "quarantined": "⛔"}
 
 
+def apps_lines(config, *, environ=None, exists=os.path.exists) -> list:
+    """工具服務（ADR 0024）：開放與否、範圍、預設的閒置；上次的狀態檔；設成「一直開著」的工具。**不連任何埠。**"""
+    from isdtelekit.core import jsonstore
+    from synox.web.server import CONTAINER_MARKERS
+    environ = os.environ if environ is None else environ
+    web = getattr(config, "web", {}) or {}
+    apps = web.get("apps") or {}
+    if not web.get("enabled", True) or not apps.get("enabled", True):
+        return ["  工具服務：關（web.apps.enabled=false）"]
+    if str(environ.get("SYNOX_IN_CONTAINER", "")).strip() == "1" or any(exists(m) for m in CONTAINER_MARKERS):
+        return ["  工具服務：容器版還沒開放"]
+    first, count = int(apps.get("port_first", 8841)), int(apps.get("port_count", 16))
+    out = [f"  工具服務：開放（本機位址 127.0.0.2，埠 {first}–{first + count - 1}，最多同時 {apps.get('max_running', 3)} 個；"
+           f"預設 {apps.get('idle_suggest_min', 30)} 分鐘沒用提醒、{apps.get('idle_close_min', 120)} 分鐘自動關，各工具可以自己設）"]
+    state = jsonstore.load_json(os.path.join(config.data_dir, "apps_state.json"), {})
+    running = state.get("running") if isinstance(state, dict) else None
+    if running:
+        names = "、".join(f"{r.get('name')} 開在 {r.get('port')}" for r in running if isinstance(r, dict))
+        out.append(f"    上次紀錄：{names}（由程序 {state.get('pid')} 寫的；SYNOX 沒在跑的話這些都已經關了）")
+    data = jsonstore.load_json(os.path.join(config.data_dir, "apps.json"), {})
+    for name, policy in sorted(((data or {}).get("policy") or {}).items() if isinstance(data, dict) else []):
+        if isinstance(policy, dict) and policy.get("mode") == "keep":
+            out.append(f"    ⚠️ {name} 設成「一直開著」：開著的時候這台電腦上的其他程式碰得到那扇門（到網頁的工具頁可以改）")
+    return out
+
+
 def _stepup_line(config) -> str:
     """手機驗證器（ADR 0025）：擁有者設定了沒、危險的動作有沒有開保護。保管箱還沒建（沒有金鑰檔）就不去開它。"""
     from synox.guard.cli import doctor_line
@@ -301,6 +327,8 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
             out("  網頁介面：" + (f"開，http://127.0.0.1:{web.get('port')}/（/web 拿登入連結）"
                                 + (f"　對外網址 {web.get('public_url')}" if web.get("public_url") else "")
                                 if web.get("enabled", True) else "關（web.enabled=false）"))
+            for line in apps_lines(config):
+                out(line)
             out(_heartbeat_line(config))
             out(_keep_awake_line(config))
             out(_activator_line(config))
