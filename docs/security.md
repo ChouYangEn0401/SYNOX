@@ -405,6 +405,10 @@ InaccessiblePaths＋BindPaths 巢狀是否照預期；`--setenv=名字` 在那�
 - `config.json` 的 bot token 是明文。
 - Web UI 沒有 TLS（只在本機 127.0.0.1 用不需要）；對外開放要營運者自己加（見上面「網頁介面」）。
 - Web UI 的 pack 面板跟網頁同源。
+- **主機台的登入只靠 cookie，而 cookie 不分埠**（既有問題，還沒修；docs/lab/issues-to-open.md 第 5 筆）：同一台電腦上的另一個帳號或程式去聽
+  `127.0.0.1` 的任何一個埠，再讓擁有者的瀏覽器連過去一次（一個連結就夠），就收得到主機台的登入 cookie。共用電腦的人要知道這件事。
+  已經做的：主機台的 `/api/` 拒絕別的網頁（`Sec-Fetch-Site` 是 `same-site`／`cross-site`）送來的請求；同名的假 cookie 擋不住真的那個；
+  工具服務的畫面改綁 `127.0.0.2`、完全不用 cookie（不讓 app 的網址變成誘餌）。
 - 確認卡的按鈕綁在 AI 助理（agent 群組）：`ai: false` 的 Discord bot、頻道型 bot、伺服器版的訪客按不了（工具執行中要確認的
   needs_confirm 卡也一樣）。架構還沒改，只在 `/bot_status`、`doctor` 說明。
 - 4–7 字的短 secret 只在它自己那個 pack 的呼叫裡做「夾在值裡」的比對，送給別的 pack 時只擋完全相等；更短的只擋完全相等。
