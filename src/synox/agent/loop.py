@@ -785,7 +785,7 @@ class AgentLoop:
         if decision is None:
             return f"沒有 {call.name} 這個工具（或你不能用）。", False, False
         if not decision.allowed:
-            return f"{node.command} 要先解鎖（/sudo），請使用者自己打。", False, False
+            return f"{node.command} 要先解鎖（/unlock），請使用者自己打。", False, False
         broken = health.hidden(self.app, node.path, user)        # 隔離清單上的（工具清單裡本來就沒有）：不執行
         if broken is not None:
             return health.unavailable_line(node, broken), False, False

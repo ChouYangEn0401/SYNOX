@@ -46,6 +46,9 @@ class AgentFallback:
         return node is not None and self.app.registry.authorize(user, node, TYPED, chat_id).allowed
 
     def handle(self, api, inbound, user, text: str, age: float) -> Route:
+        from synox.guard.commands import intercept_code
+        if intercept_code(self.app, api, inbound.chat_id, user, text):     # 只有 6 位數：當驗證碼處理，不送 AI
+            return Route(FALLBACK, "unlock.on")
         route = self.app.dispatcher.log_route(inbound, text, Route(FALLBACK, "agent.ai"))
         bot = policy.current_bot()                   # 收訊的 bot：AI 那一輪在別的執行緒，要帶過去（工具清單照它過濾）
         from synox.agent import media
