@@ -21,7 +21,7 @@ import random
 import sys
 from datetime import datetime
 
-PROJECT_URL = "https://github.com/ChouYangEn0401/SYNOX"     # repo 公開了（QuestionToUser.md QB1 的 A：公開那天再填）
+PROJECT_URL = "https://github.com/ChouYangEn0401/SYNOX"     # repo 公開了（docs/QuestionToUser.md QB1 的 A：公開那天再填）
 RELEASES_URL = PROJECT_URL + "/releases"                     # 每一版的發佈頁：看自己是不是最新版（docs/versioning.md）
 
 #: 印歡迎畫面的指令（None＝`synox` 什麼都沒打）。init 是之後安裝流程會加的指令，先列著。

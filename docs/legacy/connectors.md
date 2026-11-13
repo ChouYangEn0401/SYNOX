@@ -1,7 +1,7 @@
 # 下架：出廠內建的 4 個 connector（notion、todoist、google-calendar、apple-reminders）
 
 2026-11-12 起 SYNOX 主程式**真的全空**：繼三個內建工具（[builtin-packs.md](builtin-packs.md)）之後，`connectors/` 的 4 個也搬到工具庫，
-`connectors/` 只剩一份說明。
+`connectors/` 只剩一份說明；2026-11-13 整理資料夾時連那份說明也拿掉了，`connectors/` 不再存在。
 
 ## 原本做什麼
 
@@ -18,7 +18,7 @@
 
 ## 為什麼下架
 
-擁有者 2026-11-12 回答 [QuestionToUser.md](../../QuestionToUser.md) 的 QL1（「這 4 個要不要也搬去工具庫」，一字不改）：
+擁有者 2026-11-12 回答 [QuestionToUser.md](../QuestionToUser.md) 的 QL1（「這 4 個要不要也搬去工具庫」，一字不改）：
 
 > QL1 當然要，而且所有工具目前都先幫我註記為 "測試版本 test/alpha/beta' 之類的。
 

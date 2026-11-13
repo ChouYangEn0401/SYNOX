@@ -246,7 +246,7 @@ def test_cli_tools_list_and_install(tmp_path, monkeypatch, capsys):
     cfg.write_text(json.dumps({"owner_id": OWNER_ID, "vault": {"mode": "file"}, "web": {"enabled": False}}),
                    encoding="utf-8")
     packs = tmp_path / "packs"
-    monkeypatch.setattr(loader, "PACK_DIRS", (str(packs), os.path.join(ROOT, "connectors")))
+    monkeypatch.setattr(loader, "PACK_DIRS", (str(packs), str(tmp_path / "connectors")))     # 第二個資料夾不存在也沒關係
     assert cli.main(["--config", str(cfg), "tools", "list"]) == 0
     assert "notes" in capsys.readouterr().out
     assert cli.main(["--config", str(cfg), "tools", "install", "nope"]) == 2
