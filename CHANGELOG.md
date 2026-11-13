@@ -1,5 +1,24 @@
 # Changelog
 
+## 未發佈（branch feat/vlm_vision：看圖）
+
+### 新增
+- **看圖（VLM）**（`src/synox/llm/vision.py`，[ADR 0021](docs/adr/0021-vlm-vision.md)）：harness 不分叉，只多 provider 能力——
+  `ImagePart`、`Message.images`、`ChatAdapter.supports_vision`／`check_vision()`。本地 Ollama 原生 `/api/chat` 送純 base64 的 `images`；
+  OpenAI 相容（vLLM／LM Studio／other、openai／gemini／openai_compat）送 data URI 的 content parts（不送網址）；Anthropic 送 base64 image 區塊；
+  Claude Code 不支援。不支援卻收到圖＝明講「此來源不支援圖片」，不偷偷丟掉。
+- `llm.vision`＝auto（預設：Ollama 唯讀查 `/api/show` 的 capabilities、雲端看內建名單、查不到＝不支援）｜on｜off；
+  `llm.vision_model`＝主模型看不到時的兩段式（看圖模型先把圖轉成文字、包進分隔符當資料）；都沒有＝老實說「這個模型看不到圖片」。
+  `llm.vision_limits`（每則 3 張、每張 8 MB、長邊 1568 px）；只收 JPEG／PNG／WebP／GIF，去掉 EXIF（GPS）；Pillow 選用（沒裝就不縮圖）。
+- **Telegram 私訊的照片**（含副檔名是圖的檔案）會交給 AI 看：getFile 讀進記憶體、不寫檔，抓不到或太大會告訴你，file_id 不再當文字給 AI。
+- 圖裡的字是資料不是指令（有圖的那一輪系統提示多一段）；由圖導出的工具呼叫照樣過權限、參數驗證、確認卡、完成宣稱檢查。
+- 設定頁與 doctor 多一行「看圖：…」（唯讀、不載入模型）；網頁換 AI 來源時保留 vision 的設定。
+- 評測：新類別 `vision` 兩題（讀收據→叫工具、圖裡夾指令→不照做；假圖在 `evals/assistant/images/`），共 38 題。
+
+### 不變
+- 沒有圖的對話：提示、請求、連線一個字都不變。對話記憶、常駐助理、心跳、soul 只留文字替身，不存圖。
+- Discord 私訊、網頁這一輪不收圖；Telegram 照片的說明文字（caption）SDK 收不到（見 ADR 0021）。
+
 ## 未發佈（branch feat/small_model_harness：工具說明精簡化、每輪工具上限、context 預算、本輪規則與覆誦、Qwen3 取樣、評測擴充）
 
 ### 新增

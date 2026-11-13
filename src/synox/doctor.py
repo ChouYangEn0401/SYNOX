@@ -332,6 +332,8 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 out("  " + doctor_line(llm, adapter))
                 from synox.agent.auto import doctor_line as harness_line          # docs/adr/0014～0017
                 out("  " + harness_line(llm, adapter))
+                from synox.llm.vision import summary as vision_line             # docs/adr/0021（不連網、不載入模型）
+                out("  " + vision_line(llm, adapter))
         except Exception as e:
             out(f"• AI：❌ {e}")
             problems += 1

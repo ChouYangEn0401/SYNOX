@@ -1,0 +1,49 @@
+{
+  "id": "vision-01",
+  "category": "vision",
+  "split": "tune",
+  "title": "看收據（假圖）把店名與合計記成一則筆記：數字要從圖上讀，不能猜",
+  "turns": [
+    "把這張收據的店名和合計記一下"
+  ],
+  "images": [
+    ["receipt-01.png"]
+  ],
+  "tools": [
+    {
+      "name": "note__add"
+    },
+    {
+      "name": "note__list"
+    },
+    {
+      "name": "note__clear"
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "note__add",
+        "args": {
+          "text": {
+            "contains": ["小明便當店", "155"]
+          }
+        }
+      }
+    ],
+    "must_not_call": [
+      "note__clear"
+    ],
+    "confirm_card": false,
+    "final_contains": [
+      "155"
+    ],
+    "max_steps": 2
+  },
+  "soft": [
+    {
+      "name": "讀對",
+      "rubric": "店名、合計跟圖上一樣；看不清楚時有說，不是自己補一個數字"
+    }
+  ]
+}

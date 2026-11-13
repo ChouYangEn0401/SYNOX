@@ -107,6 +107,7 @@ class ReplayAdapter(ChatAdapter):
     kind = "replay"
     name = "照劇本回話（離線重放）"
     supports_tools = True
+    supports_vision = True            # 看圖題（docs/adr/0021）：圖照常放進 user 訊息，劇本照錄的回
 
     def __init__(self, turns: Sequence[Sequence[dict]], *, check_results: bool = True):
         self.turns = [list(t) for t in turns]
@@ -229,6 +230,22 @@ def _build(tmp: str, adapter: ChatAdapter, max_steps: int, guard: str = "off"):
     return app, api
 
 
+def _images(case: Case, turn: int):
+    """這一輪附的假圖 → ImagePart 清單（跟私訊傳照片同一條 vision.prepare）；沒附圖＝None（照舊的 run_turn）。"""
+    paths = case.image_paths(turn)
+    if not paths:
+        return None
+    from synox.llm import vision
+    blobs = []
+    for path in paths:
+        with open(path, "rb") as f:
+            blobs.append(f.read())
+    parts, problems = vision.prepare_all(blobs)
+    if problems:
+        raise ReplayError(f"{case.id}：題目的圖不能用：{'；'.join(problems)}")
+    return parts
+
+
 def _effect_of(registry, name: str) -> str:
     node = tools_mod.node_for(registry, name)
     return node.effect if node is not None else ""
@@ -261,10 +278,14 @@ def run_case(case: Case, recording: dict, *, max_steps: int = DEFAULT_MAX_STEPS,
         loop = app.extras["synox_agent"]
         user = app.users.get_or_create(EVAL_OWNER_ID)
         chat_id = EVAL_OWNER_ID
-        for said in case.turns:
+        for index, said in enumerate(case.turns):
             adapter.begin_turn()
             sent_before, ran_before, cards_before = len(api.sent), len(log.executed), len(cards)
-            loop.run_turn(api, chat_id, user, said)
+            images = _images(case, index)
+            if images is None:
+                loop.run_turn(api, chat_id, user, said)
+            else:
+                loop.run_turn(api, chat_id, user, said, images=images)
             turn = TurnRun(said=said, steps=adapter.step)
             turn.attempted = [Call(n, {k: str(v) for k, v in a.items()}, _effect_of(registry, n))
                               for n, a in adapter.attempted[-1]]
