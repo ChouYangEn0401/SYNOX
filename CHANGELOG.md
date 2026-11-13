@@ -1,5 +1,14 @@
 # Changelog
 
+## 未發佈（整理資料夾）
+
+### 變更
+- 根目錄少三樣：`QuestionToUser.md` 搬到 `docs/QuestionToUser.md`；`legacy/` 搬到 `docs/legacy/`；只剩一份「已搬走」說明的 `connectors/` 拿掉了（說明併進 `docs/legacy/connectors.md`）。
+- `docs/` 裡名字太像的資料夾分開：`docs/handoffs/`（請別的 repo 做的事）搬到 `docs/lab/cross-repo/`，`docs/discussions/` 搬到 `docs/lab/discussions/`；給使用者的 `docs/handoff/` 不動。
+- `docs/README.md` 索引補上 `tool-health.md`、`release-build.md`、`tutorials-engine.md`、`guide/`、`installer/`、`artifacts/`、`lab/`；`docs/AGENT.md` 程式地圖多一列 `docs/` 的分區。
+- 8 個 `.bat`、`setup/`、已發佈頁面的本機副本（`docs/landing/`、`guide/`、`installer/`、`tutorials/`、`artifacts/`、`lab/design/`）位置都沒變：已裝好的電腦、桌面捷徑、`.synoxpack` 點兩下都不受影響，線上頁面不用重新發佈。
+- 從舊版解壓縮蓋過來的人：留在磁碟上的舊 `connectors\`、`legacy\`、`QuestionToUser.md` 不會被讀，可以自己刪。
+
 ## 未發佈（安裝程式 .exe 照擁有者 2026-11-13 的決定改版）
 
 ### 變更
