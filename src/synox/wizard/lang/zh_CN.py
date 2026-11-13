@@ -105,7 +105,7 @@ STRINGS = {
     "status_add_channel_later": "之后双击 Setup.bat 重新运行向导，即可补连 Telegram／Discord。",
     "status_bot_head": "✅ 设置完成，bot 已启动。",
     "status_web_head": "✅ 设置完成，SYNOX 已启动（尚未连接 Telegram／Discord）。",
-    "status_no_tools": "🧰 SYNOX 出厂不带工具（记账、笔记…都要自己装；提醒是系统指令，本来就有）：拿到工具库（SYNOX_Libs）的 .synoxpack 文件后双击，或在网页“设置 → 安装功能”上传。工具库在哪里，问给你 SYNOX 的人。",
+    "status_no_tools": "🧰 下一步：先做一次教程，学会怎么跟 SYNOX 说话；做完再挑你需要的工具（记账、笔记…）：网页“设置”里的官方工具库（SYNOX_Libs），或双击 .synoxpack 文件。",
     "status_can_close": "可以关闭这个窗口了。",
     "no_window": "❌ 无法打开窗口（{e}）。可以把 config.example.json 复制为 config.json 手动填写。",
     "llm_local": "本地模型（这台或家里网络的电脑）",
@@ -118,4 +118,8 @@ STRINGS = {
     "llm_local_advice_done": "选项：{options}。小于 {least} 会截断 SYNOX 的提示。",
     "llm_local_ok": "✅ 找到模型，设置看起来合理（只读取了模型资料，没有实际加载模型）。",
     "err_local_model": "请填模型名称（Ollama 的话是 `ollama list` 看得到的名称，例如 qwen3.5:9b）。",
+    "finish_tutorial": "📘 第一次用？先做一次教程（几分钟），做完再挑你需要的工具。",
+    "all_tools_running": "⏳ 正在安装全部官方工具（你在安装程序里勾选的），可能要几分钟，请不要关闭这个窗口…",
+    "note_all_tools": "全部官方工具",
+    "all_tools_failed": "有些没装成，之后到网页“设置”的工具库补装（记录在 data/logs/all-tools.log）",
 }

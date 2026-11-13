@@ -331,3 +331,51 @@ def web_login_link(config_path: str) -> str:
         return issue_owner_link(config)
     except Exception:
         return ""
+
+
+# ── 從 .exe 安裝程式來的人（setup/installer/synox.iss 寫的 installer-choices.json）──────────────
+
+# 安裝程式複製完檔案後，在 SYNOX 資料夾寫這個檔：語言、建議／自訂、桌面與開始功能表捷徑、.synoxpack、開機啟動、
+# Claude Code 的結果、要不要「全部官方工具都裝」。精靈讀它：那三個勾選已經在安裝程式決定過，完成頁不再問一次。
+# 沒有這個檔＝ZIP／git clone 來的（Setup.bat），完成頁照舊四個勾選。
+INSTALLER_CHOICES = "installer-choices.json"
+
+
+def installer_choices(root: str) -> dict:
+    """SYNOX 資料夾裡安裝程式留下的選擇；沒有、讀不了、格式不對都回 {}（＝不是 .exe 裝的）。"""
+    data = read_existing(os.path.join(root, INSTALLER_CHOICES))
+    return data if data.get("source") == "exe-installer" else {}
+
+
+def wants_all_tools(choices: dict) -> bool:
+    """自訂頁勾了「全部官方工具都裝（不建議）」而且還沒裝過。"""
+    return bool(choices.get("all_tools")) and not choices.get("all_tools_done")
+
+
+def mark_all_tools_done(root: str, ok: bool) -> None:
+    """裝過一次就記下來，重開精靈不會再裝一次（失敗也記：之後到網頁設定的工具庫自己挑）。"""
+    path = os.path.join(root, INSTALLER_CHOICES)
+    data = read_existing(path)
+    if data:
+        data["all_tools_done"] = True
+        data["all_tools_ok"] = bool(ok)
+        write_config(path, data)
+
+
+def all_tools_args(python: str, config_path: str) -> list:
+    """「全部官方工具都裝」：從 SYNOX 資料夾的 tools/（安裝程式附的工具庫，不連網）一個一個裝，照原本的安全檢查；
+    需要輸入發行者名字的（T2）不會自動裝。"""
+    return [python, "-m", "synox", "--config", config_path, "tools", "install", "--all", "--yes"]
+
+
+# ── 第一次用：先做一次教學 ─────────────────────────────────────────
+
+# HOOK（教學）：教學 pack 由另一個工作做，會放在 SYNOX repo 裡（每一種安裝方式都有）。接好之後把「怎麼開始」寫在這裡
+# （例如在 SYNOX 打的指令，或網頁上的按鈕名稱），完成頁那一行就會帶上它；空字串＝只說「做一次教學」。
+TUTORIAL_HOW = ""
+
+
+def tutorial_line() -> str:
+    """完成頁「做一次教學」那一行（Q3：建議安裝只裝環境＋教學，做完教學再挑工具）。"""
+    line = t("finish_tutorial")
+    return f"{line} {TUTORIAL_HOW}".strip() if TUTORIAL_HOW else line

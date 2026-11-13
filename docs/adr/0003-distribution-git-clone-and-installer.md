@@ -95,9 +95,13 @@ SYNOX 不只是「一支程式」：工具（pack）要用**真的 Python 直譯
   `tcl\` 一起帶，並在 `._pth` 加 `Lib`。**這招能不能在 virtualenv 建的 .venv 裡開出視窗，沒有驗證過**；不行的話自動退到文字版 init，
   功能一樣（QD3）。
 - **解除安裝**：先跑 `setup\uninstall.ps1 -Mode shortcuts -Yes`（捷徑、開機啟動、`.synoxpack` 關聯），再刪安裝的檔案與 `.venv`；
-  **`config.json`、`data\`（筆記、保管箱、金鑰）、裝過的工具（`packs\`）都留著**。
+  **`config.json`、`data\`（筆記、保管箱、金鑰）、裝過的工具（`packs\`）都留著**。2026-11-13（規格 Q9）：解除安裝的第一個畫面
+  多一個「連我的資料也一起刪除」，預設不勾，勾了要再確認一次才刪。
 - **防毒與 SmartScreen**：沒簽章的安裝程式第一次會被 SmartScreen 擋（「其他資訊 → 仍要執行」）；簽了章、下載量累積之後才會消失。
-  可攜版 Python 本身有 PSF 的簽章。安裝程式不跑任何從網路下載的東西（全部離線）。
+  可攜版 Python 本身有 PSF 的簽章。安裝程式本身（Python、套件、工具庫）全部離線，**唯一的例外是可選的 Claude Code**
+  （2026-11-13 擁有者決定，規格 Q2）：勾著「安裝 Claude Code」而且這台還沒有時，最後一步跑官方的
+  `irm https://claude.ai/install.ps1 | iex`（`setup/installer/claude-code.ps1`；需要上網、裝在使用者資料夾、不用管理員）。
+  它失敗或逾時都不擋安裝，完成頁說之後在設定精靈的 AI 頁按「一鍵安裝」補；防毒會攔的話，退回成只在設定精靈裡按按鈕才裝。
 - **授權義務**：安裝程式裡有 CPython（PSF）、各個 wheel（Apache／BSD／MIT／MPL-2.0 的 certifi…）。發佈前要附一份第三方授權清單（handoff 有一項）。
 
 ## C. 工具庫放哪裡（QL4 原題）
@@ -110,7 +114,9 @@ SYNOX 不只是「一支程式」：工具（pack）要用**真的 Python 直譯
   網址只顯示、不下載（下載的安全檢查另外設計，見 QL4 的選項 C）。指到 SYNOX_Libs 的**原始碼**時會明說「先打包」。
 - **列出／安裝**：`python -m synox init`（第 ⑤ 步）、`python -m synox tools list`、`python -m synox tools install <名字或組合> [--yes]`。
   先對 `index.json` 的 sha256（檔名只收同一層的 `*.synoxpack`），再走原本的五關（`admin.stage_file` → 報告 → 確認 → `install_staged` 寫鎖）。
-  T2（有掃不到內容的程式）要打發行者名字；非互動不裝 T2。**不支援「全部裝」**——要什麼自己挑。
+  T2（有掃不到內容的程式）要打發行者名字；非互動不裝 T2。預設不全裝——要什麼自己挑（建議先做教學再挑）。
+  2026-11-13（規格 Q3）：.exe 安裝程式的「自訂」多一項「全部官方工具都裝（不建議）」，預設不勾；勾了就由設定精靈在第一次按
+  「完成並開始」時跑 `synox tools install --all --yes`（同樣的檢查，T2 一樣不自動裝）。「建議」安裝只有環境＋教學，不裝工具。
 - **網頁「設定 → 工具」列出可裝工具**：後端零件（`wizard/tools.py` 的 `read`／`pick`／`file_of`）已經可以用；畫面（`web/static`）這次沒做
   （另一條分支在改介面），之後接 `/api/settings` 加一個「工具庫有哪些」的清單即可。
 
