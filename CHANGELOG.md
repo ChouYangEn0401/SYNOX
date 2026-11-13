@@ -1,5 +1,11 @@
 # Changelog
 
+## 未發佈（版本與發佈規則）
+
+### 新增
+- `docs/versioning.md`：版本號、分支、tag、每版要有什麼、「我要怎麼更新？」；`scripts/release.py`（bump／check／notes）；ADR 0023 自己更新與緊急修補（提案）。
+- `synox about`、`synox doctor` 多一行：到 GitHub 發佈頁看有沒有新版（不自己連網）。
+
 ## 未發佈（設定頁的官方工具庫、預設用 SYNOX 自己的 Python）
 
 ### 新增
