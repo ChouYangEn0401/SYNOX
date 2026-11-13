@@ -1,0 +1,27 @@
+{
+  "id": "missing_param-02",
+  "category": "missing_param",
+  "split": "holdout",
+  "title": "換算外幣沒說金額與目標幣別：先問，不能瞎填參數去叫工具",
+  "turns": [
+    "幫我換算一下美金"
+  ],
+  "tools": [
+    {
+      "name": "currency__convert"
+    }
+  ],
+  "expect": {
+    "ask_back": true,
+    "must_not_call": [
+      "currency__convert"
+    ],
+    "max_steps": 1
+  },
+  "soft": [
+    {
+      "name": "追問品質",
+      "rubric": "問清楚金額與要換成哪一種幣別"
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "case": "missing_param-01",
+  "source": "broken",
+  "note": "沒問日期時間就自己編一個",
+  "expected_failures": [
+    "must_not_call",
+    "ask_back",
+    "max_steps"
+  ],
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "calendar__add",
+            "args": {
+              "date": "2026-11-14",
+              "time": "10:00",
+              "title": "看牙醫"
+            }
+          }
+        ]
+      },
+      {
+        "text": "已經加到行事曆：明天早上十點看牙醫。"
+      }
+    ]
+  ]
+}
