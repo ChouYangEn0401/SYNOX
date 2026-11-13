@@ -213,6 +213,20 @@ SDK：`@tool("WRITE", ai=False, confirm=True)`；cli 的 pack.json：`{"name": "
   `synox-sdk check` 會列出「📝 說明不齊」。
 - SDK 的 `@tool`：函式參數的預設值會變成 `default`、docstring 的 `Args:` 會變成 `ask`；`category` 自己加進 pack.json。
 
+## 工具服務：完整的網頁畫面（`/apps`、`/app_open`、`/app_close`）
+
+工具可以在 `pack.json` 宣告 `web.app`，附一個完整的網頁畫面（寫法見 [tool-apps.md](tool-apps.md)、[pack-format.md](pack-format.md)「完整網頁畫面」）。
+擁有者決定什麼時候開：
+
+| 指令 | 誰 | 說明 |
+|---|---|---|
+| `/apps` | 看得到工具的人（AI 也能叫） | 每個有畫面的工具一行：開著（多久、多久沒用）／關著，後面接它的閒置設定；擁有者另外看到最近三筆紀錄 |
+| `/app_open <名字>` | 擁有者、只在私訊 | 開服務（之後到 SYNOX 網頁的工具頁按「打開」）。**AI 與排程都不能開**（`interactive`、只收本人）；`/app_open <名字> remote` 轉到 `/app_remote`（手機入口） |
+| `/app_close <名字｜all>` | 擁有者（AI 也能叫） | 關掉；資料都在，Telegram 照樣可以用 |
+
+名字可以打工具名、群組名、標題（不用打 emoji）、畫面的標題，不分大小寫。回覆裡不會有畫面的網址：打開一律從 SYNOX 網頁的工具頁。
+閒置設定（多久沒用就關、只提醒、一直開著、不開放）只能在網頁的工具頁改。
+
 ## secret 與連接表單
 
 要使用者的 API key、token、憑證檔時，**不要做成指令參數、也不要叫使用者在聊天裡打**。在 pack.json 宣告：
