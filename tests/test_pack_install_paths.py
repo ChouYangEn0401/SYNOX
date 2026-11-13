@@ -111,6 +111,7 @@ def test_app_page_includes_packdrop():
     js = open(os.path.join(ROOT, "src", "synox", "web", "static", "packdrop.js"), encoding="utf-8").read()
     assert "innerHTML" not in js and "pack-upload" in js and "/api/packs/install" not in js.replace(
         "（/api/packs/upload → 看報告 → /api/packs/install）", "")                # 只交給原本的按鈕，不自己裝
+    assert 'root.location.hash = "#settings"' not in js and "installHash(" in js    # 拖進來一律到安裝頁（#packs）
 
 
 def test_packdrop_js_with_node():
