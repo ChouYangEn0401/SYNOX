@@ -39,7 +39,7 @@ synox-sdk zip .                                                 → dist/hello-0
 
 ## SDK 版本（`requires.sdk`）
 
-SDK＝SYNOX 給工具的**介面合約**，有自己的版本號 `SDK_VERSION`（現在 `0.2.1`，寫在 `src/synox/sdk/author.py`，單檔版、`pip` 套件都讀它）。
+SDK＝SYNOX 給工具的**介面合約**，有自己的版本號 `SDK_VERSION`（現在 `0.2.2`，寫在 `src/synox/sdk/author.py`，單檔版、`pip` 套件都讀它）。
 合約包含：pack.json 的格式、子程序工具拿到的環境變數與 JSON 信封（`synox_sdk.py`）、kind=python 工具的 `install(app, pack)` 介面
 （`pack.store`／`store.of(user)`／`path_of`／`secret`／`web_route`、`synox.packs.kit`、`isdtelekit.core.registry` 的 `Field`／`READ`／`WRITE`／`DANGER`）。
 
@@ -58,7 +58,7 @@ SYNOX 安裝時（第 1、2 關）、載入時、doctor 都會對這台的 `SDK_
 ## @tool
 
 ```python
-@tool(effect, summary="", *, default=False, ai=True, confirm=False)
+@tool(effect, summary="", *, default=False, ai=True, confirm=False, scenario="")
 ```
 
 | 參數 | 說明 |
@@ -68,6 +68,7 @@ SYNOX 安裝時（第 1、2 關）、載入時、doctor 都會對這台的 `SDK_
 | `default` | `True`＝打 `/<群組>` 就是這個指令（最多一個） |
 | `ai` | `False`＝不給 AI 當工具（也不在 MCP 列出） |
 | `confirm` | `True`＝AI 要呼叫時先送確認卡給人按（effect 照寫的算）；`DANGER` 本來就會 |
+| `scenario` | （0.2.2 起）給 AI 的「什麼時候用」一句話（120 字內、一行），寫進 pack.json 的 `commands[].ai.scenario`；SYNOX 給 AI 的說明變成「用途。情境：…」（EasyTool 式，小模型比較會挑對工具）。沒寫＝照舊 |
 
 **參數就是欄位**，型別註記決定格式（SYNOX 在叫你的程式**之前**就照這個檢查，不合回一句人話、不執行）：
 
