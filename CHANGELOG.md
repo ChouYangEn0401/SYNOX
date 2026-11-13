@@ -2,6 +2,11 @@
 
 ## 未發佈（網頁設定頁分頁、安裝 pack 的專屬頁）
 
+### 修正
+- **保持清醒：螢幕關了電腦卻睡著**（現代待命機型）。原本閒置 N 分鐘廣播 `SC_MONITORPOWER` 關螢幕，Windows 在現代待命機型上把它當成按睡眠鍵
+  （Kernel-Power 506「Reason: SC_MONITORPOWER」）。改成把電源計畫的「關閉螢幕」設成 N 分鐘、由 Windows 自己只關螢幕，停用時改回原值。
+  分鐘不再限 240；`-1`＝螢幕永不關。（ADR 0006 附記）
+
 ### 新增
 - **設定頁分成分頁**：AI（來源＋用量）／聊天通道／功能與安裝／帳號（伺服器版、有權限才有）／電腦與備份（保持清醒＋備份）。
   分頁在網址上（`#settings:ai`、`#settings:channels`、`#packs`、`#settings:accounts`、`#settings:system`），重新整理、貼連結都留在同一頁；
