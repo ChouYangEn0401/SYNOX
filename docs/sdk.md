@@ -40,6 +40,7 @@ synox-sdk zip .                                                 → dist/hello-0
 ## SDK 版本（`requires.sdk`）
 
 SDK＝SYNOX 給工具的**介面合約**，有自己的版本號 `SDK_VERSION`（現在 `0.2.3`，寫在 `src/synox/sdk/author.py`，單檔版、`pip` 套件都讀它）。
+0.2.3 加了：`caller()`／`require_human()`（誰叫的）、工具服務的 `pack.app_read`／`app_action`／`app_export`、`kit.check_values`／`AppError`／`Download`／`csv_bytes`、`synox-sdk init --kind python --app`（只加不改；見 [tool-apps.md](tool-apps.md)）。
 合約包含：pack.json 的格式、子程序工具拿到的環境變數與 JSON 信封（`synox_sdk.py`）、kind=python 工具的 `install(app, pack)` 介面
 （`pack.store`／`store.of(user)`／`path_of`／`secret`／`web_route`、`synox.packs.kit`、`isdtelekit.core.registry` 的 `Field`／`READ`／`WRITE`／`DANGER`）。
 
