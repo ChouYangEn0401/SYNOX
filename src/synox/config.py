@@ -226,13 +226,19 @@ def parse_llm_extras(llm: dict) -> dict:
 
 
 def parse_harness_extras(llm: dict) -> dict:
-    """小模型 harness 的設定（每個 kind 都收；沒寫＝不出現、照預設）：max_tools（auto｜0｜1～200，docs/adr/0014）。
+    """小模型 harness 的設定（每個 kind 都收；沒寫＝不出現、照預設）：max_tools（auto｜0｜1～200，docs/adr/0014）、
+    context_size（0＝不裁；kind=local 另由 llm/local.py 檢查）與 tool_result_chars（auto｜0｜字數，docs/adr/0015、0016）。
     寫錯＝ConfigError。"""
-    from synox.agent import toolpick
+    from synox.agent import context, toolpick
+    from synox.llm.local import parse_context
     out = dict(llm)
     try:
         if "max_tools" in out:
             out["max_tools"] = toolpick.parse_max_tools(out["max_tools"])
+        if "tool_result_chars" in out:
+            out["tool_result_chars"] = context.parse_result_chars(out["tool_result_chars"])
+        if "context_size" in out and out.get("kind") != "local":
+            out["context_size"] = parse_context(out["context_size"])
     except ValueError as e:
         raise ConfigError(f"config.json：{e}")
     return out
