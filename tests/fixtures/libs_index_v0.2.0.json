@@ -1,0 +1,246 @@
+{
+  "library": "SYNOX_Libs",
+  "library_version": "0.2.0",
+  "built_with": {
+    "synox": "0.2.0",
+    "sdk": "0.2.1"
+  },
+  "packs": [
+    {
+      "name": "apple-reminders",
+      "title": "🍎 Apple 提醒事項",
+      "summary": "看、加、完成提醒事項（CalDAV；iCloud 升級過的提醒事項 Apple 不開放，見說明）",
+      "version": "0.1.1",
+      "stage": "alpha",
+      "kind": "python",
+      "group": "applerem",
+      "access": "owner",
+      "capabilities": [
+        "network"
+      ],
+      "requires": {
+        "synox": ">=0.2",
+        "sdk": ">=0.2,<0.3"
+      },
+      "bundles": [
+        "connect"
+      ],
+      "file": "apple-reminders-0.1.1.synoxpack",
+      "sha256": "71ebc6b2074b751fab434dde17493626d997bb0b1c764e785b0a82b0bd6ba921",
+      "size": 15396
+    },
+    {
+      "name": "bullet",
+      "title": "• 子彈筆記",
+      "summary": "快速記錄（• 任務 ○ 事件 – 筆記）、今天、月誌、把沒做完的搬到今天（加密存在這台電腦）",
+      "version": "0.1.1",
+      "stage": "alpha",
+      "kind": "python",
+      "group": "bj",
+      "access": "member",
+      "capabilities": [],
+      "requires": {
+        "synox": ">=0.2",
+        "sdk": ">=0.2,<0.3"
+      },
+      "bundles": [
+        "planner"
+      ],
+      "file": "bullet-0.1.1.synoxpack",
+      "sha256": "c4bfdf24155422a71eb4a44513ac66f47bb884b3ceca2d6d4fe808ff0412e49d",
+      "size": 10392
+    },
+    {
+      "name": "calendar",
+      "title": "📅 行事曆",
+      "summary": "加行程（明天 14:00 看牙醫）、看今天／這週、匯出 .ics（加密存在這台電腦）",
+      "version": "0.1.1",
+      "stage": "alpha",
+      "kind": "python",
+      "group": "cal",
+      "access": "member",
+      "capabilities": [
+        "filesystem:own"
+      ],
+      "requires": {
+        "synox": ">=0.2",
+        "sdk": ">=0.2,<0.3"
+      },
+      "bundles": [
+        "planner"
+      ],
+      "file": "calendar-0.1.1.synoxpack",
+      "sha256": "d27660218e60d3483bc8d2ac39565a4bc0e4fa2bea7053c7116acc2b554d38eb",
+      "size": 13186
+    },
+    {
+      "name": "google-calendar",
+      "title": "📅 Google 日曆",
+      "summary": "看今天／這週、加行程、刪行程（直接連你的 Google 日曆）",
+      "version": "0.1.1",
+      "stage": "alpha",
+      "kind": "python",
+      "group": "gcal",
+      "access": "owner",
+      "capabilities": [
+        "network"
+      ],
+      "requires": {
+        "synox": ">=0.2",
+        "sdk": ">=0.2,<0.3"
+      },
+      "bundles": [
+        "connect"
+      ],
+      "file": "google-calendar-0.1.1.synoxpack",
+      "sha256": "bb280898541d8b4ced838ae8253029cadc83855b233b5bf0ad9fb68d2aa1edc4",
+      "size": 19703
+    },
+    {
+      "name": "money",
+      "title": "💰 記帳",
+      "summary": "記支出、收入、轉帳，自己的類別與選配範本，預算與單項上限（加密存在這台電腦）",
+      "version": "0.2.0",
+      "stage": "alpha",
+      "kind": "python",
+      "group": "money",
+      "access": "member",
+      "capabilities": [],
+      "requires": {
+        "synox": ">=0.2",
+        "sdk": ">=0.2,<0.3"
+      },
+      "bundles": [
+        "money"
+      ],
+      "file": "money-0.2.0.synoxpack",
+      "sha256": "ba9f44292ac8bcd24f24cd528f38e20cc14fcf4a233a4d0c5b0334b8f283e658",
+      "size": 15499
+    },
+    {
+      "name": "notes",
+      "title": "📒 隨手記",
+      "summary": "記一筆、找、刪（加密存在這台電腦）",
+      "version": "0.1.1",
+      "stage": "alpha",
+      "kind": "python",
+      "group": "note",
+      "access": "member",
+      "capabilities": [],
+      "requires": {
+        "synox": ">=0.2",
+        "sdk": ">=0.2,<0.3"
+      },
+      "bundles": [
+        "starter"
+      ],
+      "file": "notes-0.1.1.synoxpack",
+      "sha256": "769e655355b91280c361b16689ea782d2feb669ca36b136e5ba6c4efcda5be38",
+      "size": 3024
+    },
+    {
+      "name": "notion",
+      "title": "🗂 Notion",
+      "summary": "搜尋、讀頁面、加頁面／資料庫一列、改欄位（用你自己的 integration token）",
+      "version": "0.1.1",
+      "stage": "alpha",
+      "kind": "python",
+      "group": "notion",
+      "access": "owner",
+      "capabilities": [
+        "network"
+      ],
+      "requires": {
+        "synox": ">=0.2",
+        "sdk": ">=0.2,<0.3"
+      },
+      "bundles": [
+        "connect"
+      ],
+      "file": "notion-0.1.1.synoxpack",
+      "sha256": "83ec9bc54996ca6c227897dcd7cf38162cd7936d38c693959e7c71932a6aa190",
+      "size": 15169
+    },
+    {
+      "name": "todo",
+      "title": "✅ 待辦",
+      "summary": "加待辦（!! 重要、#專案、明天到期）、看今天／逾期、打勾完成（加密存在這台電腦）",
+      "version": "0.1.1",
+      "stage": "alpha",
+      "kind": "python",
+      "group": "todo",
+      "access": "member",
+      "capabilities": [],
+      "requires": {
+        "synox": ">=0.2",
+        "sdk": ">=0.2,<0.3"
+      },
+      "bundles": [
+        "planner",
+        "starter"
+      ],
+      "file": "todo-0.1.1.synoxpack",
+      "sha256": "6bf83da0d9cf2c8741483f2c7efb7023c860ccf03037736cc61820c40f6c0068",
+      "size": 11735
+    },
+    {
+      "name": "todoist",
+      "title": "✅ Todoist",
+      "summary": "看 Todoist 的待辦（今天、逾期、專案、標籤）、加待辦、打勾完成、改期",
+      "version": "0.1.1",
+      "stage": "alpha",
+      "kind": "python",
+      "group": "todoist",
+      "access": "owner",
+      "capabilities": [
+        "network"
+      ],
+      "requires": {
+        "synox": ">=0.2",
+        "sdk": ">=0.2,<0.3"
+      },
+      "bundles": [
+        "connect"
+      ],
+      "file": "todoist-0.1.1.synoxpack",
+      "sha256": "9429993e6757aec3fd934a0d19468dd39701f0814a286cd40d477f72123b4b66",
+      "size": 16699
+    }
+  ],
+  "bundles": {
+    "starter": {
+      "title": "入門：每天用得到",
+      "summary": "隨手記、待辦。第一次用 SYNOX 建議先裝這兩個（提醒是 SYNOX 的系統指令，不用裝）",
+      "packs": [
+        "notes",
+        "todo"
+      ]
+    },
+    "money": {
+      "title": "記帳",
+      "summary": "記支出、收入、轉帳，看這個月，設預算與單項上限",
+      "packs": [
+        "money"
+      ]
+    },
+    "planner": {
+      "title": "規劃：行程與筆記",
+      "summary": "行事曆、待辦、子彈筆記",
+      "packs": [
+        "calendar",
+        "todo",
+        "bullet"
+      ]
+    },
+    "connect": {
+      "title": "接外面的服務",
+      "summary": "Notion、Todoist、Google 日曆、Apple 提醒事項（CalDAV）。要連網、要你自己的帳號或 token",
+      "packs": [
+        "notion",
+        "todoist",
+        "google-calendar",
+        "apple-reminders"
+      ]
+    }
+  }
+}

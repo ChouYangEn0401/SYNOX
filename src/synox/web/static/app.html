@@ -375,6 +375,48 @@
             border: 1px dashed var(--line-strong); border-radius: var(--r); background: var(--surface-2); }
   .upload input[type="file"] { flex: 1 1 220px; }
   #set-install .upload { margin-top: 4px; }
+  /* 工具庫（官方）：卡片照工具庫網站的 .tool（emoji 方塊、中文名、name · vX、一句話、例子、標籤），換成這裡的 token */
+  #lib-error { margin-top: 12px; }
+  #lib-error a { white-space: nowrap; }
+  .lib-legend { margin-top: 12px; }
+  .lib-group { font-size: 13px; font-weight: 650; color: var(--muted); margin: 18px 0 10px; }
+  .lib-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); gap: 12px; }
+  .lib-tool { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; align-items: start; min-width: 0;
+              padding: 14px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface-2);
+              transition: border-color .15s var(--ease); }
+  .lib-tool:hover { border-color: var(--accent-line); }
+  .lib-ico { width: 44px; height: 44px; border-radius: 13px; background: var(--sunken); display: grid; place-items: center;
+             font-size: 22px; line-height: 1; }
+  .lib-body { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+  .lib-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; }
+  .lib-head b { font-size: 16px; }
+  .lib-name { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .lib-line { color: var(--text-2); font-size: 14px; overflow-wrap: anywhere; }
+  .lib-ex { max-width: 100%; font-size: 12.5px; padding: 2px 8px; border-radius: var(--r-sm); background: var(--sunken);
+            color: var(--text-2); overflow-wrap: anywhere; }
+  .lib-badges { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .lib-badges .badge::before { display: none; }
+  .badge.info { background: var(--accent-soft); color: var(--accent); }
+  .lib-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; align-self: stretch; }
+  a.btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 7px 14px;
+          border-radius: var(--r); border: 1px solid var(--line-strong); background: var(--surface); color: var(--text);
+          font-size: 14px; font-weight: 500; text-decoration: none; white-space: nowrap;
+          box-shadow: var(--shadow-sm), var(--highlight); transition: border-color .15s var(--ease), background .15s var(--ease); }
+  a.btn:hover { border-color: var(--accent-line); background: var(--surface-2); }
+  a.btn.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--accent); }
+  a.btn.ghost:hover { background: var(--sunken); }
+  /* 還沒做好的東西（別人做的技能、沙盒模式）：照實寫，開關是關著、按不動的 */
+  .plain-list { list-style: none; padding: 0; display: grid; gap: 8px; }
+  .plain-list li + li { margin-top: 0; }
+  .later-note { margin-top: 12px; }
+  .switch { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-weight: 600; }
+  .switch input[type="checkbox"] { -webkit-appearance: none; appearance: none; flex: none; width: 42px; height: 24px; margin: 0;
+                                   border-radius: var(--pill); background: var(--line-strong); position: relative; }
+  .switch input[type="checkbox"]::before { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px;
+                                           border-radius: 50%; background: var(--surface); box-shadow: var(--shadow-sm); }
+  .switch input[type="checkbox"]:checked { background: var(--accent); }
+  .switch input[type="checkbox"]:checked::before { left: 21px; }
+  .switch input:disabled, .switch input:disabled + span { opacity: .6; cursor: not-allowed; }
   /* 設定的分頁（#settings:<tab>）：窄的時候橫向捲，不換行 */
   .tabs { display: flex; gap: 4px; margin: 0 0 16px; padding: 4px; overflow-x: auto; border: 1px solid var(--line);
           border-radius: var(--r-lg); background: var(--sunken); scrollbar-width: thin; }
@@ -431,6 +473,8 @@
     .side-chats, #chat-list { min-width: 0; }
     input:not([type="checkbox"]), select { width: 100%; }
     .field-row button, .upload button { flex: 1 1 auto; }
+    .lib-actions > * { flex: 1 1 auto; }
+    a.btn { min-height: 44px; font-size: 15px; }
     .side-foot { display: none; }
     .nav { position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; flex-direction: row; gap: 4px;
            padding: 6px 10px calc(6px + env(safe-area-inset-bottom)); background: var(--surface);
@@ -723,6 +767,33 @@
       </div>
 
       <div class="tab-panel hidden" data-tab="packs" role="tabpanel">
+      <div id="set-library" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">🧰</span>
+          <div class="txt"><h2>工具庫（官方）</h2><p class="sub">SYNOX 官方做的工具，挑你要的裝。按「載入工具清單」才會連到網路（GitHub）抓清單；
+            按「安裝」也一樣先給你看檢查報告，你按確認才會裝。</p></div></div>
+        <div class="row">
+          <button id="lib-load" class="primary" type="button">載入工具清單</button>
+          <a id="lib-overview" class="btn ghost" href="https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL" target="_blank" rel="noopener noreferrer">工具庫介紹</a>
+        </div>
+        <p id="lib-msg" class="msgline" role="status"></p>
+        <p id="lib-error" class="note-line hidden" role="alert"><span id="lib-error-text"></span>
+          <a id="lib-releases" href="https://github.com/ChouYangEn0401/SYNOX_Libs/releases" target="_blank" rel="noopener noreferrer">GitHub 發佈頁</a></p>
+        <p id="lib-legend" class="muted lib-legend hidden">👤 單人用＝只有你能用。👥 伺服器版也能用＝SYNOX 開給家人或社團一起用時，每個人都能用、各自一份資料；只有你自己用的話兩種沒有差別。</p>
+        <div id="lib-list"></div>
+      </div>
+
+      <div id="set-skills" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">🧭</span>
+          <div class="txt"><h2>別人做的技能（OpenClaw、Hermes） <span class="badge warn">⏳ 尚未完成</span></h2>
+            <p class="sub">OpenClaw、Hermes 這類 AI 助理，有很多別人做好、可以下載的「技能」。</p></div></div>
+        <ul class="plain-list">
+          <li>⚠️ 這些技能是<strong>別人做的</strong>，不一定安全：曾經有人在這些技能市集裡找到會偷資料、做壞事的技能。</li>
+          <li>⏳ SYNOX <strong>現在還不能裝</strong>這些技能，之後會做一個「匯入」的功能。</li>
+          <li>🛡 做好之後也一樣：先給你看檢查報告、你按確認才裝，而且建議開「沙盒模式」執行。</li>
+        </ul>
+        <p class="muted later-note">進階：規劃寫在 ADR 0022（匯入、隔離執行）。</p>
+      </div>
+
       <div id="set-install" class="card hidden">
         <div class="card-head"><span class="tile" aria-hidden="true">📦</span>
           <div class="txt"><h2>安裝新功能</h2><p class="sub">選一個 .synoxpack（pack 資料夾壓成的 zip），先看安全檢查報告，按「確認安裝」才會裝。
@@ -752,6 +823,17 @@
           <button id="pack-reload" class="ghost" type="button">重新載入全部</button>
           <span id="pack-msg" class="msgline"></span>
         </div>
+      </div>
+
+      <div id="set-sandbox" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">🛡</span>
+          <div class="txt"><h2>沙盒模式 <span class="badge warn">⏳ 尚未完成</span></h2>
+            <p class="sub">把工具關在隔離的空間裡執行，讓它碰不到你其他的檔案和帳號。</p></div></div>
+        <label class="switch"><input id="sandbox-mode" type="checkbox" disabled aria-describedby="sandbox-note">
+          <span>用沙盒模式執行工具（⏳ 尚未完成，現在不能開）</span></label>
+        <p id="sandbox-note" class="note-line later-note">在 Windows 上，SYNOX 目前<strong>還沒有</strong>沙盒：工具執行時沒有被隔離起來。
+          沙盒模式正在規劃中，做好之後會建議別人做的工具都開著它執行。</p>
+        <p class="muted later-note">進階：規劃寫在 ADR 0022。</p>
       </div>
       </div>
 
@@ -1171,7 +1253,8 @@
   function loadSettings() {
     api("GET", "/api/settings").then(function (d) {
       $("set-notowner").classList.toggle("hidden", d.owner);
-      ["set-llm", "set-usage", "set-channels", "set-install", "set-packs", "set-backup"].forEach(function (id) { $(id).classList.toggle("hidden", !d.owner); });
+      ["set-llm", "set-usage", "set-channels", "set-library", "set-skills", "set-install", "set-packs",
+        "set-sandbox", "set-backup"].forEach(function (id) { $(id).classList.toggle("hidden", !d.owner); });
       $("set-accounts").classList.toggle("hidden", !d.accounts);
       tabsOn = TABS.filter(function (t) { return t === "accounts" ? !!d.accounts : !!d.owner; });
       applyTabs();
@@ -1562,6 +1645,7 @@
       tr.appendChild(td);
       body.appendChild(tr);
     });
+    libSync(packs);                    // 工具庫的卡片跟著更新「已安裝」
   }
   var CAP = { network: "連網", subprocess: "開別的程式", "filesystem:own": "讀寫檔案",
     "filesystem:any": "讀寫 pack 以外的檔案", exec: "動態執行程式碼" };
@@ -1992,6 +2076,137 @@
     },
     state: function () { return { step: flow.step, status: flow.status, token: flow.token, name: flow.name }; }
   };
+  // ── 工具庫（官方）：按「載入工具清單」才連網（伺服器抓寫死在 packs/catalog.py 的官方網址；這裡不組任何網址）──
+  // 「安裝」＝伺服器下載、對檔 → 跟上傳同一份報告（showReview）→ 人按「確認安裝」才裝。有新版＝同一條路，報告會是升級的。
+  var LIB_TEXT = {
+    load: "載入工具清單", reload: "重新載入清單", loading: "載入中…",
+    loaded: "工具庫 v{v}：{n} 個工具。", empty: "工具庫裡現在沒有工具。",
+    install: "安裝", update: "更新到 v{v}", working: "下載並檢查中…",
+    download: "⬇ 下載", help: "說明", installed: "✅ 已安裝 v{v}", newer: "有新版 v{v}",
+    local: "存在這台電腦（不連網）", online: "接外面的服務"
+  };
+  var libTools = [];
+  var LINK_RE = /^https:\/\/[^\s]+$/;
+  function fill(t, o) { return t.replace(/\{(\w+)\}/g, function (_m, k) { return String(o[k]); }); }
+  function verKey(v) {                  // "1.2.3-beta" → [1, 2, 3, 0]；正式版最後一位是 1（比同號的預覽版新）
+    var m = /^(\d+)\.(\d+)\.(\d+)(-.*)?$/.exec(String(v || ""));
+    return m ? [+m[1], +m[2], +m[3], m[4] ? 0 : 1] : null;
+  }
+  function verNewer(a, b) {             // a 比 b 新？
+    var x = verKey(a), y = verKey(b);
+    if (!x || !y) { return false; }
+    for (var i = 0; i < 4; i++) { if (x[i] !== y[i]) { return x[i] > y[i]; } }
+    return false;
+  }
+  function libFail(text) {
+    $("lib-error-text").textContent = text || "";
+    $("lib-error").classList.toggle("hidden", !text);
+  }
+  function libLink(href, text, cls) {
+    var a = el("a", cls, text);
+    if (LINK_RE.test(href || "")) { a.href = href; }
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    return a;
+  }
+  function libCard(t) {
+    var card = el("article", "lib-tool");
+    card.setAttribute("data-name", t.name);
+    var ico = el("span", "lib-ico", t.emoji);
+    ico.setAttribute("aria-hidden", "true");
+    card.appendChild(ico);
+    var body = el("div", "lib-body");
+    var head = el("div", "lib-head");
+    head.appendChild(el("b", "", t.title));
+    head.appendChild(el("span", "lib-name", t.name + " · v" + t.version));
+    body.appendChild(head);
+    var line = el("p", "lib-line", t.line);
+    if (t.summary && t.summary !== t.line) { line.title = t.summary; }
+    body.appendChild(line);
+    if (t.example) { body.appendChild(el("code", "lib-ex", t.example)); }
+    var badges = el("div", "lib-badges");
+    (t.badges || []).forEach(function (b) {
+      var span = el("span", "badge" + (b.tone ? " " + b.tone : ""), b.text);
+      if (b.hint) { span.title = b.hint; }
+      badges.appendChild(span);
+    });
+    if (t.installed) { badges.appendChild(el("span", "badge ok", fill(LIB_TEXT.installed, { v: t.installed }))); }
+    if (t.newer) { badges.appendChild(el("span", "badge info", fill(LIB_TEXT.newer, { v: t.version }))); }
+    body.appendChild(badges);
+    var act = el("div", "lib-actions");
+    if (!t.installed || t.newer) {
+      var go = el("button", "primary", t.newer ? fill(LIB_TEXT.update, { v: t.version }) : LIB_TEXT.install);
+      go.type = "button";
+      go.addEventListener("click", function () { libInstall(t, go); });
+      act.appendChild(go);
+    }
+    act.appendChild(libLink(t.download_url, LIB_TEXT.download, "btn"));
+    act.appendChild(libLink(t.help_url, LIB_TEXT.help, "btn ghost"));
+    body.appendChild(act);
+    card.appendChild(body);
+    return card;
+  }
+  function renderLib() {
+    var box = $("lib-list");
+    clear(box);
+    ["local", "online"].forEach(function (g) {
+      var rows = libTools.filter(function (t) { return t.group === g; });
+      if (!rows.length) { return; }
+      box.appendChild(el("h3", "lib-group", LIB_TEXT[g]));
+      var grid = el("div", "lib-grid");
+      rows.forEach(function (t) { grid.appendChild(libCard(t)); });
+      box.appendChild(grid);
+    });
+  }
+  function libSync(packs) {            // 裝好／升級好之後（loadSettings → fillPacks）：不重抓清單，只更新「已安裝」
+    if (!libTools.length) { return; }
+    var have = {};
+    (packs || []).forEach(function (p) { have[p.name] = p.version || "?"; });
+    libTools.forEach(function (t) {
+      t.installed = Object.prototype.hasOwnProperty.call(have, t.name) ? have[t.name] : "";
+      t.newer = !!t.installed && verNewer(t.version, t.installed);
+    });
+    renderLib();
+  }
+  function libInstall(t, btn) {
+    var label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = LIB_TEXT.working;
+    libFail("");
+    $("pack-review").classList.add("hidden");
+    $("install-msg").textContent = "";
+    selectedToken = ""; markStaged();
+    setStep("check", "active", { token: "", name: t.name });
+    reveal($("install-steps"));
+    api("POST", "/api/packs/library/install", { name: t.name })
+      .then(function (s) { showReview(s, true); loadStaged(); })       // 跟上傳同一份報告、同一個確認鈕
+      .catch(function (e) {
+        if (e.data && e.data.refused) { reviewFailed(e); return; }      // 檢查沒過：照樣給看報告（不能裝）
+        setStep("idle");
+        libFail(e.message);
+        reveal($("lib-error"));
+      })
+      .then(function () { btn.disabled = false; btn.textContent = label; });
+  }
+  $("lib-load").addEventListener("click", function () {
+    var b = $("lib-load");
+    b.disabled = true;
+    b.textContent = LIB_TEXT.loading;
+    libFail("");
+    $("lib-msg").textContent = "";
+    api("POST", "/api/packs/library", {}).then(function (d) {
+      libTools = d.tools || [];
+      if (LINK_RE.test(d.overview || "")) { $("lib-overview").href = d.overview; }
+      if (LINK_RE.test(d.releases || "")) { $("lib-releases").href = d.releases; }
+      $("lib-msg").textContent = libTools.length ? fill(LIB_TEXT.loaded, { v: d.version, n: libTools.length }) : LIB_TEXT.empty;
+      $("lib-legend").classList.toggle("hidden", !libTools.length);
+      b.className = libTools.length ? "ghost" : "primary";
+      renderLib();
+    }).catch(function (e) { libFail(e.message); })
+      .then(function () { b.disabled = false; b.textContent = libTools.length ? LIB_TEXT.reload : LIB_TEXT.load; });
+  });
+  // ── 工具庫 end
+
   $("pack-reload").addEventListener("click", function () {
     api("POST", "/api/packs/reload", {}).then(function (d) {
       $("pack-msg").textContent = d.ok ? "重新載入好了。" : "重新載入了，但有 pack 有問題（看上面的狀態）。";
