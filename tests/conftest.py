@@ -74,6 +74,16 @@ def no_sockets(monkeypatch):
     monkeypatch.setattr(socket.socket, "listen", refuse)
 
 
+@pytest.fixture
+def no_subprocess(monkeypatch):
+    """手機入口的測試一律用（ADR 0026）：subprocess.Popen 一叫就失敗（通道程式永遠不在這台開發機跑）。"""
+    import subprocess
+
+    def refuse(*_a, **_k):
+        raise AssertionError("測試不准開子程序")
+    monkeypatch.setattr(subprocess, "Popen", refuse)
+
+
 APP_PACKS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "app_pack")
 
 
