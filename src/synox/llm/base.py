@@ -5,8 +5,11 @@ LLM adapter 的介面（spec §5）。adapter **只會聊天**：不拿 registry
     class ChatAdapter:
         name: str                  顯示用
         supports_tools: bool       False → agent 改用 textproto（JSON-in-text）
-        chat(messages, tools=()) -> Reply
+        supports_stop: bool        True → chat 收 stop=（停止詞，docs/adr/0010）；False → agent 不傳（不支援就不送）
+        chat(messages, tools=(), *, stop=()) -> Reply
         probe() -> str | None      精靈的「測一下」：None＝好，否則一句人話的錯誤
+
+Reply.text 一律是「給人看的字」：思考段（<think>…</think>）由 adapter 去掉（textproto.strip_think）；agent 也會再去一次。
 """
 
 from __future__ import annotations
@@ -58,8 +61,9 @@ class ChatAdapter:
     name: str = "adapter"
     kind: str = ""
     supports_tools: bool = False
+    supports_stop: bool = False
 
-    def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = ()) -> Reply:
+    def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = (), *, stop: Sequence[str] = ()) -> Reply:
         raise NotImplementedError
 
     def probe(self) -> Optional[str]:

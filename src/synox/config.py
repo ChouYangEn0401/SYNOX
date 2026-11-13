@@ -69,7 +69,8 @@ ROOT, ROOT_SOURCE = default_root()
 CONFIG_PATH = os.path.join(ROOT, "config.json")
 
 LLM_KINDS = ("openai", "anthropic", "gemini", "openai_compat", "claude_code", "local", "fake", "none")
-DEFAULT_LLM = {"kind": "none", "max_steps": 6, "max_tokens": 1024}
+DEFAULT_LLM = {"kind": "none", "max_steps": 6, "max_tokens": 1024, "completion_guard": "auto", "verify_retries": 2,
+               "summarize_on_limit": "auto"}
 DEFAULT_VAULT = {"mode": "dpapi" if os.name == "nt" else "file"}
 DEFAULT_PACKS = {"enabled": "all", "disabled": []}
 DEFAULT_WEB = {"enabled": True, "port": 8830, "public_url": ""}
@@ -198,7 +199,18 @@ def parse_mode(value) -> str:
 
 
 def parse_llm_extras(llm: dict) -> dict:
-    """kind=local：補預設、檢查（synox/llm/local.py 的 validate，docs/adr/0007）；其他 kind 的 llm.timeout 只檢查型別。"""
+    """kind=local：補預設、檢查（synox/llm/local.py 的 validate，docs/adr/0007）；其他 kind 的 llm.timeout 只檢查型別。
+    每個 kind：完成宣稱檢查的 completion_guard（auto｜on｜off）、verify_retries（0～5）、summarize_on_limit（auto｜on｜off）
+    （synox/agent/claims.py，docs/adr/0008、0012）寫錯＝ConfigError；think 只收 true／false。"""
+    from synox.agent import claims
+    try:
+        llm = {**llm, "completion_guard": claims.parse_mode(llm.get("completion_guard")),
+               "verify_retries": claims.parse_retries(llm.get("verify_retries")),
+               "summarize_on_limit": claims.parse_switch(llm.get("summarize_on_limit"), "summarize_on_limit")}
+    except ValueError as e:
+        raise ConfigError(f"config.json：{e}")
+    if "think" in llm and not isinstance(llm["think"], bool):
+        raise ConfigError("config.json 的 llm.think 只能是 true 或 false。")
     if llm.get("kind") == "local":
         from synox.llm.local import validate
         try:

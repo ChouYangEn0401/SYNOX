@@ -9,7 +9,8 @@
   - [ {…}, {…} ]                 → 同一次回覆裡好幾個工具呼叫
   - Reply                        → 原樣回
   - callable(messages, tools)    → 它回的 Reply
-劇本用完回「（劇本結束）」。calls 記下每次收到的 (messages, tools)，測試可以檢查 AI 看到了什麼。
+劇本用完回「（劇本結束）」。calls 記下每次收到的 (messages, tools)，測試可以檢查 AI 看到了什麼；
+stops 記下每次收到的停止詞（supports_stop=True，docs/adr/0010）。
 
 script=None 是「示範模式」（config 的 llm.kind = "fake"）：認得幾句固定的話，讓 Console.bat 不接真的 AI
 也能走完「人話 → 工具 → 核准卡」：
@@ -29,6 +30,7 @@ Step = Union[str, dict, list, Reply, Callable]
 
 class FakeAdapter(ChatAdapter):
     kind = "fake"
+    supports_stop = True
 
     def __init__(self, script: Optional[Sequence[Step]] = None, *, supports_tools: bool = True,
                  usage: Optional[dict] = None):
@@ -36,10 +38,12 @@ class FakeAdapter(ChatAdapter):
         self.supports_tools = supports_tools
         self.usage = usage if usage is not None else {"input": 10, "output": 5}
         self.calls: List[tuple] = []
+        self.stops: List[tuple] = []
         self.name = "假 AI（劇本）" if script is not None else "假 AI（示範模式）"
 
-    def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = ()) -> Reply:
+    def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = (), *, stop: Sequence[str] = ()) -> Reply:
         self.calls.append((list(messages), list(tools)))
+        self.stops.append(tuple(stop))
         if self.script is None:
             reply = demo_reply(messages, tools)
         elif not self.script:

@@ -14,6 +14,8 @@
       "soft": [{"name": "語氣", "rubric": "給人看的評分重點（1～5 分，不自動打分）"}]
     }
 
+must_call 的一項也可以是 {"any_of": [{"tool": …, "args": …}, …]}（任一個被接受就算；any_of 裡可以寫 BUILTIN_TOOLS 的內建工具，
+例如 remind__add）。expect 的 "claimed_without_call": false 關掉「說做好了卻沒有呼叫」的檢查（預設每題都跑）。
 比對值（must_call 的 args、results 的 when）：字串＝去掉頭尾空白後一模一樣；{"contains": "x" 或 ["x", "y"]}＝全部都要出現；
 {"regex": "…"}＝re.search 找得到。各欄位的意思與判定規則：evals/assistant/README.md。
 """
@@ -29,20 +31,24 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 CATEGORIES = ("note", "rewrite", "lookup", "schedule", "clarify", "no_clarify", "refuse", "injection", "memory",
-              "chain")
+              "chain", "fake_done")
 CATEGORY_LABELS = {
     "note": "記事", "rewrite": "改寫與摘要", "lookup": "查資料", "schedule": "行程與時間", "clarify": "模糊該追問",
     "no_clarify": "模糊不該追問", "refuse": "拒絕", "injection": "提示注入", "memory": "多回合記憶", "chain": "工具鏈",
+    "fake_done": "假裝做完（完成宣稱檢查）",
 }
 SPLITS = ("tune", "holdout")
 # 題數分配（brief §4）：類別 → (tune, holdout)。改題目數量時一起改這張表與 README。
 DISTRIBUTION: Dict[str, Tuple[int, int]] = {
     "note": (3, 1), "rewrite": (2, 1), "lookup": (3, 1), "schedule": (2, 1), "clarify": (2, 1),
     "no_clarify": (1, 1), "refuse": (2, 1), "injection": (2, 1), "memory": (2, 1), "chain": (1, 1),
+    "fake_done": (1, 1),
 }
 EFFECTS = ("read", "write", "danger")
 EXPECT_KEYS = ("must_call", "must_not_call", "confirm_card", "ask_back", "refuse", "max_steps", "final_contains",
-               "final_not_contains")
+               "final_not_contains", "claimed_without_call")
+# SYNOX 內建、每題都在工具清單裡的系統指令（假工具不能用這些群組名）：must_call 的 any_of 可以寫它們（名字 → 參數名）
+BUILTIN_TOOLS: Dict[str, Tuple[str, ...]] = {"remind__add": ("time", "text", "date")}
 ID_RE = re.compile(r"^[a-z][a-z_]*-\d{2}$")
 TOOL_RE = re.compile(r"^[a-z][a-z0-9]{0,14}__[a-z][a-z0-9_]{0,14}$")       # 群組__葉節點（指令名 /群組_葉節點 ≤ 32 字）
 PARAM_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
@@ -177,6 +183,23 @@ def _tool_from(raw, library: Dict[str, dict], where: str) -> ToolDef:
                    params=params, results=rules)
 
 
+def _check_call_item(item, tools: Dict[str, ToolDef], where: str, builtin: bool = False) -> None:
+    known = item.get("tool") in tools or (builtin and item.get("tool") in BUILTIN_TOOLS) if isinstance(item, dict) else False
+    if not known:
+        raise CaseError(f"{where}：must_call 的每項要是 {{\"tool\": 這題有的工具, \"args\": …}}"
+                        + ("（any_of 裡也可以寫內建的 " + "、".join(BUILTIN_TOOLS) + "）" if builtin else ""))
+    if set(item) - {"tool", "args"}:
+        raise CaseError(f"{where}：must_call 的 {item['tool']} 有不認得的欄位")
+    name = item["tool"]
+    params = {p["name"] for p in tools[name].params} if name in tools else set(BUILTIN_TOOLS[name])
+    for key, m in (item.get("args") or {}).items():
+        if key not in params:
+            raise CaseError(f"{where}：must_call 的 {name} 沒有參數 {key}")
+        problem = matcher_problem(m)
+        if problem:
+            raise CaseError(f"{where}：must_call 的 {name}.{key}：{problem}")
+
+
 def _check_expect(expect, tools: Dict[str, ToolDef], where: str) -> dict:
     if not isinstance(expect, dict) or not expect:
         raise CaseError(f"{where}：expect 要是有內容的物件")
@@ -184,21 +207,18 @@ def _check_expect(expect, tools: Dict[str, ToolDef], where: str) -> dict:
     if unknown:
         raise CaseError(f"{where}：expect 有不認得的檢查 {sorted(unknown)}（只收 {', '.join(EXPECT_KEYS)}）")
     for item in expect.get("must_call", []):
-        if not isinstance(item, dict) or item.get("tool") not in tools:
-            raise CaseError(f"{where}：must_call 的每項要是 {{\"tool\": 這題有的工具, \"args\": …}}")
-        if set(item) - {"tool", "args"}:
-            raise CaseError(f"{where}：must_call 的 {item['tool']} 有不認得的欄位")
-        params = {p["name"] for p in tools[item["tool"]].params}
-        for key, m in (item.get("args") or {}).items():
-            if key not in params:
-                raise CaseError(f"{where}：must_call 的 {item['tool']} 沒有參數 {key}")
-            problem = matcher_problem(m)
-            if problem:
-                raise CaseError(f"{where}：must_call 的 {item['tool']}.{key}：{problem}")
+        if isinstance(item, dict) and set(item) == {"any_of"}:
+            options = item["any_of"]
+            if not isinstance(options, list) or len(options) < 2:
+                raise CaseError(f"{where}：must_call 的 any_of 要是兩個以上的 {{\"tool\": …, \"args\": …}}")
+            for option in options:
+                _check_call_item(option, tools, where, builtin=True)
+            continue
+        _check_call_item(item, tools, where)
     for name in expect.get("must_not_call", []):
         if name not in tools:
             raise CaseError(f"{where}：must_not_call 的 {name!r} 不是這題的工具（要測「不可以叫」就把它放進 tools）")
-    for key in ("confirm_card", "ask_back", "refuse"):
+    for key in ("confirm_card", "ask_back", "refuse", "claimed_without_call"):
         if key in expect and not isinstance(expect[key], bool):
             raise CaseError(f"{where}：{key} 要是 true／false")
     if "max_steps" in expect and (not isinstance(expect["max_steps"], int) or expect["max_steps"] < 1):
