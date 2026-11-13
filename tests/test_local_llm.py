@@ -118,7 +118,8 @@ def test_ollama_streams_ndjson_with_num_ctx_think_off_and_native_tools():
     assert call["url"] == "http://127.0.0.1:11434/api/chat" and call["timeout"] == 450.0
     body = call["body"]
     assert body["stream"] is True and body["think"] is False
-    assert body["options"] == {"num_ctx": 8192, "num_predict": 300}
+    # qwen3.5:9b：sampling=auto 送 Qwen3 不思考模式的建議值（docs/adr/0019）
+    assert body["options"] == {"num_ctx": 8192, "num_predict": 300, **local.QWEN3_NO_THINK}
     assert body["tools"][0]["function"]["name"] == "money__add"
     assert body["messages"][2]["tool_calls"][0]["function"]["arguments"] == {"amount": "1"}     # Ollama 收物件
     assert body["messages"][3] == {"role": "tool", "content": "ok", "tool_name": "money__add"}
