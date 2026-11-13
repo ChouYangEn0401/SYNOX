@@ -138,7 +138,8 @@ def test_clean_env_helper_clears_python_and_conda_variables():
     for name in PYTHON_NOISE:
         assert 'set "%s="' % name in text, name
     assert re.search(r"set CONDA_ 2\^>nul", text)                             # 每一個 CONDA_* 都清
-    assert "setlocal" not in text.lower()                                     # 要改到呼叫它的那個視窗
+    code = [line for line in text.lower().splitlines() if not line.startswith("rem ")]
+    assert not any("setlocal" in line for line in code)                       # 要改到呼叫它的那個視窗
 
 
 @pytest.mark.parametrize("name", LAUNCHERS)
