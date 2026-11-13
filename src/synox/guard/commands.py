@@ -19,7 +19,7 @@ from synox.guard import origin as origin_mod
 from synox.guard.stepup import TEXT as STEPUP_TEXT
 
 GROUP = "unlock"
-CODE_ONLY = re.compile(r"^\s*\d{3} ?\d{3}\s*$")
+CODE_ONLY = re.compile(r"^\s*\d{3} ?\d{3}\s*$", re.ASCII)
 TEXT = {
     "not_set": "還沒設定手機驗證器。到 SYNOX 網頁 → 設定 → 🔐 安全 設定（危險的動作可以多一道手機驗證）。",
     "prompt": "🔐 貼上手機驗證器現在顯示的 6 位數（{s} 秒內）。\n（/exit 取消）",

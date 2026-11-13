@@ -33,7 +33,17 @@ TEXT = {
 PROXY_HEADERS = ("forwarded", "via")
 
 
+LOOPBACK = ("127.0.0.1", "::1", "::ffff:127.0.0.1")
+
+
 def is_local(ui, headers) -> bool:
+    """本機的請求：連線的對方真的是 loopback、Host 是 127.0.0.1／localhost、沒有任何代理標頭；
+    而且不是「對外網址＋反向代理」或容器（那兩種情況代理或埠轉發的連線看起來也是 loopback）。"""
+    from synox.web.server import current_peer, in_container
+    if current_peer() not in LOOPBACK:
+        return False
+    if str((getattr(ui.config, "web", {}) or {}).get("public_url") or "").strip() or in_container():
+        return False
     host = str(headers.get("host", "")).lower()
     if host not in (f"127.0.0.1:{ui.port}", f"localhost:{ui.port}"):
         return False

@@ -39,7 +39,7 @@ def install(app, manager) -> None:
             return
         minutes = None
         words = list(args)
-        if len(words) >= 2 and words[-1].isdigit():
+        if len(words) >= 2 and words[-1].isascii() and words[-1].isdigit():
             minutes = int(words.pop())
         name = tool_apps.resolve(" ".join(words))
         if name is None:
