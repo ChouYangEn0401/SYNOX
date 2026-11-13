@@ -28,6 +28,8 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     /api/runtime/...                擁有者：主控面板（心跳、常駐助理、soul.md、任務狀態；合約 docs/runtime-api.md，
                                     `PUT /api/runtime/soul` 是唯一收 PUT 的）
     POST /api/settings/channels/telegram|discord   {"token"}：跟精靈一樣先驗（getMe）再存；重開 SYNOX 才生效
+    POST /api/report                「遇到問題？」：給 GitHub 問題單用的安全摘要（web/report.py；擁有者＝完整、其他人＝只有版本；
+                                    不連網，開 GitHub 是使用者自己按的連結）
     /api/...                        JSON；都要登入；改東西的（非 GET）都要 X-SYNOX-CSRF 等於 session 的 csrf，
                                     有 Origin 的話要跟 Host 一樣
 
@@ -55,7 +57,7 @@ from isdtelekit.core.channel import CallbackInfo, Inbound
 
 from synox import tutorials
 from synox.packs.manifest import stage_text
-from synox.web import toolpage
+from synox.web import report as reporting, toolpage
 from synox.web.channel import WEB, WebChannel
 from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore
 from synox.web.tokens import LoginTokens, Session, Sessions, digest
@@ -242,6 +244,7 @@ class WebUI:
         self._channels_changed: set = set()   # 這次執行中改過的聊天通道（要重開才生效）
         self.bind_host = bind_host            # 綁哪個位址（start 時讀環境變數；測試換成假的容器證據）
         self.catalog_opener = None            # 官方工具庫的連網（packs/catalog.py）；None＝真的，測試換假的
+        reporting.install_log_buffer()        # 「遇到問題？」的最近錯誤（記憶體裡最後幾行，web/report.py）
 
     # ── 登入連結 ─────────────────────────────────────────────────────
 
@@ -631,6 +634,8 @@ class WebUI:
             return self.set_role(user, data)
         if path == "/api/backup":
             return self.backup(user)
+        if path == "/api/report":
+            return self.problem_report(user)
         return _err(404, "沒有這個 API。")
 
     # ── 我 ───────────────────────────────────────────────────────────
@@ -1691,6 +1696,22 @@ class WebUI:
         name = backup.filename()
         return 200, BASE_HEADERS + [("Content-Type", "application/zip"),
                                     ("Content-Disposition", f"attachment; filename=\"{name}\"")], blob
+
+
+    # ── 遇到問題？（web/report.py）──────────────────────────────────────
+
+    def problem_report(self, user) -> Resp:
+        """POST /api/report：擁有者拿完整的摘要（版本、AI kind、通道、工具、最近的錯誤，都遮過）；
+        其他人只拿版本（伺服器版的成員看不到這台的設定與別人的事）。不連網、不寫檔。"""
+        full = self.is_owner(user)
+        if not full:
+            text = reporting.summary(self.app, self.config, full=False)
+        else:
+            secrets = reporting.secret_values(self.app, self.config) + [str(self.config.owner_id or "")]
+            pack_report = self.app.extras.get("synox_pack_report")
+            text = reporting.summary(self.app, self.config, full=True, secrets=secrets,
+                                  packs=pack_report.items if pack_report else ())
+        return _json(200, {"full": full, "summary": text, "issue": reporting.issue_info()})
 
 
 class Collector:
