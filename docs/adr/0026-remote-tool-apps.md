@@ -1,7 +1,7 @@
 # ADR 0026：在手機上打開工具的畫面——要用才開一條臨時通道，時間到自己關
 
 - 日期：2026-11-14
-- 狀態：**提案，等擁有者核准**。這份只有設計，沒有一行程式；核准前不動 `src/`。
+- 狀態：**已採用**（2026-11-14；分支 `feat/secure-apps`（S1–S14 的程式；最後一包程式的合併是 `ccf6049`，S15 收尾另一筆合併））。真的通道、手機瀏覽器的實測（P1–P14）還要擁有者在別台電腦做。
 - 基準：分支 `dev`，commit `6b4253c`。前提：[ADR 0025](0025-guard-core-and-stepup.md)（門禁核心與手機驗證器）與「工具服務 ADR」
   （分支 `feat/tool-apps` 的 `docs/adr/0024-tool-apps-services.md` 第三版；跟 `dev` 的 0023 撞號，見 0025 開頭）。
 - 分工：[實作計畫](../lab/2026-11-14-stepup-remote-plan.md)。攻擊清單：[../security/web-threats.md](../security/web-threats.md)。
