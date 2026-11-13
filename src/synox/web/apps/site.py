@@ -105,7 +105,7 @@ class AppSite:
 
     # ── 入口 ─────────────────────────────────────────────────────────
 
-    def handle(self, method: str, target: str, headers, body: bytes = b"") -> Resp:
+    def handle(self, method: str, target: str, headers, body: bytes = b"", peer: str = "") -> Resp:
         items = headers.items() if hasattr(headers, "items") else headers
         h = {str(k).lower(): str(v) for k, v in items}
         try:
