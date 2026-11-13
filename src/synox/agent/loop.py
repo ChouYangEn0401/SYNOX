@@ -38,6 +38,7 @@ from synox import health, policy, present
 from synox.agent import claims as claims_mod
 from synox.agent import delimit
 from synox.agent import skills as skills_mod
+from synox.agent import toolpick
 from synox.agent import tools as tools_mod
 from synox.agent import validate as gate4
 from synox.agent.capture import CaptureApi
@@ -362,6 +363,19 @@ class AgentLoop:
             return ()
         return NATIVE_STOP if native else TEXT_STOP
 
+    def pick_tools(self, tools, text: str):
+        """這一輪給 AI 看的工具（docs/adr/0014）：llm.max_tools（auto＝本地／弱來源 12、其他不限）。
+        永遠保留做不到的出口、skill_read、系統指令；權限仍只看 decision（清單只是提示）。"""
+        from synox.packs.loader import SYSTEM_GROUPS_KEY
+        limit = toolpick.limit_for(self.llm, self.adapter)
+        if limit <= 0:
+            return tools
+        keep = tuple(f"{g}{tools_mod.SEP}" for g in (self.app.extras.get(SYSTEM_GROUPS_KEY) or {}))
+        picked = toolpick.pick(tools, text, limit, keep=keep)
+        if len(picked) < len(tools):
+            logging.info("[AGENT] tool pick: offering %d of %d tools (llm.max_tools=%d)", len(picked), len(tools), limit)
+        return picked
+
     def _chat(self, messages, tools, stop):
         if stop:
             return self.adapter.chat(messages, tools, stop=stop)
@@ -382,14 +396,20 @@ class AgentLoop:
             tools.append(tools_mod.cannot_do_spec())
         native = bool(self.adapter.supports_tools)
         nonce = delimit.new_nonce()                 # 這一輪的分隔符（第 5 關）
-        prompt = self.system_prompt(skills, tools, native, user, nonce)
+        full_tools = tools
+        tools = self.pick_tools(full_tools, text)   # 每輪工具數上限（docs/adr/0014）；預設只對本地／弱來源
         soul = self.soul_block(user, chat_id, nonce, text)
-        if soul:
-            prompt += "\n\n" + soul
         unavailable = self.health_note(user, chat_id)
-        if unavailable:
-            prompt += "\n\n" + unavailable
-        messages = [Message(SYSTEM, prompt)] + \
+
+        def build_prompt(offered) -> str:
+            prompt = self.system_prompt(skills, offered, native, user, nonce)
+            if soul:
+                prompt += "\n\n" + soul
+            if unavailable:
+                prompt += "\n\n" + unavailable
+            return prompt
+
+        messages = [Message(SYSTEM, build_prompt(tools))] + \
             list(self.history[self.memory_key(chat_id, user)]) + [Message(USER, text)]
         typing = getattr(api, "typing", None)
         warned: List[str] = []
@@ -487,6 +507,13 @@ class AgentLoop:
                     messages.append(Message(TOOL, wrapped, tool_call_id=call.id, name=call.name))
                 else:
                     messages.append(Message(USER, textproto.result_message(call.name, wrapped)))
+            if len(tools) < len(full_tools) and toolpick.outside(calls, tools, full_tools):
+                # 叫了清單外、但他有權的工具（call_tool 照常判斷與執行了）：下一步起給全部（退回機制，docs/adr/0014）
+                logging.info("[AGENT] chat %s: AI called a tool outside the picked %d; offering all %d from now on",
+                             chat_id, len(tools), len(full_tools))
+                tools = full_tools
+                if not native:                              # 文字協定的工具清單寫在系統提示裡
+                    messages[0] = Message(SYSTEM, build_prompt(tools))
             step += 1
         self._out_of_steps(api, chat_id, user, text, messages, stop_words, ledger, guard)
 
