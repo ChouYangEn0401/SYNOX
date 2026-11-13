@@ -353,14 +353,13 @@ footer a { color: var(--muted); }
 <body>
 <script>
 /* 進場：S 寶寶先在前面等，網頁在後面載入；載好了點一下小方塊（或按 Enter）→ 隨機說一句招呼 → 翻成 S 標誌 → 進頁面。
-   樣子用網頁介面同一份 splash.css（.sx-*）；這裡只管「等你點」的流程。同一個分頁只出現一次；?splash=1 每次都出現、?splash=0 不出現；
-   系統開了「減少動態效果」不出現。點左上角的 S 可以再看一次。整段包在 try 裡，出錯就直接進頁面。 */
+   樣子用網頁介面同一份 splash.css（.sx-*）；這裡只管「等你點」的流程。每次打開頁面都會出現（文件裡的連結都帶 #synox，行為一樣）；
+   ?splash=0 不出現；系統開了「減少動態效果」不出現。點左上角的 S 可以再看一次。整段包在 try 裡，出錯就直接進頁面。 */
 (function () {
   var SEEN = "synox.landing.entered";
   var HELLO = ["你好！", "歡迎！", "很高興認識你！"];
   var html = document.documentElement;
   function calm() { try { return window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { return false; } }
-  function seen() { try { return sessionStorage.getItem(SEEN) === "1"; } catch (e) { return false; } }
   function mark() { try { sessionStorage.setItem(SEEN, "1"); } catch (e) { /* 私密視窗、預覽：不記 */ } }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
 
@@ -446,7 +445,7 @@ footer a { color: var(--muted); }
   window.SynoxGate = { open: open };
   try {
     var m = /[?&]splash=([01])(?:&|#|$)/.exec(location.search || "");
-    var want = m ? m[1] === "1" : !seen();
+    var want = m ? m[1] === "1" : true;          // 每次打開都出現（擁有者 2026-11-13：不要有時跳、有時不跳）
     if (!calm() && want) open();
   } catch (e) { html.classList.remove("sx-hold"); }
 })();
@@ -821,7 +820,7 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
   <span>Telegram、Discord、Claude、OpenAI、Gemini 等名稱與標誌屬於各自的所有者</span>
   <a href="https://github.com/ChouYangEn0401/SYNOX" target="_blank" rel="noopener">github.com/ChouYangEn0401/SYNOX</a>
 </footer>
-<p class="stamp">線上版 <a href="https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW">claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW</a> · 本機版 docs/landing/index.html · 頁面版本 {{stamp}}</p>
+<p class="stamp">線上版 <a href="https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox">claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox</a> · 本機版 docs/landing/index.html · 頁面版本 {{stamp}}</p>
 </div>
 
 <script>
