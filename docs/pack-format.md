@@ -476,6 +476,47 @@ JSON-RPC 2.0（一行一個訊息），不開網路埠：
 `auth` 必填：`oauth`｜`token`｜`caldav`。設計寫在那個資料夾的 README。
 （工具庫裡真的會連的 notion、todoist、google-calendar、apple-reminders 是 `kind: python`，不是這一種。）
 
+## 指令的白話說明與範例（`help` 區塊）
+
+`/help` 的卡片、網頁對話頁的「💡 範例」、工具頁的指令卡都讀這一塊（`synox/helpui/examples.py`）。**只給人看**：
+不進 AI 的提示與工具說明（給 AI 的是 `commands[].ai.scenario`，[adr/0013](adr/0013-tool-scenario-descriptions.md)）。選填；沒寫的指令照舊顯示 `summary`。
+
+```json
+"help": {
+  "featured": ["add", "month", "list"],
+  "commands": {
+    "add": {
+      "plain": "把一筆花掉的錢記下來",
+      "examples": [
+        {"text": "120 午餐", "note": "午餐花了 120 元"},
+        "350 交通 計程車"
+      ],
+      "alias_suggest": ["記帳"]
+    },
+    "month": {"plain": "看這個月花了多少", "examples": [{"text": "", "note": "不用打別的"}]}
+  }
+}
+```
+
+| 欄位 | 規則（第 1 關＝安裝時；載入時壞的那一條丟掉、照樣載入，doctor 會說） |
+|---|---|
+| 放哪 | pack.json **最上層**（python、cli、mcp 都一樣，不用執行程式就讀得到）。鍵＝這個 pack 的指令（葉節點）名字：`/money` 的主要動作是 `add`、`/money_month` 是 `month` |
+| `featured` | `/help` 工具卡「最常用」的那幾個，最多 5 個；沒寫＝主要動作＋有範例的，照宣告順序 |
+| `plain` | 一句白話，40 字內、一行；**不要括號補充、不要 `=`、`<>`、`[]`**（要示範怎麼打就寫成範例） |
+| `examples` | 最多 3 個；`text` **只寫參數**（不寫 `/money`：SYNOX 照每個人的叫法補上，例如 `@記帳 120 午餐`）；一行、80 字內；`note` 60 字內。只寫一段字＝`{"text": …}`；`""`＝不用參數 |
+| 跑得動 | 範例要能被那個指令的參數規則解析（缺必填、格式錯＝不顯示）。cli：安裝時照 `fields[]` 檢查；python：載入後照 `kit.command` 的欄位檢查，跑不動的丟掉、log 一行 `[PACKS] …範例…跑不動` |
+| 內容 | 只放假的佔位資料：不准網址、信箱、像在對 AI 下指令或要跳過確認的字、分隔符、像密鑰的字 |
+| `alias_suggest` | 建議的自訂名字（每個指令最多 2 個；名字規則同使用者自己取的，[commands.md](commands.md)）。**只是建議**：使用者在「設定 → ⌨️ 我的指令」按了才變成他的 |
+| 白話檢查 | `plain`／`note` 裡有明顯的術語（API、token、JSON、OAuth、CalDAV、參數、字串…）＝安裝報告的提醒，不擋安裝 |
+| 危險、會寫入的指令 | 可以有範例，但只顯示；「▶️ 試試看」只出現在唯讀的指令 |
+
+另外兩種寫法（效果一樣；同一個指令兩邊都寫，以最上層的 `help` 為準）：
+- cli：`commands[].plain`、`commands[].examples`（同上的格式）。
+- python：`kit.command(group, "add", add, "記一筆支出", plain="把一筆花掉的錢記下來", examples=["120 午餐"], fields=[…])`
+  （寫錯在載入時就丟 `ValueError`）。
+
+怎麼寫得好懂：[tools.md「指令的白話說明」](tools.md#指令的白話說明)。
+
 ## SKILL.md
 
 照 [agentskills.io](https://agentskills.io) 的格式：開頭 frontmatter，`name`、`description` 必填（`when` 可選），後面是正文。

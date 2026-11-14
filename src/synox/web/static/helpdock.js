@@ -37,7 +37,7 @@
   function clear(node) { while (node.firstChild) { node.removeChild(node.firstChild); } }
 
   function chip(text, note) {
-    var b = button("help-chip", text, function () { use(text); });
+    var b = button("hd-chip", text, function () { use(text); });
     if (note) { b.title = note; b.setAttribute("aria-label", text + "（" + note + "）"); }
     return b;
   }
@@ -52,22 +52,22 @@
   }
 
   function badge(effect) {
-    if (effect === "write") { return el("span", "help-badge write", TEXT.write); }
-    if (effect === "danger") { return el("span", "help-badge danger", TEXT.danger); }
+    if (effect === "write") { return el("span", "hd-badge write", TEXT.write); }
+    if (effect === "danger") { return el("span", "hd-badge danger", TEXT.danger); }
     return null;
   }
 
   function commandRow(c) {
-    var row = el("div", "help-cmd");
-    var head = el("div", "help-cmd-head");
-    head.appendChild(el("span", "help-cmd-title", c.title));
+    var row = el("div", "hd-cmd");
+    var head = el("div", "hd-cmd-head");
+    head.appendChild(el("span", "hd-cmd-title", c.title));
     var b = badge(c.effect);
     if (b) { head.appendChild(b); }
     row.appendChild(head);
-    var chips = el("div", "help-chips");
+    var chips = el("div", "hd-chips");
     (c.examples || []).forEach(function (ex) { chips.appendChild(chip(ex.text, ex.note)); });
     if (!(c.examples || []).length) {
-      chips.appendChild(el("span", "help-note", TEXT.nothing));
+      chips.appendChild(el("span", "hd-note", TEXT.nothing));
       chips.appendChild(chip(c.command, ""));
     }
     row.appendChild(chips);
@@ -76,30 +76,30 @@
 
   function render() {
     clear(panel);
-    var top = el("div", "help-top");
+    var top = el("div", "hd-top");
     top.appendChild(el("strong", "", TEXT.title));
     top.appendChild(button("ghost sm", TEXT.close, close));
     panel.appendChild(top);
     var tools = (data && data.tools) || [];
     if (!tools.length) {
-      panel.appendChild(el("p", "help-note", TEXT.none));
+      panel.appendChild(el("p", "hd-note", TEXT.none));
       panel.appendChild(chip("/tutorial", ""));
       return;
     }
     if (!tools.some(function (t) { return t.id === pick; })) { pick = tools[0].id; }
-    var body = el("div", "help-body");
-    var list = el("div", "help-tools");
+    var body = el("div", "hd-body");
+    var list = el("div", "hd-tools");
     list.setAttribute("role", "tablist");
     tools.forEach(function (t) {
-      var b = button("help-tool" + (t.id === pick ? " on" : ""), t.title, function () { pick = t.id; render(); });
+      var b = button("hd-tool" + (t.id === pick ? " on" : ""), t.title, function () { pick = t.id; render(); });
       b.setAttribute("role", "tab");
       b.setAttribute("aria-selected", t.id === pick ? "true" : "false");
       list.appendChild(b);
     });
     body.appendChild(list);
-    var right = el("div", "help-cmds");
+    var right = el("div", "hd-cmds");
     var tool = tools.filter(function (t) { return t.id === pick; })[0];
-    if (tool.summary) { right.appendChild(el("p", "help-note", tool.summary)); }
+    if (tool.summary) { right.appendChild(el("p", "hd-note", tool.summary)); }
     var featured = tool.featured || [];
     var cmds = (tool.commands || []).slice().sort(function (a, b) {
       var ia = featured.indexOf(a.path), ib = featured.indexOf(b.path);
@@ -108,13 +108,13 @@
     cmds.forEach(function (c) { right.appendChild(commandRow(c)); });
     body.appendChild(right);
     panel.appendChild(body);
-    var foot = el("div", "help-foot");
+    var foot = el("div", "hd-foot");
     var all = el("a", "", TEXT.all);
     all.href = "#tools";
     all.addEventListener("click", close);
     foot.appendChild(all);
     foot.appendChild(chip("/tutorial", TEXT.tour));
-    foot.appendChild(el("span", "help-note", TEXT.tip));
+    foot.appendChild(el("span", "hd-note", TEXT.tip));
     panel.appendChild(foot);
   }
 
@@ -125,7 +125,7 @@
     var btn = document.getElementById("examples-btn");
     if (btn) { btn.setAttribute("aria-expanded", "true"); }
     clear(panel);
-    panel.appendChild(el("p", "help-note", TEXT.loading));
+    panel.appendChild(el("p", "hd-note", TEXT.loading));
     load().then(render).catch(function (e) { close(); if (ctx.toast) { ctx.toast(e.message); } });
   }
   function close() {
@@ -140,7 +140,7 @@
   }
 
   function chips(block) {
-    var box = el("div", "help-chips in-chat");
+    var box = el("div", "hd-chips in-chat");
     (block.items || []).forEach(function (it) {
       if (it && typeof it.text === "string") { box.appendChild(chip(it.text, it.note || "")); }
     });

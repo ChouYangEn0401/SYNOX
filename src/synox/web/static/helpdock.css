@@ -5,32 +5,32 @@
               background: var(--surface); box-shadow: var(--shadow-md); max-height: min(52vh, 420px); overflow: auto;
               display: flex; flex-direction: column; gap: 10px; }
   .helpdock.hidden { display: none; }
-  .help-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; }
-  .help-body { display: grid; grid-template-columns: minmax(120px, 190px) minmax(0, 1fr); gap: 12px; }
-  .help-tools { display: flex; flex-direction: column; gap: 4px; }
-  .help-tool { text-align: left; min-height: 36px; padding: 6px 10px; border-radius: var(--r); border: 1px solid transparent;
+  .hd-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; }
+  .hd-body { display: grid; grid-template-columns: minmax(120px, 190px) minmax(0, 1fr); gap: 12px; }
+  .hd-tools { display: flex; flex-direction: column; gap: 4px; }
+  .hd-tool { text-align: left; min-height: 36px; padding: 6px 10px; border-radius: var(--r); border: 1px solid transparent;
                background: transparent; color: var(--text-2); font-size: 14px; }
-  .help-tool:hover { background: var(--surface-2); color: var(--text); }
-  .help-tool.on { background: var(--accent-soft); border-color: var(--accent-line); color: var(--text); font-weight: 650; }
-  .help-cmds { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
-  .help-cmd { display: flex; flex-direction: column; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
-  .help-cmd:last-child { border-bottom: 0; }
-  .help-cmd-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
-  .help-cmd-title { font-weight: 650; }
-  .help-badge { font-size: 12px; padding: 1px 8px; border-radius: var(--pill); }
-  .help-badge.write { background: var(--warn-soft); color: var(--warn); }
-  .help-badge.danger { background: var(--bad-soft); color: var(--bad); }
-  .help-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .help-chips.in-chat { margin-top: 10px; white-space: normal; }
-  .help-chip { min-height: 32px; padding: 4px 12px; border-radius: var(--pill); border: 1px solid var(--accent-line);
+  .hd-tool:hover { background: var(--surface-2); color: var(--text); }
+  .hd-tool.on { background: var(--accent-soft); border-color: var(--accent-line); color: var(--text); font-weight: 650; }
+  .hd-cmds { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .hd-cmd { display: flex; flex-direction: column; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .hd-cmd:last-child { border-bottom: 0; }
+  .hd-cmd-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+  .hd-cmd-title { font-weight: 650; }
+  .hd-badge { font-size: 12px; padding: 1px 8px; border-radius: var(--pill); }
+  .hd-badge.write { background: var(--warn-soft); color: var(--warn); }
+  .hd-badge.danger { background: var(--bad-soft); color: var(--bad); }
+  .hd-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .hd-chips.in-chat { margin-top: 10px; white-space: normal; }
+  .hd-chip { min-height: 32px; padding: 4px 12px; border-radius: var(--pill); border: 1px solid var(--accent-line);
                background: var(--accent-soft); color: var(--text); font-family: var(--mono); font-size: 13px;
                text-align: left; overflow-wrap: anywhere; }
-  .help-chip:hover { border-color: var(--accent); }
-  .help-note { margin: 0; font-size: 13px; color: var(--muted); }
-  .help-foot { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 13px; }
+  .hd-chip:hover { border-color: var(--accent); }
+  .hd-note { margin: 0; font-size: 13px; color: var(--muted); }
+  .hd-foot { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 13px; }
   @media (max-width: 760px) {
-    .help-body { grid-template-columns: minmax(0, 1fr); }
-    .help-tools { flex-direction: row; flex-wrap: wrap; }
+    .hd-body { grid-template-columns: minmax(0, 1fr); }
+    .hd-tools { flex-direction: row; flex-wrap: wrap; }
     .helpdock { margin: 0 0 8px; }
   }
   /* 設定 →「⌨️ 我的指令」 */

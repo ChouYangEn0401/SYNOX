@@ -163,7 +163,7 @@
       var s = el("div", "alias-sugg");
       s.appendChild(el("span", "muted", TEXT.suggest));
       sugg.forEach(function (g) {
-        s.appendChild(button("help-chip", "「" + g.name + "」＝ " + g.command, function () {
+        s.appendChild(button("hd-chip", "「" + g.name + "」＝ " + g.command, function () {
           rows.push({ path: g.path, name: g.name });
           s.removeChild(this);
           renderRows(list);
