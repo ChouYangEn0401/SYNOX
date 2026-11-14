@@ -28,7 +28,7 @@
       "mascot.warn": "slots/warn.svg",
       "opening": "slots/opening.svg",
       "wordmark": "slots/wordmark.svg",
-      "appicon": "slots/icon.svg"
+      "appicon": "slots/icon.svg", "chat.background": "slots/background.svg"
     },
     "css": "theme.css"
   }

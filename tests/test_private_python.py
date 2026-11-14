@@ -190,6 +190,45 @@ def test_language_enter_default_is_the_windows_display_language():
     assert "zh-(tw|hk|mo|hant)" in ui and "return 'en'" in ui                  # 香港／澳門＝繁中；不支援的語言＝英文
 
 
+def test_setup_asks_the_language_every_time_enter_keeps_the_last_choice():
+    """擁有者規則（2026-11-14）：每次跑 Setup.bat，第一個畫面都是選語言；按 Enter＝上次選的（lang.txt），沒有才是 Windows 的。"""
+    text = _text(LANG_PS1)
+    res = _code(_function(text, "Resolve-SynoxLang"))
+    assert "[switch]$EveryTime" in text.split("function Resolve-SynoxLang", 1)[1].split("{", 1)[0]
+    # -Lang／SYNOX_LANG 先贏、不問（自動化、.exe 安裝程式的 Setup.bat -Lang <代號>）
+    assert res.index("$Override") < res.index("$env:SYNOX_LANG") < res.index("return $code") < res.index("Ask-SynoxLang")
+    # 有 lang.txt 只有「不是每次都問」（Uninstall.bat）才直接用
+    assert "if ($saved -and -not $EveryTime) { return $saved }" in res
+    # 沒有人在看（輸入被導向）或 -NoAsk（Update.bat）：不問，用存的或 Windows 的顯示語言
+    assert "if ($NoAsk -or -not (Test-SynoxLangInteractive))" in res
+    assert res.index("Test-SynoxLangInteractive") < res.index("Ask-SynoxLang $saved")
+    assert "[Console]::IsInputRedirected" in _function(text, "Test-SynoxLangInteractive")
+    ask = _code(_function(text, "Ask-SynoxLang"))
+    assert "if ($Saved) { $default = $Saved;" in ask and "上次選的" in ask      # Enter＝上次選的，提示寫出來
+    boot = _text(BOOTSTRAP)
+    assert "Resolve-SynoxLang $Root $Lang -SaveOverride -EveryTime -NoAsk:$Update" in _code(boot)
+
+
+def test_nothing_is_printed_before_the_language_question():
+    """雙擊 Setup.bat：語言清單之前不印任何東西（沒有標題、沒有 Conda 提示、沒有 [SYNOX] 字樣）。"""
+    bat = open(os.path.join(ROOT, "Setup.bat"), encoding="ascii").read()
+    run = [ln for ln in bat.splitlines() if ln.strip() and not ln.lower().startswith("rem")]
+    assert run[0] == "@echo off"
+    assert run.index("setlocal") < [i for i, ln in enumerate(run) if "bootstrap.ps1" in ln][0]
+    assert not [ln for ln in run[:3] if ln.lower().startswith("echo")]
+    boot = _code(_text(BOOTSTRAP))
+    before = boot.split("$LangCode = Resolve-SynoxLang", 1)[0]
+    before = re.sub(r"(?ms)^function .*?^}", "", before)                     # 函式定義不會印東西
+    for word in ("Write-Host", "Write-Output", "Say ", "Show-SetupIntro", "env_note", "Find-OtherPythons", "echo"):
+        assert word not in before, word
+    lang = _code(_text(LANG_PS1))
+    top = re.sub(r"(?ms)^function .*?^}", "", lang)                          # dot-source 時直接跑的那幾行
+    assert "Write-Host" not in top and "Write-Output" not in top
+    # 「先說清楚」和 Conda 提示都在語言之後
+    main = _main(_text(BOOTSTRAP))
+    assert "Show-SetupIntro" in main and "env_note" in main
+
+
 def test_after_the_language_it_says_things_plainly_then_asks_one_question():
     text = _text(BOOTSTRAP)
     head = text.split("\ntry {", 1)[0]

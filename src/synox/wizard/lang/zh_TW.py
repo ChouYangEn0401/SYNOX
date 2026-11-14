@@ -95,6 +95,7 @@ STRINGS = {
     "finish_autostart": "開機後自動啟動 SYNOX（看得到的小視窗，隨時可以關）",
     "finish_packs": "讓 .synoxpack 檔案點兩下就安裝（裝之前一樣會先檢查、給你按確認）",
     "finish_launch": "完成後立刻開啟 SYNOX",
+    "finish_updates": "每週幫我看一次有沒有新版（只看，不會自己裝）",
     "finish_discord_bot": "Discord bot {name}",
     "finish_hint_token": "這台是：{title}。\n按「完成並開始」：寫好設定、打開 {who}，手機會收到「我在了」。",
     "finish_hint_web": ("這台是：{title}。還沒接 Telegram／Discord 也沒關係：按「完成並開始」會打開 SYNOX 的網頁介面，"

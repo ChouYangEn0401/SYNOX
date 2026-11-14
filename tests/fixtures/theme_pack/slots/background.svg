@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <radialGradient id="halo" cx="85%" cy="12%" r="55%">
+      <stop offset="0" class="ln-halo-in"/>
+      <stop offset="1" class="ln-halo-out"/>
+    </radialGradient>
+  </defs>
+  <rect width="400" height="300" fill="url(#halo)"/>
+  <g class="ln-bg-dots">
+    <circle cx="40" cy="250" r="2"/><circle cx="90" cy="220" r="1.5"/><circle cx="150" cy="265" r="2"/>
+    <circle cx="300" cy="240" r="1.5"/><circle cx="360" cy="270" r="2"/>
+  </g>
+</svg>

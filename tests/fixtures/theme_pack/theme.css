@@ -28,3 +28,7 @@
 @media (prefers-reduced-motion: reduce) {
   [data-slot] * { animation: none; }
 }
+/* 對話背景（chat.background）：右上角一團暖光、底下幾顆小光點 */
+[data-slot="chat.background"] .ln-halo-in { stop-color: var(--m1); stop-opacity: .16; }
+[data-slot="chat.background"] .ln-halo-out { stop-color: var(--m1); stop-opacity: 0; }
+[data-slot="chat.background"] .ln-bg-dots { fill: var(--m2); opacity: .25; }

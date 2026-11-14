@@ -91,6 +91,7 @@ STRINGS = {
     "finish_autostart": "Iniciar SYNOX al iniciar sesión (una pequeña ventana visible que puedes cerrar cuando quieras)",
     "finish_packs": "Instalar archivos .synoxpack con doble clic (se revisan y confirman antes)",
     "finish_launch": "Abrir SYNOX al terminar",
+    "finish_updates": "Comprobar una vez por semana si hay una versión nueva (solo mira, nunca instala sola)",
     "finish_discord_bot": "Bot de Discord {name}",
     "finish_hint_token": ("Este equipo es: {title}.\nHaz clic en «Finalizar e iniciar»: se guarda la configuración y "
                           "{who} se inicia; tu teléfono recibirá «Aquí estoy»."),

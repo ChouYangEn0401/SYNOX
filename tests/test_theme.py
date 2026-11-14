@@ -330,7 +330,7 @@ def test_contract_token_names_are_stable():
                                "ok", "warn", "bad", "radius", "font-ui", "font-brand")
     assert contract.MASCOT_TOKENS == ("m1", "m2", "mi", "mb")
     assert list(contract.SLOTS) == ["mascot.idle", "mascot.think", "mascot.happy", "mascot.warn", "opening",
-                                    "wordmark", "appicon"]
+                                    "wordmark", "appicon", "chat.background"]     # chat.background：衣櫃那一版加的
 
 
 def test_slot_elements_are_pinned_so_theme_css_cannot_move_them():
@@ -601,7 +601,8 @@ def test_custom_paste_beats_theme_and_server_mode_is_per_user(theme_bot, owner):
     m = Client(ui)
     m.login(OTHER_ID)
     look = m.get("/api/appearance")[1]
-    assert look["theme"] == "sample-lantern" and look["scope"] == "user" and set(look["inherited"]) == {"theme", "mode", "custom"}
+    assert look["theme"] == "sample-lantern" and look["scope"] == "user"
+    assert set(look["inherited"]) == {"theme", "mode", "custom", "background"}
     html, _n, _csp = _page(m)
     assert 'data-skin="sample-lantern"' in html                                # 沒選過＝跟擁有者一樣
     assert m.post("/api/appearance", {"theme": ""})[0] == 200                  # 成員自己換回原本的

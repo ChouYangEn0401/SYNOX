@@ -14,6 +14,12 @@
 
 測試一律換 opener（`opener(url, timeout, limit) -> (status, Location, body)`），不連網。
 給人看的字集中在 TEXT（白話；主流程不出現雜湊、index.json 這類詞）。
+
+SYNOX 衣櫃（外觀包）：跟工具在同一份清單裡，條目寫 `"kind": "theme"`（`category`「衣櫃／外觀」、`collection` "wardrobe"）。
+- 「功能與安裝」的工具清單（cards）**不列**外觀包；「設定 → 🎨 外觀 → 衣櫃」（wardrobe_cards）只列外觀包。
+- 安裝走同一條路（/api/packs/library/install：下載 → 大小、sha256 對清單 → admin.stage → 報告 → 人按確認）。
+- 卡片的小預覽：清單有 `swatches`（最多 6 個 #hex 顏色）就畫色條，沒有就用 `series`（一個字母）當字母方塊。
+  清單裡不會有圖片網址（也不收）：預覽一律是 SYNOX 自己畫的。
 """
 
 from __future__ import annotations
@@ -40,6 +46,7 @@ OFFICIAL_INDEX_URL = "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/down
 DOWNLOAD_PREFIX = "https://github.com" + REPO_PATH + "download/"
 RELEASES_PAGE = "https://github.com/ChouYangEn0401/SYNOX_Libs/releases"
 OVERVIEW_URL = "https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL"          # 工具庫介紹（線上）
+WARDROBE_URL = "https://claude.ai/artifact/USzGNERZ2477E7XzPaPCsR"          # SYNOX 衣櫃的公開頁（完整預覽；只給人點的連結）
 ASSET_HOSTS = ("objects.githubusercontent.com", "release-assets.githubusercontent.com")
 REDIRECT_HOSTS = ("github.com",) + ASSET_HOSTS
 
@@ -70,7 +77,9 @@ TEXT = {
     "owner_hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到",
     "member": "👥 伺服器版也能用",
     "member_hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到",
+    "wardrobe_empty": "衣櫃還沒上架，先到網頁看看",
 }
+WARDROBE_TITLE = "SYNOX 衣櫃"
 
 # 每個官方工具的線上說明頁（工具庫的網站）
 HELP_PAGES = {
@@ -102,6 +111,8 @@ SIMULATED_ONLY = frozenset({"notion", "todoist", "google-calendar", "apple-remin
 NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 VERSION_RE = re.compile(r"^(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})\.(0|[1-9]\d{0,5})(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$")
 SHA_RE = re.compile(r"^[0-9a-fA-F]{64}$")
+HEX_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
+SERIES_RE = re.compile(r"^[A-Za-z0-9]$")
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f​-‏‪-‮⁦-⁩﻿]")
 
 
@@ -127,6 +138,13 @@ class Tool:
     size: Optional[int] = None
     capabilities: Optional[List[str]] = None
     line: str = ""
+    kind: str = ""                          # "theme"＝外觀包（衣櫃）；其他＝工具
+    series: str = ""                        # 衣櫃：系列字母（卡片的字母方塊）
+    swatches: List[str] = field(default_factory=list)   # 衣櫃：小預覽的顏色（#hex，最多 6 個）
+
+    @property
+    def is_theme(self) -> bool:
+        return self.kind == "theme"
 
     @property
     def download_url(self) -> str:
@@ -142,6 +160,11 @@ class Library:
     version: str
     tag: str
     tools: List[Tool] = field(default_factory=list)
+    collections: Dict[str, dict] = field(default_factory=dict)   # 只拿來參考（衣櫃的標題、一句話）
+
+    @property
+    def themes(self) -> List[Tool]:
+        return [t for t in self.tools if t.is_theme]
 
 
 # ── 連網（只有這裡）──────────────────────────────────────────────────
@@ -247,7 +270,13 @@ def _tool(item, tag: str) -> Optional[Tool]:
         return None
     caps = item.get("capabilities")
     stage = item.get("stage") if item.get("stage") in STAGES else "alpha"
-    return Tool(name=name, title=_text(item.get("title"), 60), summary=_text(item.get("summary"), 300),
+    theme = item.get("kind") == "theme"
+    swatches = item.get("swatches") if theme and isinstance(item.get("swatches"), list) else []
+    series = item.get("series") if theme and isinstance(item.get("series"), str) else ""
+    return Tool(kind="theme" if theme else "",
+                series=series.upper() if SERIES_RE.match(series) else "",
+                swatches=[c.lower() for c in swatches if isinstance(c, str) and HEX_RE.match(c)][:6],
+                name=name, title=_text(item.get("title"), 60), summary=_text(item.get("summary"), 300),
                 version=version, stage=stage, access=item.get("access") if item.get("access") in
                 ("owner", "member", "everyone") else "owner", file=file, sha256=sha.lower(), tag=tag, size=size,
                 capabilities=[c for c in caps if isinstance(c, str)] if isinstance(caps, list) else None,
@@ -271,7 +300,12 @@ def parse_index(blob: bytes) -> Library:
         if tool is not None and tool.name not in seen:
             seen.add(tool.name)
             tools.append(tool)
-    return Library(version=version, tag=tag, tools=tools)
+    collections = {}
+    if isinstance(raw.get("collections"), dict):
+        for key, info in raw["collections"].items():
+            if isinstance(key, str) and NAME_RE.match(key) and isinstance(info, dict):
+                collections[key] = {"title": _text(info.get("title"), 40), "summary": _text(info.get("summary"), 200)}
+    return Library(version=version, tag=tag, tools=tools, collections=collections)
 
 
 def fetch_library(opener: Optional[Opener] = None) -> Library:
@@ -329,7 +363,30 @@ def card(tool: Tool, installed: str = "") -> dict:
 
 
 def cards(lib: Library, installed: Dict[str, str]) -> List[dict]:
-    """整份清單的卡片：官方工具照工具庫網站的順序（TOOLS），其他的照名字排在後面。"""
+    """整份清單的工具卡片（外觀包不列：它們在「外觀 → 衣櫃」）：官方工具照工具庫網站的順序（TOOLS），其他的照名字排在後面。"""
     order = list(TOOLS)
-    tools = sorted(lib.tools, key=lambda t: (order.index(t.name) if t.name in order else len(order), t.name))
+    tools = sorted((t for t in lib.tools if not t.is_theme),
+                   key=lambda t: (order.index(t.name) if t.name in order else len(order), t.name))
     return [card(t, installed.get(t.name, "")) for t in tools]
+
+
+def wardrobe_card(tool: Tool, installed: str = "") -> dict:
+    """衣櫃的一張卡（外觀包）：標題、一句話、小預覽（色條或字母方塊）、已安裝／有新版。字一樣都是純文字。"""
+    _emoji, title = _split_title(tool.title)
+    letter = tool.series or (title[:1].upper() if title[:1].isalnum() else "") or tool.name[:1].upper()
+    return {"name": tool.name, "title": title or tool.name, "line": tool.line or tool.summary, "summary": tool.summary,
+            "version": tool.version, "letter": letter, "swatches": list(tool.swatches),
+            "badge": {"text": stage_label(tool.stage), "hint": stage_text(tool.stage)},
+            "installed": installed or "", "newer": _newer(tool.version, installed)}
+
+
+def wardrobe_cards(lib: Library, installed: Dict[str, str]) -> List[dict]:
+    """衣櫃（只有外觀包）：照系列字母、再照名字排。"""
+    themes = sorted(lib.themes, key=lambda t: (t.series or "~", t.name))
+    return [wardrobe_card(t, installed.get(t.name, "")) for t in themes]
+
+
+def wardrobe_info(lib: Library) -> dict:
+    """衣櫃的標題與一句話（清單的 collections.wardrobe；沒有就用內建的字）。"""
+    info = lib.collections.get("wardrobe") or {}
+    return {"title": info.get("title") or WARDROBE_TITLE, "summary": info.get("summary") or ""}

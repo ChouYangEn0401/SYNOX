@@ -558,11 +558,13 @@ class Wizard:
         auto = tk.BooleanVar(value=logic.autostart_default(choices))
         packs = tk.BooleanVar(value=bool(choices.get("file_type", True)))
         launch = tk.BooleanVar(value=True)
+        weekly = tk.BooleanVar(value=logic.weekly_updates_default(self.existing))   # 預設不勾（ADR 0023 決定 U2）
         if not choices:
             ttk.Checkbutton(self.body, text=t("finish_desktop"), variable=desk).pack(anchor=self.west, pady=4)
             ttk.Checkbutton(self.body, text=t("finish_autostart"), variable=auto).pack(anchor=self.west)
             ttk.Checkbutton(self.body, text=t("finish_packs"), variable=packs).pack(anchor=self.west, pady=4)
         ttk.Checkbutton(self.body, text=t("finish_launch"), variable=launch).pack(anchor=self.west)
+        ttk.Checkbutton(self.body, text=t("finish_updates"), variable=weekly).pack(anchor=self.west, pady=4)
         self.label(logic.tutorial_line())
         title, _one, _two = logic.mode_lines(self.mode)
         if self.token:
@@ -584,6 +586,7 @@ class Wizard:
                     owner_id = logic.local_owner_id()       # 沒接聊天軟體：本機擁有者（網頁登入用），之後補 Telegram 會換成真的
                 cfg = logic.build_config(telegram_token, owner_id, self.llm, existing=self.existing,
                                          mode=self.mode, language=i18n.get_lang())
+                cfg = logic.with_weekly_updates(cfg, weekly.get())
                 cfg = logic.save(self.config_path, cfg)
                 if is_discord:
                     cfg = logic.save_discord_token(self.config_path, cfg, self.token)
