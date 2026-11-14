@@ -444,7 +444,7 @@ span.hl { display: inline-block; }
 </nav>
 
 <footer class="wrap">
-  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>4d93aa0f9e · 2026-11-14</span></p>
+  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>62d7fe22b6 · 2026-11-14</span></p>
 </footer>
 
 <script type="application/json" id="tour-steps">
@@ -699,10 +699,12 @@ span.hl { display: inline-block; }
       tips: [{ k: "if", t: "寫的是「❌ 這台電腦找不到 Claude Code」，看下一步。" }] },
 
     { id: "ai-install", chapter: "安裝精靈", title: "找不到 Claude Code？按「一鍵安裝」",
-      body: ["按「<b>一鍵安裝（PowerShell）</b>」，會打開一個新的視窗自己安裝。",
-             "裝好後，在那個視窗打 <code>claude</code> 按 Enter，照畫面登入一次。再回到精靈，按「<b>裝好了，重新偵測</b>」。"],
+      body: ["① 按「<b>一鍵安裝（PowerShell）</b>」，會打開一個新的視窗，自己把 Claude Code 裝好。",
+             "② 裝好之後，<b>還要登入才能用</b>：在那個視窗打 <code>claude</code>，按 Enter，照畫面用你的 Claude 帳號登入一次。",
+             "③ 回到精靈，按「<b>裝好了，重新偵測</b>」。下一步按「<b>測一下</b>」，看到「✅ 通了！AI 有回話。」才算真的好了。"],
       mock: "wizard-ai-missing", targets: [{ id: "install", say: "1 先按這裡", place: "a" }, { id: "redetect", say: "2 裝好再按", place: "be" }],
       tips: [{ k: "note", t: "裝的是 Claude 官方的安裝指令，不用系統管理員。也可以按「打開下載網頁」看官方說明。" },
+             { k: "warn", t: "「重新偵測」只會看程式有沒有裝好，<b>不會</b>看你有沒有登入。沒登入的話，AI 不會回話，所以一定要按「測一下」確認。" },
              { k: "warn", t: "登入要有 Claude 的帳號（需要付費方案）。沒有的話，看下一步的其他選擇。" }] },
 
     { id: "ai-other", chapter: "安裝精靈", title: "也可以用別的 AI，或先不用",
