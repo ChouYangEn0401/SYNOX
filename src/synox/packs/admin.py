@@ -167,7 +167,25 @@ def summary_of(m: Manifest, report: ScanReport, hashes: Dict[str, str], problems
             "capabilities": list(m.capabilities), "integrity": bool(m.integrity),
             "scan": {**report.to_dict(m), "problems": problems, "ok": not problems},
             "warnings": warnings_for(m, report), "env": env_plan(m).to_dict(), "mcp": mcp_report(m), **scope_of(m),
-            "tier": tier_of(m, report), "runtime": runtime_report(m), **theme_report(m, problems)}
+            "tier": tier_of(m, report), "runtime": runtime_report(m), "app": app_of(m),
+            **theme_report(m, problems)}
+
+
+def app_of(m: Manifest):
+    """安裝報告的「完整網頁畫面」那一段（工具服務，ADR 0024 §5）：沒有宣告＝None。"""
+    app = (m.web or {}).get("app")
+    if not app:
+        return None
+    return {"title": app.get("title") or "", "kit": app.get("kit"), "files": len(app.get("files") or []),
+            "reads": list(app.get("reads") or []), "actions": dict(app.get("actions") or {}),
+            "exports": list(app.get("exports") or []), "remote": bool(app.get("remote"))}
+
+
+APP_WARNING = ("這個工具附了完整的網頁畫面（{n} 個檔）。它在你的瀏覽器裡跑，可以不經你同意讀、改、匯出這個工具裡的所有資料"
+               "（僅限下面列的動作）。SYNOX 檢查了格式、不讓它連到外面的網址，但看不懂畫面程式在做什麼——跟 pack.py 一樣，"
+               "是你決定要不要信任的程式。要看服務開著沒、要關掉，以 SYNOX 自己的畫面為準。")
+APP_EXPORT_WARNING = "它的畫面可以把資料匯出成檔案：{names}。"
+APP_REMOTE_WARNING = "這個工具的畫面可以從手機用（要你另外打開手機入口，ADR 0026）。"
 
 
 def theme_report(m: Manifest, problems: List[str]) -> dict:
@@ -287,10 +305,27 @@ def scope_of(m: Manifest) -> dict:
     if m.kind == "theme":                      # 外觀包：不在聊天裡用、沒有資料、沒有程式可信任（報告不給選）
         return {}
     surfaces = list(m.surfaces)
-    return {"surfaces": surfaces, "surfaces_text": SURFACE_TEXT["channel" if "channel" in surfaces else "dm"],
+    extra = {}
+    if m.callers or m.stepup:                      # 範圍（ADR 0025 §3）：有寫才多這幾欄（沒寫的工具報告跟以前一樣）
+        extra = {"callers": {k: list(v) for k, v in m.callers.items()}, "stepup": list(m.stepup),
+                 "callers_text": callers_text(m)}
+    return {**extra, "surfaces": surfaces, "surfaces_text": SURFACE_TEXT["channel" if "channel" in surfaces else "dm"],
             "data": m.data, "data_text": DATA_TEXT.get(m.data, m.data), "data_declared": m.data_declared,
             "trust_choices": [{"value": t, "text": TRUST_TEXT[t]} for t in pack_lock.TRUSTS],
             "trust_default": pack_lock.DEFAULT_TRUST}
+
+
+CALLER_WORDS = {"human": "你本人", "remote": "手機入口", "ai": "AI", "schedule": "排程", "system": "SYNOX 的背景工作"}
+
+
+def callers_text(m: Manifest) -> str:
+    """範圍的白話：「/money_export 只收你本人；/money_rmall 一定要先解鎖」。沒寫回 ""。"""
+    parts = []
+    for name, callers in sorted(m.callers.items()):
+        parts.append(f"/{m.group}_{name} 只收{'、'.join(CALLER_WORDS.get(c, c) for c in callers)}")
+    for name in m.stepup:
+        parts.append(f"/{m.group}_{name} 一定要先用手機驗證器解鎖")
+    return "；".join(parts)
 
 
 def _trust(trust) -> str:
@@ -594,6 +629,15 @@ def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
                    "那台伺服器做什麼掃描看不到。只會用上面列的工具，effect 照這份宣告（不照伺服器自己說的）。")
     elif m.mcp_stdio:
         out.append("這是 MCP（stdio）pack：會在這台電腦上開一個長駐的子程序跑它的 MCP 伺服器。")
+    app = (m.web or {}).get("app")
+    if app:
+        out.append(APP_WARNING.format(n=len(app.get("files") or [])))
+        if app.get("exports"):
+            out.append(APP_EXPORT_WARNING.format(names="、".join(app["exports"])))
+        if app.get("remote"):
+            out.append(APP_REMOTE_WARNING)
+    if m.callers or m.stepup:
+        out.append("它自己收緊了範圍（SYNOX 執行時檢查）：" + callers_text(m) + "。")
     if m.access == "everyone":
         out.append("access 是 everyone：伺服器版裡任何傳訊息給 bot 的人都用得到。")
     if "channel" in m.surfaces:

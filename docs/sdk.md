@@ -39,7 +39,8 @@ synox-sdk zip .                                                 → dist/hello-0
 
 ## SDK 版本（`requires.sdk`）
 
-SDK＝SYNOX 給工具的**介面合約**，有自己的版本號 `SDK_VERSION`（現在 `0.2.2`，寫在 `src/synox/sdk/author.py`，單檔版、`pip` 套件都讀它）。
+SDK＝SYNOX 給工具的**介面合約**，有自己的版本號 `SDK_VERSION`（現在 `0.2.3`，寫在 `src/synox/sdk/author.py`，單檔版、`pip` 套件都讀它）。
+0.2.3 加了：`caller()`／`require_human()`（誰叫的）、工具服務的 `pack.app_read`／`app_action`／`app_export`、`kit.check_values`／`AppError`／`Download`／`csv_bytes`、`synox-sdk init --kind python --app`（只加不改；見 [tool-apps.md](tool-apps.md)）。
 合約包含：pack.json 的格式、子程序工具拿到的環境變數與 JSON 信封（`synox_sdk.py`）、kind=python 工具的 `install(app, pack)` 介面
 （`pack.store`／`store.of(user)`／`path_of`／`secret`／`web_route`、`synox.packs.kit`、`isdtelekit.core.registry` 的 `Field`／`READ`／`WRITE`／`DANGER`）。
 
@@ -202,6 +203,23 @@ python tool.py --mcp                                     → MCP stdio server
   人在聊天裡打不出巢狀：打字照舊只有平面欄位。schema 只能用簡單的子集（`type`、`properties`、`required`、`items`、`enum`、
   長度與範圍、`pattern`）；用了 `$ref`、`oneOf`／`anyOf`、開放的 `additionalProperties`、路徑型 `format` 的工具不給 AI，`doctor` 寫原因。
   硬上限：3 層、每個物件 20 鍵、字串 2000 字、陣列 50 項、整包 16 KB（schema 寫得再寬也一樣）。細節見 [pack-format.md](pack-format.md)「schema 模式」。
+
+## caller() 與 require_human()：誰叫的（SDK 0.2.3 起）
+
+```python
+from synox_sdk import caller, require_human
+
+c = caller()                     # Caller(kind="telegram", human=True)；kind：telegram／discord／web／console／remote／ai／schedule／system／unknown
+require_human()                  # 不是人（AI、排程、手機入口、背景工作、不明）→ ToolError("not_human", "這個動作要你本人在 Telegram 或 SYNOX 網頁做")
+```
+
+SYNOX 每次呼叫都放環境變數 `SYNOX_CALLER`（只有種類）；舊版 SYNOX 沒給＝`unknown`。這是「自己再檢查一次」用的，
+真正的邊界是 `pack.json` 的 `callers`（SYNOX 在執行時擋，AI 的工具清單也看不到；docs/pack-format.md「範圍」）。
+kind=python 的工具用 `synox.packs.kit` 的同名函式：`kit.caller()`、`kit.require_human()`（丟 `kit.Refused`，`kit.command` 會接住、回使用者那句話，不算工具壞掉）。
+
+欄位檢查：`Field(check=kit.checks.amount)`。現成的有 `number`、`positive_int`、`amount`（大於 0、最多兩位小數）、`iso_date`（YYYY-MM-DD）、
+`hhmm`、`one_line`、`max_len(n)`。基本檢查（太長、空字元、控制字元、騙人的排版字元）SYNOX 在這之前已經做完（`guard/inputs.py`），
+人打字、AI、工具畫面、手機入口四條路都是同一份；你的 `check` 只管「這個值對不對」。
 
 ## secret() 與 context()
 

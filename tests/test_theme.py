@@ -228,9 +228,9 @@ COLOR_EXCEPTIONS = {
 }
 COLOR_RE = re.compile(r"#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb|oklch|oklab|lab|lch)\(|"
                       r"(?<![-\w])(?:white|black|red|blue|green|gray|grey|orange|yellow|purple|pink|silver)(?![-\w])")
-CSS_FILES = ("control.css", "tools.css", "tour.css", "packdrop.css", "report.css", "splash.css")
+CSS_FILES = ("control.css", "tools.css", "tour.css", "packdrop.css", "report.css", "splash.css", "security.css", "apps.css")
 JS_FILES = ("app.html", "control.js", "tools.js", "tour.js", "packdrop.js", "report.js", "splash.js", "slots.js",
-            "blocks.js")
+            "blocks.js", "security.js", "apps.js")
 
 
 def _styles(html):
@@ -367,6 +367,9 @@ def test_fixture_theme_pack_passes_gates_and_is_t0(tmp_path):
     ("capabilities", ["network"], "不能有 capabilities"),
     ("web", {"panel": "p.html"}, "不能有 web"),
     ("mcp", {"url": "https://x"}, "不能有 mcp"),
+    ("web", {"app": {"root": "slots", "entry": "slots/x.html"}}, "不能有 web"),   # 工具服務（ADR 0024）不能借外觀包進來
+    ("callers", {"x": ["human"]}, "不能有 callers"),                             # 範圍（ADR 0025）：外觀包沒有指令
+    ("stepup", ["x"], "不能有 stepup"),
 ])
 def test_theme_pack_cannot_declare_code(tmp_path, key, value, why):
     raw = json.load(open(os.path.join(FIXTURE, "pack.json"), encoding="utf-8"))

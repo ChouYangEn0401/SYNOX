@@ -9,7 +9,7 @@
                "fonts": ["fonts/Fraunces.woff2", {"family": "Noto Serif TC", "file": "fonts/x.woff2", "weight": "700"}]}}
 
 外觀包**沒有程式**：資料夾裡只能有 pack.json、.svg、.html（slot 用的小片段）、.css、.woff2、說明文字（.md、.txt、LICENSE）。
-不能寫 python／cli／mcp／runtime／env／capabilities／web／auth 這些欄位。字型一定要附在包裡（.woff2），
+不能寫 python／cli／mcp／runtime／env／capabilities／web／auth／callers／stepup 這些欄位。字型一定要附在包裡（.woff2），
 網頁不會去 Google Fonts 之類的地方抓（隱私）。信任層級固定 T0（只有宣告），但一樣要看報告、按確認才裝。
 """
 
@@ -33,7 +33,8 @@ ALLOWED_EXT = (".svg", ".html", ".css", ".woff2") + TEXT_EXT
 TEXT_NAMES = ("LICENSE", "NOTICE", "COPYING", "AUTHORS")
 # 外觀包不能有的 pack.json 欄位（有＝第 1 關就拒：外觀不能帶程式、不能要權限）
 CODE_KEYS = ("python", "cli", "commands", "mcp", "runtime", "env", "capabilities", "web", "auth", "health",
-             "storage", "group", "surfaces", "data", "skill")
+             "storage", "group", "surfaces", "data", "skill",
+             "callers", "stepup")                    # 範圍（ADR 0025）：外觀包沒有指令，寫了＝拒，不靜靜忽略
 _FAMILY_RE = re.compile(r"^[A-Za-z0-9 _-]{1,40}$")
 _WEIGHT_RE = re.compile(r"^(normal|bold|\d{3}( \d{3})?)$")
 WOFF2_MAGIC = b"wOF2"

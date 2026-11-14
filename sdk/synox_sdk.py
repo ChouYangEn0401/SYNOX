@@ -54,13 +54,13 @@ import typing
 import uuid
 from contextlib import redirect_stdout
 from pathlib import PurePath
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, List, NamedTuple, Optional, Sequence
 
-__all__ = ["tool", "serve", "secret", "context", "confirmed", "Context", "ToolError", "ToolFailure", "fail", "Confirm",
+__all__ = ["tool", "serve", "secret", "context", "confirmed", "Context", "Caller", "caller", "require_human", "ToolError", "ToolFailure", "fail", "Confirm",
            "Ok", "SpecError", "tool_spec", "commands_for", "run_cli", "run_mcp", "registered", "report_status",
            "peer_status"]
 
-SDK_VERSION = "0.2.2"                  # SYNOX 給工具的介面合約的版本（pack.json 的 requires.sdk 對這個；docs/sdk.md「SDK 版本」）
+SDK_VERSION = "0.2.3"                  # SYNOX 給工具的介面合約的版本（pack.json 的 requires.sdk 對這個；docs/sdk.md「SDK 版本」）
 SYNOX_REQUIRES = ">=0.2"               # 產生的 pack.json 的 requires.synox（SYNOX_* 環境變數、ai／confirm 從這版起）
 
 
@@ -862,6 +862,30 @@ def context() -> Context:
     ok, given = _confirm_state()
     return Context(_env("SYNOX_USER_DATA_DIR"), _env("SYNOX_TG_ID"), _env("SYNOX_MODE"), _env("SYNOX_PACK_DIR"),
                    _env("SYNOX_PACK_NAME"), ok, given)
+
+
+# ── 誰叫的（ADR 0025 §2；SDK 0.2.3 起）──────────────────────────────────
+
+HUMAN_CALLERS = ("telegram", "discord", "web", "console")
+NOT_HUMAN = "這個動作要你本人在 Telegram 或 SYNOX 網頁做"
+
+
+class Caller(NamedTuple):
+    kind: str          # telegram／discord／web／console／remote／ai／schedule／system／unknown
+    human: bool
+
+
+def caller() -> Caller:
+    """這一次是誰叫的（SYNOX 給的環境變數 SYNOX_CALLER；舊版 SYNOX 沒給＝unknown）。看得到、改不了；
+    「自己再檢查一次」用，真正的邊界是 SYNOX 的 callers 宣告（pack.json）。"""
+    kind = _env("SYNOX_CALLER") or "unknown"
+    return Caller(kind, kind in HUMAN_CALLERS)
+
+
+def require_human() -> None:
+    """不是人（AI、排程、手機入口、背景工作、不明）→ 丟 ToolError("not_human", …)：使用者看到「❌ 這個動作要你本人…」。"""
+    if not caller().human:
+        raise ToolError("not_human", NOT_HUMAN)
 
 
 # ── 狀態回報（SYNOX 的 runtime：主控面板、常駐助理、別的工具看得到）──────────────

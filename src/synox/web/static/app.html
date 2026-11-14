@@ -576,6 +576,8 @@
 <!-- include: tour.css -->
 <style nonce="{{NONCE}}">/*{{INCLUDE:packdrop.css}}*/</style>
 <style nonce="{{NONCE}}">/*{{INCLUDE:report.css}}*/</style>
+<style nonce="{{NONCE}}">/*{{INCLUDE:security.css}}*/</style>
+<style nonce="{{NONCE}}">/*{{INCLUDE:apps.css}}*/</style>
 <script nonce="{{NONCE}}">/*{{INCLUDE:slots.js}}*/</script>
 <!-- theme -->
 <style nonce="{{NONCE}}">/*{{INCLUDE:splash.css}}*/</style>
@@ -611,6 +613,7 @@
     <ul id="chat-list" data-tour="chat.list"></ul>
     <a id="open-archive" class="archive-link" href="#archive">🗄 已封存的對話<span id="archive-n"></span></a>
   </div>
+  <a id="apps-side" class="hidden" href="#tools" title="工具服務：到工具頁看、關掉"></a>
   <div id="side-foot" class="side-foot hidden">
     <span class="avatar" id="avatar" aria-hidden="true"></span>
     <span class="who" id="who"></span>
@@ -689,6 +692,7 @@
         <a href="#settings:channels" data-tab="channels" role="tab" data-tour="settings.tab.channels">💬 聊天通道</a>
         <a href="#packs" data-tab="packs" role="tab" data-tour="settings.tab.packs">🧩 功能與安裝</a>
         <a href="#settings:accounts" data-tab="accounts" role="tab" data-tour="settings.tab.accounts">👥 帳號</a>
+        <a href="#settings:security" data-tab="security" role="tab">🔐 安全</a>
         <a href="#settings:system" data-tab="system" role="tab" data-tour="settings.tab.system">💻 電腦與備份</a>
         <a href="#settings:appearance" data-tab="appearance" role="tab" data-tour="settings.tab.appearance">🎨 外觀</a>
         <a href="#settings:help" data-tab="help" role="tab" data-tour="settings.tab.help">🙋 遇到問題？</a>
@@ -919,6 +923,15 @@
       </div>
       </div>
 
+      <!-- 🔐 安全（每個登入的人都看得到：各自設定自己的手機驗證器；動作在 static/security.js、API 在 guard/web_api.py） -->
+      <div class="tab-panel hidden" data-tab="security" role="tabpanel">
+      <div id="set-security" class="card">
+        <div class="card-head"><span class="tile" aria-hidden="true">🔐</span>
+          <div class="txt"><h2>手機驗證器（兩步驗證）</h2><p class="sub">重要的動作多一道手機上的 6 位數。</p></div></div>
+        <div id="set-security-body"></div>
+      </div>
+      </div>
+
       <!-- 外觀（每個登入的人都看得到；synox/theme、docs/themes.md）。順序照擁有者說的：挑外觀 → 自己貼 → 淺色／深色 -->
       <div class="tab-panel hidden" data-tab="appearance" role="tabpanel">
       <div id="set-look" class="card">
@@ -1041,6 +1054,8 @@
 
 <script nonce="{{NONCE}}">/*{{INCLUDE:control.js}}*/</script>
 <script nonce="{{NONCE}}">/*{{INCLUDE:report.js}}*/</script>
+<script nonce="{{NONCE}}">/*{{INCLUDE:security.js}}*/</script>
+<script nonce="{{NONCE}}">/*{{INCLUDE:apps.js}}*/</script>
 <!-- include: tools.js -->
 <!-- include: tour.js -->
 <script nonce="{{NONCE}}">
@@ -1087,6 +1102,9 @@
       var type = r.headers.get("Content-Type") || "";
       if (type.indexOf("application/json") === 0) {
         return r.json().then(function (d) {
+          if (!r.ok && window.SynoxStepUp && window.SynoxStepUp.isStepUp(r.status, d) && path.indexOf("/api/stepup") !== 0) {
+            return window.SynoxStepUp.ask().then(function () { return api(method, path, body, raw); });   // 解鎖後重送一次
+          }
           if (!r.ok) { var err = new Error(d.error || ("HTTP " + r.status)); err.data = d; throw err; }
           return d;
         });
@@ -1440,7 +1458,7 @@
              base_url: $("llm-url").value };
   }
   // ── 設定的分頁（#settings:<tab>；packs 的網址是 #packs）──────────────
-  var TABS = ["ai", "channels", "packs", "accounts", "system", "appearance", "help"];
+  var TABS = ["ai", "channels", "packs", "accounts", "security", "system", "appearance", "help"];
   var tabWanted = "";          // 網址要的分頁（空＝沿用上次的，或第一個）
   var tabsOn = [];             // 這個人看得到的分頁（loadSettings 依擁有者／帳號權限決定）
   function pickTab(t) {
@@ -1465,8 +1483,8 @@
       ["set-llm", "set-usage", "set-channels", "set-library", "set-skills", "set-install", "set-packs",
         "set-sandbox", "set-backup"].forEach(function (id) { $(id).classList.toggle("hidden", !d.owner); });
       $("set-accounts").classList.toggle("hidden", !d.accounts);
-      tabsOn = TABS.filter(function (t) {                  // 遇到問題？、外觀＝每個人
-        return t === "help" || t === "appearance" || (t === "accounts" ? !!d.accounts : !!d.owner);
+      tabsOn = TABS.filter(function (t) {        // 遇到問題？、🔐 安全、外觀＝每個人
+        return t === "help" || t === "security" || t === "appearance" || (t === "accounts" ? !!d.accounts : !!d.owner);
       });
       applyTabs();
       $("my-budget").textContent = d.ai_budget ?
@@ -2081,6 +2099,16 @@
     var ul = el("ul");
     (s.warnings || []).forEach(function (w) { ul.appendChild(el("li", "", w)); });
     if ((s.warnings || []).length) { box.appendChild(ul); }
+    if (s.app) {                               // 工具服務（ADR 0024 §5）：畫面能做的動作與匯出
+      var appUl = el("ul");
+      var effText = { write: "會寫入", danger: "危險：會先問你" };
+      Object.keys(s.app.actions || {}).forEach(function (n) {
+        appUl.appendChild(el("li", "", "🖥 畫面的動作 " + n + "：" + (effText[s.app.actions[n]] || s.app.actions[n])));
+      });
+      (s.app.exports || []).forEach(function (n) { appUl.appendChild(el("li", "", "🖥 畫面的匯出 " + n)); });
+      box.appendChild(el("p", "", "🖥 完整網頁畫面" + (s.app.title ? "「" + s.app.title + "」" : "") + "（" + s.app.files + " 個檔）："));
+      box.appendChild(appUl);
+    }
     var upg = s.upgrade, down = null;
     if (upg) { down = showUpgrade(box, upg, s.name); }
     var trust = canInstall && s.token ? showScope(box, s, upg) : null;
@@ -2714,6 +2742,10 @@
     $("logout").classList.remove("hidden");
     showWho(d);
     if (window.SynoxReport) { window.SynoxReport.init({ api: api, toast: toast }); }   // 遇到問題？（static/report.js）
+    if (window.SynoxStepUp) { window.SynoxStepUp.init({ api: api, toast: toast }); }   // 🔐 安全（static/security.js）
+    if (window.SynoxApps) {                                                             // 工具服務（static/apps.js）
+      window.SynoxApps.init({ api: api, toast: toast, csrf: function () { return me ? me.csrf : ""; } });
+    }
     route();
     if (window.SynoxTour) {                    // 新手教學（static/tour.js）：只會填字、換頁，不會替人按任何東西
       window.SynoxTour.init({
