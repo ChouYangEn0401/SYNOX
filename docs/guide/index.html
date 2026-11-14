@@ -25,6 +25,9 @@
     jump      物件（可省略）：{ to: 另一步的 id, text } ，顯示成「改走另一條路」的按鈕（例如改用 Discord）。
     branch    true＝選讀的岔路，不算在「步驟 N／總數」裡；要配 back（回哪一步的 id）和 next（看完接哪一步的 id）。
   主線的順序就是陣列裡（去掉 branch 之後）的順序。
+  「選讀：SYNOX 網頁導覽」那幾步不是寫在 STEPS 裡：來自 SYNOX 內建新手教學的步驟檔（src/synox/tour/tours/basics.json），
+  由 scripts/build_guide.py 放進下面 id 是 tour-steps 的那個 JSON 區塊（同一份字：網頁裡的 /tutorial 也用它）。
+  示意畫面上的位置用同一份名字（src/synox/tour/anchors.py 的 data-tour 名字＝這裡的 data-hl）。改那幾步的字：改 basics.json、跑 build_guide.py。
   畫面上的字都照 SYNOX 原始碼裡真的字（安裝精靈 src/synox/wizard/lang/zh_TW.py、網頁 src/synox/web/static/app.html、
   packdrop.js、Setup.bat 的 setup/lang/zh-TW.psd1）。Windows、Telegram 自己的畫面是照常見的樣子畫的示意圖。
 -->
@@ -324,6 +327,7 @@ span.hl { display: inline-block; }
 .kb { display: grid; gap: 4px; justify-self: stretch; max-width: 92%; }
 .kb .r { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
 .kb .r.one { grid-template-columns: 1fr; }
+.kb .r.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .kb span { text-align: center; padding: 5px 4px; border-radius: 8px; background: rgba(42,171,238,.22); color: var(--tg-in-fg); font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .sys { justify-self: center; font-size: 11px; color: #fff; background: rgba(20,40,60,.5); padding: 2px 9px; border-radius: 10px; }
 .tg-start { margin: 0 10px 10px; padding: 9px; border-radius: 10px; text-align: center; font-weight: 700; background: var(--tg-bar); color: var(--tg-bar-fg); font-size: 14px; letter-spacing: .05em; }
@@ -440,9 +444,129 @@ span.hl { display: inline-block; }
 </nav>
 
 <footer class="wrap">
-  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>7e90339630 · 2026-11-14</span></p>
+  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>11b51ae53b · 2026-11-14</span></p>
 </footer>
 
+<script type="application/json" id="tour-steps">
+{
+ "id": "basics",
+ "title": "SYNOX 新手教學",
+ "version": "1.1.0",
+ "minutes": 5,
+ "steps": [
+  {
+   "id": "welcome",
+   "title": "嗨，我是 SYNOX",
+   "body": "我是在你自己電腦上跑的小助手。你可以跟我聊天，也可以裝「工具」讓我多會一些事。接下來大約 5 分鐘，我帶你把每個地方看一遍。隨時可以按「先離開」，之後打 /tutorial 就會接著走。",
+   "anchors": []
+  },
+  {
+   "id": "open-chat",
+   "title": "這裡是「對話」",
+   "body": "按「對話」。跟我說話、打指令，都在這一頁。",
+   "anchors": [
+    "nav.chat"
+   ],
+   "view": "chat"
+  },
+  {
+   "id": "ask-help",
+   "title": "問我會什麼",
+   "body": "按「幫我填好」，輸入框會出現 /help，再按「送出」。我會列出你有哪些工具，點一個就看得到怎麼打。旁邊的「💡 範例」點一下，範例就會放進輸入框。也可以直接打一句話問我。",
+   "anchors": [
+    "chat.input"
+   ],
+   "view": "chat",
+   "try": "/help"
+  },
+  {
+   "id": "new-chat",
+   "title": "開一段新對話",
+   "body": "想換個話題，就按「＋ 新對話」。舊的對話會留在清單裡，隨時能點回去看。",
+   "anchors": [
+    "chat.new"
+   ],
+   "view": "chat"
+  },
+  {
+   "id": "open-tools",
+   "title": "「工具」頁",
+   "body": "按「工具」。你裝好的工具都在這裡，每個都有說明和可以填的表格。現在可能還是空的，等一下我們就去挑。",
+   "anchors": [
+    "nav.tools"
+   ],
+   "view": "tools"
+  },
+  {
+   "id": "open-settings",
+   "title": "「設定」在這裡",
+   "body": "按「設定」。AI 從哪裡來、接 Telegram 或 Discord、裝工具、備份，都在這一頁。",
+   "anchors": [
+    "nav.settings"
+   ],
+   "view": "settings"
+  },
+  {
+   "id": "packs-tab",
+   "title": "「功能與安裝」",
+   "body": "按「🧩 功能與安裝」。裝工具、移除工具，都在這個分頁。",
+   "anchors": [
+    "settings.tab.packs"
+   ],
+   "view": "settings",
+   "tab": "packs"
+  },
+  {
+   "id": "catalog",
+   "title": "官方工具庫",
+   "body": "按「載入工具清單」，會列出官方做好的工具，每張卡片寫了它會做什麼。這一步要連網路；連不上也沒關係，按「下一步」。",
+   "anchors": [
+    "settings.packs.catalog"
+   ],
+   "view": "settings",
+   "tab": "packs"
+  },
+  {
+   "id": "read-report",
+   "title": "先看報告，你按確認才裝",
+   "body": "在想要的工具上按「安裝」，我會先檢查，給你看一份報告：它會做什麼、要哪些權限（例如連網、讀寫檔案）。看完覺得可以，你自己按「確認安裝」才會裝；不想要就按「不要裝」。現在不想裝也可以，直接按「下一步」。",
+   "anchors": [
+    "settings.packs.review",
+    "settings.packs.catalog"
+   ],
+   "view": "settings",
+   "tab": "packs"
+  },
+  {
+   "id": "remove",
+   "title": "不想要了就移除",
+   "body": "裝好的工具都列在這張表。按那一列的「移除」就拿掉了：會先問你一次，檔案會先收到 packs/_removed/，不會直接刪掉。",
+   "anchors": [
+    "settings.packs.installed"
+   ],
+   "view": "settings",
+   "tab": "packs"
+  },
+  {
+   "id": "get-help",
+   "title": "卡住了怎麼辦",
+   "body": "打 /help 看你有哪些工具。想把指令換成自己順手的打法（例如 @記帳），到「設定 → ⌨️ 我的指令」。忘了怎麼用，隨時打 /tutorial 再走一次（/tutorial restart 從頭來）。",
+   "anchors": [
+    "chat.input"
+   ],
+   "view": "chat"
+  },
+  {
+   "id": "done-owner",
+   "title": "完成！",
+   "body": "現在你可以自己挑想要的工具了。按「帶我去」打開工具庫，看看哪個用得到。",
+   "anchors": [],
+   "view": "settings",
+   "tab": "packs"
+  }
+ ]
+}
+</script>
 <script>
 (function () {
   "use strict";
@@ -637,8 +761,10 @@ span.hl { display: inline-block; }
 
     { id: "help", chapter: "開始使用", title: "打 /help，看它會什麼",
       body: ["在 Telegram 打 <code>/help</code> 送出。",
-             "它會列出你現在能用的指令。用下面的「下一頁 ▶️」翻頁，或按「☰ 分類目錄」挑一類看。"],
-      mock: "tg-help", targets: [{ id: "nextpg", say: "翻頁", place: "a" }],
+             "它會列出你有哪些工具，<b>每個工具一顆按鈕</b>。點一個，就看到最常用的幾個怎麼打（有例子）；再點一個指令，看一句白話說明和範例。",
+             "想一次看全部：打 <code>/help all</code>。"],
+      mock: "tg-help", targets: [{ id: "tool", say: "點一個工具", place: "a" }],
+      jump: { to: "web-welcome", text: "看 SYNOX 網頁導覽（選讀）" },
       tips: [{ k: "note", t: "忘了教學說什麼：再打 <code>/tutorial</code> 就能複習（<code>/tutorial restart</code> 從頭來）。" }] },
 
     { id: "done", chapter: "完成", title: "完成！",
@@ -656,6 +782,23 @@ span.hl { display: inline-block; }
       links: [{ href: DC_GUIDE, text: "看 Discord 圖文教學", primary: true, icon: "book" }],
       tips: [{ k: "wip", t: "SYNOX 的 Discord 只用模擬的連線測過，還沒有用真帳號完整跑一遍。第一次用建議選 Telegram。" }] }
   ];
+
+  /* ── 選讀：SYNOX 網頁導覽（內建新手教學的步驟；scripts/build_guide.py 放進 #tour-steps）────────── */
+  (function () {
+    var data;
+    try { data = JSON.parse(document.getElementById("tour-steps").textContent || "null"); } catch (e) { data = null; }
+    var list = (data && data.steps) || [];
+    if (!list.length) { return; }
+    var esc = function (t) { return String(t).replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }); };
+    var ids = list.map(function (s) { return "web-" + s.id; });
+    list.forEach(function (s, i) {
+      STEPS.push({ id: ids[i], branch: true, chapter: "選讀：SYNOX 網頁導覽", title: esc(s.title),
+        back: i ? ids[i - 1] : "help", next: i + 1 < ids.length ? ids[i + 1] : "done",
+        body: [esc(s.body)], mock: "web-tour", anchors: s.anchors || [], view: s.view || "", tab: s.tab || "", "try": s["try"] || "",
+        targets: (s.anchors || []).slice(0, 1).map(function (n) { return { id: n, say: "這裡", place: "b" }; }),
+        tips: i ? [] : [{ k: "note", t: "這一段跟 SYNOX 網頁裡的新手教學是同一份。在網頁打 <code>/tutorial</code>，它會在真的畫面上指給你看。" }] });
+    });
+  })();
 
   /* ── 小圖示 ─────────────────────────────────────────────── */
   var I = {
@@ -926,10 +1069,46 @@ span.hl { display: inline-block; }
         '<div class="row" style="margin-top:4px"><span class="b pri" data-hl="prepare">幫我準備好回報內容</span></div></div>' +
         '<div class="row"><span class="b">到 GitHub 開一張問題單</span></div></div></div></div>');
     },
+    "web-tour": function (step) {
+      var a = (step && step.anchors) || [];
+      var view = (a[0] || "").split(".")[0];
+      view = view === "nav" ? a[0].split(".")[1] : (view || (step && step.view) || "chat");
+      var tab = (step && step.tab) || "";
+      a.forEach(function (n) { var m = /^settings\.tab\.(\w+)$/.exec(n); if (m) { tab = m[1]; } });
+      if (!tab && a.some(function (n) { return n.indexOf("settings.packs") === 0; })) { tab = "packs"; }
+      function nv(name, label) { return '<span class="nv' + (view === name ? " on" : "") + '" data-hl="nav.' + name + '">' + label + '</span>'; }
+      var side = '<div class="side"><span class="br2"><span class="mk">S</span>SYNOX</span>' + nv("chat", "對話") + nv("tools", "工具") + nv("settings", "設定") + '</div>';
+      var main;
+      if (view === "settings") {
+        var tabs = [["ai", "🤖 AI"], ["channels", "💬 聊天通道"], ["packs", "🧩 功能與安裝"], ["system", "💻 電腦與備份"], ["commands", "⌨️ 我的指令"], ["help", "🙋 遇到問題？"]];
+        main = '<h4>設定</h4><div class="tabs" data-hl="settings.tabs">' + tabs.map(function (t) {
+          return '<span class="' + (t[0] === tab ? "on" : "") + '" data-hl="settings.tab.' + t[0] + '">' + t[1] + '</span>'; }).join("") + '</div>';
+        if (tab === "packs") {
+          main += '<div class="card2" data-hl="settings.packs.catalog"><h5>📚 官方工具庫</h5><span class="faint">官方做好的工具，每張卡片寫了它會做什麼。</span>' +
+            '<div class="row"><span class="b pri" data-hl="settings.packs.catalog.load">載入工具清單</span></div></div>' +
+            '<div class="card2 review" data-hl="settings.packs.review"><h5>📦 安裝前的檢查報告</h5><span class="faint">它會做什麼、要哪些權限。你按「確認安裝」才會裝。</span></div>' +
+            '<div class="card2" data-hl="settings.packs.installed"><h5>已安裝的工具</h5><span class="faint">📒 隨手記　<span class="b ghost">移除</span></span></div>';
+        } else if (tab === "commands") {
+          main += '<div class="card2" data-hl="settings.commands"><h5>⌨️ 我的指令</h5><span class="faint">符號 @、「記帳」＝ /money。原本的 / 永遠可以用。</span></div>';
+        } else {
+          main += '<div class="card2" data-hl="settings.ai.source"><h5>🤖 AI 從哪裡來</h5><span class="faint">選一個 AI，或先不用。</span></div>';
+        }
+      } else if (view === "tools") {
+        main = '<h4>工具</h4><div class="card2" data-hl="tools.page"><h5>📒 隨手記</h5><span class="faint">記一筆、找、刪。每個指令都有說明和可以填的表格。</span></div>';
+      } else {
+        main = '<div class="row"><span class="b pri" data-hl="chat.new">＋ 新對話</span></div>' +
+          '<div class="card2" data-hl="chat.list"><span class="faint">對話紀錄</span></div>' +
+          '<div class="card2"><span class="faint">SYNOX：👋 我在了，按 /help 看我會什麼。</span></div>' +
+          '<div class="row" data-hl="chat.input"><span class="b ghost" data-hl="chat.examples">💡 範例</span><span class="b ghost" style="flex:1">' +
+          (step && step["try"] ? step["try"].replace(/[&<>]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]; }) : "打字跟 SYNOX 說") +
+          '</span><span class="b pri" data-hl="chat.send">送出</span></div>';
+      }
+      return browser("127.0.0.1:8830/#" + view, '<div class="app">' + side + '<div class="mainp">' + main + '</div></div>');
+    },
     "tg-help": function () {
       return phone("我的小助手", "bot", "syn", msg("out", "/help", "10:43") +
-        msg("in", "📖 指令選單  (1/3)\n\n🔰 基本\n  /help …\n  <span style=\"opacity:.6\">（這裡列出你現在能用的指令，依你裝的工具而定）</span>\n\n💡 /help &lt;分類&gt; 直接跳，/help all 看全部；⚠️ 表示會對外產生影響，🔐 表示要先 /sudo 解鎖。", "10:43", "", "pre") +
-        '<div class="kb"><div class="r"><span>◀️ 上一頁</span><span>1/3</span><span data-hl="nextpg">下一頁 ▶️</span></div><div class="r one"><span>☰ 分類目錄</span></div></div>');
+        msg("in", "📖 你可以直接打字跟我說，例如「幫我記一筆 80 元咖啡」。\n也可以點下面的工具，看它會什麼、怎麼打：\n\n🖥 想一次看全部：打 /help all，或在電腦上打開 SYNOX 網頁的「工具」頁。", "10:43", "", "pre") +
+        '<div class="kb"><div class="r two"><span data-hl="tool">📒 隨手記</span><span>⏰ 提醒（系統）</span></div><div class="r one"><span>🎓 新手教學</span></div></div>');
     },
     "done": function () {
       return '<div class="done-card"><span class="big"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>' +
@@ -983,7 +1162,7 @@ span.hl { display: inline-block; }
     $("tips").hidden = !(step.tips || []).length;
 
     var mock = $("mock");
-    mock.innerHTML = MOCKS[step.mock] ? MOCKS[step.mock]() : "";
+    mock.innerHTML = MOCKS[step.mock] ? MOCKS[step.mock](step) : "";
     (step.targets || []).forEach(function (t) {
       var el = mock.querySelector('[data-hl="' + t.id + '"]');
       if (!el) { if (window.console) { console.warn("找不到要標的東西：" + step.id + " / " + t.id); } return; }
@@ -1052,8 +1231,10 @@ span.hl { display: inline-block; }
       if (s.chapter !== last) { html += (last ? "</ol>" : "") + '<p class="ch">' + s.chapter + "</p><ol>"; last = s.chapter; }
       html += '<li><a href="#step-' + (i + 1) + '"><span class="n">' + (i + 1) + "</span><span>" + s.title.replace(/<[^>]+>/g, "") + "</span></a></li>";
     });
+    var lastBranch = "";
     STEPS.filter(function (s) { return s.branch; }).forEach(function (s) {
-      html += '</ol><p class="ch">選讀</p><ol><li><a href="#step-' + s.id + '"><span class="n">＋</span><span>' + s.title + "</span></a></li>";
+      if (s.chapter !== lastBranch) { html += '</ol><p class="ch">' + s.chapter + '</p><ol>'; lastBranch = s.chapter; }
+      html += '<li><a href="#step-' + s.id + '"><span class="n">＋</span><span>' + s.title + "</span></a></li>";
     });
     $("toc-panel").innerHTML = html + "</ol>";
   })();

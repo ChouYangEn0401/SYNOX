@@ -218,7 +218,7 @@ class ChatStore:
             return None, None
 
     def edit(self, tg_id: int, message_id: int, text: Optional[str] = None, buttons=_KEEP_BUTTONS,
-             deleted: bool = False) -> bool:
+             deleted: bool = False, blocks=None) -> bool:
         with self._lock:
             data = self._data(tg_id)
             _chat, msg = self.find(tg_id, message_id)
@@ -226,7 +226,9 @@ class ChatStore:
                 return False
             if text is not None:
                 msg["text"] = str(text)
-                msg.pop("blocks", None)                  # 字換了，舊的區塊就不對了
+                msg.pop("blocks", None)                  # 字換了，舊的區塊就不對了（新的字有自己的區塊就換上）
+                if blocks:
+                    msg["blocks"] = list(blocks)
             if buttons is not _KEEP_BUTTONS:
                 msg["buttons"] = buttons or []
             if deleted:

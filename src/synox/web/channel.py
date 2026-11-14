@@ -69,10 +69,11 @@ class WebChannel:
     def edit_message_text(self, chat_id, message_id, text, reply_markup=None, **kw):
         if not self._mine(chat_id):
             return self._forward("edit_message_text", chat_id, message_id, text, reply_markup=reply_markup)
+        blocks = getattr(text, "blocks", None)          # /help 換頁的卡片也帶區塊（範例小標籤，synox/helpui）
         if reply_markup is None:
-            ok = self.store.edit(self.tg_id, int(message_id), plain(text))
+            ok = self.store.edit(self.tg_id, int(message_id), plain(text), blocks=blocks)
         else:
-            ok = self.store.edit(self.tg_id, int(message_id), plain(text), markup_rows(reply_markup))
+            ok = self.store.edit(self.tg_id, int(message_id), plain(text), markup_rows(reply_markup), blocks=blocks)
         return {"ok": ok}
 
     def remove_buttons(self, chat_id, message_id, **kw):

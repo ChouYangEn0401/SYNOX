@@ -22,6 +22,9 @@ pack.json 的格式與檢查（docs/pack-format.md 是人看的版本）。安�
       "web": {"panel": "panel.html",             選用：Web UI 工具頁的面板（pack 資料夾裡的一個 .html）
               "api": ["GET /summary"]}           面板能打的 GET /api/packs/<name>/<route>（pack 用 pack.web_route 掛）
       "health": {"check": "ping"}                選填：工具壞掉時 SYNOX 重新檢查用的唯讀指令（health_problem；docs/tool-health.md）
+      "help": {"featured": ["add"],              選填：指令的白話說明與範例（/help 的卡片、網頁「💡 範例」；只給人看、不進 AI）
+               "commands": {"add": {"plain": "把一筆花掉的錢記下來", "examples": [{"text": "120 午餐", "note": "…"}],
+                                    "alias_suggest": ["記帳"]}}}      規則在 synox/helpui/examples.py（安裝時嚴格、載入時壞的丟掉）
     }
 
 pack.json v2（架構 v1 §4；在上面之上加欄位，舊的 pack 照舊可讀）：
@@ -304,6 +307,8 @@ class Manifest:
     stage_declared: bool = False
     # 工具健康的自我檢查（選填；{"check": "<這個 pack 的一個唯讀指令名>"}，docs/tool-health.md）
     health: dict = field(default_factory=dict)
+    # 指令的白話說明與範例（選填；最上層的 help 區塊＋cli 的 commands[].plain／examples，synox/helpui/examples.py）
+    help: dict = field(default_factory=dict)
     # 範圍（ADR 0025 §3，只能收緊）：哪些指令只收誰叫（human／remote／ai／schedule／system）、哪些一定要先解鎖
     callers: Dict[str, List[str]] = field(default_factory=dict)
     stepup: List[str] = field(default_factory=list)
@@ -1330,6 +1335,11 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     health, health_bad = health_problem(raw, kind, cli)
     if health_bad and strict:                  # 新欄位：安裝時說清楚；載入時壞的當作沒寫（只是少了自我檢查）
         problems.append(health_bad)
+    from synox.helpui import examples as help_examples
+    help_block, help_bad = help_examples.from_manifest(
+        raw, kind, cli.get("commands") if kind == "cli" and isinstance(cli.get("commands"), list) else [], strict)
+    if strict:                                 # 安裝時說清楚；載入時壞的那一條丟掉（只是少了範例）
+        problems += help_bad
     if problems:
         raise ManifestError("；".join(problems))
     auth_type = extra["auth_info"].get("type", "none")
@@ -1337,7 +1347,7 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
                     folder=folder, group=group, access=access, skill=skill, storage=storage,
                     python=dict(raw.get("python") or {}), cli=cli, auth="" if auth_type == "none" else auth_type,
                     requires=dict(requires), web=web, raw=dict(raw), v2=v2, category=category,
-                    stage=stage, stage_declared=stage_declared, health=health, theme=theme,
+                    stage=stage, stage_declared=stage_declared, health=health, theme=theme, help=help_block,
                     runtime={**{k: v for k, v in runtime.items() if k in ("python", "python_posix", "node")},
                              **({"container": container} if container else {})}, **extra)
 
@@ -1415,6 +1425,8 @@ def doc_warnings(m: Manifest) -> List[str]:
               for f in c.get("fields") or [] if isinstance(f, dict) and not str(f.get("ask") or "").strip()]
     if no_ask:
         out.append(f"這些欄位沒寫 ask（表單上只看得到英文欄位名）：{'、'.join(no_ask)}")
+    from synox.helpui.examples import lint_warnings
+    out += lint_warnings(m.help or {})           # 白話檢查：只擋明顯的術語（提醒、不擋安裝）
     return out
 
 

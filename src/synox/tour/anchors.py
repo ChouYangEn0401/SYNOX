@@ -27,6 +27,7 @@ ANCHORS: Dict[str, Tuple[str, str]] = {
     "chat.new": ("對話頁：「＋ 新對話」按鈕", "0.2"),
     "chat.input": ("對話頁：打字的地方（輸入框＋送出鈕）", "0.2"),
     "chat.send": ("對話頁：「送出」按鈕", "0.2"),
+    "chat.examples": ("對話頁：輸入框旁的「💡 範例」按鈕（點範例只會填進輸入框）", "0.2"),
     "tools.page": ("工具頁：工具清單", "0.2"),
     "settings.tabs": ("設定頁：分頁列", "0.2"),
     "settings.tab.ai": ("設定頁：「🤖 AI」分頁", "0.2"),
@@ -34,6 +35,8 @@ ANCHORS: Dict[str, Tuple[str, str]] = {
     "settings.tab.packs": ("設定頁：「🧩 功能與安裝」分頁", "0.2"),
     "settings.tab.accounts": ("設定頁：「👥 帳號」分頁（伺服器版）", "0.2"),
     "settings.tab.system": ("設定頁：「💻 電腦與備份」分頁", "0.2"),
+    "settings.tab.commands": ("設定頁：「⌨️ 我的指令」分頁（每個人自己的指令符號與名字）", "0.2"),
+    "settings.commands": ("設定頁：「⌨️ 我的指令」那張卡（不是存檔鈕）", "0.2"),
     "settings.tab.appearance": ("設定頁：「🎨 外觀」分頁（換顏色、吉祥物；每個人都看得到）", "0.2"),
     "settings.tab.help": ("設定頁：「🙋 遇到問題？」分頁", "0.2"),
     "settings.ai.source": ("設定頁：「AI 從哪裡來」那張卡", "0.2"),
@@ -53,13 +56,13 @@ RENAMED: Dict[str, str] = {}
 GO_VIEWS: Dict[str, Tuple[str, ...]] = {
     "chat": (),
     "tools": (),
-    "settings": ("ai", "channels", "packs", "accounts", "system"),
+    "settings": ("ai", "channels", "packs", "accounts", "system", "commands"),
 }
 
 # 「這一步做完了嗎」的事件（封閉清單；網頁由 static/tour.js 觀察，聊天通道只認 command）
 EVENTS: Dict[str, str] = {
     "view": "切到哪一頁（value：chat｜tools｜settings）",
-    "tab": "設定頁切到哪個分頁（value：ai｜channels｜packs｜accounts｜system）",
+    "tab": "設定頁切到哪個分頁（value：ai｜channels｜packs｜accounts｜system｜commands）",
     "message_sent": "在對話頁送出一則訊息（不看內容）",
     "command": "送出某個指令（value：指令名，不含 /，例如 help）",
     "catalog_loaded": "官方工具清單載入好了",
