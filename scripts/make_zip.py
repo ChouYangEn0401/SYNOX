@@ -34,8 +34,8 @@ EXCLUDED_FILES = {"config.json"}
 # 結尾有 / 的是資料夾，只比 SYNOX 資料夾最上層（src/synox/evals 是程式碼，照發）。改這份清單要一起改 .gitattributes 的
 # export-ignore（GitHub 的 Download ZIP）與 setup/installer/synox.iss 的 [InstallDelete]（舊版裝過的人更新時刪掉）。
 INTERNAL = ("tests/", "evals/", "docs/lab/", "docs/artifacts/", "docs/artifacts.json", "docs/QuestionToUser.md",
-            "docs/ui/", "docs/installer/", ".github/workflows/", ".github/ISSUE_TEMPLATE/",
-            ".github/pull_request_template.md", ".devcontainer/")
+            "docs/ui/", "docs/installer/", "docs/community/", ".github/workflows/", ".github/ISSUE_TEMPLATE/",
+            ".github/DISCUSSION_TEMPLATE/", ".github/pull_request_template.md", ".devcontainer/")
 
 
 def internal(rel: str) -> bool:

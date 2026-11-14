@@ -29,6 +29,13 @@
 - 安全相關的修改（權限、沙盒、保管箱、pack 掃描）請在 pull request 說明你考慮過的攻擊情境。
 - 回報安全問題請不要開公開 issue，見 [SECURITY.md](SECURITY.md)。
 
+## 參與討論 / Discussions
+
+想法、問題、實測結果，歡迎到 [GitHub Discussions](https://github.com/ChouYangEn0401/SYNOX/discussions)（中文或英文都可以）。
+正在徵求意見的：從其他生態（OpenClaw、Hermes Agent 等 Agent Skills 格式）匯入技能、以及沙盒——
+見 [docs/sandbox-roadmap.md](docs/sandbox-roadmap.md)（現況、Windows 的候選路線、探測腳本、徵求協助的任務）。
+Ideas, questions and test results are welcome in GitHub Discussions (Chinese or English). **安全漏洞不要貼在討論區**，見 [SECURITY.md](SECURITY.md).
+
 ## 聯絡
 
 商業授權、貢獻者同意書：`mi.anthony.chou@gmail.com`。安全通報：見 [SECURITY.md](SECURITY.md)。維護者名單見 [.github/MAINTAINERS.md](.github/MAINTAINERS.md)。

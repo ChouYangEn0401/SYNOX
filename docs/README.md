@@ -10,6 +10,7 @@
 | [install-packs.md](install-packs.md) | 使用者 | 怎麼裝一個 `.synoxpack`：點兩下、拖到 Install-Pack.bat、拖進網頁、`synox install`；圖示空白／點兩下沒反應怎麼辦 |
 | [ecosystem.md](ecosystem.md) | 使用者、作者、維護者 | 工具生態：找、裝、更新、移除工具；做一個工具給人裝；之後的路（哪些是提案）；每次發版要更新哪些文件 |
 | [versioning.md](versioning.md) | 使用者、作者、維護者 | 版本號怎麼看（正式版／beta／alpha）、我是不是最新版、**我要怎麼更新**（ZIP、git、安裝程式、工具、SDK）；維護者：升號規則、分支、tag、每版要有什麼、`scripts/release.py`；自己更新的設計在 [adr/0023](adr/0023-updates-and-hotfixes.md)（提案） |
+| [sandbox-roadmap.md](sandbox-roadmap.md) | 使用者、作者、維護者、想參與的人 | 沙盒路線圖（徵求協助）：現在哪裡有隔離、哪裡沒有（Windows 還沒有）；Windows 的候選路線與取捨；志願者怎麼跑探測腳本；help wanted 任務與驗收條件 |
 | [security.md](security.md) | 使用者、作者 | 資料存在哪、誰看得到、裝別人的 pack 時的五關、信任層級、沙盒、沒有做的保護 |
 | [security/web-threats.md](security/web-threats.md) | 維護者 | 網頁最常被打的地方，SYNOX 各自怎麼擋（會一直更新的清單，每一列點名測試；接手安全的人先讀） |
 | [discord.md](discord.md) | 使用者 | Discord 通道的現況與設定（含多個 bot） |
@@ -45,7 +46,8 @@
 | [lab/cross-repo/](lab/cross-repo/) | 維護者 | 請**別的 repo**（金流簿、ISDTeleKitSDK…）做的事，一件一檔，由擁有者轉交 |
 | [QuestionToUser.md](QuestionToUser.md) | 維護者 | 等擁有者拍板的事（每題有建議，不答就照建議） |
 | [../LICENSING.md](../LICENSING.md) | 全部 | 授權：核心 AGPL-3.0-or-later，工具 SDK 與範例 Apache-2.0 |
-| [../CONTRIBUTING.md](../CONTRIBUTING.md) | 維護者 | 怎麼貢獻、貢獻者同意書 |
+| [../CONTRIBUTING.md](../CONTRIBUTING.md) | 維護者 | 怎麼貢獻、貢獻者同意書、GitHub Discussions |
+| [community/](community/discussion-ecosystem-and-sandbox.md) | 維護者 | 要貼到 GitHub Discussions 的貼文草稿（生態相容與沙盒，中英雙語）；只在 git clone／GitHub 上有 |
 
 ## 待做（擁有者說 MVP 完成之後才做）
 

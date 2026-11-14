@@ -18,7 +18,9 @@ vendor/** -text
 /docs/QuestionToUser.md export-ignore
 /docs/ui export-ignore
 /docs/installer export-ignore
+/docs/community export-ignore
 /.github/workflows export-ignore
 /.github/ISSUE_TEMPLATE export-ignore
+/.github/DISCUSSION_TEMPLATE export-ignore
 /.github/pull_request_template.md export-ignore
 /.devcontainer export-ignore

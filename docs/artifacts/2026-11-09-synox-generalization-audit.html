@@ -121,7 +121,7 @@ pre { margin: 0; font-family: var(--mono); font-size: .8rem; background: var(--c
       <thead><tr><th>#</th><th>任務</th><th>交付</th></tr></thead>
       <tbody>
         <tr><td class="k">1</td><td><b>盤點</b>這台電腦從 ClawBot 出發做得到的每件事：每個專案是什麼、有沒有網頁、怎麼接、資料在哪、哪些能分享給別人</td><td>第 1 節的表＋這頁</td></tr>
-        <tr><td class="k">2</td><td><b>要不要做</b>：OpenClaw（小龍蝦）、Hermes 已經做了通用 agent；你的答案是「它們連工程師都難架，一般人不可能用」，而且這是市場</td><td>第 2 節：誠實評估＋建議</td></tr>
+        <tr><td class="k">2</td><td><b>要不要做</b>：OpenClaw（小龍蝦）、Hermes 已經做了通用 agent；你的看法是：它們主要面向熟悉終端機的使用者，一般人不容易自己架起來，而這一群人是 SYNOX 想服務的</td><td>第 2 節：誠實評估＋建議</td></tr>
         <tr><td class="k">3</td><td><b>打包</b>：乾淨的新專案，不會用電腦的人按一下就能架起同一套服務；你寫過的專案變成可二次封裝的小專案＋skills；有簡單入口（雙擊、捷徑）</td><td>新資料夾 <code>SYNOX</code>＋第 3 節</td></tr>
         <tr><td class="k">4</td><td><b>安全架構</b>：LLM 用 adapter 可換（Claude 訂閱 → 朋友公司的 LLM）；host 若架在朋友公司，每個人的私人資料（例如記帳）怎麼保護、能不能在 Telegram 端先加密；你的智慧財產、對方公司的資安風險、備份</td><td>第 4 節：架構＋可 demo 的程式</td></tr>
         <tr><td class="k">5</td><td><b>接現成服務</b>：你的工具哪些已有主流方案（Google Calendar、Notion、Apple 提醒／備忘錄…）；skill 要能接它們，別人不必走你那套；再加上市場反思</td><td>第 5 節：對照表＋connector 設計</td></tr>
@@ -227,8 +227,8 @@ pre { margin: 0; font-family: var(--mono); font-size: .8rem; background: var(--c
     <div class="panel tbl"><table>
       <thead><tr><th>方案</th><th>要先會什麼</th><th>Windows</th><th>AI 從哪來</th><th>資料在哪</th><th>對一般人</th></tr></thead>
       <tbody>
-        <tr><td class="k">OpenClaw（小龍蝦）</td><td>Node.js、終端機、<code>openclaw onboard</code>、Gateway；六種安裝法</td><td>官方仍建議 WSL2；原生 CLI／Gateway 2026-05 起可用、Windows Hub 2026-06 起</td><td>自己拿 API key</td><td>自己機器</td><td>2026-01 一鍵 RCE（CVE-2026-25253）、ClawHub 數百到上千個惡意 skill；給工程師</td></tr>
-        <tr><td class="k">Hermes Agent（Nous）</td><td>Linux／macOS／WSL2、curl 安裝、終端機、@userinfobot 查 id</td><td>只有 WSL2</td><td>Nous Portal 訂閱、OpenRouter、OpenAI、本機端點</td><td>自己機器</td><td>給工程師</td></tr>
+        <tr><td class="k">OpenClaw（小龍蝦）</td><td>Node.js、終端機、<code>openclaw onboard</code>、Gateway；六種安裝法</td><td>官方仍建議 WSL2；原生 CLI／Gateway 2026-05 起可用、Windows Hub 2026-06 起</td><td>自己拿 API key</td><td>自己機器</td><td>以終端機安裝為主，面向熟悉終端機的使用者</td></tr>
+        <tr><td class="k">Hermes Agent（Nous）</td><td>Linux／macOS／WSL2、curl 安裝、終端機、@userinfobot 查 id</td><td>只有 WSL2</td><td>Nous Portal 訂閱、OpenRouter、OpenAI、本機端點</td><td>自己機器</td><td>以終端機安裝為主，面向熟悉終端機的使用者</td></tr>
         <tr><td class="k">nanobot（HKUDS）</td><td>Python 3.11、pip／uv、終端機</td><td>可以，但沒有 Windows 教學</td><td>自己拿 API key 或 Ollama</td><td>自己機器</td><td>最輕，但還是終端機＋key</td></tr>
         <tr><td class="k">Telegram Managed Bots（Bot API 9.6，2026-04）</td><td>什麼都不用：開發者做一支「管理 bot」，每個人兩下得到自己獨立的一支</td><td>不相干（跑在開發者的伺服器）</td><td>開發者的</td><td><b>開發者的伺服器</b></td><td>最接近「兩下就有」；但資料不在自己手上。<b>是 SYNOX 托管模式的現成發行管道</b></td></tr>
         <tr><td class="k">托管服務（ClawDrift、SimpleClaw、Ekuri…）</td><td>註冊、連 Telegram</td><td>不相干</td><td>廠商的（月費）</td><td>廠商的伺服器</td><td>零安裝；隱私與月費是代價；多半是廠商自己的宣傳</td></tr>
