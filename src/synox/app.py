@@ -2,7 +2,7 @@
 build()：SynoxConfig → isdtelekit.build_app → 基本指令（伺服器版多 accounts、limits；/help 換成看得懂的卡片 synox/helpui；
 還沒裝工具時 /start、/help 多一段「去哪裡裝」，packs/library.py）→ 新手教學 /tutorial（synox/tour）→ ⏰ 提醒（系統）（schedule.install_system_remind）→ packs.load_all
 → aliases（每人的指令符號與名字）→ agent.install → runtime.install（排程迴圈、心跳、常駐助理）→ health.install（工具健康）→ schedule.install
-→ web.install（本機網頁介面）。
+→ update.install（選用的每週檢查新版）→ web.install（本機網頁介面）。
 
     config = SynoxConfig.load()
     app = build(config)
@@ -20,7 +20,7 @@ from isdtelekit import build_app
 from isdtelekit.host.app import App
 from isdtelekit.packs import accounts, basics, help as help_pack, limits
 
-from synox import agent, aliases, discord, guard, health, helpui, policy, runtime, schedule, telegram_link, tour, web
+from synox import agent, aliases, discord, guard, health, helpui, policy, runtime, schedule, telegram_link, tour, update, web
 from synox.config import SynoxConfig
 from synox.llm import make_adapter
 from synox.llm.base import LLMError
@@ -94,6 +94,7 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
     runtime.install(app, config, vault, config_path=config_path or "")   # 要在 agent 之後（拿 adapter）、schedule 之前
     health.install(app, config, vault)       # 工具健康：隔離清單、runtime 任務 system.health（docs/tool-health.md）
     schedule.install(app)                    # 排程登記成 runtime 的任務 system.schedule
+    update.install(app, config, config_path or "")   # 每週檢查新版（預設關；打開才連網）：任務 system.update_check
     web.install(app, config, vault, pack_dirs=pack_dirs, config_path=config_path)
     app.on_start.append(lambda a: a.notify_owner(GREETING))
     return app

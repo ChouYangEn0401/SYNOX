@@ -27,7 +27,8 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXCLUDED_DIRS = {".venv", "data", "dist", ".git", "__pycache__", ".pytest_cache"}
-ROOT_ONLY_DIRS = {"runtime", "tools", "wheelhouse"}   # 只看 SYNOX 資料夾最上層的（執行時的狀態、另外附的東西）；
+ROOT_ONLY_DIRS = {"runtime", "tools", "wheelhouse", "_previous"}   # 只看 SYNOX 資料夾最上層的（執行時的狀態、
+#                                                       另外附的東西、Update.bat 留的舊版）；
 #                                                       src/synox/runtime 是程式碼
 EXCLUDED_FILES = {"config.json"}
 # 只給在 SYNOX 上開發的人（git clone 才有）：發佈 ZIP、安裝程式都不帶，執行、更新 SYNOX 都用不到（擁有者 2026-11-14 決定 D2）。

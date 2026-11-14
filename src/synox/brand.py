@@ -427,8 +427,9 @@ def about_text(config_path: str | None = None, *, root: str | None = None) -> st
 
 
 def latest_hint() -> str:
-    """一行：去哪裡看最新版。SYNOX 不會自己連網檢查（docs/adr/0023）。"""
-    return f"到 {RELEASES_URL} 看最新版，跟這台的版本比（SYNOX 不會自己連網檢查）"
+    """一行：怎麼看有沒有新版。只印，不連網（docs/adr/0023：按了才查，或自己打開每週檢查）。"""
+    return (f"打 synox update --check（或網頁「設定 → 💻 電腦與備份 → 檢查更新」）；也可以到 {RELEASES_URL} 看"
+            "（沒打開每週檢查時，SYNOX 不會自己連網檢查）")
 
 
 def _display_width(text: str) -> int:

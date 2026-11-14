@@ -53,7 +53,7 @@ def test_eval_set_is_not_shipped():
 
 
 # 一般使用者執行、更新 SYNOX 要的（擁有者 2026-11-14 D2：發佈 ZIP／安裝程式只帶這些，git clone 才有開發用的）
-NEEDED = ("Setup.bat", "Start.bat", "Stop.bat", "Open-SYNOX.bat", "Install-Pack.bat", "Uninstall.bat", "Console.bat",
+NEEDED = ("Setup.bat", "Update.bat", "setup/update.ps1", "Start.bat", "Stop.bat", "Open-SYNOX.bat", "Install-Pack.bat", "Uninstall.bat", "Console.bat",
           "README.md", "CHANGELOG.md", "LICENSE", "LICENSE-APACHE", "NOTICE", "LICENSING.md", "SECURITY.md",
           "CONTRIBUTING.md", ".github/TRADEMARK.md", ".github/GOVERNANCE.md", ".github/MAINTAINERS.md",
           "config.example.json", "pyproject.toml", "requirements.txt", "packs/README.md",
