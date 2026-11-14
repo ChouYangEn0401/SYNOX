@@ -140,6 +140,13 @@ jobs:
           if (-not (Test-Path -LiteralPath $iscc)) { throw "ISCC.exe not found in $dir" }
           "ISCC=$iscc" >> $env:GITHUB_ENV
 
+      - name: Our own zh-TW / zh-CN / hi Inno texts cover every key of this Inno Setup's Default.isl
+        env:
+          PY: ${{ steps.py.outputs.python-path }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          & $env:PY scripts/installer_ci.py check-iss --inno-default (Join-Path $env:RUNNER_TEMP 'innosetup\Default.isl')
+
       - name: Build venv -> requirements.lock -> offline wheelhouse (cp312 win_amd64) -> lock with sha256
         env:
           PY: ${{ steps.py.outputs.python-path }}

@@ -40,7 +40,7 @@ def test_installer_script_passes_the_static_check():
 
 def test_installer_languages_are_the_wizards_languages():
     assert installer_ci.INSTALLER_LANGS == i18n.LANGS
-    assert set(installer_ci.INNO_OFFICIAL) | set(installer_ci.INNO_UNOFFICIAL) | {"en"} == set(i18n.LANGS)
+    assert set(installer_ci.INNO_OFFICIAL) | set(installer_ci.INNO_OWN) | {"en"} == set(i18n.LANGS)
     for code in i18n.LANGS:
         table = installer_ci.read_isl(os.path.join(INSTALLER, "lang", code + ".isl"))
         assert table["CustomMessages"]["SynoxLangCode"] == code
@@ -141,9 +141,66 @@ def test_static_check_catches_incomplete_translations(tmp_path):
 def test_release_doc_lists_installer_languages_and_smartscreen():
     with open(os.path.join(ROOT, "docs", "release-build.md"), "r", encoding="utf-8") as f:
         doc = f.read()
-    for name in list(installer_ci.INNO_OFFICIAL.values()) + list(installer_ci.INNO_UNOFFICIAL.values()):
+    for name in list(installer_ci.INNO_OFFICIAL.values()) + list(installer_ci.INNO_OWN.values()):
         assert name in doc, name
     assert "SHA-256" in doc and "其他資訊" in doc and "仍要執行" in doc
+    assert "SYNOX 自己的翻譯" in doc and "請擁有者決定" not in doc
+
+
+# ── our own translations of Inno Setup's built-in texts (zh-TW, zh-CN, hi) ────────────────────
+
+def _inno_own(code):
+    return installer_ci.read_isl(os.path.join(INSTALLER, "lang", "inno", installer_ci.INNO_OWN[code]))
+
+
+def test_own_inno_translations_are_wired_and_complete():
+    text = _iss()
+    for code, filename in installer_ci.INNO_OWN.items():
+        assert f'MessagesFile: "lang\\inno\\{filename},lang\\en.isl,lang\\{code}.isl"' in text, code
+        raw = (open(os.path.join(INSTALLER, "lang", "inno", filename), "rb")).read()
+        assert raw.startswith(b"\xef\xbb\xbf")
+        table = _inno_own(code)
+        assert sum(len(table[s]) for s in ("Messages", "CustomMessages")) == 293      # Inno Setup 6.7.4 Default.isl
+    assert "#if FileExists" not in text and text.count('MessagesFile: "compiler:Default.isl,') == 1     # English only
+    rows = installer_ci.read_inno_keys(os.path.join(INSTALLER, installer_ci.INNO_KEYS_FILE))
+    assert len(rows) == 293 and sum(1 for r in rows if r[0] == "Messages") == 281
+    tw, cn, hi = _inno_own("zh-TW")["Messages"], _inno_own("zh-CN")["Messages"], _inno_own("hi")["Messages"]
+    assert tw["ButtonNext"] == "下一步(&N) >" and tw["ButtonCancel"] == "取消" and tw["ButtonBrowse"] == "瀏覽(&B)..."
+    assert "資料夾" in tw["SelectDirLabel3"] and "安裝程式" in tw["SetupAppTitle"]       # Taiwan wording
+    assert cn["ButtonNext"] == "下一步(&N) >" and "文件夹" in cn["NewFolderName"]
+    assert hi["ButtonNext"] == "अगला(&N) >"
+    assert all(t["BeveledLabel"] == "" for t in (tw, cn, hi))                          # empty in English: stays empty
+
+
+def test_inno_key_list_matches_a_default_isl(tmp_path):
+    """inno-keys writes the list from Inno's own Default.isl; check-iss --inno-default notices when they drift."""
+    default = tmp_path / "Default.isl"
+    default.write_text("[LangOptions]\nLanguageName=English\n\n[Messages]\nButtonNext=&Next >\n"
+                       "SetupWindowTitle=Setup - %1\nBeveledLabel=\n\n[CustomMessages]\nLaunchProgram=Launch %1\n",
+                       encoding="ascii")
+    assert installer_ci.inno_keys_from_default(str(default)) == [
+        ("Messages", "ButtonNext", "-", 1, False), ("Messages", "SetupWindowTitle", "%1", 0, False),
+        ("Messages", "BeveledLabel", "-", 0, True), ("CustomMessages", "LaunchProgram", "%1", 0, False)]
+    problems = installer_ci.check_iss(inno_default=str(default))
+    assert any("default-keys.txt differs" in p for p in problems), problems
+
+
+@pytest.mark.parametrize("code,old,new,expect", [
+    ("zh-TW", "ButtonNext=下一步(&N) >", "ButtonNext=下一步 >", "ButtonNext has 0 access keys"),
+    ("zh-CN", "SetupWindowTitle=安装程序 - %1", "SetupWindowTitle=安装程序", "SetupWindowTitle has placeholders -"),
+    ("hi", "WelcomeLabel1=[name] सेटअप", "WelcomeLabel1=सेटअप", "WelcomeLabel1 has placeholders -"),
+    ("hi", "BeveledLabel=", "BeveledLabel=x", "BeveledLabel must be empty"),
+    ("zh-TW", "ClickFinish=按「完成」離開安裝程式。\r\n", "", "missing ['ClickFinish']"),
+    ("zh-CN", "LanguageCodePage=936", "LanguageCodePage=0", "LanguageCodePage=936"),
+])
+def test_static_check_catches_broken_inno_translations(tmp_path, code, old, new, expect):
+    folder = _copy(tmp_path)
+    path = folder / "lang" / "inno" / installer_ci.INNO_OWN[code]
+    raw = path.read_bytes().decode("utf-8")
+    assert old in raw
+    path.write_bytes(raw.replace(old, new, 1).encode("utf-8"))
+    problems = "\n".join(installer_ci.check_iss(str(folder)))
+    assert expect in problems, problems
 
 
 # ── the setup wizard's side ───────────────────────────────────────────────────────────────────
