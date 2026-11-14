@@ -108,6 +108,42 @@ def test_sanitizer_rebuilds_good_svg_and_scopes_ids_and_style():
     assert any("inkscape:label" in n for n in clean.notes)
 
 
+def test_sanitizer_keeps_turbulence_and_displacement_filters():
+    text = ('<svg viewBox="0 0 480 250"><defs><filter id="grain" x="0" y="0" width="1" height="1">'
+            '<feTurbulence type="fractalNoise" baseFrequency="0.9 0.6" numOctaves="2" seed="7" stitchTiles="stitch" '
+            'result="noise"/><feDisplacementMap in="SourceGraphic" in2="noise" scale="4" xChannelSelector="R" '
+            'yChannelSelector="G" result="warp"/><feColorMatrix in="noise" type="saturate" values="0" result="mono"/>'
+            '<feBlend in="warp" in2="mono" mode="multiply"/></filter></defs>'
+            '<rect width="480" height="250" filter="url(#grain)"/></svg>')
+    clean = sanitize.sanitize_markup(text, "opening")
+    m = clean.markup
+    assert ('<feTurbulence type="fractalNoise" baseFrequency="0.9 0.6" numOctaves="2" seed="7" stitchTiles="stitch" '
+            'result="noise"></feTurbulence>') in m
+    assert ('<feDisplacementMap in="SourceGraphic" in2="noise" scale="4" xChannelSelector="R" yChannelSelector="G" '
+            'result="warp"></feDisplacementMap>') in m
+    assert 'filter="url(#ts-opening-grain)"' in m and not clean.notes, clean.notes
+
+
+@pytest.mark.parametrize("text, why", [
+    ('<svg><filter><feTurbulence baseFrequency=".5" onbegin="alert(1)"/></filter></svg>', "onbegin"),
+    ('<svg><filter><feTurbulence baseFrequency=".5"/><feImage href="https://evil.example/x"/></filter></svg>',
+     "<feImage>"),
+    ('<svg><filter><feTurbulence baseFrequency="javascript:alert(1)"/></filter></svg>', "javascript:"),
+    ('<svg><filter><feDisplacementMap in="SourceGraphic" scale="url(https://evil.example/x)"/></filter></svg>',
+     "外部網址"),
+    ('<svg><filter><feTurbulence><script>alert(1)</script></feTurbulence></filter></svg>', "script"),
+])
+def test_sanitizer_turbulence_still_rejects_dangerous_bits(text, why):
+    with pytest.raises(sanitize.Rejected) as e:
+        sanitize.sanitize_markup(text, "opening")
+    assert why in str(e.value), str(e.value)
+
+
+def test_sanitizer_drops_unknown_turbulence_attrs():
+    clean = sanitize.sanitize_markup('<svg><filter><feTurbulence baseFrequency=".5" foo="1"/></filter></svg>', "opening")
+    assert '<feTurbulence baseFrequency=".5"></feTurbulence>' in clean.markup and "foo" not in clean.markup
+
+
 def test_sanitizer_html_subset_and_context():
     clean = sanitize.sanitize_markup('<div class="w"><b>syn</b>ox<svg viewBox="0 0 2 2"><rect/></svg></div>', "wordmark")
     assert clean.markup == '<div class="w"><b>syn</b>ox<svg viewBox="0 0 2 2"><rect></rect></svg></div>'
