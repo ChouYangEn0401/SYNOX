@@ -19,6 +19,7 @@
 | [tools.md](tools.md) | 作者 | **從這裡開始**：三條接入路怎麼選、權限欄位、secret、確認來回、測試、安全自檢表 |
 | [sdk.md](sdk.md) | 作者 | Python 工具 SDK（`@tool`、`serve()`、`secret()`、`context()`、`synox-sdk` 指令） |
 | [pack-format.md](pack-format.md) | 作者、維護者 | pack.json 每個欄位的完整規則、kind=cli／mcp／python 的細節、升級與環境建置 |
+| [themes.md](themes.md) | 外觀包作者、維護者 | 外觀（換裝）：顏色 token、可以換的位置（slot）、kind=theme 的格式、消毒規則、怎麼從品牌頁做一個外觀包 |
 | [tool-health.md](tool-health.md) | 作者、維護者 | 工具健康：失敗信封 v1、類別碼、隔離清單（同一根因連續失敗就暫停給 AI 用）；作者那側是 SDK 的 `fail()` |
 | [../packs/README.md](../packs/README.md) | 使用者 | SYNOX 出廠不帶工具：工具在 SYNOX 工具庫（SYNOX_Libs，另一個 repo），怎麼裝 |
 | [legacy/builtin-packs.md](legacy/builtin-packs.md) | 使用者、維護者 | 下架的內建工具（記帳、隨手記、提醒）：為什麼、舊資料怎麼接回、怎麼救回 |
