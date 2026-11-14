@@ -52,8 +52,27 @@
     var slots = root.SynoxSlots;
     if (!(slots && slots.has && slots.has(name))) { return null; }
     var wrap = el(doc, "div", name === "opening" ? "sx-open" : "sx-word-slot");
-    wrap.appendChild(slots.make(name));
+    var slot = slots.make(name);
+    wrap.appendChild(slot);
+    if (name === "opening" && !squarish(slot)) { wrap.classList.add("sx-open-fit"); }
     return wrap;
+  }
+
+  // 開場的 SVG 是不是（差不多）正方形：是 → 照舊 220×220；不是（例如 480×250 的橫幅）→ 照 viewBox 的比例放大
+  // （splash.css 的 .sx-open-fit；寬最多 min(560px, 92vw)、高最多 60vh）。讀不到比例（HTML、沒有 viewBox）→ 當正方形
+  function ratio(svg) {
+    var vb = String(svg.getAttribute("viewBox") || "").trim().split(/[\s,]+/);
+    var w = vb.length === 4 ? parseFloat(vb[2]) : parseFloat(svg.getAttribute("width"));
+    var h = vb.length === 4 ? parseFloat(vb[3]) : parseFloat(svg.getAttribute("height"));
+    return w > 0 && h > 0 ? w / h : 1;
+  }
+  function squarish(slot) {
+    try {
+      var svg = slot && slot.querySelector ? slot.querySelector("svg") : null;
+      if (!svg || svg.parentNode !== slot) { return true; }
+      var r = ratio(svg);
+      return r > 0.9 && r < 1.1;
+    } catch (e) { return true; }
   }
 
   // 畫面：全部用 createElement＋textContent（不拼 HTML 字串、不寫 inline 樣式）
@@ -65,6 +84,7 @@
     var opening = themed(doc, "opening");
     if (opening) {                                       // 外觀包的開場：整段換掉，只留光暈、三個點、略過的說明
       stage.appendChild(opening);
+      if (opening.classList.contains("sx-open-fit")) { stage.classList.add("sx-stage-fit"); }
       return finishBuild(doc, splash, stage);
     }
     var mascot = el(doc, "div", "sx-mascot");
@@ -143,7 +163,7 @@
     play(root.document);
   }
 
-  var api = { decide: decide, build: build, play: play, SEEN: SEEN, OFF: OFF, OUT_AT: OUT_AT, TOTAL: TOTAL, SAFETY: SAFETY };
+  var api = { decide: decide, build: build, play: play, ratio: ratio, SEEN: SEEN, OFF: OFF, OUT_AT: OUT_AT, TOTAL: TOTAL, SAFETY: SAFETY };
   if (typeof module === "object" && module && module.exports) { module.exports = api; }
   else { root.SynoxSplash = api; start(); }
 })(typeof window !== "undefined" ? window : this);

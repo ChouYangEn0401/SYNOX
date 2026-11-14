@@ -59,6 +59,14 @@ SYNOX 預設是原本的樣子（S 寶寶、藍綠色）。**外觀包**（`.syn
 slot 元素本身的位置被網頁用 `!important` 釘死（不能移動、不能蓋到別的畫面上、裡面畫出界就裁掉）；
 動畫請動 slot **裡面**的東西。SVG 的大小照 slot（`width/height: 100%`，請給 `viewBox`）。
 
+`opening` 的大小看 SVG 的 `viewBox` 比例：
+
+- **正方形**（寬高比 0.9～1.1，或讀不到比例：HTML、沒有 `viewBox`）→ 跟原本的 S 寶寶一樣放在 220×220 的框裡。
+- **不是正方形** → 框照 `viewBox` 的比例放大、置中：寬最多 `min(560px, 92vw)`、高最多 `60vh`（光暈也移到中間）。
+  360px 寬的手機上約 331px 寬，不會超出畫面。
+
+建議 `opening` 用 **`viewBox="0 0 480 250"`**（一張橫的卡片場景）或正方形。沒換 `opening` 的話，原本的 SYNOX 開場完全不變。
+
 ## 外觀包的格式
 
 ```
@@ -113,6 +121,11 @@ costume-b-lantern/
 
 **丟掉、在報告上提一下**（無害的雜訊）：註解、`<?xml?>`、`<!DOCTYPE>`、`<metadata>`、`inkscape:*`／`sodipodi:*` 這類編輯器屬性、
 不認得的元素與屬性、`data-*` 屬性。`style="…"` 屬性：SVG 的顏色、線條這類會轉成同名屬性，其他丟掉（網頁的 CSP 不收 inline style）。
+
+**濾鏡**：`<filter>` 裡可以用 `feGaussianBlur`、`feOffset`、`feMerge`／`feMergeNode`、`feFlood`、`feComposite`、`feBlend`、
+`feColorMatrix`、`feDropShadow`、`feMorphology`、`feTurbulence`（雜訊、紙紋顆粒：`type`、`baseFrequency`、`numOctaves`、`seed`、
+`stitchTiles`）、`feDisplacementMap`（拿雜訊把圖扭一下：`scale`、`xChannelSelector`、`yChannelSelector`），加上 `in`、`in2`、`result`。
+這些都是自己算的、不會載入任何東西；`<feImage>` 會載入圖片，整份拒絕。
 
 **改寫**：`id="x"` → `id="ts-<slot>-x"`，`#x`、`url(#x)` 一起改（不會撞到網頁自己的元素）。
 SVG 裡的 `<style>` 拿出來，每個選擇器自動套上 `[data-slot="<slot>"]`，`@keyframes` 自動改名成 `th-<slot>-…`。
