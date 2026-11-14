@@ -403,10 +403,10 @@ span.hl { display: inline-block; }
   </div>
   <div class="progress" aria-live="polite">
     <div class="progress-label">
-      <span class="step-count" id="count">步驟 1<span class="of">／26</span></span>
+      <span class="step-count" id="count">步驟 1<span class="of">／28</span></span>
       <span class="chapter" id="chapter"></span>
     </div>
-    <div class="bar" role="progressbar" id="bar" aria-label="進度" aria-valuemin="1" aria-valuemax="26" aria-valuenow="1"><i id="bar-fill"></i></div>
+    <div class="bar" role="progressbar" id="bar" aria-label="進度" aria-valuemin="1" aria-valuemax="28" aria-valuenow="1"><i id="bar-fill"></i></div>
   </div>
   <div class="resume" id="resume" hidden>
     <span id="resume-text">上次看到這裡</span>
@@ -440,7 +440,7 @@ span.hl { display: inline-block; }
 </nav>
 
 <footer class="wrap">
-  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>3d8c3ce321 · 2026-11-14</span></p>
+  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>7e90339630 · 2026-11-14</span></p>
 </footer>
 
 <script>
@@ -448,8 +448,8 @@ span.hl { display: inline-block; }
   "use strict";
 
   /* ── 步驟資料（格式寫在檔案最上面的註解）──────────────────────────────── */
-  var ZIP_URL = "https://github.com/ChouYangEn0401/SYNOX/archive/refs/heads/main.zip";
-  var NOTES_URL = "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/notes-0.1.1.synoxpack";
+  var RELEASES_URL = "https://github.com/ChouYangEn0401/SYNOX/releases";
+  var ADV_URL = "https://github.com/ChouYangEn0401/SYNOX/blob/main/docs/advanced-install.md";
   var LIBS_URL = "https://github.com/ChouYangEn0401/SYNOX_Libs/releases";
   var TG_GUIDE = "https://claude.ai/artifact/SjWBzQkdDpUNymrQEZRKHe";
   var DC_GUIDE = "https://claude.ai/artifact/21KFtvB7EVKsV4bjCE5h1h";
@@ -461,22 +461,25 @@ span.hl { display: inline-block; }
       mock: "welcome", targets: [],
       tips: [{ k: "note", t: "畫面裡有<b>綠色圈圈在閃</b>的地方，就是你要按的地方。" }] },
 
-    { id: "download", chapter: "下載與解開", title: "按「下載 SYNOX」",
-      body: ["在 SYNOX 的網站上，按那顆大大的「下載 SYNOX」。",
-             "會下載一個叫 <b>SYNOX-main.zip</b> 的檔案（大約 8 MB）。也可以直接按下面這顆按鈕下載。"],
-      mock: "landing", targets: [{ id: "dl", say: "按這裡" }],
-      links: [{ href: ZIP_URL, text: "下載 SYNOX（ZIP）", primary: true, icon: "download" }],
-      tips: [{ k: "if", t: "瀏覽器問你要不要保留這個檔案，按「保留」。" },
-             { k: "wip", t: "點一下就裝好的 <code>.exe</code> 安裝檔還沒做好。現在請用這個 ZIP。" }] },
+    { id: "download", chapter: "下載與解開", title: "到 GitHub 發佈頁，下載 SYNOX 的 ZIP",
+      body: ["按下面的按鈕，打開 SYNOX 在 GitHub 的<b>發佈頁</b>。",
+             "最上面那一版（標著 <b>Latest</b>）下面有「Assets」，按 <b>SYNOX-0.2.1.zip</b> 下載（數字是版本，會跟圖上不一樣）。大約 4 MB。"],
+      mock: "releases", targets: [{ id: "dl", say: "按這個", place: "b" }],
+      links: [{ href: RELEASES_URL, text: "打開 SYNOX 發佈頁", primary: true, icon: "download" }],
+      tips: [{ k: "warn", t: "不要按 GitHub 自己附的「Source code (zip)」，也不要用綠色「Code」按鈕裡的「Download ZIP」：那是給工程師的原始碼。" },
+             { k: "wip", t: "第一個發佈版還在準備（要先在真的 Windows 上試裝過）。發佈頁還是空的，就是還沒發出來，請過幾天再來看。" },
+             { k: "wip", t: "點一下就裝好的 <code>.exe</code> 安裝程式（SYNOX-Setup-….exe）還沒發佈。現在請用 ZIP。" },
+             { k: "if", t: "瀏覽器問你要不要保留這個檔案，按「保留」。" },
+             { k: "note", t: "會寫程式、想跑測試或幫忙開發？用 <code>git clone</code>，看<a href=\"" + ADV_URL + "\" target=\"_blank\" rel=\"noopener\">進階安裝說明</a>。" }] },
 
     { id: "find", chapter: "下載與解開", title: "打開「下載」資料夾",
       body: ["按螢幕下方工作列上<b>黃色資料夾</b>的圖示（檔案總管）。",
-             "左邊按「<b>下載</b>」，就會看到剛剛下載的 <b>SYNOX-main.zip</b>。"],
+             "左邊按「<b>下載</b>」，就會看到剛剛下載的 <b>SYNOX-0.2.1.zip</b>。"],
       mock: "explorer-dl", targets: [{ id: "nav-dl", say: "先按這裡", place: "bs" }, { id: "zip", say: "找到它", place: "a" }],
-      tips: [{ k: "note", t: "ZIP 檔的圖示是一個<b>有拉鍊的資料夾</b>。如果看不到 .zip 三個字，找名字是 SYNOX-main 的那一個。" }] },
+      tips: [{ k: "note", t: "ZIP 檔的圖示是一個<b>有拉鍊的資料夾</b>。如果看不到 .zip 三個字，找名字是 SYNOX-0.2.1（數字跟你下載的一樣）的那一個。" }] },
 
     { id: "unzip", chapter: "下載與解開", title: "按右鍵，選「全部解壓縮」",
-      body: ["把滑鼠移到 SYNOX-main.zip 上，按滑鼠<b>右邊</b>的鍵。",
+      body: ["把滑鼠移到 SYNOX-0.2.1.zip 上，按滑鼠<b>右邊</b>的鍵。",
              "跳出一個選單，按「<b>全部解壓縮…</b>」。"],
       mock: "explorer-menu", targets: [{ id: "extract", say: "按這裡", place: "r" }],
       tips: [{ k: "if", t: "選單裡找不到，先按選單最下面的「顯示其他選項」，再找「全部解壓縮…」。" },
@@ -488,8 +491,8 @@ span.hl { display: inline-block; }
       mock: "extract", targets: [{ id: "go", say: "按這裡", place: "ae" }] },
 
     { id: "setup", chapter: "下載與解開", title: "找到 Setup.bat，點兩下",
-      body: ["在新打開的資料夾裡，找到 <b>Setup.bat</b>，用滑鼠左鍵很快地按兩下。",
-             "如果打開的資料夾裡只有<b>另一個 SYNOX-main 資料夾</b>，先點兩下進去，就會看到很多檔案。"],
+      body: ["新打開的資料夾裡有一個 <b>SYNOX</b> 資料夾，先點兩下進去，就會看到很多檔案。",
+             "找到 <b>Setup.bat</b>，用滑鼠左鍵很快地按兩下。"],
       mock: "explorer-folder", targets: [{ id: "setup", say: "點兩下", place: "a" }],
       tips: [{ k: "note", t: "看不到 .bat 的話：找名字是 <b>Setup</b>、類型是「Windows 批次檔案」的那一個。" },
              { k: "warn", t: "旁邊的 Start.bat、Stop.bat、Uninstall.bat 先不要點。" }] },
@@ -518,8 +521,10 @@ span.hl { display: inline-block; }
       body: ["黑色視窗會一行一行跑字。第一次要自己下載 Python 和需要的東西，<b>要上網</b>，大約要等幾分鐘。",
              "<b>不要關掉黑色視窗。</b>準備好之後，會跳出一個叫「SYNOX 安裝精靈」的視窗。"],
       mock: "console-wait", targets: [{ id: "last", say: "等到這一行", place: "as" }],
-      tips: [{ k: "note", t: "如果你的電腦已經裝過 Conda 或別的 Python，黑色視窗會先多一行說明：SYNOX 會用自己的那一份，不會動到它們。不用理它。" }, { k: "if", t: "寫「找不到 Python 3.11 以上，用 winget 安裝 Python 3.12（要幾分鐘）…」也是正常的，會等比較久。" },
-             { k: "if", t: "出現紅字和「安裝沒有完成，請看上面的訊息。」：檢查網路，再點兩下 Setup.bat 一次。重跑是安全的。" }] },
+      tips: [{ k: "note", t: "如果你的電腦已經裝過 Conda 或別的 Python，黑色視窗會先多一行說明：SYNOX 會用自己的那一份，不會動到它們。不用理它。" },
+             { k: "note", t: "SYNOX 自己的 Python 是從 GitHub 下載的（約 22 MB），下載完先核對檢查碼，再用 Windows 內建的 tar.exe 解開。🧪 這一段寫好了，還沒在真的 Windows 上試過。" },
+             { k: "if", t: "出現紅字和「安裝沒有完成，請看上面的訊息。」：檢查網路（要連得上 github.com），再點兩下 Setup.bat 一次。重跑是安全的。" },
+             { k: "if", t: "寫「這台 Windows 沒有內建的 tar.exe」：Windows 太舊了（要 Windows 10 1803 以後），先更新 Windows。" }] },
 
     { id: "mode", chapter: "安裝精靈", title: "精靈第 1 步：這台給誰用？",
       body: ["自己一個人用，就選「<b>只有我（個人版）</b>」。大部分的人選這個（已經幫你選好了）。",
@@ -575,10 +580,10 @@ span.hl { display: inline-block; }
       tips: [{ k: "note", t: "家裡有跑 Ollama 這類本地模型的，選「使用本地模型」。不懂這是什麼就跳過。" }] },
 
     { id: "finish", chapter: "安裝精靈", title: "最後一步：按「完成並開始」",
-      body: ["打勾的地方保留原本的樣子就好。",
+      body: ["打勾的地方保留原本的樣子就好。這一頁也提醒你：<b>打開 SYNOX 後打 /tutorial</b>，先做一次教學。",
              "按右下角的「<b>完成並開始</b>」。精靈會寫好設定、打開 SYNOX，然後按鈕會變成「關閉」，按它關掉精靈。"],
-      mock: "wizard-finish", targets: [{ id: "next", say: "按這裡", place: "ae" }],
-      tips: [{ k: "note", t: "「開機後自動啟動 SYNOX」想要的話再勾。電腦一開，SYNOX 就自己開好。" }] },
+      mock: "wizard-finish", targets: [{ id: "tut", say: "記住這一句", place: "bs" }, { id: "next", say: "按這裡", place: "ae" }],
+      tips: [{ k: "note", t: "「開機後自動啟動 SYNOX」照建議已經勾好：電腦一開，SYNOX 就自己開好。不想要就把勾拿掉。" }] },
 
     { id: "login", chapter: "開始使用", title: "SYNOX 開起來了：按「登入」",
       body: ["過幾秒，瀏覽器會打開「<b>登入 SYNOX</b>」，按「<b>登入</b>」，就看到 SYNOX 的網頁。",
@@ -587,47 +592,58 @@ span.hl { display: inline-block; }
       tips: [{ k: "warn", t: "工作列上會多一個縮小的黑色視窗，那就是 SYNOX 本人。<b>關掉它 SYNOX 就停了。</b>" },
              { k: "note", t: "以後要打開 SYNOX：點兩下桌面上的「SYNOX」捷徑。" }] },
 
-    { id: "first-msg", chapter: "開始使用", title: "在 Telegram 說第一句話",
-      body: ["在手機上，跟你的 bot 打：<b>幫我記：買牛奶</b>，送出。",
-             "剛裝好的 SYNOX <b>還沒有記筆記的工具</b>，所以它沒辦法真的記下來。下一步就來裝。"],
-      mock: "tg-first", targets: [{ id: "say", say: "打這句送出", place: "be" }],
-      tips: [{ k: "note", t: "SYNOX 一開始什麼工具都沒有（只有「提醒」）。工具要自己裝，就像手機裝 App。" }] },
+    { id: "tutorial", chapter: "開始使用", title: "做一次教學：打 /tutorial",
+      body: ["網頁第一次打開，會問「<b>要不要我帶你走一遍？（約 5 分鐘）</b>」，按「<b>開始</b>」。",
+             "SYNOX 會在畫面上把要按的地方圈起來，一步一步帶你認識：怎麼聊天、工具在哪、怎麼裝和移除工具。"],
+      mock: "web-tour", targets: [{ id: "start", say: "按這裡", place: "bs" }],
+      tips: [{ k: "note", t: "按了「之後再說」也沒關係：在網頁的對話框或 Telegram 打 <code>/tutorial</code>（或直接打「開始教學」），隨時都能再看一次。" },
+             { k: "note", t: "在 Telegram、Discord 打 <code>/tutorial</code>，會用一張一張的步驟卡帶你走。教學只會指給你看，不會替你按確認。" }] },
 
-    { id: "get-notes", chapter: "開始使用", title: "下載「隨手記」工具",
-      body: ["在<b>跑 SYNOX 的那台電腦</b>上，按下面的按鈕，下載「隨手記」這個工具。",
-             "下載下來的檔案叫 <b>notes-0.1.1.synoxpack</b>，很小，一下子就好。"],
-      mock: "dl-pack", targets: [{ id: "file", say: "下載好了", place: "b" }],
-      links: [{ href: NOTES_URL, text: "下載「隨手記」工具", primary: true, icon: "download" },
-              { href: LIBS_URL, text: "看全部工具（工具庫）", icon: "book" }] },
-
-    { id: "open-pack", chapter: "開始使用", title: "點兩下下載好的工具檔",
-      body: ["打開「下載」資料夾，找到 <b>notes-0.1.1.synoxpack</b>，點兩下。",
-             "會跳出黑色視窗做安全檢查，然後自動打開 SYNOX 網頁的「功能與安裝」。"],
-      mock: "explorer-pack", targets: [{ id: "pack", say: "點兩下", place: "a" }],
-      tips: [{ k: "if", t: "點兩下沒反應（精靈最後一頁沒勾「讓 .synoxpack 檔案點兩下就安裝」）：把這個檔案<b>拖進 SYNOX 的網頁</b>，看到「放開來檢查這個 .synoxpack（先看安全報告，按確認才會裝）」就放開。" }] },
+    { id: "tools", chapter: "開始使用", title: "到「設定 → 功能與安裝」挑工具",
+      body: ["剛裝好的 SYNOX 沒有工具（只有內建的提醒）。工具要自己挑，就像手機裝 App。",
+             "在網頁按左邊的「<b>設定</b>」→ 上面的「<b>🧩 功能與安裝</b>」→ 在「工具庫（官方）」按「<b>載入工具清單</b>」，找到「隨手記」，按「<b>安裝</b>」。"],
+      mock: "web-catalog", targets: [{ id: "tab", say: "1 先到「🧩 功能與安裝」", place: "bs" }, { id: "install", say: "2 按安裝", place: "bs" }],
+      links: [{ href: LIBS_URL, text: "看全部工具（工具庫）", icon: "book" }],
+      tips: [{ k: "note", t: "按「載入工具清單」才會連到網路（GitHub）抓清單。" },
+             { k: "note", t: "拿到別人給的 <code>.synoxpack</code> 檔：點兩下，或拖進 SYNOX 的網頁，一樣會先給你看報告。" },
+             { k: "if", t: "載入清單出現錯誤：檢查網路；或到工具庫的 GitHub 發佈頁下載 <code>.synoxpack</code> 檔，點兩下安裝。" }] },
 
     { id: "confirm", chapter: "開始使用", title: "看報告，按「確認安裝」",
-      body: ["網頁會列出這個工具是什麼、安全檢查的結果。看到「<b>✅ 宣告檢查、靜態掃描都過了</b>」就可以放心。",
+      body: ["按了「安裝」，SYNOX 會自己下載、核對檔案，再列出這個工具是什麼、安全檢查的結果。看到「<b>✅ 宣告檢查、靜態掃描都過了</b>」就可以放心。",
              "按「<b>確認安裝</b>」。出現「✅ 裝好了：notes」就完成了。"],
       mock: "web-review", targets: [{ id: "ok", say: "按這裡", place: "bs" }],
       tips: [{ k: "warn", t: "報告裡出現紅色的「❌ 拒裝：安全檢查沒過」，就不要裝這個檔案。" },
              { k: "note", t: "沒按確認之前什麼都不會裝。不想裝可以按「不要裝」。" }] },
 
-    { id: "note-ok", chapter: "開始使用", title: "再說一次：幫我記：買牛奶",
-      body: ["回到 Telegram，再傳一次「<b>幫我記：買牛奶</b>」。",
-             "這次它會回「📒 記下了（第 1 筆）：買牛奶」。筆記加密存在你自己的電腦上。"],
+    { id: "note-ok", chapter: "開始使用", title: "在 Telegram 說：幫我記：買牛奶",
+      body: ["回到手機的 Telegram，跟你的 bot 打「<b>幫我記：買牛奶</b>」，送出。",
+             "它會回「📒 記下了（第 1 筆）：買牛奶」。筆記加密存在你自己的電腦上。"],
       mock: "tg-note", targets: [{ id: "reply", say: "記下來了", place: "bs" }],
       tips: [{ k: "if", t: "安裝精靈選了「先不用 AI」：要用指令，打 <code>/note 買牛奶</code>。" }] },
+
+    { id: "look", chapter: "開始使用", title: "想換個樣子：設定 → 🎨 外觀",
+      body: ["SYNOX 預設是原本的樣子（S 寶寶、藍綠色）。在網頁「<b>設定</b>」→「<b>🎨 外觀</b>」可以選<b>淺色、深色</b>，或跟著系統。",
+             "裝了外觀包，就能在這裡按「<b>套用</b>」換一整套顏色、字型和吉祥物；按「<b>換回原本的 SYNOX</b>」隨時換回來。"],
+      mock: "web-look", targets: [{ id: "tab", say: "到「🎨 外觀」", place: "bs" }, { id: "mode", say: "淺色／深色", place: "bs" }],
+      tips: [{ k: "note", t: "外觀只換網頁的樣子，不會動到你的資料；Telegram、Discord 不受影響。" },
+             { k: "wip", t: "官方的外觀包還沒正式發佈到工具庫。現在可以先換淺色／深色。" }] },
+
+    { id: "report", chapter: "開始使用", title: "卡住了？按「🙋 遇到問題？」",
+      body: ["哪裡怪怪的、卡住了：在網頁「<b>設定</b>」→「<b>🙋 遇到問題？</b>」（左邊最下面也有一個小連結「遇到問題？」）。",
+             "照三步做：沒有 GitHub 帳號先免費註冊 → 按「<b>幫我準備好回報內容</b>」→ 按「<b>到 GitHub 開一張問題單</b>」，用自己的話寫發生了什麼，再送出。"],
+      mock: "web-report", targets: [{ id: "prepare", say: "按這裡", place: "bs" }],
+      tips: [{ k: "note", t: "回報內容會先拿掉 token、金鑰、密碼、email、有你名字的資料夾路徑。你可以先看、再改；按第 3 步之前，什麼都不會離開這台電腦。" },
+             { k: "note", t: "SYNOX 不會自己送出。不想回報也完全沒關係。" }] },
 
     { id: "help", chapter: "開始使用", title: "打 /help，看它會什麼",
       body: ["在 Telegram 打 <code>/help</code> 送出。",
              "它會列出你現在能用的指令。用下面的「下一頁 ▶️」翻頁，或按「☰ 分類目錄」挑一類看。"],
       mock: "tg-help", targets: [{ id: "nextpg", say: "翻頁", place: "a" }],
-      tips: [{ k: "note", t: "想要 SYNOX 一步一步帶你認識每個地方：打 <code>/tutorial</code>（在網頁上它會直接指給你看要按哪裡）。忘了就再打一次，隨時都能複習。" }] },
+      tips: [{ k: "note", t: "忘了教學說什麼：再打 <code>/tutorial</code> 就能複習（<code>/tutorial restart</code> 從頭來）。" }] },
 
     { id: "done", chapter: "完成", title: "完成！",
       body: ["SYNOX 已經在你的電腦上跑起來了。以後在手機上跟 bot 講話就好。",
-             "先試試右邊這幾個。想要更多工具（記帳、提醒…），到工具庫下載，裝法跟「隨手記」一樣。"],
+             "先試試右邊這幾個。想要更多工具（記帳、行事曆…），到「設定 → 功能與安裝」的工具庫挑，裝法跟「隨手記」一樣。"],
       mock: "done", targets: [],
       links: [{ href: LIBS_URL, text: "去工具庫找更多工具", primary: true, icon: "box" },
               { href: TG_GUIDE, text: "Telegram 圖文教學（常見問題）", icon: "book" }],
@@ -689,6 +705,7 @@ span.hl { display: inline-block; }
     return '<div class="con"><div class="ct"><span class="t">' + title + '</span><span class="c" aria-hidden="true">— ▢ ✕</span></div><pre>' + text + '</pre></div>';
   }
   var BOT = "amy_helper_bot";
+  var SIDE = '<div class="side"><span class="br2"><span class="mk">S</span>SYNOX</span><span class="nv">對話</span><span class="nv">工具</span><span class="nv on">設定</span></div>';
 
   var MOCKS = {
     "welcome": function () {
@@ -698,20 +715,23 @@ span.hl { display: inline-block; }
         '<div><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="4" width="20" height="40" rx="4"/><path d="M21 38h6"/></svg><span><b>手機上的 Telegram</b><small>已經裝好、登入。之後就在這裡跟 SYNOX 講話。</small></span></div>' +
         '</div>';
     },
-    "landing": function () {
-      return browser("github.com/ChouYangEn0401/SYNOX …（SYNOX 網站）",
-        '<div class="page land"><span class="eb">怎麼開始</span><h4>下載、解開、點兩下</h4><span class="muted m-sm">不用打指令，大約 5 分鐘。適用 Windows 10／11。</span>' +
-        '<span class="big-dl" data-hl="dl">' + I.download + '下載 SYNOX</span><span class="faint m-sm">會下載一個 ZIP 檔（約 8 MB）。</span></div>');
+    "releases": function () {
+      return browser("github.com/ChouYangEn0401/SYNOX/releases",
+        '<div class="page"><div class="card2"><h5>SYNOX 0.2.1 <span class="b" style="font-size:12px;padding:1px 8px;margin-left:4px">Latest</span></h5>' +
+        '<span class="muted">這版改了什麼／要不要更新／怎麼更新</span><div class="sep"></div><span class="faint">▾ Assets</span>' +
+        '<div class="dlp"><div class="it" data-hl="dl">' + I.zip + '<span><span class="nm">SYNOX-0.2.1.zip</span><small>約 4 MB</small></span></div>' +
+        '<div class="it" style="opacity:.55">' + I.doc + '<span><span class="nm">SHA256SUMS.txt</span></span></div>' +
+        '<div class="it" style="opacity:.55">' + I.zip + '<span><span class="nm">Source code (zip)</span><small>不是這個</small></span></div></div></div></div>');
     },
     "explorer-dl": function () {
       return explorer("本機 › 下載", "下載", [
-        { ic: "zip", n: "SYNOX-main.zip", t: "壓縮的 (zipped) 資料夾", hl: "zip" },
+        { ic: "zip", n: "SYNOX-0.2.1.zip", t: "壓縮的 (zipped) 資料夾", hl: "zip" },
         { ic: "doc", n: "繳費通知.pdf", t: "PDF 文件", cls: "dim" },
         { ic: "doc", n: "照片.jpg", t: "JPG 檔案", cls: "dim" }]);
     },
     "explorer-menu": function () {
       return explorer("本機 › 下載", "下載", [
-        { ic: "zip", n: "SYNOX-main.zip", t: "壓縮的 (zipped) 資料夾", cls: "sel" },
+        { ic: "zip", n: "SYNOX-0.2.1.zip", t: "壓縮的 (zipped) 資料夾", cls: "sel" },
         { ic: "doc", n: "繳費通知.pdf", t: "PDF 文件", cls: "dim" },
         { ic: "doc", n: "照片.jpg", t: "JPG 檔案", cls: "dim" },
         { ic: "doc", n: "旅遊.docx", t: "Word 文件", cls: "dim" },
@@ -720,14 +740,15 @@ span.hl { display: inline-block; }
     },
     "extract": function () {
       return win("解壓縮壓縮的 (zipped) 資料夾", '<div class="wb"><div class="wz-h" style="font-size:16px;font-weight:500">選取目的地並解壓縮檔案</div>' +
-        '<span class="m-sm">檔案將解壓縮至這個資料夾(F):</span><div class="row"><span class="field" style="flex:1">%USERPROFILE%\\Downloads\\SYNOX-main</span><span class="b">瀏覽(R)…</span></div>' +
+        '<span class="m-sm">檔案將解壓縮至這個資料夾(F):</span><div class="row"><span class="field" style="flex:1">%USERPROFILE%\\Downloads\\SYNOX-0.2.1</span><span class="b">瀏覽(R)…</span></div>' +
         '<span class="check on m-sm"><i></i>完成時顯示解壓縮的檔案(H)</span>' +
         '<div class="row" style="justify-content:flex-end;margin-top:14px"><span class="b pri" data-hl="go">解壓縮(E)</span><span class="b">取消</span></div></div>');
     },
     "explorer-folder": function () {
-      return explorer("下載 › SYNOX-main › SYNOX-main", "", [
+      return explorer("下載 › SYNOX-0.2.1 › SYNOX", "", [
         { ic: "folder", n: "docs", t: "檔案資料夾", cls: "dim" },
         { ic: "folder", n: "src", t: "檔案資料夾", cls: "dim" },
+        { ic: "folder", n: "tools", t: "檔案資料夾", cls: "dim" },
         { ic: "bat", n: "Console.bat", t: "Windows 批次檔案", cls: "dim" },
         { ic: "bat", n: "Install-Pack.bat", t: "Windows 批次檔案", cls: "dim" },
         { ic: "doc", n: "README.md", t: "MD 檔案", cls: "dim" },
@@ -833,9 +854,10 @@ span.hl { display: inline-block; }
     "wizard-finish": function () {
       return wizard("最後一步", "差不多了",
         '<span class="check on m-sm"><i></i>在桌面放一個「SYNOX」捷徑</span>' +
-        '<span class="check m-sm"><i></i>開機後自動啟動 SYNOX（看得到的小視窗，隨時可以關）</span>' +
+        '<span class="check on m-sm"><i></i>開機後自動啟動 SYNOX（看得到的小視窗，隨時可以關）</span>' +
         '<span class="check on m-sm"><i></i>讓 .synoxpack 檔案點兩下就安裝（裝之前一樣會先檢查、給你按確認）</span>' +
         '<span class="check on m-sm"><i></i>完成後立刻開啟 SYNOX</span>' +
+        '<span class="m-sm pre" data-hl="tut">📘 第一次用？先做一次教學（幾分鐘），做完再挑你需要的工具。\n打開 SYNOX 後打 /tutorial（或在聊天裡打「開始教學」）。</span>' +
         '<span class="m-sm pre">這台是：只有我（個人版）。\n按「完成並開始」：寫好設定、打開 bot，手機會收到「我在了」。</span>', "完成並開始");
     },
     "tg-botfather": function () {
@@ -856,26 +878,25 @@ span.hl { display: inline-block; }
         '<span class="faint m-sm">這不是你的帳號（例如別人傳給你的連結）就<b>不要按</b>，直接關掉這一頁。</span>' +
         '<span class="b pri" data-hl="login">登入</span></div></div>');
     },
-    "tg-first": function () {
-      return phone("我的小助手", "bot", "syn", msg("in", "👋 我在了，按 /help 看我會什麼。", "10:34") +
-        msg("out", "幫我記：買牛奶", "10:35", "say") +
-        msg("in", "（還沒裝「隨手記」：它會告訴你它現在記不起來，說法每次不一定一樣）", "10:35", "", "ghost"));
+    "web-tour": function () {
+      return browser("127.0.0.1:8830/#chat",
+        '<div class="app"><div class="side"><span class="br2"><span class="mk">S</span>SYNOX</span><span class="nv on">對話</span><span class="nv">工具</span><span class="nv">設定</span></div>' +
+        '<div class="mainp"><h4>對話</h4><div class="card2"><h5>要不要我帶你走一遍？（約 5 分鐘）</h5>' +
+        '<span>我會在畫面上指給你看每個地方：怎麼聊天、工具在哪、怎麼裝和移除工具。之後忘了，打 /tutorial 就能再看。</span>' +
+        '<div class="row" style="margin-top:4px"><span class="b pri" data-hl="start">開始</span><span class="b ghost">之後再說</span></div></div></div></div>');
     },
-    "dl-pack": function () {
-      return '<div class="dlp"><div class="h"><span>下載</span><span class="faint" aria-hidden="true">⋯ ✕</span></div>' +
-        '<div class="it" data-hl="file">' + I.pack.replace('class="fi"', 'class="fi" style="width:26px;height:26px"') + '<span><span class="nm">notes-0.1.1.synoxpack</span><small>3.0 KB · 完成</small><a>開啟檔案</a></span></div>' +
-        '<div class="it" style="opacity:.55">' + I.zip + '<span><span class="nm">SYNOX-main.zip</span><small>完成</small></span></div></div>';
-    },
-    "explorer-pack": function () {
-      return explorer("本機 › 下載", "下載", [
-        { ic: "pack", n: "notes-0.1.1.synoxpack", t: "SYNOX 工具", hl: "pack" },
-        { ic: "folder", n: "SYNOX-main", t: "檔案資料夾", cls: "dim" },
-        { ic: "zip", n: "SYNOX-main.zip", t: "壓縮的 (zipped) 資料夾", cls: "dim" },
-        { ic: "doc", n: "繳費通知.pdf", t: "PDF 文件", cls: "dim" }]);
+    "web-catalog": function () {
+      return browser("127.0.0.1:8830/#packs",
+        '<div class="app">' + SIDE +
+        '<div class="mainp"><h4>設定</h4><div data-hl="tab"><div class="tabs"><span>🤖 AI</span><span>💬 聊天通道</span><span class="on">🧩 功能與安裝</span><span>🎨 外觀</span><span>🙋 遇到問題？</span></div></div>' +
+        '<div class="card2"><h5>🧰 工具庫（官方）</h5><span class="faint">SYNOX 官方做的工具，挑你要的裝。按「安裝」也一樣先給你看檢查報告，你按確認才會裝。</span>' +
+        '<div class="row"><span class="b">重新載入清單</span><span class="faint">工具庫 v0.2.0：9 個工具。</span></div>' +
+        '<div class="card2 review"><h5>📒 隨手記</h5><span class="faint">notes · v0.1.1</span><span>記一筆、找、刪（加密存在這台電腦）</span>' +
+        '<div class="row" style="margin-top:4px"><span class="b pri" data-hl="install">安裝</span><span class="b">⬇ 下載</span><span class="b ghost">說明</span></div></div></div></div></div>');
     },
     "web-review": function () {
       return browser("127.0.0.1:8830/#packs",
-        '<div class="app"><div class="side"><span class="br2"><span class="mk">S</span>SYNOX</span><span class="nv">對話</span><span class="nv">工具</span><span class="nv on">設定</span></div>' +
+        '<div class="app">' + SIDE +
         '<div class="mainp"><h4>設定</h4><div class="tabs"><span>🤖 AI</span><span>💬 聊天通道</span><span class="on">🧩 功能與安裝</span><span>👥 帳號</span></div>' +
         '<div class="card2"><h5>📦 安裝新功能</h5><span class="faint">先看安全檢查報告，按「確認安裝」才會裝。</span>' +
         '<ol class="flow"><li class="d">檢查</li><li class="d">看報告</li><li class="a">確認</li><li>安裝</li><li>完成</li></ol>' +
@@ -886,6 +907,24 @@ span.hl { display: inline-block; }
     "tg-note": function () {
       return phone("我的小助手", "bot", "syn", msg("out", "幫我記：買牛奶", "10:41") +
         msg("in", "📒 記下了（第 1 筆）：買牛奶", "10:41", "reply"));
+    },
+    "web-look": function () {
+      return browser("127.0.0.1:8830/#settings:appearance",
+        '<div class="app">' + SIDE +
+        '<div class="mainp"><h4>設定</h4><div data-hl="tab"><div class="tabs"><span>🤖 AI</span><span>🧩 功能與安裝</span><span class="on">🎨 外觀</span><span>🙋 遇到問題？</span></div></div>' +
+        '<div class="card2"><h5>🎨 外觀</h5><span class="faint">換整個網頁的顏色、字型和吉祥物。只換樣子，不會動到你的資料。</span><span>現在：原本的 SYNOX</span>' +
+        '<div class="card2 review"><h5>原本的 SYNOX</h5><span class="faint">預設的樣子</span><div class="row"><span class="b">使用中</span></div></div></div>' +
+        '<div class="card2"><h5>🌗 淺色／深色</h5><div class="row m-sm" data-hl="mode"><span class="radio on"><i></i>跟著系統</span><span class="radio"><i></i>淺色</span><span class="radio"><i></i>深色</span></div></div></div></div>');
+    },
+    "web-report": function () {
+      return browser("127.0.0.1:8830/#settings:help",
+        '<div class="app">' + SIDE +
+        '<div class="mainp"><h4>設定</h4><div class="tabs"><span>🤖 AI</span><span>🧩 功能與安裝</span><span>🎨 外觀</span><span class="on">🙋 遇到問題？</span></div>' +
+        '<div class="card2"><h5>🙋 遇到問題？</h5><span class="faint">告訴我們哪裡卡住了，我們就能把它修好。不想回報也完全沒關係。</span>' +
+        '<ol class="flow"><li class="d">1 註冊 GitHub</li><li class="a">2 準備內容</li><li>3 開問題單</li></ol>' +
+        '<div class="card2 review"><h5>2 幫我準備好回報內容</h5><span>版本、用哪一種 AI、裝了哪些工具、最近的錯誤。token、金鑰、對話內容都會先拿掉。</span>' +
+        '<div class="row" style="margin-top:4px"><span class="b pri" data-hl="prepare">幫我準備好回報內容</span></div></div>' +
+        '<div class="row"><span class="b">到 GitHub 開一張問題單</span></div></div></div></div>');
     },
     "tg-help": function () {
       return phone("我的小助手", "bot", "syn", msg("out", "/help", "10:43") +
