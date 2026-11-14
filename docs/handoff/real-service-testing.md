@@ -43,7 +43,7 @@ dir scripts\smoke_real.py
 - repo 是私人的話，`git clone` 會要你登入 GitHub（照畫面做）。
 - **還要工具庫**（2026-11-12 起 Notion、Todoist、Google 日曆、Apple 的工具不在 SYNOX 裡，在 SYNOX_Libs）：
   跟擁有者拿 SYNOX_Libs，放在 SYNOX **旁邊**（`Documents\SYNOX_Libs`），`smoke_real.py` 會自己找到；
-  要在 Telegram 用 `/notion_token`、`/gcal_setup`、`Connect-Apple.bat` 這些設定指令，先把對應的 `.synoxpack` 裝進 SYNOX
+  要在 Telegram 用 `/notion_token`、`/gcal_setup`、`synox connect apple-reminders` 這些設定指令，先把對應的 `.synoxpack` 裝進 SYNOX
   （網頁「設定 → 裝功能」，或 `.venv\Scripts\python.exe -m synox install <檔>.synoxpack`）。
 
 ### 1-2 裝 Python 套件（二選一）
@@ -180,7 +180,7 @@ iOS 13（2019）之後幾乎所有人的提醒事項都升級過了（子任務�
 
 1. 產生 **App 專用密碼**：<https://appleid.apple.com> → 登入 →「登入與安全性」→「App 專用密碼」→ 產生一組（名字寫 SYNOX）。
    （位置以官方文件為準；Apple ID 要開雙重認證才有這個選項）
-2. 雙擊 `Connect-Apple.bat`（或 `.venv\Scripts\python.exe -m synox connect apple-reminders`）：
+2. 在 SYNOX 資料夾打 `.venv\Scripts\python.exe -m synox connect apple-reminders`（或網頁工具頁 apple-reminders 的「連接」）：
    - 伺服器網址：直接 Enter（預設 `https://caldav.icloud.com`）
    - 帳號：Apple ID 的 email
    - App 專用密碼：貼上（**畫面不會顯示**，正常）
@@ -193,7 +193,7 @@ iOS 13（2019）之後幾乎所有人的提醒事項都升級過了（子任務�
    Nextcloud 常見是 `https://<你的網域>/remote.php/dav`，一樣以官方文件為準）。很多家要另外產生「App 密碼」。
 2. iPhone：「設定 → 提醒事項 → 帳號 → 加入帳號 → 其他 → 加入 CalDAV 帳號」，填同一組網址、帳號、密碼（路徑以官方文件為準）。
 3. 在 iPhone 提醒事項 App 裡，**在那個帳號底下**建一個清單（例如「SYNOX」）。
-4. 電腦上雙擊 `Connect-Apple.bat`，填**那一家**的網址、帳號、密碼；`/applerem_status` 應該列得出那個清單。
+4. 電腦上跑 `.venv\Scripts\python.exe -m synox connect apple-reminders`，填**那一家**的網址、帳號、密碼；`/applerem_status` 應該列得出那個清單。
 
 SYNOX 只連 `https://`、只連你填的那台主機（iCloud 允許 `*.icloud.com`），不跟隨轉址。
 
@@ -359,7 +359,7 @@ SYNOX 真機煙霧測試（唯讀）　2026-11-12 14:03
 |---|---|---|
 | iCloud 帳號裡找不到能用 CalDAV 讀的提醒事項清單 | 升級過的 iCloud 提醒事項（見 2-4） | 改接別家 CalDAV 帳號 |
 | 這個 CalDAV 帳號裡沒有提醒事項（VTODO）清單 | 別家帳號但還沒建清單 | 在 iPhone 那個帳號底下建一個清單 |
-| 帳號或密碼不對。iCloud 要用「App 專用密碼」… | 401 | 用 App 專用密碼（不是 Apple ID 密碼）；`Connect-Apple.bat` 重設 |
+| 帳號或密碼不對。iCloud 要用「App 專用密碼」… | 401 | 用 App 專用密碼（不是 Apple ID 密碼）；`synox connect apple-reminders` 重設 |
 | 伺服器網址要是 https://… | 網址不是 https | 改成 `https://` 開頭 |
 | 連不上伺服器（…）。網路斷了，或伺服器網址不對？ | 網路或網址 | 檢查網址 |
 | 伺服器沒有告訴我你的帳號在哪（current-user-principal） | 網址不是 CalDAV 的入口 | 用那一家文件寫的 CalDAV 網址 |
@@ -369,7 +369,7 @@ SYNOX 真機煙霧測試（唯讀）　2026-11-12 14:03
 | 這一筆剛剛在別的裝置上改過了 | 412 | `/applerem` 重列再試 |
 | 伺服器回的資料太大了／XML 有 DOCTYPE／不是看得懂的 XML | 安全檢查擋下 | 回報 |
 | 這是重複的提醒事項… | 重複的不經 CalDAV 打勾 | 在 iPhone 上完成 |
-| 還沒設定帳號 | 保管箱沒有 | `Connect-Apple.bat` |
+| 還沒設定帳號 | 保管箱沒有 | `synox connect apple-reminders` |
 
 ### Discord
 

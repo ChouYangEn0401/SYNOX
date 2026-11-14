@@ -12,6 +12,8 @@
 | [2026-11-13-subscription-login-research.md](2026-11-13-subscription-login-research.md) | 各家訂閱登入調查、`ntu_easy_llm` 結構確認 |
 | [tools/local-llm-live/](tools/local-llm-live/) | 對真的 Ollama 跑 SYNOX AgentLoop 的測試腳本與原始結果 |
 | [discussions/](discussions/) | 沙盒／容器的設計討論（2026-11-10）：為什麼、比較表、階段 S0–S8，與實作 how-to（原 `docs/discussions/`） |
+| [2026-11-14-tool-apps-implementation-plan.md](2026-11-14-tool-apps-implementation-plan.md) | 工具服務（每個工具自己的完整網頁）的實作計畫：合約、八個工作包、只有擁有者能做的真機驗收；設計在 [adr/0024](../adr/0024-tool-apps-services.md)（提案） |
+| [2026-11-14-stepup-remote-plan.md](2026-11-14-stepup-remote-plan.md) | 門禁核心、手機驗證器、手機入口的實作計畫（S1–S15，含工具服務的八包）；設計在 [adr/0025](../adr/0025-guard-core-and-stepup.md)、[adr/0026](../adr/0026-remote-tool-apps.md) |
 
 > 這些檔案原本在本機專案 維護者的私有文件庫，2026-11-13 併入 SYNOX 的 docs/lab（路徑已改成 <HOME> 佔位）。文中提到「維護者的私有文件庫」「尚未 push」的地方是搬進來之前的狀態。
 

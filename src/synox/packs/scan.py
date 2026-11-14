@@ -58,6 +58,9 @@
   信任等級 T0（只有宣告）：安裝報告逐一列 tools_allow 與每個工具的 effect 給安裝者確認（admin.mcp_report）；
   沒寫 effect 的工具第 1 關就拒；url 一定 https（第 1 關）。
 - connector：只能是宣告，不准有任何程式檔（.py 或執行檔）。
+- theme（外觀包，synox/theme/pack.py）：只能有 pack.json、.svg、.html、.css、.woff2 與說明文字；每個 SVG／HTML／CSS
+  過 synox/theme/sanitize.py（白名單重建：<script>、事件屬性、javascript:、外部網址、@import、<foreignObject>…＝拒）；
+  字型檔頭要是 wOF2；掃不到內容的檔（opaque）＝拒。
 - runtime.container 有 dockerfile（cli、mcp stdio；S0，packs/container.py）：只讀 Dockerfile、不 build：
   一定剛好一個 FROM、FROM 跟 base 一字不差（帶 digest）、ADD 網址／ADD --from、RUN --network／--security、
   COPY --from=沒有 digest 的映像、ONBUILD → 拒（container）；RUN 裡的 curl／wget／pip install… → 列出來（container_note，提醒不是門）。
@@ -205,13 +208,14 @@ PYCACHE = "__pycache__"
 # kind → 要宣告的 capability（"" ＝只列給人看、不擋）
 CAPABILITY_OF = {"network": "network", "subprocess": "subprocess", "filesystem:own": "filesystem:own",
                  "filesystem:any": "filesystem:any", "exec": "exec", "binary": "exec", "env": "", "secret": "",
-                 "external": ""}
+                 "external": "", "app": "", "app_note": ""}
 LABELS = {"network": "連網", "subprocess": "開別的程式", "filesystem:own": "讀寫檔案",
           "filesystem:any": "讀寫 pack 以外的檔案", "exec": "動態執行程式碼", "binary": "掃不到的執行檔",
           "env": "讀環境變數（可能是密鑰）", "secret": "讀使用者在「連接」填的 secret", "argv": "argv 樣板不合規則", "code": "不該有程式檔",
           "syntax": "程式解析不了", "mcp": "MCP 設定", "data": "資料歸屬（data）不合",
           "external": "未鎖定執行環境（pack 外的程式）", "container": "容器設定（Dockerfile）不合",
-          "container_note": "容器（Dockerfile）提醒"}
+          "container_note": "容器（Dockerfile）提醒", "app": "網頁畫面不合規則", "app_note": "網頁畫面（提醒）",
+          "theme": "外觀包不合規則"}
 
 _PLACEHOLDER = re.compile(r"\{(\w+)\}")
 _FLAG_VALUE = re.compile(r"^--?[A-Za-z0-9][A-Za-z0-9_-]*=\{(\w+)\}$")
@@ -232,7 +236,7 @@ class Finding:
     @property
     def blocking(self) -> bool:
         """不管宣告了什麼都擋（樣板不合、connector 有程式、解析不了）。"""
-        return self.kind in ("argv", "code", "syntax", "mcp", "data", "container")
+        return self.kind in ("argv", "code", "syntax", "mcp", "data", "container", "app", "theme")
 
     def where(self) -> str:
         return f"{self.file}:{self.line}" if self.line else self.file
@@ -394,14 +398,24 @@ def opaque_reason(folder: str, rel: str, exec_bits: Sequence[str] = ()) -> str:
     return ""
 
 
-def opaque_files(folder: str, exec_bits: Sequence[str] = ()) -> List[dict]:
+def app_exempt(m) -> List[str]:
+    """宣告了 web.app 時，root 底下副檔名在 APP_EXT 的檔不算「掃不到的檔」（它們在瀏覽器裡跑，appscan 另外看；ADR 0023 §5）。"""
+    from synox.packs.manifest import APP_EXT
+    app = (getattr(m, "web", None) or {}).get("app") or {}
+    return [f for f in app.get("files") or [] if os.path.splitext(f)[1].lower() in APP_EXT]
+
+
+def opaque_files(folder: str, exec_bits: Sequence[str] = (), skip: Sequence[str] = ()) -> List[dict]:
     """pack 資料夾裡掃不到內容的東西：[{"path", "size", "sha256", "why"}]（只讀檔頭與算雜湊，不執行任何東西）。
     node_modules 整個資料夾算一筆：path 以 / 結尾、size＝總和、sha256＝「相對路徑 雜湊」逐行排序後再算一次、
     why 寫有幾個檔。exec_bits：zip 裡帶執行位元的檔（admin.stage 記的；Windows 解壓縮後看不到）。"""
     import hashlib
     out: List[dict] = []
     groups: Dict[str, List[str]] = {}
+    skipped = set(skip or ())
     for rel in pack_files(folder, include_cache=True):
+        if rel in skipped:
+            continue
         parts = rel.split("/")
         if NODE_MODULES in parts[:-1]:
             root = "/".join(parts[:parts.index(NODE_MODULES) + 1]) + "/"
@@ -1642,8 +1656,16 @@ def scan(m: Manifest, exec_bits: Sequence[str] = ()) -> ScanReport:
     """exec_bits：zip 裡帶執行位元的檔（admin.stage 記的）；沒給＝只看檔案本身。"""
     files = pack_files(m.folder)
     report = ScanReport(files=len(pack_files(m.folder, include_cache=True)))
-    report.opaque = opaque_files(m.folder, exec_bits)
+    report.opaque = opaque_files(m.folder, exec_bits, skip=() if m.kind == "theme" else app_exempt(m))  # 外觀包：一個都不豁免
     report.external = externals(m)
+    from synox.packs.appscan import scan_app
+    report.findings += scan_app(m)
+    if m.kind == "theme":                          # 外觀包：沒有程式；每個 SVG／CSS 都消毒一次（synox/theme）
+        from synox.theme import pack as theme_pack
+        report.findings += [Finding(o["path"], 0, "theme", o["path"], f"外觀包不能有掃不到內容的檔（{o['why']}）")
+                            for o in report.opaque]
+        report.findings += [Finding(rel, 0, "theme", rel, why) for rel, why in theme_pack.scan_problems(m.folder, m.theme)]
+        return report
     if m.kind == "mcp" and m.mcp_stdio:
         report.findings += _binary_findings(report.opaque)
         report.findings += _scan_python_files(m, files)

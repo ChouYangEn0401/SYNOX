@@ -16,7 +16,7 @@ import stage_installer  # noqa: E402
 BOOTSTRAP = os.path.join(ROOT, "setup", "bootstrap.ps1")
 LANG_PS1 = os.path.join(ROOT, "setup", "lang.ps1")
 CLEAN_ENV = os.path.join(ROOT, "setup", "clean-python-env.bat")
-LAUNCHERS = ("Start.bat", "Console.bat", "Open-SYNOX.bat", "Install-Pack.bat", "Connect-Apple.bat", "Stop.bat")
+LAUNCHERS = ("Start.bat", "Console.bat", "Open-SYNOX.bat", "Install-Pack.bat", "Stop.bat")
 # 會讓 .venv 的 Python 載入別人的程式或設定的變數（Conda 的用 CONDA_ 前綴一次清）
 PYTHON_NOISE = ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONUSERBASE", "VIRTUAL_ENV", "__PYVENV_LAUNCHER__")
 
@@ -271,7 +271,7 @@ def test_every_launcher_cleans_the_environment_before_running_python(name):
 
 def test_every_bat_is_ascii_with_crlf():
     files = glob.glob(os.path.join(ROOT, "*.bat")) + glob.glob(os.path.join(ROOT, "setup", "*.bat"))
-    assert len(files) >= 9
+    assert len(files) >= 8                     # 7 個入口（根目錄）＋ setup\clean-python-env.bat
     for path in files:
         raw = open(path, "rb").read()
         raw.decode("ascii")

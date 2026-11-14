@@ -4,6 +4,9 @@
  * 要拿掉 → 刪 app.html 裡 splash.js、splash.css 那兩行 include。壞掉也不會擋住登入或對話：
  * 整段包在 try 裡、最晚 SAFETY 毫秒一定收掉；沒有 JS 時 .sx-splash 自己的 CSS 淡出也會讓它消失。
  *
+ * 外觀（docs/themes.md）：外觀包或「自己貼」換了 slot opening → S 寶寶跟 SYNOX 字換成那一段（static/slots.js 給的，
+ * 伺服器消毒過）；只換了 wordmark → SYNOX 那五個字換成字標。時間表照舊由這裡管（OUT_AT、TOTAL、SAFETY）。
+ *
  * 什麼時候播（decide）：
  *   - 系統開了「減少動態效果」→ 永遠不播
  *   - 網址有 ?splash=0 → 不播；?splash=1 → 重播（預覽的「重播開場」）
@@ -44,12 +47,46 @@
     return e;
   }
 
+  // 外觀換掉的 slot（static/slots.js；沒有＝null）。外面包一層 SYNOX 的動畫（slot 本身的位置是釘死的，不能動）
+  function themed(doc, name) {
+    var slots = root.SynoxSlots;
+    if (!(slots && slots.has && slots.has(name))) { return null; }
+    var wrap = el(doc, "div", name === "opening" ? "sx-open" : "sx-word-slot");
+    var slot = slots.make(name);
+    wrap.appendChild(slot);
+    if (name === "opening" && !squarish(slot)) { wrap.classList.add("sx-open-fit"); }
+    return wrap;
+  }
+
+  // 開場的 SVG 是不是（差不多）正方形：是 → 照舊 220×220；不是（例如 480×250 的橫幅）→ 照 viewBox 的比例放大
+  // （splash.css 的 .sx-open-fit；寬最多 min(560px, 92vw)、高最多 60vh）。讀不到比例（HTML、沒有 viewBox）→ 當正方形
+  function ratio(svg) {
+    var vb = String(svg.getAttribute("viewBox") || "").trim().split(/[\s,]+/);
+    var w = vb.length === 4 ? parseFloat(vb[2]) : parseFloat(svg.getAttribute("width"));
+    var h = vb.length === 4 ? parseFloat(vb[3]) : parseFloat(svg.getAttribute("height"));
+    return w > 0 && h > 0 ? w / h : 1;
+  }
+  function squarish(slot) {
+    try {
+      var svg = slot && slot.querySelector ? slot.querySelector("svg") : null;
+      if (!svg || svg.parentNode !== slot) { return true; }
+      var r = ratio(svg);
+      return r > 0.9 && r < 1.1;
+    } catch (e) { return true; }
+  }
+
   // 畫面：全部用 createElement＋textContent（不拼 HTML 字串、不寫 inline 樣式）
   function build(doc) {
     var splash = el(doc, "div", "sx-splash");
     splash.setAttribute("aria-hidden", "true");          // 純裝飾；按任何鍵或點一下就略過
     var stage = el(doc, "div", "sx-stage");
     stage.appendChild(el(doc, "div", "sx-halo"));
+    var opening = themed(doc, "opening");
+    if (opening) {                                       // 外觀包的開場：整段換掉，只留光暈、三個點、略過的說明
+      stage.appendChild(opening);
+      if (opening.classList.contains("sx-open-fit")) { stage.classList.add("sx-stage-fit"); }
+      return finishBuild(doc, splash, stage);
+    }
     var mascot = el(doc, "div", "sx-mascot");
     var flip = el(doc, "div", "sx-flip");
     var face = el(doc, "div", "sx-face");
@@ -67,8 +104,14 @@
     mascot.appendChild(el(doc, "div", "sx-hi", "嗨！"));
     stage.appendChild(mascot);
     var word = el(doc, "div", "sx-word");
-    "SYNOX".split("").forEach(function (ch) { word.appendChild(el(doc, "span", "", ch)); });
+    var mark = themed(doc, "wordmark");
+    if (mark) { word.appendChild(mark); }
+    else { "SYNOX".split("").forEach(function (ch) { word.appendChild(el(doc, "span", "", ch)); }); }
     stage.appendChild(word);
+    return finishBuild(doc, splash, stage);
+  }
+
+  function finishBuild(doc, splash, stage) {
     var dots = el(doc, "div", "sx-dots");
     for (var j = 0; j < 3; j++) { dots.appendChild(el(doc, "i")); }
     stage.appendChild(dots);
@@ -120,7 +163,7 @@
     play(root.document);
   }
 
-  var api = { decide: decide, build: build, play: play, SEEN: SEEN, OFF: OFF, OUT_AT: OUT_AT, TOTAL: TOTAL, SAFETY: SAFETY };
+  var api = { decide: decide, build: build, play: play, ratio: ratio, SEEN: SEEN, OFF: OFF, OUT_AT: OUT_AT, TOTAL: TOTAL, SAFETY: SAFETY };
   if (typeof module === "object" && module && module.exports) { module.exports = api; }
   else { root.SynoxSplash = api; start(); }
 })(typeof window !== "undefined" ? window : this);

@@ -301,6 +301,8 @@ def test_settings_tab_and_script_are_wired():
     for bad in (".click(", "requestSubmit", "innerHTML", "outerHTML"):
         assert bad not in js, bad
     assert "/api/aliases/preview" in js
+    from synox.tour import anchors
+    assert {"settings.tab.appearance", "settings.tab.commands", "settings.commands", "chat.examples"} <= set(anchors.ANCHORS)
 
 
 # ── 給 AI ─────────────────────────────────────────────────────────────

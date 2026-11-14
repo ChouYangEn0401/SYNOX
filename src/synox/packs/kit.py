@@ -20,9 +20,12 @@ from __future__ import annotations
 import logging
 import re
 import threading
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from dataclasses import dataclass
+from typing import Callable, Dict, Iterable, List, NamedTuple, Optional, Sequence, Tuple
 
 from isdtelekit.core.registry import Field, Group, Node, field_pattern
+
+from synox.guard import inputs
 
 
 MASK = "***"
@@ -100,24 +103,107 @@ def redact_in_logs(command: str) -> None:
     install_log_redaction()
 
 
+def _ascii_digits(text: str) -> bool:
+    """只收 0-9（"²"、"١" 的 isdigit() 也是 True，int() 卻會丟例外）。"""
+    return bool(text) and text.isascii() and text.isdigit()
+
+
 def number(value: str) -> Optional[str]:
+    """一般的數字：只收 ASCII、有限的數（nan、inf、1e999 都不收）。"""
+    import math
+    text = value.replace(",", "").strip()
     try:
-        float(value.replace(",", ""))
+        if not text.isascii() or not math.isfinite(float(text)):
+            return "要是數字"
     except ValueError:
         return "要是數字"
     return None
 
 
 def positive_int(value: str) -> Optional[str]:
-    return None if value.isdigit() and int(value) > 0 else "要是正整數（例如 1）"
+    return None if _ascii_digits(value) and int(value) > 0 else "要是正整數（例如 1）"
 
 
 def hhmm(value: str) -> Optional[str]:
     parts = value.split(":")
-    if len(parts) == 2 and all(p.isdigit() for p in parts) and 0 <= int(parts[0]) < 24 and 0 <= int(parts[1]) < 60 \
+    if len(parts) == 2 and all(_ascii_digits(p) for p in parts) and 0 <= int(parts[0]) < 24 and 0 <= int(parts[1]) < 60 \
             and len(parts[1]) == 2:
         return None
     return "要是 HH:MM（例如 08:00）"
+
+
+def amount(value: str) -> Optional[str]:
+    """金額：大於 0、最多兩位小數、不超過十億（可以有千分位逗號）。"""
+    text = value.replace(",", "").strip()
+    if re.match(r"^[0-9]{1,10}(\.[0-9]{1,2})?$", text) and 0 < float(text) <= 1_000_000_000:
+        return None
+    return "要是金額（例如 120 或 99.5）"
+
+
+def iso_date(value: str) -> Optional[str]:
+    from datetime import date
+    try:
+        if re.match(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$", value.strip()):
+            date.fromisoformat(value.strip())
+            return None
+    except ValueError:
+        pass
+    return "要是日期 YYYY-MM-DD（例如 2026-11-14）"
+
+
+def one_line(value: str) -> Optional[str]:
+    return "要是一行字（不能換行）" if ("\n" in value or "\r" in value) else None
+
+
+def max_len(n: int) -> Callable[[str], Optional[str]]:
+    def check(value: str) -> Optional[str]:
+        return None if len(value) <= n else f"最多 {n} 個字"
+    return check
+
+
+class _Checks:
+    """`Field(check=kit.checks.amount)`：一組現成的欄位檢查（回 None＝對；回一句話＝錯在哪）。
+    基本檢查（長度上限 2000、空字元、控制字元、騙人的排版字元）SYNOX 在這之前已經做完（guard/inputs.py）。"""
+    number = staticmethod(number)
+    positive_int = staticmethod(positive_int)
+    hhmm = staticmethod(hhmm)
+    amount = staticmethod(amount)
+    iso_date = staticmethod(iso_date)
+    one_line = staticmethod(one_line)
+    max_len = staticmethod(max_len)
+
+
+checks = _Checks()
+
+
+# ── 誰叫的（ADR 0025 §2）：工具看得到、改不了；「自己再檢查一次」用，不是邊界 ──────────
+
+class Caller(NamedTuple):
+    kind: str          # telegram／discord／web／console／remote／ai／schedule／system／unknown
+    human: bool        # 人在 Telegram／Discord／SYNOX 網頁／終端機
+
+
+NOT_HUMAN = "🔐 這個動作要你本人在 Telegram 或 SYNOX 網頁做。"
+
+
+class Refused(Exception):
+    """丟出去＝回使用者一句話、不算工具壞掉（kit.command 會接住）。"""
+
+    def __init__(self, text: str):
+        super().__init__(text)
+        self.text = str(text)
+
+
+def caller() -> Caller:
+    from synox.guard import origin
+    o = origin.current()
+    return Caller(o.kind, o.human)
+
+
+def require_human() -> None:
+    """不是人（AI、排程、遠端、背景工作、不明）→ 丟 Refused（使用者看到「這個動作要你本人…」）。"""
+    if not caller().human:
+        raise Refused(NOT_HUMAN)
 
 
 def usage_of(fields: Sequence[Field], positional: int) -> str:
@@ -153,20 +239,85 @@ def parse_args(fields: Sequence[Field], args: Sequence[str], positional: Optiona
         if i >= len(tokens):
             break
         values[f.name] = " ".join(tokens[i:]) if i == len(slots) - 1 else tokens[i]
-    errors = []
+    return check_values(fields, values)
+
+
+def field_errors(fields: Sequence[Field], values: Dict[str, str]) -> Dict[str, str]:
+    """{欄位名: 錯誤的那一句}（choices、check）。訊息跟 Telegram 那條同一句（「金額要是數字」）。"""
+    out: Dict[str, str] = {}
     for f in fields:
         value = values.get(f.name)
         if value is None:
             continue
         if f.choices and value.strip().lower() not in {c.lower() for c in f.choices}:
-            errors.append(f"{f.ask} 只能是 {'/'.join(f.choices)}")
+            out[f.name] = f"{f.ask} 只能是 {'/'.join(f.choices)}"
         elif f.check is not None and f.check(value):
-            errors.append(f"{f.ask}{f.check(value)}")
+            out[f.name] = f"{f.ask}{f.check(value)}"
+    return out
+
+
+def check_values(fields: Sequence[Field], values: Dict[str, str]
+                 ) -> Tuple[Dict[str, str], List[Field], List[str]]:
+    """已經照名字放好的 values → (clean, 缺的必填, 錯誤)。人打字（parse_args）、AI、工具畫面、手機入口都走這裡：
+    第一步是門禁核心的基本檢查（guard/inputs.py：不認得的欄位、太多、太長、空字元、控制字元、排版字元；固定的句子），
+    再跑欄位自己的 choices／check、補 default、找缺的必填。"""
+    fields = tuple(fields)
+    try:
+        inputs.values([f.name for f in fields], values, multiline=True)
+    except inputs.Bad as bad:
+        return {}, [], [bad.text]
+    clean = dict(values)
+    errors = list(field_errors(fields, clean).values())
     for f in fields:
-        if f.name not in values and f.default:
-            values[f.name] = f.default
-    missing = [f for f in fields if f.required and f.name not in values]
-    return values, missing, errors
+        if f.name not in clean and f.default:
+            clean[f.name] = f.default
+    missing = [f for f in fields if f.required and f.name not in clean]
+    return clean, missing, errors
+
+
+# ── 工具服務（ADR 0024；SDK 0.2.3）：pack.app_read／app_action／app_export 用的小東西 ─────────
+
+class AppError(Exception):
+    """工具的畫面函式裡丟：message 原樣顯示給使用者（所以是寫給人看的一句話）。別的例外的訊息永遠不會出現在回應、log、稽核。"""
+
+    def __init__(self, message: str, code: str = "refused", status: int = 409):
+        super().__init__(message)
+        self.message, self.code, self.status = str(message), str(code or "refused"), int(status or 409)
+
+
+@dataclass(frozen=True)
+class Download:
+    """一個要給使用者存下來的檔（pack.app_export 的函式回這個）。"""
+    filename: str
+    content_type: str
+    data: bytes
+
+
+_FORMULA_START = ("=", "+", "-", "@", "\t", "\r", "\n")
+
+
+def csv_bytes(header: Sequence, rows: Iterable[Sequence]) -> bytes:
+    """CSV：UTF-8、開頭 BOM、CRLF、標準函式庫 csv 的引號規則。int／float 原樣寫；None 寫空的；
+    字串開頭是 = + - @ Tab CR LF 的前面加一個 '（防試算表把它當公式）。每個工具的 CSV 都用它，不要自己組。"""
+    import csv
+    import io
+
+    def cell(value):
+        if value is None:
+            return ""
+        if isinstance(value, bool):
+            return str(value)
+        if isinstance(value, (int, float)):
+            return value
+        text = str(value)
+        return "'" + text if text.startswith(_FORMULA_START) else text
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\r\n")
+    writer.writerow([cell(v) for v in header])
+    for row in rows:
+        writer.writerow([cell(v) for v in row])
+    return ("﻿" + buf.getvalue()).encode("utf-8")
 
 
 def command(group: Group, name: str, fn: Callable, summary: str, *, fields: Sequence[Field] = (),
@@ -193,7 +344,10 @@ def command(group: Group, name: str, fn: Callable, summary: str, *, fields: Sequ
         if missing:
             api.send_message(chat_id, f"用法：{node.command} {shown}\n（少了：{'、'.join(f.ask for f in missing)}）")
             return
-        fn(api, chat_id, user, values)
+        try:
+            fn(api, chat_id, user, values)
+        except Refused as refused:
+            api.send_message(chat_id, refused.text)
 
     node = group.leaf(name, run, summary, usage=shown, **kw)
     node.fields = fields

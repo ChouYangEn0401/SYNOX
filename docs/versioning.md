@@ -30,9 +30,9 @@ SYNOX **不會自己連網查新版、也不會自己更新**（之後會多一�
 
 | 你是 | 怎麼更新 | 備註 |
 |---|---|---|
-| **用 ZIP 的人**（從介紹頁或發佈頁下載、解開、點 `Setup.bat`） | ① 點兩下 `Stop.bat` 關掉 SYNOX ② 到發佈頁下載新的 `SYNOX-<版本>.zip`（或介紹頁的「⬇ 下載 SYNOX」）③ 解開 ④ 把裡面 `SYNOX`（或 `SYNOX-main`）資料夾的**全部內容**複製到你原本的 SYNOX 資料夾，問要不要取代就選「**取代**」⑤ 點兩下 `Setup.bat` | 新的 ZIP 裡沒有 `config.json`、`data`、`packs`，所以蓋不掉你的東西。`Setup.bat` 重跑是安全的：只更新套件、最後打開精靈——直接關掉精靈就好，設定都還在 |
+| **用 ZIP 的人**（從介紹頁或發佈頁下載、解開、點 `Setup.bat`） | ① 點兩下 `Stop.bat` 關掉 SYNOX ② 到發佈頁下載新的 `SYNOX-<版本>.zip`（或介紹頁的「⬇ 下載 SYNOX」）③ 解開 ④ 把裡面 `SYNOX`（或 `SYNOX-main`）資料夾的**全部內容**複製到你原本的 SYNOX 資料夾，問要不要取代就選「**取代**」⑤ 點兩下 `Setup.bat` | 新的 ZIP 裡沒有 `config.json`、`data`、`packs`，所以蓋不掉你的東西。`Setup.bat` 重跑是安全的：只更新套件、最後打開精靈——直接關掉精靈就好，設定都還在。舊的 ZIP 帶的開發用檔案（`tests`、`evals`、`docs\lab`、`docs\ui`、`docs\installer`…）和 `Connect-Apple.bat`、根目錄的 `GOVERNANCE.md`／`MAINTAINERS.md`／`TRADEMARK.md`（搬進 `.github`），新的 ZIP 不帶了：留著不會被讀，想清就自己刪（Apple 帳號改用 `.venv\Scripts\python.exe -m synox connect apple-reminders`） |
 | **用 git 的人** | `Stop.bat` → `git pull`（在 `main` 上）→ `Setup.bat` | 只要某一版：`git fetch --tags` → `git checkout v0.2.1`。用 Docker：`git pull` → `docker compose build` → `docker compose up -d`（[docker.md](docker.md)） |
-| **用安裝程式（.exe）的人** | ⏳ 安裝程式還沒正式發佈。發佈之後：下載新的 `SYNOX-Setup-<版本>.exe`，裝在原本的位置（預設就是） | 設計上會保留 `config.json`、`data`、`packs`（[adr/0003](adr/0003-distribution-git-clone-and-installer.md) B）；**還沒在真機驗證過** |
+| **用安裝程式（.exe）的人** | ⏳ 安裝程式還沒正式發佈。發佈之後：下載新的 `SYNOX-Setup-<版本>.exe`，裝在原本的位置（預設就是） | 設計上會保留 `config.json`、`data`、`packs`（[adr/0003](adr/0003-distribution-git-clone-and-installer.md) B），舊版才有的開發用檔案會自動刪掉；**還沒在真機驗證過** |
 | **工具（工具庫的 pack）** | 網頁「設定 → 功能與安裝 → 工具庫（官方）」按「載入工具清單」：有新版的工具會標出來，按「安裝」就是更新。或拿到新的 `.synoxpack` 再裝一次 | 同名再裝＝升級：先給你看「改了什麼」（權限變大是紅字），你按確認才換。不滿意：`synox packs rollback <工具名>` 退回上一版。工具自己的資料不會動 |
 | **寫工具的人（SDK）** | 先照上面更新 SYNOX → `pip install -U <SYNOX 資料夾>/sdk`（或重新複製 `sdk/synox_sdk.py` 到你的工具旁邊）→ `synox-sdk check .` | 看 [sdk.md](sdk.md)「SDK 版本」：SDK 第二個數字變了（例如 0.2 → 0.3）才要改 `requires.sdk` 並重新測；只變最後一個數字不用改 |
 

@@ -1,5 +1,54 @@
 # Changelog
 
+## 未發佈（門禁核心、手機驗證器、工具服務、手機入口；分支 feat/secure-apps）
+
+### 新增
+- **門禁核心**（`src/synox/guard/`，ADR 0025）：每個動作都記得是誰引起的（Telegram、網頁、AI、排程…）；所有欄位值先過同一份基本檢查（太長、空字元、控制字元、騙人的排版字元）；
+  安全紀錄 `data/security_audit.jsonl`。工具可以在 `pack.json` 用 `callers`／`stepup` 收緊範圍（只收本人、一定要解鎖）；`kit.caller()`、`kit.require_human()`、`kit.checks`。
+- **手機驗證器（兩步驗證）**：設定 → 🔐 安全（或 `python -m synox stepup setup`）。設定好並勾「危險的動作也要先解鎖」之後，所有危險的指令與幾個敏感的網頁動作要先
+  `/unlock <6 位數>`；解鎖只對打碼的那個入口有效、15 分鐘；10 組備用碼；AI 拿不到也給不了驗證碼。沒設定＝什麼都不變。
+- **工具服務**（ADR 0024）：工具可以附完整的網頁畫面（`web.app`），在 `127.0.0.2` 上、不用 cookie、只能從主機台用一次性的票進；`/apps`、`/app_open`、`/app_close`；
+  工具頁的「完整畫面」卡片與每個工具的閒置設定；`synox-sdk init --app`；SDK 0.2.3（只加不改）。
+- **手機入口**（ADR 0026，預設關）：`/app_remote <名字>`（或工具頁的「📱 手機入口」）打一組新的驗證碼 → 一個只能用一次的連結，手機上再打一組數字才進得去；通道是你自己裝、在設定 → 🔐 安全核准過的 `cloudflared`（SYNOX 不下載、不更新，每次啟動前對雜湊）；只碰得到那一個工具的畫面，危險的動作與匯出在手機上不能做；30 分鐘、10 分鐘沒用、`/app_close` 都會整組收掉。
+- `doctor` 多「手機驗證器」「工具服務」「手機入口」三行。
+
+### 變更
+- 主機台的 `/api/` 拒絕別的網頁送來的請求（`Sec-Fetch-Site` 是 same-site／cross-site）；每個回應加 COOP、JSON 加 CORP；同名的假 cookie 擋不住真的那個。
+- `stepup_minutes` 預設 15（1–120）。伺服器版擁有者沒設定驗證器時，現在給得了別人管理員（以前會被 SDK 的命令列提示擋住）。
+- 工具服務的 ADR 改號成 0024（原本跟「SYNOX 自己更新」撞號 0023）。
+
+## 未發佈（發佈物只帶使用者要的；拿掉 Connect-Apple.bat；治理文件搬進 .github）
+
+### 變更
+- **發佈 ZIP 與安裝程式只帶執行、更新 SYNOX 要用的檔案**（擁有者 2026-11-14 決定）：`tests/`、`evals/`、`docs/lab/`、`docs/artifacts/`、
+  `docs/artifacts.json`、`docs/QuestionToUser.md`、`docs/ui/`、`docs/installer/`、`.github/` 的 CI 與範本、`.devcontainer/` 不再發給使用者
+  （`scripts/make_zip.py` 的 `INTERNAL`；`stage_installer.py` 用同一份）。GitHub 的「Download ZIP」也一樣不帶（`.gitattributes` 的 export-ignore）。
+  要這些的工程師用 `git clone`。README 建議：一般使用者用安裝程式或發佈 ZIP，工程師用 git clone。
+- 安裝程式更新舊版時，會先刪掉舊版才有的那些開發用檔案（`synox.iss` 的 `[InstallDelete]`）；`config.json`、`data\`、`packs\` 不動。
+  用 ZIP 蓋過去更新的人：舊的 `tests\` 這些留著不會被讀，想清就自己刪（[docs/versioning.md](docs/versioning.md)）。
+- 拿掉 `Connect-Apple.bat`：Apple 提醒事項工具在工具庫，入口屬於工具本身——改用 `.venv\Scripts\python.exe -m synox connect apple-reminders`
+  （或網頁工具頁的「連接」）。
+- `GOVERNANCE.md`、`MAINTAINERS.md`、`TRADEMARK.md` 搬進 `.github/`（照樣發給使用者；`synox about` 改成「見 .github/TRADEMARK.md」）。
+  `LICENSE`、`LICENSE-APACHE`、`NOTICE`、`LICENSING.md` 留在根目錄。
+- `scripts/clean_room_check.py` 的副本另外帶 `tests/`（最後一步要跑 pytest）；`installer_ci.py check-iss` 多檢查 `[InstallDelete]` 不刪使用者的資料。
+- 新增公開的沙盒路線圖 [docs/sandbox-roadmap.md](docs/sandbox-roadmap.md)（現況、Windows 的候選路線、志願者怎麼跑探測腳本、徵求協助的任務與驗收條件）、
+  GitHub Discussions 的貼文草稿（`docs/community/`）與「想法」表單（`.github/DISCUSSION_TEMPLATE/ideas.yml`）；`CONTRIBUTING.md` 加「參與討論」。
+  `docs/community/`、`.github/DISCUSSION_TEMPLATE/` 跟其他開發用檔案一樣不發給使用者。
+- ADR 0022、生態研究與幾份舊研究頁講到 OpenClaw／Hermes Agent 的地方改成中性、以相容為目的的寫法：只引用對方的公開文件，二手報導標「待查」，並感謝兩個專案公開的文件。
+
+## 未發佈（外觀：換裝）
+
+### 新增
+- 外觀（換裝）：SYNOX 預設還是原本的樣子；外觀包（`.synoxpack`，`kind=theme`）上傳 → 看報告（色票＋預覽）→ 按確認才裝，到「設定 → 🎨 外觀」套用、隨時換回原本的 SYNOX。整個網頁的顏色都來自一組 token，吉祥物、開場、字標、分頁圖示是可以換的位置；也可以自己貼 SVG 換某一個位置。外觀包沒有程式，SVG／CSS 一律消毒（不收程式、事件屬性、外部網址、@import），字型只能附在包裡。Telegram、Discord 不受影響。（`docs/themes.md`）
+- 跟工具服務／門禁核心合在一起時取比較嚴的：外觀包也不能寫 `callers`、`stepup`（第 1 關就拒；`web`／`web.app` 本來就不收）；
+  第 2 關對外觀包不豁免任何「掃不到的檔」，網頁畫面的檢查（appscan）照樣跑；外觀包從「功能與安裝」裝，跟工具一樣要過解鎖（開了的話）。
+  「🔐 安全」與工具服務的畫面改用同一組顏色 token（換外觀、深色時解鎖框看得清楚）；手機驗證器的 QR 碼固定黑白。
+
+## 未發佈（標語）
+
+### 變更
+- 拿掉標語「聊天就能用，資料不出門。」（接雲端 AI 時對話會送出去，「資料不出門」不實）；新標語還沒定案，暫用「先問你，再動手。」，只寫在 `src/synox/brand.py` 的 `SLOGAN`（介紹頁組頁面時、終端機歡迎畫面／`synox about` 都從那裡拿）。上面那行小字維持「住在你自己電腦裡的 AI 助理」。精靈「個人版」那句改成只說設定、金鑰、筆記、記帳存在這台電腦。
+
 ## 未發佈（整理資料夾）
 
 ### 變更

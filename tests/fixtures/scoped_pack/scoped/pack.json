@@ -1,0 +1,14 @@
+{
+  "name": "scoped",
+  "title": "🔒 範圍測試",
+  "summary": "測試 callers／stepup 宣告的小工具",
+  "version": "0.1.0",
+  "kind": "python",
+  "group": "scoped",
+  "access": "member",
+  "data": "none",
+  "python": { "module": "pack" },
+  "skill": "SKILL.md",
+  "callers": { "mine": ["human"] },
+  "stepup": ["vault"]
+}

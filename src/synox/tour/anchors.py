@@ -37,6 +37,7 @@ ANCHORS: Dict[str, Tuple[str, str]] = {
     "settings.tab.system": ("設定頁：「💻 電腦與備份」分頁", "0.2"),
     "settings.tab.commands": ("設定頁：「⌨️ 我的指令」分頁（每個人自己的指令符號與名字）", "0.2"),
     "settings.commands": ("設定頁：「⌨️ 我的指令」那張卡（不是存檔鈕）", "0.2"),
+    "settings.tab.appearance": ("設定頁：「🎨 外觀」分頁（換顏色、吉祥物；每個人都看得到）", "0.2"),
     "settings.tab.help": ("設定頁：「🙋 遇到問題？」分頁", "0.2"),
     "settings.ai.source": ("設定頁：「AI 從哪裡來」那張卡", "0.2"),
     "settings.channels": ("設定頁：聊天通道（Telegram／Discord）那張卡", "0.2"),
