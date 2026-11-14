@@ -13,8 +13,8 @@
 | [tools/local-llm-live/](tools/local-llm-live/) | 對真的 Ollama 跑 SYNOX AgentLoop 的測試腳本與原始結果 |
 | [discussions/](discussions/) | 沙盒／容器的設計討論（2026-11-10）：為什麼、比較表、階段 S0–S8，與實作 how-to（原 `docs/discussions/`） |
 | [cross-repo/](cross-repo/) | 請**別的 repo**（金流簿、ISDTeleKitSDK…）做的事，一件一檔，由擁有者轉交（原 `docs/handoffs/`；跟給使用者的 `docs/handoff/` 不同） |
-| [inbox/](inbox/) | 等**擁有者**決定或要擁有者動手的事，一件一檔（檔名帶日期時間；檔頭有狀態：待處理／進行中／已完成），附選項與建議 |
 | [documents-inventory.md](documents-inventory.md) | 文件盤點：哪些已公開、哪些只在本機，以及備份在哪 |
+| [inbox/](inbox/) | 等**擁有者**決定或要擁有者動手的事，一件一檔（檔名帶日期時間；檔頭有狀態：待處理／進行中／已完成），附選項與建議 |
 | [2026-11-14-tool-apps-implementation-plan.md](2026-11-14-tool-apps-implementation-plan.md) | 工具服務（每個工具自己的完整網頁）的實作計畫：合約、八個工作包、只有擁有者能做的真機驗收；設計在 [adr/0024](../adr/0024-tool-apps-services.md)（提案） |
 | [2026-11-14-stepup-remote-plan.md](2026-11-14-stepup-remote-plan.md) | 門禁核心、手機驗證器、手機入口的實作計畫（S1–S15，含工具服務的八包）；設計在 [adr/0025](../adr/0025-guard-core-and-stepup.md)、[adr/0026](../adr/0026-remote-tool-apps.md) |
 
