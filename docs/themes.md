@@ -55,6 +55,7 @@ SYNOX 預設是原本的樣子（S 寶寶、藍綠色）。**外觀包**（`.syn
 | `opening` | 打開網頁的開場：放在「點一下打開 SYNOX」的門的按鈕裡，播完停在最後一格等人點（時間 SYNOX 管；減少動態效果時不動） | S 寶寶掉下來、翻成 S | SVG／HTML＋CSS 動畫 |
 | `wordmark` | 側欄的「SYNOX」、開場的字 | 文字 SYNOX | SVG／HTML |
 | `appicon` | 分頁圖示（favicon） | 瀏覽器預設 | 只收 SVG |
+| `chat.background` | 對話的背景：鋪滿整個對話區、在訊息底下、點不到（見下面「背景」） | 沒有 | 只收 SVG |
 
 slot 元素本身的位置被網頁用 `!important` 釘死（不能移動、不能蓋到別的畫面上、裡面畫出界就裁掉）；
 動畫請動 slot **裡面**的東西。SVG 的大小照 slot（`width/height: 100%`，請給 `viewBox`）。
@@ -102,7 +103,7 @@ costume-b-lantern/
   `fonts` 寫字串時，字型名字＝檔名（不含副檔名）；寫物件可以指定 `family`、`weight`（`400`、`700`、`"100 900"`）、`style`。
 - `theme.contract`：照第幾版的合約做的（現在 1）；比這台 SYNOX 新＝不裝，請先更新 SYNOX。
 
-範例：`tests/fixtures/theme_pack/`（提燈，換了全部 7 個 slot）。打包：`python scripts/pack_zip.py <資料夾>`。
+範例：`tests/fixtures/theme_pack/`（提燈，換了全部 8 個 slot）。打包：`python scripts/pack_zip.py <資料夾>`。
 
 ## 消毒規則（安裝時第 2 關、每次送網頁都再跑一次）
 
@@ -149,6 +150,41 @@ SVG 裡的 `<style>` 拿出來，每個選擇器自動套上 `[data-slot="<slot>
 3. 裝好**不會自己套用**：到「設定 → 🎨 外觀」挑它、看預覽、按「套用」。隨時可以按「換回原本的 SYNOX」。
 4. 同時只會套一個外觀包。
 
+## 衣櫃（SYNOX 衣櫃：在 SYNOX 裡面挑、裝）
+
+「設定 → 🎨 外觀 → 衣櫃」：按 **「看衣櫃（要連到網路）」** 才會連網，抓的是官方工具庫**同一份清單**
+（`packs/catalog.OFFICIAL_INDEX_URL`，同一套安全的抓法：寫死的網址、只跟 GitHub 自己的轉址、大小上限、逾時）。沒有背景抓取。
+
+- 清單裡 `"kind": "theme"` 的條目（SYNOX_Libs 的 `scripts/build_costumes.py` 產生：`category`「衣櫃／外觀」、
+  `collection` "wardrobe"、`series` 系列字母、`line` 一句話）列在衣櫃；**不會**出現在「功能與安裝」的工具清單
+  （`catalog.cards` 只列工具、`catalog.wardrobe_cards` 只列外觀包）。頂層的 `collections.wardrobe` 只拿來顯示標題。
+- 卡片：標題、一句話、小預覽——清單有 `swatches`（最多 6 個 `#hex`）就畫色條，沒有就用系列字母當方塊。清單裡的網址一律不用。
+- **安裝**＝跟工具庫同一條路（`POST /api/packs/library/install`）：伺服器下載、大小和雜湊對清單 → `admin.stage`（第 1、2 關）→
+  「功能與安裝」那份報告（色票＋預覽）→ 你按「確認安裝」才裝。清單說是外觀包、壓縮檔裡就要是外觀包（反過來也一樣），不然丟掉暫存。
+- 裝好回到外觀按 **「套用」**（跟之前一樣）。卡片上會標「已安裝」「有新版」；有新版按「更新到 vX」，報告會是升級的那一份。
+- 「到衣櫃網頁看完整預覽」連到衣櫃的公開頁（`catalog.WARDROBE_URL`，一個常數）。
+- 清單裡還沒有任何外觀包（例如現在釘住的 v0.2.0）：顯示「衣櫃還沒上架，先到網頁看看」。
+- 只有擁有者能按「看衣櫃」、能裝；伺服器版的其他人看得到網頁連結，裝好的照樣能自己挑。
+
+## 背景
+
+「設定 → 🎨 外觀 → 背景」：對話區後面的背景，五選一：
+
+| 選項 | 存的值 | 網頁上 |
+|---|---|---|
+| 跟著外觀（預設） | `{"kind": "theme"}` | 外觀包有 `chat.background` 就用它的，沒有就沒有 |
+| 不要背景 | `{"kind": "none"}` | `<html data-chat-bg="none">`（外觀包有也不顯示） |
+| 純色 | `{"kind": "color", "color": "#rrggbb"}` | `data-chat-bg="color"`＋`--chat-bg-color`；跟底色（`--bg`）混一半，深色也看得清楚 |
+| 花紋 | `{"kind": "pattern", "pattern": "dots"｜"grid"｜"stripes"｜"glow"}` | `data-chat-bg="<花紋>"`：只用 CSS 漸層和 token 畫（`--line`、`--soft`…），跟著外觀換色 |
+| 自己貼 SVG | `{"kind": "svg"}` | 「自己貼」的 `chat.background` 那一格（同一套消毒；在「自己貼」貼好按套用就自動選這個；拿掉就回到「跟著外觀」） |
+
+- **自己選的蓋過外觀包的**：選了不要／純色／花紋，外觀包的 `chat.background` 不會送到網頁；選「跟著外觀」才用它。
+- **不連任何網址**：純色只收 `#hex`；花紋是內建的 CSS；SVG 走消毒（`<image>`、外部網址、`data:` 一律拒）。
+- **減少動態效果**：CSS 動畫照全站的規則停掉；背景 SVG 自己的 `<animate>` 由 `static/slots.js` 呼叫 `pauseAnimations()` 停住。
+- 外觀包作者：`theme.slots` 寫 `"chat.background": "slots/background.svg"`。它鋪滿整個對話區（請給 `viewBox`，
+  多半要 `preserveAspectRatio="xMidYMid slice"`），顏色用 class＋token，**淡一點**（字要看得清楚）。
+- 範圍（個人版／伺服器版）跟其他欄位一樣（見下面「存在哪裡」）。
+
 ## 自己貼（進階）
 
 「設定 → 🎨 外觀 → 自己貼」：選一個 slot，貼 SVG（或一小段 HTML＋`<style>`），按「預覽」看消毒後的樣子與拿掉了什麼，
@@ -158,10 +194,11 @@ SVG 裡的 `<style>` 拿出來，每個選擇器自動套上 `[data-slot="<slot>
 ## 存在哪裡、誰的算數
 
 存在每個人的網頁偏好 `data/web_prefs/<tg_id>.json(.enc)`（有保管箱就是密文）的 `appearance`：
-`{"theme": "<外觀包>"｜"", "mode": "auto"｜"light"｜"dark", "custom": {"<slot>": "<貼的原文>"}}`。
+`{"theme": "<外觀包>"｜"", "mode": "auto"｜"light"｜"dark", "custom": {"<slot>": "<貼的原文>"}, "background": {…}}`
+（`background` 見上面「背景」）。
 
 - **個人版**：擁有者的那一份就是這台的外觀（跟著這次安裝，重開還在）。
-- **伺服器版**：每個人自己選、自己貼，只影響自己的畫面；**自己沒選過的欄位（外觀、淺色／深色、自己貼）跟擁有者的一樣**——
+- **伺服器版**：每個人自己選、自己貼，只影響自己的畫面；**自己沒選過的欄位（外觀、淺色／深色、自己貼、背景）跟擁有者的一樣**——
   擁有者的那一份＝這台的預設。還沒登入的畫面（登入卡）用擁有者的。外觀包只有擁有者能裝。
 
 ## 從品牌頁做一個外觀包

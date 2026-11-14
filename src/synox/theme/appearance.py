@@ -3,11 +3,14 @@
 
 存在哪裡、誰的算數（docs/themes.md「存在哪裡」）：
 - 存在每個人的網頁偏好（data/web_prefs/<tg_id>.json(.enc)，web/toolpage.UserPrefs）的 "appearance"：
-      {"theme": "<外觀包名字>"｜""（原本的 SYNOX）, "mode": "auto"｜"light"｜"dark", "custom": {"<slot>": "<貼的原文>"}}
+      {"theme": "<外觀包名字>"｜""（原本的 SYNOX）, "mode": "auto"｜"light"｜"dark", "custom": {"<slot>": "<貼的原文>"},
+       "background": {"kind": "theme"｜"none"｜"color"｜"pattern"｜"svg", "color": "#rrggbb", "pattern": "dots"…}}
 - **個人版**：只有擁有者，擁有者的那一份就是這台的外觀。
 - **伺服器版**：每個人自己選、自己貼（只影響自己的畫面）；**沒選過的欄位跟擁有者的一樣**（擁有者的那一份＝這台的預設）。
   還沒登入的畫面（登入卡）用擁有者的。外觀包只有擁有者能裝（跟其他 pack 一樣）。
 - 存的是貼上的原文；每次送網頁都重新消毒（消毒規則更新了，舊的東西照新規則；過不了＝那一格當作沒貼）。
+- 背景（chat.background）：自己選的（不要、純色、花紋、自己貼）蓋過外觀包的；「跟著外觀」＝外觀包有就用它的。
+  網頁上是 <html data-chat-bg="none|color|dots|grid|stripes|glow">（空＝看 slot 有沒有東西）＋純色的 --chat-bg-color。
 """
 
 from __future__ import annotations
@@ -16,6 +19,7 @@ import hashlib
 import html as html_mod
 import logging
 import os
+import re
 import threading
 from typing import Dict, List, Optional, Tuple
 
@@ -25,7 +29,9 @@ from synox.theme import tokens as theme_tokens
 
 PREF_KEY = "appearance"
 MAX_CUSTOM = 32 * 1024            # 自己貼的一格最多多大
-FIELDS = ("theme", "mode", "custom")
+FIELDS = ("theme", "mode", "custom", "background")
+BG_SLOT = "chat.background"
+HEX_RE = re.compile(r"^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$")
 
 
 class AppearanceError(ValueError):
@@ -58,7 +64,24 @@ def clean_prefs(raw) -> dict:
     if isinstance(custom, dict):
         out["custom"] = {k: v for k, v in custom.items()
                          if contract.slot_name(k) == k and isinstance(v, str) and len(v.encode("utf-8")) <= MAX_CUSTOM}
+    bg = clean_background(raw.get("background"))
+    if bg is not None:
+        out["background"] = bg
     return out
+
+
+def clean_background(raw) -> Optional[dict]:
+    """背景的選擇 → {"kind", 加上 color 或 pattern}；看不懂＝None（當作沒選）。"""
+    if not isinstance(raw, dict) or raw.get("kind") not in contract.BACKGROUND_KINDS:
+        return None
+    kind = raw["kind"]
+    if kind == "color":
+        color = raw.get("color")
+        return {"kind": kind, "color": color.lower()} if isinstance(color, str) and HEX_RE.match(color) else None
+    if kind == "pattern":
+        pattern = raw.get("pattern")
+        return {"kind": kind, "pattern": pattern} if pattern in contract.BACKGROUND_PATTERNS else None
+    return {"kind": kind}
 
 
 class Appearance:
@@ -119,7 +142,7 @@ class Appearance:
         """這個人看到的（伺服器版：自己沒選的欄位用擁有者的）。tg_id=None＝還沒登入。"""
         owner = self.own(self.owner_id())
         mine = owner if tg_id in (None, self.owner_id()) else self.own(tg_id)
-        out = {"theme": "", "mode": "auto", "custom": {}}
+        out = {"theme": "", "mode": "auto", "custom": {}, "background": {"kind": "theme"}}
         for key in FIELDS:
             if key in mine:
                 out[key] = mine[key]
@@ -151,10 +174,21 @@ class Appearance:
             custom = dict(current.get("custom") or self.effective(tg_id).get("custom") or {})
             if text in (None, ""):
                 custom.pop(slot, None)
+                if slot == BG_SLOT and self.effective(tg_id)["background"].get("kind") == "svg":
+                    current["background"] = {"kind": "theme"}        # 拿掉自己貼的背景＝回到跟著外觀
             else:
                 self.clean_custom(slot, text)            # 過不了丟 AppearanceError
                 custom[slot] = text
+                if slot == BG_SLOT:
+                    current["background"] = {"kind": "svg"}          # 貼了背景＝用貼的
             current["custom"] = custom
+        if "background" in changes:
+            bg = clean_background(changes["background"])
+            if bg is None:
+                raise AppearanceError("背景只能選：跟著外觀、不要、純色（#rrggbb）、內建的花紋、自己貼的 SVG。")
+            if bg["kind"] == "svg" and BG_SLOT not in (current.get("custom") or self.effective(tg_id).get("custom") or {}):
+                raise AppearanceError("還沒貼背景的 SVG：先貼上、預覽，再按「套用」。")
+            current["background"] = bg
         if changes.get("reset"):
             current = {}
         self.prefs.set(int(tg_id), PREF_KEY, current or None)
@@ -185,6 +219,7 @@ class Appearance:
         """(mode, 外觀包名字或 "", CSS, {slot: markup}, appicon 的 data: 網址)。"""
         pref = self.effective(tg_id)
         css, slots, icon, name = [], {}, "", ""
+        bg = pref.get("background") or {"kind": "theme"}
         if pref.get("theme"):
             m = self.manifest(pref["theme"])
             bundle = self.bundle_of(m) if m is not None else None
@@ -193,6 +228,8 @@ class Appearance:
                 css.append(bundle.stylesheet())
                 slots.update(bundle.slots)
         for slot, text in (pref.get("custom") or {}).items():
+            if slot == BG_SLOT and bg.get("kind") != "svg":
+                continue                                  # 背景自己貼的只在選了「自己貼」時用
             try:
                 clean = self.clean_custom(slot, text)
             except AppearanceError as e:
@@ -201,9 +238,21 @@ class Appearance:
             slots[slot] = clean.markup                    # 自己貼的蓋過外觀包的
             if clean.css:
                 css.append(clean.css)
+        if bg.get("kind") not in ("theme", "svg"):
+            slots.pop(BG_SLOT, None)                      # 自己選了不要／純色／花紋：外觀包的背景不用
+        if bg.get("kind") == "color":
+            css.append(f":root {{ --chat-bg-color: {bg['color']}; }}")     # 檢查過的 #hex
         if "appicon" in slots:
             icon = theme_pack.appicon_uri(slots.pop("appicon"))
         return pref.get("mode") or "auto", name, "\n".join(c for c in css if c), slots, icon
+
+    def chat_bg(self, tg_id: Optional[int]) -> str:
+        """<html data-chat-bg> 的值：none、color、花紋的名字；空＝跟著 slot（外觀包的或自己貼的，沒有就沒有）。"""
+        bg = self.effective(tg_id).get("background") or {}
+        kind = bg.get("kind")
+        if kind == "pattern":
+            return bg.get("pattern") or ""
+        return kind if kind in ("none", "color") else ""
 
     def head(self, tg_id: Optional[int], nonce: str) -> Tuple[str, str, str]:
         """→ (mode, 外觀包名字, 要塞進 <head> 的 HTML)。"""
@@ -231,6 +280,8 @@ class Appearance:
         else:
             scope = "owner-default" if owner else "user"
         return {"themes": themes, "theme": eff["theme"], "mode": eff["mode"], "custom": custom,
+                "background": eff["background"],
+                "patterns": [{"name": k, "text": v} for k, v in contract.BACKGROUND_PATTERNS.items()],
                 "inherited": [k for k in FIELDS if k not in mine and tg_id != self.owner_id()],
                 "slots": [{"name": n, "text": d, "kinds": list(k)} for n, (d, _v, k) in contract.SLOTS.items()],
                 "tokens": list(contract.TOKENS), "contract": contract.CONTRACT_VERSION, "owner": owner,
@@ -275,7 +326,9 @@ body{background:var(--bg);color:var(--text);font:12.5px/1.45 var(--font-ui,syste
 .sw{display:flex;gap:2px}.sw i{width:9px;height:18px;border-radius:3px}
 .sw .c1{background:var(--accent)}.sw .c2{background:var(--accent2)}.sw .c3{background:var(--soft)}.sw .c4{background:var(--ok)}
 .sw .c5{background:var(--warn)}.sw .c6{background:var(--bad)}
-main{padding:8px 10px;display:flex;flex-direction:column;gap:6px;min-width:0}
+main{padding:8px 10px;display:flex;flex-direction:column;gap:6px;min-width:0;position:relative;isolation:isolate;
+ min-height:calc(100% - 39px)}
+.bgl{position:absolute;inset:0;z-index:-1;pointer-events:none;overflow:hidden}.bgl>[data-slot]{width:100%;height:100%}
 .msg{max-width:88%;padding:5px 9px;border-radius:calc(var(--radius,10px)*1.6)}
 .me{align-self:flex-end;background:var(--me);color:var(--me-ink)}
 .bot{align-self:flex-start;background:var(--surface-2);border:1px solid var(--line)}
@@ -329,12 +382,13 @@ def preview_page(title: str, mode: str, bundle: Optional[theme_pack.Bundle], tok
     host = " slot-host" if "mascot.idle" in slots else ""
     swatches = "".join(f'<i class="c{i}"></i>' for i in range(1, 7))
     opening = f'<div class="open">{slot("opening", "")}</div>' if "opening" in slots else ""
+    backdrop = f'<div class="bgl" aria-hidden="true">{slot(BG_SLOT, "")}</div>' if BG_SLOT in slots else ""
     mode_attr = f' data-theme="{mode}"' if mode in ("light", "dark") else ""
     return ("<!doctype html><html lang=\"zh-Hant\"" + mode_attr + "><head><meta charset=\"utf-8\">"
             f"<title>{html_mod.escape(title)}</title><style>{css}</style></head><body>"
             f"<div class=\"top\"><span class=\"mark{host}\">{slot('mascot.idle', 'S')}</span>"
             f"<span class=\"name\">{slot('wordmark', 'SYNOX')}</span><span class=\"sw\" aria-hidden=\"true\">{swatches}</span></div>"
-            "<main><div class=\"msg me\">幫我記：明天要買牛奶</div>"
+            f"<main>{backdrop}<div class=\"msg me\">幫我記：明天要買牛奶</div>"
             "<div class=\"msg bot\">好，記下來了 ✅</div>"
             f"<div class=\"msg bot pending\">{slot('mascot.think', '', 'think')}<span>正在想…</span></div>"
             "<div class=\"row\"><span class=\"btn primary\">確認</span><span class=\"btn\">稍後</span>"
