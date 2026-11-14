@@ -38,6 +38,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Callable, Dict, Iterable, List, Optional, Tuple
 
+from synox import notify
 from synox.agent import delimit
 from synox.runtime import soul as soul_mod
 from synox.runtime.soul import SoulError
@@ -666,7 +667,8 @@ class SoulTidy:
         try:
             waiting = self.ledger.untold()
             if waiting and not self._quiet() and self.ledger.mark_told():
-                self.app.notify_owner(f"🫀 常駐助理：有 {waiting} 則想記進 soul.md 的事等你確認（網頁「主控」→ 你的偏好）。")
+                notify.owner(self.app, f"🫀 常駐助理：有 {waiting} 則想記進 soul.md 的事等你確認（網頁「主控」→ 你的偏好）。",
+                             kind="assistant")
                 summary += "（通知了你）"
         except (SoulError, LedgerError):
             pass

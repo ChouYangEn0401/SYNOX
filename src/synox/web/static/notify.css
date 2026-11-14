@@ -1,0 +1,67 @@
+/* 🔔 通知與 ⏰ 鬧鐘（static/notify.js）。顏色只用 app.html 的 token */
+.ntf-bell { position: relative; padding: 4px 8px; }
+.ntf-bell .i { width: 20px; height: 20px; }
+.ntf-n { position: absolute; top: -2px; right: -2px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: var(--pill);
+  background: var(--bad); color: var(--accent-ink); font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
+.ntf-n.hidden, .ntf-chip.hidden, .ntf-panel.hidden { display: none; }
+.ntf-chip { min-height: 30px; padding: 3px 10px; border-radius: var(--pill); border: 1px solid var(--accent-line);
+  background: var(--soft); color: var(--text); font-size: 12.5px; max-width: 150px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; cursor: pointer; }
+.ntf-chip .short { display: none; }
+/* 桌面：名字不被擠掉；「⏰ 下一個」自己一行排在下面 */
+@media (min-width: 761px) {
+  .brand-row { flex-wrap: wrap; row-gap: 6px; }
+  .brand-row .brand { flex: 1 0 auto; }
+  .brand-row .ntf-bell { order: 5; }
+  .brand-row .ntf-chip { order: 6; flex: 1 1 150px; max-width: none; text-align: left; }
+}
+
+.ntf-panel { position: fixed; z-index: 60; top: 12px; left: calc(var(--side-w) + 8px); width: 380px; max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 24px); overflow: auto; background: var(--surface); color: var(--text); border: 1px solid var(--line);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-lg); padding: 10px 12px 12px; }
+.ntf-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.ntf-tabs { display: flex; gap: 4px; }
+.ntf-tabs button.on { background: var(--soft); border-color: var(--accent-line); color: var(--text); }
+.ntf-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.ntf-list li { border: 1px solid var(--line); border-radius: var(--r); padding: 8px 10px; background: var(--surface-2); }
+.ntf-list li.unread { border-color: var(--accent-line); background: var(--soft); }
+.ntf-list li.read { color: var(--text-2); }
+.ntf-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 14px; }
+.ntf-time { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.ntf-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.ntf-missed { margin-bottom: 8px; padding: 8px 10px; border-radius: var(--r); background: var(--warn-soft); color: var(--warn);
+  font-weight: 600; font-size: 13.5px; }
+.ntf-warn { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; margin: 6px 0; padding: 8px 10px;
+  border-radius: var(--r); background: var(--warn-soft); color: var(--text); font-size: 13.5px; }
+.ntf-where { margin: 4px 0 8px; font-weight: 600; }
+.ntf-note { font-size: 12.5px; margin-top: 10px; }
+.ntf-optin { border-top: 1px solid var(--line); padding-top: 8px; }
+
+.ntf-stack { position: fixed; z-index: 70; top: 12px; right: 12px; width: 340px; max-width: calc(100vw - 16px);
+  display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
+.ntf-pop { pointer-events: auto; background: var(--surface); color: var(--text); border: 1px solid var(--line);
+  border-left: 4px solid var(--accent2); border-radius: var(--r); box-shadow: var(--shadow-md); padding: 10px 12px;
+  animation: ntf-in .22s var(--ease); }
+.ntf-pop.alarm { border-left-color: var(--accent); box-shadow: var(--shadow-lg); }
+.ntf-pop.alarm .ntf-text { font-size: 15.5px; font-weight: 600; }
+.ntf-away { color: var(--muted); font-size: 12px; margin-bottom: 2px; }
+@keyframes ntf-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .ntf-pop { animation: none; } }
+
+.ntf-prefs th, .ntf-prefs td { text-align: center; }
+.ntf-prefs tbody th { text-align: left; font-weight: 500; }
+.ntf-prefs input[type="checkbox"] { width: 18px; height: 18px; min-height: 0; }
+
+@media (max-width: 760px) {
+  /* 手機的上方列放不下「登出」兩個字：只留圖示（字還在，螢幕報讀念得到） */
+  .brand-row { flex-wrap: nowrap; gap: 6px; }
+  #logout span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .brand-row .ntf-bell, .brand-row .ntf-chip { order: 0; }
+  .brand-row .ntf-chip { flex: 0 1 auto; max-width: 96px; padding: 3px 8px; }
+  .ntf-chip .long { display: none; }
+  .ntf-chip .short { display: inline; }
+  .ntf-chip { min-height: 40px; }
+  .ntf-panel { top: 60px; left: 8px; right: 8px; width: auto; max-height: calc(100vh - 150px); }
+  .ntf-stack { top: auto; bottom: 84px; left: 8px; right: 8px; width: auto; }
+  body.ntf-open .ntf-stack { display: none; }          /* 清單開著時小卡先收起來（清單裡同一則也按得到） */
+}

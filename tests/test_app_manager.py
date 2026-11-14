@@ -260,7 +260,7 @@ def test_idle_default(counter, owner):
     clock.t += 60
     manager.tick()
     manager.tick()
-    assert len(notes(bot)) == 1 and "再過 90 分鐘我會自動關掉" in notes(bot)[0]
+    assert len(notes(bot)) == 1 and "再 90 分鐘我會自己關" in notes(bot)[0]
     manager.touch("counter")
     clock.t += 30 * 60
     manager.tick()
@@ -294,9 +294,9 @@ def test_policies(counter, owner, policy, minutes, expect):
         elif e == "closed":
             assert new and "先關掉了" in new[-1] and manager.running() == []
         elif e == "suggest_keep":
-            assert new and "我不會自動關它" in new[-1]
+            assert new and "我不會自己關" in new[-1]
         else:
-            assert new and "再過 15 分鐘" in new[-1]
+            assert new and "再 15 分鐘" in new[-1]
 
 
 @pytest.mark.parametrize("data", [{"mode": "keep"}, {"mode": "auto", "close_min": 4}, {"mode": "auto", "close_min": 1441},

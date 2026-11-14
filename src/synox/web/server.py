@@ -65,7 +65,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from isdtelekit.core.channel import CallbackInfo, Inbound
 
-from synox import tutorials
+from synox import notify, tutorials
 from synox.guard import origin as guard_origin
 from synox.guard.stepup import sensitive_action as stepup_sensitive
 from synox.packs.manifest import stage_text
@@ -756,6 +756,9 @@ class WebUI:
         if path.startswith("/api/runtime/"):          # 主控面板：常駐助理／心跳／任務（docs/runtime-api.md；含 PUT）
             from synox.runtime import web_api as runtime_api
             return runtime_api.route(self, user, method, path, body)
+        if path == "/api/notifications" or path.startswith(("/api/notifications/", "/api/alarms")):   # 🔔、鬧鐘
+            from synox.notify import web_api as notify_api           # （synox/notify，docs/notifications.md）
+            return notify_api.route(self, user, method, path, body, query)
         if method == "GET":
             if path == "/api/me":
                 return _json(200, self.me(user, session))
@@ -1896,7 +1899,7 @@ class WebUI:
             text = (f"✅ pack {name} 的環境建好了，可以用了。" if result.ok
                     else f"⚠️ pack {name} {what}，但環境沒建好：{result.detail}")
             try:
-                self.app.notify_owner(text)
+                notify.owner(self.app, text, kind="tools", level="info" if result.ok else "warn")
             except Exception:
                 logging.exception("[WEB] env build notice failed")
 

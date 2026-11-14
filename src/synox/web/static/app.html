@@ -629,6 +629,7 @@
 <style nonce="{{NONCE}}">/*{{INCLUDE:report.css}}*/</style>
 <style nonce="{{NONCE}}">/*{{INCLUDE:security.css}}*/</style>
 <style nonce="{{NONCE}}">/*{{INCLUDE:apps.css}}*/</style>
+<style nonce="{{NONCE}}">/*{{INCLUDE:notify.css}}*/</style>
 <script nonce="{{NONCE}}">/*{{INCLUDE:slots.js}}*/</script>
 <!-- theme -->
 <style nonce="{{NONCE}}">/*{{INCLUDE:splash.css}}*/</style>
@@ -1192,6 +1193,7 @@
 <script nonce="{{NONCE}}">/*{{INCLUDE:report.js}}*/</script>
 <script nonce="{{NONCE}}">/*{{INCLUDE:security.js}}*/</script>
 <script nonce="{{NONCE}}">/*{{INCLUDE:apps.js}}*/</script>
+<script nonce="{{NONCE}}">/*{{INCLUDE:notify.js}}*/</script>
 <!-- include: tools.js -->
 <!-- include: tour.js -->
 <!-- include: helpdock.js -->
@@ -1484,6 +1486,8 @@
       var s = $("stream");
       var empty = s.querySelector(".empty");
       if (pend && d.messages.some(function (m) { return m.from !== "me" && !nodes[m.id]; })) { pendSet(false); }
+      if (primed && window.SynoxNotify && d.messages.some(function (m) {       // 剛設好鬧鐘：上方的「⏰ 下一個」馬上更新
+        return m.from === "bot" && !nodes[m.id] && String(m.text || "").indexOf("⏰") === 0; })) { window.SynoxNotify.refresh(); }
       d.messages.forEach(function (m) {
         var node = renderMessage(m);
         if (nodes[m.id]) { s.replaceChild(node, nodes[m.id]); }
@@ -3213,6 +3217,7 @@
     if (window.SynoxApps) {                                                             // 工具服務（static/apps.js）
       window.SynoxApps.init({ api: api, toast: toast, csrf: function () { return me ? me.csrf : ""; } });
     }
+    if (window.SynoxNotify) { window.SynoxNotify.init({ api: api, toast: toast, me: d }); }   // 🔔 通知與 ⏰ 鬧鐘（static/notify.js）
     route();
     function fillInput(text) {               // 範例、教學的「幫我填好」：只把字放進輸入框，不送出
       if (currentView !== "chat") { location.hash = "#chat"; }
