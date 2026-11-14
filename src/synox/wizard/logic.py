@@ -222,6 +222,18 @@ def build_config(token: str, owner_id: int, llm: dict, *, existing: Optional[dic
     return cfg
 
 
+def weekly_updates_default(existing: Optional[dict]) -> bool:
+    """完成頁「每週幫我看一次有沒有新版」預設勾不勾：第一次裝＝不勾（ADR 0023 決定 U2）；重跑精靈＝照之前選的。"""
+    from synox.update.check import weekly_enabled
+    return weekly_enabled(existing or {})
+
+
+def with_weekly_updates(cfg: dict, weekly: bool) -> dict:
+    """config.json 的 updates.check：勾了＝weekly，沒勾＝manual（只有按「檢查更新」才查）。"""
+    from synox.update.check import set_mode
+    return set_mode(cfg, bool(weekly))
+
+
 def write_config(path: str, cfg: dict) -> None:
     folder = os.path.dirname(os.path.abspath(path))
     os.makedirs(folder, exist_ok=True)

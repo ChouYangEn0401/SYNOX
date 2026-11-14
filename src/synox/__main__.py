@@ -679,6 +679,62 @@ def cmd_packs_runtime(args, found: dict, data_dir: str, config) -> int:
     return 0
 
 
+def cmd_update(args, *, opener=None, keys=None) -> int:
+    """SYNOX 本體的更新（docs/adr/0023）。--check：問 GitHub 有沒有新版（只看）；--weekly on|off：每週檢查開關；
+    --prepare：Update.bat 用的（下載、驗證、解到暫存，不動現在的檔案）。
+    結束碼：--check 0＝最新、10＝有新版、1＝沒查成；--prepare 0＝準備好、3＝不用更新、1＝失敗。"""
+    from synox import __version__
+    from synox.config import ROOT
+    from synox.update import check as upd
+    path = args.config or CONFIG_PATH
+    root = os.path.dirname(os.path.abspath(path)) if args.config else ROOT
+    if args.weekly:
+        from synox.wizard import logic
+        cfg = logic.read_existing(path)
+        if not cfg:
+            print(f"❌ 讀不到 {path}：先雙擊 Setup.bat 跑安裝精靈。")
+            return 1
+        logic.write_config(path, upd.set_mode(cfg, args.weekly == "on"))
+        print("✅ 每週檢查新版：" + ("開（每週查一次，只看，不會自己裝；查的時候會連到 GitHub）" if args.weekly == "on"
+                                    else "關（預設；只有你按「檢查更新」或打 synox update --check 才查）"))
+        return 0
+    if args.prepare:
+        from synox.update import prepare
+        try:
+            ready = prepare.prepare(root, allow_unsigned=args.allow_unsigned, opener=opener, keys=keys)
+        except prepare.AlreadyCurrent as e:
+            print(str(e))
+            return 3
+        except upd.UpdateError as e:
+            print(str(e))
+            return 1
+        print(f"✅ SYNOX {ready['version']} 準備好了（還沒換檔）。")
+        return 0
+    if args.rollback:
+        print("退回上一版：關掉 SYNOX 之後，在 SYNOX 資料夾打 `Update.bat -Rollback`（git 裝的：`git checkout v<上一版>` 再跑 Setup.bat）。")
+        return 0
+    config = _config_quiet(path)
+    data_dir = _data_dir(config)
+    packs_dir = os.path.join(root, "packs")
+
+    def tools():
+        return upd.tools_newer_count(upd.installed_pack_versions(packs_dir), opener=opener)
+
+    print(f"SYNOX {__version__}：問 GitHub 有沒有新版（只看，不會下載或安裝）…")
+    result = upd.check(__version__, root=root, opener=opener, tools=tools, keys=keys)
+    try:
+        upd.remember(data_dir, result)
+    except OSError:
+        pass
+    for line in result.lines():
+        print(line)
+    if result.status == "newer" and result.kind == "zip" and not result.signed:
+        print("（這一版沒有簽章：Update.bat 會先說明，要你明確加 -AllowUnsigned 才換檔）")
+    if config is not None and not upd.weekly_enabled(config.raw):
+        print("想每週自動看一次（只看，不會自己裝）：synox update --weekly on")
+    return {"error": 1, "newer": 10}.get(result.status, 0)     # 10＝有新版（setup/update.ps1 看這個）
+
+
 def cmd_connect(args) -> int:
     """把一個 pack 要的帳號（pack.json 的 auth.fields）存進保管箱；密碼用 getpass，不經聊天、不進 log。"""
     from synox import connect
@@ -884,6 +940,12 @@ def main(argv=None) -> int:
     p = sub.add_parser("stepup", help="手機驗證器：setup（設定）｜status（狀態）｜reset（重設）")
     p.add_argument("stepup_cmd", choices=["setup", "status", "reset"])
     p.add_argument("--user", type=int, default=None, help="伺服器版：替哪個 Telegram id（預設擁有者）")
+    p = sub.add_parser("update", help="SYNOX 有沒有新版：--check（只看）｜--weekly on|off（每週檢查）｜換檔用 Update.bat")
+    p.add_argument("--check", action="store_true", help="問 GitHub 最新的正式版（只看，不下載、不安裝；不加也一樣）")
+    p.add_argument("--weekly", choices=["on", "off"], default=None, help="每週自己看一次（預設 off）")
+    p.add_argument("--prepare", action="store_true", help=argparse.SUPPRESS)         # Update.bat 用：下載＋驗證＋解到暫存
+    p.add_argument("--allow-unsigned", action="store_true", help=argparse.SUPPRESS)  # Update.bat -AllowUnsigned
+    p.add_argument("--rollback", action="store_true", help="說明怎麼退回上一版（Update.bat -Rollback）")
     p = sub.add_parser("open", help="在這台電腦上打開網頁介面（沒在跑就先開 SYNOX；跟 web-login 一樣）")
     sub.add_parser("about", help="SYNOX 的版本、授權、裝在哪裡")
     p = sub.add_parser("tips", help="隨機一則使用小提示")
@@ -895,7 +957,7 @@ def main(argv=None) -> int:
                 "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord, "web-login": cmd_web_login,
                 "stepup": cmd_stepup,
                 "open": cmd_open, "about": cmd_about, "tips": cmd_tips,
-                "init": cmd_init, "tools": cmd_tools, "filetype": cmd_filetype}
+                "init": cmd_init, "tools": cmd_tools, "filetype": cmd_filetype, "update": cmd_update}
     if args.cmd in brand.BANNER_COMMANDS:
         brand.show_banner(args.cmd, quiet=args.quiet)
     if args.cmd not in handlers:

@@ -88,6 +88,7 @@ STRINGS = {
     "finish_autostart": "登录后自动启动 SYNOX（可见的小窗口，随时可以关闭）",
     "finish_packs": "双击 .synoxpack 文件即可安装（安装前同样会先检查并请你确认）",
     "finish_launch": "完成后立即打开 SYNOX",
+    "finish_updates": "每周帮我看一次有没有新版（只看，不会自己安装）",
     "finish_discord_bot": "Discord bot {name}",
     "finish_hint_token": "这台电脑是：{title}。\n点击“完成并开始”：保存设置并启动 {who}，手机会收到“我在了”。",
     "finish_hint_web": ("这台电脑是：{title}。还没连接 Telegram／Discord 也没关系：点击“完成并开始”会打开 SYNOX 的网页界面，"

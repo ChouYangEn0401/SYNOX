@@ -11,6 +11,8 @@ dist/
 # 發佈物旁邊附的工具庫（SYNOX_Libs 打包好的 .synoxpack＋index.json）與離線安裝用的套件；不進 git（docs/adr/0003）
 /tools/
 /wheelhouse/
+# Update.bat 留的舊版程式檔（最近 2 份，docs/adr/0023）
+/_previous/
 .pytest_cache/
 
 # 使用者裝的工具（SYNOX 出廠是空的；packs/README.md 說明）
