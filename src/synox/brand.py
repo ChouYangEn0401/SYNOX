@@ -36,6 +36,13 @@ SLOGAN_EN = "Need something? Just tell it."
 #: 定位句（介紹頁大標語上面那行小字）。
 EYEBROW = "住在你自己電腦裡的 AI 助理"
 EYEBROW_EN = "The AI assistant that lives on your own computer."
+#: 介紹頁的彩蛋：偶爾冒出來、馬上被 S 寶寶刷掉的玩笑話（正式標語永遠是上面那句 SLOGAN，這些不會用在別的地方）。
+#: 一個玩笑＝一拍或幾拍，每一拍是（第一行, 第二行）；介紹頁隨機挑一個玩笑、照順序播完每一拍。
+#: 改了要重跑 python scripts/make_landing.py。
+SLOGAN_JOKES = [
+    [("一個人忙不過來，", "還有它。"), ("像多了一個室友，", "但會幫忙。")],
+    [("一個只聽你的小幫手。", "你的助理，你說了算。")],
+]
 
 TAGLINE = "".join(SLOGAN) + EYEBROW + "。"
 
