@@ -55,6 +55,7 @@ from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 
 from synox import health, policy, sandbox
 from synox.config import ROOT
+from synox.helpui import examples as help_examples
 from synox.packs import envs, kit, render
 from synox.packs import confirm as tool_confirm
 from synox.packs import secrets as pack_secrets
@@ -1012,6 +1013,10 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
             item.status, item.detail = "error", f"{type(e).__name__}: {e}"
             continue
         apply_scope(app, m)
+        try:                                   # 白話與範例 → synox_tool_meta（跑不動的範例丟掉、doctor 報；/help、網頁用）
+            help_examples.attach(app, pack)
+        except Exception:
+            logging.exception("[PACKS] %s: help examples not attached (ignored)", m.name)
         if m.registered_only:
             item.status = "connector"
         packs.append(pack)

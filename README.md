@@ -91,6 +91,8 @@ synox tips      隨機一則使用小提示
 
 第一次用？打 `/tutorial`（或「開始教學」），SYNOX 會一步一步帶你認識每個地方，最後你可以自己挑想要的工具。
 
+⌨️ 打 `/help` 看你有哪些工具；想換成順手的打法（例如 `@記帳`）到「設定 → ⌨️ 我的指令」（[docs/commands.md](docs/commands.md)）。
+
 🎨 換外觀：到「SYNOX 衣櫃」挑一套 `.synoxpack` 裝起來，整個網頁跟著換色、換吉祥物；不喜歡隨時換回原本的 SYNOX。自己會畫 SVG 的話也可以直接貼上去。
 
 | 在 Telegram 打 | 做什麼 |

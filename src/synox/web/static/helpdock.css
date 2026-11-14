@@ -1,0 +1,48 @@
+/* 「💡 範例」面板、/help 卡片的範例小標籤（static/helpdock.js）與設定 →「⌨️ 我的指令」（static/aliases.js）。
+   顏色一律用 app.html 的 token（深色、淺色跟著走）。 */
+  #examples-btn { flex: none; align-self: flex-end; min-height: 40px; padding: 6px 10px; white-space: nowrap; }
+  .helpdock { margin: 0 14px 8px; padding: 10px 12px 12px; border: 1px solid var(--line-strong); border-radius: var(--r-lg);
+              background: var(--surface); box-shadow: var(--shadow-md); max-height: min(52vh, 420px); overflow: auto;
+              display: flex; flex-direction: column; gap: 10px; }
+  .helpdock.hidden { display: none; }
+  .hd-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; }
+  .hd-body { display: grid; grid-template-columns: minmax(120px, 190px) minmax(0, 1fr); gap: 12px; }
+  .hd-tools { display: flex; flex-direction: column; gap: 4px; }
+  .hd-tool { text-align: left; min-height: 36px; padding: 6px 10px; border-radius: var(--r); border: 1px solid transparent;
+               background: transparent; color: var(--text-2); font-size: 14px; }
+  .hd-tool:hover { background: var(--surface-2); color: var(--text); }
+  .hd-tool.on { background: var(--accent-soft); border-color: var(--accent-line); color: var(--text); font-weight: 650; }
+  .hd-cmds { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .hd-cmd { display: flex; flex-direction: column; gap: 6px; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+  .hd-cmd:last-child { border-bottom: 0; }
+  .hd-cmd-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 14px; }
+  .hd-cmd-title { font-weight: 650; }
+  .hd-badge { font-size: 12px; padding: 1px 8px; border-radius: var(--pill); }
+  .hd-badge.write { background: var(--warn-soft); color: var(--warn); }
+  .hd-badge.danger { background: var(--bad-soft); color: var(--bad); }
+  .hd-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .hd-chips.in-chat { margin-top: 10px; white-space: normal; }
+  .hd-chip { min-height: 32px; padding: 4px 12px; border-radius: var(--pill); border: 1px solid var(--accent-line);
+               background: var(--accent-soft); color: var(--text); font-family: var(--mono); font-size: 13px;
+               text-align: left; overflow-wrap: anywhere; }
+  .hd-chip:hover { border-color: var(--accent); }
+  .hd-note { margin: 0; font-size: 13px; color: var(--muted); }
+  .hd-foot { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; font-size: 13px; }
+  @media (max-width: 760px) {
+    .hd-body { grid-template-columns: minmax(0, 1fr); }
+    .hd-tools { flex-direction: row; flex-wrap: wrap; }
+    .helpdock { margin: 0 0 8px; }
+  }
+  /* 設定 →「⌨️ 我的指令」 */
+  .alias-list { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+  .alias-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .alias-row .alias-name { width: 10em; flex: none; }
+  .alias-row .alias-target { flex: 1; min-width: 12em; max-width: 100%; }
+  .alias-eq { color: var(--muted); }
+  .alias-error { margin: 0 0 4px; font-size: 13px; color: var(--bad); }
+  .alias-sugg { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
+  .alias-out { min-height: 1.5em; margin: 4px 0 0; font-family: var(--mono); font-size: 14px; color: var(--text-2); }
+  .alias-out.ok { color: var(--ok); }
+  .alias-out.bad { color: var(--bad); }
+  .alias-notes { margin: 10px 0 0; padding-left: 1.2em; font-size: 13px; }
+  .alias-warn.hidden { display: none; }

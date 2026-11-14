@@ -30,6 +30,18 @@ def _sdk_line() -> str:
     return f"isdtelekit {version}{extra}"
 
 
+def _help_note(m) -> str:
+    """pack.json 的 help 區塊（/help 的白話與範例，synox/helpui/examples.py）有寫壞的：載入時那幾條丟掉了，這裡說一聲。
+    python pack 的範例要載入後才知道跑不跑得動（那種在 log 的 [PACKS] 行）。"""
+    from synox.helpui import examples as help_examples
+    cli = m.commands if m.kind == "cli" else []
+    _block, problems = help_examples.from_manifest(m.raw, m.kind, cli, strict=True)
+    if not problems:
+        return ""
+    more = f"（還有 {len(problems) - 2} 個）" if len(problems) > 2 else ""
+    return "⚠️ help 區塊有寫壞的，那幾條說明或範例沒有顯示：" + "；".join(problems[:2]) + more
+
+
 def _secret_lookup(config) -> Callable:
     """pack 的 auth.fields（Web UI「連接」填的）還缺哪些 → 一句話（沒缺／不用回 ""）。
     個人版看共用的保管箱；伺服器版看擁有者自己那一份（別人的各自在工具頁看）。保管箱的金鑰不存在就不開（不產生新的）。"""
@@ -470,6 +482,9 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 note = secret_lookup(m)
                 if note:
                     lines.append(f"     {note}")
+                help_note = _help_note(m)                    # pack.json 的 help 區塊（白話與範例）寫壞的那幾條沒有顯示
+                if help_note:
+                    lines.append(f"     {help_note}")
                 if m.mcp_connected:                          # P4a／P4b：pack 外的程式、不支援的欄位、伺服器沒列的工具
                     from synox.packs import mcp as pack_mcp
                     for mcp_note in pack_mcp.doctor_notes(m, lock_dir):

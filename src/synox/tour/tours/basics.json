@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "basics",
   "title": "SYNOX 新手教學",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "minutes": 5,
   "summary": "認識對話、工具、設定，學會看安裝報告、裝和移除工具，最後自己挑想要的工具。",
   "steps": [
@@ -24,8 +24,8 @@
     {
       "id": "ask-help",
       "title": "問我會什麼",
-      "body": "按「幫我填好」，輸入框會出現 /help，再按「送出」。我會列出你現在能用的指令。也可以直接打一句話問我。",
-      "chat": "打 /help 送出，我會列出你現在能用的指令。也可以直接打一句話問我。",
+      "body": "按「幫我填好」，輸入框會出現 /help，再按「送出」。我會列出你有哪些工具，點一個就看得到怎麼打。旁邊的「💡 範例」點一下，範例就會放進輸入框。也可以直接打一句話問我。",
+      "chat": "打 /help 送出，我會列出你有哪些工具，點一個就看得到怎麼打、有範例。也可以直接打一句話問我。",
       "where": {"anchor": "chat.input"},
       "go": {"view": "chat"},
       "try": {"text": "/help"},
@@ -99,7 +99,7 @@
     {
       "id": "get-help",
       "title": "卡住了怎麼辦",
-      "body": "打 /help 看你能用的指令。忘了怎麼用，隨時打 /tutorial 再走一次這份教學（/tutorial restart 從頭來）。在 Telegram、Discord 也一樣可以打。",
+      "body": "打 /help 看你有哪些工具。想把指令換成自己順手的打法（例如 @記帳），到「設定 → ⌨️ 我的指令」。忘了怎麼用，隨時打 /tutorial 再走一次（/tutorial restart 從頭來）。",
       "where": {"anchor": "chat.input"},
       "go": {"view": "chat"}
     },
