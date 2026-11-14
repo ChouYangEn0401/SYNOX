@@ -307,6 +307,10 @@
           box-shadow: 0 0 0 3px var(--ok-soft); flex: none; }
   #stream { flex: 1; overflow: auto; padding: 20px 18px; display: flex; flex-direction: column; gap: 10px;
             scroll-behavior: smooth; }
+  /* 對話的背景（外觀 → 背景；slot chat.background）：鋪滿 #chat-main、在訊息底下、點不到（isolation 讓 z-index:-1 留在卡片裡） */
+  #chat-main { position: relative; isolation: isolate; }
+  .chat-bg { position: absolute; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+  .chat-bg > .slot { width: 100%; height: 100%; }
   .msg { max-width: min(78%, 640px); padding: 10px 14px; border-radius: calc(var(--radius) * 1.6); white-space: pre-wrap;
          word-break: break-word; line-height: 1.6; animation: rise .22s var(--ease); }
   .msg.me { align-self: flex-end; background: var(--me); color: var(--me-ink); border-bottom-right-radius: calc(var(--radius) * .6); }
@@ -501,6 +505,46 @@
                   border-radius: var(--r); background: var(--bg); }
   #custom-box { width: 110px; height: 110px; }
   #custom-box.wide { width: 140px; height: 44px; }
+  #custom-box.bgwide { width: 100%; height: 120px; border-radius: var(--r); }
+  /* 外觀 → 衣櫃（SYNOX 衣櫃：官方清單裡 kind=theme 的；packs/catalog.wardrobe_cards） */
+  .wd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 12px; margin-top: 12px; }
+  .wd-card { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; align-items: start; min-width: 0;
+             padding: 12px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface-2); }
+  .wd-card.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .wd-chip { width: 48px; height: 48px; border-radius: calc(var(--radius) * 1.3); display: grid; place-items: center;
+             font: 800 20px/1 var(--font-brand); color: var(--accent-ink);
+             background: linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--accent2))); }
+  .wd-sw { width: 48px; height: 48px; border-radius: calc(var(--radius) * 1.3); overflow: hidden; display: flex;
+           border: 1px solid var(--line-strong); }
+  .wd-sw i { flex: 1 1 0; }
+  .wd-body { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+  .wd-body b { font-size: 15.5px; overflow-wrap: anywhere; }
+  .wd-name { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .wd-line { color: var(--text-2); font-size: 14px; overflow-wrap: anywhere; margin: 0; }
+  .wd-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+  .wd-badges .badge::before { display: none; }
+  .wd-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  /* 外觀 → 背景：內建的花紋（只用 CSS＋token，跟著外觀換色；不載入任何圖片）。對話頁的 .chat-bg 與選擇用的小方塊共用 */
+  .bg-tiles { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+  .bg-pick { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; font-size: 13px; }
+  .bg-pick input[type="radio"] { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .bg-tile { width: 72px; height: 52px; border-radius: var(--r); border: 1px solid var(--line-strong); background-color: var(--bg); }
+  .bg-pick input:checked + .bg-tile { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .bg-pick input:focus-visible + .bg-tile { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #bg-color { width: 64px; min-height: 40px; padding: 2px; }
+  :root[data-chat-bg="dots"] .chat-bg, .bg-tile.dots {
+    background-image: radial-gradient(circle, var(--line-strong) 1px, transparent 1.6px); background-size: 20px 20px; }
+  :root[data-chat-bg="grid"] .chat-bg, .bg-tile.grid {
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 24px 24px; }
+  :root[data-chat-bg="stripes"] .chat-bg, .bg-tile.stripes {
+    background-image: repeating-linear-gradient(135deg, var(--line) 0 1px, transparent 1px 14px); }
+  :root[data-chat-bg="glow"] .chat-bg, .bg-tile.glow {
+    background-image: radial-gradient(60% 55% at 12% 0%, var(--soft), transparent 70%),
+                      radial-gradient(55% 50% at 100% 100%, color-mix(in srgb, var(--accent2) 12%, transparent), transparent 70%); }
+  :root[data-chat-bg="color"] .chat-bg { background: color-mix(in srgb, var(--chat-bg-color, var(--bg)) 45%, var(--bg)); }
+  :root[data-chat-bg="none"] .chat-bg { display: none; }
+  :root[data-chat-bg] .chat-bg > .slot { display: none; }        /* 自己選了不要／純色／花紋：外觀包的背景圖不顯示 */
   .custom-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
   .custom-item { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: var(--r);
                  background: var(--sunken); font-size: 13.5px; }
@@ -650,6 +694,7 @@
 
   <section id="view-chat" class="hidden">
     <div id="chat-main">
+      <div class="chat-bg" aria-hidden="true"><span class="slot theme-slot-chat-background" data-slot="chat.background"></span></div>
       <div class="chat-head"><span class="live" aria-hidden="true"></span><span class="t" id="chat-title">對話</span></div>
       <div id="stream"><div class="empty">選一段對話，或按「新對話」。</div></div>
       <div id="helpdock" class="helpdock hidden" aria-label="範例"></div>
@@ -974,7 +1019,7 @@
       </div>
       </div>
 
-      <!-- 外觀（每個登入的人都看得到；synox/theme、docs/themes.md）。順序照擁有者說的：挑外觀 → 自己貼 → 淺色／深色 -->
+      <!-- 外觀（每個登入的人都看得到；synox/theme、docs/themes.md）。順序照擁有者說的：挑外觀 → 衣櫃 → 背景 → 自己貼 → 淺色／深色 -->
       <div class="tab-panel hidden" data-tab="appearance" role="tabpanel">
       <div id="set-look" class="card">
         <div class="card-head"><span class="tile" aria-hidden="true">🎨</span>
@@ -992,6 +1037,46 @@
         <div id="look-list" class="look-grid"></div>
         <p id="look-get" class="muted"></p>
         <p id="look-msg" class="msgline" role="status"></p>
+      </div>
+
+      <!-- 衣櫃（SYNOX 衣櫃；packs/catalog.py）：按按鈕才連網，清單是官方工具庫的同一份（只列 kind=theme）。
+           安裝＝跟工具庫同一條路（下載 → 報告 → 確認安裝），裝好回來這裡按「套用」。 -->
+      <div id="set-wardrobe" class="card">
+        <div class="card-head"><span class="tile" aria-hidden="true">👗</span>
+          <div class="txt"><h2>衣櫃</h2>
+            <p class="sub">SYNOX 衣櫃：大家都能下載的整套外觀。按下面的按鈕才會連到網路看有哪些；裝之前一樣先給你看檢查報告，你按「確認安裝」才裝，裝好再按「套用」。</p></div></div>
+        <div class="row">
+          <button id="wd-load" class="primary" type="button">看衣櫃（要連到網路）</button>
+          <a id="wd-page" class="btn ghost" href="https://claude.ai/artifact/USzGNERZ2477E7XzPaPCsR" target="_blank" rel="noopener noreferrer">到衣櫃網頁看完整預覽</a>
+        </div>
+        <p id="wd-owner-only" class="muted hidden">外觀包由擁有者安裝。你可以先到衣櫃網頁看看，喜歡的請擁有者裝，裝好就能在上面挑。</p>
+        <p id="wd-msg" class="msgline" role="status"></p>
+        <p id="wd-error" class="note-line hidden" role="alert"></p>
+        <div id="wd-list" class="wd-grid"></div>
+      </div>
+
+      <!-- 背景（slot chat.background；synox/theme/appearance.py）：自己選的蓋過外觀包的；不連任何網址 -->
+      <div id="set-bg" class="card">
+        <div class="card-head"><span class="tile" aria-hidden="true">🖼️</span>
+          <div class="txt"><h2>背景</h2>
+            <p class="sub">對話後面的背景。只用顏色、內建的花紋或你自己貼的 SVG，不會載入任何網路上的圖片。你自己選的會蓋過外觀包的；花紋跟著外觀的顏色走。</p></div></div>
+        <div class="row" role="radiogroup" aria-label="背景">
+          <label class="choice"><input type="radio" name="bg-kind" value="theme"> 跟著外觀</label>
+          <label class="choice"><input type="radio" name="bg-kind" value="none"> 不要背景</label>
+          <label class="choice"><input type="radio" name="bg-kind" value="color"> 純色</label>
+          <label class="choice"><input type="radio" name="bg-kind" value="pattern"> 花紋</label>
+          <label class="choice"><input type="radio" name="bg-kind" value="svg"> 自己貼 SVG</label>
+        </div>
+        <div id="bg-color-row" class="row hidden">
+          <label for="bg-color">顏色</label><input id="bg-color" type="color">
+          <span class="muted">會跟底色混一半，深色模式也看得清楚。</span>
+        </div>
+        <div id="bg-patterns" class="bg-tiles hidden" role="radiogroup" aria-label="花紋"></div>
+        <div id="bg-svg-row" class="hidden">
+          <p class="muted">在下面的「自己貼」選「chat.background」貼 SVG：一樣先消毒、預覽，按「套用到這個位置」就用它當背景。</p>
+          <button id="bg-svg-go" type="button">去貼背景的 SVG</button>
+        </div>
+        <p id="bg-msg" class="msgline" role="status"></p>
       </div>
 
       <div id="set-custom" class="card">
@@ -1606,6 +1691,10 @@
       "外觀包由擁有者安裝；你可以在裝好的裡面挑。";
     drawCustomSlots();
     Array.prototype.forEach.call(document.querySelectorAll('input[name="look-mode"]'), function (r) { r.checked = r.value === (look.mode || "auto"); });
+    drawBg();
+    $("wd-load").classList.toggle("hidden", !look.owner);
+    $("wd-owner-only").classList.toggle("hidden", !!look.owner);
+    renderWardrobe();
   }
   function applyLook(name) {
     $("look-msg").textContent = "套用中…";
@@ -1664,7 +1753,7 @@
     clearCustomPreview();
     var box = $("custom-box");
     box.setAttribute("data-slot", slot);
-    box.className = "slot" + (slot === "wordmark" ? " wide" : "");
+    box.className = "slot" + (slot === "wordmark" ? " wide" : slot === "chat.background" ? " bgwide" : "");
     box.innerHTML = d.markup;               // 伺服器消毒、白名單重建過的；CSP 也不讓裡面跑任何程式
     if (d.css && window.CSSStyleSheet && document.adoptedStyleSheets) {
       try {
@@ -1719,6 +1808,204 @@
       }).catch(function (e) { $("mode-msg").textContent = "❌ " + e.message; });
     });
   });
+  // ── 外觀 → 衣櫃（SYNOX 衣櫃）：按「看衣櫃」才連網（伺服器抓寫死在 packs/catalog.py 的官方清單；這裡不組任何網址）──
+  // 「安裝」＝跟工具庫同一條路（/api/packs/library/install → 同一份報告 showReview → 人按「確認安裝」）；裝好回來按「套用」。
+  var WD_TEXT = {
+    load: "看衣櫃（要連到網路）", reload: "重新看一次", loading: "連線中…",
+    loaded: "{title}：{n} 套外觀。點「安裝」會先給你看檢查報告。", empty: "衣櫃還沒上架，先到網頁看看",
+    install: "安裝", update: "更新到 v{v}", working: "下載並檢查中…",
+    installed: "已安裝", newer: "有新版 v{v}", apply: "套用", using: "使用中"
+  };
+  var wdThemes = [];
+  function wdFail(text) {
+    $("wd-error").textContent = text || "";
+    $("wd-error").classList.toggle("hidden", !text);
+  }
+  function wdInstalled(name) {            // 裝好、能用的（GET /api/appearance 的 themes）
+    return (look && look.themes || []).filter(function (x) { return x.name === name; })[0] || null;
+  }
+  function wdPreview(t) {
+    if ((t.swatches || []).length) {
+      var sw = el("span", "wd-sw");
+      t.swatches.forEach(function (c) {
+        var i = el("i");
+        if (/^#[0-9a-fA-F]{3,6}$/.test(c)) { i.style.background = c; }   // CSSOM（不是 inline style 屬性）：CSP 放行
+        sw.appendChild(i);
+      });
+      sw.setAttribute("aria-hidden", "true");
+      return sw;
+    }
+    var chip = el("span", "wd-chip", t.letter || "?");
+    chip.setAttribute("aria-hidden", "true");
+    return chip;
+  }
+  function wdCard(t) {
+    var have = wdInstalled(t.name);
+    var using = !!have && look && look.theme === t.name;
+    var card = el("article", "wd-card" + (using ? " on" : ""));
+    card.setAttribute("data-name", t.name);
+    card.appendChild(wdPreview(t));
+    var body = el("div", "wd-body");
+    body.appendChild(el("b", "", t.title));
+    body.appendChild(el("span", "wd-name", t.name + " · v" + t.version));
+    var line = el("p", "wd-line", t.line);
+    if (t.summary && t.summary !== t.line) { line.title = t.summary; }
+    body.appendChild(line);
+    var badges = el("div", "wd-badges");
+    if (t.badge && t.badge.text) {
+      var st = el("span", "badge warn", t.badge.text);
+      if (t.badge.hint) { st.title = t.badge.hint; }
+      badges.appendChild(st);
+    }
+    if (t.installed) { badges.appendChild(el("span", "badge ok", WD_TEXT.installed)); }
+    if (t.newer) { badges.appendChild(el("span", "badge info", fill(WD_TEXT.newer, { v: t.version }))); }
+    body.appendChild(badges);
+    var act = el("div", "wd-actions");
+    if (look && look.owner && (!t.installed || t.newer)) {
+      var go = el("button", t.installed ? "sm" : "primary sm", t.newer ? fill(WD_TEXT.update, { v: t.version }) : WD_TEXT.install);
+      go.type = "button";
+      go.addEventListener("click", function () { wdInstall(t, go); });
+      act.appendChild(go);
+    }
+    if (have) {
+      var ap = el("button", using ? "sm" : "primary sm", using ? WD_TEXT.using : WD_TEXT.apply);
+      ap.type = "button";
+      ap.disabled = using || !have.ok;
+      ap.addEventListener("click", function () { applyLook(t.name); });
+      act.appendChild(ap);
+    }
+    body.appendChild(act);
+    card.appendChild(body);
+    return card;
+  }
+  function renderWardrobe() {
+    var box = $("wd-list");
+    clear(box);
+    wdThemes.forEach(function (t) {
+      var have = wdInstalled(t.name);
+      if (have) { t.installed = have.version || t.installed || "?"; t.newer = verNewer(t.version, t.installed); }
+      box.appendChild(wdCard(t));
+    });
+  }
+  function wdInstall(t, btn) {
+    var label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = WD_TEXT.working;
+    wdFail("");
+    function toReport() {                 // 報告在「功能與安裝」那一頁（同一份報告、同一個確認鈕）
+      $("pack-review").classList.add("hidden");
+      $("install-msg").textContent = "";
+      selectedToken = ""; markStaged();
+      setStep("check", "active", { token: "", name: t.name });
+      pickTab("packs");
+      if (location.hash !== "#packs") { location.hash = "#packs"; }
+    }
+    api("POST", "/api/packs/library/install", { name: t.name })
+      .then(function (s) { toReport(); showReview(s, true); loadStaged(); })
+      .catch(function (e) {
+        if (e.data && e.data.refused) { toReport(); reviewFailed(e); return; }     // 檢查沒過：照樣給看報告（不能裝）
+        wdFail(e.message);
+      })
+      .then(function () { btn.disabled = false; btn.textContent = label; });
+  }
+  $("wd-load").addEventListener("click", function () {
+    var b = $("wd-load");
+    b.disabled = true;
+    b.textContent = WD_TEXT.loading;
+    wdFail("");
+    $("wd-msg").textContent = "";
+    api("POST", "/api/packs/wardrobe", {}).then(function (d) {
+      wdThemes = d.themes || [];
+      if (LINK_RE.test(d.page || "")) { $("wd-page").href = d.page; }
+      $("wd-msg").textContent = wdThemes.length ? fill(WD_TEXT.loaded, { title: d.title || "SYNOX 衣櫃", n: wdThemes.length }) :
+        (d.empty || WD_TEXT.empty);
+      b.className = wdThemes.length ? "ghost" : "primary";
+      renderWardrobe();
+    }).catch(function (e) { wdFail(e.message); })
+      .then(function () { b.disabled = false; b.textContent = wdThemes.length ? WD_TEXT.reload : WD_TEXT.load; });
+  });
+  // ── 衣櫃 end
+
+  // ── 外觀 → 背景（slot chat.background；自己選的蓋過外觀包的）─────────────────
+  // 不要／純色／花紋：當場換（<html data-chat-bg>＋--chat-bg-color），伺服器下次送網頁也照這個；跟著外觀／自己貼：重新整理。
+  function bgNow() { return (look && look.background) || { kind: "theme" }; }
+  function bgShow(kind) {
+    $("bg-color-row").classList.toggle("hidden", kind !== "color");
+    $("bg-patterns").classList.toggle("hidden", kind !== "pattern");
+    $("bg-svg-row").classList.toggle("hidden", kind !== "svg");
+  }
+  function bgLive(bg) {
+    var html = document.documentElement;
+    var attr = bg.kind === "pattern" ? bg.pattern : (bg.kind === "none" || bg.kind === "color" ? bg.kind : "");
+    if (attr) { html.setAttribute("data-chat-bg", attr); } else { html.removeAttribute("data-chat-bg"); }
+    if (bg.kind === "color") { html.style.setProperty("--chat-bg-color", bg.color); }
+  }
+  function drawBg() {
+    var bg = bgNow();
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="bg-kind"]'), function (r) { r.checked = r.value === bg.kind; });
+    var box = $("bg-patterns");
+    clear(box);
+    (look.patterns || []).forEach(function (pt, i) {
+      var lab = el("label", "bg-pick");
+      var r = el("input");
+      r.type = "radio"; r.name = "bg-pattern"; r.value = pt.name;
+      r.checked = bg.kind === "pattern" ? bg.pattern === pt.name : i === 0;
+      r.addEventListener("change", function () { if (r.checked) { saveBg({ kind: "pattern", pattern: pt.name }); } });
+      lab.appendChild(r);
+      lab.appendChild(el("span", "bg-tile " + pt.name));
+      lab.appendChild(el("span", "", pt.text));
+      box.appendChild(lab);
+    });
+    if (bg.kind === "color" && bg.color) { $("bg-color").value = bg.color.length === 4 ?
+      "#" + bg.color.slice(1).split("").map(function (c) { return c + c; }).join("") : bg.color; }
+    else if (!$("bg-color").getAttribute("data-set")) {         // 第一次：用外觀的主色當起點
+      var ac = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(ac)) { $("bg-color").value = ac; }
+    }
+    bgShow(bg.kind);
+  }
+  function saveBg(bg, reload) {
+    $("bg-msg").textContent = "存檔中…";
+    return api("POST", "/api/appearance", { background: bg }).then(function (d) {
+      if (look) { look.background = d.background || bg; }
+      if (reload) {
+        $("bg-msg").textContent = "✅ 換好了，重新整理畫面…";
+        setTimeout(function () { location.reload(); }, 250);
+        return;
+      }
+      bgLive(look ? look.background : bg);
+      $("bg-msg").textContent = "✅ 存好了";
+    }).catch(function (e) { $("bg-msg").textContent = "❌ " + e.message; drawBg(); });
+  }
+  function bgGoPaste() {
+    var sel = $("custom-slot");
+    sel.value = "chat.background";
+    syncCustomHelp();
+    reveal($("set-custom"));
+    $("custom-text").focus();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="bg-kind"]'), function (r) {
+    r.addEventListener("change", function () {
+      if (!r.checked) { return; }
+      var kind = r.value;
+      bgShow(kind);
+      $("bg-msg").textContent = "";
+      if (kind === "theme" || kind === "none") { saveBg({ kind: kind }, kind === "theme"); }
+      else if (kind === "color") { $("bg-color").setAttribute("data-set", "1"); saveBg({ kind: "color", color: $("bg-color").value }); }
+      else if (kind === "pattern") {
+        var pick = document.querySelector('input[name="bg-pattern"]:checked');
+        saveBg({ kind: "pattern", pattern: pick ? pick.value : "dots" });
+      } else if (look && (look.custom || {})["chat.background"]) { saveBg({ kind: "svg" }, true); }
+      else { $("bg-msg").textContent = "先在「自己貼」貼一張 SVG 當背景。"; bgGoPaste(); }
+    });
+  });
+  $("bg-color").addEventListener("change", function () {
+    $("bg-color").setAttribute("data-set", "1");
+    saveBg({ kind: "color", color: $("bg-color").value });
+  });
+  $("bg-svg-go").addEventListener("click", bgGoPaste);
+  // ── 背景 end
+
   function fillLlm(d) {
     llmChoices = d.llm_choices || [];
     var sel = $("llm-choice");

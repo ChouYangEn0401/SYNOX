@@ -169,6 +169,31 @@ def _library() -> dict:
             "tools": catalog.cards(lib, have)}
 
 
+# 外觀 → 衣櫃（POST /api/packs/wardrobe 的形狀）：幾套假的外觀包，經 packs/catalog.py 同一個函式排成卡片。
+# 有的帶色條（swatches）、有的只有系列字母；一套「已安裝、有新版」。
+WARDROBE = [
+    ("costume-a-bubble", "A", "泡泡", "圓圓的對話泡泡，說話時會輕輕鼓起來", ["#f4f7fb", "#ffffff", "#3b82f6", "#a5c8ff"]),
+    ("costume-b-lantern", "B", "提燈", "幫你顧家的一盞小燈，會像心跳一樣一亮一亮", ["#f5f3ef", "#fffdf9", "#c77d12", "#f2c46d"]),
+    ("costume-c-stamp", "C", "印章", "蓋一下就記住了：朱紅色的方印", []),
+    ("costume-d-snail", "D", "蝸牛", "慢慢來也會到：殼上的螺旋就是進度", []),
+    ("costume-f-mochi", "F", "麻糬", "軟軟的一團，戳一下會彈回來", ["#fbf6f1", "#ffffff", "#e57399", "#f7c9d6"]),
+    ("costume-h-teapot", "H", "茶壺", "泡一壺茶等你：冒煙就是在想", []),
+]
+
+
+def _wardrobe() -> dict:
+    from synox.packs import catalog
+    entries = [{"name": n, "title": t, "summary": line, "version": "1.0.0", "stage": "alpha", "kind": "theme",
+                "category": "衣櫃／外觀", "collection": "wardrobe", "series": letter, "line": line, "swatches": sw,
+                "access": "owner", "capabilities": [], "file": f"{n}-1.0.0.synoxpack", "sha256": "0" * 64, "size": 1}
+               for n, letter, t, line, sw in WARDROBE]
+    lib = catalog.parse_index(json.dumps({"library_version": "0.3.0", "packs": entries, "collections": {
+        "wardrobe": {"title": "SYNOX 衣櫃", "summary": "整套外觀：顏色、吉祥物、開場一起換。"}}}).encode("utf-8"))
+    themes = catalog.wardrobe_cards(lib, {"costume-b-lantern": "0.9.0"})
+    return {"version": lib.version, "page": catalog.WARDROBE_URL, "releases": catalog.RELEASES_PAGE,
+            **catalog.wardrobe_info(lib), "themes": themes, "empty": ""}
+
+
 # 主控頁（/api/runtime/*）：時間寫成「離現在幾分鐘」，假 fetch 打開時才換成 ISO 時間，預覽檔才不會每跑一次就變。
 RUNTIME = {
     "heartbeat": {"enabled": True, "interval_min": 45, "last_run_min": -12, "next_run_min": 33,
@@ -451,6 +476,9 @@ MOCK = r"""
         warnings: ["會連網：只連到天氣服務"], tier: { tier: "T1", text: "T1：有程式碼，掃描過了" } });
     }
     if (p === "/api/packs/library") { return reply(D.library); }
+    if (p === "/api/packs/wardrobe") {           // ?wd=empty：清單裡還沒有外觀包（衣櫃還沒上架）
+      return reply(q.get("wd") === "empty" ? { themes: [], empty: "衣櫃還沒上架，先到網頁看看", page: D.wardrobe.page } : D.wardrobe);
+    }
     if (p === "/api/packs/library/install") {     // 預覽：不下載，直接給待核准那一份的報告
       D.stagedGone = false;
       return fetch("/api/pack-staged/previewtoken01");
@@ -501,6 +529,16 @@ MOCK = r"""
       var card = document.getElementById("set-library");
       if (b && card && !card.classList.contains("hidden")) { clearInterval(libWait); b.click(); }
       else if (libTries > 50) { clearInterval(libWait); }
+    }, 100);
+  }
+  if (q.get("wd")) {                      // 設定頁「外觀」直接按好「看衣櫃」（截圖用；wd=empty＝還沒上架）
+    var wdTries = 0;
+    var wdWait = setInterval(function () {
+      wdTries += 1;
+      var b = document.getElementById("wd-load");
+      var panel = b && b.closest(".tab-panel");
+      if (b && panel && !panel.classList.contains("hidden") && !b.classList.contains("hidden")) { clearInterval(wdWait); b.click(); }
+      else if (wdTries > 50) { clearInterval(wdWait); }
     }, 100);
   }
   if (q.get("help") === "1") {            // 「遇到問題？」直接按好「幫我準備好回報內容」（截圖用）
@@ -609,6 +647,8 @@ def _appearance() -> dict:
     """設定 → 外觀（GET /api/appearance 的形狀）：沒裝外觀包、用原本的 SYNOX。"""
     from synox.theme import contract
     return {"themes": [], "theme": "", "mode": "auto", "custom": {}, "inherited": [], "owner": True, "server": False,
+            "background": {"kind": "theme"},
+            "patterns": [{"name": k, "text": v} for k, v in contract.BACKGROUND_PATTERNS.items()],
             "scope": "install", "contract": contract.CONTRACT_VERSION, "tokens": list(contract.TOKENS),
             "slots": [{"name": n, "text": d, "kinds": list(k)} for n, (d, _v, k) in contract.SLOTS.items()]}
 
@@ -618,7 +658,7 @@ def app_preview() -> str:
     data = {"me": ME, "chats": CHATS, "events": EVENTS, "tools": TOOLS, "secrets": SECRETS,
             "settings": SETTINGS, "channels": CHANNELS, "accounts": ACCOUNTS,
             "library": _library(), "runtime": RUNTIME, "report": REPORT, "logs": TASK_LOGS, "soul": SOUL, "soul_notes": SOUL_NOTES,
-            "help": HELP, "aliases": ALIASES, "appearance": _appearance()}
+            "help": HELP, "aliases": ALIASES, "appearance": _appearance(), "wardrobe": _wardrobe()}
     mock = MOCK.replace("__DATA__", json.dumps(data, ensure_ascii=False))
     note = ("<!-- 自動產生：scripts/make_ui_preview.py（不要手改；改 src/synox/web/static/app.html、tools.css、"
             "tools.js、splash.css、splash.js 再重跑） -->\n")

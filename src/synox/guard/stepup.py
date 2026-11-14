@@ -72,7 +72,8 @@ SENSITIVE = {
 # 除了下面明列的例外（不改任何東西、或只是丟掉一個還沒裝的上傳）。新加的路由沒列進例外就自動受保護。
 SENSITIVE_PREFIXES = ("/api/settings/", "/api/packs/", "/api/pack-secrets/", "/api/runtime/", "/api/backup",
                       "/api/accounts/", "/api/tools/health")
-SENSITIVE_EXEMPT = ("/api/packs/discard", "/api/packs/library", "/api/settings/llm/test", "/api/settings/llm/local-advice",
+SENSITIVE_EXEMPT = ("/api/packs/discard", "/api/packs/library", "/api/packs/wardrobe", "/api/settings/llm/test",
+                    "/api/settings/llm/local-advice",
                     "/api/settings/update/check", "/api/settings/update/dismiss")   # 只查、只藏橫幅：不改東西
 SENSITIVE_DEFAULT_LABEL = "改 SYNOX 的設定"
 
