@@ -11,7 +11,7 @@
     editing: false, draft: null, rev: 0, seq: 0
   };
   var SEL_KEY = "synox.tools.selected";
-  var EFFECT = { read: "唯讀", write: "會寫入", danger: "危險：會先問你" };
+  var EFFECT = { read: "只會看", write: "會改資料", danger: "危險：做之前會先問你" };
   var KIND = { text: "文字", int: "整數", number: "數字", bool: "是／否", path: "檔名", choice: "選一個" };
 
   function el(tag, cls, text) {
@@ -71,7 +71,7 @@
     clear(root);
     var groups = groupsNow();
     if (!Object.keys(S.tools).length && !S.editing) {
-      root.appendChild(el("p", "tp-empty", "你現在沒有可以用的功能；請管理員替你開。"));
+      root.appendChild(el("p", "tp-empty", "你現在還沒有可以用的工具。請擁有者幫你打開。"));
       return;
     }
     var g = currentGroup();
@@ -112,7 +112,7 @@
     if (S.editing) {
       side.appendChild(button("＋ 新增群組", "tp-add", addGroup));
       var bar = el("div", "tp-editbar");
-      bar.appendChild(button("儲存排版", "primary", saveEdit));
+      bar.appendChild(button("儲存排法", "primary", saveEdit));
       bar.appendChild(button("取消", "", cancelEdit));
       bar.appendChild(button("回到建議的排法", "ghost", resetLayout, "丟掉自己的排法，照每個工具建議的群組重排"));
       side.appendChild(bar);
@@ -200,8 +200,8 @@
     S.draft.splice(i, 1);
     g.tools.forEach(function (tid) { suggestedGroup(tid, g).tools.push(tid); });
     if (S.group === g.id) { S.group = S.draft.length ? S.draft[Math.max(0, i - 1)].id : null; }
-    editMsg(g.tools.length ? "「" + g.title + "」刪掉了，裡面的工具回到建議的群組（按「儲存排版」才算數）。" :
-      "「" + g.title + "」刪掉了（按「儲存排版」才算數）。");
+    editMsg(g.tools.length ? "「" + g.title + "」刪掉了，裡面的工具會回到建議的群組。要按「儲存排法」才會存起來。" :
+      "「" + g.title + "」刪掉了。要按「儲存排法」才會存起來。");
     render();
   }
   function moveTool(g, i, step) {
@@ -231,7 +231,7 @@
     api("POST", "/api/tools/layout", body).then(function (d) {
       S.layout = d.layout; S.editing = false; S.draft = null;
       render();
-      toast("排版存好了（只改你自己的畫面）");
+      toast("排法存好了（只改你自己的畫面）");
     }).catch(function (e) { editMsg("❌ " + e.message); });
   }
   function resetLayout() {
@@ -369,7 +369,7 @@
     if (t.app && window.SynoxApps) { window.SynoxApps.card(panel, t); }   // 工具服務：「完整畫面」卡片（static/apps.js）
     if (t.connect) { panel.appendChild(connectBlock(t, badge)); }
     else if (t.missing && t.missing.length) {
-      panel.appendChild(el("p", "note-line", "還沒連接（缺 " + t.missing.join("、") + "）；請擁有者到工具頁按「連接」。"));
+      panel.appendChild(el("p", "note-line", "還沒接好，還缺：" + t.missing.join("、") + "。請擁有者到工具頁按「🔌 連接」填好。"));
     }
     if (t.panel) {
       var frame = el("iframe", "panel");
@@ -381,8 +381,8 @@
     var cmds = t.commands || [];
     panel.appendChild(el("div", "section-label", "指令（" + cmds.length + "）"));
     var list = el("div", "tp-cmds");
-    var openOne = cmds.filter(function (c) { return c.default; })[0] || cmds[0];
-    cmds.forEach(function (c) { list.appendChild(commandCard(c, c === openOne, t)); });
+    // 一進來全部折疊好（整齊）；要看哪一個再自己點開
+    cmds.forEach(function (c) { list.appendChild(commandCard(c, false, t)); });
     panel.appendChild(list);
   }
 
@@ -394,7 +394,7 @@
       var line = el("p", "note-line");
       line.appendChild(el("strong", "", (HEALTH_MARK[h.state] || "⚠️") + " " + h.label + (h.personal ? "（只對你）" : "")));
       line.appendChild(el("span", "", "：" + (h.code_label || h.code) + (h.reason ? "——" + h.reason : "")));
-      if (h.trial) { line.appendChild(el("span", "muted", "（試用中：AI 這次會再用一次）")); }
+      if (h.trial) { line.appendChild(el("span", "muted", "（再試一次看看：AI 這次會再用它一次）")); }
       else if (h.next_check) { line.appendChild(el("span", "muted", "（下次自動檢查 " + h.next_check.replace("T", " ").slice(0, 16) + "）")); }
       box.appendChild(line);
       if (!t || !t.health_admin) { return; }
@@ -402,11 +402,11 @@
       var msg = el("span", "msgline");
       function act(action) {
         api("POST", "/api/tools/health", { key: h.key, action: action }).then(function () {
-          msg.textContent = action === "release" ? "已解除，重新整理看最新狀態。" : "已經開始檢查，稍後重新整理看結果。";
+          msg.textContent = action === "release" ? "重新開放了。重新整理頁面，就會看到最新的狀態。" : "開始檢查了。等一下重新整理頁面，就會看到結果。";
         }).catch(function (e) { msg.textContent = "❌ " + e.message; });
       }
       if (h.state !== "quarantined") { row.appendChild(button("重新檢查", "sm", function () { act("recheck"); })); }
-      row.appendChild(button(h.state === "quarantined" ? "解除隔離" : "標成正常", "sm", function () { act("release"); }));
+      row.appendChild(button(h.state === "quarantined" ? "重新開放" : "標成正常", "sm", function () { act("release"); }));
       row.appendChild(msg);
       box.appendChild(row);
     });
@@ -445,7 +445,7 @@
     } else if (c.usage) {
       inputs.push(rawInput(form, c));
     } else {
-      form.appendChild(el("p", "muted", "這個指令不用參數，直接按執行。"));
+      form.appendChild(el("p", "muted", "這個指令不用填東西，直接按「執行」。"));
     }
     var preview = el("p", "tp-line");
     var line = el("code");
@@ -515,7 +515,7 @@
     wrap.appendChild(node);
     var hint = [];
     if (f.help) { hint.push(f.help); }
-    hint.push("參數 " + f.name + "・" + (KIND[f.kind] || f.kind) + (f.default ? "・預設 " + f.default : ""));
+    hint.push((KIND[f.kind] || f.kind) + (f.default ? "・沒填就用 " + f.default : "") + "・代號 " + f.name);
     wrap.appendChild(el("span", "tp-fhint", hint.join("　")));
     form.appendChild(wrap);
     return {
@@ -526,7 +526,7 @@
   function rawInput(form, c) {
     var wrap = el("div", "tp-field");
     var id = "tp-raw-" + c.path.replace(/[^a-z0-9_]/gi, "_");
-    var lab = el("label", "tp-flabel", "參數");
+    var lab = el("label", "tp-flabel", "要填的內容");
     lab.htmlFor = id;
     wrap.appendChild(lab);
     var node = el("input");
@@ -551,7 +551,7 @@
   function askDanger(box, text, go) {
     clear(box);
     box.classList.remove("hidden");
-    box.appendChild(el("p", "", "這是危險的指令（可能刪掉或改掉資料、不能復原）。確定要執行嗎？"));
+    box.appendChild(el("p", "", "這個指令有危險：可能刪掉或改掉資料，而且救不回來。確定要執行嗎？"));
     var line = el("p", "");
     line.appendChild(el("code", "", text));
     box.appendChild(line);
@@ -574,7 +574,7 @@
       clear(out);
       out.classList.remove("hidden");
       var replies = d.messages.filter(function (m) { return m.from !== "me"; });
-      if (!replies.length) { out.textContent = "（送出了；回覆可能要等一下，到對話頁的「🧰 工具頁」看）"; }
+      if (!replies.length) { out.textContent = "（送出了。結果可能要等一下，到對話頁的「🧰 工具頁」看。）"; }
       replies.forEach(function (m) {
         out.appendChild(S.ctx.renderMessage(m, "tools", function () { toast("按了；結果在對話頁的「🧰 工具頁」"); }));
       });
@@ -603,7 +603,7 @@
           input.type = f.secret ? "password" : "text";
           input.autocomplete = f.secret ? "new-password" : "off";
           if (!f.secret && f.value) { input.value = f.value; }
-          if (f.set && f.secret) { input.placeholder = "留空＝沿用原本的"; }
+          if (f.set && f.secret) { input.placeholder = "不填就用原本的"; }
         }
         lab.appendChild(input);
         if (f.help) { lab.appendChild(el("span", "muted", f.help)); }
@@ -638,7 +638,7 @@
       if (!form.classList.contains("hidden")) { form.classList.add("hidden"); return; }
       api("GET", "/api/pack-secrets/" + encodeURIComponent(p.name)).then(function (d) {
         build(d); form.classList.remove("hidden");
-        msg.textContent = "存在這台電腦的保管箱（密文）；為了安全，Telegram 不收這些。";
+        msg.textContent = "這些會鎖起來，存在這台電腦裡。為了安全，只能在這裡填，不能用 Telegram 傳。";
       }).catch(function (e) { msg.textContent = "❌ " + e.message; });
     });
     return box;

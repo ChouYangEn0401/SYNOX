@@ -477,7 +477,7 @@ MOCK = r"""
     }
     if (p === "/api/packs/library") { return reply(D.library); }
     if (p === "/api/packs/wardrobe") {           // ?wd=empty：清單裡還沒有外觀包（衣櫃還沒上架）
-      return reply(q.get("wd") === "empty" ? { themes: [], empty: "衣櫃還沒上架，先到網頁看看", page: D.wardrobe.page } : D.wardrobe);
+      return reply(q.get("wd") === "empty" ? { themes: [], empty: "衣櫃裡還沒有東西。可以先到衣櫃網頁看看。", page: D.wardrobe.page } : D.wardrobe);
     }
     if (p === "/api/packs/library/install") {     // 預覽：不下載，直接給待核准那一份的報告
       D.stagedGone = false;
@@ -486,6 +486,35 @@ MOCK = r"""
     if (p === "/api/packs/install") {
       D.stagedGone = true;
       return reply({ ok: true, name: "weather", status: "loaded", detail: "", env: "" });
+    }
+    if (p === "/api/notifications") {             // 🔔：一個還沒看的鬧鐘（打開就跳出來）、一個工具畫面、一個看過的新版
+      var since = Number((String(path).split("since=")[1] || "0").split("&")[0]) || 0;
+      var now = Math.floor(Date.now() / 1000);
+      return reply({ rev: 3, unread: 2, next: { when: "明天 08:00", text: "吃藥", daily: true },
+        items: since ? [] : [
+          { id: 1, rev: 1, at: now - 7200, kind: "update", level: "info", read: true, actions: [], data: {},
+            text: "🆕 SYNOX 有新版：0.9.0 → 0.9.1" },
+          { id: 2, rev: 2, at: now - 600, kind: "tool_idle", level: "info", read: false, data: {},
+            text: "🧩 記帳的完整畫面 30 分鐘沒人用了。要關掉嗎？不理我的話，再 90 分鐘我會自己關。",
+            actions: [{ id: "app_stop", app: "money", label: "現在關掉" }, { id: "app_keep", app: "money", label: "再給我 30 分鐘" }] },
+          { id: 3, rev: 3, at: now - 60, kind: "alarm", level: "alarm", read: false, data: { text: "吃藥" },
+            text: "⏰ 提醒：吃藥", actions: [{ id: "ok", label: "知道了" }, { id: "snooze", label: "5 分鐘後再提醒" }] }] });
+    }
+    if (p === "/api/notifications/prefs") {
+      var kinds = [["alarm", "⏰ 鬧鐘與提醒"], ["tool_idle", "🧩 工具畫面太久沒人用"], ["update", "🆕 SYNOX 有新版"],
+                   ["assistant", "🫀 常駐助理的消息"], ["tools", "🧩 工具裝好了／出問題"], ["safety", "⚠️ 安全警告"],
+                   ["greeting", "👋 SYNOX 開起來了"], ["general", "📣 其他"]];
+      return reply({ channels: [{ id: "web", label: "網頁", active: true }, { id: "telegram", label: "Telegram", active: true },
+                                { id: "discord", label: "Discord", active: false }],
+                     kinds: kinds.map(function (k) { return { kind: k[0], label: k[1], off: k[0] === "greeting" ? ["web"] : [],
+                                                              locked: k[0] === "safety" ? ["web"] : [] }; }) });
+    }
+    if (p === "/api/alarms") {
+      return reply({ where: ["網頁", "Telegram"], note: "鬧鐘只有在 SYNOX 開著的時候才會響（電腦要開著、沒有睡著）。",
+        warnings: [{ id: "sleep", text: "電腦睡著的時候鬧鐘不會響。想讓它準時響，電腦要開著、不要自己睡著。",
+                     fix: { label: "讓電腦不要自己睡著", action: "keep_awake" } }],
+        items: [{ id: 1, n: 1, text: "吃藥", daily: true, when: "明天 08:00", repeat: "每天" },
+                { id: 2, n: 2, text: "繳電費", daily: false, when: "11 月 20 日（五）15:30", repeat: "一次" }] });
     }
     if (p === "/api/usage") {                     // 假的用量：讓設定頁的「AI 用量與花費」有東西看
       var per = (String(path).split("period=")[1] || "day").split("&")[0];

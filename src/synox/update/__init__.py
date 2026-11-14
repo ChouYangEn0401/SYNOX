@@ -1,6 +1,7 @@
 """SYNOX 自己更新（docs/adr/0023）：
 
-- check.py   有沒有新版（按了才查；或使用者自己打開的每週檢查）、版本比較、通知一次
+- check.py   有沒有新版（按了才查；或使用者自己打開的每週檢查）、版本比較、通知一次；每週檢查也看工具（含外觀包）
+             有沒有新版（同一組版本通知一次，只看不裝）；測試模式 SYNOX_UPDATE_API（只從環境變數、只收本機）
 - prepare.py Update.bat 的前半段：下載、驗 SHA256／簽章、解到暫存資料夾（不動現在的檔案）
 - signing.py release.json 的 Ed25519 簽章與公鑰
 - web_api.py 網頁設定「💻 電腦與備份」的「檢查更新」卡片
@@ -12,6 +13,7 @@ from __future__ import annotations
 import logging
 import os
 
+from synox import notify
 from synox.update.check import CheckResult, UpdateError, weekly_tick   # 不匯入 check()：synox.update.check 是模組
 
 TASK_ID = "system.update_check"
@@ -28,16 +30,24 @@ def install(app, config, config_path: str = "") -> None:
     data_dir = getattr(config, "data_dir", os.path.join(getattr(config, "root", "."), "data"))
     root = getattr(config, "root", ".")
 
+    def tools():
+        """裝著的工具與外觀包有沒有新版（跟網頁「載入工具清單」同一份官方清單）。只看。"""
+        from synox.update.check import installed_pack_versions, tools_updates
+        report = app.extras.get("synox_pack_report")
+        have = {i.name: i.version or "" for i in report.items} if report else \
+            installed_pack_versions(os.path.join(root, "packs"))
+        return tools_updates(have, opener=getattr(app.extras.get("synox_web"), "catalog_opener", None))
+
     def tick(_ctx=None) -> str:
         from synox.wizard import logic
         raw = logic.read_existing(path)              # 每次讀檔：網頁上改了開關不用重開 SYNOX
         try:
-            return weekly_tick(data_dir, raw, app.notify_owner, root=root)
+            return weekly_tick(data_dir, raw, lambda text: notify.owner(app, text, kind="update"), root=root, tools=tools)
         except Exception:                            # 安靜失敗：記 log，下次再說
             logging.exception("[UPDATE] weekly check failed")
             return "這次沒查成"
 
-    rt.loop.register(TASK_ID, "檢查 SYNOX 有沒有新版（每週，要自己打開）", fn=tick, interval=TICK_INTERVAL,
+    rt.loop.register(TASK_ID, "檢查 SYNOX 和工具有沒有新版（每週，要自己打開；只看不裝）", fn=tick, interval=TICK_INTERVAL,
                      timeout=120.0, first_delay=300)
 
 

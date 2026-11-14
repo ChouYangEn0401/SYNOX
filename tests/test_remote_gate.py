@@ -48,7 +48,7 @@ def test_enter_success_cookie_flags_and_ticket(opened, owner):
     cookie = dict(headers)["Set-Cookie"]
     assert cookie.startswith(COOKIE + "=") and all(x in cookie for x in ("Secure", "HttpOnly", "SameSite=Strict", "Path=/"))
     assert json.loads(body)["next"].startswith("/#t=")
-    assert any("有人從手機進來了" in t for t in phone.bot.texts(owner))
+    assert any("有人從手機打開了" in t for t in phone.bot.texts(owner))
 
 
 def test_same_code_as_open_does_not_enter(counter, owner):
@@ -84,7 +84,7 @@ def test_five_bad_codes_close_and_notify_once(opened, owner):
     for _ in range(5):
         phone.client().knock(out["url"], "12345x")
     assert phone.manager.link.state == "closed"
-    assert len([t for t in phone.bot.texts(owner) if "亂敲門" in t]) == 1
+    assert len([t for t in phone.bot.texts(owner) if "亂試手機入口" in t]) == 1
 
 
 def test_after_entering(opened, owner):

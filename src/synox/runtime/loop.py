@@ -72,6 +72,12 @@ def caused_by(cause: Optional[Cause]):
         _CAUSE.value = old
 
 
+def _owner_notice(app, text: str) -> None:
+    """背景任務一直失敗的通知：走通知中心（kind=assistant）；沒有通知中心（測試的假 app）就照舊 notify_owner。"""
+    from synox import notify
+    notify.owner(app, text, kind="assistant", level="warn")
+
+
 def iso(ts: Optional[float]) -> Optional[str]:
     """epoch 秒 → 本機時區的 ISO 8601（到秒）；None → None。"""
     if ts is None:
@@ -163,7 +169,7 @@ class RuntimeLoop:
         self.app = app
         self._clock = clock
         self._spawn = spawn or self._thread
-        self._notify = notify or (lambda text: app.notify_owner(text))
+        self._notify = notify or (lambda text: _owner_notice(app, text))
         self.tasks: Dict[str, Task] = {}
         self._lock = threading.RLock()
         self._stop = threading.Event()

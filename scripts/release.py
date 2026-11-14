@@ -417,7 +417,7 @@ def notes(root: str, version: str = "", exe: bool = False) -> str:
         "你的設定（`config.json`）、資料（`data`）、裝好的工具（`packs`）不在 ZIP 裡，不會被蓋掉。",
         f"- **用 git 的人**：`Stop.bat` → `git pull`（只要這一版：`git checkout {v.tag}`）→ `Setup.bat`。",
         exe_line,
-        "- **工具**：網頁「設定 → 功能與安裝 → 工具庫（官方）」按「載入工具清單」，有新版的會標出來，按「安裝」就是更新"
+        "- **工具**：網頁「設定 → 功能與安裝 → 工具庫（官方）」按「看有哪些工具」，有新版的會標出來，按「安裝」就是更新"
         "（會先給你看改了什麼）；不滿意可以退回：`synox packs rollback <工具名>`。",
         "- 不確定自己是哪一版：在 SYNOX 資料夾打 `.venv\\Scripts\\synox about`，跟這頁的版本比。",
     ]

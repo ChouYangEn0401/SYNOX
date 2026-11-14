@@ -18,6 +18,7 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     GET  /api/packs/staged          擁有者：還沒按確認的暫存 pack（待核准清單，不用 token；過期的順便清掉）
     POST /api/packs/discard         {"token"}：擁有者「不要裝」，刪掉那一份暫存
     POST /api/packs/library         擁有者按「載入工具清單」：抓官方工具庫的清單（網址寫死在 packs/catalog.py，只有這時才連網）
+                                    ；updates＝裝著、有新版的工具與外觀包（網頁的「有 N 個工具可以更新」＋「全部更新」）
     POST /api/packs/wardrobe        擁有者按「看衣櫃」：同一份官方清單，只列外觀包（kind=theme；設定 → 外觀 → 衣櫃）
     POST /api/packs/library/install {"name"}：伺服器從官方發佈頁下載那個工具、對大小與雜湊 → admin.stage（跟上傳同一條路）
                                     → 回同一份報告；裝要另外按確認（/api/packs/install）
@@ -64,7 +65,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from isdtelekit.core.channel import CallbackInfo, Inbound
 
-from synox import tutorials
+from synox import notify, tutorials
 from synox.guard import origin as guard_origin
 from synox.guard.stepup import sensitive_action as stepup_sensitive
 from synox.packs.manifest import stage_text
@@ -755,6 +756,9 @@ class WebUI:
         if path.startswith("/api/runtime/"):          # 主控面板：常駐助理／心跳／任務（docs/runtime-api.md；含 PUT）
             from synox.runtime import web_api as runtime_api
             return runtime_api.route(self, user, method, path, body)
+        if path == "/api/notifications" or path.startswith(("/api/notifications/", "/api/alarms")):   # 🔔、鬧鐘
+            from synox.notify import web_api as notify_api           # （synox/notify，docs/notifications.md）
+            return notify_api.route(self, user, method, path, body, query)
         if method == "GET":
             if path == "/api/me":
                 return _json(200, self.me(user, session))
@@ -1118,7 +1122,7 @@ class WebUI:
             stored = self.prefs.get(user.tg_id, toolpage.LAYOUT_KEY)
         except Exception as e:                    # 保管箱解不開：照預設排，不蓋掉原本的檔
             logging.warning("[WEB] tool layout of %s unreadable: %s", user.tg_id, type(e).__name__)
-            stored, out["layout_error"] = None, "你的群組排版讀不到（保管箱解不開），先照預設排；存檔前請先看 doctor。"
+            stored, out["layout_error"] = None, "你存的群組排法讀不出來，先照建議的排。（進階：保管箱解不開，存檔前請先看 doctor）"
         out["layout"] = toolpage.effective(stored, self._tool_categories(out))
         return out
 
@@ -1208,12 +1212,12 @@ class WebUI:
         if pack is None or not self._pack_visible(user, pack):
             return None, _err(404, "沒有這個 pack。")
         if not getattr(pack, "secret_fields", None):
-            return None, _err(404, f"{name} 不用在這裡連接（沒有宣告 auth.fields，或 pack 自己有設定指令）。")
+            return None, _err(404, f"{name} 不用在這裡連接。（進階：沒有宣告 auth.fields，或這個工具自己有設定指令）")
         if not self._can_connect(user):
-            return None, _err(403, "只有擁有者能設定這台電腦的 pack 連接。")
+            return None, _err(403, "只有擁有者可以設定這台電腦上工具的連接。")
         store = self._secret_store()
         if store is None or not store.available:
-            return None, _err(400, "保管箱沒有打開，secret 沒地方放（python -m synox doctor 看原因）。")
+            return None, _err(400, "現在沒辦法把你填的東西安全地存起來，所以先不存。（進階：保管箱沒有打開，用 python -m synox doctor 看原因）")
         return pack, None
 
     def _secret_view(self, user, pack) -> dict:
@@ -1249,7 +1253,7 @@ class WebUI:
                      ",".join(sorted(k for k, v in values.items() if v)) or "-")
         out = self._secret_view(user, pack)
         out["ok"] = True
-        out["message"] = "✅ 已連接（存在保管箱，密文）。" if out["connected"] else \
+        out["message"] = "✅ 接好了。你填的東西已經鎖起來，存在這台電腦裡。" if out["connected"] else \
             "存好了，還缺：" + "、".join(out["missing"])
         if short:                                    # 存了，但太短的 secret 第 4 關保護不全：照實說
             out["warning"] = short_warning(short)
@@ -1804,7 +1808,7 @@ class WebUI:
             return failed
         have = self._installed_versions()
         return _json(200, {"version": lib.version, "releases": catalog.RELEASES_PAGE, "overview": catalog.OVERVIEW_URL,
-                           "tools": catalog.cards(lib, have)})
+                           "tools": catalog.cards(lib, have), "updates": catalog.updates(lib, have)})
 
     def wardrobe_list(self, user) -> Resp:
         """「看衣櫃」：同一份官方清單（同一個寫死的網址、同一套安全的抓法），只列外觀包。
@@ -1895,7 +1899,7 @@ class WebUI:
             text = (f"✅ pack {name} 的環境建好了，可以用了。" if result.ok
                     else f"⚠️ pack {name} {what}，但環境沒建好：{result.detail}")
             try:
-                self.app.notify_owner(text)
+                notify.owner(self.app, text, kind="tools", level="info" if result.ok else "warn")
             except Exception:
                 logging.exception("[WEB] env build notice failed")
 

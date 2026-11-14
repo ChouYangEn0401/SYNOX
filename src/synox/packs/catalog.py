@@ -59,25 +59,25 @@ TOTAL_TIMEOUT = 60                          # 一個檔從頭到尾
 Opener = Callable[[str, float, int], Tuple[int, Optional[str], bytes]]
 
 TEXT = {
-    "offline": "連不到工具庫（可能沒有網路）。可以改用下面的『⬇ 下載』或到 GitHub 發佈頁手動下載。",
-    "not_found": "工具庫裡找不到要的檔（可能還沒發佈）。可以到 GitHub 發佈頁看看，或改用『⬇ 下載』。",
-    "bad_status": "工具庫現在回應不正常，等一下再試；也可以到 GitHub 發佈頁手動下載。",
-    "moved": "工具庫把下載轉到不認得的地方，為了安全沒有跟過去。可以到 GitHub 發佈頁手動下載。",
+    "offline": "連不到工具庫，可能是現在沒有網路。先看看網路，再按一次。也可以按下面的「⬇ 下載」，或到下載頁自己下載。",
+    "not_found": "工具庫裡找不到這個檔案，可能還沒放上去。可以到下載頁看看，或按「⬇ 下載」。",
+    "bad_status": "工具庫現在怪怪的。等一下再按一次，或到下載頁自己下載。",
+    "moved": "下載被帶到不認識的地方，為了安全我停下來了。請到下載頁自己下載。",
     "too_big": f"檔案太大（最多 {MAX_PACK // (1024 * 1024)} MB），沒有下載。",
-    "broken": "工具庫的清單看不懂（格式不對），先不顯示。可以到 GitHub 發佈頁手動下載。",
-    "mismatch": "下載的檔案跟工具庫清單寫的不一樣（可能沒下載完整，或被換過），為了安全沒有裝。"
-                "請再按一次；一直這樣的話到 GitHub 發佈頁手動下載。",
+    "broken": "工具庫的清單我看不懂，所以先不顯示。可以到下載頁自己下載。",
+    "mismatch": "下載的檔案跟清單上寫的不一樣，可能沒下載完整，或被人換過。為了安全沒有裝。"
+                "請再按一次。還是一樣的話，到下載頁自己下載。",
     "not_listed": "下載的檔案裡面不是清單上寫的那個工具，為了安全沒有裝。",
-    "unknown": "工具庫裡沒有這個工具（清單可能更新了，重新載入看看）。",
-    "simulated": "只用模擬測過",
-    "simulated_hint": "還沒在真的服務上長時間用過：只用模擬的回應測過",
-    "offline_ok": "不連網",
-    "offline_ok_hint": "這個工具不會連到網路，資料存在這台電腦",
+    "unknown": "工具庫裡沒有這個工具。清單可能更新了，按「重新看一次」。",
+    "simulated": "只用假資料測過",
+    "simulated_hint": "還沒有真的連上去長時間用過，只用假資料測過",
+    "offline_ok": "不用上網",
+    "offline_ok_hint": "這個工具不會上網，資料存在這台電腦",
     "owner": "👤 單人用",
     "owner_hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到",
     "member": "👥 伺服器版也能用",
     "member_hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到",
-    "wardrobe_empty": "衣櫃還沒上架，先到網頁看看",
+    "wardrobe_empty": "衣櫃裡還沒有東西。可以先到衣櫃網頁看看。",
 }
 WARDROBE_TITLE = "SYNOX 衣櫃"
 
@@ -390,3 +390,36 @@ def wardrobe_info(lib: Library) -> dict:
     """衣櫃的標題與一句話（清單的 collections.wardrobe；沒有就用內建的字）。"""
     info = lib.collections.get("wardrobe") or {}
     return {"title": info.get("title") or WARDROBE_TITLE, "summary": info.get("summary") or ""}
+
+
+# ── 有新版的工具（「全部更新」、`synox tools check／update`、每週檢查）───────────────
+
+def updates(lib: Library, installed: Dict[str, str]) -> List[dict]:
+    """裝著、而且清單上的版本比較新的：工具和外觀包（kind=theme）都算。照名字排。
+    每一筆：name、title、kind（"theme"＝外觀包，"tool"＝工具）、installed（裝著的）、version（清單上的）。"""
+    out = []
+    for tool in lib.tools:
+        have = installed.get(tool.name, "")
+        if _newer(tool.version, have):
+            _emoji, title = _split_title(tool.title)
+            static = TOOLS.get(tool.name)
+            out.append({"name": tool.name, "title": title or (static[1] if static else tool.name),
+                        "kind": "theme" if tool.is_theme else "tool", "installed": have, "version": tool.version})
+    return sorted(out, key=lambda u: u["name"])
+
+
+def stage_tool(tool: Tool, data_dir: str, opener: Optional[Opener] = None) -> Tuple[str, dict]:
+    """下載一個工具（大小、sha256 對清單）→ admin.stage（安全管線第 1、2 關，跟上傳同一條路）→ (token, 摘要)。
+    壓縮檔裡的名字／版本／種類跟清單不一樣＝丟掉暫存、丟 CatalogError。**不裝**：裝要人看過報告再核准。
+    admin.GateRefused（檢查沒過，摘要裡有報告）、admin.PackAdminError 照原樣往外丟。"""
+    from synox.packs.admin import PackAdminError, discard_staged, stage
+    blob = download(tool, opener=opener)
+    token, summary = stage(blob, data_dir)
+    if summary.get("name") != tool.name or summary.get("version") != tool.version or \
+            (summary.get("kind") == "theme") != tool.is_theme:
+        try:
+            discard_staged(token, data_dir)
+        except PackAdminError:
+            pass
+        raise CatalogError(TEXT["not_listed"])
+    return token, summary
