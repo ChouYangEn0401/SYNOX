@@ -106,7 +106,11 @@ def brand_text() -> dict[str, str]:
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     first, second = mod.SLOGAN
-    return {"{{slogan-1}}": first, "{{slogan-2}}": second, "{{eyebrow}}": mod.EYEBROW}
+    # 彩蛋的玩笑話：JSON 放進 h1 的 data-jokes 屬性（所以要跳脫引號），頁尾的 <script> 讀出來用
+    import html as _html
+    import json
+    jokes = _html.escape(json.dumps(mod.SLOGAN_JOKES, ensure_ascii=False, separators=(",", ":")), quote=True)
+    return {"{{slogan-1}}": first, "{{slogan-2}}": second, "{{eyebrow}}": mod.EYEBROW, "{{slogan-jokes}}": jokes}
 
 
 def build() -> None:
