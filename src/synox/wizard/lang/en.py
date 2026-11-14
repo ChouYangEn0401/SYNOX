@@ -10,7 +10,7 @@ STRINGS = {
     "mode_title": "Who will use this computer's SYNOX?",
     "mode.personal.title": "Just me (personal)",
     "mode.personal.one": "Only you: commands work only for the Telegram account you pair.",
-    "mode.personal.two": "Everything stays on this computer; notes and expenses are stored encrypted.",
+    "mode.personal.two": "Settings, keys, notes and expenses are stored on this computer; notes and expenses are encrypted.",
     "mode.server.title": "A group (server)",
     "mode.server.one": ("Family, coworkers or a club: strangers who message it become guests, and you "
                         "(or admins you pick) decide who can use what."),

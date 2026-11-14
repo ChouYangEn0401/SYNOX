@@ -12,7 +12,7 @@ STRINGS = {
     "mode_title": "這台給誰用？",
     "mode.personal.title": "只有我（個人版）",
     "mode.personal.one": "只有你一個人用：只有配對的那個 Telegram 帳號用得到指令。",
-    "mode.personal.two": "資料都在這台電腦，筆記、記帳加密存一份。",
+    "mode.personal.two": "設定、金鑰和筆記、記帳都存在這台電腦，筆記、記帳加密存一份。",
     "mode.server.title": "一群人（伺服器版）",
     "mode.server.one": "家人、同事、社團一起用：陌生人傳訊息會變成訪客，你（或你指定的管理員）決定誰能用什麼。",
     "mode.server.two": "每個人的筆記、記帳各自加密存一份，別人看不到。",
