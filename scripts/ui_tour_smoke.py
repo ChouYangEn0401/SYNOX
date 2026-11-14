@@ -199,6 +199,7 @@ def main() -> int:
                 ctx = browser.new_context(viewport={"width": size[0], "height": size[1]},
                                           reduced_motion="reduce" if phone else "no-preference",
                                           device_scale_factor=2 if phone else 1)
+                ctx.add_init_script("window.SYNOX_NO_SPLASH = true;")   # 開場的門（splash.js）不出現：這裡測的是教學
                 page = ctx.new_page()
                 errors = []
                 page.on("pageerror", lambda e: errors.append(str(e)))
