@@ -57,7 +57,7 @@
 | `Install-Pack.bat`、`scripts/pack_zip.py` | 點兩下／拖上來的 `.synoxpack` 的落點；打包。檔案關聯：`shortcuts.synoxpack_keys`（HKCU `Software\Classes`：副檔名、`OpenWithProgids`、`SYNOX.Pack` 的 `DefaultIcon`＝`src/synox/assets/synoxpack.ico`（`scripts/make_pack_icon.py` 畫的，決定性）、`shell\open\command`）、`register_synoxpack`（同值不重寫，回改了哪些）／`unregister_synoxpack`（`.synoxpack` 指到別人就不動）；`python -m synox filetype register｜unregister｜status`（`Setup.bat`→bootstrap.ps1 呼叫；精靈沒勾＝unregister；`Uninstall.bat` 用 uninstall.ps1 刪）。**測試只寫拋棄式的 `Software\SYNOX-test-<亂數>\Classes`（`classes=`）並刪乾淨**，不碰真的關聯。拖進網頁：`static/packdrop.js`／`packdrop.css`（INCLUDE；只把檔交給設定頁的 `#pack-file`＋`#pack-upload`，不另開 API）；伺服器 `pack_upload` 驗 Content-Type、大小，`admin.stage` 驗 zip 檔頭 `ZIP_MAGIC` |
 | `src/synox/backup.py` | `export_backup`／`read_backup`：data/ 的 zip 用保管箱主金鑰加密（`Vault.encrypt_bytes`） |
 | `src/synox/wizard/` | `pages.py`（tkinter 畫面：這台給誰用 → token → 配對 → AI → 完成）、`logic.py`（寫 config、mode、AI 頁的 helper、金鑰進保管箱；`env:` 照原樣）、`telegram_probe.py`（getMe、配對碼）、`shortcuts.py`；`init_cli.py`（文字版 `synox init`：同一份 config，`Prompter` 可換、`--non-interactive`／`--dry-run`）、`tools.py`（工具庫：位置規則＝`packs.library` → `<SYNOX>/tools`、讀 `index.json`、`file_of` 對檔名與 sha256、`pick` 名字或組合；`packs/library.py` 也用它） |
-| `scripts/` 發佈 | `make_zip.py`（`release_files`＝會發出去的檔案，`--tools`／`--wheelhouse`）、`lock_deps.py`（`requirements.lock`，只讀已裝的版本與本機 wheel）、`stage_installer.py`（安裝程式的 stage：只複製）、`clean_room_check.py`（乾淨副本＋清掉這台的環境跑一遍）；`setup/installer/synox.iss`（Inno Setup，每個使用者自己裝） |
+| `scripts/` 發佈 | `make_zip.py`（`release_files`＝會發出去的檔案，`--tools`／`--wheelhouse`；`INTERNAL`＝只給 git clone 的開發用檔案，ZIP、安裝程式不帶，`.gitattributes` 的 export-ignore 與 `synox.iss` 的 `[InstallDelete]` 要跟它一致）、`lock_deps.py`（`requirements.lock`，只讀已裝的版本與本機 wheel）、`stage_installer.py`（安裝程式的 stage：只複製）、`clean_room_check.py`（乾淨副本＋清掉這台的環境跑一遍）；`setup/installer/synox.iss`（Inno Setup，每個使用者自己裝） |
 | `src/synox/doctor.py` | 健康檢查（不改任何檔、不產生金鑰） |
 | `src/synox/health/` | 工具健康（[tool-health.md](tool-health.md)）：`failure.py`（失敗信封 v1、類別碼表、正規化、`ai_line`）、`state.py`（狀態機、指紋）、`store.py`（`data/health/tools.json.enc`，保管箱）、`settings.py`（config `health`）、`__init__.py`（`HealthRegistry`、fail open 的入口 `observe_*`／`hidden`、runtime 任務 `system.health`）。loader（cli）、`packs/mcp.py`、`agent/loop.py` 只經這些入口；權限仍只看 `policy.decide` |
 | `src/synox/brand.py` | 終端機門面：歡迎畫面（`show_banner`；`BANNER_COMMANDS`＝沒參數／run／open／wizard／init／doctor／about）、`about_text`、`TIPS`。只在互動終端機印；`--quiet`、`SYNOX_NO_BANNER`、`CI`、管線＝不印（既有輸出一個字都不變），`TERM=dumb`＝一行，`NO_COLOR`＝不上色；Windows 主控台 code page 不是 65001（cp950）或 `SYNOX_ASCII=1`＝ASCII logo。預覽 `docs/ui/cli-welcome.txt`（`scripts/make_cli_welcome.py`） |
@@ -66,7 +66,7 @@
 | `src/synox/packs/library.py` | 「還沒裝任何工具、去哪裡裝」：`installed_tools`（不算 `BUNDLED`；現在是空的）、`empty_hint`／`start_hint`（/start、/help 只給擁有者）、`install`（包 SDK 的 /help）、`status`（網頁 `/api/tools`、`/api/settings` 的 `library`）、`doctor_lines`；工具庫位置＝`config.json` 的 `packs.library`（`library_location`，不寫死路徑） |
 | `sdk/` | 單檔 SDK `synox_sdk.py`（產生的）＋`pyproject.toml`（`pip install <SYNOX>/sdk`＝`synox-sdk` 套件，版本讀 `SDK_VERSION`） |
 | `tests/fixtures/packs/` | host 測試用的 money／notes（下架前的凍結複本，不是正本、不加功能）；提醒直接測核心的 `/remind_*` |
-| `src/synox/connect.py` | `python -m synox connect <pack>`（`Connect-Apple.bat`；要先從工具庫裝好那個工具）：照 pack.json `auth.fields` 用 getpass 問帳密，存進 `pack_secrets`（`src/synox/packs/secrets.py`，保管箱的鍵 `packs/<pack>/<field>`；跟 Web UI 工具頁「連接」表單是同一份）。帳密不經聊天：Telegram 會留紀錄、`[ROUTE]` log 印指令全文 |
+| `src/synox/connect.py` | `python -m synox connect <pack>`（例如 `connect apple-reminders`；入口屬於工具本身，SYNOX 不再附 `.bat`；要先從工具庫裝好那個工具）：照 pack.json `auth.fields` 用 getpass 問帳密，存進 `pack_secrets`（`src/synox/packs/secrets.py`，保管箱的鍵 `packs/<pack>/<field>`；跟 Web UI 工具頁「連接」表單是同一份）。帳密不經聊天：Telegram 會留紀錄、`[ROUTE]` log 印指令全文 |
 | `Setup.bat`、`setup/bootstrap.ps1` | 一鍵安裝；`Start.bat`／`Stop.bat`／`Console.bat` |
 | `tests/` | pytest；`conftest.py` 的 `make_bot` 用測試用的 packs＋真的 Vault＋`FakeAdapter`＋SDK `BotHarness`。測試期間 `loader.PACK_DIRS` 一律換成 `tests/fixtures/packs`（autouse `_test_pack_dirs`；不讀 repo 的 `packs/`），伺服器版的 make_bot 先把三個測試 pack 鎖成 core。空 host 的測試在 `tests/test_empty_host.py`。要讀工具庫的測試（`SYNOX_LIBS=<工具庫>`，沒有就跳過）：`test_empty_host` 的「工具庫每個工具打包→裝進空 host」、`test_smoke_real` 的四個服務、`test_sdk_p2_secret` 的 connector 不被 SYNOX 管 secret。connector 自己的測試在工具庫。穩定度 `stage` 的測試在 `tests/test_stage.py` |
 | `docs/` | 文件，索引在 [README.md](README.md)（新文件要登記在那裡）。產品文件是頂層的 `*.md`；`adr/` 架構決定；`handoff/` 給使用者的真機測試教學；`legacy/` 下架說明；`QuestionToUser.md` 等擁有者拍板的問答；`lab/` 實驗、研究、提案（`lab/discussions/` 設計討論、`lab/cross-repo/` 請別的 repo 做的事）。**已發佈頁面的本機副本不能搬**：`landing/`、`guide/`、`installer/`、`tutorials/`（執行時讀取）、`artifacts/`、`lab/design/`（`artifacts.json` 的 `local`、頁尾路徑、`tests/test_artifact_registry.py`） |
@@ -391,7 +391,7 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
   `requirements.lock` 還沒產生（開發機的 .venv 少 websocket-client，要在發佈機的乾淨 venv 產生）。
 - connector 全部接上了，但都只對假傳輸測過。網頁工具頁對 kind=python 一律顯示「已連接」，沒設憑證時要打各自的 `_status`；
 - 工具庫的 connector（notion、todoist、google-calendar、apple-reminders）全部接上了，但都只對假傳輸測過（標 🧪 alpha）。網頁工具頁對 kind=python 一律顯示「已連接」，沒設憑證時要打各自的 `_status`；
-  Notion 指令參數照空白切（換行變空白）；Todoist 呼叫是同步的、逾時 15 秒；Apple 的帳號只能在電腦上用 `Connect-Apple.bat` 設。
+  Notion 指令參數照空白切（換行變空白）；Todoist 呼叫是同步的、逾時 15 秒；Apple 的帳號在電腦上用 `python -m synox connect apple-reminders`（或網頁工具頁的「連接」）設。
 - `[ROUTE]` log 會印指令全文（SDK dispatcher），所以任何密碼都不能設計成「在聊天裡打」的指令（Notion／Todoist 的 token 指令靠 `redact_in_logs` 遮罩）。
 - Google 日曆：連接只有指令（`/gcal_setup`、貼網址列回來），網頁沒有「連接」按鈕；只用主要日曆；`/gcal_rm` 的編號是最近一次列表；沒有改行程。
 - 文字協定一次只解析一個工具呼叫。
@@ -418,7 +418,7 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 2. 「目前的檔案」那一段必須是零。確定是範例或測試假值的行，在同一行加 `prepublish-check: allow`（並在 PR 說明為什麼）。
 3. 「git 歷史」那一段：舊版本裡的本機路徑不一定要改寫歷史，由維護者決定；**真的密鑰**一律先到服務端撤銷、換新，再考慮改寫歷史。
 4. commit 作者信箱若是個人信箱：要不要改寫成 GitHub 的 noreply 信箱，由維護者決定。
-5. 文件：README 頂端的 alpha 說明仍然屬實；`<待補：…>` 佔位（SECURITY.md、LICENSING.md、CONTRIBUTING.md、MAINTAINERS.md）都填好了。
+5. 文件：README 頂端的 alpha 說明仍然屬實；`<待補：…>` 佔位（SECURITY.md、LICENSING.md、CONTRIBUTING.md、.github/MAINTAINERS.md）都填好了。
 6. 測試全過：`.venv\Scripts\python.exe -m pytest -q`。
 
 ## 線上頁面（Artifact）的規則（擁有者 2026-11-13）

@@ -12,7 +12,7 @@
 - **安裝精靈**「Bot 的 token」那一頁的「看圖文教學」按鈕：用預設瀏覽器開本機那份（`docs/tutorials/<平台>/index.html`）。
 - **網頁介面**：`http://127.0.0.1:8830/tutorials/<名字>/`（設定 → 聊天通道裡有連結）。不用登入：是公開的說明文件，不碰任何資料。
 - **文字版 `synox init`**：Telegram 那一題會印出本機檔的路徑。
-- 發佈的 zip 與安裝程式都會帶到（`scripts/make_zip.py` 取 git 追蹤的檔，`docs/` 整個在裡面）。
+- 發佈的 zip 與安裝程式都會帶到（`scripts/make_zip.py` 取 git 追蹤的檔；`docs/` 只少開發用的 `lab/`、`ui/`、`installer/` 這些，見 `INTERNAL`）。
 
 ## 加一份新教學（例如 Discord）：不用改程式
 

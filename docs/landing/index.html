@@ -421,7 +421,7 @@ details.road summary { cursor: pointer; font-weight: 500; padding: 12px 0; min-h
   .sx-eye.l { left: 30px; } .sx-eye.r { right: 30px; }
   @keyframes sx-blink { 0%, 35%, 65%, 100% { transform: scaleY(1); } 50% { transform: scaleY(.12); } }
   .sx-blush { position: absolute; top: 56px; width: 17px; height: 9px; border-radius: 50%; opacity: 0;
-              background: color-mix(in srgb, var(--bad) 55%, transparent); animation: sx-fade .3s ease .3s forwards; }
+              background: var(--mb); animation: sx-fade .3s ease .3s forwards; }
   .sx-blush.l { left: 17px; } .sx-blush.r { right: 17px; }
   .sx-smile { position: absolute; left: 50%; top: 56px; width: 22px; height: 11px; margin-left: -11px;
               border: 3px solid var(--accent-ink); border-top: 0; border-radius: 0 0 14px 14px; }
@@ -457,7 +457,13 @@ details.road summary { cursor: pointer; font-weight: 500; padding: 12px 0; min-h
     82%  { transform: none; opacity: 1; }
     100% { transform: translateY(-6px) scale(.9); opacity: 0; } }
 
-  .sx-word { display: flex; gap: .16em; font: 800 26px/1 var(--font); color: var(--text); }
+  .sx-word { display: flex; gap: .16em; font: 800 26px/1 var(--font-brand); color: var(--text); }
+  /* 外觀換掉的開場（slot opening）與字標（slot wordmark）：大小 SYNOX 定，裡面怎麼動是外觀的 CSS（@keyframes th-…） */
+  .sx-open { width: 220px; height: 220px; animation: sx-drop .6s var(--ease) both; }
+  .sx-open > .slot { width: 100%; height: 100%; }
+  .sx-word-slot { height: 34px; animation: sx-letter .5s var(--sx-pop) .62s both; }
+  .sx-word-slot > .slot { height: 100%; }
+  .sx-word-slot > .slot > svg { height: 100%; width: auto; }
   .sx-word span { display: inline-block; animation: sx-letter .5s var(--sx-pop) both; }
   .sx-word span:nth-child(1) { animation-delay: .62s; }
   .sx-word span:nth-child(2) { animation-delay: .67s; }
@@ -702,7 +708,7 @@ footer a { color: var(--muted); }
 <section class="hero" id="top">
   <div>
     <p class="eyebrow">住在你自己電腦裡的 AI 助理</p>
-    <h1 class="slogan">先問你，<br><em>再動手。</em></h1>
+    <h1 class="slogan">有事，<br><em>跟它說一聲就好</em></h1>
     <p class="lede">用 Telegram、Discord 或網頁跟它說話。記事、記帳、提醒都交給它；要刪東西，它一定先問你。</p>
     <div class="cta">
       <a class="btn primary" href="#screens"><svg class="ico"><use href="#i-eye"/></svg>看畫面</a>
@@ -1034,7 +1040,7 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
 
 <section class="final" aria-label="開始使用">
   <p class="eyebrow">SYNOX</p>
-  <p class="slogan" style="font-family:var(--display);font-weight:700"><span class="nw">先問你，</span><span class="nw" style="color:var(--accent)">再動手。</span></p>
+  <p class="slogan" style="font-family:var(--display);font-weight:700"><span class="nw">有事，</span><span class="nw" style="color:var(--accent)">跟它說一聲就好</span></p>
   <p>住在你自己電腦裡的 AI 助理。</p>
   <div class="cta center">
     <a class="btn primary" href="https://github.com/ChouYangEn0401/SYNOX" target="_blank" rel="noopener"><svg class="brand"><use href="#b-github"/></svg>到 GitHub 看原始碼</a>
@@ -1050,7 +1056,7 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
   <span>Telegram、Discord、Claude、OpenAI、Gemini 等名稱與標誌屬於各自的所有者</span>
   <a href="https://github.com/ChouYangEn0401/SYNOX" target="_blank" rel="noopener">github.com/ChouYangEn0401/SYNOX</a>
 </footer>
-<p class="stamp">線上版 <a href="https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox">claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox</a> · 本機版 docs/landing/index.html · 頁面版本 <span data-stamp>25cc806c48 · 2026-11-14</span></p>
+<p class="stamp">線上版 <a href="https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox">claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox</a> · 本機版 docs/landing/index.html · 頁面版本 <span data-stamp>1aae8f58c2 · 2026-11-14</span></p>
 </div>
 
 <script>

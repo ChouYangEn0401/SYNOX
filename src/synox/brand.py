@@ -31,8 +31,8 @@ BANNER_COMMANDS = frozenset({None, "run", "open", "wizard", "init", "doctor", "a
 #: SYNOX 的大標語（還沒定案，暫用這句）。要換只改這裡，再跑 python scripts/make_landing.py 重組介紹頁、
 #: python scripts/make_cli_welcome.py 重產終端機預覽。兩段：介紹頁第一屏分兩行，第二段用主色。
 #: 之後主題可以帶自己的「心情語」，但不會換掉這句標語。
-SLOGAN = ("先問你，", "再動手。")
-SLOGAN_EN = "The AI assistant that asks first."
+SLOGAN = ("有事，", "跟它說一聲就好")
+SLOGAN_EN = "Need something? Just tell it."
 #: 定位句（介紹頁大標語上面那行小字）。
 EYEBROW = "住在你自己電腦裡的 AI 助理"
 EYEBROW_EN = "The AI assistant that lives on your own computer."
@@ -405,7 +405,7 @@ def about_text(config_path: str | None = None, *, root: str | None = None) -> st
     rows = [
         ("版本", f"SYNOX {version()} · 工具 SDK {SDK_VERSION} · Python {sys.version.split()[0]}"),
         ("授權", "核心 AGPL-3.0-or-later；工具 SDK 與範例 Apache-2.0（見 LICENSING.md）"),
-        ("名稱與標誌", "「SYNOX」的使用規則見 TRADEMARK.md"),
+        ("名稱與標誌", "「SYNOX」的使用規則見 .github/TRADEMARK.md"),
         ("裝在哪裡", root),
         ("設定檔", config_path + ("" if has_config else "（還沒有：雙擊 Setup.bat，或照 config.example.json 寫一份）")),
         ("文件", "README.md · docs/README.md · 安全問題請看 SECURITY.md（不要開公開 issue）"),
