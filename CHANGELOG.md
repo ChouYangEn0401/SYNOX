@@ -1,5 +1,103 @@
 # Changelog
 
+## 未發佈（門禁核心、手機驗證器、工具服務、手機入口；分支 feat/secure-apps）
+
+### 新增
+- **門禁核心**（`src/synox/guard/`，ADR 0025）：每個動作都記得是誰引起的（Telegram、網頁、AI、排程…）；所有欄位值先過同一份基本檢查（太長、空字元、控制字元、騙人的排版字元）；
+  安全紀錄 `data/security_audit.jsonl`。工具可以在 `pack.json` 用 `callers`／`stepup` 收緊範圍（只收本人、一定要解鎖）；`kit.caller()`、`kit.require_human()`、`kit.checks`。
+- **手機驗證器（兩步驗證）**：設定 → 🔐 安全（或 `python -m synox stepup setup`）。設定好並勾「危險的動作也要先解鎖」之後，所有危險的指令與幾個敏感的網頁動作要先
+  `/unlock <6 位數>`；解鎖只對打碼的那個入口有效、15 分鐘；10 組備用碼；AI 拿不到也給不了驗證碼。沒設定＝什麼都不變。
+- **工具服務**（ADR 0024）：工具可以附完整的網頁畫面（`web.app`），在 `127.0.0.2` 上、不用 cookie、只能從主機台用一次性的票進；`/apps`、`/app_open`、`/app_close`；
+  工具頁的「完整畫面」卡片與每個工具的閒置設定；`synox-sdk init --app`；SDK 0.2.3（只加不改）。
+- **手機入口**（ADR 0026，預設關）：`/app_remote <名字>`（或工具頁的「📱 手機入口」）打一組新的驗證碼 → 一個只能用一次的連結，手機上再打一組數字才進得去；通道是你自己裝、在設定 → 🔐 安全核准過的 `cloudflared`（SYNOX 不下載、不更新，每次啟動前對雜湊）；只碰得到那一個工具的畫面，危險的動作與匯出在手機上不能做；30 分鐘、10 分鐘沒用、`/app_close` 都會整組收掉。
+- `doctor` 多「手機驗證器」「工具服務」「手機入口」三行。
+
+### 變更
+- 主機台的 `/api/` 拒絕別的網頁送來的請求（`Sec-Fetch-Site` 是 same-site／cross-site）；每個回應加 COOP、JSON 加 CORP；同名的假 cookie 擋不住真的那個。
+- `stepup_minutes` 預設 15（1–120）。伺服器版擁有者沒設定驗證器時，現在給得了別人管理員（以前會被 SDK 的命令列提示擋住）。
+- 工具服務的 ADR 改號成 0024（原本跟「SYNOX 自己更新」撞號 0023）。
+
+## 未發佈（發佈物只帶使用者要的；拿掉 Connect-Apple.bat；治理文件搬進 .github）
+
+### 變更
+- **發佈 ZIP 與安裝程式只帶執行、更新 SYNOX 要用的檔案**（擁有者 2026-11-14 決定）：`tests/`、`evals/`、`docs/lab/`、`docs/artifacts/`、
+  `docs/artifacts.json`、`docs/QuestionToUser.md`、`docs/ui/`、`docs/installer/`、`.github/` 的 CI 與範本、`.devcontainer/` 不再發給使用者
+  （`scripts/make_zip.py` 的 `INTERNAL`；`stage_installer.py` 用同一份）。GitHub 的「Download ZIP」也一樣不帶（`.gitattributes` 的 export-ignore）。
+  要這些的工程師用 `git clone`。README 建議：一般使用者用安裝程式或發佈 ZIP，工程師用 git clone。
+- 安裝程式更新舊版時，會先刪掉舊版才有的那些開發用檔案（`synox.iss` 的 `[InstallDelete]`）；`config.json`、`data\`、`packs\` 不動。
+  用 ZIP 蓋過去更新的人：舊的 `tests\` 這些留著不會被讀，想清就自己刪（[docs/versioning.md](docs/versioning.md)）。
+- 拿掉 `Connect-Apple.bat`：Apple 提醒事項工具在工具庫，入口屬於工具本身——改用 `.venv\Scripts\python.exe -m synox connect apple-reminders`
+  （或網頁工具頁的「連接」）。
+- `GOVERNANCE.md`、`MAINTAINERS.md`、`TRADEMARK.md` 搬進 `.github/`（照樣發給使用者；`synox about` 改成「見 .github/TRADEMARK.md」）。
+  `LICENSE`、`LICENSE-APACHE`、`NOTICE`、`LICENSING.md` 留在根目錄。
+- `scripts/clean_room_check.py` 的副本另外帶 `tests/`（最後一步要跑 pytest）；`installer_ci.py check-iss` 多檢查 `[InstallDelete]` 不刪使用者的資料。
+- 新增公開的沙盒路線圖 [docs/sandbox-roadmap.md](docs/sandbox-roadmap.md)（現況、Windows 的候選路線、志願者怎麼跑探測腳本、徵求協助的任務與驗收條件）、
+  GitHub Discussions 的貼文草稿（`docs/community/`）與「想法」表單（`.github/DISCUSSION_TEMPLATE/ideas.yml`）；`CONTRIBUTING.md` 加「參與討論」。
+  `docs/community/`、`.github/DISCUSSION_TEMPLATE/` 跟其他開發用檔案一樣不發給使用者。
+- ADR 0022、生態研究與幾份舊研究頁講到 OpenClaw／Hermes Agent 的地方改成中性、以相容為目的的寫法：只引用對方的公開文件，二手報導標「待查」，並感謝兩個專案公開的文件。
+
+## 未發佈（外觀：換裝）
+
+### 新增
+- 外觀（換裝）：SYNOX 預設還是原本的樣子；外觀包（`.synoxpack`，`kind=theme`）上傳 → 看報告（色票＋預覽）→ 按確認才裝，到「設定 → 🎨 外觀」套用、隨時換回原本的 SYNOX。整個網頁的顏色都來自一組 token，吉祥物、開場、字標、分頁圖示是可以換的位置；也可以自己貼 SVG 換某一個位置。外觀包沒有程式，SVG／CSS 一律消毒（不收程式、事件屬性、外部網址、@import），字型只能附在包裡。Telegram、Discord 不受影響。（`docs/themes.md`）
+- 跟工具服務／門禁核心合在一起時取比較嚴的：外觀包也不能寫 `callers`、`stepup`（第 1 關就拒；`web`／`web.app` 本來就不收）；
+  第 2 關對外觀包不豁免任何「掃不到的檔」，網頁畫面的檢查（appscan）照樣跑；外觀包從「功能與安裝」裝，跟工具一樣要過解鎖（開了的話）。
+  「🔐 安全」與工具服務的畫面改用同一組顏色 token（換外觀、深色時解鎖框看得清楚）；手機驗證器的 QR 碼固定黑白。
+
+## 未發佈（標語）
+
+### 變更
+- 拿掉標語「聊天就能用，資料不出門。」（接雲端 AI 時對話會送出去，「資料不出門」不實）；新標語還沒定案，暫用「先問你，再動手。」，只寫在 `src/synox/brand.py` 的 `SLOGAN`（介紹頁組頁面時、終端機歡迎畫面／`synox about` 都從那裡拿）。上面那行小字維持「住在你自己電腦裡的 AI 助理」。精靈「個人版」那句改成只說設定、金鑰、筆記、記帳存在這台電腦。
+
+## 未發佈（整理資料夾）
+
+### 變更
+- 根目錄少三樣：`QuestionToUser.md` 搬到 `docs/QuestionToUser.md`；`legacy/` 搬到 `docs/legacy/`；只剩一份「已搬走」說明的 `connectors/` 拿掉了（說明併進 `docs/legacy/connectors.md`）。
+- `docs/` 裡名字太像的資料夾分開：`docs/handoffs/`（請別的 repo 做的事）搬到 `docs/lab/cross-repo/`，`docs/discussions/` 搬到 `docs/lab/discussions/`；給使用者的 `docs/handoff/` 不動。
+- `docs/README.md` 索引補上 `tool-health.md`、`release-build.md`、`tutorials-engine.md`、`guide/`、`installer/`、`artifacts/`、`lab/`；`docs/AGENT.md` 程式地圖多一列 `docs/` 的分區。
+- 8 個 `.bat`、`setup/`、已發佈頁面的本機副本（`docs/landing/`、`guide/`、`installer/`、`tutorials/`、`artifacts/`、`lab/design/`）位置都沒變：已裝好的電腦、桌面捷徑、`.synoxpack` 點兩下都不受影響，線上頁面不用重新發佈。
+- 從舊版解壓縮蓋過來的人：留在磁碟上的舊 `connectors\`、`legacy\`、`QuestionToUser.md` 不會被讀，可以自己刪。
+
+## 未發佈（安裝程式 .exe 照擁有者 2026-11-13 的決定改版）
+
+### 變更
+- 第一頁選語言（12 種，預選 Windows 的語言）；沒有「我同意」頁，歡迎頁一行授權連結（個人使用免費，商業用途看 AGPL-3.0）。
+- 「建議」只準備環境＋新手教學、預設開機自動啟動；「自訂」可選安裝位置與每一項，含「全部官方工具都裝（不建議）」。
+- 最後一步可選裝 Claude Code（這台沒有才裝、要上網、失敗不擋安裝）。
+- 解除安裝多一個「連我的資料也一起刪除」（預設不勾、勾了再確認一次）；開始功能表加「SYNOX 設定精靈」「解除安裝 SYNOX」。
+- 設定精靈：從安裝程式來的只剩「立刻開啟」；完成頁提示打 `/tutorial` 做一次教學。新指令 `synox tools install --all`。
+- 新增 `scripts/installer_ci.py check-iss`：不用 Windows 也能檢查安裝程式腳本與 12 種語言的字。
+- 繁體中文、简体中文、हिन्दी 的安裝畫面按鈕（「下一步」「瀏覽…」這些 Inno Setup 內建的字）也翻好了：Inno 沒有這三種的官方檔，改用 SYNOX 自己翻的 `setup/installer/lang/inno/*.isl`（Inno 6.7.4 的 293 個 key 全翻，`check-iss` 檢查一個都不少、代換符號與快速鍵一樣；待母語者校對）。
+- 🧪 以上都還沒在 Windows 上編譯或實測。
+
+## 未發佈（不用 uv：直接下載固定版本的 Python；Setup.bat 先問「照建議／自訂」）
+
+### 變更
+- **Setup.bat 不再用 uv**：沒有 `runtime\python` 時，直接下載釘死網址＋SHA256 的獨立版 CPython 3.12.16（python-build-standalone 20261026，`install_only_stripped`，約 22 MB），用 Windows 內建的 `tar.exe` 解到 `runtime\python`，再用一般的 `python -m venv` 建 `.venv`。檢查碼不對就刪掉下載的檔案、停下來。不再退到 python.org 的可攜版。仍然只動 SYNOX 資料夾。
+- **安裝程式和 ZIP 用同一個 Python**：`stage_installer.py --fetch-python` 讀 `setup/bootstrap.ps1` 的網址與 SHA256，附的 Python 一定有視窗元件；拿掉 `--python-embed`、`--tk-from` 和 virtualenv。
+- **Setup.bat 先問語言（按 Enter＝Windows 的顯示語言），再說清楚、問一題**：按 Enter 照建議（只準備 SYNOX、開機自動啟動，工具做完教學再挑），輸入 C 自訂（開機自動啟動、Claude Code、全部工具都裝）；`Setup.bat -Custom` 直接進自訂。「全部工具都裝」還沒做。
+
+## 未發佈（新手教學 /tutorial）
+
+### 新增
+- 新手教學（`/tutorial`，也可以打「開始教學」或 `/start tutorial`）：SYNOX 會在網頁上把要按的地方圈起來，一步一步帶你走；Telegram、Discord 用步驟卡。忘了隨時再打一次就能複習（`/tutorial restart` 從頭來）。
+- 第一次打開網頁會問「要不要我帶你走一遍？（約 5 分鐘）」；`/help` 多一行指到 `/tutorial`。
+- 教學是 SYNOX 本體的一部分，每種安裝方式都有；它不是工具，不算進「裝了幾個工具」。教學只會指給你看，不會替你按確認。工具也可以附自己的教學（`docs/tutorials-engine.md`）。
+
+## 未發佈（「遇到問題？」回報面板）
+
+### 新增
+- 設定頁多一個「🙋 遇到問題？」分頁（側欄和設定頁標題也有小連結）：三步——沒有 GitHub 帳號先免費註冊、「幫我準備好回報內容」、帶著內容到 GitHub 開問題單（你自己按送出）。
+- 回報內容先遮掉金鑰、token、密碼、email、長數字、含使用者名稱的路徑；給你看、你可以改。SYNOX 不連網、不寫檔、不會自己送出。
+- GitHub 白話中文的問題單表單（`.github/ISSUE_TEMPLATE/problem.yml`）與 `config.yml`（資安問題請看 SECURITY.md，不要公開回報）。
+
+## 未發佈（版本與發佈規則）
+
+### 新增
+- `docs/versioning.md`：版本號、分支、tag、每版要有什麼、「我要怎麼更新？」；`scripts/release.py`（bump／check／notes）；ADR 0023 自己更新與緊急修補（提案）。
+- `synox about`、`synox doctor` 多一行：到 GitHub 發佈頁看有沒有新版（不自己連網）。
+- `docs/advanced-install.md`：給工程師的進階安裝（原始碼＋venv、Docker、無畫面執行、背景服務），每項標 ✅ 跑過／🧪 未實測／⏳ 未完成。
+
 ## 未發佈（設定頁的官方工具庫、預設用 SYNOX 自己的 Python）
 
 ### 新增
@@ -9,6 +107,12 @@
 - **Setup.bat 預設用 SYNOX 自己的 Python**：沒有 `runtime\python` 時，下載釘死版本與 sha256 的 uv，把 CPython 3.12 裝進 `runtime\python-uv`（只用它自己管的 Python，不看系統、Conda、商店版），
   不改 PATH、不寫登錄檔、不用 winget；偵測到 Conda／其他 Python 會先白話說明；`Setup.bat -UseSystemPython` 可改用自己的 Python（進階）。所有啟動用的 .bat 先清掉 PYTHONHOME、PYTHONPATH、CONDA_* 再跑。
   **Windows 上都還沒實測**（步驟見 docs/handoff/clean-machine-test.md 的 A14–A16）。
+- **線上頁面一律有本機副本＋頁面版本**：登記表 `docs/artifacts.json`；`scripts/page_stamp.py --check` 檢查頁面版本對不對得上內容；
+  `tests/test_artifact_registry.py` 擋「沒有本機副本／頁尾沒有線上網址／改了內容沒重蓋版本」；規則寫在 `docs/AGENT.md`。介紹頁的版本號也改成同一種格式。
+- **一步一步教學網頁** `docs/guide/index.html`（線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F ）：26 步＋Discord 選讀，每一步一個畫面、要按的地方會亮；
+  步驟資料集中在一個陣列，之後可以給教學工具共用。介紹頁「安裝設定」卡片與「怎麼開始」標題下都有連結。
+- **自動打包 Windows 安裝程式**：`.github/workflows/build-installer.yml`（手動觸發或推 `v*` 標籤；附到草稿 release，不會自動發佈），`docs/release-build.md`。**還沒跑過**。
+- 規劃：`docs/lab/2026-11-13-onboarding-help-aliases-plan.md`（新 /help、範例、教學引擎與教學工具、自訂指令）。
 - 設計稿：`docs/installer/spec.html`（安裝程式規格，線上版 https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB ）、
   `docs/lab/design/2026-11-13-brand-explorations.html`（六套品牌提案，線上版 https://claude.ai/artifact/QqdEnR3s25c7tPUW23zfoz ）；`scripts/page_stamp.py` 替這類網頁蓋頁面版本。
 

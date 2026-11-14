@@ -9,6 +9,10 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     POST /login                     確認頁的按鈕（f＝一次性表單 token＋synox_login cookie、Origin 要是自己）
                                     → 用掉連結 → cookie session → 303 到 /#chat
     GET  /packs/<name>/panel        pack 的 web.panel（工具頁用 <iframe sandbox> 掛）
+    GET  /theme/preview?name=|staged=&mode=   外觀的預覽小頁（沒有 script；設定 → 外觀、安裝報告用 iframe 掛）
+    GET  /theme/font/<pack>/<file>  外觀包附的字型（只收 theme.fonts 宣告的 .woff2）
+    GET  /api/appearance            設定 → 外觀：裝了哪些外觀包、這個人選了什麼、自己貼的（synox/theme/appearance.py）
+    POST /api/appearance            {"theme", "mode", "reset"}；POST /api/appearance/custom {"slot", "text", "preview"}
     GET  /tutorials/<name>/         圖文教學 docs/tutorials/<name>/index.html（公開文件，不用登入；synox/tutorials.py）
     GET  /api/pack-staged/<token>   `python -m synox install` 暫存好的 pack 的檢查報告（擁有者；網頁 ?pack=<token>#settings:packs）
     GET  /api/packs/staged          擁有者：還沒按確認的暫存 pack（待核准清單，不用 token；過期的順便清掉）
@@ -23,11 +27,16 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     POST /api/tools/layout          {"groups": [{"id", "title", "tools": [...]}]}｜{"reset": true}：存這個人自己的排版
                                     （web/toolpage.py；不寫進 pack 資料夾，擁有者與成員各自一份）
     POST /api/tools/health          {"key", "action": "recheck"|"release"}：擁有者重新檢查／解除隔離一個工具（docs/tool-health.md）
+    GET  /api/tour                  新手教學：這個人看得到的步驟（純資料）＋進度＋要不要問「要不要我帶你走一遍？」（synox/tour）
+    POST /api/tour/progress         {"tour", "step", "state", "done"}：只存這個人自己的教學進度（教學不呼叫別的會改東西的 API）
+    POST /api/tour/offer            {"answer": "later"|"start"}：第一次打開網頁那句邀請的回答
     GET  /api/usage?period=hour|day|week|month   擁有者：AI 用量與花費（依期間分組；agent/usage_report.py）
     GET  /api/settings/channels     擁有者：Telegram／Discord 的狀態（存了沒、bot 名字、要不要重開；token 永遠不回）
     /api/runtime/...                擁有者：主控面板（心跳、常駐助理、soul.md、任務狀態；合約 docs/runtime-api.md，
                                     `PUT /api/runtime/soul` 是唯一收 PUT 的）
     POST /api/settings/channels/telegram|discord   {"token"}：跟精靈一樣先驗（getMe）再存；重開 SYNOX 才生效
+    POST /api/report                「遇到問題？」：給 GitHub 問題單用的安全摘要（web/report.py；擁有者＝完整、其他人＝只有版本；
+                                    不連網，開 GitHub 是使用者自己按的連結）
     /api/...                        JSON；都要登入；改東西的（非 GET）都要 X-SYNOX-CSRF 等於 session 的 csrf，
                                     有 Origin 的話要跟 Host 一樣
 
@@ -37,6 +46,7 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
 
 from __future__ import annotations
 
+import contextvars
 import hmac
 import json
 import logging
@@ -54,11 +64,44 @@ from urllib.parse import parse_qs, urlsplit
 from isdtelekit.core.channel import CallbackInfo, Inbound
 
 from synox import tutorials
+from synox.guard import origin as guard_origin
+from synox.guard.stepup import sensitive_action as stepup_sensitive
 from synox.packs.manifest import stage_text
-from synox.web import toolpage
+from synox.theme.appearance import Appearance, AppearanceError
+from synox.web import report as reporting, toolpage
 from synox.web.channel import WEB, WebChannel
 from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore
 from synox.web.tokens import LoginTokens, Session, Sessions, digest
+
+
+_UNLOCK_LINE = re.compile(r"^(/(?:unlock|sudo)(?:_on)?)(?:@\w+)?\s+\S.*$", re.IGNORECASE | re.DOTALL)
+_CODE_ONLY = re.compile(r"^\d{3} ?\d{3}$")
+
+
+def mask_code(text: str) -> str:
+    """`/unlock 123456` → `/unlock ······`；只有 6 位數的一則 → `······`。"""
+    m = _UNLOCK_LINE.match(text)
+    if m:
+        return m.group(1) + " ······"
+    return "······" if _CODE_ONLY.match(text) else text
+
+
+_PEER: "contextvars.ContextVar[str]" = contextvars.ContextVar("synox_web_peer", default="")
+
+
+def current_peer() -> str:
+    """這個請求連線的對方位址（WebUI.handle 設；沒有＝空字串＝當作不是本機）。"""
+    return _PEER.get()
+
+
+def in_container(environ=None, exists=os.path.exists) -> bool:
+    environ = os.environ if environ is None else environ
+    return str(environ.get(CONTAINER_ENV, "")).strip() == "1" or any(exists(p) for p in CONTAINER_MARKERS)
+
+
+def web_origin(session: Session) -> "guard_origin.Origin":
+    """主機台的來源：surface＝"web:"＋這個登入的代號（防偽造 token 的雜湊前 16 碼；兩個登入不一樣，不洩漏 cookie）。"""
+    return guard_origin.Origin("web", int(session.tg_id), surface="web:" + digest(session.csrf)[:16])
 
 HOST = "127.0.0.1"                    # 只綁這個；要對外由營運者自己架反向代理＋TLS（docs/security.md）。
 #                                       唯一的例外是 SYNOX 自己的容器（bind_host，docs/docker.md「為什麼容器裡綁 0.0.0.0 是安全的」）
@@ -89,13 +132,14 @@ NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 Resp = Tuple[int, List[Tuple[str, str]], bytes]
 
 BASE_HEADERS = [("X-Content-Type-Options", "nosniff"), ("Referrer-Policy", "no-referrer"),
-                ("Cache-Control", "no-store")]
+                ("Cache-Control", "no-store"), ("Cross-Origin-Opener-Policy", "same-origin")]
 
 
 def _json(status: int, data, extra: Optional[List[Tuple[str, str]]] = None) -> Resp:
     body = json.dumps(data, ensure_ascii=False).encode("utf-8")
     return status, BASE_HEADERS + [("Content-Type", "application/json; charset=utf-8"),
-                                   ("X-Frame-Options", "DENY")] + (extra or []), body
+                                   ("X-Frame-Options", "DENY"),
+                                   ("Cross-Origin-Resource-Policy", "same-origin")] + (extra or []), body
 
 
 def _err(status: int, message: str) -> Resp:
@@ -145,12 +189,14 @@ def _page(status: int, title: str, text: str, extra: Optional[List[Tuple[str, st
 
 # app.html 裡的 <!-- include: 檔名 -->：送出頁面時換成 static/ 裡那個檔的內容（同一個 nonce 的 <style>／<script>），
 # CSP 不用放寬、也不多一個靜態檔的路由。只收這張清單裡的檔（工具頁；scripts/make_ui_preview.py 用同一個函式）。
-INCLUDES = {"tools.css": "style", "tools.js": "script"}
+INCLUDES = {"tools.css": "style", "tools.js": "script", "tour.css": "style", "tour.js": "script"}
 INCLUDE_RE = re.compile(r"<!-- include: ([a-z0-9_.-]+) -->")
 
 
-def render_app(nonce: str) -> str:
-    """app.html＋include 的檔，{{NONCE}} 換成這次的 nonce。"""
+def render_app(nonce: str, theme_head: str = "", mode: str = "auto", skin: str = "") -> str:
+    """app.html＋include 的檔，{{NONCE}} 換成這次的 nonce。
+    theme_head：外觀（synox/theme/appearance.head_html）要塞進 <head> 的東西，放在 <!-- theme --> 那裡；
+    mode：light｜dark＝<html data-theme>（auto＝跟系統）；skin：套了哪個外觀包（<html data-skin>，給 CSS 掛勾用）。"""
     def include(m):
         name = m.group(1)
         tag = INCLUDES.get(name)
@@ -166,10 +212,27 @@ def render_app(nonce: str) -> str:
             return f.read()
     with open(os.path.join(STATIC, "app.html"), "r", encoding="utf-8") as f:
         html = f.read().replace("{{NONCE}}", nonce)
-    return INCLUDE_RE.sub(include, INLINE_RE.sub(inline, html))
+    html = INCLUDE_RE.sub(include, INLINE_RE.sub(inline, html))
+    attrs = (f' data-theme="{mode}"' if mode in ("light", "dark") else "") + \
+        (f' data-skin="{skin}"' if skin and NAME_RE.match(skin) else "")
+    if attrs:
+        html = html.replace('<html lang="zh-Hant">', f'<html lang="zh-Hant"{attrs}>', 1)
+    from synox.theme.appearance import default_templates
+    head = default_templates() + ("\n" + theme_head if theme_head else "")
+    return html.replace("<!-- theme -->", head, 1)
 
 
 app_html = render_app          # 主控頁的測試與預覽沿用的舊名字
+
+
+def _cookies(headers: Dict[str, str], name: str) -> List[str]:
+    """同名的 cookie 全部（有人在同一台電腦的別的埠種了一個同名的假 cookie 時，真的那個還認得出來）。"""
+    out = []
+    for part in (headers.get("cookie") or "").split(";"):
+        key, _, value = part.strip().partition("=")
+        if key == name:
+            out.append(value)
+    return out
 
 
 def _cookie(headers: Dict[str, str], name: str) -> Optional[str]:
@@ -231,7 +294,8 @@ class WebUI:
         self.tokens = LoginTokens(os.path.join(data, "web_tokens.json"), clock=clock)
         self.sessions = Sessions(os.path.join(data, "web_sessions.json"), clock=clock)
         self.chats = ChatStore(os.path.join(data, "web_chats"), vault, clock=clock)
-        self.prefs = toolpage.UserPrefs(os.path.join(data, "web_prefs"), vault)   # 每個人的工具頁排版
+        self.prefs = toolpage.UserPrefs(os.path.join(data, "web_prefs"), vault)   # 每個人的工具頁排版、外觀
+        self.appearance = Appearance(app, config, self.prefs)                     # 設定 → 外觀（synox/theme）
         self._clock = clock
         self._login_forms: Dict[str, tuple] = {}     # 表單 token 的雜湊 → (登入 token 雜湊, 瀏覽器 cookie 雜湊, 到期)
         self._login_lock = threading.Lock()
@@ -242,6 +306,7 @@ class WebUI:
         self._channels_changed: set = set()   # 這次執行中改過的聊天通道（要重開才生效）
         self.bind_host = bind_host            # 綁哪個位址（start 時讀環境變數；測試換成假的容器證據）
         self.catalog_opener = None            # 官方工具庫的連網（packs/catalog.py）；None＝真的，測試換假的
+        reporting.install_log_buffer()        # 「遇到問題？」的最近錯誤（記憶體裡最後幾行，web/report.py）
 
     # ── 登入連結 ─────────────────────────────────────────────────────
 
@@ -291,7 +356,8 @@ class WebUI:
                              name="WebUI-stop").start()
 
     def turn_off(self) -> None:
-        """/web_off：關掉、把所有網頁 session 登出，到重開 bot 之前不再開。"""
+        """/web_off：關掉、把所有網頁 session 登出，到重開 bot 之前不再開。工具服務全部一起關。"""
+        self._stop_apps("web_off")
         self.disabled = True
         self.sessions.drop_all()
         self.stop()
@@ -299,14 +365,40 @@ class WebUI:
     # ── 入口 ─────────────────────────────────────────────────────────
 
     def session_from(self, headers: Dict[str, str]) -> Optional[Session]:
-        return self.sessions.get(_cookie(headers, COOKIE))
+        for sid in _cookies(headers, COOKIE):
+            session = self.sessions.get(sid)
+            if session is not None:
+                return session
+        return None
 
-    def handle(self, method: str, target: str, headers: Dict[str, str], body: bytes = b"") -> Resp:
+    def session_key(self, headers: Dict[str, str]) -> Optional[str]:
+        """這個請求有效的那個登入的雜湊（工具服務的交接票、app 的登入綁在它上面；Sessions.has 查）。"""
         headers = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
-        return self.route(method, target, headers, body, self.session_from(headers))
+        for sid in _cookies(headers, COOKIE):
+            if self.sessions.get(sid) is not None:
+                return digest(sid)
+        return None
+
+    def handle(self, method: str, target: str, headers: Dict[str, str], body: bytes = b"",
+               peer: str = "127.0.0.1") -> Resp:
+        """peer：連線的對方位址（_Handler 給真的；測試直接呼叫＝本機）。「本機的請求」除了 Host 還要對方真的是 loopback。"""
+        headers = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
+        token = _PEER.set(str(peer or ""))
+        try:
+            return self.route(method, target, headers, body, self.session_from(headers))
+        finally:
+            _PEER.reset(token)
 
     def route(self, method: str, target: str, headers: Dict[str, str], body: bytes,
               session: Optional[Session]) -> Resp:
+        """認出登入之後，這個請求裡做的每件事來源都是 web（ADR 0025 §2）；surface 分得出是哪一個登入。"""
+        if session is None:
+            return self._route(method, target, headers, body, session)
+        with guard_origin.using(web_origin(session)):
+            return self._route(method, target, headers, body, session)
+
+    def _route(self, method: str, target: str, headers: Dict[str, str], body: bytes,
+               session: Optional[Session]) -> Resp:
         headers = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
         if self.disabled:
             return _page(503, "網頁介面關掉了", "擁有者用 /web_off 關掉了，重開 SYNOX 才會再開。")
@@ -317,9 +409,20 @@ class WebUI:
             if path == "/" and method == "GET":
                 if session is None and self._local_owner_navigation(headers):
                     return self._auto_login_page()
-                return self.app_page()
+                return self.app_page(session.tg_id if session is not None else None)
+            if path == "/theme/preview" and method == "GET":
+                if session is None:
+                    return _page(401, "請先登入", LOGIN_HOW)
+                return self.theme_preview(self._user(session), query)
+            m = re.match(r"^/theme/font/([a-z][a-z0-9_-]{0,31})/([A-Za-z0-9_./-]{1,160}\.woff2)$", path)
+            if m and method == "GET":
+                return self.theme_font(m.group(1), m.group(2))
             if path == "/login" and method == "GET":
                 return self.login_page((query.get("t") or [""])[0], headers, session)
+            m = re.match(r"^/apps/([a-z][a-z0-9_-]{0,31})/open$", path)
+            if m and method == "POST":                  # 工具服務的「打開」：表單送出 → 303 到 127.0.0.2（交接票）
+                from synox.web.apps import web_api as apps_api
+                return apps_api.open_handoff(self, session, m.group(1), headers, body)
             if path == "/login" and method == "POST":
                 return self.login_post(headers, body)
             m = re.match(r"^/packs/([a-z][a-z0-9_-]{0,31})/panel$", path)
@@ -331,6 +434,8 @@ class WebUI:
             if m and method == "GET":
                 return self.tutorial(m.group(1))
             if path.startswith("/api/"):
+                if headers.get("sec-fetch-site") in ("same-site", "cross-site"):    # 別的網頁（含本機別的埠）送來的
+                    return _err(403, "來源不對（不是從 SYNOX 自己的頁面送出的）。")
                 if session is None:
                     return _err(401, "請先登入：" + LOGIN_HOW)
                 if method != "GET":
@@ -367,7 +472,7 @@ class WebUI:
         owner = int(self.config.owner_id)
         sid, _session = self.sessions.create(owner)
         self.app.users.get_or_create(owner)
-        status, headers, body = self.app_page()
+        status, headers, body = self.app_page(owner)
         cookie = f"{COOKIE}={sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age={int(self.sessions.ttl)}" + self._secure()
         return status, headers + [("Set-Cookie", cookie)], body
 
@@ -396,11 +501,17 @@ class WebUI:
 
     # ── 頁面 ─────────────────────────────────────────────────────────
 
-    def app_page(self) -> Resp:
+    def app_page(self, tg_id: Optional[int] = None) -> Resp:
+        """tg_id：登入的人（None＝還沒登入，用擁有者選的外觀）。外觀壞掉不擋網頁：照原本的 SYNOX。"""
         nonce = secrets.token_urlsafe(16)
-        html = render_app(nonce)
+        try:
+            mode, skin, head = self.appearance.head(tg_id, nonce)
+        except Exception:
+            logging.exception("[WEB] appearance failed; using the original look")
+            mode, skin, head = "auto", "", ""
+        html = render_app(nonce, head, mode, skin)
         csp = (f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'nonce-{nonce}'; "
-               "img-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; "
+               "img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; "
                "base-uri 'none'; form-action 'self'")
         return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "DENY"),
                                     ("Content-Security-Policy", csp)], html.encode("utf-8")
@@ -523,10 +634,112 @@ class WebUI:
         return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "DENY"),
                                     ("Content-Security-Policy", csp)], html
 
+    # ── 外觀（設定 → 外觀；synox/theme，docs/themes.md）──────────────────────
+    # 預覽頁沒有 <script>（CSP 也不放行）；外觀包的 CSS、SVG 都是消毒過的。暫存的外觀包（安裝報告）只有擁有者看得到。
+    def theme_preview(self, user, query) -> Resp:
+        from synox.theme import pack as theme_pack
+        from synox.theme.appearance import preview_page
+        from synox.theme.sanitize import Rejected
+        mode = (query.get("mode") or ["light"])[0]
+        mode = mode if mode in ("light", "dark") else "light"
+        name = (query.get("name") or [""])[0]
+        staged = (query.get("staged") or [""])[0]
+        bundle, tokens, title = None, None, "原本的 SYNOX"
+        if staged:
+            if not self.is_owner(user):
+                return _page(403, "看不到", "只有擁有者能看還沒裝的外觀包。")
+            from synox.packs.admin import PackAdminError, _staged_root
+            from synox.packs.manifest import ManifestError, read
+            try:
+                folder = os.path.join(_staged_root(staged, self.config.data_dir), "pack")
+                m = read(folder, strict=True)
+                if m.kind != "theme":
+                    raise ManifestError("不是外觀包")
+                bundle = theme_pack.compile_theme(folder, m.name, m.theme)
+            except (PackAdminError, ManifestError, Rejected, OSError, UnicodeDecodeError) as e:
+                return _page(404, "看不到", f"這個外觀包沒辦法預覽：{e}")
+            tokens, title = m.theme.get("tokens"), m.title
+        elif name:
+            m = self.appearance.manifest(name) if NAME_RE.match(name) else None
+            bundle = self.appearance.bundle_of(m) if m is not None else None
+            if bundle is None:
+                return _page(404, "找不到", "沒有裝這個外觀包，或它過不了消毒。")
+            tokens, title = m.theme.get("tokens"), m.title
+        html = preview_page(title, mode, bundle, tokens)
+        csp = ("default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; img-src data:; "
+               "frame-ancestors 'self'; base-uri 'none'; form-action 'none'")
+        return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "SAMEORIGIN"),
+                                    ("Content-Security-Policy", csp)], html.encode("utf-8")
+
+    def theme_font(self, name: str, rel: str) -> Resp:
+        """裝好的外觀包宣告的字型（theme.fonts 裡的 .woff2；別的檔一律 404）。不用登入：登入卡也用得到，字型不是秘密。"""
+        m = self.appearance.manifest(name)
+        if m is None or rel not in {f["file"] for f in m.theme.get("fonts") or []}:
+            return _page(404, "找不到", "沒有這個字型。")
+        try:
+            with open(os.path.join(m.folder, *rel.split("/")), "rb") as f:
+                blob = f.read()
+        except OSError:
+            return _page(404, "找不到", "沒有這個字型。")
+        return 200, [("X-Content-Type-Options", "nosniff"), ("Referrer-Policy", "no-referrer"),
+                     ("Cache-Control", "private, max-age=3600"), ("Content-Type", "font/woff2")], blob
+
+    def appearance_save(self, user, data: dict) -> Resp:
+        """POST /api/appearance {"theme": 名字｜""（換回原本的 SYNOX）, "mode": auto｜light｜dark, "reset": true}。
+        每個人改自己的（伺服器版的擁有者＝這台的預設）。"""
+        changes = {k: data[k] for k in ("theme", "mode", "reset") if k in data}
+        if not changes:
+            return _err(400, "沒有要改的東西。")
+        try:
+            eff = self.appearance.save(user.tg_id, changes)
+        except AppearanceError as e:
+            return _err(400, str(e))
+        return _json(200, {"ok": True, "theme": eff["theme"], "mode": eff["mode"]})
+
+    def appearance_custom(self, user, data: dict) -> Resp:
+        """POST /api/appearance/custom {"slot", "text", "preview": true｜false}：自己貼的 SVG／HTML＋CSS。
+        preview＝只消毒、回結果（不存）；不然消毒過就存（text 空＝拿掉這一格，換回預設）。"""
+        from synox.theme import contract
+        slot = str(data.get("slot") or "")
+        if contract.slot_name(slot) != slot:
+            return _err(400, "不認得這個位置。")
+        text = data.get("text")
+        if text is not None and not isinstance(text, str):
+            return _err(400, "要貼文字。")
+        try:
+            if data.get("preview"):
+                clean = self.appearance.clean_custom(slot, text)
+                return _json(200, {"ok": True, **clean.to_dict()})
+            self.appearance.save(user.tg_id, {"custom": {"slot": slot, "text": text or ""}})
+        except AppearanceError as e:
+            return _err(400, str(e))
+        return _json(200, {"ok": True})
+
     # ── API ──────────────────────────────────────────────────────────
 
     def api(self, method: str, path: str, query, headers, body: bytes, session: Session) -> Resp:
         user = self._user(session)
+        if path == "/api/stepup" or path.startswith("/api/stepup/"):     # 手機驗證器（ADR 0025；guard/web_api.py）
+            from synox.guard import web_api as stepup_api
+            return stepup_api.route(self, user, session, method, path, headers, body)
+        if stepup_sensitive(method, path):                             # 開了開關就要先解鎖的敏感動作（K5；預設就擋）
+            from synox import guard
+            g = guard.of(self.app)
+            blocked = g.stepup.gate(user, path) if g is not None and g.stepup is not None else None
+            if blocked is not None:
+                return _json(blocked[0], json.loads(blocked[2]))
+        if path == "/api/remote" or path.startswith("/api/remote/"):   # 手機入口（ADR 0026；web/remote/web_api.py）
+            from synox.web.remote import web_api as remote_api
+            return remote_api.route(self, user, method, path, body)
+        if path == "/api/apps" or path.startswith("/api/apps/"):       # 工具服務（ADR 0024；web/apps/web_api.py）
+            from synox.web.apps import web_api as apps_api
+            data = None
+            if method == "POST":
+                try:
+                    data = json.loads(body.decode("utf-8") or "{}") if body else {}
+                except (ValueError, UnicodeDecodeError):
+                    return _err(400, "內容格式不對。")
+            return apps_api.route(self, user, method, path, data, query)
         if path.startswith("/api/runtime/"):          # 主控面板：常駐助理／心跳／任務（docs/runtime-api.md；含 PUT）
             from synox.runtime import web_api as runtime_api
             return runtime_api.route(self, user, method, path, body)
@@ -571,6 +784,10 @@ class WebUI:
                 return self.usage_report(user, (query.get("period") or ["day"])[0])
             if path == "/api/accounts":
                 return self.accounts(user)
+            if path == "/api/tour":
+                return self.tour_state(user)
+            if path == "/api/appearance":
+                return _json(200, self.appearance.describe(user.tg_id, self.is_owner(user), self.server_mode))
             return _err(404, "沒有這個 API。")
         if method != "POST":
             return _err(405, "只收 GET、POST。")
@@ -631,6 +848,16 @@ class WebUI:
             return self.set_role(user, data)
         if path == "/api/backup":
             return self.backup(user)
+        if path == "/api/report":
+            return self.problem_report(user)
+        if path == "/api/tour/progress":
+            return self.tour_progress(user, data)
+        if path == "/api/tour/offer":
+            return self.tour_offer(user, data)
+        if path == "/api/appearance":
+            return self.appearance_save(user, data)
+        if path == "/api/appearance/custom":
+            return self.appearance_custom(user, data)
         return _err(404, "沒有這個 API。")
 
     # ── 我 ───────────────────────────────────────────────────────────
@@ -713,7 +940,7 @@ class WebUI:
             return _err(400, f"太長了（最多 {MAX_TEXT} 字）。")
         if (self._chat(user, chat_id) or {}).get("archived"):
             return _err(409, "這段對話封存了：先還原才能繼續。")
-        self.chats.append(user.tg_id, chat_id, "me", text)
+        self.chats.append(user.tg_id, chat_id, "me", mask_code(text))      # 驗證碼不進對話紀錄（ADR 0025 §5.3）
         if chat_id == MOTHER_CHAT:
             return self._send_mother(user, text)
         inbound = Inbound(WEB, user.tg_id, user.tg_id, text, username=user.username or "web", sent_at=time.time())
@@ -758,6 +985,59 @@ class WebUI:
                                                    username=user.username or "web"))
         return _json(200, {"ok": True, "route": getattr(route, "kind", ""), "rev": self.chats.rev(user.tg_id)})
 
+    # ── 新手教學（synox/tour；畫面是 static/tour.js）──────────────────
+
+    def _tour(self):
+        from synox import tour
+        return tour.engine(self.app)
+
+    def tour_state(self, user) -> Resp:
+        """這個人看得到的教學（步驟只給這個人該看的）＋進度＋要不要問「要不要我帶你走一遍？」。"""
+        eng = self._tour()
+        if eng is None:
+            return _json(200, {"tours": [], "progress": {}, "offer": False})
+        from synox.tour import anchors
+        tours, progress = [], {}
+        for t in eng.tours():
+            steps = eng.steps(user, t)
+            if steps:
+                tours.append({"id": t.id, "title": t.title, "minutes": t.minutes, "source": t.source,
+                              "version": t.version, "steps": [s.to_web() for s in steps]})
+                rec = eng.record(user, t)
+                if rec:
+                    progress[t.id] = rec
+        return _json(200, {"anchors_version": anchors.VERSION, "tours": tours, "progress": progress,
+                           "offer": eng.should_offer(user), "default": tours[0]["id"] if tours else ""})
+
+    def tour_progress(self, user, data: dict) -> Resp:
+        """{"tour", "step", "state": active|paused|finished, "done": [步驟 id]}：只存這個人自己的進度。"""
+        eng = self._tour()
+        tour = eng.get(str(data.get("tour") or "")) if eng is not None else None
+        if tour is None:
+            return _err(404, "沒有這份教學。")
+        done = data.get("done")
+        if done is not None and (not isinstance(done, list) or not all(isinstance(d, str) for d in done)):
+            return _err(400, "done 要是步驟 id 的清單。")
+        try:
+            rec = eng.save(user, tour.id, step=str(data.get("step") or ""), state=str(data.get("state") or ""),
+                           done=done)
+        except ValueError:
+            return _err(400, "步驟或狀態不對。")
+        if data.get("state") in ("active", "finished"):
+            eng.answer_offer(user, "started")
+        return _json(200, {"ok": True, "progress": rec})
+
+    def tour_offer(self, user, data: dict) -> Resp:
+        """第一次打開網頁的「要不要我帶你走一遍？」：{"answer": "later"|"start"}。"""
+        eng = self._tour()
+        if eng is None:
+            return _err(404, "沒有教學。")
+        answer = str(data.get("answer") or "")
+        if answer not in ("later", "start"):
+            return _err(400, "answer 只能是 later 或 start。")
+        eng.answer_offer(user, answer)
+        return _json(200, {"ok": True})
+
     # ── 工具頁 ───────────────────────────────────────────────────────
 
     def _leaf_info(self, node) -> dict:
@@ -784,6 +1064,7 @@ class WebUI:
                 "stage_text": stage_text(pack.manifest.stage),
                 "status": "要先設定" if connector else "已連接",
                 "panel": f"/packs/{pack.name}/panel" if pack.manifest.web.get("panel") else None,
+                "app": bool(pack.manifest.web.get("app")),          # 工具服務：有完整畫面（卡片在 static/apps.js）
                 "commands": [self._leaf_info(n) for n in leaves]}
             self._health_marks(row, user)
             fields = getattr(pack, "secret_fields", None) or []
@@ -1560,7 +1841,8 @@ class WebUI:
         report = self._reload()
         status = next((i for i in report.items if i.name == name), None)
         return _json(200, {"ok": True, "name": name, "status": status.status if status else "",
-                           "detail": status.detail if status else "", "env": env})
+                           "detail": status.detail if status else "", "env": env,
+                           "kind": status.kind if status else ""})
 
     def _start_env_build(self, name: str, what: str = "裝好了") -> str:
         """裝好（或升級好）之後建環境（runtime.python／node = auto）：在 JobRunner 上背景跑，好了重新載入、通知擁有者。
@@ -1589,6 +1871,7 @@ class WebUI:
         環境要建／重建就跟全新安裝一樣在背景建（升級報告的 env.needed）、重新載入。"""
         from synox.packs.admin import GateRefused, PackAdminError
         from synox.packs.upgrade import upgrade_staged
+        self._stop_apps("reload")
         try:
             done = upgrade_staged(str(data.get("token") or ""), self.config.data_dir, self.pack_dirs[0],
                                   approved_by=user.tg_id, via="web", allow_downgrade=bool(data.get("allow_downgrade")),
@@ -1603,6 +1886,7 @@ class WebUI:
         report = self._reload()
         status = next((i for i in report.items if i.name == done["name"]), None)
         return _json(200, {"ok": True, "name": done["name"], "upgraded": True, "from": done["from"], "to": done["to"],
+                           "kind": status.kind if status else "",
                            "backup": os.path.relpath(done["backup"], os.path.dirname(self.pack_dirs[0])),
                            "status": status.status if status else "", "detail": status.detail if status else "",
                            "env": env})
@@ -1615,6 +1899,7 @@ class WebUI:
         name = str(data.get("name") or "")
         if not NAME_RE.match(name) or not self.pack_dirs:
             return _err(400, "pack 名字不對。")
+        self._stop_apps("reload")
         try:
             dest = remove(name, self.pack_dirs[0], data_dir=self.config.data_dir)
         except PackAdminError as e:
@@ -1622,8 +1907,14 @@ class WebUI:
         self._reload()
         return _json(200, {"ok": True, "moved_to": os.path.relpath(dest, os.path.dirname(self.pack_dirs[0]))})
 
+    def _stop_apps(self, reason: str) -> None:
+        apps = getattr(self, "apps", None)
+        if apps is not None:
+            apps.stop_all(reason=reason)
+
     def _reload(self):
         from synox.packs.admin import reload
+        self._stop_apps("reload")                  # 工具服務：重新載入、移除、升級之前全部關（ADR 0024）
         return reload(self.app, self.config, self.vault, self.pack_dirs)
 
     def pack_reload(self, user) -> Resp:
@@ -1693,6 +1984,22 @@ class WebUI:
                                     ("Content-Disposition", f"attachment; filename=\"{name}\"")], blob
 
 
+    # ── 遇到問題？（web/report.py）──────────────────────────────────────
+
+    def problem_report(self, user) -> Resp:
+        """POST /api/report：擁有者拿完整的摘要（版本、AI kind、通道、工具、最近的錯誤，都遮過）；
+        其他人只拿版本（伺服器版的成員看不到這台的設定與別人的事）。不連網、不寫檔。"""
+        full = self.is_owner(user)
+        if not full:
+            text = reporting.summary(self.app, self.config, full=False)
+        else:
+            secrets = reporting.secret_values(self.app, self.config) + [str(self.config.owner_id or "")]
+            pack_report = self.app.extras.get("synox_pack_report")
+            text = reporting.summary(self.app, self.config, full=True, secrets=secrets,
+                                  packs=pack_report.items if pack_report else ())
+        return _json(200, {"full": full, "summary": text, "issue": reporting.issue_info()})
+
+
 class Collector:
     """只收「回給這個人」的純文字（帳號頁用）；送給別人的照常走 app.home。"""
 
@@ -1749,7 +2056,8 @@ class _Handler(BaseHTTPRequestHandler):
             status, headers, body = _err(413, "送來的東西太大。")
         else:
             data = self.rfile.read(length) if length else b""
-            status, headers, body = self.server.ui.handle(method, self.path, dict(self.headers.items()), data)
+            status, headers, body = self.server.ui.handle(method, self.path, dict(self.headers.items()), data,
+                                                          peer=str(self.client_address[0]))
         self.send_response(status)
         for key, value in headers:
             self.send_header(key, value)

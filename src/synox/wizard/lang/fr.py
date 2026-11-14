@@ -10,7 +10,7 @@ STRINGS = {
     "mode_title": "Qui utilisera SYNOX sur cet ordinateur ?",
     "mode.personal.title": "Moi seul (personnel)",
     "mode.personal.one": "Vous seul : les commandes ne fonctionnent que pour le compte Telegram que vous associez.",
-    "mode.personal.two": "Tout reste sur cet ordinateur ; les notes et les dépenses sont stockées chiffrées.",
+    "mode.personal.two": "Les réglages, les clés, les notes et les dépenses sont stockés sur cet ordinateur ; les notes et les dépenses sont chiffrées.",
     "mode.server.title": "Un groupe (serveur)",
     "mode.server.one": ("Famille, collègues ou association : les inconnus qui lui écrivent deviennent invités, et vous "
                         "(ou les admins que vous choisissez) décidez qui peut utiliser quoi."),
@@ -111,7 +111,7 @@ STRINGS = {
     "status_add_channel_later": "Double-cliquez sur Setup.bat plus tard pour relancer l'assistant et connecter Telegram/Discord.",
     "status_bot_head": "✅ Tout est prêt, le bot est lancé.",
     "status_web_head": "✅ Tout est prêt, SYNOX est lancé (sans Telegram/Discord pour l'instant).",
-    "status_no_tools": "🧰 SYNOX est livré sans outils (dépenses, notes, rappels… s'installent à part) : récupérez les fichiers .synoxpack de la bibliothèque d'outils (SYNOX_Libs), puis double-cliquez dessus ou téléversez-les dans l'interface web (Paramètres → Installer). Demandez à la personne qui vous a donné SYNOX où se trouve la bibliothèque.",
+    "status_no_tools": "🧰 Ensuite : faites le tutoriel une fois pour apprendre à parler à SYNOX, puis choisissez les outils qu'il vous faut (dépenses, notes…) : la bibliothèque officielle (SYNOX_Libs) dans les Réglages de l'interface web, ou double-cliquez sur un fichier .synoxpack.",
     "status_can_close": "Vous pouvez fermer cette fenêtre.",
     "no_window": "❌ Impossible d'ouvrir une fenêtre ({e}). Copiez config.example.json en config.json et remplissez-le à la main.",
     "llm_local": "Local model (this computer or one on your home network)",
@@ -124,4 +124,9 @@ STRINGS = {
     "llm_local_advice_done": "Options: {options}. Below {least} SYNOX's prompt gets cut off.",
     "llm_local_ok": "✅ Model found and the settings look sane (only model info was read; the model was not loaded).",
     "err_local_model": "Enter a model name (for Ollama, a name shown by `ollama list`, e.g. qwen3.5:9b).",
+    "finish_tutorial": "📘 Première fois ? Faites d'abord le court tutoriel (quelques minutes), puis choisissez les outils qu'il vous faut.",
+    "finish_tutorial_how": "Dans SYNOX, tapez {cmd} (ou « start tutorial » dans le chat).",
+    "all_tools_running": "⏳ Installation de tous les outils officiels (coché dans l'installation). Cela peut prendre quelques minutes ; gardez cette fenêtre ouverte…",
+    "note_all_tools": "Tous les outils officiels",
+    "all_tools_failed": "certains n'ont pas été installés ; ajoutez-les plus tard depuis la bibliothèque d'outils dans les Réglages (journal : data/logs/all-tools.log)",
 }

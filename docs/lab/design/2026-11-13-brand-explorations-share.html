@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SYNOX 品牌提案 — 內部首發 — share</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@700;800&family=Fraunces:opsz,wght@9..144,600&family=IBM+Plex+Mono:wght@500;600&family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700;900&family=Nunito:wght@800;900&family=Quicksand:wght@600;700&display=swap">
+<style>
+/* 版面：頁面本身用安靜的藍灰色，六個系列各自是一條滿版色帶，帶內的卡片全部吃該系列自己的 token。 */
+:root {
+  --pg: #f3f5f8; --pg2: #ffffff; --ink: #131b26; --ink2: #566275; --rule: #dde3ea; --rule2: #c3ccd8;
+  --chip-l: #ffffff; --chip-d: #10151c;
+  --f-body: "Noto Sans TC", "Microsoft JhengHei UI", "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif;
+  --f-head: "LXGW WenKai TC", "Noto Sans TC", "Microsoft JhengHei", serif;
+  --f-mono: "IBM Plex Mono", "Cascadia Mono", Consolas, ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --pg: #0b0f14; --pg2: #121924; --ink: #dbe4ef; --ink2: #93a1b4; --rule: #223044; --rule2: #33445c; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --pg: #0b0f14; --pg2: #121924; --ink: #dbe4ef; --ink2: #93a1b4; --rule: #223044; --rule2: #33445c; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 64px; }
+body { margin: 0; background: var(--pg); color: var(--ink); font: 15px/1.65 var(--f-body); -webkit-font-smoothing: antialiased; overflow-wrap: anywhere; }
+h1, h2, h3, p { margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid #2f7fd6; outline-offset: 2px; }
+.wrap { max-width: 1180px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+
+/* ── 最上面的導覽 ── */
+.nav { position: sticky; top: 0; z-index: 20; background: color-mix(in srgb, var(--pg) 88%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--rule); }
+.nav .wrap { display: flex; align-items: center; gap: 4px; overflow-x: auto; scrollbar-width: none; }
+.nav .wrap::-webkit-scrollbar { display: none; }
+.nav a, .nav button { flex: none; min-height: 48px; min-width: 44px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 0; background: none; color: var(--ink2); text-decoration: none; font-weight: 700; font-size: 14px; white-space: nowrap; border-radius: 10px; }
+.nav a:hover, .nav button:hover { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
+.nav .dot { width: 12px; height: 12px; border-radius: 4px; flex: none; }
+.nav .sp { flex: 1 0 8px; }
+.nav .mine { color: var(--ink); border: 1.5px solid var(--rule2); min-height: 44px; margin: 4px 0; position: sticky; right: 0; background: var(--pg); }
+.nav .mine:hover { background: var(--pg2); }
+.nav .cnt { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+@media (max-width: 720px) { .nav .nm, .nav #themeN { display: none; } .nav a, .nav button { padding: 0 8px; } }
+
+/* ── 開頭 ── */
+.intro { padding-block: 40px 28px; display: grid; gap: 28px; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); align-items: start; }
+.intro h1 { font: 700 clamp(30px, 5vw, 46px)/1.2 var(--f-head); letter-spacing: .01em; text-wrap: balance; }
+.intro .lead { margin-top: 14px; color: var(--ink2); max-width: 34em; }
+.intro ol { margin: 14px 0 0; padding-left: 1.3em; color: var(--ink2); max-width: 34em; }
+.intro ol b { color: var(--ink); }
+.eyebrow { font: 600 12px/1 var(--f-mono); letter-spacing: .14em; color: var(--ink2); margin-bottom: 14px; }
+.panel { background: var(--pg2); border: 1px solid var(--rule); border-radius: 18px; padding: 18px; min-width: 0; }
+.panel h2 { font: 700 20px/1.3 var(--f-head); display: flex; align-items: baseline; gap: 10px; }
+.panel h2 small { font: 500 13px var(--f-body); color: var(--ink2); }
+.rows { margin: 12px 0; display: grid; }
+.rows .r { display: grid; grid-template-columns: 6.2em minmax(0, 1fr); gap: 8px; align-items: center; min-height: 44px; border-top: 1px solid var(--rule); }
+.rows .r:first-child { border-top: 0; }
+.rows .k { color: var(--ink2); font-size: 14px; }
+.rows a { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; color: var(--ink); text-decoration: none; font-weight: 700; }
+.rows .none { color: var(--ink2); font-size: 14px; }
+.rows .dot { width: 14px; height: 14px; border-radius: 5px; flex: none; }
+.rows .v small { font-weight: 400; color: var(--ink2); }
+.panel label { display: block; font-size: 13px; color: var(--ink2); margin-bottom: 4px; }
+.panel textarea { width: 100%; font: 14px/1.5 var(--f-body); color: var(--ink); background: var(--pg); border: 1px solid var(--rule2); border-radius: 10px; padding: 10px; resize: vertical; }
+.panel .out { font-family: var(--f-mono); font-size: 12.5px; margin-top: 10px; }
+.acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+.pbtn { min-height: 44px; padding: 0 18px; border-radius: 999px; border: 1.5px solid var(--ink); background: var(--ink); color: var(--pg2); font-weight: 700; }
+.pbtn.ghost { background: none; color: var(--ink); border-color: var(--rule2); }
+.said { font-size: 13px; color: var(--ink2); }
+@media (max-width: 860px) { .intro { grid-template-columns: minmax(0, 1fr); padding-block: 26px 22px; } }
+
+/* ── 每個系列 ── */
+.series { background: var(--bg); color: var(--text); border-top: 1px solid var(--line); padding-block: 44px 52px; }
+.shead { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 18px; align-items: center; margin-bottom: 22px; }
+.shead .big { width: 72px; height: 72px; }
+.shead .tag { font: 600 12px/1 var(--f-mono); letter-spacing: .14em; color: var(--ac); }
+.shead h2 { font: 700 clamp(26px, 4vw, 36px)/1.25 var(--f-head); margin: 6px 0 2px; }
+.shead .one { color: var(--muted); }
+.why { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+.why div { border-left: 3px solid var(--ac); padding: 2px 0 2px 12px; font-size: 14px; color: var(--muted); }
+.why b { display: block; color: var(--text); font-size: 13px; letter-spacing: .06em; }
+.grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 14px; }
+.card { grid-column: span 6; background: var(--surf); border: 1px solid var(--line); border-radius: 18px; padding: 16px; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.card.w7 { grid-column: span 7; } .card.w5 { grid-column: span 5; } .card.w12 { grid-column: span 12; }
+.card.on { border-color: var(--text); box-shadow: 0 0 0 1.5px var(--text); }
+.chead { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.chead h3 { font: 700 18px/1.3 var(--f-head); }
+.chead h3 small { display: block; font: 400 12.5px/1.4 var(--f-body); color: var(--muted); }
+.pick { flex: none; min-height: 44px; padding: 0 16px; border-radius: 999px; border: 1.5px solid color-mix(in srgb, var(--text) 35%, transparent); background: none; color: var(--text); font-weight: 700; font-size: 14px; white-space: nowrap; }
+.pick:hover { border-color: var(--text); }
+.pick[aria-pressed="true"] { background: var(--text); color: var(--surf); border-color: var(--text); }
+.pick.all { border-style: dashed; }
+.note { font-size: 12.5px; color: var(--muted); }
+.spec { font: 500 12px/1.5 var(--f-mono); color: var(--muted); }
+@media (max-width: 900px) {
+  .card, .card.w7, .card.w5 { grid-column: span 12; }
+  .why { grid-template-columns: minmax(0, 1fr); }
+  .shead { grid-template-columns: auto minmax(0, 1fr); } .shead .pick { grid-column: 1 / -1; justify-self: start; }
+  .shead .big { width: 56px; height: 56px; }
+  .series { padding-block: 32px 38px; }
+}
+
+/* 吉祥物 */
+.states { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; flex: 1; }
+.states figure { margin: 0; background: var(--bg); border-radius: 14px; padding: 16px 6px 12px; text-align: center; display: grid; align-content: center; justify-items: center; gap: 6px; }
+.states svg { width: 100%; max-width: 150px; height: auto; overflow: visible; }
+.states figcaption { font-size: 13px; font-weight: 700; margin-top: 4px; }
+.states figcaption small { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+@media (max-width: 520px) { .states { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.masc .mbody, .masc .eye, .masc .glow, .masc .squish, .masc .pop { transform-box: fill-box; transform-origin: 50% 100%; }
+.masc .eye { transform-origin: 50% 50%; animation: m-blink 4.2s infinite; }
+.masc.sq .eye { animation-timing-function: steps(1); }
+.st-idle .mbody { animation: m-bob 3.2s ease-in-out infinite; }
+.st-think .mbody { animation: m-tilt 2.6s ease-in-out infinite; }
+.st-think .eye { animation: none; }
+.st-happy .mbody { animation: m-hop 1.3s cubic-bezier(.3, .9, .4, 1) infinite; }
+.st-warn .mbody { animation: m-shake 2.4s linear infinite; }
+.st-warn .eye { animation: none; }
+.masc .tdots circle { animation: m-dot 1.5s ease-in-out infinite; }
+.masc .tdots circle:nth-child(2) { animation-delay: .2s; } .masc .tdots circle:nth-child(3) { animation-delay: .4s; }
+.masc .pop { transform-origin: 50% 50%; animation: m-pop 2.6s cubic-bezier(.2, 1.5, .4, 1) infinite; }
+.masc .glow { transform-origin: 50% 50%; animation: m-beat 2.4s ease-in-out infinite; }
+.masc .squish { animation: m-squish 2.8s ease-in-out infinite; }
+@keyframes m-blink { 0%, 93%, 100% { transform: scaleY(1); } 96% { transform: scaleY(.1); } }
+@keyframes m-bob { 50% { transform: translateY(-3px); } }
+@keyframes m-tilt { 0%, 100% { transform: rotate(-3deg); } 50% { transform: rotate(4deg); } }
+@keyframes m-hop { 0%, 100% { transform: none; } 12% { transform: scale(1.06, .92); } 40% { transform: translateY(-9px) scale(.97, 1.04); } 70% { transform: scale(1.03, .96); } }
+@keyframes m-shake { 0%, 16%, 100% { transform: none; } 3%, 9% { transform: translateX(-2.5px); } 6%, 12% { transform: translateX(2.5px); } }
+@keyframes m-dot { 0%, 100% { opacity: .25; } 40% { opacity: 1; } }
+@keyframes m-pop { 0% { transform: scale(0); } 12%, 100% { transform: scale(1); } }
+@keyframes m-beat { 0%, 36%, 100% { transform: scale(.86); opacity: .14; } 12% { transform: scale(1.04); opacity: .34; } 24% { transform: scale(.94); opacity: .2; } }
+@keyframes m-squish { 50% { transform: scale(1.035, .965); } }
+
+/* 開場動畫 */
+.screen { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; background: var(--bg); }
+.screen .bar { display: flex; align-items: center; gap: 6px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--surf); font: 500 11.5px var(--f-mono); color: var(--muted); }
+.screen .bar i { width: 9px; height: 9px; border-radius: 50%; background: var(--line); }
+.screen .bar span { margin-left: 6px; }
+.op { position: relative; height: 250px; overflow: hidden; display: grid; place-items: center; background: radial-gradient(300px 220px at 50% 46%, var(--soft), transparent 75%); }
+.op .stage { display: flex; flex-direction: column; align-items: center; gap: 12px; position: relative; }
+.op .omw { position: relative; width: 92px; height: 92px; }
+.op .om { display: block; width: 92px; height: 92px; }
+.op .om svg { width: 100%; height: 100%; overflow: visible; display: block; }
+.op .ow { font-size: 30px; line-height: 1.1; color: var(--text); white-space: nowrap; }
+.op .l { display: inline-block; }
+.op .ot { font-size: 13px; color: var(--muted); animation: o-fade .5s ease 1.5s both; }
+.op .hi { position: absolute; left: 86px; top: -8px; padding: 3px 11px; border-radius: 14px 14px 14px 4px; background: var(--surf); border: 1.5px solid var(--line); font-weight: 700; font-size: 15px; white-space: nowrap; opacity: 0; transform-origin: 0 100%; }
+.replay { align-self: flex-start; }
+@keyframes o-fade { from { opacity: 0; transform: translateY(6px); } }
+@keyframes o-pop { from { opacity: 0; transform: translateY(14px) scale(.4) rotate(-14deg); } }
+@keyframes o-hi { 0% { opacity: 0; transform: scale(.3) rotate(-12deg); } 22% { opacity: 1; transform: scale(1.1); } 32%, 78% { opacity: 1; transform: none; } 100% { opacity: 0; transform: translateY(-6px); } }
+/* A：掉下來、壓扁、說嗨，字一個一個跳出來 */
+.op-A .om { animation: oA-drop .6s cubic-bezier(.2, .9, .3, 1) both; }
+.op-A .hi { animation: o-hi 1.05s ease .42s both; }
+.op-A .l { animation: o-pop .45s cubic-bezier(.2, 1.5, .4, 1) calc(1s + var(--i) * 60ms) both; }
+@keyframes oA-drop { 0% { transform: translateY(-80px) scale(.3); opacity: 0; } 45% { transform: scale(1.12, .86); opacity: 1; } 68% { transform: translateY(-8px) scale(.95, 1.06); } }
+/* B：暗著的畫面，提燈盪進來，把字照亮 */
+.op-B .dim { position: absolute; inset: 0; background: #07061a; opacity: 0; pointer-events: none; z-index: 1; animation: oB-dim 1.7s ease both; }
+.op-B .omw { z-index: 2; }
+.op-B .om { transform-origin: 50% -70px; animation: oB-swing 1.7s cubic-bezier(.3, .7, .3, 1) both; }
+.op-B .l { animation: o-fade .6s ease calc(1.15s + var(--i) * 70ms) both; }
+.op-B .ot { animation-delay: 1.8s; }
+@keyframes oB-dim { 0%, 22% { opacity: .84; } 100% { opacity: 0; } }
+@keyframes oB-swing { 0% { transform: translateY(-130px) rotate(16deg); } 38% { transform: rotate(-9deg); } 62% { transform: rotate(5deg); } 84% { transform: rotate(-2deg); } }
+/* C：印章蓋下去，墨圈散開，字從左到右印出來 */
+.op-C .om { animation: oC-stamp .8s cubic-bezier(.3, .9, .3, 1) both; }
+.op-C .ring { position: absolute; inset: 20px 8px 0; border: 3px solid var(--ac); border-radius: 12px; opacity: 0; animation: oC-ring .7s ease-out .28s both; }
+.op-C .stage { animation: oC-shake .26s linear .28s; }
+.op-C .ow { animation: oC-wipe .6s cubic-bezier(.2, .8, .2, 1) .78s both; }
+.op-C .ot { animation-delay: 1.3s; }
+@keyframes oC-stamp { 0% { transform: translateY(-100px) scale(1.5) rotate(-10deg); opacity: 0; } 35% { transform: translateY(6px) scale(.94, .86); opacity: 1; } 56% { transform: translateY(-10px) scale(1.03); } }
+@keyframes oC-ring { 0% { opacity: .8; transform: scale(.7); } 100% { opacity: 0; transform: scale(2); } }
+@keyframes oC-shake { 25% { transform: translate(-3px, 2px); } 50% { transform: translate(3px, -1px); } 75% { transform: translate(-2px, 1px); } }
+@keyframes oC-wipe { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 -10% 0 0); } }
+/* D：慢慢爬進來，留下一條線 */
+.op-D .om { animation: oD-in 1.5s cubic-bezier(.2, .7, .2, 1) both; }
+.op-D .trail { width: 150px; height: 4px; border-radius: 2px; background: var(--ac); opacity: .4; margin-top: -8px; transform-origin: 0 50%; animation: oD-trail 1.5s cubic-bezier(.2, .7, .2, 1) both; }
+.op-D .l { animation: o-fade .5s ease calc(1.15s + var(--i) * 90ms) both; }
+.op-D .ot { animation-delay: 1.8s; }
+@keyframes oD-in { from { transform: translateX(-190px); } }
+@keyframes oD-trail { from { transform: scaleX(0); } }
+/* E：像打字一樣打出 SYNOX，游標最後睜開眼睛 */
+.op-E .line { display: flex; align-items: center; gap: 10px; }
+.op-E .pr { font: 600 30px var(--f-mono); color: var(--ac); }
+.op-E .om, .op-E .omw { width: 34px; height: 46px; }
+.op-E .l { overflow: hidden; vertical-align: bottom; animation: oE-key 1ms steps(1) calc(.35s + var(--i) * .17s) both; }
+.op-E .eye, .op-E .mouth { transform-box: fill-box; transform-origin: 50% 50%; animation: oE-eye .3s ease 1.4s both; }
+.op-E .mbody { animation: none; }
+@keyframes oE-key { from { max-width: 0; opacity: 0; } to { max-width: 3em; opacity: 1; } }
+@keyframes oE-eye { from { transform: scaleY(0); } }
+/* F：兩顆小糰子滾過來，黏成一顆 */
+.op-F .b { position: absolute; left: 50%; top: 50%; width: 34px; height: 30px; margin: -15px 0 0 -17px; border-radius: 50%; opacity: 0; }
+.op-F .b1 { background: var(--m1); animation: oF-b1 .55s ease-in both; }
+.op-F .b2 { background: var(--ac2); animation: oF-b2 .55s ease-in both; }
+.op-F .om { animation: oF-jelly .9s cubic-bezier(.3, 1.2, .5, 1) .5s both; }
+.op-F .l { animation: o-pop .5s cubic-bezier(.2, 1.7, .4, 1) calc(1.05s + var(--i) * 70ms) both; }
+.op-F .ot { animation-delay: 1.6s; }
+@keyframes oF-b1 { 0% { opacity: 1; transform: translate(-120px, -90px); } 85% { opacity: 1; transform: translate(-8px, 0); } 100% { opacity: 0; transform: scale(1.5); } }
+@keyframes oF-b2 { 0% { opacity: 1; transform: translate(120px, -90px); } 85% { opacity: 1; transform: translate(8px, 0); } 100% { opacity: 0; transform: scale(1.5); } }
+@keyframes oF-jelly { 0% { transform: scale(.2); opacity: 0; } 35% { transform: scale(1.25, .8); opacity: 1; } 58% { transform: scale(.9, 1.12); } 80% { transform: scale(1.05, .96); } }
+
+/* 字標 */
+.wm { color: var(--text); white-space: nowrap; line-height: 1.1; }
+.wrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 12px; border-radius: 14px; background: var(--bg); }
+.wrow.on { box-shadow: inset 0 0 0 2px var(--text); }
+.lock { display: flex; align-items: center; gap: 12px; min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.lock svg { flex: none; width: 46px; height: 46px; }
+.lock .wm { font-size: 32px; }
+.lock .stack { display: grid; gap: 2px; }
+.lock .zh { font-size: 12.5px; color: var(--muted); letter-spacing: .08em; white-space: nowrap; }
+.wrow .lab { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+@media (max-width: 420px) { .lock .wm { font-size: 26px; } .lock svg { width: 40px; height: 40px; } .wrow { grid-template-columns: minmax(0, 1fr); } .wrow .pick { justify-self: start; } }
+
+/* App 圖示 */
+.icons { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
+.plate { border-radius: 14px; padding: 14px 12px; display: flex; align-items: flex-end; justify-content: space-around; gap: 8px; border: 1px solid var(--line); }
+.plate.l { background: #f4f6f9; color: #4b5666; } .plate.d { background: #10151c; color: #9aa7b8; border-color: #263244; }
+.plate figure { margin: 0; display: grid; justify-items: center; gap: 6px; font: 500 11px var(--f-mono); }
+.hero-ic { display: flex; align-items: center; gap: 16px; }
+.hero-ic svg { flex: none; width: 132px; height: 132px; filter: drop-shadow(0 10px 18px rgba(0, 0, 0, .18)); }
+.tabs { display: grid; gap: 8px; }
+.tab { display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 36px; border-radius: 10px 10px 0 0; font: 13px "Segoe UI", var(--f-body); max-width: 230px; white-space: nowrap; overflow: hidden; }
+.tab.l { background: #ffffff; color: #1f2733; box-shadow: inset 0 0 0 1px #d5dbe3; } .tab.d { background: #2a2f38; color: #e6eaf0; }
+.tab svg { flex: none; } .tab em { margin-left: auto; font-style: normal; opacity: .5; padding-left: 10px; }
+@media (max-width: 420px) { .hero-ic svg { width: 104px; height: 104px; } .icons { grid-template-columns: minmax(0, 1fr); } }
+
+/* 檔案圖示（檔案總管的樣子） */
+.xp { border: 1px solid var(--line); border-radius: 12px; overflow-x: auto; background: var(--xbg); color: var(--xfg); font: 12.5px/1.35 "Segoe UI", "Microsoft JhengHei UI", var(--f-body); --xbg: #ffffff; --xfg: #1b1f26; --xmu: #667085; --xline: #e6e9ee; }
+.xp.d { --xbg: #1c1f26; --xfg: #f0f2f5; --xmu: #a0a8b5; --xline: #2e333d; }
+.xp .big { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 4px; padding: 12px 8px; min-width: 500px; }
+.xp .big div { overflow-wrap: normal; word-break: keep-all; display: grid; justify-items: center; gap: 6px; text-align: center; padding: 8px 2px; border-radius: 6px; }
+.xp .big div:first-child { background: color-mix(in srgb, #3b82f6 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, #3b82f6 45%, transparent); }
+.xp .list { border-top: 1px solid var(--xline); min-width: 500px; }
+.xp .list div { display: grid; grid-template-columns: 20px minmax(0, 1fr) 9.5em; gap: 8px; align-items: center; padding: 5px 12px; }
+.xp .list span:last-child { color: var(--xmu); }
+.xp .list span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 核心圖示 */
+.ikg { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.ikg div { display: grid; justify-items: center; gap: 4px; padding: 10px 2px 8px; border-radius: 12px; background: var(--bg); font-size: 12px; text-align: center; }
+.ikg svg { width: 30px; height: 30px; fill: none; stroke: var(--text); }
+.ikg svg .t { fill: color-mix(in srgb, var(--ac) var(--tint), transparent); }
+.side { background: var(--bg); border-radius: 14px; padding: 8px; display: grid; gap: 2px; font-family: var(--uif); }
+.side div { display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 10px; border-radius: calc(var(--rad) * .6); font-size: 14px; font-weight: 500; }
+.side svg { width: 22px; height: 22px; flex: none; fill: none; stroke: currentColor; }
+.side svg .t { fill: color-mix(in srgb, var(--ac) var(--tint), transparent); }
+.side .on { background: var(--soft); color: var(--ac); font-weight: 700; }
+.side em { margin-left: auto; font: 600 11px var(--f-mono); padding: 1px 8px; border-radius: 999px; background: var(--ac); color: var(--acink); }
+.side i { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: var(--ok); }
+
+/* 色彩＋小介面 */
+.pal { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); gap: 16px; }
+.sw { display: grid; gap: 10px; align-content: start; }
+.swr { border-radius: 14px; padding: 12px; border: 1px solid var(--line); }
+.swr > b { display: block; font-size: 12px; letter-spacing: .08em; margin-bottom: 8px; }
+.swg { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.swg div { font: 500 10px/1.35 var(--f-mono); }
+.swg i { display: block; height: 34px; border-radius: 8px; margin-bottom: 4px; box-shadow: inset 0 0 0 1px rgba(128, 128, 128, .28); }
+.swg span { display: block; font: 12px var(--f-body); }
+.ui { background: var(--bg); border-radius: 14px; padding: 14px; display: grid; gap: 10px; font-family: var(--uif); align-content: start; }
+.ui .row { display: flex; gap: 8px; align-items: flex-end; }
+.ui .row svg { flex: none; width: 30px; height: 30px; }
+.bub { max-width: 80%; padding: 9px 13px; border-radius: var(--rad); font-size: 14px; line-height: 1.5; }
+.bub.bot { background: var(--surf); border: 1px solid var(--line); border-bottom-left-radius: 4px; }
+.bub.me { justify-self: end; background: var(--ac); color: var(--acink); border-bottom-right-radius: 4px; }
+.cc { background: var(--surf); border: 1.5px solid var(--warn); border-radius: var(--rad); padding: 12px 14px; display: grid; gap: 8px; }
+.cc .h { display: flex; align-items: center; gap: 8px; font-weight: 700; color: var(--warn); font-size: 14px; }
+.cc .h svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.cc p { font-size: 14px; } .cc p small { display: block; color: var(--muted); font-size: 12.5px; }
+.cc .b { display: flex; gap: 8px; flex-wrap: wrap; }
+.ubtn { min-height: 44px; padding: 0 16px; border-radius: calc(var(--rad) * .75); border: 1.5px solid var(--line); background: var(--surf); color: var(--text); font: 700 14px var(--uif); }
+.ubtn.pri { background: var(--ac); border-color: var(--ac); color: var(--acink); }
+.ui .ubtn.pri.solo { justify-self: start; }
+.stat { display: flex; gap: 6px; flex-wrap: wrap; font-size: 12px; font-weight: 700; }
+.stat span { padding: 3px 10px; border-radius: 999px; border: 1.5px solid currentColor; }
+@media (max-width: 760px) { .pal { grid-template-columns: minmax(0, 1fr); } }
+
+footer { border-top: 1px solid var(--rule); padding-block: 22px 34px; color: var(--ink2); font-size: 13px; }
+footer .dev { font: 500 11px/1.6 var(--f-mono); margin-top: 8px; opacity: .8; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after { animation: none !important; transition: none !important; }
+}
+
+.share-note { display: inline-block; margin: 0 0 14px; padding: 8px 14px; border-radius: 12px; font-size: 14.5px; line-height: 1.6; background: color-mix(in srgb, currentColor 7%, transparent); border: 1px dashed color-mix(in srgb, currentColor 30%, transparent); }
+</style>
+</head>
+<body>
+
+<nav class="nav" aria-label="系列導覽"><div class="wrap" id="nav"></div></nav>
+
+<header class="wrap intro">
+  <div>
+    <p class="eyebrow">SYNOX · 2026-11-13 · 品牌提案 · 內部首發 · share</p>
+    <p class="share-note">📣 這是 SYNOX 團隊的<b>內部提案</b>，拿出來跟大家分享。還沒有定案，裡面的設計都可能再改；歡迎看看你最喜歡哪一套。</p>
+    <h1>SYNOX 該長什麼樣子？六個系列，挑你喜歡的</h1>
+    <p class="lead">每個系列都是一整套：吉祥物、開場動畫、字標、App 圖示、檔案圖示、核心圖示、色彩。全部用程式畫的，沒有圖片，所以看到的就是之後能做出來的。</p>
+    <ol>
+      <li>往下看，喜歡哪一塊就按那一塊右上角的<b>「選這個」</b>。</li>
+      <li>可以<b>混搭</b>：吉祥物選 C、開場選 A 都行。想整套拿就按系列標題旁的「整組選」。</li>
+      <li>回到這裡按<b>「複製我的選擇」</b>，貼給我就好。</li>
+    </ol>
+  </div>
+  <section class="panel" id="mine" aria-label="我的選擇">
+    <h2>我的選擇 <small id="cnt2"></small></h2>
+    <div class="rows" id="rows"></div>
+    <label for="note">想補充的話（會一起複製）</label>
+    <textarea id="note" rows="2" placeholder="例如：吉祥物喜歡 C，但眼睛想圓一點"></textarea>
+    <div class="acts">
+      <button class="pbtn" id="copy" type="button">複製我的選擇</button>
+      <button class="pbtn ghost" id="clear" type="button">全部清掉</button>
+      <span class="said" id="said" role="status"></span>
+    </div>
+    <label for="out" style="margin-top:12px">會複製的文字</label>
+    <textarea class="out" id="out" rows="3" readonly></textarea>
+  </section>
+</header>
+
+<main id="main"></main>
+
+<footer><div class="wrap">
+  <p>這一頁只是提案。你選好之後，我再把選中的組合做成正式的圖示檔、開場動畫和介面色彩。</p>
+  <p class="dev">本機版 docs/lab/design/2026-11-13-brand-explorations-share.html（內部首發的固定版本，複製自 2026-11-13-brand-explorations.html 的 A–F）· 線上版 https://claude.ai/artifact/QPvmTVeneWme8mBnHiSnuM · 頁面版本 <span data-stamp>c820fc67aa · 2026-11-13</span></p>
+</div></footer>
+
+<script>
+(function () {
+"use strict";
+
+/* ───────── 六個系列的資料 ───────── */
+var S = [
+ { id: "A", name: "方方", one: "現在那顆會眨眼的方塊，長出一條對話尾巴",
+   why: ["個性|親切、熟面孔。保留你喜歡的眨眼，多了「會講話」的尾巴，輪廓一看就認得。", "為什麼適合|跟現在的介面顏色完全相容，換起來最省事；尾巴直接說明「用聊的」。", "要注意|青綠色加對話框的組合在通訊軟體裡很常見，個性比其他幾組淡；16px 時尾巴會糊成一個小角。"],
+   wm: { text: "SYNOX", font: "Nunito", w: 900, ls: ".05em", spec: "Nunito 900 · 全大寫 · 字距 +5%", s: "S" },
+   zh: "住在你電腦裡的 AI 助理", rad: "16px", uif: "'Nunito','Noto Sans TC',sans-serif",
+   ik: { sw: 2, cap: "round", join: "round", tint: "16%" }, ic: ["#0a8a7c", "#2f7fd6", "#dff2ee"],
+   L: { bg: "#f3f6f8", surf: "#ffffff", text: "#131b26", muted: "#5d6b7e", line: "#dfe6ee", ac: "#0a7c70", acink: "#ffffff", ac2: "#2f7fd6", soft: "#dff2ee", ok: "#12823b", warn: "#9a6400", bad: "#c62f2f", m1: "#0d9484", m2: "#0a7c70", mi: "#ffffff", mb: "#ff8fa3" },
+   D: { bg: "#0b0f14", surf: "#121924", text: "#dbe4ef", muted: "#8a99ad", line: "#223044", ac: "#35e0c4", acink: "#04221d", ac2: "#4aa8ff", soft: "#12302d", ok: "#46d17f", warn: "#ffb454", bad: "#ff6b78", m1: "#35e0c4", m2: "#1fb8a0", mi: "#04221d", mb: "#ff7d95" } },
+ { id: "B", name: "提燈", one: "幫你顧家的一盞小燈，會像心跳一樣一亮一亮",
+   why: ["個性|溫暖、安靜、守夜。光暈的一亮一亮就是常駐助理「還在巡」的心跳。", "為什麼適合|「替你留一盞燈」把常駐、本機、安心三件事講成一個畫面；燈籠在台灣人人看得懂，深色模式特別好看。", "要注意|琥珀主色跟「注意」的黃很接近，警告要靠圖示和外框區分；細節多，16px 只剩一顆亮亮的膠囊。"],
+   wm: { text: "SYNOX", font: "Fraunces", w: 600, ls: ".16em", spec: "Fraunces 600 · 全大寫 · 字距 +16%", s: "S" },
+   zh: "替你留一盞燈", rad: "20px", uif: "'Noto Sans TC',sans-serif",
+   ik: { sw: 1.7, cap: "round", join: "round", tint: "26%" }, ic: ["#e8950f", "#2b2a5c", "#fbecd2"],
+   L: { bg: "#f5f3ef", surf: "#fffdf9", text: "#1f1b2e", muted: "#676173", line: "#e4dfd5", ac: "#a85400", acink: "#ffffff", ac2: "#2b2a5c", soft: "#fbecd2", ok: "#2c7a4b", warn: "#8a6d00", bad: "#c2362f", m1: "#f6a821", m2: "#2b2a5c", mi: "#3b2200", mb: "#e8590c" },
+   D: { bg: "#121126", surf: "#1b1a36", text: "#f0e9dc", muted: "#a09bb8", line: "#2e2c52", ac: "#ffb84a", acink: "#2a1800", ac2: "#9f9cff", soft: "#332a1c", ok: "#5fd08d", warn: "#ffe066", bad: "#ff7a7a", m1: "#ffb84a", m2: "#7572d1", mi: "#3b2200", mb: "#e8590c" } },
+ { id: "C", name: "小印", one: "一顆會笑的印章：你點頭，我才蓋章",
+   why: ["個性|可靠、有分寸、帶一點老派的可愛。「蓋章＝同意」每個台灣人都懂。", "為什麼適合|確認卡是 SYNOX 最重要的安全設計，這組把它變成招牌；方形印面在 16px 還是很清楚，是六組裡縮小後最穩的。", "要注意|朱紅容易讓人想到「錯誤」或公家機關，所以危險色改用更深的酒紅；整體比較正式，沒那麼軟萌。"],
+   wm: { text: "SYNOX", font: "Noto Serif TC", w: 900, ls: ".2em", spec: "Noto Serif TC 900 · 全大寫 · 字距 +20%", s: "S" },
+   zh: "你點頭，我才動手", rad: "5px", uif: "'Noto Sans TC',sans-serif",
+   ik: { sw: 2.2, cap: "butt", join: "miter", tint: "0%", sq: 1 }, ic: ["#c8321f", "#2a2522", "#fbe6e1"],
+   L: { bg: "#f6f4f0", surf: "#ffffff", text: "#1c1917", muted: "#6a635b", line: "#e2ddd5", ac: "#c8321f", acink: "#ffffff", ac2: "#1c1917", soft: "#fbe6e1", ok: "#1f7a4a", warn: "#8f6408", bad: "#8e1637", m1: "#c8321f", m2: "#2a2522", mi: "#fff7f0", mb: "#ff9a8a" },
+   D: { bg: "#141211", surf: "#1e1b19", text: "#efe9e1", muted: "#a59c91", line: "#35302b", ac: "#ff6a52", acink: "#2b0803", ac2: "#efe9e1", soft: "#3a1a14", ok: "#5ecb8f", warn: "#f0b94a", bad: "#ff8fa8", m1: "#e2452f", m2: "#b3a99c", mi: "#fff7f0", mb: "#ff9a8a" } },
+ { id: "D", name: "小殼", one: "把家背在身上的蝸牛：資料不出門",
+   why: ["個性|慢慢的、安靜、很顧家。殼就是你的電腦，資料都收在裡面。", "為什麼適合|「本機、隱私」是 SYNOX 跟雲端助理最大的不同，螺旋殼一看就懂；螺旋本身是很好認的符號，縮到 16px 仍然成立。", "要注意|蝸牛會讓人想到「慢」，對講求效率的開發者是扣分；主色的綠跟「成功」的綠會撞，要靠打勾圖示區分。"],
+   wm: { text: "synox", font: "Quicksand", w: 700, ls: ".04em", spec: "Quicksand 700 · 全小寫 · 字距 +4%", s: "s" },
+   zh: "資料不出門", rad: "22px", uif: "'Quicksand','Noto Sans TC',sans-serif",
+   ik: { sw: 1.6, cap: "round", join: "round", tint: "0%" }, ic: ["#3d7a4f", "#c98a3c", "#e1efe2"],
+   L: { bg: "#f1f4ee", surf: "#ffffff", text: "#1d2a22", muted: "#5b6b5f", line: "#dbe3d8", ac: "#3a754b", acink: "#ffffff", ac2: "#b0742a", soft: "#e1efe2", ok: "#1d7f5f", warn: "#8f6408", bad: "#c23b2f", m1: "#3d7a4f", m2: "#dcb884", mi: "#2a2a1c", mb: "#e58a6a" },
+   D: { bg: "#101511", surf: "#18201a", text: "#e3ebe2", muted: "#94a496", line: "#28352b", ac: "#8fd6a0", acink: "#0c2413", ac2: "#e8b876", soft: "#1c3323", ok: "#6fdcb0", warn: "#f2c14e", bad: "#ff8177", m1: "#5fae74", m2: "#e8cfa6", mi: "#2a2a1c", mb: "#e58a6a" } },
+ { id: "E", name: "游標", one: "那顆會眨的方塊，變成打字時閃爍的游標",
+   why: ["個性|俐落、冷靜、工程師味。眨眼這件事還在，只是變成游標在閃。", "為什麼適合|開發者一看就有好感；黑白加一個紫色，放在終端機、說明文件、GitHub 都合。幾何形狀最簡單，16px 最銳利。", "要注意|對不寫程式的人偏冷、偏「工具」，少了可愛；等寬字的中文搭配要另外調，不然會顯得鬆。"],
+   wm: { text: "SYNOX", font: "IBM Plex Mono", w: 600, ls: ".26em", spec: "IBM Plex Mono 600 · 全大寫 · 字距 +26%", s: "S" },
+   zh: "本機優先的 AI 助理", rad: "3px", uif: "'IBM Plex Mono','Noto Sans TC',monospace",
+   ik: { sw: 1.5, cap: "square", join: "miter", tint: "0%", sq: 1 }, ic: ["#5b3df5", "#111114", "#ebe7ff"],
+   L: { bg: "#f4f4f6", surf: "#ffffff", text: "#111114", muted: "#5f5f6b", line: "#dcdce3", ac: "#5b3df5", acink: "#ffffff", ac2: "#111114", soft: "#ebe7ff", ok: "#0d7d4d", warn: "#9a6400", bad: "#c9264b", m1: "#5b3df5", m2: "#111114", mi: "#ffffff", mb: "#b9a8ff" },
+   D: { bg: "#0a0a0d", surf: "#141418", text: "#ededf2", muted: "#9292a0", line: "#28282f", ac: "#a594ff", acink: "#120a3a", ac2: "#ededf2", soft: "#1e1a3d", ok: "#4ade80", warn: "#fbbf24", bad: "#ff6b8b", m1: "#a594ff", m2: "#ededf2", mi: "#120a3a", mb: "#6a56d9" } },
+ { id: "F", name: "糰糰", one: "一顆軟軟的麻糬糰子，被戳會彈回來",
+   why: ["個性|最可愛、最沒距離感。軟軟的，但每次都彈回原形。", "為什麼適合|對完全不懂電腦的人最友善，一看就不怕；麻糬、湯圓是台灣人熟悉的東西，暖色在一堆藍綠色工具裡很跳。", "要注意|可愛到可能讓開發者覺得不夠專業；圓糰子的輪廓不算獨特，要靠頭上那撮小捲毛和配色來認。"],
+   wm: { text: "Synox", font: "Baloo 2", w: 800, ls: "0", spec: "Baloo 2 ExtraBold · 首字大寫 · 字距 0", s: "S" },
+   zh: "軟軟的，但很可靠", rad: "24px", uif: "'Baloo 2','Noto Sans TC',sans-serif",
+   ik: { sw: 2.4, cap: "round", join: "round", tint: "30%" }, ic: ["#e9654f", "#6b4ea8", "#fde3dc"],
+   L: { bg: "#fbf3f0", surf: "#ffffff", text: "#3a2230", muted: "#7a606c", line: "#f0dcd8", ac: "#c9412d", acink: "#ffffff", ac2: "#6b4ea8", soft: "#fde3dc", ok: "#2c8055", warn: "#96600a", bad: "#b3123f", m1: "#ffb09c", m2: "#cf4530", mi: "#3a2230", mb: "#ff5d73" },
+   D: { bg: "#1c1218", surf: "#281a22", text: "#f8e9ec", muted: "#b89ba7", line: "#3d2933", ac: "#ff9580", acink: "#3d0f06", ac2: "#c3a6ff", soft: "#45211c", ok: "#6fd6a0", warn: "#f6c453", bad: "#ff7096", m1: "#ffb09c", m2: "#ff9580", mi: "#3a2230", mb: "#ff5d73" } }
+];
+var BY = {}; S.forEach(function (s) { BY[s.id] = s; });
+var CATS = [["mascot", "吉祥物"], ["opening", "開場"], ["wordmark", "字標"], ["appicon", "App 圖示"], ["files", "檔案圖示"], ["icons", "核心圖示"], ["palette", "色彩"]];
+var VARS = { sym: "配吉祥物圖案", s: "配 S 標", none: "不要 S，只有字" };
+
+/* 每個系列的 token（淺色＋深色）寫成 CSS */
+(function () {
+  var css = "";
+  function blk(o) { return Object.keys(o).map(function (k) { return "--" + k + ":" + o[k]; }).join(";"); }
+  S.forEach(function (s) {
+    var x = ".s-" + s.id;
+    css += x + "{" + blk(s.L) + ";--rad:" + s.rad + ";--uif:" + s.uif + ";--tint:" + s.ik.tint + "}";
+    css += "@media (prefers-color-scheme:dark){:root:not([data-theme=\"light\"]) " + x + "{" + blk(s.D) + "}}";
+    css += ":root[data-theme=\"dark\"] " + x + "{" + blk(s.D) + "}";
+  });
+  var st = document.createElement("style"); st.textContent = css; document.head.appendChild(st);
+})();
+
+/* ───────── 吉祥物 ───────── */
+var BODY = {
+  A: '<path d="M44 14h36a24 24 0 0 1 24 24v34a24 24 0 0 1-24 24H52l-20 14 4-16A24 24 0 0 1 20 72V38a24 24 0 0 1 24-24z" fill="var(--m1)"/><path d="M33 34q3-9 13-10" fill="none" stroke="#fff" stroke-opacity=".4" stroke-width="4" stroke-linecap="round"/>',
+  B: '<circle class="glow" cx="60" cy="64" r="54" fill="var(--m1)" opacity=".2"/><path d="M46 24a14 14 0 0 1 28 0" fill="none" stroke="var(--m2)" stroke-width="4" stroke-linecap="round"/><rect x="26" y="30" width="68" height="68" rx="31" fill="var(--m1)"/><path d="M43 36q-9 28 0 56M77 36q9 28 0 56" fill="none" stroke="var(--mi)" stroke-opacity=".16" stroke-width="2"/><rect x="42" y="22" width="36" height="11" rx="4" fill="var(--m2)"/><rect x="46" y="94" width="28" height="9" rx="3.5" fill="var(--m2)"/><path d="M60 103v8" stroke="var(--m2)" stroke-width="3" stroke-linecap="round"/><circle cx="60" cy="114" r="3.2" fill="var(--m1)"/>',
+  C: '<rect x="45" y="8" width="30" height="28" rx="10" fill="var(--m2)"/><rect x="37" y="29" width="46" height="11" rx="4" fill="var(--m2)"/><rect x="20" y="38" width="80" height="70" rx="9" fill="var(--m1)"/><rect x="27" y="45" width="66" height="56" rx="4" fill="none" stroke="var(--mi)" stroke-width="2.6"/>',
+  D: '<path d="M27 70l-4-22M39 68l4-22" stroke="var(--m2)" stroke-width="5.5" stroke-linecap="round"/><path d="M12 102c-3-10-1-19 5-25 1-8 7-13 15-13s14 6 14 15v7h46c10 0 17 7 18 16z" fill="var(--m2)"/><circle cx="74" cy="60" r="33" fill="var(--m1)"/><path d="M74 61a5 5 0 0 1 0 10a9.5 9.5 0 0 1 0-19a14 14 0 0 1 0 28a18.5 18.5 0 0 1 0-37a23 23 0 0 1 20 11" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="4" stroke-linecap="round"/><circle cx="22" cy="45" r="8.5" fill="var(--m2)"/><circle cx="44" cy="43" r="8.5" fill="var(--m2)"/>',
+  E: '<rect x="24" y="104" width="72" height="7" fill="var(--m2)"/><rect x="36" y="14" width="48" height="82" rx="3" fill="var(--m1)"/>',
+  F: '<path d="M60 27c-3-9 3-14 8-10" fill="none" stroke="var(--m2)" stroke-width="4.5" stroke-linecap="round"/><path class="squish" d="M60 26c27 0 46 17 46 42 0 22-18 34-46 34S14 90 14 68c0-25 19-42 46-42z" fill="var(--m1)"/><path d="M34 46q8-10 20-11" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="5" stroke-linecap="round"/>'
+};
+var FACE = {
+  A: { lx: 48, rx: 76, ey: 47, my: 66, r: 5.2, blush: 1 },
+  B: { lx: 49, rx: 71, ey: 58, my: 75, r: 4.6, blush: 1 },
+  C: { lx: 47, rx: 73, ey: 66, my: 85, r: 4.6, sq: 1 },
+  D: { lx: 22, rx: 44, ey: 44.5, my: 84, mx: 30, r: 3.4, small: 1 },
+  E: { lx: 50, rx: 70, ey: 44, my: 68, r: 4.4, sq: 1 },
+  F: { lx: 45, rx: 75, ey: 62, my: 78, r: 5, blush: 1 }
+};
+function face(f, st) {
+  var ink = "var(--mi)", lx = f.lx, rx = f.rx, ey = f.ey, my = f.my, r = f.r, mx = f.mx || (lx + rx) / 2, o = "";
+  var k = f.small ? .6 : 1, cap = f.sq ? "square" : "round", join = f.sq ? "miter" : "round";
+  var line = ' fill="none" stroke="' + ink + '" stroke-width="' + (f.small ? 2.4 : 3.4) + '" stroke-linecap="' + cap + '" stroke-linejoin="' + join + '"';
+  function eye(x, m) {
+    m = m || 1;
+    if (f.sq) return '<rect class="eye" x="' + (x - r * m) + '" y="' + (ey - r * 1.3 * m) + '" width="' + 2 * r * m + '" height="' + 2.6 * r * m + '" fill="' + ink + '"/>';
+    return '<ellipse class="eye" cx="' + x + '" cy="' + ey + '" rx="' + r * m + '" ry="' + r * 1.25 * m + '" fill="' + ink + '"/>';
+  }
+  if (f.blush && st !== "warn") o += '<ellipse cx="' + (lx - 9) + '" cy="' + (ey + 12) + '" rx="6.5" ry="3.8" fill="var(--mb)" opacity=".6"/><ellipse cx="' + (rx + 9) + '" cy="' + (ey + 12) + '" rx="6.5" ry="3.8" fill="var(--mb)" opacity=".6"/>';
+  if (st === "happy") {
+    [lx, rx].forEach(function (x) {
+      o += f.sq ? '<path d="M' + (x - r - 1) + ' ' + (ey + 3) + 'l' + (r + 1) + ' ' + (-r - 3) + 'l' + (r + 1) + ' ' + (r + 3) + '"' + line + '/>'
+                : '<path d="M' + (x - r - 1) + ' ' + (ey + 2) + 'q' + (r + 1) + ' ' + (-r * 2.1) + ' ' + (2 * r + 2) + ' 0"' + line + '/>';
+    });
+    o += f.sq ? '<rect class="mouth" x="' + (mx - 9) + '" y="' + (my - 4) + '" width="18" height="9" fill="' + ink + '"/>'
+              : '<path class="mouth" d="M' + (mx - 9 * k) + ' ' + (my - 3) + 'h' + 18 * k + 'a' + 9 * k + ' ' + 9 * k + ' 0 0 1-' + 18 * k + ' 0z" fill="' + ink + '"/>';
+  } else if (st === "think") {
+    o += '<g transform="translate(' + 2.6 * k + ' ' + -2.6 * k + ')">' + eye(lx) + eye(rx) + '</g>';
+    o += f.sq ? '<rect class="mouth" x="' + (mx + 1) + '" y="' + (my - 2) + '" width="8" height="4" fill="' + ink + '"/>'
+              : '<circle class="mouth" cx="' + (mx + 3 * k) + '" cy="' + my + '" r="' + 3 * k + '" fill="' + ink + '"/>';
+  } else if (st === "warn") {
+    o += eye(lx, 1.15) + eye(rx, 1.15);
+    if (!f.sq && !f.small) o += '<circle cx="' + (lx + 1.6) + '" cy="' + (ey - 2) + '" r="1.7" fill="var(--m1)"/><circle cx="' + (rx + 1.6) + '" cy="' + (ey - 2) + '" r="1.7" fill="var(--m1)"/>';
+    o += f.sq ? '<path class="mouth" d="M' + (mx - 8) + ' ' + (my + 2) + 'v-4h16v4"' + line + '/>'
+              : '<path class="mouth" d="M' + (mx - 7 * k) + ' ' + (my + 1) + 'q' + 3.5 * k + ' ' + -5 * k + ' ' + 7 * k + ' 0t' + 7 * k + ' 0"' + line + '/>';
+  } else {
+    o += eye(lx) + eye(rx);
+    o += f.sq ? '<path class="mouth" d="M' + (mx - 8) + ' ' + (my - 3) + 'v4h16v-4"' + line + '/>'
+              : '<path class="mouth" d="M' + (mx - 7 * k) + ' ' + (my - 1) + 'q' + 7 * k + ' ' + 8 * k + ' ' + 14 * k + ' 0"' + line + '/>';
+  }
+  return o;
+}
+var BADGE = {
+  idle: "",
+  think: '<g class="tdots" fill="var(--muted)"><circle cx="97" cy="20" r="4.2"/><circle cx="107" cy="11" r="3.2"/><circle cx="114" cy="3" r="2.3"/></g>',
+  happy: '<g class="pop"><circle cx="100" cy="18" r="13" fill="var(--ok)" stroke="var(--bg)" stroke-width="3"/><path d="M93.5 18.5l4.6 4.6 8.4-9.4" fill="none" stroke="var(--bg)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></g>',
+  warn: '<g class="pop"><path d="M100 4l14 25H86z" fill="var(--warn)" stroke="var(--warn)" stroke-width="5" stroke-linejoin="round"/><path d="M100 12v9" stroke="var(--bg)" stroke-width="3.2" stroke-linecap="round"/><circle cx="100" cy="26" r="1.9" fill="var(--bg)"/></g>'
+};
+var STN = { idle: "平常", think: "想事情", happy: "完成", warn: "要你確認" };
+function mascot(s, st) {
+  return '<svg class="masc st-' + st + (FACE[s.id].sq ? " sq" : "") + '" viewBox="0 0 120 120" role="img" aria-label="' + s.name + "：" + STN[st] + '"><g class="mbody">' + BODY[s.id] + face(FACE[s.id], st) + "</g>" + BADGE[st] + "</svg>";
+}
+
+/* ───────── App 圖示的圖案（固定顏色，不跟著主題變） ───────── */
+function tile(s) {
+  switch (s.id) {
+    case "A": return '<path d="M22 5h22a14 14 0 0 1 14 14v20a14 14 0 0 1-14 14H27L13 62l3-11A14 14 0 0 1 8 39V19A14 14 0 0 1 22 5z" fill="#0a8a7c"/>';
+    case "B": return '<rect x="3" y="3" width="58" height="58" rx="15" fill="#1f1d47" stroke="#4a4790" stroke-width="1.5"/>';
+    case "C": return '<rect x="4" y="4" width="56" height="56" rx="7" fill="#c8321f"/><rect x="10" y="10" width="44" height="44" rx="3" fill="none" stroke="#fff7f0" stroke-width="3"/>';
+    case "D": return '<rect x="3" y="3" width="58" height="58" rx="20" fill="#3d7a4f"/>';
+    case "E": return '<rect x="3" y="3" width="58" height="58" rx="10" fill="#111114" stroke="#3a3a46" stroke-width="1.5"/>';
+    default: return '<path d="M32 9c16 0 27 10 27 25 0 13-10.5 21-27 21S5 47 5 34C5 19 16 9 32 9z" fill="#ff9a85"/>';
+  }
+}
+function glyph(s) {
+  var t = tile(s);
+  switch (s.id) {
+    case "A": return t + '<ellipse cx="25" cy="26" rx="3.8" ry="4.8" fill="#fff"/><ellipse cx="41" cy="26" rx="3.8" ry="4.8" fill="#fff"/><path d="M26 37q7 7 14 0" fill="none" stroke="#fff" stroke-width="3.6" stroke-linecap="round"/>';
+    case "B": return t + '<circle cx="32" cy="33" r="23" fill="#ffb84a" opacity=".22"/><rect x="18" y="16" width="28" height="33" rx="13" fill="#ffb84a"/><rect x="24" y="11" width="16" height="7" rx="2.5" fill="#f3ead7"/><rect x="26" y="47" width="12" height="6" rx="2" fill="#f3ead7"/><ellipse cx="27" cy="31" rx="2.7" ry="3.4" fill="#3b2200"/><ellipse cx="37" cy="31" rx="2.7" ry="3.4" fill="#3b2200"/>';
+    case "C": return t + '<rect x="20" y="20" width="7" height="10" fill="#fff7f0"/><rect x="37" y="20" width="7" height="10" fill="#fff7f0"/><path d="M21 36v6h22v-6" fill="none" stroke="#fff7f0" stroke-width="4"/>';
+    case "D": return t + '<path d="M32 33a4 4 0 0 1 0 8a8.5 8.5 0 0 1 0-17a13 13 0 0 1 0 26a17.5 17.5 0 0 1 0-35" fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round"/>';
+    case "E": return t + '<rect x="21" y="12" width="22" height="34" fill="#9a87ff"/><rect x="25.5" y="20" width="4.5" height="9" fill="#111114"/><rect x="34" y="20" width="4.5" height="9" fill="#111114"/><rect x="14" y="50" width="36" height="4.5" fill="#ededf2"/>';
+    default: return t + '<path d="M32 10c-2-6 2-9 5-7" fill="none" stroke="#cf4530" stroke-width="3.4" stroke-linecap="round"/><ellipse cx="23" cy="32" rx="3.2" ry="4" fill="#3a2230"/><ellipse cx="41" cy="32" rx="3.2" ry="4" fill="#3a2230"/><ellipse cx="16" cy="40" rx="4.5" ry="2.6" fill="#ff5d73" opacity=".6"/><ellipse cx="48" cy="40" rx="4.5" ry="2.6" fill="#ff5d73" opacity=".6"/><path d="M27 40q5 5 10 0" fill="none" stroke="#3a2230" stroke-width="3" stroke-linecap="round"/>';
+  }
+}
+function smark(s) {
+  var fill = { A: "#fff", B: "#ffb84a", C: "#fff7f0", D: "#fff", E: "#9a87ff", F: "#3a2230" }[s.id];
+  var y = { A: 41, B: 45, C: 45, D: 44, E: 44, F: 48 }[s.id], fs = { A: 34, B: 40, C: 34, D: 44, E: 36, F: 40 }[s.id];
+  return tile(s) + '<text x="' + (s.id === "A" ? 33 : 32) + '" y="' + y + '" text-anchor="middle" font-family="\'' + s.wm.font + '\',sans-serif" font-weight="' + s.wm.w + '" font-size="' + fs + '" fill="' + fill + '">' + s.wm.s + "</text>";
+}
+function svg(inner, size, label) { return '<svg viewBox="0 0 64 64" width="' + size + '" height="' + size + '"' + (label ? ' role="img" aria-label="' + label + '"' : ' aria-hidden="true"') + ">" + inner + "</svg>"; }
+
+/* 檔案圖示 */
+function packIcon(s) {
+  return '<path d="M15 3h23l14 14v40a4 4 0 0 1-4 4H15a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4z" fill="#fdfdfe" stroke="#aeb8c4" stroke-width="1.3"/><path d="M38 3v10a4 4 0 0 0 4 4h10z" fill="#dde3ea" stroke="#aeb8c4" stroke-width="1.3" stroke-linejoin="round"/><rect x="7" y="31" width="7" height="15" rx="2.5" fill="' + s.ic[0] + '"/><g transform="translate(18.5 25) scale(.44)">' + glyph(s) + "</g>";
+}
+function setupIcon(s) {
+  return '<g transform="translate(1 1) scale(.84)">' + glyph(s) + '</g><circle cx="48" cy="48" r="14" fill="#fff" stroke="#aeb8c4" stroke-width="1.3"/><path d="M48 39.5v11M43 46.5l5 5 5-5M42 56h12" fill="none" stroke="' + s.ic[0] + '" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>';
+}
+function zipIcon(s) {
+  return '<path d="M4 15a4 4 0 0 1 4-4h14l6 6h28a4 4 0 0 1 4 4v31a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z" fill="#e9b949"/><path d="M4 24h56v28a4 4 0 0 1-4 4H8a4 4 0 0 1-4-4z" fill="#ffd978"/><path d="M17 24v24" stroke="#8a6a12" stroke-width="5" stroke-dasharray="3 3"/><g transform="translate(29 28) scale(.38)">' + glyph(s) + "</g>";
+}
+function libIcon(s) {
+  var r = s.ik.sq ? 1.5 : 4.5;
+  return '<rect x="4" y="4" width="56" height="56" rx="' + (s.ik.sq ? 6 : 15) + '" fill="' + s.ic[2] + '" stroke="' + s.ic[0] + '" stroke-opacity=".35" stroke-width="1.3"/><rect x="14" y="14" width="15" height="15" rx="' + r + '" fill="' + s.ic[0] + '"/><rect x="35" y="14" width="15" height="15" rx="' + r + '" fill="' + s.ic[1] + '"/><rect x="14" y="35" width="15" height="15" rx="' + r + '" fill="' + s.ic[1] + '" opacity=".45"/><path d="M42.5 36v13M36 42.5h13" stroke="' + s.ic[0] + '" stroke-width="4.2" stroke-linecap="' + s.ik.cap + '"/>';
+}
+
+/* 核心圖示：同一套線條，依系列換粗細、轉角、有沒有底色 */
+var IC = [
+ ["對話", '<path class="t" d="M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-7l-5 4v-4H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M8 9h8M8 12.5h5"/>'],
+ ["工具", '<path class="t" d="M20 8.5a5 5 0 0 1-6.9 4.6L6.5 19.7a1.8 1.8 0 0 1-2.6-2.6l6.6-6.6A5 5 0 0 1 15.5 4l-2.5 2.5.6 2.9 2.9.6z"/>'],
+ ["常駐助理", '<circle class="t" cx="12" cy="12" r="9"/><path d="M5.5 12h3l1.8-4 3.4 8 1.8-4h3"/>'],
+ ["設定", '<path d="M4 7h8.4M17.6 7H20M4 17h2.4M11.6 17H20"/><circle class="t" cx="15" cy="7" r="2.6"/><circle class="t" cx="9" cy="17" r="2.6"/>'],
+ ["確認卡", '<path class="t" d="M12 3l7.5 2.6v5.6c0 4.4-3 7.9-7.5 9.8-4.5-1.9-7.5-5.4-7.5-9.8V5.6z"/><path d="M8.8 11.8l2.3 2.3 4.2-4.4"/>'],
+ ["工具包", '<path class="t" d="M12 3l8 4v10l-8 4-8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10"/>'],
+ ["保管箱", '<rect class="t" x="3.5" y="4.5" width="17" height="14" rx="2.5"/><circle cx="12" cy="11.5" r="3"/><path d="M12 8.5v1.4M7 18.5v2M17 18.5v2"/>'],
+ ["沙盒", '<rect x="3.5" y="3.5" width="17" height="17" rx="3" stroke-dasharray="2.6 2.6"/><rect class="t" x="8.5" y="8.5" width="7" height="7" rx="1.5"/>'],
+ ["提醒", '<path class="t" d="M6 16v-5a6 6 0 0 1 12 0v5l1.6 2.2H4.4z"/><path d="M10 20.6a2.1 2.1 0 0 0 4 0"/>'],
+ ["排程", '<circle class="t" cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2.2"/>'],
+ ["工具庫", '<rect class="t" x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><path d="M16.75 14v5.5M14 16.75h5.5"/>'],
+ ["本機隱私", '<path class="t" d="M4 11l8-7 8 7v7.5a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 18.5z"/><circle cx="12" cy="12.6" r="1.7"/><path d="M12 14.3v2.4"/>']
+];
+function icon(s, n) {
+  var i = IC[n], d = s.ik.sq ? i[1].replace(/ rx="[\d.]+"/g, ' rx=".4"') : i[1];
+  return '<svg viewBox="0 0 24 24" stroke-width="' + s.ik.sw + '" stroke-linecap="' + s.ik.cap + '" stroke-linejoin="' + s.ik.join + '" aria-hidden="true">' + d + "</svg>";
+}
+function coreIcons(s) { return IC.map(function (i, n) { return "<div>" + icon(s, n) + i[0] + "</div>"; }).join(""); }
+function sidebar(s) {
+  return '<div class="side"><div class="on">' + icon(s, 0) + "對話</div><div>" + icon(s, 1) + "工具<em>3</em></div><div>" + icon(s, 2) + "常駐助理<i></i></div><div>" + icon(s, 3) + "設定</div></div>";
+}
+
+/* ───────── 各區塊 ───────── */
+function wmHtml(s, cls) {
+  return '<span class="wm ' + (cls || "") + '" style="font-family:\'' + s.wm.font + "',sans-serif;font-weight:" + s.wm.w + ";letter-spacing:" + s.wm.ls + '">' + s.wm.text + "</span>";
+}
+function wmLetters(s) {
+  return '<span class="wm ow" style="font-family:\'' + s.wm.font + "',sans-serif;font-weight:" + s.wm.w + ";letter-spacing:" + s.wm.ls + '">' +
+    s.wm.text.split("").map(function (c, i) { return '<span class="l" style="--i:' + i + '">' + c + "</span>"; }).join("") + "</span>";
+}
+function opening(s) {
+  var m = '<span class="om">' + mascot(s, "idle") + "</span>", w = wmLetters(s), t = '<span class="ot">' + s.zh + "</span>";
+  switch (s.id) {
+    case "A": return '<div class="stage"><div class="omw">' + m + '<span class="hi">嗨！</span></div>' + w + t + "</div>";
+    case "B": return '<div class="dim"></div><div class="stage"><div class="omw">' + m + "</div>" + w + t + "</div>";
+    case "C": return '<div class="stage"><div class="omw"><span class="ring"></span>' + m + "</div>" + w + t + "</div>";
+    case "D": return '<div class="stage"><div class="omw">' + m + '</div><span class="trail"></span>' + w + t + "</div>";
+    case "E": return '<div class="stage"><div class="line"><span class="pr">&gt;</span>' + w + '<div class="omw"><span class="om"><svg class="masc st-idle sq" viewBox="34 12 52 86" aria-hidden="true"><g class="mbody"><rect x="36" y="14" width="48" height="82" rx="3" fill="var(--m1)"/>' + face(FACE.E, "idle") + "</g></svg></span></div></div>" + t + "</div>";
+    default: return '<div class="stage"><div class="omw"><span class="b b1"></span><span class="b b2"></span>' + m + "</div>" + w + t + "</div>";
+  }
+}
+function pickBtn(cat, s, v) {
+  return '<button class="pick" type="button" aria-pressed="false" data-cat="' + cat + '" data-s="' + s.id + '"' + (v ? ' data-var="' + v + '"' : "") + ">選這個</button>";
+}
+function head(title, sub, cat, s) {
+  return '<div class="chead"><h3>' + title + (sub ? "<small>" + sub + "</small>" : "") + "</h3>" + (cat ? pickBtn(cat, s) : "") + "</div>";
+}
+function swatches(s, o, name, bg, fg) {
+  var ks = [["bg", "背景"], ["surf", "卡片"], ["text", "文字"], ["muted", "次要字"], ["ac", "主色"], ["ac2", "輔色"], ["ok", "成功"], ["warn", "注意"], ["bad", "危險"]];
+  return '<div class="swr" style="background:' + bg + ";color:" + fg + '"><b>' + name + '</b><div class="swg">' + ks.map(function (k) {
+    return '<div><i style="background:' + o[k[0]] + '"></i><span>' + k[1] + "</span>" + o[k[0]] + "</div>";
+  }).join("") + "</div></div>";
+}
+function plate(s, cls) {
+  return '<div class="plate ' + cls + '">' + [128, 32, 16].map(function (n) {
+    return "<figure>" + svg(glyph(s), n === 128 ? 64 : n) + "<figcaption>" + (n === 128 ? "128" : n) + "</figcaption></figure>";
+  }).join("") + "</div>";
+}
+function explorer(s, cls) {
+  var items = [[packIcon(s), "天氣查詢.synoxpack", "SYNOX 工具包"], [setupIcon(s), "SYNOX-Setup.exe", "應用程式"], [zipIcon(s), "SYNOX-免安裝版.zip", "壓縮的資料夾"], [libIcon(s), "SYNOX 工具庫", "捷徑"]];
+  return '<div class="xp ' + cls + '"><div class="big">' + items.map(function (i) { return "<div>" + svg(i[0], 64) + "<span>" + i[1] + "</span></div>"; }).join("") +
+    '</div><div class="list">' + items.map(function (i) { return "<div>" + svg(i[0], 18) + "<span>" + i[1] + "</span><span>" + i[2] + "</span></div>"; }).join("") + "</div></div>";
+}
+function section(s) {
+  var h = '<section class="series s-' + s.id + '" id="s-' + s.id + '" aria-labelledby="h-' + s.id + '"><div class="wrap">';
+  h += '<div class="shead">' + svg(glyph(s), 72).replace("<svg", '<svg class="big"') + '<div><p class="tag">系列 ' + s.id + '</p><h2 id="h-' + s.id + '">' + s.name + '</h2><p class="one">' + s.one + '</p></div><button class="pick all" type="button" data-all="' + s.id + '">整組選 ' + s.id + "</button></div>";
+  h += '<div class="why">' + s.why.map(function (w) { var p = w.split("|"); return "<div><b>" + p[0] + "</b>" + p[1] + "</div>"; }).join("") + "</div>";
+  h += '<div class="grid">';
+  // 1 吉祥物
+  h += '<article class="card w7" data-card="mascot">' + head("吉祥物", "四種狀態，都是會動的", "mascot", s) + '<div class="states">' +
+    [["idle", "平常", "會眨眼"], ["think", "想事情", "處理中"], ["happy", "完成", "你同意了"], ["warn", "要你確認", "危險動作前"]].map(function (x) {
+      return "<figure>" + mascot(s, x[0]) + "<figcaption>" + x[1] + "<small>" + x[2] + "</small></figcaption></figure>";
+    }).join("") + "</div></article>";
+  // 2 開場
+  h += '<article class="card w5" data-card="opening">' + head("開場動畫", "約 2 秒，可以取代現在的開場", "opening", s) +
+    '<div class="screen"><div class="bar"><i></i><i></i><i></i><span>localhost · SYNOX</span></div><div class="op op-' + s.id + '" data-op="' + s.id + '">' + opening(s) + "</div></div>" +
+    '<button class="pick replay" type="button" data-replay="' + s.id + '">↻ 重播</button></article>';
+  // 3 字標
+  h += '<article class="card" data-card="wordmark">' + head("字標", "三種排法，各選各的", "", s) +
+    [["sym", "配吉祥物圖案", svg(glyph(s), 46)], ["s", "配 S 標（保留 S）", svg(smark(s), 46)], ["none", "不要 S，只有字", ""]].map(function (v) {
+      return '<div class="wrow" data-wv="' + v[0] + '"><div><p class="lab">' + v[1] + '</p><div class="lock">' + v[2] + '<div class="stack">' + wmHtml(s) + '<span class="zh">' + s.zh + "</span></div></div></div>" + pickBtn("wordmark", s, v[0]) + "</div>";
+    }).join("") + '<p class="spec">字型：' + s.wm.spec + "　中文：" + (s.id === "B" ? "LXGW WenKai TC" : s.id === "C" ? "Noto Serif TC" : "Noto Sans TC") + "</p></article>";
+  // 4 App 圖示
+  h += '<article class="card" data-card="appicon">' + head("App 圖示與分頁小圖示", "工作列、桌面捷徑、瀏覽器分頁", "appicon", s) +
+    '<div class="hero-ic">' + svg(glyph(s), 132, s.name + " App 圖示") + '<p class="note">這是 512 的原圖，這裡縮成 132 顯示。下面是實際大小：128（縮成 64）、32、16，分別放在淺色和深色桌面上。</p></div>' +
+    '<div class="icons">' + plate(s, "l") + plate(s, "d") + "</div>" +
+    '<div class="tabs"><div class="tab l">' + svg(glyph(s), 16) + "<span>SYNOX</span><em>✕</em></div><div class=\"tab d\">" + svg(glyph(s), 16) + "<span>SYNOX</span><em>✕</em></div></div></article>";
+  // 5 檔案圖示
+  h += '<article class="card w7" data-card="files">' + head("檔案圖示", "工具包、安裝程式、ZIP、工具庫", "files", s) + explorer(s, "") + explorer(s, "d") +
+    '<p class="note">上面是 Windows 檔案總管的「大圖示」和「詳細資料」兩種檢視。ZIP 檔在檔案總管裡的圖示是 Windows 決定的，這張會用在下載頁的按鈕上。</p></article>';
+  // 6 核心圖示
+  h += '<article class="card w5" data-card="icons">' + head("核心圖示", "線條 " + s.ik.sw + "px · " + (s.ik.sq ? "直角" : "圓角") + (parseInt(s.ik.tint, 10) ? " · 帶主色底" : ""), "icons", s) + '<div class="ikg">' + coreIcons(s) + '</div><p class="note">放進側欄的樣子：</p>' + sidebar(s) +
+    '<p class="note">十二個圖示的骨架是同一套，每個系列換的是粗細、轉角和底色，所以混搭時也不會亂。</p></article>';
+  // 7 色彩
+  h += '<article class="card w12" data-card="palette">' + head("色彩與介面試穿", "左邊是色票，右邊是套上去的樣子", "palette", s) + '<div class="pal"><div class="sw">' +
+    swatches(s, s.L, "淺色", s.L.bg, s.L.text) + swatches(s, s.D, "深色", s.D.bg, s.D.text) + "</div>" +
+    '<div class="ui"><div class="row">' + svg(glyph(s), 30) + '<div class="bub bot">我找到 3 個重複的檔案，要幫你整理嗎？</div></div><div class="bub me">好，把舊的刪掉</div>' +
+    '<div class="cc"><div class="h"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l7.5 2.6v5.6c0 4.4-3 7.9-7.5 9.8-4.5-1.9-7.5-5.4-7.5-9.8V5.6z"/><path d="M12 8v5M12 16.2v.2"/></svg>動手前先問你</div><p>刪除「下載」資料夾裡的 3 個檔案<small>會先放進資源回收筒，可以救回來</small></p><div class="b"><button class="ubtn pri" type="button">允許這一次</button><button class="ubtn" type="button">先不要</button></div></div>' +
+    '<div class="stat"><span style="color:var(--ok)">✓ 已完成</span><span style="color:var(--warn)">！等你確認</span><span style="color:var(--bad)">✕ 已擋下</span></div>' +
+    '<button class="ubtn pri solo" type="button">＋ 安裝工具</button></div></div></article>';
+  return h + "</div></div></section>";
+}
+
+document.getElementById("main").innerHTML = S.map(section).join("");
+document.getElementById("nav").innerHTML = S.map(function (s) {
+  return '<a href="#s-' + s.id + '"><span class="dot" style="background:' + s.ic[0] + '"></span>' + s.id + '<span class="nm">　' + s.name + "</span></a>";
+}).join("") + '<span class="sp"></span><button type="button" id="theme" aria-label="切換淺色或深色">◐ <span id="themeN">自動</span></button><a class="mine" href="#mine">我的選擇 <span class="cnt" id="cnt">0/7</span></a>';
+
+/* ───────── 選擇 ───────── */
+var KEY = "synox.brand.pick.v1", sel = {}, note = "";
+try { var raw = JSON.parse(localStorage.getItem(KEY) || "{}"); sel = raw.sel || {}; note = raw.note || ""; } catch (e) { sel = {}; note = ""; }
+CATS.forEach(function (c) { if (sel[c[0]] && !BY[sel[c[0]]]) delete sel[c[0]]; });
+if (!VARS[sel.wordmarkVar]) delete sel.wordmarkVar;
+function save() { try { localStorage.setItem(KEY, JSON.stringify({ sel: sel, note: note })); } catch (e) { /* 存不了也照常用 */ } }
+function summary() {
+  var t = CATS.map(function (c) {
+    var v = sel[c[0]];
+    if (!v) return c[1] + "：還沒選";
+    return c[1] + "：" + v + (c[0] === "wordmark" ? "（" + VARS[sel.wordmarkVar || "sym"] + "）" : "");
+  }).join("；");
+  if (note.trim()) t += "；補充：" + note.trim();
+  return t;
+}
+function paint() {
+  var n = 0;
+  document.getElementById("rows").innerHTML = CATS.map(function (c) {
+    var v = sel[c[0]], s = v && BY[v];
+    if (s) n++;
+    return '<div class="r"><span class="k">' + c[1] + '</span><span class="v">' + (s
+      ? '<a href="#s-' + s.id + '"><span class="dot" style="background:' + s.ic[0] + '"></span>' + s.id + "　" + s.name + (c[0] === "wordmark" ? "<small>（" + VARS[sel.wordmarkVar || "sym"] + "）</small>" : "") + "</a>"
+      : '<span class="none">還沒選</span>') + "</span></div>";
+  }).join("");
+  document.getElementById("cnt").textContent = n + "/7";
+  document.getElementById("cnt2").textContent = "已選 " + n + " / 7 類";
+  document.getElementById("out").value = summary();
+  Array.prototype.forEach.call(document.querySelectorAll(".pick[data-cat]"), function (b) {
+    var on = sel[b.dataset.cat] === b.dataset.s && (!b.dataset.var || (sel.wordmarkVar || "sym") === b.dataset.var);
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.textContent = on ? "✓ 已選" : "選這個";
+    var row = b.closest(".wrow"); if (row) row.classList.toggle("on", on);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".card[data-card]"), function (c) {
+    var sid = c.closest(".series").id.slice(2);
+    c.classList.toggle("on", sel[c.dataset.card] === sid);
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".pick[data-all]"), function (b) {
+    var all = CATS.every(function (c) { return sel[c[0]] === b.dataset.all; });
+    b.textContent = all ? "✓ 整組都選了 " + b.dataset.all : "整組選 " + b.dataset.all;
+  });
+}
+var reduce = false;
+try { reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches; } catch (e) { /* 舊瀏覽器 */ }
+function replay(id) {
+  var el = document.querySelector('.op[data-op="' + id + '"]');
+  if (el) el.innerHTML = opening(BY[id]);
+}
+document.addEventListener("click", function (ev) {
+  var b = ev.target.closest("button"); if (!b) return;
+  if (b.dataset.cat) {
+    var c = b.dataset.cat, s = b.dataset.s, v = b.dataset.var;
+    if (v) {
+      if (sel[c] === s && (sel.wordmarkVar || "sym") === v) { delete sel[c]; delete sel.wordmarkVar; } else { sel[c] = s; sel.wordmarkVar = v; }
+    } else if (sel[c] === s) { delete sel[c]; } else { sel[c] = s; }
+    save(); paint();
+  } else if (b.dataset.all) {
+    var id = b.dataset.all, all = CATS.every(function (c) { return sel[c[0]] === id; });
+    CATS.forEach(function (c) { if (all) delete sel[c[0]]; else sel[c[0]] = id; });
+    if (all) delete sel.wordmarkVar; else if (!sel.wordmarkVar) sel.wordmarkVar = "sym";
+    save(); paint();
+  } else if (b.dataset.replay) {
+    replay(b.dataset.replay);
+    if (reduce) b.textContent = "你的系統開了「減少動態效果」，只顯示最後畫面";
+  } else if (b.id === "clear") {
+    sel = {}; save(); paint(); say("已清掉");
+  } else if (b.id === "copy") {
+    var text = summary(), out = document.getElementById("out");
+    var fallback = function () {
+      out.focus(); out.select();
+      var ok = false; try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+      say(ok ? "已複製，可以貼給我了" : "沒辦法自動複製，文字已經選好，請按 Ctrl+C");
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(function () { say("已複製，可以貼給我了"); }, fallback);
+    else fallback();
+  } else if (b.id === "theme") {
+    var cur = document.documentElement.getAttribute("data-theme"), nx = cur === "light" ? "dark" : cur === "dark" ? "" : "light";
+    setTheme(nx); try { localStorage.setItem(KEY + ".theme", nx); } catch (e) { /* 沒關係 */ }
+  }
+});
+function say(t) { var el = document.getElementById("said"); el.textContent = t; clearTimeout(say.t); say.t = setTimeout(function () { el.textContent = ""; }, 4000); }
+function setTheme(t) {
+  if (t) document.documentElement.setAttribute("data-theme", t); else document.documentElement.removeAttribute("data-theme");
+  document.getElementById("themeN").textContent = t === "light" ? "淺色" : t === "dark" ? "深色" : "自動";
+}
+try { var th = localStorage.getItem(KEY + ".theme"); if (th === "light" || th === "dark") setTheme(th); } catch (e) { /* 沒關係 */ }
+var noteEl = document.getElementById("note");
+noteEl.value = note;
+noteEl.addEventListener("input", function () { note = noteEl.value; save(); document.getElementById("out").value = summary(); });
+paint();
+
+/* 開場動畫：第一次捲到才播（沒有這個功能的瀏覽器就直接顯示最後畫面） */
+if (!reduce && "IntersectionObserver" in window) {
+  var io = new IntersectionObserver(function (es) {
+    es.forEach(function (e) { if (e.isIntersecting) { replay(e.target.dataset.op); io.unobserve(e.target); } });
+  }, { threshold: .6 });
+  Array.prototype.forEach.call(document.querySelectorAll(".op"), function (el) { io.observe(el); });
+}
+})();
+</script>
+</body>
+</html>

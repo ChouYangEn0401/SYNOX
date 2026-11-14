@@ -1,0 +1,31 @@
+/* 「遇到問題？」（設定 → 🙋 遇到問題？；動作在 static/report.js）。顏色只用 app.html 的 token（var(--…)），深淺色跟著走。 */
+.help-card .sub { max-width: 62ch; }
+.help-steps { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; }
+.help-steps > li { margin: 0; display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px;
+                   border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface-2); }
+.help-num { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center;
+            font-weight: 750; font-size: 15px; background: var(--accent-soft); color: var(--accent);
+            border: 1px solid var(--accent-line); }
+.help-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.help-body h3 { font-size: 15px; color: var(--text); }
+.help-body p { color: var(--text-2); }
+.help-body .row { margin-top: 4px; }
+.help-card button, .help-card a.btn { min-height: 44px; }
+.help-card a.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 650; }
+.help-card a.btn.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+.help-card a.btn.go:not(.primary) { color: var(--accent); border-color: var(--accent-line); }
+#report-review { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+#report-review.hidden { display: none; }
+#report-text { width: 100%; min-height: 220px; resize: vertical; font-family: var(--mono); font-size: 13px; line-height: 1.5;
+               background: var(--sunken); white-space: pre-wrap; overflow-wrap: anywhere; }
+#report-review .row { justify-content: space-between; }
+.help-foot { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+/* 側欄底下的「遇到問題？」：小小一行，不搶眼 */
+.side-foot .help-link { flex: none; font-size: 12.5px; color: var(--muted); text-decoration: none; padding: 4px 6px;
+                        border-radius: var(--r-sm); white-space: nowrap; }
+.side-foot .help-link:hover { color: var(--accent); background: var(--sunken); }
+@media (max-width: 760px) {
+  .help-steps > li { padding: 12px; gap: 10px; }
+  .help-body .row > * { flex: 1 1 auto; }
+  #report-text { font-size: 16px; min-height: 280px; }
+}

@@ -199,7 +199,10 @@ def cmd_tools(args, *, is_up=None, open_url=None, jobs=None) -> int:
             print(line)
         print("裝：python -m synox tools install <名字或組合代號…>（看完報告再核准；不會自動全裝）")
         return 0
-    chosen, unknown = library.pick(lib, args.names)
+    if getattr(args, "all", False):          # 安裝程式自訂頁的「全部官方工具都裝（不建議）」；T2 照樣要發行者名字
+        chosen, unknown = list(lib.entries), []
+    else:
+        chosen, unknown = library.pick(lib, args.names)
     if unknown or not chosen:
         print(f"❌ 工具庫裡沒有：{'、'.join(unknown) or '（沒給名字）'}（有：{'、'.join(e.name for e in lib.entries)}）")
         return 2
@@ -696,6 +699,26 @@ def cmd_connect(args) -> int:
         return 1
 
 
+def cmd_stepup(args) -> int:
+    """stepup setup｜status｜reset：手機驗證器（ADR 0025；guard/cli.py）。在這台電腦上做，金鑰不經聊天。"""
+    from synox.guard import cli as stepup_cli
+    from synox.vault import KeyringError, VaultError, open_vault
+    try:
+        config = SynoxConfig.load(args.config or None, require_token=False)
+    except ConfigError as e:
+        print(f"❌ {e}")
+        return 2
+    try:
+        vault = open_vault(config)
+        return stepup_cli.run(args.stepup_cmd, config, vault, user=args.user)
+    except (KeyringError, VaultError) as e:
+        print(f"❌ 保管箱打不開：{e}")
+        return 2
+    except (KeyboardInterrupt, EOFError):
+        print("\n（取消了，沒有存）")
+        return 1
+
+
 def cmd_discord(args) -> int:
     """discord token：把 bot token 存進保管箱（getpass，不經聊天）；加 --clear＝從保管箱刪掉｜
     discord pair：私訊配對碼，把你的 Discord 帳號接到擁有者。"""
@@ -769,7 +792,7 @@ def cmd_discord(args) -> int:
 
 def main(argv=None) -> int:
     _utf8_console()
-    parser = argparse.ArgumentParser(prog="python -m synox", description="SYNOX：你自己電腦上的 Telegram 小助手")
+    parser = argparse.ArgumentParser(prog="python -m synox", description="SYNOX：住在你自己電腦裡的 AI 助理")
     parser.add_argument("--config", default="", help="config.json 的位置（預設在 SYNOX 資料夾）")
     parser.add_argument("-q", "--quiet", action="store_true", help="不要印歡迎畫面（也可以設環境變數 SYNOX_NO_BANNER=1）")
     sub = parser.add_subparsers(dest="cmd")
@@ -804,6 +827,8 @@ def main(argv=None) -> int:
     p = sub.add_parser("tools", help="工具庫：list（有哪些）｜install <名字…>（裝）")
     p.add_argument("tools_cmd", choices=["list", "install"])
     p.add_argument("names", nargs="*", help="install：工具名字或建議組合的代號")
+    p.add_argument("--all", action="store_true",
+                   help="install：工具庫裡的每一個都裝（不建議：先做教學再挑；安裝程式自訂頁勾了才會用）")
     p.add_argument("--library", default="", help="工具庫資料夾（預設 config.json 的 packs.library，或 SYNOX 資料夾旁的 tools）")
     p.add_argument("--yes", action="store_true", help="看完報告直接在終端機核准")
     p.add_argument("--trust-publisher", default=None, metavar="NAME", help="T2 工具：明確輸入 pack.json 的 publisher 才裝")
@@ -856,6 +881,9 @@ def main(argv=None) -> int:
                    help="哪個 bot（config.json 的 channels.discord.bots.<名字>）；不寫＝default（舊的單一 bot 寫法）")
     p.add_argument("--clear", action="store_true",
                    help="discord token --clear：從保管箱刪掉這個 bot 的 token（要作廢舊 token 還是要到 Developer Portal 按 Reset Token）")
+    p = sub.add_parser("stepup", help="手機驗證器：setup（設定）｜status（狀態）｜reset（重設）")
+    p.add_argument("stepup_cmd", choices=["setup", "status", "reset"])
+    p.add_argument("--user", type=int, default=None, help="伺服器版：替哪個 Telegram id（預設擁有者）")
     p = sub.add_parser("open", help="在這台電腦上打開網頁介面（沒在跑就先開 SYNOX；跟 web-login 一樣）")
     sub.add_parser("about", help="SYNOX 的版本、授權、裝在哪裡")
     p = sub.add_parser("tips", help="隨機一則使用小提示")
@@ -865,6 +893,7 @@ def main(argv=None) -> int:
     args = parser.parse_args(argv)
     handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop,
                 "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord, "web-login": cmd_web_login,
+                "stepup": cmd_stepup,
                 "open": cmd_open, "about": cmd_about, "tips": cmd_tips,
                 "init": cmd_init, "tools": cmd_tools, "filetype": cmd_filetype}
     if args.cmd in brand.BANNER_COMMANDS:

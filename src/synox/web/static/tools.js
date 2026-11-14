@@ -366,6 +366,7 @@
     if (t.description && t.description !== t.summary) { about.appendChild(el("p", "sub", "什麼時候用：" + t.description)); }
     panel.appendChild(about);
 
+    if (t.app && window.SynoxApps) { window.SynoxApps.card(panel, t); }   // 工具服務：「完整畫面」卡片（static/apps.js）
     if (t.connect) { panel.appendChild(connectBlock(t, badge)); }
     else if (t.missing && t.missing.length) {
       panel.appendChild(el("p", "note-line", "還沒連接（缺 " + t.missing.join("、") + "）；請擁有者到工具頁按「連接」。"));

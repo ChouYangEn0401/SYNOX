@@ -1,0 +1,166 @@
+<!doctype html>
+<title>CC Open 實作調查</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: single reading column; conclusion first, then flow, then reuse decision */
+:root{
+  --bg:#f6f7f8; --fg:#1b2127; --muted:#5b6670; --line:#d9dee2; --panel:#ffffff;
+  --accent:#0b6e6e; --warn:#a45a00; --warn-bg:#fff3e0; --ok:#1f7a3d; --ok-bg:#e6f4ea; --bad:#a32424; --bad-bg:#fdeaea;
+  --font:'Inter',system-ui,'Noto Sans TC','Microsoft JhengHei',sans-serif; --mono:'JetBrains Mono',ui-monospace,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#12171b; --fg:#e6eaed; --muted:#9aa6af; --line:#2b343b; --panel:#1a2126;
+  --accent:#4fc3c3; --warn:#f0b35a; --warn-bg:#2d2414; --ok:#6fcf8f; --ok-bg:#16291d; --bad:#f08a8a; --bad-bg:#2e1a1a; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12171b; --fg:#e6eaed; --muted:#9aa6af; --line:#2b343b; --panel:#1a2126;
+  --accent:#4fc3c3; --warn:#f0b35a; --warn-bg:#2d2414; --ok:#6fcf8f; --ok-bg:#16291d; --bad:#f08a8a; --bad-bg:#2e1a1a; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.65;
+  padding-block:24px 56px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+main{max-width:760px;margin:0 auto;display:flex;flex-direction:column;gap:28px}
+h1{font-size:1.65rem;line-height:1.25;margin:0;text-wrap:balance}
+h2{font-size:1.1rem;margin:0 0 10px;text-wrap:balance}
+p{margin:0 0 8px}
+.meta{color:var(--muted);font-size:.85rem}
+code{font-family:var(--mono);font-size:.85em;background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:1px 5px;overflow-wrap:anywhere}
+pre{font-family:var(--mono);font-size:.82rem;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:12px;overflow-x:auto;margin:0}
+.sum{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:16px 18px}
+.sum ol{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:8px}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;min-width:520px;font-size:.88rem}
+th,td{text-align:left;vertical-align:top;border-bottom:1px solid var(--line);padding:8px 10px}
+th{font-size:.75rem;letter-spacing:.04em;color:var(--muted);text-transform:uppercase}
+.pill{display:inline-block;font-size:.75rem;font-weight:600;border-radius:999px;padding:1px 9px;white-space:nowrap}
+.ok{background:var(--ok-bg);color:var(--ok)} .warn{background:var(--warn-bg);color:var(--warn)} .bad{background:var(--bad-bg);color:var(--bad)}
+.note{border-left:3px solid var(--warn);background:var(--warn-bg);padding:10px 14px;border-radius:0 6px 6px 0}
+ul{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:5px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+
+<main>
+<header>
+  <h1>CC Open 實作調查</h1>
+  <p class="meta">2026-11-13 · 調查對象 MyFirstTelegramClawBot（唯讀，沒有執行任何程式）· 目的：在 SYNOX_Libs 寫類似的小工具</p>
+</header>
+
+<section class="sum">
+  <h2>結論</h2>
+  <ol>
+    <li><b>CC Open 就是 <code>/proj_edit</code></b>（舊名 <code>/cc_open</code>）。Bot 自己不跑 AI，只在白名單專案的資料夾裡開一支固定的 <code>claude remote-control --name "TG·專案" --permission-mode default</code>。之後在手機 Claude App 或 claude.ai/code 接手，每一步自己核准。</li>
+    <li><b>啟動方式</b>是 Python <code>subprocess.Popen</code>：argv 陣列、不經 shell、不開視窗，輸出寫進 log。stdin 餵 <code>y\n</code> 答掉「Enable Remote Control?」，再從 log 用正規表示式撈出第一個 <code>https://claude.ai/…</code> 連結。</li>
+    <li><b>能活過 bot 重啟</b>：Windows 上每支放進自己的 Job Object 並脫離 bot 的 Job；pid＋行程建立時間存檔，重開後認回。預設 35 小時到期，可加時。</li>
+    <li><b>最大的坑是「資料夾信任」</b>：第一次在某資料夾跑時，claude 要人按一次信任，背景模式答不了。</li>
+    <li><b>要搬的核心很小</b>，而且 SYNOX 已內附同一套行程管理（<code>vendor/isdtelekit/jobs/runner.py</code>），不用再抄。Telegram 狀態卡、按鈕、白名單、審查都要拆掉。</li>
+  </ol>
+</section>
+
+<section>
+  <h2>一次「開」的流程</h2>
+<pre>/proj_edit X
+ → 權限：擁有者？私訊？/sudo 解鎖中？
+ → 只在白名單專案裡找 X；沒過安全審查就擋下
+ → 已經開著？回現有連結。已達 8 個上限？拒絕
+ → 找 claude 執行檔、拿掉 5 個環境變數、組 argv
+ → JobRunner 啟動（背景、stdin 餵 y）、寫 cc_sessions.json
+ → 每秒讀 log，最多 20 秒，撈 claude.ai 連結
+ → 撈到：訊息改成「開好了＋連結」
+ → 很快就死且 log 有 trust：給「信任資料夾」按鈕</pre>
+  <p class="meta" style="margin-top:8px">主要檔案都在 <code>src/clawbot/</code>：<code>commands/cc_commands.py</code>、<code>claudecode/launcher.py</code>、<code>core/jobs.py</code>。</p>
+</section>
+
+<section>
+  <h2>實際用到的指令</h2>
+  <div class="tw"><table>
+    <tr><th>情境</th><th>argv</th></tr>
+    <tr><td>一般開</td><td><code>claude remote-control --name "TG·專案" --permission-mode default</code></td></tr>
+    <tr><td>接回某段對話</td><td>同上，再加 <code>--session-id=&lt;id&gt;</code>（寫成一個 token）</td></tr>
+  </table></div>
+  <ul style="margin-top:10px">
+    <li>沒有用 <code>-p</code>、stream-json、<code>--resume</code>、tmux。<code>--resume</code> 與 <code>--cloud</code> 在專案裡被記為死路。</li>
+    <li>權限模式只准 <code>default／acceptEdits／plan／auto</code>，<code>bypassPermissions</code> 會退回 <code>default</code>。</li>
+    <li>工作目錄來自掃描結果，不收 Telegram 傳來的任何路徑。</li>
+    <li>環境變數拿掉 5 個：<code>ANTHROPIC_API_KEY</code>、<code>ANTHROPIC_AUTH_TOKEN</code>、Bedrock、Vertex、<code>CLAWBOT_SERVICE</code>。其餘全部照傳。</li>
+    <li><b>不要跑 <code>claude remote-control --help</code></b>：它不印說明，會直接開一個伺服器卡住。</li>
+  </ul>
+</section>
+
+<section>
+  <h2>兩道每次都會遇到的提示</h2>
+  <div class="tw"><table>
+    <tr><th>提示</th><th>背景模式答得了嗎</th><th>做法</th></tr>
+    <tr><td>Enable Remote Control? (y/n)</td><td><span class="pill ok">答得了</span></td><td>stdin 餵 <code>y\n</code></td></tr>
+    <tr><td>信任這個資料夾嗎（每個資料夾第一次）</td><td><span class="pill bad">答不了</span></td><td>沒信任就印 <code>Workspace not trusted</code> 並在約 0.6 秒內退出。另有三條補救路，見下</td></tr>
+  </table></div>
+  <ul style="margin-top:10px">
+    <li><code>/proj_trust</code>：開一個真的主控台視窗讓人按。</li>
+    <li>改 <code>~/.claude.json</code>：2026-10-02 試過無效，後來換寫法加回來，<b>真機上有沒有效沒驗證</b>。</li>
+    <li>ConPTY 偽終端機替人按（需要 pywinpty）：等於繞過 claude 的一道安全提示。</li>
+    <li>已信任 repo 的 git worktree 不用再信任（只在 claude 2.1.291 驗過）。</li>
+  </ul>
+</section>
+
+<section>
+  <h2>狀態管理</h2>
+  <div class="tw"><table>
+    <tr><th>事情</th><th>做法</th></tr>
+    <tr><td>防止重複</td><td>一個專案最多一個伺服器，同時最多 8 個。要平行就開 git worktree（lane）</td></tr>
+    <tr><td>期限</td><td>預設 35 小時；到期前 15 分鐘提醒；加時累加在原期限上</td></tr>
+    <tr><td>重啟認回</td><td>啟動時讀 <code>cc_sessions.json</code>，用 pid＋行程建立時間認回（防 pid 被重用）</td></tr>
+    <tr><td>關閉</td><td>自己開的用 <code>TerminateJobObject</code>；認回來的只能 <code>taskkill /T /F</code></td></tr>
+    <tr><td>結束紀錄</td><td>寫入 <code>cc_ended.json</code>（最近 40 筆）；停掉後 4 小時內可接回的對話記在 <code>cc_revivable.json</code></td></tr>
+  </table></div>
+</section>
+
+<section>
+  <h2>權限與風險</h2>
+  <ul>
+    <li><b>誰能開</b>：只限機器擁有者、只在私訊、要先用手機驗證器 <code>/sudo</code> 解鎖。<code>lane=new</code> 和 <code>resume=</code> 要當場再驗一組碼。</li>
+    <li><b>能開哪些專案</b>：要過四關：白名單、安全審查 SAFE、資料夾被信任過、不在封鎖清單。</li>
+    <li><span class="pill warn">風險</span> 伺服器開著的 35 小時內，誰拿到你的 claude.ai 帳號，就能遙控這台電腦。</li>
+    <li><span class="pill warn">風險</span> 環境變數只拿掉 5 個，其他變數（可能含密鑰）都傳給 claude。</li>
+    <li><span class="pill warn">風險</span> 改 <code>~/.claude.json</code> 會動到所有 claude 共用的設定檔。</li>
+  </ul>
+</section>
+
+<section>
+  <h2>搬到 SYNOX_Libs：能搬與要拆</h2>
+  <div class="tw"><table>
+    <tr><th>能搬（核心）</th><th>要拆掉（Telegram／ClawBot 專屬）</th></tr>
+    <tr>
+      <td>組 argv、權限模式白名單、拿掉環境變數清單、撈連結與 session id（純函式）、啟動監看、結束分類、狀態檔與重啟認回、期限與加時</td>
+      <td>Telegram 狀態卡與按鈕、白名單與安全審查、<code>/sudo</code> 驗證、lane、<code>ClaudeLogin</code> 相依（改用 SYNOX 的 <code>find_claude()</code>）</td>
+    </tr>
+  </table></div>
+  <p style="margin-top:10px">設計重點：工具<b>不決定誰能開、能開哪個資料夾</b>，只收呼叫端已經允許的資料夾。結果用「事件」丟給呼叫端，由前端決定怎麼顯示。完整的類別與函式簽名草案在報告第 7.3 節。</p>
+</section>
+
+<section>
+  <h2>建議選項</h2>
+  <div class="tw"><table>
+    <tr><th>選項</th><th>內容</th><th></th></tr>
+    <tr><td>A</td><td>只做核心：純函式＋啟動器（用 SYNOX 內附的 JobRunner）。遇到沒信任只回事件，請人自己到電腦前跑一次 claude</td><td><span class="pill ok">建議</span></td></tr>
+    <tr><td>B</td><td>A 再加「開主控台視窗讓人按信任」。服務模式不能用</td><td><span class="pill warn">之後再說</span></td></tr>
+    <tr><td>C</td><td>照搬全套，含改設定檔與偽終端機</td><td><span class="pill bad">不建議</span></td></tr>
+  </table></div>
+  <p class="meta" style="margin-top:8px">驗收（A）：用假的 claude（印出假連結的 Python 腳本）測過「開→撈連結→加時→到期→結束事件→重啟認回→接回」。不在這台電腦開真的伺服器。</p>
+</section>
+
+<section>
+  <h2>未驗證的事項</h2>
+  <div class="note">
+    <ul>
+      <li><code>taskkill /F</code> 收掉伺服器後，官方說的「4 小時內可接回」是否照樣成立。</li>
+      <li><code>claude remote-control</code> 是否只對外連線、不在本機開埠。這台電腦規定不開網路埠，動手前要先查官方文件。</li>
+      <li>寫成 SYNOX pack 時，哪種形式過得了 policy 的權限與沙盒，沙盒裡 claude 還連不連得到 claude.ai。報告只讀了這幾個檔案的片段。</li>
+      <li>SYNOX 的 <code>find_claude()</code> 不採用 VS Code 擴充裡的 claude，跟 ClawBot 找到的可能不是同一版。</li>
+      <li>非 Windows 上認回時沒有比對行程建立時間，有 pid 被重用的風險。</li>
+      <li>log 裡對話標題的格式（OSC 8 超連結）可能隨 claude 版本改變。</li>
+    </ul>
+  </div>
+</section>
+
+<footer class="meta">
+  完整報告（含檔名:行號、陷阱 11 條、未知項 10 條）在 <code>SYNOX\.claude\worktrees\research-cc-open\docs\research\20261113-cc-open-implementation.md</code>，未 commit。
+</footer>
+</main>
+<p style="font:10px/1.4 ui-monospace,monospace;opacity:.5;margin:24px 16px">線上版 <a href="https://claude.ai/artifact/E2Q54krfbQ8xdr3aruA6bs">https://claude.ai/artifact/E2Q54krfbQ8xdr3aruA6bs</a> · 本機版 docs/artifacts/2026-11-13-cc-open-investigation.html · 頁面版本 <span data-stamp>104b75be8b · 2026-11-13</span></p>

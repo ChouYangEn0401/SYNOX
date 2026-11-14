@@ -1,6 +1,6 @@
 @echo off
 rem Uninstall.bat -- remove what Setup.bat added (shortcuts, startup entry, .synoxpack association, .venv,
-rem runtime\ = SYNOX's own private Python and uv; all of it inside this folder).
+rem runtime\ = SYNOX's own private Python in runtime\python; all of it inside this folder).
 rem   Uninstall.bat            menu (check / shortcuts / env / all)
 rem   Uninstall.bat check      only list what is installed
 rem   Uninstall.bat env -Yes   non-interactive (modes: check, shortcuts, env, all)

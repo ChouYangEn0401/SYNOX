@@ -1,0 +1,412 @@
+<!doctype html>
+<title>SYNOX 通用化盤點</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="clawbot:artifact" content="https://claude.ai/artifact/JQuv6H3LeV4jdjD15z4Lyp">
+<meta name="clawbot:source" content="MyFirstTelegramClawBot/docs/research/2026-11-09-synox-general.html">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@700&family=JetBrains+Mono:wght@400&display=swap">
+<style>
+/* 版面：任務書 → 進度 → 五節各自一塊（結論先、表格、建議）。同一家族：docs/research 的藍灰色系 */
+:root {
+  --bg: #f5f6f8; --panel: #ffffff; --fg: #1b2129; --muted: #5b6573; --line: #d8dde4; --accent: #2b5d8a;
+  --ok: #22764f; --ok-soft: #e1f1e8; --warn: #9a5a12; --warn-soft: #f6ead9; --bad: #a3322b; --bad-soft: #f7e3e1;
+  --code-bg: #eceff3;
+  --display: "Noto Serif TC", "Songti TC", serif; --body: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --mono: "JetBrains Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12161b; --panel: #1a2027; --fg: #e3e8ee; --muted: #9aa5b2; --line: #2c343e; --accent: #8fbbe3;
+  --ok: #7fd0a6; --ok-soft: #1c3529; --warn: #e7b071; --warn-soft: #3a2b19; --bad: #f0958d; --bad-soft: #3d2220;
+  --code-bg: #232a33; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12161b; --panel: #1a2027; --fg: #e3e8ee; --muted: #9aa5b2; --line: #2c343e; --accent: #8fbbe3;
+  --ok: #7fd0a6; --ok-soft: #1c3529; --warn: #e7b071; --warn-soft: #3a2b19; --bad: #f0958d; --bad-soft: #3d2220;
+  --code-bg: #232a33; color-scheme: dark }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.65; }
+.wrap { max-width: 920px; margin: 0 auto; padding-block: 28px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 30px; }
+h1 { font-family: var(--display); font-size: 1.7rem; margin: 0; line-height: 1.3; text-wrap: balance; }
+h2 { font-family: var(--display); font-size: 1.2rem; margin: 0; text-wrap: balance; }
+h3 { margin: 0; font-size: 1rem; }
+p { margin: 0; max-width: 68ch; }
+.muted { color: var(--muted); }
+.eyebrow { font-size: .76rem; letter-spacing: .07em; color: var(--accent); font-weight: 700; }
+section { display: grid; gap: 12px; min-width: 0; }
+ul, ol { margin: 0; padding-left: 1.3em; display: grid; gap: 5px; }
+.pill { display: inline-block; padding: 0 9px; border-radius: 99px; font-size: .78rem; font-weight: 700; white-space: nowrap; }
+.pill.ok { background: var(--ok-soft); color: var(--ok); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.todo { background: var(--code-bg); color: var(--muted); }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.verdict { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; display: grid; gap: 10px; }
+.tbl { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: .9rem; min-width: 560px; }
+th, td { text-align: left; vertical-align: top; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+tr:last-child td { border-bottom: 0; }
+th { font-size: .74rem; color: var(--muted); letter-spacing: .05em; font-weight: 600; background: var(--bg); }
+td.k { font-weight: 700; white-space: nowrap; }
+code { font-family: var(--mono); font-size: .84em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; word-break: break-all; }
+pre { margin: 0; font-family: var(--mono); font-size: .8rem; background: var(--code-bg); padding: 10px 12px; border-radius: 8px; overflow-x: auto; line-height: 1.55; }
+.steps { counter-reset: s; list-style: none; padding: 0; gap: 12px; }
+.steps > li { counter-increment: s; display: grid; gap: 6px; padding: 12px 14px 12px 50px; position: relative;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+.steps > li::before { content: counter(s); position: absolute; left: 14px; top: 11px; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--accent); color: var(--bg); font-weight: 700; display: grid; place-items: center; font-size: .85rem; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(270px, 1fr)); gap: 12px 20px; }
+.two > div { min-width: 0; display: grid; gap: 6px; align-content: start; }
+.label { font-size: .74rem; letter-spacing: .06em; font-weight: 700; color: var(--muted); }
+.ask { background: var(--warn-soft); border-radius: 10px; padding: 14px 16px; display: grid; gap: 8px; }
+.ask b.rec { color: var(--ok); }
+.quote { border-left: 3px solid var(--accent); padding: 4px 12px; color: var(--muted); font-size: .92rem; }
+</style>
+
+<div class="wrap">
+  <header style="display:grid;gap:8px">
+    <span class="eyebrow">盤點與進度 · 2026-11-09 · 這頁會一路更新到做完，起床後從這裡對焦</span>
+    <h1>SYNOX 通用化：盤點全機、要不要做、一鍵打包、資料安全、接現成服務</h1>
+    <p class="muted">你的錄音整理成五個任務（下面第 0 節）。每一節做完就把結論寫進對應的區塊；還沒做到的掛「待做」。</p>
+  </header>
+
+  <section class="verdict" id="progress">
+    <h2>進度</h2>
+    <div class="tbl"><table>
+      <thead><tr><th>階段</th><th>做什麼</th><th>狀態</th></tr></thead>
+      <tbody>
+        <tr><td class="k">P0 任務書</td><td>錄音整理成五個任務、決定順序與我自己拍板的事</td><td><span class="pill ok">完成</span></td></tr>
+        <tr><td class="k">P1 盤點</td><td>36 個專案資料夾全部看過（只讀、不碰私人資料）；JSON 正本 <code>2026-11-09-synox-inventory.json</code></td><td><span class="pill ok">完成</span></td></tr>
+        <tr><td class="k">P2 要不要做</td><td>OpenClaw、Hermes、nanobot、Telegram Managed Bots、托管服務 vs SYNOX；你沒提到的硬限制：電腦要常開</td><td><span class="pill ok">完成</span></td></tr>
+        <tr><td class="k">P3 打包</td><td>新 repo <code>%USERPROFILE%\Documents\SYNOX</code> v0.1.0：86 測試全過、我重跑過終端機 smoke；安裝器與精靈視窗沒在真機跑（untested）</td><td><span class="pill ok">完成（v0）</span></td></tr>
+        <tr><td class="k">P4 安全架構</td><td>三種拓樸、adapter、智慧財產、備份；demo：密文、換 LLM 一段設定、核准卡</td><td><span class="pill ok">完成</span></td></tr>
+        <tr><td class="k">P5 接現成服務</td><td>對照表（Google Calendar／Notion／Todoist 官方 MCP、Apple 與 Keep 沒 API、記帳自己做）、connector 四種接法、市場反思</td><td><span class="pill ok">完成</span></td></tr>
+        <tr><td class="k">收尾</td><td>QuestionToUser Q43–Q47、analysis #41、sync.json（副本到 SYNOX、SDK、記帳專案）、untested、commit</td><td><span class="pill ok">完成</span></td></tr>
+        <tr><td class="k">你要做的</td><td>① 讀 Q43–Q47（不答＝照建議）② 在這台雙擊 <code>%USERPROFILE%\Documents\SYNOX\Setup.bat</code> 走到精靈第一頁看看 ③ 挑一位朋友當第一個試點 ④ 刪掉多出來的那份 artifact（下面「我犯的錯」）</td><td><span class="pill warn">等你</span></td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section class="verdict" id="batch2">
+    <h2>第二批（2026-11-10 你的回饋之後）</h2>
+    <p>你同意第一批的決定，糾正了第 4 節（Telegram 的加密與 LLM 看明文是兩件事；A、B、C 都要做、安裝時就能選），並加了：安裝器分個人版／伺服器版、一般人先於工程師、AI 預設 Claude＋其他金鑰（用你的 <code>ntu_easy_llm</code>）、skill 安全管線、註冊 SDK、Web UI 三頁、IP 的 exe 問題、三組要通用化的專案（記帳、日記、新小工具）。你 11-10 說可以多開子代理加速，我改成最多 3 個同時、各自在不同 repo 的 worktree（開之前看過記憶體：11.8 GB 剩 2.4 GB）。另外兩題：SYNOX 與 ClawBot 不衝突、ClawBot 怎麼收斂到退役，以及聊天介面可換（Discord 能在家用電腦跑、LINE／Teams 要公開網址）寫在架構文件 §9、§10 與 Q49。</p>
+    <div class="tbl"><table>
+      <thead><tr><th>階段</th><th>做什麼</th><th>誰</th><th>狀態</th></tr></thead>
+      <tbody>
+        <tr><td class="k">1</td><td>架構文件：三種模式的矩陣（誰裝什麼、誰看得到什麼）、SYNOX Node、skill 註冊契約＋安全管線、Web UI 規格、IP 選項 → <code>docs/plans/2026-11-10-synox-architecture-v1.md</code>；第 4 節已照你的糾正改寫；Q48</td><td>我</td><td><span class="pill ok">完成</span></td></tr>
+        <tr><td class="k">2a</td><td><code>ntu_easy_llm</code> 0.5.0：新模組 <code>agent.py</code>（四個 provider 的 chat＋tool calling、probe、typed errors；舊 API 一字未動；37 測試）本地 commit 在 <code>%USERPROFILE%\Documents\ntu_easy_llm</code>、wheel 在 <code>dist/</code>——<b>push 與 release 等你按</b>。SYNOX：adapter 改走它、精靈第一頁「個人版／伺服器版」、AI 頁「預設 Claude＋其他金鑰」、伺服器版每人資料隔離（HKDF）；107 測試；已 <code>--no-ff</code> 合進 <code>main</code>（55ef8cd）</td><td>子代理 ①</td><td><span class="pill ok">完成、已合併</span></td></tr>
+        <tr><td class="k">2b</td><td>Web UI（stdlib、只綁 127.0.0.1、預設埠 8830）：Telegram 送一次性登入連結 → 對話頁（跟 Telegram 一樣的按鈕、核准卡能按）、工具頁（每個 pack 一張卡＋面板，金流簿示範面板）、設定頁（換 AI、上傳 <code>.synoxpack</code>、帳號、加密備份下載）；伺服器版成員可用 AI（每人每月額度、<code>/ai_budget</code>）、每人提醒排程。143 測試；真伺服器在臨時埠 smoke 過一次；<b>瀏覽器畫面沒有人看過</b>。已 <code>--no-ff</code> 合進 <code>main</code>（3d55912）</td><td>子代理 ②</td><td><span class="pill ok">完成、已合併</span></td></tr>
+        <tr><td class="k">2c</td><td>五關安全管線：宣告（pack.json v2）→ AST 靜態掃描對照 <code>capabilities</code>（我用惡意 fixture 試了：連網、讀 <code>../../config.json</code>、<code>exec</code> 三條都被點名、拒裝）→ <code>packs.lock</code>（被改過的 pack 不載入、通知你）→ 工具呼叫執行前驗證（多餘欄位、<code>-rf</code>、夾帶欄位都擋）→ 工具回傳包 nonce 分隔符。<code>python -m synox install x.synoxpack</code>、<code>Install-Pack.bat</code>＋點兩下關聯、<code>synox.sdk</code>（三種 JSON 信封、init／check／zip、<code>docs/sdk.md</code>）、cli pack 的佔位符（含金流簿用的 <code>runtime.python</code>）。順手發現 SDK 的 <code>service.build_argv</code> 會把已填的旗標丟掉 → 開了一張單在 ISDTeleKitSDK/_inbox。187 測試；已 <code>--no-ff</code> 合進 <code>main</code></td><td>子代理 ③</td><td><span class="pill ok">完成、已合併</span></td></tr>
+        <tr><td class="k">3</td><td>記帳專案 0.17.0：擁有者專屬的值搬成設定（匯入帳戶、午餐星期、時區、ClaudeLogin 路徑；預設＝原值）、generic 起始種子（食衣住行育樂醫療其他）、migration 31 只碰全新帳本（<b>有測試證明你的五張表一列沒變</b>）、AI 檢討變選配、新 CLI：<code>setup init/enable</code>、<code>ledger export/import-csv</code>、<code>batch undo</code>；<code>synox-pack/</code>（16 個指令）。530 測試。已 <code>--no-ff</code> 合進 <code>main</code>（539d3f8）並 push；worktree 收掉</td><td>子代理 ④（Opus）</td><td><span class="pill ok">完成、已合併、已 push</span></td></tr>
+        <tr><td class="k">4</td><td>日記專案：三張 inbox（taxonomy 那張指定 Fable → 用 Fable 子代理）、每個欄位的 CLI、通用化、<code>synox-pack/</code>；worktree <code>FastDailyJourneyWriter_LaneA</code>、分支 <code>feat/synox-pack-and-inbox</code>。<b>11:55 被關掉時 7 個檔沒 commit，接續後做完：三張單都結了（taxonomy：每個題組標 structure／reflection／flow、<code>templates suggest</code> 照規則挑題組並說為什麼；overwrite：只換點名的題；AI 代寫：一定附原文、標「AI 整理」）、每個設定都有 CLI、<code>setup init --preset=generic|devotional</code>、<code>synox-pack/</code>（13 個指令，正文走 stdin）。22 測試。已 <code>--no-ff</code> 合進 <code>master-init</code>（84f3a17）並 push；三張單標成已合併；新開一張「Telegram 打純文字也能 put」</td><td>子代理 ⑤（Fable）</td><td><span class="pill ok">完成、已合併、已 push</span></td></tr>
+        <tr><td class="k">5</td><td>新 repo <code>%USERPROFILE%\Documents\SYNOXPacks</code>：行事曆（含 .ics 匯出）、待辦、子彈筆記三個 python pack（不用網路、資料進保管箱）；另外把 Google Calendar MCP、Doist todoist-ai、Notion MCP clone 進隔離區只讀審查（不執行），出 <code>docs/mcp-audit-2026-11.md</code>。結果：三個 pack 都過 SYNOX 的五關（行事曆有中文日期解析：明天／下週一／11/12 14:00、.ics 匯出；待辦有 !!、#tag、到期；子彈筆記有 •○– 分類與按鈕式遷移），83 測試；MCP 審查：Todoist 官方「安全可用」、Google Calendar 社群版「可用但要注意」（登入伺服器綁所有網卡）、Notion 本機版「不要用」（已停止維護）→ 用 remote。順手抓到 SYNOX 內建記帳 pack 的淺拷貝 bug（伺服器版會跨人漏第一筆），我已修＋回歸測試。隔離區裡兩個 clone 帶 Claude Code hook 設定，我把 <code>.claude</code> 資料夾改名封住</td><td>子代理 ⑦（Opus）</td><td><span class="pill ok">完成（新 repo，未 push）</span></td></tr>
+        <tr><td class="k">6</td><td>整合：SYNOX 加 <code>packs.dirs</code>（pack 可以留在自己的 repo、用自己的 venv）、cli 指令改成照位置填不追問、<code>stdin</code> 樣板、JSON 結果通用渲染；用假 AI 在終端機實際驅動<b>真的</b>金流簿 CLI（記兩筆、摘要、列表、撤銷）與日記 CLI（題組、suggest、show），資料落在暫存資料夾、你的真實帳本與日記沒被碰；SYNOXPacks 的三個 pack 也用同一招載入跑過（加行程、看本週、加待辦、子彈筆記、遷移）。全部合進 SYNOX <code>main</code>（200 測試）</td><td>我</td><td><span class="pill ok">完成</span></td></tr>
+      </tbody>
+    </table></div>
+    <p class="muted">一件被擋下來的事：這台的自動權限不讓子代理 push 到 GitHub／建 release（「建立公開面」），所以 <code>ntu_easy_llm</code> 的改動先留在本機 <code>%USERPROFILE%\Documents\ntu_easy_llm</code>，wheel 在它的 <code>dist/</code>；push 與 release 由你按。</p>
+  </section>
+
+  <section>
+    <h2>我替你做的決定、我犯的錯</h2>
+    <ul>
+      <li><b>決定</b>：底層用 ISDTeleKitSDK 不複製 ClawBot；pack 第一批只放筆記、記帳、提醒三個最通用的，你的金流簿、日記、ISDPCS 之後用 cli pack 包；文件正本留 ClawBot、程式在新 repo；SDK 先 vendor（Q47 問要不要上 GitHub）。</li>
+      <li><b>錯</b>：中途重新發佈進度頁時路徑大小寫不同，多開了一份 artifact（<a href="https://claude.ai/artifact/XiwYV12aWkByBiW2hujG9B">XiwYV12…</a>）；正本一直是這一份（JQuv6H3…）。多的那份我不能替你刪，你方便時刪掉。</li>
+      <li><b>沒做到規格第 9 節的一條</b>：「Setup.bat 在這台跑到精靈第一頁」——我沒讓子代理跑安裝器（它會裝東西），留給你雙擊一次。</li>
+    </ul>
+  </section>
+
+  <section id="brief">
+    <h2>0 · 任務書（你的話，整理過、意思不變）</h2>
+    <p class="quote">「我想你盤點我整個所有這一台電腦，從 my first Telegram bot 為出發點……把它整個變成非常 general 的東西……一個 install 了以後，就可以把我這一套整個 agent 搭配 Telegram 的架構整個搬過去到他們電腦上面……讓所有的老人、小朋友都可以用。」</p>
+    <div class="tbl"><table>
+      <thead><tr><th>#</th><th>任務</th><th>交付</th></tr></thead>
+      <tbody>
+        <tr><td class="k">1</td><td><b>盤點</b>這台電腦從 ClawBot 出發做得到的每件事：每個專案是什麼、有沒有網頁、怎麼接、資料在哪、哪些能分享給別人</td><td>第 1 節的表＋這頁</td></tr>
+        <tr><td class="k">2</td><td><b>要不要做</b>：OpenClaw（小龍蝦）、Hermes 已經做了通用 agent；你的看法是：它們主要面向熟悉終端機的使用者，一般人不容易自己架起來，而這一群人是 SYNOX 想服務的</td><td>第 2 節：誠實評估＋建議</td></tr>
+        <tr><td class="k">3</td><td><b>打包</b>：乾淨的新專案，不會用電腦的人按一下就能架起同一套服務；你寫過的專案變成可二次封裝的小專案＋skills；有簡單入口（雙擊、捷徑）</td><td>新資料夾 <code>SYNOX</code>＋第 3 節</td></tr>
+        <tr><td class="k">4</td><td><b>安全架構</b>：LLM 用 adapter 可換（Claude 訂閱 → 朋友公司的 LLM）；host 若架在朋友公司，每個人的私人資料（例如記帳）怎麼保護、能不能在 Telegram 端先加密；你的智慧財產、對方公司的資安風險、備份</td><td>第 4 節：架構＋可 demo 的程式</td></tr>
+        <tr><td class="k">5</td><td><b>接現成服務</b>：你的工具哪些已有主流方案（Google Calendar、Notion、Apple 提醒／備忘錄…）；skill 要能接它們，別人不必走你那套；再加上市場反思</td><td>第 5 節：對照表＋connector 設計</td></tr>
+      </tbody>
+    </table></div>
+    <div class="two">
+      <div><span class="label">我自己拍板的（不另外問你）</span>
+        <ul>
+          <li>新專案叫 <b>SYNOX</b>，放 <code>%USERPROFILE%\Documents\SYNOX</code>；文件正本留在 ClawBot 的 <code>docs/research/</code>。</li>
+          <li>底層用你已經抽出來的 <b>ISDTeleKitSDK</b>（它的 README 第一句就是「以後每一支 bot 都從這裡開始」），不是複製整個 ClawBot：ClawBot 有 273 個指令、十幾條寫死到你專案的路徑、還有你的私人資料。</li>
+          <li>一次只開一個子代理；不重開 Host、不動 CSP／ISDPCS 的檔案。</li>
+        </ul>
+      </div>
+      <div><span class="label">順序</span>
+        <ol>
+          <li>P1 盤點（子代理）＋ P2／P5 查網路（我）</li>
+          <li>P3 設計規格 → 子代理建 SYNOX → 我驗證</li>
+          <li>P4 安全架構＋demo</li>
+          <li>收尾</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+
+  <section id="s1">
+    <h2>1 · 盤點：這台電腦從 ClawBot 出發做得到的事 <span class="pill ok">完成</span></h2>
+    <p>36 個專案資料夾全部看過（只讀 README／AGENT／pyproject，不開 data、不開設定檔，沒有任何真名與金鑰）。完整紀錄在 <code>docs/research/2026-11-09-synox-inventory.json</code>。</p>
+    <div class="verdict">
+      <h3>一句話</h3>
+      <ul>
+        <li><b>能給別人的核心只有四樣</b>：記帳（金流簿）、日記、行事曆／待辦（ISDPCS）、新聞簡報（情報桌）——四個都已經是「會印 JSON 的 CLI」，變成 skill pack 幾乎只差一份 SKILL.md。</li>
+        <li><b>底層其實已經備好</b>：ISDTeleKitSDK（從 ClawBot 抽出的 bot 核心，143 支測試全過）、ClaudeLogin（AI 後端）、<code>_templates</code>（範本）、空的 <code>ISDSkillsLibrary</code>（可以直接當 pack 總目錄）。</li>
+        <li><b>擋在陌生人電腦前的五件事</b>：幾乎每個 AI 功能都綁 Claude Code 訂閱；路徑寫死 <code>%USERPROFILE%\Documents\…</code>；每個專案一套 venv 與不同的啟動法；每個功能各要一組帳號／金鑰；你自己的內容（班表、服事表、題組、自選股）與危險能力（真錢下單、結束程序、開對外通道）還混在裡面。</li>
+      </ul>
+    </div>
+    <div class="panel tbl"><table>
+      <thead><tr><th>專案</th><th>做什麼</th><th>入口</th><th>可分享</th><th>pack</th><th>狀態</th></tr></thead>
+      <tbody>
+        <tr><td class="k">記帳專案</td><td>金流簿：記帳網站＋命令列</td><td>run.bat（:8810）、<code>-m moneybook … --json</code></td><td>4</td><td><span class="pill ok">核心</span></td><td>active 11-02</td></tr>
+        <tr><td class="k">FastDailyJourneyWriter</td><td>勾選式題組日記，輸出 HTML 或卡圖</td><td>run.bat（:8888）、<code>-m backend.cli --json</code></td><td>5</td><td><span class="pill ok">核心</span></td><td>active 11-04</td></tr>
+        <tr><td class="k">ISDPersonalComputerToolSystem</td><td>個人管家：行事曆、待辦、習慣、專案</td><td>launcher.bat（:8770）、<code>-m lsc.cli run … --json</code></td><td>3</td><td><span class="pill ok">核心</span></td><td>active 11-09</td></tr>
+        <tr><td class="k">ISDInfoCollectorDeck</td><td>情報桌：抓新聞、全文封存、AI 主題卡</td><td>start.cmd、<code>-m newsdesk.cli … --json</code></td><td>4</td><td><span class="pill ok">核心</span></td><td>active 10-13</td></tr>
+        <tr><td class="k">CloudServicesPlatform</td><td>本機私人雲：檔案、記事板、服務註冊、對外網址</td><td><code>python main.py</code>（:8760）、<code>csp … --json</code></td><td>3</td><td>infra</td><td>active 11-04</td></tr>
+        <tr><td class="k">ISDTeleKitSDK</td><td>從 ClawBot 抽出的 Telegram bot SDK</td><td><code>import isdtelekit</code></td><td>4</td><td>infra</td><td>v0.2.1（10-05）</td></tr>
+        <tr><td class="k">ClaudeLogin</td><td>透過官方 claude CLI 用訂閱額度呼叫 Claude</td><td><code>claude-sub --format json</code></td><td>5</td><td>infra</td><td>stable 10-03</td></tr>
+        <tr><td class="k">_templates</td><td>/proj_new 用的範本倉庫（含兩個 Telegram bot 範本）</td><td>由 ClawBot 讀</td><td>4</td><td>infra</td><td>active 11-03</td></tr>
+        <tr><td class="k">ISDSkillsLibrary</td><td>空資料夾</td><td>—</td><td>—</td><td>infra（可當 pack 總目錄）</td><td>空的</td></tr>
+        <tr><td class="k">BibleReadingHelper</td><td>和合本脈絡地圖、查經台、靈修內容管線</td><td>local/*.html、node pipeline</td><td>4</td><td><span class="pill warn">小眾</span></td><td>active 11-02</td></tr>
+        <tr><td class="k">ChurchWorshipPPTMaker</td><td>從 Google 文件歌單產生敬拜 PPT（本來就給不懂技術的同工雙擊用）</td><td>run.bat（:8788）</td><td>5</td><td><span class="pill warn">小眾</span></td><td>active 10-27</td></tr>
+        <tr><td class="k">LINEBotForChurch</td><td>讀服事表，每週發 LINE 提醒</td><td>1-install／2-start.bat、<code>-m church_bot --json</code></td><td>4</td><td><span class="pill warn">小眾</span></td><td>active 11-02</td></tr>
+        <tr><td class="k">ISDStockProject</td><td>多市場交易研究、K 棒練習、回測</td><td>main.py、bats/*.bat</td><td>2</td><td><span class="pill warn">小眾</span></td><td>active 11-02</td></tr>
+        <tr><td class="k">ISDTradingSimulatorSystem</td><td>K 線回放＋模擬期貨下單</td><td>start.py（:8080）、<code>cli.py --json</code>、docker</td><td>3</td><td><span class="pill warn">小眾</span></td><td>active 10-30</td></tr>
+        <tr><td class="k">基本面分析工具</td><td>台股基本面報表</td><td>scripts\生成報表.bat、streamlit</td><td>3</td><td><span class="pill warn">小眾</span></td><td>active 11-02</td></tr>
+        <tr><td class="k">GamePlatformInfoCollector</td><td>遊戲市場週報網頁</td><td><code>python app.py</code>（:5000）</td><td>4</td><td><span class="pill warn">小眾</span></td><td>dormant 09-07</td></tr>
+        <tr><td class="k">GoogleChromeUrlCleaner</td><td>書籤匯入，用 Claude 分類</td><td>run.py（:9009）</td><td>4</td><td><span class="pill warn">小眾</span></td><td>dormant 09-12</td></tr>
+        <tr><td class="k">ClaudeTimerResetter</td><td>提早啟動額度視窗、自動接續對話</td><td>dist\*.exe、<code>-m claude_timer.cli</code></td><td>4</td><td>開發工具</td><td>active 11-02</td></tr>
+        <tr><td class="k">mvpPipelineStudy</td><td>一鍵在 worktree 開 Claude Code session</td><td>run.py（:8790）</td><td>2</td><td>開發工具</td><td>active 11-04</td></tr>
+        <tr><td class="k">ISDPipelineAgent</td><td>需求變成 DAG，派 Claude Code 去做</td><td>run.py（:8780）、<code>-m pipeline_agent.cli --json</code></td><td>2</td><td>開發工具</td><td>凍結 11-02</td></tr>
+        <tr><td class="k">WorkflowHelperTool</td><td>專案甘特看板＋AI 流水線</td><td>run.bat（:8770 ⚠ 與 ISDPCS 撞號）</td><td>3</td><td>開發工具</td><td>dormant 09-15</td></tr>
+        <tr><td class="k">PromptHelperTool</td><td>prompt 範本庫</td><td>run.bat（:8765 ⚠ 與 ClawBot 入口撞號）</td><td>4</td><td>開發工具</td><td>dormant 09-11</td></tr>
+        <tr><td class="k">PIDKiller</td><td>查 port 和程序樹，整棵結束</td><td>PIDKiller.exe</td><td>5</td><td>開發工具</td><td>dormant 09-08</td></tr>
+        <tr><td class="k">UnityBuildDesk</td><td>Unity 無介面依序建置</td><td><code>py build_desk.py</code></td><td>4</td><td>開發工具</td><td>dormant 09-29</td></tr>
+        <tr><td class="k">Blender3DMCP</td><td>用 Claude Code 經 Blender MCP 做模型再進 Unity</td><td>setup\setup.ps1</td><td>3</td><td>開發工具</td><td>dormant 09-23</td></tr>
+        <tr><td class="k">StockLikenessClassifier</td><td>K 線分群、人工審核、再訓練</td><td>run.ps1（:8000 ⚠ 與 NDMS 撞號）</td><td>2</td><td>不打包</td><td>10-27</td></tr>
+        <tr><td class="k">StockCNN</td><td>K 棒型態辨識模型</td><td>train_patterns.py</td><td>2</td><td>不打包</td><td>dormant 10-09</td></tr>
+        <tr><td class="k">KGI API Bot</td><td>凱基下單 CLI、停損追蹤（<b>真錢</b>）</td><td><code>python -m kgi order …</code></td><td>1</td><td><span class="pill bad">不打包</span></td><td>dormant 06-22</td></tr>
+        <tr><td class="k">New-NTU-Data-Management-System</td><td>學校資料處理平台（工作）</td><td>run.ps1（:8000）</td><td>1</td><td><span class="pill bad">不打包</span></td><td>active 10-19</td></tr>
+        <tr><td class="k">Notifier_TB</td><td>舊交易訊號 bot（11-02 已併入 ClawBot）</td><td>launcher.bat</td><td>1</td><td>不打包</td><td>legacy</td></tr>
+        <tr><td class="k">CryptoCurrencyDownloader</td><td>用 ccxt 下載加密貨幣 K 線</td><td>downloader.bat</td><td>2</td><td>不打包</td><td>dormant 06-09</td></tr>
+        <tr><td class="k">ForexDownloader</td><td>下載外匯 1 分 K</td><td>installer.bat、runner.bat</td><td>2</td><td>不打包</td><td>dormant 07-04</td></tr>
+        <tr><td class="k">AutoTraderBot</td><td>早期 yfinance 回測練習</td><td>main.py</td><td>1</td><td>不打包</td><td>legacy 05-26</td></tr>
+        <tr><td class="k">ISDStockProject - Main</td><td>同一個 repo 停在 08-11 的舊快照（少 boundary_lab 與 09-12 memo）</td><td>同上</td><td>1</td><td>不打包</td><td>legacy（可刪，你決定）</td></tr>
+        <tr><td class="k">ISDAgentPractice</td><td>「要不要做 agent」的決策紀錄</td><td>—</td><td>1</td><td>不打包</td><td>docs-only</td></tr>
+        <tr><td class="k">CUBE_Card_Searcher</td><td>空資料夾</td><td>—</td><td>—</td><td>不打包</td><td>空的</td></tr>
+      </tbody>
+    </table></div>
+    <div class="two">
+      <div><span class="label">已經是「skill pack」形狀的（JSON CLI＋README＋SKILL.md）</span>
+        <ul>
+          <li>完整：日記（<code>docs/cli.md</code> 有測試守著）、金流簿、ISDPCS（改刪要 <code>--confirm true</code>）、CSP、ClaudeTimerResetter、mvpPipelineStudy</li>
+          <li>只差 SKILL.md：LINEBotForChurch、情報桌、ISDPipelineAgent、交易模擬器</li>
+        </ul>
+      </div>
+      <div><span class="label">這些工具碰到或取代的主流服務</span>
+        <ul>
+          <li>通訊：Telegram Bot API、LINE Messaging API、Google Sheets／Docs</li>
+          <li>取代：Google Calendar＋Todoist（ISDPCS）、YNAB 類記帳（金流簿）、Day One 類日記、Feedly／Pocket（情報桌）、Dropbox／Keep（CSP）、ProPresenter（PPT）、TradingView 回放（模擬器）、raindrop.io（書籤）</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2>2 · 要不要做：OpenClaw、Hermes 已經做了，你再做有沒有必要 <span class="pill ok">完成</span></h2>
+    <div class="verdict">
+      <h3>結論</h3>
+      <ul>
+        <li><b>不要再做一套通用 agent 框架</b>（11-04 四軸盤點已經下過這個結論：C 路線不排）。loop、skill 格式、memory 慣例業界都收斂了，自己寫沒有優勢。</li>
+        <li><b>要做的是「發行版」</b>：裝得起來、資料留在自己電腦、AI 來源可換、功能一個資料夾一個加。這一塊查遍 2026 的方案沒有人做到你描述的那種程度（下表）。你的痛點是真的：OpenClaw 在 Windows 到今天官方還是「建議 WSL2」。</li>
+        <li><b>但要先講一個你錄音裡沒提到的硬限制</b>：「裝在自己電腦」的前提是<b>那台電腦要一直開著</b>，提醒才會響、早上的簡報才會送。工程師的桌機是這樣，一般人的筆電不是。這決定了第 4 節的拓樸：本機優先，但要留「架在別人那邊」的路。</li>
+      </ul>
+    </div>
+    <div class="panel tbl"><table>
+      <thead><tr><th>方案</th><th>要先會什麼</th><th>Windows</th><th>AI 從哪來</th><th>資料在哪</th><th>對一般人</th></tr></thead>
+      <tbody>
+        <tr><td class="k">OpenClaw（小龍蝦）</td><td>Node.js、終端機、<code>openclaw onboard</code>、Gateway；六種安裝法</td><td>官方仍建議 WSL2；原生 CLI／Gateway 2026-05 起可用、Windows Hub 2026-06 起</td><td>自己拿 API key</td><td>自己機器</td><td>以終端機安裝為主，面向熟悉終端機的使用者</td></tr>
+        <tr><td class="k">Hermes Agent（Nous）</td><td>Linux／macOS／WSL2、curl 安裝、終端機、@userinfobot 查 id</td><td>只有 WSL2</td><td>Nous Portal 訂閱、OpenRouter、OpenAI、本機端點</td><td>自己機器</td><td>以終端機安裝為主，面向熟悉終端機的使用者</td></tr>
+        <tr><td class="k">nanobot（HKUDS）</td><td>Python 3.11、pip／uv、終端機</td><td>可以，但沒有 Windows 教學</td><td>自己拿 API key 或 Ollama</td><td>自己機器</td><td>最輕，但還是終端機＋key</td></tr>
+        <tr><td class="k">Telegram Managed Bots（Bot API 9.6，2026-04）</td><td>什麼都不用：開發者做一支「管理 bot」，每個人兩下得到自己獨立的一支</td><td>不相干（跑在開發者的伺服器）</td><td>開發者的</td><td><b>開發者的伺服器</b></td><td>最接近「兩下就有」；但資料不在自己手上。<b>是 SYNOX 托管模式的現成發行管道</b></td></tr>
+        <tr><td class="k">托管服務（ClawDrift、SimpleClaw、Ekuri…）</td><td>註冊、連 Telegram</td><td>不相干</td><td>廠商的（月費）</td><td>廠商的伺服器</td><td>零安裝；隱私與月費是代價；多半是廠商自己的宣傳</td></tr>
+        <tr><td class="k"><b>SYNOX（第 3 節）</b></td><td>雙擊 Setup.bat、在視窗裡貼 token、在 Telegram 傳一個六位數</td><td>Windows 原生，不用終端機</td><td>四選一：朋友公司的端點、自己的 key、本機 Claude Code、先不用</td><td>自己電腦、落地加密</td><td>目標族群就是這群；代價是你要扛支援（更新、Python 壞掉、防毒誤判）</td></tr>
+      </tbody>
+    </table></div>
+    <div class="two">
+      <div><span class="label">你有、他們都沒有的</span>
+        <ul>
+          <li>工具層的 effect／DANGER／preview 旗標、人與 AI 同一個 authorize、驗證碼不經 AI、手機上有期限的核准卡（11-04 盤點比了 13 個專案都沒有）</li>
+          <li>「不用問 @userinfobot」的配對流程、不用終端機的安裝、朋友公司 LLM 當 adapter、落地加密</li>
+        </ul>
+      </div>
+      <div><span class="label">誠實的代價</span>
+        <ul>
+          <li>一般人的電腦不會一直開 → 排程類功能打折；對策見第 4 節（小主機或托管）</li>
+          <li>給非工程師的軟體＝支援成本：Python 更新、Windows Defender 誤判 .bat、Telegram token 被貼錯</li>
+          <li>市場：你的判斷我同意（會架的人不到一兩成、想要的人多）；但先用 5–10 個朋友當試點，別一開始就想「推給所有人」</li>
+        </ul>
+      </div>
+    </div>
+    <p class="muted">來源：OpenClaw 官方 Windows 文件（docs.openclaw.ai/platforms/windows，2026.5.7 與 2026.6.9 兩版）、Hermes 官方 Telegram 指南、HKUDS/nanobot README、ForkLog 與 Startup Fortune 關於 Bot API 9.6 Managed Bots 的報導、bitdoze／Koi Security 關於 CVE-2026-25253 與 ClawHavoc 的整理。第三方部落格的數字（惡意 skill 341～1,400 個）彼此不一致，只取「數百到上千」。</p>
+  </section>
+
+  <section id="s3">
+    <h2>3 · 打包：SYNOX 建好了 <span class="pill ok">v0.1.0・86 測試全過</span></h2>
+    <div class="verdict">
+      <h3>一句話</h3>
+      <ul>
+        <li><b>新 repo <code>%USERPROFILE%\Documents\SYNOX</code></b>（10 個 commit、134 個檔、程式約 3,500 行）：ISDTeleKitSDK 0.2.1 vendor 進來（與原始碼逐檔比對一字不差）＋ LLM adapter ＋ pack 載入器 ＋ 加密保管箱 ＋ 排程 ＋ tkinter 精靈 ＋ Setup／Start／Stop／Console 四個 .bat。相依只有 <code>requests</code>、<code>cryptography</code>。</li>
+        <li><b>我自己重跑過</b>：pytest 86 passed；<code>doctor --offline</code> 沒問題；終端機 smoke（下面原文）：記帳、預算超過警告、提醒、排程包指令、AI 記一筆、AI 想清空筆記 → 核准卡 → 取消；換成別人的身分看 <code>/money</code> 是「未知指令」（owner-only 對別人隱形，跟 ClawBot 一樣）。</li>
+        <li><b>沒試過的</b>：<code>Setup.bat</code> 的安裝路徑（winget／下載 Python）沒在這台跑；精靈視窗沒開過（只測了它背後的邏輯）；沒打過真的 Telegram、真的 AI、真的 <code>claude</code>；桌面捷徑沒真的建。全部列進 <code>docs/untested.md</code>。</li>
+      </ul>
+    </div>
+    <pre>你 > 幫我記一筆 65 元 早餐
+🤖 好了，💰 記了：早餐 65 元／這個月共 265 元
+你 > 把筆記全部刪掉
+🤖 ⚠️ AI 想執行：/note_clear（10 分鐘內有效；按 ✅ 才會執行）  [1] ✅ 執行  [2] ❌ 取消
+你 > !2
+🤖 好，不執行 /note_clear。
+你 > /money 50 咖啡
+🤖 💰 記了：咖啡 50 元／這個月共 315 元／⚠️ 這個月已經超過預算 100 元（超過 215 元）
+你 > /schedule_add 21:00 /money_month
+🤖 🗓 好，每天 21:00 替你執行：/money_month（只有 bot 開著時才會執行）
+你 > :as 42
+你 > /money 1 x
+🤖 未知指令：/money</pre>
+    <div class="panel tbl"><table>
+      <thead><tr><th>元件</th><th>在哪</th><th>做了什麼</th><th>狀態</th></tr></thead>
+      <tbody>
+        <tr><td class="k">安裝</td><td><code>Setup.bat</code>、<code>setup/bootstrap.ps1</code></td><td>找 <code>py -3.11+</code> → 沒有就 winget 裝 Python 3.12 → 還不行就下載 embeddable zip；建 .venv、裝套件、開精靈。.bat 全 ASCII＋CRLF、.ps1 UTF-8 有 BOM（我用 <code>file</code> 驗過）</td><td><span class="pill warn">沒在這台跑</span></td></tr>
+        <tr><td class="k">精靈</td><td><code>src/synox/wizard/</code></td><td>三頁：貼 token（<code>getMe</code> 驗）→ 畫面出六位數、朋友在 Telegram 傳那六個數字、精靈自己 <code>getUpdates</code> 等到就記下 owner_id → AI 四選一＋「測一下」（<code>adapter.probe()</code>）。API key 進保管箱，<code>config.json</code> 只寫 <code>vault:llm_api_key</code>。桌面捷徑、開機自啟 .cmd</td><td><span class="pill warn">視窗沒開過</span></td></tr>
+        <tr><td class="k">LLM adapter</td><td><code>src/synox/llm/</code></td><td><code>openai_compat</code>（OpenAI／Gemini 相容／公司閘道／Ollama）、<code>anthropic</code>、<code>claude_code</code>（<code>claude -p --output-format json</code>）、<code>fake</code>；端點不支援 tool-calling 就自動改 JSON-in-text 協定（解析器容錯：fenced、前後有話）</td><td><span class="pill ok">測試過（假連線）</span></td></tr>
+        <tr><td class="k">保管箱</td><td><code>src/synox/vault/</code></td><td>Fernet＋scrypt、每次存檔換 salt、原子寫入；主金鑰用 Windows DPAPI 綁這個帳號（真的在這台試過）；篡改、金鑰錯、檔案壞都丟 <code>VaultError</code>、不蓋資料；有 .enc 檔就絕不重造金鑰</td><td><span class="pill ok">真的加密</span></td></tr>
+        <tr><td class="k">pack 載入器</td><td><code>src/synox/packs/</code></td><td><code>pack.json</code>＋<code>SKILL.md</code>；三種 kind：python（資料夾裡的 <code>pack.py</code>）、cli（包會印 JSON 的命令列 → 你的金流簿、日記、ISDPCS 就是走這條）、connector（先登記）。壞的 pack 跳過並記在報告裡</td><td><span class="pill ok">三種都有測試</span></td></tr>
+        <tr><td class="k">出廠 pack</td><td><code>packs/notes</code>、<code>packs/money</code>、<code>packs/remind</code></td><td>隨手記、記帳（月總、預算警告）、提醒；都 owner-only、都進保管箱。四個 connector 設計稿：google-calendar、notion、todoist、apple-reminders-caldav（pack.json＋SKILL.md＋README，沒有網路程式）</td><td><span class="pill ok">可用</span></td></tr>
+        <tr><td class="k">AI 助理</td><td><code>src/synox/agent/</code></td><td>工具＝指令樹（名稱 <code>group__leaf</code>、驗證碼欄位不給）；<code>ai_decision</code> 是唯一判斷；DANGER／要 sudo／要驗證碼 → 核准卡（SDK Pending、有期限、按 ✅ 時以 via=BUTTON 再 authorize 一次）；SKILL.md frontmatter 進系統提示、正文按需 <code>skill_read</code>；<code>/ai</code>、<code>/ai_usage</code>、<code>/ai_reset</code>；擁有者的自由文字直接進 AI</td><td><span class="pill ok">FakeAdapter 走完整輪</span></td></tr>
+        <tr><td class="k">排程</td><td><code>src/synox/schedule/</code></td><td>30 秒掃、以擁有者身分 via=ROUTINE 送進 dispatcher、一天一次；<code>/remind_*</code>（文字）、<code>/schedule_*</code>（包指令，<code>Node.wraps</code>、建立時 via=SCHEDULE 驗裡面那個）；提醒內容也進保管箱</td><td><span class="pill ok">測試過</span></td></tr>
+        <tr><td class="k">文件</td><td><code>README.md</code>、<code>docs/AGENT.md</code>、<code>docs/pack-format.md</code>、<code>docs/security.md</code>、<code>CHANGELOG.md</code></td><td>給拿到資料夾的人三步＋FAQ＋「還沒有的」；給接手的人地圖與 invariants；<code>scripts/make_zip.py</code> 只打包 git 追蹤的檔（118 個）</td><td><span class="pill ok">有</span></td></tr>
+      </tbody>
+    </table></div>
+    <div class="two">
+      <div><span class="label">子代理偏離規格、我接受的</span>
+        <ul>
+          <li>核准節點叫 <code>agent.ai_approve</code>（<code>agent</code> 群組是 bare，<code>approve</code> 會變成 <code>/approve</code>）</li>
+          <li>pack 的指令用 <code>packs/kit.command</code> 照位置填欄位（SDK 的 <code>parse_fields</code> 會把 <code>/money 120 午餐</code> 讀成一個欄位）；欄位 schema 照樣給 AI</li>
+          <li><code>claude_code</code> 直接 <code>subprocess.run</code>（adapter 拿不到 app，不能走 JobRunner；寫在 AGENT.md）</li>
+          <li>Setup.bat 安裝時會有進度視窗（不用打字；精靈本身用 pythonw 開）</li>
+          <li>多了：<code>stop</code> 子指令、pack.json 的 <code>group</code>／<code>access</code>／<code>order</code></li>
+        </ul>
+      </div>
+      <div><span class="label">v0 沒做（README 也寫了）</span>
+        <ul>
+          <li><code>/backup</code>、connector 真的接線、AI 長期記憶、排程連錯暫停、exe 打包、macOS／Linux 安裝器</li>
+          <li>兩個 AI 的限制：按了核准卡結果回給人、AI 不接著做；cli pack 在背景回的，AI 拿到的工具結果是空的</li>
+          <li>精靈預填的模型名（<code>gpt-4o-mini</code>、<code>claude-sonnet-4-5</code>、<code>gemini-2.0-flash</code>）沒驗過，可改、「測一下」會真的試</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section id="s4">
+    <h2>4 · 安全架構：資料在誰手上、LLM 怎麼換、能不能在 Telegram 端加密 <span class="pill warn">架構定稿・demo 建置中</span></h2>
+    <div class="verdict">
+      <h3>2026-11-10 改寫：你糾正得對，層要拆開</h3>
+      <p class="muted">第一批這裡寫「Telegram 不是端對端、LLM 要看明文，所以加密沒用」，把兩件事黏在一起了。拆開之後是四個會看到內容的位置，各自能不能擋不一樣（全文 <code>docs/plans/2026-11-10-synox-architecture-v1.md</code>）：</p>
+      <ul>
+        <li>① <b>Telegram 平台</b>看到你打的字——擋不了，用 Telegram 的代價。</li>
+        <li>② <b>跑 bot 的程序</b>看到同樣的字——看它在誰的機器上：你自己的電腦＝只有你；營運者的伺服器＝營運者。</li>
+        <li>③ <b>存起來的資料</b>——<b>可以完全對營運者保密</b>：金鑰在使用者自己的裝置產生、伺服器只存密文（不能拿 Telegram 身分當金鑰，營運者知道身分）。</li>
+        <li>④ <b>LLM 供應者</b>看到提示——擋不了「供應者看到」，但可以決定由誰送（使用者的裝置直接送，不經營運者）、送給誰。</li>
+      </ul>
+      <p>結論：A、B、C 三條都做、安裝時就選。A 與 B 是同一個安裝包（差在 AI 頁填誰的端點），所以精靈只問「個人版／伺服器版」；伺服器版再分 <b>C1 托管資料</b>（營運者②③④都看得到，要講清楚）與 <b>C2 加上 SYNOX Node</b>（使用者自己的裝置持金鑰、跑 pack、送 LLM；營運者只看到②，用 Web UI 聊天時連②都看不到）。Node 這一輪只定規格。</p>
+    </div>
+    <div class="panel tbl"><table>
+      <thead><tr><th>拓樸</th><th>資料庫在</th><th>LLM 是</th><th>朋友公司看得到</th><th>適合誰</th><th>建議</th></tr></thead>
+      <tbody>
+        <tr><td class="k">A 本機優先</td><td>自己電腦，落地加密（DPAPI 綁 Windows 帳號）</td><td>自己的（Claude Code／API key／Ollama）</td><td>什麼都看不到</td><td>電腦常開、自己有 AI 來源的人</td><td><span class="pill ok">預設</span></td></tr>
+        <tr><td class="k">B 本機 host＋別人的 LLM</td><td>自己電腦，落地加密</td><td>朋友公司的端點（adapter <code>openai_compat</code>）</td><td>你送出的問句＋工具回傳給 AI 的那幾行；<b>看不到資料庫、看不到聊天全文</b></td><td>沒有訂閱、沒有 key 的人（你朋友的情境）</td><td><span class="pill ok">給沒 AI 的人</span>；要更保守就本機模型</td></tr>
+        <tr><td class="k">C 整個 host 架在朋友公司</td><td>公司伺服器</td><td>公司的</td><td><b>一切</b>：營運者有 bot token、有資料庫、有 LLM 日誌。每人一把金鑰加密只防「資料庫被偷走」，防不了營運者</td><td>電腦不常開、又不介意公司看到的人</td><td><span class="pill warn">只在講清楚的前提下做</span>；用 Telegram Managed Bots 發行、每人一個隔離實例</td></tr>
+      </tbody>
+    </table></div>
+    <div class="two">
+      <div><span class="label">LLM adapter（第 3 節的 <code>synox/llm/</code>）</span>
+        <ul>
+          <li>一個介面 <code>chat(messages, tools) → Reply</code>＋<code>probe()</code>；<code>openai_compat</code>（OpenAI、Gemini 相容端點、公司閘道、Ollama、LM Studio 全是這一支）、<code>anthropic</code>、<code>claude_code</code>（你現在的路）、<code>fake</code></li>
+          <li>端點不支援 tool-calling（很多公司閘道、<code>claude -p</code>）→ 自動改用 JSON-in-text 協定，功能不打折</li>
+          <li>adapter 不碰指令樹、不碰 Telegram；換 LLM 只改 <code>config.json</code> 的 <code>llm</code> 一段。這就是你說的「把 Claude 訂閱換成朋友公司的 AI」的 adapter pattern</li>
+        </ul>
+      </div>
+      <div><span class="label">你的智慧財產、對方的資安、備份</span>
+        <ul>
+          <li><b>不把 host 放進朋友公司</b>：給他們的是「每個人自己裝的 SYNOX＋他們的 LLM 端點」（拓樸 B）。你的程式不落在他們伺服器，他們的資安事故也波及不到朋友的資料庫。</li>
+          <li>發行用 zip／之後 exe，SDK vendor 進去；授權條款（建議「可免費個人使用、不可轉售與托管」的 source-available 條款）寫在 LICENSE——這是 Q43</li>
+          <li>備份：<code>/backup</code> 把 <code>data/</code> 打成一個用同一把 vault 金鑰衍生的加密 zip，放到 OneDrive／Google Drive 同步資料夾即可；換電腦用配對碼＋金鑰檔還原（v0 先做匯出）</li>
+        </ul>
+      </div>
+    </div>
+    <div class="two">
+      <div><span class="label">demo ①：落地就是密文（<code>data/money.json.enc</code> 前 80 bytes）</span>
+        <pre>{"synox_vault": 1, "kdf": "scrypt", "n": 16384, "r": 8, "p": 1, "salt": "U36yyX1…   ← 第 1 行：參數，刻意明文
+gAAAAABq8R56cNyNGZ6tzXmS3WaiWVNgfSXM4QPGLIiiwy3HhI0U83CnCB2Iuz0epPexLc4RBYCH6ot2…   ← 第 2 行：Fernet 密文
+data/.synox.key：SYNOXKEY1 dpapi AQAAANCM…   ← 主金鑰被 Windows DPAPI 包住，只有這個 Windows 帳號解得開</pre>
+      </div>
+      <div><span class="label">demo ②：換 LLM 只改一段（<code>config.json</code>）</span>
+        <pre>"llm": {"kind": "openai_compat",
+        "base_url": "https://ai.朋友公司.example/v1",
+        "api_key": "vault:llm_api_key",
+        "model": "公司給的模型名"}
+// 換成 "kind": "claude_code" 就是你現在的路；
+// "anthropic"＝API key；"none"＝只用指令</pre>
+      </div>
+    </div>
+    <p class="muted">demo ③（人話 → 工具 → 核准卡）就是第 3 節那段終端機原文：「把筆記全部刪掉」停在 ✅／❌ 卡上，按 ❌ 什麼都沒發生。</p>
+  </section>
+
+  <section id="s5">
+    <h2>5 · 接現成服務：別人不必走你那套 <span class="pill ok">完成</span></h2>
+    <div class="verdict">
+      <h3>結論</h3>
+      <ul>
+        <li><b>行事曆、待辦、筆記：接現成的</b>。Google Calendar、Notion、Todoist 2026 年都有官方 remote MCP（OAuth），接法一致；ISDPCS 的行事曆對一般人不是賣點，你的賣點是「用 Telegram 講一句就排進他本來就在用的日曆」。</li>
+        <li><b>記帳：自己的最合理</b>。台灣人常用的記帳城市、Moze、CWMoney 都沒有公開 API；開源的 Actual Budget／Firefly III 要自己架伺服器，一般人不會。SYNOX 的 <code>money</code> pack（本機、落地加密）＋ CSV 匯出就是對的；之後要出 iOS 版再說。</li>
+        <li><b>Apple 系（備忘錄、提醒事項、日誌）沒有公開 API</b>：備忘錄只能 Mac 上 AppleScript／捷徑；提醒事項走 iCloud CalDAV 的 VTODO 各家說法衝突（2Do 說不同步、其他說可以），要實測；Google Keep 的 API 只給 Workspace 管理員。這幾個列為「等 Apple」，不投資。</li>
+        <li><b>skill 的設計要「資料主人可換」</b>：<code>calendar.add</code>、<code>todo.list</code> 是介面，後端是 Google／Todoist／Notion／本機；使用者在精靈裡選一個，AI 看到的工具名不變。</li>
+      </ul>
+    </div>
+    <div class="panel tbl"><table>
+      <thead><tr><th>你的工具</th><th>主流替代</th><th>接法（2026-11 查證）</th><th>建議</th></tr></thead>
+      <tbody>
+        <tr><td class="k">ISDPCS 行事曆</td><td>Google Calendar、Apple 行事曆、Outlook</td><td>Google：REST API＋官方 remote MCP <code>calendarmcp.googleapis.com</code>（Cloud Next '26 發表、開發者預覽、OAuth）；Apple：CalDAV <code>caldav.icloud.com</code>＋app 專用密碼（VEVENT 確定可用）；Outlook：Microsoft Graph</td><td>connector 第一批</td></tr>
+        <tr><td class="k">ISDPCS 待辦／習慣</td><td>Todoist、Microsoft To Do、Apple 提醒事項、Google Tasks</td><td>Todoist：官方 remote MCP <code>ai.todoist.net/mcp</code>（OAuth）或 API v1（REST v2 已於 2026 年初退役）；Google Tasks REST；Apple 提醒事項：CalDAV VTODO 說法衝突、要實測</td><td>Todoist 先接；Apple 等實測</td></tr>
+        <tr><td class="k">筆記（/note、CSP 記事板）</td><td>Notion、Apple 備忘錄、Google Keep、Obsidian</td><td>Notion：官方 remote MCP <code>mcp.notion.com/mcp</code>（OAuth、免費方案可用）或 integration token；Obsidian：直接寫 .md 進它的資料夾（最簡單，iCloud／Sync 自己同步）；Keep：API 只給 Workspace 管理員；Apple 備忘錄：沒有 API</td><td>Notion＋Obsidian 兩種 connector</td></tr>
+        <tr><td class="k">金流簿（記帳）</td><td>記帳城市、Moze、CWMoney、YNAB、Actual Budget、Firefly III</td><td>台灣三個 app 都沒 API（只有 CSV 匯出入）；YNAB 有 API（付費）；Actual（MIT、本機優先、有 API）、Firefly（AGPL、REST）要自己架</td><td><b>自己的 money pack＋CSV 匯出</b></td></tr>
+        <tr><td class="k">提醒（/remind）</td><td>Google Calendar 通知、Apple 提醒</td><td>Telegram 本身就是送達管道，不必接</td><td>保留；排程寫進 Google Calendar 當備援（電腦沒開時手機還會響）</td></tr>
+        <tr><td class="k">情報桌（新聞簡報）</td><td>Feedly、Google News、Inoreader</td><td>RSS 是通用格式；Feedly／Inoreader 有 API（付費）</td><td>pack 吃 RSS 清單即可，不接服務</td></tr>
+        <tr><td class="k">日記</td><td>Day One、Apple 日誌、Notion</td><td>Day One 只有匯入匯出；Apple 日誌沒 API</td><td>自己的 pack 合理；匯出 Day One JSON</td></tr>
+        <tr><td class="k">股票、聖經、教會</td><td>TradingView／Fugle／證交所；YouVersion；Planning Center</td><td>小眾</td><td>留在你自己的 ClawBot，不進第一批</td></tr>
+      </tbody>
+    </table></div>
+    <div class="two">
+      <div><span class="label">connector pack 的四種接法（<code>pack.json</code> 的 <code>auth</code>）</span>
+        <ul>
+          <li><code>oauth</code>：官方 remote MCP（Google Calendar、Notion、Todoist）。要人在瀏覽器按一次授權 → 精靈多一頁「連接 Notion」；token 存 vault。headless 不行，所以一定要在精靈裡做</li>
+          <li><code>token</code>：Notion integration token、Todoist API token——貼一次</li>
+          <li><code>caldav</code>：Apple 行事曆／提醒事項，app 專用密碼</li>
+          <li><code>file</code>：Obsidian 資料夾、CSV 匯出——最沒有風險</li>
+        </ul>
+      </div>
+      <div><span class="label">市場反思（你的第 5 題後半）</span>
+        <ul>
+          <li>同意「會架的人是少數、想要的人是多數」。但這個市場 2026 已經有人在搶：Telegram 自己的 Managed Bots、托管廠商。你的差異不在 agent，在「資料不出門＋功能是你朋友圈真的在用的」。</li>
+          <li>別人用現成服務時，你的價值變成「Telegram 一句話 → 他們的日曆／Notion／Todoist」＋「提醒、簡報、記帳三件事每天自動發生」。這比「換掉他們的工具」好推。</li>
+          <li>先當朋友圈的個人管家發行版，不先想創業；真的有人願付費再談托管（拓樸 C）。</li>
+        </ul>
+      </div>
+    </div>
+    <p class="muted">來源：Google Calendar MCP 設定文件（developers.google.com/workspace/calendar/api/guides/configure-mcp-server）、Notion get-started-with-mcp、Doist 官方 MCP（@doist/todoist-mcp）與 Sync v9／REST v2 退役公告、tasks.org 與 2Do 關於 iCloud CalDAV 的文件、Google Keep API 概覽、Telegram 開發者論壇關於 bot 與 Secret Chat 的討論。</p>
+  </section>
+</div>
+<p style="font:10px/1.4 ui-monospace,monospace;opacity:.5;margin:24px 16px">線上版 <a href="https://claude.ai/artifact/JQuv6H3LeV4jdjD15z4Lyp">https://claude.ai/artifact/JQuv6H3LeV4jdjD15z4Lyp</a> · 本機版 docs/artifacts/2026-11-09-synox-generalization-audit.html · 頁面版本 <span data-stamp>849458bb68 · 2026-11-14</span></p>

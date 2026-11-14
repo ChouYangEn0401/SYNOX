@@ -15,7 +15,7 @@
 內容：
 
 1. 你保有你貢獻內容的著作權。
-2. 你授予專案維護者（含創始維護者，見 [GOVERNANCE.md](GOVERNANCE.md)）一個永久、全球、免費、不可撤銷的授權，可以使用、修改、散布你的貢獻，並可以**以任何授權（包含商業授權與閉源授權）再授權**。
+2. 你授予專案維護者（含創始維護者，見 [.github/GOVERNANCE.md](.github/GOVERNANCE.md)）一個永久、全球、免費、不可撤銷的授權，可以使用、修改、散布你的貢獻，並可以**以任何授權（包含商業授權與閉源授權）再授權**。
 3. 你聲明這份貢獻是你自己寫的，或你有權提交；沒有夾帶別人不允許公開的程式碼、密鑰或個人資料。
 4. 你的貢獻是「照現狀」提供，沒有任何擔保。
 
@@ -29,6 +29,13 @@
 - 安全相關的修改（權限、沙盒、保管箱、pack 掃描）請在 pull request 說明你考慮過的攻擊情境。
 - 回報安全問題請不要開公開 issue，見 [SECURITY.md](SECURITY.md)。
 
+## 參與討論 / Discussions
+
+想法、問題、實測結果，歡迎到 [GitHub Discussions](https://github.com/ChouYangEn0401/SYNOX/discussions)（中文或英文都可以）。
+正在徵求意見的：從其他生態（OpenClaw、Hermes Agent 等 Agent Skills 格式）匯入技能、以及沙盒——
+見 [docs/sandbox-roadmap.md](docs/sandbox-roadmap.md)（現況、Windows 的候選路線、探測腳本、徵求協助的任務）。
+Ideas, questions and test results are welcome in GitHub Discussions (Chinese or English). **安全漏洞不要貼在討論區**，見 [SECURITY.md](SECURITY.md).
+
 ## 聯絡
 
-商業授權、貢獻者同意書：`mi.anthony.chou@gmail.com`。安全通報：見 [SECURITY.md](SECURITY.md)。維護者名單見 [MAINTAINERS.md](MAINTAINERS.md)。
+商業授權、貢獻者同意書：`mi.anthony.chou@gmail.com`。安全通報：見 [SECURITY.md](SECURITY.md)。維護者名單見 [.github/MAINTAINERS.md](.github/MAINTAINERS.md)。

@@ -1,6 +1,6 @@
 """共用的假東西：整支 SYNOX（測試用的 pack、真的 vault 加密）跑在記憶體裡，不連 Telegram、不連網、不開埠。
 
-SYNOX 出廠不帶工具（2026-11-12，legacy/builtin-packs.md、legacy/connectors.md）。測試期間 `loader.PACK_DIRS`（「SYNOX 自己的 pack 資料夾」）
+SYNOX 出廠不帶工具（2026-11-12，docs/legacy/builtin-packs.md、docs/legacy/connectors.md）。測試期間 `loader.PACK_DIRS`（「SYNOX 自己的 pack 資料夾」）
 一律換成 tests/fixtures/packs/（money、notes：下架前內建版本的凍結複本，正本在 SYNOX_Libs；以前還加 connectors/，
 那 4 個連同測試搬到 SYNOX_Libs 了）
 （_test_pack_dirs，autouse）：make_bot、doctor、/bot_status、web 的 reload 看到的都是這一份，不讀 repo 的 packs/
@@ -61,6 +61,46 @@ def make_bot(tmp_path):
 def _test_pack_dirs(monkeypatch):
     from synox.packs import loader
     monkeypatch.setattr(loader, "PACK_DIRS", DEFAULT_PACK_DIRS)
+
+
+@pytest.fixture
+def no_sockets(monkeypatch):
+    """新的測試檔一律用（pytestmark = pytest.mark.usefixtures("no_sockets")）：測試不准開埠。"""
+    import socket
+
+    def refuse(*_a, **_k):
+        raise AssertionError("測試不准開埠")
+    monkeypatch.setattr(socket.socket, "bind", refuse)
+    monkeypatch.setattr(socket.socket, "listen", refuse)
+
+
+@pytest.fixture
+def no_subprocess(monkeypatch):
+    """手機入口的測試一律用（ADR 0026）：subprocess.Popen 一叫就失敗（通道程式永遠不在這台開發機跑）。"""
+    import subprocess
+
+    def refuse(*_a, **_k):
+        raise AssertionError("測試不准開子程序")
+    monkeypatch.setattr(subprocess, "Popen", refuse)
+
+
+APP_PACKS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "app_pack")
+
+
+@pytest.fixture
+def counter(make_bot, tmp_path):
+    """有工具服務 fixture（counter）的 bot＋它的管理員（假 listener：不開埠）。counter(raw=…, script=…)。
+    伺服器版先把 counter 鎖成 core（跟其他 fixture 一樣，不然第三方 python pack 只給擁有者）。"""
+    def factory(script=None, **kw):
+        if (kw.get("raw") or {}).get("mode") == "server":
+            trust_core(tmp_path / "data", os.path.join(APP_PACKS, "counter"))
+        bot = make_bot(script, pack_dirs=(FIXTURE_PACKS, APP_PACKS), **kw)
+        from synox.web import apps
+        from synox.web.apps.testing import FakeListen
+        manager = apps.of(bot.app)
+        manager.listen = FakeListen()
+        return bot, manager
+    return factory
 
 
 @pytest.fixture

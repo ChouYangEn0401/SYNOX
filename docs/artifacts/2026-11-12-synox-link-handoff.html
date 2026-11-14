@@ -1,0 +1,180 @@
+<!doctype html>
+<title>SYNOX Link 實作交接</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: status strip up top, then one reading column; decisions as numbered cards with a recommendation line. */
+:root{
+  --bg:#f7f8f7; --fg:#1c2321; --muted:#5c6a66; --line:#d8dedb; --panel:#ffffff; --panel-2:#eef2f0;
+  --accent:#0f766e; --accent-ink:#ffffff; --warn:#9a5b00; --good:#1f6b3a; --bad:#9b2c2c; --code:#f0f3f2;
+  --font-text:"Noto Sans TC","PingFang TC","Microsoft JhengHei",system-ui,sans-serif;
+  --font-mono:"JetBrains Mono","Cascadia Mono",Consolas,ui-monospace,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#141917; --fg:#e4e9e6; --muted:#98a59f; --line:#2b3330; --panel:#1b2220; --panel-2:#222b28;
+  --accent:#2dd4bf; --accent-ink:#06201c; --warn:#f0b35a; --good:#6fd39a; --bad:#f28b8b; --code:#10151399; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#141917; --fg:#e4e9e6; --muted:#98a59f; --line:#2b3330; --panel:#1b2220; --panel-2:#222b28;
+  --accent:#2dd4bf; --accent-ink:#06201c; --warn:#f0b35a; --good:#6fd39a; --bad:#f28b8b; --code:#10151399; color-scheme:dark }
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--font-text);font-size:16px;line-height:1.75;margin:0;
+  padding-block:0 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.wrap{max-width:860px;margin:0 auto}
+header.top{padding-block:40px 24px;border-bottom:1px solid var(--line)}
+.eyebrow{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700}
+h1{font-size:clamp(28px,4vw,40px);line-height:1.2;margin:8px 0 10px;text-wrap:balance;font-weight:700}
+.lede{font-size:18px;color:var(--muted);max-width:68ch;margin:0}
+.meta{display:flex;flex-wrap:wrap;gap:8px 20px;font-size:13px;color:var(--muted);margin-top:14px}
+h2{font-size:24px;margin:48px 0 12px;text-wrap:balance;scroll-margin-top:16px}
+h3{font-size:18px;margin:28px 0 8px}
+p,li{max-width:72ch}
+a{color:var(--accent)}
+code{font-family:var(--font-mono);font-size:.88em;background:var(--code);padding:1px 5px;border-radius:4px}
+pre{font-family:var(--font-mono);font-size:13px;line-height:1.6;background:var(--code);border:1px solid var(--line);
+  border-radius:8px;padding:14px 16px;overflow-x:auto;max-width:100%}
+pre code{background:none;padding:0;font-size:inherit}
+.strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin:22px 0 0}
+.stat{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--panel);min-width:0}
+.stat .l{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.stat .v{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1.3}
+.stat .s{font-size:13px;color:var(--muted)}
+.stat.good .v{color:var(--good)}.stat.warn .v{color:var(--warn)}
+.callout{border-left:3px solid var(--accent);background:var(--panel-2);padding:12px 16px;border-radius:0 8px 8px 0;margin:18px 0}
+.callout.warn{border-color:var(--warn)} .callout p{margin:4px 0}
+table{border-collapse:collapse;width:100%;font-size:14px;margin:14px 0}
+.tablewrap{overflow-x:auto;max-width:100%;margin:14px 0 22px}
+th,td{border-bottom:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:600;white-space:nowrap}
+td.k{white-space:nowrap;font-weight:500}
+.pill{display:inline-block;font-size:12px;line-height:1;padding:4px 8px;border-radius:999px;border:1px solid var(--line);white-space:nowrap}
+.pill.good{color:var(--good);border-color:currentColor}.pill.warn{color:var(--warn);border-color:currentColor}.pill.bad{color:var(--bad);border-color:currentColor}
+.dec{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:var(--panel);margin:12px 0}
+.dec h4{margin:0 0 6px;font-size:16px}
+.dec .n{font-family:var(--font-mono);font-size:12px;color:var(--accent);margin-right:8px}
+.dec p{margin:4px 0;font-size:15px}
+.dec .rec{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);font-size:14px}
+.dec .rec b{color:var(--accent)}
+ol.steps li{margin-bottom:8px} ol.steps code{white-space:nowrap}
+ul.check{list-style:none;padding:0} ul.check li{padding-left:28px;position:relative;margin-bottom:6px}
+ul.check li::before{content:"";position:absolute;left:2px;top:7px;width:14px;height:14px;border:1.5px solid var(--muted);border-radius:3px}
+footer{margin-top:56px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <div class="eyebrow">SYNOX · 實作交接與待決策 · 2026-11-12</div>
+  <h1>SYNOX Link 做到哪、還差什麼</h1>
+  <p class="lede">主控台↔哨兵安全連線的第一版已經寫進專案、測試全過，但只在開發機驗過。這一頁給擁有者：怎麼在兩台真機上試、什麼還沒做、哪幾件事要你拍板。</p>
+  <div class="meta"><span>分支：<code>claude/charming-einstein-41ih1s</code></span><span>調查文件：<code>docs/discussions/2026-11-12-link-architecture.html</code></span><span>使用說明：<code>docs/link.md</code></span></div>
+  <div class="strip">
+    <div class="stat good"><div class="l">新模組</div><div class="v">src/synox/link/</div><div class="s">12 個檔、約 1,400 行</div></div>
+    <div class="stat good"><div class="l">新測試</div><div class="v">18 全過</div><div class="s">tests/test_link.py，不綁埠</div></div>
+    <div class="stat good"><div class="l">整套測試</div><div class="v">1439 過</div><div class="s">12 個失敗跟改動前一模一樣（見下）</div></div>
+    <div class="stat warn"><div class="l">真機驗證</div><div class="v">還沒</div><div class="s">只跑過 127.0.0.1 的 TCP、記憶體、資料夾</div></div>
+  </div>
+</header>
+
+<div class="callout warn"><p><strong>🧪 定位：實驗品，不算核心。</strong>擁有者 2026-11-12 的方向是 SYNOX 核心維持空殼、指令盡量少，所以 link 之後很可能整包搬成獨立套件（或 pack），也可能拿掉。config 沒開 <code>link</code> 時它完全不存在（沒有指令、沒有執行緒、沒有檔案）；核心只在 app.py、config.py、doctor.py、__main__.py 各 import 一處，搬出去時要接回的切面列在 <code>docs/link.md</code>「要搬出去時」。</p></div>
+<h2 id="done">做了什麼</h2>
+<p>調查文件第 04 節那五層全部有程式；傳輸層做了 memory（測試）、folder（共用資料夾）、tcp（區網）三種。設計上的重點是<strong>安全跟路分開</strong>：信封端對端加密＋簽章，傳輸層只搬 bytes，所以之後加 MQTT 或序列埠不用碰安全層。</p>
+<div class="tablewrap"><table>
+<tr><th>檔案</th><th>做什麼</th><th>關鍵介面</th></tr>
+<tr><td class="k">link/identity.py</td><td>每台一組 Ed25519＋X25519 金鑰、<code>node_id</code>、名片 <code>SYNOX-CARD-1:…</code>（保管箱 <code>link_identity</code>）</td><td><code>load_or_create(vault, name)</code>、<code>NodeCard.from_text</code>／<code>verify</code></td></tr>
+<tr><td class="k">link/envelope.py</td><td>每封換金鑰的 X25519→HKDF→ChaCha20-Poly1305、Ed25519 簽章、AAD 含 to／seq／ts、重放防護</td><td><code>seal()</code>、<code>open_envelope()</code>、<code>ReplayGuard</code>、<code>MAX_FRAME</code>＝1 MB</td></tr>
+<tr><td class="k">link/peers.py</td><td>名單＋雙向 seq（保管箱 <code>link_peers</code>）</td><td><code>PeerStore.add／get／find／next_seq／saw</code></td></tr>
+<tr><td class="k">link/pairing.py</td><td>配對碼 <code>SYNOX-PAIR-1:…</code>（10 分鐘、一次、HMAC）、哨兵的 join 紀錄</td><td><code>issue／pending／verify_request／save_join／pending_join</code></td></tr>
+<tr><td class="k">link/transport.py</td><td>memory、folder、tcp（4 bytes 長度框架、沒驗過三次就斷、退避重連、最多 32 條）</td><td><code>start／send／bind／bad／stop／status</code></td></tr>
+<tr><td class="k">link/bus.py</td><td>事件匯流排（fnmatch 樣式、同步、例外隔離、<code>wait_for</code>、最近 200 筆）</td><td><code>subscribe／publish／history／wait_for</code></td></tr>
+<tr><td class="k">link/node.py</td><td>收信→驗→<code>link.in.&lt;kind&gt;</code>；心跳、在線、配對兩端</td><td><code>LinkNode.start／stop／send／tick／status</code></td></tr>
+<tr><td class="k">link/protocol.py</td><td>kind 常數、<code>Task</code> 狀態機、任務簿（保管箱 <code>link_tasks</code>，最多 500 筆）</td><td><code>TaskBook.add／update／find／items</code></td></tr>
+<tr><td class="k">link/roles.py</td><td>主控台（派、重做、交接、取消、通知）、哨兵（檢查、<code>dispatcher.handle</code>、<code>CaptureChannel</code> 收回覆）</td><td><code>ConsoleRole.dispatch／redo／handoff／cancel</code>、<code>WorkerRole.check／run_command</code></td></tr>
+<tr><td class="k">link/commands.py</td><td><code>/link_status</code>、<code>/link_peers</code>、<code>/link_run</code>、<code>/link_tasks</code>、<code>/link_task</code>、<code>/link_redo</code>、<code>/link_handoff</code>、<code>/link_cancel</code>、<code>/link_forget</code></td><td>群組 link、擁有者；AI 看得到除 forget 以外的</td></tr>
+<tr><td class="k">link/settings.py、link/__init__.py</td><td>config 的 <code>link</code> 區塊；<code>install(app, config, vault)</code>、<code>set_transport_factory</code>（測試換傳輸）</td><td><code>LinkSettings</code>、<code>build()</code></td></tr>
+<tr><td class="k">__main__.py、doctor.py、config.py、app.py</td><td><code>python -m synox link card｜pair｜join｜trust｜peers｜forget</code>；doctor 多一行；config 多 <code>link</code>；build 最後 <code>link.install</code></td><td>—</td></tr>
+<tr><td class="k">docs</td><td><code>docs/link.md</code>、AGENT.md（地圖、invariant 18、限制）、security.md（第三條會出電腦的路）、CHANGELOG、docs/README 索引、兩份 discussions</td><td>—</td></tr>
+</table></div>
+
+<h2 id="try">怎麼在兩台真機上試</h2>
+<p>兩台 Windows（或一台 Windows 一台樹莓派）在同一個區網。下面的 <code>192.168.1.10</code> 換成主控台的 IP。</p>
+<ol class="steps">
+<li>兩台都切到這個分支、裝好（<code>Setup.bat</code> 或 <code>pip install -e .[dev]</code>），各自的 bot 原本就能跑。</li>
+<li>主控台 <code>config.json</code> 加：<pre><code>"link": {"enabled": true, "role": "console", "name": "主控台",
+         "transport": {"kind": "tcp", "listen": "0.0.0.0:8831"}}</code></pre>哨兵加：<pre><code>"link": {"enabled": true, "role": "worker", "name": "客廳",
+         "transport": {"kind": "tcp", "connect": "192.168.1.10:8831"}}</code></pre>（Windows 防火牆會問主控台的 8831；只允許私人網路。）</li>
+<li>兩台 <code>python -m synox doctor --offline</code>：應該各有一行 <code>link：開，主控台／哨兵…</code>。</li>
+<li>兩台都 <code>Start.bat</code>（或 <code>python -m synox run</code>）。哨兵視窗應出現 <code>[LINK] connected to 192.168.1.10:8831</code>。</li>
+<li>主控台電腦：<code>python -m synox link pair</code> → 複製那一行 <code>SYNOX-PAIR-1:…</code>。<br>哨兵電腦：<code>python -m synox link join "&lt;那一行&gt;"</code>。15 秒內主控台視窗出現 <code>[LINK] paired worker …</code>。</li>
+<li>主控台的 Telegram：<code>/link_status</code>（哨兵應該 🟢）→ <code>/link_run 客廳 /note 買牛奶</code> → 幾秒後收到「✅ 任務 … 完成」。哨兵的 Telegram <code>/note_list</code> 看得到那筆。</li>
+<li>再試：<code>/link_run 客廳 /note_clear</code>（應被拒：danger 超過 max_effect）、<code>/link_redo</code>、<code>/link_cancel</code>、把哨兵關掉再開（應自動重連、<code>/link_status</code> 先 ⚪ 後 🟢）。</li>
+<li>開不了埠的話改走資料夾：兩台都寫 <code>"transport": {"kind": "folder", "dir": "\\\\NAS\\synox-link"}</code>、<code>"heartbeat": 0</code>；其餘步驟一樣（配對請求也走資料夾，慢幾秒）。</li>
+</ol>
+
+<h2 id="tests">測試現況</h2>
+<ul>
+<li><strong>新的 18 個</strong>（<code>tests/test_link.py</code>）：名片與身分、信封竄改／改收件者／改 seq／陌生寄件者／重放／時鐘、配對只在允許時看名片、設定解析、事件匯流排、資料夾傳輸、TCP 框架（socketpair）與沒驗過三次就斷、三台 SYNOX 的派任務→真的做了→通知、拒 danger／未知指令／陌生機器／非主控台的任務、重做與交接的 lineage／context、離線送不出去、取消、心跳在線，以及 CLI（card／pair／join／trust／forget）與 doctor。全部不綁埠。</li>
+<li><strong>整套</strong>：1439 過、1 略過、12 失敗。那 12 個在改動前就失敗，原因與 link 無關：5 個 <code>test_llm</code> 要 <code>ntu_easy_llm</code>（開發機沒裝）；7 個是環境的事：Windows 路徑或登錄檔的預期值（<code>C:\…</code>、<code>Software\Classes</code>、PowerShell）、或這台容器沒有 systemd（sandbox 後端的測試），在 Linux 開發機本來就過不了。</li>
+<li><strong>手動</strong>：真的 TCP listen／connect 在 127.0.0.1 跑過一次：配對、ping／pong、主控台重開後哨兵退避重連都正常。沒在 Windows、沒跨機器。</li>
+</ul>
+
+<h2 id="checklist">真機驗證清單（給拿到兩台的人）</h2>
+<ul class="check">
+<li>Windows 防火牆對 8831 的提示；只允許私人網路後哨兵連得上</li>
+<li>兩台時鐘差 &gt; 5 分鐘時信封被拒（log 寫「時間差太大」），對時後恢復</li>
+<li>哨兵關機 → 主控台 <code>/link_status</code> 在 ~90 秒內變 ⚪；開機後自動 🟢</li>
+<li>主控台重開：哨兵在 1→2→4…60 秒退避內重連；seq 不倒退（沒有「seq 不比上一封新」的拒信）</li>
+<li>派一個會跑 30 秒以上的 cli pack 指令：結果回得來、<code>task_timeout</code> 的行為</li>
+<li>派一個會出圖片的指令：主控台現在只看到 <code>[圖片 路徑]</code> 一行（已知限制）</li>
+<li>資料夾傳輸走 NAS 分享：Windows 的 SMB 鎖檔不會讓 <code>.msg</code> 讀不到（讀不到會下一輪再試）</li>
+<li>樹莓派當哨兵：Python 3.11+、<code>cryptography</code> wheel 裝得上、sandbox 後端 bwrap／systemd-run</li>
+<li><code>scripts/prepublish_check.py</code> 在真機 data/ 不在 git 的前提下仍然零發現</li>
+</ul>
+
+<h2 id="gaps">還沒做的</h2>
+<div class="tablewrap"><table>
+<tr><th>項目</th><th>現況</th><th>要做的話</th></tr>
+<tr><td class="k">跨網段</td><td>兩台要同一個區網、WireGuard，或共用資料夾</td><td>先用 WireGuard（不用改程式）；之後可寫 relay 傳輸（兩台都主動連一台只搬密文的小 VPS）</td></tr>
+<tr><td class="k">MQTT／序列埠傳輸</td><td>介面留著（六個方法），沒有實作</td><td>各約 150 行；MQTT 要 paho-mqtt 與一台 broker</td></tr>
+<tr><td class="k">任務中途進度</td><td>協定有 <code>task.progress</code>，哨兵沒有人送</td><td>CaptureChannel 收到第一則回覆就送 progress</td></tr>
+<tr><td class="k">圖片／檔案回傳</td><td>只回文字；圖片變成一行 <code>[圖片 路徑]</code></td><td>信封 1 MB 內可以直接帶 base64；大檔要分段</td></tr>
+<tr><td class="k">交接的 context 真的被用到</td><td>context 送到哨兵、記在任務簿，但哨兵跑指令時沒把它交給指令</td><td>放進子程序環境變數 <code>SYNOX_LINK_CONTEXT</code> 或 AI 的系統提示</td></tr>
+<tr><td class="k">per-哨兵指令白名單</td><td>只有 <code>max_effect</code></td><td>config <code>link.allow: ["note.*", "cam.*"]</code> 在 <code>WorkerRole.check</code> 多一關</td></tr>
+<tr><td class="k">取消</td><td>盡力：已開始做的做完、不回結果</td><td>cli pack 要有可中斷的子程序才做得到真正中止</td></tr>
+<tr><td class="k">主控台的通知</td><td>只走 <code>app.notify</code>（Telegram／Discord 私訊）</td><td>Web UI 對話頁要看到的話，接 web channel</td></tr>
+<tr><td class="k">TCP 的握手</td><td>沒驗過的人連得上、送三次垃圾才被斷</td><td>要「連 ACK 都不給」就加 Noise IK 握手；內網／WireGuard 裡不需要</td></tr>
+<tr><td class="k">安裝精靈</td><td>link 只能手寫 config.json</td><td>精靈多一頁「這台是主控台還是哨兵」</td></tr>
+</table></div>
+
+<h2 id="decide">要擁有者決定的</h2>
+<div class="dec"><h4><span class="n">D1</span>這一版要不要合進 dev／main？</h4>
+<p>現在在 <code>claude/charming-einstein-41ih1s</code>，config 不開 <code>link</code> 時行為跟以前一模一樣（<code>install()</code> 直接回 None、沒有指令、沒有執行緒）。</p>
+<div class="rec"><b>建議：</b>真機清單跑過前半（防火牆、配對、一個任務來回）再合；合的時候 README「還沒有」那一段把「Remote Control／派工」改成「有，alpha，見 docs/link.md」。</div></div>
+<div class="dec"><h4><span class="n">D2</span>AI 能不能不經核准卡就派任務？</h4>
+<p>現在 <code>/link_run</code> 是 WRITE、AI 看得到，所以 AI 說「叫客廳記一筆」會直接派，不出卡；哨兵那邊照它自己的 <code>max_effect</code> 與 authorize 擋。</p>
+<div class="rec"><b>建議：</b>維持（哨兵有自己的門），但加一個 config <code>link.ai: false</code> 讓不想要的人關掉；DANGER 指令本來就過不了預設的 max_effect。</div></div>
+<div class="dec"><h4><span class="n">D3</span>對外聽的 TCP 埠要不要加一層握手（Noise）？</h4>
+<p>信封已經端對端安全；差別只在「沒鑰匙的人能不能完成 TCP 握手」。內網或 WireGuard 裡沒差；直接開到公網才有差。</p>
+<div class="rec"><b>建議：</b>先不做，文件明寫「只建議內網／WireGuard」。真的要開公網再做 Noise IK（約 300 行，cryptography 原語都有）。</div></div>
+<div class="dec"><h4><span class="n">D4</span>跨網段用 WireGuard，還是自架 relay？</h4>
+<p>WireGuard 零程式改動、沒有第三方，但兩邊都要裝並管鑰匙；relay 要多一台你的 VPS，但哨兵只要能上網。</p>
+<div class="rec"><b>建議：</b>WireGuard。等哨兵超過三台或放在別人家再考慮 relay。</div></div>
+<div class="dec"><h4><span class="n">D5</span>IoT 的第一個目標是哪個？</h4>
+<p>攝影機（opencv／picamera2 當哨兵的 pack）、Arduino（pyserial／Firmata）、還是感測器網（MQTT 傳輸）。前兩個不用動 link；第三個要寫 MQTT 傳輸。</p>
+<div class="rec"><b>建議：</b>先做「門口樹莓派拍照回傳」：驗證樹莓派當哨兵、圖片回傳（上面的缺口）、以及 sandbox 放行裝置檔，三件事一次試到。</div></div>
+<div class="dec"><h4><span class="n">D6</span>Telegram 當傳輸層要不要放棄？</h4>
+<p>調查結論：bot 看不到其他 bot 的訊息，兩支 bot 走不通；要通得用使用者帳號（MTProto），那違反 SYNOX「只是一支 bot」的設計。</p>
+<div class="rec"><b>建議：</b>放棄。真的想要「不用內網也能通」就是 D4。</div></div>
+<div class="dec"><h4><span class="n">D7</span>哨兵的任務要不要留 per-哨兵白名單？</h4>
+<p>現在只有 <code>max_effect</code>。白名單（<code>link.allow</code> 樣式）更細，但多一個要維護的設定。</p>
+<div class="rec"><b>建議：</b>先用 <code>max_effect</code>；哨兵上裝了會碰硬體或錢的 pack 時再加白名單。</div></div>
+
+<h2 id="next">建議的下一步（照順序）</h2>
+<ol class="steps">
+<li>兩台 Windows 真機跑「怎麼試」那八步，把結果記進 <code>docs/handoff/</code>（跟 container-verification 一樣的格式）。</li>
+<li>補任務中途進度與圖片回傳（都是哨兵 roles.py 與 CaptureChannel 的小改動）。</li>
+<li>樹莓派哨兵＋攝影機 pack（D5）。</li>
+<li>決定 D1–D7，合併。</li>
+</ol>
+<footer>SYNOX 實作交接 · 歸檔於 <code>docs/discussions/2026-11-12-link-implementation.html</code> · 調查：<code>2026-11-12-link-architecture.html</code></footer>
+</div>
+<p style="font:10px/1.4 ui-monospace,monospace;opacity:.5;margin:24px 16px">線上版 <a href="https://claude.ai/artifact/JPj778qxYKb5RKmhBHTgiq">https://claude.ai/artifact/JPj778qxYKb5RKmhBHTgiq</a> · 本機版 docs/artifacts/2026-11-12-synox-link-handoff.html · 頁面版本 <span data-stamp>b56e98c67e · 2026-11-13</span></p>

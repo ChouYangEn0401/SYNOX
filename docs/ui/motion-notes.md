@@ -47,7 +47,7 @@
 1. 系統開了「減少動態效果」→ 永遠不播。
 2. 網址 `?splash=1` → 重播；`?splash=0` → 不播。
 3. 瀏覽器的 `localStorage` 裡 `synox.splash` 是 `off` → 不播（目前只能在主控台打 `localStorage.setItem("synox.splash", "off")`；
-   要不要在設定頁放開關見 [QuestionToUser.md](../../QuestionToUser.md) QM1）。
+   要不要在設定頁放開關見 [QuestionToUser.md](../QuestionToUser.md) QM1）。
 4. 其他：這個分頁第一次打開才播（`sessionStorage` 的 `synox.splash.seen`）。登入前看到開場 → 按登入連結回來不會再播；
    直接用登入連結打開 → 登入完回到首頁時播一次。私密視窗、`file://` 讀不到儲存空間時照播，不會出錯。
 

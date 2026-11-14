@@ -1,7 +1,7 @@
 """
 信任層級（SDK P7）：這個 pack 的程式，第 2 關的靜態掃描看得到多少。
 
-    T0  只有宣告：connector、只登記的 mcp（遠端 MCP）——沒有程式在這台跑（有附程式檔第 2 關就拒）
+    T0  只有宣告：connector、只登記的 mcp（遠端 MCP）、外觀包（kind=theme）——沒有程式在這台跑（有附程式檔第 2 關就拒）
     T1  原始碼：會被執行的只有第 2 關掃過的 .py／.pyw（{python} 只准跑 pack 裡的 .py，審查 C #C1）；
         其他檔第 2 關當資料（沒有副檔名、ast 解析得過的也當 .py 掃）。掃描是提醒不是門：T1 不等於「安全」
     T2  二進位或外部相依（掃不到）：資料夾裡有掃不到內容的檔（scan.opaque_files：.exe .dll .bat .sh .so .pyc、
@@ -45,13 +45,14 @@ def assess(m, report=None, exec_bits=()) -> dict:
     runs＝會執行、掃不到內容的東西（資料夾裡的檔路徑＋外部程式），升級時比「變多了沒」用這個。"""
     from synox.packs import envs
     from synox.packs import scan as pack_scan
-    opaque = list(report.opaque) if report is not None else pack_scan.opaque_files(m.folder, exec_bits)
+    opaque = list(report.opaque) if report is not None else \
+        pack_scan.opaque_files(m.folder, exec_bits, skip=pack_scan.app_exempt(m))
     external = list(report.external) if report is not None else pack_scan.externals(m)
     try:
         packages = envs.all_pins(m)
     except Exception:                                # pack.json 怪怪的：當作沒有套件（第 1 關會擋）
         packages = []
-    if getattr(m, "registered_only", False) or getattr(m, "mcp_http", False):
+    if getattr(m, "registered_only", False) or getattr(m, "mcp_http", False) or getattr(m, "kind", "") == "theme":
         tier = T0                                    # 遠端 MCP（http）也是：這台不跑它的程式，附程式檔第 2 關就拒
     elif opaque or external or packages:
         tier = T2

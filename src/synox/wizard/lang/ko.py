@@ -10,7 +10,7 @@ STRINGS = {
     "mode_title": "이 컴퓨터의 SYNOX는 누가 사용하나요?",
     "mode.personal.title": "나만 사용(개인용)",
     "mode.personal.one": "나 혼자 사용: 페어링한 Telegram 계정에서만 명령을 사용할 수 있습니다.",
-    "mode.personal.two": "모든 데이터는 이 컴퓨터에 있으며, 메모와 가계부는 암호화되어 저장됩니다.",
+    "mode.personal.two": "설정, 키, 메모와 가계부는 이 컴퓨터에 저장되며, 메모와 가계부는 암호화됩니다.",
     "mode.server.title": "여러 사람(서버용)",
     "mode.server.one": ("가족, 동료, 동호회가 함께 사용: 모르는 사람이 메시지를 보내면 게스트가 되고, "
                         "나(또는 내가 지정한 관리자)가 누가 무엇을 쓸 수 있는지 정합니다."),
@@ -111,7 +111,7 @@ STRINGS = {
     "status_add_channel_later": "나중에 Setup.bat을 더블클릭해 마법사를 다시 실행하면 Telegram/Discord에 연결할 수 있습니다.",
     "status_bot_head": "✅ 설정 완료, bot이 실행 중입니다.",
     "status_web_head": "✅ 설정 완료, SYNOX가 실행 중입니다(Telegram/Discord 미연결).",
-    "status_no_tools": "🧰 SYNOX에는 처음에 도구가 없습니다(가계부, 메모, 알림 등은 따로 설치). 도구 라이브러리(SYNOX_Libs)의 .synoxpack 파일을 더블클릭하거나 웹 화면의 설정 → 기능 설치에서 올리세요. 라이브러리 위치는 SYNOX를 준 사람에게 물어보세요.",
+    "status_no_tools": '🧰 다음 단계: 튜토리얼을 한 번 해서 SYNOX와 대화하는 법을 익힌 뒤 필요한 도구(가계부, 메모…)를 고르세요: 웹 화면 "설정"의 공식 도구 라이브러리(SYNOX_Libs) 또는 .synoxpack 파일 더블클릭.',
     "status_can_close": "이 창을 닫아도 됩니다.",
     "no_window": "❌ 창을 열 수 없습니다({e}). config.example.json을 config.json으로 복사해 직접 입력하세요.",
     "llm_local": "Local model (this computer or one on your home network)",
@@ -124,4 +124,9 @@ STRINGS = {
     "llm_local_advice_done": "Options: {options}. Below {least} SYNOX's prompt gets cut off.",
     "llm_local_ok": "✅ Model found and the settings look sane (only model info was read; the model was not loaded).",
     "err_local_model": "Enter a model name (for Ollama, a name shown by `ollama list`, e.g. qwen3.5:9b).",
+    "finish_tutorial": "📘 처음이신가요? 먼저 짧은 튜토리얼(몇 분)을 하고 필요한 도구를 고르세요.",
+    "finish_tutorial_how": "SYNOX에서 {cmd}를 입력하세요(채팅에 “start tutorial”이라고 써도 됩니다).",
+    "all_tools_running": "⏳ 공식 도구를 모두 설치하는 중입니다(설치 프로그램에서 선택함). 몇 분 걸릴 수 있으니 이 창을 닫지 마세요…",
+    "note_all_tools": "공식 도구 전체",
+    "all_tools_failed": '일부는 설치되지 않았습니다. 나중에 "설정"의 도구 라이브러리에서 추가하세요(기록: data/logs/all-tools.log)',
 }

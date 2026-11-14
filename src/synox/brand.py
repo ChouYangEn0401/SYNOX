@@ -21,12 +21,30 @@ import random
 import sys
 from datetime import datetime
 
-PROJECT_URL = ""          # 還沒公開；定了再填（QuestionToUser.md QB1）。about 不編網址。
+PROJECT_URL = "https://github.com/ChouYangEn0401/SYNOX"     # repo 公開了（docs/QuestionToUser.md QB1 的 A：公開那天再填）
+RELEASES_URL = PROJECT_URL + "/releases"                     # 每一版的發佈頁：看自己是不是最新版（docs/versioning.md）
 
 #: 印歡迎畫面的指令（None＝`synox` 什麼都沒打）。init 是之後安裝流程會加的指令，先列著。
 BANNER_COMMANDS = frozenset({None, "run", "open", "wizard", "init", "doctor", "about"})
 
-TAGLINE = "你自己電腦上的小助手，資料只放在這台電腦。"
+# ---------------------------------------------------------------- 標語（唯一的來源）
+#: SYNOX 的大標語（還沒定案，暫用這句）。要換只改這裡，再跑 python scripts/make_landing.py 重組介紹頁、
+#: python scripts/make_cli_welcome.py 重產終端機預覽。兩段：介紹頁第一屏分兩行，第二段用主色。
+#: 之後主題可以帶自己的「心情語」，但不會換掉這句標語。
+SLOGAN = ("有事，", "跟它說一聲就好")
+SLOGAN_EN = "Need something? Just tell it."
+#: 定位句（介紹頁大標語上面那行小字）。
+EYEBROW = "住在你自己電腦裡的 AI 助理"
+EYEBROW_EN = "The AI assistant that lives on your own computer."
+#: 介紹頁的彩蛋：偶爾冒出來、馬上被 S 寶寶刷掉的玩笑話（正式標語永遠是上面那句 SLOGAN，這些不會用在別的地方）。
+#: 一個玩笑＝一拍或幾拍，每一拍是（第一行, 第二行）；介紹頁隨機挑一個玩笑、照順序播完每一拍。
+#: 改了要重跑 python scripts/make_landing.py。
+SLOGAN_JOKES = [
+    [("一個人忙不過來，", "還有它。"), ("像多了一個室友，", "但會幫忙。")],
+    [("一個只聽你的小幫手。", "你的助理，你說了算。")],
+]
+
+TAGLINE = "".join(SLOGAN) + EYEBROW + "。"
 
 # ---------------------------------------------------------------- logo
 
@@ -394,17 +412,23 @@ def about_text(config_path: str | None = None, *, root: str | None = None) -> st
     rows = [
         ("版本", f"SYNOX {version()} · 工具 SDK {SDK_VERSION} · Python {sys.version.split()[0]}"),
         ("授權", "核心 AGPL-3.0-or-later；工具 SDK 與範例 Apache-2.0（見 LICENSING.md）"),
-        ("名稱與標誌", "「SYNOX」的使用規則見 TRADEMARK.md"),
+        ("名稱與標誌", "「SYNOX」的使用規則見 .github/TRADEMARK.md"),
         ("裝在哪裡", root),
         ("設定檔", config_path + ("" if has_config else "（還沒有：雙擊 Setup.bat，或照 config.example.json 寫一份）")),
         ("文件", "README.md · docs/README.md · 安全問題請看 SECURITY.md（不要開公開 issue）"),
         ("專案網址", PROJECT_URL or "還沒公開"),
+        ("有沒有新版", latest_hint()),
     ]
     width = max(_display_width(k) for k, _ in rows)
     out = [f"SYNOX v{version()} · {TAGLINE}", ""]
     for k, v in rows:
         out.append(f"  {k}{' ' * (width - _display_width(k))}  {v}")
     return "\n".join(out) + "\n"
+
+
+def latest_hint() -> str:
+    """一行：去哪裡看最新版。SYNOX 不會自己連網檢查（docs/adr/0023）。"""
+    return f"到 {RELEASES_URL} 看最新版，跟這台的版本比（SYNOX 不會自己連網檢查）"
 
 
 def _display_width(text: str) -> int:

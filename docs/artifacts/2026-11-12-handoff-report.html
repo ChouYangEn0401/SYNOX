@@ -1,0 +1,180 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>交接報告</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* 版面：頂部分頁，每頁一個主題；第一頁先講結論與要你做的事。 */
+:root { --bg:#f6f8f8; --surface:#fff; --ink:#14201f; --muted:#566766; --line:#d9e2e1; --accent:#0b7d71; --accent-soft:#dff1ee; --ok:#1a7f46; --ok-soft:#e0f3e8; --warn:#9a5b00; --warn-soft:#fbefd6; --risk:#b3261e; --risk-soft:#fbe3e1; --code:#eef2f2; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#0e1717; --surface:#152221; --ink:#e6f0ef; --muted:#9bb0ae; --line:#264240; --accent:#3fd0bd; --accent-soft:#123a36; --ok:#5fd28d; --ok-soft:#14352a; --warn:#f0b861; --warn-soft:#3a2c12; --risk:#ff8d84; --risk-soft:#3d1a18; --code:#1a2b2a; color-scheme: dark; } }
+:root[data-theme="dark"] { --bg:#0e1717; --surface:#152221; --ink:#e6f0ef; --muted:#9bb0ae; --line:#264240; --accent:#3fd0bd; --accent-soft:#123a36; --ok:#5fd28d; --ok-soft:#14352a; --warn:#f0b861; --warn-soft:#3a2c12; --risk:#ff8d84; --risk-soft:#3d1a18; --code:#1a2b2a; color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background:var(--bg); color:var(--ink); font:15px/1.65 system-ui,"Segoe UI","Noto Sans TC",sans-serif; padding-block:24px 80px; padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px)); }
+.wrap { max-width:1000px; margin:0 auto; }
+h1 { font-size:28px; margin:0 0 6px; } h2 { font-size:20px; margin:22px 0 10px; padding-bottom:6px; border-bottom:1px solid var(--line); } h3 { font-size:15.5px; margin:16px 0 6px; }
+p { margin:0 0 10px; max-width:74ch; } .lead { color:var(--muted); }
+.tabs { display:flex; flex-wrap:wrap; gap:6px; position:sticky; top:env(safe-area-inset-top,0px); background:var(--bg); padding-block:8px; z-index:5; border-bottom:1px solid var(--line); margin:14px 0 16px; }
+.tabs button { font:500 13.5px system-ui; border:1px solid var(--line); background:var(--surface); color:var(--muted); border-radius:99px; padding:6px 14px; cursor:pointer; }
+.tabs button[aria-selected="true"] { background:var(--accent); color:var(--bg); border-color:var(--accent); }
+.ver { position:fixed; top:max(10px,env(safe-area-inset-top,0px)); right:max(12px,env(safe-area-inset-right,0px)); z-index:20; font:600 12px ui-monospace,Consolas,monospace; padding:4px 10px; border-radius:99px; background:var(--surface); border:1px solid var(--line); color:var(--muted); }
+.chip { display:inline-block; font-size:11.5px; padding:2px 9px; border-radius:99px; background:var(--accent-soft); color:var(--accent); font-weight:600; white-space:nowrap; }
+.chip.ok { background:var(--ok-soft); color:var(--ok); } .chip.warn { background:var(--warn-soft); color:var(--warn); } .chip.risk { background:var(--risk-soft); color:var(--risk); }
+.scroll { overflow-x:auto; border:1px solid var(--line); border-radius:8px; background:var(--surface); margin:8px 0 14px; }
+table { border-collapse:collapse; width:100%; font-size:13.5px; } th,td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { font-size:11.5px; text-transform:uppercase; letter-spacing:.05em; color:var(--muted); background:var(--code); white-space:nowrap; } tr:last-child td { border-bottom:0; }
+code { font-family:ui-monospace,Consolas,monospace; font-size:12.5px; background:var(--code); padding:1px 6px; border-radius:4px; overflow-wrap:anywhere; }
+ul,ol { margin:0 0 10px; padding-left:22px; } li { margin-bottom:4px; max-width:76ch; }
+.answer { background:var(--accent-soft); border:1px solid var(--accent); border-radius:8px; padding:12px 16px; margin:12px 0; }
+.note { border-left:3px solid var(--warn); background:var(--warn-soft); padding:10px 14px; border-radius:0 8px 8px 0; font-size:14px; margin:10px 0; }
+.note.risk { border-left-color:var(--risk); background:var(--risk-soft); }
+section[hidden] { display:none; }
+</style>
+<div class="ver">v2 · 2026-11-12</div>
+<div class="wrap">
+<h1>交接報告</h1>
+<p class="lead">到目前為止實際做完了什麼、放在哪、還剩什麼可以放雲端、哪些只能在本機做、需要你決定什麼。這頁不含逐字引用、電腦路徑或私人專案名稱。</p>
+<div class="tabs" id="tabs"><button data-t="sum">先看這裡</button><button data-t="dev">SYNOX 已完成</button><button data-t="crypto">加密與萬用鎖</button><button data-t="cloud">還能放雲端的</button><button data-t="local">只能本機的</button><button data-t="decide">需要你決定</button><button data-t="lesson">這次的失誤</button></div>
+
+<section id="sum">
+  <div class="answer"><b>SYNOX 的開發任務都已經做完，並且都在公開 repo 的 dev 分支上。</b>加密工具的新格式與命令列，在你的 PersonalToolZoo 本機分支上做到一半。其他的是要你決定或只能在你的電腦上做的事。</div>
+  <h2>一張表看完</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>項目</th><th>狀態</th><th>在哪</th></tr></thead>
+    <tbody>
+      <tr><td>心跳不重複叫 AI（CB1）</td><td><span class="chip ok">完成、已合併</span></td><td>SYNOX dev</td></tr>
+      <tr><td>助理評測集與離線重放（CB2）</td><td><span class="chip ok">完成、已合併</span></td><td>SYNOX dev</td></tr>
+      <tr><td>Docker 支援</td><td><span class="chip ok">完成、已合併</span>（映像檔沒實際建置）</td><td>SYNOX dev</td></tr>
+      <tr><td>呈現層（Markdown 轉三個通道）（CB3）</td><td><span class="chip ok">完成、已合併</span>（預設關閉）</td><td>SYNOX dev</td></tr>
+      <tr><td>工具錯誤合約與隔離清單（CB4）</td><td><span class="chip ok">完成、已合併</span></td><td>SYNOX dev</td></tr>
+      <tr><td>「萬用鎖＋本次金鑰」研究</td><td><span class="chip ok">完成</span>（原型與測試、雲端 prompt）</td><td>PersonalToolZoo 本機分支 <code>research/master-lock</code>（未推送）</td></tr>
+      <tr><td>Encrypter 命令列＋新格式＋介面改版</td><td><span class="chip ok">CLI 完成</span>、介面改版完成（<span class="chip warn">畫面沒看過</span>、格式待你決定）</td><td>PersonalToolZoo 本機分支 <code>dev/encrypter</code>（9 個 commit，未推送）</td></tr>
+      <tr><td>Video Notes 三張建議文件</td><td><span class="chip ok">已放好</span></td><td>PersonalToolZoo 本機分支 <code>dev/video-notes</code></td></tr>
+      <tr><td>加密複本上傳（雲端開發用）</td><td><span class="chip">還沒做，等你確認格式</span></td><td>—</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note">dev 上另外有其他工作階段推送的內容（教學、首頁等），不是我做的，我沒有動它們。</div>
+</section>
+
+<section id="dev" hidden>
+  <h2>SYNOX（公開 repo，dev 分支）</h2>
+  <p>全部合併後的完整測試：<b>1702 通過、15 略過、0 失敗</b>（排除會開網路埠的那一個測試）。防洩漏檢查：擋 0 筆。</p>
+  <div class="scroll"><table>
+    <thead><tr><th>功能</th><th>做了什麼</th><th>要注意</th></tr></thead>
+    <tbody>
+      <tr><td>CB1 心跳</td><td>失敗狀態沒變就不再叫 AI；同一個失敗只通知一次；指紋存檔，重開後延續；壞存檔不會讓心跳壞掉。</td><td>這解掉了「有任務失敗時心跳每次都叫 AI 直到每日上限」的燒 token 問題。</td></tr>
+      <tr><td>CB2 評測集</td><td>30 題日常助理任務、離線重放、評分報告、命令列入口；發佈 zip 不含評測集。</td><td>全部用假工具與假 AI，沒有用真模型跑過。</td></tr>
+      <tr><td>Docker</td><td>開發容器、加固的執行映像檔、compose、容器內才允許綁 0.0.0.0 的開關（預設不變）、說明文件。</td><td><b>映像檔沒有實際建置、容器沒有實際跑過</b>，要在有 Docker 的機器驗證。容器內不掛 docker.sock，工具只能用程序模式。</td></tr>
+      <tr><td>CB3 呈現層</td><td>與通道無關的區塊模型；Telegram（HTML、4096 切割）、Discord（2000 切割）、網頁三種輸出；表格降級；外部內容變不成按鈕或確認卡；19 組黃金檔。</td><td>設定 <code>presentation.enabled</code> <b>預設關閉</b>；沒有在真 Telegram、Discord、瀏覽器看過；確認卡還沒取代原本的卡。</td></tr>
+      <tr><td>CB4 工具健康</td><td>失敗信封 v1（18 個類別碼）、SDK <code>fail()</code>、同一根因連續失敗就隔離、壞工具從 AI 的工具清單移除並留一行原因、<code>pack.json</code> 的 <code>health.check</code>、doctor 與工具頁顯示狀態、擁有者可重新檢查或解除。</td><td>沒做自動修復，只寫出補救建議。網頁畫面沒有在瀏覽器看過。SDK 版號 0.2.0→0.2.1（見「需要你決定」）。</td></tr>
+    </tbody>
+  </table></div>
+  <h3>預設值（CB4，沒改任何既有設定）</h3>
+  <p>連續失敗 3 次（沒有合約或匯入的工具 2 次）標壞；冷卻 5 分、15 分、1 小時、6 小時、1 天；每天最多試用 4 次；給 AI 的原因最多 5 行；全部可在 <code>config.json</code> 的 <code>health</code> 區塊調整。</p>
+</section>
+
+<section id="crypto" hidden>
+  <h2>「萬用鎖＋本次金鑰」研究結論</h2>
+  <div class="answer"><b>方向對，但要修正四點。</b>這正是密碼學裡標準的「信封加密加金鑰槽」，age、OpenPGP、LUKS、SOPS、雲端 KMS 都這樣做。</div>
+  <ol>
+    <li><b>不能用「層層巢狀加密」做。</b>巢狀是每一層的鑰匙都要有；萬用鎖要的是「任何一把都能開」。萬用鎖放外層，拿本次金鑰的人打不開；放內層，擁有者還是需要本次金鑰。所以現有的 Layered／All-In-One 不是沒做好，而是結構上做不到。</li>
+    <li><b>安全只能靠金鑰。</b>「別人不知道內層長怎樣」不算保護。</li>
+    <li><b>換本次金鑰有極限。</b>已被複製走的舊檔案，用舊金鑰照樣打得開；對方解開過一次就可能留著資料金鑰或明文。只換槽擋不住留了資料金鑰的人，要整份重新加密（rekey）才擋得住；明文收不回來，任何加密都做不到。</li>
+    <li><b>萬用鎖是單點失效。</b>它外洩，所有檔案（含舊副本）都會被打開；拿到本次金鑰的人也能改檔案內容或槽，要證明沒被改過需要另外加簽章。</li>
+  </ol>
+  <h3>推薦做法</h3>
+  <p>每個檔案一把隨機資料金鑰（DEK）加密內容，DEK 分別包進「萬用鎖槽（公鑰型，私鑰離線保管）」和「本次金鑰槽」。收回分享時：對方沒解開過就只重包槽；解開過就整份 rekey，並刪掉雲端上的舊版本。</p>
+  <h3>你的 USB 金鑰專案</h3>
+  <p>它證明的是「那支隨身碟現在插著」，不是保管金鑰。普通隨身碟可以整支複製，中毒的電腦也能讀走金鑰，專案自己的威脅模型文件也這樣寫。所以只適合當方便的操作開關，不建議當主金鑰的唯一保管方式。</p>
+  <h3>金鑰保管（回應你「怕電腦中毒」）</h3>
+  <ul><li>金鑰只放在這台電腦，電腦毀了金鑰就沒了，雲端備份就永遠解不開。要另外備份在電腦之外。</li><li>建議：兩支 USB（密語封存）加一份紙本。</li></ul>
+  <h3>現況</h3>
+  <ul>
+    <li>研究文件、格式規格、威脅模型（15 種情境）、原型與 44 個測試都在 <code>research/master-lock</code> 分支。原型整份放記憶體，沒有命令列、沒有 gpg 槽、沒有簽章。</li>
+    <li><b>Encrypter 已完成（<code>dev/encrypter</code>，9 個 commit，新測試 76 個全過）：</b>命令列、新的認證加密格式（ISD2）、主視窗改版（加密／解密／金鑰／關於四個分頁）、舊模式整理（舊程式一行沒刪，改名成舊版視窗並標為實驗性）。<b>畫面沒有實際看過，要你在自己的電腦跑 <code>run.bat</code> 驗收。</b></li>
+    <li><b>命令列用法：</b><code>python -m crypto_tool keygen | encrypt | decrypt | info</code>。可加密單一檔案或資料夾；金鑰可來自金鑰檔（<code>.decryption_code.env</code> 格式可直接用）、環境變數或標準輸入的密語，<b>密語不能放在命令列引數</b>；目標已存在就拒絕；<code>--json</code> 給程式讀；絕不印出金鑰、密語、明文。退出碼：0 成功、2 輸入有問題、3 環境沒裝好、5 金鑰或密語不對、6 被改過或損壞、1 其他。</li>
+    <li><b>算法：</b>只用 <code>cryptography</code> 套件，AES-256-GCM（預設）或 ChaCha20-Poly1305；密語走 scrypt；檔頭整個當驗證資料；每 1 MiB 一塊，偵測截斷與重排。</li>
+    <li><b>你說「做得很爛」的原因，白話版：</b>兩種 Mixture 模式本質上是同一件事，都是「加密再加密」，疊加不會更安全；名字還換了三輪互相撞名。實際缺陷包括：XOR-FOLD 只改到前 32 個位元組、預設的 CBC 沒有完整性驗證（錯的密碼約 1/256 會被當成對的）、備註欄是明文可被改、PBKDF2 只有十萬次。其背後兩個合理需求（多把鑰匙到齊才能開、一關一關由不同人開）正確做法都不是疊加密。完整分析在該分支的交接單。</li>
+    <li>發現的小問題：Encrypter 的 README 還用舊的模式名稱，和程式不一致，合併時要補。</li>
+  </ul>
+  <div class="note risk"><b>格式要對齊：</b>Encrypter 正在做一個新格式（ISD2），雲端若同時依 CB6 實作另一個萬用鎖格式，兩邊會打架。建議等 ISD2 推上去之後，讓萬用鎖直接長在它上面。</div>
+</section>
+
+<section id="cloud" hidden>
+  <h2>還能放雲端的</h2>
+  <p>全部去識別化 brief 在這裡，每份有複製按鈕：<b>https://claude.ai/artifact/WC3PxggZceAC6HGPgA83Mz</b>（現在是 v3）。</p>
+  <div class="scroll"><table>
+    <thead><tr><th>Brief</th><th>目標 repo</th><th>狀態</th></tr></thead>
+    <tbody>
+      <tr><td>CB1～CB4</td><td>SYNOX</td><td><span class="chip">不用貼</span> 已在本機做完並合併。</td></tr>
+      <tr><td>CB5 加密工具包 <code>crypt</code>（SYNOX 的工具，金鑰槽設計）</td><td>SYNOX（公開）</td><td><span class="chip ok">可以貼到雲端</span> 不需要你裁決，也不碰本機檔案。</td></tr>
+      <tr><td>CB6 Encrypter 的萬用鎖格式</td><td>PersonalToolZoo（公開）</td><td><span class="chip warn">先等</span> 等 Encrypter 的新格式推上去再決定要不要接在它上面。</td></tr>
+    </tbody>
+  </table></div>
+  <h3>其他還沒開的工作（先講原因）</h3>
+  <p>計畫書裡其餘的工作包都卡在你的決策，或牽涉本機檔案與別的專案，所以我不替你選、也沒有派出去。要談的時候，計畫書的「雲端先做與先討論」分頁有分組與建議的討論順序。</p>
+</section>
+
+<section id="local" hidden>
+  <h2>只能在你的電腦或別台電腦做的</h2>
+  <ul>
+    <li><b>Docker：</b>在有 Docker 的機器建置映像檔並照 <code>docs/docker.md</code> 的驗證清單跑一遍。</li>
+    <li><b>呈現層與工具頁的實際畫面：</b>在真的 Telegram、Discord、瀏覽器看一次；呈現層預設關閉，要打開 <code>presentation.enabled</code> 才會作用。</li>
+    <li><b>Encrypter 新介面：</b>在自己的電腦執行 <code>run.bat</code> 看畫面。</li>
+    <li><b>別台電腦的安裝實測、Telegram bot 互通實測：</b>計畫書的行動清單。</li>
+    <li><b>PersonalToolZoo 的本機分支：</b>都還沒推送，推之前請先看過。</li>
+  </ul>
+</section>
+
+<section id="decide" hidden>
+  <h2>需要你決定的事（不回覆就用建議）</h2>
+  <div class="scroll"><table>
+    <thead><tr><th>#</th><th>問題</th><th>選項</th><th>建議</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>加密複本要用什麼格式給雲端解</td><td>A 用 <code>gpg</code>（OpenPGP，雲端現成）；B 用你的 Encrypter 新格式（雲端要先拿到工具）</td><td>A</td></tr>
+      <tr><td>1b</td><td><b>Encrypter 的檔案格式（最重要；決定前不要用它加密要長期保存的真資料）</b>。另一個工作階段同時在同一條分支寫了五張設計稿，建議改用公開的 age 格式；它的規格也叫「ISD2」，但位元組與現在這版不同。現在這版是用 <code>cryptography</code> 自己排的，元件標準但組合沒人審過。</td><td>甲 先用現在這版（別的專案今天就能呼叫），標「尚未審閱」，發第一個正式版前換成 age；乙 維持自有格式並補成金鑰槽版，審閱後才轉正；丙 現在就發版</td><td>甲</td></tr>
+      <tr><td>2</td><td>SDK 版號</td><td>A 0.2.1（現有工具不受影響）；B 0.3.0（所有工具的 <code>requires.sdk</code> 都要改）</td><td>A（已是 0.2.1）</td></tr>
+      <tr><td>3</td><td>工具健康的門檻與冷卻</td><td>A 維持；B 調鬆（例如連續 4 次才標壞）</td><td>A</td></tr>
+      <tr><td>4</td><td>沒處理的例外類別碼</td><td>A 改叫 <code>unclassified</code>（兩邊都認得）；B 繼續回 <code>internal</code></td><td>A</td></tr>
+      <tr><td>5</td><td>萬用鎖種類</td><td>公鑰型（私鑰離線）／對稱金鑰檔／密語衍生</td><td>公鑰型</td></tr>
+      <tr><td>6</td><td>收回分享時預設</td><td>rekey／只換槽</td><td>rekey</td></tr>
+      <tr><td>7</td><td>函式庫</td><td>PyCryptodome（不加依賴）／加入 <code>cryptography</code></td><td>PyCryptodome，先測互通</td></tr>
+      <tr><td>8</td><td>自己做還是用現成</td><td>做進 Encrypter／直接用 gpg 或 age</td><td>真正重要的資料先用 gpg 或 age；想整合再自己做</td></tr>
+      <tr><td>9</td><td>本次金鑰給對方的形式</td><td>隨機金鑰檔／密語</td><td>隨機金鑰檔</td></tr>
+      <tr><td>10</td><td>要不要做簽章</td><td>先不做／一起做</td><td>先不做</td></tr>
+      <tr><td>11</td><td>萬用鎖備份</td><td>兩支 USB＋紙本／加硬體金鑰／分成多份</td><td>兩支 USB＋紙本</td></tr>
+      <tr><td>12</td><td>原始檔名要不要存進檔案</td><td>不存／加密後存</td><td>不存</td></tr>
+    </tbody>
+  </table></div>
+  <h3>也請你處理的</h3>
+  <ul>
+    <li><b>pre-push 防線：</b>範本與安裝腳本備好了，由你自己執行安裝（先用預覽模式看會做什麼）。它會擋掉含私人路徑的 commit 與只該留本機的分支，避免再發生誤推。</li>
+    <li><b>先前誤推到公開 repo 的含文件分支：</b>已經刪掉，但在 GitHub 上被刪的 commit 不會立刻消失；目前公開 repo 沒有 fork、star 或 watcher，風險低。想徹底處理可以向 GitHub Support 提出敏感資料移除請求。</li>
+  </ul>
+</section>
+
+<section id="lesson" hidden>
+  <h2>這次的失誤與之後的做法</h2>
+  <ul>
+    <li><b>我把你打算貼到雲端的任務，改在本機直接做完，卻沒有先告訴你。</b>這違背「減少本機負載」的目的，也讓你拿到的 brief 變成多餘。</li>
+    <li><b>進度沒有主動說清楚</b>，你得自己追問。</li>
+    <li><b>有兩批 agent 同時在處理同一批任務</b>（工作階段重啟後，原本以為失敗的 agent 其實還在跑），造成重複與合併時序的混亂。結果沒有壞，但過程不乾淨。</li>
+  </ul>
+  <h3>之後的做法</h3>
+  <ul>
+    <li>你說要放雲端的任務，我只產出 brief 或 prompt，不在本機做，除非你明確叫我做。</li>
+    <li>每次做完一件事，先更新這類頁面，再簡短告知；重要資訊不留在聊天。</li>
+    <li>任何要推到公開 repo 的東西，推之前先跑防洩漏檢查；文件與規劃只放私有 repo。</li>
+  </ul>
+</section>
+</div>
+<script>
+(function () {
+  var ids = ["sum","dev","crypto","cloud","local","decide","lesson"], tabs = document.getElementById("tabs");
+  function show(id) { if (ids.indexOf(id) < 0) { id = ids[0]; }
+    ids.forEach(function (t) { document.getElementById(t).hidden = (t !== id); });
+    Array.prototype.forEach.call(tabs.querySelectorAll("button"), function (b) { b.setAttribute("aria-selected", b.getAttribute("data-t") === id ? "true" : "false"); }); }
+  tabs.addEventListener("click", function (e) { var b = e.target.closest("button"); if (!b) { return; } var id = b.getAttribute("data-t"); show(id); try { location.hash = id; } catch (x) {} });
+  window.addEventListener("hashchange", function () { show((location.hash || "").slice(1)); });
+  show((location.hash || "").slice(1));
+})();
+</script>
+<p style="font:10px/1.4 ui-monospace,monospace;opacity:.5;margin:24px 16px">線上版 <a href="https://claude.ai/artifact/5CRh4tXjAP41dfnVixjA9M">https://claude.ai/artifact/5CRh4tXjAP41dfnVixjA9M</a> · 本機版 docs/artifacts/2026-11-12-handoff-report.html · 頁面版本 <span data-stamp>b2275e50dd · 2026-11-13</span></p>

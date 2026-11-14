@@ -117,6 +117,75 @@ section { padding-block: 88px; }
 @media (max-width: 940px) { .hero { grid-template-columns: 1fr; gap: 36px; } }
 .slogan { font-size: clamp(42px, 7vw, 72px); line-height: 1.15; letter-spacing: .02em; }
 .slogan em { font-style: normal; color: var(--accent); }
+/* 彩蛋：偶爾冒出一句玩笑話，S 寶寶推著滾筒把它刷掉、露出正式標語（流程在頁尾的 <script>；玩笑話在 brand.py 的 SLOGAN_JOKES）。
+   全部疊在 h1 自己的框裡（絕對定位），不佔位置、不推版面；整層 aria-hidden，報讀軟體只會讀到正式標語。 */
+.hero .slogan { position: relative; }
+.slogan-real { display: block; position: relative; z-index: 2; }
+.egg { position: absolute; inset: 0; pointer-events: none; user-select: none; -webkit-user-select: none;
+  --egg-1: #6d2a6a; --egg-2: #c0307f; --egg-paint: var(--accent-soft); --egg-ease: cubic-bezier(.45, .05, .35, 1); }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .egg { --egg-1: #ecc9e0; --egg-2: #ff7fc6; } }
+:root[data-theme="dark"] .egg { --egg-1: #ecc9e0; --egg-2: #ff7fc6; }
+.egg-wipe { position: absolute; inset: 0; z-index: 1; clip-path: inset(-12px 100% -12px 0px); }
+.egg-wipe i { position: absolute; inset: -6px -8px; border-radius: 14px; background: var(--egg-paint); }
+.egg-jokes { position: absolute; inset: 0; z-index: 3; }
+.egg-beat { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; opacity: 0;
+  transform: translateY(.22em) rotate(-3deg) scale(.96); transform-origin: 12% 60%; transition: opacity .28s ease, transform .42s cubic-bezier(.3, 1.5, .5, 1); }
+.egg-beat span { display: block; width: max-content; white-space: nowrap; color: var(--egg-1); }
+.egg-beat span + span { color: var(--egg-2); }
+.egg-beat.on { opacity: 1; transform: rotate(-1.2deg); }
+.egg-beat.off { opacity: 0; transform: translateY(-.25em) rotate(1deg) scale(.97); transition: opacity .22s ease, transform .22s ease; }
+.egg-on .slogan-real { opacity: 0; transition: opacity .22s ease; }
+/* 刷過去：玩笑話從左邊被蓋掉、油漆和正式標語跟著滾筒露出來（四個用同一條時間曲線，接縫藏在滾筒底下） */
+.egg-roll .slogan-real { opacity: 1; transition: none; animation: egg-reveal var(--egg-t, 1.5s) var(--egg-ease, ease-in-out) both; }
+.egg-roll .egg-wipe { animation: egg-wipe var(--egg-t, 1.5s) var(--egg-ease) both; }
+.egg-roll .egg-jokes { animation: egg-cover var(--egg-t, 1.5s) var(--egg-ease) both; }
+.egg-roll .egg-track { animation: egg-track var(--egg-t, 1.5s) var(--egg-ease) both; }
+@keyframes egg-reveal { from { clip-path: inset(-30px 100% -30px -30px); } to { clip-path: inset(-30px 0% -30px -30px); } }
+@keyframes egg-wipe { from { clip-path: inset(-12px 100% -12px 0px); } to { clip-path: inset(-12px -8px -12px -12px); } }
+@keyframes egg-cover { from { clip-path: inset(-30px -30px -30px 0%); } to { clip-path: inset(-30px -30px -30px 100%); } }
+@keyframes egg-track { from { transform: translateX(-100%); } to { transform: none; } }
+.egg-track { position: absolute; inset: 0; z-index: 4; transform: translateX(-100%); }
+.egg-bot { position: absolute; top: 0; bottom: 0; right: -8px; width: 84px; opacity: 0; transition: opacity .2s ease; }
+.egg-roll .egg-bot, .egg-done .egg-bot { opacity: 1; }
+.egg-roller { position: absolute; right: 0; top: -9px; bottom: -9px; width: 16px; border-radius: 8px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--egg-paint) 70%, var(--accent)), var(--egg-paint) 45%, color-mix(in srgb, var(--egg-paint) 80%, var(--accent)));
+  border: 2px solid var(--accent); box-shadow: var(--shadow); }
+.egg-arm { position: absolute; right: 15px; top: 27%; width: 14px; height: 5px; margin-top: -2.5px; border-radius: 3px; background: var(--accent); }
+/* 寶寶站在第一行的高度：正式標語第一行短，右邊是空的，刷完不會擋到字 */
+.egg-cube { position: absolute; right: 27px; top: 27%; width: 52px; height: 52px; margin-top: -26px; border-radius: 15px;
+  background: linear-gradient(140deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 55%, #2f7fd6) 100%);
+  box-shadow: 0 10px 22px -10px var(--accent), inset 0 1px 0 rgba(255, 255, 255, .3); }
+.egg-roll .egg-cube { animation: egg-waddle .3s ease-in-out infinite alternate; }
+@keyframes egg-waddle { from { transform: translateY(1px) rotate(-7deg); } to { transform: translateY(-3px) rotate(6deg); } }
+.egg-cube i { position: absolute; }
+.egg-cube .e { top: 17px; width: 7px; height: 9px; border-radius: 50%; background: var(--accent-ink); }
+.egg-cube .e.l { left: 14px; } .egg-cube .e.r { right: 14px; }
+.egg-cube .b { top: 28px; width: 10px; height: 6px; border-radius: 50%; background: #ff8fb4; opacity: .95; }
+.egg-cube .b.l { left: 6px; } .egg-cube .b.r { right: 6px; }
+.egg-cube .m { left: 50%; top: 31px; width: 10px; height: 3px; margin-left: -5px; border-radius: 2px; background: var(--accent-ink); }
+.egg-cube .s { right: 4px; top: 5px; width: 6px; height: 9px; border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%; background: #bfe6ff; opacity: .95; animation: egg-sweat .7s ease-in infinite; }
+@keyframes egg-sweat { from { transform: translateY(-2px); opacity: 0; } 30% { opacity: .95; } to { transform: translateY(8px); opacity: 0; } }
+/* 刷完：鬆一口氣（笑回來、跳一下），然後連滾筒一起縮掉；油漆慢慢淡回底色 */
+.egg-done .egg-track { transform: none; }
+.egg-done .egg-wipe { clip-path: none; opacity: 0; transition: opacity .9s ease .5s; }
+.egg-done .egg-jokes { display: none; }
+.egg-done .egg-cube { animation: egg-hop .5s cubic-bezier(.3, 1.4, .5, 1) both; }
+@keyframes egg-hop { 0% { transform: none; } 40% { transform: translateY(-11px) rotate(-6deg); } 100% { transform: none; } }
+.egg-done .egg-cube .s { display: none; }
+.egg-done .egg-cube .m { top: 28px; width: 12px; height: 6px; margin-left: -6px; background: none; border: 2.5px solid var(--accent-ink); border-top: 0; border-radius: 0 0 8px 8px; }
+.egg-done .egg-cube .e { animation: egg-blink .45s ease .35s both; transform-origin: 50% 60%; }
+@keyframes egg-blink { 0%, 30%, 70%, 100% { transform: scaleY(1); } 50% { transform: scaleY(.12); } }
+.egg-bye .egg-bot { opacity: 0; transform: translateY(-14px) scale(.4); transform-origin: 70% 27%; transition: opacity .35s ease, transform .4s cubic-bezier(.5, -.4, .7, .6); }
+@media (max-width: 520px) {
+  .egg-bot { width: 70px; }
+  .egg-roller { width: 14px; right: 1px; }
+  .egg-cube { width: 42px; height: 42px; margin-top: -21px; border-radius: 12px; right: 25px; }
+  .egg-cube .e { top: 13px; width: 6px; height: 8px; } .egg-cube .e.l { left: 11px; } .egg-cube .e.r { right: 11px; }
+  .egg-cube .b { top: 22px; width: 8px; height: 5px; } .egg-cube .b.l { left: 4px; } .egg-cube .b.r { right: 4px; }
+  .egg-cube .m { top: 25px; }
+  .egg-done .egg-cube .m { top: 22px; }
+}
+@media (prefers-reduced-motion: reduce) { .egg { display: none !important; } .egg-on .slogan-real, .egg-roll .slogan-real { opacity: 1 !important; animation: none !important; clip-path: none !important; } }
 .hero .lede { font-size: 18.5px; color: var(--muted); margin-top: 22px; max-width: 30em; }
 .cta { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; margin-top: 30px; }
 .btn { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; font-weight: 500; font-size: 15px; padding: 11px 20px; border-radius: 11px; border: 1px solid var(--line-2); color: var(--ink); background: var(--surface); transition: border-color .15s, transform .15s; min-height: 46px; }
@@ -591,8 +660,8 @@ footer a { color: var(--muted); }
 
 <section class="hero" id="top">
   <div>
-    <p class="eyebrow">住在你自己電腦裡的 AI 助理</p>
-    <h1 class="slogan">聊天就能用，<br><em>資料不出門。</em></h1>
+    <p class="eyebrow">{{eyebrow}}</p>
+    <h1 class="slogan" id="slogan" data-jokes="{{slogan-jokes}}"><span class="slogan-real">{{slogan-1}}<br><em>{{slogan-2}}</em></span></h1>
     <p class="lede">用 Telegram、Discord 或網頁跟它說話。記事、記帳、提醒都交給它；要刪東西，它一定先問你。</p>
     <div class="cta">
       <a class="btn primary" href="#screens"><svg class="ico"><use href="#i-eye"/></svg>看畫面</a>
@@ -764,7 +833,7 @@ footer a { color: var(--muted); }
 <section id="trust">
   <div class="head">
     <p class="eyebrow">放心用</p>
-    <h2>你的資料，留在你的電腦</h2>
+    <h2>資料存在你的電腦，送出去的說清楚</h2>
   </div>
   <div class="trust">
     <div><svg class="ico"><use href="#i-hdd"/></svg><b>存在你的硬碟</b><span>沒有雲端帳號。筆記、記帳、提醒都加密存，只有這台電腦解得開。</span></div>
@@ -780,7 +849,7 @@ footer a { color: var(--muted); }
   <div class="head">
     <p class="eyebrow">怎麼開始</p>
     <h2>下載、安裝、開始用</h2>
-    <p class="sub">不用打指令，大約 5 分鐘。適用 Windows 10／11。</p>
+    <p class="sub">不用打指令，大約 5 分鐘。適用 Windows 10／11。<br>第一次用電腦裝東西？<a href="https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F" target="_blank" rel="noopener">跟著一步一步教學走 →</a></p>
   </div>
   <ol class="install">
     <li>
@@ -808,7 +877,7 @@ footer a { color: var(--muted); }
         <span class="chip">六位數字配對</span>
         <span class="chip">選一個 AI</span>
       </div>
-      <span class="guide-btn soon">🪜 我真的需要一步一步教學 <i class="wip">⏳ 製作中</i></span>
+      <a class="guide-btn" href="https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F" target="_blank" rel="noopener">🪜 我真的需要一步一步教學 →</a>
     </li>
     <li>
       <div class="art" aria-hidden="true">
@@ -924,8 +993,8 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
 
 <section class="final" aria-label="開始使用">
   <p class="eyebrow">SYNOX</p>
-  <p class="slogan" style="font-family:var(--display);font-weight:700"><span class="nw">聊天就能用，</span><span class="nw" style="color:var(--accent)">資料不出門。</span></p>
-  <p>住在你自己電腦裡的 AI 助理。</p>
+  <p class="slogan" style="font-family:var(--display);font-weight:700"><span class="nw">{{slogan-1}}</span><span class="nw" style="color:var(--accent)">{{slogan-2}}</span></p>
+  <p>{{eyebrow}}。</p>
   <div class="cta center">
     <a class="btn primary" href="https://github.com/ChouYangEn0401/SYNOX" target="_blank" rel="noopener"><svg class="brand"><use href="#b-github"/></svg>到 GitHub 看原始碼</a>
     <a class="btn" href="#setup"><svg class="ico"><use href="#i-download"/></svg>怎麼裝</a>
@@ -940,7 +1009,7 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
   <span>Telegram、Discord、Claude、OpenAI、Gemini 等名稱與標誌屬於各自的所有者</span>
   <a href="https://github.com/ChouYangEn0401/SYNOX" target="_blank" rel="noopener">github.com/ChouYangEn0401/SYNOX</a>
 </footer>
-<p class="stamp">線上版 <a href="https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox">claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox</a> · 本機版 docs/landing/index.html · 頁面版本 {{stamp}}</p>
+<p class="stamp">線上版 <a href="https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox">claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox</a> · 本機版 docs/landing/index.html · 頁面版本 <span data-stamp>{{stamp}}</span></p>
 </div>
 
 <script>
@@ -994,6 +1063,105 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
     var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (!calm && window.SynoxGate) { window.SynoxGate.open(); }
   });
+})();
+</script>
+<script>
+/* 彩蛋：偶爾（大約 4 次打開有 1 次；不然就是在第一屏停著不動約 20 秒）大標語會冒出一句玩笑話、變個顏色，
+   S 寶寶馬上推著滾筒把它刷掉，露出正式標語。一次造訪最多一次；開場（SynoxGate）還沒點掉之前不會跑；
+   系統開了「減少動態效果」永遠不跑。玩笑話在 src/synox/brand.py 的 SLOGAN_JOKES（make_landing.py 塞進 data-jokes）。
+   ?egg=1 一定跑（測試用，可加 &joke=0／1 指定哪一句）；?egg=0 不跑。整段包在 try 裡，出錯就維持正式標語。 */
+(function () {
+  try {
+    var h = document.getElementById('slogan');
+    if (!h) return;
+    var html = document.documentElement;
+    var q = location.search || '';
+    var m = /[?&]egg=([01])(?:&|#|$)/.exec(q);
+    if (m && m[1] === '0') return;
+    var force = !!m;
+    function calm() { try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return true; } }
+    if (calm()) return;
+    var jokes = JSON.parse(h.getAttribute('data-jokes') || '[]');
+    if (!jokes.length) return;
+    var pick = /[?&]joke=(\d+)(?:&|#|$)/.exec(q);
+    var SOON = 2200, IDLE = 20000, BEAT = 2300;
+    var ran = false, timers = [], idleTimer = 0, layer = null;
+
+    function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; }
+    function entered() { return !document.querySelector('.sx-splash') && !html.classList.contains('sx-intro'); }
+    function onHero() {
+      var r = h.getBoundingClientRect();
+      return !document.hidden && r.top >= 0 && r.bottom <= (window.innerHeight || html.clientHeight);
+    }
+    function later(fn, ms) { timers.push(setTimeout(fn, ms)); }
+    function cleanup() {
+      timers.forEach(clearTimeout); timers = [];
+      window.removeEventListener('resize', cleanup);
+      h.classList.remove('egg-on', 'egg-roll', 'egg-done', 'egg-bye');
+      if (layer && layer.parentNode) layer.parentNode.removeChild(layer);
+      layer = null;
+    }
+
+    function run() {
+      if (ran) return;
+      if (calm()) { ran = true; return; }
+      if (!entered() || !onHero()) { later(run, 1000); return; }     // 開場又被叫出來、或人已經滑走：等一下再看
+      ran = true; disarm();
+      var joke = jokes[pick ? Math.min(+pick[1], jokes.length - 1) : Math.floor(Math.random() * jokes.length)];
+      layer = el('span', 'egg');
+      layer.setAttribute('aria-hidden', 'true');
+      var wipe = el('span', 'egg-wipe'); wipe.appendChild(el('i'));
+      var box = el('span', 'egg-jokes');
+      var beats = joke.map(function (lines) {
+        var b = el('span', 'egg-beat');
+        lines.forEach(function (t) { b.appendChild(el('span', '', t)); });
+        box.appendChild(b);
+        return b;
+      });
+      var track = el('span', 'egg-track');
+      var bot = el('span', 'egg-bot');
+      bot.appendChild(el('i', 'egg-roller')); bot.appendChild(el('i', 'egg-arm'));
+      var cube = el('span', 'egg-cube');
+      ['e l', 'e r', 'b l', 'b r', 'm', 's'].forEach(function (c) { cube.appendChild(el('i', c)); });
+      bot.appendChild(cube); track.appendChild(bot);
+      layer.appendChild(wipe); layer.appendChild(box); layer.appendChild(track);
+      h.appendChild(layer);
+      // 玩笑話比較長：字縮到剛好塞進同一個框（寬不超過正式標語的框）
+      var wide = 0;
+      Array.prototype.forEach.call(box.querySelectorAll('.egg-beat span'), function (s) { wide = Math.max(wide, s.offsetWidth); });
+      var size = parseFloat(getComputedStyle(h).fontSize) || 48;
+      if (wide > h.clientWidth) box.style.fontSize = Math.floor(size * h.clientWidth / wide * 10) / 10 + 'px';
+      window.addEventListener('resize', cleanup);
+
+      var t = 60;
+      later(function () { h.classList.add('egg-on'); beats[0].classList.add('on'); }, t);
+      for (var i = 1; i < beats.length; i++) (function (i) {
+        t += BEAT;
+        later(function () { beats[i - 1].classList.remove('on'); beats[i - 1].classList.add('off'); }, t);
+        later(function () { beats[i].classList.add('on'); }, t + 180);
+      })(i);
+      t += BEAT + (beats.length > 1 ? 300 : 500);
+      var roll = Math.round(Math.min(1700, Math.max(1250, h.clientWidth * 2.6)));
+      later(function () { layer.style.setProperty('--egg-t', roll + 'ms'); h.classList.remove('egg-on'); h.classList.add('egg-roll'); }, t);
+      t += roll + 40;
+      later(function () { h.classList.remove('egg-roll'); h.classList.add('egg-done'); }, t);
+      later(function () { h.classList.add('egg-bye'); }, t + 950);
+      later(cleanup, t + 1700);
+    }
+
+    // 沒被抽中的那 3/4：在第一屏停著不動（不捲、不點、不打字、滑鼠不動）約 20 秒才出現
+    var EV = ['scroll', 'pointerdown', 'pointermove', 'keydown', 'wheel', 'touchstart'];
+    function idle() { clearTimeout(idleTimer); idleTimer = setTimeout(function () { if (onHero() && entered()) run(); else idle(); }, IDLE); }
+    function disarm() { clearTimeout(idleTimer); EV.forEach(function (n) { window.removeEventListener(n, idle, true); }); }
+    function arm() {
+      if (force) { later(run, 900); return; }
+      if (Math.random() < 0.25) { later(run, SOON); return; }
+      EV.forEach(function (n) { window.addEventListener(n, idle, { capture: true, passive: true }); });
+      idle();
+    }
+    // 等開場點掉（或根本沒有開場）才開始算
+    (function wait() { if (entered()) arm(); else setTimeout(wait, 400); })();
+  } catch (e) { /* 彩蛋壞了不影響頁面 */ }
 })();
 </script>
 </body>

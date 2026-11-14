@@ -1,0 +1,637 @@
+<!doctype html>
+<title>SYNOX 第三方工具安全研究</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* 版面：單欄閱讀文件。結論與選項在最上面；之後每節先講白話，證據收在可展開的區塊裡。 */
+:root {
+  --bg: #f4f6f9;
+  --surface: #ffffff;
+  --sunken: #e9edf3;
+  --ink: #17212f;
+  --muted: #55627a;
+  --line: #d3dae5;
+  --accent: #2a5da8;
+  --accent-soft: #e3ecf9;
+  --danger: #b3261e;
+  --danger-soft: #fbe9e7;
+  --warn: #8a5a00;
+  --warn-soft: #fbf0d9;
+  --ok: #1c7248;
+  --ok-soft: #e1f3e9;
+  --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "Cascadia Mono", Consolas, monospace;
+  --step--1: 0.8125rem;
+  --step-0: 1rem;
+  --step-1: 1.1875rem;
+  --step-2: 1.5rem;
+  --step-3: 1.9rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141b; --surface: #171e28; --sunken: #1f2835; --ink: #e5eaf2; --muted: #9aa7bb; --line: #2c3848;
+    --accent: #86b4f2; --accent-soft: #1c2c45;
+    --danger: #ff9289; --danger-soft: #3a1d1b; --warn: #f1bd66; --warn-soft: #3a2d12; --ok: #74d3a1; --ok-soft: #153325;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141b; --surface: #171e28; --sunken: #1f2835; --ink: #e5eaf2; --muted: #9aa7bb; --line: #2c3848;
+  --accent: #86b4f2; --accent-soft: #1c2c45;
+  --danger: #ff9289; --danger-soft: #3a1d1b; --warn: #f1bd66; --warn-soft: #3a2d12; --ok: #74d3a1; --ok-soft: #153325;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--font-body); font-size: var(--step-0); line-height: 1.75;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 64px;
+}
+main { max-width: 46rem; margin-inline: auto; display: flex; flex-direction: column; gap: 44px; }
+section { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h1, h2, h3, p, ul, ol { margin: 0; }
+h1 { font-size: var(--step-3); line-height: 1.3; font-weight: 700; text-wrap: balance; }
+h2 { font-size: var(--step-2); line-height: 1.35; font-weight: 700; text-wrap: balance; padding-top: 20px; border-top: 2px solid var(--ink); }
+h3 { font-size: var(--step-1); line-height: 1.45; font-weight: 700; }
+ul, ol { padding-left: 1.3em; display: flex; flex-direction: column; gap: 6px; }
+a { color: var(--accent); text-underline-offset: 3px; overflow-wrap: anywhere; }
+a:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+code { font-family: var(--font-mono); font-size: 0.86em; background: var(--sunken); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+.muted { color: var(--muted); }
+.small { font-size: var(--step--1); line-height: 1.65; }
+.eyebrow { font-size: var(--step--1); color: var(--muted); letter-spacing: 0.06em; }
+header.top { display: flex; flex-direction: column; gap: 12px; }
+blockquote { margin: 0; padding: 12px 16px; background: var(--sunken); border-radius: 8px; color: var(--ink); }
+
+.chip { display: inline-block; font-size: var(--step--1); font-weight: 700; line-height: 1.5; padding: 1px 9px; border-radius: 999px; white-space: nowrap; }
+.chip.p0 { background: var(--danger-soft); color: var(--danger); }
+.chip.p1 { background: var(--warn-soft); color: var(--warn); }
+.chip.p2 { background: var(--sunken); color: var(--muted); }
+.chip.ok { background: var(--ok-soft); color: var(--ok); }
+.chip.info { background: var(--accent-soft); color: var(--accent); }
+
+.verdict { display: flex; flex-direction: column; gap: 10px; padding-left: 1.4em; }
+.verdict li::marker { font-weight: 700; color: var(--accent); }
+
+.options { display: grid; grid-template-columns: 1fr; gap: 12px; }
+.option { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.option.pick { border: 2px solid var(--ok); }
+.option .head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.option .letter { font-family: var(--font-mono); font-weight: 500; font-size: var(--step-1); width: 1.9em; height: 1.9em; display: inline-flex; align-items: center; justify-content: center; border-radius: 6px; background: var(--sunken); }
+.option.pick .letter { background: var(--ok); color: var(--surface); }
+.option h3 { flex: 1 1 12rem; min-width: 0; }
+.copy { align-self: flex-start; font: inherit; font-size: var(--step--1); padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); color: var(--ink); cursor: pointer; }
+.copy:hover { border-color: var(--accent); color: var(--accent); }
+
+.toc { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: var(--step--1); padding: 0; list-style: none; }
+
+.rows { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.row { padding: 14px 0; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.row .head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.row .head strong { flex: 1 1 14rem; min-width: 0; }
+.kv { display: grid; grid-template-columns: 5.2em 1fr; gap: 4px 12px; font-size: 0.94rem; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; min-width: 0; }
+details { font-size: var(--step--1); }
+details summary { cursor: pointer; color: var(--muted); width: fit-content; }
+details .ev { margin-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+
+.scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 36rem; font-size: 0.92rem; line-height: 1.6; }
+th, td { text-align: left; vertical-align: top; padding: 10px 12px; border-bottom: 1px solid var(--line); }
+th { font-size: var(--step--1); color: var(--muted); font-weight: 500; background: var(--sunken); white-space: nowrap; }
+tr:last-child td { border-bottom: 0; }
+tr.pick td { background: var(--ok-soft); }
+
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 12px; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.panel.can { border-top: 4px solid var(--ok); }
+.panel.cannot { border-top: 4px solid var(--danger); }
+.callout { background: var(--accent-soft); border-radius: 8px; padding: 14px 16px; }
+.callout.warn { background: var(--warn-soft); }
+
+.stage { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.stage .head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.stage .head h3 { flex: 1 1 14rem; min-width: 0; }
+.src { font-size: var(--step--1); line-height: 1.6; }
+.src li { overflow-wrap: anywhere; }
+@media (max-width: 30rem) {
+  .kv { grid-template-columns: 1fr; gap: 0; }
+  .kv dt { margin-top: 6px; font-size: var(--step--1); }
+}
+</style>
+
+<main>
+<header class="top">
+  <p class="eyebrow">研究報告・2026-11-13・只讀與設計，沒有改程式、沒有執行任何第三方程式</p>
+  <h1>SYNOX 能不能安全地架別人做的工具給其他人用</h1>
+  <blockquote>能不能把別人做的工具，把它架設在我這個東西，讓別人可以使用，但是就會有很多安全性的問題，所以我在想，我這個核心有沒有辦法變成安全版，或者是檢查別人的 bug，或者是危險代碼之類的。</blockquote>
+  <ul class="toc">
+    <li><a href="#verdict">結論</a></li>
+    <li><a href="#options">選項</a></li>
+    <li><a href="#now">現況</a></li>
+    <li><a href="#gaps">缺口</a></li>
+    <li><a href="#threats">威脅</a></li>
+    <li><a href="#layers">防護層</a></li>
+    <li><a href="#checking">檢查多可靠</a></li>
+    <li><a href="#industry">業界</a></li>
+    <li><a href="#roadmap">路線</a></li>
+    <li><a href="#dont">不該架的情況</a></li>
+    <li><a href="#sources">來源</a></li>
+  </ul>
+</header>
+
+<section id="verdict">
+  <h2>結論</h2>
+  <ol class="verdict">
+    <li><strong>可以架，但要先分清楚程式在誰的機器上跑。</strong>工具在作者自己的伺服器跑、SYNOX 只是去呼叫它，這條路現在就能開放，風險最低。工具的程式要在你的機器上跑，在這台 Windows 10 家用版上目前沒有任何真的隔離，不該對不認識的作者開放。</li>
+    <li><strong>檢查別人的危險程式碼，做得到篩選，做不到保證。</strong>靜態掃描和 AI 審查都只能抓到明顯的和已知的。有心藏的人藏得過。VS Code、Claude Code 的外掛也是同樣的極限。</li>
+    <li><strong>真正讓它變安全的是三件事。</strong>隔離（它碰不到）、最小權限（它拿不到）、可撤銷（出事能馬上停、查得到）。檢查只是第一道篩子。</li>
+    <li><strong>SYNOX 的底子已經比多數同類專案好。</strong>安裝五關、檔案鎖、信任層級、角色上限、確認卡都有。缺六塊：隔離沒在真機驗過、沒有簽章、沒有網路出口白名單、第三方寫的字會進 AI 的系統提示、工具面板跟網頁同源、沒有每個工具的呼叫紀錄與一鍵停用。</li>
+    <li><strong>建議選 A。</strong>現在只開放不在你機器上跑的工具，同時補便宜的缺口。等另一台 Linux 機器把隔離驗過，再升到 B。</li>
+  </ol>
+</section>
+
+<section id="options">
+  <h2>請選一個</h2>
+  <p class="muted">沒有回覆的話，預設照 A 進行。</p>
+  <div class="options">
+    <div class="option pick">
+      <div class="head"><span class="letter">A</span><h3>只收不在我這台跑的工具，同時補便宜的缺口</h3><span class="chip ok">建議</span></div>
+      <p>陌生作者只能上架遠端工具（程式在他自己的伺服器）。有程式碼的工具只收你認識的人。</p>
+      <p class="small muted">代價：七個小工程，全部可以在這台用假資料測，不跑任何第三方程式。</p>
+      <button class="copy" id="copy-a" type="button" data-copy="選 A：只收不在我這台跑的工具，同時補便宜的缺口">複製「選 A」</button>
+    </div>
+    <div class="option">
+      <div class="head"><span class="letter">B</span><h3>A 做完，再開放關在容器裡跑的工具</h3><span class="chip info">A 之後</span></div>
+      <p>第三方的命令列工具在 Linux 伺服器的容器裡跑：斷網、只看得到自己的資料夾。</p>
+      <p class="small muted">代價：需要另一台 Linux 機器（學校實驗室）真的跑過驗證清單。這台電腦不參與。</p>
+      <button class="copy" id="copy-b" type="button" data-copy="選 B：A 做完後，在 Linux 伺服器開放容器隔離的第三方工具">複製「選 B」</button>
+    </div>
+    <div class="option">
+      <div class="head"><span class="letter">C</span><h3>做成完整的工具平台</h3><span class="chip p2">現在不建議</span></div>
+      <p>公開目錄、作者簽章、審核佇列、撤銷清單、更輕的沙箱。</p>
+      <p class="small muted">代價：持續的維護人力，等於多經營一個產品。</p>
+      <button class="copy" id="copy-c" type="button" data-copy="選 C：做成完整的工具平台">複製「選 C」</button>
+    </div>
+    <div class="option">
+      <div class="head"><span class="letter">D</span><h3>維持現狀</h3><span class="chip p2">保守可行</span></div>
+      <p>照安全文件現在的建議：不收陌生人的工具。</p>
+      <p class="small muted">代價：無。</p>
+      <button class="copy" id="copy-d" type="button" data-copy="選 D：維持現狀，不收陌生人的工具">複製「選 D」</button>
+    </div>
+  </div>
+  <p class="small muted" id="copy-status" aria-live="polite"></p>
+  <div class="callout">
+    <strong>另外兩件只有你能決定的事</strong>
+    <ul>
+      <li>有沒有一台可以拿來驗證的 Linux 機器（學校實驗室）。有的話可以升到 B，也順便解掉既有的「待驗證」。</li>
+      <li>你願不願意當審核的人。A 不需要；B 的審核佇列需要。</li>
+    </ul>
+  </div>
+</section>
+
+<section id="now">
+  <h2>現況：SYNOX 現在怎麼載入別人的工具</h2>
+  <p>現在的信任模型是一句話：<strong>擁有者安裝時看報告、按確認，就是信任了作者。</strong>程式能擋的是明顯的手法和事後偷改。作者本人是不是好人，程式不知道。</p>
+  <h3>三條接入路，差別在程式在哪裡跑</h3>
+  <div class="rows">
+    <div class="row">
+      <div class="head"><strong>遠端工具</strong><span class="chip ok">你的機器不跑它的程式</span></div>
+      <p>程式在作者的伺服器。SYNOX 只看得到宣告：網址、允許哪些工具、每個工具多危險。只往宣告的那個 https 網址連，不跟轉址。</p>
+      <details><summary>證據</summary><div class="ev"><code>src/synox/packs/mcp_http.py:141</code><code>src/synox/packs/mcp_http.py:267</code></div></details>
+    </div>
+    <div class="row">
+      <div class="head"><strong>命令列工具、本機 MCP</strong><span class="chip p1">這台上不隔離</span></div>
+      <p>在你的機器另開一個子程序。Python 原始碼掃得到，執行檔、npm 套件、外部程式掃不到。個人版與 Windows 的預設是不隔離。</p>
+      <details><summary>證據</summary><div class="ev"><code>src/synox/packs/loader.py:592-615</code><code>src/synox/sandbox.py:465-467</code></div></details>
+    </div>
+    <div class="row">
+      <div class="head"><strong>Python 工具</strong><span class="chip p0">完全沒有隔離</span></div>
+      <p>直接在 SYNOX 自己的程序裡執行，拿得到整個程式的內部物件、全部資料、解開的保管箱。</p>
+      <details><summary>證據</summary><div class="ev"><code>src/synox/packs/loader.py:431-448</code><code>docs/security.md:228</code></div></details>
+    </div>
+  </div>
+
+  <h3>已經有的安全機制</h3>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>機制</th><th>做什麼</th><th>在哪</th></tr></thead>
+      <tbody>
+        <tr><td>宣告檢查</td><td>格式、能力只能是五種、擋會讓直譯器先載入別的程式的環境變數、擋網路路徑</td><td><code>packs/manifest.py:88</code> <code>:807-876</code></td></tr>
+        <tr><td>靜態掃描</td><td>只讀不執行；用了沒宣告的能力就拒裝；看不懂的檔列清單</td><td><code>packs/scan.py:630</code> <code>:1641</code> <code>:1677</code></td></tr>
+        <tr><td>檔案鎖</td><td>按確認時記下每個檔的雜湊；之後每次載入、每次呼叫前再對，不符就不跑並通知你</td><td><code>packs/lock.py:165</code> <code>:220</code> <code>:233</code></td></tr>
+        <tr><td>呼叫驗證</td><td>AI 每次叫工具前驗參數；擋把已存的密鑰當參數送出去；擋跳出自己資料夾的路徑</td><td><code>agent/validate.py:168</code></td></tr>
+        <tr><td>確認卡與資料標記</td><td>危險動作一定要本人按；工具結果包在每輪隨機的標記裡當資料</td><td><code>agent/delimit.py:21-41</code></td></tr>
+        <tr><td>信任層級</td><td>附執行檔或外部程式的工具，要一字不差輸入發行者名字才裝</td><td><code>packs/tier.py:127-141</code></td></tr>
+        <tr><td>角色上限</td><td>訪客、成員、管理員各自看得到哪些能力的工具</td><td><code>policy.py:56</code></td></tr>
+        <tr><td>伺服器版降級</td><td>第三方 Python 工具、要沙盒卻沒有真隔離的工具，整組只給擁有者</td><td><code>packs/loader.py:933-938</code> <code>sandbox.py:697-719</code></td></tr>
+        <tr><td>套件來源固定</td><td>pip、npm 固定官方來源，不讀本機設定檔，不跑安裝腳本</td><td><code>packs/envs.py:578-580</code> <code>:601-602</code></td></tr>
+        <tr><td>上傳限制</td><td>5 MB、解開 20 MB、300 個檔</td><td><code>packs/admin.py:47-51</code></td></tr>
+        <tr><td>壞掉自動暫停</td><td>同一個原因連續失敗就暫時不給 AI 用</td><td><code>docs/tool-health.md</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="small muted">路徑都在 <code>src/synox/</code> 底下。行號以 2026-11-13 的 dev 分支（b597241）為準。</p>
+</section>
+
+<section id="gaps">
+  <h2>缺口</h2>
+  <p>標「推論」的是從程式讀出來的，沒有實際做攻擊測試。</p>
+  <div class="rows">
+    <div class="row">
+      <div class="head"><strong>G1　這台電腦上沒有真隔離</strong><span class="chip p0">嚴重</span></div>
+      <p>Windows 的自動設定等於不隔離。現有的 Windows 限制只管記憶體和程序數。命令列工具能讀寫整台電腦、任意連網。</p>
+      <details><summary>證據</summary><div class="ev"><code>src/synox/sandbox.py:465-467</code><code>src/synox/sandbox.py:121-142</code><code>src/synox/sandbox.py:383-395</code></div></details>
+    </div>
+    <div class="row">
+      <div class="head"><strong>G2　Python 工具在 SYNOX 程序裡跑</strong><span class="chip p0">嚴重</span></div>
+      <p>任何模式下，裝一個 Python 工具等於完全信任作者。</p>
+      <details><summary>證據</summary><div class="ev"><code>src/synox/packs/loader.py:431-448</code></div></details>
+    </div>
+    <div class="row">
+      <div class="head"><strong>G3　容器與 Linux 沙盒沒在真機跑過</strong><span class="chip p0">嚴重</span></div>
+      <p>只比對過 SYNOX 組出來的指令字串。伺服器版的隔離承諾還不能算數。</p>
+      <details><summary>證據</summary><div class="ev"><code>docs/handoff/container-verification.md:3</code><code>docs/security.md:321</code><code>docs/security.md:349-350</code></div></details>
+    </div>
+    <div class="row">
+      <div class="head"><strong>G4　沒有簽章</strong><span class="chip p1">重要</span></div>
+      <p>發行者只是作者自己寫的一個名字。擋不了冒名，也沒辦法撤銷某個作者。</p>
+      <details><summary>證據</summary><div class="ev"><code>src/synox/packs/tier.py:28</code><code>src/synox/packs/manifest.py:818-821</code><code>docs/ecosystem.md:94</code></div></details>
+    </div>
+    <div class="row">
+      <div class="head"><strong>G5　沒有網路出口白名單</strong><span class="chip p1">重要</span></div>
+      <p>宣告了連網的命令列或 Python 工具可以連任何地方。有合法連網權限的工具把資料送去別處，結構上擋不了。</p>
+      <details><summary>證據</summary><div class="ev"><span>在 <code>src/synox</code> 搜尋主機白名單相關欄位沒有結果；只有遠端工具固定主機。</span></div></details>
+    </div>
+    <div class="row">
+      <div class="head"><strong>G6　第三方寫的字會進 AI 的系統提示</strong><span class="chip p1">重要・推論</span></div>
+      <p>工具的名稱與簡介、技能說明開頭的三個欄位直接拼進提示，不在「這是資料」的標記裡。工具的名稱與簡介在安裝時只檢查不是空的，沒有長度與換行限制。確認卡仍會擋危險動作，但擋不到「讀資料再經合法工具送出去」。</p>
+      <details><summary>證據</summary><div class="ev"><code>src/synox/agent/loop.py:265-267</code><code>src/synox/agent/skills.py:76-81</code><code>src/synox/packs/manifest.py:1057-1059</code><span>對照：指令說明有 200 字上限 <code>manifest.py:93</code>，MCP 工具說明也有 <code>mcp.py:66</code></span></div></details>
+    </div>
+    <div class="row">
+      <div class="head"><strong>G7　工具面板跟網頁同源</strong><span class="chip p1">重要・推論</span></div>
+      <p>面板裡的腳本可以用打開它的那個人的身分操作網頁。面板已經被擋住直接對外連線。但就算工具本體關進容器，面板仍在容器外。</p>
+      <details><summary>證據</summary><div class="ev"><code>src/synox/web/static/tools.js:375</code><code>src/synox/web/server.py:500-509</code><code>docs/security.md:74-75</code></div></details>
+    </div>
+    <div class="row">
+      <div class="head"><strong>G8　沒有呼叫紀錄，也沒有一鍵停用</strong><span class="chip p1">重要</span></div>
+      <p>停用要改設定檔再重開。沒有封鎖清單。出事時查不到它做過什麼，也停得不夠快。</p>
+      <details><summary>證據</summary><div class="ev"><code>src/synox/config.py:170-174</code><code>docs/ecosystem.md:68-69</code></div></details>
+    </div>
+    <div class="row">
+      <div class="head"><strong>G9　相依套件只固定來源，不看內容</strong><span class="chip p1">重要</span></div>
+      <p>沒有已知漏洞比對，沒有惡意套件檢查。官方來源上的問題套件照樣裝得進來。</p>
+      <details><summary>證據</summary><div class="ev"><code>docs/security.md:388-393</code></div></details>
+    </div>
+    <div class="row">
+      <div class="head"><strong>G10　個人版手動放進來的工具不掃描</strong><span class="chip p2">次要</span></div>
+      <p>載入前的補掃只在伺服器版做。</p>
+      <details><summary>證據</summary><div class="ev"><code>src/synox/packs/loader.py:377-386</code></div></details>
+    </div>
+    <div class="row">
+      <div class="head"><strong>G11　執行中的惡意工具可以改鎖檔、改別的工具</strong><span class="chip p2">隔離的後果</span></div>
+      <p>沒有隔離時，所有事後檢查都可以被它自己關掉。</p>
+      <details><summary>證據</summary><div class="ev"><code>docs/security.md:16</code></div></details>
+    </div>
+  </div>
+</section>
+
+<section id="threats">
+  <h2>威脅：別人的工具可能做什麼</h2>
+  <p>排序看三件事：多容易發生、損害多大、SYNOX 現在擋不擋得住。</p>
+  <div class="rows">
+    <div class="row">
+      <div class="head"><strong>讀憑證、把資料送出去</strong><span class="chip p0">P0</span></div>
+      <p>Python 工具讀保管箱解開的東西和設定檔裡明文的 bot token。命令列工具讀整台電腦。有連網權限的工具把東西送到自己的伺服器。個人版與 Windows 擋不住。</p>
+    </div>
+    <div class="row">
+      <div class="head"><strong>跨使用者讀資料（伺服器版）</strong><span class="chip p0">P0</span></div>
+      <p>一個成員用的工具讀到別的成員的筆記、記帳、token。程序內的工具擋不住；子程序要等真隔離。</p>
+    </div>
+    <div class="row">
+      <div class="head"><strong>供應鏈</strong><span class="chip p1">P1</span></div>
+      <p>第一版乾淨、第二版加料。相依套件裡藏惡意程式。每次從網路抓最新版來跑。升級紅字與檔案鎖擋事後偷改，但套件內容不看。</p>
+    </div>
+    <div class="row">
+      <div class="head"><strong>騙 AI（提示注入）</strong><span class="chip p1">P1</span></div>
+      <p>工具簡介、技能說明、工具回傳的結果、遠端伺服器回的字裡寫指令。遠端伺服器可以今天正常、明天改行為。工具結果有包標記加確認卡；簡介類的字沒包。</p>
+    </div>
+    <div class="row">
+      <div class="head"><strong>借使用者的身分操作網頁</strong><span class="chip p1">P1</span></div>
+      <p>惡意面板用開啟者的登入狀態打網頁的後台。目前沒擋。</p>
+    </div>
+    <div class="row">
+      <div class="head"><strong>提權與留後門</strong><span class="chip p1">P1</span></div>
+      <p>改鎖檔、改別的工具、寫開機啟動項。沒有隔離就擋不住。</p>
+    </div>
+    <div class="row">
+      <div class="head"><strong>資源耗盡</strong><span class="chip p2">P2</span></div>
+      <p>吃光記憶體、開一堆程序、卡住 SYNOX、燒光 AI 額度。命令列有 120 秒逾時，AI 有額度。Windows 預設不限記憶體。</p>
+    </div>
+    <div class="row">
+      <div class="head"><strong>冒名與搶名</strong><span class="chip p2">P2</span></div>
+      <p>取跟官方工具一樣的名字、寫別人的發行者名字。同名會走升級流程出紅字；發行者沒簽章。</p>
+    </div>
+    <div class="row">
+      <div class="head"><strong>你作為營運者的責任</strong><span class="chip p2">P3</span></div>
+      <p>別人的資料在你機器上被第三方工具弄丟或外洩。這不是程式問題：要告知、要能撤銷、要有紀錄。</p>
+    </div>
+  </div>
+  <div class="callout warn">
+    <strong>這台電腦的特別之處</strong>
+    <p>它是你的開發機，不是乾淨的伺服器。上面有所有專案的原始碼、多個登入中的 session、瀏覽器裡的帳號，記憶體只有 12 GB。一個沒隔離的第三方工具在這台出事，損害範圍不只是 SYNOX 的資料。這是選項 A 堅持陌生人的程式不在這台跑的主要理由。</p>
+  </div>
+</section>
+
+<section id="layers">
+  <h2>防護層次比較</h2>
+  <div class="rows">
+    <div class="row">
+      <div class="head"><strong>宣告式權限</strong><span class="chip ok">已有</span></div>
+      <dl class="kv">
+        <dt>擋得住</dt><dd>讓要做什麼看得見；沒宣告就用會拒裝；權限變大出紅字</dd>
+        <dt>擋不住</dt><dd>宣告了的權限被拿去做壞事</dd>
+        <dt>代價</dt><dd>低。缺的是連網沒有細到連哪些主機</dd>
+      </dl>
+    </div>
+    <div class="row">
+      <div class="head"><strong>簽章與來源驗證</strong><span class="chip p1">沒有</span></div>
+      <dl class="kv">
+        <dt>擋得住</dt><dd>傳輸途中被換、冒名；之後可以撤銷某個作者或某一版</dd>
+        <dt>擋不住</dt><dd>簽名的人自己就是壞人</dd>
+        <dt>代價</dt><dd>低到中。加密套件已經在用；難的是金鑰保管與輪換</dd>
+      </dl>
+    </div>
+    <div class="row">
+      <div class="head"><strong>靜態掃描</strong><span class="chip ok">已有，可再補</span></div>
+      <dl class="kv">
+        <dt>擋得住</dt><dd>明顯的危險寫法、沒宣告的能力、已知有漏洞的套件版本、留在包裡的密鑰</dd>
+        <dt>擋不住</dt><dd>刻意隱藏、相依套件內部、執行檔、遠端伺服器的行為、合法權限的濫用</dd>
+        <dt>代價</dt><dd>低。誤報會消耗審核的人</dd>
+      </dl>
+    </div>
+    <div class="row">
+      <div class="head"><strong>沙箱執行</strong><span class="chip p0">這台沒有</span></div>
+      <dl class="kv">
+        <dt>擋得住</dt><dd>工具碰不到沒給它的檔案與網路。是唯一對惡意程式本身有效的一層</dd>
+        <dt>擋不住</dt><dd>給它的那一格資料被它弄壞；隔離機制自己的漏洞</dd>
+        <dt>代價</dt><dd>看做法，見下表</dd>
+      </dl>
+    </div>
+    <div class="row">
+      <div class="head"><strong>網路出口白名單</strong><span class="chip p1">只有遠端工具有</span></div>
+      <dl class="kv">
+        <dt>擋得住</dt><dd>工具只能連宣告的主機；外傳要嘛被擋、要嘛留下紀錄</dd>
+        <dt>擋不住</dt><dd>經允許的主機外傳；只看主機名的過濾可以被繞</dd>
+        <dt>代價</dt><dd>中。前提是工具自己開不了連線，所以一定要先有沙箱</dd>
+      </dl>
+    </div>
+    <div class="row">
+      <div class="head"><strong>人工審核</strong><span class="chip p2">只有按確認這一步</span></div>
+      <dl class="kv">
+        <dt>擋得住</dt><dd>人看得懂這工具為什麼要這個權限，能問作者</dd>
+        <dt>擋不住</dt><dd>審的人沒空、看不懂、被說服；每次更新都要重審</dd>
+        <dt>代價</dt><dd>高。花的是你的時間，而且是持續的</dd>
+      </dl>
+    </div>
+    <div class="row">
+      <div class="head"><strong>執行期監控與可撤銷</strong><span class="chip p1">只有一部分</span></div>
+      <dl class="kv">
+        <dt>擋得住</dt><dd>出事後查得到、停得快、能通知受影響的人</dd>
+        <dt>擋不住</dt><dd>事前擋不了；沒隔離時紀錄可以被工具自己改掉</dd>
+        <dt>代價</dt><dd>低到中。任何時候都該有：前面全部失守後只剩它有用</dd>
+      </dl>
+    </div>
+  </div>
+
+  <h3>沙箱的幾種做法，放在這台電腦上看</h3>
+  <p class="muted small">條件：Windows 10 家用版、12 GB 記憶體、不開網路埠、不跑重負載。</p>
+  <div class="scroll">
+    <table>
+      <thead><tr><th>做法</th><th>隔離強度</th><th>這台能用嗎</th><th>判斷</th></tr></thead>
+      <tbody>
+        <tr><td>子程序加資源上限</td><td>弱：檔案和網路都不限</td><td>能，已實作</td><td>只防吃光記憶體，不能當安全邊界</td></tr>
+        <tr><td>Windows AppContainer</td><td>中</td><td>理論上能；Python 在裡面跑不跑得起來沒人驗過</td><td>工程量與不確定性最高，先不押</td></tr>
+        <tr><td>容器（Docker Desktop）</td><td>中高</td><td>裝得起來，但常駐吃 GB 級記憶體</td><td>這台不裝，放到另一台 Linux</td></tr>
+        <tr><td>Linux 的 bwrap 或 podman</td><td>中高</td><td>不能，要 Linux</td><td>選項 B 的主力；程式已寫好，差真機驗證</td></tr>
+        <tr><td>WebAssembly 沙箱</td><td>高：預設沒有檔案、沒有網路</td><td>能，不用虛擬化、不開埠</td><td>最適合這台的長期方案，但工具要改寫，放在選項 C</td></tr>
+        <tr><td>整台虛擬機</td><td>最高</td><td>太重</td><td>這台不做</td></tr>
+        <tr class="pick"><td><strong>程式不在你這裡跑</strong></td><td>對你的機器而言最高</td><td>能，已實作</td><td><strong>選項 A 的核心</strong></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>出口白名單可以不開埠：工具完全斷網，要抓網頁時經標準輸入輸出向 SYNOX 提出請求，SYNOX 核對宣告的主機後代抓。這跟現在命令列工具的資料來回是同一種管道（設計構想，還沒實作）。</p>
+</section>
+
+<section id="checking">
+  <h2>檢查別人的程式，到底多可靠</h2>
+  <h3>靜態分析</h3>
+  <div class="two">
+    <div class="panel can">
+      <strong>做得到</strong>
+      <ul>
+        <li>抓出用了卻沒宣告的能力</li>
+        <li>抓出常見的危險寫法與常見的繞法</li>
+        <li>比對相依套件的已知漏洞（只對已經登記的有效）</li>
+        <li>抓到不小心留在包裡的密鑰</li>
+        <li>列出所有看不懂的檔</li>
+      </ul>
+    </div>
+    <div class="panel cannot">
+      <strong>做不到</strong>
+      <ul>
+        <li>判斷任意程式會不會做壞事。這在理論上已證明不可判定</li>
+        <li>看穿 Python 的動態寫法。SYNOX 自己的兩輪審查就找到二十多種一行繞過</li>
+        <li>看到相依套件內部、執行檔、遠端伺服器</li>
+        <li>分辨合法權限的濫用：天氣工具順便把你的查詢送給別人，程式碼跟正常功能一樣</li>
+        <li>抓到延遲或條件觸發</li>
+      </ul>
+    </div>
+  </div>
+  <p class="small muted">Python 核心開發者花三年做 Python 內的沙箱，2013 年公開宣布這個做法「broken by design」，結論是要把整個 Python 程序放進外部沙箱（來源 S9）。</p>
+
+  <h3>AI 審查</h3>
+  <div class="two">
+    <div class="panel can">
+      <strong>做得到</strong>
+      <ul>
+        <li>用白話說明這份程式看起來在做什麼，對照說明文件找出不一致</li>
+        <li>抓到相當比例的常見漏洞類型。2026 年一份研究中商用模型偵測率 89 到 96%（S11）</li>
+        <li>刻意寫來騙 AI 的註解，在那份研究裡影響很小</li>
+      </ul>
+    </div>
+    <div class="panel cannot">
+      <strong>盲點</strong>
+      <ul>
+        <li>貼近真實的資料上差很多。2024 年的研究：同一個模型在舊評測 68%，在較真實的資料只有 3%（S10）</li>
+        <li>檔案一大就漏（S12，次級來源）</li>
+        <li>每次結果可能不同</li>
+        <li>看不到執行期、相依套件、遠端行為</li>
+        <li>最危險的是心理效果：「AI 看過了」容易被當成「安全」</li>
+      </ul>
+    </div>
+  </div>
+  <div class="callout">
+    <strong>建議寫進設計的規則</strong>
+    <p>AI 審查的結果只能增加紅字，不能消掉其他檢查的紅字，也不能自動核准。它是給審核的人看的摘要。</p>
+  </div>
+  <p><strong>一句話：</strong>檢查能把粗心的作者和懶惰的攻擊者擋在門外，擋不住認真的攻擊者。設計上要假設檢查會漏，讓漏進來的東西碰不到重要的資料。</p>
+</section>
+
+<section id="industry">
+  <h2>業界怎麼做</h2>
+  <p class="muted small">查證日期 2026-11-13。引號內是官方文件原文。</p>
+  <div class="rows">
+    <div class="row">
+      <div class="head"><strong>Claude Code 外掛</strong><span class="chip p1">信任加警告，不隔離</span></div>
+      <p>「A Claude Code plugin you install can execute arbitrary code on your machine with your user privileges.」安裝前顯示信任警告：Anthropic 不控制外掛內容，也無法驗證。沙箱只包 shell 指令，外掛的 hook 與 MCP 伺服器在沙箱外。原生 Windows 沒有沙箱。社群目錄會釘住版本，組織可以設允許與封鎖清單。</p>
+      <p class="small muted">S1、S2、S3</p>
+    </div>
+    <div class="row">
+      <div class="head"><strong>MCP 規格的安全建議</strong><span class="chip info">要求同意，建議沙箱</span></div>
+      <p>本機 MCP 伺服器就是下載到使用者機器上執行的程式。一鍵設定前必須完整顯示要執行的指令並取得同意；應該放進沙箱並限制檔案與網路。另有「工具投毒」：惡意指令藏在工具說明裡，人看不到、AI 看得到；伺服器可以在你核准之後才改說明。</p>
+      <p class="small muted">S4、S5</p>
+    </div>
+    <div class="row">
+      <div class="head"><strong>VS Code 擴充</strong><span class="chip p1">上架檢查加撤銷，不隔離</span></div>
+      <p>擴充主機「has the same permissions as VS Code itself」。上架時有惡意軟體掃描、簽章、發行者驗證、密鑰掃描；確認惡意後列入封鎖清單並自動解除安裝；第一次裝第三方發行者要按信任。即使如此，仍有惡意擴充上架後才被研究者發現（次級來源）。</p>
+      <p class="small muted">S6、S13</p>
+    </div>
+    <div class="row">
+      <div class="head"><strong>Deno</strong><span class="chip ok">預設零權限</span></div>
+      <p>預設沒有任何檔案、網路、環境變數、子程序權限，用旗標逐項開。但開了子程序或原生函式庫就「equivalent to --allow-all」；同一個程式裡的相依套件權限相同，無法只限制某一個。跑不可信程式時官方建議再加一層系統沙箱或虛擬機。</p>
+      <p class="small muted">S7</p>
+    </div>
+    <div class="row">
+      <div class="head"><strong>WebAssembly（WASI）</strong><span class="chip ok">能力制沙箱</span></div>
+      <p>沒有系統呼叫，一切靠主程式給；檔案只碰得到被交付的。Spectre 類攻擊的緩解仍在研究中。資源上限的文件這次沒查到（未驗證）。</p>
+      <p class="small muted">S8、S14</p>
+    </div>
+    <div class="row">
+      <div class="head"><strong>Cloudflare Workers</strong><span class="chip ok">多層隔離加全職團隊</span></div>
+      <p>每個租戶一個 V8 isolate，整個程序再包一層沙箱（空的檔案系統、禁止網路），V8 修補 24 小時內上線。平台方可以攔下客戶程式的對外請求做允許、封鎖、記錄。官方自己說這是「an ongoing investment — not something that will ever be done」。</p>
+      <p class="small muted">S15、S16</p>
+    </div>
+  </div>
+  <h3>對照之後的四個結論</h3>
+  <ol>
+    <li>沒有任何一家只靠掃描。</li>
+    <li>桌面端的外掛生態本質上是信任、警告、可撤銷，不是隔離。SYNOX 現在跟它們同一級，而且安裝前列得更細。</li>
+    <li>真的讓陌生人的程式給陌生人用的平台，是多層隔離加全職安全團隊。</li>
+    <li>小專案最划算的模式：程式在別人那裡跑，你只跟它交換有格式的資料、給它範圍很小的憑證。SYNOX 已經有這條路。</li>
+  </ol>
+</section>
+
+<section id="roadmap">
+  <h2>建議路線</h2>
+  <div class="stage">
+    <div class="head"><h3>階段 0　現在就能定的規矩</h3><span class="chip ok">不寫程式</span></div>
+    <ul>
+      <li>不認識的作者：只收遠端工具。</li>
+      <li>有程式碼的工具：只收認識的人，信任一律選第三方。</li>
+      <li>不做：不在這台開發機裝陌生人含程式的工具；不對外說工具都檢查過所以安全。</li>
+    </ul>
+    <p class="small muted">驗收：安全文件「情境三」的建議與這裡一致（現在已經一致）。</p>
+  </div>
+  <div class="stage">
+    <div class="head"><h3>階段 1　最小可行（選項 A）</h3><span class="chip ok">這台可測，不跑第三方程式</span></div>
+    <ol>
+      <li><strong>第三方的字不進系統提示的信任區。</strong>限長度、去換行，放進資料標記。驗收：簡介寫「忽略規則」的假工具，字出現在標記內；有換行的被拒裝。</li>
+      <li><strong>面板隔離。</strong>第三方工具的面板拿掉同源權限，或乾脆不給面板。驗收：面板腳本讀不到外層頁面。</li>
+      <li><strong>呼叫紀錄、一鍵停用、封鎖清單。</strong>記誰、何時、哪個指令、成功與否，不記內容。驗收：停用後下一次呼叫就被拒，不用重開。</li>
+      <li><strong>簽章。</strong>工具庫目錄與每個工具檔簽名；發行者名字綁公鑰；換金鑰出紅字。驗收：改一個位元組就拒裝。</li>
+      <li><strong>相依套件檢查。</strong>第三方工具的套件一律要寫雜湊；報告加已知漏洞欄（預設關，你明確開才連網查，只送套件名與版本）。</li>
+      <li><strong>個人版也補掃。</strong>手動放進來、沒有鎖的工具，載入前也掃。</li>
+      <li><strong>AI 審查摘要（選配）。</strong>只能加紅字。驗收：關掉時流程完全不變。</li>
+    </ol>
+    <p class="small muted">不做：不裝容器、不開放陌生人含程式的工具、不做線上目錄。</p>
+  </div>
+  <div class="stage">
+    <div class="head"><h3>階段 2　關在容器裡跑（選項 B）</h3><span class="chip info">需要另一台 Linux</span></div>
+    <ol>
+      <li><strong>真機驗證。</strong>照現有的驗證清單把容器與 Linux 沙盒真的跑一遍。驗收：斷網真的斷、讀不到別人的資料夾、資源上限生效，逐項有紀錄。</li>
+      <li><strong>第三方只准子程序型。</strong>不收第三方的 Python 程序內工具。</li>
+      <li><strong>出口白名單。</strong>工具斷網，經 SYNOX 代抓宣告的主機。驗收：連沒宣告的主機被拒且留紀錄。</li>
+      <li><strong>審核佇列。</strong>上傳、自動檢查、等核准、上架；更新走同一條。驗收：沒核准的版本任何成員都叫不到。</li>
+    </ol>
+    <p class="small muted">不做：不在這台開發機跑容器。</p>
+  </div>
+  <div class="stage">
+    <div class="head"><h3>階段 3　完整平台（選項 C）</h3><span class="chip p2">等真的有外部作者再評估</span></div>
+    <p>公開目錄與作者帳號、金鑰輪換與撤銷清單、給純運算工具用的 WebAssembly 沙箱、給高風險工具用的虛擬機、漏洞回報與下架流程、給使用者的資料處理說明。每一項都需要持續的人力。</p>
+  </div>
+</section>
+
+<section id="dont">
+  <h2>哪些情況下不該架別人的工具</h2>
+  <ol>
+    <li>工具的程式要在這台開發機上跑，而作者不是你認識、找得到的人。</li>
+    <li>工具是 Python 程序內型，而你不是完全信任作者。個人版、伺服器版都一樣。</li>
+    <li>工具附執行檔、或每次從網路抓程式來跑，而那台機器沒有驗過的隔離。</li>
+    <li>伺服器上已經有別人的私人資料，而隔離還沒在那台機器上真的驗過。</li>
+    <li>工具同時要連網和讀使用者資料，而你沒有出口白名單。</li>
+    <li>工具處理金流、醫療、帳號密碼這類出事代價很高的資料。</li>
+    <li>作者不願意給原始碼、不願意釘死版本與雜湊。</li>
+    <li>你沒有時間持續審更新、處理回報、在出事時下架。上架是持續的責任。</li>
+  </ol>
+</section>
+
+<section id="sources">
+  <h2>來源</h2>
+  <p class="small muted">查證日期 2026-11-13。「已查證」是今天讀過原始頁面；「次級來源」是只看到轉述。</p>
+  <ul class="src">
+    <li>S1　Claude Code「Security」，已查證　<a href="https://code.claude.com/docs/en/security">code.claude.com/docs/en/security</a></li>
+    <li>S2　Claude Code「Plugin security and trust」，已查證　<a href="https://code.claude.com/docs/en/plugins/security.md">code.claude.com/docs/en/plugins/security.md</a></li>
+    <li>S3　Claude Code「Sandboxing」與「Choose a sandbox environment」，已查證　<a href="https://code.claude.com/docs/en/sandboxing">code.claude.com/docs/en/sandboxing</a>　<a href="https://code.claude.com/docs/en/sandbox-environments.md">sandbox-environments</a></li>
+    <li>S4　MCP「Security Best Practices」，已查證　<a href="https://modelcontextprotocol.io/specification/2025-06-18/basic/security_best_practices">modelcontextprotocol.io/…/security_best_practices</a></li>
+    <li>S5　Invariant Labs「Tool Poisoning Attacks」（2025-04-01），已查證　<a href="https://invariantlabs.ai/blog/mcp-security-notification">invariantlabs.ai/blog/mcp-security-notification</a></li>
+    <li>S6　VS Code「Extension runtime security」，已查證　<a href="https://code.visualstudio.com/docs/configure/extensions/extension-runtime-security">code.visualstudio.com/…/extension-runtime-security</a></li>
+    <li>S7　Deno「Security and permissions」，已查證　<a href="https://docs.deno.com/runtime/fundamentals/security/">docs.deno.com/runtime/fundamentals/security</a></li>
+    <li>S8　Wasmtime「Security」，已查證（資源上限未驗證）　<a href="https://docs.wasmtime.dev/security.html">docs.wasmtime.dev/security.html</a></li>
+    <li>S9　Victor Stinner，python-dev，2013-11-12，已查證　<a href="https://mail.python.org/pipermail/python-dev/2013-November/130132.html">mail.python.org/…/130132.html</a></li>
+    <li>S10　PrimeVul 論文，已查證摘要　<a href="https://arxiv.org/abs/2403.18624">arxiv.org/abs/2403.18624</a></li>
+    <li>S11　「Can Adversarial Code Comments Fool AI Security Reviewers」，已查證摘要；單一作者、100 個樣本，規模有限　<a href="https://arxiv.org/abs/2602.16741">arxiv.org/abs/2602.16741</a></li>
+    <li>S12　Cloudflare 關於 AI 程式審查的研究，次級來源　<a href="https://itbrief.com.au/story/cloudflare-warns-of-ai-code-review-prompt-injection">itbrief.com.au/…</a></li>
+    <li>S13　VS Code 惡意擴充下架報導，次級來源　<a href="https://www.helpnetsecurity.com/2025/05/21/data-stealing-vs-code-extensions-removed-from-official-marketplace/">helpnetsecurity.com/…</a></li>
+    <li>S14　CPython 把 WASI 列為第 2 級支援平台，次級來源　<a href="https://discuss.python.org/t/wasi-is-now-a-tier-2-platform/45417">discuss.python.org/t/…/45417</a></li>
+    <li>S15　Cloudflare Workers「Security model」，已查證　<a href="https://developers.cloudflare.com/workers/reference/security-model/">developers.cloudflare.com/workers/reference/security-model</a></li>
+    <li>S16　Cloudflare「Outbound Workers」，已查證　<a href="https://developers.cloudflare.com/cloudflare-for-platforms/workers-for-platforms/configuration/outbound-workers/">developers.cloudflare.com/…/outbound-workers</a></li>
+  </ul>
+  <p class="small muted">完整版（含每一項的檔名與行號、防護層的完整比較）在專案的 <code>docs/research/20261113-safe-third-party-tools.md</code>。這次研究只讀程式與公開網頁，沒有執行、安裝或下載任何第三方程式，沒有開網路埠。</p>
+</section>
+</main>
+
+<script>
+(function () {
+  var status = document.getElementById("copy-status");
+  function say(text) { if (status) { status.textContent = text; } }
+  function fallback(text) {
+    var box = document.createElement("textarea");
+    box.value = text;
+    box.setAttribute("readonly", "");
+    box.style.position = "absolute";
+    box.style.left = "-9999px";
+    document.body.appendChild(box);
+    box.select();
+    var ok = false;
+    try { ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(box);
+    say(ok ? "已複製：" + text : "複製不了，請直接回覆：" + text);
+  }
+  var buttons = document.querySelectorAll("button.copy");
+  for (var i = 0; i < buttons.length; i++) {
+    buttons[i].addEventListener("click", function (ev) {
+      var text = ev.currentTarget.getAttribute("data-copy");
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { say("已複製：" + text); }, function () { fallback(text); });
+      } else {
+        fallback(text);
+      }
+    });
+  }
+})();
+</script>
+<p style="font:10px/1.4 ui-monospace,monospace;opacity:.5;margin:24px 16px">線上版 <a href="https://claude.ai/artifact/KLRedhYsgivrkfM1EBuMve">https://claude.ai/artifact/KLRedhYsgivrkfM1EBuMve</a> · 本機版 docs/artifacts/2026-11-13-synox-third-party-tool-security.html · 頁面版本 <span data-stamp>0da2fd203f · 2026-11-13</span></p>

@@ -10,7 +10,7 @@ STRINGS = {
     "mode_title": "इस कंप्यूटर का SYNOX कौन इस्तेमाल करेगा?",
     "mode.personal.title": "सिर्फ़ मैं (व्यक्तिगत)",
     "mode.personal.one": "सिर्फ़ आप: कमांड केवल उसी Telegram खाते के लिए काम करते हैं जिसे आप जोड़ते हैं।",
-    "mode.personal.two": "सब कुछ इसी कंप्यूटर पर रहता है; नोट्स और खर्च एन्क्रिप्ट करके रखे जाते हैं।",
+    "mode.personal.two": "सेटिंग्स, कुंजियाँ, नोट्स और खर्च इसी कंप्यूटर पर सहेजे जाते हैं; नोट्स और खर्च एन्क्रिप्टेड रहते हैं।",
     "mode.server.title": "एक समूह (सर्वर)",
     "mode.server.one": ("परिवार, सहकर्मी या क्लब: इसे संदेश भेजने वाले अजनबी मेहमान बनते हैं, और आप "
                         "(या आपके चुने हुए एडमिन) तय करते हैं कि कौन क्या इस्तेमाल कर सकता है।"),
@@ -111,7 +111,7 @@ STRINGS = {
     "status_add_channel_later": "बाद में Setup.bat पर डबल-क्लिक करके विज़ार्ड फिर चलाएँ और Telegram/Discord जोड़ें।",
     "status_bot_head": "✅ सब तैयार है, बॉट चल रहा है।",
     "status_web_head": "✅ सब तैयार है, SYNOX चल रहा है (अभी Telegram/Discord नहीं)।",
-    "status_no_tools": "🧰 SYNOX में शुरू में कोई टूल नहीं होता (खर्च, नोट्स, रिमाइंडर… अलग से इंस्टॉल होते हैं): टूल लाइब्रेरी (SYNOX_Libs) की .synoxpack फ़ाइलें लें और उन पर डबल-क्लिक करें या वेब इंटरफ़ेस में सेटिंग्स → इंस्टॉल से अपलोड करें। लाइब्रेरी कहाँ है, यह उस व्यक्ति से पूछें जिसने आपको SYNOX दिया।",
+    "status_no_tools": "🧰 आगे: SYNOX से बात करना सीखने के लिए एक बार ट्यूटोरियल करें, फिर अपने ज़रूरी टूल चुनें (खर्च, नोट्स…): वेब इंटरफ़ेस की सेटिंग्स में आधिकारिक टूल लाइब्रेरी (SYNOX_Libs), या किसी .synoxpack फ़ाइल पर डबल-क्लिक करें।",
     "status_can_close": "आप यह विंडो बंद कर सकते हैं।",
     "no_window": "❌ विंडो नहीं खुल सकी ({e})। config.example.json को config.json में कॉपी करें और हाथ से भरें।",
     "llm_local": "Local model (this computer or one on your home network)",
@@ -124,4 +124,9 @@ STRINGS = {
     "llm_local_advice_done": "Options: {options}. Below {least} SYNOX's prompt gets cut off.",
     "llm_local_ok": "✅ Model found and the settings look sane (only model info was read; the model was not loaded).",
     "err_local_model": "Enter a model name (for Ollama, a name shown by `ollama list`, e.g. qwen3.5:9b).",
+    "finish_tutorial": "📘 पहली बार? पहले छोटा ट्यूटोरियल करें (कुछ मिनट), फिर अपने ज़रूरी टूल चुनें।",
+    "finish_tutorial_how": "SYNOX में {cmd} लिखें (या चैट में “start tutorial” लिखें)।",
+    "all_tools_running": "⏳ सभी आधिकारिक टूल इंस्टॉल हो रहे हैं (आपने सेटअप में चुना था)। कुछ मिनट लग सकते हैं; कृपया यह विंडो खुली रखें…",
+    "note_all_tools": "सभी आधिकारिक टूल",
+    "all_tools_failed": "कुछ इंस्टॉल नहीं हुए; बाद में सेटिंग्स की टूल लाइब्रेरी से जोड़ें (लॉग: data/logs/all-tools.log)",
 }

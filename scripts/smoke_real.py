@@ -11,7 +11,7 @@
 - 直接用各工具自己的程式（pack.py 的 Notion、Client…、synox.discord 的 DiscordChannel），不另寫一套 API 呼叫，
   所以這裡通了＝SYNOX 用起來也通。四個服務的工具 2026-11-12 起在 SYNOX 工具庫（SYNOX_Libs）：先找這台裝好的
   （packs/、packs.dirs），沒裝就找工具庫的原始碼（環境變數 SYNOX_LIBS，沒設就找並排的 ../SYNOX_Libs）。
-- 憑證：先讀 SYNOX 的保管箱（使用者先用 /notion_token、/todoist_token、/gcal_setup＋/gcal_code、Connect-Apple.bat、
+- 憑證：先讀 SYNOX 的保管箱（使用者先用 /notion_token、/todoist_token、/gcal_setup＋/gcal_code、python -m synox connect apple-reminders、
   python -m synox discord token 設好）；保管箱沒有，就在這裡用 getpass 問（不顯示、不存、不寫檔）。
   憑證絕不印出：輸出前把這次碰到的每個憑證換成 ***；非預期的錯誤只印錯誤種類，不印內容。
 - 預設只讀。保管箱也只讀：Google 換到的新 access token 放在記憶體，不寫回保管箱；沒有金鑰檔時不產生新的。
@@ -377,7 +377,7 @@ class Smoke:
             username = self.plain_input("帳號（iCloud 是 Apple ID 的 email）") if server else ""
             password = self.secret_input("App 專用密碼") if username else ""
             if not password:
-                self.missing(s, "先雙擊 Connect-Apple.bat（或 python -m synox connect apple-reminders），或這次直接輸入")
+                self.missing(s, "先在 SYNOX 資料夾跑 python -m synox connect apple-reminders（或網頁工具頁的「連接」），或這次直接輸入")
                 return
             auth = {"server": server, "username": username, "password": password}
         self.keep_secret(auth.get("password"))

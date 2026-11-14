@@ -33,6 +33,15 @@ test("timeline: fades out before it is removed, safety net comes last", () => {
   assert.ok(S.TOTAL >= 1200 && S.TOTAL <= 2000, "開場 1.2～2 秒");
 });
 
+test("opening box follows the SVG's aspect ratio (wide scenes get the wider stage)", () => {
+  const svg = (a) => ({ getAttribute: (k) => (k in a ? a[k] : null) });
+  assert.ok(Math.abs(S.ratio(svg({ viewBox: "0 0 480 250" })) - 1.92) < 1e-9);
+  assert.strictEqual(S.ratio(svg({ viewBox: "0,0,220,220" })), 1);
+  assert.strictEqual(S.ratio(svg({ width: "300", height: "150" })), 2);
+  assert.strictEqual(S.ratio(svg({})), 1, "讀不到比例：當正方形（照舊 220×220）");
+  assert.strictEqual(S.ratio(svg({ viewBox: "0 0 0 0" })), 1);
+});
+
 // 最小的假 DOM：只夠 build／play 用
 function fakeDoc() {
   const listeners = {};
