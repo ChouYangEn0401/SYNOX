@@ -262,7 +262,7 @@ def test_me_shape(on, owner):
                        "remote"}
     assert me["actions"]["add"]["fields"][0]["name"] == "n" and me["actions"]["reset"]["effect"] == "danger"
     assert me["exports"]["state_csv"] == {"available": True, "reason": ""} and me["remote"] is False
-    assert me["policy"]["text"] == "120 分鐘沒用就關，30 分鐘先提醒"
+    assert me["policy"]["text"] == "30 分鐘沒動它，我會先提醒你；2 小時沒動，我就自動關掉。"
 
 
 def test_close_service(counter, owner):

@@ -19,10 +19,10 @@ pytestmark = pytest.mark.usefixtures("no_sockets")
 def test_apps_list_and_open_close(counter, owner):
     bot, manager = counter()
     bot.say(owner, "/apps")
-    assert "計數器：關著" in bot.last(owner) and "120 分鐘沒用就關" in bot.last(owner)
+    assert "計數器：關著" in bot.last(owner) and "2 小時沒動，我就自動關掉" in bot.last(owner)
     bot.say(owner, "/app_open counter")
     text = bot.last(owner)
-    assert "服務開好了" in text and "http://127.0.0.1:8830/#tools" in text and "127.0.0.2" not in text
+    assert "完整畫面準備好了" in text and "http://127.0.0.1:8830/#tools" in text and "127.0.0.2" not in text
     assert "第一次用" in text and manager.running() == ["counter"]
     assert manager.tickets.count("counter") == 0
     bot.say(owner, "/app_open 計數器")
@@ -42,7 +42,7 @@ def test_blocked_reply(counter, owner):
     bot, manager = counter()
     manager.set_policy("counter", {"mode": "blocked"}, by=owner)
     bot.say(owner, "/app_open counter")
-    assert "設成不開放了" in bot.last(owner) and manager.running() == []
+    assert "設成「不給開」了" in bot.last(owner) and manager.running() == []
 
 
 def test_group_chat_and_member(counter, owner):

@@ -444,7 +444,7 @@ span.hl { display: inline-block; }
 </nav>
 
 <footer class="wrap">
-  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>62d7fe22b6 · 2026-11-14</span></p>
+  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>62692a3eb2 · 2026-11-14</span></p>
 </footer>
 
 <script type="application/json" id="tour-steps">
@@ -519,7 +519,7 @@ span.hl { display: inline-block; }
   {
    "id": "catalog",
    "title": "官方工具庫",
-   "body": "按「載入工具清單」，會列出官方做好的工具，每張卡片寫了它會做什麼。這一步要連網路；連不上也沒關係，按「下一步」。",
+   "body": "按「看有哪些工具」，會列出官方做好的工具，每張卡片寫了它會做什麼。這一步要連網路；連不上也沒關係，按「下一步」。",
    "anchors": [
     "settings.packs.catalog"
    ],
@@ -735,10 +735,10 @@ span.hl { display: inline-block; }
 
     { id: "tools", chapter: "開始使用", title: "到「設定 → 功能與安裝」挑工具",
       body: ["剛裝好的 SYNOX 沒有工具（只有內建的提醒）。工具要自己挑，就像手機裝 App。",
-             "在網頁按左邊的「<b>設定</b>」→ 上面的「<b>🧩 功能與安裝</b>」→ 在「工具庫（官方）」按「<b>載入工具清單</b>」，找到「隨手記」，按「<b>安裝</b>」。"],
+             "在網頁按左邊的「<b>設定</b>」→ 上面的「<b>🧩 功能與安裝</b>」→ 在「工具庫（官方）」按「<b>看有哪些工具</b>」，找到「隨手記」，按「<b>安裝</b>」。"],
       mock: "web-catalog", targets: [{ id: "tab", say: "1 先到「🧩 功能與安裝」", place: "bs" }, { id: "install", say: "2 按安裝", place: "bs" }],
       links: [{ href: LIBS_URL, text: "看全部工具（工具庫）", icon: "book" }],
-      tips: [{ k: "note", t: "按「載入工具清單」才會連到網路（GitHub）抓清單。" },
+      tips: [{ k: "note", t: "按「看有哪些工具」才會連到網路（GitHub）抓清單。" },
              { k: "note", t: "拿到別人給的 <code>.synoxpack</code> 檔：點兩下，或拖進 SYNOX 的網頁，一樣會先給你看報告。" },
              { k: "if", t: "載入清單出現錯誤：檢查網路；或到工具庫的 GitHub 發佈頁下載 <code>.synoxpack</code> 檔，點兩下安裝。" }] },
 
@@ -1099,7 +1099,7 @@ span.hl { display: inline-block; }
           return '<span class="' + (t[0] === tab ? "on" : "") + '" data-hl="settings.tab.' + t[0] + '">' + t[1] + '</span>'; }).join("") + '</div>';
         if (tab === "packs") {
           main += '<div class="card2" data-hl="settings.packs.catalog"><h5>📚 官方工具庫</h5><span class="faint">官方做好的工具，每張卡片寫了它會做什麼。</span>' +
-            '<div class="row"><span class="b pri" data-hl="settings.packs.catalog.load">載入工具清單</span></div></div>' +
+            '<div class="row"><span class="b pri" data-hl="settings.packs.catalog.load">看有哪些工具</span></div></div>' +
             '<div class="card2 review" data-hl="settings.packs.review"><h5>📦 安裝前的檢查報告</h5><span class="faint">它會做什麼、要哪些權限。你按「確認安裝」才會裝。</span></div>' +
             '<div class="card2" data-hl="settings.packs.installed"><h5>已安裝的工具</h5><span class="faint">📒 隨手記　<span class="b ghost">移除</span></span></div>';
         } else if (tab === "commands") {

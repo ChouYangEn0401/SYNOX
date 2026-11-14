@@ -28,7 +28,7 @@ from synox.web.apps.sessions import HandoffTickets
 from synox.web.apps.site import AppSite, AppsError
 
 TASK_ID = "system.tool_apps"
-TASK_NAME = "工具服務"
+TASK_NAME = "工具的完整畫面"
 TICK_S = 60
 SUGGEST_MIN = 30
 APPS_FILE = "apps.json"
@@ -37,38 +37,38 @@ VIAS_THAT_OPEN = ("web", "telegram")
 MODES = ("auto", "suggest", "keep", "blocked")
 CONTAINER_ENV = "SYNOX_IN_CONTAINER"
 TEXT = {
-    "what": "記帳這類工具平常只在 SYNOX 裡面聽你的指令。開啟服務＝SYNOX 在這台電腦上多開一個網址，讓你用瀏覽器看這個工具的完整畫面。"
-            "這個網址只有這台電腦打得開。",
-    "why_close": "服務開著，就像家裡多開了一扇門：沒有你的登入進不來，但門在那裡。不用的時候關上，門就不存在了。"
-                 "關掉不會刪任何資料，Telegram 照樣可以用。",
-    "restart": "SYNOX 每次重開，所有服務都是關的；要用再開。",
-    "in_use": "你在這個畫面上做事（看資料、按按鈕、存東西），或這個分頁在你眼前、而且你有動滑鼠、打字、捲動、點或滑。"
-              "分頁開著但切到別的地方去了，不算。",
-    "forbidden": "工具服務只能由擁有者在 SYNOX 網頁按「開啟」或在 Telegram 打 /app_open 開。",
-    "unavailable_web": "網頁介面關著（web.enabled=false），工具服務不能用。",
-    "unavailable_apps": "工具服務關著（config.json 的 web.apps.enabled=false）。",
-    "unavailable_off": "網頁介面被 /web_off 關掉了，重開 SYNOX 才能再用。",
-    "unavailable_container": "容器版還沒開放工具服務。",
-    "owner": "只有擁有者能開關工具服務。",
-    "not_found": "沒有這個工具的畫面。",
-    "blocked": "你把{title}設成不開放了；要開先到 SYNOX 網頁的工具頁改設定。",
-    "busy": "{title}的服務正在開或正在關，等一下再試。",
-    "max_running": "已經開了 {n} 個服務（最多 {max} 個）：{names}。先關一個再開。",
-    "port_full": "工具服務的埠用完了；把 config.json 的 web.apps.port_count 調大。",
-    "port_busy": "{port} 被別的程式用了。關掉那個程式再試；還是不行就重開 SYNOX。",
-    "port_stuck": "{port} 上次沒有關乾淨，重開 SYNOX 之後才能再用。",
-    "not_on": "這個工具的服務沒有開。",
-    "idle_closed": "🧩 {title}的服務 {n} 分鐘沒有用，我先關掉了。資料都在；要用再 /app_open {name}。",
-    "idle_suggest": "🧩 {title}的服務 {n} 分鐘沒有用了。要關：/app_close {name}。不理我的話再 {m} 分鐘我會自己關。",
-    "idle_suggest_keep": "🧩 {title}的服務 {n} 分鐘沒有用了。要關：/app_close {name}。它會一直開著，直到你關掉或重開 SYNOX。"
-                         "想改成自動關，到 SYNOX 網頁的工具頁設定。",
-    "policy_bad": "閒置設定不對：{why}",
-    "keep_understood": "選「一直開著」要先看過說明（understood: true）。",
-    "close_min": "close_min 要是 5–1440 的整數",
+    "what": "這個工具有自己的完整畫面。先按「開始用」，再按「打開」，瀏覽器就會開一個新頁面。用完按「關掉」。"
+            "這個頁面只有在這台電腦上才打得開。",
+    "why_close": "用完就關，比較安全：開著的時候，這台電腦上別的程式有機會碰到它。"
+                 "關掉不會刪任何資料。在 Telegram 照樣可以用這個工具。",
+    "restart": "SYNOX 重新啟動後，全部都會是關著的。要用再打開就好。",
+    "in_use": "你在畫面上看資料、按按鈕、存東西，都算有在用。畫面在你眼前，而且你有動滑鼠、打字或滑動，也算。"
+              "你切去看別的頁面，就不算。",
+    "forbidden": "只有擁有者可以打開工具的完整畫面：在 SYNOX 網頁的工具頁按「開始用」，或在 Telegram 傳 /app_open。",
+    "unavailable_web": "SYNOX 的網頁現在是關著的，所以工具的完整畫面不能用。（進階：web.enabled=false）",
+    "unavailable_apps": "「工具的完整畫面」這個功能現在是關著的。（進階：config.json 的 web.apps.enabled=false）",
+    "unavailable_off": "SYNOX 的網頁被 /web_off 關掉了。把 SYNOX 重新啟動，就能再用。",
+    "unavailable_container": "這種裝法（容器版）還不能用工具的完整畫面。",
+    "owner": "只有擁有者可以打開和關掉工具的完整畫面。",
+    "not_found": "這個工具沒有完整畫面。",
+    "blocked": "你把{title}的完整畫面設成「不給開」了。要用的話，先到 SYNOX 網頁的工具頁按「改設定」。",
+    "busy": "{title}正在打開或正在關掉。等幾秒再按一次。",
+    "max_running": "已經開著 {n} 個了（最多 {max} 個）：{names}。先關掉一個，再打開這個。",
+    "port_full": "現在沒有空位再開一個畫面了。先關掉一個用不到的，再試一次。（進階：config.json 的 web.apps.port_count 可以調大）",
+    "port_busy": "打不開：這台電腦上有別的程式占住了它要用的位置。把 SYNOX 重新啟動再試一次。（進階：{port}）",
+    "port_stuck": "打不開：上次沒有關乾淨。把 SYNOX 重新啟動，就能再用。（進階：{port}）",
+    "not_on": "這個工具的完整畫面本來就沒有開。",
+    "idle_closed": "🧩 {title}的完整畫面 {n} 分鐘沒動，我先關掉了。資料都還在。要用再傳 /app_open {name}。",
+    "idle_suggest": "🧩 {title}的完整畫面已經 {n} 分鐘沒動了。要關就傳 /app_close {name}。你不理我的話，再過 {m} 分鐘我會自動關掉。",
+    "idle_suggest_keep": "🧩 {title}的完整畫面已經 {n} 分鐘沒動了。要關就傳 /app_close {name}。我不會自動關它：它會一直開到你關掉，或 SYNOX 重新啟動。"
+                         "想讓我自動關，到 SYNOX 網頁的工具頁按「改設定」。",
+    "policy_bad": "這個設定存不了：{why}",
+    "keep_understood": "選「不要自動關」之前，要先看過說明、按確認。",
+    "close_min": "分鐘數要填 5 到 1440 之間的整數。",
     "mode": "mode 只能是 auto、suggest、keep、blocked",
-    "error_port": "埠被別的程式占用了。",
-    "error_stuck": "上次沒有關乾淨。",
-    "error_tampered": "畫面的檔跟安裝時不一樣。",
+    "error_port": "打不開：這台電腦上有別的程式占住了它要用的位置。把 SYNOX 重新啟動再試一次。",
+    "error_stuck": "打不開：上次沒有關乾淨。把 SYNOX 重新啟動，就能再用。",
+    "error_tampered": "畫面的檔案跟安裝時不一樣了，為了安全先不開。把這個工具重新安裝一次。",
 }
 
 
@@ -421,8 +421,8 @@ class AppManager:
             self._notify(text)
         on = [s for s in self._states.values() if s.status == "on"]
         if not on:
-            return "沒有開著的工具服務"
-        return "開著：" + "、".join(f"{self._title(s.name)}（閒置 {int((now - s.last_used) // 60)} 分）" for s in on)
+            return "沒有開著的完整畫面"
+        return "開著：" + "、".join(f"{self._title(s.name)}（{int((now - s.last_used) // 60)} 分鐘沒動）" for s in on)
 
     def _quarantined(self, spec) -> bool:
         if spec is None:
@@ -538,15 +538,20 @@ def _plain(text) -> str:
     return "".join(out)
 
 
+def _span(minutes: int) -> str:
+    """分鐘 → 給人看的長度：整點用「N 小時」，其他用「N 分鐘」。"""
+    return f"{minutes // 60} 小時" if minutes >= 60 and minutes % 60 == 0 else f"{minutes} 分鐘"
+
+
 def policy_text(mode: str, suggest: int, close: int) -> str:
     if mode == "keep":
-        return "一直開著"
+        return "我不會自動關，要你自己按「關掉」。"
     if mode == "blocked":
-        return "不開放這個工具的畫面"
+        return "這個工具的完整畫面現在不給開。"
     if mode == "suggest":
-        return "只提醒，不自動關"
+        return "很久沒動它，我會提醒你，但不會自動關。"
     if close and suggest and close > suggest:
-        return f"{close} 分鐘沒用就關，{suggest} 分鐘先提醒"
+        return f"{_span(suggest)}沒動它，我會先提醒你；{_span(close)}沒動，我就自動關掉。"
     if close:
-        return f"{close} 分鐘沒用就關"
-    return "只提醒，不自動關"
+        return f"{_span(close)}沒動它，我就自動關掉。"
+    return "很久沒動它，我會提醒你，但不會自動關。"

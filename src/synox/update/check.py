@@ -71,8 +71,8 @@ TEXT = {
     "ahead": "你裝的版本比最新的正式版還新（測試版或開發中的版本），不用更新。",
     "newer": "有新版：{installed} → {latest}",
     "security": "🔒 強烈建議更新：這版修了安全問題。",
-    "tools": "有 {n} 個工具可以更新（設定 → 🧩 功能與安裝 → 工具庫，按「載入工具清單」→「全部更新」；"
-             "或打 synox tools update --all。一樣先給你看檢查報告，你核准了才換）。",
+    "tools": "有 {n} 個工具可以更新（設定 → 🧩 功能與安裝 → 工具庫，按「看有哪些工具」→「全部更新」；"
+             "或打 synox tools update --all。一樣先給你看檢查的結果，你同意了才換）。",
     "test_mode": "⚠️⚠️ 測試模式：SYNOX_UPDATE_API={src}（只給測試用：查新版、下載都改到這台電腦上的檔案，不是 GitHub）。"
                  "不是你自己設的，請關掉這個視窗、刪掉這個環境變數。",
     "test_bad": "SYNOX_UPDATE_API 只能指到這台電腦上的檔案或 http://127.0.0.1（只給測試用），這個值不收：{src}",
@@ -579,7 +579,7 @@ def tools_notice_text(ups: List[dict]) -> str:
     names = "、".join(("外觀 " if u.get("kind") == "theme" else "") + f"{u['name']} {u['installed']} → {u['version']}"
                      for u in ups[:8]) + ("…" if len(ups) > 8 else "")
     return (f"🧩 有 {len(ups)} 個工具可以更新：{names}\n"
-            "要更新：網頁「設定 → 🧩 功能與安裝」按「載入工具清單」→「全部更新」，或在 SYNOX 資料夾打 "
+            "要更新：網頁「設定 → 🧩 功能與安裝」按「看有哪些工具」→「全部更新」，或在 SYNOX 資料夾打 "
             "python -m synox tools update --all。一樣先給你看檢查報告，你核准了才換（舊版會留著，可以退回）。")
 
 

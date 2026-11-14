@@ -43,28 +43,28 @@ TEXT = {
     "not_human": "手機入口只能由你本人在 Telegram 私訊或 SYNOX 網頁開。",
     "not_owner": "只有擁有者能開手機入口。",
     "disabled": "手機入口的總開關關著：到 SYNOX 網頁 → 設定 → 🔐 安全 打開。",
-    "container": "容器版還沒開放手機入口。",
-    "apps": "工具服務現在不能用：{why}",
+    "container": "這種裝法（容器版）還不能用手機入口。",
+    "apps": "工具的完整畫面現在不能用：{why}",
     "stepup_unset": "手機入口一定要先設定手機驗證器：到 SYNOX 網頁 → 設定 → 🔐 安全。",
-    "bad_code": "驗證碼不對（要一組新的，不能用剛剛用過的）。",
-    "no_binary": "找不到通道程式 cloudflared：自己安裝之後，到 SYNOX 網頁 → 設定 → 🔐 安全 核准它。",
-    "binary_changed": "通道程式跟核准時不一樣（可能被更新或換掉了），先不跑：到 SYNOX 網頁 → 設定 → 🔐 安全 重新核准。",
-    "not_remote_tool": "{title}沒有宣告可以從手機用。",
+    "bad_code": "數字不對。等手機驗證器換一組新的數字，再輸入一次（剛剛用過的不能再用）。",
+    "no_binary": "找不到通道程式 cloudflared。手機要連進來，需要先裝這個小程式。裝好後，到 SYNOX 網頁 → 設定 → 🔐 安全 按核准。",
+    "binary_changed": "通道程式跟你上次核准時不一樣了，可能被更新或換掉了，所以先不用它。到 SYNOX 網頁 → 設定 → 🔐 安全 重新核准。",
+    "not_remote_tool": "{title}不能從手機用。",
     "tool_not_allowed": "你還沒打開{title}的「可以從手機用」：到 SYNOX 網頁的工具頁打開。",
-    "not_found": "沒有這個工具的畫面。",
-    "busy": "已經有一條手機入口開著（{title}）；先 /app_close 它。",
-    "port": "手機入口用的埠被別的程式占用了；關掉那個程式再試，或改 config.json 的 web.remote.gate_port。",
-    "tunnel_failed": "通道開不起來（{code}）。等一下再試；一直不行就看 doctor 的說明。",
-    "opened": "📱 {title}的手機入口開好了（{m} 分鐘後自動關）：\n{url}\n連結只能用一次，5 分鐘內要進去；進門時要再打一組驗證器上的數字。"
-              "用完打 /app_close {name}。",
-    "entered": "📱 有人從手機進來了（{title}）。不是你的話：/app_close {name}",
+    "not_found": "這個工具沒有完整畫面。",
+    "busy": "已經有一個手機入口開著（{title}）。先傳 /app_close 把它關掉。",
+    "port": "手機入口開不起來：這台電腦上有別的程式占住了它要用的位置。把 SYNOX 重新啟動再試一次。（進階：可以改 config.json 的 web.remote.gate_port）",
+    "tunnel_failed": "手機入口開不起來。等一下再試一次。一直不行的話，請幫你處理問題的人看 doctor 的說明。（進階：{code}）",
+    "opened": "📱 {title}的手機入口開好了（{m} 分鐘後自動關）：\n{url}\n這個連結只能用一次，5 分鐘內要打開。打開後，還要再輸入一次手機驗證器上的數字。"
+              "用完傳 /app_close {name} 關掉。",
+    "entered": "📱 有人從手機打開了{title}。如果不是你，馬上傳 /app_close {name} 關掉。",
     "warn": "📱 {title}的手機入口再 5 分鐘就會自動關。",
-    "closed": "📴 手機入口關了（{why}）。資料都在。",
-    "knock": "📴 有人在亂敲門，我先把手機入口關了。資料都在。",
+    "closed": "📴 手機入口關了（{why}）。資料都還在。",
+    "knock": "📴 有人一直亂試手機入口，我先把它關了。資料都還在。",
 }
-REASONS = {"owner": "你關的", "time": "時間到了", "idle": "一陣子沒有用", "no_entry": "5 分鐘內沒有人進門",
-           "bad_code": "驗證碼錯太多次", "abuse": "被亂敲太多次", "tunnel_down": "通道斷了", "service_stopped": "工具的服務停了",
-           "web_off": "網頁介面關了", "shutdown": "SYNOX 結束了", "stepup_disabled": "手機驗證器關掉了"}
+REASONS = {"owner": "你關的", "time": "時間到了", "idle": "一陣子沒動", "no_entry": "5 分鐘內沒有人打開連結",
+           "bad_code": "驗證碼錯太多次", "abuse": "被亂試太多次", "tunnel_down": "連線斷了", "service_stopped": "工具的完整畫面關了",
+           "web_off": "SYNOX 的網頁關了", "shutdown": "SYNOX 結束了", "stepup_disabled": "手機驗證器關掉了"}
 
 
 class RemoteError(Exception):

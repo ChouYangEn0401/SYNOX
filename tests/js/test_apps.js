@@ -27,7 +27,7 @@ function test(n, f) { tests.push([n, f]); }
 const EXPLAIN = { what: "WHAT", why_close: "WHY", restart: "RESTART", in_use: "INUSE" };
 function view(over) {
   return Object.assign({ name: "money", title: "💰 記帳", state: "off", open: "", port: 8841, idle_min: 0, suggest_close: false,
-                         policy: { mode: "auto", close_min: 120, suggest_min: 30, text: "120 分鐘沒用就關，30 分鐘先提醒" },
+                         policy: { mode: "auto", close_min: 120, suggest_min: 30, text: "30 分鐘沒動它，我會先提醒你；2 小時沒動，我就自動關掉。" },
                          problem: "", error: "" }, over || {});
 }
 function ctx(over) {
@@ -43,7 +43,7 @@ test("off card: start button, explanation, no open form", () => {
   const card = A.renderCard(doc, view(), ctx());
   assert.ok(buttons(card).includes(A.TEXT.start));
   assert.ok(!walk(card).some((n) => n.tagName === "form"));
-  assert.ok(card.textContent.includes("WHAT") && card.textContent.includes("120 分鐘沒用就關"));
+  assert.ok(card.textContent.includes("WHAT") && card.textContent.includes("2 小時沒動，我就自動關掉"));
 });
 
 test("on card: open is a post form to self with csrf, target _blank, rel noopener", () => {
@@ -55,7 +55,7 @@ test("on card: open is a post form to self with csrf, target _blank, rel noopene
   assert.ok(String(form.rel).includes("noopener"));
   const hidden = form.children.find((c) => c.name === "csrf");
   assert.strictEqual(hidden.value, "C1");
-  assert.ok(card.textContent.includes("開著 · 12 分鐘沒用"));
+  assert.ok(card.textContent.includes("開著・12 分鐘沒動"));
   assert.ok(buttons(card).includes(A.TEXT.stop) && !buttons(card).includes(A.TEXT.keep));
   const idle = A.renderCard(doc, view({ state: "on", open: "/apps/money/open", suggest_close: true }), ctx());
   assert.ok(buttons(idle).includes(A.TEXT.keep));
@@ -64,14 +64,14 @@ test("on card: open is a post form to self with csrf, target _blank, rel noopene
 test("error/problem cards show the reason and no start", () => {
   const p = A.renderCard(doc, view({ problem: "畫面的動作 rm 沒有同名的指令" }), ctx());
   assert.ok(p.textContent.includes("沒有同名的指令") && !buttons(p).includes(A.TEXT.start));
-  const e = A.renderCard(doc, view({ state: "error", error: "埠被別的程式占用了。" }), ctx());
-  assert.ok(e.textContent.includes("占用"));
+  const e = A.renderCard(doc, view({ state: "error", error: "打不開：這台電腦上有別的程式占住了它要用的位置。把 SYNOX 重新啟動再試一次。" }), ctx());
+  assert.ok(e.textContent.includes("占住") && e.textContent.includes("重新啟動"));
 });
 
 test("member: only the open form when on and the one line", () => {
   const off = A.renderCard(doc, view(), ctx({ canManage: false }));
   assert.deepStrictEqual(buttons(off), []);
-  assert.ok(off.textContent.includes(A.TEXT.ownerOnly) && off.textContent.includes("沒在用的時候"));
+  assert.ok(off.textContent.includes(A.TEXT.ownerOnly) && off.textContent.includes("忘了關的話"));
   const on = A.renderCard(doc, view({ state: "on", open: "/apps/money/open" }), ctx({ canManage: false }));
   assert.deepStrictEqual(buttons(on), [A.TEXT.open]);
 });
@@ -97,17 +97,17 @@ test("six idle choices; keep needs the warning confirmed; blocked hides start", 
   walk(card2).find((n) => n.tagName === "button" && n._text === A.TEXT.save).click();
   await new Promise((r) => setImmediate(r));
   assert.deepStrictEqual(c2.calls, [["policy", { mode: "keep", understood: true }]]);
-  const blocked = A.renderCard(doc, view({ policy: { mode: "blocked", text: "不開放這個工具的畫面" } }), ctx());
+  const blocked = A.renderCard(doc, view({ policy: { mode: "blocked", text: "這個工具的完整畫面現在不給開。" } }), ctx());
   assert.ok(!buttons(blocked).includes(A.TEXT.start));
-  const keepTag = A.renderCard(doc, view({ policy: { mode: "keep", text: "一直開著" } }), ctx());
+  const keepTag = A.renderCard(doc, view({ policy: { mode: "keep", text: "我不會自動關，要你自己按「關掉」。" } }), ctx());
   assert.ok(walk(keepTag).some((n) => n._text === A.TEXT.keepTag));
 });
 
 test("side badge text", () => {
   assert.strictEqual(A.sideText({ apps: [] }).count, 0);
-  assert.strictEqual(A.sideText({ apps: [view({ state: "on" })] }).text, "● 1 個工具服務開著");
+  assert.strictEqual(A.sideText({ apps: [view({ state: "on" })] }).text, "● 1 個工具的畫面開著");
   const s = A.sideText({ apps: [view({ state: "on", suggest_close: true })] });
-  assert.ok(s.warn && s.text.includes("很久沒用"));
+  assert.ok(s.warn && s.text.includes("很久沒動"));
 });
 
 test("phone entry row: missing list, then the open button", () => {
@@ -126,7 +126,21 @@ test("file rules: no window.open, no 127.0.0.2, texts without jargon", () => {
   const src = fs.readFileSync(FILE, "utf8");
   assert.ok(!src.includes("window.open") && !src.includes("127.0.0.2"));
   const words = JSON.stringify(Object.values(A.TEXT).map((v) => (typeof v === "object" ? Object.values(v) : v)));
-  for (const w of ["port", "session", "token", "CSRF", "csrf", "Port"]) { assert.ok(!words.includes(w), w); }
+  const banned = ["port", "session", "token", "CSRF", "csrf", "Port", "服務", "網址", "埠", "127.0.0", "閒置", "常駐", "API", "JSON",
+                  "參數", "登入進不來", "門", "localhost", "URL", "url"];
+  for (const w of banned) { assert.ok(!words.includes(w), w); }
+  const labels = JSON.stringify(A.POLICY_CHOICES.map((c) => c.label));
+  for (const w of banned) { assert.ok(!labels.includes(w), w); }
+});
+
+test("technical detail only inside the collapsed 進階 line, never first", () => {
+  const card = A.renderCard(doc, view({ state: "on", open: "/apps/money/open" }), ctx());
+  const adv = walk(card).find((n) => n.tagName === "details" && n.className.includes("app-adv"));
+  assert.ok(adv && adv.children[0].tagName === "summary" && adv.children[0]._text === A.TEXT.advanced);
+  assert.ok(adv.textContent.includes("8841") && !adv.open);
+  const outside = walk(card).filter((n) => !walk(adv).includes(n) && n._text).map((n) => n._text).join("|");
+  for (const w of ["8841", "127.0.0", "埠"]) { assert.ok(!outside.includes(w), w); }
+  assert.ok(walk(card).find((n) => n.tagName === "details" && n.className.includes("app-more")).children.includes(adv));
 });
 
 (async () => {

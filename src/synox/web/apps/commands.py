@@ -18,28 +18,28 @@ from synox.web.apps.site import AppsError
 GROUP = "apps"
 TEXT = {
     "none": "還沒有任何工具附完整畫面。",
-    "line_on": "● {title}：開著（{since} 分鐘、{idle} 分鐘沒用）　沒在用的時候：{policy}",
-    "line_off": "○ {title}：關著　沒在用的時候：{policy}",
+    "line_on": "● {title}：開著（開了 {since} 分鐘，{idle} 分鐘沒動）。{policy}",
+    "line_off": "○ {title}：關著。{policy}",
     "line_error": "⚠️ {title}：{why}",
-    "line_problem": "⚠️ {title}：畫面現在不能開（{why}）",
-    "keep_tag": "（一直開著）",
+    "line_problem": "⚠️ {title}：畫面現在打不開（{why}）",
+    "keep_tag": "（不會自動關）",
     "recent": "最近：",
     "how": "開：/app_open 名字　關：/app_close 名字",
     "remote_on": "　📱 手機入口開著（{left} 分鐘後自動關）",
     "which": "要開哪一個？有完整畫面的工具：{names}",
     "unknown": "沒有叫「{text}」的工具畫面。有完整畫面的工具：{names}",
-    "opened": "{title}的服務開好了。到 SYNOX 網頁的工具頁按「打開」：{url}（要在跑 SYNOX 的這台電腦上）。"
-              "不用的時候 /app_close {name}。",
+    "opened": "{title}的完整畫面準備好了。到 SYNOX 網頁的工具頁按「打開」：{url}（要用跑 SYNOX 的那台電腦開）。"
+              "用完傳 /app_close {name} 關掉。",
     "first": "（第一次用：{what}\n{why}\n{restart}）",
-    "closed": "關好了。資料都在，Telegram 照樣可以用。",
-    "was_closed": "{title}的服務本來就關著。",
-    "closed_all": "全部關好了（{n} 個）。資料都在，Telegram 照樣可以用。",
-    "closed_none": "沒有開著的工具服務。",
+    "closed": "關好了。資料都還在，在 Telegram 照樣可以用。",
+    "was_closed": "{title}的完整畫面本來就關著。",
+    "closed_all": "全部關好了（{n} 個）。資料都還在，在 Telegram 照樣可以用。",
+    "closed_none": "現在沒有開著的完整畫面。",
     "remote_hint": "從手機用請打 /app_remote {name}（要先設定手機驗證器）。",
-    "unavailable": "工具服務現在不能用：{why}",
+    "unavailable": "工具的完整畫面現在不能用：{why}",
 }
-EVENT_WORDS = {"start": "開了", "stop": "關了", "auto_stop": "自動關了", "suggest": "提醒很久沒用", "keep": "先留著",
-               "policy": "改了閒置設定", "handoff": "打開了畫面", "enter": "進到畫面", "action": "畫面上做了一個動作",
+EVENT_WORDS = {"start": "開了", "stop": "關了", "auto_stop": "自動關了", "suggest": "提醒很久沒動", "keep": "先不要關",
+               "policy": "改了自動關的設定", "handoff": "打開了畫面", "enter": "進到畫面", "action": "畫面上做了一個動作",
                "export": "匯出了資料"}
 
 
@@ -48,7 +48,7 @@ def install(app, manager) -> None:
     from synox.packs.loader import group_policy
     registry = app.registry
     server = getattr(manager.config, "mode", "personal") == "server"
-    registry.ensure_group(GROUP, "🧩 工具服務", "開、關、看每個工具自己的網頁", bare=True,
+    registry.ensure_group(GROUP, "🧩 工具畫面", "打開、關掉每個工具自己的完整畫面", bare=True,
                           **group_policy(app, "member", server))
     g = registry.group(GROUP)
 
@@ -131,10 +131,10 @@ def install(app, manager) -> None:
             return
         api.send_message(chat_id, TEXT["closed"] if done else TEXT["was_closed"].format(title=manager._title(name)))
 
-    g.leaf("apps", cmd_apps, "看每個工具的完整畫面開著沒、多久沒用", effect=READ)
-    open_node = g.leaf("app_open", cmd_open, "開一個工具的完整畫面（之後在 SYNOX 網頁按「打開」）", usage="<名字>",
+    g.leaf("apps", cmd_apps, "看每個工具的完整畫面有沒有開著、多久沒動", effect=READ)
+    open_node = g.leaf("app_open", cmd_open, "準備好一個工具的完整畫面（之後在 SYNOX 網頁按「打開」）", usage="<名字>",
                        effect=WRITE, owner_only=True, private_only=True, interactive=True, ai=False)
-    g.leaf("app_close", cmd_close, "關掉工具的完整畫面（資料都在）", usage="<名字|all>", effect=WRITE, owner_only=True)
+    g.leaf("app_close", cmd_close, "關掉工具的完整畫面（資料都還在）", usage="<名字|all>", effect=WRITE, owner_only=True)
     gate = guard.of(app)
     if gate is not None and gate.scope is not None:
         gate.scope.restrict(open_node.path, callers=("human",))
