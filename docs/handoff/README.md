@@ -8,6 +8,7 @@
 | [discord-handoff.md](discord-handoff.md) | Discord 從零到上線：建 bot、intent、邀請、id、存 token、配對、config 範例（私訊型、頻道型、多 bot、頻道 AI）、排查、D1–D18 測試清單、已知限制 | 2 |
 | [clean-machine-test.md](clean-machine-test.md) | 空白 Windows（VM 或新的使用者帳號）上裝 SYNOX：git clone 路線、安裝程式的建置（發佈機）與安裝、可勾選的步驟與預期、失敗時回報什麼 | 另一條線（安裝，QL4） |
 | [container-verification.md](container-verification.md) | 容器隔離（podman／Docker）與 Linux 沙盒（bwrap／systemd）的真機驗證：給那台 Claude 的 prompt、探針 pack、C／M／B 檢查清單（每項：做什麼、預期、失敗代表什麼） | 另一條線（Linux 實驗室） |
+| [2026-11-14-session-handoff.md](2026-11-14-session-handoff.md) | 2026-11-13～14 合進 `dev` 的東西、線上頁面與本機副本、SYNOX_Libs 的衣櫃分支、怎麼跑測試（Linux 基準線 14 個失敗）／打包／發版、沒在 Windows 上試過的清單、要擁有者決定的事 | 另一條線（工作交接） |
 | [`scripts/smoke_real.py`](../../scripts/smoke_real.py) | 煙霧測試：用各 connector 自己的程式逐一試唯讀操作；`--write` 才做一個建立後立刻刪掉的小寫入（要輸入 yes）；最後印一段可貼進部署測試板的摘要 | 照第 1 份第 3 節跑 |
 
 最短路徑：
