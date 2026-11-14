@@ -71,9 +71,12 @@ def test_splash_css_only_uses_the_design_tokens_and_no_resources():
 def test_motion_respects_reduced_motion():
     css = _read("splash.css")
     block = css.split("@media (prefers-reduced-motion: reduce)")[1]
-    assert ".sx-splash { display: none !important; }" in block
+    assert ".sx-splash.sx-gate { display: grid !important; }" in block       # 門照樣出現（停在最後一格等你點）
     assert "body::before, body::after" in block and "animation: none !important" in block
-    assert "prefers-reduced-motion: reduce" in _read("splash.js")            # 開場本身也不產生
+    assert "prefers-reduced-motion: reduce" in _read("splash.js")            # 減少動態效果 → .sx-still
+    assert re.search(r"\.sx-gate\.sx-still \*[^{]*\{ animation: none !important;", css)   # 不動的最後一格
+    assert ".sx-gate.sx-still .sx-flip { transform: rotateY(180deg); }" in css   # S 標誌朝前
+    assert ".sx-gate.sx-still .sx-hint { opacity: 1; }" in css               # 提示亮著
     assert "@media (prefers-reduced-motion: reduce)" in _read("app.html")    # 全域規則還在
 
 
@@ -89,3 +92,40 @@ def test_splash_js_writes_text_only_and_touches_nothing_else():
     assert not re.search(r"innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function", js)
     assert not re.search(r"fetch\(|XMLHttpRequest|WebSocket|http://|https://|\.style\b|setAttribute\(\"style", js)
     assert "aria-hidden" in js
+
+
+def test_gate_waits_for_a_click_instead_of_fading_out_by_itself():
+    css = _read("splash.css")
+    assert ".sx-splash.sx-gate { animation: none; }" in css                  # 不自動淡出
+    assert re.search(r"\.sx-splash\.sx-gate\.sx-leave \{[^}]*animation: sx-out [^;]*forwards", css)   # 點了才淡出
+    assert re.search(r"\.sx-gate \.sx-enter:focus-visible \{[^}]*outline", css)                       # 鍵盤看得到焦點
+    # 介紹頁（scripts/make_landing.py）只取到「開場時：」：門的樣式在那之後，不會跑進介紹頁
+    assert css.index("/* 開場時：") < css.index(".sx-splash.sx-gate {")
+    js = _read("splash.js")
+    assert '"點一下打開 SYNOX"' in js and 'setAttribute("aria-label"' in js and 'el(doc, "button", "sx-enter")' in js
+    assert "window.SYNOX_NO_SPLASH" in js or "root.SYNOX_NO_SPLASH" in js
+    assert "SAFETY" not in js                                                 # 沒有「時間到自己收掉」
+
+
+def test_brand_mark_replays_the_opening():
+    html = _read("app.html")
+    brand = html.split('<div class="brand">', 1)[1].split("</div>", 1)[0]
+    assert brand.startswith('<button id="brand-mark" class="mark" type="button" data-splash-replay '
+                            'title="再看一次開場" aria-label="再看一次開場">')
+    assert 'data-slot="mascot.idle"' in brand and 'data-slot="wordmark"' in brand     # 外觀的 slot 照舊
+    assert "[data-splash-replay]" in _read("splash.js")
+    rendered = web_server.render_app("n0nce")
+    assert rendered.count('<button id="brand-mark" class="mark"') == 1
+
+
+def test_tutorial_offer_waits_until_the_gate_is_dismissed():
+    tour = _read("tour.js")
+    assert "gate.isOpen()" in tour and "document.addEventListener(gate.DONE" in tour
+    assert 'DONE = "synox:splash-done"' in _read("splash.js")
+
+
+def test_previews_and_smoke_tests_skip_the_gate():
+    with open(os.path.join(ROOT, "scripts", "make_ui_preview.py"), encoding="utf-8") as f:
+        assert "window.SYNOX_NO_SPLASH = true;" in f.read()
+    with open(os.path.join(ROOT, "scripts", "ui_tour_smoke.py"), encoding="utf-8") as f:
+        assert 'add_init_script("window.SYNOX_NO_SPLASH = true;")' in f.read()

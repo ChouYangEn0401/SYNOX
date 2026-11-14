@@ -238,6 +238,12 @@
           font: 800 15px/1 var(--font-brand); color: var(--accent-ink);
           background: linear-gradient(140deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 55%, var(--accent-2)) 100%);
           box-shadow: 0 6px 16px -6px var(--accent), var(--highlight); }
+  /* 側欄（手機是上方列）的 S：是一顆按鈕，點了再看一次開場（static/splash.js 的 [data-splash-replay]）；樣子跟原本的 .mark 一樣 */
+  button.mark { min-height: 0; padding: 0; border: 0; font: 800 15px/1 var(--font-brand); color: var(--accent-ink); cursor: pointer; }
+  button.mark:hover { background: linear-gradient(140deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 55%, var(--accent-2)) 100%); }
+  button.mark { position: relative; }
+  button.mark::before { content: ""; position: absolute; inset: -7px; }   /* 手指比較好按到（44px），看起來不變 */
+  button.mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .brand .name { font-weight: 800; letter-spacing: .14em; font-size: 15px; font-family: var(--font-brand); min-width: 0; }
   .nav { display: flex; flex-direction: column; gap: 2px; }
   .nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--r);
@@ -510,7 +516,7 @@
   .slot { display: block; }
   .slot > svg { display: block; width: 100%; height: 100%; }
   .mark > .slot { width: 100%; height: 100%; display: grid; place-items: center; }
-  .mark.slot-host { background: none; box-shadow: none; }
+  .mark.slot-host, button.mark.slot-host, button.mark.slot-host:hover { background: none; box-shadow: none; }
   .brand .name > .slot { display: inline-block; max-width: 100%; vertical-align: middle; }
   .brand .name > .slot > svg { height: 1.3em; width: auto; }
   .mood { width: 44px; height: 44px; flex: none; }
@@ -588,7 +594,7 @@
 <div class="shell">
 <aside class="side">
   <div class="brand-row">
-    <div class="brand"><span class="mark" aria-hidden="true"><span class="slot theme-slot-mascot-idle" data-slot="mascot.idle">S</span></span><span class="name"><span class="slot theme-slot-wordmark" data-slot="wordmark">SYNOX</span></span></div>
+    <div class="brand"><button id="brand-mark" class="mark" type="button" data-splash-replay title="再看一次開場" aria-label="再看一次開場"><span class="slot theme-slot-mascot-idle" data-slot="mascot.idle" aria-hidden="true">S</span></button><span class="name"><span class="slot theme-slot-wordmark" data-slot="wordmark">SYNOX</span></span></div>
     <button id="logout" class="ghost sm hidden" type="button" title="登出">
       <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg>
       <span>登出</span>
