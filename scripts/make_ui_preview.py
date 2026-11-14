@@ -477,7 +477,7 @@ MOCK = r"""
     }
     if (p === "/api/packs/library") { return reply(D.library); }
     if (p === "/api/packs/wardrobe") {           // ?wd=empty：清單裡還沒有外觀包（衣櫃還沒上架）
-      return reply(q.get("wd") === "empty" ? { themes: [], empty: "衣櫃還沒上架，先到網頁看看", page: D.wardrobe.page } : D.wardrobe);
+      return reply(q.get("wd") === "empty" ? { themes: [], empty: "衣櫃裡還沒有東西。可以先到衣櫃網頁看看。", page: D.wardrobe.page } : D.wardrobe);
     }
     if (p === "/api/packs/library/install") {     // 預覽：不下載，直接給待核准那一份的報告
       D.stagedGone = false;

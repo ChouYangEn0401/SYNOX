@@ -99,7 +99,7 @@ def test_the_real_pinned_index_has_no_themes_yet():
 
 def test_wardrobe_page_is_one_constant():
     assert catalog.WARDROBE_URL == "https://claude.ai/artifact/USzGNERZ2477E7XzPaPCsR"
-    assert catalog.TEXT["wardrobe_empty"] == "衣櫃還沒上架，先到網頁看看"
+    assert catalog.TEXT["wardrobe_empty"] == "衣櫃裡還沒有東西。可以先到衣櫃網頁看看。"
 
 
 # ── /api/packs/wardrobe ──────────────────────────────────────────────
@@ -130,7 +130,7 @@ def test_wardrobe_empty_index_says_not_on_shelves_yet(owner_client):
     ui_of(bot).catalog_opener = FakeWeb({catalog.OFFICIAL_INDEX_URL: (200, None, real)})
     status, data = c.post("/api/packs/wardrobe")
     assert status == 200 and data["themes"] == []
-    assert data["empty"] == "衣櫃還沒上架，先到網頁看看" and data["page"] == catalog.WARDROBE_URL
+    assert data["empty"] == "衣櫃裡還沒有東西。可以先到衣櫃網頁看看。" and data["page"] == catalog.WARDROBE_URL
 
 
 def test_wardrobe_offline_and_permissions(make_bot, owner):
@@ -209,7 +209,7 @@ def test_appearance_tab_has_wardrobe_and_background_cards_in_order():
     order = [tab.index(f'id="{i}"') for i in ("set-look", "set-wardrobe", "set-bg", "set-custom", "set-mode")]
     assert order == sorted(order)
     wd = tab[tab.index('id="set-wardrobe"'):tab.index('id="set-bg"')]
-    assert "衣櫃" in wd and 'id="wd-load"' in wd and "看衣櫃（要連到網路）" in wd
+    assert "衣櫃" in wd and 'id="wd-load"' in wd and "看衣櫃（會上網）" in wd
     assert f'href="{catalog.WARDROBE_URL}"' in wd and "到衣櫃網頁看完整預覽" in wd
     bg = tab[tab.index('id="set-bg"'):tab.index('id="set-custom"')]
     for kind in contract.BACKGROUND_KINDS:
@@ -223,7 +223,7 @@ def test_wardrobe_ui_reuses_the_install_flow_and_builds_no_urls():
     assert '"/api/packs/wardrobe"' in js and '"/api/packs/library/install"' in js and "showReview(" in js
     assert "/api/packs/install\"" not in js                                  # 不自己按確認
     assert "applyLook(" in js                                                 # 裝好之後「套用」照原本的
-    assert "衣櫃還沒上架，先到網頁看看" in js
+    assert "衣櫃裡還沒有東西。可以先到衣櫃網頁看看。" in js
     for word in ("已安裝", "有新版", "安裝", "套用"):
         assert word in js, word
     for word in ("sha256", "SHA", "index.json", "雜湊"):

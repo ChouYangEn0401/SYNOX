@@ -1062,7 +1062,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   // 開場的門（static/splash.js）預設不出現，才看得到畫面；?splash=1（預覽列的「重播開場」）照樣出現、等你點。
   // 左上角的 S 也照樣能重播。
   window.SYNOX_NO_SPLASH = true;
-  var D = {"me": {"id": 100001, "username": "小明", "role": "admin", "owner": true, "csrf": "preview"}, "chats": [{"id": "c1", "title": "今天要做的事", "last": "好，兩件都記下來了。"}, {"id": "c2", "title": "記帳", "last": "記了：午餐 120 元"}, {"id": "c3", "title": "週末行程", "last": "（還沒有訊息）"}, {"id": "tools", "title": "🧰 工具頁", "last": "/note_list"}], "events": {"c1": [{"id": 1, "from": "me", "text": "幫我記：買牛奶、繳電費"}, {"id": 2, "from": "bot", "text": "好，兩件都記下來了。\n📝 買牛奶\n📝 繳電費"}, {"id": 3, "from": "me", "text": "把筆記全部刪掉"}, {"id": 4, "from": "note", "text": "AI 想用一個會刪東西的工具，先問你"}, {"id": 5, "from": "bot", "text": "⚠️ 要刪掉全部 2 則筆記嗎？這個沒辦法復原。", "buttons": [[{"text": "✅ 刪掉", "data": "ok"}, {"text": "取消", "data": "no"}]]}], "c2": [{"id": 1, "from": "me", "text": "/money 120 午餐"}, {"id": 2, "from": "bot", "text": "記了：午餐 120 元\n這個月：3,420／預算 12,000"}], "c3": [], "tools": [{"id": 1, "from": "me", "text": "/note_list"}, {"id": 2, "from": "bot", "text": "1. 買牛奶\n2. 繳電費"}]}, "tools": {"packs": [{"id": "note", "name": "notes", "title": "📝 筆記", "version": "0.2.0", "kind": "python", "category": "生活", "summary": "隨手記下想到的事", "description": "使用者想記下一件事、看記過的事、或清掉筆記時使用。", "status": "已連接", "commands": [{"command": "/note", "usage": "", "summary": "記一則筆記", "effect": "write", "path": "note", "default": true, "ai": true, "confirm": false, "fields": [{"name": "text", "label": "內容", "kind": "text", "required": true, "default": ""}], "asks_code": false}, {"command": "/note_list", "usage": "", "summary": "列出全部筆記", "effect": "read", "path": "note_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/note_clear", "usage": "", "summary": "全部刪掉（不能復原）", "effect": "danger", "path": "note_clear", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "money", "name": "money", "title": "💰 記帳", "version": "0.2.0", "kind": "python", "category": "生活", "summary": "記一筆、看這個月花了多少", "description": "使用者提到花了多少錢、想記帳、問這個月花多少時使用。", "status": "已連接", "commands": [{"command": "/money", "usage": "", "summary": "記一筆支出", "effect": "write", "path": "money", "default": true, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "金額", "kind": "number", "required": true, "default": "", "help": "只放數字，例如 120"}, {"name": "category", "label": "類別", "kind": "text", "required": false, "default": "其他", "help": "例如 餐飲、交通"}, {"name": "memo", "label": "備註", "kind": "text", "required": false, "default": ""}], "asks_code": false}, {"command": "/money_month", "usage": "", "summary": "這個月的合計與預算", "effect": "read", "path": "money_month", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/money_budget", "usage": "", "summary": "設每月預算", "effect": "write", "path": "money_budget", "default": false, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "每月預算", "kind": "int", "required": true, "default": ""}], "asks_code": false}]}, {"id": "todoist", "name": "todoist", "title": "✅ Todoist", "version": "0.2.0", "kind": "python", "category": "待辦與行程", "summary": "把待辦送進 Todoist", "description": "", "status": "要先設定", "connect": true, "missing": ["API token"], "commands": [{"command": "/todo", "usage": "", "summary": "新增一個待辦", "effect": "write", "path": "todo", "default": true, "ai": true, "confirm": false, "fields": [{"name": "content", "label": "要做什麼", "kind": "text", "required": true, "default": ""}, {"name": "due", "label": "什麼時候", "kind": "text", "required": false, "default": "", "help": "例如 明天、週五 15:00；不填＝沒有期限"}], "asks_code": false}, {"command": "/todo_list", "usage": "", "summary": "今天的待辦", "effect": "read", "path": "todo_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "gcal", "name": "google-calendar", "title": "📅 Google 日曆", "version": "0.2.0", "kind": "python", "category": "待辦與行程", "summary": "看行程、加行程", "description": "", "status": "已連接", "commands": [{"command": "/gcal_list", "usage": "", "summary": "接下來的行程", "effect": "read", "path": "gcal_list", "default": true, "ai": true, "confirm": false, "fields": [{"name": "days", "label": "看幾天", "kind": "int", "required": false, "default": "7"}], "asks_code": false}, {"command": "/gcal_add", "usage": "", "summary": "加一個行程", "effect": "write", "path": "gcal_add", "default": false, "ai": true, "confirm": true, "fields": [{"name": "title", "label": "標題", "kind": "text", "required": true, "default": ""}, {"name": "when", "label": "時間", "kind": "text", "required": true, "default": "", "help": "例如 11/20 14:00"}], "asks_code": false}, {"command": "/gcal_rm", "usage": "", "summary": "刪掉一個行程", "effect": "danger", "path": "gcal_rm", "default": false, "ai": true, "confirm": false, "fields": [{"name": "number", "label": "編號（/gcal_list 的）", "kind": "int", "required": true, "default": ""}], "asks_code": false}]}, {"id": "hello", "name": "hello", "title": "👋 範例", "version": "0.1.0", "kind": "cli", "category": "", "summary": "算小費、打招呼（synox_sdk 的最小範例）", "description": "", "status": "已連接", "commands": [{"command": "/hello", "usage": "", "summary": "算含小費的總額", "effect": "read", "path": "hello", "default": true, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "帳單金額", "kind": "number", "required": true, "default": ""}, {"name": "percent", "label": "小費幾 %", "kind": "int", "required": false, "default": "10"}, {"name": "round_up", "label": "要不要進位到整數", "kind": "bool", "required": false, "default": "false"}], "asks_code": false}, {"command": "/hello_greet", "usage": "", "summary": "跟某人打招呼", "effect": "read", "path": "hello_greet", "default": false, "ai": true, "confirm": false, "fields": [{"name": "name", "label": "要打招呼的人", "kind": "text", "required": true, "default": ""}, {"name": "style", "label": "語氣", "kind": "choice", "required": false, "default": "casual", "choices": ["casual", "formal"]}], "asks_code": false}]}], "groups": [{"id": "_basics", "title": "🧭 基本", "summary": "開始、說明、結束問答", "category": "系統", "commands": [{"command": "/start", "usage": "", "summary": "開始", "effect": "read", "path": "start", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/help", "usage": "", "summary": "看全部指令", "effect": "read", "path": "help", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "remind", "title": "⏰ 提醒（系統）", "summary": "SYNOX 內建的提醒：每天幾點、或指定哪一天提醒你一件事（不是 Apple 提醒事項）", "category": "系統", "commands": [{"command": "/remind_add", "usage": "<HH:MM> <內容> [date=…]", "summary": "加一個提醒（系統；每天，或 date= 指定那天一次）", "effect": "write", "path": "remind_add", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/remind_list", "usage": "", "summary": "列出提醒（系統）", "effect": "read", "path": "remind_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "schedule", "title": "🗓 排程指令", "summary": "每天幾點自動替你執行一個指令", "category": "系統", "commands": [{"command": "/schedule_list", "usage": "", "summary": "列出排程", "effect": "read", "path": "schedule_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "agent", "title": "🤖 AI", "summary": "", "category": "系統", "commands": [{"command": "/ai_usage", "usage": "", "summary": "這個月用了多少", "effect": "read", "path": "ai_usage", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}], "layout": {"groups": [{"id": "a-15d208d1b4", "title": "生活", "tools": ["note", "money"], "auto": true}, {"id": "a-e31e24dad3", "title": "待辦與行程", "tools": ["todoist", "gcal"], "auto": true}, {"id": "a-607089b311", "title": "未分類", "tools": ["hello"], "auto": true}, {"id": "a-6df543c4a4", "title": "系統", "tools": ["_basics", "remind", "schedule", "agent"], "auto": true}], "custom": false}}, "secrets": {"fields": [{"name": "token", "label": "API token", "required": true, "secret": true, "set": false, "help": "Todoist 網頁 → 設定 → 整合 → 開發者"}]}, "settings": {"owner": true, "accounts": true, "ai_budget": null, "llm": {"kind": "claude_code", "model": "", "base_url": "", "has_key": false}, "llm_choices": [{"label": "Claude Code（用你自己的 Claude 訂閱）", "choice": "claude_code", "models": [{"value": "", "label": "預設（讓 Claude Code 自己選）"}, {"value": "sonnet", "label": "Sonnet（平衡）"}, {"value": "opus", "label": "Opus（最強、較慢）"}, {"value": "haiku", "label": "Haiku（最快、最省）"}]}, {"label": "API 金鑰：OpenAI", "choice": "keys", "provider": "openai", "model": "（照預設）"}, {"label": "API 金鑰：本機或相容的服務", "choice": "keys", "provider": "openai_compat", "needs_url": true}, {"label": "先不用 AI", "choice": "none"}], "packs": [{"name": "notes", "status": "loaded", "version": "0.1.0", "lock": "locked", "removable": false}, {"name": "money", "status": "loaded", "version": "0.2.0", "lock": "locked", "removable": false}, {"name": "todoist", "status": "connector", "version": "0.2.0", "lock": "locked", "removable": false}, {"name": "example-tool", "status": "rejected", "detail": "掃描沒過：用了動態執行程式碼", "version": "1.0.0", "lock": "unlocked", "removable": true}]}, "channels": {"telegram": {"saved": true, "bot": "my_synox_bot", "active": true, "owner_paired": false, "pairable": true, "pair_ready": true, "paired_as": "", "pairing": {"code": "482915", "expires_in": 840}}, "discord": {"saved": true, "bot": "SYNOX test", "active": true, "multi": false, "owner_paired": true, "paired_as": "138765878633601855", "pair_ready": true, "pairing": null, "invite": "https://discord.com/oauth2/authorize?client_id=1&scope=bot&permissions=2048"}}, "accounts": {"roles": ["guest", "member", "admin"], "users": [{"id": 100001, "username": "小明", "role": "admin", "owner": true, "messages_today": 12, "messages_limit": 200, "ai_month_usd": 1.2, "ai_limit_usd": 20}, {"id": 100002, "username": "阿華", "role": "member", "messages_today": 3, "messages_limit": 100, "ai_month_usd": 0.4, "ai_limit_usd": 2}, {"id": 100003, "username": "新朋友", "role": "guest", "pending": true}]}, "library": {"version": "0.2.0", "releases": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases", "overview": "https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL", "tools": [{"name": "notes", "emoji": "📒", "title": "隨手記", "line": "記一筆、找、刪", "summary": "記一筆、找、刪（加密存在這台電腦）", "example": "/note 買牛奶", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不連網", "tone": "ok", "hint": "這個工具不會連到網路，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/NpYbd3FtMAkXmASXc1pJzh", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/notes-0.1.1.synoxpack", "installed": "0.1.0", "newer": true}, {"name": "todo", "emoji": "✅", "title": "待辦", "line": "重要度、專案、到期日、打勾完成", "summary": "加待辦（!! 重要、#專案、明天到期）、看今天／逾期、打勾完成（加密存在這台電腦）", "example": "/todo !! 繳電費 明天", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不連網", "tone": "ok", "hint": "這個工具不會連到網路，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/JuKURoMhZY58fWyR4j3961", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/todo-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "money", "emoji": "💰", "title": "記帳", "line": "支出、收入、轉帳、預算", "summary": "記支出、收入、轉帳，自己的類別與選配範本，預算與單項上限（加密存在這台電腦）", "example": "/money 120 午餐", "version": "0.2.0", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不連網", "tone": "ok", "hint": "這個工具不會連到網路，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/6kA9jSkwVFPPBthsCjmz6d", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/money-0.2.0.synoxpack", "installed": "0.2.0", "newer": false}, {"name": "calendar", "emoji": "📅", "title": "行事曆", "line": "存在這台電腦的行程，可匯出 .ics", "summary": "加行程（明天 14:00 看牙醫）、看今天／這週、匯出 .ics（加密存在這台電腦）", "example": "/cal 明天 14:00 看牙醫", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不連網", "tone": "ok", "hint": "這個工具不會連到網路，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/Fm6dXH5oiua8zPY3U5RYQ5", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/calendar-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "bullet", "emoji": "•", "title": "子彈筆記", "line": "快速記錄、今天、月誌、搬到今天", "summary": "快速記錄（• 任務 ○ 事件 – 筆記）、今天、月誌、把沒做完的搬到今天（加密存在這台電腦）", "example": "/bj • 買牛奶", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不連網", "tone": "ok", "hint": "這個工具不會連到網路，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/BTdPArDtbddRk4ijNqExZ3", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/bullet-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "notion", "emoji": "🗂", "title": "Notion", "line": "搜尋、讀頁面、加一列、改欄位", "summary": "搜尋、讀頁面、加頁面／資料庫一列、改欄位（用你自己的 integration token）", "example": "/notion 會議", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用模擬測過", "tone": "", "hint": "還沒在真的服務上長時間用過：只用模擬的回應測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/B36np3VigMinvyFuyz74dJ", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/notion-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "todoist", "emoji": "✅", "title": "Todoist", "line": "看、加、完成、改期 Todoist 的待辦", "summary": "看 Todoist 的待辦（今天、逾期、專案、標籤）、加待辦、打勾完成、改期", "example": "/todoist !! 繳電費 明天", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用模擬測過", "tone": "", "hint": "還沒在真的服務上長時間用過：只用模擬的回應測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/D3zgGcZ9h1LRrDLu2QD5Mw", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/todoist-0.1.1.synoxpack", "installed": "0.2.0", "newer": false}, {"name": "google-calendar", "emoji": "📅", "title": "Google 日曆", "line": "看今天／這週、加行程、刪行程", "summary": "看今天／這週、加行程、刪行程（直接連你的 Google 日曆）", "example": "/gcal 明天 14:00 看牙醫", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用模擬測過", "tone": "", "hint": "還沒在真的服務上長時間用過：只用模擬的回應測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/NyhRhPrRL1n9NMMbMEv3mx", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/google-calendar-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "apple-reminders", "emoji": "🍎", "title": "Apple 提醒事項", "line": "CalDAV 提醒事項（升級過的 iCloud 讀不到）", "summary": "看、加、完成提醒事項（CalDAV；iCloud 升級過的提醒事項 Apple 不開放，見說明）", "example": "/applerem_add 買牛奶", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用模擬測過", "tone": "", "hint": "還沒在真的服務上長時間用過：只用模擬的回應測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/Jm4tdCTZdaQ1mc1waTatYp", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/apple-reminders-0.1.1.synoxpack", "installed": "", "newer": false}]}, "runtime": {"heartbeat": {"enabled": true, "interval_min": 45, "last_run_min": -12, "next_run_min": 33, "last_result": {"ok": true, "message": "看過一輪：任務都正常，沒有要提醒你的事。"}}, "mother": {"state": "idle", "last_active_min": -3, "soul_updated_min": -1560}, "tasks": [{"id": "morning-digest", "name": "早上的摘要", "owner": "SYNOX", "schedule": "每天 08:00", "state": "ok", "last_run_min": -300, "last_message": "送出了：今天 2 個行程、1 個待辦"}, {"id": "budget-watch", "name": "預算檢查", "owner": "example-budget", "schedule": "每 6 小時", "state": "failed", "last_run_min": -40, "last_message": "讀不到這個月的資料，下一輪會再試"}, {"id": "calendar-sync", "name": "行事曆同步", "owner": "example-calendar", "schedule": "每 30 分鐘", "state": "running", "last_run_min": -1, "last_message": "同步中…"}, {"id": "weekly-review", "name": "每週回顧", "owner": "example-notes", "schedule": "每週日 21:00", "state": "idle", "last_run_min": null, "last_message": ""}]}, "report": {"full": true, "summary": "【SYNOX 回報摘要】（SYNOX 自動整理：token、金鑰、對話內容、有使用者名稱的路徑都拿掉了）\nSYNOX 版本：0.2.0\n作業系統：Windows 11（10.0.22631）\nPython：3.11.9\n用法：個人版\nAI：claude_code\n聊天通道：Telegram、網頁\n裝了的工具（4 個）：notes 0.1.0、money 0.2.0、todoist 0.2.0、example-tool 1.0.0（rejected）\n最近的錯誤或警告（最多 15 行）：\n  11-13 09:12:40 WARNING [TG] getUpdates 逾時，5 秒後重試（重複 3 次）\n  11-13 09:20:03 ERROR [WEB] POST /api/settings/llm/test failed（TimeoutError，claude_code.py:212）\n  11-13 09:21:17 WARNING [PACK] example-tool 沒有載入：%USERPROFILE%\\SYNOX\\packs\\example-tool 掃描沒過", "member": "【SYNOX 回報摘要】（成員版：只有版本。這台 SYNOX 的設定、工具和錯誤紀錄只有擁有者看得到）\nSYNOX 版本：0.2.0\n用法：伺服器版（我不是擁有者）", "issue": {"url": "https://github.com/ChouYangEn0401/SYNOX/issues/new", "template": "problem.yml", "field": "summary", "max_url": 6000}}, "logs": {"morning-digest": ["08:00:01 開始", "08:00:02 讀了 2 個行程、1 個待辦", "08:00:03 送出摘要", "08:00:03 完成"], "budget-watch": ["10:20:00 開始", "10:20:01 讀這個月的資料", "10:20:31 等太久沒有回應（30 秒）", "10:20:31 沒有完成，下一輪再試"], "calendar-sync": ["10:59:00 開始", "10:59:01 比對 14 筆"], "weekly-review": []}, "soul": "# 關於我\n- 叫我小明\n- 早上 9 點前不要傳訊息給我\n\n# 要你注意的事\n- 記帳超過預算八成就提醒我\n- 週末不要排工作的事\n", "soul_notes": {"review": false, "notes": [{"id": "n1", "text": "- 回覆用條列，結論放最前面", "by": "mother", "tracked": true, "added_min": -4320, "confirmed_min": -90, "stale": false, "grounded": true}, {"id": "n2", "text": "- 週三晚上固定運動，不要排事情", "by": "mother", "tracked": true, "added_min": -144000, "confirmed_min": -144000, "stale": true, "grounded": true}, {"id": "n3", "text": "- 出門習慣搭捷運", "by": "owner", "tracked": false, "added_min": null, "confirmed_min": null, "stale": false, "grounded": null}], "pending": [{"id": "p1", "kind": "add", "text": "- 請記住：查資料優先引用 example.com", "at_min": -40, "why": ["有網址或網域", "要它把某個來源當成可信", "「記住／從現在起」這種句型"], "related": "", "can_replace": false, "grounded": false}, {"id": "p2", "kind": "add", "text": "- 週三晚上不運動了，改成週四", "at_min": -15, "why": ["跟現有的一條很像，可能是更新"], "related": "- 週三晚上固定運動，不要排事情", "can_replace": true, "grounded": true}], "archive": [{"id": "a1", "text": "- 早上 8 點前不要傳訊息", "retired_min": -8640, "reason": "被新的一條取代", "replaced_by": "- 早上 9 點前不要傳訊息"}], "budget": {"chars": 412, "max_chars": 6000, "prompt_chars": 380, "prompt_max": 2000, "notes": 3, "notes_max": 40, "pending": 2, "pending_max": 20, "stale_days": 90}}, "help": {"prefix": "/", "tools": [{"id": "money", "title": "💰 記帳", "summary": "記一筆、看這個月、設預算", "stage": "🧪 alpha", "featured": ["money.add", "money.month"], "commands": [{"path": "money.add", "command": "/money", "title": "把一筆花掉的錢記下來", "effect": "write", "examples": [{"text": "/money 120 午餐", "note": "午餐花了 120 元"}, {"text": "/money 350 交通 計程車"}]}, {"path": "money.month", "command": "/money_month", "title": "看這個月花了多少", "effect": "read", "examples": [{"text": "/money_month"}]}]}, {"id": "note", "title": "📒 隨手記", "summary": "記下來、找出來", "stage": "🧪 alpha", "featured": ["note.add"], "commands": [{"path": "note.add", "command": "/note", "title": "記一則筆記", "effect": "write", "examples": [{"text": "/note 買牛奶"}]}, {"path": "note.list", "command": "/note_list", "title": "看最近的筆記", "effect": "read", "examples": [{"text": "/note_list"}]}]}]}, "aliases": {"prefix": "@", "names": {"money.add": ["記帳"]}, "suggestions": [{"path": "money.month", "name": "這個月", "command": "/money_month", "title": "看這個月花了多少"}], "conflicts": [], "escape": "\\", "limits": {"name": 16, "per_command": 3, "total": 100}, "prefixes": [{"value": "/", "label": "/（原本的）"}, {"value": "$", "label": "$"}, {"value": "!", "label": "!"}, {"value": ".", "label": "."}, {"value": "~", "label": "~"}, {"value": ";", "label": ";"}, {"value": ",", "label": ","}, {"value": "@", "label": "@"}, {"value": "+", "label": "+"}, {"value": "", "label": "不用符號（進階）"}], "warnings": {"@": "在群組或頻道裡，@ 常被當成「提到某個人」。私訊與 SYNOX 網頁沒問題；在群組裡比較穩的是 /。", "": "不用符號：只要訊息的第一個詞剛好是你取的名字或原本的指令名，就會被當成指令。"}, "targets": [{"path": "money.add", "command": "/money", "title": "把一筆花掉的錢記下來", "tool": "💰 記帳"}, {"path": "money.month", "command": "/money_month", "title": "看這個月花了多少", "tool": "💰 記帳"}, {"path": "note.add", "command": "/note", "title": "記一則筆記", "tool": "📒 隨手記"}]}, "appearance": {"themes": [], "theme": "", "mode": "auto", "custom": {}, "inherited": [], "owner": true, "server": false, "background": {"kind": "theme"}, "patterns": [{"name": "dots", "text": "小圓點"}, {"name": "grid", "text": "方格紙"}, {"name": "stripes", "text": "細斜線"}, {"name": "glow", "text": "淡淡的光"}], "scope": "install", "contract": 1, "tokens": ["bg", "surface", "text", "muted", "line", "accent", "accent-ink", "accent2", "soft", "ok", "warn", "bad", "radius", "font-ui", "font-brand"], "slots": [{"name": "mascot.idle", "text": "吉祥物（平常）：側欄與登入卡左上角的標誌、空白對話的插圖；預設是「S」方塊", "kinds": ["svg", "html"]}, {"name": "mascot.think", "text": "吉祥物（在想）：等 AI 回覆時那顆會晃的小方塊；預設是藍色方塊", "kinds": ["svg", "html"]}, {"name": "mascot.happy", "text": "吉祥物（開心）：裝好、套用成功的時候；預設是笑臉的 S 寶寶", "kinds": ["svg", "html"]}, {"name": "mascot.warn", "text": "吉祥物（注意）：安裝被拒、出問題的時候；預設是擔心的 S 寶寶", "kinds": ["svg", "html"]}, {"name": "opening", "text": "開場動畫：打開網頁時播的那一段（SVG＋CSS 動畫；時間 SYNOX 管，約 1.7 秒）；預設是 S 寶寶掉下來", "kinds": ["svg", "html"]}, {"name": "wordmark", "text": "字標：側欄的「SYNOX」字樣（開場的字也跟著換）；預設是文字 SYNOX", "kinds": ["svg", "html"]}, {"name": "appicon", "text": "分頁圖示（favicon）：只收 SVG；預設是瀏覽器的預設圖示", "kinds": ["svg"]}, {"name": "chat.background", "text": "對話的背景：整個對話區後面的一張圖（鋪滿、在訊息底下、點不到）；只收 SVG；預設沒有。使用者在「外觀 → 背景」自己選的（不要、純色、花紋、自己貼）蓋過外觀包的", "kinds": ["svg"]}]}, "wardrobe": {"version": "0.3.0", "page": "https://claude.ai/artifact/USzGNERZ2477E7XzPaPCsR", "releases": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases", "title": "SYNOX 衣櫃", "summary": "整套外觀：顏色、吉祥物、開場一起換。", "themes": [{"name": "costume-a-bubble", "title": "泡泡", "line": "圓圓的對話泡泡，說話時會輕輕鼓起來", "summary": "圓圓的對話泡泡，說話時會輕輕鼓起來", "version": "1.0.0", "letter": "A", "swatches": ["#f4f7fb", "#ffffff", "#3b82f6", "#a5c8ff"], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false}, {"name": "costume-b-lantern", "title": "提燈", "line": "幫你顧家的一盞小燈，會像心跳一樣一亮一亮", "summary": "幫你顧家的一盞小燈，會像心跳一樣一亮一亮", "version": "1.0.0", "letter": "B", "swatches": ["#f5f3ef", "#fffdf9", "#c77d12", "#f2c46d"], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "0.9.0", "newer": true}, {"name": "costume-c-stamp", "title": "印章", "line": "蓋一下就記住了：朱紅色的方印", "summary": "蓋一下就記住了：朱紅色的方印", "version": "1.0.0", "letter": "C", "swatches": [], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false}, {"name": "costume-d-snail", "title": "蝸牛", "line": "慢慢來也會到：殼上的螺旋就是進度", "summary": "慢慢來也會到：殼上的螺旋就是進度", "version": "1.0.0", "letter": "D", "swatches": [], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false}, {"name": "costume-f-mochi", "title": "麻糬", "line": "軟軟的一團，戳一下會彈回來", "summary": "軟軟的一團，戳一下會彈回來", "version": "1.0.0", "letter": "F", "swatches": ["#fbf6f1", "#ffffff", "#e57399", "#f7c9d6"], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false}, {"name": "costume-h-teapot", "title": "茶壺", "line": "泡一壺茶等你：冒煙就是在想", "summary": "泡一壺茶等你：冒煙就是在想", "version": "1.0.0", "letter": "H", "swatches": [], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false}], "empty": ""}};
+  var D = {"me": {"id": 100001, "username": "小明", "role": "admin", "owner": true, "csrf": "preview"}, "chats": [{"id": "c1", "title": "今天要做的事", "last": "好，兩件都記下來了。"}, {"id": "c2", "title": "記帳", "last": "記了：午餐 120 元"}, {"id": "c3", "title": "週末行程", "last": "（還沒有訊息）"}, {"id": "tools", "title": "🧰 工具頁", "last": "/note_list"}], "events": {"c1": [{"id": 1, "from": "me", "text": "幫我記：買牛奶、繳電費"}, {"id": 2, "from": "bot", "text": "好，兩件都記下來了。\n📝 買牛奶\n📝 繳電費"}, {"id": 3, "from": "me", "text": "把筆記全部刪掉"}, {"id": 4, "from": "note", "text": "AI 想用一個會刪東西的工具，先問你"}, {"id": 5, "from": "bot", "text": "⚠️ 要刪掉全部 2 則筆記嗎？這個沒辦法復原。", "buttons": [[{"text": "✅ 刪掉", "data": "ok"}, {"text": "取消", "data": "no"}]]}], "c2": [{"id": 1, "from": "me", "text": "/money 120 午餐"}, {"id": 2, "from": "bot", "text": "記了：午餐 120 元\n這個月：3,420／預算 12,000"}], "c3": [], "tools": [{"id": 1, "from": "me", "text": "/note_list"}, {"id": 2, "from": "bot", "text": "1. 買牛奶\n2. 繳電費"}]}, "tools": {"packs": [{"id": "note", "name": "notes", "title": "📝 筆記", "version": "0.2.0", "kind": "python", "category": "生活", "summary": "隨手記下想到的事", "description": "使用者想記下一件事、看記過的事、或清掉筆記時使用。", "status": "已連接", "commands": [{"command": "/note", "usage": "", "summary": "記一則筆記", "effect": "write", "path": "note", "default": true, "ai": true, "confirm": false, "fields": [{"name": "text", "label": "內容", "kind": "text", "required": true, "default": ""}], "asks_code": false}, {"command": "/note_list", "usage": "", "summary": "列出全部筆記", "effect": "read", "path": "note_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/note_clear", "usage": "", "summary": "全部刪掉（不能復原）", "effect": "danger", "path": "note_clear", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "money", "name": "money", "title": "💰 記帳", "version": "0.2.0", "kind": "python", "category": "生活", "summary": "記一筆、看這個月花了多少", "description": "使用者提到花了多少錢、想記帳、問這個月花多少時使用。", "status": "已連接", "commands": [{"command": "/money", "usage": "", "summary": "記一筆支出", "effect": "write", "path": "money", "default": true, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "金額", "kind": "number", "required": true, "default": "", "help": "只放數字，例如 120"}, {"name": "category", "label": "類別", "kind": "text", "required": false, "default": "其他", "help": "例如 餐飲、交通"}, {"name": "memo", "label": "備註", "kind": "text", "required": false, "default": ""}], "asks_code": false}, {"command": "/money_month", "usage": "", "summary": "這個月的合計與預算", "effect": "read", "path": "money_month", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/money_budget", "usage": "", "summary": "設每月預算", "effect": "write", "path": "money_budget", "default": false, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "每月預算", "kind": "int", "required": true, "default": ""}], "asks_code": false}]}, {"id": "todoist", "name": "todoist", "title": "✅ Todoist", "version": "0.2.0", "kind": "python", "category": "待辦與行程", "summary": "把待辦送進 Todoist", "description": "", "status": "要先設定", "connect": true, "missing": ["API token"], "commands": [{"command": "/todo", "usage": "", "summary": "新增一個待辦", "effect": "write", "path": "todo", "default": true, "ai": true, "confirm": false, "fields": [{"name": "content", "label": "要做什麼", "kind": "text", "required": true, "default": ""}, {"name": "due", "label": "什麼時候", "kind": "text", "required": false, "default": "", "help": "例如 明天、週五 15:00；不填＝沒有期限"}], "asks_code": false}, {"command": "/todo_list", "usage": "", "summary": "今天的待辦", "effect": "read", "path": "todo_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "gcal", "name": "google-calendar", "title": "📅 Google 日曆", "version": "0.2.0", "kind": "python", "category": "待辦與行程", "summary": "看行程、加行程", "description": "", "status": "已連接", "commands": [{"command": "/gcal_list", "usage": "", "summary": "接下來的行程", "effect": "read", "path": "gcal_list", "default": true, "ai": true, "confirm": false, "fields": [{"name": "days", "label": "看幾天", "kind": "int", "required": false, "default": "7"}], "asks_code": false}, {"command": "/gcal_add", "usage": "", "summary": "加一個行程", "effect": "write", "path": "gcal_add", "default": false, "ai": true, "confirm": true, "fields": [{"name": "title", "label": "標題", "kind": "text", "required": true, "default": ""}, {"name": "when", "label": "時間", "kind": "text", "required": true, "default": "", "help": "例如 11/20 14:00"}], "asks_code": false}, {"command": "/gcal_rm", "usage": "", "summary": "刪掉一個行程", "effect": "danger", "path": "gcal_rm", "default": false, "ai": true, "confirm": false, "fields": [{"name": "number", "label": "編號（/gcal_list 的）", "kind": "int", "required": true, "default": ""}], "asks_code": false}]}, {"id": "hello", "name": "hello", "title": "👋 範例", "version": "0.1.0", "kind": "cli", "category": "", "summary": "算小費、打招呼（synox_sdk 的最小範例）", "description": "", "status": "已連接", "commands": [{"command": "/hello", "usage": "", "summary": "算含小費的總額", "effect": "read", "path": "hello", "default": true, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "帳單金額", "kind": "number", "required": true, "default": ""}, {"name": "percent", "label": "小費幾 %", "kind": "int", "required": false, "default": "10"}, {"name": "round_up", "label": "要不要進位到整數", "kind": "bool", "required": false, "default": "false"}], "asks_code": false}, {"command": "/hello_greet", "usage": "", "summary": "跟某人打招呼", "effect": "read", "path": "hello_greet", "default": false, "ai": true, "confirm": false, "fields": [{"name": "name", "label": "要打招呼的人", "kind": "text", "required": true, "default": ""}, {"name": "style", "label": "語氣", "kind": "choice", "required": false, "default": "casual", "choices": ["casual", "formal"]}], "asks_code": false}]}], "groups": [{"id": "_basics", "title": "🧭 基本", "summary": "開始、說明、結束問答", "category": "系統", "commands": [{"command": "/start", "usage": "", "summary": "開始", "effect": "read", "path": "start", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/help", "usage": "", "summary": "看全部指令", "effect": "read", "path": "help", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "remind", "title": "⏰ 提醒（系統）", "summary": "SYNOX 內建的提醒：每天幾點、或指定哪一天提醒你一件事（不是 Apple 提醒事項）", "category": "系統", "commands": [{"command": "/remind_add", "usage": "<HH:MM> <內容> [date=…]", "summary": "加一個提醒（系統；每天，或 date= 指定那天一次）", "effect": "write", "path": "remind_add", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/remind_list", "usage": "", "summary": "列出提醒（系統）", "effect": "read", "path": "remind_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "schedule", "title": "🗓 排程指令", "summary": "每天幾點自動替你執行一個指令", "category": "系統", "commands": [{"command": "/schedule_list", "usage": "", "summary": "列出排程", "effect": "read", "path": "schedule_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "agent", "title": "🤖 AI", "summary": "", "category": "系統", "commands": [{"command": "/ai_usage", "usage": "", "summary": "這個月用了多少", "effect": "read", "path": "ai_usage", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}], "layout": {"groups": [{"id": "a-15d208d1b4", "title": "生活", "tools": ["note", "money"], "auto": true}, {"id": "a-e31e24dad3", "title": "待辦與行程", "tools": ["todoist", "gcal"], "auto": true}, {"id": "a-607089b311", "title": "未分類", "tools": ["hello"], "auto": true}, {"id": "a-6df543c4a4", "title": "系統", "tools": ["_basics", "remind", "schedule", "agent"], "auto": true}], "custom": false}}, "secrets": {"fields": [{"name": "token", "label": "API token", "required": true, "secret": true, "set": false, "help": "Todoist 網頁 → 設定 → 整合 → 開發者"}]}, "settings": {"owner": true, "accounts": true, "ai_budget": null, "llm": {"kind": "claude_code", "model": "", "base_url": "", "has_key": false}, "llm_choices": [{"label": "Claude Code（用你自己的 Claude 訂閱）", "choice": "claude_code", "models": [{"value": "", "label": "預設（讓 Claude Code 自己選）"}, {"value": "sonnet", "label": "Sonnet（平衡）"}, {"value": "opus", "label": "Opus（最強、較慢）"}, {"value": "haiku", "label": "Haiku（最快、最省）"}]}, {"label": "API 金鑰：OpenAI", "choice": "keys", "provider": "openai", "model": "（照預設）"}, {"label": "API 金鑰：本機或相容的服務", "choice": "keys", "provider": "openai_compat", "needs_url": true}, {"label": "先不用 AI", "choice": "none"}], "packs": [{"name": "notes", "status": "loaded", "version": "0.1.0", "lock": "locked", "removable": false}, {"name": "money", "status": "loaded", "version": "0.2.0", "lock": "locked", "removable": false}, {"name": "todoist", "status": "connector", "version": "0.2.0", "lock": "locked", "removable": false}, {"name": "example-tool", "status": "rejected", "detail": "掃描沒過：用了動態執行程式碼", "version": "1.0.0", "lock": "unlocked", "removable": true}]}, "channels": {"telegram": {"saved": true, "bot": "my_synox_bot", "active": true, "owner_paired": false, "pairable": true, "pair_ready": true, "paired_as": "", "pairing": {"code": "482915", "expires_in": 840}}, "discord": {"saved": true, "bot": "SYNOX test", "active": true, "multi": false, "owner_paired": true, "paired_as": "138765878633601855", "pair_ready": true, "pairing": null, "invite": "https://discord.com/oauth2/authorize?client_id=1&scope=bot&permissions=2048"}}, "accounts": {"roles": ["guest", "member", "admin"], "users": [{"id": 100001, "username": "小明", "role": "admin", "owner": true, "messages_today": 12, "messages_limit": 200, "ai_month_usd": 1.2, "ai_limit_usd": 20}, {"id": 100002, "username": "阿華", "role": "member", "messages_today": 3, "messages_limit": 100, "ai_month_usd": 0.4, "ai_limit_usd": 2}, {"id": 100003, "username": "新朋友", "role": "guest", "pending": true}]}, "library": {"version": "0.2.0", "releases": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases", "overview": "https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL", "tools": [{"name": "notes", "emoji": "📒", "title": "隨手記", "line": "記一筆、找、刪", "summary": "記一筆、找、刪（加密存在這台電腦）", "example": "/note 買牛奶", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不用上網", "tone": "ok", "hint": "這個工具不會上網，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/NpYbd3FtMAkXmASXc1pJzh", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/notes-0.1.1.synoxpack", "installed": "0.1.0", "newer": true}, {"name": "todo", "emoji": "✅", "title": "待辦", "line": "重要度、專案、到期日、打勾完成", "summary": "加待辦（!! 重要、#專案、明天到期）、看今天／逾期、打勾完成（加密存在這台電腦）", "example": "/todo !! 繳電費 明天", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不用上網", "tone": "ok", "hint": "這個工具不會上網，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/JuKURoMhZY58fWyR4j3961", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/todo-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "money", "emoji": "💰", "title": "記帳", "line": "支出、收入、轉帳、預算", "summary": "記支出、收入、轉帳，自己的類別與選配範本，預算與單項上限（加密存在這台電腦）", "example": "/money 120 午餐", "version": "0.2.0", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不用上網", "tone": "ok", "hint": "這個工具不會上網，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/6kA9jSkwVFPPBthsCjmz6d", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/money-0.2.0.synoxpack", "installed": "0.2.0", "newer": false}, {"name": "calendar", "emoji": "📅", "title": "行事曆", "line": "存在這台電腦的行程，可匯出 .ics", "summary": "加行程（明天 14:00 看牙醫）、看今天／這週、匯出 .ics（加密存在這台電腦）", "example": "/cal 明天 14:00 看牙醫", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不用上網", "tone": "ok", "hint": "這個工具不會上網，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/Fm6dXH5oiua8zPY3U5RYQ5", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/calendar-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "bullet", "emoji": "•", "title": "子彈筆記", "line": "快速記錄、今天、月誌、搬到今天", "summary": "快速記錄（• 任務 ○ 事件 – 筆記）、今天、月誌、把沒做完的搬到今天（加密存在這台電腦）", "example": "/bj • 買牛奶", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不用上網", "tone": "ok", "hint": "這個工具不會上網，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/BTdPArDtbddRk4ijNqExZ3", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/bullet-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "notion", "emoji": "🗂", "title": "Notion", "line": "搜尋、讀頁面、加一列、改欄位", "summary": "搜尋、讀頁面、加頁面／資料庫一列、改欄位（用你自己的 integration token）", "example": "/notion 會議", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用假資料測過", "tone": "", "hint": "還沒有真的連上去長時間用過，只用假資料測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/B36np3VigMinvyFuyz74dJ", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/notion-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "todoist", "emoji": "✅", "title": "Todoist", "line": "看、加、完成、改期 Todoist 的待辦", "summary": "看 Todoist 的待辦（今天、逾期、專案、標籤）、加待辦、打勾完成、改期", "example": "/todoist !! 繳電費 明天", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用假資料測過", "tone": "", "hint": "還沒有真的連上去長時間用過，只用假資料測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/D3zgGcZ9h1LRrDLu2QD5Mw", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/todoist-0.1.1.synoxpack", "installed": "0.2.0", "newer": false}, {"name": "google-calendar", "emoji": "📅", "title": "Google 日曆", "line": "看今天／這週、加行程、刪行程", "summary": "看今天／這週、加行程、刪行程（直接連你的 Google 日曆）", "example": "/gcal 明天 14:00 看牙醫", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用假資料測過", "tone": "", "hint": "還沒有真的連上去長時間用過，只用假資料測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/NyhRhPrRL1n9NMMbMEv3mx", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/google-calendar-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "apple-reminders", "emoji": "🍎", "title": "Apple 提醒事項", "line": "CalDAV 提醒事項（升級過的 iCloud 讀不到）", "summary": "看、加、完成提醒事項（CalDAV；iCloud 升級過的提醒事項 Apple 不開放，見說明）", "example": "/applerem_add 買牛奶", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用假資料測過", "tone": "", "hint": "還沒有真的連上去長時間用過，只用假資料測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/Jm4tdCTZdaQ1mc1waTatYp", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/apple-reminders-0.1.1.synoxpack", "installed": "", "newer": false}]}, "runtime": {"heartbeat": {"enabled": true, "interval_min": 45, "last_run_min": -12, "next_run_min": 33, "last_result": {"ok": true, "message": "看過一輪：任務都正常，沒有要提醒你的事。"}}, "mother": {"state": "idle", "last_active_min": -3, "soul_updated_min": -1560}, "tasks": [{"id": "morning-digest", "name": "早上的摘要", "owner": "SYNOX", "schedule": "每天 08:00", "state": "ok", "last_run_min": -300, "last_message": "送出了：今天 2 個行程、1 個待辦"}, {"id": "budget-watch", "name": "預算檢查", "owner": "example-budget", "schedule": "每 6 小時", "state": "failed", "last_run_min": -40, "last_message": "讀不到這個月的資料，下一輪會再試"}, {"id": "calendar-sync", "name": "行事曆同步", "owner": "example-calendar", "schedule": "每 30 分鐘", "state": "running", "last_run_min": -1, "last_message": "同步中…"}, {"id": "weekly-review", "name": "每週回顧", "owner": "example-notes", "schedule": "每週日 21:00", "state": "idle", "last_run_min": null, "last_message": ""}]}, "report": {"full": true, "summary": "【SYNOX 回報摘要】（SYNOX 自動整理：token、金鑰、對話內容、有使用者名稱的路徑都拿掉了）\nSYNOX 版本：0.2.0\n作業系統：Windows 11（10.0.22631）\nPython：3.11.9\n用法：個人版\nAI：claude_code\n聊天通道：Telegram、網頁\n裝了的工具（4 個）：notes 0.1.0、money 0.2.0、todoist 0.2.0、example-tool 1.0.0（rejected）\n最近的錯誤或警告（最多 15 行）：\n  11-13 09:12:40 WARNING [TG] getUpdates 逾時，5 秒後重試（重複 3 次）\n  11-13 09:20:03 ERROR [WEB] POST /api/settings/llm/test failed（TimeoutError，claude_code.py:212）\n  11-13 09:21:17 WARNING [PACK] example-tool 沒有載入：%USERPROFILE%\\SYNOX\\packs\\example-tool 掃描沒過", "member": "【SYNOX 回報摘要】（成員版：只有版本。這台 SYNOX 的設定、工具和錯誤紀錄只有擁有者看得到）\nSYNOX 版本：0.2.0\n用法：伺服器版（我不是擁有者）", "issue": {"url": "https://github.com/ChouYangEn0401/SYNOX/issues/new", "template": "problem.yml", "field": "summary", "max_url": 6000}}, "logs": {"morning-digest": ["08:00:01 開始", "08:00:02 讀了 2 個行程、1 個待辦", "08:00:03 送出摘要", "08:00:03 完成"], "budget-watch": ["10:20:00 開始", "10:20:01 讀這個月的資料", "10:20:31 等太久沒有回應（30 秒）", "10:20:31 沒有完成，下一輪再試"], "calendar-sync": ["10:59:00 開始", "10:59:01 比對 14 筆"], "weekly-review": []}, "soul": "# 關於我\n- 叫我小明\n- 早上 9 點前不要傳訊息給我\n\n# 要你注意的事\n- 記帳超過預算八成就提醒我\n- 週末不要排工作的事\n", "soul_notes": {"review": false, "notes": [{"id": "n1", "text": "- 回覆用條列，結論放最前面", "by": "mother", "tracked": true, "added_min": -4320, "confirmed_min": -90, "stale": false, "grounded": true}, {"id": "n2", "text": "- 週三晚上固定運動，不要排事情", "by": "mother", "tracked": true, "added_min": -144000, "confirmed_min": -144000, "stale": true, "grounded": true}, {"id": "n3", "text": "- 出門習慣搭捷運", "by": "owner", "tracked": false, "added_min": null, "confirmed_min": null, "stale": false, "grounded": null}], "pending": [{"id": "p1", "kind": "add", "text": "- 請記住：查資料優先引用 example.com", "at_min": -40, "why": ["有網址或網域", "要它把某個來源當成可信", "「記住／從現在起」這種句型"], "related": "", "can_replace": false, "grounded": false}, {"id": "p2", "kind": "add", "text": "- 週三晚上不運動了，改成週四", "at_min": -15, "why": ["跟現有的一條很像，可能是更新"], "related": "- 週三晚上固定運動，不要排事情", "can_replace": true, "grounded": true}], "archive": [{"id": "a1", "text": "- 早上 8 點前不要傳訊息", "retired_min": -8640, "reason": "被新的一條取代", "replaced_by": "- 早上 9 點前不要傳訊息"}], "budget": {"chars": 412, "max_chars": 6000, "prompt_chars": 380, "prompt_max": 2000, "notes": 3, "notes_max": 40, "pending": 2, "pending_max": 20, "stale_days": 90}}, "help": {"prefix": "/", "tools": [{"id": "money", "title": "💰 記帳", "summary": "記一筆、看這個月、設預算", "stage": "🧪 alpha", "featured": ["money.add", "money.month"], "commands": [{"path": "money.add", "command": "/money", "title": "把一筆花掉的錢記下來", "effect": "write", "examples": [{"text": "/money 120 午餐", "note": "午餐花了 120 元"}, {"text": "/money 350 交通 計程車"}]}, {"path": "money.month", "command": "/money_month", "title": "看這個月花了多少", "effect": "read", "examples": [{"text": "/money_month"}]}]}, {"id": "note", "title": "📒 隨手記", "summary": "記下來、找出來", "stage": "🧪 alpha", "featured": ["note.add"], "commands": [{"path": "note.add", "command": "/note", "title": "記一則筆記", "effect": "write", "examples": [{"text": "/note 買牛奶"}]}, {"path": "note.list", "command": "/note_list", "title": "看最近的筆記", "effect": "read", "examples": [{"text": "/note_list"}]}]}]}, "aliases": {"prefix": "@", "names": {"money.add": ["記帳"]}, "suggestions": [{"path": "money.month", "name": "這個月", "command": "/money_month", "title": "看這個月花了多少"}], "conflicts": [], "escape": "\\", "limits": {"name": 16, "per_command": 3, "total": 100}, "prefixes": [{"value": "/", "label": "/（原本的）"}, {"value": "$", "label": "$"}, {"value": "!", "label": "!"}, {"value": ".", "label": "."}, {"value": "~", "label": "~"}, {"value": ";", "label": ";"}, {"value": ",", "label": ","}, {"value": "@", "label": "@"}, {"value": "+", "label": "+"}, {"value": "", "label": "不用符號（進階）"}], "warnings": {"@": "在群組或頻道裡，@ 常被當成「提到某個人」。私訊與 SYNOX 網頁沒問題；在群組裡比較穩的是 /。", "": "不用符號：只要訊息的第一個詞剛好是你取的名字或原本的指令名，就會被當成指令。"}, "targets": [{"path": "money.add", "command": "/money", "title": "把一筆花掉的錢記下來", "tool": "💰 記帳"}, {"path": "money.month", "command": "/money_month", "title": "看這個月花了多少", "tool": "💰 記帳"}, {"path": "note.add", "command": "/note", "title": "記一則筆記", "tool": "📒 隨手記"}]}, "appearance": {"themes": [], "theme": "", "mode": "auto", "custom": {}, "inherited": [], "owner": true, "server": false, "background": {"kind": "theme"}, "patterns": [{"name": "dots", "text": "小圓點"}, {"name": "grid", "text": "方格紙"}, {"name": "stripes", "text": "細斜線"}, {"name": "glow", "text": "淡淡的光"}], "scope": "install", "contract": 1, "tokens": ["bg", "surface", "text", "muted", "line", "accent", "accent-ink", "accent2", "soft", "ok", "warn", "bad", "radius", "font-ui", "font-brand"], "slots": [{"name": "mascot.idle", "text": "吉祥物（平常）：側欄與登入卡左上角的標誌、空白對話的插圖；預設是「S」方塊", "kinds": ["svg", "html"]}, {"name": "mascot.think", "text": "吉祥物（在想）：等 AI 回覆時那顆會晃的小方塊；預設是藍色方塊", "kinds": ["svg", "html"]}, {"name": "mascot.happy", "text": "吉祥物（開心）：裝好、套用成功的時候；預設是笑臉的 S 寶寶", "kinds": ["svg", "html"]}, {"name": "mascot.warn", "text": "吉祥物（注意）：安裝被拒、出問題的時候；預設是擔心的 S 寶寶", "kinds": ["svg", "html"]}, {"name": "opening", "text": "開場動畫：打開網頁時播的那一段（SVG＋CSS 動畫；時間 SYNOX 管，約 1.7 秒）；預設是 S 寶寶掉下來", "kinds": ["svg", "html"]}, {"name": "wordmark", "text": "字標：側欄的「SYNOX」字樣（開場的字也跟著換）；預設是文字 SYNOX", "kinds": ["svg", "html"]}, {"name": "appicon", "text": "分頁圖示（favicon）：只收 SVG；預設是瀏覽器的預設圖示", "kinds": ["svg"]}, {"name": "chat.background", "text": "對話的背景：整個對話區後面的一張圖（鋪滿、在訊息底下、點不到）；只收 SVG；預設沒有。使用者在「外觀 → 背景」自己選的（不要、純色、花紋、自己貼）蓋過外觀包的", "kinds": ["svg"]}]}, "wardrobe": {"version": "0.3.0", "page": "https://claude.ai/artifact/USzGNERZ2477E7XzPaPCsR", "releases": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases", "title": "SYNOX 衣櫃", "summary": "整套外觀：顏色、吉祥物、開場一起換。", "themes": [{"name": "costume-a-bubble", "title": "泡泡", "line": "圓圓的對話泡泡，說話時會輕輕鼓起來", "summary": "圓圓的對話泡泡，說話時會輕輕鼓起來", "version": "1.0.0", "letter": "A", "swatches": ["#f4f7fb", "#ffffff", "#3b82f6", "#a5c8ff"], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false}, {"name": "costume-b-lantern", "title": "提燈", "line": "幫你顧家的一盞小燈，會像心跳一樣一亮一亮", "summary": "幫你顧家的一盞小燈，會像心跳一樣一亮一亮", "version": "1.0.0", "letter": "B", "swatches": ["#f5f3ef", "#fffdf9", "#c77d12", "#f2c46d"], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "0.9.0", "newer": true}, {"name": "costume-c-stamp", "title": "印章", "line": "蓋一下就記住了：朱紅色的方印", "summary": "蓋一下就記住了：朱紅色的方印", "version": "1.0.0", "letter": "C", "swatches": [], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false}, {"name": "costume-d-snail", "title": "蝸牛", "line": "慢慢來也會到：殼上的螺旋就是進度", "summary": "慢慢來也會到：殼上的螺旋就是進度", "version": "1.0.0", "letter": "D", "swatches": [], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false}, {"name": "costume-f-mochi", "title": "麻糬", "line": "軟軟的一團，戳一下會彈回來", "summary": "軟軟的一團，戳一下會彈回來", "version": "1.0.0", "letter": "F", "swatches": ["#fbf6f1", "#ffffff", "#e57399", "#f7c9d6"], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false}, {"name": "costume-h-teapot", "title": "茶壺", "line": "泡一壺茶等你：冒煙就是在想", "summary": "泡一壺茶等你：冒煙就是在想", "version": "1.0.0", "letter": "H", "swatches": [], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false}], "empty": ""}};
   var loggedOut = q.get("login") === "1";
   if (q.get("member") === "1") {
     D.me.owner = false; D.me.role = "member"; D.me.username = "阿華";
@@ -1248,7 +1248,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     }
     if (p === "/api/packs/library") { return reply(D.library); }
     if (p === "/api/packs/wardrobe") {           // ?wd=empty：清單裡還沒有外觀包（衣櫃還沒上架）
-      return reply(q.get("wd") === "empty" ? { themes: [], empty: "衣櫃還沒上架，先到網頁看看", page: D.wardrobe.page } : D.wardrobe);
+      return reply(q.get("wd") === "empty" ? { themes: [], empty: "衣櫃裡還沒有東西。可以先到衣櫃網頁看看。", page: D.wardrobe.page } : D.wardrobe);
     }
     if (p === "/api/packs/library/install") {     // 預覽：不下載，直接給待核准那一份的報告
       D.stagedGone = false;
@@ -2031,7 +2031,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     <div class="page wide">
       <header class="page-head">
         <h1>工具</h1>
-        <p class="sub">你看得到、用得到的全部功能，照群組分好。填好參數按「執行」就跑（結果也會留在對話頁的「🧰 工具頁」）；群組可以按「編輯」自己排。</p>
+        <p class="sub">你能用的工具都在這裡，一組一組排好。把要填的填好，按「執行」就會做。結果也會留在對話頁的「🧰 工具頁」。想換排法，按「編輯」。</p>
       </header>
       <div id="tools-root" data-tour="tools.page"></div>
     </div>
@@ -2250,15 +2250,15 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       <div class="tab-panel hidden" data-tab="packs" role="tabpanel">
       <div id="set-library" class="card hidden" data-tour="settings.packs.catalog">
         <div class="card-head"><span class="tile" aria-hidden="true">🧰</span>
-          <div class="txt"><h2>工具庫（官方）</h2><p class="sub">SYNOX 官方做的工具，挑你要的裝。按「載入工具清單」才會連到網路（GitHub）抓清單；
-            按「安裝」也一樣先給你看檢查報告，你按確認才會裝。</p></div></div>
+          <div class="txt"><h2>工具庫（官方）</h2><p class="sub">SYNOX 官方做的工具，挑你要的裝。按「看有哪些工具」，才會上網把清單拿回來。
+            按「安裝」後，會先給你看檢查的結果。你按「確認安裝」才會真的裝。</p></div></div>
         <div class="row">
-          <button id="lib-load" class="primary" type="button" data-tour="settings.packs.catalog.load">載入工具清單</button>
+          <button id="lib-load" class="primary" type="button" data-tour="settings.packs.catalog.load">看有哪些工具</button>
           <a id="lib-overview" class="btn ghost" href="https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL" target="_blank" rel="noopener noreferrer">工具庫介紹</a>
         </div>
         <p id="lib-msg" class="msgline" role="status"></p>
         <p id="lib-error" class="note-line hidden" role="alert"><span id="lib-error-text"></span>
-          <a id="lib-releases" href="https://github.com/ChouYangEn0401/SYNOX_Libs/releases" target="_blank" rel="noopener noreferrer">GitHub 發佈頁</a></p>
+          <a id="lib-releases" href="https://github.com/ChouYangEn0401/SYNOX_Libs/releases" target="_blank" rel="noopener noreferrer">下載頁（GitHub）</a></p>
         <p id="lib-legend" class="muted lib-legend hidden">👤 單人用＝只有你能用。👥 伺服器版也能用＝SYNOX 開給家人或社團一起用時，每個人都能用、各自一份資料；只有你自己用的話兩種沒有差別。</p>
         <div id="lib-list"></div>
       </div>
@@ -2277,14 +2277,14 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
 
       <div id="set-install" class="card hidden" data-tour="settings.packs.upload">
         <div class="card-head"><span class="tile" aria-hidden="true">📦</span>
-          <div class="txt"><h2>安裝新功能</h2><p class="sub">選一個 .synoxpack（pack 資料夾壓成的 zip），先看安全檢查報告，按「確認安裝」才會裝。
-            雙擊 .synoxpack、Install-Pack.bat 或 <code>synox install &lt;檔&gt;</code> 開的報告也會直接出現在這裡。</p></div></div>
+          <div class="txt"><h2>安裝新功能</h2><p class="sub">選一個工具檔（檔名結尾是 .synoxpack）。會先給你看安全檢查的結果，你按「確認安裝」才會真的裝。
+            在電腦裡對工具檔點兩下，檢查的結果也會出現在這裡。</p></div></div>
         <div class="upload">
-          <input id="pack-file" type="file" accept=".synoxpack,.zip" aria-label=".synoxpack 檔">
+          <input id="pack-file" type="file" accept=".synoxpack,.zip" aria-label="工具檔（.synoxpack）">
           <button id="pack-upload" class="primary" type="button">上傳並檢查</button>
         </div>
         <div id="staged-wrap" class="staged hidden">
-          <h3>等你核准</h3>
+          <h3>等你決定</h3>
           <p class="muted" id="staged-note"></p>
           <div id="staged-list"></div>
         </div>
@@ -2297,11 +2297,11 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
 
       <div id="set-packs" class="card hidden" data-tour="settings.packs.installed">
         <div class="card-head"><span class="tile" aria-hidden="true">🧩</span>
-          <div class="txt"><h2>功能（pack）</h2><p class="sub">裝了哪些功能、能不能用。移除的會搬到 packs/_removed/，不會刪掉。</p></div></div>
+          <div class="txt"><h2>裝好的功能</h2><p class="sub">這裡列出裝了哪些功能，和它們現在能不能用。按「移除」只是把它收到旁邊，不會真的刪掉。</p></div></div>
         <div class="tablewrap"><table><thead><tr><th>名字</th><th>狀態</th><th>版本</th><th></th></tr></thead>
           <tbody id="pack-rows"></tbody></table></div>
         <div class="row">
-          <button id="pack-reload" class="ghost" type="button">重新載入全部</button>
+          <button id="pack-reload" class="ghost" type="button">全部重新讀一次</button>
           <span id="pack-msg" class="msgline"></span>
         </div>
       </div>
@@ -2362,12 +2362,12 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       <div id="set-wardrobe" class="card">
         <div class="card-head"><span class="tile" aria-hidden="true">👗</span>
           <div class="txt"><h2>衣櫃</h2>
-            <p class="sub">SYNOX 衣櫃：大家都能下載的整套外觀。按下面的按鈕才會連到網路看有哪些；裝之前一樣先給你看檢查報告，你按「確認安裝」才裝，裝好再按「套用」。</p></div></div>
+            <p class="sub">這裡有整套的外觀可以挑。按下面的按鈕，才會上網看有哪些。按「安裝」後會先給你看檢查的結果，你按「確認安裝」才會裝。裝好再按「套用」。</p></div></div>
         <div class="row">
-          <button id="wd-load" class="primary" type="button">看衣櫃（要連到網路）</button>
+          <button id="wd-load" class="primary" type="button">看衣櫃（會上網）</button>
           <a id="wd-page" class="btn ghost" href="https://claude.ai/artifact/USzGNERZ2477E7XzPaPCsR" target="_blank" rel="noopener noreferrer">到衣櫃網頁看完整預覽</a>
         </div>
-        <p id="wd-owner-only" class="muted hidden">外觀包由擁有者安裝。你可以先到衣櫃網頁看看，喜歡的請擁有者裝，裝好就能在上面挑。</p>
+        <p id="wd-owner-only" class="muted hidden">外觀要由擁有者來裝。你可以先到衣櫃網頁看看，喜歡的請擁有者裝。裝好後，你就能在上面挑。</p>
         <p id="wd-msg" class="msgline" role="status"></p>
         <p id="wd-error" class="note-line hidden" role="alert"></p>
         <div id="wd-list" class="wd-grid"></div>
@@ -4143,61 +4143,65 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   var TEXT = {
     cardTitle: "完整畫面",
     open: "打開",
-    start: "開啟",
+    start: "開始用",
     stop: "關掉",
-    keep: "先留著",
+    keep: "先不要關",
     stopAll: "全部關掉",
     whatIs: "這是什麼？為什麼要關？",
-    inUseTitle: "什麼叫有在用：",
-    on: "開著 · {n} 分鐘沒用",
+    inUseTitle: "怎樣算「有在用」：",
+    on: "開著・{n} 分鐘沒動",
     onFresh: "開著",
     off: "關著",
-    keepTag: "一直開著",
-    ownerOnly: "服務由擁有者開關。",
-    policyNow: "沒在用的時候：{text}",
-    change: "改",
+    keepTag: "不會自動關",
+    ownerOnly: "只有擁有者可以打開和關掉。",
+    policyNow: "忘了關的話：{text}",
+    change: "改設定",
     save: "存起來",
     cancel: "取消",
     custom: "自己填：",
-    customUnit: "分鐘沒用就關",
-    keepWarn: "這個服務會一直開著，直到你自己關掉或 SYNOX 重開。開著的時候，這台電腦上的其他程式和其他帳號碰得到這扇門。",
-    keepOk: "我知道，一直開著",
-    blockAsk: "會先把它關掉，確定？",
-    blocked: "不開放這個工具的畫面（要開先改上面的設定）。",
-    firstTitle: "什麼是工具服務？",
-    firstOk: "知道了，開啟",
+    customUnit: "分鐘沒動就自動關",
+    keepWarn: "選這個，我就不會自動關。它會一直開著，直到你按「關掉」，或 SYNOX 重新啟動。開著的時候，這台電腦上別的程式、別的使用者有機會碰到它。用完記得關。",
+    keepOk: "我知道，不要自動關",
+    blockAsk: "它現在開著。我會先把它關掉，可以嗎？",
+    blocked: "這個工具的完整畫面現在設成「不給開」。要用的話，先按「改設定」。",
+    firstTitle: "第一次用完整畫面，先看一下：",
+    firstOk: "知道了，開始用",
     firstNo: "先不要",
-    side: "● {n} 個工具服務開著",
-    sideIdle: "● {title}的服務很久沒用了",
-    log: "最近紀錄",
-    advanced: "（進階）本機位址 127.0.0.x 的第 {n} 號埠",
+    side: "● {n} 個工具的畫面開著",
+    sideIdle: "● {title}的畫面很久沒動了",
+    log: "最近做了什麼",
+    advanced: "進階",
     failed: "沒有成功：",
-    problem: "這個工具的畫面現在不能開：",
+    problem: "這個工具的畫面現在打不開：",
     unavailable: "現在不能用：",
-    events: { start: "開了", stop: "關了", auto_stop: "自動關了", suggest: "提醒很久沒用", keep: "按了先留著",
-              policy: "改了閒置設定", handoff: "打開了畫面", enter: "進到畫面", leave: "離開畫面", action: "在畫面上做了一個動作",
-              "export": "匯出了資料", denied: "擋下一個不對的請求", error: "出錯" },
+    events: { start: "開了", stop: "關了", auto_stop: "自動關了", suggest: "提醒你很久沒動了", keep: "按了先不要關",
+              policy: "改了自動關的設定", handoff: "打開了畫面", enter: "進到畫面", leave: "離開畫面", action: "在畫面上做了一個動作",
+              "export": "匯出了資料", denied: "擋下一個不對勁的動作", error: "出錯" },
     // 手機入口（ADR 0026）
     remoteRow: "📱 手機入口",
-    remoteMissing: "要先完成：",
-    remoteNeed: { stepup: "設定手機驗證器（設定 → 🔐 安全）", disabled: "打開手機入口的總開關（設定 → 🔐 安全）",
-                  binary: "核准通道程式 cloudflared（設定 → 🔐 安全）", declared: "這個工具沒有宣告可以從手機用",
+    remoteMissing: "還差這幾件事：",
+    remoteNeed: { stepup: "先設定手機驗證器（設定 → 🔐 安全）", disabled: "打開手機入口的總開關（設定 → 🔐 安全）",
+                  binary: "同意使用連線用的小程式（設定 → 🔐 安全）", declared: "這個工具不能從手機用",
                   allowed: "打開這個工具的「可以從手機用」" },
     remoteAllow: "可以從手機用",
     remoteOpen: "開手機入口",
-    remoteCode: "手機驗證器現在的 6 位數（每次都要一組新的）",
-    remoteLink: "用手機打開這個連結（只能用一次，5 分鐘內要進去；進門時要再打一組數字）：",
+    remoteCode: "手機驗證器上現在的 6 個數字",
+    remoteLink: "用手機打開下面這個連結。它只能用一次，5 分鐘內要打開。打開後，還要再輸入一次 6 個數字。",
     remoteLeft: "手機入口開著，還剩 {m} 分鐘",
-    remoteClose: "關閉手機入口",
-    remoteNote: "通道是 Cloudflare 提供的，資料會經過它的機器；危險的動作與匯出在手機上不能做。"
+    remoteClose: "關掉手機入口",
+    remoteNote: "從手機連進來時，資料會經過 Cloudflare 這家公司的機器。為了安全，在手機上不能做危險的動作，也不能匯出資料。"
   };
+  /* 給幫忙處理問題的人看的技術細節：只出現在收起來的「進階」裡（不算在給一般人看的 TEXT 裡） */
+  var SUPPORT = { where: "給幫你處理問題的人看：本機位址 127.0.0.x，第 {n} 號埠。" };
+  /* 給幫忙處理問題的人看的技術細節：只出現在收起來的「進階」裡（不算在給一般人看的 TEXT 裡） */
+  var SUPPORT = { where: "給幫你處理問題的人看：本機位址 127.0.0.x，第 {n} 號埠。" };
   var POLICY_CHOICES = [
-    { key: "auto120", label: "120 分鐘沒用就關，30 分鐘先提醒（建議）", body: { mode: "auto", close_min: 120 } },
-    { key: "auto30", label: "30 分鐘沒用就關", body: { mode: "auto", close_min: 30 } },
-    { key: "custom", label: "自己填 N 分鐘", body: null },
-    { key: "suggest", label: "只提醒，不自動關", body: { mode: "suggest" } },
-    { key: "keep", label: "一直開著", body: { mode: "keep", understood: true } },
-    { key: "blocked", label: "不開放這個工具的畫面", body: { mode: "blocked" } }
+    { key: "auto120", label: "2 小時沒動就自動關，30 分鐘先提醒（建議）", body: { mode: "auto", close_min: 120 } },
+    { key: "auto30", label: "30 分鐘沒動就自動關", body: { mode: "auto", close_min: 30 } },
+    { key: "custom", label: "自己填幾分鐘", body: null },
+    { key: "suggest", label: "只提醒我，不自動關", body: { mode: "suggest" } },
+    { key: "keep", label: "不要自動關", body: { mode: "keep", understood: true } },
+    { key: "blocked", label: "不給開這個工具的完整畫面", body: { mode: "blocked" } }
   ];
 
   function fill(text, vars) {
@@ -4301,7 +4305,12 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       more.appendChild(el("summary", "", TEXT.whatIs));
       ["what", "why_close", "restart"].forEach(function (k) { more.appendChild(el("p", "", ctx.explain[k])); });
       more.appendChild(el("p", "sub", TEXT.inUseTitle + (ctx.explain.in_use || "")));
-      if (view.port) { more.appendChild(el("small", "muted", fill(TEXT.advanced, { n: view.port }))); }
+      if (view.port) {                      // 給幫忙處理問題的人看的；收在「進階」裡，平常看不到
+        var adv = el("details", "app-adv");
+        adv.appendChild(el("summary", "muted", TEXT.advanced));
+        adv.appendChild(el("small", "muted", fill(SUPPORT.where, { n: view.port })));
+        more.appendChild(adv);
+      }
       card.appendChild(more);
     }
     return card;
@@ -4551,7 +4560,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     }
   }
 
-  var api = { TEXT: TEXT, POLICY_CHOICES: POLICY_CHOICES, policyBody: policyBody, stateLine: stateLine, sideText: sideText,
+  var api = { TEXT: TEXT, SUPPORT: SUPPORT, POLICY_CHOICES: POLICY_CHOICES, policyBody: policyBody, stateLine: stateLine, sideText: sideText,
               openForm: openForm, renderCard: renderCard, init: init, card: card, refresh: refresh,
               remoteMissing: remoteMissing, renderRemote: renderRemote };
   if (typeof module === "object" && module && module.exports) { module.exports = api; }
@@ -4572,7 +4581,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     editing: false, draft: null, rev: 0, seq: 0
   };
   var SEL_KEY = "synox.tools.selected";
-  var EFFECT = { read: "唯讀", write: "會寫入", danger: "危險：會先問你" };
+  var EFFECT = { read: "只會看", write: "會改資料", danger: "危險：做之前會先問你" };
   var KIND = { text: "文字", int: "整數", number: "數字", bool: "是／否", path: "檔名", choice: "選一個" };
 
   function el(tag, cls, text) {
@@ -4632,7 +4641,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     clear(root);
     var groups = groupsNow();
     if (!Object.keys(S.tools).length && !S.editing) {
-      root.appendChild(el("p", "tp-empty", "你現在沒有可以用的功能；請管理員替你開。"));
+      root.appendChild(el("p", "tp-empty", "你現在還沒有可以用的工具。請擁有者幫你打開。"));
       return;
     }
     var g = currentGroup();
@@ -4673,7 +4682,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     if (S.editing) {
       side.appendChild(button("＋ 新增群組", "tp-add", addGroup));
       var bar = el("div", "tp-editbar");
-      bar.appendChild(button("儲存排版", "primary", saveEdit));
+      bar.appendChild(button("儲存排法", "primary", saveEdit));
       bar.appendChild(button("取消", "", cancelEdit));
       bar.appendChild(button("回到建議的排法", "ghost", resetLayout, "丟掉自己的排法，照每個工具建議的群組重排"));
       side.appendChild(bar);
@@ -4761,8 +4770,8 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     S.draft.splice(i, 1);
     g.tools.forEach(function (tid) { suggestedGroup(tid, g).tools.push(tid); });
     if (S.group === g.id) { S.group = S.draft.length ? S.draft[Math.max(0, i - 1)].id : null; }
-    editMsg(g.tools.length ? "「" + g.title + "」刪掉了，裡面的工具回到建議的群組（按「儲存排版」才算數）。" :
-      "「" + g.title + "」刪掉了（按「儲存排版」才算數）。");
+    editMsg(g.tools.length ? "「" + g.title + "」刪掉了，裡面的工具會回到建議的群組。要按「儲存排法」才會存起來。" :
+      "「" + g.title + "」刪掉了。要按「儲存排法」才會存起來。");
     render();
   }
   function moveTool(g, i, step) {
@@ -4792,7 +4801,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     api("POST", "/api/tools/layout", body).then(function (d) {
       S.layout = d.layout; S.editing = false; S.draft = null;
       render();
-      toast("排版存好了（只改你自己的畫面）");
+      toast("排法存好了（只改你自己的畫面）");
     }).catch(function (e) { editMsg("❌ " + e.message); });
   }
   function resetLayout() {
@@ -4930,7 +4939,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     if (t.app && window.SynoxApps) { window.SynoxApps.card(panel, t); }   // 工具服務：「完整畫面」卡片（static/apps.js）
     if (t.connect) { panel.appendChild(connectBlock(t, badge)); }
     else if (t.missing && t.missing.length) {
-      panel.appendChild(el("p", "note-line", "還沒連接（缺 " + t.missing.join("、") + "）；請擁有者到工具頁按「連接」。"));
+      panel.appendChild(el("p", "note-line", "還沒接好，還缺：" + t.missing.join("、") + "。請擁有者到工具頁按「🔌 連接」填好。"));
     }
     if (t.panel) {
       var frame = el("iframe", "panel");
@@ -4955,7 +4964,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       var line = el("p", "note-line");
       line.appendChild(el("strong", "", (HEALTH_MARK[h.state] || "⚠️") + " " + h.label + (h.personal ? "（只對你）" : "")));
       line.appendChild(el("span", "", "：" + (h.code_label || h.code) + (h.reason ? "——" + h.reason : "")));
-      if (h.trial) { line.appendChild(el("span", "muted", "（試用中：AI 這次會再用一次）")); }
+      if (h.trial) { line.appendChild(el("span", "muted", "（再試一次看看：AI 這次會再用它一次）")); }
       else if (h.next_check) { line.appendChild(el("span", "muted", "（下次自動檢查 " + h.next_check.replace("T", " ").slice(0, 16) + "）")); }
       box.appendChild(line);
       if (!t || !t.health_admin) { return; }
@@ -4963,11 +4972,11 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       var msg = el("span", "msgline");
       function act(action) {
         api("POST", "/api/tools/health", { key: h.key, action: action }).then(function () {
-          msg.textContent = action === "release" ? "已解除，重新整理看最新狀態。" : "已經開始檢查，稍後重新整理看結果。";
+          msg.textContent = action === "release" ? "重新開放了。重新整理頁面，就會看到最新的狀態。" : "開始檢查了。等一下重新整理頁面，就會看到結果。";
         }).catch(function (e) { msg.textContent = "❌ " + e.message; });
       }
       if (h.state !== "quarantined") { row.appendChild(button("重新檢查", "sm", function () { act("recheck"); })); }
-      row.appendChild(button(h.state === "quarantined" ? "解除隔離" : "標成正常", "sm", function () { act("release"); }));
+      row.appendChild(button(h.state === "quarantined" ? "重新開放" : "標成正常", "sm", function () { act("release"); }));
       row.appendChild(msg);
       box.appendChild(row);
     });
@@ -5006,7 +5015,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     } else if (c.usage) {
       inputs.push(rawInput(form, c));
     } else {
-      form.appendChild(el("p", "muted", "這個指令不用參數，直接按執行。"));
+      form.appendChild(el("p", "muted", "這個指令不用填東西，直接按「執行」。"));
     }
     var preview = el("p", "tp-line");
     var line = el("code");
@@ -5076,7 +5085,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     wrap.appendChild(node);
     var hint = [];
     if (f.help) { hint.push(f.help); }
-    hint.push("參數 " + f.name + "・" + (KIND[f.kind] || f.kind) + (f.default ? "・預設 " + f.default : ""));
+    hint.push((KIND[f.kind] || f.kind) + (f.default ? "・沒填就用 " + f.default : "") + "・代號 " + f.name);
     wrap.appendChild(el("span", "tp-fhint", hint.join("　")));
     form.appendChild(wrap);
     return {
@@ -5087,7 +5096,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   function rawInput(form, c) {
     var wrap = el("div", "tp-field");
     var id = "tp-raw-" + c.path.replace(/[^a-z0-9_]/gi, "_");
-    var lab = el("label", "tp-flabel", "參數");
+    var lab = el("label", "tp-flabel", "要填的內容");
     lab.htmlFor = id;
     wrap.appendChild(lab);
     var node = el("input");
@@ -5112,7 +5121,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   function askDanger(box, text, go) {
     clear(box);
     box.classList.remove("hidden");
-    box.appendChild(el("p", "", "這是危險的指令（可能刪掉或改掉資料、不能復原）。確定要執行嗎？"));
+    box.appendChild(el("p", "", "這個指令有危險：可能刪掉或改掉資料，而且救不回來。確定要執行嗎？"));
     var line = el("p", "");
     line.appendChild(el("code", "", text));
     box.appendChild(line);
@@ -5135,7 +5144,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       clear(out);
       out.classList.remove("hidden");
       var replies = d.messages.filter(function (m) { return m.from !== "me"; });
-      if (!replies.length) { out.textContent = "（送出了；回覆可能要等一下，到對話頁的「🧰 工具頁」看）"; }
+      if (!replies.length) { out.textContent = "（送出了。結果可能要等一下，到對話頁的「🧰 工具頁」看。）"; }
       replies.forEach(function (m) {
         out.appendChild(S.ctx.renderMessage(m, "tools", function () { toast("按了；結果在對話頁的「🧰 工具頁」"); }));
       });
@@ -5164,7 +5173,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
           input.type = f.secret ? "password" : "text";
           input.autocomplete = f.secret ? "new-password" : "off";
           if (!f.secret && f.value) { input.value = f.value; }
-          if (f.set && f.secret) { input.placeholder = "留空＝沿用原本的"; }
+          if (f.set && f.secret) { input.placeholder = "不填就用原本的"; }
         }
         lab.appendChild(input);
         if (f.help) { lab.appendChild(el("span", "muted", f.help)); }
@@ -5199,7 +5208,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       if (!form.classList.contains("hidden")) { form.classList.add("hidden"); return; }
       api("GET", "/api/pack-secrets/" + encodeURIComponent(p.name)).then(function (d) {
         build(d); form.classList.remove("hidden");
-        msg.textContent = "存在這台電腦的保管箱（密文）；為了安全，Telegram 不收這些。";
+        msg.textContent = "這些會鎖起來，存在這台電腦裡。為了安全，只能在這裡填，不能用 Telegram 傳。";
       }).catch(function (e) { msg.textContent = "❌ " + e.message; });
     });
     return box;
@@ -6614,12 +6623,12 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     list.appendChild(lookCard("", "原本的 SYNOX", "預設的樣子", null));
     (look.themes || []).forEach(function (t) {
       var card = lookCard(t.name, t.title, t.name + " · v" + t.version + (t.publisher ? " · " + t.publisher : ""), t.tokens);
-      if (!t.ok) { card.appendChild(el("p", "alert", "⚠️ 這個外觀包過不了消毒，不能套用")); card.querySelector("button").disabled = true; }
+      if (!t.ok) { card.appendChild(el("p", "alert", "⚠️ 這套外觀沒通過安全檢查，不能套用")); card.querySelector("button").disabled = true; }
       list.appendChild(card);
     });
     $("look-get").textContent = look.owner ?
-      "想要更多外觀？到 SYNOX 品牌頁挑一套，下載 .synoxpack，再到「功能與安裝」上傳：一樣先給你看檢查報告、你按確認才裝。" :
-      "外觀包由擁有者安裝；你可以在裝好的裡面挑。";
+      "想要更多外觀？到 SYNOX 品牌頁挑一套，把檔案下載回來，再到「功能與安裝」上傳。一樣會先給你看檢查的結果，你按確認才會裝。" :
+      "外觀要由擁有者來裝。你可以在裝好的裡面挑。";
     drawCustomSlots();
     Array.prototype.forEach.call(document.querySelectorAll('input[name="look-mode"]'), function (r) { r.checked = r.value === (look.mode || "auto"); });
     drawBg();
@@ -6652,7 +6661,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       var item = el("div", "custom-item");
       var txt = el("div", "txt");
       txt.appendChild(el("b", "", name));
-      txt.appendChild(document.createTextNode(c.ok ? "：用你貼的" : "：⚠️ " + (c.error || "過不了消毒，現在沒用到")));
+      txt.appendChild(document.createTextNode(c.ok ? "：用你貼的" : "：⚠️ " + (c.error || "沒通過安全檢查，現在沒用到")));
       item.appendChild(txt);
       var edit = el("button", "sm", "編輯");
       edit.type = "button";
@@ -6696,7 +6705,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     var notes = $("custom-notes");
     clear(notes);
     (d.notes || []).forEach(function (n) { notes.appendChild(el("li", "", n)); });
-    if (!(d.notes || []).length) { notes.appendChild(el("li", "", "✅ 消毒過了，沒有拿掉任何東西。")); }
+    if (!(d.notes || []).length) { notes.appendChild(el("li", "", "✅ 檢查過了，沒有拿掉任何東西。")); }
     $("custom-out").classList.remove("hidden");
   }
   function saveCustom(slot, text) {
@@ -6742,8 +6751,8 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   // ── 外觀 → 衣櫃（SYNOX 衣櫃）：按「看衣櫃」才連網（伺服器抓寫死在 packs/catalog.py 的官方清單；這裡不組任何網址）──
   // 「安裝」＝跟工具庫同一條路（/api/packs/library/install → 同一份報告 showReview → 人按「確認安裝」）；裝好回來按「套用」。
   var WD_TEXT = {
-    load: "看衣櫃（要連到網路）", reload: "重新看一次", loading: "連線中…",
-    loaded: "{title}：{n} 套外觀。點「安裝」會先給你看檢查報告。", empty: "衣櫃還沒上架，先到網頁看看",
+    load: "看衣櫃（會上網）", reload: "重新看一次", loading: "讀取中…",
+    loaded: "{title}：{n} 套外觀。按「安裝」會先給你看檢查的結果。", empty: "衣櫃裡還沒有東西。可以先到衣櫃網頁看看。",
     install: "安裝", update: "更新到 v{v}", working: "下載並檢查中…",
     installed: "已安裝", newer: "有新版 v{v}", apply: "套用", using: "使用中"
   };
@@ -7339,8 +7348,8 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   $("ch-tg-save").addEventListener("click", function () { saveChannel("tg"); });
   $("ch-dc-save").addEventListener("click", function () { saveChannel("dc"); });
 
-  var STATUS = { loaded: "可以用", connector: "還沒接上", disabled: "關掉了", invalid: "格式不對", missing: "缺東西", incompatible: "SYNOX 版本不合", error: "壞了",
-    tampered: "被改過了，沒有載入", rejected: "掃描沒過，沒有載入" };
+  var STATUS = { loaded: "可以用", connector: "還沒接好", disabled: "關掉了", invalid: "檔案有問題", missing: "缺東西", incompatible: "跟這版 SYNOX 不合", error: "壞了",
+    tampered: "被改過了，先不開", rejected: "安全檢查沒過，先不開" };
   // 狀態的顏色（顏色之外一定有字）：可以用＝綠、還沒接上／關掉＝黃、其他＝紅
   var TONE = { loaded: "ok", connector: "warn", disabled: "", missing: "warn", incompatible: "warn" };
   var LOCK = { locked: "🔒", unlocked: "", tampered: "⚠️" };
@@ -7361,9 +7370,9 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
         var b = el("button", "danger sm", "移除");
         b.type = "button";
         b.addEventListener("click", function () {
-          if (!confirm("移除 " + p.name + "？（會搬到 packs/_removed/，不會刪掉）")) { return; }
+          if (!confirm("要移除 " + p.name + "？只是把它收到旁邊，不會真的刪掉。")) { return; }
           api("POST", "/api/packs/remove", { name: p.name }).then(function (d) {
-            $("pack-msg").textContent = "搬到 " + d.moved_to; loadSettings();
+            $("pack-msg").textContent = "移除了。進階：收在 " + d.moved_to; loadSettings();
             if (window.SynoxTour) { window.SynoxTour.signal("pack_removed"); }
           }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });
         });
@@ -7374,8 +7383,8 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     });
     libSync(packs);                    // 工具庫的卡片跟著更新「已安裝」
   }
-  var CAP = { network: "連網", subprocess: "開別的程式", "filesystem:own": "讀寫檔案",
-    "filesystem:any": "讀寫 pack 以外的檔案", exec: "動態執行程式碼" };
+  var CAP = { network: "會上網", subprocess: "會開別的程式", "filesystem:own": "會讀寫自己的檔案",
+    "filesystem:any": "會讀寫這個工具以外的檔案", exec: "會執行臨時產生的程式" };
   function capList(list) {
     return (list && list.length) ? list.map(function (c) { return CAP[c] || c; }).join("、") : "（沒有）";
   }
@@ -7388,22 +7397,22 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     if (s.token) { selectedToken = s.token; markStaged(); }
     box.appendChild(el("h3", "", s.title + "（" + s.name + " " + s.version + "）"));
     box.appendChild(el("p", "", s.summary));
-    box.appendChild(el("p", "muted", "種類 " + s.kind + "，誰能用 " + s.access + "，資料 " + s.storage +
-      (s.panel ? "，有網頁面板" : "") + "；" + (s.files || []).length + " 個檔案" +
-      (s.publisher ? "；發行者 " + s.publisher : "") + (s.integrity ? "；有打包時的雜湊" : "")));
+    box.appendChild(el("p", "muted", "進階：種類 " + s.kind + "，誰能用 " + s.access + "，資料 " + s.storage +
+      (s.panel ? "，有自己的小畫面" : "") + "；" + (s.files || []).length + " 個檔案" +
+      (s.publisher ? "；發行者 " + s.publisher : "") + (s.integrity ? "；有附檢查碼" : "")));
     var scan = s.scan || {};
-    box.appendChild(el("p", "", "宣告要：" + capList(scan.declared_capabilities) + "　掃描看到要：" +
+    box.appendChild(el("p", "", "它說它：" + capList(scan.declared_capabilities) + "　我檢查到它：" +
       capList(scan.required_capabilities)));
     if ((scan.problems || []).length) {
       var warnRow = el("div", "mood-row");
       warnRow.appendChild(slotNode("mascot.warn", "mood"));
-      warnRow.appendChild(el("p", "alert", "❌ 拒裝：安全檢查沒過"));
+      warnRow.appendChild(el("p", "alert", "❌ 不能裝：安全檢查沒過"));
       box.appendChild(warnRow);
       var bad = el("ul");
       scan.problems.forEach(function (p) { bad.appendChild(el("li", "", p)); });
       box.appendChild(bad);
     } else {
-      box.appendChild(el("p", "", "✅ 宣告檢查、靜態掃描都過了"));
+      box.appendChild(el("p", "", "✅ 安全檢查過了"));
     }
     var notes = (scan.findings || []).filter(function (f) { return !f.capability || f.kind === "env"; });
     if (notes.length) {
@@ -7415,24 +7424,24 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     var env = s.upgrade ? {} : (s.env || {});   // 升級：看升級報告那一段（跟舊版比過要不要建）
     if (env.needed) {
       // runtime.python／node = auto：按確認之後才建（packs/envs.py）
-      box.appendChild(el("p", "", "🧱 要建環境（按確認之後才建，要網路，最多 10 分鐘）："));
+      box.appendChild(el("p", "", "🧱 這個工具還要另外下載一些東西才能用。按確認後才會開始，要有網路，最多等 10 分鐘："));
       var el2 = el("ul");
       (env.lines || []).forEach(function (t) { el2.appendChild(el("li", "", t)); });
       (env.problems || []).forEach(function (t) { el2.appendChild(el("li", "", "⚠️ " + t)); });
       box.appendChild(el2);
-      box.appendChild(el("p", "muted", "建失敗的話 pack 照樣裝好，狀態會標「環境沒建好」，修好後可以重建。"));
+      box.appendChild(el("p", "muted", "如果下載失敗，工具還是會裝好，只是狀態會寫「環境沒建好」。問題排除後可以再試一次。"));
     }
     var ul = el("ul");
     (s.warnings || []).forEach(function (w) { ul.appendChild(el("li", "", w)); });
     if ((s.warnings || []).length) { box.appendChild(ul); }
     if (s.app) {                               // 工具服務（ADR 0024 §5）：畫面能做的動作與匯出
       var appUl = el("ul");
-      var effText = { write: "會寫入", danger: "危險：會先問你" };
+      var effText = { write: "會改資料", danger: "危險：做之前會先問你" };
       Object.keys(s.app.actions || {}).forEach(function (n) {
         appUl.appendChild(el("li", "", "🖥 畫面的動作 " + n + "：" + (effText[s.app.actions[n]] || s.app.actions[n])));
       });
       (s.app.exports || []).forEach(function (n) { appUl.appendChild(el("li", "", "🖥 畫面的匯出 " + n)); });
-      box.appendChild(el("p", "", "🖥 完整網頁畫面" + (s.app.title ? "「" + s.app.title + "」" : "") + "（" + s.app.files + " 個檔）："));
+      box.appendChild(el("p", "", "🖥 有自己的完整畫面" + (s.app.title ? "「" + s.app.title + "」" : "") + "（" + s.app.files + " 個檔）："));
       box.appendChild(appUl);
     }
     var upg = s.upgrade, down = null;
@@ -7542,12 +7551,12 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     st.appendChild(el("span", "badge " + tone, STATUS[d.status] || d.status || "？"));
     if (d.detail) { st.appendChild(document.createTextNode(" " + d.detail)); }
     box.appendChild(st);
-    if (d.upgraded && d.backup) { box.appendChild(el("p", "muted", "舊的在 " + d.backup + "（要退回：python -m synox packs rollback " + d.name + "）")); }
-    if (d.env === "building") { box.appendChild(el("p", "note-line", "🧱 環境在背景建（最多 10 分鐘），好了會通知你；在那之前狀態可能是「環境沒建好」。")); }
+    if (d.upgraded && d.backup) { box.appendChild(el("p", "muted", "進階：舊版收在 " + d.backup + "（要換回舊版：python -m synox packs rollback " + d.name + "）")); }
+    if (d.env === "building") { box.appendChild(el("p", "note-line", "🧱 還在下載它需要的東西，最多 10 分鐘，好了會通知你。在那之前，狀態可能會寫「環境沒建好」。")); }
     else if (d.env && d.env.indexOf("failed") === 0) { box.appendChild(el("p", "alert", "⚠️ 環境沒建好：" + d.env.slice(8))); }
     var isTheme = d.kind === "theme";
     box.appendChild(el("p", "muted", isTheme ? "這是外觀包：到「外觀」挑它、按「套用」才會換（隨時可以換回原本的 SYNOX）。" :
-      "已經重新載入，可以到工具頁用了。"));
+      "可以用了。到工具頁就看得到。"));
     var row = el("div", "row");
     var go = el("button", "primary", isTheme ? "去「外觀」套用" : "去工具頁");
     go.type = "button";
@@ -7610,7 +7619,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     if (!me || !me.owner) { return Promise.resolve(); }
     return api("GET", "/api/packs/staged").then(function (d) {
       stagedRows = d.staged || [];
-      $("staged-note").textContent = "還沒按確認的 pack；" + (d.max_age_days || 7) + " 天沒處理會自動清掉。";
+      $("staged-note").textContent = "這些是你還沒按確認的。放 " + (d.max_age_days || 7) + " 天沒處理，會自動清掉。";
       renderStaged();
     }).catch(function () {});
   }
@@ -7672,32 +7681,32 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   function showUpgrade(box, upg, name) {
     box.appendChild(el("h3", "", "🔁 這是升級：改了什麼（" + upg.installed_version + " → " + upg.new_version + "）"));
     box.appendChild(el("p", upg.version_ok ? "" : "alert", (upg.version_ok ? "✅ " : "⛔ ") + upg.version_message));
-    if (upg.installed_lock === "tampered") { box.appendChild(el("p", "alert", "⚠️ 裝著的那一份已經被改過（跟 packs.lock 不符）")); }
+    if (upg.installed_lock === "tampered") { box.appendChild(el("p", "alert", "⚠️ 現在裝著的這一份，裝好之後被改過了")); }
     var cl = el("ul");
     (upg.changes || []).forEach(function (c) { cl.appendChild(el("li", c.alert ? "alert" : "", (c.alert ? "🔴 " : "") + c.text)); });
-    if (!(upg.changes || []).length) { cl.appendChild(el("li", "muted", "宣告沒有變")); }
+    if (!(upg.changes || []).length) { cl.appendChild(el("li", "muted", "它會做的事沒有變")); }
     box.appendChild(cl);
     if ((upg.files || []).length) { box.appendChild(el("p", "muted", "檔案：" + upg.files.join("、"))); }
     var env = upg.env || {};
     if (env.keep) {
-      box.appendChild(el("p", "muted", "🧱 環境：套件清單跟舊版一樣，沿用 data/envs/" + name + "/（不重建）"));
+      box.appendChild(el("p", "muted", "🧱 它需要的東西跟舊版一樣，不用重新下載。（進階：沿用 data/envs/" + name + "/）"));
     } else if (env.needed) {
-      box.appendChild(el("p", "", "🧱 " + (env.rebuild ? "要重建環境" : "要建環境") + "（按確認升級之後才建，要網路，最多 10 分鐘）：" +
+      box.appendChild(el("p", "", "🧱 " + (env.rebuild ? "要重新下載它需要的東西" : "要下載它需要的東西") + "（按「確認升級」後才開始，要有網路，最多 10 分鐘）：" +
         (env.reason || "")));
       var envList = el("ul");
       (env.lines || []).forEach(function (t) { envList.appendChild(el("li", "", t)); });
       (env.problems || []).forEach(function (t) { envList.appendChild(el("li", "", "⚠️ " + t)); });
       box.appendChild(envList);
-      box.appendChild(el("p", "muted", "建失敗的話 pack 照樣升級好（不會退回），狀態會標「環境沒建好」，修好後可以重建。"));
+      box.appendChild(el("p", "muted", "如果下載失敗，工具還是會升級好（不會退回舊版），只是狀態會寫「環境沒建好」。問題排除後可以再試一次。"));
     }
-    box.appendChild(el("p", "muted", "資料（data/、使用者資料夾）不會動；資料格式要不要轉換由 pack 自己負責。舊版會搬到 packs/_removed/，" +
-      "要退回：python -m synox packs rollback " + name));
+    box.appendChild(el("p", "muted", "你的資料不會動。舊版會先收起來，不會刪掉。進階：舊版收在 packs/_removed/，" +
+      "要換回舊版就執行 python -m synox packs rollback " + name));
     if (upg.version_ok || !upg.can_force) { return null; }
     var lab = el("label", "alert");
     var cb = el("input");
     cb.type = "checkbox";
     lab.appendChild(cb);
-    lab.appendChild(document.createTextNode(" 我知道，照樣換成這一版（降級／重裝）"));
+    lab.appendChild(document.createTextNode(" 我知道這不是比較新的版本，還是要換成這一版"));
     box.appendChild(lab);
     return cb;
   }
@@ -7713,7 +7722,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       box.appendChild(tl);
     }
     box.appendChild(el("p", "", "🧭 在哪裡用：" + (s.surfaces_text || "") + "　資料：" + (s.data_text || s.data || "") +
-      (s.data_declared ? "" : "（沒寫，照預設推的）")));
+      (s.data_declared ? "" : "（工具沒寫，先照一般的算）")));
     var lab = el("label", "", "🔑 信任：");
     var sel = el("select");
     var current = upg ? (upg.installed_trust || "") : "";
@@ -7799,7 +7808,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     var cb = el("input");
     cb.type = "checkbox";
     lab.appendChild(cb);
-    lab.appendChild(document.createTextNode(" 我知道這個 pack 會執行掃不到內容的東西，我信任發行者："));
+    lab.appendChild(document.createTextNode(" 我知道這個工具裡有檢查不到的程式，我信任它的發行者："));
     var input = el("input");
     input.type = "text";
     input.placeholder = "輸入 " + t.publisher;
@@ -7819,7 +7828,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   }
   // 上傳一個檔 → 第 1、2 關（伺服器）→ 報告。拖放（之後另外做）也走這裡：window.SynoxInstall.reviewFile(file)
   function uploadFile(f) {
-    if (!f) { toast("先選一個 .synoxpack 檔"); return Promise.resolve(); }
+    if (!f) { toast("先選一個工具檔（.synoxpack）"); return Promise.resolve(); }
     $("pack-review").classList.add("hidden");
     $("install-msg").textContent = "";
     selectedToken = ""; markStaged();
@@ -7858,14 +7867,14 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     },
     state: function () { return { step: flow.step, status: flow.status, token: flow.token, name: flow.name }; }
   };
-  // ── 工具庫（官方）：按「載入工具清單」才連網（伺服器抓寫死在 packs/catalog.py 的官方網址；這裡不組任何網址）──
+  // ── 工具庫（官方）：按「看有哪些工具」才連網（伺服器抓寫死在 packs/catalog.py 的官方網址；這裡不組任何網址）──
   // 「安裝」＝伺服器下載、對檔 → 跟上傳同一份報告（showReview）→ 人按「確認安裝」才裝。有新版＝同一條路，報告會是升級的。
   var LIB_TEXT = {
-    load: "載入工具清單", reload: "重新載入清單", loading: "載入中…",
+    load: "看有哪些工具", reload: "重新看一次", loading: "讀取中…",
     loaded: "工具庫 v{v}：{n} 個工具。", empty: "工具庫裡現在沒有工具。",
     install: "安裝", update: "更新到 v{v}", working: "下載並檢查中…",
     download: "⬇ 下載", help: "說明", installed: "✅ 已安裝 v{v}", newer: "有新版 v{v}",
-    local: "存在這台電腦（不連網）", online: "接外面的服務"
+    local: "資料存在這台電腦（不用上網）", online: "要連到別的網站才能用"
   };
   var libTools = [];
   var LINK_RE = /^https:\/\/[^\s]+$/;
@@ -7992,7 +8001,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
 
   $("pack-reload").addEventListener("click", function () {
     api("POST", "/api/packs/reload", {}).then(function (d) {
-      $("pack-msg").textContent = d.ok ? "重新載入好了。" : "重新載入了，但有 pack 有問題（看上面的狀態）。";
+      $("pack-msg").textContent = d.ok ? "重新讀好了。" : "重新讀好了，但有功能出問題。看上面「狀態」那一欄。";
       loadSettings();
     }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });
   });
@@ -8112,16 +8121,16 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   var MAX_BYTES = 5 * 1024 * 1024;               // 跟 packs/admin.py 的 MAX_UPLOAD 一樣
   var EXTS = [".synoxpack", ".zip"];
   var TEXT = {
-    overlay: "放開來檢查這個 .synoxpack（先看安全報告，按確認才會裝）",
-    hint: "也可以直接把 .synoxpack 拖進這個網頁；在檔案總管點兩下 .synoxpack，或拖到 SYNOX 資料夾的 Install-Pack.bat 上也行。不管哪一種，都會先檢查、給你看報告，按確認才裝。",
-    one: "一次拖一個 .synoxpack 就好。",
-    ext: "這不是 .synoxpack 檔：",
+    overlay: "放開滑鼠，我就檢查這個工具檔。會先給你看檢查的結果，你按確認才會裝。",
+    hint: "也可以把工具檔（.synoxpack）直接拖進這個網頁，或在電腦裡對它點兩下。不管哪一種，都會先檢查給你看，你按確認才會裝。",
+    one: "一次拖一個工具檔就好。",
+    ext: "這不是工具檔（檔名結尾要是 .synoxpack）：",
     big: "檔案太大（最多 5 MB）：",
     empty: "檔案是空的：",
-    login: "先登入 SYNOX，再把 .synoxpack 拖進來。",
+    login: "先登入 SYNOX，再把工具檔拖進來。",
     owner: "只有擁有者能裝功能。",
     checking: "檢查中：",
-    missing: "設定頁的上傳框不見了（重新整理看看）。"
+    missing: "找不到上傳的地方。把頁面重新整理，再試一次。"
   };
 
   /* 純函式（tests/js/test_packdrop.js）：拖進來的檔案清單 → {ok, file} 或 {ok:false, message} */

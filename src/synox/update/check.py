@@ -60,7 +60,7 @@ TEXT = {
     "ahead": "你裝的版本比最新的正式版還新（測試版或開發中的版本），不用更新。",
     "newer": "有新版：{installed} → {latest}",
     "security": "🔒 強烈建議更新：這版修了安全問題。",
-    "tools": "有 {n} 個工具可以更新（設定 → 🧩 功能與安裝 → 工具庫，按「載入工具清單」）。",
+    "tools": "有 {n} 個工具可以更新（設定 → 🧩 功能與安裝 → 工具庫，按「看有哪些工具」）。",
     "how_git": "你的 SYNOX 是用 git 裝的：關掉 SYNOX（Stop.bat）→ 在 SYNOX 資料夾打 `git pull` → 點兩下 Setup.bat。",
     "how_zip": "要更新：點兩下 SYNOX 資料夾裡的 Update.bat（會先給你看這版改了什麼，你按確認才換；你的設定、資料、工具都不動）。",
     "how_exe": "你的 SYNOX 是用安裝程式裝的：到發佈頁下載新的 SYNOX-Setup-<版本>.exe，裝在原本的位置。",

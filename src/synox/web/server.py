@@ -1118,7 +1118,7 @@ class WebUI:
             stored = self.prefs.get(user.tg_id, toolpage.LAYOUT_KEY)
         except Exception as e:                    # 保管箱解不開：照預設排，不蓋掉原本的檔
             logging.warning("[WEB] tool layout of %s unreadable: %s", user.tg_id, type(e).__name__)
-            stored, out["layout_error"] = None, "你的群組排版讀不到（保管箱解不開），先照預設排；存檔前請先看 doctor。"
+            stored, out["layout_error"] = None, "你存的群組排法讀不出來，先照建議的排。（進階：保管箱解不開，存檔前請先看 doctor）"
         out["layout"] = toolpage.effective(stored, self._tool_categories(out))
         return out
 
@@ -1208,12 +1208,12 @@ class WebUI:
         if pack is None or not self._pack_visible(user, pack):
             return None, _err(404, "沒有這個 pack。")
         if not getattr(pack, "secret_fields", None):
-            return None, _err(404, f"{name} 不用在這裡連接（沒有宣告 auth.fields，或 pack 自己有設定指令）。")
+            return None, _err(404, f"{name} 不用在這裡連接。（進階：沒有宣告 auth.fields，或這個工具自己有設定指令）")
         if not self._can_connect(user):
-            return None, _err(403, "只有擁有者能設定這台電腦的 pack 連接。")
+            return None, _err(403, "只有擁有者可以設定這台電腦上工具的連接。")
         store = self._secret_store()
         if store is None or not store.available:
-            return None, _err(400, "保管箱沒有打開，secret 沒地方放（python -m synox doctor 看原因）。")
+            return None, _err(400, "現在沒辦法把你填的東西安全地存起來，所以先不存。（進階：保管箱沒有打開，用 python -m synox doctor 看原因）")
         return pack, None
 
     def _secret_view(self, user, pack) -> dict:
@@ -1249,7 +1249,7 @@ class WebUI:
                      ",".join(sorted(k for k, v in values.items() if v)) or "-")
         out = self._secret_view(user, pack)
         out["ok"] = True
-        out["message"] = "✅ 已連接（存在保管箱，密文）。" if out["connected"] else \
+        out["message"] = "✅ 接好了。你填的東西已經鎖起來，存在這台電腦裡。" if out["connected"] else \
             "存好了，還缺：" + "、".join(out["missing"])
         if short:                                    # 存了，但太短的 secret 第 4 關保護不全：照實說
             out["warning"] = short_warning(short)

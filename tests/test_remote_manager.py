@@ -146,7 +146,7 @@ def test_idle_no_entry_and_tunnel_down(counter, owner):
     phone.open()
     phone.clock.t += 301
     phone.manager.tick()
-    assert phone.manager.link.state == "closed" and "沒有人進門" in phone.bot.last(owner)
+    assert phone.manager.link.state == "closed" and "沒有人打開連結" in phone.bot.last(owner)
     phone.open()
     link = phone.manager.link
     link.state, link.last_activity = "entered", phone.clock.t
@@ -155,12 +155,12 @@ def test_idle_no_entry_and_tunnel_down(counter, owner):
     assert link.state == "entered"
     phone.clock.t += 61
     phone.manager.tick()
-    assert link.state == "closed" and "一陣子沒有用" in phone.bot.last(owner)
+    assert link.state == "closed" and "一陣子沒動" in phone.bot.last(owner)
     phone.tunnel.stopped = 0
     phone.tunnel.dies_after = phone.tunnel.checks
     phone.open()
     phone.manager.tick()
-    assert phone.manager.link.state == "closed" and "通道斷了" in phone.bot.last(owner)
+    assert phone.manager.link.state == "closed" and "連線斷了" in phone.bot.last(owner)
 
 
 @pytest.mark.parametrize("how", ["app_close", "service_stopped", "stepup_disable", "web_off", "shutdown"])

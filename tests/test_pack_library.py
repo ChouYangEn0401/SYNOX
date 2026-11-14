@@ -122,9 +122,9 @@ def test_real_release_index_is_read_into_friendly_cards():
     assert view["notes"]["line"] == "記一筆、找、刪" and view["notes"]["example"] == "/note 買牛奶"
     texts = {name: [b["text"] for b in v["badges"]] for name, v in view.items()}
     for name in ("notion", "todoist", "google-calendar", "apple-reminders"):
-        assert "只用模擬測過" in texts[name] and "👤 單人用" in texts[name], name
+        assert "只用假資料測過" in texts[name] and "👤 單人用" in texts[name], name
     for name in ("notes", "todo", "money", "calendar", "bullet"):
-        assert "👥 伺服器版也能用" in texts[name] and "只用模擬測過" not in texts[name], name
+        assert "👥 伺服器版也能用" in texts[name] and "只用假資料測過" not in texts[name], name
     assert all("🧪 alpha" in t for t in texts.values())
 
 
@@ -252,7 +252,7 @@ def test_catalog_offline_gives_plain_chinese_and_the_releases_link(owner_client)
     ui_of(bot).catalog_opener = FakeWeb(fail=urllib.error.URLError("offline"))
     status, data = c.post("/api/packs/library")
     assert status == 502
-    assert data["error"] == "連不到工具庫（可能沒有網路）。可以改用下面的『⬇ 下載』或到 GitHub 發佈頁手動下載。"
+    assert data["error"] == catalog.TEXT["offline"] and "下載頁" in data["error"]
     assert data["releases"] == catalog.RELEASES_PAGE
 
 
@@ -382,7 +382,7 @@ def test_packs_tab_has_library_skills_and_sandbox_cards():
     order = [tab.index(f'id="{i}"') for i in ("set-library", "set-skills", "set-install", "set-packs", "set-sandbox")]
     assert order == sorted(order)
     lib = _section(html, "set-library")
-    assert "工具庫（官方）" in lib and 'id="lib-load"' in lib and "載入工具清單" in lib
+    assert "工具庫（官方）" in lib and 'id="lib-load"' in lib and "看有哪些工具" in lib
     assert f'href="{catalog.OVERVIEW_URL}"' in lib and f'href="{catalog.RELEASES_PAGE}"' in lib    # 載入前的連結＝同一組常數
     skills = _section(html, "set-skills")
     assert "OpenClaw" in skills and "Hermes" in skills and "⏳ 尚未完成" in skills

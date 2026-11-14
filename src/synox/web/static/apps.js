@@ -11,61 +11,65 @@
   var TEXT = {
     cardTitle: "完整畫面",
     open: "打開",
-    start: "開啟",
+    start: "開始用",
     stop: "關掉",
-    keep: "先留著",
+    keep: "先不要關",
     stopAll: "全部關掉",
     whatIs: "這是什麼？為什麼要關？",
-    inUseTitle: "什麼叫有在用：",
-    on: "開著 · {n} 分鐘沒用",
+    inUseTitle: "怎樣算「有在用」：",
+    on: "開著・{n} 分鐘沒動",
     onFresh: "開著",
     off: "關著",
-    keepTag: "一直開著",
-    ownerOnly: "服務由擁有者開關。",
-    policyNow: "沒在用的時候：{text}",
-    change: "改",
+    keepTag: "不會自動關",
+    ownerOnly: "只有擁有者可以打開和關掉。",
+    policyNow: "忘了關的話：{text}",
+    change: "改設定",
     save: "存起來",
     cancel: "取消",
     custom: "自己填：",
-    customUnit: "分鐘沒用就關",
-    keepWarn: "這個服務會一直開著，直到你自己關掉或 SYNOX 重開。開著的時候，這台電腦上的其他程式和其他帳號碰得到這扇門。",
-    keepOk: "我知道，一直開著",
-    blockAsk: "會先把它關掉，確定？",
-    blocked: "不開放這個工具的畫面（要開先改上面的設定）。",
-    firstTitle: "什麼是工具服務？",
-    firstOk: "知道了，開啟",
+    customUnit: "分鐘沒動就自動關",
+    keepWarn: "選這個，我就不會自動關。它會一直開著，直到你按「關掉」，或 SYNOX 重新啟動。開著的時候，這台電腦上別的程式、別的使用者有機會碰到它。用完記得關。",
+    keepOk: "我知道，不要自動關",
+    blockAsk: "它現在開著。我會先把它關掉，可以嗎？",
+    blocked: "這個工具的完整畫面現在設成「不給開」。要用的話，先按「改設定」。",
+    firstTitle: "第一次用完整畫面，先看一下：",
+    firstOk: "知道了，開始用",
     firstNo: "先不要",
-    side: "● {n} 個工具服務開著",
-    sideIdle: "● {title}的服務很久沒用了",
-    log: "最近紀錄",
-    advanced: "（進階）本機位址 127.0.0.x 的第 {n} 號埠",
+    side: "● {n} 個工具的畫面開著",
+    sideIdle: "● {title}的畫面很久沒動了",
+    log: "最近做了什麼",
+    advanced: "進階",
     failed: "沒有成功：",
-    problem: "這個工具的畫面現在不能開：",
+    problem: "這個工具的畫面現在打不開：",
     unavailable: "現在不能用：",
-    events: { start: "開了", stop: "關了", auto_stop: "自動關了", suggest: "提醒很久沒用", keep: "按了先留著",
-              policy: "改了閒置設定", handoff: "打開了畫面", enter: "進到畫面", leave: "離開畫面", action: "在畫面上做了一個動作",
-              "export": "匯出了資料", denied: "擋下一個不對的請求", error: "出錯" },
+    events: { start: "開了", stop: "關了", auto_stop: "自動關了", suggest: "提醒你很久沒動了", keep: "按了先不要關",
+              policy: "改了自動關的設定", handoff: "打開了畫面", enter: "進到畫面", leave: "離開畫面", action: "在畫面上做了一個動作",
+              "export": "匯出了資料", denied: "擋下一個不對勁的動作", error: "出錯" },
     // 手機入口（ADR 0026）
     remoteRow: "📱 手機入口",
-    remoteMissing: "要先完成：",
-    remoteNeed: { stepup: "設定手機驗證器（設定 → 🔐 安全）", disabled: "打開手機入口的總開關（設定 → 🔐 安全）",
-                  binary: "核准通道程式 cloudflared（設定 → 🔐 安全）", declared: "這個工具沒有宣告可以從手機用",
+    remoteMissing: "還差這幾件事：",
+    remoteNeed: { stepup: "先設定手機驗證器（設定 → 🔐 安全）", disabled: "打開手機入口的總開關（設定 → 🔐 安全）",
+                  binary: "同意使用連線用的小程式（設定 → 🔐 安全）", declared: "這個工具不能從手機用",
                   allowed: "打開這個工具的「可以從手機用」" },
     remoteAllow: "可以從手機用",
     remoteOpen: "開手機入口",
-    remoteCode: "手機驗證器現在的 6 位數（每次都要一組新的）",
-    remoteLink: "用手機打開這個連結（只能用一次，5 分鐘內要進去；進門時要再打一組數字）：",
+    remoteCode: "手機驗證器上現在的 6 個數字",
+    remoteLink: "用手機打開下面這個連結。它只能用一次，5 分鐘內要打開。打開後，還要再輸入一次 6 個數字。",
     remoteLeft: "手機入口開著，還剩 {m} 分鐘",
-    remoteClose: "關閉手機入口",
-    remoteNote: "通道是 Cloudflare 提供的，資料會經過它的機器；危險的動作與匯出在手機上不能做。"
+    remoteClose: "關掉手機入口",
+    remoteNote: "從手機連進來時，資料會經過 Cloudflare 這家公司的機器。為了安全，在手機上不能做危險的動作，也不能匯出資料。"
   };
+  /* 給幫忙處理問題的人看的技術細節：只出現在收起來的「進階」裡（不算在給一般人看的 TEXT 裡） */
+  var SUPPORT = { where: "給幫你處理問題的人看：本機位址 127.0.0.x，第 {n} 號埠。" };
+  /* 給幫忙處理問題的人看的技術細節：只出現在收起來的「進階」裡（不算在給一般人看的 TEXT 裡） */
+  var SUPPORT = { where: "給幫你處理問題的人看：本機位址 127.0.0.x，第 {n} 號埠。" };
   var POLICY_CHOICES = [
-    { key: "auto120", label: "120 分鐘沒用就關，30 分鐘先提醒（建議）", body: { mode: "auto", close_min: 120 } },
-    { key: "auto30", label: "30 分鐘沒用就關", body: { mode: "auto", close_min: 30 } },
-    { key: "custom", label: "自己填 N 分鐘", body: null },
-    { key: "suggest", label: "只提醒，不自動關", body: { mode: "suggest" } },
-    { key: "keep", label: "一直開著", body: { mode: "keep", understood: true } },
-    { key: "blocked", label: "不開放這個工具的畫面", body: { mode: "blocked" } }
+    { key: "auto120", label: "2 小時沒動就自動關，30 分鐘先提醒（建議）", body: { mode: "auto", close_min: 120 } },
+    { key: "auto30", label: "30 分鐘沒動就自動關", body: { mode: "auto", close_min: 30 } },
+    { key: "custom", label: "自己填幾分鐘", body: null },
+    { key: "suggest", label: "只提醒我，不自動關", body: { mode: "suggest" } },
+    { key: "keep", label: "不要自動關", body: { mode: "keep", understood: true } },
+    { key: "blocked", label: "不給開這個工具的完整畫面", body: { mode: "blocked" } }
   ];
 
   function fill(text, vars) {
@@ -169,7 +173,12 @@
       more.appendChild(el("summary", "", TEXT.whatIs));
       ["what", "why_close", "restart"].forEach(function (k) { more.appendChild(el("p", "", ctx.explain[k])); });
       more.appendChild(el("p", "sub", TEXT.inUseTitle + (ctx.explain.in_use || "")));
-      if (view.port) { more.appendChild(el("small", "muted", fill(TEXT.advanced, { n: view.port }))); }
+      if (view.port) {                      // 給幫忙處理問題的人看的；收在「進階」裡，平常看不到
+        var adv = el("details", "app-adv");
+        adv.appendChild(el("summary", "muted", TEXT.advanced));
+        adv.appendChild(el("small", "muted", fill(SUPPORT.where, { n: view.port })));
+        more.appendChild(adv);
+      }
       card.appendChild(more);
     }
     return card;
@@ -419,7 +428,7 @@
     }
   }
 
-  var api = { TEXT: TEXT, POLICY_CHOICES: POLICY_CHOICES, policyBody: policyBody, stateLine: stateLine, sideText: sideText,
+  var api = { TEXT: TEXT, SUPPORT: SUPPORT, POLICY_CHOICES: POLICY_CHOICES, policyBody: policyBody, stateLine: stateLine, sideText: sideText,
               openForm: openForm, renderCard: renderCard, init: init, card: card, refresh: refresh,
               remoteMissing: remoteMissing, renderRemote: renderRemote };
   if (typeof module === "object" && module && module.exports) { module.exports = api; }
