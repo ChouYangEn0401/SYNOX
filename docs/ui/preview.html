@@ -4942,8 +4942,8 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     var cmds = t.commands || [];
     panel.appendChild(el("div", "section-label", "指令（" + cmds.length + "）"));
     var list = el("div", "tp-cmds");
-    var openOne = cmds.filter(function (c) { return c.default; })[0] || cmds[0];
-    cmds.forEach(function (c) { list.appendChild(commandCard(c, c === openOne, t)); });
+    // 一進來全部折疊好（整齊）；要看哪一個再自己點開
+    cmds.forEach(function (c) { list.appendChild(commandCard(c, false, t)); });
     panel.appendChild(list);
   }
 
