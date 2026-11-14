@@ -6,6 +6,7 @@
 - 來歷：三個研究代理各寫一份報告（A 上游生態與授權、B Windows 沙盒與 npm、C 提示注入與預覽與 SDK），這份是規劃階段合併後的稿。三份報告都只讀 repo（分支 `dev`），沒有改程式。
 - 規劃階段另外做的：把會影響決定的程式事實自己對過一次（第四節標「規劃階段複查」的列），補查了 3 個外部缺口（第九節）。
 - Windows 實測腳本：[tools/windows-sandbox-probe/](tools/windows-sandbox-probe/)（**還沒有在 Windows 上跑過**）。
+- **關於這份文件怎麼寫其他專案**：這是一份**相容性研究**，目的是讓 OpenClaw、Hermes Agent 與其他 Agent Skills 生態的技能也能在 SYNOX 用，不是評比。OpenClaw（OpenClaw Foundation 與社群）和 Hermes Agent（Nous Research 與社群）把技能格式、MCP 整合、威脅模型與安全文件都公開寫得很清楚，這份研究的很多結論直接來自他們的文件，SYNOX 也從他們的設計學了不少（§3.4）。講到上游的地方只描述**他們公開文件自己寫的設計**，並附來源代號（第十節）；只有二手報導的一律標「待查」，不當成定論。上游的信任模型是針對他們自己的使用情境寫明的選擇；SYNOX 的情境不同（原生 Windows、不開終端機的使用者），所以要在匯入這一端自己補檢查——這不代表 SYNOX 比較安全，SYNOX 自己還有很多沒做完的部分（第四節、ADR 0022 第 9 節）。看到寫錯或過時的地方，歡迎開 issue 或到 GitHub Discussions 指正（安全漏洞請照 `SECURITY.md` 私下回報）。
 
 ## 怎麼讀這份文件
 
@@ -32,9 +33,9 @@
 
 1. **「Hermes」就是 Nous Research 的 Hermes Agent**（`NousResearch/hermes-agent`）。SYNOX 的 `docs/ui/redesign-notes.md` 寫的「8 套主題和字型選擇器、網頁終端機、金鑰只顯示有填」跟它的 dashboard 文件四項全對得上。**已查證** [SX1][H9]（仍請擁有者點頭一次，決定 1）
 2. **兩個上游都是 MIT；ClawHub 上的技能一律 MIT-0。** 匯入、轉換、再散布在授權上可以。真正的限制是名字：npm 的 `openclaw-core`、`hermes-core` 都已經被不相干的人佔走。**已查證** [O1][H1][C2][N1][N2]
-3. **沒有「上游的沙盒」可以拿來擋惡意技能。** 兩邊都只有「把 AI 下的指令丟進容器」的選配功能，預設都關，而且兩邊官方文件都明寫 plugin 是「跟主程式同等信任的程式碼」。**已查證** [O2][O5][H3]
+3. **上游的沙盒是為不同目的設計的，不能直接拿來隔離匯入到 SYNOX 的技能。** 兩邊的沙盒都是隔離「AI 下的指令」的選配功能（預設關，由操作者決定要不要開），兩邊官方文件也都清楚寫明 plugin 跟主程式同等信任——這是他們文件明講的信任模型，所以 SYNOX 匯入時要自己補上隔離這一段。**已查證** [O2][O5][H3]
 4. **不需要做 core。** 兩個上游互接對方的東西時，用的就是「匯入內容＋MCP」，沒有人做對方的 core；OpenClaw 的 plugin SDK 有 352 個匯出子路徑、官方自稱全部 experimental。**已查證** [O10][H10][O11][N3]
-5. **只靠掃描的市集擋不住。** ClawHub 加了 VirusTotal 與自家掃描後仍被繞過（待查 [X3]）；兩個上游的官方文件都說掃描只是輔助（已查證 [C5][H3]）；Hermes 的掃描器自己還出過 CVE（已查證 [H13]）。有效的是結構：來源白名單、釘雜湊、簽章、新來源最低信任、更新列差異、能撤銷。
+5. **掃描只能當輔助，這是整個領域的共識。** 兩個上游的官方文件自己就這樣定位掃描（已查證 [C5][H3]）；公開報導指出開放上傳的技能市集出現過通過掃描的惡意技能（待查 [X3]；這是所有開放上傳的市集共同的難題）；掃描器本身也可能有漏洞（公開例子：Hermes 在 0.15.0 修正的 CVE-2026-9353，已查證 [H13]）。比較可靠的是結構：來源白名單、釘雜湊、簽章、新來源最低信任、更新列差異、能撤銷。
 6. **Windows 是現在最弱的一環，而且候選名單要更新。** SYNOX 在 Windows 的預設後端是 `none`（不是 jobobject）。**規劃階段複查** `src/synox/sandbox.py:465-467`。2026 年多了兩條路：Windows 11 內建的 **MXC**（2026-10 GA，不用裝、每次啟動不用 UAC，VS Code 用的就是它）與**專用本機帳號＋WFP 防火牆過濾**（Anthropic sandbox-runtime、OpenAI Codex 的做法，要一次 UAC）。**已查證** [MX1][MX2][MX3][AN2][VS1]；Windows 行為全部**待實測**。
 7. **沒有任何一條路同時滿足「不裝東西、不要管理員、Windows 10 也行、有網域白名單」。** AppContainer 自製做不到網域白名單（只有全開／全關）；MXC 沒有 Windows 10。**已查證** [MS1][MS2][MX2]
 8. **npm：`--ignore-scripts` 壞掉的是少數、集中、而且無聲。** 實測 7 個熱門套件：esbuild、sharp 沒事；better-sqlite3、sqlite3、bcrypt、node-pty 沒有 `.node` 檔、puppeteer 沒下載瀏覽器，但 `npm ci` 都回 0。**已實測**。生態系自己也轉向預設不跑安裝腳本（npm 12、pnpm、Bun）。**已查證** [NP5][PN1][BN1]
@@ -100,7 +101,7 @@
 | **G**　市集：來源要簽章或審查分級；新發行者預設低信任；一鍵停用／隔離；稽核紀錄 | **確認** | 只靠掃描的市集被證明擋不住；有效的都是結構性的機制。SYNOX 現況：有 sha256、沒有簽章；`publisher` 是任意字串；有移除與停用、沒有遠端撤銷；`packs.lock` 記了誰、何時，沒有完整的生命週期紀錄 | [O14][C5][H3][H8][M4][M9]；`src/synox/packs/lock.py:165-185`；`docs/ecosystem.md:101` |
 | **H**　純文字技能（沒有程式）風險低 → 最簡單的一鍵安裝；有腳本的進 T2 | **「風險低」推翻；「不必走 T2」確認** | Anthropic 把 Instruction manipulation 列 High、Tool calls 列 Medium；總則是「只用可信來源的 skill」，沒有為純文字開例外。在 SYNOX 的精確說法（推測）：純文字技能的破壞上限＝AI 當下已有的工具全部加起來，每多裝一個工具上限就變大。另外：SYNOX 現在**沒有**「純文字技能」這個種類 | [PI11][PI12]；`src/synox/packs/manifest.py:85`；`src/synox/agent/skills.py:64-73` |
 | **I**　SDK 的缺口是「5 分鐘做出第一個工具」：`synox new`、`synox pack test／build／preview`、一頁入門、範本 repo | **部分確認** | 四個指令裡三個已經有等價的（`synox-sdk init`／`run`＋`check`／`zip`）。真正缺的：不裝整個 SYNOX 就沒有指令；`run` 只支援 cli；沒有 preview；沒有獨立的一頁入門；沒有範本 repo；名字對新手不直覺。「5 分鐘」沒有量過（待實測） | `pyproject.toml:21-23`；`sdk/pyproject.toml`；`src/synox/sdk/__init__.py:672-715`；`docs/tools.md:324` |
-| **J**　上游越多，攻擊面與維護面越大；要在「容易安裝」與「簡單乾淨」之間取捨 | **確認；建議選「簡單乾淨」** | 相依一個上游的執行環境就繼承它的安全更新節奏（OpenClaw 的 advisory 列表分到第 73 頁）；每多一個解析器或掃描器就多一個被打的地方（Hermes 掃描器的 CVE）；「兩個公開標準」的維護量不隨上游數量增加，「N 個 core」會 | [O16][H13][O11] |
+| **J**　上游越多，攻擊面與維護面越大；要在「容易安裝」與「簡單乾淨」之間取捨 | **確認；建議選「簡單乾淨」** | 相依一個上游的執行環境，就要跟上它的發版與安全更新節奏（OpenClaw 發版頻繁、公開揭露的 advisory 很多，代表它的揭露流程很活躍 [O16]；但 SYNOX 要整套跟著動就很重）；每多一個解析器或掃描器就多一個攻擊面（任何專案都一樣，包括 SYNOX 將來的匯入器；公開例子見 [H13]）；「兩個公開標準」的維護量不隨上游數量增加，「N 個 core」會 | [O16][H13][O11] |
 | **2.3**　套件預覽的設計 | **方向確認，五處要改** | 確認：沙盒 iframe 不給 `allow-same-origin`、預設不跑 JS、嚴格 CSP、唯讀路由、大小與型別白名單、作者端指令。要改：① 預覽要**單檔自足**（子資源帶不到 cookie）；② 「靜態掃描涵蓋預覽」現在沒有這個能力（第 2 關只讀 `.py`），要新寫白名單式的 HTML 檢查，而且它只是提醒；③ 回應標頭要帶 CSP `sandbox`，不要用 `srcdoc`／`blob:`；④ 要處理「預覽裡假裝成 SYNOX 的畫面」；⑤ 封面不收 SVG | 主題 8；`src/synox/packs/scan.py:174-192`；`src/synox/web/server.py:395-402` |
 | 擁有者的猜測：兩邊沙盒做法差不多 | **部分** | 像：都是選配、預設關、用容器、官方自己說不是完整邊界。不像：Hermes 預設有「小模型判斷危險指令」，OpenClaw 預設不問。最重要：兩邊都不包技能與 plugin | [O2][O5][O8][H3][H5] |
 
@@ -196,7 +197,7 @@
 | repo 與規模 | `openclaw/openclaw`，394k 星、82.9k fork（2026-11-13） | 已查證 [O15] |
 | 發行 | npm 套件 `openclaw`，最新 `2026.11.3`；要 Node `>=24.16.0 <25 \|\| >=26.1.0`；解開 275 MB、15,207 個檔 | 已查證 [N3] |
 | 誰在管 | OpenClaw Foundation（README 寫是獨立的 501(c)(3)） | 已查證 [O15] |
-| 歷史 | 2025-11 以 Clawdbot 之名推出 → 2026-01-27 因商標意見改名 Moltbot → 2026-01-30 再改名 OpenClaw | 待查 [X10] |
+| 歷史 | 用過 Clawdbot、Moltbot 兩個名字，2026-01 底定名 OpenClaw（官方格式文件仍收舊名當別名 [C2]；改名的日期與經過只有二手報導，**未查證**） | 待查 [X10] |
 
 ### 1.2 架構與格式
 
@@ -218,7 +219,7 @@
 
 ### 1.4 安全機制與預設值
 
-**結論：預設是寬鬆的。** 官方的立場是「你裝了、開了，就是你信任它」。
+**摘要：OpenClaw 的安全文件把信任模型寫得很明白——它是給「一個受信任的操作者」用的個人助理，操作者裝了、開了某個 plugin 或技能，就代表信任它；沙盒、執行前核准這些更嚴格的設定由操作者自己選擇打開。** 下表照官方文件列出預設值。**已查證** [O2][O5][O8]
 
 | 機制 | 預設 | 官方原話或說明 | 標籤 |
 |---|---|---|---|
@@ -247,14 +248,14 @@
 | 時間 | 事件 | 手法與影響 | 標籤 |
 |---|---|---|---|
 | 2026-01-31 公開 | **CVE-2026-25253**（GHSA-g8p2-7wf7-98mq），CVSS 8.8 | Control UI 不驗證網址列的 `gatewayUrl` 就自動連線，把存著的 gateway token 送給攻擊者；點一個連結就中，gateway 只聽本機也沒用。`2026.1.29` 修掉 | 已查證 [O17] |
-| 2026-01 底～03 | 大量 gateway 直接暴露在網際網路 | 使用者自己把埠開出去；Censys 01-31 算到 21,639 台 | 待查 [X9] |
+| 2026-01 底～03 | 有使用者把 gateway 開到網際網路上 | OpenClaw 預設只聽本機 [O6]；公開報導提到有使用者自己把埠開出去，數字只有二手報導，**未查證** | 待查 [X9] |
 | 2026-02 初 | **ClawHavoc**（Koi Security） | 技能的「Prerequisites」段叫使用者或 AI 下載加密壓縮檔、或貼一段指令，實際上裝 macOS 竊資軟體。抽查 2,857 個技能，341 個惡意（335 個同一波）；後來更新為 1 萬多個技能中 824 個 | 待查 [X1][X2][X5]；手法已查證於 OWASP 的轉述 [PI3] |
-| 2026-02 | 排行第一的技能是惡意的（Cisco） | 排名被灌水；內含指令注入與外洩資料 | 待查 [X8] |
 | 2026-02-05 | **ToxicSkills**（Snyk） | 掃 3,984 個技能：36.82% 有安全問題、13.4% 有嚴重問題、人工確認 76 個惡意 | 數字已查證於 OWASP 的轉引 [PI4]；Snyk 原文待查 [X7] |
 | 2026-02～05 | **掃描被繞過**（Unit 42） | 5 個惡意技能通過 VirusTotal 與 ClawScan：把 README 灌到約 22 MB 超過掃描上限；把 AI 引到貼文網站拿 Base64 指令；不帶惡意程式、純粹濫用 AI 權限 | 待查 [X3][X4] |
-| 持續中 | 官方 advisory 數量很大 | advisory 列表頁分到第 73 頁（每頁 10 筆） | 已查證 [O16]（確切總數查不到） |
+| 之後 | **ClawHub 的回應** | 宣布與 VirusTotal 合作掃描（官方公告這次開不到，待查 [X6]）；現在的掃描、檢舉、暫扣、下架與申訴機制見上表 | 機制已查證 [C4][C5] |
+| 持續中 | **公開、持續的漏洞揭露** | 官方 repo 的 security advisories 頁面列出大量已發佈的 advisory（列表分到第 73 頁），代表有一個活躍、公開的揭露與修正流程 | 已查證 [O16]（確切總數查不到） |
 
-這個 CVE 對 SYNOX 的提醒：SYNOX 的網頁也是只聽本機＋擁有者點連結登入。任何「從網址列參數決定連去哪裡」「從外面的頁面帶 token 進來」的新功能（市集一鍵安裝、`?pack=` 參數）都要比照這個案例審。**推測**
+OpenClaw 在 `2026.1.29` 修掉這個 CVE，並公開了細節。它對 SYNOX 的提醒：SYNOX 的網頁也是只聽本機＋擁有者點連結登入。任何「從網址列參數決定連去哪裡」「從外面的頁面帶 token 進來」的新功能（市集一鍵安裝、`?pack=` 參數）都要比照這個案例審。**推測**
 
 ### 1.6 對 SYNOX 的意義
 
@@ -327,10 +328,10 @@
 |---|---|---|
 | repo 自己的 advisory 頁 | 「There aren't any published security advisories.」 | 已查證 [H12] |
 | CVE-2026-9353 | **掃描器 Skills Guard 自己的注入漏洞**；影響 `< 0.15.0` | 已查證 [H13] |
-| CVE-2026-9366、-14628、-14783、-71963 | prompt builder 的注入、兩個路徑穿越、惡意 repo 透過 `.git/config` 執行指令 | 待查 [X17] |
-| 專門針對 Hermes 的惡意技能事件 | 查不到。但它的 Skills Hub 會從 ClawHub、skills.sh 拉技能，等於吃同一個供應鏈（推測） | 查不到 |
+| 其他 CVE 編號（-9366、-14628、-14783、-71963） | 二手漏洞資料庫的摘要說是 prompt builder 的注入、路徑穿越、`.git/config`；**我們沒有在 Hermes 官方來源對過，也不知道修正狀態**，不能當成定論（CVE 也可能經 GitHub Advisory Database 等管道發佈，不一定出現在 repo 自己的 advisory 頁） | 待查 [X17] |
+| 專門針對 Hermes 的惡意技能事件 | 查不到。它的 Skills Hub 跟其他多來源安裝器一樣，會從 ClawHub、skills.sh 等公開來源拉技能，所以共享同一個公開的技能供應鏈（推測） | 查不到 |
 
-值得記住的一點：**掃描器本身變成了被打的地方**。多加一個解析器或掃描器，就多一個攻擊面。
+值得記住的一點（對所有專案都成立，包括 SYNOX）：**多加一個解析器或掃描器，就多一個攻擊面**。Hermes 修掉 CVE-2026-9353 並公開記錄，是這一點的公開例子。
 
 ### 2.7 兩邊的沙盒比較
 
@@ -338,11 +339,11 @@
 |---|---|---|---|
 | 沙盒是什麼 | 把工具執行丟進 Docker 等後端 | 把 shell 與檔案工具丟進 docker 等後端 | 每個 pack 自己的子程序包一層（bwrap／systemd／容器） |
 | 預設 | 關 [O5] | 關（主機上直接跑）[H3] | 個人版與 Windows：`none`（`src/synox/sandbox.py:465-467`） |
-| 包得到 plugin／技能嗎 | 包不到 [O2][O5] | 包不到，官方明寫 [H3] | python pack 包不到；cli 與 mcp stdio 包得到（有真後端時） |
-| 跑指令前問人 | 預設不問 [O8] | 預設由小模型判斷 [H5] | DANGER 一定出確認卡（`src/synox/agent/loop.py:96-98`） |
+| 設計上涵蓋 plugin／技能嗎 | 不涵蓋（文件寫明 plugin 跟主程式同等信任）[O2][O5] | 不涵蓋，官方明寫 [H3] | python pack 不涵蓋；cli 與 mcp stdio 只在有真後端時涵蓋（目前只有 Linux 伺服器版有；Windows 與個人版沒有） |
+| 跑指令前問人 | 預設不問，可設定 [O8] | 預設由小模型判斷 [H5] | DANGER 一定出確認卡（`src/synox/agent/loop.py:96-98`） |
 | 更強的建議 | 後端選 OpenShell [O5] | 整個程序樹放進 Docker 或 OpenShell [H3] | — |
 
-兩邊給的最終建議都是「把整個代理人關進容器」；NVIDIA OpenShell 在 Windows 上要 WSL 2 而且標「experimental」（已查證 [M11]），SYNOX 是 Windows 優先，直接沿用不合。SYNOX「每個 pack 一個牆」的設計在粒度上比兩個上游細，差在還沒真機驗證。**推測**
+兩邊給的進一步建議都是「把整個代理人關進容器」，對它們的使用情境是合理的做法；NVIDIA OpenShell 在 Windows 上要 WSL 2 而且標「experimental」（已查證 [M11]），而 SYNOX 的目標是原生 Windows、不開終端機的使用者，所以要另外找路。SYNOX 打算「每個 pack 一個牆」，是**針對不同使用情境的不同取捨**，不是比較好或比較安全：它目前只有 Linux 伺服器版有後端，而且還沒在真機上驗證過。**推測**
 
 ---
 
@@ -381,6 +382,8 @@
 **結論（推測）**：掃描只能當「多一個拒絕的理由」，不能當「放行的理由」。
 
 ### 3.4 可以直接學的做法
+
+這些是從其他專案學到的做法；謝謝他們把設計公開寫下來。
 
 | 做法 | 學誰 | SYNOX 現在有沒有 |
 |---|---|---|
@@ -652,7 +655,7 @@ SYNOX 的文字怎麼進 AI、現在有哪些結構性保護，在第四節 §4.
 - 反方向不行：AGPL 的程式不能放進 Apache-2.0 的 SDK。所以**匯入器如果放在 SDK 那一側（`src/synox/sdk/`，Apache-2.0），不能抄核心（AGPL）的程式碼**；核心反過來呼叫 SDK 側的程式可以。**推測**（依據 `LICENSING.md` 的範圍表）
 - 轉出來的 pack 是上游技能的衍生作品，授權跟著上游；它不會因為被 SYNOX 載入就變成 AGPL（`LICENSING.md`：「你的工具若只是透過 pack.json 與 SDK 被 SYNOX 載入，不會因此變成 AGPL」）。**已查證**
 - 收進 SYNOX_Libs（那個 repo 是 AGPL-3.0）的話，每個 pack 資料夾要帶自己的授權聲明，MIT 的部分要留著原本的著作權行。**推測**
-- **MIT-0 只保證「上傳的人給了你權利」**。上傳的人如果是抄別人的，ClawHub 的 MIT-0 聲明救不了你。這是策展時要人看的理由之一。**推測**
+- **MIT-0 只保證「上傳的人給了你權利」**。上傳的人如果自己沒有權利（例如抄了別人的作品），任何市集的授權聲明都補不上這一點——這不是 ClawHub 特有的問題，所有收別人上傳內容的目錄（包括 SYNOX_Libs）都一樣。這是策展時要人看的理由之一。**推測**
 
 ### 6.2 名稱與商標
 
@@ -662,7 +665,6 @@ SYNOX 的文字怎麼進 AI、現在有哪些結構性保護，在第四節 §4.
 | npm 的 **`openclaw-core` 已經被不相干的第三方註冊**（2026-04-05 建立，Apache-2.0，自稱某個 Agent OS 的底層） | 已查證 [N1] |
 | npm 的 **`hermes-core` 被 npm 官方帳號持有**（2018 年的 `0.0.2-alpha.0`） | 已查證 [N2] |
 | PyPI 的 `hermes-core` 是 Cossack Labs 的另一個 Hermes；PyPI 的 `openclaw` 是第三方的安裝器；npm 的 `hermes-agent` 是第三方做的「Unofficial npm bridge」；PyPI 的 `openclaw-core` 目前沒人註冊 | 已查證 [N5][N7][N8][N9] |
-| OpenClaw 自己就是因為商標意見被迫改名兩次的專案 | 待查 [X10] |
 | OpenClaw、Hermes 官方的商標使用規範；npm 對名稱爭議的政策 | 查不到（OpenClaw repo 根目錄沒有 `TRADEMARK.md` [O19]） |
 
 **建議（推測）**：不要用 `openclaw-core`、`hermes-core` 當套件名或模組名；用敘述句講相容性：「可匯入 OpenClaw／Hermes／Agent Skills 格式的技能」——這跟 SYNOX 自己的 `TRADEMARK.md` 對別人的要求一致；功能用中性的名字（例如 `synox-sdk import`）。
@@ -907,11 +909,11 @@ npm install --package-lock-only --ignore-scripts --no-audit --no-fund --save-exa
 
 | # | 要決定什麼 | 選項 | 建議 | 各選項的後果 |
 |---|---|---|---|---|
-| 24 | 市集的形態 | 策展式（開 PR、有人看、寫進簽過的目錄）／開放上傳 | **策展式** | 開放上傳→ClawHub 的經驗是抽查約 12% 惡意（待查）；`docs/security.md` 對「收陌生人的 pack」寫的是「現在不要這樣用」 |
+| 24 | 市集的形態 | 策展式（開 PR、有人看、寫進簽過的目錄）／開放上傳 | **策展式** | 開放上傳→公開報導指出開放上傳的技能市集出現過大量惡意上架（數字只有二手報導，待查 [X1][X2]；這是開放上傳模式共同的風險，不是單一市集的問題）；`docs/security.md` 對「收陌生人的 pack」寫的是「現在不要這樣用」 |
 | 25 | 要不要允許 SYNOX 自己連網抓工具目錄、下載工具 | 不連（維持現況：使用者自己用瀏覽器下載整個資料夾）／只在使用者按下按鈕時連寫死的官方來源／可以加自訂來源 | **只在按下按鈕時連官方來源**；自訂來源放「進階」，一律最低信任 | 不連→「容易安裝」做不到。連→多一條出門的路（要驗簽、限主機、限大小），要比照 CVE-2026-25253 審「網址決定連去哪」 |
 | 26 | 簽章金鑰：誰保管、怎麼輪換、第三方作者的公鑰怎麼進來 | — | ed25519（`cryptography` 已經是相依，不用加套件）；擁有者離線保管；SYNOX 內建兩把公鑰（現用＋備用）以便輪換；第三方作者的公鑰這一輪不收（第三方走 PR 進官方目錄） | 不簽→sha256 只擋「下載壞了、被換過」，擋不了一開始就是假的目錄 |
 | 27 | 撤銷清單要不要連網抓 | 定時自動抓／跟目錄一起發，使用者按「檢查更新」時才更新／不做 | **跟目錄一起發** | 自動抓→背景連網，跟「沒有隱藏的背景程式」的精神有張力。不做→下架的工具已經裝的人不會知道 |
-| 28 | 新發行者的「低信任」限制到哪 | 只能上架沒有程式在你電腦上跑的／有程式也行但一定要在隔離裡跑／不限制 | **新發行者只能上架「沒有程式在你電腦上跑」的**（遠端工具、純文字技能）；有程式的要「看過程式」等級 | 不限制→新帳號上架帶程式的工具，是 ClawHavoc 的形狀 |
+| 28 | 新發行者的「低信任」限制到哪 | 只能上架沒有程式在你電腦上跑的／有程式也行但一定要在隔離裡跑／不限制 | **新發行者只能上架「沒有程式在你電腦上跑」的**（遠端工具、純文字技能）；有程式的要「看過程式」等級 | 不限制→新帳號上架帶程式的工具，是公開報導過的手法（ClawHavoc，待查 [X2]） |
 
 ### 戊、預覽
 
@@ -1191,7 +1193,6 @@ SYNOX 自己的檔案在文中直接寫 `路徑:行號`（相對於 repo 根目�
 | X5 | https://www.antiy.net/p/clawhavoc-analysis-of-large-scale-poisoning-campaign-targeting-the-openclaw-skill-market-for-ai-agents/ |
 | X6 | https://openclaw.ai/blog/virustotal-partnership ；https://thehackernews.com/2026/02/openclaw-integrates-virustotal-scanning.html |
 | X7 | https://snyk.io/blog/toxicskills-malicious-ai-agent-skills-clawhub/ |
-| X8 | https://blogs.cisco.com/ai/personal-ai-agents-like-openclaw-are-a-security-nightmare |
 | X9 | https://censys.com/?p=3946 ；https://hunt.io/blog/cve-2026-25253-openclaw-ai-agent-exposure ；https://blog.cyberdesserts.com/openclaw-exposure-numbers-explained/ |
 | X10 | https://www.morphllm.com/clawdbot ；https://catalaize.substack.com/p/openclaw-from-viral-prototype-to |
 | X11 | https://www.koi.ai/blog/postmark-mcp-npm-malicious-backdoor-email-theft ；https://thehackernews.com/2025/09/first-malicious-mcp-server-found.html ；https://www.theregister.com/2025/09/29/postmark_mcp_server_code_hijacked/ |
@@ -1216,4 +1217,4 @@ SYNOX 自己的檔案在文中直接寫 `路徑:行號`（相對於 repo 根目�
 | Y15 | https://www.giskard.ai/knowledge/owasp-top-10-for-agentic-application-2026 |
 | Y16 | https://security.googleblog.com/2023/04/securely-hosting-user-data-in-modern.html ；https://web.dev/articles/securely-hosting-user-data |
 
-（X18、Y2–Y4 沒有使用：報告之間重複的來源併到同一個代號。）
+（X18、Y2–Y4 沒有使用：報告之間重複的來源併到同一個代號。X8 是一篇二手評論，2026-11-14 語氣審查時拿掉了引用它的那一列：內容沒有一手來源，也不影響任何決定。）
