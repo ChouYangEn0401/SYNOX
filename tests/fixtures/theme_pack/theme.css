@@ -1,0 +1,30 @@
+/* 提燈（範例外觀）：每條規則都在 [data-slot] 裡面；顏色只用 token（--m1 燈身、--m2 燈蓋、--mi 眼睛、--mb 腮紅） */
+[data-slot] .ln-glow { fill: var(--m1); opacity: .18; }
+[data-slot] .ln-body { fill: var(--m1); }
+[data-slot] .ln-dim { opacity: .75; }
+[data-slot] .ln-cap { fill: var(--m2); }
+[data-slot] .ln-string { fill: none; stroke: var(--m2); stroke-width: 2; }
+[data-slot] .ln-rib { fill: none; stroke: var(--mb); stroke-width: 1.6; opacity: .45; }
+[data-slot] .ln-eye { fill: var(--mi); }
+[data-slot] .ln-blush { fill: var(--mb); opacity: .7; }
+[data-slot] .ln-mouth { fill: none; stroke: var(--mi); stroke-width: 2.4; stroke-linecap: round; }
+[data-slot] .wm { fill: var(--text); font-family: var(--font-brand); font-weight: 600; font-size: 26px; letter-spacing: 5px; }
+
+/* 平常：燈光一亮一亮（像心跳） */
+[data-slot="mascot.idle"] .ln-glow, [data-slot="mascot.happy"] .ln-glow { animation: th-glow 2.4s ease-in-out infinite; }
+/* 在想：燈輕輕晃 */
+[data-slot="mascot.think"] .ln-sway { transform-origin: 32px 2px; animation: th-sway 1.2s ease-in-out infinite; }
+/* 開場：垂下來、晃兩下、燈亮 */
+[data-slot="opening"] .ln-sway { transform-origin: 60px 0; animation: th-drop .6s cubic-bezier(.2, 1.4, .4, 1) both, th-sway .5s ease-in-out .6s 2; }
+[data-slot="opening"] .ln-flare { animation: th-flare 1.2s ease-out .3s both; }
+[data-slot="opening"] .wm { animation: th-rise .5s ease-out .7s both; }
+
+@keyframes th-glow { 0%, 100% { opacity: .1; } 50% { opacity: .3; } }
+@keyframes th-sway { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+@keyframes th-drop { from { transform: translateY(-60px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes th-flare { from { opacity: 0; } 60% { opacity: .45; } to { opacity: .2; } }
+@keyframes th-rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot] * { animation: none; }
+}

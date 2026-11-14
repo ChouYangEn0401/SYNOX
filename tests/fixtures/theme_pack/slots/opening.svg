@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 150">
+  <!-- 開場：一盞燈從上面垂下來，晃兩下，燈亮起來；下面寫 SYNOX。時間 SYNOX 管（約 1.7 秒） -->
+  <path class="ln-string" d="M60 0v18"/>
+  <g class="ln-sway">
+    <circle class="ln-glow ln-flare" cx="60" cy="62" r="52"/>
+    <path class="ln-cap" d="M57 16h6v8h-6z"/>
+    <rect class="ln-cap" x="44" y="22" width="32" height="10" rx="4"/>
+    <rect class="ln-body" x="28" y="30" width="64" height="64" rx="29"/>
+    <path class="ln-rib" d="M60 31v62M44 34q-10 28 0 56M76 34q10 28 0 56"/>
+    <rect class="ln-cap" x="44" y="92" width="32" height="10" rx="4"/>
+    <circle class="ln-eye" cx="49" cy="58" r="4.6"/>
+    <circle class="ln-eye" cx="71" cy="58" r="4.6"/>
+    <ellipse class="ln-blush" cx="41" cy="69" rx="5" ry="2.8"/>
+    <ellipse class="ln-blush" cx="79" cy="69" rx="5" ry="2.8"/>
+    <path class="ln-mouth" d="M54 70q6 6 12 0"/>
+  </g>
+  <text class="wm" x="60" y="140" text-anchor="middle">SYNOX</text>
+</svg>
