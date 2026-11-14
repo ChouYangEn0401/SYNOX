@@ -558,7 +558,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
   <div class="sec-head">
     <p class="eyebrow">安裝程式 SYNOX-Setup-0.2.0.exe</p>
     <h2>安裝畫面，一頁一頁</h2>
-    <p class="sub">下面的視窗是用 HTML 畫的示意圖，裡面的中文照 <code>setup/installer/lang/zh-TW.isl</code> 寫。<strong>第一件事是選語言</strong>，之後每一頁都用那個語言。選「建議」的人看到 5 頁；選「自訂」的人多看 2 頁。圖裡的按鈕畫成中文；繁體中文、简体中文、हिन्दी 這三種，按鈕現在實際上還是英文（Next、Install…），見 <a href="#q10">Q10</a>。</p>
+    <p class="sub">下面的視窗是用 HTML 畫的示意圖，裡面的中文照 <code>setup/installer/lang/zh-TW.isl</code> 寫。<strong>第一件事是選語言</strong>，之後每一頁都用那個語言。選「建議」的人看到 5 頁；選「自訂」的人多看 2 頁。圖裡的按鈕畫成中文：繁體中文、简体中文、हिन्दी 這三種用 SYNOX 自己翻的 Inno 語言檔，見 <a href="#q10">Q10</a>。</p>
   </div>
 
   <div class="flow">
@@ -617,7 +617,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
             <li><strong>預選 Windows 的顯示語言</strong>；對不上 12 種就預選 English。大多數人直接按「確定」。</li>
             <li>12 種的代號跟 <code>i18n.LANGS</code> 一樣：zh-TW、zh-CN、en、es、fr、de、pt-BR、ru、ar、hi、ja、ko。每一種寫「原文名 (英文名)」，例如「繁體中文 (Traditional Chinese)」。</li>
             <li>更新時照樣顯示這頁，預選上次選的語言。</li>
-            <li><strong>繁體中文、简体中文、हिन्दी：Inno 內建的按鈕和內建頁面先用英文。</strong>Inno Setup 沒有這三種的官方語言檔；非官方的檔要不要用，等擁有者決定授權（<a href="#q10">Q10</a>）。SYNOX 自己的字 12 種都翻了。</li>
+            <li><strong>繁體中文、简体中文、हिन्दी：Inno 內建的按鈕和內建頁面用 SYNOX 自己翻的語言檔</strong>（<code>setup/installer/lang/inno/</code>）。Inno Setup 沒有這三種的官方檔，我們也不用第三方的檔（<a href="#q10">Q10</a>）。SYNOX 自己的字 12 種都翻了。</li>
             <li>12 種的字是模型翻的，要請母語的人校對。<i class="tag test">🧪 待校對</i></li>
             <li>像上一版圖那樣<strong>自己畫的清單頁</strong>（一格一種語言＋「下一步」）還沒做。<i class="tag wip">⏳ 尚未完成</i></li>
             <li>選 العربية 時畫面由右到左排（Inno 官方的 Arabic 語言檔）。<i class="tag test">待實測</i></li>
@@ -626,7 +626,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
           <h4>怎麼做的</h4>
           <dl class="impl">
             <dt>Inno Setup</dt><dd><code>ShowLanguageDialog=yes</code>、<code>LanguageDetectionMethod=uilanguage</code>、<code>UsePreviousLanguage=yes</code>。每個語言的名字寫在它的 <code>.isl</code> 的 <code>[LangOptions] LanguageName</code>。</dd>
-            <dt>語言檔</dt><dd><code>[Languages]</code> 列 12 種，每種疊三層：Inno 的語言檔（按鈕這類內建的字）→ <code>lang\en.isl</code> → <code>lang\&lt;代號&gt;.isl</code>（我們自己的字；缺哪句就退回英文）。8 種用 Inno 官方檔；另外 3 種看 <code>lang\inno\</code> 有沒有放檔，沒有就用英文的 <code>Default.isl</code>。</dd>
+            <dt>語言檔</dt><dd><code>[Languages]</code> 列 12 種，每種疊三層：Inno 的語言檔（按鈕這類內建的字）→ <code>lang\en.isl</code> → <code>lang\&lt;代號&gt;.isl</code>（我們自己的字；缺哪句就退回英文）。8 種用 Inno 官方檔；另外 3 種（繁體中文、简体中文、हिन्दी）用 SYNOX 自己翻的 <code>lang\inno\ChineseTraditional.isl</code>、<code>ChineseSimplified.isl</code>、<code>Hindi.isl</code>：照 Inno 6.7.4 <code>Default.isl</code> 的 293 個 key 全翻，<code>check-iss</code> 檢查一個都不少。</dd>
             <dt>交下去</dt><dd>檔案複製完，安裝程式把代號寫進 SYNOX 資料夾的 <code>lang.txt</code> 和 <code>installer-choices.json</code>；完成頁用 <code>Setup.bat -Lang &lt;代號&gt;</code>，再用 <code class="nb">--lang</code> 開設定精靈，精靈就跳過自己的語言頁。<code>Uninstall.bat</code> 也讀同一個 <code>lang.txt</code>。</dd>
             <dt>ZIP 路徑</dt><dd><code>Setup.bat</code> 的文字視窗第一題就是語言（<code>lang.ps1</code>）：12 種排兩欄，打數字或代號；<strong>直接按 Enter＝Windows 的顯示語言</strong>。存進 <code>lang.txt</code>。給了 <code class="nb">-Lang</code>／<code>SYNOX_LANG</code>，或已經有 <code>lang.txt</code>，就不問。<i class="tag have">已有</i></dd>
           </dl>
@@ -724,7 +724,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
           <ul class="pts">
             <li><strong>只有「自訂」看得到。</strong>選「建議」就裝在 <code>%LOCALAPPDATA%\Programs\SYNOX</code>：每個 Windows 使用者自己一份，不用管理員。</li>
             <li>選到 <code>C:\Program Files</code> 這類不能寫入的位置時，當場擋下：「SYNOX 要在這個資料夾裡存你的資料，這裡不能寫入。請選別的位置。」<i class="tag new">新的</i></li>
-            <li>整頁是 Inno 內建的字，所以繁體中文、简体中文、हिन्दी 現在看到的是英文（<a href="#q10">Q10</a>）。</li>
+            <li>整頁是 Inno 內建的字；繁體中文、简体中文、हिन्दी 用 SYNOX 自己翻的 Inno 語言檔（<a href="#q10">Q10</a>）。<i class="tag test">🧪 待校對</i></li>
             <li><strong>磁碟空間的檢查還沒做。</strong>只有 Inno 內建的那一行；之後才產生的套件資料夾沒算進去，也沒有<a href="#f4">失敗畫面 4</a>。<i class="tag wip">⏳ 尚未完成</i></li>
             <li>路徑有中文、空白都要能裝。<i class="tag test">待實測</i></li>
           </ul>
@@ -804,7 +804,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
             <li>Claude Code 排在<strong>最後才做</strong>，這台已經有就不做。在背景跑官方的安裝指令，看不到視窗，最多等 15 分鐘。失敗或逾時<strong>不算安裝失敗</strong>：標成「先跳過」，完成頁說怎麼補（<a href="#questions">Q2</a>）。<i class="tag new">新的</i></li>
             <li><strong>套件不是在這一頁裝的。</strong>建立環境、裝套件要等按「完成」之後，由 <code>Setup.bat</code> 的黑色文字視窗做（離線，用附的套件檔）。要搬回這一頁、在背景做。<i class="tag wip">⏳ 尚未完成</i></li>
             <li>白話的步驟清單、「顯示詳細過程」、紀錄檔 <code>install.log</code>、出錯時的畫面和「再試一次」都還沒做。<i class="tag wip">⏳ 尚未完成</i></li>
-            <li>更新時：先刪掉舊的 <code>runtime\python</code> 和 <code>.venv</code> 再放新的；<code>config.json</code>、<code>data\</code>、<code>packs\</code> 不動。</li>
+            <li>更新時：先刪掉舊的 <code>runtime\python</code> 和 <code>.venv</code> 再放新的；也刪掉舊版才有的開發用檔案（<code>tests\</code>、<code>evals\</code>、<code>docs\lab\</code>、<code>docs\installer\</code> 這些，跟 <code>scripts/make_zip.py</code> 的 <code>INTERNAL</code> 同一份）、<code>Connect-Apple.bat</code>、根目錄的 <code>GOVERNANCE.md</code>／<code>MAINTAINERS.md</code>／<code>TRADEMARK.md</code>（搬進 <code>.github\</code> 了）。<code>config.json</code>、<code>data\</code>、<code>packs\</code> 不動。<i class="tag new">新的</i></li>
           </ul>
           <h4>怎麼做的</h4>
           <dl class="impl">
@@ -1090,7 +1090,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
         <tr><th>第一次執行的警告</th><td>解壓縮後雙擊 .bat，Windows 可能問一次「要執行嗎」</td><td>alpha 不簽章，SmartScreen 會擋一次（<a href="#f3">失敗畫面 3</a>）</td></tr>
         <tr><th>更新</th><td>下載新的 ZIP 解到同一個資料夾，或 <code>git pull</code>，再跑 <code>Setup.bat</code></td><td>執行新版安裝程式，設定和資料留著</td></tr>
         <tr><th>解除安裝</th><td>雙擊 <code>Uninstall.bat</code>（文字選單，已有）</td><td>Windows「設定 → 應用程式」裡的 SYNOX，或開始功能表的「解除安裝 SYNOX」</td></tr>
-        <tr><th>適合誰</th><td>開不了 .exe 的人；想看原始碼、用 git 更新、幫忙開發的人</td><td>大多數人。介紹頁的大按鈕給這個</td></tr>
+        <tr><th>適合誰</th><td>開不了 .exe 的人（發佈頁的 <code>SYNOX-&lt;版本&gt;.zip</code>，約 4 MB，只帶執行、更新 SYNOX 要用的檔案）。想看原始碼、跑測試、幫忙開發的人用 <code>git clone</code></td><td>大多數人。介紹頁的大按鈕給這個</td></tr>
       </tbody>
     </table>
   </div>
@@ -1105,7 +1105,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
     <div><h4>第一次執行的警告</h4><p><i>ZIP</i><span>雙擊 .bat 時 Windows 可能問一次「要執行嗎」。</span></p><p><i>.exe</i><span>alpha 不簽章，SmartScreen 會擋一次。</span></p></div>
     <div><h4>更新</h4><p><i>ZIP</i><span>新的 ZIP 解到同一個資料夾（或 <code>git pull</code>），再跑 <code>Setup.bat</code>。</span></p><p><i>.exe</i><span>執行新版安裝程式，設定和資料留著。</span></p></div>
     <div><h4>解除安裝</h4><p><i>ZIP</i><span>雙擊 <code>Uninstall.bat</code>（文字選單，已有）。</span></p><p><i>.exe</i><span>Windows「設定 → 應用程式」→ SYNOX，或開始功能表的「解除安裝 SYNOX」。</span></p></div>
-    <div><h4>適合誰</h4><p><i>ZIP</i><span>開不了 .exe 的人；想看原始碼、用 git 更新、幫忙開發的人。</span></p><p><i>.exe</i><span>大多數人。</span></p></div>
+    <div><h4>適合誰</h4><p><i>ZIP</i><span>開不了 .exe 的人（發佈頁的 <code>SYNOX-&lt;版本&gt;.zip</code>，約 4 MB）。想看原始碼、跑測試、幫忙開發的人用 <code>git clone</code>。</span></p><p><i>.exe</i><span>大多數人。</span></p></div>
   </div>
 </section>
 
@@ -1268,7 +1268,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
       <h3><i class="dot" style="background:var(--warn)"></i>⏳ 尚未完成</h3>
       <ul>
         <li>⚠️ <strong>編譯出 .exe</strong>，並在空白的 Windows 10 和 11 各裝一次。</li>
-        <li><strong>三個非官方的 Inno 語言檔</strong>（繁體中文、简体中文、हिन्दी）：等授權的決定，這三種的按鈕先用英文（<a href="#q10">Q10</a>）。</li>
+        <li><strong>SYNOX 自己翻的三個 Inno 語言檔</strong>（繁體中文、简体中文、हिन्दी）：已經翻好，要請母語的人校對（<a href="#q10">Q10</a>）。</li>
         <li><strong>把黑色視窗藏起來</strong>：建立環境和裝套件搬到「安裝中」那一頁、在背景做（<code class="nb">-Step</code>、<code class="nb">-NoWizard</code>）。</li>
         <li><strong>失敗畫面 1 到 4</strong>、「再試一次」、「複製問題描述」、磁碟空間檢查。</li>
         <li><strong>紀錄檔</strong> <code>install.log</code> 和「顯示詳細過程」。</li>
@@ -1294,8 +1294,8 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
 <section id="questions">
   <div class="sec-head">
     <p class="eyebrow">擁有者的決定・2026-11-13</p>
-    <h2>九個問題都決定了，多一個新的</h2>
-    <p class="sub">綠色＝已決定。Q1、Q2 沒有另外回覆，照建議做。Q6 的簽章留一半之後再決定。<strong>Q10 是實作時才冒出來的，還沒決定。</strong></p>
+    <h2>十個問題都決定了</h2>
+    <p class="sub">綠色＝已決定。Q1、Q2 沒有另外回覆，照建議做。Q6 的簽章留一半之後再決定。Q10 是實作時才冒出來的，2026-11-14 決定。</p>
   </div>
   <ol class="qs">
     <li class="ok"><b>「建議」安裝要不要開機後自動啟動？（已決定）</b>
@@ -1318,16 +1318,16 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
       <p class="rec"><i>之後再決定</i><span>公開宣傳之前，再看要不要用雲端簽章服務（例如 Microsoft 的 Trusted Signing，大約是每月付費）。</span></p></li>
     <li class="ok" id="q7"><b>安裝程式的語言怎麼選？（已決定）</b>
       <p><strong>擁有者決定：語言最先選。</strong>安裝程式一打開就是<a href="#s1">第 1 頁「選語言」</a>（預選 Windows 的顯示語言，列 12 種，原文名＋英文名）；之後安裝程式的每一頁、設定精靈都用這個語言。ZIP 路徑也是先問語言。</p>
-      <p class="rec"><i>查過了</i><span>Inno Setup 6.7.4 附<strong>官方</strong>語言檔的有 8 種：Español、Français、Deutsch、Português (Brasil)、Русский、العربية、日本語、한국어；English 是內建的。<strong>한국어 和 العربية 都有官方檔。</strong>只有繁體中文、简体中文、हिन्दी 沒有，見 <a href="#q10">Q10</a>。我們自己的字 12 種都翻了，缺的句子退回 English。</span></p></li>
+      <p class="rec"><i>查過了</i><span>Inno Setup 6.7.4 附<strong>官方</strong>語言檔的有 8 種：Español、Français、Deutsch、Português (Brasil)、Русский、العربية、日本語、한국어；English 是內建的。<strong>한국어 和 العربية 都有官方檔。</strong>只有繁體中文、简体中文、हिन्दी 沒有，這三種用 SYNOX 自己翻的檔（<a href="#q10">Q10</a>）。我們自己的字 12 種都翻了，缺的句子退回 English。</span></p></li>
     <li class="ok"><b>ZIP 路徑的「建議／自訂」要長什麼樣？（已決定）</b>
       <p><strong>文字視窗留著。</strong>大多數人走 .exe；ZIP＋<code>Setup.bat</code> 是另一種方法，也給開不了 .exe 的人用。</p>
       <p class="rec"><i>決定</i><span>第一題問語言，按 Enter 的預設是 Windows 的顯示語言。接著問一題：按 Enter＝建議，輸入 C＝自訂。不另外做視窗。</span></p></li>
     <li class="ok"><b>解除安裝時要不要提供「連我的資料也一起刪除」？（已決定）</b>
       <p>今天安裝程式的解除安裝一律留下設定和資料；要刪資料得到 <code>Uninstall.bat</code> 選第 3 項並輸入 DELETE。</p>
       <p class="rec"><i>決定</i><span>要，給一個預設不勾的選項，勾了之後再確認一次。預設行為不變：資料留著。已經做好（<a href="#f5">解除安裝畫面</a>）。</span></p></li>
-    <li id="q10"><b>非官方的三個 Inno 語言檔要不要用？（還沒決定）</b>
-      <p>繁體中文、简体中文、हिन्दी 的 Inno 語言檔是網友貢獻的，放在 Inno Setup 的 repo 和網站上，但檔頭沒有寫授權。不放的話，這三種語言的「下一步」「安裝」「取消」和安裝位置那一頁是英文；我們自己寫的字照樣是翻好的。</p>
-      <p class="rec"><i>建議</i><span>確認授權沒問題就用：放進 <code>setup/installer/lang/inno/</code>，保留檔頭的譯者姓名，在第三方授權清單寫來源和 SHA256。確認不了就維持英文按鈕。細節在 <code>docs/release-build.md</code>。</span></p></li>
+    <li class="ok" id="q10"><b>繁體中文、简体中文、हिन्दी 的 Inno 按鈕字怎麼辦？（已決定）</b>
+      <p>Inno Setup 沒有這三種的官方語言檔；網友貢獻的檔檔頭沒有寫授權。不處理的話，這三種語言的「下一步」「安裝」「取消」和安裝位置那一頁是英文。</p>
+      <p class="rec"><i>決定</i><span>SYNOX 自己翻：<code>setup/installer/lang/inno/</code> 的 <code>ChineseTraditional.isl</code>、<code>ChineseSimplified.isl</code>、<code>Hindi.isl</code>，照 Inno 6.7.4 <code>Default.isl</code> 的 293 個 key 全翻，<strong>不用任何第三方或網友的檔</strong>，所以沒有授權要處理。<code>check-iss</code> 檢查 key、代換符號、快速鍵一個都不少。模型翻的，<strong>要母語的人校對</strong>。細節在 <code>docs/release-build.md</code>。</span></p></li>
   </ol>
 </section>
 
@@ -1335,7 +1335,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
 </div>
 
 <footer>
-  <p class="stamp">給開發者：本機路徑 docs/installer/spec.html ・ 線上版 <a href="https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB">https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB</a> ・ 頁面版本 <span data-stamp>8767fc3bf8 · 2026-11-13</span></p>
+  <p class="stamp">給開發者：本機路徑 docs/installer/spec.html ・ 線上版 <a href="https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB">https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB</a> ・ 頁面版本 <span data-stamp>67a4af8973 · 2026-11-14</span></p>
 </footer>
 </div>
 
