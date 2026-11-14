@@ -8,6 +8,11 @@
     <python> scripts/installer_ci.py check-iss                         static checks of setup/installer/synox.iss and its
                                                                        lang/*.isl texts (pages, languages, keys); needs
                                                                        no Inno Setup, runs anywhere
+             [--inno-default <Inno folder>/Default.isl]               also compare lang/inno/default-keys.txt with the
+                                                                       installed Inno Setup's own Default.isl
+    <python> scripts/installer_ci.py inno-keys DEFAULT_ISL             rewrite lang/inno/default-keys.txt from a Default.isl
+                                                                       (after an Inno Setup upgrade; then translate the
+                                                                       new keys in lang/inno/*.isl)
 
 Standard library only. It never runs anything it downloads or extracts. Exit code: 0 ok, 1 check failed, 2 bad usage.
 """
@@ -105,10 +110,18 @@ def safe_extract(zip_path: str, out: str) -> list:
 INSTALLER_DIR = os.path.join(ROOT, "setup", "installer")
 # Same order and codes as synox.wizard.i18n.LANGS (tests/test_installer_script.py keeps them equal).
 INSTALLER_LANGS = ("zh-TW", "zh-CN", "en", "es", "fr", "de", "pt-BR", "ru", "ar", "hi", "ja", "ko")
-# Inno Setup 6 language files: the official ones ship in <Inno>\Languages; the others are unofficial (lang\inno\ if added).
+# Inno Setup 6 language files: the official ones ship in <Inno>\Languages. Inno has no official file for the other
+# three, so SYNOX has its own translations of Inno's built-in messages in lang\inno\ (owner's decision, 2026-11-14).
 INNO_OFFICIAL = {"es": "Spanish", "fr": "French", "de": "German", "pt-BR": "BrazilianPortuguese", "ru": "Russian",
                  "ar": "Arabic", "ja": "Japanese", "ko": "Korean"}
-INNO_UNOFFICIAL = {"zh-TW": "ChineseTraditional.isl", "zh-CN": "ChineseSimplified.isl", "hi": "Hindi.islu"}
+INNO_OWN = {"zh-TW": "ChineseTraditional.isl", "zh-CN": "ChineseSimplified.isl", "hi": "Hindi.isl"}
+# [LangOptions] of our own files: LanguageID (the Windows language preselects it) and LanguageCodePage (0 = none exists).
+INNO_OWN_OPTIONS = {"zh-TW": ("$0404", "950"), "zh-CN": ("$0804", "936"), "hi": ("$0439", "0")}
+# Every [Messages]/[CustomMessages] key of Inno Setup's Default.isl with its placeholders and access-key count (not its
+# English text): what our own translations must cover. `installer_ci.py inno-keys` rewrites it after an Inno upgrade.
+INNO_KEYS_FILE = os.path.join("lang", "inno", "default-keys.txt")
+INNO_PLACEHOLDER = re.compile(r"%\d|%n|\[name\]|\[name/ver\]|\[gb\]|\[mb\]")
+ACCEL = re.compile(r"(?<!&)&(?!&)")
 # What the owner's decisions (docs/installer/spec.html section 8) need from [Setup].
 REQUIRED_DIRECTIVES = {"PrivilegesRequired": "lowest", "DisableWelcomePage": "no", "DisableReadyPage": "yes",
                        "ShowLanguageDialog": "yes", "LanguageDetectionMethod": "uilanguage", "UsePreviousTasks": "no",
@@ -157,8 +170,12 @@ def read_isl(path: str) -> dict:
     name = os.path.basename(path)
     if not raw.startswith(b"\xef\xbb\xbf"):
         raise CheckError(f"{name}: needs a UTF-8 BOM (Inno Setup then reads it as UTF-8)")
+    return _parse_isl(raw[3:].decode("utf-8"), name)
+
+
+def _parse_isl(text: str, name: str) -> dict:
     out = {}
-    for section, lines in iss_sections(raw[3:].decode("utf-8")).items():
+    for section, lines in iss_sections(text).items():
         table = out.setdefault(section, {})
         for line in lines:
             key, sep, value = line.partition("=")
@@ -193,8 +210,8 @@ def _check_languages(text: str, sections: dict) -> list:
         base = defines.get(m.group(1), "") if m else files[0]
         if code in INNO_OFFICIAL and base != f"compiler:Languages\\{INNO_OFFICIAL[code]}.isl":
             problems.append(f"[Languages] {code}: use the official compiler:Languages\\{INNO_OFFICIAL[code]}.isl")
-        if code in INNO_UNOFFICIAL and (base != "compiler:Default.isl" or INNO_UNOFFICIAL[code] not in text):
-            problems.append(f"[Languages] {code}: English base plus the optional lang\\inno\\{INNO_UNOFFICIAL[code]}")
+        if code in INNO_OWN and base != f"lang\\inno\\{INNO_OWN[code]}":
+            problems.append(f"[Languages] {code}: the base must be our own lang\\inno\\{INNO_OWN[code]}")
         if code == "en" and base != "compiler:Default.isl":
             problems.append("[Languages] en: the base must be compiler:Default.isl")
     if seen != set(INSTALLER_LANGS):
@@ -235,7 +252,7 @@ def _check_texts(folder: str, text: str) -> list:
             options = table.get("LangOptions", {})
             if not re.search(r"\(.+\)$", options.get("LanguageName", "")):
                 problems.append(f"lang/{code}.isl: LanguageName should read 'native (Latin)'")
-            if code in INNO_UNOFFICIAL and "LanguageID" not in options:
+            if code in INNO_OWN and "LanguageID" not in options:
                 problems.append(f"lang/{code}.isl: needs LanguageID so the Windows language preselects it")
     used = set(re.findall(r"\{cm:(\w+)\}", text)) | set(re.findall(r"CustomMessage\('(\w+)'\)", text))
     missing = sorted(used - set(en.get("CustomMessages", {})))
@@ -244,9 +261,83 @@ def _check_texts(folder: str, text: str) -> list:
     return problems
 
 
-def check_iss(folder: str = INSTALLER_DIR) -> list:
+def _inno_signature(value: str) -> tuple:
+    """What a translation of one Inno message must keep: its placeholders, how many access keys (&), empty or not."""
+    return " ".join(sorted(INNO_PLACEHOLDER.findall(value))) or "-", len(ACCEL.findall(value)), not value.strip()
+
+
+def inno_keys_from_default(path: str) -> list:
+    """[(section, key, placeholders, access keys, empty)] of Inno Setup's own Default.isl (ASCII/UTF-8, any BOM)."""
+    with open(path, "r", encoding="utf-8-sig") as f:
+        table = _parse_isl(f.read(), os.path.basename(path))
+    return [(section, key) + _inno_signature(value)
+            for section in ("Messages", "CustomMessages") for key, value in table.get(section, {}).items()]
+
+
+def write_inno_keys(rows: list, path: str, source: str) -> None:
+    lines = [f"# Keys of Inno Setup's Default.isl ({source}): section, key, placeholders, access keys (&), empty.",
+             "# Our own lang/inno/*.isl must have exactly these. Written by: installer_ci.py inno-keys DEFAULT_ISL"]
+    lines += ["\t".join([s, k, p, str(a), "empty" if e else "text"]) for s, k, p, a, e in rows]
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(lines) + "\n")
+
+
+def read_inno_keys(path: str) -> list:
+    rows = []
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            if line.strip() and not line.startswith("#"):
+                s, k, p, a, e = line.rstrip("\n").split("\t")
+                rows.append((s, k, p, int(a), e == "empty"))
+    return rows
+
+
+def _check_inno_own(folder: str, inno_default: str = "") -> list:
+    """Our own translations of Inno's built-in messages: every key of Default.isl, same placeholders and access keys."""
+    try:
+        rows = read_inno_keys(os.path.join(folder, INNO_KEYS_FILE))
+    except (OSError, ValueError) as e:
+        return [f"{INNO_KEYS_FILE}: {e}"]
+    problems = []
+    if inno_default:
+        real = inno_keys_from_default(inno_default)
+        if real != rows:
+            problems.append(f"{INNO_KEYS_FILE} differs from {inno_default}: run installer_ci.py inno-keys and "
+                            f"translate the changed keys ({sorted({r[1] for r in set(real) ^ set(rows)})})")
+    for code, filename in INNO_OWN.items():
+        name = f"lang/inno/{filename}"
+        try:
+            table = read_isl(os.path.join(folder, "lang", "inno", filename))
+        except (OSError, CheckError) as e:
+            problems.append(str(e))
+            continue
+        options = table.get("LangOptions", {})
+        if not re.search(r"\(.+\)$", options.get("LanguageName", "")):
+            problems.append(f"{name}: LanguageName should read 'native (Latin)'")
+        want_id, want_cp = INNO_OWN_OPTIONS[code]
+        if options.get("LanguageID") != want_id or options.get("LanguageCodePage") != want_cp:
+            problems.append(f"{name}: [LangOptions] needs LanguageID={want_id} and LanguageCodePage={want_cp}")
+        for section in ("Messages", "CustomMessages"):
+            want = {k: (p, a, e) for s, k, p, a, e in rows if s == section}
+            mine = table.get(section, {})
+            if set(mine) != set(want):
+                problems.append(f"{name} [{section}]: missing {sorted(set(want) - set(mine))}, "
+                                f"extra {sorted(set(mine) - set(want))}")
+            for key in sorted(set(mine) & set(want)):
+                placeholders, accels, empty = _inno_signature(mine[key])
+                if empty != want[key][2]:
+                    problems.append(f"{name}: {key} must be {'empty' if want[key][2] else 'translated'} like English")
+                elif placeholders != want[key][0]:
+                    problems.append(f"{name}: {key} has placeholders {placeholders}, English has {want[key][0]}")
+                elif accels != want[key][1]:
+                    problems.append(f"{name}: {key} has {accels} access keys (&), English has {want[key][1]}")
+    return problems
+
+
+def check_iss(folder: str = INSTALLER_DIR, inno_default: str = "") -> list:
     """Every problem found in synox.iss and lang/*.isl as a plain sentence; [] = all good. Static only: whether
-    Inno Setup compiles it and how the pages look is checked by the build workflow (ISCC) and on Windows."""
+    Inno Setup compiles it and how the pages look is checked by the build workflow (ISCC) and on Windows.
+    inno_default: path of Inno Setup's own Default.isl, to also check lang/inno/default-keys.txt against it."""
     with open(os.path.join(folder, "synox.iss"), "rb") as f:
         raw = f.read()
     try:
@@ -267,6 +358,7 @@ def check_iss(folder: str = INSTALLER_DIR) -> list:
             problems.append(f"[Setup] {key} must not be set (no license, admin or info page: owner Q4)")
     problems += _check_languages(text, sections)
     problems += _check_texts(folder, text)
+    problems += _check_inno_own(folder, inno_default)
 
     tasks = {e.get("Name"): "unchecked" not in e.get("Flags", "") for e in iss_entries(sections.get("Tasks", []))}
     if tasks != REQUIRED_TASKS:
@@ -308,7 +400,11 @@ def main(argv=None) -> int:
     p = sub.add_parser("extract", help="unzip without allowing paths outside the target folder")
     p.add_argument("zip")
     p.add_argument("--out", required=True)
-    sub.add_parser("check-iss", help="static checks of setup/installer/synox.iss and its lang/*.isl texts")
+    p = sub.add_parser("check-iss", help="static checks of setup/installer/synox.iss and its lang/*.isl texts")
+    p.add_argument("--inno-default", default="", help="Inno Setup's own Default.isl: also check the stored key list")
+    p = sub.add_parser("inno-keys", help="rewrite lang/inno/default-keys.txt from Inno Setup's Default.isl")
+    p.add_argument("default_isl")
+    p.add_argument("--source", default="Inno Setup", help="what to name as the source in the file's header")
     args = parser.parse_args(argv)
     try:
         if args.cmd == "version":
@@ -316,12 +412,19 @@ def main(argv=None) -> int:
             check_tag(version, args.tag)
             print(version)
         elif args.cmd == "check-iss":
-            problems = check_iss()
+            problems = check_iss(inno_default=args.inno_default)
             for problem in problems:
                 print(f"[X] {problem}", file=sys.stderr)
             if problems:
                 return 1
-            print(f"ok  synox.iss: {len(INSTALLER_LANGS)} languages; pages, tasks and texts complete")
+            keys = len(read_inno_keys(os.path.join(INSTALLER_DIR, INNO_KEYS_FILE)))
+            print(f"ok  synox.iss: {len(INSTALLER_LANGS)} languages; pages, tasks and texts complete; "
+                  f"lang/inno: {len(INNO_OWN)} own translations x {keys} Inno keys"
+                  + (f" (key list = {args.inno_default})" if args.inno_default else ""))
+        elif args.cmd == "inno-keys":
+            rows = inno_keys_from_default(args.default_isl)
+            write_inno_keys(rows, os.path.join(INSTALLER_DIR, INNO_KEYS_FILE), args.source)
+            print(f"wrote {len(rows)} keys to setup/installer/{INNO_KEYS_FILE.replace(os.sep, '/')}")
         elif args.cmd == "fetch":
             fetch(args.url, args.sha256, args.out)
             print(f"ok  sha256 {args.sha256.lower()}  {os.path.basename(args.out)}")
