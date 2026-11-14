@@ -1,4 +1,8 @@
-# SYNOX：你自己電腦上的 Telegram 小助手
+# SYNOX：住在你自己電腦裡的 AI 助理
+
+*The AI assistant that lives on your own computer.*
+
+<sub>SYNOX 的標語只有一句、寫在 `src/synox/brand.py` 的 `SLOGAN`（介紹頁、終端機歡迎畫面都從那裡拿）；之後主題（theme）可以帶自己的「心情語」，但不會換掉這句標語。</sub>
 
 **👉 [先看介紹頁：SYNOX 長什麼樣、能做什麼、怎麼裝](https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox)**
 （網頁版的真實畫面、支援哪些平台、哪些還沒做完都在上面；同一份也在 repo 裡：[docs/landing/index.html](docs/landing/index.html)，下載後雙擊就能開）
@@ -12,7 +16,7 @@
 > - 授權：見 [LICENSING.md](LICENSING.md)。發現安全問題：見 [SECURITY.md](SECURITY.md)（請不要開公開 issue）。
 
 在手機的 Telegram（或 Discord 私訊、這台電腦的網頁）跟它講話：記帳、隨手記、提醒；接了 AI 之後，直接說人話它就會替你按指令
-（刪東西這類危險的事，會先送一張確認卡給你按）。資料都在**你自己的電腦**上，筆記和記帳是加密存的。
+（刪東西這類危險的事，會先送一張確認卡給你按）。設定、金鑰和工具資料都存在**你自己的電腦**上，筆記和記帳是加密存的；接了雲端 AI 時，你說的話會送到那家 AI。
 
 想先看看長什麼樣：**介紹頁** [docs/landing/index.html](docs/landing/index.html)（雙擊就能開；線上版 <https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox>）。
 圖文教學：[Telegram](docs/tutorials/telegram/)、[Discord](docs/tutorials/discord/)（Discord 的名詞：[docs/discord-concepts.md](docs/discord-concepts.md)）。
@@ -20,15 +24,18 @@
 > **SYNOX 出廠不帶任何工具**（2026-11-12 起）：記帳、隨手記、行事曆、待辦，以及接 Notion、Todoist、Google 日曆、
 > Apple 提醒事項的工具，都在另一個專案 **SYNOX 工具庫（SYNOX_Libs）**——所有工具在那裡統一管理，
 > 一個工具一個 `.synoxpack` 檔，要什麼自己裝（見下面「裝工具」）。從舊版更新上來的人：資料（含存好的 token、帳號）還在，裝回同名工具就接著用
-> （[legacy/builtin-packs.md](legacy/builtin-packs.md)、[legacy/connectors.md](legacy/connectors.md)）。
+> （[docs/legacy/builtin-packs.md](docs/legacy/builtin-packs.md)、[docs/legacy/connectors.md](docs/legacy/connectors.md)）。
 
 ## 快速開始：三步裝好（Windows 10／11）
 
-兩種拿法，裝完是同一個東西（設計：[docs/adr/0003](docs/adr/0003-distribution-git-clone-and-installer.md)）：
+幾種拿法，裝完是同一個東西（設計：[docs/adr/0003](docs/adr/0003-distribution-git-clone-and-installer.md)）。
+**一般使用者：用安裝程式或發佈 ZIP**——只帶執行、更新 SYNOX 要用的檔案。**要改程式、跑測試的工程師：git clone**——什麼都有（測試、實驗紀錄、CI）。
 
 - **安裝程式** `SYNOX-Setup-<版本>.exe`：雙擊、照畫面按（不要系統管理員，裝在 `%LOCALAPPDATA%\Programs\SYNOX`）。
   Python、套件、工具庫都附在裡面，**不用上網**；最後一步自動跑下面的第 1 步。
-- **git clone**（或 GitHub 的 Download ZIP）到任何資料夾，然後照下面做。工具庫另外下載 `tools` 資料夾放進 SYNOX 資料夾（`SYNOX\tools\index.json`）。
+- **發佈 ZIP** `SYNOX-<版本>.zip`（[發佈頁](https://github.com/ChouYangEn0401/SYNOX/releases)；工具庫 `tools\` 已附在裡面）：解開到任何資料夾，然後照下面做。
+  還沒有發佈版之前，用 GitHub 的「Code → Download ZIP」（解開是 `SYNOX-main`，一樣不含開發用的檔案），工具庫另外下載 `tools` 資料夾放進 SYNOX 資料夾（`SYNOX\tools\index.json`）。
+- **git clone** 到任何資料夾，然後照下面做（工具庫同上）。
 
 1. **雙擊 `Setup.bat`**。第一次會花幾分鐘準備 Python 和套件（會出現一個顯示進度的視窗，不用打任何字；
    電腦沒有 Python 的話，它會自己裝；附了 `wheelhouse\` 的發佈版完全離線）。
@@ -71,6 +78,9 @@ synox tips      隨機一則使用小提示
   每段網頁對話各自一份 AI 記憶；用完的可以**封存**（不會被自動清掉），到「已封存的對話」還原或徹底刪除（要按兩次）。
   側欄固定有「🫀 常駐助理」：直接跟背景那個沒有工具的助理聊（只給擁有者）。
 - **工具**：你裝的每個工具一個分頁、照群組分；每個指令一張卡，照宣告產生參數表單、先顯示「會送出：…」再執行；工具自己可以帶小面板（例如記帳的「這個月花多少、預算剩多少」）。
+- **工具的完整畫面**（工具服務）：工具可以附自己的網頁畫面（例如記帳本）。擁有者按「開啟」才開、不用就關，只有這台電腦打得開；多久沒用就關由你一個工具一個工具選（[docs/tool-apps.md](docs/tool-apps.md)）。
+- **📱 手機入口**（ADR 0026）：在手機上用某個工具的畫面。Telegram 私訊 `/app_remote money` → 打一組手機驗證器的數字 → 收到一個只能用一次的連結，手機打開再打一組數字就進得去；30 分鐘、10 分鐘沒用、`/app_close` 都會關。要先設定手機驗證器、在設定 → 🔐 安全 打開總開關並核准你自己裝的 `cloudflared`。危險的動作與匯出在手機上不能做（[docs/security.md](docs/security.md)「手機入口」）。
+- **🔐 安全**：手機驗證器（兩步驗證）。設定好之後，危險的動作要先打手機上的 6 位數解鎖（[docs/security.md](docs/security.md)「手機驗證器」）。
 - **主控**（擁有者）：常駐助理的狀態、heartbeat 開關與間隔（預設 45 分鐘）、排定任務與日誌、你的偏好 soul.md、助理記下來的事（每一條的來歷、等你確認的、收起、忘掉、匯出）、清空記憶。
 - **設定**（擁有者）：換 AI 來源（存起來立刻生效）、聊天通道（Telegram／Discord 的 token、配對你的帳號）、裝／移除功能（`.synoxpack`）、
   AI 用量與花費、下載加密備份；伺服器版還有帳號表（改角色、看用量）。
@@ -78,6 +88,10 @@ synox tips      隨機一則使用小提示
 網頁只聽這台電腦（127.0.0.1:8830，`config.json` 的 `web.port` 可以改）。不想要：`/web_off`（到重開前關掉），或 `"web": {"enabled": false}`。
 
 ## 每天怎麼用
+
+第一次用？打 `/tutorial`（或「開始教學」），SYNOX 會一步一步帶你認識每個地方，最後你可以自己挑想要的工具。
+
+🎨 換外觀：到「SYNOX 衣櫃」挑一套 `.synoxpack` 裝起來，整個網頁跟著換色、換吉祥物；不喜歡隨時換回原本的 SYNOX。自己會畫 SVG 的話也可以直接貼上去。
 
 | 在 Telegram 打 | 做什麼 |
 |---|---|
@@ -91,6 +105,10 @@ synox tips      隨機一則使用小提示
 | `/web` | 拿網頁介面的登入連結 |
 
 個人版：只有你（安裝時配對的那個 Telegram 帳號）用得到這些指令；別人傳訊息給你的 bot，看不到也用不了。
+
+**工程師**：要自己從原始碼裝、用 Docker、放伺服器或當背景服務跑，看 [docs/advanced-install.md](docs/advanced-install.md)。
+
+**更新**：看 `synox about` 的版本，跟 [GitHub 發佈頁](https://github.com/ChouYangEn0401/SYNOX/releases) 標 Latest 的那一版比；怎麼更新（ZIP、git、工具、SDK）見 [docs/versioning.md](docs/versioning.md)。
 
 ## 個人版和伺服器版
 
@@ -146,7 +164,7 @@ synox tips      隨機一則使用小提示
 
 - **跑 SYNOX**：`docker compose build` → `docker compose run --rm synox init` → `docker compose up -d`。資料在具名 volume，
   網頁只發佈到這台電腦的 `127.0.0.1:8830`，Telegram／Discord 只需要往外連。
-- **開發**：VS Code 的 Dev Containers 打開這個資料夾（`.devcontainer/`，Python 3.11，`python -m pytest -q`）。
+- **開發**：VS Code 的 Dev Containers 打開 git clone 的資料夾（`.devcontainer/`，Python 3.11，`python -m pytest -q`）。
 - 怎麼做、限制（容器裡的工具只能用 host 模式、AI 來源、Windows／macOS 的注意事項）與驗證清單：[docs/docker.md](docs/docker.md)。
   ⚠️ 映像檔還**沒有在任何一台機器上實際建置、跑過**。
 
@@ -222,11 +240,14 @@ pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的
 
 ## 給開發的人
 
+用 `git clone`：發佈 ZIP、安裝程式、GitHub 的 Download ZIP 都不帶 `tests/`、`evals/`、`docs/lab/` 這類開發用的檔案
+（清單在 `scripts/make_zip.py` 的 `INTERNAL`）。
+
 ```
 .venv\Scripts\python.exe -m pytest -q          測試（不連網、不開埠、不連 Telegram）
 .venv\Scripts\python.exe -m synox console      終端機模式（沒有 config.json 時用示範設定＋假 AI）
 .venv\Scripts\python.exe -m synox doctor --offline
-.venv\Scripts\python.exe scripts\make_zip.py   打包給人的 zip（不含 .venv、data、config.json；--tools <工具庫 dist> 附 tools\）
+.venv\Scripts\python.exe scripts\make_zip.py   打包給人的 zip（不含 .venv、data、config.json、開發用的檔案；--tools <工具庫 dist> 附 tools\）
 .venv\Scripts\python.exe scripts\clean_room_check.py   在暫存資料夾、清掉這台的環境變數與路徑後跑一遍（--tools／--libs 連工具一起）
 .venv\Scripts\python.exe scripts\vendor_sdk.py 重新複製 ISDTeleKitSDK 到 vendor/（--sdk 或 ISDTELEKIT_SDK）
 ```
@@ -244,4 +265,4 @@ pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的
 
 - **核心**：AGPL-3.0-or-later（[LICENSE](LICENSE)）。自己用、公司內部用、商用都可以；改了核心再架成網路服務給別人用，就要提供修改後的原始碼。
 - **工具 SDK 與範例**：Apache-2.0（[LICENSE-APACHE](LICENSE-APACHE)）。你用 SDK 寫的工具，授權由你決定，閉源、商用都可以。
-- 範圍、商業授權、貢獻者同意書與商標政策：[LICENSING.md](LICENSING.md)、[CONTRIBUTING.md](CONTRIBUTING.md)、[TRADEMARK.md](TRADEMARK.md)。
+- 範圍、商業授權、貢獻者同意書與商標政策：[LICENSING.md](LICENSING.md)、[CONTRIBUTING.md](CONTRIBUTING.md)、[.github/TRADEMARK.md](.github/TRADEMARK.md)。

@@ -7,3 +7,20 @@
 vendor/** -text
 *.iss text eol=crlf
 *.ico binary
+*.isl text eol=crlf
+# Only for people working on SYNOX: GitHub's "Download ZIP" (git archive) leaves these out, like the release ZIP and
+# the installer do (scripts/make_zip.py INTERNAL; tests/test_release_layout.py keeps the lists equal). git clone has all.
+/tests export-ignore
+/evals export-ignore
+/docs/lab export-ignore
+/docs/artifacts export-ignore
+/docs/artifacts.json export-ignore
+/docs/QuestionToUser.md export-ignore
+/docs/ui export-ignore
+/docs/installer export-ignore
+/docs/community export-ignore
+/.github/workflows export-ignore
+/.github/ISSUE_TEMPLATE export-ignore
+/.github/DISCUSSION_TEMPLATE export-ignore
+/.github/pull_request_template.md export-ignore
+/.devcontainer export-ignore

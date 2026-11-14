@@ -67,7 +67,7 @@
   .sx-eye.l { left: 30px; } .sx-eye.r { right: 30px; }
   @keyframes sx-blink { 0%, 35%, 65%, 100% { transform: scaleY(1); } 50% { transform: scaleY(.12); } }
   .sx-blush { position: absolute; top: 56px; width: 17px; height: 9px; border-radius: 50%; opacity: 0;
-              background: color-mix(in srgb, var(--bad) 55%, transparent); animation: sx-fade .3s ease .3s forwards; }
+              background: var(--mb); animation: sx-fade .3s ease .3s forwards; }
   .sx-blush.l { left: 17px; } .sx-blush.r { right: 17px; }
   .sx-smile { position: absolute; left: 50%; top: 56px; width: 22px; height: 11px; margin-left: -11px;
               border: 3px solid var(--accent-ink); border-top: 0; border-radius: 0 0 14px 14px; }
@@ -103,7 +103,18 @@
     82%  { transform: none; opacity: 1; }
     100% { transform: translateY(-6px) scale(.9); opacity: 0; } }
 
-  .sx-word { display: flex; gap: .16em; font: 800 26px/1 var(--font); color: var(--text); }
+  .sx-word { display: flex; gap: .16em; font: 800 26px/1 var(--font-brand); color: var(--text); }
+  /* 外觀換掉的開場（slot opening）與字標（slot wordmark）：大小 SYNOX 定，裡面怎麼動是外觀的 CSS（@keyframes th-…） */
+  .sx-open { width: 220px; height: 220px; animation: sx-drop .6s var(--ease) both; }
+  .sx-open > .slot { width: 100%; height: 100%; }
+  /* 不是正方形的開場（例如 480×250 的橫幅；splash.js 看 viewBox 決定）：照比例放大，寬最多 min(560px, 92vw)、高最多 60vh */
+  .sx-open.sx-open-fit { width: min(560px, 92vw); height: auto; }
+  .sx-open.sx-open-fit > .slot { height: auto; }
+  .sx-open.sx-open-fit > .slot > svg { width: 100%; height: auto; max-height: 60vh; }
+  .sx-stage-fit .sx-halo { top: calc(50% - 15px); }   /* 光暈對準開場的中間（下面三個點＋間距 30px） */
+  .sx-word-slot { height: 34px; animation: sx-letter .5s var(--sx-pop) .62s both; }
+  .sx-word-slot > .slot { height: 100%; }
+  .sx-word-slot > .slot > svg { height: 100%; width: auto; }
   .sx-word span { display: inline-block; animation: sx-letter .5s var(--sx-pop) both; }
   .sx-word span:nth-child(1) { animation-delay: .62s; }
   .sx-word span:nth-child(2) { animation-delay: .67s; }

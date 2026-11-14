@@ -4,7 +4,7 @@ SYNOX 用**兩種授權**，目的是讓「接工具」很容易，同時讓「�
 
 | 範圍 | 授權 | 全文 |
 |---|---|---|
-| SYNOX 核心：`src/synox/`（SDK 目錄除外）、`docs/`、`tests/`、`packs/`、`connectors/`、安裝器與腳本 | **AGPL-3.0-or-later** | [LICENSE](LICENSE) |
+| SYNOX 核心：`src/synox/`（SDK 目錄除外）、`docs/`、`tests/`、`packs/`、安裝器與腳本 | **AGPL-3.0-or-later** | [LICENSE](LICENSE) |
 | 工具 SDK：`src/synox/sdk/`、`sdk/`（`synox_sdk.py`、`pyproject.toml`、`README.md`）、`scripts/build_synox_sdk.py`、`examples/` | **Apache-2.0** | [LICENSE-APACHE](LICENSE-APACHE) |
 | `vendor/isdtelekit/`（Telegram 通道函式庫的複本，來自上游） | **跟隨上游 isdtelekit 的授權** | 以上游 repo 為準（目前待維護者確認，見下方） |
 
@@ -22,10 +22,10 @@ Apache-2.0 的檔案開頭都有 `SPDX-License-Identifier: Apache-2.0`。沒有�
 
 ## 著作權、署名與商標
 
-- 著作權署名：**ChouYangEn and the SYNOX Team**。創始者的地位與署名保留方式見 [GOVERNANCE.md](GOVERNANCE.md)、[NOTICE](NOTICE)。
+- 著作權署名：**ChouYangEn and the SYNOX Team**。創始者的地位與署名保留方式見 [.github/GOVERNANCE.md](.github/GOVERNANCE.md)、[NOTICE](NOTICE)。
 
 - 著作權屬於各貢獻者；專案維護者依 [CONTRIBUTING.md](CONTRIBUTING.md) 的貢獻者同意書取得再授權的權利，才能同時提供開源授權與商業授權。
-- 「SYNOX」這個名稱與標誌不在授權範圍內，使用規則見 [TRADEMARK.md](TRADEMARK.md)。
+- 「SYNOX」這個名稱與標誌不在授權範圍內，使用規則見 [.github/TRADEMARK.md](.github/TRADEMARK.md)。
 
 ## 還沒決定、需要維護者補上的事
 

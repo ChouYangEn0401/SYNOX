@@ -10,7 +10,7 @@ STRINGS = {
     "mode_title": "من سيستخدم SYNOX على هذا الكمبيوتر؟",
     "mode.personal.title": "أنا فقط (شخصي)",
     "mode.personal.one": "أنت فقط: تعمل الأوامر لحساب Telegram الذي تربطه فقط.",
-    "mode.personal.two": "يبقى كل شيء على هذا الكمبيوتر؛ وتُحفظ الملاحظات والمصروفات مشفّرة.",
+    "mode.personal.two": "تُحفظ الإعدادات والمفاتيح والملاحظات والمصروفات على هذا الكمبيوتر؛ وتُشفَّر الملاحظات والمصروفات.",
     "mode.server.title": "مجموعة (خادم)",
     "mode.server.one": ("العائلة أو الزملاء أو نادٍ: من يراسله من الغرباء يصبح ضيفًا، وأنت "
                         "(أو المشرفون الذين تختارهم) تقرّر من يستطيع استخدام ماذا."),
@@ -111,7 +111,7 @@ STRINGS = {
     "status_add_channel_later": "انقر نقرًا مزدوجًا على Setup.bat لاحقًا لتشغيل المعالج مجددًا وربط Telegram/Discord.",
     "status_bot_head": "✅ اكتمل كل شيء، والبوت يعمل.",
     "status_web_head": "✅ اكتمل كل شيء، وSYNOX يعمل (بدون Telegram/Discord بعد).",
-    "status_no_tools": "🧰 يأتي SYNOX بلا أدوات (المصاريف والملاحظات والتذكيرات… تُثبَّت على حدة): احصل على ملفات \u200e.synoxpack\u200e من مكتبة الأدوات (SYNOX_Libs) ثم انقر نقرًا مزدوجًا على الملف أو ارفعه من واجهة الويب: الإعدادات ← تثبيت. اسأل من أعطاك SYNOX عن مكان المكتبة.",
+    "status_no_tools": "🧰 الخطوة التالية: قم بالدرس مرة واحدة لتتعلم كيف تتحدث إلى SYNOX، ثم اختر الأدوات التي تحتاجها (المصروفات، الملاحظات…): المكتبة الرسمية (SYNOX_Libs) في الإعدادات بواجهة الويب، أو انقر نقرًا مزدوجًا على ملف .synoxpack.",
     "status_can_close": "يمكنك إغلاق هذه النافذة.",
     "no_window": "❌ تعذّر فتح نافذة ({e}). انسخ config.example.json إلى config.json واملأه يدويًا.",
     "llm_local": "Local model (this computer or one on your home network)",
@@ -124,4 +124,9 @@ STRINGS = {
     "llm_local_advice_done": "Options: {options}. Below {least} SYNOX's prompt gets cut off.",
     "llm_local_ok": "✅ Model found and the settings look sane (only model info was read; the model was not loaded).",
     "err_local_model": "Enter a model name (for Ollama, a name shown by `ollama list`, e.g. qwen3.5:9b).",
+    "finish_tutorial": "📘 أول مرة؟ قم أولًا بالدرس القصير (بضع دقائق)، ثم اختر الأدوات التي تحتاجها.",
+    "finish_tutorial_how": "في SYNOX اكتب {cmd} (أو «start tutorial» في الدردشة).",
+    "all_tools_running": "⏳ جارٍ تثبيت كل الأدوات الرسمية (اخترت ذلك في برنامج التثبيت). قد يستغرق بضع دقائق؛ أبقِ هذه النافذة مفتوحة…",
+    "note_all_tools": "كل الأدوات الرسمية",
+    "all_tools_failed": "لم يُثبَّت بعضها؛ أضفها لاحقًا من مكتبة الأدوات في الإعدادات (السجل: data/logs/all-tools.log)",
 }

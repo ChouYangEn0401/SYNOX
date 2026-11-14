@@ -167,7 +167,36 @@ def summary_of(m: Manifest, report: ScanReport, hashes: Dict[str, str], problems
             "capabilities": list(m.capabilities), "integrity": bool(m.integrity),
             "scan": {**report.to_dict(m), "problems": problems, "ok": not problems},
             "warnings": warnings_for(m, report), "env": env_plan(m).to_dict(), "mcp": mcp_report(m), **scope_of(m),
-            "tier": tier_of(m, report), "runtime": runtime_report(m)}
+            "tier": tier_of(m, report), "runtime": runtime_report(m), "app": app_of(m),
+            **theme_report(m, problems)}
+
+
+def app_of(m: Manifest):
+    """安裝報告的「完整網頁畫面」那一段（工具服務，ADR 0024 §5）：沒有宣告＝None。"""
+    app = (m.web or {}).get("app")
+    if not app:
+        return None
+    return {"title": app.get("title") or "", "kit": app.get("kit"), "files": len(app.get("files") or []),
+            "reads": list(app.get("reads") or []), "actions": dict(app.get("actions") or {}),
+            "exports": list(app.get("exports") or []), "remote": bool(app.get("remote"))}
+
+
+APP_WARNING = ("這個工具附了完整的網頁畫面（{n} 個檔）。它在你的瀏覽器裡跑，可以不經你同意讀、改、匯出這個工具裡的所有資料"
+               "（僅限下面列的動作）。SYNOX 檢查了格式、不讓它連到外面的網址，但看不懂畫面程式在做什麼——跟 pack.py 一樣，"
+               "是你決定要不要信任的程式。要看服務開著沒、要關掉，以 SYNOX 自己的畫面為準。")
+APP_EXPORT_WARNING = "它的畫面可以把資料匯出成檔案：{names}。"
+APP_REMOTE_WARNING = "這個工具的畫面可以從手機用（要你另外打開手機入口，ADR 0026）。"
+
+
+def theme_report(m: Manifest, problems: List[str]) -> dict:
+    """kind=theme：報告多一段 theme（顏色給畫面畫色票、換了哪些位置；第 1、2 關沒過就不給 markup）。"""
+    if m.kind != "theme":
+        return {}
+    from synox.theme import pack as theme_pack
+    if problems:
+        return {"theme": {"tokens": m.theme.get("tokens") or {}, "slots": sorted(m.theme.get("slots") or {}),
+                          "markup": {}, "fonts": [], "css": bool(m.theme.get("css"))}}
+    return {"theme": theme_pack.report(m, m.theme)}
 
 
 # ── 執行環境：用容器／不用（S2） ─────────────────────────────────────────
@@ -273,11 +302,30 @@ TRUST_TEXT = {pack_lock.CORE: "核心（core）：信得過，跟出廠的一樣
 
 def scope_of(m: Manifest) -> dict:
     """安裝報告的「在哪裡用、資料屬於誰、信任」那一段（trust 由擁有者在報告上選，預設 third-party）。"""
+    if m.kind == "theme":                      # 外觀包：不在聊天裡用、沒有資料、沒有程式可信任（報告不給選）
+        return {}
     surfaces = list(m.surfaces)
-    return {"surfaces": surfaces, "surfaces_text": SURFACE_TEXT["channel" if "channel" in surfaces else "dm"],
+    extra = {}
+    if m.callers or m.stepup:                      # 範圍（ADR 0025 §3）：有寫才多這幾欄（沒寫的工具報告跟以前一樣）
+        extra = {"callers": {k: list(v) for k, v in m.callers.items()}, "stepup": list(m.stepup),
+                 "callers_text": callers_text(m)}
+    return {**extra, "surfaces": surfaces, "surfaces_text": SURFACE_TEXT["channel" if "channel" in surfaces else "dm"],
             "data": m.data, "data_text": DATA_TEXT.get(m.data, m.data), "data_declared": m.data_declared,
             "trust_choices": [{"value": t, "text": TRUST_TEXT[t]} for t in pack_lock.TRUSTS],
             "trust_default": pack_lock.DEFAULT_TRUST}
+
+
+CALLER_WORDS = {"human": "你本人", "remote": "手機入口", "ai": "AI", "schedule": "排程", "system": "SYNOX 的背景工作"}
+
+
+def callers_text(m: Manifest) -> str:
+    """範圍的白話：「/money_export 只收你本人；/money_rmall 一定要先解鎖」。沒寫回 ""。"""
+    parts = []
+    for name, callers in sorted(m.callers.items()):
+        parts.append(f"/{m.group}_{name} 只收{'、'.join(CALLER_WORDS.get(c, c) for c in callers)}")
+    for name in m.stepup:
+        parts.append(f"/{m.group}_{name} 一定要先用手機驗證器解鎖")
+    return "；".join(parts)
 
 
 def _trust(trust) -> str:
@@ -500,6 +548,7 @@ def format_summary(summary: dict) -> str:
     else:
         lines.append("✅ 宣告檢查、靜態掃描都過了")
     lines += format_mcp(summary)
+    lines += format_theme(summary)
     lines += format_scope(summary)
     lines += format_tier(summary.get("tier") or {})
     lines += format_runtime(summary)
@@ -512,6 +561,20 @@ def format_summary(summary: dict) -> str:
         lines += [f"  ⚠️ {p}" for p in env.get("problems") or []]
     lines += [f"⚠️ {w}" for w in summary.get("warnings") or []]
     return "\n".join(lines)
+
+
+def format_theme(summary: dict) -> List[str]:
+    """終端機的「🎨 外觀」那一段（kind=theme）。"""
+    th = summary.get("theme") or {}
+    if not th:
+        return []
+    light = th.get("tokens", {}).get("light") or {}
+    lines = [f"🎨 外觀包：淺色主色 {light.get('accent', '?')}、底色 {light.get('bg', '?')}；"
+             f"換掉的位置：{'、'.join(th.get('slots') or []) or '（沒有，只換顏色）'}"]
+    if th.get("fonts"):
+        lines.append(f"  附的字型：{'、'.join(th['fonts'])}（不會連到外面抓字型）")
+    lines.append("  裝好後到網頁「設定 → 外觀」挑它按「套用」（看得到預覽）")
+    return lines
 
 
 def red(text: str) -> str:
@@ -548,6 +611,13 @@ def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
     if m.stage != "stable":                   # 穩定度（作者自己標的；沒寫＝alpha）：網頁報告的提醒清單也看得到
         out.append(f"穩定度 {stage_label(m.stage, long=True)}：{stage_text(m.stage)}"
                    + ("" if m.stage_declared else "（pack.json 沒寫 stage，當作 alpha）") + "。")
+    if m.kind == "theme":
+        out.append("這是外觀包：只換網頁的顏色、字型和吉祥物圖案，沒有程式。裡面的 SVG／CSS 都重新消毒過"
+                   "（不收程式、事件屬性、外部網址）；字型只能跟著包一起來，網頁不會連到外面抓字型。")
+        out.append("裝好之後不會自己套用：到「設定 → 外觀」挑它、按「套用」；隨時可以按「換回原本的 SYNOX」。")
+        if not m.publisher:
+            out.append("沒有寫發行者（publisher）。")
+        return out
     if m.kind == "python":
         out.append("這是 python pack：它的程式會在 SYNOX 裡面、用你的 Windows 帳號權限執行。只裝你信得過的人給的。")
         out.append(PYTHON_SCAN_NOTE)
@@ -559,6 +629,15 @@ def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
                    "那台伺服器做什麼掃描看不到。只會用上面列的工具，effect 照這份宣告（不照伺服器自己說的）。")
     elif m.mcp_stdio:
         out.append("這是 MCP（stdio）pack：會在這台電腦上開一個長駐的子程序跑它的 MCP 伺服器。")
+    app = (m.web or {}).get("app")
+    if app:
+        out.append(APP_WARNING.format(n=len(app.get("files") or [])))
+        if app.get("exports"):
+            out.append(APP_EXPORT_WARNING.format(names="、".join(app["exports"])))
+        if app.get("remote"):
+            out.append(APP_REMOTE_WARNING)
+    if m.callers or m.stepup:
+        out.append("它自己收緊了範圍（SYNOX 執行時檢查）：" + callers_text(m) + "。")
     if m.access == "everyone":
         out.append("access 是 everyone：伺服器版裡任何傳訊息給 bot 的人都用得到。")
     if "channel" in m.surfaces:

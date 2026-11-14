@@ -3,8 +3,8 @@
     <python> scripts\\clean_room_check.py [--tools <SYNOX_Libs>\\dist | --libs <SYNOX_Libs>] [--keep] [--no-tests]
 
 Steps (docs/adr/0003; the owner's real test on a blank machine is docs/handoff/clean-machine-test.md):
-1. copy what ships (git-tracked files, same list as make_zip.py: no .git, .venv, data, config.json) into a new
-   temp folder; optionally add tools/ (a built library, or build one from a SYNOX_Libs checkout into the copy);
+1. copy what ships (git-tracked files, same list as make_zip.py: no .git, .venv, data, config.json) plus tests/
+   (the pytest subset of step 3; the zip itself has no tests/) into a new temp folder; optionally add tools/ (a built library, or build one from a SYNOX_Libs checkout into the copy);
 2. scan the copy's text files for local paths (C:\\Users\\<name>, /home/<name>) and sibling-folder guesses
    (dirname(ROOT) + another project); a documented fallback carries "clean-room: sibling-fallback" on its line;
 3. run the copy with a scrubbed environment: every SYNOX_* variable removed, PYTHONPATH = the copy only,
@@ -59,7 +59,7 @@ class Report:
 
 
 def copy_release(dest: str, tools: str = "") -> int:
-    files = make_zip.release_files(tools)
+    files = make_zip.release_files(tools, also=("tests/",))
     for src, rel in files:
         target = os.path.join(dest, *rel.split("/"))
         os.makedirs(os.path.dirname(target), exist_ok=True)

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """S0：pack.json 的 runtime.container（第 1 關）與 Dockerfile（第 2 關）。只讀字串與檔案，
-不叫 podman／docker、不拉映像、不 build（docs/discussions/2026-11-10-isolation-howto.md）。"""
+不叫 podman／docker、不拉映像、不 build（docs/lab/discussions/2026-11-10-isolation-howto.md）。"""
 import json
 import os
 

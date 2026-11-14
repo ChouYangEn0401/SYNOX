@@ -3,7 +3,8 @@
 # back to en, then zh-TW, for a missing key). The choice is saved in <SYNOX>\lang.txt, the same file the wizard uses
 # (src/synox/wizard/i18n.py; keep the code list and order in sync with i18n.LANGS).
 # The language prompt shows the latin name of each language next to its own name, so it stays readable in a legacy
-# console whose font has no CJK / Arabic / Devanagari glyphs.
+# console whose font has no CJK / Arabic / Devanagari glyphs. Pressing Enter picks the Windows display language
+# (Get-UICulture; English when it is none of the 12).
 
 $SynoxLangs = @('zh-TW', 'zh-CN', 'en', 'es', 'fr', 'de', 'pt-BR', 'ru', 'ar', 'hi', 'ja', 'ko')
 $SynoxLangLabels = @{
@@ -46,7 +47,27 @@ function Save-SynoxLang([string]$Root, [string]$Code) {
     try { [IO.File]::WriteAllText((Join-Path $Root 'lang.txt'), "$Code`n", [Text.Encoding]::ASCII) } catch { }
 }
 
+# Windows display language -> one of the 12 codes (zh-HK / zh-MO / zh-Hant -> zh-TW, other zh -> zh-CN, pt-* -> pt-BR,
+# en-US -> en ...); English when Windows uses a language SYNOX does not have.
+function ConvertTo-SynoxUiLang([string]$Name) {
+    $s = "$Name".Trim().ToLower().Replace('_', '-')
+    if ($s -match '^zh-(tw|hk|mo|hant)') { return 'zh-TW' }
+    if ($s -match '^zh') { return 'zh-CN' }
+    if ($s -match '^pt') { return 'pt-BR' }
+    $c = ConvertTo-SynoxLang $s
+    if ($c) { return $c }
+    return 'en'
+}
+
+function Get-SynoxDisplayLang {
+    $name = ''
+    try { $name = (Get-UICulture).Name } catch { }
+    return (ConvertTo-SynoxUiLang $name)
+}
+
 function Ask-SynoxLang {
+    $default = Get-SynoxDisplayLang
+    $defaultNo = [Array]::IndexOf($SynoxLangs, $default) + 1
     Write-Host ''
     Write-Host 'Language / 語言 / 语言 / Idioma / Langue / Sprache / Язык / اللغة / भाषा / 言語 / 언어'
     $half = [Math]::Ceiling($SynoxLangs.Count / 2)
@@ -57,8 +78,8 @@ function Ask-SynoxLang {
         Write-Host ('  {0,-44} {1}' -f $left, $right)
     }
     while ($true) {
-        $a = "$(Read-Host 'Number or code, Enter = 1')".Trim()
-        if (-not $a) { return 'zh-TW' }
+        $a = "$(Read-Host "Number or code, Enter = $defaultNo ($($SynoxLangLabels[$default]))")".Trim()
+        if (-not $a) { return $default }
         $n = 0
         if ([int]::TryParse($a, [ref]$n) -and $n -ge 1 -and $n -le $SynoxLangs.Count) { return $SynoxLangs[$n - 1] }
         $c = ConvertTo-SynoxLang $a

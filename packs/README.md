@@ -1,7 +1,7 @@
 # packs/：你裝的工具放這裡
 
 SYNOX 出廠**不帶任何工具**（2026-11-12 起，連接 Notion／Todoist／Google 日曆／Apple 的也在工具庫；為什麼見
-[../legacy/builtin-packs.md](../legacy/builtin-packs.md)、[../legacy/connectors.md](../legacy/connectors.md)）。
+[../docs/legacy/builtin-packs.md](../docs/legacy/builtin-packs.md)、[../docs/legacy/connectors.md](../docs/legacy/connectors.md)）。
 這個資料夾是安裝的落點：你裝的每個工具會變成這裡的一個子資料夾（`packs/<名字>/`），移除或升級時舊的搬到 `packs/_removed/`。
 裡面的東西不進 git（`.gitignore`），只有這份說明。
 

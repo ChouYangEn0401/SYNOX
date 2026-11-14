@@ -1,5 +1,5 @@
 """
-容器（S0，docs/discussions/2026-11-10-sandbox-and-skill-containers.md §D2、2026-11-10-isolation-howto.md）：
+容器（S0，docs/lab/discussions/2026-11-10-sandbox-and-skill-containers.md §D2、2026-11-10-isolation-howto.md）：
 pack.json 的 `runtime.container` 第 1 關檢查、Dockerfile 的第 2 關掃描。**只讀字串與 pack 裡的檔，不執行任何東西**
 （不叫 podman／docker、不拉映像、不 build）。執行期組 argv 的是 synox/sandbox.py 的 ContainerSandbox（S1）。
 

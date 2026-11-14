@@ -138,6 +138,14 @@ class Sessions:
                 return None
             return session
 
+    def has(self, key_digest: str) -> bool:
+        """這個雜湊（digest(sid)）的登入還在而且沒過期（工具服務的 app 登入綁在主機台的登入上）。"""
+        if not isinstance(key_digest, str) or not key_digest:
+            return False
+        with self._lock:
+            session = self._items.get(key_digest)
+            return session is not None and session.expires > self._clock()
+
     def drop(self, sid: Optional[str]) -> None:
         if not sid:
             return

@@ -1,10 +1,11 @@
 """
 掃 packs/*/pack.json（＋config.json 的 packs.dirs），一個資料夾一個 pack，裝進 app。
-SYNOX 出廠不帶任何工具（packs/ 只有說明；工具在 SYNOX_Libs）：以前的 connectors/ 2026-11-12 也搬走了（legacy/connectors.md）。
+SYNOX 出廠不帶任何工具（packs/ 只有說明；工具在 SYNOX_Libs）：以前的 connectors/ 2026-11-12 也搬走了（docs/legacy/connectors.md）。
 
   kind=python     import 資料夾裡的 pack.py，呼叫 install(app, pack)
   kind=cli        pack.json 的 cli.argv＋cli.commands → isdtelekit.packs.service.install（會印 JSON 的命令列程式）
   kind=connector  只登記：一個群組、一個葉節點，說「還沒接上」（v0 不連外）
+  kind=theme      外觀包（synox/theme）：不載入任何東西、不進指令表；過了第 3 關（鎖）＝網頁「設定 → 外觀」挑得到
   kind=mcp        mcp.transport=stdio：packs/mcp.py（每個 (pack, 使用者) 一個長駐 MCP 子程序，tools_allow 的工具＝葉節點，
                   effect 只看 pack.json）；mcp.transport=http：遠端 MCP（packs/mcp_http.py，同一套工具→葉節點）；
                   沒寫 transport（只有 url）＝同 connector，只登記
@@ -63,7 +64,7 @@ from synox.packs.manifest import (Manifest, ManifestError, default_text, missing
 from synox.vault.vault import USERS_DIR
 
 # SYNOX 自己的 pack 資料夾＝使用者裝的工具的落點（PACK_DIRS[0]）。2026-11-12 以前還有 connectors/（出廠的 4 個 connector），
-# 搬到 SYNOX_Libs 之後不掃了：從舊版解壓縮蓋過去、留在磁碟上的舊 connectors/ 也不會被載入（legacy/connectors.md）。
+# 搬到 SYNOX_Libs 之後不掃了：從舊版解壓縮蓋過去、留在磁碟上的舊 connectors/ 也不會被載入（docs/legacy/connectors.md）。
 PACK_DIRS = (os.path.join(ROOT, "packs"),)
 EFFECTS = {"read": READ, "write": WRITE, "danger": DANGER}
 
@@ -146,6 +147,11 @@ class Pack:
     secret_fields: List[dict] = field(default_factory=list, repr=False)     # auth.fields（SYNOX 收的那些；見 packs/secrets.py）
     secrets: Any = field(repr=False, default=None)                          # PackSecrets（保管箱的 pack_secrets）
     live: Any = field(repr=False, default=None)                             # lock.LiveCheck（有鎖時；每次叫 cli 前再對一次）
+    # 工具服務（ADR 0024；SDK 0.2.3）：pack.json web.app 宣告的讀、動作、匯出各掛哪個函式（重新載入時是新的 Pack，自然清空）
+    app_reads: Dict[str, Callable] = field(default_factory=dict, repr=False)
+    app_actions: Dict[str, Callable] = field(default_factory=dict, repr=False)
+    app_describe: Dict[str, Callable] = field(default_factory=dict, repr=False)
+    app_exports: Dict[str, Callable] = field(default_factory=dict, repr=False)
 
     def tampered_since_load(self) -> List[str]:
         """載入之後檔案被改過嗎（審查 B #D）：有鎖的 pack 每次叫 cli／開 mcp stdio 子程序之前問；[]＝對得上（或沒鎖）。"""
@@ -199,6 +205,32 @@ class Pack:
         if route not in self.manifest.web.get("api", []):
             raise ValueError(f"{self.name}: web route {route!r} is not declared in pack.json web.api")
         self.web_routes[route] = fn
+
+    def _app_decl(self, kind: str) -> list:
+        app = (self.manifest.web or {}).get("app") or {}
+        return list(app.get(kind) or [])
+
+    def app_read(self, name: str, fn: Callable) -> None:
+        """工具畫面的讀：GET /api/read/<name> → fn(user, params) 回可以轉 JSON 的東西。name 要寫在 web.app.reads。"""
+        if name not in self._app_decl("reads"):
+            raise ValueError(f"{self.name}: app read {name!r} is not declared in pack.json web.app.reads")
+        self.app_reads[name] = fn
+
+    def app_action(self, name: str, fn: Callable, *, describe: Optional[Callable] = None) -> None:
+        """工具畫面的動作：POST /api/do/<name> → fn(user, values) 回 dict。name 要寫在 web.app.actions，
+        而且要有同名的指令（群組.名字），危險程度一樣——一個動作＝一個指令（ADR 0024 §2）。
+        describe(user, values) -> str：危險動作確認框的那一句（選填）。"""
+        if name not in self._app_decl("actions"):
+            raise ValueError(f"{self.name}: app action {name!r} is not declared in pack.json web.app.actions")
+        self.app_actions[name] = fn
+        if describe is not None:
+            self.app_describe[name] = describe
+
+    def app_export(self, name: str, fn: Callable) -> None:
+        """工具畫面的匯出：POST /api/export/<name> → fn(user, params) 回 kit.Download。name 要寫在 web.app.exports。"""
+        if name not in self._app_decl("exports"):
+            raise ValueError(f"{self.name}: app export {name!r} is not declared in pack.json web.app.exports")
+        self.app_exports[name] = fn
 
     @property
     def name(self) -> str:
@@ -336,8 +368,8 @@ def shared_write_admin(app, m: Manifest, server: bool) -> int:
 # ── 伺服器版 python pack 的信任（PERM-8） ─────────────────────────────────
 
 # 出廠的 pack（在 PACK_DIRS 裡、名字在這張表上）＝core，不看 packs.lock。
-# 2026-11-12 起 SYNOX 出廠不帶任何工具：money、notes、remind（legacy/builtin-packs.md）與 4 個 connector
-# （legacy/connectors.md）都搬到 SYNOX_Libs，這張表是空的。**不要再把工具加回出廠**：新工具放 SYNOX_Libs、走安裝流程。
+# 2026-11-12 起 SYNOX 出廠不帶任何工具：money、notes、remind（docs/legacy/builtin-packs.md）與 4 個 connector
+# （docs/legacy/connectors.md）都搬到 SYNOX_Libs，這張表是空的。**不要再把工具加回出廠**：新工具放 SYNOX_Libs、走安裝流程。
 # 機制留著（is_bundled 的位置＋名字判斷、審查 A #5 的「有鎖以鎖為準」），測試用 monkeypatch 填名字來測。
 BUNDLED: tuple = ()
 
@@ -417,6 +449,28 @@ def _order(folder: str) -> tuple:
         return (0 if m.kind not in ("connector", "mcp") else 1, int(m.raw.get("order", 100)), m.name)
     except (ManifestError, ValueError, TypeError):
         return (2, 0, folder)
+
+
+def apply_scope(app, m: Manifest) -> None:
+    """pack.json 的 callers／stepup 掛到門禁核心的對照表（ADR 0025 §3）。先清掉這個群組舊的（重新載入不會殘留）。
+    對不到指令的那一條當作沒寫（記 log）；危險的指令列了 remote：拿掉 remote（只會更緊）。"""
+    from isdtelekit.core.registry import DANGER
+    from synox import guard
+    g = guard.of(app)
+    if g is None or g.scope is None:
+        return
+    g.scope.clear_prefix(m.group)
+    for name in sorted(set(m.callers) | set(m.stepup)):
+        node = app.registry.node(f"{m.group}.{name}")
+        if node is None or node.is_group:
+            logging.warning("[PACKS] %s: callers/stepup names %s, which is not one of its commands; ignored",
+                            m.name, name)
+            continue
+        callers = m.callers.get(name)
+        if callers and node.effect == DANGER and "remote" in callers:
+            callers = [c for c in callers if c != "remote"] or ["human"]
+            logging.warning("[PACKS] %s.%s is dangerous; remote dropped from callers", m.name, name)
+        g.scope.restrict(node.path, callers=callers, stepup=name in m.stepup)
 
 
 def _drop_group(registry, group: str) -> None:
@@ -534,6 +588,11 @@ def cli_env(m: Manifest, values: Dict[str, str]) -> Dict[str, str]:
     return out
 
 
+def _caller_kind() -> str:
+    from synox.guard import origin
+    return origin.current().kind
+
+
 def context_env(m: Manifest, config, values: Dict[str, str], secret_fields=()) -> Dict[str, str]:
     """synox_sdk 的 context()／secret() 讀的環境變數（每次呼叫照下令的人；蓋過 pack 自己寫的同名變數）：
     SYNOX_USER_DATA_DIR、SYNOX_TG_ID、SYNOX_MODE（personal｜server）、SYNOX_PACK_DIR、SYNOX_PACK_NAME，
@@ -541,6 +600,8 @@ def context_env(m: Manifest, config, values: Dict[str, str], secret_fields=()) -
     out = {"SYNOX_USER_DATA_DIR": values.get("user_data_dir", ""), "SYNOX_TG_ID": values.get("tg_id", ""),
            "SYNOX_MODE": str(getattr(config, "mode", "personal") or "personal"),
            "SYNOX_PACK_DIR": values.get("pack_dir") or m.folder, "SYNOX_PACK_NAME": m.name,
+           # 誰叫的（ADR 0025 §2；synox_sdk 的 caller()／require_human() 讀）：只有種類，看得到、改不了
+           "SYNOX_CALLER": _caller_kind(),
            # P7：packs.lock 鎖每一個檔（含 __pycache__）；子程序的 python 不准在 pack 資料夾裡寫 .pyc
            "PYTHONDONTWRITEBYTECODE": "1",
            # 審查 C #C2：子程序的 python 不讀使用者層的 site-packages（%APPDATA%\Python、~/.local 裡的 .pth 會在
@@ -901,7 +962,7 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         if no_env:
             item.status, item.detail = "missing", no_env
             continue
-        if app.registry.node(m.group) is not None:
+        if m.kind != "theme" and app.registry.node(m.group) is not None:
             item.status, item.detail = "error", f"群組 {m.group} 已經被別的 pack 用了"
             continue
         use_vault = m.storage == "vault"
@@ -921,6 +982,9 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
             item.status = "rejected"
             item.detail = "沒有 packs.lock、載入時的第 2 關掃描沒過，沒有載入：" + "；".join(problems[:5])
             logging.error("[PACKS] %s rejected by load-time scan: %s", m.name, problems)
+            continue
+        if m.kind == "theme":                    # 外觀包：沒有程式、不進指令表；網頁「設定 → 外觀」套用（synox/theme）
+            item.detail = "外觀包：到「設定 → 外觀」套用"
             continue
         server = getattr(config, "mode", "personal") == "server"
         store = PackStore(m.name, config.data_dir, vault if use_vault else None, per_user=server)
@@ -947,6 +1011,7 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
             _drop_group(app.registry, m.group)
             item.status, item.detail = "error", f"{type(e).__name__}: {e}"
             continue
+        apply_scope(app, m)
         if m.registered_only:
             item.status = "connector"
         packs.append(pack)

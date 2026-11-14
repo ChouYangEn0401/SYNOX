@@ -11,7 +11,7 @@
 
 ## 工具從哪裡來
 
-SYNOX 出廠**不帶任何工具**（2026-11-12 起；為什麼：[../legacy/builtin-packs.md](../legacy/builtin-packs.md)）。
+SYNOX 出廠**不帶任何工具**（2026-11-12 起；為什麼：[legacy/builtin-packs.md](legacy/builtin-packs.md)）。
 提醒（`/remind_*`）與排程（`/schedule_*`）是 SYNOX 本體的系統指令，不用裝；其他全部是工具。
 
 | 來源 | 是什麼 | 現況 |

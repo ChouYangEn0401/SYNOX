@@ -1,0 +1,69 @@
+/* SYNOX 工具服務的共用樣式（/_synox/kit.css）：顏色 token 抄主機台 app.html 那一組；只用系統字型、不載入任何外部資源。 */
+:root {
+  --bg: #f3f5f8; --surface: #ffffff; --line: #e2e7ee; --text: #131b26; --muted: #6a7687;
+  --accent: #0a7c70; --accent-ink: #ffffff; --ok: #12823b; --warn: #9a6400; --bad: #c62f2f;
+  --ok-soft: #e6f4ea; --warn-soft: #fdf1dc; --bad-soft: #fbe8e8; --accent-soft: #e0f2ef;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0f14; --surface: #121924; --line: #1f2b3b; --text: #dbe4ef; --muted: #7f90a7;
+    --accent: #35e0c4; --accent-ink: #04221d; --ok: #46d17f; --warn: #ffb454; --bad: #ff6b78;
+    --ok-soft: rgba(70, 209, 127, .12); --warn-soft: rgba(255, 180, 84, .12); --bad-soft: rgba(255, 93, 108, .13);
+    --accent-soft: rgba(53, 224, 196, .12);
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--text); }
+body { font-family: system-ui, -apple-system, "Segoe UI", "Microsoft JhengHei", sans-serif; font-size: 15px; line-height: 1.5;
+  overflow-x: hidden; }
+a { color: var(--accent); }
+.muted { color: var(--muted); }
+.bad { color: var(--bad); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+.synox-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 8px 14px; background: var(--surface);
+  border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
+.synox-bar small { flex-basis: 100%; }
+.bar { display: flex; gap: 10px; align-items: center; padding: 8px 0; }
+
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin: 12px; }
+.btn { font: inherit; border: 1px solid var(--line); background: var(--surface); color: var(--text); border-radius: 8px;
+  padding: 6px 12px; cursor: pointer; text-decoration: none; display: inline-block; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.danger { background: var(--bad); color: #fff; border-color: var(--bad); }
+.btn.ghost { background: transparent; }
+.btn:disabled { opacity: .5; cursor: default; }
+
+.field { display: block; margin: 8px 0; }
+.field > span { display: block; font-size: 13px; color: var(--muted); }
+.field input, .field select, .field textarea { font: inherit; width: 100%; max-width: 100%; padding: 6px 8px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); }
+.field small { display: block; min-height: 1em; }
+
+.badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); }
+.badge.read { background: var(--accent-soft); }
+.badge.write { background: var(--warn-soft); color: var(--warn); }
+.badge.danger { background: var(--bad-soft); color: var(--bad); }
+
+.table { width: 100%; border-collapse: collapse; }
+.table th, .table td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--line); }
+.table td.num, .table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.tablewrap { overflow-x: auto; }
+
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 0 12px; }
+.tabs a, .tabs button { padding: 6px 10px; border-radius: 8px; border: 1px solid transparent; background: transparent;
+  color: var(--text); font: inherit; cursor: pointer; text-decoration: none; }
+.tabs .on, .tabs [aria-selected="true"] { border-color: var(--line); background: var(--surface); }
+
+.meter { height: 8px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.meter > span { display: block; height: 100%; background: var(--accent); }
+.meter.over > span { background: var(--bad); }
+
+.toast, .synox-toast { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%); background: var(--text); color: var(--bg);
+  padding: 8px 14px; border-radius: 10px; max-width: calc(100% - 32px); z-index: 30; }
+.synox-toast.bad { background: var(--bad); color: #fff; }
+.synox-modal, .synox-mask, .modal, .mask { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); display: flex;
+  flex-direction: column; align-items: center; justify-content: center; padding: 16px; z-index: 40; }
+.synox-modal .card { max-width: 420px; width: 100%; }
+.synox-mask { background: var(--bg); text-align: center; gap: 12px; z-index: 50; }

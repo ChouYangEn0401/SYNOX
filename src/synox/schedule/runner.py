@@ -95,7 +95,9 @@ class ScheduleRunner:
         logging.info("[SCHEDULE] command %s → %s: %s", item.get("id"), owner, command)
         inbound = Inbound(ROUTINE_CHANNEL, user_id=owner, chat_id=owner, text=command, username="schedule",
                           sent_at=time.time())
-        route = self.app.dispatcher.handle(self.app.home, inbound, via=ROUTINE)
+        from synox.guard.origin import Origin, using
+        with using(Origin("schedule", owner, surface="schedule")):          # 排程到點（ADR 0025 §2）
+            route = self.app.dispatcher.handle(self.app.home, inbound, via=ROUTINE)
         if getattr(route, "kind", "") in ("denied", "unknown_command"):
             self.app.notify(owner, f"⏸ 排程 {item.get('time')} {command} 沒有跑成（{route.reason or route.kind}）。"
                                    "\n/schedule_list 看、/schedule_rm 刪。")
