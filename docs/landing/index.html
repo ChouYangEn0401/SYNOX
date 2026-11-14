@@ -530,6 +530,11 @@ details.road summary { cursor: pointer; font-weight: 500; padding: 12px 0; min-h
   /* 外觀換掉的開場（slot opening）與字標（slot wordmark）：大小 SYNOX 定，裡面怎麼動是外觀的 CSS（@keyframes th-…） */
   .sx-open { width: 220px; height: 220px; animation: sx-drop .6s var(--ease) both; }
   .sx-open > .slot { width: 100%; height: 100%; }
+  /* 不是正方形的開場（例如 480×250 的橫幅；splash.js 看 viewBox 決定）：照比例放大，寬最多 min(560px, 92vw)、高最多 60vh */
+  .sx-open.sx-open-fit { width: min(560px, 92vw); height: auto; }
+  .sx-open.sx-open-fit > .slot { height: auto; }
+  .sx-open.sx-open-fit > .slot > svg { width: 100%; height: auto; max-height: 60vh; }
+  .sx-stage-fit .sx-halo { top: calc(50% - 15px); }   /* 光暈對準開場的中間（下面三個點＋間距 30px） */
   .sx-word-slot { height: 34px; animation: sx-letter .5s var(--sx-pop) .62s both; }
   .sx-word-slot > .slot { height: 100%; }
   .sx-word-slot > .slot > svg { height: 100%; width: auto; }
@@ -1125,7 +1130,7 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
   <span>Telegram、Discord、Claude、OpenAI、Gemini 等名稱與標誌屬於各自的所有者</span>
   <a href="https://github.com/ChouYangEn0401/SYNOX" target="_blank" rel="noopener">github.com/ChouYangEn0401/SYNOX</a>
 </footer>
-<p class="stamp">線上版 <a href="https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox">claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox</a> · 本機版 docs/landing/index.html · 頁面版本 <span data-stamp>90ab2c04fc · 2026-11-14</span></p>
+<p class="stamp">線上版 <a href="https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox">claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox</a> · 本機版 docs/landing/index.html · 頁面版本 <span data-stamp>37860de4af · 2026-11-14</span></p>
 </div>
 
 <script>
