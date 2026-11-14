@@ -771,6 +771,8 @@ def reload(app, config, vault, dirs) -> loader.LoadReport:
     packs = app.extras.setdefault("synox_packs", [])
     for pack in list(packs):
         loader._drop_group(app.registry, pack.manifest.group)
+        if pack.manifest.kind == "python":
+            loader.pkgload.forget(pack.manifest.name)   # sys.modules 裡 synox_pack_<名字> 與子模組全部清掉
     packs.clear()
     report = loader.load_all(app, config, vault, dirs=dirs)
     logging.info("[PACKS] reloaded: %s", ", ".join(f"{i.name}={i.status}" for i in report.items))

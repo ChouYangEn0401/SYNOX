@@ -45,6 +45,7 @@
 | `surfaces` | | 在哪裡能用：`["dm"]`（預設：只能私訊，群組／頻道裡打了 SDK 回「請私訊」）｜`["dm", "channel"]`（也能在頻道用）。一定要有 `dm`。見下面「權限宣告」 |
 | `data` | | 資料屬於誰：`none`｜`user`（每個人自己一份）｜`shared`（大家共用一份）。沒寫照預設推（下面「權限宣告」）；第 2 關照它檢查程式 |
 | `order` | | `/help` 的排序（小的在前，預設 100） |
+| `python.module`、`python.package` | | kind=python：`module` 是資料夾裡的主模組（預設 `pack`，即 `pack.py`）；`package: true`＝多檔工具（子模組用相對 import，見下面「三種 kind → python → 多檔工具」）；沒寫＝單檔 |
 | `skill` | | SKILL.md 的檔名（要存在） |
 | `storage` | | `vault`（`pack.store` 落地是密文 `data/<name>.json.enc`；伺服器版 `pack.store.of(user)` 是 `data/users/<id>/<name>.json.enc`）｜`plain`（`data/<name>.json`，預設） |
 | `requires.config` | | `config.json` 要有的欄位；缺了就不載入（doctor 會說缺什麼） |
@@ -76,7 +77,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 
 - 新增／移除的 command（cli 的 `commands`、mcp 的 `tools_allow`；python pack 的指令寫在程式裡，比不出來，看檔案差異與掃描報告）
 - **紅字（醒目）**：effect 變寬（`READ` → `WRITE` → `DANGER`）、新增 `WRITE`／`DANGER` 的 command、`capabilities` 新增、
-  執行方式改了（`kind`、`runtime`、`cli.argv`／`python`／`cwd`／`env`、`python.module`、`mcp.url`）、`auth` 改了、
+  執行方式改了（`kind`、`runtime`、`cli.argv`／`python`／`cwd`／`env`、`python.module`、`python.package`、`mcp.url`）、`auth` 改了、
   多要密鑰環境變數、`access` 變寬、新加網頁面板、`storage` 從 `vault` 改成 `plain`、`surfaces` 多了 `channel`、
   `data` 變寬（`none` → `user` → `shared`）、這次選的 `trust` 跟裝著那一份的鎖不一樣（不管哪個方向；升級沒選＝沿用舊的）
 - 一般字：移除 command、effect 變窄、不再要某個能力；還有每個檔改了／多了／少了
@@ -380,6 +381,34 @@ def install(app, pack):
 
 `kit.command` 照位置填：`/money 120 午餐 跟同事` → amount、category、memo（最後一個欄位吃剩下的字）；
 也收 `key=value`（AI 走這條）。`positional=2` 表示只有前兩個欄位能照位置填，其餘要寫 `key=`。
+
+#### 多檔工具（`"python": {"module": "pack", "package": true}`）
+
+程式多到一個 `pack.py` 放不下時，pack.json 寫 `"package": true`，把其餘的模組放在工具資料夾的子資料夾裡，
+`pack.py` 用**相對 import** 取用（ADR 0027）：
+
+```
+packs/demo/
+  pack.json        {"kind": "python", "python": {"module": "pack", "package": true}, ...}
+  pack.py          from .engine import db     /  from .bridge.table import Cmd
+  engine/__init__.py
+  engine/db.py     from . import util         /  from ..bridge import table
+  engine/util.py
+  bridge/table.py  （沒有 __init__.py 的資料夾也可以 import，當作空的套件）
+```
+
+- `pack.py` 以套件 `synox_pack_<名字>`（名字的 `-` 換成 `_`）載入，子模組是 `synox_pack_<名字>.engine.db`。
+  **只有相對 import 找得到自己的模組**：`import engine` 這種絕對 import 找不到（工具資料夾不會加進 `sys.path`）。
+- 子模組跟 `pack.py` 一樣**一律從 `.py` 原始碼編譯**：不讀 `__pycache__`、不收 `.pyc`／`.pyw`／`.pyd`／`.so`；
+  模組名字的大小寫要跟檔名一樣；路徑（含符號連結）跑出工具資料夾＝`ImportError`。
+- 有 `packs.lock` 時，每個子模組**在編譯前**對鎖裡的 sha256：被改過、或核准之後才加的檔＝`ImportError`
+  （載入時第 3 關已經整個資料夾對過一次；這是「對完到真的 import 之間被換掉」也擋得到）。函式裡才 import 的也一樣。
+- `pack.py` 不能再被當子模組 import 一次（`from . import pack` 會被拒）。
+- 重新載入、移除、安裝失敗時，`sys.modules` 裡 `synox_pack_<名字>` 開頭的模組全部清掉。
+- 第 2 關照舊掃資料夾裡**每一個** `.py`；相對 import 自己的模組不算 exec、不用多宣告能力；
+  **絕對 import 另一個工具的模組（`synox_pack_別人`）一律拒裝**，宣告什麼都沒用。
+- 沒寫 `package`（或 `false`）＝單檔工具，行為跟以前完全一樣。`package` 不是 `true`／`false`＝拒裝；
+  只有 `kind=python` 可以寫。
 
 ### `cli`
 

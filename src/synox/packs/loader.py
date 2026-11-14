@@ -58,6 +58,7 @@ from synox.config import ROOT
 from synox.helpui import examples as help_examples
 from synox.packs import envs, kit, render
 from synox.packs import confirm as tool_confirm
+from synox.packs import pkgload
 from synox.packs import secrets as pack_secrets
 from synox.packs import lock as pack_lock
 from synox.packs.manifest import (Manifest, ManifestError, default_text, missing_requirements, read, safe_env,
@@ -485,7 +486,9 @@ def _drop_group(registry, group: str) -> None:
 
 def _install_python(app, pack: Pack) -> None:
     """從原始碼編譯、執行 pack.py（不讀 __pycache__ 的 .pyc：那裡的檔不在 packs.lock 的雜湊裡）。
-    有鎖時，編譯的那一份 bytes 再對一次雜湊（檢查完到執行之間被換掉也抓得到）。"""
+    有鎖時，編譯的那一份 bytes 再對一次雜湊（檢查完到執行之間被換掉也抓得到）。
+    python.package=true（多檔工具）：pack.py 是套件 synox_pack_<名字>，子模組由 pkgload 的載入器從原始碼編譯、
+    每個檔都對鎖、不准跑出工具資料夾；不加 sys.path。"""
     m = pack.manifest
     module_name = m.python.get("module", "pack")
     path = os.path.join(m.folder, f"{module_name}.py")
@@ -494,10 +497,15 @@ def _install_python(app, pack: Pack) -> None:
     expected = pack.locked_files.get(f"{module_name}.py")
     if expected and hashlib.sha256(source).hexdigest() != expected:
         raise ManifestError(f"{module_name}.py 跟 packs.lock 記的不一樣（剛剛被改過？）")
-    spec = importlib.util.spec_from_file_location(f"synox_pack_{m.name.replace('-', '_')}", path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    exec(compile(source, path, "exec"), module.__dict__)
+    if m.python.get("package") is True:
+        # 多檔工具（packs/pkgload.py）：套件身分載入，子模組只從工具資料夾的 .py 原始碼編譯、有鎖時每個檔對雜湊
+        module = pkgload.load(m.name, m.folder, module_name, path, source, pack.locked_files)
+    else:
+        pkgload.forget(m.name)                  # 上一次載入留下的（含從多檔改回單檔的）先清掉
+        spec = importlib.util.spec_from_file_location(pkgload.module_name(m.name), path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        exec(compile(source, path, "exec"), module.__dict__)
     if not callable(getattr(module, "install", None)):
         raise ManifestError(f"{module_name}.py 沒有 install(app, pack)")
     module.install(app, pack)
@@ -1010,6 +1018,8 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         except Exception as e:
             logging.exception("[PACKS] %s failed to install", m.name)
             _drop_group(app.registry, m.group)
+            if m.kind == "python":
+                pkgload.forget(m.name)             # 不留半套模組（多檔工具的子模組也清掉）
             item.status, item.detail = "error", f"{type(e).__name__}: {e}"
             continue
         apply_scope(app, m)

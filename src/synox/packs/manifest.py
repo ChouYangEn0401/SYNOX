@@ -12,6 +12,8 @@ pack.json 的格式與檢查（docs/pack-format.md 是人看的版本）。安�
       "access": "owner",                       owner（預設：只有你）｜member（伺服器版的成員以上；個人版＝owner）
                                                  ｜everyone（任何傳訊息給 bot 的人，伺服器版的訪客也算）
       "python": {"module": "pack"},              kind=python：資料夾裡的 pack.py，有 install(app, pack)
+                {"module": "pack", "package": true}  選填 package：多檔工具（pack.py 以套件載入，子模組用相對 import；
+                                                 packs/pkgload.py）；沒寫＝false＝單檔，行為跟以前一樣
       "cli": {"argv": ["{python}", "./x.py"], "cwd": ".", "commands": [...]},   kind=cli
       "auth": "oauth",                           kind=connector：oauth｜token｜caldav（v2 寫成 {"type": …}）
       "requires": {"pip": [], "config": [], "env": {},  env：要有的環境變數（也是 cli 子程序唯一看得到的密鑰名）
@@ -1257,6 +1259,11 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
             problems.append(f"python.module 要是 pack 資料夾裡的模組名字（英數字、_；不能有路徑）：{module!r}")
         elif not os.path.isfile(os.path.join(folder, f"{module}.py")):
             problems.append(f"kind=python 但找不到 {module}.py")
+        package = (raw.get("python") or {}).get("package", False) if isinstance(raw.get("python"), dict) else False
+        if not isinstance(package, bool):
+            problems.append(f"python.package 只能是 true 或 false（多檔工具，子模組用相對 import）：{package!r}")
+    elif isinstance(raw.get("python"), dict) and "package" in raw["python"]:
+        problems.append("python.package 只給 kind=python 的工具")
     v2 = any(k in raw for k in V2_KEYS) or isinstance(raw.get("auth"), dict)
     cli = raw.get("cli") or {}
     if not isinstance(cli, dict):

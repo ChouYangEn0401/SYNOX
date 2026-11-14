@@ -100,7 +100,8 @@ def _runtime_of(m: Manifest) -> Dict[str, object]:
     return {"kind": m.kind, "runtime": m.runtime or {}, "cli.argv": cli.get("argv") or [],
             "cli.python": cli.get("python") or "", "cli.cwd": cli.get("cwd") or "",
             "cli.env": cli.get("env") or {}, "python.module": (m.python or {}).get("module", "") if m.kind == "python"
-            else "", "mcp.url": (m.mcp or {}).get("url", ""), "mcp.transport": (m.mcp or {}).get("transport", ""),
+            else "", "python.package": bool((m.python or {}).get("package")) if m.kind == "python" else False,
+            "mcp.url": (m.mcp or {}).get("url", ""), "mcp.transport": (m.mcp or {}).get("transport", ""),
             "mcp.argv": (m.mcp or {}).get("argv") or [], "mcp.cwd": (m.mcp or {}).get("cwd") or "",
             "mcp.env": (m.mcp or {}).get("env") or {}}
 
