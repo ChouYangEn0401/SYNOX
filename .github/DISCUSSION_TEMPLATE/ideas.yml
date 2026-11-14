@@ -1,0 +1,54 @@
+title: "[想法 / Idea] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        謝謝你分享想法！中文或英文都可以。 / Thanks for sharing an idea! Chinese or English are both fine.
+
+        ⚠️ **安全漏洞請不要貼在這裡**，照 [SECURITY.md](https://github.com/ChouYangEn0401/SYNOX/security/policy) 私下寄信。
+        **Please don't post security vulnerabilities here**; report them privately as described in SECURITY.md.
+
+        正在討論的計畫 / Plans under discussion: [沙盒路線圖 / Sandbox roadmap](https://github.com/ChouYangEn0401/SYNOX/blob/dev/docs/sandbox-roadmap.md) ·
+        [ADR 0022](https://github.com/ChouYangEn0401/SYNOX/blob/dev/docs/adr/0022-ecosystem-bridge-and-sandbox.md)
+  - type: dropdown
+    id: area
+    attributes:
+      label: 跟哪一塊有關？ / Which area?
+      options:
+        - 工具與技能（含從其他生態匯入） / Tools & skills (incl. importing from other ecosystems)
+        - 沙盒與安全 / Sandboxing & safety
+        - 安裝與更新 / Installing & updating
+        - 聊天通道（Telegram、Discord、網頁） / Chat channels (Telegram, Discord, web)
+        - AI 來源與本地模型 / AI providers & local models
+        - 文件與教學 / Docs & tutorials
+        - 其他 / Other
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: 你的想法 / Your idea
+      description: 想做到什麼？誰會用到？ / What should it do, and who would use it?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 為什麼需要 / Why it matters
+      description: 現在遇到什麼不方便？有參考的專案或文件嗎（附連結）？ / What's inconvenient today? Any projects or docs to look at (links welcome)?
+    validations:
+      required: false
+  - type: input
+    id: platform
+    attributes:
+      label: 你的平台（選填） / Your platform (optional)
+      placeholder: "例如 / e.g. Windows 11 Home 24H2"
+    validations:
+      required: false
+  - type: checkboxes
+    id: help
+    attributes:
+      label: 參與 / Getting involved
+      options:
+        - label: 我願意幫忙測試或實作（見 CONTRIBUTING.md） / I'd like to help test or build this (see CONTRIBUTING.md)
+          required: false
