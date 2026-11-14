@@ -4,6 +4,8 @@
     python scripts/release.py bump patch|minor|alpha|beta|final [--next minor] [--date YYYY-MM-DD] [--dry-run]
     python scripts/release.py check [--tag vX.Y.Z[-alpha.N|-beta.N]]
     python scripts/release.py notes [--version X.Y.Z[-alpha.N|-beta.N]] [--exe]
+    python scripts/release.py sign --dist dist --key <私鑰檔> [--security] [--summary "…"] [--min-from X.Y.Z] [--rebuild-venv]
+    python scripts/release.py keygen --out <repo 以外的路徑>
 
 The rules are in docs/versioning.md (plain Chinese). In short:
   X.Y.Z               stable (what `main` and the landing page's ZIP give people)
@@ -19,7 +21,18 @@ check  version is the same everywhere, has an allowed format, CHANGELOG.md has a
 notes  prints a draft of the GitHub release notes (「這版改了什麼／要不要更新／怎麼更新」) from the CHANGELOG section.
        The maintainer rewrites the bullet points in plain words before publishing.
 
-Standard library only; never connects to the network, never runs git. Exit code: 0 ok, 1 check failed, 2 cannot run.
+sign   (docs/adr/0023 U5, docs/release-build.md「簽章金鑰」) writes, next to the built files in --dist:
+       SHA256SUMS.txt (SYNOX-<v>.zip, SYNOX-Setup-<v>.exe when there), release.json (version, date, severity, summary,
+       notes_url, every asset's sha256 + size, rebuild_venv, min_from) and release.json.sig (Ed25519 over the exact
+       bytes of release.json, base64). Upload all three with the ZIP. The private key comes from --key <file> or
+       SYNOX_RELEASE_KEY_FILE (a PEM file, password in SYNOX_RELEASE_KEY_PASSWORD, or one line of base64 = the 32-byte
+       seed); it must live outside the repository (refused otherwise) and never goes into git.
+keygen makes a new key pair (offline, once, by the founding maintainer): writes the private key (PEM; encrypted when
+       SYNOX_RELEASE_KEY_PASSWORD is set) outside the repository and prints the public key for
+       src/synox/update/signing.py RELEASE_PUBLIC_KEYS.
+
+Standard library only (sign/keygen also need `cryptography`, already a SYNOX dependency); never connects to the
+network, never runs git. Exit code: 0 ok, 1 check failed, 2 cannot run.
 """
 
 from __future__ import annotations
@@ -396,7 +409,10 @@ def notes(root: str, version: str = "", exe: bool = False) -> str:
                 "設定、資料、裝好的工具會留著。" if exe else
                 "- **用安裝程式（.exe）的人**：⏳ 安裝程式還沒正式發佈，請先用 ZIP。")
     how = [
-        f"- **用 ZIP 的人**：先點兩下 `Stop.bat` 關掉 SYNOX → 下載這頁下面的 `SYNOX-{v}.zip` → 解開 → 把裡面 `SYNOX` 資料夾的"
+        "- **用 ZIP 的人**：點兩下 SYNOX 資料夾裡的 `Update.bat`（或網頁「設定 → 💻 電腦與備份 → 檢查更新」→「更新…」）："
+        "它會先給你看這版改了什麼、問你一次，再下載、核對檔案、換好；出問題點 `Update.bat -Rollback` 回到上一版。"
+        "<!-- 這一版沒有簽 release.json（release.py sign）的話，加一句：要打 `Update.bat -AllowUnsigned` 才會換 -->",
+        f"- **用 ZIP、但還沒有 Update.bat 的舊版**：先點兩下 `Stop.bat` 關掉 SYNOX → 下載這頁下面的 `SYNOX-{v}.zip` → 解開 → 把裡面 `SYNOX` 資料夾的"
         "**全部內容**複製到你原本的 SYNOX 資料夾，問要不要取代就選「取代」→ 點兩下 `Setup.bat`。"
         "你的設定（`config.json`）、資料（`data`）、裝好的工具（`packs`）不在 ZIP 裡，不會被蓋掉。",
         f"- **用 git 的人**：`Stop.bat` → `git pull`（只要這一版：`git checkout {v.tag}`）→ `Setup.bat`。",
@@ -412,6 +428,124 @@ def notes(root: str, version: str = "", exe: bool = False) -> str:
     out += ["", "---", f"完整的改動：`CHANGELOG.md` 的「{v}」那一節。下載的檔可以對照 `SHA256SUMS.txt` 確認沒有壞掉或被換過。",
             f"所有版本：{RELEASES_URL}"]
     return "\n".join(out).replace("\n\n\n", "\n\n") + "\n"
+
+
+# ── 簽章（docs/adr/0023 U5；src/synox/update/signing.py 驗）───────────────
+
+KEY_ENV = "SYNOX_RELEASE_KEY_FILE"
+KEY_PASSWORD_ENV = "SYNOX_RELEASE_KEY_PASSWORD"
+SEVERITIES = ("normal", "security")
+
+
+def _inside(path: str, root: str) -> bool:
+    path, root = os.path.realpath(path), os.path.realpath(root)
+    return path == root or path.startswith(root.rstrip(os.sep) + os.sep)
+
+
+def load_private_key(path: str, root: str = ROOT):
+    """私鑰檔（PEM，或一行 base64＝32 位元組 seed）→ Ed25519PrivateKey。檔案在 repo 裡面＝拒絕（私鑰絕不進 git）。"""
+    import base64
+    import binascii
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    if not path:
+        raise ReleaseError(f"要給私鑰：--key <檔案> 或環境變數 {KEY_ENV}（docs/release-build.md「簽章金鑰」）")
+    if _inside(path, root):
+        raise ReleaseError("私鑰檔在 repo 裡面：拒絕使用。私鑰只能放在 repo 以外、離線的地方（docs/release-build.md）")
+    try:
+        with open(path, "rb") as f:
+            raw = f.read()
+    except OSError as e:
+        raise ReleaseError(f"讀不到私鑰檔：{e}")
+    if raw.lstrip().startswith(b"-----BEGIN"):
+        password = os.environ.get(KEY_PASSWORD_ENV)
+        try:
+            key = serialization.load_pem_private_key(raw, password=password.encode() if password else None)
+        except (ValueError, TypeError) as e:
+            raise ReleaseError(f"私鑰檔打不開（密碼放在 {KEY_PASSWORD_ENV}？）：{e}")
+    else:
+        try:
+            seed = base64.b64decode(raw.strip(), validate=True)
+            key = Ed25519PrivateKey.from_private_bytes(seed)
+        except (binascii.Error, ValueError) as e:
+            raise ReleaseError(f"私鑰檔的格式不對（要 PEM 或一行 base64 的 32 位元組）：{e}")
+    if not isinstance(key, Ed25519PrivateKey):
+        raise ReleaseError("私鑰不是 Ed25519")
+    return key
+
+
+def public_key_b64(key) -> str:
+    import base64
+    from cryptography.hazmat.primitives import serialization
+    raw = key.public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+    return base64.b64encode(raw).decode("ascii")
+
+
+def _sha256_file(path: str) -> Tuple[str, int]:
+    import hashlib
+    h = hashlib.sha256()
+    size = 0
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+            size += len(chunk)
+    return h.hexdigest(), size
+
+
+def sign(root: str, dist: str, key_path: str, *, severity: str = "normal", summary: str = "", min_from: str = "",
+         rebuild_venv: bool = False, date: str = "", version: str = "") -> Dict[str, str]:
+    """寫 dist/SHA256SUMS.txt、dist/release.json、dist/release.json.sig。回 {檔名: 路徑}。"""
+    import base64
+    import json
+    v = Version.parse(version) if version else current_version(root)
+    if severity not in SEVERITIES:
+        raise ReleaseError(f"severity 只能是 {'、'.join(SEVERITIES)}")
+    if min_from:
+        Version.parse(min_from)
+    key = load_private_key(key_path, root)
+    names = [f"SYNOX-{v}.zip", f"SYNOX-Setup-{v}.exe"]
+    assets: Dict[str, dict] = {}
+    for name in names:
+        path = os.path.join(dist, name)
+        if os.path.isfile(path):
+            sha, size = _sha256_file(path)
+            assets[name] = {"sha256": sha, "size": size}
+    if names[0] not in assets:
+        raise ReleaseError(f"{dist} 裡沒有 {names[0]}（先 `python scripts/make_zip.py --tools …`）")
+    manifest = {"version": str(v), "date": date or _dt.date.today().isoformat(), "severity": severity,
+                "summary": summary, "notes_url": f"{RELEASES_URL}/tag/{v.tag}", "assets": assets,
+                "rebuild_venv": bool(rebuild_venv), "min_from": min_from or None}
+    blob = (json.dumps(manifest, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    sig = base64.b64encode(key.sign(blob)).decode("ascii") + "\n"
+    key.public_key().verify(base64.b64decode(sig), blob)            # 自己先驗一次
+    out = {"SHA256SUMS.txt": os.path.join(dist, "SHA256SUMS.txt"), "release.json": os.path.join(dist, "release.json"),
+           "release.json.sig": os.path.join(dist, "release.json.sig")}
+    with open(out["SHA256SUMS.txt"], "w", encoding="utf-8", newline="\n") as f:
+        for name, info in assets.items():
+            f.write(f"{info['sha256']}  {name}\n")
+    with open(out["release.json"], "wb") as f:
+        f.write(blob)
+    with open(out["release.json.sig"], "w", encoding="ascii", newline="\n") as f:
+        f.write(sig)
+    return out
+
+
+def keygen(out_path: str, root: str = ROOT) -> str:
+    """產生新的 Ed25519 金鑰：私鑰（PEM）寫到 out_path（repo 以外、不能蓋掉舊檔），回傳公鑰 base64。"""
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    if not out_path or _inside(out_path, root):
+        raise ReleaseError("私鑰要寫到 repo 以外的地方（例如加密的隨身碟）：--out <路徑>")
+    if os.path.exists(out_path):
+        raise ReleaseError(f"{out_path} 已經有檔案了，不會蓋掉")
+    key = Ed25519PrivateKey.generate()
+    password = os.environ.get(KEY_PASSWORD_ENV)
+    enc = serialization.BestAvailableEncryption(password.encode()) if password else serialization.NoEncryption()
+    pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, enc)
+    fd = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    with os.fdopen(fd, "wb") as f:
+        f.write(pem)
+    return public_key_b64(key)
 
 
 def main(argv: Optional[List[str]] = None) -> int:
@@ -434,6 +568,18 @@ def main(argv: Optional[List[str]] = None) -> int:
     n = sub.add_parser("notes", help="draft GitHub release notes from the CHANGELOG section")
     n.add_argument("--version", default="")
     n.add_argument("--exe", action="store_true", help="this release has SYNOX-Setup-<version>.exe")
+    g = sub.add_parser("sign", help="SHA256SUMS.txt + release.json + release.json.sig next to the built files")
+    g.add_argument("--dist", default=os.path.join(ROOT, "dist"))
+    g.add_argument("--key", default="", help=f"private key file outside the repo (or env {KEY_ENV})")
+    g.add_argument("--version", default="")
+    g.add_argument("--security", action="store_true", help="a security fix (severity: security)")
+    g.add_argument("--summary", default="", help="one plain sentence: what changed")
+    g.add_argument("--min-from", default="", help="oldest version that may update straight to this one")
+    g.add_argument("--rebuild-venv", action="store_true", help="tell Update.bat to reinstall the packages")
+    g.add_argument("--date", default="")
+    g.add_argument("--show-public", action="store_true", help="only print the public key of --key")
+    k = sub.add_parser("keygen", help="make a new Ed25519 key pair (private key outside the repo)")
+    k.add_argument("--out", required=True)
     args = parser.parse_args(argv)
     try:
         if args.cmd == "show":
@@ -463,6 +609,24 @@ def main(argv: Optional[List[str]] = None) -> int:
             v = Version.parse(args.version) if args.version else current_version(args.root)
             hint = "勾「Set as a pre-release」" if v.label else "勾「Set as the latest release」"
             print(f"\n（GitHub 發佈頁：tag {v.tag}，標題「SYNOX {v}」，{hint}）", file=sys.stderr)
+            return 0
+        if args.cmd == "sign":
+            key_path = args.key or os.environ.get(KEY_ENV, "")
+            if args.show_public:
+                print(public_key_b64(load_private_key(key_path, args.root)))
+                return 0
+            out = sign(args.root, args.dist, key_path, severity="security" if args.security else "normal",
+                       summary=args.summary, min_from=args.min_from, rebuild_venv=args.rebuild_venv, date=args.date,
+                       version=args.version)
+            for name, path in out.items():
+                print(f"✅ {name}  {path}")
+            print("上傳這三個檔＋ZIP 到發佈頁（docs/versioning.md「每一版都要有」）", file=sys.stderr)
+            return 0
+        if args.cmd == "keygen":
+            pub = keygen(args.out, args.root)
+            print(pub)
+            print(f"私鑰寫在 {args.out}（離線保存；不要放進 repo、雲端硬碟或聊天）。上面這行公鑰加進 "
+                  "src/synox/update/signing.py 的 RELEASE_PUBLIC_KEYS。", file=sys.stderr)
             return 0
     except ReleaseError as e:
         print(f"❌ {e}", file=sys.stderr)

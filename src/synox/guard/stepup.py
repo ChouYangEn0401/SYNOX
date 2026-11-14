@@ -65,13 +65,15 @@ SENSITIVE = {
     "/api/settings/channels/discord": "改 Discord 的設定",
     "/api/backup": "備份",
     "/api/accounts/role": "改帳號的角色",
+    "/api/settings/update/launch": "更新 SYNOX",
 }
 
 # 預設就擋（deny-by-default）：這幾個前綴底下的非 GET 都算敏感（改設定、裝工具、金鑰、背景任務、帳號、備份），
 # 除了下面明列的例外（不改任何東西、或只是丟掉一個還沒裝的上傳）。新加的路由沒列進例外就自動受保護。
 SENSITIVE_PREFIXES = ("/api/settings/", "/api/packs/", "/api/pack-secrets/", "/api/runtime/", "/api/backup",
                       "/api/accounts/", "/api/tools/health")
-SENSITIVE_EXEMPT = ("/api/packs/discard", "/api/packs/library", "/api/settings/llm/test", "/api/settings/llm/local-advice")
+SENSITIVE_EXEMPT = ("/api/packs/discard", "/api/packs/library", "/api/settings/llm/test", "/api/settings/llm/local-advice",
+                    "/api/settings/update/check", "/api/settings/update/dismiss")   # 只查、只藏橫幅：不改東西
 SENSITIVE_DEFAULT_LABEL = "改 SYNOX 的設定"
 
 

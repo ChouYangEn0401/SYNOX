@@ -1,5 +1,22 @@
 # Changelog
 
+## 未發佈（SYNOX 自己更新：檢查更新、Update.bat、簽章；ADR 0023）
+
+### 新增
+- **檢查更新**：網頁「設定 → 💻 電腦與備份 → SYNOX 更新」的「檢查更新」，或 `synox update --check`。只問 GitHub 最新的**正式版**（beta 不會出現），只看、不下載；
+  發佈說明有「🔒 安全更新／強烈建議更新」會用紅字說；順便說「有 N 個工具可以更新」。
+- **每週檢查（選用，預設關）**：安裝精靈最後一頁一格「每週幫我看一次有沒有新版（只看，不會自己裝）」，設定頁同一個開關，或 `synox update --weekly on`
+  （`config.json` 的 `"updates": {"check": "weekly"}`）。有新版時網頁上方一條橫幅、Telegram／Discord 通知一次（同一版只通知一次）。
+- **`Update.bat`**（ZIP 裝的）：查 → 給你看這版改了什麼 → 問一次 → 下載、核對 SHA256（與簽章）→ 關 SYNOX → 舊的程式檔搬到 `_previous\`（留 2 份）→ 換新的
+  → 相依變了才重裝套件 → 開 SYNOX；新版跑不起來自動退回。`Update.bat -Rollback` 退回上一版。`config.json`、`data`、`packs` 永遠不動。
+  git 裝的會請你 `git pull`。網頁的「更新…」按鈕只在 Windows、ZIP 裝法出現，按了是打開 Update.bat 的視窗。
+- **發佈簽章**：`python scripts/release.py sign` 寫 `release.json`＋`release.json.sig`（Ed25519）＋`SHA256SUMS.txt`；`release.py keygen` 產生金鑰（私鑰只在創始維護者手上、離線）。
+  **公鑰還沒放進 SYNOX**，所以現在每一版都算「沒有簽章」：Update.bat 會說明，要你明確 `Update.bat -AllowUnsigned` 才換檔（docs/release-build.md「簽章金鑰」）。
+
+### 變更
+- `synox about`／`synox doctor` 的「有沒有新版」改成指向 `synox update --check` 與設定頁的「檢查更新」。
+- `Setup.bat -Update`（`bootstrap.ps1 -Update`）：只更新 `.venv` 的套件，不問問題、不開精靈（Update.bat 用）。
+
 ## 未發佈（/help 改版、自訂指令）
 
 ### 新增

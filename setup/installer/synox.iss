@@ -504,5 +504,7 @@ Type: filesandordirs; Name: "{app}\.venv"
 Type: filesandordirs; Name: "{app}\runtime"
 Type: filesandordirs; Name: "{app}\src"
 Type: filesandordirs; Name: "{app}\vendor"
+; Old program files Update.bat keeps for "Update.bat -Rollback" (docs/adr/0023; never the user's own files).
+Type: filesandordirs; Name: "{app}\_previous"
 Type: files; Name: "{app}\lang.txt"
 Type: files; Name: "{app}\installer-choices.json"

@@ -284,7 +284,8 @@ def test_finish_page_from_zip_has_autostart_on_by_default(tmp_path, monkeypatch)
     monkeypatch.setenv("SYNOX_SETUP_AUTOSTART", "1")                          # Setup.bat, Recommended (the default)
     root, wiz, calls, boxes = _finish_page(tmp_path, monkeypatch)
     try:
-        assert len(boxes) == 4 and i18n.t("finish_autostart") in boxes
+        assert len(boxes) == 5 and i18n.t("finish_autostart") in boxes
+        assert "selected" not in boxes[i18n.t("finish_updates")].state()                # ADR 0023 U2: off by default
         assert "selected" in boxes[i18n.t("finish_autostart")].state()                # owner Q1: on by default
         wiz.next_btn.invoke()
         assert calls["autostart"] == ["on"] and calls["desktop"] == 1
@@ -299,7 +300,8 @@ def test_finish_page_from_the_exe_only_asks_to_open_synox(tmp_path, monkeypatch)
     _choices(str(tmp_path), file_type=False)
     root, wiz, calls, boxes = _finish_page(tmp_path, monkeypatch)
     try:
-        assert list(boxes) == [i18n.t("finish_launch")]                         # the other three were decided
+        assert list(boxes) == [i18n.t("finish_launch"), i18n.t("finish_updates")]   # the other three were decided;
+        #                                                                         weekly update check: asked here (U2)
         wiz.next_btn.invoke()
         assert calls["desktop"] == 0 and calls["autostart"] == []               # the installer did those
         assert calls["assoc"] == ["unregister"]                                 # unticked in the installer

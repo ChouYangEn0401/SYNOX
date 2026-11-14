@@ -91,6 +91,7 @@ STRINGS = {
     "finish_autostart": "로그인할 때 SYNOX 시작(작은 창이 보이며 언제든 닫을 수 있음)",
     "finish_packs": ".synoxpack 파일을 더블클릭해 설치(설치 전에 검사하고 확인을 받음)",
     "finish_launch": "완료 후 SYNOX 열기",
+    "finish_updates": "일주일에 한 번 새 버전이 있는지 확인(확인만 하고 직접 설치하지 않음)",
     "finish_discord_bot": "Discord bot {name}",
     "finish_hint_token": ("이 컴퓨터: {title}.\n\"완료 후 시작\"을 누르면 설정이 저장되고 "
                           "{who}이(가) 시작되며, 휴대폰으로 \"준비됐어요\" 메시지가 옵니다."),
