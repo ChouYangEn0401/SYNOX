@@ -27,7 +27,9 @@ RELEASES_URL = PROJECT_URL + "/releases"                     # 每一版的發�
 #: 印歡迎畫面的指令（None＝`synox` 什麼都沒打）。init 是之後安裝流程會加的指令，先列著。
 BANNER_COMMANDS = frozenset({None, "run", "open", "wizard", "init", "doctor", "about"})
 
-TAGLINE = "你自己電腦上的小助手，資料只放在這台電腦。"
+TAGLINE = "先問你，再動手。看得懂、管得住的個人 AI 助理。"
+#: 英文版（README、repo 簡介用）。標語固定；之後主題可以帶自己的「心情語」，但不換掉這句。
+TAGLINE_EN = "The AI assistant that asks first. A personal AI assistant you can read and control."
 
 # ---------------------------------------------------------------- logo
 

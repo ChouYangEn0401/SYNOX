@@ -1,5 +1,7 @@
 # synox-sdk（SYNOX 的工具 SDK，單獨發佈的那一份）
 
+> SYNOX：先問你，再動手。看得懂、管得住的個人 AI 助理。（*The AI assistant that asks first.*）
+
 一個檔 `synox_sdk.py`、只用標準函式庫。寫工具的人用它把 Python 函式變成 SYNOX 工具（也是 MCP stdio 工具）。
 用法見 [../docs/sdk.md](../docs/sdk.md)；為什麼工具要宣告 SDK 版本見 SYNOX_Libs 的 `docs/adr/0001-tool-library-and-sdk-dependency.md`。
 

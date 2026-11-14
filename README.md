@@ -1,4 +1,8 @@
-# SYNOX：你自己電腦上的 Telegram 小助手
+# SYNOX：先問你，再動手。
+
+**看得懂、管得住的個人 AI 助理。** *The AI assistant that asks first. A personal AI assistant you can read and control.*
+
+<sub>標語固定是「先問你，再動手。」；之後主題（theme）可以帶自己的「心情語」，但不會換掉這句 SYNOX 標語。</sub>
 
 **👉 [先看介紹頁：SYNOX 長什麼樣、能做什麼、怎麼裝](https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox)**
 （網頁版的真實畫面、支援哪些平台、哪些還沒做完都在上面；同一份也在 repo 裡：[docs/landing/index.html](docs/landing/index.html)，下載後雙擊就能開）
@@ -12,7 +16,7 @@
 > - 授權：見 [LICENSING.md](LICENSING.md)。發現安全問題：見 [SECURITY.md](SECURITY.md)（請不要開公開 issue）。
 
 在手機的 Telegram（或 Discord 私訊、這台電腦的網頁）跟它講話：記帳、隨手記、提醒；接了 AI 之後，直接說人話它就會替你按指令
-（刪東西這類危險的事，會先送一張確認卡給你按）。資料都在**你自己的電腦**上，筆記和記帳是加密存的。
+（刪東西這類危險的事，會先送一張確認卡給你按）。設定、金鑰和工具資料都存在**你自己的電腦**上，筆記和記帳是加密存的；接了雲端 AI 時，你說的話會送到那家 AI。
 
 想先看看長什麼樣：**介紹頁** [docs/landing/index.html](docs/landing/index.html)（雙擊就能開；線上版 <https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox>）。
 圖文教學：[Telegram](docs/tutorials/telegram/)、[Discord](docs/tutorials/discord/)（Discord 的名詞：[docs/discord-concepts.md](docs/discord-concepts.md)）。
