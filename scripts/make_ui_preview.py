@@ -10,12 +10,12 @@
                               （假的清單＝tests/fixtures 裡那份真的 v0.2.0 目錄；預覽不連網）；?ctl=error 主控頁讀不到時的樣子、?member=1 用成員身分看
                               （沒有「主控」）；?help=1 設定頁「遇到問題？」直接按好「幫我準備好回報內容」（假的摘要）；
                               #chat／#tools／#settings／#control／#settings:help 切頁。
-                              開場動畫（static/splash.js）：同一個分頁只播第一次；?splash=1 重播（預覽列的「重播開場」）、
-                              ?splash=0 不播；?splashat=600 讓開場停在第 600 毫秒（拍關鍵影格用）。
+                              開場的門（static/splash.js）：預覽預設不出現（window.SYNOX_NO_SPLASH）；?splash=1 出現並等你點
+                              （預覽列的「重播開場」；左上角的 S 也可以）；?splashat=600 讓開場停在第 600 毫秒（拍關鍵影格用）。
                               工具頁的群組編輯可以真的操作（存在這一頁的記憶體裡，重新整理就回到預設）。
 - docs/ui/preview-phone.html、preview-phone-dark.html
                               八個 390px 寬的框（登入、對話、工具、工具的編輯群組、設定、功能與安裝、遇到問題？、主控），看手機寬度用。
-                              「登入」那一格每次打開都重播開場，其他格不播。
+                              「登入」那一格每次打開都會出現開場的門（點一下進去），其他格不出現。
 - docs/ui/preview-login.html  伺服器產生的「登入確認頁」（server.py 的 login_page，用假的帳號資料）。
 - docs/ui/preview-error.html  伺服器產生的小頁（server.py 的 _page，例如登入連結不能用）。
 
@@ -263,6 +263,9 @@ MOCK = r"""
   // 預覽專用：把 fetch 換成假的，全部回假資料；不送出任何東西。
   var q = new URLSearchParams(location.search);
   if (q.get("theme")) { document.documentElement.setAttribute("data-theme", q.get("theme")); }
+  // 開場的門（static/splash.js）預設不出現，才看得到畫面；?splash=1（預覽列的「重播開場」）照樣出現、等你點。
+  // 左上角的 S 也照樣能重播。
+  window.SYNOX_NO_SPLASH = true;
   var D = __DATA__;
   var loggedOut = q.get("login") === "1";
   if (q.get("member") === "1") {
@@ -674,7 +677,7 @@ def phone_preview() -> str:
     out = []
     for title, q in frames:
         query, _, hash_ = q.partition("#")
-        splash = "splash=1" if title == "登入" else "splash=0"      # 登入那格重播開場，其他格不播（六格一起播太吵）
+        splash = "splash=1" if title == "登入" else "splash=0"      # 登入那格出現開場的門，其他格不出現（八格一起播太吵）
         src = (f"preview.html?bar=0&amp;{splash}&amp;theme=__T__" + (("&amp;" + query) if query else "")
                + (("#" + hash_) if hash_ else ""))
         out.append(f'<figure><figcaption>{title}</figcaption><iframe title="{title}" src="{src}"></iframe></figure>')
