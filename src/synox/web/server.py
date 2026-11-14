@@ -9,6 +9,10 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     POST /login                     確認頁的按鈕（f＝一次性表單 token＋synox_login cookie、Origin 要是自己）
                                     → 用掉連結 → cookie session → 303 到 /#chat
     GET  /packs/<name>/panel        pack 的 web.panel（工具頁用 <iframe sandbox> 掛）
+    GET  /theme/preview?name=|staged=&mode=   外觀的預覽小頁（沒有 script；設定 → 外觀、安裝報告用 iframe 掛）
+    GET  /theme/font/<pack>/<file>  外觀包附的字型（只收 theme.fonts 宣告的 .woff2）
+    GET  /api/appearance            設定 → 外觀：裝了哪些外觀包、這個人選了什麼、自己貼的（synox/theme/appearance.py）
+    POST /api/appearance            {"theme", "mode", "reset"}；POST /api/appearance/custom {"slot", "text", "preview"}
     GET  /tutorials/<name>/         圖文教學 docs/tutorials/<name>/index.html（公開文件，不用登入；synox/tutorials.py）
     GET  /api/pack-staged/<token>   `python -m synox install` 暫存好的 pack 的檢查報告（擁有者；網頁 ?pack=<token>#settings:packs）
     GET  /api/packs/staged          擁有者：還沒按確認的暫存 pack（待核准清單，不用 token；過期的順便清掉）
@@ -63,6 +67,7 @@ from synox import tutorials
 from synox.guard import origin as guard_origin
 from synox.guard.stepup import sensitive_action as stepup_sensitive
 from synox.packs.manifest import stage_text
+from synox.theme.appearance import Appearance, AppearanceError
 from synox.web import report as reporting, toolpage
 from synox.web.channel import WEB, WebChannel
 from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore
@@ -188,8 +193,10 @@ INCLUDES = {"tools.css": "style", "tools.js": "script", "tour.css": "style", "to
 INCLUDE_RE = re.compile(r"<!-- include: ([a-z0-9_.-]+) -->")
 
 
-def render_app(nonce: str) -> str:
-    """app.html＋include 的檔，{{NONCE}} 換成這次的 nonce。"""
+def render_app(nonce: str, theme_head: str = "", mode: str = "auto", skin: str = "") -> str:
+    """app.html＋include 的檔，{{NONCE}} 換成這次的 nonce。
+    theme_head：外觀（synox/theme/appearance.head_html）要塞進 <head> 的東西，放在 <!-- theme --> 那裡；
+    mode：light｜dark＝<html data-theme>（auto＝跟系統）；skin：套了哪個外觀包（<html data-skin>，給 CSS 掛勾用）。"""
     def include(m):
         name = m.group(1)
         tag = INCLUDES.get(name)
@@ -205,7 +212,14 @@ def render_app(nonce: str) -> str:
             return f.read()
     with open(os.path.join(STATIC, "app.html"), "r", encoding="utf-8") as f:
         html = f.read().replace("{{NONCE}}", nonce)
-    return INCLUDE_RE.sub(include, INLINE_RE.sub(inline, html))
+    html = INCLUDE_RE.sub(include, INLINE_RE.sub(inline, html))
+    attrs = (f' data-theme="{mode}"' if mode in ("light", "dark") else "") + \
+        (f' data-skin="{skin}"' if skin and NAME_RE.match(skin) else "")
+    if attrs:
+        html = html.replace('<html lang="zh-Hant">', f'<html lang="zh-Hant"{attrs}>', 1)
+    from synox.theme.appearance import default_templates
+    head = default_templates() + ("\n" + theme_head if theme_head else "")
+    return html.replace("<!-- theme -->", head, 1)
 
 
 app_html = render_app          # 主控頁的測試與預覽沿用的舊名字
@@ -280,7 +294,8 @@ class WebUI:
         self.tokens = LoginTokens(os.path.join(data, "web_tokens.json"), clock=clock)
         self.sessions = Sessions(os.path.join(data, "web_sessions.json"), clock=clock)
         self.chats = ChatStore(os.path.join(data, "web_chats"), vault, clock=clock)
-        self.prefs = toolpage.UserPrefs(os.path.join(data, "web_prefs"), vault)   # 每個人的工具頁排版
+        self.prefs = toolpage.UserPrefs(os.path.join(data, "web_prefs"), vault)   # 每個人的工具頁排版、外觀
+        self.appearance = Appearance(app, config, self.prefs)                     # 設定 → 外觀（synox/theme）
         self._clock = clock
         self._login_forms: Dict[str, tuple] = {}     # 表單 token 的雜湊 → (登入 token 雜湊, 瀏覽器 cookie 雜湊, 到期)
         self._login_lock = threading.Lock()
@@ -394,7 +409,14 @@ class WebUI:
             if path == "/" and method == "GET":
                 if session is None and self._local_owner_navigation(headers):
                     return self._auto_login_page()
-                return self.app_page()
+                return self.app_page(session.tg_id if session is not None else None)
+            if path == "/theme/preview" and method == "GET":
+                if session is None:
+                    return _page(401, "請先登入", LOGIN_HOW)
+                return self.theme_preview(self._user(session), query)
+            m = re.match(r"^/theme/font/([a-z][a-z0-9_-]{0,31})/([A-Za-z0-9_./-]{1,160}\.woff2)$", path)
+            if m and method == "GET":
+                return self.theme_font(m.group(1), m.group(2))
             if path == "/login" and method == "GET":
                 return self.login_page((query.get("t") or [""])[0], headers, session)
             m = re.match(r"^/apps/([a-z][a-z0-9_-]{0,31})/open$", path)
@@ -450,7 +472,7 @@ class WebUI:
         owner = int(self.config.owner_id)
         sid, _session = self.sessions.create(owner)
         self.app.users.get_or_create(owner)
-        status, headers, body = self.app_page()
+        status, headers, body = self.app_page(owner)
         cookie = f"{COOKIE}={sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age={int(self.sessions.ttl)}" + self._secure()
         return status, headers + [("Set-Cookie", cookie)], body
 
@@ -479,11 +501,17 @@ class WebUI:
 
     # ── 頁面 ─────────────────────────────────────────────────────────
 
-    def app_page(self) -> Resp:
+    def app_page(self, tg_id: Optional[int] = None) -> Resp:
+        """tg_id：登入的人（None＝還沒登入，用擁有者選的外觀）。外觀壞掉不擋網頁：照原本的 SYNOX。"""
         nonce = secrets.token_urlsafe(16)
-        html = render_app(nonce)
+        try:
+            mode, skin, head = self.appearance.head(tg_id, nonce)
+        except Exception:
+            logging.exception("[WEB] appearance failed; using the original look")
+            mode, skin, head = "auto", "", ""
+        html = render_app(nonce, head, mode, skin)
         csp = (f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'nonce-{nonce}'; "
-               "img-src 'self' data:; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; "
+               "img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; "
                "base-uri 'none'; form-action 'self'")
         return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "DENY"),
                                     ("Content-Security-Policy", csp)], html.encode("utf-8")
@@ -606,6 +634,87 @@ class WebUI:
         return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "DENY"),
                                     ("Content-Security-Policy", csp)], html
 
+    # ── 外觀（設定 → 外觀；synox/theme，docs/themes.md）──────────────────────
+    # 預覽頁沒有 <script>（CSP 也不放行）；外觀包的 CSS、SVG 都是消毒過的。暫存的外觀包（安裝報告）只有擁有者看得到。
+    def theme_preview(self, user, query) -> Resp:
+        from synox.theme import pack as theme_pack
+        from synox.theme.appearance import preview_page
+        from synox.theme.sanitize import Rejected
+        mode = (query.get("mode") or ["light"])[0]
+        mode = mode if mode in ("light", "dark") else "light"
+        name = (query.get("name") or [""])[0]
+        staged = (query.get("staged") or [""])[0]
+        bundle, tokens, title = None, None, "原本的 SYNOX"
+        if staged:
+            if not self.is_owner(user):
+                return _page(403, "看不到", "只有擁有者能看還沒裝的外觀包。")
+            from synox.packs.admin import PackAdminError, _staged_root
+            from synox.packs.manifest import ManifestError, read
+            try:
+                folder = os.path.join(_staged_root(staged, self.config.data_dir), "pack")
+                m = read(folder, strict=True)
+                if m.kind != "theme":
+                    raise ManifestError("不是外觀包")
+                bundle = theme_pack.compile_theme(folder, m.name, m.theme)
+            except (PackAdminError, ManifestError, Rejected, OSError, UnicodeDecodeError) as e:
+                return _page(404, "看不到", f"這個外觀包沒辦法預覽：{e}")
+            tokens, title = m.theme.get("tokens"), m.title
+        elif name:
+            m = self.appearance.manifest(name) if NAME_RE.match(name) else None
+            bundle = self.appearance.bundle_of(m) if m is not None else None
+            if bundle is None:
+                return _page(404, "找不到", "沒有裝這個外觀包，或它過不了消毒。")
+            tokens, title = m.theme.get("tokens"), m.title
+        html = preview_page(title, mode, bundle, tokens)
+        csp = ("default-src 'none'; style-src 'unsafe-inline'; font-src 'self'; img-src data:; "
+               "frame-ancestors 'self'; base-uri 'none'; form-action 'none'")
+        return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "SAMEORIGIN"),
+                                    ("Content-Security-Policy", csp)], html.encode("utf-8")
+
+    def theme_font(self, name: str, rel: str) -> Resp:
+        """裝好的外觀包宣告的字型（theme.fonts 裡的 .woff2；別的檔一律 404）。不用登入：登入卡也用得到，字型不是秘密。"""
+        m = self.appearance.manifest(name)
+        if m is None or rel not in {f["file"] for f in m.theme.get("fonts") or []}:
+            return _page(404, "找不到", "沒有這個字型。")
+        try:
+            with open(os.path.join(m.folder, *rel.split("/")), "rb") as f:
+                blob = f.read()
+        except OSError:
+            return _page(404, "找不到", "沒有這個字型。")
+        return 200, [("X-Content-Type-Options", "nosniff"), ("Referrer-Policy", "no-referrer"),
+                     ("Cache-Control", "private, max-age=3600"), ("Content-Type", "font/woff2")], blob
+
+    def appearance_save(self, user, data: dict) -> Resp:
+        """POST /api/appearance {"theme": 名字｜""（換回原本的 SYNOX）, "mode": auto｜light｜dark, "reset": true}。
+        每個人改自己的（伺服器版的擁有者＝這台的預設）。"""
+        changes = {k: data[k] for k in ("theme", "mode", "reset") if k in data}
+        if not changes:
+            return _err(400, "沒有要改的東西。")
+        try:
+            eff = self.appearance.save(user.tg_id, changes)
+        except AppearanceError as e:
+            return _err(400, str(e))
+        return _json(200, {"ok": True, "theme": eff["theme"], "mode": eff["mode"]})
+
+    def appearance_custom(self, user, data: dict) -> Resp:
+        """POST /api/appearance/custom {"slot", "text", "preview": true｜false}：自己貼的 SVG／HTML＋CSS。
+        preview＝只消毒、回結果（不存）；不然消毒過就存（text 空＝拿掉這一格，換回預設）。"""
+        from synox.theme import contract
+        slot = str(data.get("slot") or "")
+        if contract.slot_name(slot) != slot:
+            return _err(400, "不認得這個位置。")
+        text = data.get("text")
+        if text is not None and not isinstance(text, str):
+            return _err(400, "要貼文字。")
+        try:
+            if data.get("preview"):
+                clean = self.appearance.clean_custom(slot, text)
+                return _json(200, {"ok": True, **clean.to_dict()})
+            self.appearance.save(user.tg_id, {"custom": {"slot": slot, "text": text or ""}})
+        except AppearanceError as e:
+            return _err(400, str(e))
+        return _json(200, {"ok": True})
+
     # ── API ──────────────────────────────────────────────────────────
 
     def api(self, method: str, path: str, query, headers, body: bytes, session: Session) -> Resp:
@@ -677,6 +786,8 @@ class WebUI:
                 return self.accounts(user)
             if path == "/api/tour":
                 return self.tour_state(user)
+            if path == "/api/appearance":
+                return _json(200, self.appearance.describe(user.tg_id, self.is_owner(user), self.server_mode))
             return _err(404, "沒有這個 API。")
         if method != "POST":
             return _err(405, "只收 GET、POST。")
@@ -743,6 +854,10 @@ class WebUI:
             return self.tour_progress(user, data)
         if path == "/api/tour/offer":
             return self.tour_offer(user, data)
+        if path == "/api/appearance":
+            return self.appearance_save(user, data)
+        if path == "/api/appearance/custom":
+            return self.appearance_custom(user, data)
         return _err(404, "沒有這個 API。")
 
     # ── 我 ───────────────────────────────────────────────────────────
@@ -1726,7 +1841,8 @@ class WebUI:
         report = self._reload()
         status = next((i for i in report.items if i.name == name), None)
         return _json(200, {"ok": True, "name": name, "status": status.status if status else "",
-                           "detail": status.detail if status else "", "env": env})
+                           "detail": status.detail if status else "", "env": env,
+                           "kind": status.kind if status else ""})
 
     def _start_env_build(self, name: str, what: str = "裝好了") -> str:
         """裝好（或升級好）之後建環境（runtime.python／node = auto）：在 JobRunner 上背景跑，好了重新載入、通知擁有者。
@@ -1770,6 +1886,7 @@ class WebUI:
         report = self._reload()
         status = next((i for i in report.items if i.name == done["name"]), None)
         return _json(200, {"ok": True, "name": done["name"], "upgraded": True, "from": done["from"], "to": done["to"],
+                           "kind": status.kind if status else "",
                            "backup": os.path.relpath(done["backup"], os.path.dirname(self.pack_dirs[0])),
                            "status": status.status if status else "", "detail": status.detail if status else "",
                            "env": env})

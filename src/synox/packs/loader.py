@@ -5,6 +5,7 @@ SYNOX 出廠不帶任何工具（packs/ 只有說明；工具在 SYNOX_Libs）�
   kind=python     import 資料夾裡的 pack.py，呼叫 install(app, pack)
   kind=cli        pack.json 的 cli.argv＋cli.commands → isdtelekit.packs.service.install（會印 JSON 的命令列程式）
   kind=connector  只登記：一個群組、一個葉節點，說「還沒接上」（v0 不連外）
+  kind=theme      外觀包（synox/theme）：不載入任何東西、不進指令表；過了第 3 關（鎖）＝網頁「設定 → 外觀」挑得到
   kind=mcp        mcp.transport=stdio：packs/mcp.py（每個 (pack, 使用者) 一個長駐 MCP 子程序，tools_allow 的工具＝葉節點，
                   effect 只看 pack.json）；mcp.transport=http：遠端 MCP（packs/mcp_http.py，同一套工具→葉節點）；
                   沒寫 transport（只有 url）＝同 connector，只登記
@@ -961,7 +962,7 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         if no_env:
             item.status, item.detail = "missing", no_env
             continue
-        if app.registry.node(m.group) is not None:
+        if m.kind != "theme" and app.registry.node(m.group) is not None:
             item.status, item.detail = "error", f"群組 {m.group} 已經被別的 pack 用了"
             continue
         use_vault = m.storage == "vault"
@@ -981,6 +982,9 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
             item.status = "rejected"
             item.detail = "沒有 packs.lock、載入時的第 2 關掃描沒過，沒有載入：" + "；".join(problems[:5])
             logging.error("[PACKS] %s rejected by load-time scan: %s", m.name, problems)
+            continue
+        if m.kind == "theme":                    # 外觀包：沒有程式、不進指令表；網頁「設定 → 外觀」套用（synox/theme）
+            item.detail = "外觀包：到「設定 → 外觀」套用"
             continue
         server = getattr(config, "mode", "personal") == "server"
         store = PackStore(m.name, config.data_dir, vault if use_vault else None, per_user=server)

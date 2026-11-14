@@ -1,7 +1,7 @@
 /* 新手教學的畫面（static/tour.js）：聚光圈、小卡、第一次的邀請、對話裡的「在畫面上帶我走」。
    顏色沿用 app.html 的 token。聚光圈與遮罩都是 pointer-events: none：教學只指給人看，每一下都是使用者自己按。 */
   .tour-ring { position: fixed; z-index: 70; pointer-events: none; border-radius: 12px;
-               box-shadow: 0 0 0 3px var(--accent), 0 0 0 7px var(--accent-soft), 0 0 0 9999px rgba(8, 12, 18, .38);
+               box-shadow: 0 0 0 3px var(--accent), 0 0 0 7px var(--accent-soft), 0 0 0 9999px var(--tour-scrim);
                transition: top .22s var(--ease), left .22s var(--ease), width .22s var(--ease), height .22s var(--ease); }
   .tour-ring.hidden { display: none; }
   .tour-card { position: fixed; z-index: 71; width: min(360px, calc(100vw - 24px)); max-height: calc(100vh - 24px);

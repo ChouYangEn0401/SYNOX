@@ -27,7 +27,17 @@ RELEASES_URL = PROJECT_URL + "/releases"                     # 每一版的發�
 #: 印歡迎畫面的指令（None＝`synox` 什麼都沒打）。init 是之後安裝流程會加的指令，先列著。
 BANNER_COMMANDS = frozenset({None, "run", "open", "wizard", "init", "doctor", "about"})
 
-TAGLINE = "你自己電腦上的小助手，資料只放在這台電腦。"
+# ---------------------------------------------------------------- 標語（唯一的來源）
+#: SYNOX 的大標語（還沒定案，暫用這句）。要換只改這裡，再跑 python scripts/make_landing.py 重組介紹頁、
+#: python scripts/make_cli_welcome.py 重產終端機預覽。兩段：介紹頁第一屏分兩行，第二段用主色。
+#: 之後主題可以帶自己的「心情語」，但不會換掉這句標語。
+SLOGAN = ("先問你，", "再動手。")
+SLOGAN_EN = "The AI assistant that asks first."
+#: 定位句（介紹頁大標語上面那行小字）。
+EYEBROW = "住在你自己電腦裡的 AI 助理"
+EYEBROW_EN = "The AI assistant that lives on your own computer."
+
+TAGLINE = "".join(SLOGAN) + EYEBROW + "。"
 
 # ---------------------------------------------------------------- logo
 

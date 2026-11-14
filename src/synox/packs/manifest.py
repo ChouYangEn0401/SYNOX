@@ -83,7 +83,7 @@ import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
-KINDS = ("python", "cli", "connector", "mcp")
+KINDS = ("python", "cli", "connector", "mcp", "theme")    # theme：外觀包（synox/theme，沒有程式）
 AUTHS = ("oauth", "token", "caldav")                       # v0 的 auth 字串（connector）
 AUTH_TYPES = ("none", "token", "oauth", "caldav", "file")  # v2 的 auth.type
 CAPABILITIES = ("network", "subprocess", "filesystem:own", "filesystem:any", "exec")
@@ -307,6 +307,8 @@ class Manifest:
     # 範圍（ADR 0025 §3，只能收緊）：哪些指令只收誰叫（human／remote／ai／schedule／system）、哪些一定要先解鎖
     callers: Dict[str, List[str]] = field(default_factory=dict)
     stepup: List[str] = field(default_factory=list)
+    # kind=theme：整理過的 theme（tokens、slots、css、fonts；synox/theme/pack.py，docs/themes.md）
+    theme: dict = field(default_factory=dict)
 
     @property
     def stage_label(self) -> str:
@@ -1233,7 +1235,12 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     if storage not in ("vault", "plain"):
         problems.append("storage 只能是 vault 或 plain")
     skill = raw.get("skill", "SKILL.md")
-    if not isinstance(skill, str) or os.path.isabs(skill) or re.match(r"^[A-Za-z]:", skill) or \
+    theme: dict = {}
+    if kind == "theme":                        # 外觀包：沒有程式、沒有 SKILL.md；theme 那一段在 synox/theme/pack.py 檢查
+        from synox.theme import pack as theme_pack
+        theme, why = theme_pack.check_manifest(raw, folder)
+        problems += why
+    elif not isinstance(skill, str) or os.path.isabs(skill) or re.match(r"^[A-Za-z]:", skill) or \
             ".." in skill.replace("\\", "/").split("/"):
         problems.append(f"skill 要是 pack 資料夾裡的檔（相對路徑、不能有 ..）：{skill!r}")
     elif not os.path.isfile(os.path.join(folder, skill)):
@@ -1330,7 +1337,7 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
                     folder=folder, group=group, access=access, skill=skill, storage=storage,
                     python=dict(raw.get("python") or {}), cli=cli, auth="" if auth_type == "none" else auth_type,
                     requires=dict(requires), web=web, raw=dict(raw), v2=v2, category=category,
-                    stage=stage, stage_declared=stage_declared, health=health,
+                    stage=stage, stage_declared=stage_declared, health=health, theme=theme,
                     runtime={**{k: v for k, v in runtime.items() if k in ("python", "python_posix", "node")},
                              **({"container": container} if container else {})}, **extra)
 
@@ -1390,6 +1397,8 @@ def doc_warnings(m: Manifest) -> List[str]:
     - SKILL.md 開頭沒有 frontmatter 的 name／description：AI 的系統提示看不到這個 pack（agent/skills.py）。
     - cli 的 command 沒寫 summary、欄位沒寫 ask：工具頁與 AI 只看得到英文名字。"""
     out = []
+    if m.kind == "theme":                     # 外觀包沒有 SKILL.md、沒有指令
+        return out
     try:
         from synox.agent.skills import parse, read_text
         meta, _body = parse(read_text(m.skill_path))
