@@ -105,6 +105,13 @@
       "repo": "SYNOX_Libs",
       "local": "docs/site/apple-reminders.html",
       "note": "SYNOX_Libs repo（本機有，GitHub 還沒推上去）"
+    },
+    {
+      "title": "SYNOX 標語預覽",
+      "url": "https://claude.ai/artifact/M21htYntoVQut9nVFBz9kw",
+      "repo": "SYNOX",
+      "local": "docs/lab/slogan/index.html",
+      "note": ""
     }
   ]
 }
