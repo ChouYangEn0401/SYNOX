@@ -16,7 +16,11 @@
   },
   "vault": { "mode": "dpapi" },
   "packs": { "enabled": "all", "disabled": [], "dirs": [], "library": "" },
-  "web": { "enabled": true, "port": 8830, "public_url": "" },
+  "web": { "enabled": true, "port": 8830, "public_url": "",
+           "apps": { "enabled": true, "port_first": 8841, "port_count": 16, "max_running": 3,
+                     "idle_suggest_min": 30, "idle_close_min": 120 },
+           "remote": { "enabled": false, "minutes": 30, "max_minutes": 120, "idle_min": 10, "gate_port": 8861,
+                       "tunnel": { "kind": "cloudflared", "path": "" } } },
   "ai_member_monthly_usd": 2.0,
   "runtime": {
     "heartbeat": { "enabled": true, "interval_min": 45, "quiet_hours": "23:00-08:00",

@@ -20,7 +20,7 @@ from isdtelekit import build_app
 from isdtelekit.host.app import App
 from isdtelekit.packs import accounts, basics, help as help_pack, limits
 
-from synox import agent, discord, health, policy, runtime, schedule, telegram_link, tour, web
+from synox import agent, discord, guard, health, policy, runtime, schedule, telegram_link, tour, web
 from synox.config import SynoxConfig
 from synox.llm import make_adapter
 from synox.llm.base import LLMError
@@ -63,6 +63,7 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
             app.extras["vault_error"] = str(e)
             vault = None
     app.extras["vault"] = vault
+    guard.install(app, config, vault)          # 門禁核心（ADR 0025）：來源、稽核；之後驗證器與範圍也從這裡接上
     server = getattr(config, "mode", "personal") == "server"
 
     def greet(u) -> str:

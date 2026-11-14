@@ -37,6 +37,8 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
 from isdtelekit.core import jsonstore
+
+from synox.guard import origin as guard_origin
 from isdtelekit.core.registry import AI, DANGER, Node
 
 from synox import health, policy, present
@@ -761,7 +763,16 @@ class AgentLoop:
 
     def call_tool(self, api, chat_id: int, user, call: ToolCall, skills) -> Tuple[str, bool, bool]:
         """回 (給 AI 看的結果, 是否送了核准卡, ok)。ok＝真的執行成功或走到確認卡；第 4 關拒絕、失敗信封、不認得的工具、
-        缺參數＝False（完成宣稱檢查的證據帳本與「同一個呼叫連續失敗」用）。"""
+        缺參數＝False（完成宣稱檢查的證據帳本與「同一個呼叫連續失敗」用）。
+        來源（ADR 0025 §2）：這裡面一律是 ai，on_behalf＝這一輪是誰從哪個入口開始的（在這裡設，不靠執行緒繼承）。"""
+        outer = guard_origin.current()
+        if outer.kind == "ai":
+            outer = outer.on_behalf or guard_origin.UNKNOWN
+        uid = int(getattr(user, "tg_id", 0) or 0)
+        with guard_origin.using(guard_origin.Origin("ai", uid, surface="ai", on_behalf=outer)):
+            return self._call_tool(api, chat_id, user, call, skills)
+
+    def _call_tool(self, api, chat_id: int, user, call: ToolCall, skills) -> Tuple[str, bool, bool]:
         registry = self.app.registry
         if call.name == skills_mod.SKILL_READ:
             problem = gate4.check_skill_read(call.args)
@@ -774,7 +785,7 @@ class AgentLoop:
         if decision is None:
             return f"沒有 {call.name} 這個工具（或你不能用）。", False, False
         if not decision.allowed:
-            return f"{node.command} 要先解鎖（/sudo），請使用者自己打。", False, False
+            return f"{node.command} 要先解鎖（/unlock），請使用者自己打。", False, False
         broken = health.hidden(self.app, node.path, user)        # 隔離清單上的（工具清單裡本來就沒有）：不執行
         if broken is not None:
             return health.unavailable_line(node, broken), False, False

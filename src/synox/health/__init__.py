@@ -356,7 +356,14 @@ def _user_for(app, entry: Entry):
 
 def recheck(app, entry: Entry, *, manual: bool = False) -> str:
     """重新檢查一筆：有自我檢查就跑它（過了放回、沒過下一段冷卻）；沒有就放回清單試用一次。回一句結果（給任務日誌）。
-    manual＝擁有者在網頁按的（needs_action 只有這樣才檢查）。quarantined 不檢查（要先解除）。"""
+    manual＝擁有者在網頁按的（needs_action 只有這樣才檢查）。quarantined 不檢查（要先解除）。
+    來源一律是 system（ADR 0025 §2）：自我檢查是 SYNOX 自己叫的，不是人打的。"""
+    from synox.guard.origin import Origin, using
+    with using(Origin("system", 0, surface="health")):
+        return _recheck(app, entry, manual=manual)
+
+
+def _recheck(app, entry: Entry, *, manual: bool = False) -> str:
     reg = of(app)
     if reg is None or entry.state == QUARANTINED:
         return ""

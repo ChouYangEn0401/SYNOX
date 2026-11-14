@@ -155,8 +155,13 @@ def _meta(app, node) -> dict:
 
 
 def wants_confirm(app, node) -> bool:
-    """kind=cli 的 commands[].confirm: true（synox_sdk 的 @tool(confirm=True)）：AI 呼叫前先送確認卡。"""
-    return _meta(app, node).get("confirm") is True
+    """AI 呼叫前先送確認卡：kind=cli 的 commands[].confirm: true（synox_sdk 的 @tool(confirm=True)），
+    或 pack.json 的 `stepup` 列了這個指令（一定要解鎖：按 ✅ 的那一下用按的人的身分、入口再判一次；ADR 0025 §5.4）。"""
+    if _meta(app, node).get("confirm") is True:
+        return True
+    from synox import guard
+    g = guard.of(app)
+    return bool(g is not None and g.scope is not None and g.scope.always_stepup(node))
 
 
 def _user_dir(app, user) -> str:

@@ -856,6 +856,38 @@
   #report-text { font-size: 16px; min-height: 280px; }
 }
 </style>
+<style nonce="preview">/* 🔐 安全（static/security.js）：設定頁的卡＋解鎖的輸入框 */
+.stepup-state { font-weight: 600; }
+.stepup-err { color: var(--danger, #b42318); }
+.stepup-qr { display: block; margin: 8px 0; image-rendering: pixelated; max-width: 260px; width: 100%; height: auto; }
+.stepup-secret, .stepup-codes { font-family: ui-monospace, Consolas, monospace; font-size: 1.05em; letter-spacing: .05em;
+  background: var(--panel-2, rgba(127, 127, 127, .08)); padding: 8px 10px; border-radius: 8px; white-space: pre-wrap; }
+.stepup-code { font-size: 1.3em; letter-spacing: .2em; width: 10em; max-width: 100%; }
+.stepup-toggle { display: block; margin: 8px 0; }
+.stepup-modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); display: flex; align-items: center;
+  justify-content: center; z-index: 1000; padding: 16px; }
+.stepup-box { background: var(--bg, #fff); color: var(--fg, #111); border-radius: 12px; padding: 16px 18px; width: 360px;
+  max-width: 100%; box-shadow: 0 8px 30px rgba(0, 0, 0, .3); }
+.stepup-box .row, #set-security .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+button.danger { background: var(--danger, #b42318); color: #fff; }
+</style>
+<style nonce="preview">/* 工具服務的主機台畫面（static/apps.js） */
+.app-card { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; margin: 12px 0; background: var(--surface-2, transparent); }
+.app-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.app-row form { display: inline; margin: 0; }
+.app-policy .badge { margin-left: 8px; }
+.app-problem { color: var(--bad); }
+.app-policy-form { display: grid; gap: 6px; margin-top: 8px; }
+.app-policy-form.hidden, .app-warn.hidden { display: none; }
+.app-choice input[type="number"] { width: 6em; margin: 0 6px; }
+.app-warn { color: var(--warn); }
+.app-modal { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); display: flex; align-items: center; justify-content: center;
+  padding: 16px; z-index: 1000; }
+.app-modal-box { background: var(--surface, #fff); color: var(--text, #111); border-radius: 12px; padding: 16px; max-width: 440px; width: 100%; }
+#apps-side { margin: 6px 10px; font-size: 13px; color: var(--ok); cursor: default; }
+#apps-side.warn { color: var(--warn); }
+#apps-side.hidden { display: none; }
+</style>
 <style nonce="preview">  /* ── 動態：開場動畫（splash.js 產生）＋頁面切換、卡片進場、按鈕、狀態點、背景的微動畫 ──────────
      說明與時間表：docs/ui/motion-notes.md。手法取自 ISDPCS（web/style.css 的 wc-rise／wc-pop／wc-shine、
      fireworks.js 的粒子、breathe、tb-pulse），改成 SYNOX 的 token。
@@ -1534,6 +1566,7 @@
     <ul id="chat-list" data-tour="chat.list"></ul>
     <a id="open-archive" class="archive-link" href="#archive">🗄 已封存的對話<span id="archive-n"></span></a>
   </div>
+  <a id="apps-side" class="hidden" href="#tools" title="工具服務：到工具頁看、關掉"></a>
   <div id="side-foot" class="side-foot hidden">
     <span class="avatar" id="avatar" aria-hidden="true"></span>
     <span class="who" id="who"></span>
@@ -1612,6 +1645,7 @@
         <a href="#settings:channels" data-tab="channels" role="tab" data-tour="settings.tab.channels">💬 聊天通道</a>
         <a href="#packs" data-tab="packs" role="tab" data-tour="settings.tab.packs">🧩 功能與安裝</a>
         <a href="#settings:accounts" data-tab="accounts" role="tab" data-tour="settings.tab.accounts">👥 帳號</a>
+        <a href="#settings:security" data-tab="security" role="tab">🔐 安全</a>
         <a href="#settings:system" data-tab="system" role="tab" data-tour="settings.tab.system">💻 電腦與備份</a>
         <a href="#settings:help" data-tab="help" role="tab" data-tour="settings.tab.help">🙋 遇到問題？</a>
       </div>
@@ -1838,6 +1872,15 @@
         <div class="tablewrap"><table><thead><tr><th>id</th><th>名字</th><th>角色</th><th>今天訊息</th><th>本月 AI</th></tr></thead>
           <tbody id="account-rows"></tbody></table></div>
         <p id="account-msg" class="msgline"></p>
+      </div>
+      </div>
+
+      <!-- 🔐 安全（每個登入的人都看得到：各自設定自己的手機驗證器；動作在 static/security.js、API 在 guard/web_api.py） -->
+      <div class="tab-panel hidden" data-tab="security" role="tabpanel">
+      <div id="set-security" class="card">
+        <div class="card-head"><span class="tile" aria-hidden="true">🔐</span>
+          <div class="txt"><h2>手機驗證器（兩步驗證）</h2><p class="sub">重要的動作多一道手機上的 6 位數。</p></div></div>
+        <div id="set-security-body"></div>
       </div>
       </div>
 
@@ -3184,6 +3227,784 @@
   else { root.SynoxReport = api; }
 })(typeof window !== "undefined" ? window : this);
 </script>
+<script nonce="preview">/* 🔐 安全（設定 → 🔐 安全；ADR 0025）：手機驗證器的設定、備用碼、開關、解鎖。樣式在 static/security.css。
+ *
+ * - SynoxStepUp.ask()：任何 API 回 403 {code: "stepup"} 時，app.html 的 api() 叫它跳出輸入框；
+ *   打對 → POST /api/stepup/unlock → 回 Promise 成功，app.html 把原本的請求重送一次；按取消 → Promise 失敗，不重送。
+ * - 設定頁的卡：狀態 → 設定三步（QR＋金鑰文字＋打碼）→ 備用碼（只這一次；勾「我抄好了」才關得掉）→
+ *   之後：開關、剩幾組備用碼、產生新的備用碼、關掉驗證器（紅色、要碼）、這個瀏覽器解鎖了沒＋「馬上鎖回去」。
+ * - 字一律 textContent；字串集中在 TEXT。app.html 在拿到 /api/me 之後叫 window.SynoxStepUp.init({ api, toast })。
+ */
+(function (root) {
+  "use strict";
+  var TEXT = {
+    title: "手機驗證器",
+    what: "手機上一個會每 30 秒換一組 6 位數的 App（Google Authenticator、Microsoft Authenticator 都可以）。設定好之後，重要的動作要多打這 6 個數字。",
+    why: "現在只要有人拿到你的 Telegram 帳號或這台電腦的瀏覽器登入，就能叫 SYNOX 做任何事。加了驗證器，他還得拿到你的手機。",
+    skip: "不設也照樣能用，跟現在一樣。只有「從手機打開工具畫面」這類一定要驗證器的功能不能用。",
+    ai: "AI 永遠不會、也不能跟你要驗證碼。有東西跟你要 6 位數，而你不是正在自己做危險的動作，就不要給。",
+    notSet: "還沒設定",
+    setOn: "已設定，危險的動作要先解鎖",
+    setOff: "已設定，但危險的動作沒有開保護",
+    start: "設定手機驗證器",
+    notHere: "請在跑 SYNOX 的那台電腦上設定（打開 SYNOX 網頁 → 設定 → 🔐 安全）。",
+    step1: "① 打開手機的驗證器 App → 新增 → 掃描下面的方塊。",
+    step2: "② 掃不到的話，選「手動輸入」，打這串字：",
+    step3: "③ 打 App 上現在顯示的 6 位數：",
+    confirm: "確定",
+    protect: "危險的動作也要先解鎖（建議）",
+    recoveryTitle: "備用碼（只顯示這一次）",
+    recoveryHow: "手機不見時用的 10 組一次性密碼。請抄在紙上，只能在這台電腦的 SYNOX 網頁上用。",
+    copied: "我抄好了",
+    copy: "複製",
+    close: "關閉",
+    recoveryLeft: "備用碼還剩 {n} 組",
+    newRecovery: "產生新的備用碼",
+    disable: "關掉手機驗證器",
+    disableAsk: "要關掉的話，打一組 App 上的 6 位數（或一組備用碼）：",
+    unlocked: "這個瀏覽器已解鎖，還剩 {m} 分鐘",
+    lockedHere: "這個瀏覽器還沒解鎖",
+    lockNow: "馬上鎖回去",
+    unlockNow: "解鎖",
+    askTitle: "🔐 這個動作要先解鎖",
+    askHow: "打手機驗證器上現在的 6 位數。解鎖之後 {m} 分鐘內不用再打。",
+    askOk: "解鎖並繼續",
+    askCancel: "取消",
+    codeLabel: "6 位數",
+    wrong: "不對：",
+    done: "好了",
+    failed: "沒有成功：",
+    // 手機入口（ADR 0026）：總開關與通道程式的核准（都要先解鎖）
+    remoteTitle: "📱 手機入口",
+    remoteSwitch: "允許開手機入口（每次開還是要你本人＋一組新的驗證碼）",
+    remoteNeedStepup: "要先設定手機驗證器，才能用手機入口。",
+    binaryTitle: "通道程式（cloudflared）",
+    binaryNone: "還沒核准。請自己安裝 cloudflared（SYNOX 不替你下載），再按下面的按鈕。",
+    binaryCheck: "請跟官方發佈頁上的雜湊對一下，一樣才按核准。檔案一改（例如自己更新了）就要重新核准。",
+    binaryApprove: "我核對過了，核准這個檔",
+    binaryPath: "路徑：",
+    binarySize: "大小：",
+    binarySha: "SHA-256：",
+    binarySigner: "簽署者：讀不到，請自己對雜湊。"
+  };
+
+  /* 純邏輯（tests/js/test_security.js）：deps = { api(method, path, body) → Promise, prompt() → Promise<碼或 null> } */
+  function makeAsker(deps) {
+    var waiting = null;
+    function ask() {
+      if (waiting) { return waiting; }                 // 同時好幾個請求被擋：只問一次
+      waiting = new Promise(function (resolve, reject) {
+        function round(hint) {
+          deps.prompt(hint || "").then(function (code) {
+            if (code === null || code === undefined) { waiting = null; reject(new Error("cancel")); return; }
+            deps.api("POST", "/api/stepup/unlock", { code: String(code) }).then(function () {
+              waiting = null;
+              resolve();
+            }, function (err) { round(TEXT.wrong + (err && err.message ? err.message : "")); });
+          });
+        }
+        round("");
+      });
+      return waiting;
+    }
+    return { ask: ask };
+  }
+
+  function isStepUp(status, data) {
+    return status === 403 && !!data && data.code === "stepup";
+  }
+
+  function statusLine(s) {
+    if (!s.enrolled) { return TEXT.notSet; }
+    return s.protect_danger ? TEXT.setOn : TEXT.setOff;
+  }
+
+  function fill(text, vars) {
+    return String(text).replace(/\{(\w+)\}/g, function (_m, k) { return vars[k] === undefined ? "" : String(vars[k]); });
+  }
+
+  /* 畫面 ─────────────────────────────────────────────────────────── */
+  var deps = null;
+  var asker = null;
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) { e.className = cls; }
+    if (text !== undefined) { e.textContent = text; }
+    return e;
+  }
+
+  function drawQr(canvas, grid) {
+    var n = grid.length, pad = 4, scale = 5;
+    canvas.width = canvas.height = (n + pad * 2) * scale;
+    var ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#000";
+    for (var y = 0; y < n; y++) {
+      for (var x = 0; x < n; x++) {
+        if (grid[y].charAt(x) === "1") { ctx.fillRect((x + pad) * scale, (y + pad) * scale, scale, scale); }
+      }
+    }
+  }
+
+  function codeBox() {
+    var i = el("input", "stepup-code");
+    i.type = "text";
+    i.inputMode = "numeric";
+    i.autocomplete = "one-time-code";
+    i.maxLength = 12;
+    i.setAttribute("aria-label", TEXT.codeLabel);
+    return i;
+  }
+
+  function prompt(hint) {
+    return new Promise(function (resolve) {
+      var back = el("div", "stepup-modal");
+      var box = el("div", "stepup-box");
+      box.setAttribute("role", "dialog");
+      box.setAttribute("aria-modal", "true");
+      box.appendChild(el("h3", "", TEXT.askTitle));
+      box.appendChild(el("p", "", fill(TEXT.askHow, { m: (deps && deps.minutes) || 15 })));
+      if (hint) { box.appendChild(el("p", "stepup-err", hint)); }
+      var input = codeBox();
+      box.appendChild(input);
+      var row = el("div", "row");
+      var ok = el("button", "", TEXT.askOk);
+      var no = el("button", "ghost", TEXT.askCancel);
+      row.appendChild(ok);
+      row.appendChild(no);
+      box.appendChild(row);
+      back.appendChild(box);
+      document.body.appendChild(back);
+      input.focus();
+      function done(v) { back.parentNode.removeChild(back); resolve(v); }
+      ok.addEventListener("click", function () { done(input.value.trim()); });
+      no.addEventListener("click", function () { done(null); });
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") { done(input.value.trim()); }
+        if (e.key === "Escape") { done(null); }
+      });
+    });
+  }
+
+  function showRecovery(card, codes, after) {
+    var box = el("div", "stepup-recovery");
+    box.appendChild(el("h3", "", TEXT.recoveryTitle));
+    box.appendChild(el("p", "sub", TEXT.recoveryHow));
+    var list = el("pre", "stepup-codes", codes.join("\n"));
+    box.appendChild(list);
+    var row = el("div", "row");
+    var copy = el("button", "ghost", TEXT.copy);
+    copy.addEventListener("click", function () {
+      if (navigator.clipboard) { navigator.clipboard.writeText(codes.join("\n")); }
+    });
+    var label = el("label", "");
+    var check = el("input", "");
+    check.type = "checkbox";
+    label.appendChild(check);
+    label.appendChild(document.createTextNode(" " + TEXT.copied));
+    var close = el("button", "", TEXT.close);
+    close.disabled = true;
+    check.addEventListener("change", function () { close.disabled = !check.checked; });
+    close.addEventListener("click", function () { after(); });
+    row.appendChild(copy);
+    row.appendChild(label);
+    row.appendChild(close);
+    box.appendChild(row);
+    card.textContent = "";
+    card.appendChild(box);
+  }
+
+  function render(s) {
+    var card = document.getElementById("set-security-body");
+    if (!card) { return; }
+    card.textContent = "";
+    card.appendChild(el("p", "stepup-state", statusLine(s)));
+    var msg = el("p", "msgline");
+    if (!s.enrolled) {
+      [TEXT.what, TEXT.why, TEXT.skip].forEach(function (t) { card.appendChild(el("p", "sub", t)); });
+      if (!s.can_enroll_here) {
+        card.appendChild(el("p", "stepup-err", s.why_not || TEXT.notHere));
+        return;
+      }
+      var go = el("button", "", TEXT.start);
+      go.addEventListener("click", function () { begin(card); });
+      card.appendChild(go);
+      card.appendChild(el("p", "sub", TEXT.ai));
+      return;
+    }
+    var here = el("p", "", s.unlocked ? fill(TEXT.unlocked, { m: Math.ceil(s.unlock_left_s / 60) }) : TEXT.lockedHere);
+    card.appendChild(here);
+    var row = el("div", "row");
+    if (s.unlocked) {
+      var lock = el("button", "ghost", TEXT.lockNow);
+      lock.addEventListener("click", function () { deps.api("POST", "/api/stepup/lock", {}).then(load); });
+      row.appendChild(lock);
+    } else {
+      var un = el("button", "ghost", TEXT.unlockNow);
+      un.addEventListener("click", function () { asker.ask().then(load, function () {}); });
+      row.appendChild(un);
+    }
+    card.appendChild(row);
+    var label = el("label", "stepup-toggle");
+    var box = el("input", "");
+    box.type = "checkbox";
+    box.checked = !!s.protect_danger;
+    label.appendChild(box);
+    label.appendChild(document.createTextNode(" " + TEXT.protect));
+    box.addEventListener("change", function () {
+      deps.api("POST", "/api/stepup/protect", { on: box.checked }).then(load, function (e) {
+        msg.textContent = TEXT.failed + e.message;
+        load();
+      });
+    });
+    card.appendChild(label);
+    card.appendChild(el("p", "sub", fill(TEXT.recoveryLeft, { n: s.recovery_left })));
+    var more = el("div", "row");
+    var fresh = el("button", "ghost", TEXT.newRecovery);
+    fresh.addEventListener("click", function () {
+      prompt("").then(function (code) {
+        if (code === null) { return; }
+        deps.api("POST", "/api/stepup/recovery", { code: code }).then(function (d) {
+          showRecovery(card, d.recovery, load);
+        }, function (e) { msg.textContent = TEXT.failed + e.message; });
+      });
+    });
+    var off = el("button", "danger", TEXT.disable);
+    off.addEventListener("click", function () {
+      prompt(TEXT.disableAsk).then(function (code) {
+        if (code === null) { return; }
+        deps.api("POST", "/api/stepup/disable", { code: code }).then(load, function (e) {
+          msg.textContent = TEXT.failed + e.message;
+        });
+      });
+    });
+    more.appendChild(fresh);
+    more.appendChild(off);
+    card.appendChild(more);
+    card.appendChild(msg);
+  }
+
+  function begin(card) {
+    deps.api("POST", "/api/stepup/begin", {}).then(function (d) {
+      card.textContent = "";
+      card.appendChild(el("p", "", TEXT.step1));
+      if (d.qr) {
+        var canvas = el("canvas", "stepup-qr");
+        drawQr(canvas, d.qr);
+        card.appendChild(canvas);
+      }
+      card.appendChild(el("p", "", TEXT.step2));
+      card.appendChild(el("pre", "stepup-secret", d.secret));
+      card.appendChild(el("p", "", TEXT.step3));
+      var input = codeBox();
+      card.appendChild(input);
+      var label = el("label", "stepup-toggle");
+      var protect = el("input", "");
+      protect.type = "checkbox";
+      protect.checked = true;                          // 擁有者決定：預設勾著（ADR 0025 第 3 題）
+      label.appendChild(protect);
+      label.appendChild(document.createTextNode(" " + TEXT.protect));
+      card.appendChild(label);
+      var ok = el("button", "", TEXT.confirm);
+      var msg = el("p", "msgline");
+      ok.addEventListener("click", function () {
+        deps.api("POST", "/api/stepup/confirm", { code: input.value.trim(), protect: protect.checked }).then(function (r) {
+          showRecovery(card, r.recovery, load);
+        }, function (e) { msg.textContent = TEXT.wrong + e.message; });
+      });
+      card.appendChild(ok);
+      card.appendChild(msg);
+    }, function (e) { if (deps.toast) { deps.toast(TEXT.failed + e.message); } });
+  }
+
+  function load() {
+    return deps.api("GET", "/api/stepup").then(function (s) {
+      deps.minutes = s.minutes;
+      render(s);
+      loadRemote(s);
+      return s;
+    });
+  }
+
+  function loadRemote(s) {
+    var card = document.getElementById("set-security-body");
+    if (!card || !deps) { return; }
+    deps.api("GET", "/api/remote").then(function (r) { card.appendChild(renderRemote(r, s)); }, function () {});
+  }
+
+  function renderRemote(r, s) {
+    var box = el("div", "stepup-remote");
+    box.appendChild(el("h3", "", TEXT.remoteTitle));
+    if (!s.enrolled) { box.appendChild(el("p", "sub", TEXT.remoteNeedStepup)); return box; }
+    var label = el("label", "stepup-toggle");
+    var on = el("input", "");
+    on.type = "checkbox";
+    on.checked = !!r.enabled;
+    label.appendChild(on);
+    label.appendChild(document.createTextNode(" " + TEXT.remoteSwitch));
+    on.addEventListener("change", function () { deps.api("POST", "/api/remote/enabled", { on: on.checked }).then(load, load); });
+    box.appendChild(label);
+    box.appendChild(el("h3", "", TEXT.binaryTitle));
+    if (r.binary) {
+      box.appendChild(el("p", "", TEXT.binaryPath + r.binary.path));
+      box.appendChild(el("p", "", TEXT.binarySize + r.binary.size));
+      box.appendChild(el("pre", "stepup-secret", TEXT.binarySha + r.binary.sha256));
+    } else {
+      box.appendChild(el("p", "sub", TEXT.binaryNone));
+    }
+    box.appendChild(el("p", "sub", TEXT.binaryCheck));
+    box.appendChild(el("p", "sub", TEXT.binarySigner));
+    var approve = el("button", "ghost", TEXT.binaryApprove);
+    approve.addEventListener("click", function () { deps.api("POST", "/api/remote/binary/approve", {}).then(load, load); });
+    box.appendChild(approve);
+    return box;
+  }
+
+  function init(d) {
+    deps = d;
+    asker = makeAsker({ api: d.api, prompt: prompt });
+    load();
+  }
+
+  var exported = {
+    TEXT: TEXT, makeAsker: makeAsker, isStepUp: isStepUp, statusLine: statusLine, fill: fill, init: init,
+    ask: function () { return asker ? asker.ask() : Promise.reject(new Error("not ready")); },
+    reload: function () { return deps ? load() : null; }
+  };
+  if (typeof module === "object" && module && module.exports) { module.exports = exported; }
+  else { root.SynoxStepUp = exported; }
+})(typeof window !== "undefined" ? window : this);
+</script>
+<script nonce="preview">/* 工具服務的主機台畫面（ADR 0024、計畫 C7、C10、WP4）：工具頁的「完整畫面」卡片、側欄的常駐標記、閒置設定。樣式在 static/apps.css。
+ *
+ * - 「打開」是一個表單：<form method="post" action="/apps/<名>/open" target="_blank" rel="noopener noreferrer">＋隱藏的 csrf 欄位。
+ *   不用程式開新視窗、不用 fetch：真的導覽才不會被擋彈出視窗，交接票也不經過這個頁面的程式。開服務與打開畫面是兩個動作。
+ * - 畫面上不顯示 app 的網址；埠只在「進階」的小字。字一律 textContent；字串集中在 TEXT。
+ * - 頁面看得到時每 30 秒抓一次 GET /api/apps（document.hidden 時不抓）。
+ * app.html 在拿到 /api/me 之後叫 window.SynoxApps.init({ api, toast, csrf })；tools.js 的 renderTool 叫 SynoxApps.card(panel, tool)。
+ */
+(function (root) {
+  "use strict";
+  var TEXT = {
+    cardTitle: "完整畫面",
+    open: "打開",
+    start: "開啟",
+    stop: "關掉",
+    keep: "先留著",
+    stopAll: "全部關掉",
+    whatIs: "這是什麼？為什麼要關？",
+    inUseTitle: "什麼叫有在用：",
+    on: "開著 · {n} 分鐘沒用",
+    onFresh: "開著",
+    off: "關著",
+    keepTag: "一直開著",
+    ownerOnly: "服務由擁有者開關。",
+    policyNow: "沒在用的時候：{text}",
+    change: "改",
+    save: "存起來",
+    cancel: "取消",
+    custom: "自己填：",
+    customUnit: "分鐘沒用就關",
+    keepWarn: "這個服務會一直開著，直到你自己關掉或 SYNOX 重開。開著的時候，這台電腦上的其他程式和其他帳號碰得到這扇門。",
+    keepOk: "我知道，一直開著",
+    blockAsk: "會先把它關掉，確定？",
+    blocked: "不開放這個工具的畫面（要開先改上面的設定）。",
+    firstTitle: "什麼是工具服務？",
+    firstOk: "知道了，開啟",
+    firstNo: "先不要",
+    side: "● {n} 個工具服務開著",
+    sideIdle: "● {title}的服務很久沒用了",
+    log: "最近紀錄",
+    advanced: "（進階）本機位址 127.0.0.x 的第 {n} 號埠",
+    failed: "沒有成功：",
+    problem: "這個工具的畫面現在不能開：",
+    unavailable: "現在不能用：",
+    events: { start: "開了", stop: "關了", auto_stop: "自動關了", suggest: "提醒很久沒用", keep: "按了先留著",
+              policy: "改了閒置設定", handoff: "打開了畫面", enter: "進到畫面", leave: "離開畫面", action: "在畫面上做了一個動作",
+              "export": "匯出了資料", denied: "擋下一個不對的請求", error: "出錯" },
+    // 手機入口（ADR 0026）
+    remoteRow: "📱 手機入口",
+    remoteMissing: "要先完成：",
+    remoteNeed: { stepup: "設定手機驗證器（設定 → 🔐 安全）", disabled: "打開手機入口的總開關（設定 → 🔐 安全）",
+                  binary: "核准通道程式 cloudflared（設定 → 🔐 安全）", declared: "這個工具沒有宣告可以從手機用",
+                  allowed: "打開這個工具的「可以從手機用」" },
+    remoteAllow: "可以從手機用",
+    remoteOpen: "開手機入口",
+    remoteCode: "手機驗證器現在的 6 位數（每次都要一組新的）",
+    remoteLink: "用手機打開這個連結（只能用一次，5 分鐘內要進去；進門時要再打一組數字）：",
+    remoteLeft: "手機入口開著，還剩 {m} 分鐘",
+    remoteClose: "關閉手機入口",
+    remoteNote: "通道是 Cloudflare 提供的，資料會經過它的機器；危險的動作與匯出在手機上不能做。"
+  };
+  var POLICY_CHOICES = [
+    { key: "auto120", label: "120 分鐘沒用就關，30 分鐘先提醒（建議）", body: { mode: "auto", close_min: 120 } },
+    { key: "auto30", label: "30 分鐘沒用就關", body: { mode: "auto", close_min: 30 } },
+    { key: "custom", label: "自己填 N 分鐘", body: null },
+    { key: "suggest", label: "只提醒，不自動關", body: { mode: "suggest" } },
+    { key: "keep", label: "一直開著", body: { mode: "keep", understood: true } },
+    { key: "blocked", label: "不開放這個工具的畫面", body: { mode: "blocked" } }
+  ];
+
+  function fill(text, vars) {
+    return String(text).replace(/\{(\w+)\}/g, function (_m, k) { return vars[k] === undefined ? "" : String(vars[k]); });
+  }
+
+  /* 純函式（tests/js/test_apps.js） */
+  function policyBody(key, minutes) {
+    if (key === "custom") {
+      var n = Number(minutes);
+      if (!isFinite(n) || Math.floor(n) !== n || n < 5 || n > 1440) { return null; }
+      return { mode: "auto", close_min: n };
+    }
+    var c = POLICY_CHOICES.filter(function (x) { return x.key === key; })[0];
+    return c ? c.body : null;
+  }
+
+  function stateLine(view) {
+    if (view.state !== "on") { return TEXT.off; }
+    return view.idle_min > 0 ? fill(TEXT.on, { n: view.idle_min }) : TEXT.onFresh;
+  }
+
+  function sideText(data) {
+    var on = (data.apps || []).filter(function (a) { return a.state === "on"; });
+    var idle = on.filter(function (a) { return a.suggest_close; })[0];
+    if (idle) { return { text: fill(TEXT.sideIdle, { title: idle.title }), warn: true, count: on.length }; }
+    var keep = on.some(function (a) { return a.policy && a.policy.mode === "keep"; });
+    return { text: fill(TEXT.side, { n: on.length }), warn: keep, count: on.length };
+  }
+
+  function make(doc) {
+    function el(tag, cls, text) {
+      var e = doc.createElement(tag);
+      if (cls) { e.className = cls; }
+      if (text !== undefined && text !== null) { e.textContent = String(text); }
+      return e;
+    }
+    return el;
+  }
+
+  function openForm(doc, name, csrf) {
+    var el = make(doc);
+    var f = el("form", "app-open");
+    f.method = "post";
+    f.action = "/apps/" + encodeURIComponent(name) + "/open";
+    f.target = "_blank";
+    f.rel = "noopener noreferrer";
+    f.setAttribute("rel", "noopener noreferrer");
+    var hidden = el("input");
+    hidden.type = "hidden";
+    hidden.name = "csrf";
+    hidden.value = csrf || "";
+    f.appendChild(hidden);
+    var b = el("button", "primary", TEXT.open);
+    b.type = "submit";
+    f.appendChild(b);
+    return f;
+  }
+
+  /* ctx：{ canManage, csrf, explain, onStart(view), onStop(view), onKeep(view), onPolicy(view, body), confirm(text) → Promise } */
+  function renderCard(doc, view, ctx) {
+    var el = make(doc);
+    var card = el("section", "app-card");
+    card.appendChild(el("div", "section-label", TEXT.cardTitle));
+    var policy = view.policy || {};
+    var line = el("p", "app-policy", fill(TEXT.policyNow, { text: policy.text || "" }));
+    if (policy.mode === "keep") { line.appendChild(el("span", "badge warn app-keep", TEXT.keepTag)); }
+    card.appendChild(line);
+    if (view.problem) {
+      card.appendChild(el("p", "app-problem", TEXT.problem + view.problem));
+    } else if (view.state === "error") {
+      card.appendChild(el("p", "app-problem", view.error || TEXT.failed));
+    }
+    var row = el("div", "app-row");
+    var state = el("span", "badge " + (view.state === "on" ? (view.suggest_close ? "warn" : "ok") : ""), stateLine(view));
+    row.appendChild(state);
+    if (view.state === "on" && view.open) { row.appendChild(openForm(doc, view.name, ctx.csrf)); }
+    if (ctx.canManage) {
+      if (view.state === "on") {
+        var stop = el("button", "", TEXT.stop);
+        stop.addEventListener("click", function () { ctx.onStop(view); });
+        row.appendChild(stop);
+        if (view.suggest_close) {
+          var keep = el("button", "", TEXT.keep);
+          keep.addEventListener("click", function () { ctx.onKeep(view); });
+          row.appendChild(keep);
+        }
+      } else if (policy.mode !== "blocked" && !view.problem) {
+        var start = el("button", "primary", TEXT.start);
+        start.addEventListener("click", function () { ctx.onStart(view); });
+        row.appendChild(start);
+      }
+    }
+    card.appendChild(row);
+    if (view.state !== "on" && ctx.explain && policy.mode !== "blocked") { card.appendChild(el("p", "sub", ctx.explain.what)); }
+    if (policy.mode === "blocked") { card.appendChild(el("p", "sub", TEXT.blocked)); }
+    if (!ctx.canManage) { card.appendChild(el("p", "sub", TEXT.ownerOnly)); }
+    if (ctx.canManage) { card.appendChild(policyEditor(doc, view, ctx)); }
+    if (ctx.explain) {
+      var more = el("details", "app-more");
+      more.appendChild(el("summary", "", TEXT.whatIs));
+      ["what", "why_close", "restart"].forEach(function (k) { more.appendChild(el("p", "", ctx.explain[k])); });
+      more.appendChild(el("p", "sub", TEXT.inUseTitle + (ctx.explain.in_use || "")));
+      if (view.port) { more.appendChild(el("small", "muted", fill(TEXT.advanced, { n: view.port }))); }
+      card.appendChild(more);
+    }
+    return card;
+  }
+
+  function policyEditor(doc, view, ctx) {
+    var el = make(doc);
+    var box = el("div", "app-policy-edit");
+    var toggle = el("button", "ghost", TEXT.change);
+    var form = el("div", "app-policy-form hidden");
+    var picked = "auto120";
+    var number = el("input");
+    number.type = "number";
+    number.min = "5";
+    number.max = "1440";
+    POLICY_CHOICES.forEach(function (c) {
+      var label = el("label", "app-choice");
+      var radio = el("input");
+      radio.type = "radio";
+      radio.name = "policy-" + view.name;
+      radio.value = c.key;
+      radio.addEventListener("change", function () { picked = c.key; });
+      label.appendChild(radio);
+      label.appendChild(el("span", "", c.key === "custom" ? TEXT.custom : c.label));
+      if (c.key === "custom") {
+        label.appendChild(number);
+        label.appendChild(el("span", "", TEXT.customUnit));
+      }
+      form.appendChild(label);
+    });
+    var warn = el("p", "app-warn hidden", TEXT.keepWarn);
+    form.appendChild(warn);
+    var save = el("button", "primary", TEXT.save);
+    var cancel = el("button", "ghost", TEXT.cancel);
+    save.addEventListener("click", function () {
+      var body = policyBody(picked, number.value);
+      if (!body) { return; }
+      if (picked === "keep") {
+        return ctx.confirm(TEXT.keepWarn, TEXT.keepOk).then(function (yes) { if (yes) { ctx.onPolicy(view, body); } });
+      }
+      if (picked === "blocked" && view.state === "on") {
+        return ctx.confirm(TEXT.blockAsk).then(function (yes) { if (yes) { ctx.onPolicy(view, body); } });
+      }
+      ctx.onPolicy(view, body);
+    });
+    cancel.addEventListener("click", function () { form.classList.add("hidden"); });
+    form.appendChild(save);
+    form.appendChild(cancel);
+    toggle.addEventListener("click", function () { form.classList.toggle("hidden"); });
+    box.appendChild(toggle);
+    box.appendChild(form);
+    return box;
+  }
+
+  /* 接上主機台 ───────────────────────────────────────────────────── */
+  var deps = null, last = null, cards = {}, timer = null;
+
+  function refresh() {
+    if (!deps) { return Promise.resolve(null); }
+    return deps.api("GET", "/api/apps").then(function (d) {
+      last = d;
+      drawSide(d);
+      Object.keys(cards).forEach(function (name) { drawCard(name); });
+      return d;
+    }, function () { return null; });
+  }
+
+  function viewOf(name) {
+    return ((last && last.apps) || []).filter(function (a) { return a.name === name; })[0];
+  }
+
+  function act(path, body) {
+    return deps.api("POST", path, body || {}).then(refresh, function (e) {
+      if (deps.toast) { deps.toast(TEXT.failed + (e && e.message ? e.message : "")); }
+      return refresh();
+    });
+  }
+
+  function confirmBox(text, okText) {
+    var doc = root.document;
+    var el = make(doc);
+    return new Promise(function (resolve) {
+      var back = el("div", "app-modal");
+      var box = el("div", "app-modal-box");
+      box.setAttribute("role", "dialog");
+      String(text).split("\n").forEach(function (t) { box.appendChild(el("p", "", t)); });
+      var ok = el("button", "primary", okText || TEXT.save);
+      var no = el("button", "ghost", TEXT.cancel);
+      box.appendChild(ok);
+      box.appendChild(no);
+      back.appendChild(box);
+      doc.body.appendChild(back);
+      function done(v) { back.parentNode.removeChild(back); resolve(v); }
+      ok.addEventListener("click", function () { done(true); });
+      no.addEventListener("click", function () { done(false); });
+    });
+  }
+
+  function ctxFor() {
+    return {
+      canManage: !!(last && last.can_manage), csrf: deps.csrf ? deps.csrf() : "", explain: last && last.explain,
+      confirm: confirmBox,
+      onStart: function (view) {
+        var first = last && !last.explained;
+        var go = function () { return act("/api/apps/" + view.name + "/start", { explained: true }); };
+        if (!first) { return act("/api/apps/" + view.name + "/start", {}); }
+        var e = last.explain || {};
+        return confirmBox([TEXT.firstTitle, e.what, e.why_close, e.restart].join("\n"), TEXT.firstOk).then(function (yes) {
+          if (yes) { return go(); }
+        });
+      },
+      onStop: function (view) { return act("/api/apps/" + view.name + "/stop"); },
+      onKeep: function (view) { return act("/api/apps/" + view.name + "/keep"); },
+      onPolicy: function (view, body) { return act("/api/apps/" + view.name + "/policy", body); }
+    };
+  }
+
+  function drawCard(name) {
+    var slot = cards[name];
+    var view = viewOf(name);
+    if (!slot || !view) { return; }
+    while (slot.firstChild) { slot.removeChild(slot.firstChild); }
+    slot.appendChild(renderCard(root.document, view, ctxFor()));
+    if (last && last.can_manage) {
+      if (view.remote) {
+        deps.api("GET", "/api/remote").then(function (st) { slot.appendChild(renderRemote(root.document, view, st)); },
+                                            function () {});
+      }
+      drawLog(slot, name);
+    }
+  }
+
+  /* 手機入口那一列（ADR 0026）：前提沒齊就列出缺哪一樣與去哪裡做；齊了有「開手機入口」→ 問碼 → 網址、QR、關閉 */
+  function remoteMissing(view, st) {
+    var tool = (st.tools || {})[view.name] || {};
+    var out = [];
+    if (!st.stepup) { out.push("stepup"); }
+    if (!st.enabled) { out.push("disabled"); }
+    if (!st.binary) { out.push("binary"); }
+    if (!tool.declared) { out.push("declared"); } else if (!tool.allowed) { out.push("allowed"); }
+    return out;
+  }
+
+  function renderRemote(doc, view, st) {
+    var el = make(doc);
+    var box = el("div", "app-remote");
+    box.appendChild(el("div", "section-label", TEXT.remoteRow));
+    var open = st.open && st.open.name === view.name ? st.open : null;
+    if (open) {
+      box.appendChild(el("p", "", fill(TEXT.remoteLeft, { m: open.minutes_left })));
+      var close = el("button", "", TEXT.remoteClose);
+      close.addEventListener("click", function () { act("/api/remote/close"); });
+      box.appendChild(close);
+      return box;
+    }
+    var missing = remoteMissing(view, st);
+    if (missing.length) {
+      box.appendChild(el("p", "sub", TEXT.remoteMissing));
+      var ul = el("ul");
+      missing.forEach(function (k) { ul.appendChild(el("li", "", TEXT.remoteNeed[k])); });
+      box.appendChild(ul);
+      if (missing.length === 1 && missing[0] === "allowed") {
+        var allow = el("button", "", TEXT.remoteAllow);
+        allow.addEventListener("click", function () { act("/api/remote/allow", { name: view.name, on: true }); });
+        box.appendChild(allow);
+      }
+      return box;
+    }
+    var code = el("input");
+    code.setAttribute("inputmode", "numeric");
+    code.setAttribute("aria-label", TEXT.remoteCode);
+    code.placeholder = TEXT.remoteCode;
+    var go = el("button", "primary", TEXT.remoteOpen);
+    var out = el("div", "app-remote-out");
+    go.addEventListener("click", function () {
+      deps.api("POST", "/api/remote/open", { name: view.name, code: String(code.value || "").trim() }).then(function (d) {
+        while (out.firstChild) { out.removeChild(out.firstChild); }
+        out.appendChild(el("p", "", TEXT.remoteLink));
+        out.appendChild(el("p", "app-remote-url", d.url));
+        if (d.qr) {
+          var canvas = el("canvas", "app-remote-qr");
+          drawGrid(canvas, d.qr);
+          out.appendChild(canvas);
+        }
+      }, function (e) { if (deps.toast) { deps.toast(TEXT.failed + (e && e.message ? e.message : "")); } });
+    });
+    box.appendChild(code);
+    box.appendChild(go);
+    box.appendChild(out);
+    box.appendChild(el("p", "sub", TEXT.remoteNote));
+    return box;
+  }
+
+  function drawGrid(canvas, grid) {
+    var n = grid.length, pad = 4, scale = 4;
+    canvas.width = canvas.height = (n + pad * 2) * scale;
+    var ctx = canvas.getContext ? canvas.getContext("2d") : null;
+    if (!ctx) { return; }
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#000";
+    for (var y = 0; y < n; y++) {
+      for (var x = 0; x < n; x++) {
+        if (grid[y].charAt(x) === "1") { ctx.fillRect((x + pad) * scale, (y + pad) * scale, scale, scale); }
+      }
+    }
+  }
+
+  function drawLog(slot, name) {
+    deps.api("GET", "/api/apps/log?limit=50").then(function (d) {
+      var mine = (d.events || []).filter(function (e) { return e.app === name; }).slice(0, 5);
+      if (!mine.length) { return; }
+      var el = make(root.document);
+      var box = el("details", "app-log");
+      box.appendChild(el("summary", "", TEXT.log));
+      mine.forEach(function (e) {
+        box.appendChild(el("p", "sub", String(e.at || "").slice(11, 16) + " " + (TEXT.events[e.event] || e.event)));
+      });
+      slot.appendChild(box);
+    }, function () {});
+  }
+
+  function drawSide(d) {
+    var doc = root.document;
+    var badge = doc.getElementById("apps-side");
+    if (!badge) { return; }
+    var s = sideText(d);
+    badge.textContent = s.text;
+    badge.classList.toggle("hidden", s.count === 0);
+    badge.classList.toggle("warn", !!s.warn);
+  }
+
+  function card(panel, tool) {
+    if (!tool || !tool.app || !deps) { return; }
+    var slot = make(root.document)("div", "app-slot");
+    panel.appendChild(slot);
+    cards[tool.name] = slot;
+    if (last) { drawCard(tool.name); }
+    refresh();
+  }
+
+  function init(d) {
+    deps = d;
+    refresh();
+    if (timer === null && root.setInterval) {
+      timer = root.setInterval(function () { if (!root.document.hidden) { refresh(); } }, 30000);
+    }
+  }
+
+  var api = { TEXT: TEXT, POLICY_CHOICES: POLICY_CHOICES, policyBody: policyBody, stateLine: stateLine, sideText: sideText,
+              openForm: openForm, renderCard: renderCard, init: init, card: card, refresh: refresh,
+              remoteMissing: remoteMissing, renderRemote: renderRemote };
+  if (typeof module === "object" && module && module.exports) { module.exports = api; }
+  else { root.SynoxApps = api; }
+})(typeof window !== "undefined" ? window : this);
+</script>
 <script nonce="preview">
 /* 網頁「工具」頁（docs/tools.md「網頁工具頁」；後端 src/synox/web/toolpage.py）。
    server.py 的 render_app 把這個檔放進 app.html 的 include 標記那裡（同一個 nonce 的 script）。
@@ -3553,6 +4374,7 @@
     if (t.description && t.description !== t.summary) { about.appendChild(el("p", "sub", "什麼時候用：" + t.description)); }
     panel.appendChild(about);
 
+    if (t.app && window.SynoxApps) { window.SynoxApps.card(panel, t); }   // 工具服務：「完整畫面」卡片（static/apps.js）
     if (t.connect) { panel.appendChild(connectBlock(t, badge)); }
     else if (t.missing && t.missing.length) {
       panel.appendChild(el("p", "note-line", "還沒連接（缺 " + t.missing.join("、") + "）；請擁有者到工具頁按「連接」。"));
@@ -4372,6 +5194,9 @@
       var type = r.headers.get("Content-Type") || "";
       if (type.indexOf("application/json") === 0) {
         return r.json().then(function (d) {
+          if (!r.ok && window.SynoxStepUp && window.SynoxStepUp.isStepUp(r.status, d) && path.indexOf("/api/stepup") !== 0) {
+            return window.SynoxStepUp.ask().then(function () { return api(method, path, body, raw); });   // 解鎖後重送一次
+          }
           if (!r.ok) { var err = new Error(d.error || ("HTTP " + r.status)); err.data = d; throw err; }
           return d;
         });
@@ -4714,7 +5539,7 @@
              base_url: $("llm-url").value };
   }
   // ── 設定的分頁（#settings:<tab>；packs 的網址是 #packs）──────────────
-  var TABS = ["ai", "channels", "packs", "accounts", "system", "help"];
+  var TABS = ["ai", "channels", "packs", "accounts", "security", "system", "help"];
   var tabWanted = "";          // 網址要的分頁（空＝沿用上次的，或第一個）
   var tabsOn = [];             // 這個人看得到的分頁（loadSettings 依擁有者／帳號權限決定）
   function pickTab(t) {
@@ -4739,7 +5564,9 @@
       ["set-llm", "set-usage", "set-channels", "set-library", "set-skills", "set-install", "set-packs",
         "set-sandbox", "set-backup"].forEach(function (id) { $(id).classList.toggle("hidden", !d.owner); });
       $("set-accounts").classList.toggle("hidden", !d.accounts);
-      tabsOn = TABS.filter(function (t) { return t === "help" || (t === "accounts" ? !!d.accounts : !!d.owner); });   // 遇到問題？＝每個人
+      tabsOn = TABS.filter(function (t) {        // 遇到問題？、🔐 安全＝每個人
+        return t === "help" || t === "security" || (t === "accounts" ? !!d.accounts : !!d.owner);
+      });
       applyTabs();
       $("my-budget").textContent = d.ai_budget ?
         "這個月的 AI 額度：用了約 US$" + d.ai_budget.used.toFixed(2) + "／US$" + Number(d.ai_budget.limit).toFixed(2) : "";
@@ -5178,6 +6005,16 @@
     var ul = el("ul");
     (s.warnings || []).forEach(function (w) { ul.appendChild(el("li", "", w)); });
     if ((s.warnings || []).length) { box.appendChild(ul); }
+    if (s.app) {                               // 工具服務（ADR 0024 §5）：畫面能做的動作與匯出
+      var appUl = el("ul");
+      var effText = { write: "會寫入", danger: "危險：會先問你" };
+      Object.keys(s.app.actions || {}).forEach(function (n) {
+        appUl.appendChild(el("li", "", "🖥 畫面的動作 " + n + "：" + (effText[s.app.actions[n]] || s.app.actions[n])));
+      });
+      (s.app.exports || []).forEach(function (n) { appUl.appendChild(el("li", "", "🖥 畫面的匯出 " + n)); });
+      box.appendChild(el("p", "", "🖥 完整網頁畫面" + (s.app.title ? "「" + s.app.title + "」" : "") + "（" + s.app.files + " 個檔）："));
+      box.appendChild(appUl);
+    }
     var upg = s.upgrade, down = null;
     if (upg) { down = showUpgrade(box, upg, s.name); }
     var trust = canInstall && s.token ? showScope(box, s, upg) : null;
@@ -5770,6 +6607,10 @@
     $("logout").classList.remove("hidden");
     showWho(d);
     if (window.SynoxReport) { window.SynoxReport.init({ api: api, toast: toast }); }   // 遇到問題？（static/report.js）
+    if (window.SynoxStepUp) { window.SynoxStepUp.init({ api: api, toast: toast }); }   // 🔐 安全（static/security.js）
+    if (window.SynoxApps) {                                                             // 工具服務（static/apps.js）
+      window.SynoxApps.init({ api: api, toast: toast, csrf: function () { return me ? me.csrf : ""; } });
+    }
     route();
     if (window.SynoxTour) {                    // 新手教學（static/tour.js）：只會填字、換頁，不會替人按任何東西
       window.SynoxTour.init({
