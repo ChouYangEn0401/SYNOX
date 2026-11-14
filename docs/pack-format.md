@@ -37,7 +37,7 @@
 | `name` | ✅ | 小寫英數字、`-`、`_`，32 字內。`config.json` 的 `packs.disabled` 用它 |
 | `title`、`summary` | ✅ | `/help` 那一頁的標題與說明；也進 AI 的系統提示 |
 | `version` | ✅ | `0.1.0` 這種 |
-| `kind` | ✅ | `python`｜`cli`｜`connector`（下面） |
+| `kind` | ✅ | `python`｜`cli`｜`connector`｜`mcp`｜`theme`（外觀包，[themes.md](themes.md)）（下面） |
 | `group` | | 指令群組，小寫英數字 16 字內；沒寫＝`name` 去掉 `-`、`_`。`group: money` → `/money`（主要動作）、`/money_list`… （這是**指令的前綴**，不是網頁工具頁的群組；那個是下一列的 `category`） |
 | `category` | | 網頁「工具」頁**建議**把這個 pack 放在哪個群組（給人看的名字，例如 `"生活"`、`"待辦與行程"`；一行、24 字內）。沒寫＝「未分類」。**使用者自己排過的優先**（每個人的排法存在自己的偏好，不寫進 pack 資料夾）；同名的 category 會放進同一個群組。安裝時格式不對＝拒裝；已裝的舊 pack 寫壞了＝當作沒寫。見 [tools.md](tools.md)「網頁工具頁」 |
 | `stage` | | 這個工具**多穩定**（作者自己標）：`test`｜`alpha`｜`beta`｜`stable`，**沒寫＝`alpha`**。只收這四個小寫字：安裝時寫錯＝拒裝；已裝的寫壞了＝當作 `alpha`。`/help` 那一頁的標題（「💰 記帳（🧪 alpha）」）、網頁工具頁（`/api/tools` 回 `stage`／`stage_label`／`stage_text`，工具名旁一個小標籤）、安裝報告（「穩定度」一行；不是 `stable` 的另外在提醒清單寫一句意思）、`doctor` 都會顯示「符號＋字」：🔧 test（測試中）、🧪 alpha（早期版）、🚧 beta（公測版）、⭐ stable（穩定版）。意思與升級條件見 SYNOX 工具庫的 README「穩定度」 |
@@ -198,7 +198,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 
 第 2 關只讀得懂 `.py`。SYNOX 照「掃得到多少」把 pack 分三層（`src/synox/packs/tier.py`；說明與限制見 [security.md](security.md)「信任層級」）：
 
-- **T0** 只有宣告：connector、只登記的 mcp。
+- **T0** 只有宣告：connector、只登記的 mcp、外觀包（kind=theme，沒有程式；一樣要看報告、按確認才裝）。
 - **T1** 原始碼：會被執行的只有第 2 關掃過的 `.py`／`.pyw`。`{python}` 要跑的 pack 內檔案**一定要是 `.py`／`.pyw`**
   （或含 `__main__.py` 的資料夾）——`./run.txt`、`./app.pyz`、沒有副檔名的 `./run` 第 2 關一律拒；
   其他檔當資料（沒有副檔名、`ast` 解析得過的也當 `.py` 掃）。T1 不等於安全：掃描是提醒不是門。
@@ -517,6 +517,29 @@ JSON-RPC 2.0（一行一個訊息），不開網路埠：
 只寫 `mcp.url`（沒有 `transport`）的 kind=mcp 也一樣只登記。
 `auth` 必填：`oauth`｜`token`｜`caldav`。設計寫在那個資料夾的 README。
 （工具庫裡真的會連的 notion、todoist、google-calendar、apple-reminders 是 `kind: python`，不是這一種。）
+
+### `theme`（外觀包）
+
+換網頁的衣服：顏色 token、吉祥物、開場動畫、字標、分頁圖示。**沒有程式**、不進指令表、不給 AI、不用 SKILL.md。
+完整的 token／slot 清單、消毒規則、怎麼從品牌頁做：[themes.md](themes.md)。
+
+```json
+{"name": "costume-b-lantern", "kind": "theme", "version": "1.0.0", "title": "提燈", "summary": "…",
+ "theme": {"contract": 1,
+           "tokens": {"light": {"bg": "#f5f3ef", "…": "…"}, "dark": {"bg": "#121126", "…": "…"}},
+           "slots": {"mascot.idle": "slots/idle.svg", "opening": "slots/opening.svg"},
+           "css": "theme.css", "fonts": ["fonts/x.woff2"]}}
+```
+
+- **第 1 關**：`theme` 的格式；`tokens.light`、`tokens.dark` 都要給齊核心 12 色；slot 名字要在合約裡、檔案在 pack 裡；
+  不能寫 `python`、`cli`、`commands`、`mcp`、`runtime`、`env`、`capabilities`、`web`、`auth`、`health`、`storage`、`group`、`surfaces`、`data`、`skill`、`callers`、`stepup`；
+  `requires` 只能有 `synox`。
+- **第 2 關**：只能有 `pack.json`、`.svg`、`.html`、`.css`、`.woff2`、說明文字；每個 SVG／HTML／CSS 過消毒（`synox/theme/sanitize.py`：
+  `<script>`、事件屬性、`javascript:`、外部網址、`@import`、`<foreignObject>`…＝拒）；字型要真的是 woff2。
+- **報告**：多一段 `theme`（淺色／深色的 token 給畫面畫色票、換了哪些 slot、消毒過的 slot 內容）；網頁另外用 `/theme/preview?staged=<token>` 給預覽。
+  信任層級 T0，報告不給選 trust（沒有程式可信任）。
+- **第 3 關**：一樣寫 `packs.lock`；檔案跟核准時不一樣＝外觀清單裡沒有它（畫面退回原本的 SYNOX）。
+- 裝好不會自己套用：「設定 → 🎨 外觀」挑它按「套用」。
 
 ## SKILL.md
 

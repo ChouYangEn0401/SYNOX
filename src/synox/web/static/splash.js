@@ -4,6 +4,9 @@
  * 要拿掉 → 刪 app.html 裡 splash.js、splash.css 那兩行 include。壞掉也不會擋住登入或對話：
  * 整段包在 try 裡、最晚 SAFETY 毫秒一定收掉；沒有 JS 時 .sx-splash 自己的 CSS 淡出也會讓它消失。
  *
+ * 外觀（docs/themes.md）：外觀包或「自己貼」換了 slot opening → S 寶寶跟 SYNOX 字換成那一段（static/slots.js 給的，
+ * 伺服器消毒過）；只換了 wordmark → SYNOX 那五個字換成字標。時間表照舊由這裡管（OUT_AT、TOTAL、SAFETY）。
+ *
  * 什麼時候播（decide）：
  *   - 系統開了「減少動態效果」→ 永遠不播
  *   - 網址有 ?splash=0 → 不播；?splash=1 → 重播（預覽的「重播開場」）
@@ -44,12 +47,26 @@
     return e;
   }
 
+  // 外觀換掉的 slot（static/slots.js；沒有＝null）。外面包一層 SYNOX 的動畫（slot 本身的位置是釘死的，不能動）
+  function themed(doc, name) {
+    var slots = root.SynoxSlots;
+    if (!(slots && slots.has && slots.has(name))) { return null; }
+    var wrap = el(doc, "div", name === "opening" ? "sx-open" : "sx-word-slot");
+    wrap.appendChild(slots.make(name));
+    return wrap;
+  }
+
   // 畫面：全部用 createElement＋textContent（不拼 HTML 字串、不寫 inline 樣式）
   function build(doc) {
     var splash = el(doc, "div", "sx-splash");
     splash.setAttribute("aria-hidden", "true");          // 純裝飾；按任何鍵或點一下就略過
     var stage = el(doc, "div", "sx-stage");
     stage.appendChild(el(doc, "div", "sx-halo"));
+    var opening = themed(doc, "opening");
+    if (opening) {                                       // 外觀包的開場：整段換掉，只留光暈、三個點、略過的說明
+      stage.appendChild(opening);
+      return finishBuild(doc, splash, stage);
+    }
     var mascot = el(doc, "div", "sx-mascot");
     var flip = el(doc, "div", "sx-flip");
     var face = el(doc, "div", "sx-face");
@@ -67,8 +84,14 @@
     mascot.appendChild(el(doc, "div", "sx-hi", "嗨！"));
     stage.appendChild(mascot);
     var word = el(doc, "div", "sx-word");
-    "SYNOX".split("").forEach(function (ch) { word.appendChild(el(doc, "span", "", ch)); });
+    var mark = themed(doc, "wordmark");
+    if (mark) { word.appendChild(mark); }
+    else { "SYNOX".split("").forEach(function (ch) { word.appendChild(el(doc, "span", "", ch)); }); }
     stage.appendChild(word);
+    return finishBuild(doc, splash, stage);
+  }
+
+  function finishBuild(doc, splash, stage) {
     var dots = el(doc, "div", "sx-dots");
     for (var j = 0; j < 3; j++) { dots.appendChild(el(doc, "i")); }
     stage.appendChild(dots);
