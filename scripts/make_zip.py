@@ -4,7 +4,11 @@
 
 Takes the files git tracks (so nothing you did not commit sneaks in) and always leaves out
 .venv/, data/, config.json, runtime/, dist/ and caches -- the zip never contains a token, a key or your data.
-The assistant eval set (evals/, a developer tool) is left out too.
+What only people working ON SYNOX use (INTERNAL: tests/, evals/, docs/lab/, CI, ...) is left out too: the zip and
+the installer (stage_installer.py uses this same list) carry what a user needs to run and update SYNOX; `git clone`
+has everything. GitHub's own "Download ZIP" leaves out the same paths (export-ignore in .gitattributes), and an update
+by the installer deletes them from an older install (synox.iss [InstallDelete]); tests/test_release_layout.py keeps
+the three lists equal.
 Falls back to walking the folder when git is not available.
 
 --tools: also put the tool library next to SYNOX as SYNOX/tools/ (index.json + every .synoxpack it lists, sha256
@@ -23,16 +27,33 @@ import zipfile
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EXCLUDED_DIRS = {".venv", "data", "dist", ".git", "__pycache__", ".pytest_cache"}
-ROOT_ONLY_DIRS = {"runtime", "tools", "wheelhouse", "evals"}   # 只看 SYNOX 資料夾最上層的（執行時的狀態、另外附的東西、
-#                                                       開發用的評測資料）；src/synox/runtime、src/synox/evals 是程式碼
+ROOT_ONLY_DIRS = {"runtime", "tools", "wheelhouse"}   # 只看 SYNOX 資料夾最上層的（執行時的狀態、另外附的東西）；
+#                                                       src/synox/runtime 是程式碼
 EXCLUDED_FILES = {"config.json"}
+# 只給在 SYNOX 上開發的人（git clone 才有）：發佈 ZIP、安裝程式都不帶，執行、更新 SYNOX 都用不到（擁有者 2026-11-14 決定 D2）。
+# 結尾有 / 的是資料夾，只比 SYNOX 資料夾最上層（src/synox/evals 是程式碼，照發）。改這份清單要一起改 .gitattributes 的
+# export-ignore（GitHub 的 Download ZIP）與 setup/installer/synox.iss 的 [InstallDelete]（舊版裝過的人更新時刪掉）。
+INTERNAL = ("tests/", "evals/", "docs/lab/", "docs/artifacts/", "docs/artifacts.json", "docs/QuestionToUser.md",
+            "docs/ui/", "docs/installer/", ".github/workflows/", ".github/ISSUE_TEMPLATE/",
+            ".github/pull_request_template.md", ".devcontainer/")
 
 
-def excluded(rel: str) -> bool:
+def internal(rel: str) -> bool:
+    """Only for people working on SYNOX (INTERNAL): not in the zip, not in the installer."""
+    rel = rel.replace("\\", "/")
+    return any(rel == p or (p.endswith("/") and rel.startswith(p)) for p in INTERNAL)
+
+
+def never(rel: str) -> bool:
+    """.venv、data、config.json、caches…: not even in a developer's copy (clean_room_check.py)."""
     parts = rel.replace("\\", "/").split("/")
     return (any(p in EXCLUDED_DIRS or p.endswith(".egg-info") for p in parts[:-1])
             or (len(parts) > 1 and parts[0] in ROOT_ONLY_DIRS)
             or parts[-1] in EXCLUDED_FILES or parts[-1].endswith((".pyc", ".tmp")))
+
+
+def excluded(rel: str) -> bool:
+    return never(rel) or internal(rel)
 
 
 def tracked_files() -> list:
@@ -78,9 +99,14 @@ def wheel_files(folder: str) -> list:
     return [(os.path.join(folder, n), n) for n in names]
 
 
-def release_files(tools: str = "", wheelhouse: str = "") -> list:
-    """[(source path, path inside the SYNOX folder, with /)] for everything that ships; stage_installer.py uses it too."""
-    files = sorted(f for f in tracked_files() if not excluded(f) and os.path.isfile(os.path.join(ROOT, f)))
+def release_files(tools: str = "", wheelhouse: str = "", *, also: tuple = ()) -> list:
+    """[(source path, path inside the SYNOX folder, with /)] for everything that ships; stage_installer.py uses it too.
+    also: INTERNAL folders to take anyway (clean_room_check.py runs tests/ inside its copy); never for a release."""
+    def wanted(rel: str) -> bool:
+        rel = rel.replace("\\", "/")
+        return not excluded(rel) or (bool(also) and not never(rel) and rel.startswith(tuple(also)))
+
+    files = sorted(f for f in tracked_files() if wanted(f) and os.path.isfile(os.path.join(ROOT, f)))
     out = [(os.path.join(ROOT, rel), rel.replace(os.sep, "/")) for rel in files]
     if tools:
         out += [(src, "tools/" + name) for src, name in tool_files(tools)]

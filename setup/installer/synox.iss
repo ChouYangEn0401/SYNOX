@@ -98,6 +98,25 @@ Name: "alltools"; Description: "{cm:TaskAllTools}"; Flags: unchecked
 ; so it goes too; Setup.bat (run below) rebuilds it offline. config.json, data\ and packs\ are not touched.
 Type: filesandordirs; Name: "{app}\runtime\python"
 Type: filesandordirs; Name: "{app}\.venv"
+; Files an older SYNOX shipped that this one does not: what only people working on SYNOX use (scripts/make_zip.py
+; INTERNAL, kept equal by tests/test_release_layout.py) and files that moved or went away (Connect-Apple.bat: use
+; "python -m synox connect apple-reminders"; GOVERNANCE / MAINTAINERS / TRADEMARK now in .github\).
+Type: filesandordirs; Name: "{app}\tests"
+Type: filesandordirs; Name: "{app}\evals"
+Type: filesandordirs; Name: "{app}\docs\lab"
+Type: filesandordirs; Name: "{app}\docs\artifacts"
+Type: files; Name: "{app}\docs\artifacts.json"
+Type: files; Name: "{app}\docs\QuestionToUser.md"
+Type: filesandordirs; Name: "{app}\docs\ui"
+Type: filesandordirs; Name: "{app}\docs\installer"
+Type: filesandordirs; Name: "{app}\.github\workflows"
+Type: filesandordirs; Name: "{app}\.github\ISSUE_TEMPLATE"
+Type: files; Name: "{app}\.github\pull_request_template.md"
+Type: filesandordirs; Name: "{app}\.devcontainer"
+Type: files; Name: "{app}\Connect-Apple.bat"
+Type: files; Name: "{app}\GOVERNANCE.md"
+Type: files; Name: "{app}\MAINTAINERS.md"
+Type: files; Name: "{app}\TRADEMARK.md"
 
 [Files]
 ; The two license files again, extract-only, so the welcome page can open them before anything is installed.
