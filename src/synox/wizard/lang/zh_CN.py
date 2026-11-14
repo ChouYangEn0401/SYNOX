@@ -10,7 +10,7 @@ STRINGS = {
     "mode_title": "这台电脑上的 SYNOX 给谁用？",
     "mode.personal.title": "只有我（个人版）",
     "mode.personal.one": "只有你一个人用：只有配对的那个 Telegram 账号能使用指令。",
-    "mode.personal.two": "数据都在这台电脑上，笔记、记账加密保存。",
+    "mode.personal.two": "设置、密钥和笔记、记账都存在这台电脑上，笔记、记账加密保存。",
     "mode.server.title": "一群人（服务器版）",
     "mode.server.one": "家人、同事、社团一起用：陌生人发消息会成为访客，由你（或你指定的管理员）决定谁能用什么。",
     "mode.server.two": "每个人的笔记、记账各自加密保存，别人看不到。",
