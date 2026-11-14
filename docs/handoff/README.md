@@ -16,7 +16,7 @@
 git clone https://github.com/ChouYangEn0401/SYNOX.git && cd SYNOX && git checkout dev
 Setup.bat                                             （或自己建 .venv、pip install -e .）
 Console.bat → /notion_token、/todoist_token、/gcal_setup …（存憑證）
-Connect-Apple.bat                                     （Apple）
+.venv\Scripts\python.exe -m synox connect apple-reminders   （Apple）
 .venv\Scripts\python.exe -m synox discord token        （Discord）
 .venv\Scripts\python.exe scripts\smoke_real.py         （唯讀測試，把最後那段貼進部署測試板）
 ```
