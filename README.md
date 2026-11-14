@@ -28,11 +28,14 @@
 
 ## 快速開始：三步裝好（Windows 10／11）
 
-兩種拿法，裝完是同一個東西（設計：[docs/adr/0003](docs/adr/0003-distribution-git-clone-and-installer.md)）：
+幾種拿法，裝完是同一個東西（設計：[docs/adr/0003](docs/adr/0003-distribution-git-clone-and-installer.md)）。
+**一般使用者：用安裝程式或發佈 ZIP**——只帶執行、更新 SYNOX 要用的檔案。**要改程式、跑測試的工程師：git clone**——什麼都有（測試、實驗紀錄、CI）。
 
 - **安裝程式** `SYNOX-Setup-<版本>.exe`：雙擊、照畫面按（不要系統管理員，裝在 `%LOCALAPPDATA%\Programs\SYNOX`）。
   Python、套件、工具庫都附在裡面，**不用上網**；最後一步自動跑下面的第 1 步。
-- **git clone**（或 GitHub 的 Download ZIP）到任何資料夾，然後照下面做。工具庫另外下載 `tools` 資料夾放進 SYNOX 資料夾（`SYNOX\tools\index.json`）。
+- **發佈 ZIP** `SYNOX-<版本>.zip`（[發佈頁](https://github.com/ChouYangEn0401/SYNOX/releases)；工具庫 `tools\` 已附在裡面）：解開到任何資料夾，然後照下面做。
+  還沒有發佈版之前，用 GitHub 的「Code → Download ZIP」（解開是 `SYNOX-main`，一樣不含開發用的檔案），工具庫另外下載 `tools` 資料夾放進 SYNOX 資料夾（`SYNOX\tools\index.json`）。
+- **git clone** 到任何資料夾，然後照下面做（工具庫同上）。
 
 1. **雙擊 `Setup.bat`**。第一次會花幾分鐘準備 Python 和套件（會出現一個顯示進度的視窗，不用打任何字；
    電腦沒有 Python 的話，它會自己裝；附了 `wheelhouse\` 的發佈版完全離線）。
@@ -158,7 +161,7 @@ synox tips      隨機一則使用小提示
 
 - **跑 SYNOX**：`docker compose build` → `docker compose run --rm synox init` → `docker compose up -d`。資料在具名 volume，
   網頁只發佈到這台電腦的 `127.0.0.1:8830`，Telegram／Discord 只需要往外連。
-- **開發**：VS Code 的 Dev Containers 打開這個資料夾（`.devcontainer/`，Python 3.11，`python -m pytest -q`）。
+- **開發**：VS Code 的 Dev Containers 打開 git clone 的資料夾（`.devcontainer/`，Python 3.11，`python -m pytest -q`）。
 - 怎麼做、限制（容器裡的工具只能用 host 模式、AI 來源、Windows／macOS 的注意事項）與驗證清單：[docs/docker.md](docs/docker.md)。
   ⚠️ 映像檔還**沒有在任何一台機器上實際建置、跑過**。
 
@@ -234,11 +237,14 @@ pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的
 
 ## 給開發的人
 
+用 `git clone`：發佈 ZIP、安裝程式、GitHub 的 Download ZIP 都不帶 `tests/`、`evals/`、`docs/lab/` 這類開發用的檔案
+（清單在 `scripts/make_zip.py` 的 `INTERNAL`）。
+
 ```
 .venv\Scripts\python.exe -m pytest -q          測試（不連網、不開埠、不連 Telegram）
 .venv\Scripts\python.exe -m synox console      終端機模式（沒有 config.json 時用示範設定＋假 AI）
 .venv\Scripts\python.exe -m synox doctor --offline
-.venv\Scripts\python.exe scripts\make_zip.py   打包給人的 zip（不含 .venv、data、config.json；--tools <工具庫 dist> 附 tools\）
+.venv\Scripts\python.exe scripts\make_zip.py   打包給人的 zip（不含 .venv、data、config.json、開發用的檔案；--tools <工具庫 dist> 附 tools\）
 .venv\Scripts\python.exe scripts\clean_room_check.py   在暫存資料夾、清掉這台的環境變數與路徑後跑一遍（--tools／--libs 連工具一起）
 .venv\Scripts\python.exe scripts\vendor_sdk.py 重新複製 ISDTeleKitSDK 到 vendor/（--sdk 或 ISDTELEKIT_SDK）
 ```
@@ -256,4 +262,4 @@ pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的
 
 - **核心**：AGPL-3.0-or-later（[LICENSE](LICENSE)）。自己用、公司內部用、商用都可以；改了核心再架成網路服務給別人用，就要提供修改後的原始碼。
 - **工具 SDK 與範例**：Apache-2.0（[LICENSE-APACHE](LICENSE-APACHE)）。你用 SDK 寫的工具，授權由你決定，閉源、商用都可以。
-- 範圍、商業授權、貢獻者同意書與商標政策：[LICENSING.md](LICENSING.md)、[CONTRIBUTING.md](CONTRIBUTING.md)、[TRADEMARK.md](TRADEMARK.md)。
+- 範圍、商業授權、貢獻者同意書與商標政策：[LICENSING.md](LICENSING.md)、[CONTRIBUTING.md](CONTRIBUTING.md)、[.github/TRADEMARK.md](.github/TRADEMARK.md)。

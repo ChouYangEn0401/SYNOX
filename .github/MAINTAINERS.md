@@ -16,5 +16,5 @@
 ## 聯絡
 
 - 一般問題：開 issue。
-- 安全問題：**不要開公開 issue**，見 [SECURITY.md](SECURITY.md)。
-- 商業授權、貢獻者同意書：見 [CONTRIBUTING.md](CONTRIBUTING.md)「聯絡」。
+- 安全問題：**不要開公開 issue**，見 [SECURITY.md](../SECURITY.md)。
+- 商業授權、貢獻者同意書：見 [CONTRIBUTING.md](../CONTRIBUTING.md)「聯絡」。

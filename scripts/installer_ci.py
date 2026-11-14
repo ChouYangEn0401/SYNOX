@@ -382,6 +382,10 @@ def check_iss(folder: str = INSTALLER_DIR, inno_default: str = "") -> list:
         target = entry.get("Name", "").replace("{app}\\", "")
         if target in KEPT_ON_UNINSTALL:
             problems.append(f"[UninstallDelete] must not delete {target} (kept unless the user asks)")
+    for entry in iss_entries(sections.get("InstallDelete", [])):
+        target = entry.get("Name", "").replace("{app}\\", "")
+        if target.split("\\")[0] in KEPT_ON_UNINSTALL:
+            problems.append(f"[InstallDelete] must not delete {target} (an update keeps the user's settings and data)")
     run = "\n".join(sections.get("Run", []))
     if "Setup.bat" not in run or "-Lang {cm:SynoxLangCode}" not in run:
         problems.append("[Run] must run Setup.bat -Lang {cm:SynoxLangCode} (the language goes on to the wizard)")

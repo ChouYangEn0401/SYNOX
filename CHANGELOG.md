@@ -1,5 +1,20 @@
 # Changelog
 
+## 未發佈（發佈物只帶使用者要的；拿掉 Connect-Apple.bat；治理文件搬進 .github）
+
+### 變更
+- **發佈 ZIP 與安裝程式只帶執行、更新 SYNOX 要用的檔案**（擁有者 2026-11-14 決定）：`tests/`、`evals/`、`docs/lab/`、`docs/artifacts/`、
+  `docs/artifacts.json`、`docs/QuestionToUser.md`、`docs/ui/`、`docs/installer/`、`.github/` 的 CI 與範本、`.devcontainer/` 不再發給使用者
+  （`scripts/make_zip.py` 的 `INTERNAL`；`stage_installer.py` 用同一份）。GitHub 的「Download ZIP」也一樣不帶（`.gitattributes` 的 export-ignore）。
+  要這些的工程師用 `git clone`。README 建議：一般使用者用安裝程式或發佈 ZIP，工程師用 git clone。
+- 安裝程式更新舊版時，會先刪掉舊版才有的那些開發用檔案（`synox.iss` 的 `[InstallDelete]`）；`config.json`、`data\`、`packs\` 不動。
+  用 ZIP 蓋過去更新的人：舊的 `tests\` 這些留著不會被讀，想清就自己刪（[docs/versioning.md](docs/versioning.md)）。
+- 拿掉 `Connect-Apple.bat`：Apple 提醒事項工具在工具庫，入口屬於工具本身——改用 `.venv\Scripts\python.exe -m synox connect apple-reminders`
+  （或網頁工具頁的「連接」）。
+- `GOVERNANCE.md`、`MAINTAINERS.md`、`TRADEMARK.md` 搬進 `.github/`（照樣發給使用者；`synox about` 改成「見 .github/TRADEMARK.md」）。
+  `LICENSE`、`LICENSE-APACHE`、`NOTICE`、`LICENSING.md` 留在根目錄。
+- `scripts/clean_room_check.py` 的副本另外帶 `tests/`（最後一步要跑 pytest）；`installer_ci.py check-iss` 多檢查 `[InstallDelete]` 不刪使用者的資料。
+
 ## 未發佈（外觀：換裝）
 
 ### 新增
