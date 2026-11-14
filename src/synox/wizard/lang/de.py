@@ -91,6 +91,7 @@ STRINGS = {
     "finish_autostart": "SYNOX bei der Anmeldung starten (ein kleines sichtbares Fenster, jederzeit schließbar)",
     "finish_packs": ".synoxpack-Dateien per Doppelklick installieren (vorher weiterhin geprüft und bestätigt)",
     "finish_launch": "SYNOX nach Abschluss öffnen",
+    "finish_updates": "Einmal pro Woche nach einer neuen Version sehen (nur nachsehen, installiert nie selbst)",
     "finish_discord_bot": "Discord-Bot {name}",
     "finish_hint_token": ("Dieser Computer ist: {title}.\nKlicke auf „Fertig und starten“: die Einstellungen werden gespeichert und "
                           "{who} startet; dein Handy bekommt „Bin da“."),

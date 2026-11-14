@@ -629,6 +629,12 @@
 </aside>
 
 <main>
+  <!-- 有新版（只有擁有者、只在查過之後；docs/adr/0023）：GET /api/settings/update 的 notice，「知道了」＝這一版不再顯示 -->
+  <div id="update-banner" class="restart-banner hidden" role="status">
+    <span id="update-banner-text"></span>
+    <a href="#settings:system">看看</a>
+    <button id="update-banner-ok" type="button" class="ghost">知道了</button>
+  </div>
   <section id="view-login" class="hidden">
     <div class="card login">
       <span class="mark" aria-hidden="true"><span class="slot theme-slot-mascot-idle" data-slot="mascot.idle">S</span></span>
@@ -800,6 +806,32 @@
         <div class="row">
           <button id="awake-save" class="primary" type="button">存起來</button>
           <span id="awake-msg" class="muted"></span>
+        </div>
+      </div>
+
+      <div id="set-update" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">🆕</span>
+          <div class="txt"><h2>SYNOX 更新</h2><p class="sub" id="upd-now">按「檢查更新」才會連到 GitHub 問最新的正式版（只看，不會自己下載或安裝；GitHub 看得到這台的 IP）。</p></div></div>
+        <label class="f"><input id="upd-weekly" type="checkbox"> 每週幫我看一次有沒有新版（只看，不會自己裝）</label>
+        <p class="muted">預設關著：沒打開的話，有安全更新也要你自己來按「檢查更新」才會知道。打開了，有新版時會在這裡、網頁上方和 Telegram／Discord 通知你一次。</p>
+        <div class="row">
+          <button id="upd-check" class="primary" type="button">檢查更新</button>
+          <a id="upd-releases" class="btn ghost" href="https://github.com/ChouYangEn0401/SYNOX/releases" target="_blank" rel="noopener noreferrer">發佈頁</a>
+          <span id="upd-msg" class="muted" role="status"></span>
+        </div>
+        <div id="upd-result" class="note-line hidden" role="status"></div>
+        <p id="upd-how" class="muted"></p>
+        <div class="row">
+          <button id="upd-go" class="hidden" type="button">更新…</button>
+        </div>
+        <div id="upd-confirm" class="note-line hidden" role="alertdialog" aria-labelledby="upd-confirm-text">
+          <p id="upd-confirm-text">會在這台電腦上打開「SYNOX 更新」視窗（Update.bat）：它先給你看這版改了什麼，再問你一次。
+            確定之後才下載、檢查檔案，然後 SYNOX 會<strong>暫時關掉</strong>（網頁會斷線）、換好再自己打開。你的設定、資料、工具都不會動；
+            舊版會留著，出問題可以 <code>Update.bat -Rollback</code> 退回。</p>
+          <div class="row">
+            <button id="upd-launch" class="primary" type="button">打開更新視窗</button>
+            <button id="upd-cancel" type="button">先不要</button>
+          </div>
         </div>
       </div>
 
@@ -1511,8 +1543,8 @@
       $("my-budget").textContent = d.ai_budget ?
         "這個月的 AI 額度：用了約 US$" + d.ai_budget.used.toFixed(2) + "／US$" + Number(d.ai_budget.limit).toFixed(2) : "";
       $("my-budget").classList.toggle("hidden", !d.ai_budget);
-      if (d.owner) { loadUsage(); fillLlm(d); fillPacks(d.packs || []); loadChannels(); loadAwake(); loadStaged(); }
-      else { $("set-awake").classList.add("hidden"); }
+      if (d.owner) { loadUsage(); fillLlm(d); fillPacks(d.packs || []); loadChannels(); loadAwake(); loadStaged(); loadUpdate(); }
+      else { $("set-awake").classList.add("hidden"); $("set-update").classList.add("hidden"); }
       if (d.accounts) { loadAccounts(); }
       loadLook();
     }).catch(function (e) { toast(e.message); });
@@ -1802,6 +1834,61 @@
     api("POST", "/api/runtime/keep-awake", { enabled: $("awake-enabled").checked, screen_off_after_min: minutes })
       .then(function (ka) { fillAwake(ka); $("awake-msg").textContent = "存好了。" + $("awake-msg").textContent; })
       .catch(function (e) { $("awake-msg").textContent = "❌ " + e.message; });
+  });
+
+  // ── SYNOX 更新（docs/adr/0023：按了才查；每週檢查預設關；「更新」只打開 Update.bat，不在網頁裡換檔）────────
+  var updState = null;
+  function updateBanner(notice) {
+    var box = $("update-banner");
+    if (!notice) { box.classList.add("hidden"); return; }
+    $("update-banner-text").textContent = notice.security ?
+      "🔒 SYNOX 有安全更新 " + notice.latest + "：強烈建議更新。" : "🆕 SYNOX 有新版 " + notice.latest + "。";
+    box.classList.remove("hidden");
+  }
+  function drawUpdate(d) {
+    updState = d;
+    $("set-update").classList.remove("hidden");
+    $("upd-weekly").checked = !!d.weekly;
+    $("upd-how").textContent = d.how || "";
+    var r = d.result || d.last, box = $("upd-result");
+    clear(box);
+    box.classList.toggle("hidden", !r);
+    $("upd-go").classList.add("hidden");
+    $("upd-confirm").classList.add("hidden");
+    if (r) {
+      (r.lines || []).forEach(function (line) { box.appendChild(el("p", "", line)); });
+      if (r.status === "newer" && !r.signed && r.kind === "zip") {
+        box.appendChild(el("p", "muted", "這一版沒有簽章：更新視窗會先說明，要你明確同意（Update.bat -AllowUnsigned）才會換檔。"));
+      }
+      if (r.checked_at) { box.appendChild(el("p", "muted", "查的時間：" + new Date(r.checked_at * 1000).toLocaleString())); }
+      $("upd-go").classList.toggle("hidden", !(r.status === "newer" && d.can_launch));
+    }
+    updateBanner(d.notice);
+  }
+  function loadUpdate() {
+    api("GET", "/api/settings/update").then(drawUpdate).catch(function () { $("set-update").classList.add("hidden"); });
+  }
+  $("upd-check").addEventListener("click", function () {
+    $("upd-msg").textContent = "問 GitHub 中…";
+    api("POST", "/api/settings/update/check", {}).then(function (d) { $("upd-msg").textContent = ""; drawUpdate(d); })
+      .catch(function (e) { $("upd-msg").textContent = "❌ " + e.message; });
+  });
+  $("upd-weekly").addEventListener("change", function () {
+    var on = $("upd-weekly").checked;
+    api("POST", "/api/settings/update/weekly", { enabled: on }).then(function (d) {
+      drawUpdate(d); $("upd-msg").textContent = on ? "存好了：每週看一次（只看，不會自己裝）。" : "存好了：只有你按「檢查更新」才查。";
+    }).catch(function (e) { $("upd-weekly").checked = !on; $("upd-msg").textContent = "❌ " + e.message; });
+  });
+  $("upd-go").addEventListener("click", function () { $("upd-confirm").classList.remove("hidden"); $("upd-launch").focus(); });
+  $("upd-cancel").addEventListener("click", function () { $("upd-confirm").classList.add("hidden"); });
+  $("upd-launch").addEventListener("click", function () {
+    $("upd-confirm").classList.add("hidden");
+    api("POST", "/api/settings/update/launch", {}).then(function (d) { $("upd-msg").textContent = d.message; })
+      .catch(function (e) { $("upd-msg").textContent = "❌ " + e.message; });
+  });
+  $("update-banner-ok").addEventListener("click", function () {
+    $("update-banner").classList.add("hidden");
+    api("POST", "/api/settings/update/dismiss", {}).catch(function () { /* 下次再顯示也沒關係 */ });
   });
 
   // ── AI 用量與花費（小儀表板）──────────────────────────────────────
@@ -2762,6 +2849,9 @@
     $("nav-control").classList.toggle("hidden", !(control && control.canSee(d)));
     $("logout").classList.remove("hidden");
     showWho(d);
+    if (d.owner) {                             // 有新版的橫幅：只讀上次查的結果，不連網（docs/adr/0023）
+      api("GET", "/api/settings/update").then(function (u) { updateBanner(u.notice); }).catch(function () { /* 沒有就算了 */ });
+    }
     if (window.SynoxReport) { window.SynoxReport.init({ api: api, toast: toast }); }   // 遇到問題？（static/report.js）
     if (window.SynoxStepUp) { window.SynoxStepUp.init({ api: api, toast: toast }); }   // 🔐 安全（static/security.js）
     if (window.SynoxApps) {                                                             // 工具服務（static/apps.js）

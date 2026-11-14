@@ -16,8 +16,9 @@
 # 3. 照第 0 步的選擇做（Invoke-SetupPlan），再打開安裝精靈（pythonw，沒有黑色視窗）；這個 Python 沒有 tkinter
 #    就在這個視窗跑文字版 `synox init`
 # 重跑是安全的：已經有 .venv 就直接更新套件、打開精靈（要換 Python：Uninstall.bat env，再跑 Setup.bat）。
+# -Update（setup\update.ps1 換完新版、套件需求變了時叫）：只建／更新 .venv 的套件，不問問題、不登記檔案關聯、不開精靈。
 # 這個程序（和它開的精靈）先清掉 Conda／PYTHONHOME／PYTHONPATH 這類變數（Clear-PythonEnv），只影響這一次，不改 Windows 的設定。
-param([string]$Lang = '', [switch]$UseSystemPython, [switch]$Custom)
+param([string]$Lang = '', [switch]$UseSystemPython, [switch]$Custom, [switch]$Update)
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $Root
@@ -346,9 +347,23 @@ function Install-WithWinget {
     } catch { Say (Tr 'winget_failed' $_.Exception.Message) }
 }
 
+function Update-PackagesOnly {
+    # -Update：Update.bat（setup\update.ps1）換完檔、這版的套件有變時叫。只更新 .venv 的套件（沒有 .venv 就照預設建一個）；
+    # 不問問題、不登記檔案關聯、不開精靈
+    if (-not (Test-Path -LiteralPath $VenvPy)) {
+        $py = if ($UseSystemPython) { Get-SystemPython } else { Get-PrivatePython }
+        if (-not $py) { throw (Tr 'cannot_install_python') }
+        & $py.Exe @($py.Pre) -m venv $Venv | Out-Host
+        if (-not (Test-Path -LiteralPath $VenvPy)) { throw (Tr 'venv_failed') }
+    }
+    Say (Tr 'installing')
+    Install-Packages
+}
+
 try {
     $others = @(Find-OtherPythons)
     Clear-PythonEnv
+    if ($Update) { Update-PackagesOnly; exit 0 }
     $FromExe = Test-FromExeInstaller
     if (-not $UseSystemPython -and -not $FromExe) {
         Show-SetupIntro

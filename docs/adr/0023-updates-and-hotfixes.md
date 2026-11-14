@@ -1,7 +1,7 @@
 # ADR 0023：SYNOX 自己更新——檢查更新、`synox update`、hotfix、退回
 
 - 日期：2026-11-13
-- 狀態：**提案，等擁有者核准**。這份只寫設計；程式只動了一行：`synox about`／`synox doctor` 多印「有沒有新版：到發佈頁看」（`brand.latest_hint`）。
+- 狀態：**已採用**（擁有者 2026-11-14 核准：U1＝下一版 `0.2.1-beta.1`，U2～U9 照下面「建議」那一欄）。做了什麼、跟提案哪裡不一樣，見最後一節「**做了什麼（2026-11-14）**」；第 1～8 節是當初的提案，留著當紀錄。
 - 版本規則（號碼怎麼升、分支、tag、每版要有什麼）在 [../versioning.md](../versioning.md)，這份不重複。
 - 相關：[0003](0003-distribution-git-clone-and-installer.md)（ZIP／git／安裝程式三種裝法）、[0022](0022-ecosystem-bridge-and-sandbox.md) R8（只在使用者按按鈕時連網、目的地寫死）、
   `src/synox/packs/catalog.py`（工具庫已經這樣做了）、`src/synox/packs/upgrade.py`（工具的升級與退回）。
@@ -129,7 +129,7 @@ SYNOX 公開了。在 `dev` 開發，合進 `main` 時升小版本；alpha＝內
 
 | # | 問題 | 建議 |
 |---|---|---|
-| U1 | 第一次照規則發的版本號 | **0.3.0**（先 `0.3.0-beta.1`）：這批改動把內建工具搬到工具庫，更新的人要自己裝回工具，照規則是 MINOR。想從 0.2.1 開始也可以，但「怎麼更新」第一行要寫要重裝工具。不補打 `v0.2.0` |
+| U1 | 第一次照規則發的版本號（**擁有者定了：`0.2.1-beta.1`**，「怎麼更新」第一行寫要重裝工具） | **0.3.0**（先 `0.3.0-beta.1`）：這批改動把內建工具搬到工具庫，更新的人要自己裝回工具，照規則是 MINOR。想從 0.2.1 開始也可以，但「怎麼更新」第一行要寫要重裝工具。不補打 `v0.2.0` |
 | U2 | 預設要不要每週檢查 | **預設不查**；安裝精靈最後問一次「每週幫我看一次有沒有新版（只看，不會自己裝）」，使用者勾了才開。代價：沒勾的人收不到安全更新的提醒 |
 | U3 | App 裡要不要能選 beta | **先不要**：beta 給願意幫忙的人從發佈頁手動下載；App 只看正式版 |
 | U4 | 誰來換檔 | **`Update.bat`＋`setup/update.ps1`**（跟 `Setup.bat` 同一套 PowerShell；Windows 不能讓正在跑的 Python 換掉自己） |
@@ -144,3 +144,27 @@ SYNOX 公開了。在 `dev` 開發，合進 `main` 時升小版本；alpha＝內
 - Windows 上換檔時哪些檔被鎖、`update.ps1` 的等待與換檔順序；安裝程式覆蓋安裝是否真的保留 `config.json`、`data\`、`packs\`。
 - SYNOX repo 的 `releases/latest/download/…` 轉址（只在工具庫實測過）；沒有 token 時 GitHub 的流量限制對「按了才查」與「每週一次」都夠用（推測）。
 - `pip` 把 `0.2.1-beta.1` 正規化成 `0.2.1b1`：`setuptools` 會印一行提醒，不影響安裝（在 Linux 用 `packaging` 確認過正規化；Windows 打包沒試過）。
+
+## 做了什麼（2026-11-14，已採用）
+
+| 決定 | 做法 | 在哪裡 |
+|---|---|---|
+| 檢查（P2） | `synox update --check`、網頁設定「💻 電腦與備份」→「SYNOX 更新」卡片的「檢查更新」。問 **GitHub API** `GET api.github.com/repos/ChouYangEn0401/SYNOX/releases/latest`（寫死；User-Agent `synox-update-check`，不帶版本）。latest 只會是正式版，程式再擋一次 pre-release／草稿／有尾巴的版本號（U3）。結果：新／一樣／裝的比較新／沒查成，加發佈說明「這版改了什麼」的前三條、`🔒 安全更新`／`強烈建議更新` → 紅字（U9）、「有 N 個工具可以更新」（工具庫清單，跟「載入工具清單」同一份）。失敗只回一句人話、記 log、不重試。代理照 urllib 預設（環境變數；Windows 的系統 Proxy），逾時 15 秒 | `src/synox/update/check.py`、`update/web_api.py`、`__main__.cmd_update` |
+| 每週檢查（U2） | `config.json` `"updates": {"check": "manual" \| "weekly"}`，**預設 manual**。安裝精靈完成頁一格「每週幫我看一次有沒有新版（只看，不會自己裝）」（預設不勾，12 種語言）、設定卡片同一個開關、`synox update --weekly on\|off`。用現有的 runtime 迴圈：任務 `system.update_check` 每 6 小時看一次，沒打開＝不連網，打開了、離上次 ≥ 7 天才查（`data/update_check.json`）。同一版只通知擁有者一次（`notify_owner`＝Telegram／Discord）；網頁上方的橫幅讀上次的結果（不連網），「知道了」＝這版不再顯示 | `update/__init__.py`、`check.weekly_tick`、`app.html` |
+| 換檔（U4） | `Update.bat` → `setup/update.ps1`（PowerShell 5.1、不要管理員）。**跟提案不一樣**：下載、SHA256、簽章、安全解壓都在 Python（`synox update --prepare`，`update/prepare.py`）——PS 5.1 沒有 Ed25519，而且這樣在 Linux 測得到；用的是現在裝著、已經信任的程式碼。順序：查 → 給人看 → 問一次 → prepare（ZIP、`SHA256SUMS.txt` 必須有；GitHub 的 asset digest 也要一樣；ZIP 只收 `SYNOX/` 底下、拒絕 `..`／絕對路徑／連結，`config.json`、`data`、`packs`… 就算在 ZIP 裡也不解；解完版本要對）→ 停 SYNOX → 舊的程式檔（KEEP 以外的全部）搬到 `_previous\<舊版>-<時間>\` → 新的搬進來 → 相依（requirements／pyproject 的相依行）變了才 `bootstrap.ps1 -Update` → 檢查 `synox.__version__` → 開 SYNOX；任何一步不過自動退回。`Update.bat` 自己會被換掉，所以 setlocal 之後只有一行 | `Update.bat`、`setup/update.ps1`、`setup/bootstrap.ps1 -Update` |
+| 永遠不動 | `config.json`、`data\`、`packs\`、`.venv\`、`runtime\`、`_previous\`、`lang.txt`、`installer-choices.json`、`.git`（`prepare.KEEP`＝update.ps1 的 `$Keep`，測試對） | |
+| 簽章（U5） | `scripts/release.py sign`：寫 `SHA256SUMS.txt`、`release.json`（版本、日期、severity、每個附檔的 sha256／大小、rebuild_venv、min_from）、`release.json.sig`（Ed25519，對 release.json 的位元組）。`release.py keygen` 產生金鑰（拒絕寫進 repo）。公鑰放 `update/signing.py` `RELEASE_PUBLIC_KEYS`。有簽章＋有公鑰 → 一定要驗過，版本、ZIP 的 sha256 要跟其他來源一樣，`min_from` 有效；簽章不對 → 拒絕（`-AllowUnsigned` 也不行）。**沒有簽章或沒有公鑰 → 不自動換檔**，要使用者明確 `Update.bat -AllowUnsigned`，畫面照實說「只信任 HTTPS＋GitHub」。**現在還沒有公鑰**（創始維護者還沒產生），所以目前每一版都需要 `-AllowUnsigned` | `update/signing.py`、`scripts/release.py`、[release-build.md](../release-build.md)「發佈簽章金鑰」 |
+| 退回（U8） | `Update.bat -Rollback`：把 `_previous` 最新的一份搬回來（現在的先放 `_previous\.replaced-<時間>`，搬好才刪），相依不同才重裝套件。只留 2 份。`synox update --rollback` 只說明怎麼做 | `update.ps1` `Restore-Previous` |
+| 網頁的「更新…」 | 只在 Windows＋ZIP 裝法、查到新版時出現；先一張確認卡，按了是**打開 Update.bat 的視窗**（`cmd /c start`，跟 SYNOX 脫鉤），視窗裡再問一次。只有擁有者；開了手機驗證器的話要先解鎖（`/api/settings/update/launch`） | `update/web_api.py`、`guard/stepup.py` |
+| git／安裝程式／Docker | **跟提案不一樣**：不自動 `git merge --ff-only`；看到 `.git` 就說「請 `git pull`」。安裝程式（`installer-choices.json` 是 exe）裝的：說「下載新的 SYNOX-Setup-<版本>.exe」。Docker：compose 那三行 | `check.install_kind`、`how_line` |
+| 工具（§5） | 原本的「有新版」不動；檢查結果多一行「有 N 個工具可以更新」。U7（工具庫改回 `latest/download`）、「全部更新」、`index.json` 帶 `requires`、`synox tools list` 比版本：**還沒做** | |
+| 發佈物 | `Update.bat`、`setup/update.ps1` 跟著 ZIP／安裝程式發（git 追蹤＝`make_zip.release_files`）；`_previous/` 不進 git、不進 ZIP（`ROOT_ONLY_DIRS`），解除安裝時刪（`synox.iss` `[UninstallDelete]`）。INTERNAL／export-ignore／`[InstallDelete]` 三份清單沒變 | |
+
+**沒有做的**（提案裡有）：`RELEASE-MANIFEST.txt`（不需要了：KEEP 以外整份搬走，新版沒有的檔自然不在；使用者自己放在根目錄的檔跟著舊版進 `_previous`，不會不見）；
+`data/_before-<版本>/` 的資料備份（還沒有要轉換資料的版本；PATCH 不准轉換資料）；更新後跑 `synox doctor --offline`（改成只檢查新版的 `synox.__version__` 對不對，doctor 的紅字常常跟更新無關）；
+`release.py notes` 自動加「給寫工具的人」；SDK 單檔附檔與 PyPI（U6：先不要）。
+
+**沒有在 Windows 上跑過**（這台是 Linux；PowerShell 腳本只有靜態檢查）：`update.ps1` 整段（Move-Item 換檔、被鎖住的檔、`Start-Transcript`、
+`bootstrap.ps1 -Update`）、`Update.bat` 被換掉時 cmd.exe 的行為、網頁 `cmd /c start` 開視窗、`synox stop` 用 `taskkill /T` 時更新視窗會不會被一起關掉
+（設計上不會：start 開的視窗不是 SYNOX 的子行程）、原本開著的 Start.bat 視窗在 SYNOX 被停之後會 `pause`（跟按 Stop.bat 一樣）。
+GitHub API 的真實回應（SYNOX 還沒有任何 release）、沒有 token 時的流量限制（每小時 60 次，按了才查與每週一次都夠）。

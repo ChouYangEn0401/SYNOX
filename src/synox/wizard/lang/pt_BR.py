@@ -91,6 +91,7 @@ STRINGS = {
     "finish_autostart": "Iniciar o SYNOX ao entrar no Windows (uma janelinha visível que você pode fechar quando quiser)",
     "finish_packs": "Instalar arquivos .synoxpack com clique duplo (ainda verificados e confirmados antes)",
     "finish_launch": "Abrir o SYNOX ao concluir",
+    "finish_updates": "Verificar uma vez por semana se há uma versão nova (só olha, nunca instala sozinho)",
     "finish_discord_bot": "Bot do Discord {name}",
     "finish_hint_token": ("Este computador é: {title}.\nClique em “Concluir e iniciar”: as configurações são salvas e "
                           "{who} inicia; seu celular vai receber “Estou aqui”."),

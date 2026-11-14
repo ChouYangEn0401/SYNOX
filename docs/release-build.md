@@ -159,6 +159,27 @@ action 用 `git ls-remote --tags https://github.com/<owner>/<repo>.git` 找 tag 
 **升級 Inno Setup 時**：`python scripts/installer_ci.py inno-keys <Inno>\Default.isl --source "Inno Setup X.Y.Z"` 重寫清單，
 `check-iss` 會列出三個檔缺哪些 key，補翻（不確定就先放英文）。
 
+## 發佈簽章金鑰（Update.bat 驗的那一把；docs/adr/0023 決定 U5）
+
+這跟上面的 exe 程式碼簽章（QD1）**不是**同一件事：這把 Ed25519 金鑰只簽 `release.json`（每個附檔的 sha256 與大小），
+讓 `Update.bat` 能確認下載的 ZIP 真的是維護者發的——就算有人盜用了 GitHub 帳號、把 ZIP 和 `SHA256SUMS.txt` 一起換掉也騙不過。
+
+- **私鑰只在創始維護者手上、離線保存**（加密的隨身碟、密碼管理器的附件）。**絕不**放進 repo、CI 的 secret、雲端硬碟、聊天或 issue。
+  `scripts/release.py` 拒絕使用放在 repo 資料夾裡的私鑰檔，`tests/test_update.py` 檢查 repo 裡沒有任何私鑰。
+- 產生（一次）：`python scripts/release.py keygen --out <repo 以外的路徑>/synox-release.pem`（設 `SYNOX_RELEASE_KEY_PASSWORD` 就會加密）。
+  印出的那一行公鑰（base64，44 個字）加進 `src/synox/update/signing.py` 的 `RELEASE_PUBLIC_KEYS`，跟著下一版發出去。
+  **加了公鑰的那一版之後**，使用者的 Update.bat 才會驗簽章；在那之前每一版都算「沒有簽章」，要使用者自己加 `-AllowUnsigned`。
+- 每一版（在離線或自己的電腦上，建好 ZIP 之後）：
+  ```
+  python scripts/make_zip.py --tools <SYNOX_Libs 的 dist>
+  python scripts/release.py sign --dist dist --key <私鑰檔> [--security] [--summary "一句白話"] [--min-from 0.3.0] [--rebuild-venv]
+  ```
+  有安裝程式就先把 `SYNOX-Setup-<版本>.exe` 放進 `dist/` 再 sign（一起列進去）。上傳 `SYNOX-<版本>.zip`、`SHA256SUMS.txt`、`release.json`、
+  `release.json.sig` 到發佈頁。`--key` 也可以用環境變數 `SYNOX_RELEASE_KEY_FILE`（放檔案路徑，不放金鑰本身）。
+- 換鑰匙：新公鑰先加進 `RELEASE_PUBLIC_KEYS`（舊的留著）發一版，之後的版本才用新私鑰簽；確定大家都更新過了再拿掉舊公鑰。
+- 私鑰外流：馬上發一版把那把公鑰拿掉（用另一把簽），並照 SECURITY.md 發 GitHub Security Advisory。私鑰弄丟：同上，用新鑰匙發一版
+  （還沒更新到這版的人要手動下載、或用 `-AllowUnsigned`）。
+
 ## 還沒驗證的
 
 - 整個 workflow 沒跑過：PowerShell 步驟、Inno Setup 的靜默安裝參數、簽章發行者字串、`gh release` 那段都只有語法檢查

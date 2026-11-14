@@ -741,6 +741,9 @@ class WebUI:
                 except (ValueError, UnicodeDecodeError):
                     return _err(400, "內容格式不對。")
             return apps_api.route(self, user, method, path, data, query)
+        if path == "/api/settings/update" or path.startswith("/api/settings/update/"):   # SYNOX 更新（ADR 0023）
+            from synox.update import web_api as update_api
+            return update_api.route(self, user, method, path, body)
         if path.startswith("/api/runtime/"):          # 主控面板：常駐助理／心跳／任務（docs/runtime-api.md；含 PUT）
             from synox.runtime import web_api as runtime_api
             return runtime_api.route(self, user, method, path, body)
