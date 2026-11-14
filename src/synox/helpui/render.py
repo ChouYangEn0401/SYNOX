@@ -145,9 +145,6 @@ def command_card(app, user, node, tool: Optional[model.Tool], private: bool = Tr
     badge = info["badge"]
     lines = [f"{head}　{badge}".rstrip()]
     html = [f"<b>{esc(head)}</b>　{esc(badge)}".rstrip()]
-    if info["plain"] and info["summary"] and info["plain"] != info["summary"]:
-        lines.append(info["summary"])
-        html.append(esc(info["summary"]))
     chips: List[dict] = []
     if info["examples"]:
         lines += ["", T.TYPE_LIKE]
