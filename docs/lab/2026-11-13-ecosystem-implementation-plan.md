@@ -6,6 +6,7 @@
 - 對象：主 session 與之後各自在自己的 worktree 裡實作的代理（工程師）。
 - 決定的編號（決定 1–35）跟研究第七節、ADR 第 11 節一致。`§` 指 ADR 0022 的章節。
 - 程式的行號對的是分支 `dev`、commit `a22382c`。
+- 對外：沙盒的公開路線圖與「徵求協助」在 [docs/sandbox-roadmap.md](../sandbox-roadmap.md)（Windows 探測腳本志願者也能跑）；社群討論的草稿在 [docs/community/](../community/discussion-ecosystem-and-sandbox.md)。這份計畫講到 OpenClaw／Hermes 的地方都是為了**相容**（匯入它們格式的技能），不是評比。
 
 ## 一、先講三件事
 

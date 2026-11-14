@@ -73,7 +73,8 @@ def test_release_has_what_users_need_and_nothing_internal():
     for rel in shipped:
         assert not make_zip.internal(rel), rel
     for prefix in ("tests/", "evals/", "docs/lab/", "docs/artifacts/", "docs/ui/", "docs/installer/",
-                   ".github/workflows/", ".github/ISSUE_TEMPLATE/", ".devcontainer/"):
+                   "docs/community/", ".github/workflows/", ".github/ISSUE_TEMPLATE/", ".github/DISCUSSION_TEMPLATE/",
+                   ".devcontainer/"):
         assert not any(r.startswith(prefix) for r in shipped), prefix
     for rel in ("docs/QuestionToUser.md", "docs/artifacts.json", ".github/pull_request_template.md",
                 "Connect-Apple.bat", "GOVERNANCE.md", "TRADEMARK.md", "MAINTAINERS.md"):

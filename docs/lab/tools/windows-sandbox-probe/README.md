@@ -5,7 +5,7 @@
 
 - 日期：2026-11-13
 - 用途：回答 [研究文件](../../2026-11-13-ecosystem-security-research.md) 主題 4 裡標「待實測」的項目，讓擁有者決定 Windows 沙盒走哪一條路（[ADR 0022](../../../adr/0022-ecosystem-bridge-and-sandbox.md) 的決定 11–14）。
-- 對象：SYNOX 的擁有者（在自己的 Windows 11 電腦上跑）。
+- 對象：SYNOX 的擁有者，以及**願意幫忙的志願者**（任何 Windows 10／11 電腦都有用：Home、Pro、沒更新的都是有價值的資料點）。為什麼需要、要回報什麼、怎麼分享，見 [docs/sandbox-roadmap.md](../../../sandbox-roadmap.md)。
 
 ## 三個檔各做什麼
 
@@ -31,6 +31,7 @@
    不想讓它連外面的網站：`python win_appcontainer_probe.py --no-net`（跳過 N1、N3 兩項）。
 3. （選做，只有 Windows 11 Pro／Enterprise／Education，而且已經啟用「Windows 沙箱」）先建 `C:\synox-research-wsb\`、放一個無害的文字檔進去，再點兩下 `synox-research.wsb`。
 4. 跑完把兩個 `*-result.json` 帶回來。`win-env-probe-result.json` 裡只有 node／python／docker 的安裝路徑，沒有使用者名稱以外的個人資料；**路徑裡會有你的 Windows 帳號名，貼出去前先看一眼**。
+   **志願者**：結果請貼到 GitHub Discussions 的沙盒討論串（或開 issue），貼之前把路徑裡的 Windows 帳號名換成 `<user>`；JSON 以外再附上 Windows 版本（`winver` 視窗上那一行）與腳本印出的表格。如果你覺得你發現的是 SYNOX 的**安全漏洞**（不是探測結果），請照 `SECURITY.md` 私下寄信，不要貼在公開的地方。
 5. 清理：刪掉 `C:\synox-probe\`（與 `C:\synox-research-wsb\`）。AppContainer profile 與暫存資料夾由腳本在結束時刪掉（寫在 `finally` 裡）。如果腳本是被強制關掉的：`%TEMP%\synox-research-*` 資料夾請手動刪；profile 再跑一次腳本就會沿用並在結束時刪掉（腳本認得「已經存在」）。
 
 ## 結果怎麼讀

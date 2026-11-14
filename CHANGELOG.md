@@ -14,6 +14,10 @@
 - `GOVERNANCE.md`、`MAINTAINERS.md`、`TRADEMARK.md` 搬進 `.github/`（照樣發給使用者；`synox about` 改成「見 .github/TRADEMARK.md」）。
   `LICENSE`、`LICENSE-APACHE`、`NOTICE`、`LICENSING.md` 留在根目錄。
 - `scripts/clean_room_check.py` 的副本另外帶 `tests/`（最後一步要跑 pytest）；`installer_ci.py check-iss` 多檢查 `[InstallDelete]` 不刪使用者的資料。
+- 新增公開的沙盒路線圖 [docs/sandbox-roadmap.md](docs/sandbox-roadmap.md)（現況、Windows 的候選路線、志願者怎麼跑探測腳本、徵求協助的任務與驗收條件）、
+  GitHub Discussions 的貼文草稿（`docs/community/`）與「想法」表單（`.github/DISCUSSION_TEMPLATE/ideas.yml`）；`CONTRIBUTING.md` 加「參與討論」。
+  `docs/community/`、`.github/DISCUSSION_TEMPLATE/` 跟其他開發用檔案一樣不發給使用者。
+- ADR 0022、生態研究與幾份舊研究頁講到 OpenClaw／Hermes Agent 的地方改成中性、以相容為目的的寫法：只引用對方的公開文件，二手報導標「待查」，並感謝兩個專案公開的文件。
 
 ## 未發佈（外觀：換裝）
 
