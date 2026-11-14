@@ -170,9 +170,16 @@ def parse_args(fields: Sequence[Field], args: Sequence[str], positional: Optiona
 
 
 def command(group: Group, name: str, fn: Callable, summary: str, *, fields: Sequence[Field] = (),
-            positional: Optional[int] = None, usage: Optional[str] = None, **kw) -> Node:
-    """掛一個「照位置填」的指令。fn(api, chat_id, user, values)。其他參數同 Group.leaf。"""
+            positional: Optional[int] = None, usage: Optional[str] = None, plain: Optional[str] = None,
+            examples: Optional[Sequence] = None, **kw) -> Node:
+    """掛一個「照位置填」的指令。fn(api, chat_id, user, values)。其他參數同 Group.leaf。
+    plain＝一句白話（40 字內）、examples＝範例的參數（["120 午餐", {"text": …, "note": …}]，最多 3 個）：
+    /help 與網頁「💡 範例」用（synox/helpui；pack.json 最上層的 help 區塊寫了同一個指令的話以 pack.json 為準）。"""
     fields = tuple(fields)
+    doc = None
+    if plain is not None or examples is not None:
+        from synox.helpui.examples import check_code_doc
+        doc = check_code_doc(plain, examples)
     if any(f.fresh_code for f in fields):
         raise ValueError("kit.command does not take fresh_code fields; use app.forms.leaf (SDK Forms)")
     positional = len(fields) if positional is None else positional
@@ -190,4 +197,7 @@ def command(group: Group, name: str, fn: Callable, summary: str, *, fields: Sequ
 
     node = group.leaf(name, run, summary, usage=shown, **kw)
     node.fields = fields
+    node.kit_positional = positional          # 範例跑不跑得動，照同一份規則檢查（helpui/examples.py）
+    if doc:
+        node.help_doc = doc
     return node

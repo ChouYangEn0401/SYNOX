@@ -60,7 +60,7 @@ from isdtelekit.core.channel import CallbackInfo, Inbound
 
 from synox import tutorials
 from synox.packs.manifest import stage_text
-from synox.web import report as reporting, toolpage
+from synox.web import api_commands, report as reporting, toolpage
 from synox.web.channel import WEB, WebChannel
 from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore
 from synox.web.tokens import LoginTokens, Session, Sessions, digest
@@ -150,7 +150,8 @@ def _page(status: int, title: str, text: str, extra: Optional[List[Tuple[str, st
 
 # app.html 裡的 <!-- include: 檔名 -->：送出頁面時換成 static/ 裡那個檔的內容（同一個 nonce 的 <style>／<script>），
 # CSP 不用放寬、也不多一個靜態檔的路由。只收這張清單裡的檔（工具頁；scripts/make_ui_preview.py 用同一個函式）。
-INCLUDES = {"tools.css": "style", "tools.js": "script", "tour.css": "style", "tour.js": "script"}
+INCLUDES = {"tools.css": "style", "tools.js": "script", "tour.css": "style", "tour.js": "script",
+            "helpdock.css": "style", "helpdock.js": "script", "aliases.js": "script"}
 INCLUDE_RE = re.compile(r"<!-- include: ([a-z0-9_.-]+) -->")
 
 
@@ -579,6 +580,10 @@ class WebUI:
                 return self.accounts(user)
             if path == "/api/tour":
                 return self.tour_state(user)
+            if path == "/api/help":                   # 「💡 範例」面板（web/api_commands.py）
+                return _json(200, api_commands.help_view(self.app, user))
+            if path == "/api/aliases":                # 設定 →「⌨️ 我的指令」
+                return _json(*api_commands.get(self.app, user))
             return _err(404, "沒有這個 API。")
         if method != "POST":
             return _err(405, "只收 GET、POST。")
@@ -645,6 +650,10 @@ class WebUI:
             return self.tour_progress(user, data)
         if path == "/api/tour/offer":
             return self.tour_offer(user, data)
+        if path == "/api/aliases":
+            return _json(*api_commands.save(self.app, user, data))
+        if path == "/api/aliases/preview":
+            return _json(*api_commands.preview(self.app, user, data))
         return _err(404, "沒有這個 API。")
 
     # ── 我 ───────────────────────────────────────────────────────────

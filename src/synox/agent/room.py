@@ -213,6 +213,13 @@ class RoomAgent(AgentLoop):
         """公開頻道永遠不放 soul.md（擁有者的私人偏好；docs/adr/0002）。"""
         return ""
 
+    def alias_block(self, user, chat_id: int, nonce: str, query: str = "") -> str:
+        """公開頻道也不放任何人自己取的指令名稱（每個人的私人設定，synox/aliases.py）。"""
+        return ""
+
+    def alias_keep(self, user, chat_id: int, text: str) -> tuple:
+        return ()
+
     def call_tool(self, api, chat_id: int, user, call: ToolCall, skills) -> Tuple[str, bool, bool]:
         """回 (結果, 這一輪是否結束, ok)：要卡的動作在頻道裡做不了＝結束、ok=False（沒有執行，不算完成的證據）。"""
         node = tools_mod.node_for(self.app.registry, call.name)

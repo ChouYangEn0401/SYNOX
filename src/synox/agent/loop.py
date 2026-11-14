@@ -304,7 +304,9 @@ class AgentLoop:
             text += "\n\n" + tail_rules(tools, "0" * 16)
         specs = _json.dumps([{"name": t.name, "description": t.description, "parameters": t.parameters}
                              for t in tools], ensure_ascii=False) if native else ""
-        return len(text) + len(specs) + PROMPT_LIMIT + 200        # 200：分隔符與 soul 段的標題
+        from synox import aliases
+        alias = 0 if aliases.table_of(self.app, getattr(user, "tg_id", None)).empty else aliases.PROMPT_CHARS + 200
+        return len(text) + len(specs) + PROMPT_LIMIT + 200 + alias   # 200：分隔符與 soul 段的標題；alias：自訂指令名稱那段
 
     def soul_block(self, user, chat_id: int, nonce: str, query: str = "") -> str:
         """soul.md 放進對話助理的系統提示（擁有者 2026-11-12 決定 Q7，docs/adr/0002）。
@@ -480,14 +482,35 @@ class AgentLoop:
             return ()
         return NATIVE_STOP if native else TEXT_STOP
 
-    def pick_tools(self, tools, text: str):
+    def alias_block(self, user, chat_id: int, nonce: str, query: str = "") -> str:
+        """使用者自己取的指令名稱與符號（synox/aliases.py）：只給本人、只在私訊；頻道 AI（agent/room.py）換成永遠 ""。"""
+        from synox import aliases
+        try:
+            return aliases.prompt_block(self.app, user, chat_id, nonce, query)
+        except Exception:
+            logging.exception("[AGENT] alias block failed (ignored)")
+            return ""
+
+    def alias_keep(self, user, chat_id: int, text: str) -> tuple:
+        """這句話提到他自己取的名字 → 那些工具（名字開頭）這一輪一定給 AI 看。"""
+        from synox import aliases
+        if user is None or getattr(user, "tg_id", None) != chat_id:
+            return ()
+        try:
+            tab = aliases.table_of(self.app, user.tg_id)
+            return aliases.tool_prefixes(self.app, aliases.mentioned(tab, text))
+        except Exception:
+            logging.exception("[AGENT] alias tool keep failed (ignored)")
+            return ()
+
+    def pick_tools(self, tools, text: str, also=()):
         """這一輪給 AI 看的工具（docs/adr/0014）：llm.max_tools（auto＝本地／弱來源 12、其他不限）。
         永遠保留做不到的出口、skill_read、系統指令；權限仍只看 decision（清單只是提示）。"""
         from synox.packs.loader import SYSTEM_GROUPS_KEY
         limit = toolpick.limit_for(self.llm, self.adapter)
         if limit <= 0:
             return tools
-        keep = tuple(f"{g}{tools_mod.SEP}" for g in (self.app.extras.get(SYSTEM_GROUPS_KEY) or {}))
+        keep = tuple(f"{g}{tools_mod.SEP}" for g in (self.app.extras.get(SYSTEM_GROUPS_KEY) or {})) + tuple(also or ())
         picked = toolpick.pick(tools, text, limit, keep=keep)
         if len(picked) < len(tools):
             logging.info("[AGENT] tool pick: offering %d of %d tools (llm.max_tools=%d)", len(picked), len(tools), limit)
@@ -572,8 +595,10 @@ class AgentLoop:
         native = bool(self.adapter.supports_tools)
         nonce = delimit.new_nonce()                 # 這一輪的分隔符（第 5 關）
         full_tools = tools
-        tools = self.pick_tools(full_tools, asked)  # 每輪工具數上限（docs/adr/0014）；預設只對本地／弱來源
+        named = self.alias_keep(user, chat_id, asked)   # 他用自己取的指令名字說話：那個工具一定在這一輪的清單裡
+        tools = self.pick_tools(full_tools, asked, named)  # 每輪工具數上限（docs/adr/0014）；預設只對本地／弱來源
         soul = self.soul_block(user, chat_id, nonce, asked)
+        alias = self.alias_block(user, chat_id, nonce, asked)
         unavailable = self.health_note(user, chat_id)
         tail = self.tail_on()
         images = list(images or ())
@@ -590,6 +615,8 @@ class AgentLoop:
             prompt = self.system_prompt(skills, offered, native, user, nonce)
             if soul:
                 prompt += "\n\n" + soul
+            if alias:                               # 使用者自己取的指令名稱（資料，不是指令；synox/aliases.py）
+                prompt += "\n\n" + alias
             if unavailable:
                 prompt += "\n\n" + unavailable
             if had_images:                          # 圖裡的字是資料不是指令（docs/adr/0021）

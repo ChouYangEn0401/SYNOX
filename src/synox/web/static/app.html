@@ -509,6 +509,7 @@
 <style nonce="{{NONCE}}">/*{{INCLUDE:control.css}}*/</style>
 <!-- include: tools.css -->
 <!-- include: tour.css -->
+<!-- include: helpdock.css -->
 <style nonce="{{NONCE}}">/*{{INCLUDE:packdrop.css}}*/</style>
 <style nonce="{{NONCE}}">/*{{INCLUDE:report.css}}*/</style>
 <style nonce="{{NONCE}}">/*{{INCLUDE:splash.css}}*/</style>
@@ -569,13 +570,15 @@
     <div id="chat-main">
       <div class="chat-head"><span class="live" aria-hidden="true"></span><span class="t" id="chat-title">對話</span></div>
       <div id="stream"><div class="empty">選一段對話，或按「新對話」。</div></div>
+      <div id="helpdock" class="helpdock hidden" aria-label="範例"></div>
       <form id="composer" data-tour="chat.input">
+        <button id="examples-btn" class="ghost" type="button" data-tour="chat.examples" title="看範例：點一下就放進輸入框">💡 範例</button>
         <textarea id="input" rows="1" placeholder="打字跟 SYNOX 說，或打 /指令"></textarea>
         <button class="primary" type="submit" data-tour="chat.send">
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
           <span>送出</span></button>
       </form>
-      <p class="hint">Enter 送出，Shift+Enter 換行；打 /help 看全部指令，打 /tutorial 看新手教學</p>
+      <p class="hint">Enter 送出，Shift+Enter 換行；按「💡 範例」或打 /help 看你有哪些工具，打 /tutorial 看新手教學</p>
     </div>
   </section>
 
@@ -623,6 +626,7 @@
         <a href="#packs" data-tab="packs" role="tab" data-tour="settings.tab.packs">🧩 功能與安裝</a>
         <a href="#settings:accounts" data-tab="accounts" role="tab" data-tour="settings.tab.accounts">👥 帳號</a>
         <a href="#settings:system" data-tab="system" role="tab" data-tour="settings.tab.system">💻 電腦與備份</a>
+        <a href="#settings:commands" data-tab="commands" role="tab" data-tour="settings.tab.commands">⌨️ 我的指令</a>
         <a href="#settings:help" data-tab="help" role="tab" data-tour="settings.tab.help">🙋 遇到問題？</a>
       </div>
 
@@ -852,6 +856,10 @@
       </div>
 
       <!-- 遇到問題？（每個登入的人都看得到；動作在 static/report.js、摘要在 web/report.py）。SYNOX 自己不連到 GitHub -->
+      <div class="tab-panel hidden" data-tab="commands" role="tabpanel">
+      <div id="set-commands" class="card" data-tour="settings.commands"></div>
+      </div>
+
       <div class="tab-panel hidden" data-tab="help" role="tabpanel">
       <div id="set-help" class="card help-card">
         <div class="card-head"><span class="tile" aria-hidden="true">🙋</span>
@@ -920,6 +928,8 @@
 <script nonce="{{NONCE}}">/*{{INCLUDE:report.js}}*/</script>
 <!-- include: tools.js -->
 <!-- include: tour.js -->
+<!-- include: helpdock.js -->
+<!-- include: aliases.js -->
 <script nonce="{{NONCE}}">
 /*{{INCLUDE:blocks.js}}*/
 (function () {
@@ -1122,11 +1132,14 @@
     // type=tour 的區塊是 /tutorial 的回覆（synox/tour/chat.py）：畫成「在畫面上帶我走」，剛收到的就直接開始（static/tour.js）
     var blocks = Array.isArray(m.blocks) ? m.blocks : [];
     var tourBlock = blocks.filter(function (b) { return b && b.type === "tour"; })[0];
-    blocks = blocks.filter(function (b) { return !(b && b.type === "tour"); });
+    // type=examples 的區塊是 /help 卡片的範例（synox/helpui）：畫成小標籤，點了＝填進輸入框、不送出（static/helpdock.js）
+    var exBlock = blocks.filter(function (b) { return b && b.type === "examples"; })[0];
+    blocks = blocks.filter(function (b) { return !(b && (b.type === "tour" || b.type === "examples")); });
     box.appendChild(blocks.length ? window.SynoxBlocks.render(document, blocks) : el("div", "text", m.text));
     if (tourBlock && window.SynoxTour && !chat) {
       box.appendChild(window.SynoxTour.chatButton(tourBlock, primed && !nodes[m.id], m.id));
     }
+    if (exBlock && window.SynoxHelp) { box.appendChild(window.SynoxHelp.chips(exBlock)); }
     if (m.buttons && m.buttons.length) {
       var kb = el("div", "kb");
       m.buttons.forEach(function (row) {
@@ -1306,7 +1319,7 @@
              base_url: $("llm-url").value };
   }
   // ── 設定的分頁（#settings:<tab>；packs 的網址是 #packs）──────────────
-  var TABS = ["ai", "channels", "packs", "accounts", "system", "help"];
+  var TABS = ["ai", "channels", "packs", "accounts", "system", "commands", "help"];
   var tabWanted = "";          // 網址要的分頁（空＝沿用上次的，或第一個）
   var tabsOn = [];             // 這個人看得到的分頁（loadSettings 依擁有者／帳號權限決定）
   function pickTab(t) {
@@ -1331,7 +1344,8 @@
       ["set-llm", "set-usage", "set-channels", "set-library", "set-skills", "set-install", "set-packs",
         "set-sandbox", "set-backup"].forEach(function (id) { $(id).classList.toggle("hidden", !d.owner); });
       $("set-accounts").classList.toggle("hidden", !d.accounts);
-      tabsOn = TABS.filter(function (t) { return t === "help" || (t === "accounts" ? !!d.accounts : !!d.owner); });   // 遇到問題？＝每個人
+      tabsOn = TABS.filter(function (t) { return t === "help" || t === "commands" || (t === "accounts" ? !!d.accounts : !!d.owner); });   // 遇到問題？、我的指令＝每個人
+      if (window.SynoxAliases) { window.SynoxAliases.open($("set-commands")); }   // 我的指令（static/aliases.js）
       applyTabs();
       $("my-budget").textContent = d.ai_budget ?
         "這個月的 AI 額度：用了約 US$" + d.ai_budget.used.toFixed(2) + "／US$" + Number(d.ai_budget.limit).toFixed(2) : "";
@@ -2363,16 +2377,19 @@
     showWho(d);
     if (window.SynoxReport) { window.SynoxReport.init({ api: api, toast: toast }); }   // 遇到問題？（static/report.js）
     route();
+    function fillInput(text) {               // 範例、教學的「幫我填好」：只把字放進輸入框，不送出
+      if (currentView !== "chat") { location.hash = "#chat"; }
+      var input = $("input");
+      input.value = text;
+      input.dispatchEvent(new Event("input"));
+      input.focus();
+    }
+    if (window.SynoxHelp) { window.SynoxHelp.init({ api: api, toast: toast, fill: fillInput }); }   // 💡 範例（static/helpdock.js）
+    if (window.SynoxAliases) { window.SynoxAliases.init({ api: api, toast: toast }); }           // 我的指令（static/aliases.js）
     if (window.SynoxTour) {                    // 新手教學（static/tour.js）：只會填字、換頁，不會替人按任何東西
       window.SynoxTour.init({
         api: api, toast: toast,
-        fill: function (text) {
-          if (currentView !== "chat") { location.hash = "#chat"; }
-          var input = $("input");
-          input.value = text;
-          input.dispatchEvent(new Event("input"));
-          input.focus();
-        },
+        fill: fillInput,
         go: function (view, tab) {
           location.hash = view === "settings" && tab ? (tab === "packs" ? "#packs" : "#settings:" + tab) : "#" + view;
         }
