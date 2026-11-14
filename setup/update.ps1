@@ -5,6 +5,10 @@
 #   Update.bat -Rollback        退回上一版（_previous\ 裡最新的那一份）
 #   Update.bat -AllowUnsigned   這一版沒有簽章也換（只確認 HTTPS＋GitHub 發佈頁的 SHA256SUMS.txt；預設不換，照實說）
 #   Update.bat -Yes             不再問（已經在別的地方確認過）
+#   Update.bat -FromZip <ZIP>   先測更新（還沒有真的發佈時）：用這台電腦上的 ZIP，不連網。旁邊有 SHA256SUMS.txt 就要對得上，
+#                               沒有簽章一樣要 -AllowUnsigned；之後換檔、留 _previous\、出事退回都跟正式更新同一條
+#                               （synox update --prepare --from-zip；scripts/make_update_testkit.py 做測試包；
+#                               docs/release-playbook.md「先測更新」）
 #
 # 分工：下載、SHA256、Ed25519 簽章、安全解壓都在 Python（`synox update --prepare`，src/synox/update/prepare.py；
 # PowerShell 5.1 沒有 Ed25519），用的是**現在裝著、已經信任的**那份程式碼；全部過了才寫 data\update\ready.json。
@@ -12,7 +16,7 @@
 # 永遠不動（$Keep，跟 prepare.py 的 KEEP 一樣）：config.json、data\、packs\、.venv\、runtime\、_previous\、lang.txt、
 # installer-choices.json、.git。舊的程式檔整份搬到 _previous\<舊版本>-<時間>\，只留最近 2 份（決定 U8）。
 # git clone 的不換檔：請 git pull；安裝程式（.exe）裝的：下載新的安裝程式。
-param([switch]$Rollback, [switch]$AllowUnsigned, [switch]$Yes)
+param([switch]$Rollback, [switch]$AllowUnsigned, [switch]$Yes, [string]$FromZip = '')
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $Root
@@ -56,6 +60,9 @@ $Messages = @{
         failed = '更新失敗：{0}'
         log = '這次的紀錄在 {0}'
         press_enter = '按 Enter 關閉這個視窗'
+        fromzip = '⚠️ 用這台電腦上的 ZIP 更新（先測更新用，不是從 GitHub 下載）。'
+        fromzip_missing = '找不到這個 ZIP：{0}（請給完整路徑，例如 C:\synox-kit\new\SYNOX-0.2.1-test.1.zip）。'
+        fromzip_ask = '要從 {0} 換成 {1} 嗎？你的設定、資料、工具都不會動，舊版會留在 _previous。輸入 Y 再按 Enter（直接按 Enter＝先不要）'
     }
     'en' = @{
         title = 'SYNOX update'
@@ -84,6 +91,9 @@ $Messages = @{
         failed = 'Update failed: {0}'
         log = 'Log of this run: {0}'
         press_enter = 'Press Enter to close this window'
+        fromzip = 'Updating from a ZIP on this computer (for testing an update; not downloaded from GitHub).'
+        fromzip_missing = 'ZIP not found: {0} (give the full path, e.g. C:\synox-kit\new\SYNOX-0.2.1-test.1.zip).'
+        fromzip_ask = 'Replace {0} with {1}? Your settings, data and tools stay as they are; the old version is kept in _previous. Type Y and press Enter (just Enter = not now)'
     }
 }
 $LangFile = Join-Path $Root 'lang.txt'
@@ -220,6 +230,25 @@ function Invoke-Rollback {
     return 0
 }
 
+function Read-Ready {
+    # data\update\ready.json（Python 全部驗過才寫）→ 物件；用一次就丟。暫存資料夾一定在 data\update\ 裡，不對回 $null
+    if (-not (Test-Path -LiteralPath $ReadyFile)) { return $null }
+    $ready = Get-Content -LiteralPath $ReadyFile -Raw -Encoding UTF8 | ConvertFrom-Json
+    Remove-Item -LiteralPath $ReadyFile -Force                # 用一次就丟：下次一定重新下載、重新驗
+    $stage = "$($ready.stage)"
+    $inside = $UpdateDir.TrimEnd('\') + '\'
+    if (-not $stage.StartsWith($inside, [StringComparison]::OrdinalIgnoreCase) -or
+        -not (Test-Path -LiteralPath (Join-Path $stage 'src\synox\__init__.py'))) {
+        return $null                                         # 暫存資料夾一定在 data\update\ 裡
+    }
+    return $ready
+}
+
+function Remove-Prepared($ready) {
+    # data\update\<版本>\（下載的 ZIP＋解開的暫存）；不碰別的
+    Remove-Item -LiteralPath (Split-Path -Parent (Split-Path -Parent "$($ready.stage)")) -Recurse -Force -ErrorAction SilentlyContinue
+}
+
 function Invoke-Update {
     Say (T 'checking')
     & $VenvPy -m synox -q update --check | Out-Host
@@ -232,16 +261,39 @@ function Invoke-Update {
     & $VenvPy @prep | Out-Host
     $rc = $LASTEXITCODE
     if ($rc -eq 3) { Say (T 'no_newer'); return 0 }
-    if ($rc -ne 0 -or -not (Test-Path -LiteralPath $ReadyFile)) { Say (T 'prepare_failed'); return 1 }
-    $ready = Get-Content -LiteralPath $ReadyFile -Raw -Encoding UTF8 | ConvertFrom-Json
-    Remove-Item -LiteralPath $ReadyFile -Force                # 用一次就丟：下次一定重新下載、重新驗
-    $stage = "$($ready.stage)"
-    $inside = $UpdateDir.TrimEnd('\') + '\'
-    if (-not $stage.StartsWith($inside, [StringComparison]::OrdinalIgnoreCase) -or
-        -not (Test-Path -LiteralPath (Join-Path $stage 'src\synox\__init__.py'))) {
-        Say (T 'prepare_failed'); return 1                   # 暫存資料夾一定在 data\update\ 裡
-    }
+    $ready = $null
+    if ($rc -eq 0) { $ready = Read-Ready }
+    if (-not $ready) { Say (T 'prepare_failed'); return 1 }
+    return (Invoke-Swap $ready)
+}
 
+function Invoke-FromZip {
+    # Update.bat -FromZip <ZIP>：先測更新。驗證一樣全在 Python（synox update --prepare --from-zip：旁邊的 SHA256SUMS.txt、
+    # release.json＋.sig 有就要對；沒有簽章要 -AllowUnsigned）；驗過、解開之後才問，換檔走跟正式更新同一個 Invoke-Swap。
+    Say (T 'fromzip')
+    if (-not (Test-Path -LiteralPath $FromZip -PathType Leaf)) { Say (T 'fromzip_missing' $FromZip); return 1 }
+    $zip = (Resolve-Path -LiteralPath $FromZip).ProviderPath
+    Say (T 'preparing')
+    $prep = @('-m', 'synox', '-q', 'update', '--prepare', '--from-zip', $zip)
+    if ($AllowUnsigned) { $prep += '--allow-unsigned' }
+    & $VenvPy @prep | Out-Host
+    $rc = $LASTEXITCODE
+    if ($rc -eq 3) { Say (T 'no_newer'); return 0 }
+    $ready = $null
+    if ($rc -eq 0) { $ready = Read-Ready }
+    if (-not $ready) { Say (T 'prepare_failed'); return 1 }
+    if (-not (Confirm-Step (T 'fromzip_ask' $ready.from $ready.version))) {
+        Remove-Prepared $ready
+        Say (T 'cancelled')
+        return 0
+    }
+    return (Invoke-Swap $ready)
+}
+
+function Invoke-Swap($ready) {
+    # 驗過的新版（$ready）換上去：停 SYNOX → 舊的程式檔搬到 _previous\ → 新的搬進來 →（相依變了才）重裝套件 → 檢查版本 →
+    # 不對就自動退回 → 開 SYNOX。正式更新與 -FromZip 共用這一段。
+    $stage = "$($ready.stage)"
     Stop-Synox
     $prev = Join-Path $Previous ("$($ready.from)-" + (Get-Stamp))
     Say (T 'swapping' $prev)
@@ -286,7 +338,7 @@ function Invoke-Update {
         Start-Synox
         return 1
     }
-    Remove-Item -LiteralPath (Split-Path -Parent (Split-Path -Parent $stage)) -Recurse -Force -ErrorAction SilentlyContinue
+    Remove-Prepared $ready
     Save-Result @{ action = 'update'; from = "$($ready.from)"; to = "$($ready.version)"; ok = $true; signed = [bool]$ready.signed }
     Say (T 'updated' $ready.version $prev)
     Start-Synox
@@ -306,7 +358,7 @@ try {
     if (-not (Test-Path -LiteralPath $VenvPy)) { Say (T 'no_venv'); exit 1 }
     New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
     try { Start-Transcript -LiteralPath (Join-Path $LogDir 'update.log') -Append | Out-Null; $logging = $true } catch { }
-    if ($Rollback) { $code = Invoke-Rollback } else { $code = Invoke-Update }
+    if ($Rollback) { $code = Invoke-Rollback } elseif ($FromZip) { $code = Invoke-FromZip } else { $code = Invoke-Update }
 } catch {
     Write-Host "[SYNOX] $(T 'failed' $_.Exception.Message)" -ForegroundColor Red
     $code = 1

@@ -526,7 +526,8 @@ def test_update_ps1_keeps_user_data_and_matches_python():
     assert tuple(re.findall(r"'([^']+)'", keep)) == prepare.KEEP
     assert {"config.json", "data", "packs", ".venv", "runtime", "_previous"} <= set(prepare.KEEP)
     assert re.search(r"^\$KeepCount = 2\r?$", text, re.M)                         # 決定 U8
-    assert re.search(r"^param\(\[switch\]\$Rollback, \[switch\]\$AllowUnsigned, \[switch\]\$Yes\)", text, re.M)
+    assert re.search(r"^param\(\[switch\]\$Rollback, \[switch\]\$AllowUnsigned, \[switch\]\$Yes, "
+                     r"\[string\]\$FromZip = ''\)", text, re.M)
     move = text.split("function Move-ProgramFiles", 1)[1].split("\nfunction ", 1)[0]
     assert "$Keep -contains $item.Name" in move and "continue" in move
     code = "\n".join(ln.split("#", 1)[0] for ln in text.splitlines())
@@ -535,20 +536,46 @@ def test_update_ps1_keeps_user_data_and_matches_python():
     assert not re.search(r"Remove-Item[^\n]*(\$Root|\$Config|\$Data)\b(?!\S)", code)
 
 
+def _fn(text, name):
+    return text.split(f"\nfunction {name}", 1)[1].split("\nfunction ", 1)[0].split("\n$code = 1", 1)[0]
+
+
 def test_update_ps1_order_check_ask_prepare_then_swap():
     text = _ps("update.ps1")
-    body = text.split("function Invoke-Update", 1)[1]
-    order = ["update --check", "Confirm-Step (T 'ask')", "'--prepare'", "Stop-Synox", "Move-ProgramFiles $Root $prev",
-             "Move-ProgramFiles $stage $Root", "Limit-Previous", "Install-Packages", "Get-InstalledVersion",
-             "Restore-Previous", "Start-Synox"]
-    pos = [body.index(s) for s in order[:-1]] + [body.rindex("Start-Synox")]   # 失敗時也開回來；最後一定開
+    body = _fn(text, "Invoke-Update")
+    order = ["update --check", "Confirm-Step (T 'ask')", "'--prepare'", "Read-Ready", "Invoke-Swap $ready"]
+    pos = [body.index(s) for s in order]
     assert pos == sorted(pos), order
     assert "$LASTEXITCODE -ne 10" in body and "$rc -eq 3" in body
     assert "--allow-unsigned" in body and "if ($AllowUnsigned)" in body       # 只有明確給了才加
+    swap = _fn(text, "Invoke-Swap")
+    order = ["Stop-Synox", "Move-ProgramFiles $Root $prev", "Move-ProgramFiles $stage $Root", "Limit-Previous",
+             "Install-Packages", "Get-InstalledVersion", "Restore-Previous", "Start-Synox"]
+    pos = [swap.index(s) for s in order[:-1]] + [swap.rindex("Start-Synox")]   # 失敗時也開回來；最後一定開
+    assert pos == sorted(pos), order
+    ready = _fn(text, "Read-Ready")
+    assert "Remove-Item -LiteralPath $ReadyFile" in ready and "$stage.StartsWith($inside" in ready   # 用一次就丟、只收 data\update\
     main = text.split("\n$code = 1", 1)[1]
     assert main.index("'.git'") < main.index("exe-installer") < main.index("Invoke-Update")
     assert "Invoke-Rollback" in main and "Start-Transcript" in main
+    assert "elseif ($FromZip) { $code = Invoke-FromZip }" in main
     assert "Invoke-WebRequest" not in text and "Expand-Archive" not in text    # 下載、解壓都在 Python 驗過的那一條
+
+
+def test_update_ps1_from_zip_verifies_in_python_then_asks_then_same_swap():
+    text = _ps("update.ps1")
+    body = _fn(text, "Invoke-FromZip")
+    order = ["Test-Path -LiteralPath $FromZip", "'--prepare', '--from-zip', $zip", "Read-Ready",
+             "Confirm-Step (T 'fromzip_ask'", "Invoke-Swap $ready"]
+    pos = [body.index(s) for s in order]
+    assert pos == sorted(pos), order                                           # 先驗、解開，問過才換
+    assert "if ($AllowUnsigned) { $prep += '--allow-unsigned' }" in body      # 沒簽章只有明確給了才收
+    no = body.split("Confirm-Step (T 'fromzip_ask'", 1)[1].split("return 0", 1)[0]
+    assert "Remove-Prepared $ready" in no                                     # 不要：丟掉暫存，什麼都沒換
+    assert "Stop-Synox" not in body and "Move-ProgramFiles" not in body       # 換檔只在 Invoke-Swap（同一條）
+    assert "Expand-Archive" not in text and "Invoke-WebRequest" not in text
+    bat = open(os.path.join(ROOT, "Update.bat"), "rb").read().decode("ascii")
+    assert "-FromZip" in bat and "-AllowUnsigned" in bat
 
 
 def test_bootstrap_update_mode_only_installs_packages():
