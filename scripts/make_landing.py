@@ -12,6 +12,9 @@
 開場的 S 寶寶跟網頁介面長得一樣：組頁面時把 src/synox/web/static/splash.css 裡「開場」那一段原封不動塞進 page.html 的
 /*{{splash-css}}*/（網頁版的樣子改了，重組一次就跟著變）。流程不一樣：介紹頁是「網頁載好 → 點一下小方塊 → 說招呼 → 進頁面」，
 寫在 page.html 自己的 <script>（SynoxGate），不用 splash.js。
+
+標語不寫死在 page.html：{{slogan-1}}、{{slogan-2}}、{{eyebrow}} 組頁面時換成 src/synox/brand.py 的 SLOGAN、EYEBROW
+（標語只有那一個地方要改）。
 """
 from __future__ import annotations
 
@@ -96,6 +99,16 @@ def splash_css() -> str:
     return root.group(0) + "\n  " + css[start:end].rstrip() + "\n"
 
 
+def brand_text() -> dict[str, str]:
+    """從 src/synox/brand.py 讀標語（直接載那個檔，不 import 整個 synox 套件）。"""
+    import importlib.util
+    spec = importlib.util.spec_from_file_location("_synox_brand", os.path.join(ROOT, "src", "synox", "brand.py"))
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    first, second = mod.SLOGAN
+    return {"{{slogan-1}}": first, "{{slogan-2}}": second, "{{eyebrow}}": mod.EYEBROW}
+
+
 def build() -> None:
     with open(os.path.join(LANDING, "page.html"), encoding="utf-8") as f:
         html = f.read()
@@ -106,6 +119,10 @@ def build() -> None:
             return "data:image/webp;base64," + base64.b64encode(f.read()).decode("ascii")
 
     html, n = re.subn(r"\{\{shot:([a-z0-9-]+)\}\}", shot, html)
+    for mark, text in brand_text().items():
+        if mark not in html:
+            raise SystemExit(f"page.html 少了 {mark}")
+        html = html.replace(mark, text)
     for mark, text in (("/*{{splash-css}}*/", splash_css()),):
         if html.count(mark) != 1:
             raise SystemExit(f"page.html 要剛好有一個 {mark}")
