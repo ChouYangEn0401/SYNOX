@@ -1,0 +1,16 @@
+{
+  "name": "counter",
+  "title": "🔢 計數器",
+  "summary": "測試用：加一個數、歸零、看現在是多少（工具服務的 fixture）",
+  "version": "0.1.0",
+  "kind": "python",
+  "group": "counter",
+  "access": "member",
+  "data": "user",
+  "storage": "vault",
+  "python": { "module": "pack" },
+  "skill": "SKILL.md",
+  "web": { "app": { "entry": "app/index.html", "root": "app", "title": "計數器", "kit": 1,
+                    "reads": ["state"], "actions": { "add": "WRITE", "reset": "DANGER", "poke": "WRITE" },
+                    "exports": ["state_csv"], "remote": true } }
+}

@@ -77,6 +77,7 @@ validate(raw, folder, strict=True) 是安裝時用的嚴格版（cli 的每個 c
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 from dataclasses import dataclass, field
@@ -182,6 +183,8 @@ def _unc_strings(raw: dict):
         yield from items(f"runtime.{key}", runtime.get(key), True)
     yield from items("runtime.container.dockerfile", obj(runtime.get("container")).get("dockerfile"), True)
     yield from items("web.panel", obj(raw.get("web")).get("panel"), True)
+    yield from items("web.app.root", obj(obj(raw.get("web")).get("app")).get("root"), True)
+    yield from items("web.app.entry", obj(obj(raw.get("web")).get("app")).get("entry"), True)
     for k in obj(obj(raw.get("integrity")).get("sha256")):
         yield "integrity.sha256", str(k), True
     yield from items("cli.argv", cli.get("argv"), False)
@@ -301,6 +304,9 @@ class Manifest:
     stage_declared: bool = False
     # 工具健康的自我檢查（選填；{"check": "<這個 pack 的一個唯讀指令名>"}，docs/tool-health.md）
     health: dict = field(default_factory=dict)
+    # 範圍（ADR 0025 §3，只能收緊）：哪些指令只收誰叫（human／remote／ai／schedule／system）、哪些一定要先解鎖
+    callers: Dict[str, List[str]] = field(default_factory=dict)
+    stepup: List[str] = field(default_factory=list)
 
     @property
     def stage_label(self) -> str:
@@ -359,13 +365,153 @@ def _inside(folder: str, rel: str) -> bool:
         return False
 
 
-def parse_web(raw, folder: str, problems: List[str]) -> dict:
-    """pack.json 的 web → {"panel": 相對路徑或 "", "api": [route…]}；不合的寫進 problems。"""
+# ── 工具服務：web.app（ADR 0024 第三版、計畫 C2／WP1） ────────────────────────────
+KIT_VERSIONS = (1,)                                  # 共用元件（appkit.js）的版本：這台 SYNOX 認得的
+APP_EXT = (".html", ".js", ".css", ".json", ".png", ".jpg", ".jpeg", ".webp", ".svg", ".ico", ".woff2")
+APP_MAX_FILES = 100
+APP_MAX_FILE = 512 * 1024
+APP_MAX_TOTAL = 3 * 1024 * 1024
+APP_MAX_NAMES = 40
+APP_MAX_EXPORTS = 10
+APP_MAX_TITLE = 24
+APP_KEYS = ("entry", "root", "title", "kit", "reads", "actions", "exports", "remote")
+APP_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,31}$")
+APP_EFFECTS = ("WRITE", "DANGER")
+
+
+def _app_files(folder: str, root: str, problems: List[str]) -> List[str]:
+    """root 底下全部的檔（相對 pack 資料夾、正斜線、排序過）；副檔名、個數、大小、符號連結不合寫進 problems。"""
+    base = os.path.join(folder, root)
+    out, total = [], 0
+    for here, dirs, names in os.walk(base):
+        for d in list(dirs):
+            if os.path.islink(os.path.join(here, d)):
+                problems.append(f"web.app.root 裡不能有符號連結：{d}")
+                dirs.remove(d)
+        for name in names:
+            path = os.path.join(here, name)
+            rel = os.path.relpath(path, folder).replace(os.sep, "/")
+            if os.path.islink(path):
+                problems.append(f"web.app.root 裡不能有符號連結：{rel}")
+                continue
+            if os.path.splitext(name)[1].lower() not in APP_EXT:
+                problems.append(f"web.app.root 裡的 {rel} 副檔名不能用（只能是 {' '.join(APP_EXT)}）")
+                continue
+            size = os.path.getsize(path)
+            if size > APP_MAX_FILE:
+                problems.append(f"web.app.root 裡的 {rel} 太大了（單檔最多 {APP_MAX_FILE // 1024} KB）")
+            total += size
+            out.append(rel)
+    if len(out) > APP_MAX_FILES:
+        problems.append(f"web.app.root 裡的檔太多了（最多 {APP_MAX_FILES} 個）")
+    if total > APP_MAX_TOTAL:
+        problems.append(f"web.app.root 裡的檔加起來太大了（最多 {APP_MAX_TOTAL // 1024 // 1024} MB）")
+    return sorted(out)
+
+
+def _app_names(value, label: str, limit: int, problems: List[str]) -> List[str]:
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        problems.append(f"web.app.{label} 要是名字的清單")
+        return []
+    bad = [v for v in value if not APP_NAME_RE.match(v)]
+    if bad:
+        problems.append(f"web.app.{label} 的名字只能用小寫英數字、-、_（32 字內）：{'、'.join(map(repr, bad))}")
+    if len(set(value)) != len(value):
+        problems.append(f"web.app.{label} 有重複的名字")
+    if len(value) > limit:
+        problems.append(f"web.app.{label} 最多 {limit} 個")
+    return [v for v in dict.fromkeys(value) if APP_NAME_RE.match(v)]
+
+
+def _bad_rel(value) -> bool:
+    if not isinstance(value, str) or not value.strip() or os.path.isabs(value) or re.match(r"^[A-Za-z]:", value):
+        return True
+    return ".." in value.replace(chr(92), "/").split("/")
+
+
+def parse_app(raw, folder: str, kind, problems: List[str]) -> Optional[dict]:
+    """web.app → C2 的形狀（沒有宣告＝None）。不合的寫進 problems（呼叫端決定是拒還是當作沒有 app）。"""
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        problems.append("web.app 要是物件")
+        return None
+    before = len(problems)
+    if kind != "python":
+        problems.append("web.app 只給 kind=python 的工具（cli／mcp 的這一輪還不行）")
+    unknown = sorted(str(k) for k in raw if k not in APP_KEYS)
+    if unknown:
+        problems.append(f"web.app 不認得 {'、'.join(unknown)}（只能是 {'、'.join(APP_KEYS)}；"
+                        "閒置設定由擁有者在 SYNOX 選，工具不能自己寫）")
+    root = raw.get("root")
+    if _bad_rel(root) or root.strip() in (".", "./") or not _inside(folder, root) \
+            or not os.path.isdir(os.path.join(folder, root)):
+        problems.append("web.app.root 要是 pack 資料夾裡的一個子資料夾（不能是 .、不能用 .. 或絕對路徑）")
+        root = ""
+    root = root.replace(chr(92), "/").strip("/")
+    entry = raw.get("entry")
+    if _bad_rel(entry) or not entry.lower().endswith(".html"):
+        problems.append("web.app.entry 要是 root 裡的一個 .html")
+        entry = ""
+    entry = entry.replace(chr(92), "/")
+    if root and entry and (not entry.startswith(root + "/") or not os.path.isfile(os.path.join(folder, entry))):
+        problems.append(f"web.app.entry 要是 {root}/ 裡存在的 .html 檔（找不到 {entry}）")
+    title = raw.get("title", "")
+    if title:
+        why = one_line_problem(title, "web.app.title", APP_MAX_TITLE) if isinstance(title, str) \
+            else "web.app.title 要是一行字"
+        if why:
+            problems.append(why)
+            title = ""
+    kit_v = raw.get("kit")
+    if isinstance(kit_v, bool) or not isinstance(kit_v, int):
+        problems.append(f"web.app.kit 一定要寫，是整數（這台 SYNOX 認得 {'、'.join(map(str, KIT_VERSIONS))}）")
+    elif kit_v not in KIT_VERSIONS:
+        problems.append(f"web.app.kit 是 {kit_v}，這台 SYNOX 只認得 {'、'.join(map(str, KIT_VERSIONS))}（請更新 SYNOX）")
+    reads = _app_names(raw.get("reads", []), "reads", APP_MAX_NAMES, problems)
+    actions_raw = raw.get("actions", {})
+    actions: Dict[str, str] = {}
+    if not isinstance(actions_raw, dict):
+        problems.append('web.app.actions 要是 {"名字": "WRITE" 或 "DANGER"}')
+    else:
+        if len(actions_raw) > APP_MAX_NAMES:
+            problems.append(f"web.app.actions 最多 {APP_MAX_NAMES} 個")
+        for name, eff in actions_raw.items():
+            if not isinstance(name, str) or not APP_NAME_RE.match(name):
+                problems.append(f"web.app.actions 的名字 {name!r} 只能用小寫英數字、-、_")
+            elif not isinstance(eff, str) or eff.upper() not in APP_EFFECTS:
+                problems.append(f"web.app.actions.{name} 只能是 WRITE 或 DANGER（唯讀的放 reads）")
+            else:
+                actions[name] = eff.lower()
+    exports = _app_names(raw.get("exports"), "exports", APP_MAX_EXPORTS, problems) if "exports" in raw else []
+    if not reads and not actions:
+        problems.append("web.app 的 reads 與 actions 至少要有一邊")
+    remote = raw.get("remote", False)
+    if not isinstance(remote, bool):
+        problems.append("web.app.remote 要是 true 或 false（宣告了才可能從手機用）")
+        remote = False
+    files = _app_files(folder, root, problems) if root else []
+    if len(problems) > before:
+        return None
+    return {"entry": entry, "root": root, "title": title or "", "kit": kit_v, "reads": reads, "actions": actions,
+            "exports": exports, "files": files, "remote": bool(remote)}
+
+
+def parse_web(raw, folder: str, problems: List[str], kind=None, strict: bool = False) -> dict:
+    """pack.json 的 web → {"panel": 相對路徑或 "", "api": [route…], "app": C2 或 None}；不合的寫進 problems。
+    web.app 寫壞了：安裝時（strict）拒；已裝的舊工具載入時當作沒有 app（整個工具照樣載入）。"""
     if raw in (None, {}):
-        return {"panel": "", "api": []}
+        return {"panel": "", "api": [], "app": None}
     if not isinstance(raw, dict):
         problems.append("web 要是物件")
-        return {"panel": "", "api": []}
+        return {"panel": "", "api": [], "app": None}
+    app_problems: List[str] = []
+    app = parse_app(raw.get("app"), folder, kind, app_problems)
+    if app_problems:
+        if strict:
+            problems.extend(app_problems)
+        else:
+            logging.warning("[PACKS] %s: web.app ignored (%d problems)", os.path.basename(folder), len(app_problems))
     panel = raw.get("panel") or ""
     if panel:
         if not isinstance(panel, str) or not panel.lower().endswith(".html") or os.path.isabs(panel) \
@@ -386,7 +532,7 @@ def parse_web(raw, folder: str, problems: List[str]) -> dict:
             problems.append(f"web.api 的 {item!r} 要寫成 \"GET /名字\"（小寫英數字、-、_；只支援 GET）")
         else:
             routes.append(m.group(1))
-    return {"panel": panel, "api": routes}
+    return {"panel": panel, "api": routes, "app": app}
 
 
 def norm_effect(value) -> str:
@@ -1170,9 +1316,10 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
         problems.append("requires 要是物件")
         requires = {}
     _check_requires(requires, problems)
-    web = parse_web(raw.get("web"), folder, problems)
+    web = parse_web(raw.get("web"), folder, problems, kind=kind, strict=strict)
     if kind == "cli" and web["api"] and isinstance(cli.get("commands"), list):
         web["routes"] = _cli_routes(raw.get("web") or {}, web["api"], cli["commands"], problems)
+    extra.update(check_callers(raw, kind, cli, problems, strict))
     health, health_bad = health_problem(raw, kind, cli)
     if health_bad and strict:                  # 新欄位：安裝時說清楚；載入時壞的當作沒寫（只是少了自我檢查）
         problems.append(health_bad)
@@ -1186,6 +1333,56 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
                     stage=stage, stage_declared=stage_declared, health=health,
                     runtime={**{k: v for k, v in runtime.items() if k in ("python", "python_posix", "node")},
                              **({"container": container} if container else {})}, **extra)
+
+
+CALLERS = ("human", "remote", "ai", "schedule", "system")          # 跟 synox/guard/scope.py 的 CALLERS 同一份
+
+
+def check_callers(raw: dict, kind, cli: dict, problems: List[str], strict: bool) -> dict:
+    """`callers`（{"指令名": ["human", …]}）與 `stepup`（["指令名", …]）：只能收緊（ADR 0025 §3；計畫 K4）。
+    安裝時（strict）：不認得的指令名、空清單、不認得的類別、危險的指令列 remote → 拒，訊息點名。
+    載入時（已裝的舊工具）：壞掉的那一條當作沒寫。python pack 的指令寫在程式裡，這裡只能查名字的格式，
+    「有沒有這個指令」由 loader 掛的時候再對（對不到的當作沒寫，記 log）。"""
+    known = None
+    if kind in ("cli", "mcp") and isinstance(cli.get("commands"), list):
+        known = {c.get("name"): norm_effect(c.get("effect")) or "READ"
+                 for c in cli["commands"] if isinstance(c, dict) and isinstance(c.get("name"), str)}
+    bad: List[str] = []
+    callers: Dict[str, List[str]] = {}
+    raw_callers = raw.get("callers")
+    if raw_callers is not None:
+        if not isinstance(raw_callers, dict):
+            bad.append('callers 要是 {"指令名": ["human", …]}')
+        else:
+            for name, value in raw_callers.items():
+                if not isinstance(name, str) or not COMMAND_RE.match(name) or (known is not None and name not in known):
+                    bad.append(f"callers 的 {name!r} 不是這個工具宣告過的指令")
+                    continue
+                if not isinstance(value, list) or not value or not all(isinstance(c, str) for c in value):
+                    bad.append(f"callers.{name} 要是非空的清單（human、remote、ai、schedule、system）")
+                    continue
+                unknown = [c for c in value if c not in CALLERS]
+                if unknown:
+                    bad.append(f"callers.{name} 不認得 {'、'.join(unknown)}（只能是 {'、'.join(CALLERS)}）")
+                    continue
+                if "remote" in value and known is not None and known.get(name) == "DANGER":
+                    bad.append(f"callers.{name}：危險的指令不能列 remote（手機入口做不了危險的動作）")
+                    continue
+                callers[name] = [c for c in CALLERS if c in value]
+    stepup: List[str] = []
+    raw_stepup = raw.get("stepup")
+    if raw_stepup is not None:
+        if not isinstance(raw_stepup, list) or not all(isinstance(s, str) for s in raw_stepup):
+            bad.append('stepup 要是指令名的清單（["rm_all", …]）')
+        else:
+            for name in raw_stepup:
+                if not COMMAND_RE.match(name) or (known is not None and name not in known):
+                    bad.append(f"stepup 的 {name!r} 不是這個工具宣告過的指令")
+                elif name not in stepup:
+                    stepup.append(name)
+    if strict:
+        problems.extend(bad)
+    return {"callers": callers, "stepup": stepup}
 
 
 def doc_warnings(m: Manifest) -> List[str]:

@@ -78,20 +78,34 @@ class ApprovalDesk:
             ok = isinstance(sent, dict) and sent.get("ok")
             api.send_message(where, IN_DM if ok else DM_FIRST)
 
+    def _restore(self, token: str, payload, owner_id: int, expires: float) -> None:
+        """按 ✅ 時還沒解鎖：卡不作廢（ADR 0025 §5.4），原樣放回去、期限不變。"""
+        with self.pending._lock:
+            self.pending._items[token] = (payload, owner_id, expires)
+
     def on_button(self, api, cb) -> None:
         _prefix, action, token = (cb.data.split(":") + ["", ""])[:3]
+        with self.pending._lock:
+            held = self.pending._items.get(token)
         payload = self.pending.take(token, cb.clicker_id)
         if payload is None and self.pending.someone_elses(token, cb.clicker_id):
             # 別人的卡：只回這個按的人一句，**不**拿掉按鈕、不動卡（不然誰都能讓你的卡作廢）
             api.answer_callback_query(cb.cq_id, NOT_YOURS)
             return
         api.answer_callback_query(cb.cq_id)
+        registry = self.app.registry
+        node = registry.node(payload["path"]) if payload is not None else None
+        if payload is not None and action == "go" and node is not None and not node.is_group:
+            clicker = self.app.users.get_or_create(cb.clicker_id)
+            decision = registry.authorize(clicker, node, BUTTON, cb.chat_id)
+            if decision.reason == "stepup" and held is not None:
+                self._restore(token, payload, held[1], held[2])
+                api.send_message(cb.chat_id, decision.message + "\n解鎖之後再按一次 ✅（這張卡還有效）。")
+                return
         api.remove_buttons(cb.chat_id, cb.message_id)
         if payload is None:
             api.send_message(cb.chat_id, EXPIRED)
             return
-        registry = self.app.registry
-        node = registry.node(payload["path"])
         shown = " ".join([node.command if node else payload["path"]] + payload["argv"])
         grant = payload.get("grant") or ""
         if action != "go":

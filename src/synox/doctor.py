@@ -224,6 +224,74 @@ def _activator_line(config) -> str:
 HEALTH_MARKS = {"broken": "⏸", "needs_action": "🛠", "quarantined": "⛔"}
 
 
+def apps_lines(config, *, environ=None, exists=os.path.exists) -> list:
+    """工具服務（ADR 0024）：開放與否、範圍、預設的閒置；上次的狀態檔；設成「一直開著」的工具。**不連任何埠。**"""
+    from isdtelekit.core import jsonstore
+    from synox.web.server import CONTAINER_MARKERS
+    environ = os.environ if environ is None else environ
+    web = getattr(config, "web", {}) or {}
+    apps = web.get("apps") or {}
+    if not web.get("enabled", True) or not apps.get("enabled", True):
+        return ["  工具服務：關（web.apps.enabled=false）"]
+    if str(environ.get("SYNOX_IN_CONTAINER", "")).strip() == "1" or any(exists(m) for m in CONTAINER_MARKERS):
+        return ["  工具服務：容器版還沒開放"]
+    first, count = int(apps.get("port_first", 8841)), int(apps.get("port_count", 16))
+    out = [f"  工具服務：開放（本機位址 127.0.0.2，埠 {first}–{first + count - 1}，最多同時 {apps.get('max_running', 3)} 個；"
+           f"預設 {apps.get('idle_suggest_min', 30)} 分鐘沒用提醒、{apps.get('idle_close_min', 120)} 分鐘自動關，各工具可以自己設）"]
+    state = jsonstore.load_json(os.path.join(config.data_dir, "apps_state.json"), {})
+    running = state.get("running") if isinstance(state, dict) else None
+    if running:
+        names = "、".join(f"{r.get('name')} 開在 {r.get('port')}" for r in running if isinstance(r, dict))
+        out.append(f"    上次紀錄：{names}（由程序 {state.get('pid')} 寫的；SYNOX 沒在跑的話這些都已經關了）")
+    data = jsonstore.load_json(os.path.join(config.data_dir, "apps.json"), {})
+    for name, policy in sorted(((data or {}).get("policy") or {}).items() if isinstance(data, dict) else []):
+        if isinstance(policy, dict) and policy.get("mode") == "keep":
+            out.append(f"    ⚠️ {name} 設成「一直開著」：開著的時候這台電腦上的其他程式碰得到那扇門（到網頁的工具頁可以改）")
+    return out
+
+
+def remote_lines(config, *, home=None, find=None) -> list:
+    """手機入口（ADR 0026）：關／缺什麼／可以用；使用者資料夾有 cloudflared 的設定檔時提醒。
+    **不執行通道程式、不連任何埠**（只看檔案在不在、雜湊對不對）。"""
+    from isdtelekit.core import jsonstore
+    from synox.web.remote import binary
+    remote = (getattr(config, "web", {}) or {}).get("remote") or {}
+    if not remote.get("enabled"):
+        return ["  手機入口：關（設定 → 🔐 安全 打開；要先設定手機驗證器）"]
+    path = (find or binary.find)(config)
+    record = jsonstore.load_json(os.path.join(config.data_dir, "remote.json"), {})
+    record = record.get("binary") if isinstance(record, dict) else None
+    missing = []
+    if not path:
+        missing.append("找不到通道程式 cloudflared（自己安裝，SYNOX 不替你下載）")
+    elif not record:
+        missing.append("通道程式還沒核准（設定 → 🔐 安全）")
+    elif not binary.approved(path, record):
+        missing.append("通道程式跟核准時不一樣，要重新核准")
+    out = ["  手機入口：" + ("缺 " + "；".join(missing) if missing else "可以用（每次開都要你本人＋一組新的驗證碼）")]
+    home = home if home is not None else os.path.expanduser("~")
+    for name in ("config.yml", "config.yaml"):
+        if os.path.isfile(os.path.join(home, ".cloudflared", name)):
+            out.append(f"    ⚠️ 使用者資料夾有 .cloudflared/{name}：SYNOX 跑通道時不讀它（給的是空的資料夾），"
+                       "但你自己手動跑 cloudflared 時它可能讓臨時通道開不起來")
+    return out
+
+
+def _stepup_line(config) -> str:
+    """手機驗證器（ADR 0025）：擁有者設定了沒、危險的動作有沒有開保護。保管箱還沒建（沒有金鑰檔）就不去開它。"""
+    from synox.guard.cli import doctor_line
+    from synox.vault.keyring import key_path
+    if not os.path.exists(key_path(config.data_dir)):        # 還沒建保管箱＝一定沒設定（doctor 不替人建金鑰）
+        return doctor_line(None)
+    try:
+        from synox.guard.store import VaultStore
+        from synox.vault import open_vault
+        store = VaultStore(open_vault(config), getattr(config, "mode", "personal") == "server")
+        return doctor_line(store.load(int(config.owner_id or 0)))
+    except Exception:
+        return "  手機驗證器：（保管箱打不開，看不到；先處理保管箱的問題）"
+
+
 def health_lines(config, default_data: str) -> tuple:
     """工具健康（docs/tool-health.md）：每個不正常的工具一行（狀態、類別碼、原因、下次檢查時間）。
     只讀 data/health/tools.json.enc（保管箱金鑰不在＝不開、不產生）。回 (行, 要看一下的個數)。"""
@@ -286,9 +354,14 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
             out("  網頁介面：" + (f"開，http://127.0.0.1:{web.get('port')}/（/web 拿登入連結）"
                                 + (f"　對外網址 {web.get('public_url')}" if web.get("public_url") else "")
                                 if web.get("enabled", True) else "關（web.enabled=false）"))
+            for line in apps_lines(config):
+                out(line)
             out(_heartbeat_line(config))
             out(_keep_awake_line(config))
             out(_activator_line(config))
+            out(_stepup_line(config))
+            for line in remote_lines(config):
+                out(line)
             if config.discord_enabled:
                 bot_lines, bad = _discord_lines(config)
                 from synox import discord as _dc

@@ -146,6 +146,11 @@ class Pack:
     secret_fields: List[dict] = field(default_factory=list, repr=False)     # auth.fields（SYNOX 收的那些；見 packs/secrets.py）
     secrets: Any = field(repr=False, default=None)                          # PackSecrets（保管箱的 pack_secrets）
     live: Any = field(repr=False, default=None)                             # lock.LiveCheck（有鎖時；每次叫 cli 前再對一次）
+    # 工具服務（ADR 0024；SDK 0.2.3）：pack.json web.app 宣告的讀、動作、匯出各掛哪個函式（重新載入時是新的 Pack，自然清空）
+    app_reads: Dict[str, Callable] = field(default_factory=dict, repr=False)
+    app_actions: Dict[str, Callable] = field(default_factory=dict, repr=False)
+    app_describe: Dict[str, Callable] = field(default_factory=dict, repr=False)
+    app_exports: Dict[str, Callable] = field(default_factory=dict, repr=False)
 
     def tampered_since_load(self) -> List[str]:
         """載入之後檔案被改過嗎（審查 B #D）：有鎖的 pack 每次叫 cli／開 mcp stdio 子程序之前問；[]＝對得上（或沒鎖）。"""
@@ -199,6 +204,32 @@ class Pack:
         if route not in self.manifest.web.get("api", []):
             raise ValueError(f"{self.name}: web route {route!r} is not declared in pack.json web.api")
         self.web_routes[route] = fn
+
+    def _app_decl(self, kind: str) -> list:
+        app = (self.manifest.web or {}).get("app") or {}
+        return list(app.get(kind) or [])
+
+    def app_read(self, name: str, fn: Callable) -> None:
+        """工具畫面的讀：GET /api/read/<name> → fn(user, params) 回可以轉 JSON 的東西。name 要寫在 web.app.reads。"""
+        if name not in self._app_decl("reads"):
+            raise ValueError(f"{self.name}: app read {name!r} is not declared in pack.json web.app.reads")
+        self.app_reads[name] = fn
+
+    def app_action(self, name: str, fn: Callable, *, describe: Optional[Callable] = None) -> None:
+        """工具畫面的動作：POST /api/do/<name> → fn(user, values) 回 dict。name 要寫在 web.app.actions，
+        而且要有同名的指令（群組.名字），危險程度一樣——一個動作＝一個指令（ADR 0024 §2）。
+        describe(user, values) -> str：危險動作確認框的那一句（選填）。"""
+        if name not in self._app_decl("actions"):
+            raise ValueError(f"{self.name}: app action {name!r} is not declared in pack.json web.app.actions")
+        self.app_actions[name] = fn
+        if describe is not None:
+            self.app_describe[name] = describe
+
+    def app_export(self, name: str, fn: Callable) -> None:
+        """工具畫面的匯出：POST /api/export/<name> → fn(user, params) 回 kit.Download。name 要寫在 web.app.exports。"""
+        if name not in self._app_decl("exports"):
+            raise ValueError(f"{self.name}: app export {name!r} is not declared in pack.json web.app.exports")
+        self.app_exports[name] = fn
 
     @property
     def name(self) -> str:
@@ -419,6 +450,28 @@ def _order(folder: str) -> tuple:
         return (2, 0, folder)
 
 
+def apply_scope(app, m: Manifest) -> None:
+    """pack.json 的 callers／stepup 掛到門禁核心的對照表（ADR 0025 §3）。先清掉這個群組舊的（重新載入不會殘留）。
+    對不到指令的那一條當作沒寫（記 log）；危險的指令列了 remote：拿掉 remote（只會更緊）。"""
+    from isdtelekit.core.registry import DANGER
+    from synox import guard
+    g = guard.of(app)
+    if g is None or g.scope is None:
+        return
+    g.scope.clear_prefix(m.group)
+    for name in sorted(set(m.callers) | set(m.stepup)):
+        node = app.registry.node(f"{m.group}.{name}")
+        if node is None or node.is_group:
+            logging.warning("[PACKS] %s: callers/stepup names %s, which is not one of its commands; ignored",
+                            m.name, name)
+            continue
+        callers = m.callers.get(name)
+        if callers and node.effect == DANGER and "remote" in callers:
+            callers = [c for c in callers if c != "remote"] or ["human"]
+            logging.warning("[PACKS] %s.%s is dangerous; remote dropped from callers", m.name, name)
+        g.scope.restrict(node.path, callers=callers, stepup=name in m.stepup)
+
+
 def _drop_group(registry, group: str) -> None:
     node = registry.node(group)
     if node is None:
@@ -534,6 +587,11 @@ def cli_env(m: Manifest, values: Dict[str, str]) -> Dict[str, str]:
     return out
 
 
+def _caller_kind() -> str:
+    from synox.guard import origin
+    return origin.current().kind
+
+
 def context_env(m: Manifest, config, values: Dict[str, str], secret_fields=()) -> Dict[str, str]:
     """synox_sdk 的 context()／secret() 讀的環境變數（每次呼叫照下令的人；蓋過 pack 自己寫的同名變數）：
     SYNOX_USER_DATA_DIR、SYNOX_TG_ID、SYNOX_MODE（personal｜server）、SYNOX_PACK_DIR、SYNOX_PACK_NAME，
@@ -541,6 +599,8 @@ def context_env(m: Manifest, config, values: Dict[str, str], secret_fields=()) -
     out = {"SYNOX_USER_DATA_DIR": values.get("user_data_dir", ""), "SYNOX_TG_ID": values.get("tg_id", ""),
            "SYNOX_MODE": str(getattr(config, "mode", "personal") or "personal"),
            "SYNOX_PACK_DIR": values.get("pack_dir") or m.folder, "SYNOX_PACK_NAME": m.name,
+           # 誰叫的（ADR 0025 §2；synox_sdk 的 caller()／require_human() 讀）：只有種類，看得到、改不了
+           "SYNOX_CALLER": _caller_kind(),
            # P7：packs.lock 鎖每一個檔（含 __pycache__）；子程序的 python 不准在 pack 資料夾裡寫 .pyc
            "PYTHONDONTWRITEBYTECODE": "1",
            # 審查 C #C2：子程序的 python 不讀使用者層的 site-packages（%APPDATA%\Python、~/.local 裡的 .pth 會在
@@ -947,6 +1007,7 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
             _drop_group(app.registry, m.group)
             item.status, item.detail = "error", f"{type(e).__name__}: {e}"
             continue
+        apply_scope(app, m)
         if m.registered_only:
             item.status = "connector"
         packs.append(pack)

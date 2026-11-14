@@ -42,6 +42,7 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
 
 from __future__ import annotations
 
+import contextvars
 import hmac
 import json
 import logging
@@ -59,11 +60,43 @@ from urllib.parse import parse_qs, urlsplit
 from isdtelekit.core.channel import CallbackInfo, Inbound
 
 from synox import tutorials
+from synox.guard import origin as guard_origin
+from synox.guard.stepup import sensitive_action as stepup_sensitive
 from synox.packs.manifest import stage_text
 from synox.web import report as reporting, toolpage
 from synox.web.channel import WEB, WebChannel
 from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore
 from synox.web.tokens import LoginTokens, Session, Sessions, digest
+
+
+_UNLOCK_LINE = re.compile(r"^(/(?:unlock|sudo)(?:_on)?)(?:@\w+)?\s+\S.*$", re.IGNORECASE | re.DOTALL)
+_CODE_ONLY = re.compile(r"^\d{3} ?\d{3}$")
+
+
+def mask_code(text: str) -> str:
+    """`/unlock 123456` → `/unlock ······`；只有 6 位數的一則 → `······`。"""
+    m = _UNLOCK_LINE.match(text)
+    if m:
+        return m.group(1) + " ······"
+    return "······" if _CODE_ONLY.match(text) else text
+
+
+_PEER: "contextvars.ContextVar[str]" = contextvars.ContextVar("synox_web_peer", default="")
+
+
+def current_peer() -> str:
+    """這個請求連線的對方位址（WebUI.handle 設；沒有＝空字串＝當作不是本機）。"""
+    return _PEER.get()
+
+
+def in_container(environ=None, exists=os.path.exists) -> bool:
+    environ = os.environ if environ is None else environ
+    return str(environ.get(CONTAINER_ENV, "")).strip() == "1" or any(exists(p) for p in CONTAINER_MARKERS)
+
+
+def web_origin(session: Session) -> "guard_origin.Origin":
+    """主機台的來源：surface＝"web:"＋這個登入的代號（防偽造 token 的雜湊前 16 碼；兩個登入不一樣，不洩漏 cookie）。"""
+    return guard_origin.Origin("web", int(session.tg_id), surface="web:" + digest(session.csrf)[:16])
 
 HOST = "127.0.0.1"                    # 只綁這個；要對外由營運者自己架反向代理＋TLS（docs/security.md）。
 #                                       唯一的例外是 SYNOX 自己的容器（bind_host，docs/docker.md「為什麼容器裡綁 0.0.0.0 是安全的」）
@@ -94,13 +127,14 @@ NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 Resp = Tuple[int, List[Tuple[str, str]], bytes]
 
 BASE_HEADERS = [("X-Content-Type-Options", "nosniff"), ("Referrer-Policy", "no-referrer"),
-                ("Cache-Control", "no-store")]
+                ("Cache-Control", "no-store"), ("Cross-Origin-Opener-Policy", "same-origin")]
 
 
 def _json(status: int, data, extra: Optional[List[Tuple[str, str]]] = None) -> Resp:
     body = json.dumps(data, ensure_ascii=False).encode("utf-8")
     return status, BASE_HEADERS + [("Content-Type", "application/json; charset=utf-8"),
-                                   ("X-Frame-Options", "DENY")] + (extra or []), body
+                                   ("X-Frame-Options", "DENY"),
+                                   ("Cross-Origin-Resource-Policy", "same-origin")] + (extra or []), body
 
 
 def _err(status: int, message: str) -> Resp:
@@ -175,6 +209,16 @@ def render_app(nonce: str) -> str:
 
 
 app_html = render_app          # 主控頁的測試與預覽沿用的舊名字
+
+
+def _cookies(headers: Dict[str, str], name: str) -> List[str]:
+    """同名的 cookie 全部（有人在同一台電腦的別的埠種了一個同名的假 cookie 時，真的那個還認得出來）。"""
+    out = []
+    for part in (headers.get("cookie") or "").split(";"):
+        key, _, value = part.strip().partition("=")
+        if key == name:
+            out.append(value)
+    return out
 
 
 def _cookie(headers: Dict[str, str], name: str) -> Optional[str]:
@@ -297,7 +341,8 @@ class WebUI:
                              name="WebUI-stop").start()
 
     def turn_off(self) -> None:
-        """/web_off：關掉、把所有網頁 session 登出，到重開 bot 之前不再開。"""
+        """/web_off：關掉、把所有網頁 session 登出，到重開 bot 之前不再開。工具服務全部一起關。"""
+        self._stop_apps("web_off")
         self.disabled = True
         self.sessions.drop_all()
         self.stop()
@@ -305,14 +350,40 @@ class WebUI:
     # ── 入口 ─────────────────────────────────────────────────────────
 
     def session_from(self, headers: Dict[str, str]) -> Optional[Session]:
-        return self.sessions.get(_cookie(headers, COOKIE))
+        for sid in _cookies(headers, COOKIE):
+            session = self.sessions.get(sid)
+            if session is not None:
+                return session
+        return None
 
-    def handle(self, method: str, target: str, headers: Dict[str, str], body: bytes = b"") -> Resp:
+    def session_key(self, headers: Dict[str, str]) -> Optional[str]:
+        """這個請求有效的那個登入的雜湊（工具服務的交接票、app 的登入綁在它上面；Sessions.has 查）。"""
         headers = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
-        return self.route(method, target, headers, body, self.session_from(headers))
+        for sid in _cookies(headers, COOKIE):
+            if self.sessions.get(sid) is not None:
+                return digest(sid)
+        return None
+
+    def handle(self, method: str, target: str, headers: Dict[str, str], body: bytes = b"",
+               peer: str = "127.0.0.1") -> Resp:
+        """peer：連線的對方位址（_Handler 給真的；測試直接呼叫＝本機）。「本機的請求」除了 Host 還要對方真的是 loopback。"""
+        headers = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
+        token = _PEER.set(str(peer or ""))
+        try:
+            return self.route(method, target, headers, body, self.session_from(headers))
+        finally:
+            _PEER.reset(token)
 
     def route(self, method: str, target: str, headers: Dict[str, str], body: bytes,
               session: Optional[Session]) -> Resp:
+        """認出登入之後，這個請求裡做的每件事來源都是 web（ADR 0025 §2）；surface 分得出是哪一個登入。"""
+        if session is None:
+            return self._route(method, target, headers, body, session)
+        with guard_origin.using(web_origin(session)):
+            return self._route(method, target, headers, body, session)
+
+    def _route(self, method: str, target: str, headers: Dict[str, str], body: bytes,
+               session: Optional[Session]) -> Resp:
         headers = {str(k).lower(): str(v) for k, v in (headers or {}).items()}
         if self.disabled:
             return _page(503, "網頁介面關掉了", "擁有者用 /web_off 關掉了，重開 SYNOX 才會再開。")
@@ -326,6 +397,10 @@ class WebUI:
                 return self.app_page()
             if path == "/login" and method == "GET":
                 return self.login_page((query.get("t") or [""])[0], headers, session)
+            m = re.match(r"^/apps/([a-z][a-z0-9_-]{0,31})/open$", path)
+            if m and method == "POST":                  # 工具服務的「打開」：表單送出 → 303 到 127.0.0.2（交接票）
+                from synox.web.apps import web_api as apps_api
+                return apps_api.open_handoff(self, session, m.group(1), headers, body)
             if path == "/login" and method == "POST":
                 return self.login_post(headers, body)
             m = re.match(r"^/packs/([a-z][a-z0-9_-]{0,31})/panel$", path)
@@ -337,6 +412,8 @@ class WebUI:
             if m and method == "GET":
                 return self.tutorial(m.group(1))
             if path.startswith("/api/"):
+                if headers.get("sec-fetch-site") in ("same-site", "cross-site"):    # 別的網頁（含本機別的埠）送來的
+                    return _err(403, "來源不對（不是從 SYNOX 自己的頁面送出的）。")
                 if session is None:
                     return _err(401, "請先登入：" + LOGIN_HOW)
                 if method != "GET":
@@ -533,6 +610,27 @@ class WebUI:
 
     def api(self, method: str, path: str, query, headers, body: bytes, session: Session) -> Resp:
         user = self._user(session)
+        if path == "/api/stepup" or path.startswith("/api/stepup/"):     # 手機驗證器（ADR 0025；guard/web_api.py）
+            from synox.guard import web_api as stepup_api
+            return stepup_api.route(self, user, session, method, path, headers, body)
+        if stepup_sensitive(method, path):                             # 開了開關就要先解鎖的敏感動作（K5；預設就擋）
+            from synox import guard
+            g = guard.of(self.app)
+            blocked = g.stepup.gate(user, path) if g is not None and g.stepup is not None else None
+            if blocked is not None:
+                return _json(blocked[0], json.loads(blocked[2]))
+        if path == "/api/remote" or path.startswith("/api/remote/"):   # 手機入口（ADR 0026；web/remote/web_api.py）
+            from synox.web.remote import web_api as remote_api
+            return remote_api.route(self, user, method, path, body)
+        if path == "/api/apps" or path.startswith("/api/apps/"):       # 工具服務（ADR 0024；web/apps/web_api.py）
+            from synox.web.apps import web_api as apps_api
+            data = None
+            if method == "POST":
+                try:
+                    data = json.loads(body.decode("utf-8") or "{}") if body else {}
+                except (ValueError, UnicodeDecodeError):
+                    return _err(400, "內容格式不對。")
+            return apps_api.route(self, user, method, path, data, query)
         if path.startswith("/api/runtime/"):          # 主控面板：常駐助理／心跳／任務（docs/runtime-api.md；含 PUT）
             from synox.runtime import web_api as runtime_api
             return runtime_api.route(self, user, method, path, body)
@@ -727,7 +825,7 @@ class WebUI:
             return _err(400, f"太長了（最多 {MAX_TEXT} 字）。")
         if (self._chat(user, chat_id) or {}).get("archived"):
             return _err(409, "這段對話封存了：先還原才能繼續。")
-        self.chats.append(user.tg_id, chat_id, "me", text)
+        self.chats.append(user.tg_id, chat_id, "me", mask_code(text))      # 驗證碼不進對話紀錄（ADR 0025 §5.3）
         if chat_id == MOTHER_CHAT:
             return self._send_mother(user, text)
         inbound = Inbound(WEB, user.tg_id, user.tg_id, text, username=user.username or "web", sent_at=time.time())
@@ -851,6 +949,7 @@ class WebUI:
                 "stage_text": stage_text(pack.manifest.stage),
                 "status": "要先設定" if connector else "已連接",
                 "panel": f"/packs/{pack.name}/panel" if pack.manifest.web.get("panel") else None,
+                "app": bool(pack.manifest.web.get("app")),          # 工具服務：有完整畫面（卡片在 static/apps.js）
                 "commands": [self._leaf_info(n) for n in leaves]}
             self._health_marks(row, user)
             fields = getattr(pack, "secret_fields", None) or []
@@ -1656,6 +1755,7 @@ class WebUI:
         環境要建／重建就跟全新安裝一樣在背景建（升級報告的 env.needed）、重新載入。"""
         from synox.packs.admin import GateRefused, PackAdminError
         from synox.packs.upgrade import upgrade_staged
+        self._stop_apps("reload")
         try:
             done = upgrade_staged(str(data.get("token") or ""), self.config.data_dir, self.pack_dirs[0],
                                   approved_by=user.tg_id, via="web", allow_downgrade=bool(data.get("allow_downgrade")),
@@ -1682,6 +1782,7 @@ class WebUI:
         name = str(data.get("name") or "")
         if not NAME_RE.match(name) or not self.pack_dirs:
             return _err(400, "pack 名字不對。")
+        self._stop_apps("reload")
         try:
             dest = remove(name, self.pack_dirs[0], data_dir=self.config.data_dir)
         except PackAdminError as e:
@@ -1689,8 +1790,14 @@ class WebUI:
         self._reload()
         return _json(200, {"ok": True, "moved_to": os.path.relpath(dest, os.path.dirname(self.pack_dirs[0]))})
 
+    def _stop_apps(self, reason: str) -> None:
+        apps = getattr(self, "apps", None)
+        if apps is not None:
+            apps.stop_all(reason=reason)
+
     def _reload(self):
         from synox.packs.admin import reload
+        self._stop_apps("reload")                  # 工具服務：重新載入、移除、升級之前全部關（ADR 0024）
         return reload(self.app, self.config, self.vault, self.pack_dirs)
 
     def pack_reload(self, user) -> Resp:
@@ -1832,7 +1939,8 @@ class _Handler(BaseHTTPRequestHandler):
             status, headers, body = _err(413, "送來的東西太大。")
         else:
             data = self.rfile.read(length) if length else b""
-            status, headers, body = self.server.ui.handle(method, self.path, dict(self.headers.items()), data)
+            status, headers, body = self.server.ui.handle(method, self.path, dict(self.headers.items()), data,
+                                                          peer=str(self.client_address[0]))
         self.send_response(status)
         for key, value in headers:
             self.send_header(key, value)
