@@ -15,7 +15,7 @@
 內容：
 
 1. 你保有你貢獻內容的著作權。
-2. 你授予專案維護者（含創始維護者，見 [GOVERNANCE.md](GOVERNANCE.md)）一個永久、全球、免費、不可撤銷的授權，可以使用、修改、散布你的貢獻，並可以**以任何授權（包含商業授權與閉源授權）再授權**。
+2. 你授予專案維護者（含創始維護者，見 [.github/GOVERNANCE.md](.github/GOVERNANCE.md)）一個永久、全球、免費、不可撤銷的授權，可以使用、修改、散布你的貢獻，並可以**以任何授權（包含商業授權與閉源授權）再授權**。
 3. 你聲明這份貢獻是你自己寫的，或你有權提交；沒有夾帶別人不允許公開的程式碼、密鑰或個人資料。
 4. 你的貢獻是「照現狀」提供，沒有任何擔保。
 
@@ -31,4 +31,4 @@
 
 ## 聯絡
 
-商業授權、貢獻者同意書：`mi.anthony.chou@gmail.com`。安全通報：見 [SECURITY.md](SECURITY.md)。維護者名單見 [MAINTAINERS.md](MAINTAINERS.md)。
+商業授權、貢獻者同意書：`mi.anthony.chou@gmail.com`。安全通報：見 [SECURITY.md](SECURITY.md)。維護者名單見 [.github/MAINTAINERS.md](.github/MAINTAINERS.md)。

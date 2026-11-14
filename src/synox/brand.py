@@ -405,7 +405,7 @@ def about_text(config_path: str | None = None, *, root: str | None = None) -> st
     rows = [
         ("版本", f"SYNOX {version()} · 工具 SDK {SDK_VERSION} · Python {sys.version.split()[0]}"),
         ("授權", "核心 AGPL-3.0-or-later；工具 SDK 與範例 Apache-2.0（見 LICENSING.md）"),
-        ("名稱與標誌", "「SYNOX」的使用規則見 TRADEMARK.md"),
+        ("名稱與標誌", "「SYNOX」的使用規則見 .github/TRADEMARK.md"),
         ("裝在哪裡", root),
         ("設定檔", config_path + ("" if has_config else "（還沒有：雙擊 Setup.bat，或照 config.example.json 寫一份）")),
         ("文件", "README.md · docs/README.md · 安全問題請看 SECURITY.md（不要開公開 issue）"),

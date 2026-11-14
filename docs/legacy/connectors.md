@@ -33,8 +33,8 @@
   （Apple 的資料夾名改成跟 pack 名字一樣；**pack 名字都沒變**，所以保管箱裡存的 token／帳號照用）。來源對照在工具庫的 `docs/sources.md`。
 - 測試也搬過去了（工具庫 `tests/test_notion.py`…，測試本體沒改）。
 - SYNOX 這邊：`loader.PACK_DIRS` 不再掃 `connectors/`、`loader.BUNDLED` 清空；`scripts/smoke_real.py`（真服務煙霧測試）
-  先找這台裝好的工具，沒裝就讀工具庫的原始碼（環境變數 `SYNOX_LIBS`）；`Connect-Apple.bat`／`python -m synox connect apple-reminders`
-  照舊，但要先裝好 apple-reminders。
+  先找這台裝好的工具，沒裝就讀工具庫的原始碼（環境變數 `SYNOX_LIBS`）；`python -m synox connect apple-reminders`
+  照舊（2026-11-14 起 SYNOX 不再附 `Connect-Apple.bat`：入口屬於工具本身），但要先裝好 apple-reminders。
 - 伺服器版：以前這 4 個沒鎖也是 core；現在跟其他工具一樣，擁有者安裝時選 trust（core／third-party），third-party 的 python 工具只給擁有者。
 
 ## 從舊版更新上來的人

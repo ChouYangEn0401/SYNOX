@@ -163,7 +163,7 @@ SYNOX 不只是「一支程式」：工具（pack）要用**真的 Python 直譯
 
 ## E. 在這台能模擬多少：`scripts/clean_room_check.py`
 
-把會發出去的檔案（跟 `make_zip.py` 同一份，git 追蹤的、不含 `.git`／`.venv`／`data`／`config.json`）複製到新的暫存資料夾，
+把會發出去的檔案（跟 `make_zip.py` 同一份，git 追蹤的、不含 `.git`／`.venv`／`data`／`config.json`／開發用的 `INTERNAL`；另外帶 `tests/` 給最後一步的 pytest）複製到新的暫存資料夾，
 （可選）附上 `tools/`；清掉所有 `SYNOX_*`、`PYTHON*`、AI 與聊天的金鑰環境變數，PATH 只剩 Windows 系統資料夾（沒有 py、git、claude），
 使用者資料夾（USERPROFILE／APPDATA／LOCALAPPDATA）換成空的，目前資料夾換到別處，然後跑：import 來源檢查 → `doctor --offline` →
 `init --dry-run` → `init --non-interactive`（裝 starter 的第一個工具）→ `tools list` → `doctor` → pytest 子集；最後確認所有輸出都沒有提到原本的資料夾。
@@ -227,7 +227,7 @@ Python，不會動到它們。」只看、不動。
 `PYTHONUSERBASE`、`PYTHONEXECUTABLE`、`VIRTUAL_ENV`、`__PYVENV_LAUNCHER__`、所有 `CONDA_*`、`_CE_CONDA`／`_CE_M`、
 `PIP_USER`／`PIP_TARGET`／`PIP_PREFIX`、會改 uv 挑 Python 的 `UV_PYTHON`／`UV_SYSTEM_PYTHON`／`UV_NO_MANAGED_PYTHON`／`UV_CONFIG_FILE`／
 `UV_OFFLINE`，並設 `PYTHONNOUSERSITE=1`（它開的精靈也繼承）。`Start.bat`、`Console.bat`、`Open-SYNOX.bat`、`Install-Pack.bat`、
-`Connect-Apple.bat`、`Stop.bat` 在 `setlocal` 之後 `call setup\clean-python-env.bat` 做同一件事——只影響那個視窗。代理設定、
+`Stop.bat` 在 `setlocal` 之後 `call setup\clean-python-env.bat` 做同一件事——只影響那個視窗。代理設定、
 `PIP_INDEX_URL` 這類網路設定照留。PATH 不動。
 
 **舊的安裝**：已經有 `.venv` 的，重跑 `Setup.bat` 照用（不會自己重建）；預設那條會看 `.venv\pyvenv.cfg` 的 `home`，在 `runtime\` 外面就印一行
