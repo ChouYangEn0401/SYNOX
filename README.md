@@ -1,8 +1,8 @@
-# SYNOX：先問你，再動手。
+# SYNOX：住在你自己電腦裡的 AI 助理
 
-**看得懂、管得住的個人 AI 助理。** *The AI assistant that asks first. A personal AI assistant you can read and control.*
+*The AI assistant that lives on your own computer.*
 
-<sub>標語固定是「先問你，再動手。」；之後主題（theme）可以帶自己的「心情語」，但不會換掉這句 SYNOX 標語。</sub>
+<sub>SYNOX 的標語只有一句、寫在 `src/synox/brand.py` 的 `SLOGAN`（介紹頁、終端機歡迎畫面都從那裡拿）；之後主題（theme）可以帶自己的「心情語」，但不會換掉這句標語。</sub>
 
 **👉 [先看介紹頁：SYNOX 長什麼樣、能做什麼、怎麼裝](https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox)**
 （網頁版的真實畫面、支援哪些平台、哪些還沒做完都在上面；同一份也在 repo 裡：[docs/landing/index.html](docs/landing/index.html)，下載後雙擊就能開）

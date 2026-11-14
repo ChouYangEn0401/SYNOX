@@ -772,7 +772,7 @@ def cmd_discord(args) -> int:
 
 def main(argv=None) -> int:
     _utf8_console()
-    parser = argparse.ArgumentParser(prog="python -m synox", description="SYNOX：先問你，再動手。看得懂、管得住的個人 AI 助理")
+    parser = argparse.ArgumentParser(prog="python -m synox", description="SYNOX：住在你自己電腦裡的 AI 助理")
     parser.add_argument("--config", default="", help="config.json 的位置（預設在 SYNOX 資料夾）")
     parser.add_argument("-q", "--quiet", action="store_true", help="不要印歡迎畫面（也可以設環境變數 SYNOX_NO_BANNER=1）")
     sub = parser.add_subparsers(dest="cmd")
