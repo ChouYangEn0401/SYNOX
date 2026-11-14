@@ -1691,10 +1691,10 @@ doctor：.venv\Scripts\python.exe -m synox doctor --offline 的完整輸出（�
   <ol>
     <li><b>名字查證了。</b>「Open Cloud／Cloud bot」是 <b>OpenClaw</b>（龍蝦；MIT 授權、Node／TypeScript，GitHub 約 39.4 萬星）<span class="src">[S3]</span>；「Hermes」是 Nous Research 的 <b>Hermes Agent</b>（MIT、Python，約 26.3 萬星）<span class="src">[S11]</span>。兩邊的 skill 都是 <b>SKILL.md 格式（agentskills.io 標準）</b><span class="src">[S1][S10][S13]</span>——<b>SYNOX 現在用的就是同一個格式</b>（<code>docs/pack-format.md</code>「SKILL.md」）。所以「格式」不是障礙。
       <br><span class="chip warn">推測</span> OpenClaw 的前身叫 Clawdbot、Moltbot：官方格式文件還收 <code>metadata.clawdbot</code>、<code>.clawdhub</code> 這些舊名當別名 <span class="src">[S1]</span>，資安報導的網址也用這些名字 <span class="src">[S29][S31]</span>，但官方 README 沒寫改名經過。也要分清楚：計畫書裡的「ClawBot」是你自己的本機專案，跟 OpenClaw 不是同一個。</li>
-    <li><b>真正的障礙是「執行方式」，不是格式。</b>OpenClaw、Hermes、Claude Code 的 skill＝「說明書」＋「agent 本來就有的萬用 shell」：SKILL.md 叫 agent 自己去打指令 <span class="src">[S2][S17]</span>。<b>SYNOX 的 AI 沒有 shell</b>，只能叫 pack.json 宣告過、標好危險程度的指令（<code>src/synox/agent/tools.py</code>）。所以別人的 skill 裡「去跑 <code>gh pr list</code>」這種內容，直接丟進 SYNOX 沒辦法用，得先轉成宣告過的 cli 指令。這也正是 SYNOX 比較安全的原因。</li>
-    <li><b>公開報導指出外部市集出現過相當數量的惡意 skill（數字與來源見下），而主要攻擊手法剛好被 SYNOX 的結構擋掉。</b>2026 年 ClawHub 一次又一次出現惡意 skill：Koi 稽核 2,857 個，抓到 341 個 <span class="src">[S25]</span>；Snyk 掃 3,984 個，確認 76 個是惡意的，13.4% 至少有一個嚴重問題 <span class="src">[S23]</span>；Unit 42 在 2026 年 6 月還找到 5 個躲過 VirusTotal 掃描的 <span class="src">[S24]</span>。主要手法是在 SKILL.md 裡用<b>文字</b>叫人或 agent 先「安裝前置程式」（curl | bash、有密碼的 zip）。OpenClaw 自己也寫：「掃描乾淨不代表 skill 安全」<span class="src">[S9]</span>。SYNOX 的 AI 沒有 shell，危險指令一定要人按確認卡，這一類攻擊在結構上就成不了。</li>
+    <li><b>真正的障礙是「執行方式」，不是格式。</b>OpenClaw、Hermes、Claude Code 的 skill＝「說明書」＋「agent 本來就有的萬用 shell」：SKILL.md 叫 agent 自己去打指令 <span class="src">[S2][S17]</span>。<b>SYNOX 的 AI 沒有 shell</b>，只能叫 pack.json 宣告過、標好危險程度的指令（<code>src/synox/agent/tools.py</code>）。所以別人的 skill 裡「去跑 <code>gh pr list</code>」這種內容，直接丟進 SYNOX 沒辦法用，得先轉成宣告過的 cli 指令。這是兩種不同的設計取捨：通用 shell 彈性大、能做的事多；SYNOX 選擇只開放宣告過的指令，代價是別人的 skill 不能直接用。</li>
+    <li><b>公開報導指出開放上傳的 skill 市集出現過相當數量的惡意 skill（數字與來源見下；這是開放上傳模式共同的難題）。</b>2026 年的公開報導：Koi 稽核 2,857 個，抓到 341 個 <span class="src">[S25]</span>；Snyk 掃 3,984 個，確認 76 個是惡意的，13.4% 至少有一個嚴重問題 <span class="src">[S23]</span>；Unit 42 在 2026 年 6 月還找到 5 個躲過 VirusTotal 掃描的 <span class="src">[S24]</span>。主要手法是在 SKILL.md 裡用<b>文字</b>叫人或 agent 先「安裝前置程式」（curl | bash、有密碼的 zip）。OpenClaw 自己也寫：「掃描乾淨不代表 skill 安全」<span class="src">[S9]</span>。這類手法是整個 skill 生態（不分平台）共同的問題。SYNOX 的 AI 沒有通用 shell、危險指令要人按確認卡，可以降低其中「叫 AI 去跑」的那一半；「叫人自己貼指令」的那一半仍然擋不住（見 ADR 0022 的威脅 T3）。</li>
     <li><b>最便宜的接法是 MCP，而且 SYNOX 兩頭都已經有一半。</b>SYNOX 已經接得上 MCP 伺服器（<code>kind: mcp</code>，本機 stdio 和遠端 http 都可以），SDK 的 <code>serve() --mcp</code> 也能把 SYNOX 工具反過來變成 MCP 伺服器（<code>docs/sdk.md</code>）。MCP 在 2026-09 正式定案了「用 MCP 傳 skill」的擴充（SEP-2640），每個檔案都附 sha256 清單、內容改了就要重新核准 <span class="src">[S21][S22]</span>，跟 SYNOX 鎖住 pack 檔案的做法同一個思路。你說的「雙向轉接」，用 MCP 加 SKILL.md 就能做成，不必自己另訂標準。</li>
-    <li><b>授權沒有問題；「把它們的開發者社群接過來」要打折看。</b>ClawHub 上的 skill 一律是 MIT-0 授權 <span class="src">[S1]</span>，Hermes 是 MIT，Anthropic 的 skills 是 Apache-2.0 <span class="src">[S18]</span>，都能跟 AGPL 的 SYNOX 一起散佈。但 Hermes 早就有 <code>hermes import-agent openclaw</code>，還把 ClawHub 列成自己的 skill 來源 <span class="src">[S10][S11]</span>：「匯入 OpenClaw 的 skill」已經有一個比 SYNOX 大很多的專案在做。<span class="chip warn">推測</span> SYNOX 比較站得住的位置是「審查過、能安心裝的精選目錄＋比較安全的執行端」，主打繁中、Telegram／Discord、個人和小團體、對 Windows 友善，不是比誰收的 skill 多。</li>
+    <li><b>授權沒有問題；「把它們的開發者社群接過來」要打折看。</b>ClawHub 上的 skill 一律是 MIT-0 授權 <span class="src">[S1]</span>，Hermes 是 MIT，Anthropic 的 skills 是 Apache-2.0 <span class="src">[S18]</span>，都能跟 AGPL 的 SYNOX 一起散佈。但 Hermes 早就有 <code>hermes import-agent openclaw</code>，還把 ClawHub 列成自己的 skill 來源 <span class="src">[S10][S11]</span>：「匯入 OpenClaw 的 skill」已經有一個比 SYNOX 大很多的專案在做。<span class="chip warn">推測</span> SYNOX 比較站得住的位置是「審查過的精選目錄＋權限範圍比較窄的執行端」，主打繁中、Telegram／Discord、個人和小團體、對 Windows 友善，不是比誰收的 skill 多。</li>
   </ol>
 
   <h2>建議路線（一句話版）</h2>
@@ -2099,7 +2099,7 @@ doctor：.venv\Scripts\python.exe -m synox doctor --offline 的完整輸出（�
       <tr><td class="n">沙盒／容器</td><td>Linux 有（還沒在真機驗證）；<b>Windows 沒有</b></td><td>匯入的預設規則（S9）；長期是 AppContainer</td></tr>
     </tbody>
   </table></div>
-  <div class="note">「宣告」這件事 SYNOX 比 OpenClaw、Hermes 都嚴：別人只宣告「要哪些程式和環境變數」，SYNOX 要宣告「每個指令多危險、要什麼能力、資料屬於誰、能不能在群組用」。所以匯入時最花工夫的一步，是讓擁有者把這些補上。好處是補完之後，這個 skill 在 SYNOX 裡比在原平台上安全。</div>
+  <div class="note">「宣告」這件事兩邊的格式要的東西不一樣：Agent Skills 的 metadata 宣告「要哪些程式和環境變數」，SYNOX 的 pack.json 還要宣告「每個指令多危險、要什麼能力、資料屬於誰、能不能在群組用」。所以匯入時最花工夫的一步，是讓擁有者把這些補上。補完之後，SYNOX 就能照這些宣告出確認卡、限制權限。</div>
 <!--/blk-->
 </div>
 <div class="pnav"><a class="pn" href="#tools-bridge">← 橋接架構與 MCP</a><a class="pn nx" href="#tools-strategy">統合與定位 →</a></div>
@@ -8117,7 +8117,7 @@ H2＋H3 ──► H7</pre>
       <tr><td>安全責任</td><td>一旦你說「這是審查過的精選」，別人就會因為相信你而安裝。外面的 skill 市集已經出過多次惡意事件（生態研究）</td><td>只收自己看過的；每個都寫審查日期與範圍；明講「審查不等於保證」</td></tr>
       <tr><td>法規</td><td>醫療最重（個資法第 6 條、醫療法第 72 條）；半導體是營業秘密與出口管制</td><td>醫療與半導體不當賣點；紅線寫進工具說明；個資守門先做</td></tr>
       <tr><td>信任與品牌</td><td>一個人維護的 alpha，企業不會採用；個人使用者也要時間</td><td>把目標放在個人與小團隊；公開審計紀錄與安全邊界文件（已經有）</td></tr>
-      <tr><td>與大平台的功能重疊</td><td>OpenClaw、Hermes 的規模是 SYNOX 的幾個數量級；模型廠商自己也在做</td><td>不比數量；守住「比較安全＋繁中＋自己的工具」。接受它可能一直是小眾工具</td></tr>
+      <tr><td>與大平台的功能重疊</td><td>OpenClaw、Hermes 的規模是 SYNOX 的幾個數量級；模型廠商自己也在做</td><td>不比數量；守住「權限範圍清楚＋繁中＋自己的工具」，並跟大平台相容（匯入它們的 skill 格式）。接受它可能一直是小眾工具</td></tr>
     </tbody>
   </table></div>
 
@@ -8933,4 +8933,4 @@ git worktree remove &lt;路徑&gt; ; git branch -d feat/&lt;名&gt;</pre>
 
 </script>
 
-<p style="font:10px/1.4 ui-monospace,monospace;opacity:.5;margin:24px 16px">線上版 <a href="https://claude.ai/artifact/JW4917Q193CYN5sBPZ7QrP">https://claude.ai/artifact/JW4917Q193CYN5sBPZ7QrP</a> · 本機版 docs/artifacts/2026-11-12-synox-plan.html · 頁面版本 <span data-stamp>3befeba9be · 2026-11-13</span></p>
+<p style="font:10px/1.4 ui-monospace,monospace;opacity:.5;margin:24px 16px">線上版 <a href="https://claude.ai/artifact/JW4917Q193CYN5sBPZ7QrP">https://claude.ai/artifact/JW4917Q193CYN5sBPZ7QrP</a> · 本機版 docs/artifacts/2026-11-12-synox-plan.html · 頁面版本 <span data-stamp>0c57274374 · 2026-11-14</span></p>
