@@ -10,7 +10,7 @@ STRINGS = {
     "mode_title": "이 컴퓨터의 SYNOX는 누가 사용하나요?",
     "mode.personal.title": "나만 사용(개인용)",
     "mode.personal.one": "나 혼자 사용: 페어링한 Telegram 계정에서만 명령을 사용할 수 있습니다.",
-    "mode.personal.two": "모든 데이터는 이 컴퓨터에 있으며, 메모와 가계부는 암호화되어 저장됩니다.",
+    "mode.personal.two": "설정, 키, 메모와 가계부는 이 컴퓨터에 저장되며, 메모와 가계부는 암호화됩니다.",
     "mode.server.title": "여러 사람(서버용)",
     "mode.server.one": ("가족, 동료, 동호회가 함께 사용: 모르는 사람이 메시지를 보내면 게스트가 되고, "
                         "나(또는 내가 지정한 관리자)가 누가 무엇을 쓸 수 있는지 정합니다."),

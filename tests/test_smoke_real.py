@@ -319,7 +319,7 @@ def test_missing_credentials_are_skipped_with_a_hint(env):
         row = result(smoke, service, "設定")
         assert row.result == smoke_real.SKIP and row.hint
     assert "/notion_token" in result(smoke, "notion", "設定").hint
-    assert "Connect-Apple.bat" in result(smoke, "apple", "設定").hint
+    assert "synox connect apple-reminders" in result(smoke, "apple", "設定").hint
 
 
 @needs_libs

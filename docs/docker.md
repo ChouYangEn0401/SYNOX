@@ -211,7 +211,7 @@ SYNOX 的工具可以選擇「用容器隔離執行」（`pack.json` 的 `runtim
   （容器裡是 uid 10001）、檔案鎖的行為也不同。Linux 上真的要掛宿主資料夾，先把那個資料夾交給 uid 10001。
 - Docker Desktop 有自己的記憶體／CPU 上限（Windows 的 WSL 2 後端看 `.wslconfig`）；compose 的 `mem_limit` 不能超過它。
 - Windows 上 clone 下來的檔案：`.gitattributes` 讓 `.py`、`Dockerfile`、`*.yml` 都是 LF，不用另外處理。
-- `Setup.bat`、`Start.bat`、桌面捷徑、`Open-SYNOX.bat`、`Connect-Apple.bat` 都是 Windows 專用，容器裡對應的是上面「日常」那張表的指令；
+- `Setup.bat`、`Start.bat`、桌面捷徑、`Open-SYNOX.bat` 都是 Windows 專用，容器裡對應的是上面「日常」那張表的指令；
   安裝精靈（視窗版）也沒有，改用文字版 `synox init`。
 - 想用宿主上的服務（例如自己電腦的 Ollama）：Docker Desktop 有 `host.docker.internal`；Linux 要多寫 `extra_hosts`，
   而且那個服務得聽在容器連得到的位址上——這跟「本機服務只綁 127.0.0.1」衝突，比較好的做法是把它也當成容器放進同一個 compose。

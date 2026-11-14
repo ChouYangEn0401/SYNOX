@@ -11,7 +11,9 @@
 | [install-packs.md](install-packs.md) | 使用者 | 怎麼裝一個 `.synoxpack`：點兩下、拖到 Install-Pack.bat、拖進網頁、`synox install`；圖示空白／點兩下沒反應怎麼辦 |
 | [ecosystem.md](ecosystem.md) | 使用者、作者、維護者 | 工具生態：找、裝、更新、移除工具；做一個工具給人裝；之後的路（哪些是提案）；每次發版要更新哪些文件 |
 | [versioning.md](versioning.md) | 使用者、作者、維護者 | 版本號怎麼看（正式版／beta／alpha）、我是不是最新版、**我要怎麼更新**（ZIP、git、安裝程式、工具、SDK）；維護者：升號規則、分支、tag、每版要有什麼、`scripts/release.py`；自己更新的設計在 [adr/0023](adr/0023-updates-and-hotfixes.md)（提案） |
+| [sandbox-roadmap.md](sandbox-roadmap.md) | 使用者、作者、維護者、想參與的人 | 沙盒路線圖（徵求協助）：現在哪裡有隔離、哪裡沒有（Windows 還沒有）；Windows 的候選路線與取捨；志願者怎麼跑探測腳本；help wanted 任務與驗收條件 |
 | [security.md](security.md) | 使用者、作者 | 資料存在哪、誰看得到、裝別人的 pack 時的五關、信任層級、沙盒、沒有做的保護 |
+| [security/web-threats.md](security/web-threats.md) | 維護者 | 網頁最常被打的地方，SYNOX 各自怎麼擋（會一直更新的清單，每一列點名測試；接手安全的人先讀） |
 | [discord.md](discord.md) | 使用者 | Discord 通道的現況與設定（含多個 bot） |
 | [docker.md](docker.md) | 使用者、維護者 | 用 Docker 跑 SYNOX（compose、資料 volume、網頁只發佈到 127.0.0.1）與開發容器；已知限制、驗證清單、檢查表（**還沒實際建置過**） |
 | [advanced-install.md](advanced-install.md) | 使用者（工程師） | 進階安裝：從原始碼裝（venv）、Docker 指令速查、沒有螢幕的伺服器、背景服務（Windows 自動啟動、systemd 範例）、測試與打包；標出哪些沒驗證過 |
@@ -19,14 +21,17 @@
 | [handoff/](handoff/README.md) | 使用者 | 到另一台電腦用真的帳號測 connector 與 Discord：教學、Discord 交接、煙霧測試 `scripts/smoke_real.py` |
 | [tools.md](tools.md) | 作者 | **從這裡開始**：三條接入路怎麼選、權限欄位、secret、確認來回、測試、安全自檢表 |
 | [sdk.md](sdk.md) | 作者 | Python 工具 SDK（`@tool`、`serve()`、`secret()`、`context()`、`synox-sdk` 指令） |
+| [tool-apps.md](tool-apps.md) | 作者 | 給工具附一個完整的網頁畫面（工具服務，`web.app`）：怎麼宣告、只有這台電腦打得開、登入與閒置由 SYNOX 管 |
+| [apps-api.md](apps-api.md) | 維護者 | 工具服務的介面合約（伺服器那一側現在實際的樣子；要改先改這份） |
 | [pack-format.md](pack-format.md) | 作者、維護者 | pack.json 每個欄位的完整規則、kind=cli／mcp／python 的細節、升級與環境建置 |
+| [themes.md](themes.md) | 外觀包作者、維護者 | 外觀（換裝）：顏色 token、可以換的位置（slot）、kind=theme 的格式、消毒規則、怎麼從品牌頁做一個外觀包 |
 | [tool-health.md](tool-health.md) | 作者、維護者 | 工具健康：失敗信封 v1、類別碼、隔離清單（同一根因連續失敗就暫停給 AI 用）；作者那側是 SDK 的 `fail()` |
 | [../packs/README.md](../packs/README.md) | 使用者 | SYNOX 出廠不帶工具：工具在 SYNOX 工具庫（SYNOX_Libs，另一個 repo），怎麼裝 |
 | [legacy/builtin-packs.md](legacy/builtin-packs.md) | 使用者、維護者 | 下架的內建工具（記帳、隨手記、提醒）：為什麼、舊資料怎麼接回、怎麼救回 |
 | [legacy/connectors.md](legacy/connectors.md) | 使用者、維護者 | 搬到工具庫的 4 個 connector（Notion、Todoist、Google 日曆、Apple 提醒事項）：為什麼、token／帳號怎麼接回、怎麼救回 |
 | [../examples/](../examples/) | 作者 | 可以照抄的範例：`hello`（SDK）、`any-language-cli`（不用 SDK）、`node-mcp-tool`（MCP stdio）、`mcp-remote-*`（遠端 MCP） |
 | [AGENT.md](AGENT.md) | 維護者 | 程式地圖、不能破壞的規則（invariants）、已知限制 |
-| [adr/](adr/) | 維護者 | 架構決定（一件一檔）：[0001](adr/0001-runtime-loop-heartbeat-mother-session.md) runtime loop、心跳、常駐助理、soul.md；[0002](adr/0002-soul-md-in-chat-assistant-prompt.md) soul.md 放進對話助理的系統提示（Q7）；[0005](adr/0005-soul-ledger-memory-provenance-review.md) soul 帳本（助理筆記的來歷、有疑慮先問、取代不刪除、整理與遺忘）；[0004](adr/0004-activator-event-driven-rules.md) 連動：任務做完馬上觸發下一件、防無限連動；[0006](adr/0006-keep-awake-screen-may-sleep.md) 保持清醒（含現代待命附記）；[0007](adr/0007-local-llm-platform.md) 本地模型是內建能力（context 建議、無進展逾時） |
+| [adr/](adr/) | 維護者 | 架構決定（一件一檔）：[0001](adr/0001-runtime-loop-heartbeat-mother-session.md) runtime loop、心跳、常駐助理、soul.md；[0002](adr/0002-soul-md-in-chat-assistant-prompt.md) soul.md 放進對話助理的系統提示（Q7）；[0005](adr/0005-soul-ledger-memory-provenance-review.md) soul 帳本（助理筆記的來歷、有疑慮先問、取代不刪除、整理與遺忘）；[0004](adr/0004-activator-event-driven-rules.md) 連動：任務做完馬上觸發下一件、防無限連動；[0006](adr/0006-keep-awake-screen-may-sleep.md) 保持清醒（含現代待命附記）；[0007](adr/0007-local-llm-platform.md) 本地模型是內建能力（context 建議、無進展逾時）；[0024](adr/0024-tool-apps-services.md) 工具服務：每個工具自己的完整網頁，要用才開、不用就關（原本叫 0023，跟 SYNOX 自己更新的 0023 撞號，改號；計畫 [lab/2026-11-14-tool-apps-implementation-plan.md](lab/2026-11-14-tool-apps-implementation-plan.md)）；[0025](adr/0025-guard-core-and-stepup.md) 門禁核心與手機驗證器；[0026](adr/0026-remote-tool-apps.md) 在手機上打開工具的畫面（計畫 [lab/2026-11-14-stepup-remote-plan.md](lab/2026-11-14-stepup-remote-plan.md)） |
 | [keep-awake-troubleshooting.md](keep-awake-troubleshooting.md) | 使用者 | 保持清醒開著、Google Drive 還是斷線：現代待命機型的排查步驟（只看、不改設定） |
 | [presentation.md](presentation.md) | 維護者 | 呈現層（預設關）：AI 回覆的 Markdown → Telegram HTML／Discord／網頁區塊、各通道的降級規則、黃金檔案怎麼重產 |
 | [runtime-api.md](runtime-api.md) | 維護者（前端） | 主控面板用的 `/api/runtime/...` 合約（狀態、心跳設定、soul.md、任務日誌、連動規則） |
@@ -42,7 +47,8 @@
 | [lab/cross-repo/](lab/cross-repo/) | 維護者 | 請**別的 repo**（金流簿、ISDTeleKitSDK…）做的事，一件一檔，由擁有者轉交 |
 | [QuestionToUser.md](QuestionToUser.md) | 維護者 | 等擁有者拍板的事（每題有建議，不答就照建議） |
 | [../LICENSING.md](../LICENSING.md) | 全部 | 授權：核心 AGPL-3.0-or-later，工具 SDK 與範例 Apache-2.0 |
-| [../CONTRIBUTING.md](../CONTRIBUTING.md) | 維護者 | 怎麼貢獻、貢獻者同意書 |
+| [../CONTRIBUTING.md](../CONTRIBUTING.md) | 維護者 | 怎麼貢獻、貢獻者同意書、GitHub Discussions |
+| [community/](community/discussion-ecosystem-and-sandbox.md) | 維護者 | 要貼到 GitHub Discussions 的貼文草稿（生態相容與沙盒，中英雙語）；只在 git clone／GitHub 上有 |
 
 ## 待做（擁有者說 MVP 完成之後才做）
 

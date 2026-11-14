@@ -424,6 +424,7 @@ MOCK = r"""
         connected: false, fields: D.secrets.fields });
     }
     if (p === "/api/settings") { return reply(D.settings); }
+    if (p === "/api/appearance" && method === "GET") { return reply(D.appearance); }
     if (p === "/api/settings/channels") { return reply(D.channels); }
     var pr = /^\/api\/settings\/channels\/(telegram|discord)\/pair$/.exec(p);
     if (pr) {                                     // 配對：預覽裡只回目前的狀態，不真的配
@@ -601,12 +602,20 @@ ALIASES = {"prefix": "@", "names": {"money.add": ["記帳"]}, "suggestions": [
                        {"path": "note.add", "command": "/note", "title": "記一則筆記", "tool": "📒 隨手記"}]}
 
 
+def _appearance() -> dict:
+    """設定 → 外觀（GET /api/appearance 的形狀）：沒裝外觀包、用原本的 SYNOX。"""
+    from synox.theme import contract
+    return {"themes": [], "theme": "", "mode": "auto", "custom": {}, "inherited": [], "owner": True, "server": False,
+            "scope": "install", "contract": contract.CONTRACT_VERSION, "tokens": list(contract.TOKENS),
+            "slots": [{"name": n, "text": d, "kinds": list(k)} for n, (d, _v, k) in contract.SLOTS.items()]}
+
+
 def app_preview() -> str:
     html = server.render_app("preview")          # 跟伺服器送出的頁面同一個函式（含 tools／control 的 css／js）
     data = {"me": ME, "chats": CHATS, "events": EVENTS, "tools": TOOLS, "secrets": SECRETS,
             "settings": SETTINGS, "channels": CHANNELS, "accounts": ACCOUNTS,
             "library": _library(), "runtime": RUNTIME, "report": REPORT, "logs": TASK_LOGS, "soul": SOUL, "soul_notes": SOUL_NOTES,
-            "help": HELP, "aliases": ALIASES}
+            "help": HELP, "aliases": ALIASES, "appearance": _appearance()}
     mock = MOCK.replace("__DATA__", json.dumps(data, ensure_ascii=False))
     note = ("<!-- 自動產生：scripts/make_ui_preview.py（不要手改；改 src/synox/web/static/app.html、tools.css、"
             "tools.js、splash.css、splash.js 再重跑） -->\n")

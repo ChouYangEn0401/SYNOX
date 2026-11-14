@@ -1,0 +1,35 @@
+{
+  "name": "sample-lantern",
+  "kind": "theme",
+  "version": "1.0.0",
+  "title": "提燈（範例外觀）",
+  "summary": "幫你顧家的一盞小燈：琥珀色、深色模式特別好看。測試與文件用的範例外觀包。",
+  "publisher": "SYNOX",
+  "stage": "beta",
+  "theme": {
+    "contract": 1,
+    "tokens": {
+      "light": {"bg": "#f5f3ef", "surface": "#fffdf9", "text": "#1f1b2e", "muted": "#676173", "line": "#e4dfd5",
+                "accent": "#a85400", "accent-ink": "#ffffff", "accent2": "#2b2a5c", "soft": "#fbecd2",
+                "ok": "#2c7a4b", "warn": "#8a6d00", "bad": "#c2362f",
+                "m1": "#f6a821", "m2": "#2b2a5c", "mi": "#3b2200", "mb": "#e8590c",
+                "radius": "12px",
+                "font-ui": "\"Noto Sans TC\", \"Microsoft JhengHei UI\", \"PingFang TC\", system-ui, sans-serif",
+                "font-brand": "Georgia, \"Noto Serif TC\", \"PMingLiU\", serif"},
+      "dark": {"bg": "#121126", "surface": "#1b1a36", "text": "#f0e9dc", "muted": "#a09bb8", "line": "#2e2c52",
+               "accent": "#ffb84a", "accent-ink": "#2a1800", "accent2": "#9f9cff", "soft": "#332a1c",
+               "ok": "#5fd08d", "warn": "#ffe066", "bad": "#ff7a7a",
+               "m1": "#ffb84a", "m2": "#7572d1", "mi": "#3b2200", "mb": "#e8590c"}
+    },
+    "slots": {
+      "mascot.idle": "slots/idle.svg",
+      "mascot.think": "slots/think.svg",
+      "mascot.happy": "slots/happy.svg",
+      "mascot.warn": "slots/warn.svg",
+      "opening": "slots/opening.svg",
+      "wordmark": "slots/wordmark.svg",
+      "appicon": "slots/icon.svg"
+    },
+    "css": "theme.css"
+  }
+}

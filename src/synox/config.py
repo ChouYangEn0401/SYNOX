@@ -74,6 +74,86 @@ DEFAULT_LLM = {"kind": "none", "max_steps": 6, "max_tokens": 1024, "completion_g
 DEFAULT_VAULT = {"mode": "dpapi" if os.name == "nt" else "file"}
 DEFAULT_PACKS = {"enabled": "all", "disabled": []}
 DEFAULT_WEB = {"enabled": True, "port": 8830, "public_url": ""}
+DEFAULT_STEPUP_MINUTES = 15                 # 手機驗證器解鎖幾分鐘（ADR 0025；SDK 預設 30）
+# 工具服務（ADR 0024、計畫 C1）：enabled 是 true 也不會自己開任何服務，只是允許擁有者開。綁在哪裡不由設定決定（web/apps/listen.py）
+DEFAULT_APPS = {"enabled": True, "port_first": 8841, "port_count": 16, "max_running": 3,
+                "idle_suggest_min": 30, "idle_close_min": 120}
+
+
+def parse_apps(raw, web_port: int) -> dict:
+    """web.apps → 檢查過的設定（不合丟 ConfigError，一句白話）。"""
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise ConfigError("config.json 的 web.apps 要是一個 {…} 物件。")
+    out = {**DEFAULT_APPS, **raw}
+    unknown = sorted(k for k in raw if k not in DEFAULT_APPS)
+    if unknown:
+        raise ConfigError(f"config.json 的 web.apps 不認得 {'、'.join(unknown)}（只能是 {'、'.join(DEFAULT_APPS)}）。")
+    out["enabled"] = bool(out["enabled"])
+
+    def number(key, low, high):
+        value = out[key]
+        if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+            raise ConfigError(f"config.json 的 web.apps.{key} 要是 {low}–{high} 的整數。")
+        return value
+    first = number("port_first", 1024, 65000)
+    count = number("port_count", 1, 40)
+    if first <= int(web_port or 0) < first + count and "port_first" not in raw:
+        # 使用者把網頁介面的埠設在預設的工具服務範圍裡（舊設定沒有 web.apps）：預設範圍往後挪，不讓舊設定開不起來
+        first = out["port_first"] = int(web_port) + 1
+    if first <= int(web_port or 0) < first + count:
+        raise ConfigError(f"config.json 的 web.apps 的埠範圍（{first}–{first + count - 1}）不能包含網頁介面的 web.port。")
+    number("max_running", 1, count)
+    suggest = number("idle_suggest_min", 0, 1440)
+    close = number("idle_close_min", 0, 1440)
+    if suggest and close and close <= suggest:
+        raise ConfigError("config.json 的 web.apps.idle_close_min 要大於 idle_suggest_min（或寫 0＝不自動關）。")
+    return out
+
+
+# 手機入口（ADR 0026、計畫 K7）：預設關。綁在哪裡不由設定決定（閘門也只綁 127.0.0.2，web/apps/listen.py）
+DEFAULT_REMOTE = {"enabled": False, "minutes": 30, "max_minutes": 120, "idle_min": 10, "gate_port": 8861,
+                  "tunnel": {"kind": "cloudflared", "path": ""}}
+TUNNEL_KINDS = ("cloudflared",)
+
+
+def parse_remote(raw, web_port: int, apps: dict) -> dict:
+    """web.remote → 檢查過的設定（不合丟 ConfigError，一句白話）。"""
+    if raw is None:
+        raw = {}
+    if not isinstance(raw, dict):
+        raise ConfigError("config.json 的 web.remote 要是一個 {…} 物件。")
+    unknown = sorted(k for k in raw if k not in DEFAULT_REMOTE)
+    if unknown:
+        raise ConfigError(f"config.json 的 web.remote 不認得 {'、'.join(unknown)}（只能是 {'、'.join(DEFAULT_REMOTE)}）。")
+    out = {**DEFAULT_REMOTE, **raw}
+    out["enabled"] = bool(out["enabled"])
+
+    def number(key, low, high):
+        value = out[key]
+        if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+            raise ConfigError(f"config.json 的 web.remote.{key} 要是 {low}–{high} 的整數。")
+        return value
+    top = number("max_minutes", 5, 240)
+    number("minutes", 5, top)
+    number("idle_min", 1, 120)
+    port = number("gate_port", 1024, 65000)
+    first, count = int(apps.get("port_first", 0)), int(apps.get("port_count", 0))
+    if (port == int(web_port or 0) or first <= port < first + count) and "gate_port" not in raw:
+        port = out["gate_port"] = max(first + count, int(web_port or 0) + 1)       # 舊設定：預設的閘門埠往後挪
+    if port == int(web_port or 0) or first <= port < first + count:
+        raise ConfigError("config.json 的 web.remote.gate_port 不能跟網頁介面或工具服務的埠重疊。")
+    tunnel = out.get("tunnel")
+    if not isinstance(tunnel, dict) or set(tunnel) - {"kind", "path"}:
+        raise ConfigError('config.json 的 web.remote.tunnel 要寫成 {"kind": "cloudflared", "path": ""}。')
+    tunnel = {"kind": "cloudflared", "path": "", **tunnel}
+    if tunnel["kind"] not in TUNNEL_KINDS or not isinstance(tunnel["path"], str):
+        raise ConfigError("config.json 的 web.remote.tunnel.kind 只能是 cloudflared；path 是通道程式的路徑（可以空著）。")
+    out["tunnel"] = tunnel
+    return out
+
+
 DEFAULT_MEMBER_USD = 2.0
 DEFAULT_PRESENTATION = {"enabled": False}
 MODES = ("personal", "server")
@@ -132,6 +212,8 @@ class SynoxConfig(BotConfig):
         if not 0 <= web["port"] <= 65535:
             raise ConfigError("config.json 的 web.port 要在 0–65535 之間。")
         web["enabled"] = bool(web.get("enabled", True))
+        web["apps"] = parse_apps(web.get("apps"), web["port"])
+        web["remote"] = parse_remote(web.get("remote"), web["port"], web["apps"])
         try:
             member_usd = float(raw.get("ai_member_monthly_usd", DEFAULT_MEMBER_USD))
         except (TypeError, ValueError):
@@ -141,6 +223,12 @@ class SynoxConfig(BotConfig):
             runtime = runtime_settings.parse(raw.get("runtime"))
         except runtime_settings.RuntimeConfigError as e:
             raise ConfigError(f"config.json：{e}")
+        try:
+            stepup_minutes = int(raw.get("stepup_minutes", DEFAULT_STEPUP_MINUTES))
+        except (TypeError, ValueError):
+            raise ConfigError("config.json 的 stepup_minutes 要是數字（解鎖幾分鐘，1–120）。")
+        if not 1 <= stepup_minutes <= 120:
+            raise ConfigError("config.json 的 stepup_minutes 要在 1–120 之間（解鎖幾分鐘）。")
         presentation = parse_presentation(raw.get("presentation"))
         try:
             health = health_settings.parse(raw.get("health"))
@@ -148,7 +236,7 @@ class SynoxConfig(BotConfig):
             raise ConfigError(f"config.json：{e}")
         return cls(bot_token=base.bot_token, owner_id=base.owner_id,
                    poll_interval_seconds=base.poll_interval_seconds, data_dir=data_dir,
-                   stepup_minutes=base.stepup_minutes, raw=dict(raw), llm=llm, vault=vault, packs=packs, mode=mode,
+                   stepup_minutes=stepup_minutes, raw=dict(raw), llm=llm, vault=vault, packs=packs, mode=mode,
                    root=root, web=web, ai_member_monthly_usd=max(0.0, member_usd), policy=policy,
                    runtime=runtime, presentation=presentation, health=health)
 

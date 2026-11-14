@@ -202,6 +202,70 @@ def scope_changes(old: Manifest, new: Manifest) -> List[dict]:
         wider = DATA_RANK.get(db, 2) > DATA_RANK.get(da, 2)
         out.append({"kind": "data", "text": f"資料歸屬 data {da} → {db}" + ("（變寬）" if wider else "（變窄）"),
                     "alert": wider})
+    out += caller_changes(old, new)
+    out += app_changes(old, new)
+    return out
+
+
+def app_changes(old: Manifest, new: Manifest) -> List[dict]:
+    """web.app 的變化（工具服務，ADR 0024 §5）：新加畫面、多了動作或匯出、動作變危險、可以從手機用＝紅字；拿掉的＝一般字。"""
+    a = (getattr(old, "web", None) or {}).get("app") or None
+    b = (getattr(new, "web", None) or {}).get("app") or None
+    out: List[dict] = []
+
+    def add(kind: str, text: str, alert: bool) -> None:
+        out.append({"kind": kind, "text": text, "alert": alert})
+
+    if a is None and b is None:
+        return out
+    if a is None:
+        add("app", "新加了完整的網頁畫面（工具服務）", True)
+    elif b is None:
+        add("app", "拿掉了網頁畫面", False)
+        return out
+    old_actions = dict((a or {}).get("actions") or {})
+    for name, eff in sorted((b.get("actions") or {}).items()):
+        if name not in old_actions:
+            add("app_action_added", f"畫面多了動作 {name}（{eff.upper()}）", True)
+        elif old_actions[name] != eff:
+            wider = EFFECT_RANK.get(eff.upper(), 2) > EFFECT_RANK.get(old_actions[name].upper(), 2)
+            add("app_effect", f"畫面動作 {name} 的危險程度 {old_actions[name].upper()} → {eff.upper()}", wider)
+    for name in sorted(set(old_actions) - set(b.get("actions") or {})):
+        add("app_action_removed", f"畫面拿掉了動作 {name}", False)
+    old_exports = set((a or {}).get("exports") or ())
+    for name in b.get("exports") or []:
+        if name not in old_exports:
+            add("app_export_added", f"畫面多了匯出 {name}", True)
+    for name in sorted(old_exports - set(b.get("exports") or ())):
+        add("app_export_removed", f"畫面拿掉了匯出 {name}", False)
+    if b.get("remote") and not (a or {}).get("remote"):
+        add("app_remote", "這個工具的畫面變成可以從手機用（要你另外打開手機入口）", True)
+    elif a and a.get("remote") and not b.get("remote"):
+        add("app_remote", "這個工具的畫面不再能從手機用", False)
+    return out
+
+
+def caller_changes(old: Manifest, new: Manifest) -> List[dict]:
+    """callers／stepup 的變化（ADR 0025 §3）：拿掉或放寬一條＝紅字；新增或收緊＝一般字。"""
+    out: List[dict] = []
+    a, b = dict(getattr(old, "callers", {}) or {}), dict(getattr(new, "callers", {}) or {})
+    for name in sorted(set(a) | set(b)):
+        before, after = set(a.get(name) or ()), set(b.get(name) or ())
+        if name not in b:
+            out.append({"kind": "callers", "text": f"指令 {name} 原本只收 {'、'.join(sorted(before))}，新版拿掉了限制（變寬）",
+                        "alert": True})
+        elif name not in a:
+            out.append({"kind": "callers", "text": f"指令 {name} 新版只收 {'、'.join(sorted(after))}（收緊）",
+                        "alert": False})
+        elif before != after:
+            wider = bool(after - before)
+            out.append({"kind": "callers", "text": f"指令 {name} 收誰叫：{'、'.join(sorted(before))} → "
+                        f"{'、'.join(sorted(after))}" + ("（變寬）" if wider else "（收緊）"), "alert": wider})
+    sa, sb = set(getattr(old, "stepup", []) or ()), set(getattr(new, "stepup", []) or ())
+    for name in sorted(sa - sb):
+        out.append({"kind": "stepup", "text": f"指令 {name} 原本一定要先解鎖，新版不用了（變寬）", "alert": True})
+    for name in sorted(sb - sa):
+        out.append({"kind": "stepup", "text": f"指令 {name} 新版一定要先解鎖（收緊）", "alert": False})
     return out
 
 

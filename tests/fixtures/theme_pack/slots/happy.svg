@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <circle class="ln-glow" cx="32" cy="33" r="30"/>
+  <path class="ln-cap" d="M30 1h4v6h-4z"/>
+  <rect class="ln-cap" x="21" y="6" width="22" height="7" rx="3"/>
+  <rect class="ln-body" x="11" y="11" width="42" height="42" rx="19"/>
+  <path class="ln-rib" d="M32 12v40M21 14q-7 18 0 36M43 14q7 18 0 36"/>
+  <rect class="ln-cap" x="21" y="51" width="22" height="7" rx="3"/>
+  <path class="ln-mouth" d="M21 30q4-5 8 0M35 30q4-5 8 0"/>
+  <ellipse class="ln-blush" cx="19.5" cy="37.5" rx="3.4" ry="1.9"/>
+  <ellipse class="ln-blush" cx="44.5" cy="37.5" rx="3.4" ry="1.9"/>
+  <path class="ln-eye" d="M26 37h12q-1 7-6 7t-6-7z"/>
+</svg>

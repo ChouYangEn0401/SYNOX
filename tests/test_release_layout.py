@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """發佈物的版面（docs/adr/0003）：zip 旁邊附 tools/、安裝程式的 stage。只複製檔案；不執行任何 Python、不 pip、不打包 exe。
 假的 Python（python-build-standalone 的 .tar.gz）只是幾個位元組的檔案（不會被執行）。"""
+import glob
 import os
 import sys
 import zipfile
@@ -25,6 +26,7 @@ def test_zip_ships_tools_next_to_synox(tmp_path):
     assert sum(n.startswith("SYNOX/tools/") and n.endswith(".synoxpack") for n in names) == 2
     assert "SYNOX/Setup.bat" in names and "SYNOX/src/synox/config.py" in names
     assert not any(n.startswith(("SYNOX/data/", "SYNOX/.venv/")) or n.endswith("/config.json") for n in names)
+    assert not any(n.startswith(("SYNOX/tests/", "SYNOX/docs/lab/", "SYNOX/.github/workflows/")) for n in names)
 
 
 def test_zip_refuses_tampered_or_unbuilt_tools(tmp_path, capsys):
@@ -48,6 +50,90 @@ def test_eval_set_is_not_shipped():
     assert make_zip.excluded("evals/assistant/cases/note-01.json")
     assert make_zip.excluded("evals/assistant/README.md")
     assert not make_zip.excluded("src/synox/evals/cases.py")
+
+
+# 一般使用者執行、更新 SYNOX 要的（擁有者 2026-11-14 D2：發佈 ZIP／安裝程式只帶這些，git clone 才有開發用的）
+NEEDED = ("Setup.bat", "Start.bat", "Stop.bat", "Open-SYNOX.bat", "Install-Pack.bat", "Uninstall.bat", "Console.bat",
+          "README.md", "CHANGELOG.md", "LICENSE", "LICENSE-APACHE", "NOTICE", "LICENSING.md", "SECURITY.md",
+          "CONTRIBUTING.md", ".github/TRADEMARK.md", ".github/GOVERNANCE.md", ".github/MAINTAINERS.md",
+          "config.example.json", "pyproject.toml", "requirements.txt", "packs/README.md",
+          "setup/bootstrap.ps1", "setup/clean-python-env.bat", "setup/uninstall.ps1", "setup/installer/synox.iss",
+          "src/synox/__init__.py", "src/synox/assets/synox.ico", "docs/tutorials/README.md",
+          "docs/tutorials/telegram/index.html", "docs/landing/index.html", "docs/versioning.md", "docs/README.md",
+          "docs/legacy/connectors.md", "sdk/synox_sdk.py")
+
+
+def test_release_has_what_users_need_and_nothing_internal():
+    shipped = {rel for _src, rel in make_zip.release_files()}
+    for rel in NEEDED:
+        assert rel in shipped, rel
+    assert {r for r in shipped if "/" not in r and r.endswith(".bat")} == {
+        os.path.basename(p) for p in glob.glob(os.path.join(ROOT, "*.bat"))}          # 每個入口都在
+    assert any(r.startswith("vendor/") for r in shipped) and any(r.startswith("src/synox/evals/") for r in shipped)
+    for rel in shipped:
+        assert not make_zip.internal(rel), rel
+    for prefix in ("tests/", "evals/", "docs/lab/", "docs/artifacts/", "docs/ui/", "docs/installer/",
+                   "docs/community/", ".github/workflows/", ".github/ISSUE_TEMPLATE/", ".github/DISCUSSION_TEMPLATE/",
+                   ".devcontainer/"):
+        assert not any(r.startswith(prefix) for r in shipped), prefix
+    for rel in ("docs/QuestionToUser.md", "docs/artifacts.json", ".github/pull_request_template.md",
+                "Connect-Apple.bat", "GOVERNANCE.md", "TRADEMARK.md", "MAINTAINERS.md"):
+        assert rel not in shipped, rel
+    if os.path.exists(os.path.join(ROOT, ".git")):              # git clone（不是 clean_room_check 的副本）：
+        for rel in make_zip.INTERNAL:                           # 清單上的都真的存在（沒有打錯字）
+            assert os.path.exists(os.path.join(ROOT, *rel.rstrip("/").split("/"))), rel
+
+
+def test_clean_room_copy_takes_tests_but_never_user_data():
+    names = {rel for _src, rel in make_zip.release_files(also=("tests/",))}
+    assert "tests/conftest.py" in names and not any(r.startswith("docs/lab/") for r in names)
+    assert make_zip.never("tests/data/x.json") and make_zip.never("tests/x/config.json")
+
+
+def test_internal_list_is_the_same_for_github_zip_and_installer_updates():
+    """make_zip.INTERNAL＝.gitattributes 的 export-ignore（GitHub 的 Download ZIP）＝synox.iss [InstallDelete] 會刪的。"""
+    internal = {p.rstrip("/") for p in make_zip.INTERNAL}
+    attrs = open(os.path.join(ROOT, ".gitattributes"), encoding="utf-8").read().splitlines()
+    ignored = {line.split()[0].lstrip("/") for line in attrs if line.strip().endswith(" export-ignore")}
+    assert ignored == internal
+    removed = {p.replace("\\", "/") for p in install_delete()}
+    assert internal <= removed
+    assert not removed & {"config.json", "data", "packs"} and not any(r.startswith(("data/", "packs/")) for r in removed)
+
+
+def install_delete():
+    text = open(os.path.join(ROOT, "setup", "installer", "synox.iss"), "rb").read().decode("ascii")
+    section = text.split("\r\n[InstallDelete]\r\n", 1)[1].split("\r\n[", 1)[0]
+    return [line.split('Name: "{app}\\', 1)[1].split('"', 1)[0] for line in section.splitlines()
+            if line.startswith("Type:")]
+
+
+def test_installer_update_over_an_older_install_keeps_user_data(tmp_path):
+    """舊版（帶 tests\\、docs\\lab\\、Connect-Apple.bat…）上面裝新版：照 [InstallDelete] 刪、再放新檔。
+    使用者的 config.json、data\\、packs\\ 都在；舊版才有的開發用檔案不見了；新版的檔案都在。"""
+    import shutil
+    app = tmp_path / "SYNOX"
+    for rel in ("tests/test_x.py", "docs/lab/x.md", "docs/QuestionToUser.md", "evals/a.json", "Connect-Apple.bat",
+                "TRADEMARK.md", ".github/workflows/ci.yml", "config.json", "data/vault.bin", "packs/notes/pack.json",
+                "docs/tutorials/README.md"):
+        (app / rel).parent.mkdir(parents=True, exist_ok=True)
+        (app / rel).write_text("old " + rel, encoding="utf-8")
+    for name in install_delete():                                   # Inno：[InstallDelete] 在複製檔案之前
+        target = app / name.replace("\\", "/")
+        if target.is_dir():
+            shutil.rmtree(target)
+        elif target.exists():
+            target.unlink()
+    for src, rel in make_zip.release_files():
+        (app / rel).parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, app / rel)
+    for rel in ("config.json", "data/vault.bin", "packs/notes/pack.json"):
+        assert (app / rel).read_text(encoding="utf-8") == "old " + rel
+    for rel in ("tests", "docs/lab", "docs/QuestionToUser.md", "evals", "Connect-Apple.bat", "TRADEMARK.md",
+                ".github/workflows"):
+        assert not (app / rel).exists(), rel
+    assert (app / ".github" / "TRADEMARK.md").is_file() and (app / "Setup.bat").is_file()
+    assert (app / "docs" / "tutorials" / "README.md").read_text(encoding="utf-8") != "old docs/tutorials/README.md"
 
 
 def fake_wheels(folder, names=("pip-24.0-py3-none-any.whl", "setuptools-70.0-py3-none-any.whl",
