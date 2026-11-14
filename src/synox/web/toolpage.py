@@ -83,7 +83,9 @@ def command_info(node, meta: dict) -> dict:
     return {"command": node.command, "usage": node.usage, "summary": node.summary, "effect": node.effect,
             "path": node.path, "default": bool(getattr(node, "default", False)), "ai": bool(getattr(node, "ai", True)),
             "confirm": meta.get("confirm") is True, "fields": fields,
-            "asks_code": any(getattr(f, "fresh_code", False) for f in node.fields)}
+            "asks_code": any(getattr(f, "fresh_code", False) for f in node.fields),
+            # 白話與範例（pack.json 的 help 區塊；synox/helpui/examples.py）：沒寫＝空的
+            "plain": meta.get("plain", ""), "examples": [dict(e) for e in meta.get("examples") or []]}
 
 
 def skill_description(manifest) -> str:

@@ -1,7 +1,7 @@
 """
-build()：SynoxConfig → isdtelekit.build_app → 基本指令（伺服器版多 accounts、limits；還沒裝工具時 /start、/help
-多一段「去哪裡裝」，packs/library.py）→ 新手教學 /tutorial（synox/tour）→ ⏰ 提醒（系統）（schedule.install_system_remind）→ packs.load_all
-→ agent.install → runtime.install（排程迴圈、心跳、常駐助理）→ health.install（工具健康）→ schedule.install
+build()：SynoxConfig → isdtelekit.build_app → 基本指令（伺服器版多 accounts、limits；/help 換成看得懂的卡片 synox/helpui；
+還沒裝工具時 /start、/help 多一段「去哪裡裝」，packs/library.py）→ 新手教學 /tutorial（synox/tour）→ ⏰ 提醒（系統）（schedule.install_system_remind）→ packs.load_all
+→ aliases（每人的指令符號與名字）→ agent.install → runtime.install（排程迴圈、心跳、常駐助理）→ health.install（工具健康）→ schedule.install
 → web.install（本機網頁介面）。
 
     config = SynoxConfig.load()
@@ -20,7 +20,7 @@ from isdtelekit import build_app
 from isdtelekit.host.app import App
 from isdtelekit.packs import accounts, basics, help as help_pack, limits
 
-from synox import agent, discord, guard, health, policy, runtime, schedule, telegram_link, tour, web
+from synox import agent, aliases, discord, guard, health, helpui, policy, runtime, schedule, telegram_link, tour, web
 from synox.config import SynoxConfig
 from synox.llm import make_adapter
 from synox.llm.base import LLMError
@@ -73,12 +73,14 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
 
     basics.install(app, welcome=greet)
     help_pack.install(app)
+    helpui.install(app)                        # 新的 /help：工具按鈕 → 工具卡 → 指令卡（白話＋範例）；/help all 照舊（synox/helpui）
     tour.install(app, config, vault)           # 新手教學（核心，出廠就有、不是工具）：/tutorial、/help 那一行（docs/tutorials-engine.md）
     library.install(app)                       # /help 在還沒裝工具時多一則「去哪裡裝」
     if server:
         install_server_packs(app)
     schedule.install_system_remind(app)        # ⏰ 提醒（系統）：系統指令，先佔住群組名再載入 pack（QL5）
     loader.load_all(app, config, vault, dirs=pack_dirs)
+    aliases.install(app, config, vault)        # 每人自己的指令符號與名字（只在網頁對話；synox/aliases.py）
     if adapter is _UNSET:
         try:
             adapter = make_adapter(config, vault)
