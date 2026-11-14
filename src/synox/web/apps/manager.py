@@ -58,10 +58,12 @@ TEXT = {
     "port_busy": "{port} 被別的程式用了。關掉那個程式再試；還是不行就重開 SYNOX。",
     "port_stuck": "{port} 上次沒有關乾淨，重開 SYNOX 之後才能再用。",
     "not_on": "這個工具的服務沒有開。",
-    "idle_closed": "🧩 {title}的服務 {n} 分鐘沒有用，我先關掉了。資料都在；要用再 /app_open {name}。",
-    "idle_suggest": "🧩 {title}的服務 {n} 分鐘沒有用了。要關：/app_close {name}。不理我的話再 {m} 分鐘我會自己關。",
-    "idle_suggest_keep": "🧩 {title}的服務 {n} 分鐘沒有用了。要關：/app_close {name}。它會一直開著，直到你關掉或重開 SYNOX。"
-                         "想改成自動關，到 SYNOX 網頁的工具頁設定。",
+    # 通知（synox/notify：網頁的 🔔、Telegram、Discord 都會收到，按鈕「現在關掉」「再給我 N 分鐘」）
+    "idle_closed": "🧩 {title}的完整畫面 {n} 分鐘沒人用，我先關掉了。東西都還在，要用再打開就好。",
+    "idle_suggest": "🧩 {title}的完整畫面 {n} 分鐘沒人用了。要關掉嗎？不理我的話，再 {m} 分鐘我會自己關。",
+    "idle_suggest_keep": "🧩 {title}的完整畫面 {n} 分鐘沒人用了。要關掉嗎？你設成一直開著，所以我不會自己關。",
+    "idle_stop": "現在關掉",
+    "idle_keep": "再給我 {n} 分鐘",
     "policy_bad": "閒置設定不對：{why}",
     "keep_understood": "選「一直開著」要先看過說明（understood: true）。",
     "close_min": "close_min 要是 5–1440 的整數",
@@ -410,7 +412,7 @@ class AppManager:
             self.stop(name, via="system", reason="reload")
         for name, idle in to_stop:
             if self.stop(name, via="system", reason="idle"):
-                self._notify(TEXT["idle_closed"].format(title=self._title(name), n=idle, name=name))
+                self._notify(TEXT["idle_closed"].format(title=self._title(name), n=idle, name=name), name, None)
         for name, idle, policy in to_suggest:
             self.audit.write("suggest", name, via="system", mode=policy["mode"], close_min=policy["close_min"])
             if policy["mode"] == "suggest":
@@ -418,7 +420,7 @@ class AppManager:
             else:
                 text = TEXT["idle_suggest"].format(title=self._title(name), n=idle, name=name,
                                                    m=max(1, policy["close_min"] - idle))
-            self._notify(text)
+            self._notify(text, name, policy)
         on = [s for s in self._states.values() if s.status == "on"]
         if not on:
             return "沒有開著的工具服務"
@@ -430,9 +432,16 @@ class AppManager:
         from synox import health
         return any(health.hidden(self.app, f"{spec.group}.{n}") is not None for n in spec.actions)
 
-    def _notify(self, text: str) -> None:
+    def _notify(self, text: str, name: str = "", policy: Optional[dict] = None) -> None:
+        """通知擁有者（synox/notify）。還開著的（policy 不是 None）帶兩顆按鈕：現在關掉、再給我 N 分鐘。"""
+        actions = None
+        if policy is not None and name:
+            actions = [{"id": "app_stop", "app": name, "label": TEXT["idle_stop"]},
+                       {"id": "app_keep", "app": name,
+                        "label": TEXT["idle_keep"].format(n=int(policy.get("suggest_min") or SUGGEST_MIN))}]
         try:
-            self.app.notify_owner(text)
+            from synox import notify
+            notify.owner(self.app, text, kind="tool_idle", actions=actions)
         except Exception as e:
             logging.error("[APPS] notify failed: %s", safe_trace(e))
 

@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 import os
 
+from synox import notify
 from synox.update.check import CheckResult, UpdateError, weekly_tick   # 不匯入 check()：synox.update.check 是模組
 
 TASK_ID = "system.update_check"
@@ -32,7 +33,7 @@ def install(app, config, config_path: str = "") -> None:
         from synox.wizard import logic
         raw = logic.read_existing(path)              # 每次讀檔：網頁上改了開關不用重開 SYNOX
         try:
-            return weekly_tick(data_dir, raw, app.notify_owner, root=root)
+            return weekly_tick(data_dir, raw, lambda text: notify.owner(app, text, kind="update"), root=root)
         except Exception:                            # 安靜失敗：記 log，下次再說
             logging.exception("[UPDATE] weekly check failed")
             return "這次沒查成"
