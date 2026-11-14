@@ -2,22 +2,23 @@
      說明與時間表：docs/ui/motion-notes.md。手法取自 ISDPCS（web/style.css 的 wc-rise／wc-pop／wc-shine、
      fireworks.js 的粒子、breathe、tb-pulse），改成 SYNOX 的 token。
      規則：顏色只用 app.html 最上面的 token（var(--…)，不寫死）；只動 transform／opacity（不動版面）；
-     系統開了「減少動態效果」→ 開場不播、這裡的動畫全部關掉（最下面）。 */
+     系統開了「減少動態效果」→ 開場的門停在最後一格（.sx-still）、這裡的動畫全部關掉（最下面）。 */
   :root {
     --sx-pop: cubic-bezier(.2, 1.5, .4, 1);      /* 彈一下（ISDPCS wc-pop） */
     --sx-rise: cubic-bezier(.2, .8, .2, 1);      /* 浮上來（ISDPCS wc-rise） */
     --sx-fly: cubic-bezier(.16, .75, .3, 1);     /* 粒子飛出去（ISDPCS fw-fly） */
   }
 
-  /* ── 開場（約 1.7 秒；點一下或按任意鍵略過）──────────────────────────────
+  /* ── 開場的時間表（介紹頁 docs/landing/page.html 也拿這一段去用，到「開場時：」為止）──────────
+     網頁介面：播到 1.3 秒的最後一格就停住、等你點（下面的 .sx-gate 蓋掉這裡的自動淡出）。
      0      背景與光暈出現
      0–.55  S 寶寶從上面掉下來、落地壓扁再彈回（squash & stretch）
      .12–.9 身邊噴出 8 顆小光點（主色、副色、琥珀、綠、粉）
      .2–.65 眨一次眼、臉紅；.38 冒出「嗨！」
      .72–1.2 翻面變成 S 標誌，掃過一道光
      .62–1.1 SYNOX 五個字母一個一個跳上來；下面三個點在跳
-     1.25–1.67 整片淡出，同時側欄滑進來、內容往上浮（html.sx-hold 拿掉）
-     沒有 JS 也收得掉：.sx-splash 自己的淡出動畫最後是 visibility: hidden。 */
+     1.25–1.67 （沒有 .sx-gate 時）整片淡出，同時側欄滑進來、內容往上浮（html.sx-hold 拿掉）
+     沒有 .sx-gate 也收得掉：.sx-splash 自己的淡出動畫最後是 visibility: hidden。 */
   .sx-splash { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; cursor: pointer;
                overflow: hidden; -webkit-tap-highlight-color: transparent;
                background: radial-gradient(560px 420px at 50% 44%, var(--bg-glow) 0%, var(--bg) 72%), var(--bg);
@@ -140,6 +141,42 @@
   html.sx-hold .side, html.sx-hold main > section, html.sx-hold .login { animation-play-state: paused; }
   @keyframes sx-side-in { from { opacity: 0; transform: translateX(-18px); } }
 
+  /* ── 網頁介面的門（splash.js 的 .sx-gate）：上面的時間表播到最後一格就停住，等你點 ─────────────
+     介紹頁（docs/landing/page.html）只取到上面「開場時：」為止，這一段是網頁介面自己的。
+     1.3s 起  S 輕輕浮著、外面一圈光往外擴，下面出現「點一下打開 SYNOX」
+     點一下   .sx-leave：整片放大淡出（.45s），後面的 SYNOX 同時浮上來（html.sx-hold 拿掉）
+     .sx-still（減少動態效果）：不播動畫，直接是最後一格（S 標誌＋SYNOX＋提示），一樣等你點 */
+  .sx-splash.sx-gate { animation: none; }
+  .sx-gate .sx-stage { animation: none; gap: 20px; }
+  .sx-gate .sx-enter { position: relative; display: block; min-height: 0; margin: 0; padding: 0; border: 0;
+                       border-radius: 30px; background: none; box-shadow: none; color: inherit; font: inherit;
+                       cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .sx-gate .sx-enter:focus { outline: none; }
+  .sx-gate .sx-enter:focus-visible { outline: 2px solid var(--accent); outline-offset: 10px; }
+  /* 停住之後：外面一圈光一直往外擴（像在說「按我」），S 輕輕上下浮 */
+  .sx-gate .sx-enter::after { content: ""; position: absolute; inset: -10px; border-radius: 38px; pointer-events: none;
+                              border: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); opacity: 0;
+                              animation: sx-ring 1.8s ease-out 1.35s infinite; }
+  .sx-gate .sx-enter-theme::after { border-radius: 26px; }
+  @keyframes sx-ring { 0% { transform: scale(.94); opacity: .9; } 100% { transform: scale(1.16); opacity: 0; } }
+  .sx-gate .sx-mascot, .sx-gate .sx-open { animation: sx-drop .6s var(--ease) both, sx-wait 2.6s ease-in-out 1.4s infinite; }
+  @keyframes sx-wait { 0%, 100% { transform: none; } 50% { transform: translateY(-5px); } }
+  .sx-gate .sx-hint { position: static; margin: 4px 0 0; padding: 7px 16px; border-radius: 999px;
+                      font: 650 14.5px/1.3 var(--font); color: var(--text); background: var(--surface);
+                      border: 1px solid var(--line); box-shadow: var(--shadow-md);
+                      animation: sx-hint-in .4s var(--sx-rise) 1.2s forwards; }
+  .sx-gate .sx-key { margin-left: 8px; font-weight: 500; font-size: 12.5px; color: var(--muted); }
+  @keyframes sx-hint-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  /* 點了：整片淡掉、中間往前放大（像穿過去進到 SYNOX）；淡出的時候就不再吃滑鼠 */
+  .sx-splash.sx-gate.sx-leave { animation: sx-out .45s var(--ease) forwards; pointer-events: none; }
+  .sx-gate.sx-leave .sx-stage { animation: sx-gate-zoom .45s var(--ease) forwards; }
+  @keyframes sx-gate-zoom { to { transform: scale(1.35); opacity: 0; } }
+  /* 減少動態效果：最後一格（S 標誌朝前、SYNOX 站好、提示亮著），什麼都不動 */
+  .sx-gate.sx-still *, .sx-gate.sx-still *::before, .sx-gate.sx-still *::after { animation: none !important; transition: none !important; }
+  .sx-gate.sx-still .sx-flip { transform: rotateY(180deg); }
+  .sx-gate.sx-still .sx-hi, .sx-gate.sx-still .sx-sparks, .sx-gate.sx-still .sx-enter::after { display: none; }
+  .sx-gate.sx-still .sx-hint { opacity: 1; }
+
   /* ── 頁面切換：區塊從隱藏變顯示時（.hidden 拿掉），動畫自己會重播 ─────────── */
   main > section { animation: sx-view-in .34s var(--sx-rise) backwards; }
   @keyframes sx-view-in { from { opacity: 0; transform: translateY(10px); } }
@@ -220,9 +257,9 @@
     .sx-hi { left: 74px; }
   }
 
-  /* 系統開了「減少動態效果」：開場不播（splash.js 也不產生）、背景不動、按鈕不跳。app.html 的全域規則也會關掉其他動畫。 */
+  /* 系統開了「減少動態效果」：開場不播動畫（門照樣出現，停在最後一格等你點）、背景不動、按鈕不跳。app.html 的全域規則也會關掉其他動畫。 */
   @media (prefers-reduced-motion: reduce) {
-    .sx-splash { display: none !important; }
+    .sx-splash.sx-gate { display: grid !important; }     /* 門照樣出現（splash.js 加上 .sx-still＝不動的最後一格） */
     body::before, body::after, main > section, .side, .login, .login .mark, .live::after, .nav a.active svg,
     #view-settings .page > .card, .ctl-body > .card, #stream > .msg, #toast { animation: none !important; }
     button, button:hover, button:active, .nav a:hover svg { transform: none !important; transition: none !important; }

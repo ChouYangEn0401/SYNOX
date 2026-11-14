@@ -48,11 +48,11 @@ SYNOX 預設是原本的樣子（S 寶寶、藍綠色）。**外觀包**（`.syn
 
 | slot | 在哪裡 | 原本的 | 收 |
 |---|---|---|---|
-| `mascot.idle` | 側欄、登入卡左上角的標誌；空白對話的插圖 | 「S」方塊 | SVG／HTML |
+| `mascot.idle` | 側欄（點了再看一次開場）、登入卡左上角的標誌；空白對話的插圖 | 「S」方塊 | SVG／HTML |
 | `mascot.think` | 等 AI 回覆時那顆會晃的小東西 | 藍色方塊 | SVG／HTML |
 | `mascot.happy` | 裝好、套用成功 | 笑臉 S 寶寶 | SVG／HTML |
 | `mascot.warn` | 安裝被拒、出問題 | 擔心的 S 寶寶 | SVG／HTML |
-| `opening` | 打開網頁的開場（約 1.7 秒，時間 SYNOX 管） | S 寶寶掉下來、翻成 S | SVG／HTML＋CSS 動畫 |
+| `opening` | 打開網頁的開場：放在「點一下打開 SYNOX」的門的按鈕裡，播完停在最後一格等人點（時間 SYNOX 管；減少動態效果時不動） | S 寶寶掉下來、翻成 S | SVG／HTML＋CSS 動畫 |
 | `wordmark` | 側欄的「SYNOX」、開場的字 | 文字 SYNOX | SVG／HTML |
 | `appicon` | 分頁圖示（favicon） | 瀏覽器預設 | 只收 SVG |
 

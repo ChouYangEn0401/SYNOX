@@ -239,6 +239,12 @@
           font: 800 15px/1 var(--font-brand); color: var(--accent-ink);
           background: linear-gradient(140deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 55%, var(--accent-2)) 100%);
           box-shadow: 0 6px 16px -6px var(--accent), var(--highlight); }
+  /* 側欄（手機是上方列）的 S：是一顆按鈕，點了再看一次開場（static/splash.js 的 [data-splash-replay]）；樣子跟原本的 .mark 一樣 */
+  button.mark { min-height: 0; padding: 0; border: 0; font: 800 15px/1 var(--font-brand); color: var(--accent-ink); cursor: pointer; }
+  button.mark:hover { background: linear-gradient(140deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 55%, var(--accent-2)) 100%); }
+  button.mark { position: relative; }
+  button.mark::before { content: ""; position: absolute; inset: -7px; }   /* 手指比較好按到（44px），看起來不變 */
+  button.mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .brand .name { font-weight: 800; letter-spacing: .14em; font-size: 15px; font-family: var(--font-brand); min-width: 0; }
   .nav { display: flex; flex-direction: column; gap: 2px; }
   .nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--r);
@@ -511,7 +517,7 @@
   .slot { display: block; }
   .slot > svg { display: block; width: 100%; height: 100%; }
   .mark > .slot { width: 100%; height: 100%; display: grid; place-items: center; }
-  .mark.slot-host { background: none; box-shadow: none; }
+  .mark.slot-host, button.mark.slot-host, button.mark.slot-host:hover { background: none; box-shadow: none; }
   .brand .name > .slot { display: inline-block; max-width: 100%; vertical-align: middle; }
   .brand .name > .slot > svg { height: 1.3em; width: auto; }
   .mood { width: 44px; height: 44px; flex: none; }
@@ -1009,6 +1015,9 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   // 預覽專用：把 fetch 換成假的，全部回假資料；不送出任何東西。
   var q = new URLSearchParams(location.search);
   if (q.get("theme")) { document.documentElement.setAttribute("data-theme", q.get("theme")); }
+  // 開場的門（static/splash.js）預設不出現，才看得到畫面；?splash=1（預覽列的「重播開場」）照樣出現、等你點。
+  // 左上角的 S 也照樣能重播。
+  window.SYNOX_NO_SPLASH = true;
   var D = {"me": {"id": 100001, "username": "小明", "role": "admin", "owner": true, "csrf": "preview"}, "chats": [{"id": "c1", "title": "今天要做的事", "last": "好，兩件都記下來了。"}, {"id": "c2", "title": "記帳", "last": "記了：午餐 120 元"}, {"id": "c3", "title": "週末行程", "last": "（還沒有訊息）"}, {"id": "tools", "title": "🧰 工具頁", "last": "/note_list"}], "events": {"c1": [{"id": 1, "from": "me", "text": "幫我記：買牛奶、繳電費"}, {"id": 2, "from": "bot", "text": "好，兩件都記下來了。\n📝 買牛奶\n📝 繳電費"}, {"id": 3, "from": "me", "text": "把筆記全部刪掉"}, {"id": 4, "from": "note", "text": "AI 想用一個會刪東西的工具，先問你"}, {"id": 5, "from": "bot", "text": "⚠️ 要刪掉全部 2 則筆記嗎？這個沒辦法復原。", "buttons": [[{"text": "✅ 刪掉", "data": "ok"}, {"text": "取消", "data": "no"}]]}], "c2": [{"id": 1, "from": "me", "text": "/money 120 午餐"}, {"id": 2, "from": "bot", "text": "記了：午餐 120 元\n這個月：3,420／預算 12,000"}], "c3": [], "tools": [{"id": 1, "from": "me", "text": "/note_list"}, {"id": 2, "from": "bot", "text": "1. 買牛奶\n2. 繳電費"}]}, "tools": {"packs": [{"id": "note", "name": "notes", "title": "📝 筆記", "version": "0.2.0", "kind": "python", "category": "生活", "summary": "隨手記下想到的事", "description": "使用者想記下一件事、看記過的事、或清掉筆記時使用。", "status": "已連接", "commands": [{"command": "/note", "usage": "", "summary": "記一則筆記", "effect": "write", "path": "note", "default": true, "ai": true, "confirm": false, "fields": [{"name": "text", "label": "內容", "kind": "text", "required": true, "default": ""}], "asks_code": false}, {"command": "/note_list", "usage": "", "summary": "列出全部筆記", "effect": "read", "path": "note_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/note_clear", "usage": "", "summary": "全部刪掉（不能復原）", "effect": "danger", "path": "note_clear", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "money", "name": "money", "title": "💰 記帳", "version": "0.2.0", "kind": "python", "category": "生活", "summary": "記一筆、看這個月花了多少", "description": "使用者提到花了多少錢、想記帳、問這個月花多少時使用。", "status": "已連接", "commands": [{"command": "/money", "usage": "", "summary": "記一筆支出", "effect": "write", "path": "money", "default": true, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "金額", "kind": "number", "required": true, "default": "", "help": "只放數字，例如 120"}, {"name": "category", "label": "類別", "kind": "text", "required": false, "default": "其他", "help": "例如 餐飲、交通"}, {"name": "memo", "label": "備註", "kind": "text", "required": false, "default": ""}], "asks_code": false}, {"command": "/money_month", "usage": "", "summary": "這個月的合計與預算", "effect": "read", "path": "money_month", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/money_budget", "usage": "", "summary": "設每月預算", "effect": "write", "path": "money_budget", "default": false, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "每月預算", "kind": "int", "required": true, "default": ""}], "asks_code": false}]}, {"id": "todoist", "name": "todoist", "title": "✅ Todoist", "version": "0.2.0", "kind": "python", "category": "待辦與行程", "summary": "把待辦送進 Todoist", "description": "", "status": "要先設定", "connect": true, "missing": ["API token"], "commands": [{"command": "/todo", "usage": "", "summary": "新增一個待辦", "effect": "write", "path": "todo", "default": true, "ai": true, "confirm": false, "fields": [{"name": "content", "label": "要做什麼", "kind": "text", "required": true, "default": ""}, {"name": "due", "label": "什麼時候", "kind": "text", "required": false, "default": "", "help": "例如 明天、週五 15:00；不填＝沒有期限"}], "asks_code": false}, {"command": "/todo_list", "usage": "", "summary": "今天的待辦", "effect": "read", "path": "todo_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "gcal", "name": "google-calendar", "title": "📅 Google 日曆", "version": "0.2.0", "kind": "python", "category": "待辦與行程", "summary": "看行程、加行程", "description": "", "status": "已連接", "commands": [{"command": "/gcal_list", "usage": "", "summary": "接下來的行程", "effect": "read", "path": "gcal_list", "default": true, "ai": true, "confirm": false, "fields": [{"name": "days", "label": "看幾天", "kind": "int", "required": false, "default": "7"}], "asks_code": false}, {"command": "/gcal_add", "usage": "", "summary": "加一個行程", "effect": "write", "path": "gcal_add", "default": false, "ai": true, "confirm": true, "fields": [{"name": "title", "label": "標題", "kind": "text", "required": true, "default": ""}, {"name": "when", "label": "時間", "kind": "text", "required": true, "default": "", "help": "例如 11/20 14:00"}], "asks_code": false}, {"command": "/gcal_rm", "usage": "", "summary": "刪掉一個行程", "effect": "danger", "path": "gcal_rm", "default": false, "ai": true, "confirm": false, "fields": [{"name": "number", "label": "編號（/gcal_list 的）", "kind": "int", "required": true, "default": ""}], "asks_code": false}]}, {"id": "hello", "name": "hello", "title": "👋 範例", "version": "0.1.0", "kind": "cli", "category": "", "summary": "算小費、打招呼（synox_sdk 的最小範例）", "description": "", "status": "已連接", "commands": [{"command": "/hello", "usage": "", "summary": "算含小費的總額", "effect": "read", "path": "hello", "default": true, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "帳單金額", "kind": "number", "required": true, "default": ""}, {"name": "percent", "label": "小費幾 %", "kind": "int", "required": false, "default": "10"}, {"name": "round_up", "label": "要不要進位到整數", "kind": "bool", "required": false, "default": "false"}], "asks_code": false}, {"command": "/hello_greet", "usage": "", "summary": "跟某人打招呼", "effect": "read", "path": "hello_greet", "default": false, "ai": true, "confirm": false, "fields": [{"name": "name", "label": "要打招呼的人", "kind": "text", "required": true, "default": ""}, {"name": "style", "label": "語氣", "kind": "choice", "required": false, "default": "casual", "choices": ["casual", "formal"]}], "asks_code": false}]}], "groups": [{"id": "_basics", "title": "🧭 基本", "summary": "開始、說明、結束問答", "category": "系統", "commands": [{"command": "/start", "usage": "", "summary": "開始", "effect": "read", "path": "start", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/help", "usage": "", "summary": "看全部指令", "effect": "read", "path": "help", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "remind", "title": "⏰ 提醒（系統）", "summary": "SYNOX 內建的提醒：每天幾點、或指定哪一天提醒你一件事（不是 Apple 提醒事項）", "category": "系統", "commands": [{"command": "/remind_add", "usage": "<HH:MM> <內容> [date=…]", "summary": "加一個提醒（系統；每天，或 date= 指定那天一次）", "effect": "write", "path": "remind_add", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/remind_list", "usage": "", "summary": "列出提醒（系統）", "effect": "read", "path": "remind_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "schedule", "title": "🗓 排程指令", "summary": "每天幾點自動替你執行一個指令", "category": "系統", "commands": [{"command": "/schedule_list", "usage": "", "summary": "列出排程", "effect": "read", "path": "schedule_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "agent", "title": "🤖 AI", "summary": "", "category": "系統", "commands": [{"command": "/ai_usage", "usage": "", "summary": "這個月用了多少", "effect": "read", "path": "ai_usage", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}], "layout": {"groups": [{"id": "a-15d208d1b4", "title": "生活", "tools": ["note", "money"], "auto": true}, {"id": "a-e31e24dad3", "title": "待辦與行程", "tools": ["todoist", "gcal"], "auto": true}, {"id": "a-607089b311", "title": "未分類", "tools": ["hello"], "auto": true}, {"id": "a-6df543c4a4", "title": "系統", "tools": ["_basics", "remind", "schedule", "agent"], "auto": true}], "custom": false}}, "secrets": {"fields": [{"name": "token", "label": "API token", "required": true, "secret": true, "set": false, "help": "Todoist 網頁 → 設定 → 整合 → 開發者"}]}, "settings": {"owner": true, "accounts": true, "ai_budget": null, "llm": {"kind": "claude_code", "model": "", "base_url": "", "has_key": false}, "llm_choices": [{"label": "Claude Code（用你自己的 Claude 訂閱）", "choice": "claude_code", "models": [{"value": "", "label": "預設（讓 Claude Code 自己選）"}, {"value": "sonnet", "label": "Sonnet（平衡）"}, {"value": "opus", "label": "Opus（最強、較慢）"}, {"value": "haiku", "label": "Haiku（最快、最省）"}]}, {"label": "API 金鑰：OpenAI", "choice": "keys", "provider": "openai", "model": "（照預設）"}, {"label": "API 金鑰：本機或相容的服務", "choice": "keys", "provider": "openai_compat", "needs_url": true}, {"label": "先不用 AI", "choice": "none"}], "packs": [{"name": "notes", "status": "loaded", "version": "0.1.0", "lock": "locked", "removable": false}, {"name": "money", "status": "loaded", "version": "0.2.0", "lock": "locked", "removable": false}, {"name": "todoist", "status": "connector", "version": "0.2.0", "lock": "locked", "removable": false}, {"name": "example-tool", "status": "rejected", "detail": "掃描沒過：用了動態執行程式碼", "version": "1.0.0", "lock": "unlocked", "removable": true}]}, "channels": {"telegram": {"saved": true, "bot": "my_synox_bot", "active": true, "owner_paired": false, "pairable": true, "pair_ready": true, "paired_as": "", "pairing": {"code": "482915", "expires_in": 840}}, "discord": {"saved": true, "bot": "SYNOX test", "active": true, "multi": false, "owner_paired": true, "paired_as": "138765878633601855", "pair_ready": true, "pairing": null, "invite": "https://discord.com/oauth2/authorize?client_id=1&scope=bot&permissions=2048"}}, "accounts": {"roles": ["guest", "member", "admin"], "users": [{"id": 100001, "username": "小明", "role": "admin", "owner": true, "messages_today": 12, "messages_limit": 200, "ai_month_usd": 1.2, "ai_limit_usd": 20}, {"id": 100002, "username": "阿華", "role": "member", "messages_today": 3, "messages_limit": 100, "ai_month_usd": 0.4, "ai_limit_usd": 2}, {"id": 100003, "username": "新朋友", "role": "guest", "pending": true}]}, "library": {"version": "0.2.0", "releases": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases", "overview": "https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL", "tools": [{"name": "notes", "emoji": "📒", "title": "隨手記", "line": "記一筆、找、刪", "summary": "記一筆、找、刪（加密存在這台電腦）", "example": "/note 買牛奶", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不連網", "tone": "ok", "hint": "這個工具不會連到網路，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/NpYbd3FtMAkXmASXc1pJzh", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/notes-0.1.1.synoxpack", "installed": "0.1.0", "newer": true}, {"name": "todo", "emoji": "✅", "title": "待辦", "line": "重要度、專案、到期日、打勾完成", "summary": "加待辦（!! 重要、#專案、明天到期）、看今天／逾期、打勾完成（加密存在這台電腦）", "example": "/todo !! 繳電費 明天", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不連網", "tone": "ok", "hint": "這個工具不會連到網路，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/JuKURoMhZY58fWyR4j3961", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/todo-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "money", "emoji": "💰", "title": "記帳", "line": "支出、收入、轉帳、預算", "summary": "記支出、收入、轉帳，自己的類別與選配範本，預算與單項上限（加密存在這台電腦）", "example": "/money 120 午餐", "version": "0.2.0", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不連網", "tone": "ok", "hint": "這個工具不會連到網路，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/6kA9jSkwVFPPBthsCjmz6d", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/money-0.2.0.synoxpack", "installed": "0.2.0", "newer": false}, {"name": "calendar", "emoji": "📅", "title": "行事曆", "line": "存在這台電腦的行程，可匯出 .ics", "summary": "加行程（明天 14:00 看牙醫）、看今天／這週、匯出 .ics（加密存在這台電腦）", "example": "/cal 明天 14:00 看牙醫", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不連網", "tone": "ok", "hint": "這個工具不會連到網路，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/Fm6dXH5oiua8zPY3U5RYQ5", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/calendar-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "bullet", "emoji": "•", "title": "子彈筆記", "line": "快速記錄、今天、月誌、搬到今天", "summary": "快速記錄（• 任務 ○ 事件 – 筆記）、今天、月誌、把沒做完的搬到今天（加密存在這台電腦）", "example": "/bj • 買牛奶", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不連網", "tone": "ok", "hint": "這個工具不會連到網路，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/BTdPArDtbddRk4ijNqExZ3", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/bullet-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "notion", "emoji": "🗂", "title": "Notion", "line": "搜尋、讀頁面、加一列、改欄位", "summary": "搜尋、讀頁面、加頁面／資料庫一列、改欄位（用你自己的 integration token）", "example": "/notion 會議", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用模擬測過", "tone": "", "hint": "還沒在真的服務上長時間用過：只用模擬的回應測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/B36np3VigMinvyFuyz74dJ", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/notion-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "todoist", "emoji": "✅", "title": "Todoist", "line": "看、加、完成、改期 Todoist 的待辦", "summary": "看 Todoist 的待辦（今天、逾期、專案、標籤）、加待辦、打勾完成、改期", "example": "/todoist !! 繳電費 明天", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用模擬測過", "tone": "", "hint": "還沒在真的服務上長時間用過：只用模擬的回應測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/D3zgGcZ9h1LRrDLu2QD5Mw", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/todoist-0.1.1.synoxpack", "installed": "0.2.0", "newer": false}, {"name": "google-calendar", "emoji": "📅", "title": "Google 日曆", "line": "看今天／這週、加行程、刪行程", "summary": "看今天／這週、加行程、刪行程（直接連你的 Google 日曆）", "example": "/gcal 明天 14:00 看牙醫", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用模擬測過", "tone": "", "hint": "還沒在真的服務上長時間用過：只用模擬的回應測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/NyhRhPrRL1n9NMMbMEv3mx", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/google-calendar-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "apple-reminders", "emoji": "🍎", "title": "Apple 提醒事項", "line": "CalDAV 提醒事項（升級過的 iCloud 讀不到）", "summary": "看、加、完成提醒事項（CalDAV；iCloud 升級過的提醒事項 Apple 不開放，見說明）", "example": "/applerem_add 買牛奶", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用模擬測過", "tone": "", "hint": "還沒在真的服務上長時間用過：只用模擬的回應測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/Jm4tdCTZdaQ1mc1waTatYp", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/apple-reminders-0.1.1.synoxpack", "installed": "", "newer": false}]}, "runtime": {"heartbeat": {"enabled": true, "interval_min": 45, "last_run_min": -12, "next_run_min": 33, "last_result": {"ok": true, "message": "看過一輪：任務都正常，沒有要提醒你的事。"}}, "mother": {"state": "idle", "last_active_min": -3, "soul_updated_min": -1560}, "tasks": [{"id": "morning-digest", "name": "早上的摘要", "owner": "SYNOX", "schedule": "每天 08:00", "state": "ok", "last_run_min": -300, "last_message": "送出了：今天 2 個行程、1 個待辦"}, {"id": "budget-watch", "name": "預算檢查", "owner": "example-budget", "schedule": "每 6 小時", "state": "failed", "last_run_min": -40, "last_message": "讀不到這個月的資料，下一輪會再試"}, {"id": "calendar-sync", "name": "行事曆同步", "owner": "example-calendar", "schedule": "每 30 分鐘", "state": "running", "last_run_min": -1, "last_message": "同步中…"}, {"id": "weekly-review", "name": "每週回顧", "owner": "example-notes", "schedule": "每週日 21:00", "state": "idle", "last_run_min": null, "last_message": ""}]}, "report": {"full": true, "summary": "【SYNOX 回報摘要】（SYNOX 自動整理：token、金鑰、對話內容、有使用者名稱的路徑都拿掉了）\nSYNOX 版本：0.2.0\n作業系統：Windows 11（10.0.22631）\nPython：3.11.9\n用法：個人版\nAI：claude_code\n聊天通道：Telegram、網頁\n裝了的工具（4 個）：notes 0.1.0、money 0.2.0、todoist 0.2.0、example-tool 1.0.0（rejected）\n最近的錯誤或警告（最多 15 行）：\n  11-13 09:12:40 WARNING [TG] getUpdates 逾時，5 秒後重試（重複 3 次）\n  11-13 09:20:03 ERROR [WEB] POST /api/settings/llm/test failed（TimeoutError，claude_code.py:212）\n  11-13 09:21:17 WARNING [PACK] example-tool 沒有載入：%USERPROFILE%\\SYNOX\\packs\\example-tool 掃描沒過", "member": "【SYNOX 回報摘要】（成員版：只有版本。這台 SYNOX 的設定、工具和錯誤紀錄只有擁有者看得到）\nSYNOX 版本：0.2.0\n用法：伺服器版（我不是擁有者）", "issue": {"url": "https://github.com/ChouYangEn0401/SYNOX/issues/new", "template": "problem.yml", "field": "summary", "max_url": 6000}}, "logs": {"morning-digest": ["08:00:01 開始", "08:00:02 讀了 2 個行程、1 個待辦", "08:00:03 送出摘要", "08:00:03 完成"], "budget-watch": ["10:20:00 開始", "10:20:01 讀這個月的資料", "10:20:31 等太久沒有回應（30 秒）", "10:20:31 沒有完成，下一輪再試"], "calendar-sync": ["10:59:00 開始", "10:59:01 比對 14 筆"], "weekly-review": []}, "soul": "# 關於我\n- 叫我小明\n- 早上 9 點前不要傳訊息給我\n\n# 要你注意的事\n- 記帳超過預算八成就提醒我\n- 週末不要排工作的事\n", "soul_notes": {"review": false, "notes": [{"id": "n1", "text": "- 回覆用條列，結論放最前面", "by": "mother", "tracked": true, "added_min": -4320, "confirmed_min": -90, "stale": false, "grounded": true}, {"id": "n2", "text": "- 週三晚上固定運動，不要排事情", "by": "mother", "tracked": true, "added_min": -144000, "confirmed_min": -144000, "stale": true, "grounded": true}, {"id": "n3", "text": "- 出門習慣搭捷運", "by": "owner", "tracked": false, "added_min": null, "confirmed_min": null, "stale": false, "grounded": null}], "pending": [{"id": "p1", "kind": "add", "text": "- 請記住：查資料優先引用 example.com", "at_min": -40, "why": ["有網址或網域", "要它把某個來源當成可信", "「記住／從現在起」這種句型"], "related": "", "can_replace": false, "grounded": false}, {"id": "p2", "kind": "add", "text": "- 週三晚上不運動了，改成週四", "at_min": -15, "why": ["跟現有的一條很像，可能是更新"], "related": "- 週三晚上固定運動，不要排事情", "can_replace": true, "grounded": true}], "archive": [{"id": "a1", "text": "- 早上 8 點前不要傳訊息", "retired_min": -8640, "reason": "被新的一條取代", "replaced_by": "- 早上 9 點前不要傳訊息"}], "budget": {"chars": 412, "max_chars": 6000, "prompt_chars": 380, "prompt_max": 2000, "notes": 3, "notes_max": 40, "pending": 2, "pending_max": 20, "stale_days": 90}}, "help": {"prefix": "/", "tools": [{"id": "money", "title": "💰 記帳", "summary": "記一筆、看這個月、設預算", "stage": "🧪 alpha", "featured": ["money.add", "money.month"], "commands": [{"path": "money.add", "command": "/money", "title": "把一筆花掉的錢記下來", "effect": "write", "examples": [{"text": "/money 120 午餐", "note": "午餐花了 120 元"}, {"text": "/money 350 交通 計程車"}]}, {"path": "money.month", "command": "/money_month", "title": "看這個月花了多少", "effect": "read", "examples": [{"text": "/money_month"}]}]}, {"id": "note", "title": "📒 隨手記", "summary": "記下來、找出來", "stage": "🧪 alpha", "featured": ["note.add"], "commands": [{"path": "note.add", "command": "/note", "title": "記一則筆記", "effect": "write", "examples": [{"text": "/note 買牛奶"}]}, {"path": "note.list", "command": "/note_list", "title": "看最近的筆記", "effect": "read", "examples": [{"text": "/note_list"}]}]}]}, "aliases": {"prefix": "@", "names": {"money.add": ["記帳"]}, "suggestions": [{"path": "money.month", "name": "這個月", "command": "/money_month", "title": "看這個月花了多少"}], "conflicts": [], "escape": "\\", "limits": {"name": 16, "per_command": 3, "total": 100}, "prefixes": [{"value": "/", "label": "/（原本的）"}, {"value": "$", "label": "$"}, {"value": "!", "label": "!"}, {"value": ".", "label": "."}, {"value": "~", "label": "~"}, {"value": ";", "label": ";"}, {"value": ",", "label": ","}, {"value": "@", "label": "@"}, {"value": "+", "label": "+"}, {"value": "", "label": "不用符號（進階）"}], "warnings": {"@": "在群組或頻道裡，@ 常被當成「提到某個人」。私訊與 SYNOX 網頁沒問題；在群組裡比較穩的是 /。", "": "不用符號：只要訊息的第一個詞剛好是你取的名字或原本的指令名，就會被當成指令。"}, "targets": [{"path": "money.add", "command": "/money", "title": "把一筆花掉的錢記下來", "tool": "💰 記帳"}, {"path": "money.month", "command": "/money_month", "title": "看這個月花了多少", "tool": "💰 記帳"}, {"path": "note.add", "command": "/note", "title": "記一則筆記", "tool": "📒 隨手記"}]}, "appearance": {"themes": [], "theme": "", "mode": "auto", "custom": {}, "inherited": [], "owner": true, "server": false, "scope": "install", "contract": 1, "tokens": ["bg", "surface", "text", "muted", "line", "accent", "accent-ink", "accent2", "soft", "ok", "warn", "bad", "radius", "font-ui", "font-brand"], "slots": [{"name": "mascot.idle", "text": "吉祥物（平常）：側欄與登入卡左上角的標誌、空白對話的插圖；預設是「S」方塊", "kinds": ["svg", "html"]}, {"name": "mascot.think", "text": "吉祥物（在想）：等 AI 回覆時那顆會晃的小方塊；預設是藍色方塊", "kinds": ["svg", "html"]}, {"name": "mascot.happy", "text": "吉祥物（開心）：裝好、套用成功的時候；預設是笑臉的 S 寶寶", "kinds": ["svg", "html"]}, {"name": "mascot.warn", "text": "吉祥物（注意）：安裝被拒、出問題的時候；預設是擔心的 S 寶寶", "kinds": ["svg", "html"]}, {"name": "opening", "text": "開場動畫：打開網頁時播的那一段（SVG＋CSS 動畫；時間 SYNOX 管，約 1.7 秒）；預設是 S 寶寶掉下來", "kinds": ["svg", "html"]}, {"name": "wordmark", "text": "字標：側欄的「SYNOX」字樣（開場的字也跟著換）；預設是文字 SYNOX", "kinds": ["svg", "html"]}, {"name": "appicon", "text": "分頁圖示（favicon）：只收 SVG；預設是瀏覽器的預設圖示", "kinds": ["svg"]}]}};
   var loggedOut = q.get("login") === "1";
   if (q.get("member") === "1") {
@@ -1385,22 +1394,23 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
      說明與時間表：docs/ui/motion-notes.md。手法取自 ISDPCS（web/style.css 的 wc-rise／wc-pop／wc-shine、
      fireworks.js 的粒子、breathe、tb-pulse），改成 SYNOX 的 token。
      規則：顏色只用 app.html 最上面的 token（var(--…)，不寫死）；只動 transform／opacity（不動版面）；
-     系統開了「減少動態效果」→ 開場不播、這裡的動畫全部關掉（最下面）。 */
+     系統開了「減少動態效果」→ 開場的門停在最後一格（.sx-still）、這裡的動畫全部關掉（最下面）。 */
   :root {
     --sx-pop: cubic-bezier(.2, 1.5, .4, 1);      /* 彈一下（ISDPCS wc-pop） */
     --sx-rise: cubic-bezier(.2, .8, .2, 1);      /* 浮上來（ISDPCS wc-rise） */
     --sx-fly: cubic-bezier(.16, .75, .3, 1);     /* 粒子飛出去（ISDPCS fw-fly） */
   }
 
-  /* ── 開場（約 1.7 秒；點一下或按任意鍵略過）──────────────────────────────
+  /* ── 開場的時間表（介紹頁 docs/landing/page.html 也拿這一段去用，到「開場時：」為止）──────────
+     網頁介面：播到 1.3 秒的最後一格就停住、等你點（下面的 .sx-gate 蓋掉這裡的自動淡出）。
      0      背景與光暈出現
      0–.55  S 寶寶從上面掉下來、落地壓扁再彈回（squash & stretch）
      .12–.9 身邊噴出 8 顆小光點（主色、副色、琥珀、綠、粉）
      .2–.65 眨一次眼、臉紅；.38 冒出「嗨！」
      .72–1.2 翻面變成 S 標誌，掃過一道光
      .62–1.1 SYNOX 五個字母一個一個跳上來；下面三個點在跳
-     1.25–1.67 整片淡出，同時側欄滑進來、內容往上浮（html.sx-hold 拿掉）
-     沒有 JS 也收得掉：.sx-splash 自己的淡出動畫最後是 visibility: hidden。 */
+     1.25–1.67 （沒有 .sx-gate 時）整片淡出，同時側欄滑進來、內容往上浮（html.sx-hold 拿掉）
+     沒有 .sx-gate 也收得掉：.sx-splash 自己的淡出動畫最後是 visibility: hidden。 */
   .sx-splash { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; cursor: pointer;
                overflow: hidden; -webkit-tap-highlight-color: transparent;
                background: radial-gradient(560px 420px at 50% 44%, var(--bg-glow) 0%, var(--bg) 72%), var(--bg);
@@ -1523,6 +1533,42 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   html.sx-hold .side, html.sx-hold main > section, html.sx-hold .login { animation-play-state: paused; }
   @keyframes sx-side-in { from { opacity: 0; transform: translateX(-18px); } }
 
+  /* ── 網頁介面的門（splash.js 的 .sx-gate）：上面的時間表播到最後一格就停住，等你點 ─────────────
+     介紹頁（docs/landing/page.html）只取到上面「開場時：」為止，這一段是網頁介面自己的。
+     1.3s 起  S 輕輕浮著、外面一圈光往外擴，下面出現「點一下打開 SYNOX」
+     點一下   .sx-leave：整片放大淡出（.45s），後面的 SYNOX 同時浮上來（html.sx-hold 拿掉）
+     .sx-still（減少動態效果）：不播動畫，直接是最後一格（S 標誌＋SYNOX＋提示），一樣等你點 */
+  .sx-splash.sx-gate { animation: none; }
+  .sx-gate .sx-stage { animation: none; gap: 20px; }
+  .sx-gate .sx-enter { position: relative; display: block; min-height: 0; margin: 0; padding: 0; border: 0;
+                       border-radius: 30px; background: none; box-shadow: none; color: inherit; font: inherit;
+                       cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .sx-gate .sx-enter:focus { outline: none; }
+  .sx-gate .sx-enter:focus-visible { outline: 2px solid var(--accent); outline-offset: 10px; }
+  /* 停住之後：外面一圈光一直往外擴（像在說「按我」），S 輕輕上下浮 */
+  .sx-gate .sx-enter::after { content: ""; position: absolute; inset: -10px; border-radius: 38px; pointer-events: none;
+                              border: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); opacity: 0;
+                              animation: sx-ring 1.8s ease-out 1.35s infinite; }
+  .sx-gate .sx-enter-theme::after { border-radius: 26px; }
+  @keyframes sx-ring { 0% { transform: scale(.94); opacity: .9; } 100% { transform: scale(1.16); opacity: 0; } }
+  .sx-gate .sx-mascot, .sx-gate .sx-open { animation: sx-drop .6s var(--ease) both, sx-wait 2.6s ease-in-out 1.4s infinite; }
+  @keyframes sx-wait { 0%, 100% { transform: none; } 50% { transform: translateY(-5px); } }
+  .sx-gate .sx-hint { position: static; margin: 4px 0 0; padding: 7px 16px; border-radius: 999px;
+                      font: 650 14.5px/1.3 var(--font); color: var(--text); background: var(--surface);
+                      border: 1px solid var(--line); box-shadow: var(--shadow-md);
+                      animation: sx-hint-in .4s var(--sx-rise) 1.2s forwards; }
+  .sx-gate .sx-key { margin-left: 8px; font-weight: 500; font-size: 12.5px; color: var(--muted); }
+  @keyframes sx-hint-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+  /* 點了：整片淡掉、中間往前放大（像穿過去進到 SYNOX）；淡出的時候就不再吃滑鼠 */
+  .sx-splash.sx-gate.sx-leave { animation: sx-out .45s var(--ease) forwards; pointer-events: none; }
+  .sx-gate.sx-leave .sx-stage { animation: sx-gate-zoom .45s var(--ease) forwards; }
+  @keyframes sx-gate-zoom { to { transform: scale(1.35); opacity: 0; } }
+  /* 減少動態效果：最後一格（S 標誌朝前、SYNOX 站好、提示亮著），什麼都不動 */
+  .sx-gate.sx-still *, .sx-gate.sx-still *::before, .sx-gate.sx-still *::after { animation: none !important; transition: none !important; }
+  .sx-gate.sx-still .sx-flip { transform: rotateY(180deg); }
+  .sx-gate.sx-still .sx-hi, .sx-gate.sx-still .sx-sparks, .sx-gate.sx-still .sx-enter::after { display: none; }
+  .sx-gate.sx-still .sx-hint { opacity: 1; }
+
   /* ── 頁面切換：區塊從隱藏變顯示時（.hidden 拿掉），動畫自己會重播 ─────────── */
   main > section { animation: sx-view-in .34s var(--sx-rise) backwards; }
   @keyframes sx-view-in { from { opacity: 0; transform: translateY(10px); } }
@@ -1603,9 +1649,9 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     .sx-hi { left: 74px; }
   }
 
-  /* 系統開了「減少動態效果」：開場不播（splash.js 也不產生）、背景不動、按鈕不跳。app.html 的全域規則也會關掉其他動畫。 */
+  /* 系統開了「減少動態效果」：開場不播動畫（門照樣出現，停在最後一格等你點）、背景不動、按鈕不跳。app.html 的全域規則也會關掉其他動畫。 */
   @media (prefers-reduced-motion: reduce) {
-    .sx-splash { display: none !important; }
+    .sx-splash.sx-gate { display: grid !important; }     /* 門照樣出現（splash.js 加上 .sx-still＝不動的最後一格） */
     body::before, body::after, main > section, .side, .login, .login .mark, .live::after, .nav a.active svg,
     #view-settings .page > .card, .ctl-body > .card, #stream > .msg, #toast { animation: none !important; }
     button, button:hover, button:active, .nav a:hover svg { transform: none !important; transition: none !important; }
@@ -1613,45 +1659,54 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
 </style>
 </head>
 <body data-view="login">
-<script nonce="preview">/* 開場動畫（樣式在 static/splash.css；說明與時間表：docs/ui/motion-notes.md）。
+<script nonce="preview">/* 開場動畫＋「點一下打開 SYNOX」的門（樣式在 static/splash.css；說明與時間表：docs/ui/motion-notes.md）。
  *
  * 這是一個可拆卸的零件（照 ISDPCS fireworks.js 的做法）：只碰畫面，不讀資料、不打 API、不知道誰登入了。
- * 要拿掉 → 刪 app.html 裡 splash.js、splash.css 那兩行 include。壞掉也不會擋住登入或對話：
- * 整段包在 try 裡、最晚 SAFETY 毫秒一定收掉；沒有 JS 時 .sx-splash 自己的 CSS 淡出也會讓它消失。
+ * 要拿掉 → 刪 app.html 裡 splash.js、splash.css 那兩行 include（左上角 S 的 data-splash-replay 就只是一個沒反應的按鈕）。
+ * 壞掉也不會擋住登入或對話：畫面做不出來（build 出錯）就直接放行；門一定有一顆看得到、按得到的按鈕，
+ * 點畫面任何地方、按 Enter／空白鍵／Esc 都會進去。
+ *
+ * 流程（跟介紹頁 docs/landing/page.html 的 SynoxGate 同一個想法：開場播完不會自己消失，等你點）：
+ *   1. 每次打開網頁：S 寶寶掉下來、眨眼、說「嗨！」、翻成 S、SYNOX 跳出來（約 1.3 秒，splash.css 的時間表）
+ *   2. 停在最後一格：S 輕輕浮著、外面一圈光一直往外擴，下面寫「點一下打開 SYNOX」
+ *   3. 點一下（或 Enter／空白鍵）：整片放大、淡掉，後面的 SYNOX 浮上來（LEAVE 毫秒）；動畫還沒播完就點也可以
+ *   系統開了「減少動態效果」→ 不播動畫，直接顯示最後一格＋提示，一樣等你點，點了馬上進去。
+ *   左上角的 S（[data-splash-replay]）→ 再開一次同樣的門。
+ *   新手教學的邀請（static/tour.js）等門關了才出現：document 上的 "synox:splash-done" 事件、SynoxSplash.isOpen()。
  *
  * 外觀（docs/themes.md）：外觀包或「自己貼」換了 slot opening → S 寶寶跟 SYNOX 字換成那一段（static/slots.js 給的，
- * 伺服器消毒過）；只換了 wordmark → SYNOX 那五個字換成字標。時間表照舊由這裡管（OUT_AT、TOTAL、SAFETY）。
+ * 伺服器消毒過），門的按鈕就是那一段；只換了 wordmark → SYNOX 那五個字換成字標。
  *
- * 什麼時候播（decide）：
- *   - 系統開了「減少動態效果」→ 永遠不播
- *   - 網址有 ?splash=0 → 不播；?splash=1 → 重播（預覽的「重播開場」）
- *   - localStorage 的 synox.splash 是 "off" → 不播（使用者自己關掉）
- *   - 其他：同一個分頁的工作階段（sessionStorage）只播第一次；登入前後、重新整理都不會再播
+ * 什麼時候出現（decide）：
+ *   - 網址有 ?splash=0 → 不出現；?splash=1 → 出現（就算下面兩條說不要）
+ *   - localStorage 的 synox.splash 是 "off" → 不出現（使用者自己關掉；自動化測試也可以先寫好這個）
+ *   - window.SYNOX_NO_SPLASH === true → 不出現（給自動化測試、設計預覽在頁面載入前先設好）
+ *   - 其他：每次打開（含重新整理、登入後回到首頁）都出現
  */
 (function (root) {
   "use strict";
-  var SEEN = "synox.splash.seen";      // sessionStorage：這個分頁播過了
   var OFF = "synox.splash";            // localStorage："off"＝不要開場
-  var OUT_AT = 1250;                   // 開始淡出（跟 splash.css 的 1.25s 對齊）
-  var TOTAL = 1700;                    // 淡出結束、拿掉
-  var SAFETY = 2600;                   // 不管發生什麼，這時候一定收掉
+  var DONE = "synox:splash-done";      // 門關了：document 上的事件
+  var READY_AT = 1300;                 // 開場播完、停在最後一格（跟 splash.css 的 1.3s 對齊；只給文件與測試用）
+  var LEAVE = 480;                     // 點了之後：放大淡出到拿掉（跟 splash.css 的 .45s 對齊）
+  var current = null;                  // 現在開著的門（同時只會有一個）
 
-  function decide(search, seen, off, calm) {
+  function decide(search, off, skip) {
     var m = /[?&]splash=([01])(?:&|#|$)/.exec(search || "");
-    if (calm) { return false; }
     if (m) { return m[1] === "1"; }
-    if (off === "off") { return false; }
-    return seen !== "1";
+    if (skip === true) { return false; }
+    return off !== "off";
   }
 
   function read(kind, key) {
     try { var s = root[kind]; return s ? s.getItem(key) : null; } catch (e) { return null; }
   }
-  function write(kind, key, value) {
-    try { var s = root[kind]; if (s) { s.setItem(key, value); } } catch (e) { /* 私密視窗、file:// 之類：播就好，不記 */ }
-  }
   function calm() {
     try { return !!(root.matchMedia && root.matchMedia("(prefers-reduced-motion: reduce)").matches); }
+    catch (e) { return false; }
+  }
+  function coarse() {
+    try { return !!(root.matchMedia && root.matchMedia("(pointer: coarse)").matches); }
     catch (e) { return false; }
   }
 
@@ -1690,17 +1745,25 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     } catch (e) { return true; }
   }
 
-  // 畫面：全部用 createElement＋textContent（不拼 HTML 字串、不寫 inline 樣式）
-  function build(doc) {
-    var splash = el(doc, "div", "sx-splash");
-    splash.setAttribute("aria-hidden", "true");          // 純裝飾；按任何鍵或點一下就略過
+  // 畫面：全部用 createElement＋textContent（不拼 HTML 字串、不寫 inline 樣式）。
+  // 門＝role="dialog" 的整片；中間的 S 寶寶（或外觀的開場）是一顆真的 <button>，Tab 不會跑到後面去。
+  function build(doc, touch) {
+    var splash = el(doc, "div", "sx-splash sx-gate");
+    splash.setAttribute("role", "dialog");
+    splash.setAttribute("aria-modal", "true");
+    splash.setAttribute("aria-label", "SYNOX 開場");
     var stage = el(doc, "div", "sx-stage");
     stage.appendChild(el(doc, "div", "sx-halo"));
+    var enter = el(doc, "button", "sx-enter");
+    enter.setAttribute("type", "button");
+    enter.setAttribute("aria-label", "點一下打開 SYNOX");
+    stage.appendChild(enter);
     var opening = themed(doc, "opening");
-    if (opening) {                                       // 外觀包的開場：整段換掉，只留光暈、三個點、略過的說明
-      stage.appendChild(opening);
+    if (opening) {                                       // 外觀包的開場：整段換掉，只留光暈、門的按鈕、提示
+      enter.classList.add("sx-enter-theme");
+      enter.appendChild(opening);
       if (opening.classList.contains("sx-open-fit")) { stage.classList.add("sx-stage-fit"); }
-      return finishBuild(doc, splash, stage);
+      return finishBuild(doc, splash, stage, enter, touch);
     }
     var mascot = el(doc, "div", "sx-mascot");
     var flip = el(doc, "div", "sx-flip");
@@ -1717,68 +1780,102 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     sparks.appendChild(el(doc, "i", "sx-spark star", "✦"));
     mascot.appendChild(sparks);
     mascot.appendChild(el(doc, "div", "sx-hi", "嗨！"));
-    stage.appendChild(mascot);
+    enter.appendChild(mascot);
     var word = el(doc, "div", "sx-word");
+    word.setAttribute("aria-hidden", "true");
     var mark = themed(doc, "wordmark");
     if (mark) { word.appendChild(mark); }
     else { "SYNOX".split("").forEach(function (ch) { word.appendChild(el(doc, "span", "", ch)); }); }
     stage.appendChild(word);
-    return finishBuild(doc, splash, stage);
+    return finishBuild(doc, splash, stage, enter, touch);
   }
 
-  function finishBuild(doc, splash, stage) {
-    var dots = el(doc, "div", "sx-dots");
-    for (var j = 0; j < 3; j++) { dots.appendChild(el(doc, "i")); }
-    stage.appendChild(dots);
+  function finishBuild(doc, splash, stage, enter, touch) {
+    var hint = el(doc, "p", "sx-hint", "點一下打開 SYNOX");
+    if (!touch) { hint.appendChild(el(doc, "span", "sx-key", "或按 Enter")); }
+    stage.appendChild(hint);
     splash.appendChild(stage);
-    splash.appendChild(el(doc, "p", "sx-hint", "點一下或按任意鍵略過"));
+    splash.sxEnter = enter;
     return splash;
   }
 
-  function play(doc) {
+  function signal(doc) {
+    try {
+      var Ev = root.CustomEvent || (typeof CustomEvent === "function" ? CustomEvent : null);
+      if (typeof Ev === "function" && doc.dispatchEvent) { doc.dispatchEvent(new Ev(DONE)); }
+    } catch (e) { /* 舊瀏覽器：教學會自己再等一下 */ }
+  }
+
+  // 打開門。quiet＝減少動態效果（點了直接拿掉，不播放大淡出）；touch＝觸控螢幕（提示不寫「或按 Enter」、不搶焦點）
+  function open(doc, quiet, touch) {
+    if (current) { return current; }
     var html = doc.documentElement;
-    var splash = null, released = false, done = false;
-    function release() {                     // 後面的內容開始進場
-      if (released) { return; }
-      released = true;
-      html.classList.remove("sx-hold");
-    }
+    var back = doc.activeElement || null;            // 門關了把焦點還回去（例如左上角的 S）
+    var splash = null, leaving = false, done = false;
+    var gate = { enter: enter, isOpen: function () { return !done; } };
+    current = gate;
     function finish() {
       if (done) { return; }
       done = true;
-      release();
-      doc.removeEventListener("keydown", skip, true);
+      if (current === gate) { current = null; }
+      html.classList.remove("sx-hold");
+      doc.removeEventListener("keydown", onKey, true);
       if (splash && splash.parentNode) { splash.parentNode.removeChild(splash); }
       setTimeout(function () { html.classList.remove("sx-intro"); }, 800);
+      try { if (back && back.focus && back !== doc.body) { back.focus({ preventScroll: true }); } } catch (e) { /* 不重要 */ }
+      signal(doc);
     }
-    function skip() {
-      if (done || !splash) { return; }
-      splash.classList.add("sx-skip");
-      release();
-      setTimeout(finish, 220);
+    function enter() {                               // 點了：後面的內容開始浮上來，門放大淡出
+      if (leaving || done) { return; }
+      leaving = true;
+      html.classList.remove("sx-hold");
+      if (quiet || !splash) { finish(); return; }
+      splash.classList.add("sx-leave");
+      setTimeout(finish, LEAVE);
     }
-    setTimeout(finish, SAFETY);       // 先排好保險，下面就算出錯也收得掉
+    function onKey(e) {
+      var k = e && e.key;
+      if (k === "Enter" || k === " " || k === "Spacebar" || k === "Escape" || k === "Esc") {
+        if (e.preventDefault) { e.preventDefault(); }
+        enter();
+      } else if (k === "Tab") {                      // 門開著的時候焦點只停在門的按鈕上
+        if (e.preventDefault) { e.preventDefault(); }
+        try { splash.sxEnter.focus({ preventScroll: true }); } catch (err) { /* 不重要 */ }
+      }
+    }
     try {
       html.classList.add("sx-intro", "sx-hold");
-      splash = build(doc);
-      splash.addEventListener("click", skip);
-      doc.addEventListener("keydown", skip, true);
+      splash = build(doc, touch);
+      if (quiet) { splash.classList.add("sx-still"); }
+      splash.addEventListener("click", enter);
+      doc.addEventListener("keydown", onKey, true);
       (doc.body || html).appendChild(splash);
-      setTimeout(release, OUT_AT);
-      setTimeout(finish, TOTAL);
+      if (!touch) { try { splash.sxEnter.focus({ preventScroll: true }); } catch (e) { /* 不重要 */ } }
     } catch (e) {
-      finish();
+      finish();                                      // 畫不出來：直接放行，不能讓人卡在門口
     }
+    return gate;
   }
+
+  function isOpen() { return !!(current && current.isOpen()); }
 
   function start() {
+    var d = root.document;
+    // 左上角的 S（app.html 的 [data-splash-replay]）：再看一次開場。用事件委派：這支跑的時候按鈕還沒長出來
+    d.addEventListener("click", function (e) {
+      var t = e.target;
+      var btn = t && t.closest ? t.closest("[data-splash-replay]") : null;
+      if (!btn || isOpen()) { return; }
+      e.preventDefault();
+      open(d, calm(), coarse());
+    });
     var search = root.location ? root.location.search : "";
-    if (!decide(search, read("sessionStorage", SEEN), read("localStorage", OFF), calm())) { return; }
-    write("sessionStorage", SEEN, "1");
-    play(root.document);
+    if (!decide(search, read("localStorage", OFF), root.SYNOX_NO_SPLASH)) { return; }
+    open(d, calm(), coarse());
   }
 
-  var api = { decide: decide, build: build, play: play, ratio: ratio, SEEN: SEEN, OFF: OFF, OUT_AT: OUT_AT, TOTAL: TOTAL, SAFETY: SAFETY };
+  var api = { decide: decide, build: build, open: open, isOpen: isOpen, ratio: ratio,
+              OFF: OFF, DONE: DONE, READY_AT: READY_AT, LEAVE: LEAVE };
   if (typeof module === "object" && module && module.exports) { module.exports = api; }
   else { root.SynoxSplash = api; start(); }
 })(typeof window !== "undefined" ? window : this);
@@ -1786,7 +1883,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
 <div class="shell">
 <aside class="side">
   <div class="brand-row">
-    <div class="brand"><span class="mark" aria-hidden="true"><span class="slot theme-slot-mascot-idle" data-slot="mascot.idle">S</span></span><span class="name"><span class="slot theme-slot-wordmark" data-slot="wordmark">SYNOX</span></span></div>
+    <div class="brand"><button id="brand-mark" class="mark" type="button" data-splash-replay title="再看一次開場" aria-label="再看一次開場"><span class="slot theme-slot-mascot-idle" data-slot="mascot.idle" aria-hidden="true">S</span></button><span class="name"><span class="slot theme-slot-wordmark" data-slot="wordmark">SYNOX</span></span></div>
     <button id="logout" class="ghost sm hidden" type="button" title="登出">
       <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg>
       <span>登出</span>
@@ -5280,7 +5377,15 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   function removeOffer() { remove(ui.offer); ui.offer = null; }
   function offer(tries) {
     if (!data || !data.offer || cur || ui.offer) { return; }
-    if (document.querySelector(".sx-splash") && (tries || 0) < 12) {     // 開場動畫還在：等它收掉再問（不要疊在一起）
+    var gate = root.SynoxSplash;
+    if (gate && gate.isOpen && gate.isOpen()) {         // 開場的門還開著（static/splash.js）：等使用者點進來再問（不要疊在一起）
+      document.addEventListener(gate.DONE, function again() {
+        document.removeEventListener(gate.DONE, again);
+        offer(tries);
+      });
+      return;
+    }
+    if (document.querySelector(".sx-splash") && (tries || 0) < 12) {     // 門正在淡出：等它收掉
       setTimeout(function () { offer((tries || 0) + 1); }, 400);
       return;
     }
