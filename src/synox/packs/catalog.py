@@ -390,3 +390,36 @@ def wardrobe_info(lib: Library) -> dict:
     """衣櫃的標題與一句話（清單的 collections.wardrobe；沒有就用內建的字）。"""
     info = lib.collections.get("wardrobe") or {}
     return {"title": info.get("title") or WARDROBE_TITLE, "summary": info.get("summary") or ""}
+
+
+# ── 有新版的工具（「全部更新」、`synox tools check／update`、每週檢查）───────────────
+
+def updates(lib: Library, installed: Dict[str, str]) -> List[dict]:
+    """裝著、而且清單上的版本比較新的：工具和外觀包（kind=theme）都算。照名字排。
+    每一筆：name、title、kind（"theme"＝外觀包，"tool"＝工具）、installed（裝著的）、version（清單上的）。"""
+    out = []
+    for tool in lib.tools:
+        have = installed.get(tool.name, "")
+        if _newer(tool.version, have):
+            _emoji, title = _split_title(tool.title)
+            static = TOOLS.get(tool.name)
+            out.append({"name": tool.name, "title": title or (static[1] if static else tool.name),
+                        "kind": "theme" if tool.is_theme else "tool", "installed": have, "version": tool.version})
+    return sorted(out, key=lambda u: u["name"])
+
+
+def stage_tool(tool: Tool, data_dir: str, opener: Optional[Opener] = None) -> Tuple[str, dict]:
+    """下載一個工具（大小、sha256 對清單）→ admin.stage（安全管線第 1、2 關，跟上傳同一條路）→ (token, 摘要)。
+    壓縮檔裡的名字／版本／種類跟清單不一樣＝丟掉暫存、丟 CatalogError。**不裝**：裝要人看過報告再核准。
+    admin.GateRefused（檢查沒過，摘要裡有報告）、admin.PackAdminError 照原樣往外丟。"""
+    from synox.packs.admin import PackAdminError, discard_staged, stage
+    blob = download(tool, opener=opener)
+    token, summary = stage(blob, data_dir)
+    if summary.get("name") != tool.name or summary.get("version") != tool.version or \
+            (summary.get("kind") == "theme") != tool.is_theme:
+        try:
+            discard_staged(token, data_dir)
+        except PackAdminError:
+            pass
+        raise CatalogError(TEXT["not_listed"])
+    return token, summary

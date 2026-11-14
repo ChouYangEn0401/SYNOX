@@ -15,6 +15,13 @@ Update.bat 的前半段（docs/adr/0023 §2、決定 U4、U5）：下載新版�
 6. 解到 `data/update/<版本>/stage/`：只收 `SYNOX/` 底下的檔；拒絕絕對路徑、`..`、磁碟代號、連結；
    `config.json`、`data/`、`packs/`… （KEEP）就算在 ZIP 裡也不解；解完 `src/synox/__init__.py` 的版本要等於這一版。
 7. 寫 `data/update/ready.json`（update.ps1 讀）：版本、暫存資料夾、要不要重裝套件（requirements／pyproject 的相依變了）。
+
+**先測更新（還沒有真的發佈時；docs/release-playbook.md「先測更新」）**：
+- `prepare_from_zip`（`synox update --prepare --from-zip <ZIP>`、`Update.bat -FromZip <ZIP>`）：用這台電腦上的 ZIP，
+  不連網。旁邊有 `SHA256SUMS.txt` 就一定要對得上（有檔但沒有這個 ZIP 的那一行＝拒絕）；旁邊有 `release.json`＋`.sig`
+  而且有公鑰（含測試公鑰 SYNOX_UPDATE_TEST_PUBKEY）就一定要驗得過；沒有簽章＝一樣要明確 `--allow-unsigned`。
+  版本從 ZIP 裡的 `src/synox/__init__.py` 讀，一樣要比裝著的新；之後的換檔、留 `_previous/`、出事退回都跟正式更新同一條。
+- 測試模式（環境變數 SYNOX_UPDATE_API，check.py）：`prepare` 照正式的流程跑，只是「問哪裡」和附檔都是本機的檔案。
 """
 
 from __future__ import annotations
@@ -31,7 +38,8 @@ from typing import Optional
 
 from synox import __version__
 from synox.update import signing
-from synox.update.check import (TEXT, Opener, UpdateError, compare, fetch_latest, get, how_line, install_kind)
+from synox.update.check import (TEXT, Opener, UpdateError, compare, fetch_latest, get, how_line, install_kind,
+                                test_api)
 
 MAX_ZIP = 400 * 1024 * 1024
 MAX_SMALL = 1024 * 1024
@@ -59,6 +67,19 @@ PREP_TEXT = {
     "bad_zip": "下載的 ZIP 裡面不對（{why}），已經刪掉、沒有更新。請到 GitHub 回報。",
     "current": "你已經是最新版（{v}），不用更新。",
     "ahead": "你裝的 {installed} 比最新的正式版 {v} 還新，不會「更新」成舊版。要回到上一版請用 Update.bat -Rollback。",
+    "from_zip": "⚠️ 用這台電腦上的 ZIP 更新（不是從 GitHub 下載）：{path}",
+    "zip_missing": "找不到這個 ZIP：{path}（請給完整路徑）。",
+    "zip_too_big": "這個 ZIP 太大了，不像 SYNOX 的發佈檔。",
+    "zip_version": "這個 ZIP 裡找不到 SYNOX 的版本（不是 SYNOX 的發佈 ZIP？）。",
+    "zip_sums_missing": "旁邊的 SHA256SUMS.txt 裡沒有 {name} 這一行，為了安全不更新。",
+    "zip_sums_bad": "{name} 跟旁邊的 SHA256SUMS.txt 寫的不一樣（檔案壞了或被換過），沒有更新。",
+    "zip_sums_ok": "✅ 檔案跟旁邊的 SHA256SUMS.txt 一樣。",
+    "zip_no_sums": "（旁邊沒有 SHA256SUMS.txt：沒辦法對檔案的指紋。）",
+    "zip_unsigned": "⚠️ 這個 ZIP 旁邊沒有簽章（release.json＋release.json.sig），或這個 SYNOX 沒有可以驗它的公鑰，所以不換檔。\n"
+                    "  確定這個 ZIP 是你自己做的、要更新：加 -AllowUnsigned（Update.bat -FromZip <ZIP> -AllowUnsigned）。",
+    "zip_unsigned_ok": "⚠️ 沒有簽章：你用了 -AllowUnsigned，只確認了上面說的那些。",
+    "zip_current": "這個 ZIP 是 {v}，跟裝著的一樣，不用更新。",
+    "zip_ahead": "這個 ZIP 是 {v}，比裝著的 {installed} 舊，不會「更新」成舊版。要回到上一版請用 Update.bat -Rollback。",
 }
 
 
@@ -152,12 +173,48 @@ def extract_release(zip_path: str, stage: str, version: str) -> str:
     return target
 
 
+def _test_keys(keys):
+    """測試路徑（--from-zip、SYNOX_UPDATE_API）才用：正式的公鑰＋測試公鑰（有的話大聲說）。"""
+    extra = signing.test_keys()
+    return list(signing.RELEASE_PUBLIC_KEYS if keys is None else keys) + extra if extra else keys
+
+
+def _check_manifest(blob: bytes, version: str, zip_name: str, sha: str, size: int, installed: str) -> dict:
+    """簽章驗過之後：release.json 的版本、ZIP 的指紋與大小、min_from 都要對。"""
+    try:
+        manifest = signing.parse_manifest(blob)
+    except signing.SignatureError as e:
+        raise UpdateError(PREP_TEXT["bad_manifest"].format(why=e))
+    if manifest["version"] != version:
+        raise UpdateError(PREP_TEXT["bad_manifest"].format(why=f"版本 {manifest['version']} ≠ {version}"))
+    info = manifest["assets"].get(zip_name) or {}
+    if str(info.get("sha256", "")).lower() != sha:
+        raise UpdateError(PREP_TEXT["bad_manifest"].format(why="ZIP 的指紋不一樣"))
+    if isinstance(info.get("size"), int) and size and info["size"] != size:
+        raise UpdateError(PREP_TEXT["bad_manifest"].format(why="ZIP 的大小不一樣"))
+    min_from = manifest.get("min_from")
+    if isinstance(min_from, str) and compare(installed, min_from) == "newer":
+        raise UpdateError(PREP_TEXT["too_old"].format(min_from=min_from, v=version))
+    return manifest
+
+
+def _write_ready(root: str, ready: dict) -> dict:
+    with open(os.path.join(root, "data", "update", READY), "w", encoding="utf-8") as f:
+        json.dump(ready, f, ensure_ascii=False, indent=2)
+    return ready
+
+
 def prepare(root: str, *, installed: str = __version__, allow_unsigned: bool = False,
             opener: Optional[Opener] = None, keys=None, say=print) -> dict:
     """下載＋驗證＋解開；成功回 ready（也寫進 data/update/ready.json）。不對丟 UpdateError（AlreadyCurrent＝不用更新）。"""
     kind = install_kind(root)
     if kind != "zip":
         raise UpdateError(how_line(kind))
+    if test_api():
+        say(TEXT["test_mode"].format(src=test_api()))
+        keys = _test_keys(keys)
+        if signing.test_keys_note():
+            say(signing.test_keys_note())
     rel = fetch_latest(opener)
     state = compare(installed, rel.version)
     if state == "current":
@@ -184,20 +241,7 @@ def prepare(root: str, *, installed: str = __version__, allow_unsigned: bool = F
         sig = get(sig_a.url, MAX_SMALL, opener)
         if not signing.verify(blob, sig, keys):
             raise UpdateError(PREP_TEXT["bad_sig"])
-        try:
-            manifest = signing.parse_manifest(blob)
-        except signing.SignatureError as e:
-            raise UpdateError(PREP_TEXT["bad_manifest"].format(why=e))
-        if manifest["version"] != rel.version:
-            raise UpdateError(PREP_TEXT["bad_manifest"].format(why=f"版本 {manifest['version']} ≠ {rel.version}"))
-        info = manifest["assets"].get(zip_name) or {}
-        if str(info.get("sha256", "")).lower() != expected:
-            raise UpdateError(PREP_TEXT["bad_manifest"].format(why="ZIP 的指紋不一樣"))
-        if isinstance(info.get("size"), int) and zasset.size and info["size"] != zasset.size:
-            raise UpdateError(PREP_TEXT["bad_manifest"].format(why="ZIP 的大小不一樣"))
-        min_from = manifest.get("min_from")
-        if isinstance(min_from, str) and compare(installed, min_from) == "newer":
-            raise UpdateError(PREP_TEXT["too_old"].format(min_from=min_from, v=rel.version))
+        manifest = _check_manifest(blob, rel.version, zip_name, expected, zasset.size, installed)
         signed = True
         say(PREP_TEXT["signed_ok"])
     elif not allow_unsigned:
@@ -226,9 +270,99 @@ def prepare(root: str, *, installed: str = __version__, allow_unsigned: bool = F
              "zip": os.path.abspath(zip_path), "sha256": expected, "signed": signed,
              "rebuild_venv": bool(manifest.get("rebuild_venv")) or deps_fingerprint(root) != deps_fingerprint(target),
              "notes_url": rel.url, "keep": list(KEEP)}
-    with open(os.path.join(base, READY), "w", encoding="utf-8") as f:
-        json.dump(ready, f, ensure_ascii=False, indent=2)
-    return ready
+    if test_api():
+        ready["test"] = test_api()
+    return _write_ready(root, ready)
 
 
-__all__ = ["KEEP", "AlreadyCurrent", "PREP_TEXT", "TEXT", "deps_fingerprint", "extract_release", "prepare"]
+def zip_version(zip_path: str) -> Optional[str]:
+    """發佈 ZIP 裡 SYNOX/src/synox/__init__.py 的 __version__（讀不到回 None）。"""
+    try:
+        with zipfile.ZipFile(zip_path) as z:
+            info = z.getinfo("SYNOX/src/synox/__init__.py")
+            if info.file_size > MAX_SMALL:
+                return None
+            m = re.search(r'^__version__\s*=\s*"([^"]*)"', z.read(info).decode("utf-8", "replace"), re.M)
+    except (OSError, KeyError, zipfile.BadZipFile):
+        return None
+    return m.group(1) if m else None
+
+
+def prepare_from_zip(root: str, zip_path: str, *, installed: str = __version__, allow_unsigned: bool = False,
+                     keys=None, say=print) -> dict:
+    """用這台電腦上的 ZIP（先測更新、或沒有網路時）：驗證＋解開，跟 prepare() 寫一樣的 ready.json。不連網。
+    旁邊的 SHA256SUMS.txt、release.json＋.sig 有就一定要對；沒有簽章（或沒有公鑰）要明確 allow_unsigned。"""
+    kind = install_kind(root)
+    if kind != "zip":
+        raise UpdateError(how_line(kind))
+    zip_path = os.path.abspath(zip_path)
+    say(PREP_TEXT["from_zip"].format(path=zip_path))
+    keys = _test_keys(keys)
+    if signing.test_keys_note():
+        say(signing.test_keys_note())
+    if not os.path.isfile(zip_path):
+        raise UpdateError(PREP_TEXT["zip_missing"].format(path=zip_path))
+    size = os.path.getsize(zip_path)
+    if size > MAX_ZIP:
+        raise UpdateError(PREP_TEXT["zip_too_big"])
+    version = zip_version(zip_path)
+    if not version or compare(installed, version) == "invalid":
+        raise UpdateError(PREP_TEXT["zip_version"])
+    state = compare(installed, version)
+    if state == "current":
+        raise AlreadyCurrent(PREP_TEXT["zip_current"].format(v=version))
+    if state != "newer":
+        raise AlreadyCurrent(PREP_TEXT["zip_ahead"].format(v=version, installed=installed))
+    folder, zip_name = os.path.dirname(zip_path), os.path.basename(zip_path)
+    sha = _sha256(zip_path)
+    sums_path = os.path.join(folder, signing.SUMS_ASSET)
+    if os.path.isfile(sums_path):
+        with open(sums_path, "r", encoding="utf-8", errors="replace") as f:
+            expected = signing.parse_sums(f.read(MAX_SMALL)).get(zip_name)
+        if not expected:
+            raise UpdateError(PREP_TEXT["zip_sums_missing"].format(name=zip_name))
+        if expected != sha:
+            raise UpdateError(PREP_TEXT["zip_sums_bad"].format(name=zip_name))
+        say(PREP_TEXT["zip_sums_ok"])
+    else:
+        say(PREP_TEXT["zip_no_sums"])
+    signed, manifest = False, {}
+    man_p, sig_p = os.path.join(folder, signing.MANIFEST_ASSET), os.path.join(folder, signing.SIG_ASSET)
+    if os.path.isfile(man_p) and os.path.isfile(sig_p) and signing.public_keys(keys):
+        with open(man_p, "rb") as f:
+            blob = f.read(MAX_SMALL)
+        with open(sig_p, "rb") as f:
+            sig = f.read(MAX_SMALL)
+        if not signing.verify(blob, sig, keys):
+            raise UpdateError(PREP_TEXT["bad_sig"])
+        manifest = _check_manifest(blob, version, zip_name, sha, size, installed)
+        signed = True
+        say(PREP_TEXT["signed_ok"])
+    elif not allow_unsigned:
+        raise UpdateError(PREP_TEXT["zip_unsigned"])
+    else:
+        say(PREP_TEXT["zip_unsigned_ok"])
+
+    work = os.path.join(root, "data", "update", version)
+    if os.path.exists(work):
+        shutil.rmtree(work)
+    os.makedirs(work)
+    copy = os.path.join(work, f"SYNOX-{version}.zip")
+    try:
+        shutil.copyfile(zip_path, copy)
+        if _sha256(copy) != sha:                                  # 驗完到複製之間被換掉
+            raise UpdateError(PREP_TEXT["mismatch"])
+        say("檔案驗過了，解開到暫存資料夾 …")
+        target = extract_release(copy, os.path.join(work, "stage"), version)
+    except BaseException:
+        shutil.rmtree(work, ignore_errors=True)
+        raise
+    ready = {"version": version, "from": installed, "stage": os.path.abspath(target), "zip": os.path.abspath(copy),
+             "sha256": sha, "signed": signed,
+             "rebuild_venv": bool(manifest.get("rebuild_venv")) or deps_fingerprint(root) != deps_fingerprint(target),
+             "notes_url": "", "keep": list(KEEP), "source": zip_path}
+    return _write_ready(root, ready)
+
+
+__all__ = ["KEEP", "AlreadyCurrent", "PREP_TEXT", "TEXT", "deps_fingerprint", "extract_release", "prepare",
+           "prepare_from_zip", "zip_version"]

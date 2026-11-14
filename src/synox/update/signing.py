@@ -8,6 +8,9 @@
 - 到現在還**沒有**公鑰（創始維護者還沒產生金鑰）：`public_keys()` 是空的 → 每一版都算「沒有簽章」→
   Update.bat 不自動換檔，除非使用者明確加 `-AllowUnsigned`（並照實說「信任的只有 HTTPS＋GitHub 這個 repo」）。
 - 簽章對不上一律拒絕（就算加了 -AllowUnsigned 也一樣）：那代表檔案被動過。
+- **只給測試**：環境變數 `SYNOX_UPDATE_TEST_PUBKEY`（scripts/make_update_testkit.py 印的拋棄式公鑰）。只在
+  `synox update --prepare --from-zip`（Update.bat -FromZip）與測試模式（SYNOX_UPDATE_API）才加進來，GitHub 上的正式更新
+  從來不看它；用的時候會大聲印出來（test_keys_note）。
 """
 
 from __future__ import annotations
@@ -15,11 +18,13 @@ from __future__ import annotations
 import base64
 import binascii
 import json
+import os
 from typing import Iterable, List, Optional, Sequence
 
 MANIFEST_ASSET = "release.json"
 SIG_ASSET = "release.json.sig"
 SUMS_ASSET = "SHA256SUMS.txt"
+TEST_KEY_ENV = "SYNOX_UPDATE_TEST_PUBKEY"
 
 # 創始維護者產生金鑰之後，把公鑰加在這裡：32 位元組原始公鑰的 base64（44 個字，結尾是 =）。
 # `python scripts/release.py keygen` 產生一對、`python scripts/release.py sign --key <私鑰檔> --show-public` 印公鑰。
@@ -28,6 +33,16 @@ RELEASE_PUBLIC_KEYS: Sequence[str] = ()
 
 class SignatureError(Exception):
     pass
+
+
+def test_keys() -> List[str]:
+    """測試用的公鑰（環境變數 SYNOX_UPDATE_TEST_PUBKEY，可以用逗號或空白隔開好幾把）。呼叫的人只在測試路徑用它。"""
+    return [k for k in os.environ.get(TEST_KEY_ENV, "").replace(",", " ").split() if k]
+
+
+def test_keys_note() -> str:
+    return (f"⚠️⚠️ 測試模式：也信任 {TEST_KEY_ENV} 裡的測試公鑰（只給測試用；不是你自己設的，請關掉視窗、刪掉這個環境變數）。"
+            if test_keys() else "")
 
 
 def public_keys(keys: Optional[Iterable[str]] = None) -> List[bytes]:

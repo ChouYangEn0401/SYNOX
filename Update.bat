@@ -6,6 +6,12 @@ rem   Update.bat -Rollback        go back to the previous version (the newest fo
 rem   Update.bat -AllowUnsigned   also accept a release without a signature (then only HTTPS + GitHub's SHA256SUMS.txt
 rem                               are checked; without this switch an unsigned release is NOT installed)
 rem   Update.bat -Yes             do not ask again
+rem   Update.bat -FromZip <full path of a ZIP> [-AllowUnsigned]
+rem                               TEST an update before a real release exists: use a SYNOX ZIP on this
+rem                               computer instead of GitHub (scripts/make_update_testkit.py makes one).
+rem                               SHA256SUMS.txt next to the ZIP must match when it is there; unsigned
+rem                               only with -AllowUnsigned; same _previous backup and rollback
+rem                               (docs/release-playbook.md)
 rem Never touches config.json, data\, packs\ (or .venv\, runtime\, lang.txt). No admin. Only the stable release is
 rem offered (never alpha/beta). Installed with git: use "git pull" instead (this script says so and stops).
 rem All the work is in setup\update.ps1 (downloading and checking: python -m synox update --prepare).

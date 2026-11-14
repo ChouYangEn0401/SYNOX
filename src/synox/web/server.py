@@ -18,6 +18,7 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     GET  /api/packs/staged          擁有者：還沒按確認的暫存 pack（待核准清單，不用 token；過期的順便清掉）
     POST /api/packs/discard         {"token"}：擁有者「不要裝」，刪掉那一份暫存
     POST /api/packs/library         擁有者按「載入工具清單」：抓官方工具庫的清單（網址寫死在 packs/catalog.py，只有這時才連網）
+                                    ；updates＝裝著、有新版的工具與外觀包（網頁的「有 N 個工具可以更新」＋「全部更新」）
     POST /api/packs/wardrobe        擁有者按「看衣櫃」：同一份官方清單，只列外觀包（kind=theme；設定 → 外觀 → 衣櫃）
     POST /api/packs/library/install {"name"}：伺服器從官方發佈頁下載那個工具、對大小與雜湊 → admin.stage（跟上傳同一條路）
                                     → 回同一份報告；裝要另外按確認（/api/packs/install）
@@ -1804,7 +1805,7 @@ class WebUI:
             return failed
         have = self._installed_versions()
         return _json(200, {"version": lib.version, "releases": catalog.RELEASES_PAGE, "overview": catalog.OVERVIEW_URL,
-                           "tools": catalog.cards(lib, have)})
+                           "tools": catalog.cards(lib, have), "updates": catalog.updates(lib, have)})
 
     def wardrobe_list(self, user) -> Resp:
         """「看衣櫃」：同一份官方清單（同一個寫死的網址、同一套安全的抓法），只列外觀包。

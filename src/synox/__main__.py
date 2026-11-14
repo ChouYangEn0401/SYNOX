@@ -22,6 +22,10 @@ python -m synox <指令>
             （--non-interactive 全部用參數給；--dry-run 只印出來不寫；wizard/init_cli.py）
   tools     tools list [--library 資料夾]（工具庫有哪些、裝了哪些）｜tools install <名字或組合…> [--yes]
             （從工具庫找檔、對 index.json 的雜湊，再走 install 的同一條安全檢查）
+            ｜tools check（問官方工具庫：裝著的工具／外觀包有沒有新版；只看，這時才連網）
+            ｜tools update <名字…>|--all [--yes]（下載 → 一樣的檢查報告 → 核准才換；舊版留在 packs/_removed/）
+  update    update --check（SYNOX 本體有沒有新版；--include-prerelease 連預覽版一起看）｜--weekly on|off
+            ｜--prepare [--from-zip <ZIP>]（Update.bat 用；-FromZip 先用本機的 ZIP 測更新）
 
 `synox`（沒參數）、run、open、wizard、doctor、about 開頭會印歡迎畫面（src/synox/brand.py）；只在互動終端機印，
 --quiet／SYNOX_NO_BANNER／管線就不印。
@@ -186,9 +190,11 @@ def _library_of(args):
         return None
 
 
-def cmd_tools(args, *, is_up=None, open_url=None, jobs=None) -> int:
+def cmd_tools(args, *, is_up=None, open_url=None, jobs=None, opener=None) -> int:
     from synox.packs.loader import PACK_DIRS
     is_up = is_up or web_is_up
+    if args.tools_cmd in ("check", "update"):
+        return _tools_online(args, is_up=is_up, open_url=open_url, jobs=jobs, opener=opener)
     from synox.wizard import tools as library
     lib = _library_of(args)
     if lib is None:
@@ -217,6 +223,110 @@ def cmd_tools(args, *, is_up=None, open_url=None, jobs=None) -> int:
         ns = argparse.Namespace(file=path, yes=args.yes, config=args.config, packs_dir="", trust=None,
                                 trust_publisher=args.trust_publisher, runtime=None, allow_downgrade=False)
         worst = max(worst, cmd_install(ns, is_up=is_up, open_url=open_url, jobs=jobs))
+    return worst
+
+
+def _update_label(u: dict) -> str:
+    kind = "外觀包" if u.get("kind") == "theme" else "工具"
+    title = f"（{kind}：{u['title']}）" if u.get("title") and u["title"] != u["name"] else f"（{kind}）"
+    return f"{u['name']}{title} {u['installed']} → {u['version']}"
+
+
+def _tools_online(args, *, is_up, open_url=None, jobs=None, opener=None, packs_dir: str = "") -> int:
+    """`synox tools check`／`synox tools update`：官方工具庫（跟網頁「載入工具清單」同一份、同一個寫死的網址）。
+    只有這時才連網。update 每一個都走跟 install 一樣的路：下載（大小、sha256 對清單）→ 第 1、2 關 → 報告 →
+    --yes 在這裡核准／網頁按確認 → 第 3 關。從來不跳過報告，也不自己裝。
+    結束碼：check 0＝都是最新、10＝有新版、1＝查不到；update 0＝好了（或交給網頁）、1＝還沒核准、2＝有的失敗。"""
+    from synox.packs import admin, catalog
+    from synox.packs.loader import PACK_DIRS
+    from synox.update import check as upd
+    packs_dir = packs_dir or getattr(args, "packs_dir", "") or PACK_DIRS[0]
+    installed = upd.installed_pack_versions(packs_dir)
+    print("問官方工具庫有沒有新版（只看，不會自己下載或安裝）…" if args.tools_cmd == "check"
+          else "問官方工具庫有沒有新版（每一個都會先給你看檢查報告，你核准了才換）…")
+    try:
+        lib = catalog.fetch_library(opener=opener)
+    except catalog.CatalogError as e:
+        print(f"❌ {e}")
+        print(f"   發佈頁：{catalog.RELEASES_PAGE}")
+        return 1
+    ups = catalog.updates(lib, installed)
+    if args.tools_cmd == "check":
+        if not installed:
+            print(f"還沒有裝任何工具（工具庫 v{lib.version}）。要裝：網頁「設定 → 🧩 功能與安裝」，或 synox tools install。")
+            return 0
+        if not ups:
+            print(f"✅ 裝著的 {len(installed)} 個工具都是最新版（工具庫 v{lib.version}）。")
+            return 0
+        print(f"有 {len(ups)} 個工具可以更新（工具庫 v{lib.version}）：")
+        for u in ups:
+            print(f"  • {_update_label(u)}")
+        print("更新：python -m synox tools update <名字…>　或　python -m synox tools update --all")
+        print("（每一個都一樣先下載、檢查、給你看報告；你核准了才換，舊版留在 packs/_removed/，可以 packs rollback 退回）")
+        return 10
+    by_name = {t.name: t for t in lib.tools}
+    newer = {u["name"]: u for u in ups}
+    worst = 0
+    if getattr(args, "all", False):
+        chosen = [newer[n] for n in sorted(newer)]
+        if not chosen:
+            print(f"✅ 裝著的工具都是最新版（工具庫 v{lib.version}），沒有要更新的。")
+            return 0
+    else:
+        if not args.names:
+            print("❌ 要給工具的名字（python -m synox tools update money notes），或 --all 全部更新。"
+                  "先看哪些有新版：python -m synox tools check")
+            return 2
+        chosen = []
+        for name in dict.fromkeys(args.names):
+            if name in newer:
+                chosen.append(newer[name])
+            elif name not in installed:
+                print(f"❌ 沒有裝 {name}：更新只換裝著的工具（要裝新的：網頁「功能與安裝」或 synox tools install）。")
+                worst = 2
+            elif name not in by_name:
+                print(f"❌ 官方工具庫裡沒有 {name}（可能是別人做的工具：照它原本的方法更新）。")
+                worst = 2
+            else:
+                print(f"✅ {name} 已經是最新版（{installed[name]}）。")
+        if not chosen:
+            return worst
+    config = _config_quiet(args.config)
+    data_dir = _data_dir(config)
+    opened = []
+
+    def open_once(url):                         # 好幾個要在網頁確認時只開一次（其他的在「等你核准」）
+        if not opened:
+            opened.append(url)
+            (open_url or _open_browser)(url)
+
+    for i, u in enumerate(chosen, 1):
+        tool = by_name[u["name"]]
+        print(f"\n── {i}/{len(chosen)}：{_update_label(u)}")
+        try:
+            token, summary = catalog.stage_tool(tool, data_dir, opener=opener)      # 下載＋第 1、2 關，不裝
+        except catalog.CatalogError as e:
+            print(f"❌ {e}")
+            worst = 2
+            continue
+        except admin.GateRefused as e:
+            if e.summary:
+                print(admin.format_summary(e.summary))
+            print(f"❌ {e}")
+            worst = 2
+            continue
+        except admin.PackAdminError as e:
+            print(f"❌ {e}")
+            worst = 2
+            continue
+        ns = argparse.Namespace(yes=args.yes, config=args.config, packs_dir=packs_dir, trust=None,
+                                trust_publisher=getattr(args, "trust_publisher", None), runtime=None,
+                                allow_downgrade=False)
+        if opened and not args.yes:
+            print("（網頁已經開著了：這一個也在「等你核准」裡，一個一個看完按確認）")
+        rc = _review_staged(token, summary, ns, config, data_dir, is_up=is_up, open_url=open_once, jobs=jobs,
+                            retry="python -m synox tools update " + tool.name + " --yes{extra}")
+        worst = max(worst, rc)
     return worst
 
 
@@ -404,7 +514,6 @@ def _build_env_now(name: str, data_dir: str, packs_dir: str, jobs=None, what: st
 
 def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
     from synox.packs import admin
-    from synox.packs.loader import PACK_DIRS
     config = _config_quiet(args.config)
     data_dir = _data_dir(config)
     try:
@@ -417,6 +526,16 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
     except admin.PackAdminError as e:
         print(f"❌ {e}")
         return 2
+    return _review_staged(token, summary, args, config, data_dir, is_up=is_up, open_url=open_url, jobs=jobs,
+                          retry=f'python -m synox install "{args.file}" --yes{{extra}}')
+
+
+def _review_staged(token: str, summary: dict, args, config, data_dir: str, *, is_up=web_is_up, open_url=None,
+                   jobs=None, retry: str = "") -> int:
+    """暫存好、過了第 1、2 關的一份 pack：印報告（升級多「改了什麼」）→ --yes 在這裡核准（第 3 關）｜
+    SYNOX 開著＝打開網頁的報告｜都沒有＝說怎麼核准。install、tools update 共用。retry 裡的 {extra} 換成 --trust-publisher。"""
+    from synox.packs import admin
+    from synox.packs.loader import PACK_DIRS
     packs_dir = args.packs_dir or PACK_DIRS[0]
     trust = getattr(args, "trust", None) or None                         # PERM-2：core｜third-party（寫進 packs.lock）
     upg = _staged_upgrade(token, data_dir, packs_dir, trust)             # 同名已經裝了＝升級：「改了什麼」
@@ -460,7 +579,7 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
     print("ℹ️ 還沒裝。SYNOX 沒開（或網頁介面關著）：")
     tier = summary.get("tier") or {}
     extra = f' --trust-publisher "{tier.get("publisher")}"' if tier.get("needs_publisher") and tier.get("publisher") else ""
-    print(f'   • 在這裡核准：python -m synox install "{args.file}" --yes{extra}')
+    print(f'   • 在這裡核准：{retry.format(extra=extra)}')
     print("   • 或開 SYNOX 之後，在網頁「設定 → 功能與安裝」選這個檔（還沒按確認的會列在「等你核准」）")
     return 1
 
@@ -698,10 +817,14 @@ def cmd_update(args, *, opener=None, keys=None) -> int:
         print("✅ 每週檢查新版：" + ("開（每週查一次，只看，不會自己裝；查的時候會連到 GitHub）" if args.weekly == "on"
                                     else "關（預設；只有你按「檢查更新」或打 synox update --check 才查）"))
         return 0
-    if args.prepare:
+    from_zip = getattr(args, "from_zip", None)
+    if args.prepare or from_zip:
         from synox.update import prepare
         try:
-            ready = prepare.prepare(root, allow_unsigned=args.allow_unsigned, opener=opener, keys=keys)
+            if from_zip:
+                ready = prepare.prepare_from_zip(root, from_zip, allow_unsigned=args.allow_unsigned, keys=keys)
+            else:
+                ready = prepare.prepare(root, allow_unsigned=args.allow_unsigned, opener=opener, keys=keys)
         except prepare.AlreadyCurrent as e:
             print(str(e))
             return 3
@@ -720,12 +843,14 @@ def cmd_update(args, *, opener=None, keys=None) -> int:
     def tools():
         return upd.tools_newer_count(upd.installed_pack_versions(packs_dir), opener=opener)
 
-    print(f"SYNOX {__version__}：問 GitHub 有沒有新版（只看，不會下載或安裝）…")
-    result = upd.check(__version__, root=root, opener=opener, tools=tools, keys=keys)
-    try:
-        upd.remember(data_dir, result)
-    except OSError:
-        pass
+    pre = bool(getattr(args, "include_prerelease", False))
+    print(f"SYNOX {__version__}：問 GitHub 有沒有新版" + ("（連預覽版一起看）" if pre else "") + "（只看，不會下載或安裝）…")
+    result = upd.check(__version__, root=root, opener=opener, tools=tools, keys=keys, include_prerelease=pre)
+    if not pre and not result.test_source:              # 預覽版、測試模式的結果不存（不出網頁的橫幅、不影響每週通知）
+        try:
+            upd.remember(data_dir, result)
+        except OSError:
+            pass
     for line in result.lines():
         print(line)
     if result.status == "newer" and result.kind == "zip" and not result.signed:
@@ -880,11 +1005,12 @@ def main(argv=None) -> int:
     p.add_argument("--api-key-env", default=None, metavar="NAME", help="金鑰放在哪個環境變數（config 寫 env:NAME）")
     p.add_argument("--library", default=None, help="工具庫資料夾（打包好的 .synoxpack＋index.json；預設 SYNOX 資料夾旁的 tools）")
     p.add_argument("--tools", nargs="*", default=None, help="要裝的工具名字或組合代號（沒給＝互動時問、非互動時不裝）")
-    p = sub.add_parser("tools", help="工具庫：list（有哪些）｜install <名字…>（裝）")
-    p.add_argument("tools_cmd", choices=["list", "install"])
-    p.add_argument("names", nargs="*", help="install：工具名字或建議組合的代號")
+    p = sub.add_parser("tools", help="工具庫：list（有哪些）｜install <名字…>（裝）｜check（有沒有新版）｜update <名字…>|--all")
+    p.add_argument("tools_cmd", choices=["list", "install", "check", "update"])
+    p.add_argument("names", nargs="*", help="install：工具名字或建議組合的代號；update：要更新的工具名字")
     p.add_argument("--all", action="store_true",
-                   help="install：工具庫裡的每一個都裝（不建議：先做教學再挑；安裝程式自訂頁勾了才會用）")
+                   help="install：工具庫裡的每一個都裝（不建議：先做教學再挑；安裝程式自訂頁勾了才會用）"
+                        "｜update：有新版的全部更新（一樣一個一個給你看報告）")
     p.add_argument("--library", default="", help="工具庫資料夾（預設 config.json 的 packs.library，或 SYNOX 資料夾旁的 tools）")
     p.add_argument("--yes", action="store_true", help="看完報告直接在終端機核准")
     p.add_argument("--trust-publisher", default=None, metavar="NAME", help="T2 工具：明確輸入 pack.json 的 publisher 才裝")
@@ -945,6 +1071,9 @@ def main(argv=None) -> int:
     p.add_argument("--weekly", choices=["on", "off"], default=None, help="每週自己看一次（預設 off）")
     p.add_argument("--prepare", action="store_true", help=argparse.SUPPRESS)         # Update.bat 用：下載＋驗證＋解到暫存
     p.add_argument("--allow-unsigned", action="store_true", help=argparse.SUPPRESS)  # Update.bat -AllowUnsigned
+    p.add_argument("--from-zip", default=None, metavar="ZIP", help=argparse.SUPPRESS)  # Update.bat -FromZip（先測更新）
+    p.add_argument("--include-prerelease", action="store_true",
+                   help="--check 時連預覽版（beta／alpha）一起看（只看；Update.bat 不會裝預覽版）")
     p.add_argument("--rollback", action="store_true", help="說明怎麼退回上一版（Update.bat -Rollback）")
     p = sub.add_parser("open", help="在這台電腦上打開網頁介面（沒在跑就先開 SYNOX；跟 web-login 一樣）")
     sub.add_parser("about", help="SYNOX 的版本、授權、裝在哪裡")

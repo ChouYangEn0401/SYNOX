@@ -1,5 +1,14 @@
 # Changelog
 
+## 未發佈（工具更新、先測 SYNOX 更新、發佈手冊）
+
+### 新增
+- 命令列 `synox tools check`（裝著的工具與外觀包有沒有新版，只看；這時才連網）與 `synox tools update <名字…>|--all`：跟安裝同一條路（下載、對檔、檢查報告，`--yes` 或網頁按確認才換；舊版留著可以 `packs rollback`）。
+- 網頁「功能與安裝」：載入工具清單後出現「有 N 個工具可以更新」＋「全部更新」，一個一個給報告、按確認才換；「檢查更新」看到的數目也先提示。
+- 每週檢查（自己打開的）也會在工具有新版時通知一次（同一組版本只通知一次；只看不裝）。
+- 先測 SYNOX 更新（還沒有真的發佈時）：`Update.bat -FromZip <ZIP> [-AllowUnsigned]`（＝`synox update --prepare --from-zip`；旁邊的 SHA256SUMS.txt、簽章有就要對；一樣留 `_previous`、可以 `-Rollback`）、`synox update --check --include-prerelease`（只有明確加才看預覽版）、只給測試的環境變數 `SYNOX_UPDATE_API`（只收本機檔案／127.0.0.1，用的時候大聲說）與 `SYNOX_UPDATE_TEST_PUBKEY`、`scripts/make_update_testkit.py`（舊版＋假新版 ZIP、檢查檔、拋棄式簽章、中文步驟）。
+- 文件：[docs/release-playbook.md](docs/release-playbook.md)，發 SYNOX／工具庫、下載連結、關卡、退回、給新 session 的檢查表。
+
 ## 未發佈（外觀：衣櫃與背景）
 
 ### 新增

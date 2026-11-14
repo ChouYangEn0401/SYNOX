@@ -2257,6 +2257,10 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
           <a id="lib-overview" class="btn ghost" href="https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL" target="_blank" rel="noopener noreferrer">工具庫介紹</a>
         </div>
         <p id="lib-msg" class="msgline" role="status"></p>
+        <!-- 有新版的工具（外觀包也算）：「全部更新」＝一個一個走同一條「下載 → 檢查報告 → 你按確認」，不會自己裝 -->
+        <div id="lib-updates" class="note-line hidden" role="status"><span id="lib-updates-text"></span>
+          <button id="lib-update-all" class="primary" type="button">全部更新</button></div>
+        <p id="lib-queue" class="msgline hidden" role="status"></p>
         <p id="lib-error" class="note-line hidden" role="alert"><span id="lib-error-text"></span>
           <a id="lib-releases" href="https://github.com/ChouYangEn0401/SYNOX_Libs/releases" target="_blank" rel="noopener noreferrer">GitHub 發佈頁</a></p>
         <p id="lib-legend" class="muted lib-legend hidden">👤 單人用＝只有你能用。👥 伺服器版也能用＝SYNOX 開給家人或社團一起用時，每個人都能用、各自一份資料；只有你自己用的話兩種沒有差別。</p>
@@ -7082,6 +7086,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       $("upd-go").classList.toggle("hidden", !(r.status === "newer" && d.can_launch));
     }
     updateBanner(d.notice);
+    if (r && typeof r.tools_newer === "number") { libHint(r.tools_newer); }
   }
   function loadUpdate() {
     api("GET", "/api/settings/update").then(drawUpdate).catch(function () { $("set-update").classList.add("hidden"); });
@@ -7865,9 +7870,17 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     loaded: "工具庫 v{v}：{n} 個工具。", empty: "工具庫裡現在沒有工具。",
     install: "安裝", update: "更新到 v{v}", working: "下載並檢查中…",
     download: "⬇ 下載", help: "說明", installed: "✅ 已安裝 v{v}", newer: "有新版 v{v}",
-    local: "存在這台電腦（不連網）", online: "接外面的服務"
+    local: "存在這台電腦（不連網）", online: "接外面的服務",
+    updates: "有 {n} 個工具可以更新", updates_hint: "有 {n} 個工具可以更新（上次檢查更新時看到的）",
+    queue: "全部更新：第 {i}／{n} 個（{name}）。看完報告按「確認升級」，或按「稍後再決定」跳過，就會換下一個。",
+    queue_done: "全部更新：{n} 個都看過了。", queue_stopped: "全部更新停下來了：{name} 沒有下載成功（看下面的原因）。",
+    queue_none: "沒有要更新的工具。"
   };
   var libTools = [];
+  var libUpdates = [];                  // 伺服器給的 updates（工具與外觀包）：name、title、kind、installed、version
+  var libLoaded = false;
+  var libHintCount = 0;                 // 還沒載入清單時：上次「檢查更新」看到的數目（GET /api/settings/update）
+  var libQueue = null;                  // 全部更新：{ names, i, current }
   var LINK_RE = /^https:\/\/[^\s]+$/;
   function fill(t, o) { return t.replace(/\{(\w+)\}/g, function (_m, k) { return String(o[k]); }); }
   function verKey(v) {                  // "1.2.3-beta" → [1, 2, 3, 0]；正式版最後一位是 1（比同號的預覽版新）
@@ -7940,10 +7953,52 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       box.appendChild(grid);
     });
   }
+  function libUpdateBar() {
+    var n = libLoaded ? libUpdates.length : libHintCount;
+    $("lib-updates-text").textContent = n ? fill(libLoaded ? LIB_TEXT.updates : LIB_TEXT.updates_hint, { n: n }) : "";
+    $("lib-updates").classList.toggle("hidden", !n || !!libQueue);
+  }
+  function libHint(n) {                 // 「檢查更新」的結果（tools_newer）：清單還沒載入時先提示
+    libHintCount = Number(n) || 0;
+    if (!libLoaded) { libUpdateBar(); }
+  }
+  function libQueueNext() {             // 一次一個：同一個 libInstall → 同一份報告 → 人按確認
+    if (!libQueue) { return; }
+    if (libQueue.i >= libQueue.names.length) {
+      $("lib-queue").textContent = fill(LIB_TEXT.queue_done, { n: libQueue.names.length });
+      libQueue = null;
+      libUpdateBar();
+      return;
+    }
+    var name = libQueue.names[libQueue.i];
+    libQueue.i += 1;
+    libQueue.current = name;
+    $("lib-queue").textContent = fill(LIB_TEXT.queue, { i: libQueue.i, n: libQueue.names.length, name: name });
+    $("lib-queue").classList.remove("hidden");
+    libInstall({ name: name }, el("button", "", ""));
+  }
+  function libUpdateAll() {
+    var names = libUpdates.map(function (u) { return u.name; });
+    if (!names.length) { $("lib-queue").textContent = LIB_TEXT.queue_none; $("lib-queue").classList.remove("hidden"); return; }
+    libQueue = { names: names, i: 0, current: "" };
+    libUpdateBar();
+    libQueueNext();
+  }
+  // 這一個結束了（裝好＝done；「稍後再決定」「不要裝」「關掉」＝idle）→ 換下一個
+  document.addEventListener("synox:install-step", function (ev) {
+    var d = ev.detail || {};
+    if (!libQueue || !libQueue.current || (d.step !== "done" && d.step !== "idle")) { return; }
+    libQueue.current = "";
+    setTimeout(libQueueNext, d.step === "done" ? 1500 : 0);
+  });
   function libSync(packs) {            // 裝好／升級好之後（loadSettings → fillPacks）：不重抓清單，只更新「已安裝」
-    if (!libTools.length) { return; }
+    if (!libTools.length && !libUpdates.length) { return; }
     var have = {};
     (packs || []).forEach(function (p) { have[p.name] = p.version || "?"; });
+    libUpdates = libUpdates.filter(function (u) {
+      return Object.prototype.hasOwnProperty.call(have, u.name) && verNewer(u.version, have[u.name]);
+    });
+    libUpdateBar();
     libTools.forEach(function (t) {
       t.installed = Object.prototype.hasOwnProperty.call(have, t.name) ? have[t.name] : "";
       t.newer = !!t.installed && verNewer(t.version, t.installed);
@@ -7964,20 +8019,28 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       .then(function (s) { showReview(s, true); loadStaged(); })       // 跟上傳同一份報告、同一個確認鈕
       .catch(function (e) {
         if (e.data && e.data.refused) { reviewFailed(e); return; }      // 檢查沒過：照樣給看報告（不能裝）
+        if (libQueue) {                                                 // 全部更新：下載失敗就停，不跳過原因
+          $("lib-queue").textContent = fill(LIB_TEXT.queue_stopped, { name: t.name });
+          libQueue = null;
+          libUpdateBar();
+        }
         setStep("idle");
         libFail(e.message);
         reveal($("lib-error"));
       })
       .then(function () { btn.disabled = false; btn.textContent = label; });
   }
-  $("lib-load").addEventListener("click", function () {
+  function libLoad() {
     var b = $("lib-load");
     b.disabled = true;
     b.textContent = LIB_TEXT.loading;
     libFail("");
     $("lib-msg").textContent = "";
-    api("POST", "/api/packs/library", {}).then(function (d) {
+    return api("POST", "/api/packs/library", {}).then(function (d) {
       libTools = d.tools || [];
+      libUpdates = d.updates || [];
+      libLoaded = true;
+      libUpdateBar();
       if (LINK_RE.test(d.overview || "")) { $("lib-overview").href = d.overview; }
       if (LINK_RE.test(d.releases || "")) { $("lib-releases").href = d.releases; }
       $("lib-msg").textContent = libTools.length ? fill(LIB_TEXT.loaded, { v: d.version, n: libTools.length }) : LIB_TEXT.empty;
@@ -7985,8 +8048,14 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       b.className = libTools.length ? "ghost" : "primary";
       renderLib();
       if (window.SynoxTour) { window.SynoxTour.signal("catalog_loaded"); }
-    }).catch(function (e) { libFail(e.message); })
-      .then(function () { b.disabled = false; b.textContent = libTools.length ? LIB_TEXT.reload : LIB_TEXT.load; });
+      return true;
+    }).catch(function (e) { libFail(e.message); return false; })
+      .then(function (ok) { b.disabled = false; b.textContent = libTools.length ? LIB_TEXT.reload : LIB_TEXT.load; return ok; });
+  }
+  $("lib-load").addEventListener("click", function () { libLoad(); });
+  $("lib-update-all").addEventListener("click", function () {      // 還沒載入清單＝先載入（這時才連網），再一個一個來
+    if (libLoaded) { libUpdateAll(); return; }
+    libLoad().then(function (ok) { if (ok) { libUpdateAll(); } });
   });
   // ── 工具庫 end
 

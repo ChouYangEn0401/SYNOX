@@ -33,7 +33,7 @@
 | **用 ZIP 的人**（從介紹頁或發佈頁下載、解開、點 `Setup.bat`） | **點兩下 SYNOX 資料夾裡的 `Update.bat`**（或網頁「檢查更新」之後按「更新…」）：它先給你看這版改了什麼、問你一次，再下載、核對檔案、關掉 SYNOX、換好、重新打開。舊版的程式留在 `_previous` 資料夾（最近 2 份），出問題點 `Update.bat -Rollback` 就回到上一版。那一版**沒有簽章**時（現在都還沒有，見 [release-build.md](release-build.md)「發佈簽章金鑰」），Update.bat 會說明，你要明確打 `Update.bat -AllowUnsigned` 才換。<br>舊版（還沒有 Update.bat）或想自己來：① 點兩下 `Stop.bat` 關掉 SYNOX ② 到發佈頁下載新的 `SYNOX-<版本>.zip`（或介紹頁的「⬇ 下載 SYNOX」）③ 解開 ④ 把裡面 `SYNOX`（或 `SYNOX-main`）資料夾的**全部內容**複製到你原本的 SYNOX 資料夾，問要不要取代就選「**取代**」⑤ 點兩下 `Setup.bat` | 新的 ZIP 裡沒有 `config.json`、`data`、`packs`，所以蓋不掉你的東西。`Setup.bat` 重跑是安全的：只更新套件、最後打開精靈——直接關掉精靈就好，設定都還在。舊的 ZIP 帶的開發用檔案（`tests`、`evals`、`docs\lab`、`docs\ui`、`docs\installer`…）和 `Connect-Apple.bat`、根目錄的 `GOVERNANCE.md`／`MAINTAINERS.md`／`TRADEMARK.md`（搬進 `.github`），新的 ZIP 不帶了：留著不會被讀，想清就自己刪（Apple 帳號改用 `.venv\Scripts\python.exe -m synox connect apple-reminders`） |
 | **用 git 的人** | `Stop.bat` → `git pull`（在 `main` 上）→ `Setup.bat` | 只要某一版：`git fetch --tags` → `git checkout v0.2.1`。用 Docker：`git pull` → `docker compose build` → `docker compose up -d`（[docker.md](docker.md)） |
 | **用安裝程式（.exe）的人** | ⏳ 安裝程式還沒正式發佈。發佈之後：下載新的 `SYNOX-Setup-<版本>.exe`，裝在原本的位置（預設就是） | 設計上會保留 `config.json`、`data`、`packs`（[adr/0003](adr/0003-distribution-git-clone-and-installer.md) B），舊版才有的開發用檔案會自動刪掉；**還沒在真機驗證過** |
-| **工具（工具庫的 pack）** | 網頁「設定 → 功能與安裝 → 工具庫（官方）」按「載入工具清單」：有新版的工具會標出來，按「安裝」就是更新。或拿到新的 `.synoxpack` 再裝一次 | 同名再裝＝升級：先給你看「改了什麼」（權限變大是紅字），你按確認才換。不滿意：`synox packs rollback <工具名>` 退回上一版。工具自己的資料不會動 |
+| **工具（工具庫的 pack）** | 網頁「設定 → 功能與安裝 → 工具庫（官方）」按「載入工具清單」：有新版的工具會標出來，按「更新到 v…」，或上面的「全部更新」（一個一個給你看報告）。命令列：`synox tools check`（只看）、`synox tools update <名字…>` 或 `--all`。或拿到新的 `.synoxpack` 再裝一次 | 同名再裝＝升級：先給你看「改了什麼」（權限變大是紅字），你按確認才換。不滿意：`synox packs rollback <工具名>` 退回上一版。工具自己的資料不會動 |
 | **寫工具的人（SDK）** | 先照上面更新 SYNOX → `pip install -U <SYNOX 資料夾>/sdk`（或重新複製 `sdk/synox_sdk.py` 到你的工具旁邊）→ `synox-sdk check .` | 看 [sdk.md](sdk.md)「SDK 版本」：SDK 第二個數字變了（例如 0.2 → 0.3）才要改 `requires.sdk` 並重新測；只變最後一個數字不用改 |
 
 更新完可以跑 `synox doctor` 看一次（版本對了、沒有紅字就好）。出問題想回到上一版：用 Update.bat 更新的點兩下 `Update.bat -Rollback`；手動蓋的人先別刪舊的 ZIP、照同樣方法蓋回去；
@@ -108,6 +108,9 @@ main ── hotfix/0.2.2 ──(bump patch)──► main ── tag v0.2.2 ─�
 
 ### 4. 發版步驟（照抄）
 
+完整的手冊（先在 Windows 測更新、`gh` 指令、附檔、標 Latest、工具庫那邊、下載連結、出事怎麼退、給新 session 的檢查表）在
+[release-playbook.md](release-playbook.md)；下面是最短的版本。
+
 ```
 git switch dev && git pull
 git switch -c release/0.2.1
@@ -162,7 +165,9 @@ git switch dev && git merge main && git push origin dev
 
 ### 6. 怎麼讓大家知道有新版
 
-- 發佈頁（Latest 標記）＋每版的白話說明；網頁工具庫的卡片標「有新版」（只對工具）。
+- 發佈頁（Latest 標記）＋每版的白話說明；網頁工具庫的卡片標「有新版」，上面一條「有 N 個工具可以更新」＋「全部更新」
+  （外觀包也算；一個一個給報告、按確認才換）；命令列 `synox tools check`、`synox tools update <名字…>|--all`。
+  每週檢查打開的人，工具有新版也通知一次（同一組版本只一次）。
 - 「檢查更新」（網頁設定「💻 電腦與備份」、`synox update --check`）：問 GitHub 的 `releases/latest`（只有正式版），說明裡有「🔒 安全更新」或「強烈建議更新」就用紅字；順便說有幾個工具可以更新。打開每週檢查的人：網頁上方的橫幅＋Telegram／Discord 通知一次。
 - 所以**安全修正一定要**：標題前加「🔒 安全更新」、說明第一句「**強烈建議更新**」、`release.py sign --security`（決定 U9）。沒打開每週檢查的人不會被通知，這是「不偷連網」的取捨（決定 U2）。
 
