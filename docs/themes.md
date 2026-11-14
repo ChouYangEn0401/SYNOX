@@ -93,7 +93,7 @@ costume-b-lantern/
 }
 ```
 
-- 外觀包**沒有程式**：不能寫 `python`、`cli`、`commands`、`mcp`、`runtime`、`env`、`capabilities`、`web`、`auth`、`health`…（第 1 關就拒）；
+- 外觀包**沒有程式**：不能寫 `python`、`cli`、`commands`、`mcp`、`runtime`、`env`、`capabilities`、`web`、`auth`、`health`、`callers`、`stepup`…（第 1 關就拒）；
   `requires` 只能寫 `synox`。不用 SKILL.md。
 - 資料夾裡只能有 `pack.json`、`.svg`、`.html`、`.css`（只有 `theme.css` 指到的那一份）、`.woff2`（只有 `theme.fonts` 列的）與說明文字。最多 40 個檔。
 - 大小：一個 slot 檔 64 KB、`theme.css` 64 KB、字型一個 400 KB、最多 4 個、加起來 1 MB。

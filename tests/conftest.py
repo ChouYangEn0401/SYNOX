@@ -64,6 +64,46 @@ def _test_pack_dirs(monkeypatch):
 
 
 @pytest.fixture
+def no_sockets(monkeypatch):
+    """新的測試檔一律用（pytestmark = pytest.mark.usefixtures("no_sockets")）：測試不准開埠。"""
+    import socket
+
+    def refuse(*_a, **_k):
+        raise AssertionError("測試不准開埠")
+    monkeypatch.setattr(socket.socket, "bind", refuse)
+    monkeypatch.setattr(socket.socket, "listen", refuse)
+
+
+@pytest.fixture
+def no_subprocess(monkeypatch):
+    """手機入口的測試一律用（ADR 0026）：subprocess.Popen 一叫就失敗（通道程式永遠不在這台開發機跑）。"""
+    import subprocess
+
+    def refuse(*_a, **_k):
+        raise AssertionError("測試不准開子程序")
+    monkeypatch.setattr(subprocess, "Popen", refuse)
+
+
+APP_PACKS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "app_pack")
+
+
+@pytest.fixture
+def counter(make_bot, tmp_path):
+    """有工具服務 fixture（counter）的 bot＋它的管理員（假 listener：不開埠）。counter(raw=…, script=…)。
+    伺服器版先把 counter 鎖成 core（跟其他 fixture 一樣，不然第三方 python pack 只給擁有者）。"""
+    def factory(script=None, **kw):
+        if (kw.get("raw") or {}).get("mode") == "server":
+            trust_core(tmp_path / "data", os.path.join(APP_PACKS, "counter"))
+        bot = make_bot(script, pack_dirs=(FIXTURE_PACKS, APP_PACKS), **kw)
+        from synox.web import apps
+        from synox.web.apps.testing import FakeListen
+        manager = apps.of(bot.app)
+        manager.listen = FakeListen()
+        return bot, manager
+    return factory
+
+
+@pytest.fixture
 def owner():
     return OWNER_ID
 

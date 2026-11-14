@@ -381,8 +381,10 @@ class RuntimeLoop:
         return True
 
     def _execute(self, task: Task, gen: int, manual: bool) -> None:
+        from synox.guard.origin import Origin, using
         try:
-            result = task.fn(TaskContext(task, manual))
+            with using(Origin("system", 0, surface="runtime:" + str(task.id)[:40])):      # 背景任務的來源（ADR 0025 §2）
+                result = task.fn(TaskContext(task, manual))
             error = None
         except Exception as e:
             logging.exception("[RUNTIME] task %s failed", task.id)

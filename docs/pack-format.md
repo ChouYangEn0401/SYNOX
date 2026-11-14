@@ -53,6 +53,7 @@
 | `requires.sdk` | | **建議一定寫**：這個工具照哪一版 SYNOX SDK（給工具的介面合約，`synox_sdk.SDK_VERSION`，見 [sdk.md](sdk.md)「SDK 版本」）寫的，例如 `">=0.2,<0.3"`（0.x 寫到下一個 MINOR）。寫法同 `requires.synox`；寫錯＝pack.json 不合；這台的 SDK 不在範圍內＝**不裝**（安裝報告列原因）、**不載入**（狀態「版本不合」）。`synox-sdk init` 會自動寫好 |
 | `requires.pip` | | 要的 Python 套件。`runtime.python` 是 `"auto"`（只給 kind=cli）時，安裝會建 venv 照這份裝，每一項都要是 `名字==版本`（見下面「依賴與環境自動建置」）；沒有 `auto`＝SYNOX 不會幫你裝，只是給人看 |
 | `web.panel` | | Web UI 工具頁的面板：pack 資料夾裡的一個 `.html`（不能用 `..`、絕對路徑）。網頁在 `<iframe sandbox="allow-scripts allow-same-origin">` 裡掛 `/packs/<name>/panel`，只給看得到這個 pack 的人 |
+| `web.app` | | **完整的網頁畫面（工具服務，ADR 0024）**：只給 kind=python。擁有者在 SYNOX 開服務之後，在另一個本機位址（`127.0.0.2`）上看這個工具自己的畫面。規則見下面「完整網頁畫面（`web.app`）」與 [docs/tool-apps.md](tool-apps.md) |
 | `web.api` | | 面板能打的資料：`["GET /summary"]`（只支援 GET，名字小寫英數字）。pack 在 `install` 裡用 `pack.web_route("summary", fn)` 掛，`fn(user)` 回可以轉 JSON 的東西（**只回這個人自己的**：用 `pack.store.of(user)`）。沒宣告的 route 掛了也打不到 |
 | `health.check` | | **建議寫**：`{"check": "<這個 pack 的一個唯讀指令名>"}`。工具連續失敗被暫停、冷卻到了，SYNOX 用它**重新檢查**（不叫 AI；過了才放回 AI 的工具清單）。一定要是唯讀、不用填參數的指令：kind=cli 是 `cli.commands` 裡 `effect: READ`、沒有沒預設值的必填欄位、不是 `background`／`confirm`；kind=mcp 是 `tools_allow` 裡 `mcp.effects` 寫 `READ` 的工具；kind=python 寫指令名（執行時再確認是 READ）。安裝時寫錯＝拒裝；已裝的寫壞了＝當作沒寫（沒有自我檢查的工具冷卻結束後放回清單試用一次，每天最多 4 次）。見 [tool-health.md](tool-health.md) |
 
@@ -126,6 +127,47 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
   - **沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）＝`third-party`；而且載入前補跑一次第 2 關靜態掃描，
     沒過＝狀態 `rejected`、不載入（理由列 `檔名:行號`）。信得過就 `python -m synox packs lock --approve <name> --trust core`。
   - 為什麼只給擁有者，`doctor` 與 `packs status` 都會寫一行 🔐。kind=cli 的第三方 pack 另外看沙盒（見 `docs/security.md`「運行空間（沙盒）」）。
+
+### 完整網頁畫面（`web.app`，工具服務）
+
+```json
+"web": { "app": { "entry": "app/index.html", "root": "app", "title": "記帳本", "kit": 1,
+                  "reads": ["month", "entries"], "actions": { "add": "WRITE", "rm": "DANGER" },
+                  "exports": ["entries_csv"], "remote": false } }
+```
+
+- **選用的**：沒寫 `web.app` 的工具沒有任何畫面、沒有任何埠與路由。框架（登入、來源檢查、閒置、稽核）在 SYNOX，不在工具裡。
+- `root`：pack 裡的一個子資料夾（不能是 `.`、不能有 `..`、不能是絕對路徑或網路路徑）；裡面只准 `.html .js .css .json .png .jpg .jpeg .webp .svg .ico .woff2`，
+  最多 100 個檔、單檔 512 KB、合計 3 MB、不准符號連結。`entry`：`root` 裡的一個 `.html`，**第一個 `<script>` 一定是 `/_synox/kit.js`**（SYNOX 的共用元件）。
+- `kit`：必填的整數，照哪一版共用元件寫的（這一版只收 `1`）。`title`：選填，一行、24 字內。
+- `reads`：讀資料的名字（`GET /api/read/<名字>`）；`actions`：`{"名字": "WRITE"|"DANGER"}`，**每個動作都要有同名的指令**（`/<群組>_<名字>`），危險程度一樣——
+  一個動作＝一個指令，權限、欄位檢查、稽核都照那個指令；`exports`：選填，匯出的名字（個人版下載沒加密的檔、先講清楚；伺服器版不給）。
+  名字只用小寫英數字、`-`、`_`；`reads` 與 `actions` 至少一邊有東西。
+- `remote`：選填的布林（預設 false）。宣告了才可能從手機用（ADR 0026，要擁有者另外打開）；升級時 false → true 是紅字。
+- 不認得的鍵（例如想替自己選閒置設定）安裝時拒；已經裝好的舊工具寫壞了＝當作沒有畫面（工具照樣載入）。
+- 第 2 關另外看畫面的檔：內嵌的 `<script>`、`on…` 屬性、`<base>`、`<meta http-equiv>`、`<iframe>`／`<object>`／`<embed>`、指到外面網址的 `src`／`href` → 拒；
+  JS／CSS 裡的網址、`eval(`、`fetch(`、`serviceWorker`… → 只提醒。`root` 裡的這些檔不算「掃不到的檔」（不會因為有 `.js` 就變 T2）。
+- 安裝報告一定寫：「這個工具附了完整的網頁畫面…可以不經你同意讀、改、匯出這個工具裡的所有資料…以 SYNOX 自己的畫面為準。」升級時新加畫面、多了動作或匯出、動作變危險＝紅字。
+
+### 範圍：`callers`、`stepup`（只能收緊，ADR 0025 §3）
+
+兩個**可選**的頂層欄位，寫了 SYNOX 在執行時檢查（`policy.decide`），不是相信工具自己說的：
+
+```json
+"callers": { "export": ["human"], "sync": ["human", "schedule"] },
+"stepup":  ["rm_all"]
+```
+
+- `callers`：這個指令只收列出來的幾類叫法。`human`＝你本人在 Telegram／Discord／SYNOX 網頁／終端機；`remote`＝手機入口（ADR 0026）；
+  `ai`＝AI 呼叫工具；`schedule`＝排程；`system`＝SYNOX 自己的背景工作。`["human"]`＝AI、排程、手機入口都不行，
+  AI 的工具清單裡也看不到它；排進排程會被拒。沒寫的指令＝今天的行為。
+- `stepup`：這個指令**一定要**先用手機驗證器解鎖（沒設定驗證器的人不能用它，回一句去哪裡設定），不管「危險的動作也要先解鎖」開不開。
+- 安裝時（第 1 關）：指令名要是這個工具宣告過的（kind=cli／mcp 對 `commands`；kind=python 的指令寫在程式裡，安裝時只看名字的格式、
+  載入時對不到的那一條當作沒寫並記 log）；`callers` 的值是上面五類的非空子集；**危險的指令不准列 `remote`**；不認得的 → 拒，訊息點名。
+  已經裝好的舊工具載入時，壞掉的那一條當作沒寫。
+- 安裝報告多一行白話（「/demo_export 只收你本人；/demo_rm_all 一定要先用手機驗證器解鎖」）。升級時拿掉或放寬一條＝紅字，新增或收緊＝一般字。
+- 工具自己也能再檢查一次（多一層，不是邊界）：python 工具用 `kit.caller()`、`kit.require_human()`；子程序工具用 `synox_sdk` 的
+  `caller()`、`require_human()`（SDK 0.2.3 起，見 docs/sdk.md）。
 
 ## pack.json v2（架構 v1 §4）
 
@@ -490,7 +532,7 @@ JSON-RPC 2.0（一行一個訊息），不開網路埠：
 ```
 
 - **第 1 關**：`theme` 的格式；`tokens.light`、`tokens.dark` 都要給齊核心 12 色；slot 名字要在合約裡、檔案在 pack 裡；
-  不能寫 `python`、`cli`、`commands`、`mcp`、`runtime`、`env`、`capabilities`、`web`、`auth`、`health`、`storage`、`group`、`surfaces`、`data`、`skill`；
+  不能寫 `python`、`cli`、`commands`、`mcp`、`runtime`、`env`、`capabilities`、`web`、`auth`、`health`、`storage`、`group`、`surfaces`、`data`、`skill`、`callers`、`stepup`；
   `requires` 只能有 `synox`。
 - **第 2 關**：只能有 `pack.json`、`.svg`、`.html`、`.css`、`.woff2`、說明文字；每個 SVG／HTML／CSS 過消毒（`synox/theme/sanitize.py`：
   `<script>`、事件屬性、`javascript:`、外部網址、`@import`、`<foreignObject>`…＝拒）；字型要真的是 woff2。
