@@ -28,25 +28,9 @@
   #define StageDir "..\..\dist\installer-stage\SYNOX"
 #endif
 
-; Inno Setup 6 ships official translations for es, fr, de, pt-BR, ru, ar, ja, ko. Traditional Chinese, Simplified
-; Chinese and Hindi exist only as unofficial, user-contributed files (docs/release-build.md "Installer languages").
-; If a reviewed copy is placed in lang\inno\ it is used; otherwise Inno's own buttons stay English for that language
-; while every SYNOX text (lang\<code>.isl) is still translated and the choice is still saved.
-#if FileExists(AddBackslash(SourcePath) + "lang\inno\ChineseTraditional.isl")
-  #define BaseZhTW "lang\inno\ChineseTraditional.isl"
-#else
-  #define BaseZhTW "compiler:Default.isl"
-#endif
-#if FileExists(AddBackslash(SourcePath) + "lang\inno\ChineseSimplified.isl")
-  #define BaseZhCN "lang\inno\ChineseSimplified.isl"
-#else
-  #define BaseZhCN "compiler:Default.isl"
-#endif
-#if FileExists(AddBackslash(SourcePath) + "lang\inno\Hindi.islu")
-  #define BaseHi "lang\inno\Hindi.islu"
-#else
-  #define BaseHi "compiler:Default.isl"
-#endif
+; Inno Setup 6 ships official translations of its built-in texts (buttons, "Browse...") for es, fr, de, pt-BR, ru, ar,
+; ja, ko. For Traditional Chinese, Simplified Chinese and Hindi, SYNOX has its own translations in lang\inno\ (same keys
+; as Inno's Default.isl, kept complete by check-iss; docs/release-build.md "Installer languages").
 
 [Setup]
 AppId={{319CD614-2BF6-4552-8D5E-218B43046503}
@@ -87,15 +71,15 @@ UsePreviousTasks=no
 ; English first: it is used when the Windows display language matches none of the twelve.
 ; lang\en.isl comes before each language's own file, so any SYNOX text a translation lacks falls back to English.
 Name: "en"; MessagesFile: "compiler:Default.isl,lang\en.isl"
-Name: "zhTW"; MessagesFile: "{#BaseZhTW},lang\en.isl,lang\zh-TW.isl"
-Name: "zhCN"; MessagesFile: "{#BaseZhCN},lang\en.isl,lang\zh-CN.isl"
+Name: "zhTW"; MessagesFile: "lang\inno\ChineseTraditional.isl,lang\en.isl,lang\zh-TW.isl"
+Name: "zhCN"; MessagesFile: "lang\inno\ChineseSimplified.isl,lang\en.isl,lang\zh-CN.isl"
 Name: "es"; MessagesFile: "compiler:Languages\Spanish.isl,lang\en.isl,lang\es.isl"
 Name: "fr"; MessagesFile: "compiler:Languages\French.isl,lang\en.isl,lang\fr.isl"
 Name: "de"; MessagesFile: "compiler:Languages\German.isl,lang\en.isl,lang\de.isl"
 Name: "ptBR"; MessagesFile: "compiler:Languages\BrazilianPortuguese.isl,lang\en.isl,lang\pt-BR.isl"
 Name: "ru"; MessagesFile: "compiler:Languages\Russian.isl,lang\en.isl,lang\ru.isl"
 Name: "ar"; MessagesFile: "compiler:Languages\Arabic.isl,lang\en.isl,lang\ar.isl"
-Name: "hi"; MessagesFile: "{#BaseHi},lang\en.isl,lang\hi.isl"
+Name: "hi"; MessagesFile: "lang\inno\Hindi.isl,lang\en.isl,lang\hi.isl"
 Name: "ja"; MessagesFile: "compiler:Languages\Japanese.isl,lang\en.isl,lang\ja.isl"
 Name: "ko"; MessagesFile: "compiler:Languages\Korean.isl,lang\en.isl,lang\ko.isl"
 
