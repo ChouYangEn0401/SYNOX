@@ -1,5 +1,6 @@
 ﻿# bootstrap.ps1 — Setup.bat 叫的安裝步驟（UTF-8 有 BOM：PowerShell 5.1 沒 BOM 會當成 cp950）。
-# 0. 先選語言（lang.ps1）：-Lang／SYNOX_LANG → lang.txt → 問（按 Enter＝Windows 的顯示語言）；存進 lang.txt，再用 --lang 交給精靈。
+# 0. 先選語言（lang.ps1），每次都問、而且是第一個畫面：-Lang／SYNOX_LANG 直接用、不問；否則一定問（按 Enter＝上次選的
+#    lang.txt，沒有就是 Windows 的顯示語言）；輸入被導向或 -Update 不問。存進 lang.txt，再用 --lang 交給精靈。
 #    接著印「先說清楚」，再問一題：按 Enter 照建議（推薦），輸入 C 自訂（Setup.bat -Custom＝直接進自訂）。
 #    建議＝只準備好 SYNOX 本身＋入門教學，開機自動啟動；工具等看完教學再自己挑。自訂可以改：開機自動啟動、
 #    裝 Claude Code（這台沒有才裝）、全部工具都裝（不建議）。輸入被導向（沒有人在看）時照建議、不問。
@@ -23,7 +24,9 @@ $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $Root
 . (Join-Path $PSScriptRoot 'lang.ps1')
-$LangCode = Resolve-SynoxLang $Root $Lang -SaveOverride
+# 語言一定是第一個畫面：這行之前什麼都不印（沒有標題、沒有 Conda 提示、沒有 [SYNOX] 字樣）。每次跑 Setup.bat 都問，
+# 按 Enter＝上次選的（lang.txt）；-Lang／SYNOX_LANG（.exe 安裝程式交棒、自動化）不問；-Update（Update.bat）不問。
+$LangCode = Resolve-SynoxLang $Root $Lang -SaveOverride -EveryTime -NoAsk:$Update
 Import-SynoxText $LangCode
 $env:PYTHONUTF8 = '1'
 $env:PYTHONIOENCODING = 'utf-8'

@@ -444,7 +444,7 @@ span.hl { display: inline-block; }
 </nav>
 
 <footer class="wrap">
-  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>11b51ae53b · 2026-11-14</span></p>
+  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>4d93aa0f9e · 2026-11-14</span></p>
 </footer>
 
 <script type="application/json" id="tour-steps">
@@ -573,6 +573,8 @@ span.hl { display: inline-block; }
 
   /* ── 步驟資料（格式寫在檔案最上面的註解）──────────────────────────────── */
   var RELEASES_URL = "https://github.com/ChouYangEn0401/SYNOX/releases";
+  var REPO_URL = "https://github.com/ChouYangEn0401/SYNOX";
+  var MAIN_ZIP_URL = "https://github.com/ChouYangEn0401/SYNOX/archive/refs/heads/main.zip";
   var ADV_URL = "https://github.com/ChouYangEn0401/SYNOX/blob/main/docs/advanced-install.md";
   var LIBS_URL = "https://github.com/ChouYangEn0401/SYNOX_Libs/releases";
   var TG_GUIDE = "https://claude.ai/artifact/SjWBzQkdDpUNymrQEZRKHe";
@@ -585,25 +587,27 @@ span.hl { display: inline-block; }
       mock: "welcome", targets: [],
       tips: [{ k: "note", t: "畫面裡有<b>綠色圈圈在閃</b>的地方，就是你要按的地方。" }] },
 
-    { id: "download", chapter: "下載與解開", title: "到 GitHub 發佈頁，下載 SYNOX 的 ZIP",
-      body: ["按下面的按鈕，打開 SYNOX 在 GitHub 的<b>發佈頁</b>。",
-             "最上面那一版（標著 <b>Latest</b>）下面有「Assets」，按 <b>SYNOX-0.2.1.zip</b> 下載（數字是版本，會跟圖上不一樣）。大約 4 MB。"],
-      mock: "releases", targets: [{ id: "dl", say: "按這個", place: "b" }],
-      links: [{ href: RELEASES_URL, text: "打開 SYNOX 發佈頁", primary: true, icon: "download" }],
-      tips: [{ k: "warn", t: "不要按 GitHub 自己附的「Source code (zip)」，也不要用綠色「Code」按鈕裡的「Download ZIP」：那是給工程師的原始碼。" },
-             { k: "wip", t: "第一個發佈版還在準備（要先在真的 Windows 上試裝過）。發佈頁還是空的，就是還沒發出來，請過幾天再來看。" },
+    { id: "download", chapter: "下載與解開", title: "到 GitHub 下載 SYNOX 的 ZIP",
+      body: ["按下面的按鈕，打開 SYNOX 在 GitHub 的頁面。",
+             "按綠色的 <b>&lt;&gt; Code</b> 按鈕，再按選單最下面的「<b>Download ZIP</b>」。",
+             "會下載一個叫 <b>SYNOX-main.zip</b> 的檔案，大約 4 MB。"],
+      mock: "repo-zip", targets: [{ id: "code", say: "1 先按 Code", place: "a" }, { id: "dl", say: "2 再按這裡", place: "b" }],
+      links: [{ href: REPO_URL, text: "打開 SYNOX 的 GitHub 頁面", primary: true, icon: "download" },
+              { href: MAIN_ZIP_URL, text: "或直接下載 SYNOX-main.zip", icon: "download" }],
+      tips: [{ k: "wip", t: "第一個正式版（Release）還沒發佈；發佈之後這一步會改成下載 SYNOX-版本號.zip（在<a href=\"" + RELEASES_URL + "\" target=\"_blank\" rel=\"noopener\">發佈頁</a>）。" },
+             { k: "note", t: "這個 ZIP 裡的檔案跟之後的正式版 ZIP 一樣（給工程師的測試檔不在裡面）。只差在：正式版會多附一份工具庫，這個版本的工具要等一下從網路下載。" },
              { k: "wip", t: "點一下就裝好的 <code>.exe</code> 安裝程式（SYNOX-Setup-….exe）還沒發佈。現在請用 ZIP。" },
              { k: "if", t: "瀏覽器問你要不要保留這個檔案，按「保留」。" },
              { k: "note", t: "會寫程式、想跑測試或幫忙開發？用 <code>git clone</code>，看<a href=\"" + ADV_URL + "\" target=\"_blank\" rel=\"noopener\">進階安裝說明</a>。" }] },
 
     { id: "find", chapter: "下載與解開", title: "打開「下載」資料夾",
       body: ["按螢幕下方工作列上<b>黃色資料夾</b>的圖示（檔案總管）。",
-             "左邊按「<b>下載</b>」，就會看到剛剛下載的 <b>SYNOX-0.2.1.zip</b>。"],
+             "左邊按「<b>下載</b>」，就會看到剛剛下載的 <b>SYNOX-main.zip</b>。"],
       mock: "explorer-dl", targets: [{ id: "nav-dl", say: "先按這裡", place: "bs" }, { id: "zip", say: "找到它", place: "a" }],
-      tips: [{ k: "note", t: "ZIP 檔的圖示是一個<b>有拉鍊的資料夾</b>。如果看不到 .zip 三個字，找名字是 SYNOX-0.2.1（數字跟你下載的一樣）的那一個。" }] },
+      tips: [{ k: "note", t: "ZIP 檔的圖示是一個<b>有拉鍊的資料夾</b>。如果看不到 .zip 三個字，找名字是 <b>SYNOX-main</b> 的那一個。下載過兩次的話，名字後面會多一個 (1)，用哪一個都可以。" }] },
 
     { id: "unzip", chapter: "下載與解開", title: "按右鍵，選「全部解壓縮」",
-      body: ["把滑鼠移到 SYNOX-0.2.1.zip 上，按滑鼠<b>右邊</b>的鍵。",
+      body: ["把滑鼠移到 SYNOX-main.zip 上，按滑鼠<b>右邊</b>的鍵。",
              "跳出一個選單，按「<b>全部解壓縮…</b>」。"],
       mock: "explorer-menu", targets: [{ id: "extract", say: "按這裡", place: "r" }],
       tips: [{ k: "if", t: "選單裡找不到，先按選單最下面的「顯示其他選項」，再找「全部解壓縮…」。" },
@@ -615,7 +619,7 @@ span.hl { display: inline-block; }
       mock: "extract", targets: [{ id: "go", say: "按這裡", place: "ae" }] },
 
     { id: "setup", chapter: "下載與解開", title: "找到 Setup.bat，點兩下",
-      body: ["新打開的資料夾裡有一個 <b>SYNOX</b> 資料夾，先點兩下進去，就會看到很多檔案。",
+      body: ["新打開的資料夾裡還有一個 <b>SYNOX-main</b> 資料夾，先點兩下進去，就會看到很多檔案。",
              "找到 <b>Setup.bat</b>，用滑鼠左鍵很快地按兩下。"],
       mock: "explorer-folder", targets: [{ id: "setup", say: "點兩下", place: "a" }],
       tips: [{ k: "note", t: "看不到 .bat 的話：找名字是 <b>Setup</b>、類型是「Windows 批次檔案」的那一個。" },
@@ -627,26 +631,30 @@ span.hl { display: inline-block; }
       mock: "smartscreen", targets: [{ id: "more", say: "1 先按這裡", place: "bs" }, { id: "run", say: "2 再按這裡", place: "be" }],
       tips: [{ k: "note", t: "按完「其他資訊」，下面才會多出「仍要執行」這顆按鈕。" }] },
 
-    { id: "lang", chapter: "下載與解開", title: "第一件事：選語言",
-      body: ["會打開一個<b>黑色的視窗</b>。它第一件事就是問你要用<b>哪一種語言</b>。",
-             "你選的語言會一直用下去：<b>接下來的安裝訊息、設定精靈，還有之後的 SYNOX</b>，都會用這個語言。",
-             "直接按 <b>Enter</b>＝跟你的 Windows 一樣的語言。Windows 是<b>繁體中文</b>的話，按鍵盤上的 <b>Enter</b> 鍵就好。"],
+    { id: "lang", chapter: "下載與解開", title: "第一個畫面：選語言",
+      body: ["會打開一個<b>黑色的視窗</b>。它第一個問題一定是：<b>要用哪一種語言？</b>",
+             "看最下面那一行：寫的就是按 Enter 會選的語言。是你要的，就按鍵盤上的 <b>Enter</b> 鍵。",
+             "你選的語言，接下來的畫面和 SYNOX 都會用。"],
       mock: "console-lang", targets: [{ id: "enter", say: "繁體中文：按 Enter", place: "as" }],
       tips: [{ k: "note", t: "想用別的語言：打那個語言前面的數字（例如英文打 3），再按 Enter。一共有 12 種。" },
-             { k: "note", t: "選過一次就會記住，下次點 Setup.bat 不會再問。之後想換語言：刪掉 SYNOX 資料夾裡的 lang.txt，再點兩下 Setup.bat，就會重新問一次。" }] },
+             { k: "note", t: "每次點兩下 Setup.bat，都會先問語言。直接按 Enter＝上次選的那一個（最下面那一行會寫「（上次選的）」）。想換語言，就在這裡打別的數字。" }] },
 
-    { id: "plan", chapter: "下載與解開", title: "先說清楚，然後按 Enter",
-      body: ["接著會印幾行「<b>先說清楚</b>」：SYNOX 用它自己帶的一份 Python，放在 SYNOX 資料夾裡，<b>不會動到</b>這台電腦原本的 Python 或 Conda。",
-             "然後問你一題。直接按 <b>Enter</b>＝<b>照建議</b>（推薦）：只準備好 SYNOX 本身，登入 Windows 後自動啟動；工具等看完入門教學再自己挑。"],
+    { id: "plan", chapter: "下載與解開", title: "只問一個問題：按 Enter 就好",
+      body: ["選好語言後，黑色視窗會先印幾行說明。最後一行會問你<b>一個問題</b>。",
+             "直接按鍵盤上的 <b>Enter</b> 鍵＝<b>照建議</b>。大部分的人都選這個。",
+             "另一個選擇：打字母 <b>C</b>，再按 Enter＝<b>自己決定</b>要裝哪些東西。只有想自己挑的人才需要。"],
       mock: "console-plan", targets: [{ id: "enter", say: "照建議：按 Enter", place: "as" }],
-      tips: [{ k: "note", t: "想自己決定（要不要開機自動啟動、要不要裝 Claude Code）：打 C 再按 Enter，用號碼打勾或取消，好了再按 Enter。" }] },
+      tips: [{ k: "note", t: "SYNOX 會自己準備需要的東西，不會動到你電腦上原本的程式。" },
+             { k: "note", t: "照建議＝準備好 SYNOX，以後登入電腦它就自己打開。要用哪些工具，等看完入門教學再挑。" },
+             { k: "note", t: "打了 C：會列出三個選項（開機自動打開、裝 Claude Code、全部工具都裝）。打號碼可以打勾或取消，好了再按 Enter。" }] },
 
-    { id: "wait", chapter: "下載與解開", title: "等它準備好",
-      body: ["黑色視窗會一行一行跑字。第一次要自己下載 Python 和需要的東西，<b>要上網</b>，大約要等幾分鐘。",
-             "<b>不要關掉黑色視窗。</b>準備好之後，會跳出一個叫「SYNOX 安裝精靈」的視窗。"],
+    { id: "wait", chapter: "下載與解開", title: "等它準備好（幾分鐘）",
+      body: ["黑色視窗會一直跑出一行一行的字。這是正常的，<b>什麼都不用按</b>。",
+             "第一次要上網下載東西，大約等幾分鐘。<b>不要關掉黑色視窗。</b>",
+             "好了之後，會自己跳出一個新的視窗，叫「<b>SYNOX 安裝精靈</b>」。"],
       mock: "console-wait", targets: [{ id: "last", say: "等到這一行", place: "as" }],
-      tips: [{ k: "note", t: "如果你的電腦已經裝過 Conda 或別的 Python，黑色視窗會先多一行說明：SYNOX 會用自己的那一份，不會動到它們。不用理它。" },
-             { k: "note", t: "SYNOX 自己的 Python 是從 GitHub 下載的（約 22 MB），下載完先核對檢查碼，再用 Windows 內建的 tar.exe 解開。🧪 這一段寫好了，還沒在真的 Windows 上試過。" },
+      tips: [{ k: "note", t: "中間如果多一行寫「這台電腦已經有 …」，不用理它。意思是：SYNOX 用自己的那一份，不會動到它們。" },
+             { k: "note", t: "🧪 第一次會從 GitHub 下載一個約 22 MB 的檔案，先核對過沒被改過才用。這一段寫好了，還沒在真的 Windows 上試過。" },
              { k: "if", t: "出現紅字和「安裝沒有完成，請看上面的訊息。」：檢查網路（要連得上 github.com），再點兩下 Setup.bat 一次。重跑是安全的。" },
              { k: "if", t: "寫「這台 Windows 沒有內建的 tar.exe」：Windows 太舊了（要 Windows 10 1803 以後），先更新 Windows。" }] },
 
@@ -858,23 +866,27 @@ span.hl { display: inline-block; }
         '<div><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="4" width="20" height="40" rx="4"/><path d="M21 38h6"/></svg><span><b>手機上的 Telegram</b><small>已經裝好、登入。之後就在這裡跟 SYNOX 講話。</small></span></div>' +
         '</div>';
     },
-    "releases": function () {
-      return browser("github.com/ChouYangEn0401/SYNOX/releases",
-        '<div class="page"><div class="card2"><h5>SYNOX 0.2.1 <span class="b" style="font-size:12px;padding:1px 8px;margin-left:4px">Latest</span></h5>' +
-        '<span class="muted">這版改了什麼／要不要更新／怎麼更新</span><div class="sep"></div><span class="faint">▾ Assets</span>' +
-        '<div class="dlp"><div class="it" data-hl="dl">' + I.zip + '<span><span class="nm">SYNOX-0.2.1.zip</span><small>約 4 MB</small></span></div>' +
-        '<div class="it" style="opacity:.55">' + I.doc + '<span><span class="nm">SHA256SUMS.txt</span></span></div>' +
-        '<div class="it" style="opacity:.55">' + I.zip + '<span><span class="nm">Source code (zip)</span><small>不是這個</small></span></div></div></div></div>');
+    "repo-zip": function () {
+      var green = 'background:#1f883d;border-color:#1f883d;color:#fff;font-weight:600';
+      return browser("github.com/ChouYangEn0401/SYNOX",
+        '<div class="page"><div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><span class="muted">ChouYangEn0401 /</span><b>SYNOX</b>' +
+        '<span class="faint" style="border:1px solid var(--line-2);border-radius:999px;padding:0 8px;font-size:12px">Public</span></div>' +
+        '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><span class="b">main ▾</span><span class="b" style="opacity:.55">Go to file</span>' +
+        '<span class="b" data-hl="code" style="' + green + '">&lt;&gt; Code ▾</span></div>' +
+        '<div class="dlp" style="max-width:340px"><div class="row" style="gap:14px;font-size:13px"><b style="border-bottom:2px solid var(--accent)">Local</b><span class="faint">Codespaces</span></div>' +
+        '<span class="faint m-sm">Clone · HTTPS</span><span class="field" style="font-family:var(--mono);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">https://github.com/ChouYangEn0401/SYNOX.git</span>' +
+        '<div class="it" style="opacity:.55">' + I.doc + '<span><span class="nm">Open with GitHub Desktop</span></span></div>' +
+        '<div class="it" data-hl="dl">' + I.zip + '<span><span class="nm">Download ZIP</span><small>SYNOX-main.zip，約 4 MB</small></span></div></div></div>');
     },
     "explorer-dl": function () {
       return explorer("本機 › 下載", "下載", [
-        { ic: "zip", n: "SYNOX-0.2.1.zip", t: "壓縮的 (zipped) 資料夾", hl: "zip" },
+        { ic: "zip", n: "SYNOX-main.zip", t: "壓縮的 (zipped) 資料夾", hl: "zip" },
         { ic: "doc", n: "繳費通知.pdf", t: "PDF 文件", cls: "dim" },
         { ic: "doc", n: "照片.jpg", t: "JPG 檔案", cls: "dim" }]);
     },
     "explorer-menu": function () {
       return explorer("本機 › 下載", "下載", [
-        { ic: "zip", n: "SYNOX-0.2.1.zip", t: "壓縮的 (zipped) 資料夾", cls: "sel" },
+        { ic: "zip", n: "SYNOX-main.zip", t: "壓縮的 (zipped) 資料夾", cls: "sel" },
         { ic: "doc", n: "繳費通知.pdf", t: "PDF 文件", cls: "dim" },
         { ic: "doc", n: "照片.jpg", t: "JPG 檔案", cls: "dim" },
         { ic: "doc", n: "旅遊.docx", t: "Word 文件", cls: "dim" },
@@ -883,15 +895,15 @@ span.hl { display: inline-block; }
     },
     "extract": function () {
       return win("解壓縮壓縮的 (zipped) 資料夾", '<div class="wb"><div class="wz-h" style="font-size:16px;font-weight:500">選取目的地並解壓縮檔案</div>' +
-        '<span class="m-sm">檔案將解壓縮至這個資料夾(F):</span><div class="row"><span class="field" style="flex:1">%USERPROFILE%\\Downloads\\SYNOX-0.2.1</span><span class="b">瀏覽(R)…</span></div>' +
+        '<span class="m-sm">檔案將解壓縮至這個資料夾(F):</span><div class="row"><span class="field" style="flex:1">%USERPROFILE%\\Downloads\\SYNOX-main</span><span class="b">瀏覽(R)…</span></div>' +
         '<span class="check on m-sm"><i></i>完成時顯示解壓縮的檔案(H)</span>' +
         '<div class="row" style="justify-content:flex-end;margin-top:14px"><span class="b pri" data-hl="go">解壓縮(E)</span><span class="b">取消</span></div></div>');
     },
     "explorer-folder": function () {
-      return explorer("下載 › SYNOX-0.2.1 › SYNOX", "", [
+      return explorer("下載 › SYNOX-main › SYNOX-main", "", [
         { ic: "folder", n: "docs", t: "檔案資料夾", cls: "dim" },
+        { ic: "folder", n: "setup", t: "檔案資料夾", cls: "dim" },
         { ic: "folder", n: "src", t: "檔案資料夾", cls: "dim" },
-        { ic: "folder", n: "tools", t: "檔案資料夾", cls: "dim" },
         { ic: "bat", n: "Console.bat", t: "Windows 批次檔案", cls: "dim" },
         { ic: "bat", n: "Install-Pack.bat", t: "Windows 批次檔案", cls: "dim" },
         { ic: "doc", n: "README.md", t: "MD 檔案", cls: "dim" },
@@ -917,7 +929,7 @@ span.hl { display: inline-block; }
         '[SYNOX] 先說清楚：SYNOX 用它自己的 Python\n' +
         '        - SYNOX 自己帶一份 Python，放在這個資料夾的 runtime\\python 裡：不改 PATH、不寫登錄檔、不用系統管理員。\n' +
         '        - 這台電腦原本的 Python、Conda 不會被使用，也不會被改動；也不會去 Microsoft Store 裝 Python。\n' +
-        '        - 不想用了：Uninstall.bat 會把這份 Python 一起刪掉。<span class="dm">…</span>\n\n' +
+        '        - 不想用了：Uninstall.bat 會把這份 Python 一起刪掉。想用自己的 Python：Setup.bat -UseSystemPython。\n\n' +
         '  Enter = 照建議（推薦）：只準備好 SYNOX 本身，登入 Windows 後自動啟動。工具等看完入門教學再自己挑。\n' +
         '  C     = 自訂：自己決定要不要開機自動啟動、要不要裝 Claude Code、要不要全部工具都裝。\n' +
         '<span data-hl="enter" class="key">按 Enter 照建議；輸入 C 再按 Enter 自訂:</span> <span class="cursor"></span>');
