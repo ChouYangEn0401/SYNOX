@@ -85,7 +85,7 @@
 | `steps[].title`／`body` | ✔ | 純文字；≤30／≤200 字 |
 | `steps[].chat` | | 聊天通道版本的字（≤300 字）。沒寫、而且這步有指位置＝聊天通道會多一句「在網頁打 /tutorial，我會直接指給你看」 |
 | `steps[].where.anchor` | | 一個位置名，或最多 3 個的清單（第一個看得到的；例如報告還沒出現時先指工具庫）。**只能用下面的位置清單** |
-| `steps[].go` | | 〔帶我去〕：`{"view": "chat"｜"tools"｜"settings", "tab": "ai"｜"channels"｜"packs"｜"accounts"｜"system"}`。位置看不到、或最後一步才會出現這顆 |
+| `steps[].go` | | 〔帶我去〕：`{"view": "chat"｜"tools"｜"settings", "tab": "ai"｜"channels"｜"packs"｜"accounts"｜"system"｜"commands"}`。位置看不到、或最後一步才會出現這顆 |
 | `steps[].try` | | 〔幫我填好〕：`{"text": "/help"}`，只填進輸入框（≤200 字） |
 | `steps[].done_when` | | 做完了就打勾、自動到下一步（見事件清單）。沒寫＝按〔下一步〕。一開始就已經做到的（例如本來就在那一頁）只打勾、不自動跳 |
 | `steps[].audience` | | `all`（預設）、`owner`（只給擁有者，例如裝工具）、`member`（不是擁有者的人） |
@@ -121,6 +121,7 @@
 | `chat.new` | 對話頁：「＋ 新對話」 | 0.2 |
 | `chat.input` | 對話頁：打字的地方（輸入框＋送出鈕） | 0.2 |
 | `chat.send` | 對話頁：「送出」 | 0.2 |
+| `chat.examples` | 對話頁：輸入框旁的「💡 範例」（點範例只會填進輸入框） | 0.2 |
 | `tools.page` | 工具頁：工具清單 | 0.2 |
 | `settings.tabs` | 設定頁：分頁列 | 0.2 |
 | `settings.tab.ai` | 「🤖 AI」分頁 | 0.2 |
@@ -128,6 +129,7 @@
 | `settings.tab.packs` | 「🧩 功能與安裝」分頁 | 0.2 |
 | `settings.tab.accounts` | 「👥 帳號」分頁（伺服器版） | 0.2 |
 | `settings.tab.system` | 「💻 電腦與備份」分頁 | 0.2 |
+| `settings.tab.commands` | 「⌨️ 我的指令」分頁（每個人自己的指令符號與名字，[commands.md](commands.md)） | 0.2 |
 | `settings.tab.help` | 「🙋 遇到問題？」分頁 | 0.2 |
 | `settings.ai.source` | 「AI 從哪裡來」那張卡 | 0.2 |
 | `settings.channels` | 聊天通道（Telegram／Discord）那張卡 | 0.2 |
@@ -137,6 +139,7 @@
 | `settings.packs.review` | 安裝前的檢查報告（整張卡；不是確認鈕） | 0.2 |
 | `settings.packs.installed` | 已安裝的工具清單 | 0.2 |
 | `settings.backup` | 備份那張卡 | 0.2 |
+| `settings.commands` | 「⌨️ 我的指令」那張卡（不是存檔鈕） | 0.2 |
 
 **相容規則（0.x）**：這張表是對外的承諾（工具附的教學靠它）。名字只加不改；真的要改名，新名字進表、舊名字放進 `anchors.RENAMED`
 （舊 → 新）**至少留一個 MINOR 版本**，舊教學照樣找得到；要拿掉一個位置，也要先在說明寫「下一版拿掉」、留一個 MINOR。

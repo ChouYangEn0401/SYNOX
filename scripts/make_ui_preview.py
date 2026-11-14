@@ -404,6 +404,12 @@ MOCK = r"""
       return reply({ ok: true });
     }
     if (p === "/api/tools") { return reply(D.tools); }
+    if (p === "/api/help") { return reply(D.help); }             // 「💡 範例」面板
+    if (p === "/api/aliases") {                                    // 我的指令：存在這一頁的記憶體
+      if (method !== "GET") { var ab = JSON.parse(opts.body); if (!ab.reset) { D.aliases.prefix = ab.prefix; D.aliases.names = ab.names; } }
+      return reply(method === "GET" ? D.aliases : { ok: true, prefix: D.aliases.prefix, names: D.aliases.names });
+    }
+    if (p === "/api/aliases/preview") { return reply({ text: "@記帳 120 午餐", result: "/money 120 午餐", command: true }); }
     if (p === "/api/tools/layout") {       // 群組編輯：只存在這一頁的記憶體
       var b = JSON.parse(opts.body);
       if (b.reset) { D.tools.layout = JSON.parse(D.defaultLayout); }
@@ -570,6 +576,32 @@ BAR_CSS = """
 """
 
 
+# 「💡 範例」面板（GET /api/help，synox/helpui/model.help_json 的形狀）與設定 →「⌨️ 我的指令」（GET /api/aliases）的假資料
+HELP = {"prefix": "/", "tools": [
+    {"id": "money", "title": "💰 記帳", "summary": "記一筆、看這個月、設預算", "stage": "🧪 alpha",
+     "featured": ["money.add", "money.month"], "commands": [
+         {"path": "money.add", "command": "/money", "title": "把一筆花掉的錢記下來", "effect": "write",
+          "examples": [{"text": "/money 120 午餐", "note": "午餐花了 120 元"}, {"text": "/money 350 交通 計程車"}]},
+         {"path": "money.month", "command": "/money_month", "title": "看這個月花了多少", "effect": "read",
+          "examples": [{"text": "/money_month"}]}]},
+    {"id": "note", "title": "📒 隨手記", "summary": "記下來、找出來", "stage": "🧪 alpha",
+     "featured": ["note.add"], "commands": [
+         {"path": "note.add", "command": "/note", "title": "記一則筆記", "effect": "write",
+          "examples": [{"text": "/note 買牛奶"}]},
+         {"path": "note.list", "command": "/note_list", "title": "看最近的筆記", "effect": "read",
+          "examples": [{"text": "/note_list"}]}]}]}
+ALIASES = {"prefix": "@", "names": {"money.add": ["記帳"]}, "suggestions": [
+               {"path": "money.month", "name": "這個月", "command": "/money_month", "title": "看這個月花了多少"}],
+           "conflicts": [], "escape": "\\", "limits": {"name": 16, "per_command": 3, "total": 100},
+           "prefixes": [{"value": v, "label": v if v not in ("/", "") else ("/（原本的）" if v == "/" else "不用符號（進階）")}
+                        for v in ("/", "$", "!", ".", "~", ";", ",", "@", "+", "")],
+           "warnings": {"@": "在群組或頻道裡，@ 常被當成「提到某個人」。私訊與 SYNOX 網頁沒問題；在群組裡比較穩的是 /。",
+                        "": "不用符號：只要訊息的第一個詞剛好是你取的名字或原本的指令名，就會被當成指令。"},
+           "targets": [{"path": "money.add", "command": "/money", "title": "把一筆花掉的錢記下來", "tool": "💰 記帳"},
+                       {"path": "money.month", "command": "/money_month", "title": "看這個月花了多少", "tool": "💰 記帳"},
+                       {"path": "note.add", "command": "/note", "title": "記一則筆記", "tool": "📒 隨手記"}]}
+
+
 def _appearance() -> dict:
     """設定 → 外觀（GET /api/appearance 的形狀）：沒裝外觀包、用原本的 SYNOX。"""
     from synox.theme import contract
@@ -583,7 +615,7 @@ def app_preview() -> str:
     data = {"me": ME, "chats": CHATS, "events": EVENTS, "tools": TOOLS, "secrets": SECRETS,
             "settings": SETTINGS, "channels": CHANNELS, "accounts": ACCOUNTS,
             "library": _library(), "runtime": RUNTIME, "report": REPORT, "logs": TASK_LOGS, "soul": SOUL, "soul_notes": SOUL_NOTES,
-            "appearance": _appearance()}
+            "help": HELP, "aliases": ALIASES, "appearance": _appearance()}
     mock = MOCK.replace("__DATA__", json.dumps(data, ensure_ascii=False))
     note = ("<!-- 自動產生：scripts/make_ui_preview.py（不要手改；改 src/synox/web/static/app.html、tools.css、"
             "tools.js、splash.css、splash.js 再重跑） -->\n")
