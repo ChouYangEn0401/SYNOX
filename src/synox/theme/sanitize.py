@@ -42,7 +42,7 @@ SVG_ELEMENTS = ("svg", "g", "path", "circle", "ellipse", "rect", "line", "polyli
                 "linearGradient", "radialGradient", "stop", "clipPath", "mask", "symbol", "use", "title", "desc",
                 "text", "tspan", "animate", "animateTransform", "pattern", "marker", "filter", "feGaussianBlur",
                 "feOffset", "feMerge", "feMergeNode", "feFlood", "feComposite", "feBlend", "feColorMatrix",
-                "feDropShadow", "feMorphology")
+                "feDropShadow", "feMorphology", "feTurbulence", "feDisplacementMap")
 HTML_ELEMENTS = ("div", "span", "p", "b", "strong", "i", "em", "small", "br", "sup", "sub")
 VOID = {"br", "img", "meta", "link", "input", "source", "track", "embed", "area", "base", "col", "hr", "param",
         "wbr", "keygen"}
@@ -81,7 +81,9 @@ SVG_ATTRS = (
     "repeatCount", "repeatDur", "from", "to", "by", "keyTimes", "keySplines", "calcMode", "additive",
     "accumulate", "restart", "href", "role", "aria-hidden", "aria-label", "focusable", "markerWidth",
     "markerHeight", "refX", "refY", "orient", "markerUnits", "marker-start", "marker-mid", "marker-end",
-    "overflow", "color", "mix-blend-mode", "isolation", "style", "transform-origin")
+    "overflow", "color", "mix-blend-mode", "isolation", "style", "transform-origin",
+    # <feTurbulence>（雜訊，自己算、不載入東西）與 <feDisplacementMap>（拿雜訊把圖扭一下）
+    "baseFrequency", "numOctaves", "seed", "stitchTiles", "scale", "xChannelSelector", "yChannelSelector")
 HTML_ATTRS = ("id", "class", "role", "aria-hidden", "aria-label", "title", "lang", "style")
 # style 屬性（網頁的 CSP 不收 inline style）：SVG 裡這些換成同名的屬性，其他丟掉
 PRESENTATION = {"fill", "fill-opacity", "fill-rule", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin",
