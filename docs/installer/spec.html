@@ -628,7 +628,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
             <dt>Inno Setup</dt><dd><code>ShowLanguageDialog=yes</code>、<code>LanguageDetectionMethod=uilanguage</code>、<code>UsePreviousLanguage=yes</code>。每個語言的名字寫在它的 <code>.isl</code> 的 <code>[LangOptions] LanguageName</code>。</dd>
             <dt>語言檔</dt><dd><code>[Languages]</code> 列 12 種，每種疊三層：Inno 的語言檔（按鈕這類內建的字）→ <code>lang\en.isl</code> → <code>lang\&lt;代號&gt;.isl</code>（我們自己的字；缺哪句就退回英文）。8 種用 Inno 官方檔；另外 3 種（繁體中文、简体中文、हिन्दी）用 SYNOX 自己翻的 <code>lang\inno\ChineseTraditional.isl</code>、<code>ChineseSimplified.isl</code>、<code>Hindi.isl</code>：照 Inno 6.7.4 <code>Default.isl</code> 的 293 個 key 全翻，<code>check-iss</code> 檢查一個都不少。</dd>
             <dt>交下去</dt><dd>檔案複製完，安裝程式把代號寫進 SYNOX 資料夾的 <code>lang.txt</code> 和 <code>installer-choices.json</code>；完成頁用 <code>Setup.bat -Lang &lt;代號&gt;</code>，再用 <code class="nb">--lang</code> 開設定精靈，精靈就跳過自己的語言頁。<code>Uninstall.bat</code> 也讀同一個 <code>lang.txt</code>。</dd>
-            <dt>ZIP 路徑</dt><dd><code>Setup.bat</code> 的文字視窗第一題就是語言（<code>lang.ps1</code>）：12 種排兩欄，打數字或代號；<strong>直接按 Enter＝Windows 的顯示語言</strong>。存進 <code>lang.txt</code>。給了 <code class="nb">-Lang</code>／<code>SYNOX_LANG</code>，或已經有 <code>lang.txt</code>，就不問。<i class="tag have">已有</i></dd>
+            <dt>ZIP 路徑</dt><dd><code>Setup.bat</code> 的文字視窗第一題就是語言（<code>lang.ps1</code>）：12 種排兩欄，打數字或代號；<strong>每次跑 <code>Setup.bat</code> 都問，而且是第一個畫面</strong>（之前什麼都不印）；直接按 Enter＝上次選的（<code>lang.txt</code>，提示寫「（上次選的）」），沒選過就是 Windows 的顯示語言。存進 <code>lang.txt</code>。只有給了 <code class="nb">-Lang</code>／<code>SYNOX_LANG</code>（.exe 安裝程式交棒、自動化）、<code>Update.bat</code>，或沒有人在看（輸入被導向）時不問。<i class="tag have">已有</i></dd>
           </dl>
         </div>
       </div>
@@ -1335,7 +1335,7 @@ footer { border-top: 1px solid var(--line); margin-top: 20px; padding-block: 22p
 </div>
 
 <footer>
-  <p class="stamp">給開發者：本機路徑 docs/installer/spec.html ・ 線上版 <a href="https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB">https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB</a> ・ 頁面版本 <span data-stamp>67a4af8973 · 2026-11-14</span></p>
+  <p class="stamp">給開發者：本機路徑 docs/installer/spec.html ・ 線上版 <a href="https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB">https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB</a> ・ 頁面版本 <span data-stamp>947ad2a92c · 2026-11-14</span></p>
 </footer>
 </div>
 

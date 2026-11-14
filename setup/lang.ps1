@@ -3,8 +3,13 @@
 # back to en, then zh-TW, for a missing key). The choice is saved in <SYNOX>\lang.txt, the same file the wizard uses
 # (src/synox/wizard/i18n.py; keep the code list and order in sync with i18n.LANGS).
 # The language prompt shows the latin name of each language next to its own name, so it stays readable in a legacy
-# console whose font has no CJK / Arabic / Devanagari glyphs. Pressing Enter picks the Windows display language
-# (Get-UICulture; English when it is none of the 12).
+# console whose font has no CJK / Arabic / Devanagari glyphs. Pressing Enter keeps the language saved in lang.txt
+# (labelled "last choice"), or, when nothing is saved yet, the Windows display language (Get-UICulture; English when
+# it is none of the 12).
+# Setup.bat (bootstrap.ps1, -EveryTime) asks on EVERY run, before anything else is printed; Uninstall.bat asks only
+# when nothing is saved. -Lang / SYNOX_LANG (automation, the .exe installer's "Setup.bat -Lang <code>") always win
+# silently, and nothing is asked when input is redirected (no one is watching) or with -NoAsk (Update.bat's
+# bootstrap.ps1 -Update).
 
 $SynoxLangs = @('zh-TW', 'zh-CN', 'en', 'es', 'fr', 'de', 'pt-BR', 'ru', 'ar', 'hi', 'ja', 'ko')
 $SynoxLangLabels = @{
@@ -65,8 +70,16 @@ function Get-SynoxDisplayLang {
     return (ConvertTo-SynoxUiLang $name)
 }
 
-function Ask-SynoxLang {
+function Test-SynoxLangInteractive {
+    # 輸入被導向（自動測試、沒有人在看）就不問
+    try { return (-not [Console]::IsInputRedirected) } catch { return $true }
+}
+
+# $Saved: the code in lang.txt ('' = none). Enter keeps it ("last choice"); else the Windows display language.
+function Ask-SynoxLang([string]$Saved = '') {
     $default = Get-SynoxDisplayLang
+    $mark = ''
+    if ($Saved) { $default = $Saved; $mark = ' （上次選的 / last choice）' }
     $defaultNo = [Array]::IndexOf($SynoxLangs, $default) + 1
     Write-Host ''
     Write-Host 'Language / 語言 / 语言 / Idioma / Langue / Sprache / Язык / اللغة / भाषा / 言語 / 언어'
@@ -78,7 +91,7 @@ function Ask-SynoxLang {
         Write-Host ('  {0,-44} {1}' -f $left, $right)
     }
     while ($true) {
-        $a = "$(Read-Host "Number or code, Enter = $defaultNo ($($SynoxLangLabels[$default]))")".Trim()
+        $a = "$(Read-Host "Number or code, Enter = $defaultNo ($($SynoxLangLabels[$default]))$mark")".Trim()
         if (-not $a) { return $default }
         $n = 0
         if ([int]::TryParse($a, [ref]$n) -and $n -ge 1 -and $n -le $SynoxLangs.Count) { return $SynoxLangs[$n - 1] }
@@ -87,17 +100,25 @@ function Ask-SynoxLang {
     }
 }
 
-# -Lang / SYNOX_LANG win; then lang.txt; then ask (and save the answer). Returns the code.
-function Resolve-SynoxLang([string]$Root, [string]$Override, [switch]$SaveOverride) {
+# -Lang / SYNOX_LANG win silently. Otherwise:
+#   -EveryTime (Setup.bat): always ask, Enter = lang.txt's language (if any), else the Windows display language;
+#   default (Uninstall.bat): lang.txt if there is one, else ask.
+# Never asks when input is redirected or with -NoAsk: lang.txt, else the Windows display language.
+# The answer is saved in lang.txt. Returns the code.
+function Resolve-SynoxLang([string]$Root, [string]$Override, [switch]$SaveOverride, [switch]$EveryTime, [switch]$NoAsk) {
     $code = ConvertTo-SynoxLang $Override
     if (-not $code) { $code = ConvertTo-SynoxLang $env:SYNOX_LANG }
     if ($code) {
         if ($SaveOverride) { Save-SynoxLang $Root $code }
         return $code
     }
-    $code = Read-SynoxLangFile $Root
-    if ($code) { return $code }
-    $code = Ask-SynoxLang
+    $saved = Read-SynoxLangFile $Root
+    if ($saved -and -not $EveryTime) { return $saved }
+    if ($NoAsk -or -not (Test-SynoxLangInteractive)) {
+        if ($saved) { return $saved }
+        return (Get-SynoxDisplayLang)
+    }
+    $code = Ask-SynoxLang $saved
     Save-SynoxLang $Root $code
     return $code
 }
