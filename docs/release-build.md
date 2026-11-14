@@ -51,7 +51,7 @@ tag 會多做一件事：把 exe 和 `SHA256SUMS.txt` 放進一個 **草稿（dr
 | 2 | `installer_ci.py version`：`pyproject.toml` 與 `synox.__version__` 要一樣；tag 要等於 `v<版本>` | 是 |
 | 3 | `scripts/prepublish_check.py --worktree-only`（密鑰、本機路徑、個人信箱）；接著 `installer_ci.py check-iss`（安裝程式腳本的靜態檢查） | 是 |
 | 4 | 下載兩個外部檔，**每個都先對 sha256**：SYNOX_Libs 的 tools zip、Inno Setup 安裝檔；再檢查 Inno 安裝檔的 Authenticode 簽章（發行者要對） | 是 |
-| 5 | 靜默安裝 Inno Setup 到暫存資料夾 | 是 |
+| 5 | 靜默安裝 Inno Setup 到暫存資料夾；接著 `installer_ci.py check-iss --inno-default <Inno>\Default.isl`：我們自己的三個 Inno 語言檔要涵蓋這個 Inno 的 `Default.isl` 每一個 key | 是 |
 | 6 | 乾淨 venv `pip install .` → `lock_deps.py` → `pip download`（`--only-binary=:all:`，cp312／win_amd64）＋ pip、setuptools → `lock_deps.py --wheelhouse`（寫進 sha256）→ `--check` | 是 |
 | 7 | `stage_installer.py --fetch-python --wheelhouse … --tools …`：照 `setup/bootstrap.ps1` 釘的網址下載 SYNOX 自己的 Python、對 sha256、檢查路徑後解到 `runtime\python`（跟 ZIP 的 `Setup.bat` 下載的是**同一個檔案**） | 是 |
 | 8 | `ISCC.exe /DAppVersion=<版本> /DStageDir=<stage> setup\installer\synox.iss` → 算 sha256 → 上傳 artifact | 是 |
@@ -143,21 +143,21 @@ action 用 `git ls-remote --tags https://github.com/<owner>/<repo>.git` 找 tag 
 |---|---|---|
 | English | 內建 | `compiler:Default.isl` |
 | Español、Français、Deutsch、Português (Brasil)、Русский、العربية、日本語、한국어 | **官方**，隨 Inno Setup 安裝 | `compiler:Languages\Spanish.isl`、`French.isl`、`German.isl`、`BrazilianPortuguese.isl`、`Russian.isl`、`Arabic.isl`、`Japanese.isl`、`Korean.isl` |
-| 繁體中文、简体中文、हिन्दी | **非官方**（使用者貢獻，不隨 Inno Setup 安裝） | 沒放的話按鈕用英文，其他照樣翻好、選的語言照樣存進 `lang.txt` |
+| 繁體中文、简体中文、हिन्दी | Inno 沒有官方檔 → **SYNOX 自己翻的**（2026-11-14 擁有者決定） | `setup/installer/lang/inno/ChineseTraditional.isl`、`ChineseSimplified.isl`、`Hindi.isl` |
 
-（2026-11-13 用 `jrsoftware/issrc` 的 `is-6_7_4` tag 核對：`Files/Languages/` 有上面 8 個官方檔，`Files/Languages/Unofficial/` 才有中文與印地文。）
+（2026-11-13 用 `jrsoftware/issrc` 的 `is-6_7_4` tag 核對：`Files/Languages/` 只有上面 8 個官方檔；中文與印地文只有網友貢獻的非官方檔。）
 
-要讓這三種的按鈕也翻好：把檔案放進 `setup/installer/lang/inno/`（檔名照原樣），`synox.iss` 編譯時看到就會用（`#if FileExists`）。
+這三個檔是 **SYNOX 自己的翻譯**：照 Inno Setup 6.7.4 `Default.isl` 的 key 逐句翻（只拿它當 key 的清單），沒有用、也沒有抄任何第三方或
+網友貢獻的翻譯檔，所以沒有授權要另外處理，也不用放進第三方授權清單。都是模型翻的，**要母語者校對**；有拿不準的句子寧可留英文。
+寫法：UTF-8＋BOM、CRLF（`.gitattributes` 管）；按鈕的快速鍵照中日韓的習慣寫成「下一步(&N) >」（印地文也一樣，Alt＋拉丁字母在
+任何鍵盤都按得到）；`%1`、`%n`、`[name]` 這些代換符號一個都不能少。繁中用台灣的說法（檔案、資料夾、安裝程式、下一步、瀏覽）。
 
-| 檔名 | 從哪裡拿 | sha256（`is-6_7_4` 的那份） | 檔頭寫的 |
-|---|---|---|---|
-| `ChineseTraditional.isl` | `https://github.com/jrsoftware/issrc/blob/is-6_7_4/Files/Languages/Unofficial/ChineseTraditional.isl`（或 jrsoftware.org/files/istrans/） | `ab22b0ebf82969d1c9a7208e0e9f60e5119c0c95b9dacc00eb8e5582c7d3c604` | 「Inno Setup version 6.1.0+」，Enfeng Tsao（根據 Samuel Lee 的 5.5.3 版） |
-| `ChineseSimplified.isl` | 同一個資料夾；維護者另有 `github.com/kira-96/Inno-Setup-Chinese-Simplified-Translation` | `7d544b9bb1d142cfa11f2e5d3cc8abe2e55f8e066c5124e3772675aa236e1278` | 「6.5.0+」，Zhenghan Yang |
-| `Hindi.islu` | 同一個資料夾 | `fbb1045f3b25842bb926bdd5400d07875f4c8572b04ffab14bb7add9882cc19b` | 「5.5.3+」，Him Prasad Gautam（舊版：6.x 新增的字會退回英文，ISCC 會警告） |
-
-**授權**：這三個檔的檔頭**沒有寫授權**，只寫了譯者；jrsoftware 把它們放在 issrc repo 與網站上公開給大家用，issrc 本身是 Inno Setup License
-（`license.txt`：免費、可商用、可再散布，保留著作權聲明）。這是不是也涵蓋使用者貢獻的翻譯，沒有明文。**放進 repo 前請擁有者決定**
-（建議：放進來、保留檔頭的譯者姓名、在第三方授權清單寫來源與 sha256；或寫信問譯者）。所以這次**沒有**把它們放進 repo。
+檢查（`check-iss`，不用 Windows）：`setup/installer/lang/inno/default-keys.txt` 記著 `Default.isl` 的每個 key（293 個：
+`[Messages]` 281＋`[CustomMessages]` 12）和各自的代換符號、`&` 的數量（不含英文原文）；三個檔都要剛好有這些 key、一樣的代換符號
+與 `&` 數量，英文是空的（`BeveledLabel` 這類）就也要空著，`[LangOptions]` 的 `LanguageID`／`LanguageCodePage` 要對
+（`$0404`／950、`$0804`／936、`$0439`／0）。workflow 第 5 步裝好 Inno 之後，再拿**真的** `Default.isl` 比一次這份清單。
+**升級 Inno Setup 時**：`python scripts/installer_ci.py inno-keys <Inno>\Default.isl --source "Inno Setup X.Y.Z"` 重寫清單，
+`check-iss` 會列出三個檔缺哪些 key，補翻（不確定就先放英文）。
 
 ## 還沒驗證的
 

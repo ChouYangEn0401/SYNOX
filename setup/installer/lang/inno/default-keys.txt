@@ -1,0 +1,295 @@
+# Keys of Inno Setup's Default.isl (Inno Setup 6.7.4, jrsoftware/issrc tag is-6_7_4): section, key, placeholders, access keys (&), empty.
+# Our own lang/inno/*.isl must have exactly these. Written by: installer_ci.py inno-keys DEFAULT_ISL
+Messages	SetupAppTitle	-	0	text
+Messages	SetupWindowTitle	%1	0	text
+Messages	UninstallAppTitle	-	0	text
+Messages	UninstallAppFullTitle	%1	0	text
+Messages	InformationTitle	-	0	text
+Messages	ConfirmTitle	-	0	text
+Messages	ErrorTitle	-	0	text
+Messages	SetupLdrStartupMessage	%1	0	text
+Messages	LdrCannotCreateTemp	-	0	text
+Messages	LdrCannotExecTemp	-	0	text
+Messages	HelpTextNote	-	0	empty
+Messages	LastErrorMessage	%1 %2 %3 %n %n	0	text
+Messages	SetupFileMissing	%1	0	text
+Messages	SetupFileCorrupt	-	0	text
+Messages	SetupFileCorruptOrWrongVer	-	0	text
+Messages	InvalidParameter	%1 %n %n	0	text
+Messages	SetupAlreadyRunning	-	0	text
+Messages	WindowsVersionNotSupported	-	0	text
+Messages	WindowsServicePackRequired	%1 %2	0	text
+Messages	NotOnThisPlatform	%1	0	text
+Messages	OnlyOnThisPlatform	%1	0	text
+Messages	OnlyOnTheseArchitectures	%1 %n %n	0	text
+Messages	WinVersionTooLowError	%1 %2	0	text
+Messages	WinVersionTooHighError	%1 %2	0	text
+Messages	AdminPrivilegesRequired	-	0	text
+Messages	PowerUserPrivilegesRequired	-	0	text
+Messages	SetupAppRunningError	%1 %n %n	0	text
+Messages	UninstallAppRunningError	%1 %n %n	0	text
+Messages	PrivilegesRequiredOverrideTitle	-	0	text
+Messages	PrivilegesRequiredOverrideInstruction	-	0	text
+Messages	PrivilegesRequiredOverrideText1	%1	0	text
+Messages	PrivilegesRequiredOverrideText2	%1	0	text
+Messages	PrivilegesRequiredOverrideAllUsers	-	1	text
+Messages	PrivilegesRequiredOverrideAllUsersRecommended	-	1	text
+Messages	PrivilegesRequiredOverrideCurrentUser	-	1	text
+Messages	PrivilegesRequiredOverrideCurrentUserRecommended	-	1	text
+Messages	ErrorCreatingDir	%1	0	text
+Messages	ErrorTooManyFilesInDir	%1	0	text
+Messages	ExitSetupTitle	-	0	text
+Messages	ExitSetupMessage	%n %n %n %n	0	text
+Messages	AboutSetupMenuItem	-	1	text
+Messages	AboutSetupTitle	-	0	text
+Messages	AboutSetupMessage	%1 %1 %2 %3 %4 %n %n %n %n	0	text
+Messages	AboutSetupNote	-	0	empty
+Messages	TranslatorNote	-	0	empty
+Messages	ButtonBack	-	1	text
+Messages	ButtonNext	-	1	text
+Messages	ButtonInstall	-	1	text
+Messages	ButtonOK	-	0	text
+Messages	ButtonCancel	-	0	text
+Messages	ButtonYes	-	1	text
+Messages	ButtonYesToAll	-	1	text
+Messages	ButtonNo	-	1	text
+Messages	ButtonNoToAll	-	1	text
+Messages	ButtonFinish	-	1	text
+Messages	ButtonBrowse	-	1	text
+Messages	ButtonWizardBrowse	-	1	text
+Messages	ButtonNewFolder	-	1	text
+Messages	SelectLanguageTitle	-	0	text
+Messages	SelectLanguageLabel	-	0	text
+Messages	ClickNext	-	0	text
+Messages	BeveledLabel	-	0	empty
+Messages	BrowseDialogTitle	-	0	text
+Messages	BrowseDialogLabel	-	0	text
+Messages	NewFolderName	-	0	text
+Messages	WelcomeLabel1	[name]	0	text
+Messages	WelcomeLabel2	%n %n [name/ver]	0	text
+Messages	WizardPassword	-	0	text
+Messages	PasswordLabel1	-	0	text
+Messages	PasswordLabel3	-	0	text
+Messages	PasswordEditLabel	-	1	text
+Messages	IncorrectPassword	-	0	text
+Messages	WizardLicense	-	0	text
+Messages	LicenseLabel	-	0	text
+Messages	LicenseLabel3	-	0	text
+Messages	LicenseAccepted	-	1	text
+Messages	LicenseNotAccepted	-	1	text
+Messages	WizardInfoBefore	-	0	text
+Messages	InfoBeforeLabel	-	0	text
+Messages	InfoBeforeClickLabel	-	0	text
+Messages	WizardInfoAfter	-	0	text
+Messages	InfoAfterLabel	-	0	text
+Messages	InfoAfterClickLabel	-	0	text
+Messages	WizardUserInfo	-	0	text
+Messages	UserInfoDesc	-	0	text
+Messages	UserInfoName	-	1	text
+Messages	UserInfoOrg	-	1	text
+Messages	UserInfoSerial	-	1	text
+Messages	UserInfoNameRequired	-	0	text
+Messages	WizardSelectDir	-	0	text
+Messages	SelectDirDesc	[name]	0	text
+Messages	SelectDirLabel3	[name]	0	text
+Messages	SelectDirBrowseLabel	-	0	text
+Messages	DiskSpaceGBLabel	[gb]	0	text
+Messages	DiskSpaceMBLabel	[mb]	0	text
+Messages	CannotInstallToNetworkDrive	-	0	text
+Messages	CannotInstallToUNCPath	-	0	text
+Messages	InvalidPath	%n %n %n %n %n %n	0	text
+Messages	InvalidDrive	-	0	text
+Messages	DiskSpaceWarningTitle	-	0	text
+Messages	DiskSpaceWarning	%1 %2 %n %n	0	text
+Messages	DirNameTooLong	-	0	text
+Messages	InvalidDirName	-	0	text
+Messages	BadDirName32	%1 %n %n	0	text
+Messages	DirExistsTitle	-	0	text
+Messages	DirExists	%1 %n %n %n %n	0	text
+Messages	DirDoesntExistTitle	-	0	text
+Messages	DirDoesntExist	%1 %n %n %n %n	0	text
+Messages	WizardSelectComponents	-	0	text
+Messages	SelectComponentsDesc	-	0	text
+Messages	SelectComponentsLabel2	-	0	text
+Messages	FullInstallation	-	0	text
+Messages	CompactInstallation	-	0	text
+Messages	CustomInstallation	-	0	text
+Messages	NoUninstallWarningTitle	-	0	text
+Messages	NoUninstallWarning	%1 %n %n %n %n %n %n	0	text
+Messages	ComponentSize1	%1	0	text
+Messages	ComponentSize2	%1	0	text
+Messages	ComponentsDiskSpaceGBLabel	[gb]	0	text
+Messages	ComponentsDiskSpaceMBLabel	[mb]	0	text
+Messages	WizardSelectTasks	-	0	text
+Messages	SelectTasksDesc	-	0	text
+Messages	SelectTasksLabel2	[name]	0	text
+Messages	WizardSelectProgramGroup	-	0	text
+Messages	SelectStartMenuFolderDesc	-	0	text
+Messages	SelectStartMenuFolderLabel3	-	0	text
+Messages	SelectStartMenuFolderBrowseLabel	-	0	text
+Messages	MustEnterGroupName	-	0	text
+Messages	GroupNameTooLong	-	0	text
+Messages	InvalidGroupName	-	0	text
+Messages	BadGroupName	%1 %n %n	0	text
+Messages	NoProgramGroupCheck2	-	1	text
+Messages	WizardReady	-	0	text
+Messages	ReadyLabel1	[name]	0	text
+Messages	ReadyLabel2a	-	0	text
+Messages	ReadyLabel2b	-	0	text
+Messages	ReadyMemoUserInfo	-	0	text
+Messages	ReadyMemoDir	-	0	text
+Messages	ReadyMemoType	-	0	text
+Messages	ReadyMemoComponents	-	0	text
+Messages	ReadyMemoGroup	-	0	text
+Messages	ReadyMemoTasks	-	0	text
+Messages	DownloadingLabel2	-	0	text
+Messages	ButtonStopDownload	-	1	text
+Messages	StopDownload	-	0	text
+Messages	ErrorDownloadAborted	-	0	text
+Messages	ErrorDownloadFailed	%1 %2	0	text
+Messages	ErrorDownloadSizeFailed	%1 %2	0	text
+Messages	ErrorProgress	%1 %2	0	text
+Messages	ErrorFileSize	%1 %2	0	text
+Messages	ExtractingLabel	-	0	text
+Messages	ButtonStopExtraction	-	1	text
+Messages	StopExtraction	-	0	text
+Messages	ErrorExtractionAborted	-	0	text
+Messages	ErrorExtractionFailed	%1	0	text
+Messages	ArchiveIncorrectPassword	-	0	text
+Messages	ArchiveIsCorrupted	-	0	text
+Messages	ArchiveUnsupportedFormat	-	0	text
+Messages	WizardPreparing	-	0	text
+Messages	PreparingDesc	[name]	0	text
+Messages	PreviousInstallNotCompleted	%n %n [name]	0	text
+Messages	CannotContinue	-	0	text
+Messages	ApplicationsFound	-	0	text
+Messages	ApplicationsFound2	-	0	text
+Messages	CloseApplications	-	1	text
+Messages	DontCloseApplications	-	1	text
+Messages	ErrorCloseApplications	-	0	text
+Messages	PrepareToInstallNeedsRestart	%n %n [name]	0	text
+Messages	WizardInstalling	-	0	text
+Messages	InstallingLabel	[name]	0	text
+Messages	FinishedHeadingLabel	[name]	0	text
+Messages	FinishedLabelNoIcons	[name]	0	text
+Messages	FinishedLabel	[name]	0	text
+Messages	ClickFinish	-	0	text
+Messages	FinishedRestartLabel	[name]	0	text
+Messages	FinishedRestartMessage	%n %n [name]	0	text
+Messages	ShowReadmeCheck	-	0	text
+Messages	YesRadio	-	1	text
+Messages	NoRadio	-	1	text
+Messages	RunEntryExec	%1	0	text
+Messages	RunEntryShellExec	%1	0	text
+Messages	ChangeDiskTitle	-	0	text
+Messages	SelectDiskLabel2	%1 %n %n	0	text
+Messages	PathLabel	-	1	text
+Messages	FileNotInDir2	%1 %2	0	text
+Messages	SelectDirectoryLabel	-	0	text
+Messages	SetupAborted	%n %n	0	text
+Messages	AbortRetryIgnoreSelectAction	-	0	text
+Messages	AbortRetryIgnoreRetry	-	1	text
+Messages	AbortRetryIgnoreIgnore	-	1	text
+Messages	AbortRetryIgnoreCancel	-	0	text
+Messages	RetryCancelSelectAction	-	0	text
+Messages	RetryCancelRetry	-	1	text
+Messages	RetryCancelCancel	-	0	text
+Messages	StatusClosingApplications	-	0	text
+Messages	StatusCreateDirs	-	0	text
+Messages	StatusExtractFiles	-	0	text
+Messages	StatusDownloadFiles	-	0	text
+Messages	StatusCreateIcons	-	0	text
+Messages	StatusCreateIniEntries	-	0	text
+Messages	StatusCreateRegistryEntries	-	0	text
+Messages	StatusRegisterFiles	-	0	text
+Messages	StatusSavingUninstall	-	0	text
+Messages	StatusRunProgram	-	0	text
+Messages	StatusRestartingApplications	-	0	text
+Messages	StatusRollback	-	0	text
+Messages	ErrorInternal2	%1	0	text
+Messages	ErrorFunctionFailedNoCode	%1	0	text
+Messages	ErrorFunctionFailed	%1 %2	0	text
+Messages	ErrorFunctionFailedWithMessage	%1 %2 %3 %n	0	text
+Messages	ErrorExecutingProgram	%1 %n	0	text
+Messages	ErrorRegOpenKey	%1 %2 %n	0	text
+Messages	ErrorRegCreateKey	%1 %2 %n	0	text
+Messages	ErrorRegWriteKey	%1 %2 %n	0	text
+Messages	ErrorIniEntry	%1	0	text
+Messages	FileAbortRetryIgnoreSkipNotRecommended	-	1	text
+Messages	FileAbortRetryIgnoreIgnoreNotRecommended	-	1	text
+Messages	SourceIsCorrupted	-	0	text
+Messages	SourceDoesntExist	%1	0	text
+Messages	SourceVerificationFailed	%1	0	text
+Messages	VerificationSignatureDoesntExist	%1	0	text
+Messages	VerificationSignatureInvalid	%1	0	text
+Messages	VerificationKeyNotFound	%1	0	text
+Messages	VerificationFileNameIncorrect	-	0	text
+Messages	VerificationFileTagIncorrect	-	0	text
+Messages	VerificationFileSizeIncorrect	-	0	text
+Messages	VerificationFileHashIncorrect	-	0	text
+Messages	ExistingFileReadOnly2	-	0	text
+Messages	ExistingFileReadOnlyRetry	-	1	text
+Messages	ExistingFileReadOnlyKeepExisting	-	1	text
+Messages	ErrorReadingExistingDest	-	0	text
+Messages	FileExistsSelectAction	-	0	text
+Messages	FileExists2	-	0	text
+Messages	FileExistsOverwriteExisting	-	1	text
+Messages	FileExistsKeepExisting	-	1	text
+Messages	FileExistsOverwriteOrKeepAll	-	1	text
+Messages	ExistingFileNewerSelectAction	-	0	text
+Messages	ExistingFileNewer2	-	0	text
+Messages	ExistingFileNewerOverwriteExisting	-	1	text
+Messages	ExistingFileNewerKeepExisting	-	1	text
+Messages	ExistingFileNewerOverwriteOrKeepAll	-	1	text
+Messages	ErrorChangingAttr	-	0	text
+Messages	ErrorCreatingTemp	-	0	text
+Messages	ErrorReadingSource	-	0	text
+Messages	ErrorCopying	-	0	text
+Messages	ErrorDownloading	-	0	text
+Messages	ErrorExtracting	-	0	text
+Messages	ErrorReplacingExistingFile	-	0	text
+Messages	ErrorRestartReplace	-	0	text
+Messages	ErrorRenamingTemp	-	0	text
+Messages	ErrorRegisterServer	%1	0	text
+Messages	ErrorRegSvr32Failed	%1	0	text
+Messages	ErrorRegisterTypeLib	%1	0	text
+Messages	UninstallDisplayNameMark	%1 %2	0	text
+Messages	UninstallDisplayNameMarks	%1 %2 %3	0	text
+Messages	UninstallDisplayNameMark32Bit	-	0	text
+Messages	UninstallDisplayNameMark64Bit	-	0	text
+Messages	UninstallDisplayNameMarkAllUsers	-	0	text
+Messages	UninstallDisplayNameMarkCurrentUser	-	0	text
+Messages	ErrorOpeningReadme	-	0	text
+Messages	ErrorRestartingComputer	-	0	text
+Messages	UninstallNotFound	%1	0	text
+Messages	UninstallOpenError	%1	0	text
+Messages	UninstallUnsupportedVer	%1	0	text
+Messages	UninstallUnknownEntry	%1	0	text
+Messages	ConfirmUninstall	%1	0	text
+Messages	UninstallOnlyOnWin64	-	0	text
+Messages	OnlyAdminCanUninstall	-	0	text
+Messages	UninstallStatusLabel	%1	0	text
+Messages	UninstalledAll	%1	0	text
+Messages	UninstalledMost	%1 %n %n	0	text
+Messages	UninstalledAndNeedsRestart	%1 %n %n	0	text
+Messages	UninstallDataCorrupted	%1	0	text
+Messages	ConfirmDeleteSharedFileTitle	-	0	text
+Messages	ConfirmDeleteSharedFile2	%n %n	0	text
+Messages	SharedFileNameLabel	-	0	text
+Messages	SharedFileLocationLabel	-	0	text
+Messages	WizardUninstalling	-	0	text
+Messages	StatusUninstalling	%1	0	text
+Messages	ShutdownBlockReasonInstallingApp	%1	0	text
+Messages	ShutdownBlockReasonUninstallingApp	%1	0	text
+CustomMessages	NameAndVersion	%1 %2	0	text
+CustomMessages	AdditionalIcons	-	0	text
+CustomMessages	CreateDesktopIcon	-	1	text
+CustomMessages	CreateQuickLaunchIcon	-	1	text
+CustomMessages	ProgramOnTheWeb	%1	0	text
+CustomMessages	UninstallProgram	%1	0	text
+CustomMessages	LaunchProgram	%1	0	text
+CustomMessages	AssocFileExtension	%1 %2	1	text
+CustomMessages	AssocingFileExtension	%1 %2	0	text
+CustomMessages	AutoStartProgramGroupDescription	-	0	text
+CustomMessages	AutoStartProgram	%1	0	text
+CustomMessages	AddonHostProgramNotFound	%1 %n %n	0	text

@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>SYNOX 標語預覽</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&family=Noto+Sans+TC:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap">
+<style>
+:root {
+  --bg: #f3f5f8; --surface: #ffffff; --sunken: #eef1f5; --line: #e2e7ee; --line-2: #cfd7e2;
+  --ink: #131b26; --muted: #465264; --faint: #6a7687;
+  --accent: #0a7c70; --accent-soft: #d9f1ec; --accent-ink: #ffffff;
+  --warn: #9a5b00; --warn-soft: #fbeccf;
+  --shadow: 0 1px 2px rgba(19,27,38,.05), 0 10px 28px -14px rgba(19,27,38,.22);
+  --shadow-lg: 0 2px 4px rgba(19,27,38,.04), 0 30px 60px -28px rgba(19,27,38,.35);
+  --glow: radial-gradient(60% 50% at 85% 0%, rgba(10,124,112,.14), transparent 70%);
+  --display: "LXGW WenKai TC", "Noto Serif TC", "PMingLiU", serif;
+  --body: "Noto Sans TC", "Microsoft JhengHei UI", "PingFang TC", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b0f14; --surface: #121924; --sunken: #0d131b; --line: #1f2b3b; --line-2: #2d3b4f;
+    --ink: #dbe4ef; --muted: #aab6c6; --faint: #7f90a7;
+    --accent: #35e0c4; --accent-soft: #123b38; --accent-ink: #06201c;
+    --warn: #e6b04e; --warn-soft: #3a2a0b;
+    --shadow: 0 1px 2px rgba(0,0,0,.45), 0 14px 36px -16px rgba(0,0,0,.75);
+    --shadow-lg: 0 2px 4px rgba(0,0,0,.4), 0 30px 70px -26px rgba(0,0,0,.85);
+    --glow: radial-gradient(60% 50% at 85% 0%, rgba(53,224,196,.16), transparent 70%);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b0f14; --surface: #121924; --sunken: #0d131b; --line: #1f2b3b; --line-2: #2d3b4f;
+  --ink: #dbe4ef; --muted: #aab6c6; --faint: #7f90a7;
+  --accent: #35e0c4; --accent-soft: #123b38; --accent-ink: #06201c;
+  --warn: #e6b04e; --warn-soft: #3a2a0b;
+  --shadow: 0 1px 2px rgba(0,0,0,.45), 0 14px 36px -16px rgba(0,0,0,.75);
+  --shadow-lg: 0 2px 4px rgba(0,0,0,.4), 0 30px 70px -26px rgba(0,0,0,.85);
+  --glow: radial-gradient(60% 50% at 85% 0%, rgba(53,224,196,.16), transparent 70%);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 16px; line-height: 1.75;
+  padding: 0 max(16px, env(safe-area-inset-right, 0px)) 0 max(16px, env(safe-area-inset-left, 0px)); -webkit-font-smoothing: antialiased; }
+h1, h2 { font-family: var(--display); font-weight: 700; line-height: 1.3; margin: 0; text-wrap: balance; }
+p { margin: 0; }
+button { font: inherit; color: inherit; }
+button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.wrap { max-width: 1240px; margin-inline: auto; }
+
+.intro { padding: 32px 0 8px; max-width: 46em; }
+.intro .eyebrow { margin-bottom: 8px; }
+.intro h1 { font-size: clamp(26px, 4vw, 36px); }
+.intro p { color: var(--muted); margin-top: 10px; font-size: 15.5px; }
+.intro s { color: var(--faint); }
+
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+.mark { display: inline-grid; place-items: center; flex: none; font-weight: 700; color: var(--accent-ink); background: var(--accent); box-shadow: var(--shadow); }
+
+/* ------------------------------------------------ option */
+.opt { margin-top: 28px; border: 1px solid var(--line); border-radius: 20px; background: var(--sunken); padding: 16px; min-width: 0; }
+.opt[data-on="1"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.opt-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.code { font-size: 22px; font-weight: 700; line-height: 1.2; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-width: 0; }
+.code small { font-size: 13px; font-weight: 400; color: var(--faint); }
+.pick { cursor: pointer; min-height: 44px; padding: 8px 18px; border-radius: 11px; border: 1px solid var(--line-2); background: var(--surface); font-weight: 500; font-size: 15px; transition: border-color .15s, background .15s; }
+.pick:hover { border-color: var(--accent); }
+.pick[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+
+.frames { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 16px; align-items: start; }
+.frame { min-width: 0; margin: 0; }
+.frame > figcaption { font-family: var(--mono); font-size: 11.5px; color: var(--faint); margin-bottom: 6px; }
+.screen { container-type: inline-size; background: var(--bg) var(--glow) no-repeat; border: 1px solid var(--line-2); border-radius: 16px; box-shadow: var(--shadow); padding: 0 20px 22px; overflow: hidden; }
+.phone .screen { border-radius: 26px; padding: 0 14px 20px; }
+@media (max-width: 820px) { .frames { grid-template-columns: minmax(0, 1fr); } .frame.desk { display: none; } }
+
+/* ------------------------------------------------ the hero, as on the landing page */
+.top { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-block: 14px; }
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo .mark { width: 32px; height: 32px; font-size: 17px; border-radius: 9px; }
+.logo b { font-size: 17px; letter-spacing: .14em; }
+.ver { display: inline-flex; align-items: center; gap: 7px; font-size: 11.5px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px 3px 8px; white-space: nowrap; }
+.ver i { width: 7px; height: 7px; border-radius: 50%; background: var(--warn); }
+.ver b { font-family: var(--mono); color: var(--ink); font-weight: 600; }
+.hero { display: grid; grid-template-columns: minmax(0, 1fr); gap: 24px; align-items: center; padding-top: 14px; }
+@container (min-width: 640px) { .hero { grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 36px; padding-top: 22px; } }
+.hero .eyebrow { margin-bottom: 10px; }
+.slogan { font-size: clamp(38px, 6.4cqw, 72px); line-height: 1.15; letter-spacing: .02em; overflow-wrap: anywhere; }
+.slogan em { font-style: normal; color: var(--accent); }
+.slogan[lang="en"] { letter-spacing: 0; font-size: clamp(34px, 5.6cqw, 64px); line-height: 1.12; }
+.lede { font-size: 16px; color: var(--muted); margin-top: 16px; max-width: 30em; }
+.cta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+.btn { display: inline-flex; align-items: center; font-weight: 500; font-size: 14px; padding: 8px 16px; border-radius: 11px; border: 1px solid var(--line-2); background: var(--surface); min-height: 40px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.chat { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow-lg); padding: 14px; display: flex; flex-direction: column; gap: 8px; margin: 0; }
+.row { display: flex; } .row.me { justify-content: flex-end; }
+.bubble { max-width: 84%; padding: 7px 12px; border-radius: 13px; font-size: 13.5px; line-height: 1.55; }
+.me .bubble { background: var(--accent-soft); border-bottom-right-radius: 5px; }
+.bot .bubble { background: var(--sunken); border: 1px solid var(--line); border-bottom-left-radius: 5px; }
+.sys { align-self: center; font-size: 11.5px; color: var(--faint); background: var(--sunken); border-radius: 999px; padding: 2px 10px; text-align: center; }
+.card { border: 1px solid var(--warn); background: var(--surface); border-radius: 11px; padding: 10px 12px; max-width: 92%; box-shadow: 0 0 0 4px var(--warn-soft); font-size: 13.5px; }
+.card .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+.card .btns span { border: 1px solid var(--line-2); border-radius: 9px; padding: 5px 8px; text-align: center; font-size: 13px; background: var(--sunken); }
+.card .btns .go { border-color: var(--accent); color: var(--accent); font-weight: 500; }
+
+/* ------------------------------------------------ GitHub repo line */
+.gh { margin-top: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px; font-family: -apple-system, "Segoe UI", "Noto Sans TC", Helvetica, Arial, sans-serif; min-width: 0; }
+.gh-cap { font-family: var(--mono); font-size: 11.5px; color: var(--faint); margin-top: 14px; margin-bottom: -8px; }
+.gh-name { font-size: 14px; font-weight: 600; color: var(--accent); overflow-wrap: anywhere; }
+.gh-name span { font-weight: 400; font-size: 11px; color: var(--faint); border: 1px solid var(--line-2); border-radius: 999px; padding: 0 7px; margin-left: 6px; }
+.gh-desc { font-size: 13px; line-height: 1.5; color: var(--muted); margin-top: 2px; overflow-wrap: anywhere; }
+
+/* ------------------------------------------------ bottom bar */
+.bar { position: sticky; bottom: 0; z-index: 5; margin-top: 32px; padding: 10px 0 max(10px, env(safe-area-inset-bottom, 0px)); background: linear-gradient(to top, var(--bg) 70%, transparent); }
+.bar-in { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; background: var(--surface); border: 1px solid var(--line-2); border-radius: 14px; box-shadow: var(--shadow-lg); padding: 10px 12px 10px 16px; }
+.bar-in p { font-size: 15px; min-width: 0; overflow-wrap: anywhere; }
+.bar-in p b { font-family: var(--mono); font-weight: 600; }
+.bar-in small { display: block; font-size: 12.5px; color: var(--faint); min-height: 1.6em; }
+.copy { cursor: pointer; min-height: 44px; padding: 8px 20px; border-radius: 11px; border: 1px solid var(--accent); background: var(--accent); color: var(--accent-ink); font-weight: 500; }
+.copy:disabled { opacity: .45; cursor: not-allowed; }
+footer { font-size: 12px; color: var(--faint); padding: 14px 0 20px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; scroll-behavior: auto !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="intro">
+    <p class="eyebrow">Slogan preview</p>
+    <h1>SYNOX 標語：放進首頁看起來怎樣？</h1>
+    <p>每一組都是同一個首頁開頭，只換「大標語」和上面那一行定位。底下再附一行 GitHub 專案簡介的樣子。看順眼就按「選這個」，最後在最下面按「複製我的選擇」。</p>
+    <p>已淘汰：<s>聊天就能用，資料不出門。</s>（太普通；用雲端模型時「資料不出門」也不是真的。）</p>
+  </header>
+
+  <main id="list"></main>
+
+  <div class="bar"><div class="bar-in">
+    <p>目前選擇：<b id="cur">還沒選</b><small id="msg" role="status" aria-live="polite"></small></p>
+    <button class="copy" id="copy" type="button" disabled>複製我的選擇</button>
+  </div></div>
+
+  <footer>本機版 docs/lab/slogan/index.html · 線上版 https://claude.ai/artifact/M21htYntoVQut9nVFBz9kw · 頁面版本 <span data-stamp>a29ed0d543 · 2026-11-14</span></footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+  var LEDE = "用 Telegram、Discord 或網頁跟它說話。它會先給你看打算做什麼，你按了確認，它才動手。";
+  var LEDE_EN = "Chat with it on the web, Telegram or Discord. It shows you what it is about to do, and only acts after you confirm.";
+  var OPTS = [
+    { code: "🅰①", note: "主打「先確認」", a: "先問你，", b: "再動手。", pos: "看得懂、管得住的個人 AI 助理" },
+    { code: "🅰②", note: "主打「你作主」", a: "你的助理，", b: "你說了算。", pos: "看得懂、管得住的個人 AI 助理" },
+    { code: "🅱①", note: "主打「乾淨的外殼」", a: "先問你，", b: "再動手。", pos: "一個乾淨的 AI 助理外殼：需要什麼，自己裝" },
+    { code: "🅲④", note: "主打「不用懂程式」", a: "不用懂程式，", b: "也能擁有自己的 AI 助理。", pos: "放在自己電腦裡的個人 AI 助理" },
+    { code: "③", note: "主打「小而看得懂」", a: "小小的，", b: "但每一步你都看得懂。", pos: "放在自己電腦裡、小而安全的個人 AI 助理" },
+    { code: "EN①", note: "英文版", en: true, a: "The AI assistant ", b: "that asks first.", pos: "A small personal AI assistant you can read and control" },
+    { code: "EN②", note: "英文版", en: true, a: "Your agent. ", b: "Your rules.", pos: "A small personal AI assistant you can read and control" }
+  ];
+
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  function hero(o, withChat) {
+    var screen = el("div", "screen");
+    var top = el("div", "top");
+    var logo = el("div", "logo");
+    var mark = el("span", "mark", "S"); mark.setAttribute("aria-hidden", "true");
+    logo.appendChild(mark); logo.appendChild(el("b", "", "SYNOX"));
+    var ver = el("span", "ver"); ver.appendChild(el("i")); ver.appendChild(el("b", "", "0.2.0")); ver.appendChild(document.createTextNode("alpha"));
+    top.appendChild(logo); top.appendChild(ver);
+    screen.appendChild(top);
+
+    var h = el("div", "hero");
+    var left = el("div");
+    left.appendChild(el("p", "eyebrow", o.pos));
+    var s = el("div", "slogan"); s.setAttribute("role", "heading"); s.setAttribute("aria-level", "3");
+    if (o.en) s.lang = "en";
+    s.style.fontFamily = "var(--display)"; s.style.fontWeight = "700";
+    s.appendChild(document.createTextNode(o.a));
+    if (!o.en) s.appendChild(el("br"));
+    s.appendChild(el("em", "", o.b));
+    left.appendChild(s);
+    left.appendChild(el("p", "lede", o.en ? LEDE_EN : LEDE));
+    var cta = el("div", "cta");
+    cta.appendChild(el("span", "btn primary", o.en ? "See it" : "看畫面"));
+    cta.appendChild(el("span", "btn", o.en ? "Install" : "怎麼裝"));
+    left.appendChild(cta);
+    h.appendChild(left);
+
+    if (withChat) {
+      var chat = el("div", "chat");
+      function row(who, text) { var r = el("div", "row " + who); r.appendChild(el("div", "bubble", text)); return r; }
+      chat.appendChild(row("me", o.en ? "Note: buy milk, pay the power bill" : "幫我記：買牛奶、繳電費"));
+      chat.appendChild(row("bot", o.en ? "Done, both saved." : "好，兩件都記下來了。"));
+      chat.appendChild(row("me", o.en ? "Delete all my notes" : "把筆記全部刪掉"));
+      chat.appendChild(el("div", "sys", o.en ? "The AI wants to delete something — it asks first" : "AI 想用一個會刪東西的工具，先問你"));
+      var r = el("div", "row bot"), card = el("div", "card");
+      card.appendChild(document.createTextNode(o.en ? "⚠️ Delete all 2 notes? This can't be undone." : "⚠️ 要刪掉全部 2 則筆記嗎？這個沒辦法復原。"));
+      var btns = el("div", "btns");
+      btns.appendChild(el("span", "go", o.en ? "✅ Delete" : "✅ 刪掉")); btns.appendChild(el("span", "", o.en ? "Cancel" : "取消"));
+      card.appendChild(btns); r.appendChild(card); chat.appendChild(r);
+      h.appendChild(chat);
+    }
+    screen.appendChild(h);
+    return screen;
+  }
+
+  var list = document.getElementById("list");
+  var cur = document.getElementById("cur");
+  var msg = document.getElementById("msg");
+  var copy = document.getElementById("copy");
+  var chosen = null;
+
+  function choose(code) {
+    chosen = chosen === code ? null : code;
+    Array.prototype.forEach.call(list.querySelectorAll(".opt"), function (sec) {
+      var on = sec.getAttribute("data-code") === chosen;
+      sec.setAttribute("data-on", on ? "1" : "0");
+      var b = sec.querySelector(".pick");
+      b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.textContent = on ? "✓ 已選這個" : "選這個";
+    });
+    cur.textContent = chosen || "還沒選";
+    copy.disabled = !chosen;
+    msg.textContent = "";
+  }
+
+  OPTS.forEach(function (o) {
+    var sec = el("section", "opt");
+    sec.setAttribute("data-code", o.code); sec.setAttribute("data-on", "0");
+    var full = o.a + o.b;
+    sec.setAttribute("aria-label", o.code + " " + full);
+
+    var head = el("div", "opt-head");
+    var code = el("h2", "code", o.code);
+    code.style.fontFamily = "var(--body)";
+    code.appendChild(el("small", "", o.note));
+    var pick = el("button", "pick", "選這個");
+    pick.type = "button"; pick.setAttribute("aria-pressed", "false");
+    pick.addEventListener("click", function () { choose(o.code); });
+    head.appendChild(code); head.appendChild(pick);
+    sec.appendChild(head);
+
+    var frames = el("div", "frames");
+    var desk = el("figure", "frame desk");
+    desk.appendChild(el("figcaption", "", "電腦寬度（縮小示意）"));
+    desk.appendChild(hero(o, true));
+    var phone = el("figure", "frame phone");
+    phone.appendChild(el("figcaption", "", "手機寬度"));
+    phone.appendChild(hero(o, false));
+    frames.appendChild(desk); frames.appendChild(phone);
+    sec.appendChild(frames);
+
+    sec.appendChild(el("p", "gh-cap", "GitHub 專案簡介那一行"));
+    var gh = el("div", "gh");
+    var name = el("div", "gh-name", "SYNOX");
+    name.appendChild(el("span", "", "Public"));
+    gh.appendChild(name);
+    gh.appendChild(el("div", "gh-desc", o.en ? full + " " + o.pos + "." : full + o.pos + "。"));
+    sec.appendChild(gh);
+    list.appendChild(sec);
+  });
+
+  function fallbackCopy(text) {
+    var ta = document.createElement("textarea");
+    ta.value = text; ta.setAttribute("readonly", "");
+    ta.style.position = "fixed"; ta.style.top = "0"; ta.style.left = "0"; ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    var ok = false;
+    try { ta.select(); ta.setSelectionRange(0, text.length); ok = document.execCommand("copy"); } catch (e) { ok = false; }
+    document.body.removeChild(ta);
+    return ok;
+  }
+  function done(ok, text) {
+    msg.textContent = ok ? "已複製：「" + text + "」，貼回對話就可以了。" : "沒辦法自動複製，請自己打這一行：" + text;
+  }
+  copy.addEventListener("click", function () {
+    if (!chosen) return;
+    var text = "slogan：" + chosen;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { done(true, text); }, function () { done(fallbackCopy(text), text); });
+        return;
+      }
+    } catch (e) { /* fall through */ }
+    done(fallbackCopy(text), text);
+  });
+})();
+</script>
+</body>
+</html>

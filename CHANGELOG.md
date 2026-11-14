@@ -35,6 +35,7 @@
 - 解除安裝多一個「連我的資料也一起刪除」（預設不勾、勾了再確認一次）；開始功能表加「SYNOX 設定精靈」「解除安裝 SYNOX」。
 - 設定精靈：從安裝程式來的只剩「立刻開啟」；完成頁提示打 `/tutorial` 做一次教學。新指令 `synox tools install --all`。
 - 新增 `scripts/installer_ci.py check-iss`：不用 Windows 也能檢查安裝程式腳本與 12 種語言的字。
+- 繁體中文、简体中文、हिन्दी 的安裝畫面按鈕（「下一步」「瀏覽…」這些 Inno Setup 內建的字）也翻好了：Inno 沒有這三種的官方檔，改用 SYNOX 自己翻的 `setup/installer/lang/inno/*.isl`（Inno 6.7.4 的 293 個 key 全翻，`check-iss` 檢查一個都不少、代換符號與快速鍵一樣；待母語者校對）。
 - 🧪 以上都還沒在 Windows 上編譯或實測。
 
 ## 未發佈（不用 uv：直接下載固定版本的 Python；Setup.bat 先問「照建議／自訂」）
