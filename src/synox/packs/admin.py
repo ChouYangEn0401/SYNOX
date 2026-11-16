@@ -4,7 +4,8 @@ Web UI 設定頁、`python -m synox install <檔>`、`python -m synox packs lock
 
 .synoxpack＝一個 pack 資料夾壓成的 zip（pack.json 在最上層，或在唯一的那個資料夾裡）。
 
-    stage(blob, data_dir)            zip 檢查 → 解到 data/web_uploads/<token>/pack/ → 第 1 關（宣告，嚴格版）
+    stage(blob, data_dir)            zip 檢查 → 解到 data/web_uploads/<token>/pack/ → 簽章（packs/signing.py，ADR 0027：
+                                     ⛔ 被改過＝GateRefused、沒有 token）→ 第 1 關（宣告，嚴格版）
                                      → 第 2 關（靜態掃描＋integrity 對檔）→ (token, 摘要＋掃描報告)；過不了丟 GateRefused
     （給人看報告＋「要建環境」那一段（runtime.python／node = auto，packs/envs.py）、按確認）
     install_staged(token, …)         再跑一次 1、2 關、確認檔案跟看報告時一樣 → 搬進 packs/ → 第 3 關：寫 packs.lock（誰、何時、
@@ -17,7 +18,9 @@ zip 本身：不能有絕對路徑、`..`、磁碟代號、符號連結；檔名
 不能有冒號（NTFS 資料流）或 Windows 不收的字元、結尾不能是空白或句點（_safe_parts，審查 B #E）；
 不能有雙向文字控制字元（U+202A–U+202E、U+2066–U+2069）或零寬字元（U+200B–U+200D、U+FEFF）；
 一段最多 MAX_PART 字、整條最多 MAX_REL_PATH 字；解壓縮時的 OSError 一律變成 PackAdminError（審查 C #C6，不再是網頁 500）；
-最多 MAX_FILES 個檔、解開最多 MAX_UNZIPPED。
+最多 MAX_FILES 個檔、解開最多 MAX_UNZIPPED（一邊解一邊數真的位元組，比宣告的大就停：壓縮炸彈）；
+同一個路徑兩次、兩個路徑只差大小寫 → 拒（ADR 0027 §1.1）。
+摘要（summary_of）最前面是 signature（SYNOX 驗出來的標章＋look-alike 紅字）與 safety_notice（每一次都顯示）。
 名字跟已經裝的 pack 一樣＝升級：比對、版本檢查、舊的搬到 _removed、退回都在 upgrade.py（install_staged 只裝新的）；
 升級完環境要建／重建（upgrade.env_change）也走這裡的 build_env。
 python pack 的程式會在 SYNOX 裡面、用你的 Windows 帳號權限執行——摘要會明講。
@@ -37,7 +40,7 @@ import time
 import zipfile
 from typing import Dict, List, Optional, Tuple
 
-from synox.packs import envs, loader
+from synox.packs import envs, loader, signing
 from synox.packs import lock as pack_lock
 from synox.packs import tier as pack_tier
 from synox.packs.manifest import (DEFAULT_STAGE, Manifest, ManifestError, read, stage_label, stage_text,
@@ -108,6 +111,7 @@ def _members(z: zipfile.ZipFile) -> List[Tuple[zipfile.ZipInfo, List[str]]]:
         raise PackAdminError(f"檔案太多（{len(infos)} 個，最多 {MAX_FILES}）")
     total = 0
     out = []
+    seen: Dict[str, str] = {}
     for info in infos:
         mode = info.external_attr >> 16
         if stat.S_ISLNK(mode):
@@ -115,11 +119,67 @@ def _members(z: zipfile.ZipFile) -> List[Tuple[zipfile.ZipInfo, List[str]]]:
         parts = _safe_parts(info.filename)
         if not parts:
             continue
+        # ADR 0027 §1.1：同一個路徑兩次（一個給人看、一個真的解出來）、或只差大小寫（Windows 會蓋掉其中一個）→ 拒
+        rel = "/".join(parts)
+        key = rel.casefold()
+        if key in seen:
+            same = seen[key] == rel
+            raise PackAdminError((f"zip 裡同一個檔出現兩次：{rel[:80]}" if same else
+                                  f"zip 裡有兩個檔名只差大小寫：{seen[key][:80]}、{rel[:80]}（Windows 會蓋掉其中一個）")
+                                 + "。不能裝：請向給你這個檔的人要一份新的")
+        seen[key] = rel
         total += info.file_size
         if total > MAX_UNZIPPED:
             raise PackAdminError("解開太大（超過 20 MB）")
         out.append((info, parts))
     return out
+
+
+def _copy_member(z: zipfile.ZipFile, info: zipfile.ZipInfo, parts: List[str], write, budget: List[int]) -> int:
+    """解開 zip 的一個檔，一段一段交給 write。解出來比它自己宣告的大小大、或全部加起來超過 MAX_UNZIPPED（budget[0]
+    是還剩多少）→ PackAdminError（壓縮炸彈：以前只信宣告的大小）。zip 壞掉也是 PackAdminError。回解了幾個位元組。"""
+    import zlib
+    shown = "/".join(parts)[:80]
+    n = 0
+    try:
+        with z.open(info) as src:
+            while True:
+                chunk = src.read(65536)
+                if not chunk:
+                    break
+                n += len(chunk)
+                if n > info.file_size:
+                    raise PackAdminError(f"zip 裡的 {shown} 解開之後比它自己說的還大（可能是壓縮炸彈）：不能裝。"
+                                         "請向給你這個檔的人要一份新的")
+                if n > budget[0]:
+                    raise PackAdminError("解開太大（超過 20 MB）：不能裝")
+                write(chunk)
+    except PackAdminError:
+        raise
+    except (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError) as e:
+        raise PackAdminError(f"zip 裡的 {shown} 壞掉了，解不開（{type(e).__name__}）：請重新下載一次，"
+                             "或向給你這個檔的人要一份新的")
+    budget[0] -= n
+    return n
+
+
+def _extract(z: zipfile.ZipFile, files: List[Tuple[zipfile.ZipInfo, List[str]]], folder: str) -> List[str]:
+    """把 files 解到 folder（_copy_member 一個一個解、有上限）。回帶執行位元的檔（exec_bits）。"""
+    exec_bits = sorted("/".join(p) for i, p in files if (i.external_attr >> 16) & 0o111)
+    budget = [MAX_UNZIPPED]
+    for info, parts in files:
+        target = os.path.join(folder, *parts)
+        if len(os.path.abspath(target)) > MAX_FULL_PATH:
+            raise PackAdminError(f"zip 裡的路徑太長，這台解不開（{'/'.join(parts)[:80]}）："
+                                 "請 pack 作者把資料夾層數或檔名縮短")
+        try:
+            os.makedirs(os.path.dirname(target), exist_ok=True)
+            with open(target, "wb") as dst:
+                _copy_member(z, info, parts, dst.write, budget)
+        except OSError as e:                      # 審查 C #C6：原生錯誤不要變成網頁 500
+            raise PackAdminError(f"zip 裡的 {'/'.join(parts)[:80]} 解不開（{e.strerror or type(e).__name__}）："
+                                 "路徑太長或檔名這台不收，請 pack 作者改短／改名")
+    return exec_bits
 
 
 def _strip_root(members) -> List[Tuple[zipfile.ZipInfo, List[str]]]:
@@ -158,9 +218,30 @@ def run_gates(folder: str, exec_bits=()) -> Tuple[Manifest, ScanReport, Dict[str
     return m, report, hashes, problems
 
 
+def skill_description(m: Manifest) -> str:
+    """SKILL.md frontmatter 的 description（look-alike 檢查用）；讀不了回 ""。"""
+    if m.kind == "theme" or not m.skill:
+        return ""
+    try:
+        from synox.agent.skills import parse, read_text
+        meta, _body = parse(read_text(m.skill_path))
+    except (OSError, UnicodeDecodeError, ValueError):
+        return ""
+    return str(meta.get("description") or "")
+
+
+def signature_summary(m: Manifest, sig: "signing.SignatureResult") -> dict:
+    """安裝報告的 signature 區塊（ADR 0027 §3）：官方的不查 look-alike；其他把「官方」「SYNOX」「✅」這類字標出來。"""
+    lookalike = [] if sig.status == signing.OFFICIAL else signing.lookalike_problems(m, skill_description(m))
+    return signing.summary_block(sig, lookalike)
+
+
 def summary_of(m: Manifest, report: ScanReport, hashes: Dict[str, str], problems: List[str],
-               token: str = "") -> dict:
-    return {"token": token, "name": m.name, "title": m.title, "summary": m.summary, "version": m.version,
+               token: str = "", signature: Optional["signing.SignatureResult"] = None) -> dict:
+    """安裝報告。signature：stage 驗過的結果（沒給＝現在對 m.folder 驗一次）。"""
+    sig = signature if signature is not None else signing.verify_folder(m.folder)
+    return {"token": token, "signature": signature_summary(m, sig), "safety_notice": signing.SAFETY_NOTICE,
+            "name": m.name, "title": m.title, "summary": m.summary, "version": m.version,
             "kind": m.kind, "access": m.access, "storage": m.storage, "publisher": m.publisher,
             "stage": m.stage, "stage_label": m.stage_label, "stage_declared": m.stage_declared,
             "files": sorted(hashes)[:100], "panel": bool(m.web.get("panel")), "api": list(m.web.get("api", [])),
@@ -396,34 +477,38 @@ def stage(blob: bytes, data_dir: str) -> Tuple[str, Dict]:
         root = os.path.join(staging_root(data_dir), token)
         folder = os.path.join(root, "pack")
         os.makedirs(folder)
-        exec_bits = sorted("/".join(p) for i, p in files if (i.external_attr >> 16) & 0o111)
         try:
-            for info, parts in files:
-                target = os.path.join(folder, *parts)
-                if len(os.path.abspath(target)) > MAX_FULL_PATH:
-                    raise PackAdminError(f"zip 裡的路徑太長，這台解不開（{'/'.join(parts)[:80]}）："
-                                         "請 pack 作者把資料夾層數或檔名縮短")
-                try:
-                    os.makedirs(os.path.dirname(target), exist_ok=True)
-                    with z.open(info) as src, open(target, "wb") as dst:
-                        shutil.copyfileobj(src, dst)
-                except OSError as e:                      # 審查 C #C6：原生錯誤不要變成網頁 500
-                    raise PackAdminError(f"zip 裡的 {'/'.join(parts)[:80]} 解不開（{e.strerror or type(e).__name__}）："
-                                         "路徑太長或檔名這台不收，請 pack 作者改短／改名")
+            exec_bits = _extract(z, files, folder)
+            sig = signing.verify_folder(folder)            # ADR 0027 §1.1：解完、第 1 關之前；對磁碟上的檔算
+            if sig.status == signing.INVALID:
+                raise GateRefused(signing.INVALID_MESSAGE, refused_summary(folder, sig, exec_bits))
             m, report, hashes, problems = run_gates(folder, exec_bits)
         except Exception:
             shutil.rmtree(root, ignore_errors=True)
             raise
-    summary = summary_of(m, report, hashes, problems, token)
+    summary = summary_of(m, report, hashes, problems, token, signature=sig)
     if problems:
         shutil.rmtree(root, ignore_errors=True)
         summary["token"] = ""
         listing = "；".join(problems[:12]) + ("…" if len(problems) > 12 else "")
         raise GateRefused(f"拒裝（安全檢查沒過）：{listing}", summary)
     with open(os.path.join(root, STAGED_META), "w", encoding="utf-8") as f:
-        json.dump({"name": m.name, "hashes": hashes, "summary": summary, "exec_bits": exec_bits}, f,
-                  ensure_ascii=False)
+        json.dump({"name": m.name, "hashes": hashes, "summary": summary, "exec_bits": exec_bits,
+                   "signature": sig.lock_block()}, f, ensure_ascii=False)
     return token, summary
+
+
+def refused_summary(folder: str, sig: "signing.SignatureResult", exec_bits=()) -> dict:
+    """簽章對不上（⛔ 被改過）時給人看的報告：照樣跑第 1、2 關（只讀、不執行）把工具的名字、掃描結果放上去，
+    problems 第一條是 ⛔ 那句話；pack.json 讀不了就只有最基本的幾欄。沒有 token（沒有確認鈕）。"""
+    try:
+        m, report, hashes, problems = run_gates(folder, exec_bits)
+    except PackAdminError as e:
+        return {"token": "", "name": "", "title": "", "summary": "", "version": "",
+                "files": [], "warnings": [], "scan": {"problems": [signing.INVALID_MESSAGE, str(e)], "ok": False,
+                                                       "findings": []},
+                "signature": signing.summary_block(sig), "safety_notice": signing.SAFETY_NOTICE}
+    return summary_of(m, report, hashes, [signing.INVALID_MESSAGE] + problems, "", signature=sig)
 
 
 def staged_meta(token: str, data_dir: str) -> dict:
@@ -530,7 +615,12 @@ def format_summary(summary: dict) -> str:
         return "、".join(labels.get(c, c) for c in xs or []) or "（沒有）"
 
     scan_ = summary.get("scan") or {}
-    lines = [f"📦 {summary.get('title')}（{summary.get('name')} {summary.get('version')}，{summary.get('kind')}）",
+    lines = []
+    sig = summary.get("signature") or {}
+    if sig:                                    # 第一行永遠是 SYNOX 自己驗出來的標章（ADR 0027 §3），工具的字在後面
+        lines.append(f"{sig.get('label')}　{sig.get('text')}")
+        lines += [red(f"🔴 {line}") for line in sig.get("lookalike") or []]
+    lines += [f"📦 {summary.get('title')}（{summary.get('name')} {summary.get('version')}，{summary.get('kind')}）",
              f"  {summary.get('summary')}",
              f"  穩定度：{stage_label(summary.get('stage') or DEFAULT_STAGE, long=True)}"
              + ("" if summary.get("stage_declared", True) else "（pack.json 沒寫 stage，當作 alpha）"),
@@ -560,6 +650,8 @@ def format_summary(summary: dict) -> str:
                      f"doctor 會標「環境沒建好」）")
         lines += [f"  ⚠️ {p}" for p in env.get("problems") or []]
     lines += [f"⚠️ {w}" for w in summary.get("warnings") or []]
+    if summary.get("safety_notice"):
+        lines.append(summary["safety_notice"])
     return "\n".join(lines)
 
 
@@ -682,6 +774,7 @@ def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
     if reviewed != hashes:
         raise PackAdminError("暫存的檔案在你看報告之後被改過了，不裝（重新上傳一次）："
                              + "、".join(pack_lock.diff(reviewed, hashes)[:10]))
+    sig = verified_signature(m, report, hashes, folder)
     target = os.path.join(packs_dir, m.name)
     if os.path.exists(target):                     # 同名＝升級：看過「改了什麼」再用 upgrade.upgrade_staged
         raise PackAdminError(f"已經裝了 {m.name}：這是升級，要先看「改了什麼」再按「確認升級」"
@@ -700,11 +793,22 @@ def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
     shutil.rmtree(root, ignore_errors=True)
     fields = pack_tier.lock_fields(info, trust_publisher if info["tier"] == pack_tier.T2 else None)
     pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=target, trust=trust,
-                      tier_fields=fields, runtime=runtime if offers_container(m) else None)
-    logging.info("[PACKS] installed %s %s (approved by %s via %s, trust %s, runtime %s, tier %s%s)", m.name, m.version,
-                 approved_by, via, trust, runtime, info["tier"],
+                      tier_fields=fields, runtime=runtime if offers_container(m) else None,
+                      signature=sig.lock_block())
+    logging.info("[PACKS] installed %s %s (approved by %s via %s, trust %s, runtime %s, tier %s, signature %s%s)",
+                 m.name, m.version, approved_by, via, trust, runtime, info["tier"], sig.status,
                  f", trusted publisher {fields.get('trusted_publisher')!r}" if fields.get("trusted_publisher") else "")
     return m.name
+
+
+def verified_signature(m: Manifest, report: ScanReport, hashes: Dict[str, str],
+                       folder: str) -> "signing.SignatureResult":
+    """按確認時再驗一次簽章（防禦深度）：⛔ 被改過 → GateRefused（沒有確認鈕）；其他回結果（寫進鎖）。"""
+    sig = signing.verify_folder(folder)
+    if sig.status == signing.INVALID:
+        raise GateRefused(signing.INVALID_MESSAGE,
+                          summary_of(m, report, hashes, [signing.INVALID_MESSAGE], signature=sig))
+    return sig
 
 
 def approve_installed(folder: str, data_dir: str, approved_by=None, via: str = "cli",
@@ -720,6 +824,9 @@ def approve_installed(folder: str, data_dir: str, approved_by=None, via: str = "
     if trust is None and loader.is_bundled(m):
         trust = pack_lock.CORE          # 出廠的 pack 第一次鎖：沿用沒鎖時的 core（有鎖之後信任只看鎖）
     trust = _trust(trust)
+    sig = signing.verify_folder(folder)
+    if sig.status == signing.INVALID:
+        problems = [signing.INVALID_MESSAGE] + problems
     if problems:
         return m, report, problems
     info = pack_tier.assess(m, report)
@@ -744,7 +851,8 @@ def approve_installed(folder: str, data_dir: str, approved_by=None, via: str = "
     else:
         runtime = check_runtime(m, runtime)
     pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=folder, trust=trust,
-                      tier_fields=fields, runtime=runtime if offers_container(m) else None)
+                      tier_fields=fields, runtime=runtime if offers_container(m) else None,
+                      signature=sig.lock_block())
     return m, report, []
 
 
