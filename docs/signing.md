@@ -139,7 +139,7 @@ synox-sdk verify dist\<name>-<版本>.synoxpack           會看到 ✍️ 作�
 - 不要把 `.pem` 放進 repo、任何 git 資料夾、雲端硬碟、聊天、issue、CI secret；不要貼進任何 AI 對話。`synox-sdk keygen`／`sign` 會拒絕 git 資料夾裡的私鑰，但擋不了你複製過去。
 - 不要在別台開發機簽章；別台只 build，簽在家。
 - 不要用 `--no-passphrase`。
-- 不要把密語打在命令列上（`$env:X = "…"` 會留在 PowerShell 歷史）；用第 5 節的 `Read-Host`。
+- 不要把密語打在命令列上（`$env:X = "…"` 會留在 PowerShell 歷史）；讓指令在終端機上問你就好。
 - 不要把工具鑰匙拿來簽發佈、或反過來（兩邊的 `sign` 都吃得下去，但驗的是另一組公鑰：工具會變成 ✍️ 作者簽章、`Update.bat` 會因為簽章對不上而拒絕更新）。
 - 不要簽完再碰檔案；不要在 `tools-<VERSION>.zip`、`index.json` 裡混進沒簽的那一份。
 - 不要用加了公鑰的那一版去「證明」自己：第一版沒有舊鑰匙可驗，這是正常的。
