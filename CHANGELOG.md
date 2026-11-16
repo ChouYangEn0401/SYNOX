@@ -1,5 +1,10 @@
 # Changelog
 
+## 未發佈（文件：裝別人做的工具）
+
+### 新增
+- 文件：[docs/install-third-party-tools.md](docs/install-third-party-tools.md)，找到別人的工具、MCP 伺服器或 Claude 技能時怎麼判斷、怎麼安全地放進 SYNOX（含接官方遠端 MCP 的例子、安裝報告怎麼看、目前接不起來的 Google 官方 MCP、Claude 技能為什麼不能直接用）。只有文件，程式沒改。
+
 ## 未發佈（設定頁顯示 SYNOX 核心版本）
 
 ### 新增
