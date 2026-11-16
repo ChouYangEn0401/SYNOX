@@ -23,7 +23,7 @@ from synox.identity import BASE, Identities
 from synox.llm.fake import FakeAdapter
 from synox.vault import Vault
 
-from conftest import trust_core
+from conftest import lock_all, trust_core
 from test_discord import Clock, FakeHTTP, FakeWS, dm, hello
 from test_security import _write_pack
 
@@ -67,6 +67,7 @@ def make(tmp_path, *, mode="server", **lookup_over):
     vault = Vault(b"k" * 32, str(data))
     vault.set_secret("discord_bot_token:synox", TOK_DM)
     vault.set_secret("discord_bot_token:lookup", TOK_CH)
+    lock_all(data, config.pack_dirs())                    # 沒鎖的 pack 不載入（ADR 0027 §4）
     app = build(config, home=None, adapter=FakeAdapter(None), vault=vault)
     http = FakeHTTP()
     for entry in app.extras["discord_entries"].values():

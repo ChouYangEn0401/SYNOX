@@ -1,5 +1,33 @@
 # Changelog
 
+## 未發佈（安全修補：簽章與官方標章、沒經過安裝頁的工具不載入、面板隔開；ADR 0027）
+
+### 安全
+- **沒有經過安裝頁的工具不再載入**（以前手放進 `packs/`、或 `config.json` `packs.dirs` 指過去、沒有 `packs.lock` 那一筆的工具照樣載入，個人版連掃都不掃）。
+  現在狀態是「沒有經過安裝頁，先不開」：啟動時通知擁有者一次、設定頁列出來、按「送去安裝頁檢查」走跟上傳一樣的報告、你按確認才裝（原地那一份收到 `packs/_removed/`，資料在 `data/` 不動）。
+  `packs.dirs` 指過去的（工程師）：`python -m synox packs lock --approve <name>`（跑第 1、2 關、印報告再鎖）。升級 SYNOX 的人：以前手放的工具會變成這個狀態，不會被刪。
+- **工具的面板（`web.panel`）一律隔開**（官方的也一樣）。以前面板跟網頁同源，面板裡的程式讀得到登入、按得了「確認安裝」。
+  現在工具頁先替你拿一張只給這個工具、綁這個登入、8 小時的票，再用 `<iframe sandbox="allow-scripts">`（沒有 `allow-same-origin`）掛 `/packs/<name>/panel/<票>/`；
+  面板沒有 cookie、碰不到主頁，要資料只能打相對網址 `api/<route>`（只有它自己宣告的 GET）。面板上方一定有 SYNOX 畫的一行說明與標章。
+  **寫面板的人要改一行**：`fetch("/api/packs/<name>/<route>", {credentials: …})` → `fetch("api/<route>")`；舊網址 `/packs/<name>/panel` 不再提供。`synox-sdk init` 預設不再產生面板（`--panel` 才有）。
+- 安裝報告**第一列**是 SYNOX 自己驗出來的標章（工具自己寫的名字、說明改不了它）：**✅ 官方**（擁有者的鑰匙驗過）／**✍️ 作者簽章**（作者自己的鑰匙；不是官方）／**⚠️ 不是官方**（沒有簽章）／**⛔ 被改過**（有簽章但驗不過：**拒裝**）。
+  每一次安裝都多一段安全提醒（不分來源）。非官方工具的名字／標題／說明裡寫「官方」「official」「SYNOX」「✅」→ 紅字。工具頁、設定頁、`doctor`、`packs status` 也顯示標章（從 `packs.lock` 讀）。
+  升級時簽章變了（以前是官方現在不是、作者換了鑰匙、以前有簽章現在沒有）→ 紅字。
+  **擁有者還沒產生官方鑰匙**（`src/synox/packs/signing.py` 的 `OFFICIAL_PACK_PUBLIC_KEYS` 是空的）：在那之前所有工具（包括官方工具庫的）都顯示「⚠️ 不是官方」，報告會寫明。
+- `.synoxpack` 的 zip 檢查多三條：同一個路徑出現兩次、兩個檔名只差大小寫（Windows 會蓋掉其中一個）→ 拒；解壓縮時一邊解一邊數位元組，比宣告的大就停（以前只信 zip 宣告的大小）。
+- 安裝時 `title`／`summary`／`publisher` 不能有看不見的字元（雙向文字控制、零寬）或換行（報告上會顯示成別的字）。已經裝好的舊工具載入不受影響。
+
+### 新增
+- `synox-sdk keygen --out <路徑>.pem`（私鑰用密語加密；印出公鑰與 key_id）、`synox-sdk sign <檔>.synoxpack --key <私鑰>`（zip 裡加 `pack.sig.json`）、
+  `synox-sdk verify <檔>.synoxpack`（印標章；結束碼 0＝有簽章、1＝沒有、2＝被改過）。任何作者都能簽自己的工具。`scripts/release.py keygen` 沒設環境變數時也會問密語（跟 `synox-sdk keygen` 一致）。
+- 設定頁「別人做的技能」那張卡改字：之後的匯入走同一個安裝頁、同一份報告與提醒；拿掉「建議開沙盒模式」（Windows 上還沒有）。
+
+### 文件
+- [ADR 0027](docs/adr/0027-pack-signatures-official-badge.md)（簽章與官方標章、不載入沒經過安裝頁的工具、面板隔開、SDK 指令、公鑰放哪）；
+  稽核紀錄 [docs/lab/2026-11-16-security-hotfix-audit.md](docs/lab/2026-11-16-security-hotfix-audit.md)；`security.md`、`pack-format.md`、`sdk.md`、`install-packs.md` 跟著更新。
+  真的瀏覽器裡的面板行為沒有人看過（開發機不開瀏覽器），擁有者請照 ADR 0027 §10 開一次工具頁確認。
+- [docs/signing.md](docs/signing.md)：簽章照做清單——在家產生工具／發佈鑰匙（現用＋備用）、公鑰貼進 SYNOX（含要改的兩個測試）、每次發官方工具與 SYNOX 本體怎麼簽、作者簽自己的工具、鑰匙丟了／外流怎麼換。
+
 ## 未發佈（文件：ADR 0022 核准）
 
 ### 文件

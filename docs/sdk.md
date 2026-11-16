@@ -281,7 +281,10 @@ synox-sdk init --from tool.py --name x --title "…" [資料夾]   從 @tool 函
 synox-sdk run <指令> [參數…] [--pack 資料夾] [--data 資料夾]   本機試跑：跟在 Telegram 打的一樣（照位置填、key=value）
 synox-sdk check <資料夾>                                       SYNOX 安裝時的宣告檢查（第 1 關）＋靜態掃描（第 2 關）
 synox-sdk zip <資料夾>                                         → dist/<name>-<version>.synoxpack（算好 integrity.sha256）
-synox-sdk init <資料夾> --kind cli|python --name x             不用 @tool 的範本（任何語言的命令列工具、python pack）
+synox-sdk init <資料夾> --kind cli|python --name x [--panel]   不用 @tool 的範本（任何語言的命令列工具、python pack）；--panel 才多一個面板
+synox-sdk keygen --out <路徑>.pem                              產生你自己的簽章鑰匙（下面「簽章」）
+synox-sdk sign <檔>.synoxpack --key <私鑰>.pem [--out <檔>]     在 .synoxpack 裡加上簽章（先 zip 再 sign）
+synox-sdk verify <檔>.synoxpack                                 看安裝時會顯示什麼標章
 ```
 
 （還沒有 `synox-sdk` 指令時：`python -m synox.sdk …`。）
@@ -326,6 +329,10 @@ SDK 只是幫你產生 pack.json、印信封。SYNOX 跟工具的接口只有 CL
 - 要第三方套件：`"runtime": {"python": "auto"}`＋`"requires": {"pip": ["名字==版本", …]}`（安裝時自動建 venv）。
 - 很久的工作標 `"background": true`；一般指令要在 `timeout` 內做完（AI 會等結果）。
 - 有網頁面板：`"web": {"panel": "panel.html", "api": ["GET /summary"]}`，`GET /summary` 由同名、`READ`、沒有必填欄位的 command 回答。
+  面板是**隔開的**（[adr/0027](adr/0027-pack-signatures-official-badge.md) §5）：碰不到 SYNOX 的登入、打不到 `/api/`，
+  只能用**相對網址**讀自己宣告的資料：`fetch("api/summary")`（前面不加 `/`、不帶 `credentials`）。
+  舊的寫法 `fetch("/api/packs/<name>/summary", {credentials: "same-origin"})` 在隔開的面板裡會 401，要改這一行。
+  `synox-sdk init` 預設**不**產生面板；要的話加 `--panel`（範本已經是新的寫法）。
 
 ## kind=python 的 pack：每個人的檔案
 
@@ -353,9 +360,50 @@ SDK 只是幫你產生 pack.json、印信封。SYNOX 跟工具的接口只有 CL
 能用純 `.py` 寫完就別附執行檔：T1 的 pack 對方看得到你做什麼，T2 只能「信你」。`synox-sdk check` 會印出信任層級、掃不到內容的檔、pack 外的程式、MCP 工具與 effect、`requires.pip` 有沒有釘死；
 T2 沒寫 `publisher` 會警告，而且結束碼不是 0（安裝時一定會被擋）。
 
+## 簽章：keygen、sign、verify
+
+對方裝你的工具時，報告最上面有一個 SYNOX 自己畫的標章（[adr/0027](adr/0027-pack-signatures-official-badge.md)）：
+**✅ 官方**（SYNOX 擁有者的鑰匙簽的）、**✍️ 作者簽章**（你的鑰匙簽的，不是官方）、**⚠️ 不是官方**（沒有簽章）、
+**⛔ 被改過**（有簽章但檔案對不上：SYNOX 拒裝，沒有確認鈕）。標章只看簽章，`title`、`summary` 寫什麼都影響不了它；
+你自己寫「官方」「official」「SYNOX」「✅」的話，報告上會用紅字標出來。
+照做的清單（作者一節、擁有者的官方鑰匙與發佈）在 [signing.md](signing.md)。
+
+簽章讓對方知道「這個檔跟你簽的時候一模一樣」，而且你之後的每一版都是同一把鑰匙簽的（換了鑰匙，對方升級時會看到紅字）。
+它**證明不了你是誰**——對方第一次裝的時候信的還是你這個人。
+
+```
+synox-sdk keygen --out D:\keys\my-pack-key.pem          一次：產生鑰匙
+synox-sdk zip .                                         打包（寫好 integrity）
+synox-sdk sign dist\hello-0.1.0.synoxpack --key D:\keys\my-pack-key.pem
+synox-sdk verify dist\hello-0.1.0.synoxpack             看對方會看到什麼標章
+```
+
+- **keygen** 問兩次密語（不是在終端機上跑時讀環境變數 `SYNOX_PACK_KEY_PASSWORD`；真的不要密語才加 `--no-passphrase`），
+  把私鑰寫成用密語加密的 PEM（只有你讀得到，0600），印出：
+
+  ```
+  public_key: <base64 一行，44 字>
+  key_id: <16 個字>
+  ✅ 私鑰寫在 …（離線保存；…）
+    下一步：synox-sdk sign <檔>.synoxpack --key …
+  ```
+
+  私鑰檔不能放在 SYNOX 的資料夾、也不能放在任何 git 資料夾裡（會拒絕）——一不小心就 commit 出去了。
+  已經有檔案的路徑不會蓋掉。私鑰掉了就只能換一把：對方升級時會看到「簽章的鑰匙跟第一次裝的不一樣」。
+- **sign** 讀私鑰時問密語（或用 `SYNOX_PACK_KEY_PASSWORD`／`SYNOX_RELEASE_KEY_PASSWORD`），在 zip 裡加一個 `pack.sig.json`
+  （其他每個檔的路徑＋sha256，再用 Ed25519 簽）。預設覆寫原檔，`--out` 另存。印 `✅ 簽好了：<檔>（✍️ 作者簽章）` 與 `key_id: …`。
+  **先 zip 再 sign**：簽完再改任何一個檔（包括重新 zip）都要重簽。`synox-sdk zip` 不會把舊的 `pack.sig.json` 打包進去。
+- **verify** 照 SYNOX 安裝時的方法驗，第一行印標章與狀態（`✅ 官方（official）`、`✍️ 作者簽章（author）`、
+  `⚠️ 不是官方（none）`、`⛔ 被改過（invalid）`），下一行是原因（被改過的會列出哪個檔對不上）。
+  結束碼：0＝有效簽章（official 或 author）、1＝沒有簽章、2＝被改過或檔不對。
+- 公鑰不用給任何人：它就寫在 `pack.sig.json` 裡。只有 SYNOX 擁有者的官方鑰匙會寫進 SYNOX
+  （`src/synox/packs/signing.py` 的 `OFFICIAL_PACK_PUBLIC_KEYS`）；那一把的 `public_key` 那一行貼進去、隨下一版發出去之前，
+  所有工具都顯示「⚠️ 不是官方」。
+- 這三個子指令要 `cryptography`（SYNOX 本來就裝）。**單檔版 `sdk/synox_sdk.py` 沒有簽章功能**：請用 SYNOX 資料夾裡的 `synox-sdk`。
+
 ## 還沒做的
 
-- publisher 的簽章驗證（ed25519）：現在的 publisher 只是 pack.json 裡的一個字串，對方「明確輸入」它，但證明不了檔案出自你。
+- 工具庫目錄（`index.json`）的簽章與撤銷清單（[adr/0027](adr/0027-pack-signatures-official-badge.md) §6）：每個 `.synoxpack` 已經自帶簽章，目錄本身還沒簽。
 
 - SYNOX 端連 MCP server：已支援 stdio 與遠端 MCP（http，token 或 OAuth 貼回網址）；OAuth 的 loopback 收碼
   （暫時開 127.0.0.1 埠）、動態註冊、伺服器主動推播（GET 長連線）、

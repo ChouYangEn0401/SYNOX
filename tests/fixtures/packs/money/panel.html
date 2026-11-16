@@ -28,7 +28,7 @@
 <script>
 (function () {
   function fmt(n) { return Number(n).toLocaleString("zh-TW", { maximumFractionDigits: 2 }); }
-  fetch("/api/packs/money/summary", { credentials: "same-origin" })
+  fetch("api/summary")   // 相對網址：/packs/money/panel/<票>/api/summary（面板隔開了，不帶 cookie）
     .then(function (r) { if (!r.ok) { throw new Error(r.status); } return r.json(); })
     .then(function (d) {
       document.getElementById("month").textContent = d.month + " 共花了";
