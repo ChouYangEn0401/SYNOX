@@ -137,10 +137,11 @@ def test_remind_add_says_when_and_where(make_bot, owner, monkeypatch):
     bot = make_bot()
     bot.say(owner, "/remind_add 08:00 吃藥")
     text = bot.last(owner)
-    assert "每天 08:00 提醒你：吃藥" in text and "會在網頁提醒你" in text and alarms.NOTE in text
+    assert "08:00 提醒你「吃藥」（每天）" in text and "會送到：網頁。" in text and "SYNOX 沒開時" in text
+    assert alarms.NOTE not in text and "提醒你：吃藥" not in text          # 只有排程回執那套字，不重複講一次
     with_channels(bot, monkeypatch)
     bot.say(owner, "/remind_add 09:00 喝水")
-    assert "會在網頁、Telegram、Discord 提醒你" in bot.last(owner)
+    assert "會送到：網頁、Telegram、Discord。" in bot.last(owner)
 
 
 def test_remind_add_today_in_the_past_is_refused(make_bot, owner):
@@ -161,11 +162,13 @@ def test_alarm_fires_everywhere_with_buttons_and_snooze(make_bot, owner, monkeyp
     assert any("ntf:s5:" in b for b in tg.buttons(owner))
     item = web_items(bot, owner)[-1]
     assert item["kind"] == "alarm" and [a["id"] for a in item["actions"]] == ["ok", "snooze"]
-    hhmm = hub.snooze(owner, item["id"])
+    hhmm = hub.snooze(owner, item["id"])                    # 交給提醒引擎：同一個提醒延後，不另加一筆
     from synox.schedule.commands import store_for
-    snoozed = [it for it in store_for(bot.app).of(owner).items("remind") if it.get("date")]
-    assert snoozed and snoozed[0]["time"] == hhmm and snoozed[0]["text"] == "吃藥"
+    (it,) = store_for(bot.app).of(owner).items("remind")
+    assert it["status"] == "snoozed" and it["snooze_until"][11:16] == hhmm and it["text"] == "吃藥"
     assert hub.store.get(owner, item["id"])["read"] and hub.snooze(owner, item["id"]) is None   # 只能按一次
+    bot.say(owner, "/remind_list")
+    assert f"（延後到 {hhmm}）" in bot.last(owner)
 
 
 def test_alarm_button_in_chat_snoozes(make_bot, owner):
@@ -176,7 +179,11 @@ def test_alarm_button_in_chat_snoozes(make_bot, owner):
     bot.press(owner, data)
     assert "再叫你一次" in (bot.answers()[-1] or "")
     from synox.schedule.commands import store_for
-    assert len(store_for(bot.app).of(owner).items("remind")) == 2
+    items = store_for(bot.app).of(owner).items("remind")
+    assert len(items) == 1 and items[0]["status"] == "snoozed" and items[0]["snooze_count"] == 1
+    bot.press(owner, data)                                  # 同一顆再按一次：已經處理過了，不會再延後
+    assert bot.answers()[-1] == notify.hub.T["gone"]
+    assert store_for(bot.app).of(owner).items("remind")[0]["snooze_count"] == 1
 
 
 def test_late_alarm_still_rings_and_old_one_is_missed(make_bot, owner):
@@ -246,7 +253,7 @@ def test_ai_alarm_from_chat_still_works_and_says_where(make_bot, owner):
     assert [(it["time"], it["text"], it["date"]) for it in items] == [("08:00", "吃藥", day)]
     assert bot.last(owner) == "好，明天早上 8 點提醒你吃藥。"
     seen = "\n".join(str(getattr(m, "content", m)) for m in bot.app.extras["synox_agent"].adapter.calls[-1][0])
-    assert "明天 08:00，會在網頁提醒你" in seen and alarms.NOTE in seen     # AI 拿到的結果講清楚什麼時候、在哪裡響
+    assert "明天 08:00 提醒你「吃藥」" in seen and "會送到：網頁" in seen    # AI 拿到的是排程回執：什麼時候、在哪裡響
 
 
 def test_server_mode_alarm_goes_to_the_member_only(make_bot, owner):
@@ -292,12 +299,14 @@ def test_web_api_list_read_snooze_prefs_alarms(make_bot, owner):
     assert status == 200 and "再叫你一次" in r["message"]
     status, d = c.get("/api/notifications")
     assert d["unread"] == 0
-    status, a = c.get("/api/alarms")
-    assert status == 200 and len(a["items"]) == 2 and a["where"] == ["網頁"] and a["note"] == alarms.NOTE
+    status, a = c.get("/api/alarms")                       # 延後的是同一個提醒：清單上還是一個
+    assert status == 200 and len(a["items"]) == 1 and a["where"] == ["網頁"] and a["note"] == alarms.NOTE
+    status, r = c.post(f"/api/notifications/{nid}/snooze")
+    assert status == 404                                    # 同一則不能延後兩次
     status, r = c.post("/api/alarms/test")
     assert status == 200 and r["sent"] == ["網頁"]
     status, r = c.post(f"/api/alarms/{a['items'][0]['id']}/delete")
-    assert status == 200 and len(c.get("/api/alarms")[1]["items"]) == 1
+    assert status == 200 and len(c.get("/api/alarms")[1]["items"]) == 0
     status, r = c.post("/api/alarms/999/delete")
     assert status == 404
     hub = notify.of(bot.app)

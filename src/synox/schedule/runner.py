@@ -46,11 +46,14 @@ class ScheduleRunner:
         self._clock = clock
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
+        config = getattr(app, "extras", {}).get("synox_config") or getattr(app, "config", None)
         self.engine = ReminderEngine(store, lambda msg: app_deliver(app, msg),
                                      resolve=lambda uid, key, **kw: app_resolve(app, uid, key, **kw),
-                                     owner_default=getattr(app, "owner_id", None))
+                                     owner_default=getattr(app, "owner_id", None),
+                                     status_dir=getattr(config, "data_dir", None), who="app")
         self.engine_failures = 0
         self.engine_alerted = False
+        self.skipped_for_sentinel = 0         # 哨兵還拿著引擎鎖、這一輪沒跑的次數（給測試、log）
 
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
@@ -134,6 +137,14 @@ class ScheduleRunner:
         return fired
 
     def _tick_engine(self, now: datetime) -> List[dict]:
+        from synox.notify import delivery
+        if not delivery.is_engine(self.app):           # 提醒哨兵還在跑（還沒讓位）：它在送，這一輪不跑，不會重複
+            self.skipped_for_sentinel += 1
+            self.engine.failed_stores = 0
+            if self.skipped_for_sentinel == 1:
+                logging.info("[SCHEDULE] reminder sentinel still runs the reminder engine; skipping this round")
+            return []
+        self.skipped_for_sentinel = 0
         try:
             fired = self.engine.tick(now)
             broken = bool(self.engine.failed_stores)

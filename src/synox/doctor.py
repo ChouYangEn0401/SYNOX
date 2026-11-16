@@ -9,7 +9,8 @@ import glob
 import os
 import platform
 import sys
-from typing import Callable, List
+import time
+from typing import Callable, List, Optional
 
 from synox import __version__
 from synox.brand import latest_hint
@@ -233,6 +234,60 @@ def _activator_line(config) -> str:
     return "\n".join(lines)
 
 
+WHO_TEXT = {"app": "SYNOX 主程式", "sentinel": "提醒哨兵"}
+ERROR_TEXT = {"network": "連不上", "rate_limited": "送太快被擋", "blocked": "被封鎖", "bad_token": "token 不對",
+              "duplicate_text": "字重複", "no_window": "視窗沒出現", "timeout": "逾時", "unknown": "不明原因"}
+CHANNEL_TEXT = {"web": "網頁", "telegram": "Telegram", "discord": "Discord", "desktop": "電腦視窗", "chat": "聊天"}
+
+
+def remind_lines(config, *, vault=None, now: Optional[float] = None) -> tuple:
+    """提醒引擎（ADR 0028）：上一次到點檢查是幾秒前、誰是引擎（主程式／哨兵，engine.lock 的戳記）、
+    送達佇列裡卡住幾件、最近失敗的是哪條管道。只讀檔，不拿鎖、不送任何東西。回 (行, 問題數)。"""
+    from synox.notify import desk as deskmod
+    from synox.notify.deskapp import EngineGate, outbox_folder
+    from synox.schedule.engine import read_status
+    now = time.time() if now is None else now
+    data_dir = config.data_dir
+    status = read_status(data_dir) or {}
+    holder = EngineGate(data_dir).view().get("holder")
+    bad = 0
+    last = status.get("last_tick")
+    if isinstance(last, (int, float)):
+        ago = max(0, int(now - last))
+        who = WHO_TEXT.get(str(status.get("who")), str(status.get("who") or "?"))
+        head = f"  提醒引擎：上一次檢查是 {ago} 秒前（{who}）"
+        if status.get("failed_stores"):
+            head += f"　⚠️ 有 {status['failed_stores']} 份清單讀不了"
+            bad += 1
+    else:
+        head = "  提醒引擎：還沒檢查過（SYNOX 或提醒哨兵跑起來之後才會檢查）"
+    if holder:
+        stale = now - float(holder.get("beat") or 0) > deskmod.STAMP_STALE_S
+        who = WHO_TEXT.get(str(holder.get("who")), str(holder.get("who")))
+        head += f"；現在是引擎的：{who}" + ("（很久沒更新，可能已經關了）" if stale else "")
+    else:
+        head += "；現在是引擎的：沒有（SYNOX 跟提醒哨兵都沒在跑）"
+    lines = [head]
+    try:
+        from synox.notify.outbox import FileOutbox
+        box = FileOutbox(outbox_folder(data_dir), vault, adapters={}, plan=lambda m: [])
+        summary = box.summary()
+    except Exception as e:
+        lines.append(f"    送達佇列：讀不了（{type(e).__name__}）")
+        return lines, bad + 1
+    if summary["stuck"]:
+        lines.append(f"    ⚠️ 送達佇列：{summary['stuck']} 件還沒送到（會自己重試；網頁通知鈴鐺看得到）")
+        bad += 1
+    else:
+        lines.append("    送達佇列：沒有卡住的")
+    fail = summary.get("last_failed")
+    if fail:
+        when = f"{max(0, int(now - fail['at']))} 秒前" if isinstance(fail.get("at"), (int, float)) else "之前"
+        lines.append(f"    最近失敗：{CHANNEL_TEXT.get(fail['channel'], fail['channel'])}"
+                     f"（{ERROR_TEXT.get(fail['error'], fail['error'] or '不明原因')}，{when}）")
+    return lines, bad
+
+
 HEALTH_MARKS = {"broken": "⏸", "needs_action": "🛠", "quarantined": "⛔"}
 
 
@@ -403,6 +458,17 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
             out(_keep_awake_line(config))
             out(_activator_line(config))
             out(_stepup_line(config))
+            remind_vault = None
+            if os.path.exists(os.path.join(config.data_dir, ".synox.key")):     # 送達佇列跟通知清單同一套加密
+                try:
+                    from synox.vault import open_vault
+                    remind_vault = open_vault(config)
+                except Exception:
+                    remind_vault = None
+            remind_text, bad = remind_lines(config, vault=remind_vault)
+            for line in remind_text:
+                out(line)
+            problems += bad
             for line in remote_lines(config):
                 out(line)
             if config.discord_enabled:

@@ -15,7 +15,7 @@ from __future__ import annotations
 import logging
 from dataclasses import replace
 from datetime import datetime, timedelta
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from synox.notify import delivery
 from synox.schedule import reminder as R
@@ -24,7 +24,7 @@ from synox.schedule.engine import close_occurrence, ring_key
 from synox.schedule.reminder import Reminder
 
 SNOOZE_DEFAULT_MIN = 5
-VIA_TEXT = {"telegram": "Telegram 上", "discord": "Discord 上", "web": "網頁上", "desktop": "電腦上",
+VIA_TEXT = {"telegram": " Telegram 上", "discord": " Discord 上", "web": "網頁上", "desktop": "電腦上",
             "command": "聊天裡", "chat": "聊天裡"}
 GONE = "這則提醒已經處理過了。"
 
@@ -33,20 +33,43 @@ def via_text(via: str) -> str:
     return VIA_TEXT.get(via, "別的地方")
 
 
+TODO_SHOW = 20                      # 電腦視窗下半部最多幾筆待辦（同 notify.desk.TODO_SHOW）
+
+
+def todo_list(st) -> List[Dict[str, Any]]:
+    """這個人的待辦（沒有時間的），給電腦視窗下半部：[{"rid", "text"}]，照清單順序、最多 TODO_SHOW 筆。"""
+    from synox.schedule.store import is_todo
+    return [{"rid": int(it["id"]), "text": str(it.get("text", ""))}
+            for it in st.items("remind") if is_todo(it)][:TODO_SHOW]
+
+
 class Actions:
-    """delivery.ReminderActions 的實作。store＝ScheduleStore（根）；resolve(uid, key, note=, via=)。"""
+    """delivery.ReminderActions 的實作。store＝ScheduleStore（根）；resolve(uid, key, note=, via=)。
+    todos（選填）：todos(uid, items) — 待辦有變動時（在視窗上按掉一筆）把整份交出去（delivery.publish_todos）。"""
 
     def __init__(self, store, *, resolve: Optional[Callable[..., Any]] = None,
-                 clock: Callable[[], datetime] = datetime.now):
+                 clock: Callable[[], datetime] = datetime.now,
+                 todos: Optional[Callable[[int, List[Dict[str, Any]]], Any]] = None):
         self.store = store
         self._resolve = resolve
         self._clock = clock
+        self._todos = todos
+
+    def publish_todos(self, uid: int) -> None:
+        if self._todos is None:
+            return
+        try:
+            self._todos(int(uid), todo_list(self.store.of(int(uid))))
+        except Exception:
+            logging.exception("[REMIND] publishing todos failed")
 
     def act(self, uid: int, rid: int, occurrence: str, action: str, *, until: Optional[str] = None,
             typed: str = "", via: str = "") -> delivery.ActionOutcome:
         now = R.aware(self._clock())
         if action not in ("done", "ack", "snooze"):
             return delivery.ActionOutcome(False, "bad_action", "看不懂要做什麼。")
+        if not occurrence and action in ("done", "ack"):
+            return self._todo_done(uid, rid, via)
         target = None
         if action == "snooze":
             target, problem = self._snooze_target(now, until, typed)
@@ -66,6 +89,10 @@ class Actions:
             return close_occurrence(rem, R.DONE, now, via=via)
 
         found, _ = st.update_reminder(int(rid), apply)
+        if found and not box.get("ok") and action in ("done", "ack"):
+            missed = self._missed_ack(st, uid, rid, occurrence, via)
+            if missed is not None:
+                return missed
         if not found or not box.get("ok"):
             return delivery.ActionOutcome(False, "gone", GONE)
         if action == "snooze":
@@ -93,6 +120,32 @@ class Actions:
             logging.exception("[REMIND] on_delivery failed")
 
     # ── 內部 ─────────────────────────────────────────────────────────
+
+    def _todo_done(self, uid: int, rid: int, via: str) -> delivery.ActionOutcome:
+        """待辦（沒有時間、沒有 occurrence）按了完成：從清單拿掉，整份待辦再交出去一次。"""
+        st = self.store.of(int(uid))
+        found, _ = st.update_reminder(int(rid), lambda r: None if r.is_todo else r)
+        still = any(it.get("id") == int(rid) for it in st.items("remind"))
+        if not found or still:
+            return delivery.ActionOutcome(False, "gone", GONE)
+        self.publish_todos(uid)
+        return delivery.ActionOutcome(True, "", "好，記下來了。", f"✅ 在{via_text(via)}做完了")
+
+    def _missed_ack(self, st, uid: int, rid: int, occurrence: str, via: str) -> Optional[delivery.ActionOutcome]:
+        """「你錯過了」那一則按了知道了／完成：那一次早就記成錯過，這裡只讓其他管道收掉（不算 gone）。"""
+        hit = False
+        for it in st.raw_items():
+            if it.get("id") != int(rid) or not R.is_v2(it):
+                continue
+            if it.get("status") == R.MISSED and it.get("occurrence") == occurrence:
+                hit = True
+            elif any(h.get("occurrence") == occurrence and h.get("status") == R.MISSED for h in it.get("history") or []):
+                hit = True
+        if not hit:
+            return None
+        note = f"✅ 在{via_text(via)}按了知道了"
+        self._resolved(uid, delivery.message_key(int(rid), occurrence, int(uid)), note, via)
+        return delivery.ActionOutcome(True, "", "知道了", note)
 
     def _snooze_target(self, now: datetime, until: Optional[str], typed: str):
         if until:
@@ -126,4 +179,4 @@ class Actions:
             logging.exception("[REMIND] resolve failed")
 
 
-__all__ = ["Actions", "GONE", "SNOOZE_DEFAULT_MIN", "via_text"]
+__all__ = ["Actions", "GONE", "SNOOZE_DEFAULT_MIN", "TODO_SHOW", "todo_list", "via_text"]

@@ -284,14 +284,16 @@ def test_web_done_and_read_go_to_reminder_actions(make_bot, owner):
     assert actions.calls[-1]["action"] == "ack" and actions.calls[-1]["rid"] == 5
 
 
-def test_buttons_fall_back_to_old_snooze_without_actions(make_bot, owner):
+def test_buttons_without_actions_never_add_a_reminder(make_bot, owner):
+    """舊的「5 分鐘後再提醒＝另加一筆提醒」拿掉了（ADR 0028 整合）：沒有提醒引擎時按了只收掉按鈕、說已經處理過。"""
     bot = make_bot()
+    bot.app.extras.pop(delivery.ACTIONS_EXTRA, None)
     delivery.deliver(bot.app, reminder_msg(owner))
     data = next(b for b in bot.api.buttons(owner) if b.startswith("ntf:s5:"))
     bot.press(owner, data)
-    assert "再叫你一次" in (bot.answers()[-1] or "")
+    assert bot.answers()[-1] == notify.hub.T["gone"]
     from synox.schedule.commands import store_for
-    assert len(store_for(bot.app).of(owner).items("remind")) == 1          # 舊路：加一個只響一次的
+    assert store_for(bot.app).of(owner).items("remind") == []
 
 
 # ── 電腦提醒視窗 ─────────────────────────────────────────────────────
