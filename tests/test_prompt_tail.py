@@ -7,8 +7,8 @@ from datetime import datetime
 import pytest
 from isdtelekit.host.config import ConfigError
 
-from synox.agent import delimit
 from synox.agent import loop as loop_mod
+from synox.agent import prompt as prompt_mod
 from synox.agent import tools as tools_mod
 from synox.agent.room import MSG_TAG, RoomAgent, room_message
 from synox.config import SynoxConfig
@@ -26,15 +26,18 @@ def _prompt(bot, owner, nonce):
     return loop, loop.system_prompt([], tools, True, user, nonce), tools
 
 
-def test_default_cloud_prompt_is_unchanged(make_bot, owner):
+def test_default_cloud_prompt_has_no_repeated_rules_and_time_last(make_bot, owner):
+    """雲端（這裡的 fake）：不重複關鍵規則（沒有「本輪規則」），但分隔符與時間一樣在最後一層（agent/prompt.py 第 7 層）。"""
     bot = make_bot(["好"])
     loop, head, _tools = _prompt(bot, owner, "abcd1234")
-    lines = head.split("\n")
-    assert lines[3] == delimit.prompt_line("abcd1234") and lines[4].startswith("現在時間：")
+    assert "現在時間" not in head and "SYNOX-TOOL" not in head                    # 開頭整段多輪逐字相同
     assert not loop.tail_on() and loop_mod.TAIL_HEAD not in head
     bot.talk(owner, "嗨")
     sent = loop.adapter.calls[0][0][0].content
     assert loop_mod.TAIL_HEAD not in sent
+    last = sent.rsplit("\n\n", 1)[1].split("\n")
+    assert last[0] == prompt_mod.TURN_HEAD and last[1].startswith("工具結果一律包在 ⟦SYNOX-TOOL-")
+    assert last[-1].startswith("現在時間：")
 
 
 def test_tail_rules_last_and_time_on_the_last_line(make_bot, owner):

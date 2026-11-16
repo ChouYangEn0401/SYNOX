@@ -26,22 +26,31 @@ def _twenty():
     return tools
 
 
+SYSTEM_KEEP = ("remind__",)          # 系統指令的開頭不再寫死在 toolpick：app 的由工具登記索引給（toolpick.keep_for）
+
+
 def test_pick_keeps_the_relevant_tool_and_the_system_tools():
     tools = _twenty()
     assert len(tools) == 21
-    got = toolpick.pick(tools, "記一下買貓砂", 12)
+    got = toolpick.pick(tools, "記一下買貓砂", 12, keep=SYSTEM_KEEP)
     names = [t.name for t in got]
     assert "note__add" in names
     assert {tools_mod.CANNOT_DO, SKILL_READ, "remind__add"} <= set(names)        # 系統工具永遠在
-    assert len([n for n in names if not toolpick.kept(n)]) == 12
+    assert len([n for n in names if not toolpick.kept(n, SYSTEM_KEEP)]) == 12
     assert names == [t.name for t in tools if t.name in names]                  # 照原本的順序
+
+
+def test_system_prefixes_come_from_the_index(make_bot):
+    app = make_bot(["好"]).app
+    assert "remind__" in toolpick.keep_for(app)            # 提醒：load=always 的系統層（agent/index.py）
+    assert not toolpick.kept("remind__add")                # 沒給 keep 就不保留（不再寫死）
 
 
 def test_limit_zero_or_small_list_returns_everything_in_order():
     tools = _twenty()
     assert toolpick.pick(tools, "記一下", 0) == tools
-    assert toolpick.pick(tools, "記一下", 18) == tools                   # 一般工具 18 個 ≤ 18
-    assert toolpick.pick(tools[:2] + tools[-3:], "x", 2) == tools[:2] + tools[-3:]
+    assert toolpick.pick(tools, "記一下", 18, keep=SYSTEM_KEEP) == tools        # 一般工具 18 個 ≤ 18
+    assert toolpick.pick(tools[:2] + tools[-3:], "x", 2, keep=SYSTEM_KEEP) == tools[:2] + tools[-3:]
 
 
 def test_extra_keep_prefixes():
@@ -117,7 +126,8 @@ def test_outside_tool_still_runs_and_next_step_gets_everything(make_bot, owner):
     adapter.script = [{"tool": outside, "args": {}}, "好了"]
     bot.talk(owner, "嗨")
     first_offer, second_offer = _names(adapter.calls[0][1]), _names(adapter.calls[1][1])
-    assert outside not in first_offer and len([n for n in first_offer if not toolpick.kept(n)]) == 1
+    keep = toolpick.keep_for(bot.app)
+    assert outside not in first_offer and len([n for n in first_offer if not toolpick.kept(n, keep)]) == 1
     assert tools_mod.CANNOT_DO in first_offer
     assert outside in second_offer and len(second_offer) > len(first_offer)        # 退回全集
     tool_msgs = [m for m in adapter.calls[1][0] if m.role == "tool"]

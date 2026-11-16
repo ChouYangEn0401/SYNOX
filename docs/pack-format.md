@@ -52,6 +52,9 @@
 | `requires.env` | | 要有的環境變數（清單或 `{名字: 說明}`）；缺了就不載入。kind=cli 時**這些名字也是子程序唯一看得到的密鑰**：SYNOX 叫工具時會把像密鑰的變數（`*_TOKEN`、`*_API_KEY`、`*_SECRET`、`*_PASSWORD`…）拿掉，只放行這裡（和 `auth.fields[].env`）列的 |
 | `requires.synox` | | SYNOX 最低版本，例如 `">=0.3"`（逗號接好幾個：`">=0.3,<1.0"`；只寫 `"0.3"`＝`>=0.3`）。寫錯＝pack.json 不合；這台的 SYNOX 不合＝**不載入**（狀態「SYNOX 版本不合」），doctor、`packs status`、安裝報告會說要哪一版、這台是哪一版 |
 | `requires.sdk` | | **建議一定寫**：這個工具照哪一版 SYNOX SDK（給工具的介面合約，`synox_sdk.SDK_VERSION`，見 [sdk.md](sdk.md)「SDK 版本」）寫的，例如 `">=0.2,<0.3"`（0.x 寫到下一個 MINOR）。寫法同 `requires.synox`；寫錯＝pack.json 不合；這台的 SDK 不在範圍內＝**不裝**（安裝報告列原因）、**不載入**（狀態「版本不合」）。`synox-sdk init` 會自動寫好 |
+| `requires.packs` | | 相依的其他工具（含版本），例如 `["notes>=0.2"]`。缺了、版本不合、或沒載入成功＝**不載入**（狀態 `missing`，doctor 說缺哪個）。見下面「`requires.packs`／`requires.system`」 |
+| `requires.system` | | 要的 SYNOX 系統能力，例如 `["notify", "schedule"]`；這台的 SYNOX 沒有＝不載入。見下面「`requires.packs`／`requires.system`」 |
+| `agent` | | **選填、建議寫**：給 AI 的登記——「什麼時候找我」一行、觸發字、說明書主題、能背書的未來承諾。沒寫＝AI 能力清單用 `summary`，行為跟以前一樣。見下面「`agent` 區塊」 |
 | `requires.pip` | | 要的 Python 套件。`runtime.python` 是 `"auto"`（只給 kind=cli）時，安裝會建 venv 照這份裝，每一項都要是 `名字==版本`（見下面「依賴與環境自動建置」）；沒有 `auto`＝SYNOX 不會幫你裝，只是給人看 |
 | `web.panel` | | Web UI 工具頁的面板：pack 資料夾裡的一個 `.html`（不能用 `..`、絕對路徑）。網頁在 `<iframe sandbox="allow-scripts allow-same-origin">` 裡掛 `/packs/<name>/panel`，只給看得到這個 pack 的人 |
 | `web.app` | | **完整的網頁畫面（工具服務，ADR 0024）**：只給 kind=python。擁有者在 SYNOX 開服務之後，在另一個本機位址（`127.0.0.2`）上看這個工具自己的畫面。規則見下面「完整網頁畫面（`web.app`）」與 [docs/tool-apps.md](tool-apps.md) |
@@ -79,7 +82,8 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 - **紅字（醒目）**：effect 變寬（`READ` → `WRITE` → `DANGER`）、新增 `WRITE`／`DANGER` 的 command、`capabilities` 新增、
   執行方式改了（`kind`、`runtime`、`cli.argv`／`python`／`cwd`／`env`、`python.module`、`python.package`、`mcp.url`）、`auth` 改了、
   多要密鑰環境變數、`access` 變寬、新加網頁面板、`storage` 從 `vault` 改成 `plain`、`surfaces` 多了 `channel`、
-  `data` 變寬（`none` → `user` → `shared`）、這次選的 `trust` 跟裝著那一份的鎖不一樣（不管哪個方向；升級沒選＝沿用舊的）
+  `data` 變寬（`none` → `user` → `shared`）、這次選的 `trust` 跟裝著那一份的鎖不一樣（不管哪個方向；升級沒選＝沿用舊的）、
+  `agent.promises` 新增或改了、`agent.always` 新加或改了、`agent.load` 改成 `always`（見下面「`agent` 區塊」）
 - 一般字：移除 command、effect 變窄、不再要某個能力；還有每個檔改了／多了／少了
 
 **版本**：新的 `version` 要是 semver（`1.2.3`、`1.2.3-beta.1`），而且要比裝著的大。一樣或比較小 → 明講並拒絕，
@@ -169,6 +173,56 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 - 安裝報告多一行白話（「/demo_export 只收你本人；/demo_rm_all 一定要先用手機驗證器解鎖」）。升級時拿掉或放寬一條＝紅字，新增或收緊＝一般字。
 - 工具自己也能再檢查一次（多一層，不是邊界）：python 工具用 `kit.caller()`、`kit.require_human()`；子程序工具用 `synox_sdk` 的
   `caller()`、`require_human()`（SDK 0.2.3 起，見 docs/sdk.md）。
+
+### `agent` 區塊（給 AI 的登記，[ADR 0029](adr/0029-tool-registration-index.md)）
+
+工具在 pack.json 多寫一個 `agent` 區塊，說明「什麼時候想到我、我能保證什麼、我的說明書有哪些章節」。
+SYNOX 載入完所有工具後，把系統能力（提醒、排程…）和每個工具的這個區塊**彙整成一份索引**（`src/synox/agent/index.py`）：
+記憶體裡一份給 AI 的提示用（能力清單、技能索引），`data/agent_index.json` 一份給健康檢查、網頁看。
+**整個區塊選填**：沒寫的舊工具照舊能用，能力清單那一行就是 `summary`（截到 60 字），挑工具的方式跟以前一樣。
+
+```json
+"agent": {
+  "index": "記一筆支出或收入、看這個月花多少、設預算",
+  "triggers": ["記帳", "花了", "收據", "預算"],
+  "load": "on_trigger",
+  "skill": { "file": "SKILL.md",
+             "topics": { "receipt": "skills/receipt.md", "budget": "skills/budget.md" } },
+  "provides": ["money.record", "money.report"],
+  "promises": { "budget_alert": "watch" }
+}
+```
+
+| 欄位 | 意思 | 規則（安裝時寫錯＝拒裝；已裝的寫壞了＝那一項當作沒寫、照樣載入） |
+|---|---|---|
+| `index` | AI 能力清單裡的那一行：「什麼時候找我」 | 一行、60 字內；沒寫＝用 `summary`（安裝報告提醒）。跟 `commands[].ai.scenario` 同一套檢查：不准網址、信箱、像在對 AI 下指令、要跳過確認、分隔符 |
+| `triggers` | 使用者說到這些字時，這個工具的指令優先排進這一輪 | 最多 12 個、每個 12 字內，同上的檢查。本地模型每輪只給一部分工具（`llm.max_tools`）時，命中觸發字的工具分數加很多、排在前面 |
+| `load` | `on_trigger`（預設：索引一行＋命中觸發字或字面相近才給工具規格）｜`on_call`（只有索引一行）｜`always`（每輪都給規格、挑工具時永遠保留） | `always` 只給**信任選「核心（core）」**的工具，規則同 `always` 欄位 |
+| `skill.file`、`skill.topics` | 說明書與主題檔：AI 先讀總表（`skill_read`），要細節再帶 `topic` 讀那一章 | 檔要存在、在工具資料夾裡（相對路徑、不能有 `..`）；`file` 要跟最上層的 `skill` 一樣（沒寫＝最上層的 `skill`）；主題名小寫英數字、`-`、`_`，最多 20 個。主題檔永遠不自動進 AI 的脈絡 |
+| `provides` | 能力代號（`工具.動作`），給能力自述與相依檢查 | 小寫英數字、`_`，至少一個點；最多 16 個 |
+| `promises` | 哪個指令成功之後，AI 才可以說「會…／到時候…」：`schedule`（排定時間）｜`watch`（持續監看） | **只能指向這個工具宣告過的指令**（kind=cli 對 `commands`、kind=mcp 對 `tools_allow`；kind=python 的指令寫在程式裡，安裝時只看名字格式，載入後對不到的那一條丟掉並記 log）。升級時新增或改了＝升級報告**紅字** |
+| `always` | 每輪都進 AI 提示的一小段（放在行為守則之後） | 200 字內（可以換行）、同上的檢查。**只給系統層與信任選「核心（core）」的工具：第三方寫了＝拒裝**（安裝、升級都拒；手放的／沒鎖的當作第三方，載入時狀態 `rejected`）。新加或改了＝升級報告紅字 |
+
+- **能力清單的總量上限 1,500 字**：超過就把每一行的說明從 60 字逐級縮到 40、28、20、12、0（只剩標題）；還是太多才把最後幾行併成「…另有 N 項」。
+  每個人看到的清單照權限過濾（他看不到的工具不會出現）。
+- **安裝報告**多一段「🧠 給 AI 的登記」：這個工具每輪會多佔約幾個字、索引那一行、觸發字、承諾；寫了 `always`／`load: always` 的另外紅字說明只有核心信任才裝得進來。
+- **健康檢查**（`python -m synox doctor`）列出能力清單每輪的總量、每個工具的佔用（最大的三個標 ⚠️）、缺的相依。
+- 系統能力（⏰ 提醒、🗓 排程、🔔 通知）走同一個登記口（`agent.index.register_system`），規則跟工具一樣。
+- `synox-sdk init` 產生的新工具骨架已經寫好一個 `agent` 區塊（`index` 改成你的、`triggers` 填上使用者常說的字）。
+
+### `requires.packs`／`requires.system`（相依）
+
+```json
+"requires": { "packs": ["notes>=0.2", "calendar"], "system": ["notify", "schedule"] }
+```
+
+- `requires.packs`：別的工具的名字，可以接版本條件（寫法同 `requires.synox`：`>=0.2`、`>=1.0,<2.0`）；最多 16 個。
+  SYNOX 會先載入被依賴的工具；**沒裝、版本不合、或那個工具自己沒載入成功＝這個工具不載入**，狀態 `missing`，
+  detail 寫「缺 工具 notes>=0.2（裝的是 0.1.0）」這樣的句子；doctor 也會列。
+- `requires.system`：SYNOX 的系統能力名字（小寫英數字、`_`）：這一版有 `notify`（通知中心）、`schedule`（排程）、`remind`（提醒），
+  以及系統層用 `register_system` 登記過的名字。這台沒有＝不載入，detail 寫「缺 系統能力 xxx（這台的 SYNOX 沒有）」。
+- 格式寫錯（不是字串清單、名字不合、版本條件看不懂）＝pack.json 不合（安裝拒、已裝的不載入）。
+- 升級時相依改了＝升級報告一般字。
 
 ## pack.json v2（架構 v1 §4）
 
@@ -631,3 +685,5 @@ description: 使用者提到花了多少錢、想記帳、問這個月花多少�
   AI 不會知道這個 pack，安裝報告與 `synox-sdk check` 會提醒（不擋）。
 - 工具名＝節點路徑把 `.` 換成 `__`：`money.add` → `money__add`。參數名就是 Field 的 name。
 - 正文寫「什麼時候用哪個工具、參數怎麼填、要注意什麼」，用繁體中文。
+- 說明書太長：拆成主題檔，在 `agent.skill.topics` 宣告（見上面「`agent` 區塊」）；SKILL.md 當總表，寫「收據的細節讀主題 receipt」。
+  `skill_read` 帶 `topic` 只讀那一章。

@@ -1,0 +1,60 @@
+{
+  "id": "remind-02",
+  "category": "remind",
+  "split": "holdout",
+  "title": "每天的提醒：時間（晚上十點＝22:00）、每天、管道都要對得上回執",
+  "turns": [
+    "每天晚上十點提醒我吃藥"
+  ],
+  "tools": [
+    {
+      "name": "alarm__set",
+      "receipt": {
+        "kind": "remind",
+        "repeat": "daily",
+        "when": "每天 {time}",
+        "due": "2026-11-16T{time}:00+08:00",
+        "channels": [
+          "telegram",
+          "desktop"
+        ],
+        "channel_labels": [
+          "Telegram",
+          "這台電腦的視窗"
+        ],
+        "not_when": [
+          "off",
+          "asleep"
+        ]
+      }
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "alarm__set",
+        "args": {
+          "time": "22:00",
+          "repeat": "daily",
+          "text": {
+            "contains": "藥"
+          }
+        }
+      }
+    ],
+    "final_contains": [
+      "22:00"
+    ],
+    "final_not_contains": [
+      "沒有排上",
+      "不一樣"
+    ],
+    "max_steps": 2
+  },
+  "soft": [
+    {
+      "name": "照回執講",
+      "rubric": "一兩句講清楚：哪一天幾點（絕對時間）、送到哪裡；不加回執沒說的保證"
+    }
+  ]
+}

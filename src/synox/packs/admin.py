@@ -40,9 +40,9 @@ from typing import Dict, List, Optional, Tuple
 from synox.packs import envs, loader
 from synox.packs import lock as pack_lock
 from synox.packs import tier as pack_tier
-from synox.packs.manifest import (DEFAULT_STAGE, Manifest, ManifestError, read, stage_label, stage_text,
-                                  synox_problem)
-from synox.packs.scan import ScanReport, scan
+from synox.packs.manifest import (DEFAULT_STAGE, Manifest, ManifestError, agent_trust_problem, read, stage_label,
+                                  stage_text, synox_problem)
+from synox.packs.scan import ScanReport, agent_report, format_agent, scan
 
 MAX_UPLOAD = 5 * 1024 * 1024
 ZIP_MAGIC = b"PK\x03\x04"                 # 本機檔頭：.synoxpack 的第一個位元組就要是它（stage 檢查）
@@ -168,7 +168,7 @@ def summary_of(m: Manifest, report: ScanReport, hashes: Dict[str, str], problems
             "scan": {**report.to_dict(m), "problems": problems, "ok": not problems},
             "warnings": warnings_for(m, report), "env": env_plan(m).to_dict(), "mcp": mcp_report(m), **scope_of(m),
             "tier": tier_of(m, report), "runtime": runtime_report(m), "app": app_of(m),
-            **theme_report(m, problems)}
+            "agent": agent_report(m), **theme_report(m, problems)}
 
 
 def app_of(m: Manifest):
@@ -551,6 +551,7 @@ def format_summary(summary: dict) -> str:
     lines += format_theme(summary)
     lines += format_scope(summary)
     lines += format_tier(summary.get("tier") or {})
+    lines += format_agent(summary)                # 給 AI 的登記：每輪佔用、承諾、agent.always（ADR 0029）
     lines += format_runtime(summary)
     env = summary.get("env") or {}
     if env.get("needed"):
@@ -690,6 +691,9 @@ def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
     refused = pack_tier.confirm_problem(info, m, trust_publisher)        # T2：要明確輸入 publisher
     if refused:
         raise PackAdminError(refused)
+    refused = agent_trust_problem(m, trust)                              # 第三方寫了 agent.always（ADR 0029）
+    if refused:
+        raise PackAdminError("拒裝：" + refused)
     os.makedirs(packs_dir, exist_ok=True)
     try:
         shutil.move(folder, target)
@@ -722,6 +726,9 @@ def approve_installed(folder: str, data_dir: str, approved_by=None, via: str = "
     trust = _trust(trust)
     if problems:
         return m, report, problems
+    refused = agent_trust_problem(m, trust)                              # 第三方寫了 agent.always（ADR 0029）
+    if refused:
+        return m, report, [refused]
     info = pack_tier.assess(m, report)
     previous = pack_lock.entry(data_dir, m.name)
     typed = trust_publisher

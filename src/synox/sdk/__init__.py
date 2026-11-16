@@ -374,6 +374,12 @@ if __name__ == "__main__":
 '''
 
 
+def agent_skeleton(title: str) -> dict:
+    """新工具骨架的 agent 區塊（給 AI 的登記；docs/pack-format.md「agent 區塊」、ADR 0029）：index 與 triggers 改成你的。"""
+    return {"index": f"{title[:40]}：改成「什麼時候找我」（一行、60 字內）"[:60],
+            "triggers": [], "load": "on_trigger"}
+
+
 def init_pack(folder: str, kind: str, name: str, title: str, app: bool = False) -> List[str]:
     """產生一個新的 pack 資料夾（已存在的檔不蓋）。回寫了哪些檔。
     app=True（只給 kind=python）：多一個完整的網頁畫面（app/index.html、app.js、app.css、pack.json 的 web.app）。"""
@@ -390,6 +396,7 @@ def init_pack(folder: str, kind: str, name: str, title: str, app: bool = False) 
                 "data": "user" if kind == "python" else "none", "skill": "SKILL.md",
                 "requires": {"synox": author.SYNOX_REQUIRES, "sdk": author.SDK_REQUIRES},
                 "publisher": "", "capabilities": [],
+                "agent": agent_skeleton(title),
                 "web": {"panel": "panel.html", "api": ["GET /summary"]}}
     files = {}
     if kind == "python":
@@ -563,6 +570,7 @@ def init_from(tool_path: str, name: str, title: str = "", folder: Optional[str] 
         raw = {"name": name, "title": title, "summary": (doc[0] if doc else f"{title}（改成你的說明）"),
                "version": "0.1.0", "kind": "cli", "skill": "SKILL.md", "publisher": "", "capabilities": [],
                "requires": {"synox": author.SYNOX_REQUIRES, "sdk": author.SDK_REQUIRES},
+               "agent": agent_skeleton(title),
                "cli": {"argv": ["{python}", "./" + rel], "cwd": ".", "json_flag": "--json", "timeout": 60,
                        "commands": commands}}
     with open(manifest_path, "w", encoding="utf-8", newline="\n") as f:

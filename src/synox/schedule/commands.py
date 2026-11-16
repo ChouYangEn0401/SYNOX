@@ -1,5 +1,8 @@
 """
-/remind_add <HH:MM> <文字> [date=YYYY-MM-DD]、/remind_list、/remind_rm <n>（系統群組「⏰ 提醒（系統）」，install_system_remind）；
+/remind_add <時間> <文字> [date=YYYY-MM-DD] [repeat=daily|once]、/remind_todo <文字>、/remind_done <n>、/remind_list、
+/remind_rm <n>、/remind_test（系統群組「⏰ 提醒（系統）」，install_system_remind；docs/adr/0028）；
+  時間＝HH:MM（沒給日期＝每天，以前的用法）或時間用語（timeparse：「半小時後」「明天 9 點」…，兩種讀法差很多時反問、
+  已經過了問「是要明天嗎？」）；排上了才用 receipt.emit 回固定的排程回執（字由程式產生）。
 /schedule_add <HH:MM> /<指令> …、/schedule_list、/schedule_rm <n>（這裡自己定義 schedule 群組）。
 
 /schedule_add 設了 Node.wraps：「之後替你執行另一個指令」的節點，危險程度連裡面那個一起算（Node.effect_of），
@@ -17,9 +20,15 @@ from isdtelekit.core.registry import SCHEDULE, WRITE, Field, Node
 
 from synox.packs import kit
 from synox.packs.loader import group_policy
-from synox.schedule.store import ScheduleStore
+from synox.schedule.store import ScheduleStore, is_todo
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def clock():
+    """/remind_* 的「現在」（本機、不帶時區）。測試換成假時鐘：monkeypatch commands.clock。"""
+    from datetime import datetime
+    return datetime.now()
 
 
 def check_date(value: str) -> Optional[str]:
@@ -45,7 +54,16 @@ def store_for(app) -> ScheduleStore:
 
 
 def _when(item: dict) -> str:
-    return f"{item['date']} {item['time']}（一次）" if item.get("date") else f"每天 {item['time']}"
+    if item.get("v") == 2 and item.get("repeat") == "none":
+        return "待辦"
+    text = f"{item['date']} {item['time']}（一次）" if item.get("date") else f"每天 {item['time']}"
+    if item.get("v") == 2 and item.get("status") == "snoozed" and item.get("snooze_until"):
+        from synox.schedule.reminder import from_iso, local_tz
+        try:
+            text += f"（延後到 {from_iso(item['snooze_until']).astimezone(local_tz()).strftime('%H:%M')}）"
+        except ValueError:
+            pass
+    return text
 
 
 # ── /remind_*：⏰ 提醒（系統）───────────────────────────────────────────
@@ -74,44 +92,194 @@ def install_system_remind(app) -> None:
     app.extras.setdefault(SYSTEM_GROUPS_KEY, {})[REMIND_GROUP] = REMIND_RETIRED
 
 
-def ring_line(app, uid: int, at, now) -> str:
-    """設好鬧鐘之後那兩行：什麼時候、會在哪裡響（只列真的接上的），以及只有 SYNOX 開著才會響。"""
+REPEAT_WORDS = {"daily": "daily", "每天": "daily", "once": "once", "一次": "once", "只一次": "once"}
+TIME_HELP = "要是 HH:MM（24 小時制，例如 08:00），或「半小時後」「明天9點」「+2h」這種說法"
+SENTINEL_EXTRA = "synox_remind_sentinel"     # 提醒哨兵在跑（W2 設）：回執就不說「SYNOX 沒開時不會響」
+CHANNEL_TEXT = {"web": "網頁", "telegram": "Telegram", "discord": "Discord", "chat": "聊天"}
+
+
+def check_when(value: str) -> Optional[str]:
+    """/remind_add 的時間：HH:MM，或時間用語（timeparse 看得懂的形狀；要不要問、過了沒，加的時候再判斷）。"""
+    from synox.schedule import timeparse
+    if kit.hhmm(value) is None:
+        return None
+    return None if timeparse.parse(value).kind != timeparse.NONE else TIME_HELP
+
+
+def check_repeat(value: str) -> Optional[str]:
+    return None if value.strip().lower() in REPEAT_WORDS else "要是 daily（每天）或 once（只一次）"
+
+
+def planned_channels(app, uid: int) -> List[str]:
+    """會送到哪些管道（id）：送達層接上了就問它（含電腦視窗）；還沒接上就照通知中心現在的判斷。"""
     from synox import notify
-    from synox.notify import alarms
-    where = notify.where_text(app, uid)
-    when = alarms.friendly(at, now) if at is not None else ""
-    if where:
-        where += " " if where[-1].isascii() else ""          # 「Discord 提醒你」：英文字後面空一格
-        head = f"{when}，會在{where}提醒你。" if when else f"時間到會在{where}提醒你。"
-    else:
-        head = "⚠️ 現在沒有任何地方可以叫你：到網頁「設定 → 電腦與備份 → 通知要送到哪裡」打開。"
-    return head + "\n" + alarms.NOTE
+    from synox.notify import delivery
+    from synox.notify.hub import CHANNEL_LABELS
+    try:
+        return list(delivery.planned_channels(app, uid, "alarm"))
+    except NotImplementedError:
+        pass
+    hub = notify.of(app)
+    if hub is None:
+        return [delivery.CHAT]
+    back = {label: cid for cid, label in CHANNEL_LABELS.items()}
+    return [back[label] for label in hub.where(uid, "alarm") if label in back]
+
+
+def make_receipt(app, uid: int, item: dict, now):
+    """排上了的那一筆（v2 dict）→ 排程回執（docs/adr/0028 §3.2）。字由 receipt.reply_text() 產生。"""
+    from synox.notify import alarms, delivery
+    from synox.schedule import receipt, reminder
+    from synox.schedule.engine import friendly
+    todo = item.get("repeat") == reminder.NONE
+    channels = planned_channels(app, uid)
+    labels = [delivery.DESKTOP_LABEL if c == delivery.DESKTOP else CHANNEL_TEXT.get(c, c) for c in channels]
+    config = app.extras.get("synox_config")
+    server = getattr(config, "mode", "personal") == "server"
+    sentinel = bool(app.extras.get(SENTINEL_EXTRA))
+    not_when = [] if server else ["off", "asleep"]
+    if not sentinel:
+        not_when.append("app_closed")
+    if channels == [delivery.WEB]:
+        not_when.append("web_only")
+    try:
+        warns = [w["id"] for w in alarms.warnings(app, uid, uid == getattr(app, "owner_id", None))]
+    except Exception:
+        warns = []
+    due = reminder.from_iso(item.get("due"))
+    return receipt.ScheduleReceipt(
+        kind=receipt.TODO if todo else receipt.REMIND, id=int(item["id"]), text=str(item.get("text", "")),
+        repeat=str(item.get("repeat")), due=item.get("due"), when="" if due is None else friendly(due, now),
+        channels=channels, channel_labels=labels, not_when=[] if todo else not_when,
+        catch_up="boot" if sentinel else "next_start", ring_late_max_min=reminder.RING_LATE_MAX_MIN,
+        missed_notice_max_h=reminder.MISSED_NOTICE_MAX_H, warnings=warns)
+
+
+def publish_todos(app, uid: int) -> None:
+    """待辦有變動（新增／完成／刪除）：整份交給電腦視窗的下半部（delivery.publish_todos；不是 Windows 個人版就不做）。"""
+    from synox.notify import delivery
+    from synox.schedule.actions import todo_list
+    try:
+        delivery.publish_todos(app, int(uid), todo_list(store_for(app).of(int(uid))))
+    except Exception:
+        import logging
+        logging.exception("[REMIND] publishing todos failed")
+
+
+def removed(app, uid: int, item: dict) -> None:
+    """刪掉一筆之後：待辦就更新視窗的待辦；正在響／延後中的提醒就讓各管道收掉（按鈕拿掉、視窗卡片關掉）。"""
+    from synox.schedule import reminder
+    if is_todo(item):
+        publish_todos(app, uid)
+        return
+    if not reminder.is_v2(item) or item.get("status") not in (reminder.RINGING, reminder.SNOOZED):
+        return
+    from synox.schedule.engine import app_resolve, ring_key
+    try:
+        rem = reminder.Reminder.from_dict(item)
+        app_resolve(app, int(uid), ring_key(rem, int(uid)), note="🗑 這個提醒刪掉了", via="command")
+    except Exception:
+        import logging
+        logging.exception("[REMIND] retracting a removed reminder failed")
+
+
+def _source() -> str:
+    try:
+        kind = kit.caller().kind
+    except Exception:
+        return "command"
+    return {"ai": "ai", "web": "web"}.get(kind, "command")
+
+
+def _position(mine, rid: int) -> int:
+    return next((i for i, it in enumerate(mine.items("remind"), 1) if it.get("id") == rid), 0)
 
 
 def install_remind(app, group) -> None:
     store = store_for(app)
 
-    def add(api, chat_id, user, values):
-        from datetime import datetime
-        from synox.notify import alarms
-        now = datetime.now()
-        day = values.get("date", "")
-        if day == now.strftime("%Y-%m-%d") and values["time"] < now.strftime("%H:%M"):
-            api.send_message(chat_id, f"❌ 今天 {values['time']} 已經過了。要明天的話，日期填明天"
-                                      f"（date={(now.date() + Date.resolution).isoformat()}）。")
-            return
+    def nowhere(api, chat_id, uid) -> bool:
+        if planned_channels(app, uid):
+            return False
+        api.send_message(chat_id, "⚠️ 現在沒有任何地方可以叫你，所以先不排：到網頁「設定 → 電腦與備份 → 通知要送到哪裡」"
+                                  "打開一個，再設一次。")
+        return True
+
+    def schedule(api, chat_id, user, text: str, at, repeat: str, now, *, source: str = "", extra: str = "") -> dict:
+        from synox.schedule import receipt, reminder
         mine = store.of(user)
-        item = mine.add("remind", values["time"], user.tg_id, text=values["text"].strip(), date=day)
-        n = len(mine.items("remind"))
-        api.send_message(chat_id, f"⏰ 好，{_when(item)} 提醒你：{item['text']}（第 {n} 個）\n"
-                                  + ring_line(app, user.tg_id, alarms.next_at(item, now), now))
+        item = mine.add_reminder(lambda rid: reminder.new_reminder(rid, user.tg_id, text, due=at, repeat=repeat,
+                                                                   source=source or _source()))
+        rec = make_receipt(app, user.tg_id, item, now)
+        n = _position(mine, item["id"])
+        if rec.kind == receipt.TODO:
+            tail = f"（第 {n} 個；做完了打 /remind_done {n}）"
+            publish_todos(app, user.tg_id)
+        else:
+            tail = f"（第 {n} 個；不要了打 /remind_rm {n}）"
+        receipt.emit(api, chat_id, rec, extra=tail + (("\n" + extra) if extra else ""))
+        return item
+
+    def add(api, chat_id, user, values):
+        from datetime import date, timedelta
+        from synox.schedule import timeparse
+        now = clock()
+        text = values["text"].strip()
+        raw, day = values["time"].strip(), values.get("date", "")
+        repeat = REPEAT_WORDS.get(values.get("repeat", "").strip().lower(), "")
+        if nowhere(api, chat_id, user.tg_id):
+            return
+        if not day and repeat != "once" and kit.hhmm(raw) is None:
+            h, m = (int(x) for x in raw.split(":"))                 # HH:MM、沒給日期＝每天（以前的用法）
+            at = now.replace(hour=h, minute=m, second=0, microsecond=0)
+            if at < now.replace(second=0, microsecond=0):
+                at += timedelta(days=1)
+            schedule(api, chat_id, user, text, at, "daily", now)
+            return
+        w = timeparse.parse(raw, now, day=date.fromisoformat(day) if day else None)
+        if w.kind == timeparse.ASK:
+            api.send_message(chat_id, "❓ " + w.question + "\n（說清楚一點再設一次，例如「明天 09:00」或「今天 21:00」。）")
+            return
+        if w.kind == timeparse.PAST:
+            if w.at is None:
+                api.send_message(chat_id, "❌ 那一天已經過了。")
+                return
+            api.send_message(chat_id, "❌ " + timeparse.past_question(w.at, now) +
+                             f"\n要的話：/remind_add {timeparse.hm(w.at)} {text} date={w.at.strftime('%Y-%m-%d')}")
+            return
+        if w.kind != timeparse.AT or w.at is None:
+            api.send_message(chat_id, "❌ 時間" + ("：有給日期時，時間要寫幾點幾分（例如 15:30）" if w.relative else TIME_HELP))
+            return
+        if repeat == "daily":
+            if w.relative:
+                api.send_message(chat_id, "❌ 每天的提醒要寫幾點幾分（例如 08:00），不能用「半小時後」。")
+                return
+            schedule(api, chat_id, user, text, w.at, "daily", now)
+            return
+        schedule(api, chat_id, user, text, w.at, "once", now, extra=f"（{w.note}）" if w.note else "")
+
+    def todo(api, chat_id, user, values):
+        schedule(api, chat_id, user, values["text"].strip(), None, "none", clock())
+
+    def test(api, chat_id, user, values):
+        from datetime import timedelta
+        if nowhere(api, chat_id, user.tg_id):
+            return
+        now = clock()
+        schedule(api, chat_id, user, "試響一下（/remind_test）", now + timedelta(minutes=1), "once", now, source="test",
+                 extra="一分鐘後會響一次：上面列的每個地方都應該收到；沒收到的那一個就是沒接好。")
 
     def list_(api, chat_id, user, values):
         items = store.of(user).items("remind")
         if not items:
-            api.send_message(chat_id, "⏰ 還沒有提醒。用 /remind_add 08:00 吃藥 加一個。")
+            api.send_message(chat_id, "⏰ 還沒有提醒。用 /remind_add 08:00 吃藥 加一個；/remind_todo 繳電話費 記一個待辦。")
             return
-        lines = [REMIND_TITLE] + [f"{i}. {_when(it)}  {it['text']}" for i, it in enumerate(items, 1)]
+        lines = [REMIND_TITLE]
+        lines += [f"{i}. {_when(it)}  {it['text']}" for i, it in enumerate(items, 1) if not is_todo(it)]
+        todos = [(i, it) for i, it in enumerate(items, 1) if is_todo(it)]
+        if todos:
+            lines.append("📝 待辦（沒有時間，不會響）")
+            lines += [f"{i}. {it['text']}" for i, it in todos]
         api.send_message(chat_id, "\n".join(lines))
 
     def rm(api, chat_id, user, values):
@@ -119,16 +287,48 @@ def install_remind(app, group) -> None:
         if gone is None:
             api.send_message(chat_id, f"❌ 沒有第 {values['n']} 個（/remind_list 看編號）。")
             return
+        removed(app, user.tg_id, gone)
         api.send_message(chat_id, f"🗑 刪掉提醒：{_when(gone)} {gone['text']}")
 
+    def done(api, chat_id, user, values):
+        from synox.notify import delivery
+        from synox.schedule import reminder
+        mine = store.of(user)
+        items = mine.items("remind")
+        n = int(values["n"])
+        if not 0 < n <= len(items):
+            api.send_message(chat_id, f"❌ 沒有第 {n} 個（/remind_list 看編號）。")
+            return
+        it = items[n - 1]
+        if is_todo(it):
+            mine.update_reminder(it["id"], lambda r: None)
+            publish_todos(app, user.tg_id)
+            api.send_message(chat_id, f"✅ 做完了：{it['text']}")
+            return
+        actions = app.extras.get(delivery.ACTIONS_EXTRA)
+        if actions is not None and it.get("v") == 2 and it.get("status") in (reminder.RINGING, reminder.SNOOZED):
+            out = actions.act(user.tg_id, it["id"], it.get("occurrence") or "", "done", via="command")
+            api.send_message(chat_id, f"✅ 做完了：{it['text']}" if out.ok else ("❌ " + out.text))
+            return
+        api.send_message(chat_id, f"這個提醒還沒響。不要了的話：/remind_rm {n}")
+
     # 欄位說明也是給 AI 看的（以前寫在 remind 工具的 SKILL.md）
-    kit.command(group, "add", add, "加一個提醒（系統；每天，或 date= 指定那天一次）", effect=WRITE, positional=2, fields=[
-        Field("time", "時間 HH:MM（24 小時制，下午 3 點＝15:00）", required=True, check=kit.hhmm),
-        Field("text", "提醒什麼", required=True),
-        Field("date", "只提醒一次的日期 YYYY-MM-DD（沒說年份就用今年；不填＝每天）", check=check_date)])
-    kit.command(group, "list", list_, "列出提醒（系統）")
-    kit.command(group, "rm", rm, "刪掉一個提醒（系統；先 /remind_list 看編號）", effect=WRITE,
+    kit.command(group, "add", add, "加一個提醒（系統；HH:MM 沒給日期＝每天，其他說法或 date= ＝只一次）", effect=WRITE,
+                positional=2, fields=[
+                    Field("time", "時間：HH:MM（24 小時制，下午 3 點＝15:00），或照使用者原話填「半小時後」「明天 9 點」"
+                                  "「+2h」（系統會換算；聽不清楚會反問）", required=True, check=check_when),
+                    Field("text", "提醒什麼", required=True),
+                    Field("date", "只提醒一次的日期 YYYY-MM-DD（沒說年份就用今年；不填＝看時間：HH:MM 是每天）",
+                          check=check_date),
+                    Field("repeat", "daily（每天）或 once（只一次）；不填照上面的規則", check=check_repeat)])
+    kit.command(group, "todo", todo, "記一個待辦（系統；沒有時間、不會響，/remind_list 看得到）", effect=WRITE,
+                fields=[Field("text", "要做什麼", required=True)])
+    kit.command(group, "done", done, "把一個待辦（或正在響的提醒）標成做完（先 /remind_list 看編號）", effect=WRITE,
                 fields=[Field("n", "編號", required=True, check=kit.positive_int)])
+    kit.command(group, "list", list_, "列出提醒與待辦（系統）")
+    kit.command(group, "rm", rm, "刪掉一個提醒或待辦（系統；先 /remind_list 看編號）", effect=WRITE,
+                fields=[Field("n", "編號", required=True, check=kit.positive_int)])
+    kit.command(group, "test", test, "試響一下：一分鐘後響一次，看每個地方有沒有收到（系統）", effect=WRITE)
 
 
 # ── /schedule_* ──────────────────────────────────────────────────────

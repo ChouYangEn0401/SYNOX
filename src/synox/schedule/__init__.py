@@ -1,7 +1,8 @@
-"""排程（SDK 沒有，decisions.md D6）：/remind_*（系統指令「⏰ 提醒（系統）」，install_system_remind）、/schedule_*、背景的 ScheduleRunner。"""
+"""排程（SDK 沒有，decisions.md D6）：/remind_*（系統指令「⏰ 提醒（系統）」，install_system_remind）、/schedule_*、背景的 ScheduleRunner。
+提醒引擎（engine.py）、延後與完成（actions.py）、時間用語（timeparse.py）：docs/adr/0028。"""
 
 from synox.schedule.commands import install_remind, install_schedule, install_system_remind, store_for
-from synox.schedule.runner import CHECK_INTERVAL, ScheduleRunner
+from synox.schedule.runner import CHECK_INTERVAL, MAX_BACKOFF, ScheduleRunner
 
 
 TASK_ID = "system.schedule"
@@ -9,15 +10,26 @@ TASK_ID = "system.schedule"
 
 def install(app) -> ScheduleRunner:
     """/schedule_* 群組＋排程器。/remind_*（⏰ 提醒（系統））由 install_system_remind 在 packs 載入之前掛（app.build）。
-    有 runtime（synox/runtime，docs/adr/0001）：登記成任務 system.schedule（每 30 秒，逾時 120 秒、失敗退避、狀態看得到），
-    不另開執行緒；沒有 runtime（舊的組法）：照舊自己開執行緒（App.run 開始收訊時啟動、停止時停）。"""
+    有 runtime（synox/runtime，docs/adr/0001）：登記成任務 system.schedule（每 30 秒，逾時 120 秒、失敗退避最多 1 分鐘、
+    狀態看得到），不另開執行緒；沒有 runtime（舊的組法）：照舊自己開執行緒（App.run 開始收訊時啟動、停止時停）。
+    延後與完成（ReminderActions）登記在 app.extras["synox_reminder_actions"]，送達層的按鈕回頭叫它。"""
+    from synox.notify import delivery
+    from synox.schedule.actions import Actions
+    from synox.schedule.engine import app_resolve
     install_schedule(app)
-    runner = ScheduleRunner(app, store_for(app))
+    store = store_for(app)
+    runner = ScheduleRunner(app, store)
     app.extras["synox_schedule_runner"] = runner
+    actions = Actions(store, resolve=lambda uid, key, **kw: app_resolve(app, uid, key, **kw),
+                      todos=lambda uid, items: delivery.publish_todos(app, uid, items))
+    app.extras[delivery.ACTIONS_EXTRA] = actions
+    owner = getattr(app, "owner_id", None)
+    if owner:                                          # 開起來時把待辦交給電腦視窗一次（哨兵那段時間可能改過）
+        app.on_start.append(lambda _app: actions.publish_todos(int(owner)))
     rt = app.extras.get("synox_runtime")
     if rt is not None:
         rt.loop.register(TASK_ID, "提醒與排程", fn=lambda ctx: _tick_text(runner.tick()), interval=CHECK_INTERVAL,
-                         timeout=120.0, first_delay=0)
+                         timeout=120.0, first_delay=0, max_backoff=MAX_BACKOFF)
         return runner
     app.on_start.append(lambda _app: runner.start())
     app.on_stop.append(lambda _app: runner.stop())

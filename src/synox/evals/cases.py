@@ -18,6 +18,9 @@ must_call 的一項也可以是 {"any_of": [{"tool": …, "args": …}, …]}（
 例如 remind__add）。expect 的 "claimed_without_call": false 關掉「說做好了卻沒有呼叫」的檢查（預設每題都跑）。
 "cannot_do": true＝這題的工具清單故意沒有合適的工具（missing_tool）：AI 要老實說做不到（system__cannot_do 或拒絕的字）
 或回問，而且整題不能叫任何寫入／危險工具（docs/adr/0020）。
+工具的 "receipt": {"kind": "remind", "when": "明天 08:00", "due": "…", "channels": ["telegram"], …}＝這個假工具像系統的
+提醒一樣「排上了」：被叫到時交出排程回執（schedule.receipt.emit；字串裡的 {參數名} 換成這次的值），並登記成能背書未來的工具
+（ADR 0028 §3.2、0029）。這時 results 可以不寫（回的字就是回執的字）。
 "images": [["receipt-01.png"]]＝每一輪附的假圖（evals/assistant/images/，只放假資料；docs/adr/0021），重放時當成
 使用者私訊傳的照片交給迴圈（ImagePart）；沒寫＝都沒附圖。
 比對值（must_call 的 args、results 的 when）：字串＝去掉頭尾空白後一模一樣；{"contains": "x" 或 ["x", "y"]}＝全部都要出現；
@@ -35,12 +38,12 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Tuple
 
 CATEGORIES = ("note", "rewrite", "lookup", "schedule", "clarify", "no_clarify", "refuse", "injection", "memory",
-              "chain", "fake_done", "missing_tool", "missing_param", "vision")
+              "chain", "fake_done", "missing_tool", "missing_param", "vision", "remind", "promise")
 CATEGORY_LABELS = {
     "note": "記事", "rewrite": "改寫與摘要", "lookup": "查資料", "schedule": "行程與時間", "clarify": "模糊該追問",
     "no_clarify": "模糊不該追問", "refuse": "拒絕", "injection": "提示注入", "memory": "多回合記憶", "chain": "工具鏈",
     "fake_done": "假裝做完（完成宣稱檢查）", "missing_tool": "沒有合適的工具", "missing_param": "缺參數不能瞎填",
-    "vision": "看圖（假圖）",
+    "vision": "看圖（假圖）", "remind": "設提醒（照排程回執唸時間）", "promise": "未來承諾（沒有回執不能說會提醒）",
 }
 SPLITS = ("tune", "holdout")
 # 題數分配（brief §4）：類別 → (tune, holdout)。改題目數量時一起改這張表與 README。
@@ -48,6 +51,7 @@ DISTRIBUTION: Dict[str, Tuple[int, int]] = {
     "note": (3, 1), "rewrite": (2, 1), "lookup": (3, 1), "schedule": (2, 1), "clarify": (2, 1),
     "no_clarify": (1, 1), "refuse": (2, 1), "injection": (2, 1), "memory": (2, 1), "chain": (1, 1),
     "fake_done": (1, 1), "missing_tool": (1, 1), "missing_param": (1, 1), "vision": (1, 1),
+    "remind": (1, 1), "promise": (1, 1),
 }
 IMAGES_DIR = "images"                     # 題目用的假圖：evals/assistant/images/（docs/adr/0021；只放假資料）
 IMAGE_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,40}\.(png|jpg|jpeg|webp|gif)$")
@@ -78,6 +82,11 @@ class ToolDef:
     confirm: bool = False
     params: List[dict] = field(default_factory=list)
     results: List[dict] = field(default_factory=list)
+    receipt: Optional[dict] = None        # 有寫＝這個假工具像系統的提醒一樣「排上了」：交出排程回執（ADR 0028 §3.2）
+
+
+# 假工具的 receipt 欄位（schedule.receipt.ScheduleReceipt 的欄位；字串裡的 {參數名} 換成這次的值）
+RECEIPT_KEYS = ("kind", "text", "repeat", "due", "when", "channels", "channel_labels", "not_when", "catch_up")
 
 
 @dataclass
@@ -158,7 +167,7 @@ def _tool_from(raw, library: Dict[str, dict], where: str) -> ToolDef:
     name = merged["name"]
     if not TOOL_RE.match(name):
         raise CaseError(f"{where}：工具名 {name!r} 要是「群組__動作」（小寫英數，例如 note__add）")
-    unknown = set(merged) - {"name", "summary", "effect", "confirm", "params", "results", "result"}
+    unknown = set(merged) - {"name", "summary", "effect", "confirm", "params", "results", "result", "receipt"}
     if unknown:
         raise CaseError(f"{where}：工具 {name} 有不認得的欄位 {sorted(unknown)}")
     if not isinstance(merged.get("summary"), str) or not merged["summary"].strip():
@@ -181,8 +190,19 @@ def _tool_from(raw, library: Dict[str, dict], where: str) -> ToolDef:
     results = merged.pop("result", None)
     if results is not None:
         merged.setdefault("results", [{"reply": results}])
+    receipt = merged.get("receipt")
+    if receipt is not None:
+        if not isinstance(receipt, dict) or set(receipt) - set(RECEIPT_KEYS) or not receipt.get("kind"):
+            raise CaseError(f"{where}：工具 {name} 的 receipt 要是物件，至少有 kind，只收 {', '.join(RECEIPT_KEYS)}")
+        try:
+            from synox.schedule.receipt import ScheduleReceipt
+            ScheduleReceipt.from_dict({"id": 1, "text": "x", "repeat": "once", **receipt})
+        except (TypeError, ValueError) as e:
+            raise CaseError(f"{where}：工具 {name} 的 receipt 不對：{e}")
     rules = merged.get("results", [])
-    if not isinstance(rules, list) or not rules:
+    if receipt is not None and not rules:
+        rules = []                                # 交回執的工具：回的字就是回執的字
+    elif not isinstance(rules, list) or not rules:
         raise CaseError(f"{where}：工具 {name} 要有 results（被叫到時回什麼）")
     for rule in rules:
         if not isinstance(rule, dict) or not isinstance(rule.get("reply"), str) or set(rule) - {"when", "reply"}:
@@ -194,7 +214,7 @@ def _tool_from(raw, library: Dict[str, dict], where: str) -> ToolDef:
             if problem:
                 raise CaseError(f"{where}：工具 {name} 的 when.{key}：{problem}")
     return ToolDef(name=name, summary=merged["summary"].strip(), effect=effect, confirm=bool(merged.get("confirm")),
-                   params=params, results=rules)
+                   params=params, results=rules, receipt=copy.deepcopy(receipt))
 
 
 def _check_call_item(item, tools: Dict[str, ToolDef], where: str, builtin: bool = False) -> None:

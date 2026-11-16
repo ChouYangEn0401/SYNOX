@@ -46,6 +46,12 @@
     prefsSave: "存起來",
     prefsSaved: "存好了。",
     notLinked: "（沒接上）",
+    done: "完成",
+    deskTitle: "🖥️ 電腦提醒視窗",
+    deskWindow: "提醒時間到，在這台電腦右下角跳出提醒視窗（不按不會自己關）",
+    deskSentinel: "登入 Windows 時啟動提醒哨兵（SYNOX 沒開也會跳提醒、送 Telegram；SYNOX 開著時它會讓位）",
+    deskLocked: "config.json 裡關掉了電腦視窗（notify.desktop = false）。",
+    deskSaved: "存好了。",
     locked: "安全警告一定會在網頁上出現。",
     failed: "沒做成：{e}"
   };
@@ -205,6 +211,7 @@
     acts.forEach(function (a) {
       if (a.id === "ok") { hasOk = true; row.appendChild(btn(a.label || TEXT.ok, "sm", function () { read(it.id); })); }
       else if (a.id === "snooze") { row.appendChild(btn(a.label, "sm primary", function () { snooze(it.id); })); }
+      else if (a.id === "done") { row.appendChild(btn(a.label || TEXT.done, "sm primary", function () { done(it.id); })); }
       else if ((a.id === "app_stop" || a.id === "app_keep") && a.app && me && me.owner) {
         row.appendChild(btn(a.label, a.id === "app_stop" ? "sm primary" : "sm", function () {
           opts.api("POST", "/api/apps/" + encodeURIComponent(a.app) + (a.id === "app_stop" ? "/stop" : "/keep"), {})
@@ -220,6 +227,13 @@
   function read(id) {
     dropPop(id);
     return opts.api("POST", "/api/notifications/read", id === undefined ? {} : { id: id }).then(poll, fail);
+  }
+  function done(id) {
+    dropPop(id);
+    return opts.api("POST", "/api/notifications/" + id + "/done", {}).then(function (d) {
+      opts.toast(d.message || "");
+      return poll();
+    }, fail);
   }
   function snooze(id) {
     dropPop(id);
@@ -423,8 +437,37 @@
       }));
       r.appendChild(msg);
       body.appendChild(r);
+      if (d.desk && d.desk.supported) { body.appendChild(deskPrefs(d.desk)); }
       box.classList.remove("hidden");
     }).catch(function () { /* 沒有就不顯示 */ });
+  }
+  // 電腦提醒視窗（Windows 個人版的擁有者才有）：開關視窗、登入時啟動提醒哨兵
+  function deskPrefs(desk) {
+    var wrap = el("div", "ntf-desk");
+    wrap.appendChild(el("h3", "", TEXT.deskTitle));
+    function check(key, label, disabled) {
+      var lab = el("label", "row"), cb = el("input");
+      cb.type = "checkbox";
+      cb.checked = !!desk[key];
+      cb.disabled = !!disabled;
+      cb.dataset.key = key;
+      lab.appendChild(cb);
+      lab.appendChild(el("span", "", label));
+      wrap.appendChild(lab);
+      return cb;
+    }
+    var win = check("window", TEXT.deskWindow, desk.locked_off);
+    var sen = check("sentinel", TEXT.deskSentinel, false);
+    if (desk.locked_off) { wrap.appendChild(el("p", "muted", TEXT.deskLocked)); }
+    var r = el("div", "row"), msg = el("span", "muted");
+    r.appendChild(btn(TEXT.prefsSave, "primary", function () {
+      var body = { sentinel: sen.checked };
+      if (!win.disabled) { body.window = win.checked; }
+      opts.api("POST", "/api/notifications/desk", body).then(function () { msg.textContent = TEXT.deskSaved; }, fail);
+    }));
+    r.appendChild(msg);
+    wrap.appendChild(r);
+    return wrap;
   }
   function prefsCard() {
     var panel = document.querySelector('.tab-panel[data-tab="system"]');
