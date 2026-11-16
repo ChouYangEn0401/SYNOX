@@ -1263,8 +1263,11 @@ class WebUI:
     # ── 設定頁 ───────────────────────────────────────────────────────
 
     def settings(self, user) -> dict:
+        from synox import brand
+        from synox.sdk.author import SDK_VERSION
         out = {"owner": self.is_owner(user), "mode": self.config.mode, "accounts": self.server_mode and
-               self.is_admin(user)}
+               self.is_admin(user),
+               "version": {"core": brand.version(), "sdk": SDK_VERSION}}   # 設定頁標題下那行「SYNOX 核心版本」
         budget = self.app.extras.get("synox_budget")
         if budget is not None and not budget.exempt(user):
             out["ai_budget"] = {"used": round(budget.month_usd(user.tg_id), 4), "limit": budget.limit(user.tg_id)}

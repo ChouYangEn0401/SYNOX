@@ -1,5 +1,10 @@
 # Changelog
 
+## 未發佈（設定頁顯示 SYNOX 核心版本）
+
+### 新增
+- 網頁「設定」標題下一行小字「SYNOX 核心版本 0.2.0 · 工具 SDK 0.2.3」，每個分頁都看得到、每個登入的人都看得到。版本直接取自 `synox.__version__`（工具 SDK＝`synox.sdk.author.SDK_VERSION`），由 `GET /api/settings` 的新欄位 `version: {core, sdk}` 送出。
+
 ## 未發佈（工具更新、先測 SYNOX 更新、發佈手冊）
 
 ### 新增
