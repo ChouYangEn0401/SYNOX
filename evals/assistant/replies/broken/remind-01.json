@@ -1,0 +1,34 @@
+{
+  "case": "remind-01",
+  "source": "broken",
+  "completion_guard": "on",
+  "note": "排上的是 08:00，AI 卻一直說 9 點：重寫兩次都不對，系統改用回執告訴使用者",
+  "expected_failures": [
+    "final_not_contains",
+    "max_steps"
+  ],
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "alarm__set",
+            "args": {
+              "time": "08:00",
+              "text": "帶傘"
+            }
+          }
+        ]
+      },
+      {
+        "text": "好，明天早上 9 點會提醒你帶傘。"
+      },
+      {
+        "text": "好，明天早上 9 點會提醒你帶傘。"
+      },
+      {
+        "text": "好，明天早上 9 點會提醒你帶傘。"
+      }
+    ]
+  ]
+}

@@ -4,6 +4,8 @@
 
 via_ai = True：SDK 的 Forms 與 Node.precheck 看這個旗標（經 AI 呼叫時不開問答，例如驗證碼）。
 note_failure：loader／mcp 經 health.observe_failure 交來的失敗（agent/loop.py 改回 AI 一行 `FAIL …`）。
+note_receipt：schedule.receipt.emit 交來的排程回執（docs/adr/0028 §3.2）；loop 在工具結果後面附上 machine_line()、
+記進證據帳本，承諾把關（agent/claims.promise_verdict）看這一輪有沒有回執。
 """
 
 from __future__ import annotations
@@ -31,12 +33,28 @@ class CaptureApi:
         self._lock = threading.Lock()
         self.carded = False                 # 執行中送了確認卡（工具回 needs_confirm）：這一輪 AI 就停在這裡
         self.failure = None                 # 工具失敗了（health.Failure）：loop 交回 AI 的是固定格式的一行，不是人看的字
+        self.receipts: List[object] = []     # 這次呼叫真的排上的事（schedule.receipt.ScheduleReceipt；承諾把關看這裡）
 
     def mark_carded(self) -> None:
         self.carded = True
 
     def note_failure(self, failure) -> None:
         self.failure = failure
+
+    def note_receipt(self, receipt) -> None:
+        """schedule.receipt.emit 交來的排程回執（ADR 0028 §3.2）：只有真的排上了才會有。
+        loop 把每張的 machine_line() 附在工具結果後面，並記進這一輪的證據（claims.promise_verdict）。"""
+        with self._lock:
+            self.receipts.append(receipt)
+
+    def receipt_lines(self) -> List[str]:
+        out = []
+        for r in list(self.receipts):
+            try:
+                out.append(r.machine_line())
+            except Exception:
+                continue
+        return out
 
     @property
     def channel_name(self) -> str:

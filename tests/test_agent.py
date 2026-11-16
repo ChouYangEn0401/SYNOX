@@ -148,3 +148,19 @@ def test_reply_object_step(make_bot, owner):
     bot = make_bot([Reply(text="直接回")])
     bot.talk(owner, "嗨")
     assert bot.last(owner) == "直接回"
+
+
+def test_no_todo_tool_says_cannot_and_offers_a_reminder(make_bot, owner):
+    """沒有待辦工具：說做不到＋提一個真的做得到的替代（問要不要設提醒）——不是承諾，不會被承諾把關擋下。"""
+    reply = "我這裡沒有待辦清單的工具，沒辦法單獨記一個待辦。可以改成設一個有時間的提醒，例如今天 21:00 提醒你買燈泡，要嗎？"
+    bot = make_bot([reply])
+    bot.talk(owner, "幫我記一個待辦：買燈泡")
+    assert bot.texts(owner) == [reply]
+
+
+def test_saying_it_will_remind_without_scheduling_is_stopped(make_bot, owner):
+    bot = make_bot(["好，今晚 21:00 會提醒你買燈泡。"] * 3)
+    bot.talk(owner, "今晚提醒我買燈泡")
+    assert "沒有排上" in bot.last(owner)
+    bot.say(owner, "/remind_list")
+    assert "買燈泡" not in bot.last(owner)
