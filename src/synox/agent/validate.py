@@ -312,7 +312,7 @@ def check_skill_read(args) -> Optional[str]:
     name = args.get("name", "")
     if not isinstance(name, str) or len(name) > 100:
         return "沒有執行 skill_read：name 要是技能名稱（字串）。改好再呼叫一次。"
-    topic = args.get("topic", "")                # 說明書主題（ADR 0029）：選填
+    topic = args.get("topic", "")                # 說明書主題（ADR 0030）：選填
     if topic is not None and (not isinstance(topic, str) or len(topic) > 40):
         return "沒有執行 skill_read：topic 要是主題名稱（字串）。改好再呼叫一次。"
     return None

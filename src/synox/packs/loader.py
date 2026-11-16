@@ -11,18 +11,20 @@ SYNOX 出廠不帶任何工具（packs/ 只有說明；工具在 SYNOX_Libs）�
                   沒寫 transport（只有 url）＝同 connector，只登記
 
 安全管線（架構 v1 §4）在載入時做的是第 3 關：packs.lock 有記的 pack 每個檔重算 sha256，不符＝不載入
-（tampered）、通知擁有者一次；沒鎖的照舊載入（報告標 unlocked）。第 1、2 關在安裝時（packs/admin.py）。
+（tampered）、通知擁有者一次。**沒有 packs.lock 那一筆的不載入**（ADR 0028 §4，S9）：手放進 packs/、packs.dirs 指過去的
+＝狀態 unapproved（「沒有經過安裝頁」）、通知擁有者一次；要用就送進安裝頁（packs/adopt.py）或 `packs lock --approve`。
+第 1、2 關在安裝時（packs/admin.py），所以載入時不再補掃。
 kind=cli 的 argv／env／cwd 樣板代換 {python}、{node}、{pack_dir}、{data_dir}、{user_data_dir}、{tg_id}（每次呼叫照下令的人）；
 子程序另外拿到 SYNOX_USER_DATA_DIR／SYNOX_TG_ID／SYNOX_MODE／SYNOX_PACK_DIR／SYNOX_PACK_NAME／SYNOX_SECRET_ENV（context_env，給 synox_sdk）。
 runtime.python／node = "auto" 的環境在安裝時建（packs/envs.py）；沒建好＝status missing、detail 說怎麼重建。
 每次叫 cli 子程序都先過 synox/sandbox.py（PERM-7）：grants 從宣告算、後端包一層 argv（none＝原樣）；
 pack 有 runtime.container、擁有者選了容器、這台找得到引擎 → sandbox.box_for 給容器後端，代換改用容器裡的路徑（view_for）；
 伺服器版 policy.sandbox.required_for 命中又沒有真隔離 → 那個 cli pack 整組 owner_only（detail 寫原因）。
-伺服器版 kind=python 的信任（PERM-8）：出廠的（BUNDLED，現在是空的）＝core；有鎖看 packs.lock 的 trust；沒鎖（手動放的）＝third-party。
-third-party 的 python pack 整組 owner_only（成員打了跟不存在一樣、AI 工具清單也沒有；detail 寫原因）。
-伺服器版沒鎖、不是出廠的 pack 載入前補跑一次第 2 關（scan.gate2），沒過＝status rejected、不載入。
-工具登記（ADR 0029，agent/index.py）：requires.packs 的工具排在用它的前面載入；缺了（沒裝、版本不合、沒載入成功）或
-requires.system 的系統能力這台沒有＝status missing、detail 寫缺什麼。第三方信任的工具寫了 agent.always／load=always＝rejected。
+伺服器版 kind=python 的信任（PERM-8）：看 packs.lock 的 trust（擁有者安裝時選的）。沒鎖的根本不載入（上面），
+只有出廠的（BUNDLED，現在是空的）沒鎖也載入＝core。third-party 的 python pack 整組 owner_only（成員打了跟不存在一樣、
+AI 工具清單也沒有；detail 寫原因）。
+工具登記（ADR 0030，agent/index.py）：requires.packs 的工具排在用它的前面載入；缺了（沒裝、版本不合、沒載入成功）或
+requires.system 的系統能力這台沒有＝status missing、detail 寫缺什麼。第三方信任、又沒有官方簽章的工具寫了 agent.always／load=always＝rejected。
 全部載入完彙整成索引（記憶體＋data/agent_index.json）。
 
 群組（/help 的一頁）由 loader 依 pack.json 定義（title、summary、access），pack 只往裡面掛葉節點；
@@ -159,7 +161,7 @@ class Pack:
     app_exports: Dict[str, Callable] = field(default_factory=dict, repr=False)
 
     def tampered_since_load(self) -> List[str]:
-        """載入之後檔案被改過嗎（審查 B #D）：有鎖的 pack 每次叫 cli／開 mcp stdio 子程序之前問；[]＝對得上（或沒鎖）。"""
+        """載入之後檔案被改過嗎（審查 B #D）：有鎖的 pack 每次叫 cli／開 mcp stdio 子程序之前問；[]＝對得上（或沒鎖：只有出廠的會這樣載入）。"""
         if self.live is None:
             return []
         try:
@@ -308,12 +310,12 @@ def _inside(folder: str, parts, what: str) -> str:
 class PackStatus:
     name: str
     folder: str
-    status: str                 # loaded｜connector｜disabled｜invalid｜missing｜incompatible｜error｜tampered｜rejected
+    status: str                 # loaded｜connector｜disabled｜invalid｜missing｜incompatible｜error｜tampered｜rejected｜unapproved
     detail: str = ""
     kind: str = ""
     version: str = ""
     lock: str = ""              # locked｜unlocked｜tampered（packs.lock，第 3 關）
-    scan: str = ""              # 伺服器版沒鎖的 pack 載入時補跑第 2 關：passed｜failed（""＝沒掃，PERM-8）
+    scan: str = ""              # 相容用，永遠是 ""（以前伺服器版沒鎖的 pack 載入時補掃；現在沒鎖＝unapproved、不載入）
 
 
 @dataclass
@@ -376,6 +378,7 @@ def shared_write_admin(app, m: Manifest, server: bool) -> int:
 # 2026-11-12 起 SYNOX 出廠不帶任何工具：money、notes、remind（docs/legacy/builtin-packs.md）與 4 個 connector
 # （docs/legacy/connectors.md）都搬到 SYNOX_Libs，這張表是空的。**不要再把工具加回出廠**：新工具放 SYNOX_Libs、走安裝流程。
 # 機制留著（is_bundled 的位置＋名字判斷、審查 A #5 的「有鎖以鎖為準」），測試用 monkeypatch 填名字來測。
+# **不要再把名字加回 BUNDLED**：沒有鎖又不是出廠的不載入（ADR 0028 §4），加一個名字＝替它開一道不經安裝頁的門。
 BUNDLED: tuple = ()
 
 
@@ -391,7 +394,8 @@ def is_bundled(m: Manifest) -> bool:
 
 def python_trust(config, m: Manifest) -> str:
     """kind=python 在伺服器版的信任：有鎖＝packs.lock 的 trust（擁有者安裝時選的；舊鎖沒寫＝third-party）；
-    沒有鎖：出廠的＝core，其他（手動放進 packs/ 或 packs.dirs 的）＝third-party。
+    沒有鎖：出廠的＝core，其他＝third-party——但沒鎖又不是出廠的 pack 根本不載入（unapproved，ADR 0028 §4），
+    這個答案只在 doctor／報告裡說明用。
     以前出廠的名字優先——第三方作者把 pack 取名 notes、經升級裝進 packs/，就被當成 core。"""
     locked = pack_lock.trust_of(getattr(config, "data_dir", "") or "", m.name)
     if locked is not None:
@@ -406,21 +410,53 @@ def trust_reason(config, m: Manifest) -> str:
     if python_trust(config, m) != pack_lock.THIRD_PARTY:
         return ""
     locked = pack_lock.entry(getattr(config, "data_dir", "") or "", m.name) is not None
-    why = "安裝時信任選的是第三方（third-party）" if locked else "沒有 packs.lock（手動放進來的），當作第三方（third-party）"
+    why = ("安裝時信任選的是第三方（third-party）" if locked
+           else "沒有 packs.lock（沒有經過安裝頁），當作第三方（third-party）；這種工具現在不會載入")
     return (f"只對擁有者開放：{why}；python pack 在 SYNOX 程序裡跑、沒有沙盒，伺服器版不給成員用"
             f"（信得過就跑 python -m synox packs lock --approve {m.name} --trust core）")
 
 
-def unlocked_scan(config, m: Manifest, lock_state: str) -> "Optional[List[str]]":
-    """伺服器版沒有鎖、又不是出廠的 pack：載入前補跑一次第 2 關靜態掃描（安裝流程沒掃過它）。
-    回 None＝不用掃；[]＝過了；否則是拒絕的理由（不載入）。"""
-    if getattr(config, "mode", "personal") != "server" or lock_state != pack_lock.UNLOCKED or is_bundled(m):
-        return None
-    from synox.packs import scan as pack_scan
+# ── 沒有經過安裝頁的（ADR 0028 §4，S9） ──────────────────────────────────
+
+UNAPPROVED = "unapproved"
+UNAPPROVED_TEXT = ("這個工具不是從安裝頁裝的，SYNOX 沒有載入它。要用它：到網頁「設定 → 功能與安裝」按「送去安裝頁檢查」，"
+                   "看過報告、按確認才會裝。")
+UNAPPROVED_DEV_TEXT = ("這個工具不是從安裝頁裝的，SYNOX 沒有載入它。"
+                       "進階：這是 config.json packs.dirs 指過去的資料夾。要用它，在電腦上跑 "
+                       "`python -m synox packs lock --approve {name}`（會先檢查、印報告再鎖）。")
+
+
+def in_user_dir(folder: str, dirs) -> bool:
+    """pack 資料夾就在使用者的 packs/（dirs 的第一個）底下＝SYNOX 管的、可以送去安裝頁／移除；
+    packs.dirs 指過去的不是（跟 web/server.py 的 removable 同一條規則）。"""
+    dirs = tuple(dirs or ())
+    if not dirs:
+        return False
+    parent = os.path.normcase(os.path.realpath(os.path.dirname(os.path.abspath(folder))))
+    return parent == os.path.normcase(os.path.realpath(dirs[0]))
+
+
+def unapproved_text(m: Manifest, folder: str, dirs) -> str:
+    return UNAPPROVED_TEXT if in_user_dir(folder, dirs) else UNAPPROVED_DEV_TEXT.format(name=m.name)
+
+
+def unapproved_items(report: "Optional[LoadReport]") -> List[PackStatus]:
+    """載入報告裡「沒有經過安裝頁」的那幾個（設定頁列出來、給「送去安裝頁檢查」鈕用）。"""
+    return report.by_status(UNAPPROVED) if report is not None else []
+
+
+def _unapproved_notice(app, config, m: Manifest, folder: str) -> None:
+    """沒有經過安裝頁的只通知擁有者一次（同一份內容；內容變了再通知一次）。"""
     try:
-        return pack_scan.gate2(m).problems(m)
-    except Exception as e:                   # 掃不了就不能說它安全
-        return [f"掃描失敗：{type(e).__name__}: {e}"]
+        fp = pack_lock.fingerprint([UNAPPROVED], pack_lock.hash_files(folder))
+        if not pack_lock.first_notice(config.data_dir, m.name, fp):
+            return
+        notify.owner(app, f"⚠️ 有一個工具不是從安裝頁裝的，SYNOX 沒有載入它：{m.title}（{m.name}）。\n"
+                          "如果是你放的、想用它：到網頁「設定 → 功能與安裝」按「送去安裝頁檢查」，看過報告再按確認。"
+                          "如果不是你放的：不要裝，把那個資料夾刪掉。",
+                     kind="safety", level="warn")
+    except Exception:
+        logging.exception("[PACKS] unapproved notice for %s failed", m.name)
 
 
 def discover(dirs=PACK_DIRS) -> List[str]:
@@ -986,11 +1022,14 @@ def _read_all(dirs) -> List[tuple]:
 
 
 def agent_trust_reason(config, m: Manifest) -> str:
-    """agent.always／load=always 只給核心信任（packs.lock 的 trust；沒鎖＝出廠的才算核心）：第三方 → 一句話（不載入）。"""
+    """agent.always／load=always 只給核心信任（packs.lock 的 trust；沒鎖＝出廠的才算核心）或鎖裡記著「✅ 官方」簽章的
+    （ADR 0028；鎖是安裝時驗過才寫的）：其他 → 一句話（不載入）。"""
     from synox.packs.manifest import agent_trust_problem
     if not (m.agent or {}).get("always") and (m.agent or {}).get("load") != "always":
         return ""
-    return agent_trust_problem(m, sandbox.trust_of(getattr(config, "data_dir", "") or "", m))
+    data_dir = getattr(config, "data_dir", "") or ""
+    signature = pack_lock.signature_of(pack_lock.entry(data_dir, m.name) if data_dir else None)["status"]
+    return agent_trust_problem(m, sandbox.trust_of(data_dir, m), signature)
 
 
 def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
@@ -1012,6 +1051,14 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         if not config.pack_enabled(m.name):
             item.status = "disabled"
             continue
+        item.lock, changes = pack_lock.verify(config.data_dir, m.name, folder)
+        if item.lock == pack_lock.UNLOCKED and not is_bundled(m):
+            # 沒有 packs.lock 那一筆＝沒有經過安裝頁（手放進 packs/、packs.dirs 指過去的）：不載入、不定義群組（ADR 0028 §4）
+            item.status, item.detail = UNAPPROVED, unapproved_text(m, folder, dirs)
+            logging.warning("[PACKS] %s has no packs.lock entry (not installed through the install page): not loaded",
+                            m.name)
+            _unapproved_notice(app, config, m, folder)
+            continue
         too_old = synox_problem(m)                 # requires.synox：版本不合就不載入
         if too_old:
             item.status, item.detail = "incompatible", too_old
@@ -1024,7 +1071,7 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         if missing:
             item.status, item.detail = "missing", f"缺 {missing}"
             continue
-        lacking = agent_index.dependency_problems(m, loaded, systems)    # requires.packs／requires.system（ADR 0029）
+        lacking = agent_index.dependency_problems(m, loaded, systems)    # requires.packs／requires.system（ADR 0030）
         if lacking:
             item.status, item.detail = "missing", "缺 " + "、".join(lacking)
             logging.warning("[PACKS] %s not loaded, missing: %s", m.name, "; ".join(lacking))
@@ -1040,19 +1087,10 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         if use_vault and vault is None:
             item.status, item.detail = "error", "這個 pack 要保管箱（storage=vault），但保管箱沒有打開"
             continue
-        item.lock, changes = pack_lock.verify(config.data_dir, m.name, folder)
         if item.lock == pack_lock.TAMPERED:
             item.status, item.detail = "tampered", "檔案跟核准時不一樣：" + "、".join(changes[:10])
             logging.error("[PACKS] %s tampered: %s", m.name, changes)
             _tamper_notice(app, config, m, changes)
-            continue
-        problems = unlocked_scan(config, m, item.lock)    # 伺服器版沒鎖的：補第 2 關（PERM-8）
-        if problems is not None:
-            item.scan = "failed" if problems else "passed"
-        if problems:
-            item.status = "rejected"
-            item.detail = "沒有 packs.lock、載入時的第 2 關掃描沒過，沒有載入：" + "；".join(problems[:5])
-            logging.error("[PACKS] %s rejected by load-time scan: %s", m.name, problems)
             continue
         untrusted = agent_trust_reason(config, m)       # 第三方寫了 agent.always／load=always＝不載入
         if untrusted:

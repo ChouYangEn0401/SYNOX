@@ -79,6 +79,27 @@
       "note": "SYNOX_Libs repo（本機有，GitHub 還沒推上去）"
     },
     {
+      "title": "每日日記",
+      "url": "https://claude.ai/artifact/HRobvC114kdVY9CtkocFMt",
+      "repo": "SYNOX_Libs",
+      "local": "docs/site/diary.html",
+      "note": "SYNOX_Libs repo；網址照 SYNOX_Libs 的 docs/artifacts.json"
+    },
+    {
+      "title": "Google 試算表（只加列）",
+      "url": "https://claude.ai/artifact/H74Xn3PdwzCsseG9dEkq1r",
+      "repo": "SYNOX_Libs",
+      "local": "docs/site/google-sheets.html",
+      "note": "SYNOX_Libs repo；工具 google-sheets；scripts/build_site.py（產生）"
+    },
+    {
+      "title": "SYNOX 衣櫃",
+      "url": "https://claude.ai/artifact/USzGNERZ2477E7XzPaPCsR",
+      "repo": "SYNOX_Libs",
+      "local": "docs/site/wardrobe.html",
+      "note": "SYNOX_Libs repo；網址照 SYNOX_Libs 的 docs/artifacts.json（scripts/build_costumes.py page 產生）"
+    },
+    {
       "title": "Notion",
       "url": "https://claude.ai/artifact/B36np3VigMinvyFuyz74dJ",
       "repo": "SYNOX_Libs",

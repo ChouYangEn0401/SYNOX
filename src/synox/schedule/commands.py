@@ -1,6 +1,6 @@
 """
 /remind_add <時間> <文字> [date=YYYY-MM-DD] [repeat=daily|once]、/remind_todo <文字>、/remind_done <n>、/remind_list、
-/remind_rm <n>、/remind_test（系統群組「⏰ 提醒（系統）」，install_system_remind；docs/adr/0028）；
+/remind_rm <n>、/remind_test（系統群組「⏰ 提醒（系統）」，install_system_remind；docs/adr/0029）；
   時間＝HH:MM（沒給日期＝每天，以前的用法）或時間用語（timeparse：「半小時後」「明天 9 點」…，兩種讀法差很多時反問、
   已經過了問「是要明天嗎？」）；排上了才用 receipt.emit 回固定的排程回執（字由程式產生）。
 /schedule_add <HH:MM> /<指令> …、/schedule_list、/schedule_rm <n>（這裡自己定義 schedule 群組）。
@@ -127,7 +127,7 @@ def planned_channels(app, uid: int) -> List[str]:
 
 
 def make_receipt(app, uid: int, item: dict, now):
-    """排上了的那一筆（v2 dict）→ 排程回執（docs/adr/0028 §3.2）。字由 receipt.reply_text() 產生。"""
+    """排上了的那一筆（v2 dict）→ 排程回執（docs/adr/0029 §3.2）。字由 receipt.reply_text() 產生。"""
     from synox.notify import alarms, delivery
     from synox.schedule import receipt, reminder
     from synox.schedule.engine import friendly

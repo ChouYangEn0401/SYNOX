@@ -241,7 +241,7 @@ CHANNEL_TEXT = {"web": "網頁", "telegram": "Telegram", "discord": "Discord", "
 
 
 def remind_lines(config, *, vault=None, now: Optional[float] = None) -> tuple:
-    """提醒引擎（ADR 0028）：上一次到點檢查是幾秒前、誰是引擎（主程式／哨兵，engine.lock 的戳記）、
+    """提醒引擎（ADR 0029）：上一次到點檢查是幾秒前、誰是引擎（主程式／哨兵，engine.lock 的戳記）、
     送達佇列裡卡住幾件、最近失敗的是哪條管道。只讀檔，不拿鎖、不送任何東西。回 (行, 問題數)。"""
     from synox.notify import desk as deskmod
     from synox.notify.deskapp import EngineGate, outbox_folder
@@ -392,7 +392,7 @@ ROOT_NOTES = {"SYNOX_HOME": "（來自環境變數 SYNOX_HOME；不是你要的�
 
 
 def agent_lines(config, manifests) -> tuple:
-    """工具登記（ADR 0029）：requires.packs／requires.system 缺什麼（不會載入）、第三方寫了 agent.always（不會載入）、
+    """工具登記（ADR 0030）：requires.packs／requires.system 缺什麼（不會載入）、第三方寫了 agent.always（不會載入）、
     AI 能力清單每輪的總量與每個工具的佔用（最大的三個標出來）。只看 pack.json，不載入。回 (行, 問題數)。"""
     from synox.agent import index as agent_index
     from synox.packs import loader
@@ -540,7 +540,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
     tools: List[str] = []
     lock_dir = config.data_dir if config else os.path.join(ROOT, "data")
     locked = 0
-    loadable: List = []                          # 會載入的工具（相依與 AI 能力清單的佔用在迴圈之後算，ADR 0029）
+    loadable: List = []                          # 會載入的工具（相依與 AI 能力清單的佔用在迴圈之後算，ADR 0030）
     dirs = config.pack_dirs() if config else PACK_DIRS
     secret_lookup = _secret_lookup(config)
     for extra in dirs[len(PACK_DIRS):]:
@@ -561,6 +561,14 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 problems += 1
                 continue
             locked += lock_state == pack_lock.LOCKED
+            if lock_state == pack_lock.UNLOCKED and not loader.is_bundled(m):    # ADR 0028 §4：沒有經過安裝頁＝不載入
+                if loader.in_user_dir(folder, dirs):
+                    step = "要用：到網頁「設定 → 功能與安裝」按「送去安裝頁檢查」，看過報告再按確認"
+                else:
+                    step = f"要用（packs.dirs 指過去的）：python -m synox packs lock --approve {m.name}"
+                lines.append(f"  ⛔ {m.name} {m.version}：沒有經過安裝頁，沒有載入。{step}  {rel}")
+                problems += 1
+                continue
             too_old = synox_problem(m)               # requires.synox
             if too_old and enabled:
                 lines.append(f"  ⛔ {m.name} {m.version}：不會載入。{too_old}  {rel}")
@@ -597,14 +605,8 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 t2_note = sandbox.t2_personal_note(config, m) if config is not None else ""
                 if t2_note:                                  # SDK P7：個人版的 T2 照用，只提醒
                     lines.append(f"     ⚠️ {t2_note}")
-                if config is not None:                       # PERM-8：伺服器版第三方 python pack、沒鎖的補掃
-                    scan_problems = loader.unlocked_scan(config, m, lock_state)
-                    if scan_problems:
-                        lines.append(f"     ❌ 沒有 packs.lock、第 2 關掃描沒過，不會載入：{'；'.join(scan_problems[:3])}")
-                        problems += 1
-                    elif scan_problems is not None:
-                        lines.append("     🔍 沒有 packs.lock：載入時補跑的第 2 關掃描過了")
-                    trusted_out = "" if scan_problems else loader.trust_reason(config, m)
+                if config is not None:                       # PERM-8：伺服器版第三方 python pack 只給擁有者
+                    trusted_out = loader.trust_reason(config, m)
                     if trusted_out:
                         lines.append(f"     🔐 {trusted_out}")
         except ManifestError as e:
@@ -613,7 +615,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
     out(f"• packs：{len(lines)} 個（packs.lock 鎖定 {locked} 個；python -m synox packs status 看細節）")
     for line in lines:
         out(line)
-    agent_text, bad = agent_lines(config, loadable)      # 相依缺漏、第三方的 agent.always、每個工具每輪佔用（ADR 0029）
+    agent_text, bad = agent_lines(config, loadable)      # 相依缺漏、第三方的 agent.always、每個工具每輪佔用（ADR 0030）
     for line in agent_text:
         out(line)
     problems += bad

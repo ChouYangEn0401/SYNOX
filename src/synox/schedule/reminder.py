@@ -1,5 +1,5 @@
 """
-一筆提醒／待辦的資料格式（契約，docs/adr/0028 §3.1；docs/notifications.md「契約」）。
+一筆提醒／待辦的資料格式（契約，docs/adr/0029 §3.1；docs/notifications.md「契約」）。
 
 存在原本的排程清單裡（data/schedule.json(.enc)，伺服器版每人一份），kind 仍是 "remind"；/schedule_* 的
 kind="command" 不在這份契約內、格式不變。
@@ -50,7 +50,7 @@ CLOSED = (DONE, MISSED, CANCELLED, EXPIRED)
 # 來源（誰建的；給 log 與健康檢查，不影響行為）
 SOURCES = ("command", "ai", "web", "snooze", "legacy", "test")
 
-# 時間界線（W1 照這些數字實作；改數字要改 ADR 0028）
+# 時間界線（W1 照這些數字實作；改數字要改 ADR 0029）
 RING_LATE_MAX_MIN = 60          # 晚 60 分鐘內：照常響（帶按鈕），寫「晚了 N 分鐘」——沿用現在的 LATE_MAX_MIN
 MISSED_NOTICE_MAX_H = 6         # 晚 60 分鐘～6 小時：一則一則「你錯過了」；超過 6 小時：併成一則彙整
 EXPIRE_AFTER_H = 24             # 響了 24 小時沒人按：自動收掉
@@ -173,7 +173,7 @@ def is_v2(data: Dict[str, Any]) -> bool:
 def _legacy_due(old: Dict[str, Any]) -> Optional[datetime]:
     """舊的 time＋date → 絕對時間。
     一次性：那一天那一刻。每天：created 之後、last_run 那天之後的第一個那一刻（不看現在幾點——
-    「錯過的舊的那幾次不算」由引擎的補送規則處理，見 ADR 0028 §3.1）。"""
+    「錯過的舊的那幾次不算」由引擎的補送規則處理，見 ADR 0029 §3.1）。"""
     try:
         h, m = (int(x) for x in str(old.get("time", "")).split(":"))
     except ValueError:

@@ -28,7 +28,7 @@ def install(app, config, vault=None) -> Hub:
 
 
 def install_delivery(app, config, vault=None, *, config_path: str = ""):
-    """送達層（ADR 0028）：佇列＋重試（runtime 任務 system.notify.outbox）、電腦提醒視窗、提醒引擎鎖、哨兵的啟動檔。
+    """送達層（ADR 0029）：佇列＋重試（runtime 任務 system.notify.outbox）、電腦提醒視窗、提醒引擎鎖、哨兵的啟動檔。
     要在 runtime.install 之後叫（登記任務）。視窗、鎖、啟動檔只有 app 真的 start 之後才動（notify/deskapp.py）。"""
     from synox.notify import deskapp
     return deskapp.install(app, config, vault, config_path=config_path)

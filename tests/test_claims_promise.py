@@ -1,4 +1,4 @@
-"""未來承諾的把關（agent/claims.promise_verdict，ADR 0028 §3.2）：純函式＋真的迴圈（FakeAdapter 劇本、整支 bot 在記憶體裡）。
+"""未來承諾的把關（agent/claims.promise_verdict，ADR 0029 §3.2）：純函式＋真的迴圈（FakeAdapter 劇本、整支 bot 在記憶體裡）。
 回執用自己造的 ScheduleReceipt（系統的提醒還沒交回執時，用假的 remind__add 模擬「排上了」）。全部假資料。"""
 
 import pytest
@@ -222,7 +222,7 @@ def test_wrong_time_after_retries_tells_the_receipt(make_bot, owner):
 
 
 def test_builtin_remind_without_receipt_does_not_back_a_promise(make_bot, owner):
-    """系統的提醒還沒交回執（或擋下來沒排上）時，「會提醒」不放行：沒有回執＝沒排上（ADR 0028 §3.2）。"""
+    """系統的提醒還沒交回執（或擋下來沒排上）時，「會提醒」不放行：沒有回執＝沒排上（ADR 0029 §3.2）。"""
     past = {"tool": "remind__add", "args": {"time": "08:00", "text": "吃藥", "date": "2020-01-01"}}   # 已過的日子：排不上
     bot = make_bot([past] + ["好，明天早上 8 點提醒你吃藥。"] * 3)
     bot.talk(owner, "明天早上 8 點提醒我吃藥")

@@ -20,7 +20,7 @@ must_call 的一項也可以是 {"any_of": [{"tool": …, "args": …}, …]}（
 或回問，而且整題不能叫任何寫入／危險工具（docs/adr/0020）。
 工具的 "receipt": {"kind": "remind", "when": "明天 08:00", "due": "…", "channels": ["telegram"], …}＝這個假工具像系統的
 提醒一樣「排上了」：被叫到時交出排程回執（schedule.receipt.emit；字串裡的 {參數名} 換成這次的值），並登記成能背書未來的工具
-（ADR 0028 §3.2、0029）。這時 results 可以不寫（回的字就是回執的字）。
+（ADR 0029 §3.2、0030）。這時 results 可以不寫（回的字就是回執的字）。
 "images": [["receipt-01.png"]]＝每一輪附的假圖（evals/assistant/images/，只放假資料；docs/adr/0021），重放時當成
 使用者私訊傳的照片交給迴圈（ImagePart）；沒寫＝都沒附圖。
 比對值（must_call 的 args、results 的 when）：字串＝去掉頭尾空白後一模一樣；{"contains": "x" 或 ["x", "y"]}＝全部都要出現；
@@ -82,7 +82,7 @@ class ToolDef:
     confirm: bool = False
     params: List[dict] = field(default_factory=list)
     results: List[dict] = field(default_factory=list)
-    receipt: Optional[dict] = None        # 有寫＝這個假工具像系統的提醒一樣「排上了」：交出排程回執（ADR 0028 §3.2）
+    receipt: Optional[dict] = None        # 有寫＝這個假工具像系統的提醒一樣「排上了」：交出排程回執（ADR 0029 §3.2）
 
 
 # 假工具的 receipt 欄位（schedule.receipt.ScheduleReceipt 的欄位；字串裡的 {參數名} 換成這次的值）

@@ -21,9 +21,9 @@ AI 助理的一輪（spec §5、§7）：
 - 停止詞、做不到的出口（system__cannot_do）、同一個呼叫連續失敗、步數用完的總結：docs/adr/0010～0012。
 - 小模型 harness（預設只對本地／弱來源，agent/auto.py）：每輪工具數上限（agent/toolpick.py，0014）、context 預算與工具結果上限
   （agent/context.py，0015、0016；看 llm.context_size）、系統提示尾端的「本輪規則」＋時間放最後一行（0017）、多步時覆誦目標（0018）。
-- 系統提示分七層（agent/prompt.py）：身分、行為守則與承諾規則、能力清單（工具登記索引，ADR 0029）、說明書索引、工具規格、
+- 系統提示分七層（agent/prompt.py）：身分、行為守則與承諾規則、能力清單（工具登記索引，ADR 0030）、說明書索引、工具規格、
   使用者偏好、本輪規則＋時間（最後）。前四層多輪之間逐字相同。
-- 未來承諾（agent/claims.promise_verdict，ADR 0028 §3.2）：回覆說「會提醒／到時候…」而這一輪沒有排程回執＝退回重寫，
+- 未來承諾（agent/claims.promise_verdict，ADR 0029 §3.2）：回覆說「會提醒／到時候…」而這一輪沒有排程回執＝退回重寫，
   重寫不過就明講沒有排上；有回執就對時間與管道。對所有 AI 來源都開。回執經 CaptureApi.note_receipt 交來，
   machine_line() 附在工具結果後面。
 - 看圖（docs/adr/0021）：run_turn(images=…) 才有；沒有圖＝完全照舊。有圖時 vision.route 決定 native（圖放進這一輪的 user
@@ -490,7 +490,7 @@ class AgentLoop:
 
     def pick_tools(self, tools, text: str, also=()):
         """這一輪給 AI 看的工具（docs/adr/0014）：llm.max_tools（auto＝本地／弱來源 12、其他不限）。
-        永遠保留做不到的出口、skill_read、工具登記索引說要保留的（load=always 的系統層＋登記的系統群組，ADR 0029）；
+        永遠保留做不到的出口、skill_read、工具登記索引說要保留的（load=always 的系統層＋登記的系統群組，ADR 0030）；
         命中觸發字的排前面（toolpick.pick_for）。權限仍只看 decision（清單只是提示）。"""
         limit = toolpick.limit_for(self.llm, self.adapter)
         if limit <= 0:
@@ -610,7 +610,7 @@ class AgentLoop:
         typing = getattr(api, "typing", None)
         warned: List[str] = []
         guard = bool(commands) and self.guard_on()       # 閘門只在有工具的對話開（docs/adr/0008）
-        promise = claims_mod.promise_on(self.llm)       # 未來承諾：所有 AI 來源、有沒有工具都看（ADR 0028 §3.2）
+        promise = claims_mod.promise_on(self.llm)       # 未來承諾：所有 AI 來源、有沒有工具都看（ADR 0029 §3.2）
         max_retries = claims_mod.retries_of(self.llm) if (guard or promise) else 0
         stop_words = self.stop_words(native)
         ledger: List[claims_mod.Evidence] = []
@@ -728,7 +728,7 @@ class AgentLoop:
                                    list(receipts or []) if ok else [])
 
     def promise_sources(self) -> Tuple[Optional[Dict[str, str]], List[str]]:
-        """承諾把關用（ADR 0029 的 promises）：(能背書未來的工具 {工具名: schedule｜watch}, 成功就能背書的工具庫指令)。
+        """承諾把關用（ADR 0030 的 promises）：(能背書未來的工具 {工具名: schedule｜watch}, 成功就能背書的工具庫指令)。
         系統層（提醒、排程）一定要有排程回執才算；工具庫的工具交不出回執，宣告過 promises 的指令成功即可（pack-format.md）。
         索引讀不到＝(None, [])：任何回執都算、沒有回執一律不算。"""
         from synox.agent import index
@@ -741,7 +741,7 @@ class AgentLoop:
         return promised, [t for t in promised if t.split(tools_mod.SEP, 1)[0] not in system]
 
     def claim_verdict(self, said: str, ledger, guard: bool, promise: bool) -> claims_mod.Verdict:
-        """完成宣稱（guard：預設只對本地／弱來源，docs/adr/0008）＋未來承諾（promise：所有來源，ADR 0028 §3.2）。
+        """完成宣稱（guard：預設只對本地／弱來源，docs/adr/0008）＋未來承諾（promise：所有來源，ADR 0029 §3.2）。
         完成宣稱已經擋下就用它的；否則再看未來承諾（REJECT 才換）。"""
         verdict = claims_mod.verdict(said, ledger) if guard else claims_mod.Verdict()
         if promise and verdict.kind != claims_mod.REJECT:
@@ -881,7 +881,7 @@ class AgentLoop:
         if pack is not None and pack.manifest.kind == "python":   # cli／mcp 的成功由 loader／mcp 自己記（真的跑完才算）
             health.observe_success(self.app, capture, node.path, user)
         lines = capture.receipt_lines()
-        if lines:                          # 排程回執（ADR 0028 §3.2）：結構化的一行附在結果後面，也記進這一輪的證據
+        if lines:                          # 排程回執（ADR 0029 §3.2）：結構化的一行附在結果後面，也記進這一輪的證據
             self._ctx.receipts = list(capture.receipts)
             result = "\n".join(x for x in [result] + lines if x)
         return result or "（做完了，沒有輸出）", False, True

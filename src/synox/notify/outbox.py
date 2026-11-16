@@ -1,5 +1,5 @@
 """
-送達佇列（docs/adr/0028 §3.3 的 Outbox 實作）：要確定送到的那幾則，每人一份存檔，重開照樣重試。
+送達佇列（docs/adr/0029 §3.3 的 Outbox 實作）：要確定送到的那幾則，每人一份存檔，重開照樣重試。
 
     data/notifications/outbox/<id>.json(.enc)     跟通知清單同一套加密（vault.for_user(id).at(folder)）
     {"v": 1, "tickets": {"<key>": {"key", "uid", "created", "msg": {...}, "records": {管道: DeliveryRecord},

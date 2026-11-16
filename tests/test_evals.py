@@ -40,7 +40,7 @@ def by_id(cases, cid):
 # ── 1. 題目 ─────────────────────────────────────────────────────────────
 
 def test_thirty_cases_load_with_the_planned_distribution(all_cases):
-    assert len(all_cases) == 42                     # 30 題＋fake_done 兩題（0008）＋missing_tool／missing_param 各兩題（0020）＋vision 兩題（0021）＋remind／promise 各兩題（ADR 0028）
+    assert len(all_cases) == 42                     # 30 題＋fake_done 兩題（0008）＋missing_tool／missing_param 各兩題（0020）＋vision 兩題（0021）＋remind／promise 各兩題（ADR 0029）
     assert cases_mod.distribution_problems(all_cases) == []
     assert sum(c.split == "tune" for c in all_cases) == 26
     assert sum(c.split == "holdout" for c in all_cases) == 16

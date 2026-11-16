@@ -1,4 +1,4 @@
-"""送達層（ADR 0028 §3.3；synox/notify/outbox.py、channels.py、deskapp.py）：管道回報成功才算送到、失敗照
+"""送達層（ADR 0029 §3.3；synox/notify/outbox.py、channels.py、deskapp.py）：管道回報成功才算送到、失敗照
 30／60／120 秒退避重試、blocked 不重試、存檔（重開照樣重試）、加密、冪等；電腦視窗寫了 show 60 秒沒有 shown 算
 no_window；視窗按了 → 引擎 5 秒內讀到、Telegram 那則收回；Telegram／網頁的按鈕有登記 ReminderActions 就交給它。
 全部用假管道：不連網、不開埠、不開視窗、不碰真的啟動資料夾。"""
@@ -285,7 +285,7 @@ def test_web_done_and_read_go_to_reminder_actions(make_bot, owner):
 
 
 def test_buttons_without_actions_never_add_a_reminder(make_bot, owner):
-    """舊的「5 分鐘後再提醒＝另加一筆提醒」拿掉了（ADR 0028 整合）：沒有提醒引擎時按了只收掉按鈕、說已經處理過。"""
+    """舊的「5 分鐘後再提醒＝另加一筆提醒」拿掉了（ADR 0029 整合）：沒有提醒引擎時按了只收掉按鈕、說已經處理過。"""
     bot = make_bot()
     bot.app.extras.pop(delivery.ACTIONS_EXTRA, None)
     delivery.deliver(bot.app, reminder_msg(owner))

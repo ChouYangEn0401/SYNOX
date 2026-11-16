@@ -1,5 +1,5 @@
 """
-工具登記與索引（docs/adr/0029；pack.json 的 agent 區塊見 docs/pack-format.md「agent 區塊」）。
+工具登記與索引（docs/adr/0030；pack.json 的 agent 區塊見 docs/pack-format.md「agent 區塊」）。
 
 系統層（提醒、排程、通知）與裝上的工具走**同一個登記口**：每一項是一筆 Entry——名稱、標題、「什麼時候找我」一行、
 觸發字、載入方式、說明書主題、能力代號、可以背書的未來承諾、每輪都要的一小段。

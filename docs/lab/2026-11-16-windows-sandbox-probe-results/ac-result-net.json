@@ -1,0 +1,199 @@
+{
+ "windows": {
+  "major": 10,
+  "minor": 0,
+  "build": 26200,
+  "platform_version": [
+   10,
+   0,
+   26100
+  ]
+ },
+ "python": "3.11.0 (main, Oct 24 2022, 18:26:48) [MSC v.1933 64 bit (AMD64)]",
+ "python_executable_redacted": "C:\\Users\\<user>\\AppData\\Local\\Programs\\Python\\Python311\\python.exe",
+ "argv": [
+  "--node",
+  "C:\\Users\\<user>\\AppData\\Local\\Temp\\claude\\fdf8beb82aca8242\\45345330-d08d-4a53-85e8-3a1fa683b093\\scratchpad\\sandbox-probe\\dl-node\\node-v24.22.3-win-x64\\node.exe",
+  "--copy-interpreters",
+  "--ports",
+  "11434,8830"
+ ],
+ "results": [
+  {
+   "test": "F1",
+   "what": "read a file in the granted folder",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "",
+   "verdict": "PASS"
+  },
+  {
+   "test": "F2",
+   "what": "write a file in the granted folder",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "file exists=True",
+   "verdict": "PASS"
+  },
+  {
+   "test": "F3",
+   "what": "read a file in a folder NOT granted",
+   "expect": "deny",
+   "exit_code": 1,
+   "note": "",
+   "verdict": "PASS"
+  },
+  {
+   "test": "F4",
+   "what": "write a file in a folder NOT granted",
+   "expect": "deny",
+   "exit_code": 1,
+   "note": "file exists=False",
+   "verdict": "PASS"
+  },
+  {
+   "test": "F5",
+   "what": "list the user profile folder (result only, output discarded)",
+   "expect": "deny",
+   "exit_code": 1,
+   "note": "",
+   "verdict": "PASS"
+  },
+  {
+   "test": "E1",
+   "what": "environment the child sees (LOCALAPPDATA/TEMP)",
+   "expect": "info",
+   "exit_code": 0,
+   "note": "LOCALAPPDATA=C:\\Users\\<user>\\AppData\\Local\\Packages\\synox.research.probe\\AC | TEMP=C:\\Users\\<user>\\AppData\\Local\\Packages\\synox.research.probe\\AC\\Temp",
+   "verdict": "INFO"
+  },
+  {
+   "test": "E2",
+   "what": "parent env reaches the child? (names only)",
+   "expect": "info",
+   "exit_code": 0,
+   "note": "marker_seen=True child_vars=84 parent_vars=83 child_names=AI_AGENT,ALLUSERSPROFILE,APPDATA,APPLICATION_INSIGHTS_NO_STATSBEAT,CHROME_CRASHPAD_PIPE_NAME,CLAUDECODE,CLAUDE_AGENT_SDK_VERSION,CLAUDE_CODE_CHILD_SESSION,CLAUDE_CODE_EMIT_STARTUP_TIMING,CLAUDE_CODE_ENABLE_SDK_FILE_CHECKPOINTING,CLAUDE_CODE_ENABLE_TASKS,CLAUDE_CODE_ENTRYPOINT,CLAUDE_CODE_MESSAGING_SOCKET,CLAUDE_CODE_MESSAGING_TOKEN,CLAUDE_CODE_QUESTION_PREVIEW_FORMAT,CLAUDE_CODE_SESSION_ATTENDED,CLAUDE_CODE_SESSION_ID,CLAUDE_CODE_STARTUP_FAILURE_RESULTS,CLAUDE_PID,COMPUTERNAME,COPILOT_OTEL_FILE_EXPORTER_PATH,COREPACK_ENABLE_AUTO_PIN,ComSpec,CommonProgramFiles,CommonProgramFiles(x86),CommonProgramW6432,DriverData,ELECTRON_RUN_AS_NODE,GCM_INTERACTIVE,GIT_ASKPASS,GIT_EDITOR,GIT_TERMINAL_PROMPT,HOMEDRIVE,HOMEPATH,LOCALAPPDATA,LOGONSERVER,MCP_CONNECTION_NONBLOCKING,NO_COLOR,NUMBER_OF_PROCESSORS,NoDefaultCurrentDirectoryInExePath,OLLAMA_NUM_GPU,OLLAMA_VULKAN,OS,OneDrive,OneDriveConsumer,PATHEXT,PROCESSOR_ARCHITECTURE,PROCESSOR_IDENTIFIER,PROCESSOR_LEVEL,PROCESSOR_REVISION,PROMPT,PSExecutionPolicyPreference,PSModulePath,PUBLIC,PYTHONIOENCODING,Path,ProgramData,ProgramFiles,ProgramFiles(x86),ProgramW6432,PyCharm Community Edition,SYNOX_PROBE_MARKER,SystemDrive,SystemRoot,TEMP,TMP,USERDOMAIN,USERDOMAIN_ROAMINGPROFILE,USERNAME,USERPROFILE,VBOX_MSI_INSTALL_PATH,VSCODE_CODE_CACHE_PATH,VSCODE_CRASH_REPORTER_PROCESS_TYPE,VSCODE_CWD,VSCODE_DOTNET_INSTALL_TOOL_ORIGINAL_HOME,VSCODE_ESM_ENTRYPOINT,VSCODE_HANDLES_UNCAUGHT_ERRORS,VSCODE_IPC_HOOK,VSCODE_NLS_CONFIG,VSCODE_NODE_COMPILE_CACHE_KIND,VSCODE_NODE_COMPILE_CACHE_ROOT,VSCODE_PID,ZES_ENABLE_SYSMAN,windir",
+   "verdict": "INFO"
+  },
+  {
+   "test": "N2",
+   "what": "no capability: connect to host loopback",
+   "expect": "deny",
+   "exit_code": 28,
+   "note": "listener hits=0",
+   "verdict": "PASS"
+  },
+  {
+   "test": "N4",
+   "what": "internetClient: connect to host loopback (expected blocked; to be measured)",
+   "expect": "deny",
+   "exit_code": 28,
+   "note": "listener hits=0",
+   "verdict": "PASS"
+  },
+  {
+   "test": "N5",
+   "what": "privateNetworkClientServer: connect to host loopback",
+   "expect": "deny",
+   "exit_code": 28,
+   "note": "listener hits=0",
+   "verdict": "PASS"
+  },
+  {
+   "test": "N6",
+   "what": "capability=none: HTTP GET / to an existing host service 127.0.0.1:11434",
+   "expect": "deny",
+   "exit_code": 28,
+   "note": "",
+   "verdict": "PASS"
+  },
+  {
+   "test": "N6",
+   "what": "capability=internetClient: HTTP GET / to an existing host service 127.0.0.1:11434",
+   "expect": "deny",
+   "exit_code": 28,
+   "note": "",
+   "verdict": "PASS"
+  },
+  {
+   "test": "N6",
+   "what": "capability=privateNetwork: HTTP GET / to an existing host service 127.0.0.1:11434",
+   "expect": "deny",
+   "exit_code": 28,
+   "note": "",
+   "verdict": "PASS"
+  },
+  {
+   "test": "N6",
+   "what": "capability=none: HTTP GET / to an existing host service 127.0.0.1:8830",
+   "expect": "deny",
+   "exit_code": 28,
+   "note": "",
+   "verdict": "PASS"
+  },
+  {
+   "test": "N6",
+   "what": "capability=internetClient: HTTP GET / to an existing host service 127.0.0.1:8830",
+   "expect": "deny",
+   "exit_code": 28,
+   "note": "",
+   "verdict": "PASS"
+  },
+  {
+   "test": "N6",
+   "what": "capability=privateNetwork: HTTP GET / to an existing host service 127.0.0.1:8830",
+   "expect": "deny",
+   "exit_code": 28,
+   "note": "",
+   "verdict": "PASS"
+  },
+  {
+   "test": "N1",
+   "what": "no capability: HTTPS to example.com",
+   "expect": "deny",
+   "exit_code": 6,
+   "note": "",
+   "verdict": "PASS"
+  },
+  {
+   "test": "N3",
+   "what": "internetClient: HTTPS to example.com",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "",
+   "verdict": "PASS"
+  },
+  {
+   "test": "P1",
+   "what": "start this Python inside the AppContainer (C:\\Users\\<user>\\AppData\\Local\\Programs\\Python\\Python311\\python.exe)",
+   "expect": "info",
+   "exit_code": 1,
+   "note": "output='存取被拒。'",
+   "verdict": "INFO"
+  },
+  {
+   "test": "P2",
+   "what": "start node inside the AppContainer (C:\\Users\\<user>\\AppData\\Local\\Temp\\claude\\fdf8beb82aca8242\\45345330-d08d-4a53-85e8-3a1fa683b093\\scratchpad\\sandbox-probe\\dl-node\\node-v24.22.3-win-x64\\node.exe)",
+   "expect": "info",
+   "exit_code": 1,
+   "note": "output='存取被拒。'",
+   "verdict": "INFO"
+  },
+  {
+   "test": "P1b",
+   "what": "start a COPY of this Python placed in the granted folder",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "output='2'",
+   "verdict": "PASS"
+  },
+  {
+   "test": "P2b",
+   "what": "start a COPY of node.exe placed in the granted folder",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "output='2'",
+   "verdict": "PASS"
+  }
+ ]
+}

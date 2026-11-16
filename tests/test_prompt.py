@@ -1,5 +1,5 @@
 """七層系統提示（agent/prompt.py）：每層的上限、前四層多輪逐字相同、變動的在最後、能力清單從工具登記索引產生
-（ADR 0029）、守則的內容。全部用假 adapter，不載入模型。"""
+（ADR 0030）、守則的內容。全部用假 adapter，不載入模型。"""
 
 from datetime import datetime, timedelta, timezone
 

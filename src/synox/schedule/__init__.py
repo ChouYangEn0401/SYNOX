@@ -1,5 +1,5 @@
 """排程（SDK 沒有，decisions.md D6）：/remind_*（系統指令「⏰ 提醒（系統）」，install_system_remind）、/schedule_*、背景的 ScheduleRunner。
-提醒引擎（engine.py）、延後與完成（actions.py）、時間用語（timeparse.py）：docs/adr/0028。"""
+提醒引擎（engine.py）、延後與完成（actions.py）、時間用語（timeparse.py）：docs/adr/0029。"""
 
 from synox.schedule.commands import install_remind, install_schedule, install_system_remind, store_for
 from synox.schedule.runner import CHECK_INTERVAL, MAX_BACKOFF, ScheduleRunner

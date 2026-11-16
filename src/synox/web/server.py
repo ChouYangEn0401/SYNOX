@@ -8,12 +8,20 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     GET  /login?t=<token>           一次性登入連結 → 確認頁「你將以 <名字> 登入」（不用掉連結；防 login CSRF）
     POST /login                     確認頁的按鈕（f＝一次性表單 token＋synox_login cookie、Origin 要是自己）
                                     → 用掉連結 → cookie session → 303 到 /#chat
-    GET  /packs/<name>/panel        pack 的 web.panel（工具頁用 <iframe sandbox> 掛）
+    POST /api/packs/<name>/panel-ticket   看得到這個 pack 的人：拿一張面板的票（綁 pack＋這個登入＋這個人，8 小時；
+                                    登出就作廢；web/paneltickets.py、ADR 0028 §5）→ {"ticket"}
+    GET  /packs/<name>/panel/<票>/  pack 的 web.panel（工具頁用 <iframe sandbox="allow-scripts"> 掛：opaque origin、
+                                    沒有 cookie）。只認票、不看 cookie；回應的 CSP 自己也帶 `sandbox allow-scripts`
+    GET  /packs/<name>/panel/<票>/api/<route>   面板讀資料（面板裡寫相對網址 api/<route>）：只有這個 pack 在 web.api
+                                    宣告的 GET、以發票那個人的身分；Access-Control-Allow-Origin: null（沒有 credentials）
+                                    舊的 /packs/<name>/panel（同源、靠 cookie）不再提供：一律 404
     GET  /theme/preview?name=|staged=&mode=   外觀的預覽小頁（沒有 script；設定 → 外觀、安裝報告用 iframe 掛）
     GET  /theme/font/<pack>/<file>  外觀包附的字型（只收 theme.fonts 宣告的 .woff2）
     GET  /api/appearance            設定 → 外觀：裝了哪些外觀包、這個人選了什麼、自己貼的（synox/theme/appearance.py）
     POST /api/appearance            {"theme", "mode", "reset"}；POST /api/appearance/custom {"slot", "text", "preview"}
     GET  /tutorials/<name>/         圖文教學 docs/tutorials/<name>/index.html（公開文件，不用登入；synox/tutorials.py）
+    POST /api/packs/adopt           {"name"}：擁有者按「送去安裝頁檢查」：沒有經過安裝頁的 pack（狀態 unapproved）
+                                    原地打包 → 跟上傳同一條路的報告；按確認＝/api/packs/install 帶 adopt: true（packs/adopt.py）
     GET  /api/pack-staged/<token>   `python -m synox install` 暫存好的 pack 的檢查報告（擁有者；網頁 ?pack=<token>#settings:packs）
     GET  /api/packs/staged          擁有者：還沒按確認的暫存 pack（待核准清單，不用 token；過期的順便清掉）
     POST /api/packs/discard         {"token"}：擁有者「不要裝」，刪掉那一份暫存
@@ -73,6 +81,7 @@ from synox.theme.appearance import Appearance, AppearanceError
 from synox.web import api_commands, report as reporting, toolpage
 from synox.web.channel import WEB, WebChannel
 from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore
+from synox.web.paneltickets import PanelTickets
 from synox.web.tokens import LoginTokens, Session, Sessions, digest
 
 
@@ -130,6 +139,14 @@ MAX_BODY = 256 * 1024
 MAX_TEXT = 4000
 CHAT_RE = re.compile(r"^(c\d{1,6}|tools|mother)$")
 NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
+# 隔開的面板（ADR 0028 §5）：/packs/<name>/panel/<票>/ 與 /packs/<name>/panel/<票>/api/<route>
+PANEL_RE = re.compile(r"^/packs/([a-z][a-z0-9_-]{0,31})/panel/([A-Za-z0-9_-]{16,64})/"
+                      r"(?:api/([a-z0-9][a-z0-9_-]{0,31}))?$")
+PANEL_TICKET_RE = re.compile(r"(/packs/[^/]+/panel/)[^/]+")      # 寫日誌前把票遮掉
+# 面板頁的 CSP：`sandbox allow-scripts`＝就算哪裡忘了 iframe 的 sandbox 屬性（或有人直接開這個網址），
+# 瀏覽器也把它當 opaque origin（沒有 cookie、碰不到主頁）。connect-src 'self'＝只打得到這台 SYNOX（自己的 api/<route>）。
+PANEL_CSP = ("sandbox allow-scripts; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; "
+             "img-src data:; connect-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'")
 
 Resp = Tuple[int, List[Tuple[str, str]], bytes]
 
@@ -301,6 +318,7 @@ class WebUI:
         data = config.data_dir
         self.tokens = LoginTokens(os.path.join(data, "web_tokens.json"), clock=clock)
         self.sessions = Sessions(os.path.join(data, "web_sessions.json"), clock=clock)
+        self.panel_tickets = PanelTickets(clock=clock)    # 面板的票（只在記憶體；ADR 0028 §5）
         self.chats = ChatStore(os.path.join(data, "web_chats"), vault, clock=clock)
         self.prefs = toolpage.UserPrefs(os.path.join(data, "web_prefs"), vault)   # 每個人的工具頁排版、外觀
         self.appearance = Appearance(app, config, self.prefs)                     # 設定 → 外觀（synox/theme）
@@ -368,6 +386,7 @@ class WebUI:
         self._stop_apps("web_off")
         self.disabled = True
         self.sessions.drop_all()
+        self.panel_tickets.drop_all()
         self.stop()
 
     # ── 入口 ─────────────────────────────────────────────────────────
@@ -433,11 +452,9 @@ class WebUI:
                 return apps_api.open_handoff(self, session, m.group(1), headers, body)
             if path == "/login" and method == "POST":
                 return self.login_post(headers, body)
-            m = re.match(r"^/packs/([a-z][a-z0-9_-]{0,31})/panel$", path)
-            if m and method == "GET":
-                if session is None:
-                    return _page(401, "請先登入", LOGIN_HOW)
-                return self.panel(self._user(session), m.group(1))
+            m = PANEL_RE.match(path)
+            if m and method == "GET":                   # 隔開的面板：只認票、不看 cookie（所以在 /api/ 的檢查之前）
+                return self.panel_ticketed(m.group(1), m.group(2), m.group(3))
             m = re.match(r"^/tutorials/([a-z][a-z0-9_-]{0,31})/?$", path)
             if m and method == "GET":
                 return self.tutorial(m.group(1))
@@ -453,7 +470,7 @@ class WebUI:
                 return self.api(method, path, query, headers, body, session)
             return _page(404, "找不到", "沒有這一頁。")
         except Exception as e:
-            logging.exception("[WEB] %s %s failed", method, path)
+            logging.exception("[WEB] %s %s failed", method, PANEL_TICKET_RE.sub(r"\1***", path))   # 票不進日誌
             return _err(500, f"出錯了：{type(e).__name__}")
 
     # 本機擁有者直接開網址就進（不用連結）：這台電腦的人本來就能改設定檔、裝 pack，網頁不該再擋他。
@@ -600,7 +617,7 @@ class WebUI:
         tg_id = self.tokens.redeem_digest(found[0])
         if tg_id is None:
             return _page(403, "登入連結不能用", LOGIN_BAD)
-        self.sessions.drop(_cookie(headers, COOKIE))
+        self._drop_session(_cookie(headers, COOKIE))
         sid, _session = self.sessions.create(tg_id)
         self.app.users.get_or_create(tg_id)
         cookie = f"{COOKIE}={sid}; HttpOnly; SameSite=Lax; Path=/; Max-Age={int(self.sessions.ttl)}" + self._secure()
@@ -617,20 +634,84 @@ class WebUI:
     def _pack(self, name: str):
         return next((p for p in self.app.extras.get("synox_packs", []) if p.name == name), None)
 
+    SIGNATURE_STATUSES = ("official", "author", "none")
+
+    def _signature(self, name: str) -> str:
+        """工具頁、設定頁的標章：packs.lock 那一筆的 signature.status（安裝時 SYNOX 自己驗的；ADR 0028 §3）。
+        沒有鎖、舊的鎖（簽章功能之前裝的）、看不懂的值 → "none"（⚠️ 不是官方）。pack 自己寫什麼都影響不了它。"""
+        from synox.packs import lock as pack_lock
+        try:
+            sig = (pack_lock.entry(self.config.data_dir, name) or {}).get("signature") or {"status": "none"}
+        except Exception:
+            logging.exception("[WEB] reading packs.lock for %s failed", name)
+            return "none"
+        status = sig.get("status") if isinstance(sig, dict) else None
+        return status if status in self.SIGNATURE_STATUSES else "none"
+
     def _pack_visible(self, user, pack) -> bool:
         group = self.app.registry.node(pack.manifest.group)
         return group is not None and self.app.registry.visible(user, group)
 
-    def panel(self, user, name: str) -> Resp:
+    # ── 面板（pack 的 web.panel；ADR 0028 §5）────────────────────────────
+    # 面板是工具作者寫的 HTML＋JS：一律隔開（官方的也一樣）。工具頁用 <iframe sandbox="allow-scripts">（沒有
+    # allow-same-origin）掛 /packs/<name>/panel/<票>/：面板是 opaque origin，沒有 cookie、讀不到 CSRF、打不到 /api/、
+    # 碰不到主頁。它要資料只能打相對網址 api/<route>（這個 pack 在 web.api 宣告的 GET），伺服器只認票。
+    # 舊的 /packs/<name>/panel（同源、靠 cookie）拿掉了：留著就是一個「直接開網址就同源跑作者 JS」的門。
+
+    def _drop_session(self, sid: Optional[str]) -> None:
+        """登出（含重新登入時換掉舊的）：那個登入發的面板票一起作廢。"""
+        if sid:
+            self.panel_tickets.drop_session(digest(sid))
+        self.sessions.drop(sid)
+
+    def panel_ticket(self, user, name: str, headers: Dict[str, str]) -> Resp:
         pack = self._pack(name)
         if pack is None or not pack.manifest.web.get("panel") or not self._pack_visible(user, pack):
-            return _page(404, "找不到", "沒有這個面板。")
-        with open(pack.manifest.panel_path, "rb") as f:
-            html = f.read()
-        csp = ("default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; "
-               "connect-src 'self'; frame-ancestors 'self'; base-uri 'none'; form-action 'none'")
-        return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "SAMEORIGIN"),
-                                    ("Content-Security-Policy", csp)], html
+            return _err(404, "沒有這個面板。")
+        key = self.session_key(headers)
+        if key is None:                                 # api() 前面已經確認過登入；保險
+            return _err(401, "請先登入：" + LOGIN_HOW)
+        return _json(200, {"ticket": self.panel_tickets.issue(name, key, user.tg_id)})
+
+    def _panel_session(self, name: str, ticket: str):
+        """票對、沒過期、發給這個 pack、發票的登入還在、而且同一個人 → (user, session)；不然 None。"""
+        found = self.panel_tickets.get(ticket, name)
+        if found is None:
+            return None
+        session = self.sessions.by_key(found.session_key)     # 登出（不管走哪條路）之後票就不能用
+        if session is None or session.tg_id != found.tg_id:
+            return None
+        return self.app.users.get_or_create(found.tg_id), session
+
+    def panel_ticketed(self, name: str, ticket: str, route: Optional[str]) -> Resp:
+        nothing = _page(404, "找不到", "沒有這一頁。")        # 票不對、過期、別的 pack 的：一律一樣的 404，不說為什麼
+        found = self._panel_session(name, ticket)
+        if found is None:
+            return nothing
+        user, session = found
+        pack = self._pack(name)
+        if pack is None or not pack.manifest.web.get("panel") or not self._pack_visible(user, pack):
+            return nothing
+        if route is None:
+            with open(pack.manifest.panel_path, "rb") as f:
+                html = f.read()
+            return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"),
+                                        ("X-Frame-Options", "SAMEORIGIN"),
+                                        ("Content-Security-Policy", PANEL_CSP)], html
+        fn = pack.web_routes.get(route)
+        if route not in pack.manifest.web.get("api", []) or fn is None:
+            return _err(404, "沒有這個資料。")
+        with guard_origin.using(web_origin(session)):          # 跟 /api/packs/<name>/<route> 一樣算「網頁、這個登入」
+            data = fn(user)
+        # 標頭：面板是 opaque origin，fetch 送出的 Origin 是 "null"、不帶 cookie（我們也不要 cookie）。
+        # - Access-Control-Allow-Origin: null＋Vary: Origin：讓面板讀得到回應；不給 Allow-Credentials（票就是唯一的憑證）。
+        # - 不帶 _json 預設的 Cross-Origin-Resource-Policy: same-origin：CORP 只管 no-cors 的讀取，CORS 的 fetch 不看它；
+        #   留著只會在某些瀏覽器多一個擋住面板的變數。拿掉也沒有多開什麼：no-cors 讀 JSON 本來就被瀏覽器（ORB）擋，
+        #   而且沒有票就是 404。也不需要 CORP: cross-origin。
+        # - 其他照 BASE_HEADERS（nosniff、no-referrer、no-store、COOP）＋X-Frame-Options: DENY（JSON 不該被框）。
+        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+        return 200, BASE_HEADERS + [("Content-Type", "application/json; charset=utf-8"), ("X-Frame-Options", "DENY"),
+                                    ("Access-Control-Allow-Origin", "null"), ("Vary", "Origin")], body
 
     # 圖文教學（docs/tutorials/<名字>/index.html；synox/tutorials.py）：公開的說明文件，不碰任何資料、不用登入
     # （第一次設定的人可能還沒配對、還登不進來）。只收合規則的名字、只讀那個資料夾裡的 index.html；
@@ -732,6 +813,9 @@ class WebUI:
         if path == "/api/stepup" or path.startswith("/api/stepup/"):     # 手機驗證器（ADR 0025；guard/web_api.py）
             from synox.guard import web_api as stepup_api
             return stepup_api.route(self, user, session, method, path, headers, body)
+        m = re.match(r"^/api/packs/([a-z][a-z0-9_-]{0,31})/panel-ticket$", path)
+        if m and method == "POST":          # 面板的票：只是「讓這個人看自己看得到的面板」，不改東西，所以排在手機驗證之前
+            return self.panel_ticket(user, m.group(1), headers)        # （/api/packs/ 底下預設都算敏感；CSRF 前面驗過了）
         if stepup_sensitive(method, path):                             # 開了開關就要先解鎖的敏感動作（K5；預設就擋）
             from synox import guard
             g = guard.of(self.app)
@@ -820,7 +904,7 @@ class WebUI:
         if not isinstance(data, dict):
             return _err(400, "送來的 JSON 要是物件。")
         if path == "/api/logout":
-            self.sessions.drop(_cookie(headers, COOKIE))
+            self._drop_session(_cookie(headers, COOKIE))
             return _json(200, {"ok": True}, [("Set-Cookie", f"{COOKIE}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0"
                                                             + self._secure())])
         if path == "/api/chats":
@@ -854,6 +938,8 @@ class WebUI:
             return self.pack_secrets_save(user, m.group(1), data)
         if path == "/api/packs/install":
             return self.pack_install(user, data)
+        if path == "/api/packs/adopt":
+            return self.pack_adopt(user, data)
         if path == "/api/packs/remove":
             return self.pack_remove(user, data)
         if path == "/api/packs/discard":
@@ -1089,7 +1175,8 @@ class WebUI:
                 "stage": pack.manifest.stage, "stage_label": pack.manifest.stage_label,     # 穩定度（沒寫＝alpha）
                 "stage_text": stage_text(pack.manifest.stage),
                 "status": "要先設定" if connector else "已連接",
-                "panel": f"/packs/{pack.name}/panel" if pack.manifest.web.get("panel") else None,
+                "panel": bool(pack.manifest.web.get("panel")),      # 有面板：工具頁先拿票（POST …/panel-ticket）
+                "signature": self._signature(pack.name),            # 標章：只看鎖裡 SYNOX 驗出來的（ADR 0028 §3）
                 "app": bool(pack.manifest.web.get("app")),          # 工具服務：有完整畫面（卡片在 static/apps.js）
                 "commands": [self._leaf_info(n) for n in leaves]}
             self._health_marks(row, user)
@@ -1298,7 +1385,7 @@ class WebUI:
         report = self.app.extras.get("synox_pack_report")
         user_dir = os.path.realpath(self.pack_dirs[0]) if self.pack_dirs else ""
         out["packs"] = [{"name": i.name, "status": i.status, "detail": i.detail, "kind": i.kind,
-                         "version": i.version, "lock": getattr(i, "lock", ""),
+                         "version": i.version, "lock": getattr(i, "lock", ""), "signature": self._signature(i.name),
                          "removable": bool(user_dir) and os.path.realpath(os.path.dirname(i.folder)) == user_dir}
                         for i in (report.items if report else [])]
         from synox.packs import library             # 出廠不帶工具：裝了幾個、工具庫在哪、怎麼裝（packs/library.py）
@@ -1744,6 +1831,29 @@ class WebUI:
             return _err(400, str(e))
         return _json(200, self._with_upgrade(summary))
 
+    def pack_adopt(self, user, data: dict) -> Resp:
+        """設定頁「送去安裝頁檢查」（ADR 0028 §4）：沒有經過安裝頁、所以沒載入的 pack（狀態 unapproved）
+        原地打包、走跟上傳一樣的檢查（zip、簽章、第 1、2 關）→ 同一份報告；裝要另外按確認（install 帶 adopt: true）。
+        不附「升級報告」：原地那一份就是它自己，跟自己比版本只會擋住確認鈕。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        name = str(data.get("name") or "")
+        if not NAME_RE.match(name) or not self.pack_dirs:
+            return _err(400, "工具名字不對。")
+        try:
+            from synox.packs import adopt
+        except ImportError:
+            return _err(400, "這一版 SYNOX 還不能把手放的工具送進安裝流程。請改用「上傳並檢查」裝它的 .synoxpack 檔。")
+        from synox.packs.admin import GateRefused, PackAdminError
+        try:
+            _token, summary = adopt.stage_unlocked(name, self.pack_dirs[0], self.config.data_dir)
+        except GateRefused as e:
+            return _json(400, {"error": str(e), "refused": e.summary})
+        except PackAdminError as e:
+            return _err(400, str(e))
+        return _json(200, {**summary, "adopt": summary.get("adopt") or name})
+
     def _with_upgrade(self, summary: dict) -> dict:
         """同名的已經裝了：摘要多一段 upgrade（「改了什麼」、版本檢查；見 packs/upgrade.py）。"""
         from synox.packs.admin import PackAdminError
@@ -1871,13 +1981,21 @@ class WebUI:
         from synox.packs.admin import GateRefused, PackAdminError, install_staged
         if not self.pack_dirs:
             return _err(400, "沒有可以裝 pack 的資料夾。")
-        if data.get("upgrade"):
+        if data.get("adopt"):                   # 「送去安裝頁檢查」的那一份：原地那個（沒鎖的）收到 _removed、裝暫存的
+            try:
+                from synox.packs import adopt
+            except ImportError:
+                return _err(400, "這一版 SYNOX 還不能把手放的工具送進安裝流程。請改用「上傳並檢查」裝它的 .synoxpack 檔。")
+            installer = adopt.install
+        elif data.get("upgrade"):
             return self._pack_upgrade(user, data)
+        else:
+            installer = install_staged
         try:                                                            # 再跑 1、2 關 → 第 3 關（packs.lock）
-            name = install_staged(str(data.get("token") or ""), self.config.data_dir, self.pack_dirs[0],
-                                  approved_by=user.tg_id, via="web", trust=data.get("trust") or None,
-                                  trust_publisher=str(data.get("trust_publisher") or "") or None,
-                                  runtime=str(data.get("runtime") or "") or None)       # S2：用容器／不用
+            name = installer(str(data.get("token") or ""), self.config.data_dir, self.pack_dirs[0],
+                             approved_by=user.tg_id, via="web", trust=data.get("trust") or None,
+                             trust_publisher=str(data.get("trust_publisher") or "") or None,
+                             runtime=str(data.get("runtime") or "") or None)       # S2：用容器／不用
         except GateRefused as e:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:

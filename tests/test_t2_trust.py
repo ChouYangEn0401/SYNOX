@@ -11,7 +11,7 @@ import pytest
 
 from isdtelekit.users.roles import BasicRoles
 
-from conftest import OTHER_ID, OWNER_ID
+from conftest import OTHER_ID, OWNER_ID, lock_all
 
 from synox import sandbox
 from synox.packs import admin, lock, tier, upgrade
@@ -429,6 +429,7 @@ def test_personal_t2_available_but_doctor_warns(tmp_path):
     path = tmp_path / "config.json"
     path.write_text(json.dumps({"owner_id": OWNER_ID, "data_dir": str(tmp_path / "data"), "llm": {"kind": "none"},
                                 "packs": {"dirs": [str(packs)]}}), encoding="utf-8")
+    lock_all(tmp_path / "data", (str(packs),))                    # 沒鎖的不載入（ADR 0028 §4）：當作經安裝頁裝過
     lines = []
     doctor.run(offline=True, config_path=str(path), out=lines.append)
     assert any("T2" in x and "helper.exe" in x and "沒有沙盒" in x for x in lines)

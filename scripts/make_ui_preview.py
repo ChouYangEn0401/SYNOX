@@ -132,6 +132,8 @@ TOOLS = {
          "commands": [_cmd("/ai_usage", "這個月用了多少")]},
     ],
 }
+for _t in TOOLS["packs"]:              # 標章（ADR 0028）：伺服器從 packs.lock 讀的 signature.status
+    _t["signature"] = {"notes": "official", "money": "official", "todoist": "author"}.get(_t["name"], "none")
 TOOLS["layout"] = toolpage.effective(None, [(t["id"], t["category"]) for t in TOOLS["packs"] + TOOLS["groups"]])
 
 SECRETS = {"fields": [{"name": "token", "label": "API token", "required": True, "secret": True, "set": False,
@@ -149,11 +151,17 @@ SETTINGS = {
         {"label": "先不用 AI", "choice": "none"},
     ],
     "packs": [
-        {"name": "notes", "status": "loaded", "version": "0.1.0", "lock": "locked", "removable": False},
-        {"name": "money", "status": "loaded", "version": "0.2.0", "lock": "locked", "removable": False},
-        {"name": "todoist", "status": "connector", "version": "0.2.0", "lock": "locked", "removable": False},
+        {"name": "notes", "status": "loaded", "version": "0.1.0", "lock": "locked", "removable": False,
+         "signature": "official"},
+        {"name": "money", "status": "loaded", "version": "0.2.0", "lock": "locked", "removable": False,
+         "signature": "official"},
+        {"name": "todoist", "status": "connector", "version": "0.2.0", "lock": "locked", "removable": False,
+         "signature": "author"},
         {"name": "example-tool", "status": "rejected", "detail": "掃描沒過：用了動態執行程式碼", "version": "1.0.0",
-         "lock": "unlocked", "removable": True},
+         "lock": "locked", "removable": True, "signature": "none"},
+        {"name": "hand-copied", "status": "unapproved", "version": "0.1.0", "lock": "unlocked", "removable": True,
+         "signature": "none", "detail": "這個工具不是從安裝頁裝的，SYNOX 沒有載入它。要用它：按「送去安裝頁檢查」，"
+                                        "看過報告、按確認才會裝。"},
     ],
 }
 
@@ -473,7 +481,14 @@ MOCK = r"""
       return reply({ token: "previewtoken01", name: "weather", title: "天氣", version: "0.3.0", summary: "查天氣預報（預覽的假資料）",
         kind: "python", access: "owner", storage: "user", files: ["pack.json", "pack.py", "SKILL.md"], publisher: "",
         scan: { declared_capabilities: ["network"], required_capabilities: ["network"], problems: [], findings: [] },
-        warnings: ["會連網：只連到天氣服務"], tier: { tier: "T1", text: "T1：有程式碼，掃描過了" } });
+        warnings: ["會連網：只連到天氣服務"], tier: { tier: "T1", text: "T1：有程式碼，掃描過了" },
+        signature: { status: "none", label: "⚠️ 不是官方", key_id: "", public_key: "", lookalike: [], no_official_keys: true,
+          text: "沒有簽章：SYNOX 無法確認是誰做的、有沒有被改過。只裝你信得過的人給的。（這一版 SYNOX 還沒有官方鑰匙，所以暫時沒有工具會顯示官方）" },
+        safety_notice: "安全提醒：公開流通的工具裡，有一些帶著會偷資料或做壞事的程式。不管來源是哪裡，裝之前請看完這份報告；不確定就不要裝。" });
+    }
+    if (p === "/api/packs/adopt") {               // 「送去安裝頁檢查」：預覽直接給同一份假報告
+      D.stagedGone = false;
+      return fetch("/api/pack-staged/previewtoken01");
     }
     if (p === "/api/packs/library") { return reply(D.library); }
     if (p === "/api/packs/wardrobe") {           // ?wd=empty：清單裡還沒有外觀包（衣櫃還沒上架）

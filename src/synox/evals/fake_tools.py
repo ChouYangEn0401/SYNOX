@@ -75,7 +75,7 @@ def install(app, case: Case) -> ToolLog:
 
         def run(api, chat_id, user, argv, _tool=tool, _fields=fields):
             values, _missing, _errors = kit.parse_args(_fields, argv, positional=0)
-            if _tool.receipt is not None:                # 像系統的提醒一樣排上了：交出排程回執（ADR 0028 §3.2）
+            if _tool.receipt is not None:                # 像系統的提醒一樣排上了：交出排程回執（ADR 0029 §3.2）
                 rec = receipt_for(_tool, values)
                 log.executed.append(Executed(_tool.name, dict(values), rec.reply_text()))
                 receipt_mod.emit(api, chat_id, rec)

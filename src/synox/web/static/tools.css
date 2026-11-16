@@ -64,7 +64,13 @@
   .tp-meta { color: var(--muted); font-size: 12.5px; font-family: var(--mono); }
   .tp-about p + p { margin-top: 4px; }
   .tp-panel > .section-label { margin: 16px 0 6px; }
-  .tp-panel .connect, .tp-panel iframe.panel { margin-top: 10px; }
+  .tp-panel .connect, .tp-panel-box { margin-top: 10px; }
+  /* 面板上方 SYNOX 畫的那一行（ADR 0028 §5）：在 iframe 外面，面板蓋不到 */
+  .tp-panel-note { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; margin: 0 0 6px;
+                   padding: 8px 10px; border-radius: var(--r); background: var(--surface-2);
+                   border: 1px solid var(--line); color: var(--text-2); font-size: 13.5px; }
+  .tp-panel-note > span:last-child { flex: 1 1 240px; min-width: 0; }
+  .tp-panel-box iframe.panel { display: block; }
 
   /* 一個指令 */
   .tp-cmds { display: flex; flex-direction: column; gap: 8px; }

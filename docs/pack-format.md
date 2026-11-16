@@ -56,18 +56,23 @@
 | `requires.system` | | 要的 SYNOX 系統能力，例如 `["notify", "schedule"]`；這台的 SYNOX 沒有＝不載入。見下面「`requires.packs`／`requires.system`」 |
 | `agent` | | **選填、建議寫**：給 AI 的登記——「什麼時候找我」一行、觸發字、說明書主題、能背書的未來承諾。沒寫＝AI 能力清單用 `summary`，行為跟以前一樣。見下面「`agent` 區塊」 |
 | `requires.pip` | | 要的 Python 套件。`runtime.python` 是 `"auto"`（只給 kind=cli）時，安裝會建 venv 照這份裝，每一項都要是 `名字==版本`（見下面「依賴與環境自動建置」）；沒有 `auto`＝SYNOX 不會幫你裝，只是給人看 |
-| `web.panel` | | Web UI 工具頁的面板：pack 資料夾裡的一個 `.html`（不能用 `..`、絕對路徑）。網頁在 `<iframe sandbox="allow-scripts allow-same-origin">` 裡掛 `/packs/<name>/panel`，只給看得到這個 pack 的人 |
+| `web.panel` | | Web UI 工具頁的面板：pack 資料夾裡的一個 `.html`（不能用 `..`、絕對路徑）。**一律隔開**（官方的也一樣，ADR 0028 §5）：工具頁先替看得到這個 pack 的人拿一張票（綁這個 pack＋那個登入，8 小時、登出就作廢），再用 `<iframe sandbox="allow-scripts">`（沒有 `allow-same-origin`）掛 `/packs/<name>/panel/<票>/`；回應的 CSP 也帶 `sandbox allow-scripts`。面板是「沒有來源」的小頁：沒有 cookie、讀不到登入、打不到 `/api/`、碰不到主頁，也不能開新視窗、送表單、導頁。要資料只能打**相對網址** `fetch("api/<route>")`（＝`/packs/<name>/panel/<票>/api/<route>`，只有 `web.api` 宣告的 GET，以拿票的那個人的身分）；**舊的 `fetch("/api/packs/<name>/<route>", {credentials: …})` 從面板打會被擋（401），要改成相對網址**。面板上方一定有 SYNOX 自己畫的一行說明與標章（「這個小畫面是工具作者做的…」），面板蓋不到。舊網址 `/packs/<name>/panel` 不再提供 |
 | `web.app` | | **完整的網頁畫面（工具服務，ADR 0024）**：只給 kind=python。擁有者在 SYNOX 開服務之後，在另一個本機位址（`127.0.0.2`）上看這個工具自己的畫面。規則見下面「完整網頁畫面（`web.app`）」與 [docs/tool-apps.md](tool-apps.md) |
 | `web.api` | | 面板能打的資料：`["GET /summary"]`（只支援 GET，名字小寫英數字）。pack 在 `install` 裡用 `pack.web_route("summary", fn)` 掛，`fn(user)` 回可以轉 JSON 的東西（**只回這個人自己的**：用 `pack.store.of(user)`）。沒宣告的 route 掛了也打不到 |
 | `health.check` | | **建議寫**：`{"check": "<這個 pack 的一個唯讀指令名>"}`。工具連續失敗被暫停、冷卻到了，SYNOX 用它**重新檢查**（不叫 AI；過了才放回 AI 的工具清單）。一定要是唯讀、不用填參數的指令：kind=cli 是 `cli.commands` 裡 `effect: READ`、沒有沒預設值的必填欄位、不是 `background`／`confirm`；kind=mcp 是 `tools_allow` 裡 `mcp.effects` 寫 `READ` 的工具；kind=python 寫指令名（執行時再確認是 READ）。安裝時寫錯＝拒裝；已裝的寫壞了＝當作沒寫（沒有自我檢查的工具冷卻結束後放回清單試用一次，每天最多 4 次）。見 [tool-health.md](tool-health.md) |
 
-面板範例：SYNOX 工具庫的 `packs/money/panel.html`（這個月的總額＋預算條，打 `GET /api/packs/money/summary`）。
-面板是 pack 自己的 HTML，跟 `pack.py` 一樣是你決定要不要信任的程式碼：它跟 Web UI 同源，能做你在網頁上能做的事。
+面板範例：SYNOX 工具庫的 `packs/money/panel.html`（這個月的總額＋預算條，打相對網址 `fetch("api/summary")`；不要帶 `credentials`，面板沒有 cookie）。
+面板是 pack 自己的 HTML＋JS，SYNOX 把它隔開：它只看得到自己 pack 在 `web.api` 宣告的資料，不能代替你在網頁上做事。畫面裡的字和按鈕是作者寫的，不是 SYNOX 的。
 
 `.synoxpack`＝一個 pack 資料夾壓成的 zip（`pack.json` 在最上層，或在唯一的那個資料夾裡）；`synox-sdk zip`／`scripts\pack_zip.py`
 會打包並算好 `integrity.sha256`（[sdk.md](sdk.md)）。裝的路有三條，都跑同一條安全管線（[security.md](security.md)「五關」）：
 Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Install-Pack.bat`）、`python -m synox install <檔> [--yes]`。
-（開發用的第四條：`config.json` 的 `packs.dirs` 直接指到一個資料夾，不經安裝流程、沒有鎖。）
+（開發用的第四條：`config.json` 的 `packs.dirs` 直接指到一個資料夾——**沒有鎖就不載入**（2026-11-16 起），要在電腦上跑
+`python -m synox packs lock --approve <name>`（跑第 1、2 關、印報告再鎖）。直接複製進 `packs/` 的也一樣不載入，設定頁會列「沒有經過安裝頁」＋「送去安裝頁檢查」鈕。）
+**簽章**：`synox-sdk zip` 之後可以 `synox-sdk sign <檔>.synoxpack --key <你的私鑰>.pem`，zip 裡多一個 `pack.sig.json`（其他每個檔的 sha256 清單＋Ed25519 簽章＋公鑰）。
+安裝報告第一列是 SYNOX 自己驗出來的標章：✅ 官方（擁有者的鑰匙）／✍️ 作者簽章（你的鑰匙；不是官方）／⚠️ 不是官方（沒簽）／⛔ 被改過（驗不過，拒裝）。
+`name`、`title`、`summary`、`publisher`、SKILL.md 的 description 裡寫「官方」「official」「SYNOX」「✅」而不是官方鑰匙簽的 → 報告紅字（不拒裝）；
+安裝時 `title`／`summary`／`publisher` 不能有看不見的字元（雙向控制、零寬）或換行。細節：[adr/0028](adr/0028-pack-signatures-official-badge.md)、[sdk.md](sdk.md)「簽章」。
 官方工具的 `.synoxpack` 由 SYNOX 工具庫（SYNOX_Libs）的 `scripts/build.py` 產生，旁邊有一份目錄 `index.json`；
 `config.json` 的 `packs.library`（資料夾或網址）告訴 SYNOX 工具庫在哪，`/help`、`doctor`、網頁在還沒裝工具時會提示（`src/synox/packs/library.py`）。
 檢查 zip（沒有絕對路徑、`..`、符號連結；檔名不能是 Windows 保留名（`CON`、`NUL`、`COM1`…，加副檔名也算）、不能有冒號（NTFS 資料流 `x.py::$DATA`）或 `< > " | ? *`、結尾不能是空白或句點；5 MB／解開 20 MB／300 個檔以內）→ 第 1 關宣告 → 第 2 關靜態掃描 → 給人看報告 →
@@ -129,8 +134,8 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
     （「未知指令」）、`/help` 與 AI 工具清單都沒有。`core`（擁有者安裝時選的）照常。
   - **沒有「出廠的」了**：以前內建的 notes、money、remind 與 `connectors/` 的 4 個 connector 2026-11-12 起都在工具庫，
     跟其他工具一樣要經安裝流程、看擁有者選的 trust（`loader.BUNDLED` 是空的，機制留著；提醒 `/remind_*` 是系統指令「⏰ 提醒（系統）」，不是 pack）。
-  - **沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）＝`third-party`；而且載入前補跑一次第 2 關靜態掃描，
-    沒過＝狀態 `rejected`、不載入（理由列 `檔名:行號`）。信得過就 `python -m synox packs lock --approve <name> --trust core`。
+  - **沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）**不載入**（狀態 `unapproved`，個人版也一樣；ADR 0028 §4）。
+    放在 `packs/` 的：設定頁「送去安裝頁檢查」；`packs.dirs` 的：`python -m synox packs lock --approve <name> [--trust core]`。
   - 為什麼只給擁有者，`doctor` 與 `packs status` 都會寫一行 🔐。kind=cli 的第三方 pack 另外看沙盒（見 `docs/security.md`「運行空間（沙盒）」）。
 
 ### 完整網頁畫面（`web.app`，工具服務）
@@ -174,7 +179,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 - 工具自己也能再檢查一次（多一層，不是邊界）：python 工具用 `kit.caller()`、`kit.require_human()`；子程序工具用 `synox_sdk` 的
   `caller()`、`require_human()`（SDK 0.2.3 起，見 docs/sdk.md）。
 
-### `agent` 區塊（給 AI 的登記，[ADR 0029](adr/0029-tool-registration-index.md)）
+### `agent` 區塊（給 AI 的登記，[ADR 0030](adr/0030-tool-registration-index.md)）
 
 工具在 pack.json 多寫一個 `agent` 區塊，說明「什麼時候想到我、我能保證什麼、我的說明書有哪些章節」。
 SYNOX 載入完所有工具後，把系統能力（提醒、排程…）和每個工具的這個區塊**彙整成一份索引**（`src/synox/agent/index.py`）：
@@ -233,7 +238,7 @@ SYNOX 載入完所有工具後，把系統能力（提醒、排程…）和每�
 | 欄位 | 說明 |
 |---|---|
 | `capabilities` | 宣告要用的能力：`network`、`subprocess`、`filesystem:own`、`filesystem:any`（含 own）、`exec`。第 2 關的掃描看到用了、卻沒宣告 → **拒裝**。沒寫＝什麼都沒宣告（舊 pack 一樣，由掃描結果決定裝不裝得了）。`exec` 也包含：`sys.modules`、dunder 屬性（`x.__class__`、`__dict__`、`__globals__`…，用 `type(x)` 代替 `x.__class__`）、`getattr` 的屬性名不是字面字、`vars()`／`globals()`／`locals()`、呼叫對象看不出是什麼（`handlers[k](…)`、`f()(…)`：先指給一個變數再呼叫）。第 2 關攔的是直呼名與常見的間接取用，**是提醒不是門**；python pack 在 SYNOX 程序裡跑，個人版沒有任何隔離（[security.md](security.md)「五關」） |
-| `publisher` | 發行者（給人看；沒寫會在報告裡提醒）。**T2 pack 一定要寫**：安裝者要一字不差地輸入這個值才裝得了（見下面「信任層級」）；升級時換了一律紅字 |
+| `publisher` | 發行者（給人看；沒寫會在報告裡提醒）。**T2 pack 一定要寫**：安裝者要一字不差地輸入這個值才裝得了（見下面「信任層級」）；升級時換了一律紅字。只是作者寫的字：「誰做的、有沒有被改過」看簽章 `pack.sig.json`（ADR 0028） |
 | `integrity.sha256` | `{"檔名": "64 個 16 進位字"}`，打包時算（`synox-sdk zip`）。有寫就每個檔都要對得上、也不能多出沒列的檔（`pack.json` 本身不算） |
 | `auth` | v0 的字串（`oauth`／`token`／`caldav`）照舊；v2 寫 `{"type": "none｜token｜oauth｜caldav｜file", "fields": [...]}`。`token`／`file` 的 `fields` 由 SYNOX 收，見下面「pack 的 secret」 |
 | `kind: "mcp"`＋`mcp` | 只登記：`{"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}`（不連、不能附程式檔）。**真的連**：`"transport": "stdio"`（見下面「`mcp`（stdio）」）或 `"transport": "http"`（遠端 MCP，見「`mcp`（http）」）。兩種都是 `tools_allow` 不能空、每個允許的工具都要有 effect（沒寫＝拒） |

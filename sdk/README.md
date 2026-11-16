@@ -16,6 +16,12 @@
 - 工具的 `pack.json` 要寫 `"requires": {"sdk": ">=0.2,<0.3"}`：SYNOX 安裝、載入時對這台的 `SDK_VERSION`，不合就不裝、不載入並說原因。
   `synox-sdk init` 會自動寫好（`synox_sdk.SDK_REQUIRES`）。
 
+## 簽章不在這個檔裡
+
+這個單檔版只有寫工具用的東西，**沒有**簽章功能。要替 `.synoxpack` 簽章（`keygen`、`sign`、`verify`），請用 SYNOX 資料夾裡的
+`synox-sdk`（或 `python -m synox.sdk keygen|sign|verify …`；它要 `cryptography`，SYNOX 本來就裝了）。
+怎麼做見 [../docs/sdk.md](../docs/sdk.md)「簽章：keygen、sign、verify」。
+
 ## 不要直接改這個檔
 
 正本是 `src/synox/sdk/author.py`；改完跑 `scripts/build_synox_sdk.py` 重產（`--check` 只比對，測試也會比）。

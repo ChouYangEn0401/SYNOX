@@ -1,10 +1,10 @@
 """
-對話助理的系統提示：七層，每層一個函式（第 3、4 層來自工具登記索引 docs/adr/0029；承諾規則的程式把關 docs/adr/0028 §3.2）。
+對話助理的系統提示：七層，每層一個函式（第 3、4 層來自工具登記索引 docs/adr/0030；承諾規則的程式把關 docs/adr/0029 §3.2）。
 
     層  函式                     內容                                                  何時變        上限（字）
     1   identity()               我是誰、跑在哪、跟誰說話、語氣、語音輸入的錯字          不變           IDENTITY_MAX
     2   conduct(tools)           行為守則＋承諾規則 6 條（＋agent.always，always_block）  不變           CONDUCT_MAX
-    3   capabilities(...)        能力清單：工具登記索引（agent/index.py，ADR 0029）       裝卸工具才變   CAPS_MAX（3、4 層合計）
+    3   capabilities(...)        能力清單：工具登記索引（agent/index.py，ADR 0030）       裝卸工具才變   CAPS_MAX（3、4 層合計）
     4   （同上）                 技能索引：每個說明書一行，全文用 skill_read 讀
     5   tool_specs(tools, native) 這一輪挑到的工具（只有文字協定才寫進提示；原生工具走 API）  每輪
     6   preferences(soul, alias) 使用者偏好（soul.md，只有擁有者私訊）、自己取的指令名稱     每輪           soul 自己的上限（2,000）

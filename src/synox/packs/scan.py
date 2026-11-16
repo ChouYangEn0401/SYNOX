@@ -1717,7 +1717,7 @@ def gate2(m: Manifest) -> ScanReport:
     return scan(m)
 
 
-# ── 安裝報告：給 AI 的登記（agent 區塊，ADR 0029） ─────────────────────
+# ── 安裝報告：給 AI 的登記（agent 區塊，ADR 0030） ─────────────────────
 
 PROMISE_TEXT = {"schedule": "排定時間（成功後 AI 可以說「到時候會…」）",
                 "watch": "持續監看（成功後 AI 可以說「之後有變化會通知你」）"}
@@ -1761,7 +1761,7 @@ def format_agent(summary: dict) -> List[str]:
         lines.append(f"  承諾：/{summary.get('name')} 的 {p['command']} 成功後可以背書「{p['kind']}」——{p['text']}")
     if info.get("needs_core"):
         from synox.packs.admin import red
-        lines.append(red(f"🔴 寫了 {'、'.join(info['needs_core'])}（每輪都進 AI 的提示）：只有信任選「核心（core）」才裝得進來"))
+        lines.append(red(f"🔴 寫了 {'、'.join(info['needs_core'])}（每輪都進 AI 的提示）：只有信任選「核心（core）」或有「✅ 官方」簽章才裝得進來"))
     if info.get("requires_packs") or info.get("requires_system"):
         lines.append("  相依：" + "、".join([f"工具 {x}" for x in info.get("requires_packs") or []]
                                            + [f"系統能力 {x}" for x in info.get("requires_system") or []]))

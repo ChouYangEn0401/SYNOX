@@ -142,7 +142,7 @@ def test_redirects_only_to_github():
                 "https://api.github.com/repos/someone/else/releases/latest",
                 "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v1/x",
                 "https://release-assets.githubusercontent.com/x",
-                "https://user:pw@github.com/ChouYangEn0401/SYNOX/releases/download/x",
+                "https://user:pw@github.com/ChouYangEn0401/SYNOX/releases/download/x",   # prepublish-check: allow（假的帳密網址，測試要擋）
                 "https://github.com:8443/ChouYangEn0401/SYNOX/releases/download/x",
                 "https://github.com/ChouYangEn0401/SYNOX/releases/download/../../x"):
         assert not upd.allowed(bad, first=True), bad
@@ -412,10 +412,37 @@ def test_release_key_must_stay_outside_the_repo(tmp_path, capsys):
     assert not os.path.exists(os.path.join(ROOT, "x.pem"))
     assert release.main(["sign", "--key", os.path.join(ROOT, "README.md"), "--dist", str(tmp_path)]) == 2
     assert release.main(["sign", "--dist", str(tmp_path)]) == 2                # 沒給私鑰
-    pub = release.keygen(str(tmp_path / "k.pem"))
+    pub = release.keygen(str(tmp_path / "k.pem"), no_passphrase=True)
     assert signing.public_keys([pub]) and oct((tmp_path / "k.pem").stat().st_mode)[-3:] in ("600", "666")
     assert release.main(["keygen", "--out", str(tmp_path / "k.pem")]) == 2   # 不蓋掉
     assert "repo" in capsys.readouterr().err
+
+
+def test_release_keygen_refuses_unencrypted_key_unless_asked(tmp_path, capsys, monkeypatch):
+    import getpass
+    monkeypatch.delenv(release.KEY_PASSWORD_ENV, raising=False)
+    monkeypatch.setattr(release, "_stdin_is_terminal", lambda: False)    # 腳本、排程：沒人能回答密語
+    assert release.main(["keygen", "--out", str(tmp_path / "a.pem")]) == 2
+    assert "--no-passphrase" in capsys.readouterr().err and not (tmp_path / "a.pem").exists()
+    assert release.main(["keygen", "--out", str(tmp_path / "b.pem"), "--no-passphrase"]) == 0
+    assert not open(tmp_path / "b.pem", "rb").read().startswith(b"-----BEGIN ENCRYPTED")
+    assert "key_id: " in capsys.readouterr().err
+    monkeypatch.setattr(release, "_stdin_is_terminal", lambda: True)     # 終端機上直接按 Enter＝也不行
+    monkeypatch.setattr(getpass, "getpass", lambda prompt="": "")
+    assert release.main(["keygen", "--out", str(tmp_path / "c.pem")]) == 2 and not (tmp_path / "c.pem").exists()
+
+
+def test_release_sign_asks_for_the_passphrase_on_a_terminal(tmp_path, monkeypatch):
+    import getpass
+    monkeypatch.setenv(release.KEY_PASSWORD_ENV, "pw")
+    pub = release.keygen(str(tmp_path / "k.pem"))
+    monkeypatch.delenv(release.KEY_PASSWORD_ENV)
+    monkeypatch.setattr(release, "_stdin_is_terminal", lambda: False)
+    with pytest.raises(release.ReleaseError):                               # 沒密語、沒終端機＝打不開
+        release.load_private_key(str(tmp_path / "k.pem"))
+    monkeypatch.setattr(release, "_stdin_is_terminal", lambda: True)
+    monkeypatch.setattr(getpass, "getpass", lambda prompt="": "pw")
+    assert release.public_key_b64(release.load_private_key(str(tmp_path / "k.pem"))) == pub
 
 
 # ── 命令列 ──────────────────────────────────────────────────────────

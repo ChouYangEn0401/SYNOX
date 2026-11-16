@@ -19,15 +19,21 @@ synox.sdk：給 pack 作者（寫工具的人）的小工具。工具是什麼�
 2. 檢查與打包：`Pack.load(dir)` 跑安全管線第 1、2 關（宣告＋靜態掃描），`zip_pack(dir)` 打成 `.synoxpack`（算好
    `integrity.sha256` 寫進 zip 裡的 pack.json）。
 
-3. 範本：`init_pack(dir, kind, name, title)` 產生 pack.json、SKILL.md、README.md、panel.html（＋python 的 pack.py、
-   cli 的範例工具 tool.py）。
+3. 範本：`init_pack(dir, kind, name, title)` 產生 pack.json、SKILL.md、README.md（＋python 的 pack.py、
+   cli 的範例工具 tool.py）；`panel=True`（`--panel`）才多一個面板 panel.html（ADR 0028 §5：面板隔開，用相對網址
+   `fetch("api/summary")` 讀資料）。
+
+5. 簽章（ADR 0028；synox.packs.signing）：`keygen` 產生你自己的鑰匙（私鑰用密語加密），`sign` 在 .synoxpack 裡加
+   pack.sig.json，`verify` 看一個 .synoxpack 會顯示什麼標章。單檔版 sdk/synox_sdk.py 沒有這些。
 
 4. 作者端（synox.sdk.author，單檔版 sdk/synox_sdk.py）：`@tool`、`serve()`、`secret()`、`context()`、`ToolError`、`fail()`／`ToolFailure`（失敗信封 v1）、`Confirm`。
    `init_from(tool.py, …)` 從 @tool 函式產生 pack.json＋SKILL.md；`run_command(資料夾, 指令, 參數)` 本機試跑
    （照 loader 的代換與第 4 關驗參數，不用開 SYNOX）。
 
-命令列：`synox-sdk init <資料夾> --kind cli --name x --title "…"`｜`synox-sdk init --from tool.py --name x --title "…"`｜
-`synox-sdk check <資料夾>`｜`synox-sdk zip <資料夾>`｜`synox-sdk run <指令> [參數…] [--pack 資料夾]`
+命令列：`synox-sdk init <資料夾> --kind cli --name x --title "…" [--panel]`｜`synox-sdk init --from tool.py --name x --title "…"`｜
+`synox-sdk check <資料夾>`｜`synox-sdk zip <資料夾>`｜`synox-sdk run <指令> [參數…] [--pack 資料夾]`｜
+`synox-sdk keygen --out <repo 以外的路徑>.pem [--no-passphrase]`｜`synox-sdk sign <檔>.synoxpack --key <私鑰> [--out <檔>]`｜
+`synox-sdk verify <檔>.synoxpack`（結束碼 0＝有效簽章、1＝沒有簽章、2＝被改過或檔不對）
 （沒有 synox-sdk 指令時：`python -m synox.sdk …`）。
 """
 
@@ -200,7 +206,9 @@ def zip_pack(folder: str, out_dir: Optional[str] = None) -> str:
     with open(os.path.join(folder, "pack.json"), "r", encoding="utf-8-sig") as f:
         raw = json.load(f)
     # __pycache__ 不打包（P7：SYNOX 安裝時也不解出來；本機跑過留下的快取不是 pack 的一部分）
-    hashes = {k: v for k, v in sorted(check.hashes.items()) if "__pycache__" not in k.split("/")[:-1]}
+    # 舊的 pack.sig.json（從簽過的 .synoxpack 解出來改的）也不打包：檔案改了它一定對不上；打包後再 synox-sdk sign
+    hashes = {k: v for k, v in sorted(check.hashes.items())
+              if "__pycache__" not in k.split("/")[:-1] and k != "pack.sig.json"}
     raw["integrity"] = {"sha256": {k: v for k, v in hashes.items() if k != "pack.json"}}
     out_dir = out_dir or os.path.join(os.getcwd(), "dist")
     os.makedirs(out_dir, exist_ok=True)
@@ -239,8 +247,9 @@ PANEL = """<!doctype html>
 <div id="out">讀取中…</div>
 <script>
 (function () {{
-  // 只打自己在 pack.json web.api 宣告的那幾個（GET /api/packs/{name}/<route>）；字一律 textContent
-  fetch("/api/packs/{name}/summary", {{ credentials: "same-origin" }})
+  // 面板是隔開的（ADR 0028 §5）：碰不到 SYNOX 的登入，只能用相對網址讀自己在 pack.json web.api 宣告的那幾個
+  // （"api/<route>"，前面不要加 /；不用帶登入資料）；字一律 textContent
+  fetch("api/summary")
     .then(function (r) {{ if (!r.ok) {{ throw new Error(r.status); }} return r.json(); }})
     .then(function (d) {{ document.getElementById("out").textContent = d.message || JSON.stringify(d.data || d); }})
     .catch(function (e) {{ document.getElementById("out").textContent = "讀不到（" + e.message + "）"; }});
@@ -375,14 +384,15 @@ if __name__ == "__main__":
 
 
 def agent_skeleton(title: str) -> dict:
-    """新工具骨架的 agent 區塊（給 AI 的登記；docs/pack-format.md「agent 區塊」、ADR 0029）：index 與 triggers 改成你的。"""
+    """新工具骨架的 agent 區塊（給 AI 的登記；docs/pack-format.md「agent 區塊」、ADR 0030）：index 與 triggers 改成你的。"""
     return {"index": f"{title[:40]}：改成「什麼時候找我」（一行、60 字內）"[:60],
             "triggers": [], "load": "on_trigger"}
 
 
-def init_pack(folder: str, kind: str, name: str, title: str, app: bool = False) -> List[str]:
+def init_pack(folder: str, kind: str, name: str, title: str, app: bool = False, panel: bool = False) -> List[str]:
     """產生一個新的 pack 資料夾（已存在的檔不蓋）。回寫了哪些檔。
-    app=True（只給 kind=python）：多一個完整的網頁畫面（app/index.html、app.js、app.css、pack.json 的 web.app）。"""
+    app=True（只給 kind=python）：多一個完整的網頁畫面（app/index.html、app.js、app.css、pack.json 的 web.app）。
+    panel=True：多一個工具頁的小面板 panel.html（web.panel；隔開的，用相對網址 api/summary 讀資料）。預設不產生。"""
     if kind not in KINDS:
         raise ValueError(f"kind 只能是 {'、'.join(KINDS)}")
     if app and kind != "python":
@@ -391,13 +401,14 @@ def init_pack(folder: str, kind: str, name: str, title: str, app: bool = False) 
     if not NAME_RE.match(name or ""):
         raise ValueError("name 只能用小寫英數字、-、_（32 字內，英文字母開頭）")
     os.makedirs(folder, exist_ok=True)
-    manifest = {"name": name, "title": title, "summary": f"{title}（用 synox-sdk init 產生，改成你的說明）",
+    # summary 不寫「SYNOX」：安裝報告會把工具自己寫的「SYNOX」「官方」標紅（ADR 0028 §4.3）
+    manifest = {"name": name, "title": title, "summary": f"{title}（用範本產生，改成你的說明）",
                 "version": "0.1.0", "kind": kind, "access": "owner", "surfaces": ["dm"],
                 "data": "user" if kind == "python" else "none", "skill": "SKILL.md",
                 "requires": {"synox": author.SYNOX_REQUIRES, "sdk": author.SDK_REQUIRES},
                 "publisher": "", "capabilities": [],
                 "agent": agent_skeleton(title),
-                "web": {"panel": "panel.html", "api": ["GET /summary"]}}
+                "web": {"panel": "panel.html", "api": ["GET /summary"]} if panel else {"api": ["GET /summary"]}}
     files = {}
     if kind == "python":
         manifest.update({"python": {"module": "pack"}, "storage": "vault"})
@@ -424,7 +435,8 @@ def init_pack(folder: str, kind: str, name: str, title: str, app: bool = False) 
     files["README.md"] = (f"# {title}\n\nSYNOX pack（kind: {kind}）。\n\n- 檢查：`synox-sdk check .`\n"
                           f"- 打包：`synox-sdk zip .` → `dist/{name}-0.1.0.synoxpack`\n"
                           "- 安裝：在 SYNOX 的網頁設定頁上傳，或點兩下 .synoxpack\n")
-    files["panel.html"] = PANEL.format(title=title, name=name)
+    if panel:
+        files["panel.html"] = PANEL.format(title=title, name=name)
     written = []
     for rel, text in files.items():
         path = os.path.join(folder, rel)
@@ -752,6 +764,98 @@ def run_command(folder: str, command: str, args: List[str], *, data_dir: Optiona
     return 0
 
 
+# ── 簽章：keygen、sign、verify（ADR 0028 §8） ─────────────────────────
+
+def _stdin_tty() -> bool:
+    from synox.packs import signing
+    return signing.stdin_is_terminal()
+
+
+def _new_passphrase(no_passphrase: bool) -> str:
+    """keygen 的密語：環境變數 SYNOX_PACK_KEY_PASSWORD 有設就用它；沒設、在終端機上＝問兩次。空的要 --no-passphrase。"""
+    from synox.packs import signing
+    if no_passphrase:
+        return ""
+    if os.environ.get(signing.KEY_PASSWORD_ENV):
+        return os.environ[signing.KEY_PASSWORD_ENV]
+    if _stdin_tty():
+        import getpass
+        first = getpass.getpass("替私鑰設一個密語（打字時不會顯示）：")
+        if first and getpass.getpass("再輸入一次密語：") != first:
+            raise ValueError("兩次輸入的密語不一樣，沒有產生鑰匙。請再跑一次")
+    else:
+        first = os.environ.get(signing.KEY_PASSWORD_ENV, "")
+    if not first:
+        raise ValueError(f"私鑰一定要有密語（終端機上會問；腳本裡設環境變數 {signing.KEY_PASSWORD_ENV}）。"
+                         "真的不要密語才加 --no-passphrase")
+    return first
+
+
+def _key_passphrase(path: str) -> Optional[str]:
+    """sign 讀私鑰的密語：環境變數 SYNOX_PACK_KEY_PASSWORD（或 SYNOX_RELEASE_KEY_PASSWORD）；沒設又在終端機上＝問一次。"""
+    from synox.packs import signing
+    problem = signing.key_path_problem(path)            # 位置不對：先說，不要先問密語
+    if problem:
+        raise ValueError(problem)
+    if not signing.key_needs_passphrase(path):
+        return None
+    for env in (signing.KEY_PASSWORD_ENV, signing.RELEASE_KEY_PASSWORD_ENV):
+        if os.environ.get(env):
+            return os.environ[env]
+    if _stdin_tty():
+        import getpass
+        return getpass.getpass("私鑰的密語（打字時不會顯示）：") or None
+    return None
+
+
+def keygen(out_path: str, passphrase: str) -> dict:
+    """產生新的 Ed25519 鑰匙：私鑰（PEM，有密語就加密）寫到 out_path（不能已經有檔、不能在 SYNOX／git 資料夾裡；
+    權限 0600），回 {"public_key", "key_id", "path"}。"""
+    import base64
+    from cryptography.hazmat.primitives import serialization
+    from synox.packs import signing
+    out_path = os.path.abspath(out_path)
+    problem = signing.key_path_problem(out_path)
+    if problem:
+        raise ValueError(problem)
+    if os.path.exists(out_path):
+        raise ValueError(f"{out_path} 已經有檔案了，不會蓋掉（換一個檔名，或先把舊的移走）")
+    pem = signing.generate_private_key_pem(passphrase)
+    key = serialization.load_pem_private_key(pem, password=passphrase.encode("utf-8") if passphrase else None)
+    os.makedirs(os.path.dirname(out_path), exist_ok=True)
+    fd = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
+    with os.fdopen(fd, "wb") as f:
+        f.write(pem)
+    pub = signing.public_key_b64(key)
+    return {"public_key": pub, "key_id": signing.key_id(base64.b64decode(pub)), "path": out_path}
+
+
+def sign_pack(path: str, key_path: str, out: Optional[str] = None, passphrase: Optional[str] = None) -> dict:
+    """.synoxpack 加上 pack.sig.json（原檔覆寫；out 另存）。回 {"path", "key_id", "status"}。"""
+    from synox.packs import signing
+    key = signing.load_private_key(key_path, passphrase)
+    target = os.path.abspath(out or path)
+    kid = signing.sign_zip(path, key, out=target)
+    return {"path": target, "key_id": kid, "status": signing.verify_zip(target).status}
+
+
+EXIT_VERIFY = {"official": 0, "author": 0, "none": 1, "invalid": 2}
+
+
+def verify_lines(result) -> List[str]:
+    """synox-sdk verify 印的字：標章（狀態）、原因、說明、key_id。"""
+    lines = [f"{result.label}（{result.status}）", f"  {result.reason}"]
+    if result.status != "invalid":
+        lines.append(f"  {result.text}")
+    else:
+        lines.append("  SYNOX 不會裝這個檔：請重新打包、重新簽一次（synox-sdk zip → synox-sdk sign）")
+    if result.key_id:
+        lines.append(f"  key_id: {result.key_id}")
+    if result.status == "none":
+        lines.append("  要簽：synox-sdk sign <檔>.synoxpack --key <你的私鑰>.pem（還沒有鑰匙：synox-sdk keygen --out <路徑>）")
+    return lines
+
+
 # ── 命令列 ─────────────────────────────────────────────────────────────
 
 def main(argv=None) -> int:
@@ -769,6 +873,7 @@ def main(argv=None) -> int:
     p.add_argument("--name", required=True)
     p.add_argument("--title", default="")
     p.add_argument("--app", action="store_true", help="多一個完整的網頁畫面（工具服務；只給 --kind python）")
+    p.add_argument("--panel", action="store_true", help="多一個工具頁的小面板 panel.html（預設不產生）")
     p = sub.add_parser("run", help="本機試跑一個指令（照 SYNOX 的代換與參數檢查，不用開 SYNOX）")
     p.add_argument("command")
     p.add_argument("args", nargs="*", help="跟在 Telegram 打的一樣：照位置填，或 key=value")
@@ -781,6 +886,15 @@ def main(argv=None) -> int:
     p = sub.add_parser("zip", help="打成 dist/<name>-<version>.synoxpack")
     p.add_argument("folder")
     p.add_argument("--out", default="", help="輸出資料夾（預設 ./dist）")
+    p = sub.add_parser("keygen", help="產生你自己的簽章鑰匙（私鑰用密語保護，放在專案資料夾以外）")
+    p.add_argument("--out", required=True, help="私鑰檔要寫到哪（例如 D:\\keys\\my-pack-key.pem）")
+    p.add_argument("--no-passphrase", action="store_true", help="不設密語（不建議）")
+    p = sub.add_parser("sign", help="在 .synoxpack 裡加上簽章（先 zip 再 sign）")
+    p.add_argument("file", help="synox-sdk zip 打好的 .synoxpack")
+    p.add_argument("--key", required=True, help="synox-sdk keygen 產生的私鑰檔")
+    p.add_argument("--out", default="", help="另存成這個檔（預設：覆寫原檔）")
+    p = sub.add_parser("verify", help="看一個 .synoxpack 安裝時會顯示什麼標章（0＝有簽章、1＝沒有、2＝被改過）")
+    p.add_argument("file")
     args = parser.parse_args(argv)
     try:
         if args.cmd == "init" and args.source:
@@ -793,7 +907,8 @@ def main(argv=None) -> int:
             if not args.folder:
                 print("❌ 要給資料夾（或用 --from tool.py）")
                 return 2
-            written = init_pack(args.folder, args.kind, args.name, args.title or args.name, app=args.app)
+            written = init_pack(args.folder, args.kind, args.name, args.title or args.name, app=args.app,
+                                panel=args.panel)
             print(f"✅ 寫了 {len(written)} 個檔：{'、'.join(written) or '（都已經存在，沒動）'}")
             return 0
         if args.cmd == "check":
@@ -806,7 +921,33 @@ def main(argv=None) -> int:
         if args.cmd == "zip":
             path = zip_pack(args.folder, args.out or None)
             print(f"📦 {path}")
+            print("  要簽章：synox-sdk sign " + path + " --key <你的私鑰>.pem")
             return 0
+        if args.cmd == "keygen":
+            info = keygen(args.out, _new_passphrase(args.no_passphrase))
+            print(f"public_key: {info['public_key']}")
+            print(f"key_id: {info['key_id']}")
+            print(f"✅ 私鑰寫在 {info['path']}（離線保存；不要放進 git、雲端硬碟或聊天，也不要給別人）。")
+            print(f"  下一步：synox-sdk sign <檔>.synoxpack --key {info['path']}")
+            print("  （SYNOX 擁有者產生官方鑰匙時：把 public_key 那一行貼進 src/synox/packs/signing.py 的 "
+                  "OFFICIAL_PACK_PUBLIC_KEYS）")
+            return 0
+        if args.cmd == "sign":
+            from synox.packs import signing
+            done = sign_pack(args.file, args.key, args.out or None, _key_passphrase(args.key))
+            print(f"✅ 簽好了：{done['path']}（{signing.LABELS[done['status']]}）")
+            print(f"key_id: {done['key_id']}")
+            return 0
+        if args.cmd == "verify":
+            from synox.packs import signing
+            try:
+                result = signing.verify_zip(args.file)
+            except ValueError as e:
+                print(f"{signing.LABELS['invalid']}（檔案不對）")
+                print(f"  {e}")
+                return 2
+            print("\n".join(verify_lines(result)))
+            return EXIT_VERIFY.get(result.status, 2)
     except ValueError as e:
         print(f"❌ {e}")
         return 2

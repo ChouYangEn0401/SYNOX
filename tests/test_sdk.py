@@ -31,7 +31,8 @@ def test_envelopes():
 def test_init_check_zip_install(tmp_path, kind):
     folder = tmp_path / f"demo-{kind}"
     written = sdk.init_pack(str(folder), kind, f"demo-{kind}", "示範")
-    assert {"pack.json", "SKILL.md", "README.md", "panel.html"} <= set(written)
+    assert {"pack.json", "SKILL.md", "README.md"} <= set(written)
+    assert "panel.html" not in written                                        # ADR 0028 §5：面板預設不產生
     assert ("tool.py" if kind == "cli" else "pack.py") in written
     assert sdk.init_pack(str(folder), kind, f"demo-{kind}", "示範") == []          # 不蓋已經有的檔
     check = sdk.Pack.load(str(folder))
@@ -43,6 +44,7 @@ def test_init_check_zip_install(tmp_path, kind):
     assert set(manifest["integrity"]["sha256"]) == set(written) - {"pack.json"}
     token, summary = admin.stage(open(path, "rb").read(), str(tmp_path / "data"))
     assert summary["integrity"] and summary["scan"]["ok"]
+    assert summary["signature"]["status"] == "none" and summary["signature"]["lookalike"] == []
     assert admin.install_staged(token, str(tmp_path / "data"), str(tmp_path / "packs"), approved_by=1) == f"demo-{kind}"
     assert lock.entry(str(tmp_path / "data"), f"demo-{kind}")
 

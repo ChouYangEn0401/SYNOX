@@ -1,5 +1,5 @@
 """
-電腦提醒視窗＋提醒哨兵（docs/adr/0028 §3.4–3.5、docs/notifications.md「電腦提醒視窗」）。
+電腦提醒視窗＋提醒哨兵（docs/adr/0029 §3.4–3.5、docs/notifications.md「電腦提醒視窗」）。
 
 - logic.py：視窗的邏輯（讀 to_win、寫 shown／act、延後時間怎麼算、多張卡怎麼疊）。**不開視窗就能測**。
 - window.py：tkinter 畫面（右下角、永遠在最上層、多張往上疊、響一聲；不處理不會自己關）。只負責畫，邏輯全在 logic.py。

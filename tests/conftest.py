@@ -5,7 +5,12 @@ SYNOX 出廠不帶工具（2026-11-12，docs/legacy/builtin-packs.md、docs/lega
 那 4 個連同測試搬到 SYNOX_Libs 了）
 （_test_pack_dirs，autouse）：make_bot、doctor、/bot_status、web 的 reload 看到的都是這一份，不讀 repo 的 packs/
 （那裡是使用者裝工具的地方，開發機上可能有東西）。提醒（/remind_*）是系統指令，不在這裡（QL5）。伺服器版的 make_bot 先把這兩個鎖成 trust=core
-（以前它們是「出廠＝core」；現在要經安裝流程，見 trust_core）。要測「空的 host」就給 pack_dirs=() 或換 PACK_DIRS。"""
+（以前它們是「出廠＝core」；現在要經安裝流程，見 trust_core）。要測「空的 host」就給 pack_dirs=() 或換 PACK_DIRS。
+
+沒有 packs.lock 那一筆的 pack 不載入（ADR 0028 §4：狀態 unapproved）。所以 make_bot 在 build 之前把要掃的資料夾裡
+還沒鎖的 pack 全部鎖起來（lock_all：trust 預設 third-party＝擁有者「裝過」）；伺服器版先跑 trust_core，fixture 的 money／notes
+是 core。測「沒有經過安裝頁」的給 make_bot(..., lock_packs=False)。自己叫 build 的測試用 lock_all(data_dir, dirs)；
+build 之後才放進去、要 reload 載入的 pack 也要先 lock_all（或 lock.approve）。"""
 
 import os
 
@@ -40,7 +45,8 @@ class SynoxBot(BotHarness):
 
 @pytest.fixture
 def make_bot(tmp_path):
-    def factory(script=None, *, adapter=None, llm=None, raw=None, supports_tools=True, pack_dirs=None):
+    def factory(script=None, *, adapter=None, llm=None, raw=None, supports_tools=True, pack_dirs=None,
+                lock_packs=True):
         data = tmp_path / "data"
         cfg = {"owner_id": OWNER_ID, "data_dir": str(data), "vault": {"mode": "file"},
                "llm": llm or {"kind": "fake"}, **(raw or {})}
@@ -51,6 +57,8 @@ def make_bot(tmp_path):
             adapter = FakeAdapter(script, supports_tools=supports_tools)
         if config.mode == "server":            # 以前「出廠＝core」；現在當作擁有者安裝時選了 core
             trust_core(data, *(os.path.join(FIXTURE_PACKS, n) for n in FIXTURE_NAMES))
+        if lock_packs:                         # 沒鎖的不載入：測試裡手放的 pack 當作擁有者經安裝頁裝過
+            lock_all(data, pack_dirs if pack_dirs is not None else config.pack_dirs())
         kw = {"pack_dirs": pack_dirs} if pack_dirs is not None else {}
         app = build(config, home=api, adapter=adapter, vault=vault, **kw)
         return SynoxBot(app, api)
@@ -115,6 +123,23 @@ def trust_core(data_dir, *folders):
     from synox.packs.manifest import read
     for folder in folders:
         lock.approve(str(data_dir), read(folder), None, OWNER_ID, via="test", trust="core")
+
+
+def lock_all(data_dir, dirs):
+    """dirs 裡每個還沒有 packs.lock 那一筆的 pack 都鎖起來（trust 預設 third-party；已經有鎖的不動）。
+    pack.json 壞掉的略過（讓 loader 照樣報 invalid）。回鎖了哪些名字。"""
+    from synox.packs import loader, lock
+    from synox.packs.manifest import ManifestError, read
+    done = []
+    for folder in loader.discover(tuple(dirs)):
+        try:
+            m = read(folder)
+        except ManifestError:
+            continue
+        if lock.entry(str(data_dir), m.name) is None:
+            lock.approve(str(data_dir), m, None, OWNER_ID, via="test", folder=folder)
+            done.append(m.name)
+    return done
 
 
 def enc_files(bot):

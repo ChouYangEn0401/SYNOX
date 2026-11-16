@@ -1,5 +1,5 @@
 """
-送達介面（契約，docs/adr/0028 §3.3）：疊在通知中心（hub.py）上的「送達確認＋重試＋佇列」。
+送達介面（契約，docs/adr/0029 §3.3）：疊在通知中心（hub.py）上的「送達確認＋重試＋佇列」。
 
     from synox.notify import delivery
     ticket = delivery.deliver(app, delivery.Message(key="rem:3:2026-11-16T00:51:00+08:00", uid=123,
