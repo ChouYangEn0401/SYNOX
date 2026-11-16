@@ -1,0 +1,24 @@
+{
+  "case": "promise-01",
+  "source": "broken",
+  "completion_guard": "on",
+  "note": "一直說「會提醒」卻從來沒有叫工具：重寫兩次都沒排，系統照實說沒有排上",
+  "expected_failures": [
+    "must_call",
+    "final_contains",
+    "final_not_contains"
+  ],
+  "turns": [
+    [
+      {
+        "text": "好的，明天早上 8 點會提醒你繳電話費。"
+      },
+      {
+        "text": "好的，明天早上 8 點會提醒你繳電話費。"
+      },
+      {
+        "text": "好的，明天早上 8 點會提醒你繳電話費。"
+      }
+    ]
+  ]
+}

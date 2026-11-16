@@ -1,0 +1,26 @@
+{
+  "case": "remind-02",
+  "source": "reference",
+  "completion_guard": "on",
+  "note": "手寫的參考回覆",
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "alarm__set",
+            "args": {
+              "time": "22:00",
+              "text": "吃藥",
+              "repeat": "daily"
+            },
+            "result": "⏰ 排好了：每天 22:00 提醒你「吃藥」（每天）。\n會送到：Telegram、這台電腦的視窗。\n不會響的情況：電腦關機時、電腦睡著時（開機後補送）。\n〔排程回執〕kind=remind；id=1；due=2026-11-16T22:00:00+08:00；repeat=daily；channels=telegram,desktop；not_when=off,asleep"
+          }
+        ]
+      },
+      {
+        "text": "好，每天晚上 22:00 會提醒你吃藥，Telegram 和這台電腦的視窗都會跳出來。"
+      }
+    ]
+  ]
+}

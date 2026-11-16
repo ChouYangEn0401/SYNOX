@@ -1,0 +1,29 @@
+{
+  "case": "promise-01",
+  "source": "reference",
+  "completion_guard": "on",
+  "note": "手寫的參考回覆",
+  "turns": [
+    [
+      {
+        "text": "好的，明天早上 8 點會提醒你繳電話費。"
+      },
+      {
+        "tool_calls": [
+          {
+            "name": "alarm__set",
+            "args": {
+              "time": "08:00",
+              "text": "繳電話費",
+              "date": "2026-11-17"
+            },
+            "result": "⏰ 排好了：明天 08:00 提醒你「繳電話費」（只一次）。\n會送到：Telegram。\n不會響的情況：電腦關機時、電腦睡著時（開機後補送）。\n〔排程回執〕kind=remind；id=1；due=2026-11-17T08:00:00+08:00；repeat=once；channels=telegram；not_when=off,asleep"
+          }
+        ]
+      },
+      {
+        "text": "排好了：明天 08:00 會在 Telegram 提醒你繳電話費。"
+      }
+    ]
+  ]
+}
