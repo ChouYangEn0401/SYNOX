@@ -6,6 +6,8 @@
 - effect：read／write／danger（danger 一律核准卡）；confirm: true＝pack 的 commands[].confirm（AI 呼叫前先出卡）。
 - 參數＝node.fields（全部字串；required、choices 照題目）。
 - 回什麼：results 由上往下第一個 when 全部對得上的；reply 裡的 {參數名} 換成這次的值。都對不上＝NO_MATCH。
+- 寫了 receipt 的：像系統的提醒一樣「排上了」——經 schedule.receipt.emit 交出排程回執（迴圈附 machine_line、記進證據），
+  而且登記成能背書未來的工具（agent.index.register_system 的 promises），承諾把關照真的走。
 """
 
 from __future__ import annotations
@@ -17,6 +19,7 @@ from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 
 from synox.evals.cases import Case, ToolDef, args_match
 from synox.packs import kit
+from synox.schedule import receipt as receipt_mod
 
 EFFECT = {"read": READ, "write": WRITE, "danger": DANGER}
 NO_MATCH = "（找不到符合的資料）"
@@ -60,6 +63,7 @@ def install(app, case: Case) -> ToolLog:
     registry = app.registry
     log = ToolLog()
     groups: Dict[str, object] = {}
+    promises: Dict[str, Dict[str, str]] = {}
     for tool in case.tools:
         group_name, leaf = tool.name.split("__", 1)
         if group_name not in groups:
@@ -71,6 +75,11 @@ def install(app, case: Case) -> ToolLog:
 
         def run(api, chat_id, user, argv, _tool=tool, _fields=fields):
             values, _missing, _errors = kit.parse_args(_fields, argv, positional=0)
+            if _tool.receipt is not None:                # 像系統的提醒一樣排上了：交出排程回執（ADR 0029 §3.2）
+                rec = receipt_for(_tool, values)
+                log.executed.append(Executed(_tool.name, dict(values), rec.reply_text()))
+                receipt_mod.emit(api, chat_id, rec)
+                return
             text = reply_for(_tool, values)
             log.executed.append(Executed(_tool.name, dict(values), text))
             api.send_message(chat_id, text)
@@ -79,4 +88,27 @@ def install(app, case: Case) -> ToolLog:
         node.fields = fields
         if tool.confirm:
             app.extras.setdefault(META_KEY, {})[node.path] = {"confirm": True}
+        if tool.receipt is not None:
+            promises.setdefault(group_name, {})[leaf] = "schedule"
+    from synox.agent import index
+    for group_name, promised in promises.items():     # 交回執的假工具＝能背書「會提醒」（agent.index.promised_tools）
+        index.register_system(app, group_name, title=f"（評測）{group_name}", group=group_name, load="on_trigger",
+                              promises=promised)
     return log
+
+
+def receipt_for(tool: ToolDef, values: Dict[str, str]):
+    """題目寫的 receipt → ScheduleReceipt（字串裡的 {參數名} 換成這次的值；text 沒寫＝參數 text）。"""
+    def fill(value):
+        if isinstance(value, str):
+            for key, v in values.items():
+                value = value.replace("{" + key + "}", v)
+            return value
+        if isinstance(value, list):
+            return [fill(x) for x in value]
+        return value
+
+    data = {k: fill(v) for k, v in (tool.receipt or {}).items()}
+    data.setdefault("text", values.get("text", ""))
+    data.setdefault("repeat", "once")
+    return receipt_mod.ScheduleReceipt.from_dict({"id": 1, **data})

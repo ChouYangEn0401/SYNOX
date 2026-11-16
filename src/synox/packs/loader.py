@@ -23,6 +23,9 @@ pack 有 runtime.container、擁有者選了容器、這台找得到引擎 → s
 伺服器版 kind=python 的信任（PERM-8）：看 packs.lock 的 trust（擁有者安裝時選的）。沒鎖的根本不載入（上面），
 只有出廠的（BUNDLED，現在是空的）沒鎖也載入＝core。third-party 的 python pack 整組 owner_only（成員打了跟不存在一樣、
 AI 工具清單也沒有；detail 寫原因）。
+工具登記（ADR 0030，agent/index.py）：requires.packs 的工具排在用它的前面載入；缺了（沒裝、版本不合、沒載入成功）或
+requires.system 的系統能力這台沒有＝status missing、detail 寫缺什麼。第三方信任、又沒有官方簽章的工具寫了 agent.always／load=always＝rejected。
+全部載入完彙整成索引（記憶體＋data/agent_index.json）。
 
 群組（/help 的一頁）由 loader 依 pack.json 定義（title、summary、access），pack 只往裡面掛葉節點；
 access=owner（預設）＝整組只有機器擁有者看得到、用得到（別人打了跟不存在一樣）；
@@ -479,14 +482,6 @@ def discover(dirs=PACK_DIRS) -> List[str]:
             if os.path.isfile(os.path.join(folder, "pack.json")):
                 add(folder)
     return folders
-
-
-def _order(folder: str) -> tuple:
-    try:
-        m = read(folder)
-        return (0 if m.kind not in ("connector", "mcp") else 1, int(m.raw.get("order", 100)), m.name)
-    except (ManifestError, ValueError, TypeError):
-        return (2, 0, folder)
 
 
 def apply_scope(app, m: Manifest) -> None:
@@ -975,17 +970,81 @@ def system_group_problem(app, m: Manifest) -> str:
     return owned.get(m.group.split(".")[0], "")
 
 
+def _dependency_order(found: List[tuple]) -> List[tuple]:
+    """[(folder, manifest 或 ManifestError)…]（已照 kind、order、名字排好）→ 相依的工具（requires.packs）排在用它的前面；
+    其他維持原本的順序。互相依賴（繞圈）的照原本的順序，載入時會說缺什麼。"""
+    from synox.packs.manifest import required_packs
+    names = {m.name for _f, m in found if isinstance(m, Manifest)}
+
+    def deps(m) -> List[str]:
+        try:
+            return [n for n, _spec in required_packs(m.requires) if n in names and n != m.name]
+        except ValueError:
+            return []
+
+    out: List[tuple] = []
+    placed: set = set()
+    pending = list(found)
+    while pending:
+        progressed = False
+        for entry in list(pending):
+            m = entry[1]
+            if not isinstance(m, Manifest) or all(d in placed for d in deps(m)):
+                out.append(entry)
+                pending.remove(entry)
+                if isinstance(m, Manifest):
+                    placed.add(m.name)
+                progressed = True
+        if not progressed:                     # 繞圈：剩下的照原本的順序
+            out += pending
+            break
+    return out
+
+
+def _read_all(dirs) -> List[tuple]:
+    found: List[tuple] = []
+    for folder in discover(dirs):
+        try:
+            found.append((folder, read(folder)))
+        except ManifestError as e:
+            found.append((folder, e))
+
+    def key(entry) -> tuple:
+        folder, m = entry
+        if not isinstance(m, Manifest):
+            return (2, 0, folder)
+        try:
+            order = int(m.raw.get("order", 100))
+        except (ValueError, TypeError):
+            return (2, 0, folder)
+        return (0 if m.kind not in ("connector", "mcp") else 1, order, m.name)
+    return _dependency_order(sorted(found, key=key))
+
+
+def agent_trust_reason(config, m: Manifest) -> str:
+    """agent.always／load=always 只給核心信任（packs.lock 的 trust；沒鎖＝出廠的才算核心）或鎖裡記著「✅ 官方」簽章的
+    （ADR 0028；鎖是安裝時驗過才寫的）：其他 → 一句話（不載入）。"""
+    from synox.packs.manifest import agent_trust_problem
+    if not (m.agent or {}).get("always") and (m.agent or {}).get("load") != "always":
+        return ""
+    data_dir = getattr(config, "data_dir", "") or ""
+    signature = pack_lock.signature_of(pack_lock.entry(data_dir, m.name) if data_dir else None)["status"]
+    return agent_trust_problem(m, sandbox.trust_of(data_dir, m), signature)
+
+
 def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
+    from synox.agent import index as agent_index
     report = LoadReport()
     packs: List[Pack] = app.extras.setdefault("synox_packs", [])
     secret_store = pack_secrets.PackSecrets(vault, server=getattr(config, "mode", "personal") == "server")
     app.extras["synox_pack_secrets"] = secret_store
-    for folder in sorted(discover(dirs), key=_order):
-        try:
-            m = read(folder)
-        except ManifestError as e:
-            report.items.append(PackStatus(os.path.basename(folder), folder, "invalid", str(e)))
-            logging.error("[PACKS] %s: %s", folder, e)
+    agent_index.ensure_core(app)               # 系統層（提醒、排程、通知）先登記：requires.system 對它們
+    systems = agent_index.system_names(app)
+    loaded = {p.manifest.name: p.manifest.version for p in packs}
+    for folder, m in _read_all(dirs):
+        if isinstance(m, ManifestError):
+            report.items.append(PackStatus(os.path.basename(folder), folder, "invalid", str(m)))
+            logging.error("[PACKS] %s: %s", folder, m)
             continue
         item = PackStatus(m.name, folder, "loaded", kind=m.kind, version=m.version)
         report.items.append(item)
@@ -1012,6 +1071,11 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         if missing:
             item.status, item.detail = "missing", f"缺 {missing}"
             continue
+        lacking = agent_index.dependency_problems(m, loaded, systems)    # requires.packs／requires.system（ADR 0030）
+        if lacking:
+            item.status, item.detail = "missing", "缺 " + "、".join(lacking)
+            logging.warning("[PACKS] %s not loaded, missing: %s", m.name, "; ".join(lacking))
+            continue
         no_env = envs.env_problem(m, config.data_dir)   # runtime.python／node=auto 的環境沒建好、沒有 node
         if no_env:
             item.status, item.detail = "missing", no_env
@@ -1027,6 +1091,11 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
             item.status, item.detail = "tampered", "檔案跟核准時不一樣：" + "、".join(changes[:10])
             logging.error("[PACKS] %s tampered: %s", m.name, changes)
             _tamper_notice(app, config, m, changes)
+            continue
+        untrusted = agent_trust_reason(config, m)       # 第三方寫了 agent.always／load=always＝不載入
+        if untrusted:
+            item.status, item.detail = "rejected", untrusted
+            logging.error("[PACKS] %s rejected: %s", m.name, untrusted)
             continue
         if m.kind == "theme":                    # 外觀包：沒有程式、不進指令表；網頁「設定 → 外觀」套用（synox/theme）
             item.detail = "外觀包：到「設定 → 外觀」套用"
@@ -1066,5 +1135,10 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         if m.registered_only:
             item.status = "connector"
         packs.append(pack)
+        loaded[m.name] = m.version
     app.extras["synox_pack_report"] = report
+    try:                                       # 工具登記索引（agent/index.py）：記憶體一份、data/agent_index.json 一份
+        agent_index.build(app, config, packs)
+    except Exception:
+        logging.exception("[PACKS] agent index not built (ignored)")
     return report

@@ -10,7 +10,7 @@ def _runner(bot):
 def test_remind_fires_once_per_day(make_bot, owner):
     bot = make_bot()
     bot.say(owner, "/remind_add 08:00 吃藥")
-    assert "每天 08:00 提醒你：吃藥" in bot.last(owner)
+    assert "08:00 提醒你「吃藥」（每天）" in bot.last(owner)
     runner = _runner(bot)
     assert runner.tick(datetime(2026, 11, 9, 7, 59)) == []
     fired = runner.tick(datetime(2026, 11, 9, 8, 0, 10))
@@ -25,7 +25,7 @@ def test_one_shot_reminder_removed(make_bot, owner):
     bot = make_bot()
     day = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
     bot.say(owner, f"/remind_add 15:30 繳費 date={day}")
-    assert f"{day} 15:30（一次）" in bot.last(owner)
+    assert "明天 15:30 提醒你「繳費」（只一次）" in bot.last(owner)
     runner = _runner(bot)
     when = datetime.strptime(day + " 15:30", "%Y-%m-%d %H:%M")
     assert runner.tick(when - timedelta(days=1)) == []                 # 前一天同一時間不跑
@@ -104,7 +104,7 @@ def test_remind_is_a_system_command_without_any_pack(make_bot, owner):
     assert group is not None and group.title == "⏰ 提醒（系統）"
     assert "remind" not in {p.manifest.group for p in bot.app.extras.get("synox_packs", [])}
     bot.say(owner, "/remind_add 08:00 吃藥")
-    assert "每天 08:00 提醒你：吃藥" in bot.last(owner)
+    assert "08:00 提醒你「吃藥」（每天）" in bot.last(owner)
     bot.say(owner, "/remind_list")
     assert bot.last(owner).startswith("⏰ 提醒（系統）") and "吃藥" in bot.last(owner)
     bot.say(owner, "/help all")
@@ -137,7 +137,7 @@ def test_old_remind_pack_is_not_loaded_and_says_why(make_bot, owner, tmp_path):
     assert bot.app.extras["synox_pack_report"].ok                    # 不算壞掉
     assert bot.app.registry.node("remind").title == "⏰ 提醒（系統）"
     bot.say(owner, "/remind_add 08:00 吃藥")                           # 沒有掛兩次、照常能用
-    assert "每天 08:00 提醒你：吃藥" in bot.last(owner)
+    assert "08:00 提醒你「吃藥」（每天）" in bot.last(owner)
 
 
 def test_remind_permissions_follow_the_old_pack(make_bot, owner):
@@ -153,3 +153,85 @@ def test_remind_permissions_follow_the_old_pack(make_bot, owner):
     server.say(OTHER_ID, "/remind_add 08:00 成員吃藥")
     assert "成員吃藥" in server.last(OTHER_ID)
     assert server.app.registry.node("remind").own.private_only
+
+
+# ── 提醒引擎（docs/adr/0029）：回執、時間用語、待辦、試響 ──────────────────────────
+
+def test_remind_add_replies_with_a_receipt(make_bot, owner):
+    bot = make_bot()
+    bot.say(owner, "/remind_add 08:00 吃藥")
+    text = bot.last(owner)
+    assert text.startswith("⏰ 排好了：") and "提醒你「吃藥」（每天）。" in text
+    assert "會送到：網頁。" in text and "不會響的情況：" in text and "SYNOX 沒開時" in text
+    item = bot.app.extras["synox_schedule_store"].items("remind")[0]
+    assert item["v"] == 2 and item["repeat"] == "daily" and item["source"] == "command"
+
+
+def test_remind_add_understands_words_and_asks(make_bot, owner):
+    bot = make_bot()
+    bot.say(owner, "/remind_add 半小時後 喝水")
+    assert "排好了" in bot.last(owner) and "（只一次）" in bot.last(owner)
+    item = bot.app.extras["synox_schedule_store"].items("remind")[0]
+    assert item["repeat"] == "once" and item["date"]
+    bot.say(owner, "/remind_add 等等 喝水")
+    assert bot.last(owner).startswith("❓") and "多久" in bot.last(owner)
+    bot.say(owner, "/remind_add 明天 喝水")
+    assert bot.last(owner).startswith("❓")
+    assert len(bot.app.extras["synox_schedule_store"].items("remind")) == 1          # 問的不排
+
+
+def test_remind_add_past_time_asks_about_tomorrow(make_bot, owner):
+    now = datetime.now()
+    if now.hour == 0 and now.minute == 0:
+        import pytest
+        pytest.skip("剛好午夜")
+    bot = make_bot()
+    bot.say(owner, f"/remind_add 00:00 倒垃圾 date={now.strftime('%Y-%m-%d')}")
+    assert "已經過了，是要明天 00:00 嗎？" in bot.last(owner) and "date=" in bot.last(owner)
+    bot.say(owner, "/remind_add 00:00 倒垃圾 repeat=once")
+    assert "已經過了" in bot.last(owner)
+    assert bot.app.extras["synox_schedule_store"].items() == []
+
+
+def test_todo_list_and_done(make_bot, owner):
+    bot = make_bot()
+    bot.say(owner, "/remind_add 08:00 吃藥")
+    bot.say(owner, "/remind_todo 繳電話費")
+    assert bot.last(owner).startswith("📝 記下了待辦：「繳電話費」") and "/remind_done 2" in bot.last(owner)
+    bot.say(owner, "/remind_list")
+    listing = bot.last(owner)
+    assert "1. 每天 08:00  吃藥" in listing and "📝 待辦" in listing and "2. 繳電話費" in listing
+    assert _runner(bot).tick(datetime(2026, 11, 9, 8, 0, 10))[0]["text"] == "吃藥"   # 待辦不會響
+    bot.say(owner, "/remind_done 1")
+    assert bot.last(owner) == "✅ 做完了：吃藥"                           # 正在響的那一次：按掉
+    item = bot.app.extras["synox_schedule_store"].items("remind")[0]
+    assert item["status"] == "pending" and item["history"][-1]["status"] == "done"
+    bot.say(owner, "/remind_done 1")
+    assert "還沒響" in bot.last(owner)
+    bot.say(owner, "/remind_done 2")
+    assert "✅ 做完了：繳電話費" in bot.last(owner)
+    bot.say(owner, "/remind_list")
+    assert "繳電話費" not in bot.last(owner)
+
+
+def test_remind_test_rings_in_a_minute(make_bot, owner):
+    bot = make_bot()
+    bot.say(owner, "/remind_test")
+    assert "排好了" in bot.last(owner) and "一分鐘後會響一次" in bot.last(owner)
+    store = bot.app.extras["synox_schedule_store"]
+    item = store.raw_items()[0]
+    assert item["source"] == "test" and item["repeat"] == "once"
+    from synox.schedule.reminder import from_iso
+    due = from_iso(item["due"]).replace(tzinfo=None)
+    assert len(_runner(bot).tick(due - timedelta(seconds=20))) == 0
+    assert len(_runner(bot).tick(due + timedelta(seconds=5))) == 1
+    assert "試響一下" in bot.last(owner)
+
+
+def test_no_channel_means_no_receipt(make_bot, owner, monkeypatch):
+    bot = make_bot()
+    from synox.schedule import commands
+    monkeypatch.setattr(commands, "planned_channels", lambda app, uid: [])
+    bot.say(owner, "/remind_add 08:00 吃藥")
+    assert "沒有任何地方可以叫你" in bot.last(owner) and "排好了" not in bot.last(owner)
+    assert bot.app.extras["synox_schedule_store"].items() == []

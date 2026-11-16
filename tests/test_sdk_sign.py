@@ -30,7 +30,7 @@ def test_keygen_sign_verify_round_trip(tmp_path, pack_file, capsys, monkeypatch)
     kid = out[1].split("key_id: ", 1)[1]
     assert len(pub) == 44 and len(kid) == 16 and "下一步" in "\n".join(out)
     pem = open(key_path, "rb").read()
-    assert pem.startswith(b"-----BEGIN ENCRYPTED PRIVATE KEY-----")       # 有密語保護
+    assert pem.startswith(b"-----BEGIN ENCRYPTED PRIVATE KEY-----")       # 有密語保護（prepublish-check: allow：只比對 PEM 檔頭字樣）
     if os.name != "nt":
         assert stat.S_IMODE(os.stat(key_path).st_mode) == 0o600
     assert sdk.main(["keygen", "--out", key_path]) == 2                   # 不蓋掉
@@ -91,7 +91,7 @@ def test_keygen_refuses_empty_passphrase_and_repo(tmp_path, capsys, monkeypatch)
     assert sdk.main(["keygen", "--out", str(tmp_path / "k.pem")]) == 2
     assert "--no-passphrase" in capsys.readouterr().out and not (tmp_path / "k.pem").exists()
     assert sdk.main(["keygen", "--out", str(tmp_path / "k.pem"), "--no-passphrase"]) == 0
-    assert open(tmp_path / "k.pem", "rb").read().startswith(b"-----BEGIN PRIVATE KEY-----")
+    assert open(tmp_path / "k.pem", "rb").read().startswith(b"-----BEGIN PRIVATE KEY-----")  # prepublish-check: allow（只比對 PEM 檔頭字樣，不是金鑰）
     capsys.readouterr()
     inside = os.path.join(signing.REPO_ROOT, "never-here.pem")
     assert sdk.main(["keygen", "--out", inside, "--no-passphrase"]) == 2

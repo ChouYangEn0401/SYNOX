@@ -93,6 +93,9 @@ synox tips      隨機一則使用小提示
 
 ⌨️ 打 `/help` 看你有哪些工具；想換成順手的打法（例如 `@記帳`）到「設定 → ⌨️ 我的指令」（[docs/commands.md](docs/commands.md)）。
 
+⏰ 提醒會送到網頁、Telegram、Discord，Windows 上還會在右下角跳出提醒視窗（SYNOX 沒開時由登入時啟動的「提醒哨兵」代勞）；
+晚了也會補響、送不到會重試，AI 說「會提醒你」之前一定要真的排好（🧪 alpha，還沒在實機完整驗證；[docs/notifications.md](docs/notifications.md)）。
+
 🎨 換外觀：到「SYNOX 衣櫃」挑一套 `.synoxpack` 裝起來，整個網頁跟著換色、換吉祥物；不喜歡隨時換回原本的 SYNOX。自己會畫 SVG 的話也可以直接貼上去。
 
 | 在 Telegram 打 | 做什麼 |
@@ -100,7 +103,8 @@ synox tips      隨機一則使用小提示
 | `/help` | 看全部指令（還沒裝工具時會告訴你去哪裡裝） |
 | `/note 買牛奶`、`/note_list`、`/note_rm 1` | 隨手記（要先裝工具庫的 `notes`） |
 | `/money 120 午餐`、`/money_month`、`/money_budget 20000` | 記帳、看這個月、設預算（要先裝 `money`） |
-| `/remind_add 08:00 吃藥`、`/remind_list` | ⏰ 提醒（系統）：每天提醒；加 `date=2026-11-20` 只提醒那一天（SYNOX 本體就有，不用裝；跟 Apple 提醒事項無關） |
+| `/remind_add 08:00 吃藥`、`/remind_list` | ⏰ 提醒（系統）：每天提醒；加 `date=2026-11-20` 只提醒那一天，也可以寫「半小時後」「明天 9 點」（SYNOX 本體就有，不用裝；跟 Apple 提醒事項無關） |
+| `/remind_todo 繳電話費`、`/remind_test` | 記一件沒有時間的待辦（`/remind_done 1` 做完）；一分鐘後試響一次，看每個地方有沒有收到 |
 | `/schedule_add 21:00 /money_month` | 每天幾點自動替你跑一個指令（SYNOX 本體就有） |
 | 直接打字，例如「幫我記一筆 80 元咖啡」 | 交給 AI（有設定 AI 時） |
 | `/ai_usage` | AI 用了多少 |
@@ -174,7 +178,8 @@ synox tips      隨機一則使用小提示
 
 - **手機沒收到「我在了」？** 看 `Start.bat` 開的那個小視窗有沒有紅字；雙擊 `Console.bat` 可以不連 Telegram 直接在電腦上試指令。
   也可以在 SYNOX 資料夾開命令列跑 `.venv\Scripts\python.exe -m synox doctor`，它會檢查設定、AI、資料。
-- **提醒沒有響？** 提醒只有 bot 開著（那個小視窗在）的時候才會送。可以在安裝精靈勾「開機自動啟動」。
+- **提醒沒有響？** 提醒要 SYNOX 開著、或 Windows 上的提醒哨兵在跑（登入時自動啟動）才會送；電腦關機或睡著時誰都叫不了，醒來 60 分鐘內會補響。
+  可以在安裝精靈勾「開機自動啟動」，網頁 🔔 →「鬧鐘」分頁會說可能漏掉的原因；`/remind_test` 試響一次。
 - **電腦自己睡著？** 網頁設定頁的「保持清醒」（預設關）：像一個穩定的 heartbeat，維持系統運轉、螢幕可以暗。開啟後會覆蓋 Windows
   電源選項裡的「睡眠」設定；闔上筆電蓋、手動睡眠、低電量、Windows Update 重開機擋不住。現代待命機型（Google Drive 還是斷線）
   見 [docs/keep-awake-troubleshooting.md](docs/keep-awake-troubleshooting.md)。
@@ -219,7 +224,7 @@ pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的
 
 - 多支 bot 分流、服務別人的角色商店、Remote Control／派工、AI 的情境（persona）與長期記憶。
 - 伺服器版：個人版的舊資料不會自動搬過去；「連架設的人都看不到」的版本（另一份規格）；網頁介面對外開放（要自己架反向代理＋TLS）。
-- 匯入前身專案的資料；換電腦的匯出（備份綁這個 Windows 帳號）、還原按鈕；網頁看圖／下載檔案、網頁收提醒（提醒只走 Telegram）。
+- 匯入前身專案的資料；換電腦的匯出（備份綁這個 Windows 帳號）、還原按鈕；網頁看圖／下載檔案。
 - 接外面服務的工具（工具庫的 `notion`、`todoist`、`google-calendar`、`apple-reminders`）都做好了（設定步驟見工具庫裡各自的 README），
   但都只用假傳輸測過，還沒對真的服務跑過（所以標 🧪 alpha）。
   到另一台電腦用真的帳號測（含 Discord）：[docs/handoff/](docs/handoff/README.md)（教學＋煙霧測試 `scripts/smoke_real.py`）。

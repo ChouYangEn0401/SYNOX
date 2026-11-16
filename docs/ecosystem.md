@@ -18,6 +18,7 @@ SYNOX 出廠**不帶任何工具**（2026-11-12 起；為什麼：[legacy/builti
 |---|---|---|
 | **SYNOX 工具庫（SYNOX_Libs）** | 另一個 repo。官方工具的正本：記帳 `money`、隨手記 `notes`、接 Notion／Todoist／Google 日曆／Apple 提醒事項的工具。打包成一堆 `.synoxpack`＋一份目錄 `index.json`（名稱、版本、標題、說明、建議組合 `bundles`、`requires.sdk`、sha256） | ✅ 已實作。發佈版把打包好的工具庫放在 SYNOX 資料夾的 `tools\`；工具目前全部標 🧪 alpha |
 | **別人給你的 `.synoxpack`** | 任何人用 SDK（或自己手寫）做的 pack，壓成 zip | ✅ 已實作：走同一套安裝檢查 |
+| **別人架的遠端 MCP、本機 MCP、Claude 技能** | 不是 pack 的東西 | 遠端 MCP：自己寫一份只有宣告的 `pack.json` 就能裝（T0）；本機 MCP 可以但沒有沙盒；技能現在不能直接用。怎麼判斷、怎麼做：[install-third-party-tools.md](install-third-party-tools.md) |
 | **直接讀一個資料夾** | 開發工具的人不打包，讓 SYNOX 讀原始資料夾 | ✅ `config.json` 的 `"packs": {"dirs": ["<資料夾>"]}`；沒有雜湊鎖，伺服器版當第三方、只給擁有者 |
 | 線上目錄、商店 | 從網址列出、下載、安裝 | ❌ 還沒有（見「之後的路」）。`packs.library` 寫網址時 SYNOX 只會顯示，**不會自動下載** |
 

@@ -6,8 +6,11 @@
 - limit ≤ 0，或「一般工具」（不算永遠保留的）≤ limit：原樣回（同一個 list 內容、同一個順序）。
 - 否則每個一般工具打分數＝使用者這句話與（名稱去掉 __、說明（含 scenario）、參數名與參數說明）的**字元 2-gram 重疊數**
   （不用嵌入模型、不用第三方套件），取前 limit 個；同分照原本的順序。輸出**照原本的順序**（不照分數排，前段穩定）。
-- **永遠保留**：system__cannot_do（做不到的出口）、skill_read、系統指令（remind__*，以及 app 登記的系統群組）——
-  挑工具不能讓「做不到」的出口或系統指令消失。
+- **永遠保留**：system__cannot_do（做不到的出口）、skill_read、keep 給的開頭——挑工具不能讓「做不到」的出口或系統指令消失。
+  系統指令不再寫死在這裡（以前的 SYSTEM_PREFIXES）：問工具登記索引（agent/index.py，ADR 0030）——
+  `keep_for(app)`＝load=always 的項目（提醒）＋app 登記的系統群組。
+- **觸發字**（pack.json 的 agent.triggers，ADR 0030）：這句話含某個工具的觸發字 → 那個工具的分數加 TRIGGER_BONUS，排在前面。
+  `pick_for(app, tools, query, limit, also)` 一次做完（keep＋觸發字）。
 - 誰開：`llm.max_tools`＝"auto"（預設；本地／弱來源＝12，雲端與 Claude Code＝0 不限，判斷共用 agent/auto.py）｜0（不限）｜正整數。
 - 權限不在這裡：清單只是「這一輪先給 AI 看哪些」；模型叫了清單外、但他有權的工具，loop.call_tool 照常判斷與執行
   （ai_decision 才是唯一的判斷），而且下一步退回全集（loop._turn）。同一輪內清單不另外重排（D3：前段穩定）。
@@ -16,7 +19,7 @@
 from __future__ import annotations
 
 import re
-from typing import Iterable, List, Optional, Sequence, Set
+from typing import Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 from synox.agent import auto as auto_mod
 from synox.agent.skills import SKILL_READ
@@ -26,7 +29,7 @@ from synox.llm.base import ToolSpec
 DEFAULT_LOCAL_LIMIT = 12                  # 本地模型的建議（AnyTool／Less is More：工具越少越好，12 是保守值）
 MAX_LIMIT = 200
 ALWAYS = (CANNOT_DO, SKILL_READ)
-SYSTEM_PREFIXES = ("remind__",)
+TRIGGER_BONUS = 1000                      # 命中觸發字＝排在任何只靠字面相似的工具前面
 _WORD = re.compile(r"[0-9a-z㐀-鿿豈-﫿]+")
 
 
@@ -55,13 +58,21 @@ def score(tool: ToolSpec, query: Set[str]) -> int:
 
 
 def kept(name: str, keep: Iterable[str] = ()) -> bool:
-    """永遠保留的工具：做不到的出口、skill_read、系統指令（名字開頭）。"""
+    """永遠保留的工具：做不到的出口、skill_read、keep 給的名字開頭（系統指令：keep_for(app)）。"""
     if name in ALWAYS:
         return True
-    return any(name.startswith(p) for p in tuple(SYSTEM_PREFIXES) + tuple(keep or ()))
+    return any(name.startswith(p) for p in tuple(keep or ()))
 
 
-def pick(tools: Sequence[ToolSpec], query: str, limit: int, *, keep: Iterable[str] = ()) -> List[ToolSpec]:
+def triggered(query: str, triggers: Optional[Dict[str, Sequence[str]]]) -> Tuple[str, ...]:
+    """這句話命中觸發字的工具名開頭（不分大小寫、子字串比對）。"""
+    text = (query or "").lower()
+    return tuple(prefix for prefix, words in (triggers or {}).items()
+                 if any(w and w.lower() in text for w in words))
+
+
+def pick(tools: Sequence[ToolSpec], query: str, limit: int, *, keep: Iterable[str] = (),
+         triggers: Optional[Dict[str, Sequence[str]]] = None) -> List[ToolSpec]:
     tools = list(tools)
     keep = tuple(keep or ())
     if not limit or limit <= 0:
@@ -70,9 +81,27 @@ def pick(tools: Sequence[ToolSpec], query: str, limit: int, *, keep: Iterable[st
     if len(others) <= limit:
         return tools
     q = grams(query)
-    ranked = sorted(others, key=lambda i: (-score(tools[i], q), i))[:limit]
+    hit = triggered(query, triggers)
+
+    def total(i: int) -> int:
+        bonus = TRIGGER_BONUS if hit and tools[i].name.startswith(hit) else 0
+        return score(tools[i], q) + bonus
+
+    ranked = sorted(others, key=lambda i: (-total(i), i))[:limit]
     chosen = set(ranked)
     return [t for i, t in enumerate(tools) if i in chosen or kept(t.name, keep)]
+
+
+def keep_for(app) -> Tuple[str, ...]:
+    """這個 app 永遠保留的工具名開頭：問工具登記索引（load=always 的系統層／核心工具＋登記的系統群組）。"""
+    from synox.agent import index
+    return index.keep_prefixes(app)
+
+
+def pick_for(app, tools: Sequence[ToolSpec], query: str, limit: int, also: Iterable[str] = ()) -> List[ToolSpec]:
+    """pick＋這個 app 的 keep（keep_for）＋觸發字（index.trigger_map）。also＝這一輪另外一定要給的開頭（例如自訂名字）。"""
+    from synox.agent import index
+    return pick(tools, query, limit, keep=keep_for(app) + tuple(also or ()), triggers=index.trigger_map(app))
 
 
 def outside(calls, offered: Sequence[ToolSpec], full: Sequence[ToolSpec]) -> List[str]:

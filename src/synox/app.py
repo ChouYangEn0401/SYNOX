@@ -2,7 +2,7 @@
 build()：SynoxConfig → isdtelekit.build_app → 基本指令（伺服器版多 accounts、limits；/help 換成看得懂的卡片 synox/helpui；
 還沒裝工具時 /start、/help 多一段「去哪裡裝」，packs/library.py）→ 新手教學 /tutorial（synox/tour）→ ⏰ 提醒（系統）（schedule.install_system_remind）→ packs.load_all
 → aliases（每人的指令符號與名字）→ agent.install → runtime.install（排程迴圈、心跳、常駐助理）→ health.install（工具健康）→ schedule.install
-→ update.install（選用的每週檢查新版）→ web.install（本機網頁介面）→ notify.install_buttons。
+→ notify.install_delivery（送達確認＋重試、電腦提醒視窗、提醒哨兵）→ update.install（選用的每週檢查新版）→ web.install（本機網頁介面）→ notify.install_buttons。
 通知中心（synox/notify）最先裝：app.notify_owner 從此同時送網頁的 🔔、Telegram、Discord（docs/notifications.md）。
 
     config = SynoxConfig.load()
@@ -96,6 +96,7 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
     runtime.install(app, config, vault, config_path=config_path or "")   # 要在 agent 之後（拿 adapter）、schedule 之前
     health.install(app, config, vault)       # 工具健康：隔離清單、runtime 任務 system.health（docs/tool-health.md）
     schedule.install(app)                    # 排程登記成 runtime 的任務 system.schedule
+    notify.install_delivery(app, config, vault, config_path=config_path or "")   # 送達確認＋重試、電腦提醒視窗、提醒哨兵（ADR 0029）
     update.install(app, config, config_path or "")   # 每週檢查新版（預設關；打開才連網）：任務 system.update_check
     web.install(app, config, vault, pack_dirs=pack_dirs, config_path=config_path)
     notify.install_buttons(app)              # Telegram／Discord 上通知的按鈕（提醒的「5 分鐘後再提醒」、工具畫面的「現在關掉」）

@@ -9,7 +9,8 @@ import glob
 import os
 import platform
 import sys
-from typing import Callable, List
+import time
+from typing import Callable, List, Optional
 
 from synox import __version__
 from synox.brand import latest_hint
@@ -233,6 +234,60 @@ def _activator_line(config) -> str:
     return "\n".join(lines)
 
 
+WHO_TEXT = {"app": "SYNOX 主程式", "sentinel": "提醒哨兵"}
+ERROR_TEXT = {"network": "連不上", "rate_limited": "送太快被擋", "blocked": "被封鎖", "bad_token": "token 不對",
+              "duplicate_text": "字重複", "no_window": "視窗沒出現", "timeout": "逾時", "unknown": "不明原因"}
+CHANNEL_TEXT = {"web": "網頁", "telegram": "Telegram", "discord": "Discord", "desktop": "電腦視窗", "chat": "聊天"}
+
+
+def remind_lines(config, *, vault=None, now: Optional[float] = None) -> tuple:
+    """提醒引擎（ADR 0029）：上一次到點檢查是幾秒前、誰是引擎（主程式／哨兵，engine.lock 的戳記）、
+    送達佇列裡卡住幾件、最近失敗的是哪條管道。只讀檔，不拿鎖、不送任何東西。回 (行, 問題數)。"""
+    from synox.notify import desk as deskmod
+    from synox.notify.deskapp import EngineGate, outbox_folder
+    from synox.schedule.engine import read_status
+    now = time.time() if now is None else now
+    data_dir = config.data_dir
+    status = read_status(data_dir) or {}
+    holder = EngineGate(data_dir).view().get("holder")
+    bad = 0
+    last = status.get("last_tick")
+    if isinstance(last, (int, float)):
+        ago = max(0, int(now - last))
+        who = WHO_TEXT.get(str(status.get("who")), str(status.get("who") or "?"))
+        head = f"  提醒引擎：上一次檢查是 {ago} 秒前（{who}）"
+        if status.get("failed_stores"):
+            head += f"　⚠️ 有 {status['failed_stores']} 份清單讀不了"
+            bad += 1
+    else:
+        head = "  提醒引擎：還沒檢查過（SYNOX 或提醒哨兵跑起來之後才會檢查）"
+    if holder:
+        stale = now - float(holder.get("beat") or 0) > deskmod.STAMP_STALE_S
+        who = WHO_TEXT.get(str(holder.get("who")), str(holder.get("who")))
+        head += f"；現在是引擎的：{who}" + ("（很久沒更新，可能已經關了）" if stale else "")
+    else:
+        head += "；現在是引擎的：沒有（SYNOX 跟提醒哨兵都沒在跑）"
+    lines = [head]
+    try:
+        from synox.notify.outbox import FileOutbox
+        box = FileOutbox(outbox_folder(data_dir), vault, adapters={}, plan=lambda m: [])
+        summary = box.summary()
+    except Exception as e:
+        lines.append(f"    送達佇列：讀不了（{type(e).__name__}）")
+        return lines, bad + 1
+    if summary["stuck"]:
+        lines.append(f"    ⚠️ 送達佇列：{summary['stuck']} 件還沒送到（會自己重試；網頁通知鈴鐺看得到）")
+        bad += 1
+    else:
+        lines.append("    送達佇列：沒有卡住的")
+    fail = summary.get("last_failed")
+    if fail:
+        when = f"{max(0, int(now - fail['at']))} 秒前" if isinstance(fail.get("at"), (int, float)) else "之前"
+        lines.append(f"    最近失敗：{CHANNEL_TEXT.get(fail['channel'], fail['channel'])}"
+                     f"（{ERROR_TEXT.get(fail['error'], fail['error'] or '不明原因')}，{when}）")
+    return lines, bad
+
+
 HEALTH_MARKS = {"broken": "⏸", "needs_action": "🛠", "quarantined": "⛔"}
 
 
@@ -336,6 +391,37 @@ ROOT_NOTES = {"SYNOX_HOME": "（來自環境變數 SYNOX_HOME；不是你要的�
               "cwd": "（⚠️ 不是原始碼的版面，用的是目前所在的資料夾；要固定就設環境變數 SYNOX_HOME）"}
 
 
+def agent_lines(config, manifests) -> tuple:
+    """工具登記（ADR 0030）：requires.packs／requires.system 缺什麼（不會載入）、第三方寫了 agent.always（不會載入）、
+    AI 能力清單每輪的總量與每個工具的佔用（最大的三個標出來）。只看 pack.json，不載入。回 (行, 問題數)。"""
+    from synox.agent import index as agent_index
+    from synox.packs import loader
+    lines: List[str] = []
+    bad = 0
+    ok = list(manifests)
+    changed = True
+    while changed:                               # 缺相依的不會載入 → 依賴它的也載入不了（重算到不再變）
+        changed = False
+        loaded = {m.name: m.version for m in ok if m.kind != "theme"}
+        for m in list(ok):
+            missing = agent_index.dependency_problems(m, loaded, agent_index.CORE_SYSTEM)
+            if missing:
+                lines.append(f"  ⛔ {m.name} {m.version}：不會載入，缺 {'、'.join(missing)}")
+                bad += 1
+                ok.remove(m)
+                changed = True
+    for m in list(ok):
+        untrusted = loader.agent_trust_reason(config, m) if config is not None else ""
+        if untrusted:
+            lines.append(f"  ❌ {m.name} {m.version}：不會載入。{untrusted}")
+            bad += 1
+            ok.remove(m)
+    usage = agent_index.usage_lines(agent_index.static_index(ok))
+    lines.append(f"• {usage[0]}")
+    lines += [f"  {line}" for line in usage[1:]]
+    return lines, bad
+
+
 def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] = print) -> int:
     problems = 0
     out(f"🩺 SYNOX {__version__} 健康檢查")
@@ -372,6 +458,17 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
             out(_keep_awake_line(config))
             out(_activator_line(config))
             out(_stepup_line(config))
+            remind_vault = None
+            if os.path.exists(os.path.join(config.data_dir, ".synox.key")):     # 送達佇列跟通知清單同一套加密
+                try:
+                    from synox.vault import open_vault
+                    remind_vault = open_vault(config)
+                except Exception:
+                    remind_vault = None
+            remind_text, bad = remind_lines(config, vault=remind_vault)
+            for line in remind_text:
+                out(line)
+            problems += bad
             for line in remote_lines(config):
                 out(line)
             if config.discord_enabled:
@@ -443,6 +540,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
     tools: List[str] = []
     lock_dir = config.data_dir if config else os.path.join(ROOT, "data")
     locked = 0
+    loadable: List = []                          # 會載入的工具（相依與 AI 能力清單的佔用在迴圈之後算，ADR 0030）
     dirs = config.pack_dirs() if config else PACK_DIRS
     secret_lookup = _secret_lookup(config)
     for extra in dirs[len(PACK_DIRS):]:
@@ -487,6 +585,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
             lock_mark = "🔒" if lock_state == pack_lock.LOCKED else "未鎖定"
             lines.append(f"  {state} {m.name} {m.version} {m.stage_label}（{m.kind}，/{m.group}，{lock_mark}）  {rel}")
             if enabled:
+                loadable.append(m)
                 note = secret_lookup(m)
                 if note:
                     lines.append(f"     {note}")
@@ -516,6 +615,10 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
     out(f"• packs：{len(lines)} 個（packs.lock 鎖定 {locked} 個；python -m synox packs status 看細節）")
     for line in lines:
         out(line)
+    agent_text, bad = agent_lines(config, loadable)      # 相依缺漏、第三方的 agent.always、每個工具每輪佔用（ADR 0030）
+    for line in agent_text:
+        out(line)
+    problems += bad
     from synox.packs import library                  # SYNOX 出廠不帶工具：裝了幾個、工具庫在哪裡
     for line in library.doctor_lines(config, tools):
         out(line)

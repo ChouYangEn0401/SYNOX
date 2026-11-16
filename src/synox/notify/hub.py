@@ -48,6 +48,8 @@ KINDS: Dict[str, dict] = {
 # 白話（docs/notifications.md 的「用字」）
 T = {
     "ok": "知道了",
+    "done": "完成",
+    "done_ok": "好，記成做完了。",
     "snooze": f"{SNOOZE_MIN} 分鐘後再提醒",
     "snoozed": "好，{hhmm} 再叫你一次。",
     "gone": "這則提醒已經處理過了。",
@@ -214,6 +216,8 @@ class Hub:
                 row.append({"text": a.get("label") or T["ok"], "callback_data": f"ntf:ok:{nid}"})
             elif a.get("id") == "snooze":
                 row.append({"text": a.get("label") or T["snooze"], "callback_data": f"ntf:s5:{nid}"})
+            elif a.get("id") == "done":
+                row.append({"text": a.get("label") or T["done"], "callback_data": f"ntf:d:{nid}"})
             elif a.get("id") in ("app_stop", "app_keep") and a.get("app"):
                 what = "stop" if a["id"] == "app_stop" else "keep"
                 row.append({"text": a.get("label") or "", "callback_data": f"ntfa:{what}:{a['app']}"[:64]})
@@ -236,26 +240,77 @@ class Hub:
                            kind="alarm", level="alarm", key=key, actions=[{"id": "ok", "label": T["ok"]}],
                            data={"text": text, "missed": True})
 
-    def snooze(self, uid: int, nid: int, minutes: int = SNOOZE_MIN) -> Optional[str]:
-        """「5 分鐘後再提醒」：用原本的提醒清單加一個只響一次的（date＝那一天）。回 HH:MM；找不到回 None。"""
-        item = self.store.get(uid, nid)
-        if item is None or item.get("kind") != "alarm" or not (item.get("data") or {}).get("text") \
-                or (item.get("data") or {}).get("snoozed"):
+    def snooze(self, uid: int, nid: int, minutes: int = SNOOZE_MIN, via: str = "web") -> Optional[str]:
+        """「5 分鐘後再提醒」：交給提醒引擎（ReminderActions.act(snooze)，同一個提醒延後，不另加一筆）。
+        回 HH:MM；不是提醒、已經處理過、或沒有提醒引擎回 None。"""
+        outcome, until = self._act(uid, nid, "snooze", via, minutes=minutes)
+        if outcome is None or not getattr(outcome, "ok", False):
             return None
-        from synox.schedule.commands import store_for
-        at = datetime.fromtimestamp(self.clock()) + timedelta(minutes=minutes)
-        hhmm = at.strftime("%H:%M")
-        store_for(self.app).of(uid).add("remind", hhmm, uid, text=item["data"]["text"], date=at.strftime("%Y-%m-%d"))
-        self.store.update(uid, nid, actions=[], read=True, snoozed=hhmm)
-        return hhmm
+        return until[11:16]
 
     def dismiss(self, uid: int, nid: int) -> bool:
         item = self.store.get(uid, nid)
         if item is None:
             return False
-        acts = [a for a in item.get("actions") or [] if a.get("id") not in ("ok", "snooze")]
+        acts = [a for a in item.get("actions") or [] if a.get("id") not in ("ok", "snooze", "done")]
         self.store.update(uid, nid, actions=acts, read=True)
         return True
+
+    # ── 按鈕回頭叫提醒引擎（ADR 0029：有登記 ReminderActions 才走這條）────
+
+    def press(self, uid: int, nid: int, what: str, via: str) -> Optional[str]:
+        """按了「知道了」（ok）／「5 分鐘後再提醒」（snooze）／「完成」（done）。
+        這一則是送達層送的提醒（data.remind 有 rid、occurrence），而且 app.extras 登記了 ReminderActions
+        → 叫它的 act，成功就讓其他管道收掉，回給按的人的那句話。其他情況回 None（呼叫的人走舊的 snooze／dismiss）。"""
+        got = self.press_result(uid, nid, what, via)
+        return None if got is None else got[1]
+
+    def press_result(self, uid: int, nid: int, what: str, via: str):
+        """同 press，回 (成功了嗎, 給按的人的那句話)；不是提醒回 None。網頁 API 用（失敗要回 404）。"""
+        action = {"ok": "ack", "snooze": "snooze", "done": "done"}.get(what)
+        if action is None:
+            return None
+        outcome, until = self._act(uid, nid, action, via)
+        if outcome is None:
+            return None
+        if getattr(outcome, "ok", False):
+            if outcome.text:
+                return True, outcome.text
+            if action == "snooze":
+                return True, T["snoozed"].format(hhmm=until[11:16])
+            return True, T["done_ok"] if action == "done" else T["ok"]
+        return False, getattr(outcome, "text", "") or T["gone"]
+
+    def _act(self, uid: int, nid: int, action: str, via: str, *, minutes: int = SNOOZE_MIN):
+        """清單那一則 → ReminderActions.act；成功就讓其他管道收掉。回 (outcome, until)；
+        不是送達層送的提醒（data.remind 沒有 rid）或沒有登記提醒引擎 → (None, None)。
+        已經按過（按鈕都拿掉了）→ 不再叫引擎，回「已經處理過了」（延後不會被按兩次）。"""
+        from synox.notify import delivery
+        actions = self.app.extras.get(delivery.ACTIONS_EXTRA)
+        item = self.store.get(uid, nid)
+        ref = ((item or {}).get("data") or {}).get("remind")
+        if actions is None or not isinstance(ref, dict) or "rid" not in ref:
+            return None, None
+        if not any(a.get("id") in ("ok", "snooze", "done") for a in item.get("actions") or []):
+            return delivery.ActionOutcome(False, "gone", T["gone"]), None
+        until = None
+        if action == "snooze":
+            until = (datetime.fromtimestamp(self.clock()) + timedelta(minutes=minutes)).astimezone() \
+                .replace(microsecond=0).isoformat()
+        try:
+            outcome = actions.act(int(uid), int(ref["rid"]), str(ref.get("occurrence") or ""), action, until=until,
+                                  via=via)
+        except Exception as e:
+            _log_fail("reminder action", uid, e)
+            return delivery.ActionOutcome(False, "gone", T["gone"]), until
+        self.store.update(uid, nid, actions=[], read=True)
+        if getattr(outcome, "ok", False):
+            try:
+                delivery.resolve(self.app, int(uid), str(ref.get("key") or ""), note=getattr(outcome, "note", ""),
+                                 via=via)
+            except Exception as e:
+                _log_fail("resolve", uid, e)
+        return outcome, until
 
 
 def install_buttons(app, hub: Hub) -> None:
@@ -272,11 +327,11 @@ def install_buttons(app, hub: Hub) -> None:
             api.answer_callback_query(cb.cq_id, text=T["gone"])
             return
         uid = int(cb.clicker_id)
-        if what == "s5":
-            hhmm = hub.snooze(uid, nid)
-            answer = T["snoozed"].format(hhmm=hhmm) if hhmm else T["gone"]
-        else:
-            answer = T["ok"] if hub.dismiss(uid, nid) else T["gone"]
+        via = "discord" if getattr(api, "channel_name", "") == "discord" else "telegram"
+        answer = hub.press(uid, nid, {"s5": "snooze", "d": "done"}.get(what, "ok"), via)   # 提醒引擎（ADR 0029）
+        if answer is None:                             # 不是提醒（或沒有提醒引擎）：按鈕收掉就好，不另加提醒
+            dismissed = hub.dismiss(uid, nid)
+            answer = T["ok"] if dismissed and what != "s5" else T["gone"]
         try:
             api.remove_buttons(cb.chat_id, cb.message_id)
         except Exception:

@@ -10,7 +10,8 @@ Runtime loop（docs/adr/0001 §1、§2）：一條排程執行緒＋登記的任
 - 每個任務在**自己的執行緒**跑（`spawn`），排程執行緒只看「到點了沒、逾時了沒」：慢的不卡別的，例外不拖垮迴圈。
 - fn(ctx) 回字串（或 None）＝ok；丟例外＝failed。ctx.log(line) 寫日誌尾巴。
 - 逾時：超過 timeout 標 failed（算一次失敗）；那次執行晚回來的結果丟掉（generation 對不上）。上一次沒結束不開下一次。
-- 失敗退避：下一次＝min(間隔, RETRY_BASE × 2^(n-1))；連續 NOTIFY_AFTER 次通知擁有者一次、退避拉長到 max(間隔, LONG_BACKOFF)；
+- 失敗退避：下一次＝min(間隔, RETRY_BASE × 2^(n-1))；連續 NOTIFY_AFTER 次通知擁有者一次、退避拉長到 max(間隔, LONG_BACKOFF)
+  （登記時給 max_backoff 的任務最多等那麼久，例如系統提醒 60 秒）；
   成功歸零（通知過的話說一聲「恢復了」）。例外、逾時、回報失敗全部算失敗。
 - 存檔：data/runtime/state.json 只有 state、時間、連續失敗數（沒有訊息與日誌——那些可能有個人資料，只在記憶體）。
 - 狀態變了（一次執行做完、逾時、pack 回報）→ 叫 listeners（連動 activator 掛在這裡，docs/adr/0004），在鎖外叫、
@@ -119,7 +120,7 @@ class Task:
 
     def __init__(self, task_id: str, name: str, owner: str = "system", *, fn: Optional[Callable] = None,
                  interval: Optional[float] = None, timeout: float = DEFAULT_TIMEOUT, schedule: str = "",
-                 clock: Callable[[], float] = time.time):
+                 clock: Callable[[], float] = time.time, max_backoff: Optional[float] = None):
         if not ID_RE.match(task_id):
             raise ValueError(f"task id {task_id!r}: 只能用小寫英數字與 . _ -，64 字內")
         self.id = task_id
@@ -128,6 +129,7 @@ class Task:
         self.fn = fn
         self.interval = float(interval) if interval else None
         self.timeout = float(timeout)
+        self.max_backoff = float(max_backoff) if max_backoff else None   # 失敗退避的上限（秒）；None＝照預設
         self._schedule = schedule
         self._clock = clock
         self.state = "idle"
@@ -214,13 +216,14 @@ class RuntimeLoop:
 
     def register(self, task_id: str, name: str, *, owner: str = "system", fn: Optional[Callable] = None,
                  interval: Optional[float] = None, timeout: float = DEFAULT_TIMEOUT, first_delay: Optional[float] = None,
-                 schedule: str = "") -> Task:
-        """登記（同 id 再登記＝換掉設定，保留狀態）。first_delay：第一次在幾秒後跑（預設＝一個間隔後）。"""
+                 schedule: str = "", max_backoff: Optional[float] = None) -> Task:
+        """登記（同 id 再登記＝換掉設定，保留狀態）。first_delay：第一次在幾秒後跑（預設＝一個間隔後）。
+        max_backoff：失敗後最多等幾秒再試（選填；系統提醒用 60 秒，不能等到 LONG_BACKOFF 的 30 分鐘）。"""
         with self._lock:
             task = self.tasks.get(task_id)
             if task is None:
                 task = Task(task_id, name, owner, fn=fn, interval=interval, timeout=timeout, schedule=schedule,
-                            clock=self._clock)
+                            clock=self._clock, max_backoff=max_backoff)
                 old = (self._saved.get("tasks") or {}).get(task_id) or {}
                 if isinstance(old.get("last_run_at"), (int, float)):
                     task.last_run_at = float(old["last_run_at"])
@@ -232,6 +235,7 @@ class RuntimeLoop:
             else:
                 task.name, task.owner, task.fn, task.timeout = name, owner, fn, float(timeout)
                 task.interval = float(interval) if interval else None
+                task.max_backoff = float(max_backoff) if max_backoff else None
                 task.set_schedule_text(schedule)
             if task.interval and task.fn is not None:
                 delay = task.interval if first_delay is None else max(0.0, float(first_delay))
@@ -432,6 +436,8 @@ class RuntimeLoop:
                 wait = max(task.interval, LONG_BACKOFF)
             else:
                 wait = min(task.interval, RETRY_BASE * (2 ** (task.failures - 1)))
+            if task.max_backoff:
+                wait = min(wait, task.max_backoff)
             task.next_due = now + wait
         if task.failures >= NOTIFY_AFTER and not task.notified:
             task.notified = True

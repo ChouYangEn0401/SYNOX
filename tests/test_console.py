@@ -31,7 +31,7 @@ def test_console_flow(make_bot):
     text = _console(bot, ["/money 120 午餐", "/money_month", "/remind_add 08:00 吃藥", "/remind_list",
                           "/note 買牛奶", "/note_list", "幫我記一筆 80 元咖啡", "把筆記全部刪掉", "!1", "/note_list"])
     assert "記了：午餐 120 元" in text and "共 120 元" in text
-    assert "每天 08:00 提醒你：吃藥" in text and "1. 每天 08:00  吃藥" in text
+    assert "08:00 提醒你「吃藥」（每天）" in text and "1. 每天 08:00  吃藥" in text
     assert "記了：咖啡 80 元" in text
     assert "AI 想執行：/note_clear" in text and "全部筆記都刪掉了（1 筆）" in text
     assert text.rstrip().endswith("👋 bye")

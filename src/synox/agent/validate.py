@@ -306,12 +306,15 @@ def check_skill_read(args) -> Optional[str]:
         args = {}
     if not isinstance(args, dict):
         return "沒有執行 skill_read：參數要是 JSON 物件。改好再呼叫一次。"
-    extra = [str(k) for k in args if k != "name"]
+    extra = [str(k) for k in args if k not in ("name", "topic")]
     if extra:
-        return f"沒有執行 skill_read：不認得欄位 {'、'.join(extra)}（只收 name）。改好再呼叫一次。"
+        return f"沒有執行 skill_read：不認得欄位 {'、'.join(extra)}（只收 name、topic）。改好再呼叫一次。"
     name = args.get("name", "")
     if not isinstance(name, str) or len(name) > 100:
         return "沒有執行 skill_read：name 要是技能名稱（字串）。改好再呼叫一次。"
+    topic = args.get("topic", "")                # 說明書主題（ADR 0030）：選填
+    if topic is not None and (not isinstance(topic, str) or len(topic) > 40):
+        return "沒有執行 skill_read：topic 要是主題名稱（字串）。改好再呼叫一次。"
     return None
 
 

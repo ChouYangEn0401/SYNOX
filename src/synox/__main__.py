@@ -26,6 +26,8 @@ python -m synox <指令>
             ｜tools update <名字…>|--all [--yes]（下載 → 一樣的檢查報告 → 核准才換；舊版留在 packs/_removed/）
   update    update --check（SYNOX 本體有沒有新版；--include-prerelease 連預覽版一起看）｜--weekly on|off
             ｜--prepare [--from-zip <ZIP>]（Update.bat 用；-FromZip 先用本機的 ZIP 測更新）
+  sentinel  提醒哨兵（登入 Windows 時自動啟動；SYNOX 沒開時照樣跳提醒視窗、送 Telegram；開著時讓位。docs/notifications.md）
+  remind-window  打開電腦提醒視窗（--demo 跳一張試看看的卡；平常由 SYNOX／哨兵自己開）
 
 `synox`（沒參數）、run、open、wizard、doctor、about 開頭會印歡迎畫面（src/synox/brand.py）；只在互動終端機印，
 --quiet／SYNOX_NO_BANNER／管線就不印。
@@ -981,6 +983,28 @@ def cmd_discord(args) -> int:
     return 1
 
 
+def cmd_sentinel(args) -> int:
+    from synox.remindwin import sentinel
+    return sentinel.main(args.config or "")
+
+
+def cmd_remind_window(args) -> int:
+    """打開電腦提醒視窗。--demo：在暫存資料夾放一張試跳的卡（不碰 SYNOX 的資料、不用提醒引擎）。"""
+    from synox.notify import desk
+    from synox.remindwin import logic, window
+    if args.demo:
+        import tempfile
+        data_dir = tempfile.mkdtemp(prefix="synox-remind-demo-")
+        desk.spool_at(data_dir).put_show(logic.demo_card())
+        return window.run(data_dir, demo=True)
+    try:
+        config = SynoxConfig.load(args.config or None, require_token=False)
+    except ConfigError as e:
+        print(f"❌ {e}")
+        return 2
+    return window.run(config.data_dir)
+
+
 def main(argv=None) -> int:
     _utf8_console()
     parser = argparse.ArgumentParser(prog="python -m synox", description="SYNOX：住在你自己電腦裡的 AI 助理")
@@ -1089,6 +1113,9 @@ def main(argv=None) -> int:
     sub.add_parser("about", help="SYNOX 的版本、授權、裝在哪裡")
     p = sub.add_parser("tips", help="隨機一則使用小提示")
     p.add_argument("--all", action="store_true", help="列出全部小提示")
+    sub.add_parser("sentinel", help="提醒哨兵：SYNOX 沒開時照樣跳提醒（登入 Windows 時自動啟動；開著時讓位）")
+    p = sub.add_parser("remind-window", help="打開電腦提醒視窗（平常由 SYNOX／哨兵自己開）")
+    p.add_argument("--demo", action="store_true", help="跳一張試看看的卡（不碰 SYNOX 的資料）")
     from synox import brand
     brand.add_quiet_flags(sub, [c for c in brand.BANNER_COMMANDS if c])
     args = parser.parse_args(argv)
@@ -1096,7 +1123,8 @@ def main(argv=None) -> int:
                 "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord, "web-login": cmd_web_login,
                 "stepup": cmd_stepup,
                 "open": cmd_open, "about": cmd_about, "tips": cmd_tips,
-                "init": cmd_init, "tools": cmd_tools, "filetype": cmd_filetype, "update": cmd_update}
+                "init": cmd_init, "tools": cmd_tools, "filetype": cmd_filetype, "update": cmd_update,
+                "sentinel": cmd_sentinel, "remind-window": cmd_remind_window}
     if args.cmd in brand.BANNER_COMMANDS:
         brand.show_banner(args.cmd, quiet=args.quiet)
     if args.cmd not in handlers:

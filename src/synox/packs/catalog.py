@@ -92,6 +92,8 @@ HELP_PAGES = {
     "todoist": "https://claude.ai/artifact/D3zgGcZ9h1LRrDLu2QD5Mw",
     "google-calendar": "https://claude.ai/artifact/NyhRhPrRL1n9NMMbMEv3mx",
     "apple-reminders": "https://claude.ai/artifact/Jm4tdCTZdaQ1mc1waTatYp",
+    "diary": "https://claude.ai/artifact/HRobvC114kdVY9CtkocFMt",
+    "google-sheets": "https://claude.ai/artifact/H74Xn3PdwzCsseG9dEkq1r",
 }
 
 # 清單裡沒有的時候用的：(emoji, 中文名, 一句話, 例子)；跟工具庫網站的卡片同一份文字

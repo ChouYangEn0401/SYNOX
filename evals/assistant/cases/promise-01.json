@@ -1,0 +1,43 @@
+{
+  "id": "promise-01",
+  "category": "promise",
+  "split": "tune",
+  "title": "沒有回執就說「會提醒」會被退回：系統修正之後真的去設，再照回執唸時間",
+  "turns": [
+    "明天早上 8 點提醒我繳電話費"
+  ],
+  "tools": [
+    {
+      "name": "alarm__set"
+    },
+    {
+      "name": "note__add"
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "alarm__set",
+        "args": {
+          "time": "08:00",
+          "text": {
+            "contains": "電話費"
+          }
+        }
+      }
+    ],
+    "final_contains": [
+      "08:00"
+    ],
+    "final_not_contains": [
+      "沒有排上"
+    ],
+    "max_steps": 3
+  },
+  "soft": [
+    {
+      "name": "修正之後",
+      "rubric": "修正之後一兩句講清楚：明天 08:00、送到哪裡"
+    }
+  ]
+}

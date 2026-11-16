@@ -3,6 +3,8 @@
 `.synoxpack` 是一個工具（pack）壓成的檔。拿到它之後，用下面**任何一種**方法都可以裝；四種走的是**同一條安全檢查**：
 SYNOX 先看宣告、掃程式（[security.md](security.md)「五關」），把報告給你看，**你按確認才會裝**。沒按確認，什麼都不會進 `packs/`。
 
+手上不是 `.synoxpack`，而是一個 MCP 網址、要 `npx` 跑的程式、或 Claude 技能資料夾？先看 [install-third-party-tools.md](install-third-party-tools.md)。
+
 | 方法 | 怎麼做 | 什麼時候用 |
 |---|---|---|
 | 1. 點兩下 | 在檔案總管點兩下 `.synoxpack` | 最簡單；`Setup.bat` 跑過就有 |

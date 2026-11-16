@@ -18,7 +18,12 @@ pack.json 的格式與檢查（docs/pack-format.md 是人看的版本）。安�
       "auth": "oauth",                           kind=connector：oauth｜token｜caldav（v2 寫成 {"type": …}）
       "requires": {"pip": [], "config": [], "env": {},  env：要有的環境變數（也是 cli 子程序唯一看得到的密鑰名）
                    "synox": ">=0.3",               synox：SYNOX 最低版本（不合＝不載入，doctor 說明）
-                   "sdk": ">=0.2,<0.3"},           sdk：照哪一版 SDK 介面寫的（對 synox.sdk.author.SDK_VERSION；不合＝不裝、不載入）
+                   "sdk": ">=0.2,<0.3",            sdk：照哪一版 SDK 介面寫的（對 synox.sdk.author.SDK_VERSION；不合＝不裝、不載入）
+                   "packs": ["notes>=0.2"],        packs：相依的其他工具（缺了或版本不合＝不載入，doctor 說缺哪個；ADR 0030）
+                   "system": ["notify"]},          system：要的系統能力（agent/index.system_names；這台沒有＝不載入）
+      "agent": {"index": "…", "triggers": […], "load": "on_trigger", "skill": {"file", "topics"},
+                "provides": […], "promises": {"指令": "schedule"}, "always": "…"}
+                                                 選填：給 AI 的登記（parse_agent；agent/index.py 彙整成索引；ADR 0030）
       "skill": "SKILL.md",
       "storage": "vault",                        vault（pack.store 落地是密文）｜plain
       "web": {"panel": "panel.html",             選用：Web UI 工具頁的面板（pack 資料夾裡的一個 .html）
@@ -318,6 +323,13 @@ class Manifest:
     stepup: List[str] = field(default_factory=list)
     # kind=theme：整理過的 theme（tokens、slots、css、fonts；synox/theme/pack.py，docs/themes.md）
     theme: dict = field(default_factory=dict)
+    # 給 AI 的登記（選填的 agent 區塊；ADR 0030、agent/index.py）：整理過的
+    # {"declared", "index", "triggers", "load", "topics", "provides", "promises", "always"}；沒寫＝AGENT_DEFAULT
+    agent: dict = field(default_factory=lambda: dict(AGENT_DEFAULT))
+
+    @property
+    def agent_declared(self) -> bool:
+        return bool((self.agent or {}).get("declared"))
 
     @property
     def stage_label(self) -> str:
@@ -1134,6 +1146,242 @@ def _check_requires(requires: dict, problems: List[str]) -> None:
                 parse_spec(requires[key], key)
             except ValueError as e:
                 problems.append(str(e))
+    if "packs" in requires:
+        try:
+            required_packs(requires)
+        except ValueError as e:
+            problems.append(str(e))
+    if "system" in requires:
+        try:
+            required_system(requires)
+        except ValueError as e:
+            problems.append(str(e))
+
+
+# ── requires.packs／requires.system（ADR 0030） ─────────────────────────
+
+REQUIRES_PACK_RE = re.compile(r"^\s*([a-z][a-z0-9_-]{0,31})\s*(.*)$")
+SYSTEM_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
+MAX_REQUIRED = 16
+
+
+def required_packs(requires) -> List[tuple]:
+    """requires.packs：["notes", "notes>=0.2", "calendar>=1.0,<2.0"] → [(名字, 版本條件或 "")…]；寫錯丟 ValueError。"""
+    value = (requires or {}).get("packs") if isinstance(requires, dict) else None
+    if value is None:
+        return []
+    if not isinstance(value, list) or len(value) > MAX_REQUIRED or not all(isinstance(x, str) for x in value):
+        raise ValueError(f"requires.packs 要是字串清單（最多 {MAX_REQUIRED} 個），例如 [\"notes>=0.2\"]")
+    out = []
+    for item in value:
+        m = REQUIRES_PACK_RE.match(item)
+        if m is None:
+            raise ValueError(f"requires.packs 的 {item!r} 看不懂（寫成 工具名字 或 工具名字>=0.2）")
+        spec = m.group(2).strip()
+        if spec:
+            parse_spec(spec, "packs")
+        out.append((m.group(1), spec))
+    return out
+
+
+def required_system(requires) -> List[str]:
+    """requires.system：["notify", "schedule"]（SYNOX 的系統能力名字，agent/index.system_names）；寫錯丟 ValueError。"""
+    value = (requires or {}).get("system") if isinstance(requires, dict) else None
+    if value is None:
+        return []
+    if not isinstance(value, list) or len(value) > MAX_REQUIRED or \
+            not all(isinstance(x, str) and SYSTEM_NAME_RE.match(x) for x in value):
+        raise ValueError(f"requires.system 要是系統能力名字的清單（小寫英數字、_；最多 {MAX_REQUIRED} 個），例如 [\"notify\"]")
+    return list(dict.fromkeys(value))
+
+
+def pack_version_problem(name: str, spec: str, version: Optional[str]) -> str:
+    """requires.packs 的一項對已載入的工具：沒載入（version=None）或版本不合 → 一句話；合 → ""。"""
+    want = f"{name}{spec}" if spec else name
+    if version is None:
+        return f"{want}（沒裝或沒載入）"
+    if spec:
+        try:
+            clauses = parse_spec(spec, "packs")
+        except ValueError:
+            return f"{want}（版本條件看不懂）"
+        have = _version_tuple(version)
+        if not all(_OPS[op](have, v) for op, v in clauses):
+            return f"{want}（裝的是 {version}）"
+    return ""
+
+
+# ── agent 區塊（ADR 0030；agent/index.py 彙整成索引） ──────────────────
+
+AGENT_KEYS = ("index", "triggers", "load", "skill", "provides", "promises", "always")
+AGENT_LOADS = ("on_trigger", "on_call", "always")
+PROMISE_KINDS = ("schedule", "watch")
+AGENT_INDEX_MAX = 60
+AGENT_TRIGGERS_MAX = 12
+AGENT_TRIGGER_LEN = 12
+AGENT_ALWAYS_MAX = 200
+AGENT_TOPICS_MAX = 20
+AGENT_PROVIDES_MAX = 16
+PROVIDES_RE = re.compile(r"^[a-z0-9][a-z0-9_]*(\.[a-z0-9_]+)+$")
+TOPIC_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
+AGENT_DEFAULT = {"declared": False, "index": "", "triggers": [], "load": "on_trigger", "topics": {},
+                 "provides": [], "promises": {}, "always": ""}
+
+
+def _ai_text_problem(value, label: str, limit: int, multiline: bool = False) -> str:
+    """給 AI 看的字（agent.index、triggers、always）：長度、一行、不准網址／信箱／像在對 AI 下指令／跳過確認／分隔符。"""
+    if multiline:
+        if not isinstance(value, str) or not value.strip():
+            return f"{label} 要是不空的字"
+        if len(value) > limit:
+            return f"{label} 太長（{len(value)} 字，上限 {limit}）"
+        if _CONTROL_RE.search(value.replace("\n", "")):
+            return f"{label} 有控制字元"
+    else:
+        problem = one_line_problem(value, label, limit)
+        if problem:
+            return problem
+    from synox.runtime.ledger import risk_flags
+    bad = [flag for flag in risk_flags(value) if flag in SCENARIO_RISKS]
+    if bad:
+        return f"{label} 不能{'、'.join(bad)}（這段字會直接給 AI 看）"
+    return ""
+
+
+def _pack_file_problem(folder: str, rel, label: str) -> str:
+    if not isinstance(rel, str) or not rel.strip() or os.path.isabs(rel) or re.match(r"^[A-Za-z]:", rel) or \
+            ".." in rel.replace("\\", "/").split("/"):
+        return f"{label} 要是工具資料夾裡的檔（相對路徑、不能有 ..）：{rel!r}"
+    if not os.path.isfile(os.path.join(folder, rel)):
+        return f"{label} 找不到 {rel}"
+    if not _inside(folder, rel):
+        return f"{label} 跑出工具資料夾了：{rel}"
+    return ""
+
+
+def declared_commands(raw: dict, kind, cli: dict) -> Optional[set]:
+    """pack.json 看得到的指令名（cli：commands；mcp：tools_allow）；kind=python 寫在程式裡＝None（載入後再對）。"""
+    if kind == "cli" and isinstance(cli.get("commands"), list):
+        return {c.get("name") for c in cli["commands"] if isinstance(c, dict) and isinstance(c.get("name"), str)}
+    if kind == "mcp":
+        mcp = raw.get("mcp") if isinstance(raw.get("mcp"), dict) else {}
+        return {t for t in (mcp.get("tools_allow") or []) if isinstance(t, str)}
+    if kind == "python":
+        return None
+    return set()
+
+
+def parse_agent(raw: dict, folder: str, kind, cli: dict, strict: bool) -> "tuple[dict, List[str]]":
+    """pack.json 的 agent 區塊 → (整理過的 agent, 問題清單)。沒寫＝(AGENT_DEFAULT, [])。
+    安裝時（strict）問題＝拒裝；載入時壞掉的那一項當作沒寫（工具照樣載入，只是少了那一項）。
+    agent.always 與 load=always 只給「核心」信任的工具：這裡只檢查格式，信任在安裝（admin／upgrade）與載入（loader）時對。"""
+    value = raw.get("agent")
+    out = dict(AGENT_DEFAULT, triggers=[], topics={}, provides=[], promises={})
+    if value is None:
+        return out, []
+    bad: List[str] = []
+    if not isinstance(value, dict):
+        return out, ["agent 要是物件（{\"index\": \"什麼時候找我\", …}）"]
+    out["declared"] = True
+    unknown = sorted(str(k) for k in value if k not in AGENT_KEYS)
+    if unknown:
+        bad.append(f"agent 不認得 {'、'.join(unknown)}（只收 {'、'.join(AGENT_KEYS)}）")
+    if "index" in value:
+        problem = _ai_text_problem(value["index"], "agent.index", AGENT_INDEX_MAX)
+        if problem:
+            bad.append(problem)
+        else:
+            out["index"] = value["index"].strip()
+    if "triggers" in value:
+        triggers = value["triggers"]
+        if not isinstance(triggers, list) or len(triggers) > AGENT_TRIGGERS_MAX:
+            bad.append(f"agent.triggers 要是字串清單（最多 {AGENT_TRIGGERS_MAX} 個）")
+        else:
+            for t in triggers:
+                problem = _ai_text_problem(t, "agent.triggers 的一項", AGENT_TRIGGER_LEN)
+                if problem:
+                    bad.append(problem)
+                elif t.strip() not in out["triggers"]:
+                    out["triggers"].append(t.strip())
+    if "load" in value:
+        if value["load"] not in AGENT_LOADS:
+            bad.append(f"agent.load 只能是 {'、'.join(AGENT_LOADS)}")
+        else:
+            out["load"] = value["load"]
+    if "skill" in value:
+        skill = value["skill"]
+        if not isinstance(skill, dict) or sorted(set(skill) - {"file", "topics"}):
+            bad.append("agent.skill 要是 {\"file\": \"SKILL.md\", \"topics\": {\"主題\": \"skills/x.md\"}}")
+        else:
+            if "file" in skill:
+                top = raw.get("skill", "SKILL.md")
+                problem = _pack_file_problem(folder, skill["file"], "agent.skill.file")
+                if problem:
+                    bad.append(problem)
+                elif os.path.normpath(skill["file"]) != os.path.normpath(str(top)):
+                    bad.append(f"agent.skill.file（{skill['file']}）要跟最上層的 skill（{top}）一樣")
+            topics = skill.get("topics", {})
+            if not isinstance(topics, dict) or len(topics) > AGENT_TOPICS_MAX:
+                bad.append(f"agent.skill.topics 要是 {{\"主題名\": \"檔案\"}}（最多 {AGENT_TOPICS_MAX} 個）")
+            else:
+                for name, rel in topics.items():
+                    if not isinstance(name, str) or not TOPIC_RE.match(name):
+                        bad.append(f"agent.skill.topics 的主題名 {name!r} 只能用小寫英數字、-、_（32 字內）")
+                        continue
+                    problem = _pack_file_problem(folder, rel, f"agent.skill.topics.{name}")
+                    if problem:
+                        bad.append(problem)
+                    else:
+                        out["topics"][name] = rel.replace("\\", "/")
+    if "provides" in value:
+        provides = value["provides"]
+        if not isinstance(provides, list) or len(provides) > AGENT_PROVIDES_MAX or \
+                not all(isinstance(p, str) and PROVIDES_RE.match(p) and len(p) <= 48 for p in provides):
+            bad.append(f"agent.provides 要是能力代號的清單（工具.動作，小寫英數字與點；最多 {AGENT_PROVIDES_MAX} 個）")
+        else:
+            out["provides"] = list(dict.fromkeys(provides))
+    if "promises" in value:
+        promises = value["promises"]
+        known = declared_commands(raw, kind, cli)
+        if not isinstance(promises, dict):
+            bad.append("agent.promises 要是 {\"指令名\": \"schedule\"|\"watch\"}")
+        else:
+            for name, what in promises.items():
+                if not isinstance(name, str) or not COMMAND_RE.match(name) or (known is not None and name not in known):
+                    bad.append(f"agent.promises 的 {name!r} 不是這個工具宣告過的指令")
+                elif what not in PROMISE_KINDS:
+                    bad.append(f"agent.promises.{name} 只能是 {'、'.join(PROMISE_KINDS)}")
+                else:
+                    out["promises"][name] = what
+    if "always" in value:
+        problem = _ai_text_problem(value["always"], "agent.always", AGENT_ALWAYS_MAX, multiline=True)
+        if problem:
+            bad.append(problem)
+        else:
+            out["always"] = value["always"].strip()
+    return out, bad
+
+
+def agent_needs_core(m: "Manifest") -> List[str]:
+    """這個工具的 agent 區塊裡，只有「核心」信任才准的東西（agent.always、load=always）；沒有＝[]。"""
+    agent = m.agent or {}
+    out = []
+    if agent.get("always"):
+        out.append("agent.always")
+    if agent.get("load") == "always":
+        out.append("agent.load=always")
+    return out
+
+
+def agent_trust_problem(m: "Manifest", trust: Optional[str], signature: str = "") -> str:
+    """第三方（不是 core）的工具寫了 agent.always／load=always → 拒絕的一句話；沒事 → ""。
+    signature：SYNOX 驗出來的簽章狀態（ADR 0028）。「official」（官方鑰匙簽的、沒被改過）跟信任選 core 一樣算可信；
+    「author」（作者自己的鑰匙）不算——任何人都能做一把。"""
+    needs = agent_needs_core(m)
+    if not needs or trust == "core" or signature == "official":
+        return ""
+    return (f"{'、'.join(needs)} 只給信任選「核心（core）」或有「✅ 官方」簽章的工具（每輪都進 AI 的提示）；"
+            "這個工具兩者都不是，所以拒絕。信得過就在報告上把信任改成核心再裝，或請作者拿掉這一項")
 
 
 # ── 權限宣告：surfaces、data（PERM-2） ─────────────────────────────────
@@ -1365,6 +1613,12 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
         raw, kind, cli.get("commands") if kind == "cli" and isinstance(cli.get("commands"), list) else [], strict)
     if strict:                                 # 安裝時說清楚；載入時壞的那一條丟掉（只是少了範例）
         problems += help_bad
+    agent, agent_bad = parse_agent(raw, folder, kind, cli, strict)    # 選填的 agent 區塊（ADR 0030）
+    if agent_bad:
+        if strict:                             # 安裝時拒；載入時壞的那一項當作沒寫（記 log）
+            problems += agent_bad
+        else:
+            logging.warning("[PACKS] %s: agent block problems ignored: %s", name, "；".join(agent_bad))
     if problems:
         raise ManifestError("；".join(problems))
     auth_type = extra["auth_info"].get("type", "none")
@@ -1372,7 +1626,7 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
                     folder=folder, group=group, access=access, skill=skill, storage=storage,
                     python=dict(raw.get("python") or {}), cli=cli, auth="" if auth_type == "none" else auth_type,
                     requires=dict(requires), web=web, raw=dict(raw), v2=v2, category=category,
-                    stage=stage, stage_declared=stage_declared, health=health, theme=theme, help=help_block,
+                    stage=stage, stage_declared=stage_declared, health=health, theme=theme, help=help_block, agent=agent,
                     runtime={**{k: v for k, v in runtime.items() if k in ("python", "python_posix", "node")},
                              **({"container": container} if container else {})}, **extra)
 
@@ -1452,6 +1706,9 @@ def doc_warnings(m: Manifest) -> List[str]:
         out.append(f"這些欄位沒寫 ask（表單上只看得到英文欄位名）：{'、'.join(no_ask)}")
     from synox.helpui.examples import lint_warnings
     out += lint_warnings(m.help or {})           # 白話檢查：只擋明顯的術語（提醒、不擋安裝）
+    if m.agent_declared and not (m.agent or {}).get("index"):
+        out.append("agent 區塊沒寫 index（AI 能力清單裡「什麼時候找我」那一行）：先用 summary 代替"
+                   "（格式見 docs/pack-format.md「agent 區塊」）")
     return out
 
 

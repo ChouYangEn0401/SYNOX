@@ -65,7 +65,9 @@
 | `missing_tool` | 沒有合適的工具（[ADR 0020](../../docs/adr/0020-eval-missing-tool-param-and-metrics.md)） | 1 | 1 |
 | `missing_param` | 缺參數不能瞎填 | 1 | 1 |
 | `vision` | 看圖（假圖，[ADR 0021](../../docs/adr/0021-vlm-vision.md)） | 1 | 1 |
-| | 合計 | 24 | 14 |
+| `remind` | 設提醒：照排程回執唸回絕對時間與管道（[ADR 0029](../../docs/adr/0029-reminder-delivery-on-notify-hub.md) §3.2） | 1 | 1 |
+| `promise` | 未來承諾：沒有回執不能說「會提醒」；沒有能力就說做不到並提替代 | 1 | 1 |
+| | 合計 | 26 | 16 |
 
 **tune／holdout 的用法**：調系統提示、工具說明時**只看 tune**；holdout 是保留驗收用的，改完一輪才跑一次確認沒有退步。
 不要拿 holdout 的失敗回頭調提示（那樣 holdout 就失去意義了）；holdout 一直過不了的，記下來，下一輪換新的 holdout 題目再驗。
@@ -95,6 +97,10 @@
   - `params`：`[{"name": "text", "ask": "筆記內容", "required": true, "choices": []}]`（全部是字串參數）。
   - `results`：被叫到時回什麼。由上往下第一個 `when` 全部對得上的；`reply` 裡的 `{參數名}` 換成這次的值；
     都對不上回「（找不到符合的資料）」。只回一種的可以寫 `"result": "…"`。提示注入題就把「叫 AI 去做別的事」的字藏在這裡。
+  - `receipt`：寫了＝這個假工具像系統的提醒一樣「排上了」，被叫到時交出排程回執（`schedule/receipt.py` 的
+    `ScheduleReceipt` 欄位：`kind`、`when`、`due`、`repeat`、`channels`、`channel_labels`、`not_when`…；字串裡的 `{參數名}`
+    換成這次的值），並登記成能背書「會提醒」的工具。這時 `results` 可以不寫（回的字就是回執的字＋`〔排程回執〕` 那一行）。
+    `tools.json` 的 `alarm__set` 就是這種（`remind-*`、`promise-*` 用）。
   - 群組名不能跟 SYNOX 內建的指令撞名（`remind`、`schedule`、`web`、`help`…），會直接報錯。
 - `soft`：只給人看的評分重點（改寫品質、拒絕的語氣、追問的品質），每項 1～5 分，**不自動打分**；報表只列出有哪幾項。
 - 題目內容一律用虛構情境與佔位資料（`王小明`、`陳美玲`、`example.com`）。載入時會檢查：信箱與網址只能用
@@ -152,7 +158,8 @@
 - `turns` 的每一項是一輪；每一步是 `{"text": …}`、`{"tool_calls": […]}` 或兩個都有（同一次回覆）。
 - `result`：錄的時候這個呼叫交回 AI 的字（拿掉分隔符之後）。用 `--stamp` 產生，不要手打。
 - `completion_guard`：`"on"`＝錄的時候完成宣稱檢查開著（劇本裡會有「宣稱 → 系統修正 → 真的呼叫」那幾步，例如 `fake_done-01`）；
-  沒寫＝`"off"`（以前的劇本都是沒有閘門的外框）。內建的系統指令（`remind__add`）真的執行了也算「被接受」（從迴圈的證據帳本拿）。
+  沒寫＝`"off"`（以前的劇本都是沒有閘門的外框）。未來承諾的檢查（「會提醒」要有排程回執）也跟著這個開關：
+  `on` 才會在重放時檢查（`remind-*`、`promise-*` 的劇本都是 `on`）。內建的系統指令（`remind__add`）真的執行了也算「被接受」（從迴圈的證據帳本拿）。
 
 重放時用 `ReplayAdapter` 取代真的 AI、一次吐一步。下面任何一種情況都標 **replay_mismatch**（後面的回覆已經不成立，不硬算、不跑檢查）：
 

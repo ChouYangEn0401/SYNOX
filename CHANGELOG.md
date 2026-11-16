@@ -1,8 +1,14 @@
 # Changelog
 
-## 未發佈（安全修補：簽章與官方標章、沒經過安裝頁的工具不載入、面板隔開；ADR 0028）
+## 0.2.1-alpha.1（2026-11-16）
 
-### 安全
+**預覽版（alpha）：尚未在實機完整驗證。** 下面的功能都只在自動測試（假的 Telegram／Discord、假的視窗檔案）裡跑過，
+還沒在真的 Windows 電腦上從頭到尾用過；一般人請等正式版。從 0.2.0 更新上來的人：內建工具都搬進工具庫了，
+更新完到「設定 → 🧩 功能與安裝 → 工具庫」把要用的工具裝回來（資料還在）。
+
+### 安全修補：簽章與官方標章、沒經過安裝頁的工具不載入、面板隔開；ADR 0028
+
+#### 安全
 - **沒有經過安裝頁的工具不再載入**（以前手放進 `packs/`、或 `config.json` `packs.dirs` 指過去、沒有 `packs.lock` 那一筆的工具照樣載入，個人版連掃都不掃）。
   現在狀態是「沒有經過安裝頁，先不開」：啟動時通知擁有者一次、設定頁列出來、按「送去安裝頁檢查」走跟上傳一樣的報告、你按確認才裝（原地那一份收到 `packs/_removed/`，資料在 `data/` 不動）。
   `packs.dirs` 指過去的（工程師）：`python -m synox packs lock --approve <name>`（跑第 1、2 關、印報告再鎖）。升級 SYNOX 的人：以前手放的工具會變成這個狀態，不會被刪。
@@ -17,48 +23,115 @@
 - `.synoxpack` 的 zip 檢查多三條：同一個路徑出現兩次、兩個檔名只差大小寫（Windows 會蓋掉其中一個）→ 拒；解壓縮時一邊解一邊數位元組，比宣告的大就停（以前只信 zip 宣告的大小）。
 - 安裝時 `title`／`summary`／`publisher` 不能有看不見的字元（雙向文字控制、零寬）或換行（報告上會顯示成別的字）。已經裝好的舊工具載入不受影響。
 
-### 新增
+#### 新增
 - `synox-sdk keygen --out <路徑>.pem`（私鑰用密語加密；印出公鑰與 key_id）、`synox-sdk sign <檔>.synoxpack --key <私鑰>`（zip 裡加 `pack.sig.json`）、
   `synox-sdk verify <檔>.synoxpack`（印標章；結束碼 0＝有簽章、1＝沒有、2＝被改過）。任何作者都能簽自己的工具。`scripts/release.py keygen` 沒設環境變數時也會問密語（跟 `synox-sdk keygen` 一致）。
 - 設定頁「別人做的技能」那張卡改字：之後的匯入走同一個安裝頁、同一份報告與提醒；拿掉「建議開沙盒模式」（Windows 上還沒有）。
 
-### 文件
+#### 文件
 - [ADR 0028](docs/adr/0028-pack-signatures-official-badge.md)（簽章與官方標章、不載入沒經過安裝頁的工具、面板隔開、SDK 指令、公鑰放哪）；
   稽核紀錄 [docs/lab/2026-11-16-security-hotfix-audit.md](docs/lab/2026-11-16-security-hotfix-audit.md)；`security.md`、`pack-format.md`、`sdk.md`、`install-packs.md` 跟著更新。
   真的瀏覽器裡的面板行為沒有人看過（開發機不開瀏覽器），擁有者請照 ADR 0028 §10 開一次工具頁確認。
 - [docs/signing.md](docs/signing.md)：簽章照做清單——在家產生工具／發佈鑰匙（現用＋備用）、公鑰貼進 SYNOX（含要改的兩個測試）、每次發官方工具與 SYNOX 本體怎麼簽、作者簽自己的工具、鑰匙丟了／外流怎麼換。
 
-## 未發佈（文件：ADR 0022 核准）
+### 文件：ADR 0022 核准
 
-### 文件
+#### 文件
 - [ADR 0022](docs/adr/0022-ecosystem-bridge-and-sandbox.md)（接上其他生態、npm、市集、隔離、預覽）改成「已採用」：擁有者照建議核准 35 題，另加一條修正（設計中）——
   **所有來源一律可以安裝、一律顯示安全提醒；官方工具以擁有者簽章辨識**，細節另立 ADR。隔離、確認卡、釘住工具說明、鎖檔完整性、環境變數白名單、預覽照原計畫。
 - [沙盒路線圖](docs/sandbox-roadmap.md) 跟著更新：H8–H10 現在收 PR，H11（Windows 後端）等實測結果。程式沒有改動。
 
-## 未發佈（設定頁顯示 SYNOX 核心版本）
+### 這版重點：提醒一定送到（核心基本盤，[ADR 0029](docs/adr/0029-reminder-delivery-on-notify-hub.md)、[docs/notifications.md](docs/notifications.md)）
 
-### 新增
+#### 新增
+- **提醒晚了也會響**：電腦剛醒、SYNOX 剛開時，晚 60 分鐘內照樣響並說晚了幾分鐘；晚 1～6 小時會一則一則告訴你「你錯過了 1 個鬧鐘」；
+  更久的併成一則「有 N 個提醒在 SYNOX 沒開的時候過了」。
+- **送不到會重試**：網頁、Telegram、Discord、電腦視窗要真的回報「收到了」才算送到；送失敗的留著重試（30 秒起，最多試 6 小時），
+  SYNOX 重開也會接著試。對方封鎖了 bot、token 壞了就不再試，健康檢查會說是哪一條壞了。響了沒人按的提醒 24 小時後自動收掉。
+- **在一個地方按了，其他地方一起收掉**：在 Telegram、Discord、網頁或電腦視窗按「完成／知道了／延後」，其他地方的按鈕跟著拿掉。
+  「5 分鐘後再提醒」現在是把同一個提醒往後延，不再另外多加一筆。
+- **電腦右下角的提醒視窗**（Windows 個人版，預設開）：時間到跳出一張提醒卡，永遠在最上層、不按不會自己關；
+  可以按 ✅ 完成、10 分鐘後、1 小時後，或自己打時間（「15:30」「半小時後」「明天 9 點」）。卡片下半部列出待辦。
+  視窗跟 SYNOX 只透過 SYNOX 資料夾裡的小檔案溝通，不開任何網路埠。想先看長相：`python -m synox remind-window --demo`。
+- **登入時啟動的提醒哨兵**（Windows 個人版）：登入 Windows 時自動在背景啟動的小程式（只登記在你自己帳號的「啟動」資料夾，不用管理員）。
+  SYNOX 沒開的時候它照樣到點跳視窗、送 Telegram；SYNOX 一開就把工作交回去，同一時間只有一個在叫你。
+  電腦關機或睡著時誰都叫不了，開機後補送。兩個都可以在「設定 → 💻 電腦與備份 → 🔔 通知要送到哪裡」關掉。
+- **待辦**：`/remind_todo 繳電話費` 記一件沒有時間的事（不會響），`/remind_list` 下半部列出，`/remind_done <編號>` 做完；
+  電腦提醒視窗上按 ✓ 也算做完。
+- **`/remind_test`**：一分鐘後試響一次，看看每個地方有沒有收到。
+- **時間可以照平常說話寫**：「半小時後」「明天 9 點」「明早」「+2h」；兩種讀法差很多時會反問，已經過了的時間會先問是不是明天。
+  設好時回一張固定格式的「排程回執」：幾點、送到哪裡、什麼情況不會響。一個能送的地方都沒有就不排，並告訴你去哪裡打開。
+- **AI 不能空口答應會提醒**：AI 回「我會提醒你」「每天通知你」時，這一輪一定要真的排好、有排程回執，而且說的時間、每天與否、
+  送到哪裡都要跟回執一樣；沒排好就退回重寫，最後還是沒排上會老實告訴你「沒有排好」。AI 自己寫的假回執不算。
+- **健康檢查多一行「提醒引擎」**（`python -m synox doctor`）：上一次檢查是幾秒前、是 SYNOX 還是提醒哨兵在跑、還有幾則沒送到、
+  最近失敗的是哪一種管道。提醒引擎連續出錯會直接通知你「⚠️ 提醒引擎停了」，好了再說一聲。
+
+#### 變更
+- 舊的提醒資料第一次讀到時自動轉成新格式；看不懂的那一筆原樣留著，不會被刪。
+
+### 通知中心：通知送到你用的每一個地方（[docs/notifications.md](docs/notifications.md)）
+
+#### 新增
+- SYNOX 要告訴你的事（鬧鐘、新版、工具畫面太久沒人用、常駐助理的消息、安全警告）同一則送到網頁、Telegram、Discord；
+  一條壞了其他條照送。網頁左上角 🔔 有未讀數字、跳出小卡、最近 100 則；「⏰ 下一個：…」一直看得到。
+- 🔔 →「鬧鐘」分頁：列出全部提醒、刪除、試響一下；可能漏掉時先用黃色框說（例如只有網頁、沒開「保持清醒」、沒設開機自動啟動）。
+- 設定 → 💻 電腦與備份 →「🔔 通知要送到哪裡」：每一類通知 × 網頁／Telegram／Discord 分開開關。
+- 選用（要自己按才打開）：網頁的提示音、瀏覽器的桌面通知。
+
+### 工具登記：工具告訴 AI 什麼時候該用它（[ADR 0030](docs/adr/0030-tool-registration-index.md)）
+
+#### 新增
+- 工具的 `pack.json` 可以多寫一段 `agent`：一句話說這個工具做什麼、哪些字出現時該想到它、它會不會「答應幫你排時間」。
+  SYNOX 把系統功能（提醒、排程、通知）和每個裝好的工具彙整成一份精簡的索引給 AI 看（總長有上限，不會塞爆 AI 的提示）。
+- 工具可以宣告要先有哪個工具或哪個系統功能（`requires.packs`／`requires.system`）；缺了就不載入，並說缺什麼。
+- 安裝報告多一行「每次對話會多給 AI 多少字」；升級時新增「會答應排時間」的能力用紅字標出來；`doctor` 列出每個工具用了多少、缺了什麼。
+- 第三方工具不能要求「每次對話都放進 AI 的提示」（只有信任選「核心」、或有「✅ 官方」簽章的工具可以）。沒經過安裝頁、沒載入的工具不會進索引。
+
+### AI 的基本提示詞整理成七層
+
+#### 變更
+- AI 每次收到的說明整理成固定的七層（身分、做事規則與六條承諾規則、能力清單、工具說明、你的偏好、這一輪的規則與現在時間）。
+  前四層每一輪一模一樣，本地模型可以重用快取、回得比較快。
+
+### 工具可以是多個 Python 檔（[ADR 0027](docs/adr/0027-multi-file-python-packs.md)）
+
+#### 新增
+- 寫工具的人：`kind: python` 的工具在 `pack.json` 寫 `"python": {"module": "pack", "package": true}`，就可以把程式拆成很多檔、
+  用相對 import 互相引用。安全規則跟單檔一樣（只從 `.py` 原始碼載入、裝好後每個檔都要跟登記的一樣、不能 import 別的工具的程式）。
+  沒寫這個設定的工具完全照舊。
+
+### 文件：裝別人做的工具
+
+#### 新增
+- 文件：[docs/install-third-party-tools.md](docs/install-third-party-tools.md)，找到別人的工具、MCP 伺服器或 Claude 技能時怎麼判斷、怎麼安全地放進 SYNOX（含接官方遠端 MCP 的例子、安裝報告怎麼看、目前接不起來的 Google 官方 MCP、Claude 技能為什麼不能直接用）。只有文件，程式沒改。
+
+### 設定頁顯示 SYNOX 核心版本
+
+#### 新增
 - 網頁「設定」標題下一行小字「SYNOX 核心版本 0.2.0 · 工具 SDK 0.2.3」，每個分頁都看得到、每個登入的人都看得到。版本直接取自 `synox.__version__`（工具 SDK＝`synox.sdk.author.SDK_VERSION`），由 `GET /api/settings` 的新欄位 `version: {core, sdk}` 送出。
 
-## 未發佈（工具更新、先測 SYNOX 更新、發佈手冊）
+### 工具更新、先測 SYNOX 更新、發佈手冊
 
-### 新增
+#### 新增
 - 命令列 `synox tools check`（裝著的工具與外觀包有沒有新版，只看；這時才連網）與 `synox tools update <名字…>|--all`：跟安裝同一條路（下載、對檔、檢查報告，`--yes` 或網頁按確認才換；舊版留著可以 `packs rollback`）。
 - 網頁「功能與安裝」：載入工具清單後出現「有 N 個工具可以更新」＋「全部更新」，一個一個給報告、按確認才換；「檢查更新」看到的數目也先提示。
 - 每週檢查（自己打開的）也會在工具有新版時通知一次（同一組版本只通知一次；只看不裝）。
 - 先測 SYNOX 更新（還沒有真的發佈時）：`Update.bat -FromZip <ZIP> [-AllowUnsigned]`（＝`synox update --prepare --from-zip`；旁邊的 SHA256SUMS.txt、簽章有就要對；一樣留 `_previous`、可以 `-Rollback`）、`synox update --check --include-prerelease`（只有明確加才看預覽版）、只給測試的環境變數 `SYNOX_UPDATE_API`（只收本機檔案／127.0.0.1，用的時候大聲說）與 `SYNOX_UPDATE_TEST_PUBKEY`、`scripts/make_update_testkit.py`（舊版＋假新版 ZIP、檢查檔、拋棄式簽章、中文步驟）。
 - 文件：[docs/release-playbook.md](docs/release-playbook.md)，發 SYNOX／工具庫、下載連結、關卡、退回、給新 session 的檢查表。
 
-## 未發佈（外觀：衣櫃與背景）
+#### 變更
+- 發佈 ZIP 的 `tools\` 與安裝程式帶的工具庫，換成工具庫 2026-11-16 重發的 `v0.2.0` 附檔（11 個工具，多了每日日記、Google 試算表）；`build-installer.yml` 釘的 sha256 跟著換（`docs/release-build.md`）。工具卡片的「說明」連到每日日記、Google 試算表自己的說明頁。
 
-### 新增
+### 外觀：衣櫃與背景
+
+#### 新增
 - 設定 → 🎨 外觀 新增「衣櫃」：按「看衣櫃（要連到網路）」才會連線，列出官方外觀包，可安裝（照原本的報告→你按確認）、套用、更新；也有連到衣櫃網頁的連結。外觀包不會出現在「功能與安裝」的工具清單。
 - 新增「背景」：跟著外觀／不要背景／純色／內建花紋／自己貼 SVG（新位置 `chat.background`）。自己選的優先於外觀包的背景。
 - ⏳ 目前固定讀取的工具庫清單還沒有外觀包，所以衣櫃會顯示「還沒上架」，等工具庫發佈含外觀包的清單並更新 `catalog.OFFICIAL_INDEX_URL` 才會有卡片。
 
-## 未發佈（SYNOX 自己更新：檢查更新、Update.bat、簽章；ADR 0023）
+### SYNOX 自己更新：檢查更新、Update.bat、簽章；ADR 0023
 
-### 新增
+#### 新增
 - **檢查更新**：網頁「設定 → 💻 電腦與備份 → SYNOX 更新」的「檢查更新」，或 `synox update --check`。只問 GitHub 最新的**正式版**（beta 不會出現），只看、不下載；
   發佈說明有「🔒 安全更新／強烈建議更新」會用紅字說；順便說「有 N 個工具可以更新」。
 - **每週檢查（選用，預設關）**：安裝精靈最後一頁一格「每週幫我看一次有沒有新版（只看，不會自己裝）」，設定頁同一個開關，或 `synox update --weekly on`
@@ -69,29 +142,29 @@
 - **發佈簽章**：`python scripts/release.py sign` 寫 `release.json`＋`release.json.sig`（Ed25519）＋`SHA256SUMS.txt`；`release.py keygen` 產生金鑰（私鑰只在創始維護者手上、離線）。
   **公鑰還沒放進 SYNOX**，所以現在每一版都算「沒有簽章」：Update.bat 會說明，要你明確 `Update.bat -AllowUnsigned` 才換檔（docs/release-build.md「簽章金鑰」）。
 
-### 變更
+#### 變更
 - `synox about`／`synox doctor` 的「有沒有新版」改成指向 `synox update --check` 與設定頁的「檢查更新」。
 - `Setup.bat -Update`（`bootstrap.ps1 -Update`）：只更新 `.venv` 的套件，不問問題、不開精靈（Update.bat 用）。
-## 未發佈（網頁開場變成「點一下打開 SYNOX」的門）
+### 網頁開場變成「點一下打開 SYNOX」的門
 
-### 變更
+#### 變更
 - 網頁介面每次打開都會播開場，播完停在最後一格等你點（點一下、或按 Enter／空白鍵／Esc），點了整片放大淡出進到 SYNOX；
   系統開了「減少動態效果」時直接顯示不動的最後一格，一樣等你點。新手教學的邀請等門關了才出現。
 - 左上角（手機是上方列）的 S 變成按鈕：點了再看一次開場（提示「再看一次開場」）。
 - 自動化測試、設計預覽跳過開場：`?splash=0` 或頁面載入前設 `window.SYNOX_NO_SPLASH = true`。（`docs/ui/motion-notes.md`）
 
-## 未發佈（/help 改版、自訂指令）
+### /help 改版、自訂指令
 
-### 新增
+#### 新增
 - /help 改版：第一則只有工具按鈕，點工具看最常用的打法與例子，點指令看一句白話＋範例；唯讀指令有「試試看」；/help all 照舊列全部。
 - 工具可以在 pack.json 寫 `help` 區塊（白話、範例、建議名字），安裝時檢查、跑不動的範例不顯示。
 - 網頁對話頁新增「💡 範例」（點了只填進輸入框）。
 - 設定新增「⌨️ 我的指令」：每個人可以把 `/` 換成自己的符號、幫指令取名字（例如 `@記帳`），所有通道都能用、只改自己打的字；可選不用符號（反斜線開頭＝當一般的話）；AI 會用你的叫法。（`docs/commands.md`）
 - 安裝教學頁的「選讀：SYNOX 網頁導覽」改讀內建新手教學的步驟（`scripts/build_guide.py`）。
 
-## 未發佈（門禁核心、手機驗證器、工具服務、手機入口；分支 feat/secure-apps）
+### 門禁核心、手機驗證器、工具服務、手機入口；分支 feat/secure-apps
 
-### 新增
+#### 新增
 - **門禁核心**（`src/synox/guard/`，ADR 0025）：每個動作都記得是誰引起的（Telegram、網頁、AI、排程…）；所有欄位值先過同一份基本檢查（太長、空字元、控制字元、騙人的排版字元）；
   安全紀錄 `data/security_audit.jsonl`。工具可以在 `pack.json` 用 `callers`／`stepup` 收緊範圍（只收本人、一定要解鎖）；`kit.caller()`、`kit.require_human()`、`kit.checks`。
 - **手機驗證器（兩步驗證）**：設定 → 🔐 安全（或 `python -m synox stepup setup`）。設定好並勾「危險的動作也要先解鎖」之後，所有危險的指令與幾個敏感的網頁動作要先
@@ -101,14 +174,14 @@
 - **手機入口**（ADR 0026，預設關）：`/app_remote <名字>`（或工具頁的「📱 手機入口」）打一組新的驗證碼 → 一個只能用一次的連結，手機上再打一組數字才進得去；通道是你自己裝、在設定 → 🔐 安全核准過的 `cloudflared`（SYNOX 不下載、不更新，每次啟動前對雜湊）；只碰得到那一個工具的畫面，危險的動作與匯出在手機上不能做；30 分鐘、10 分鐘沒用、`/app_close` 都會整組收掉。
 - `doctor` 多「手機驗證器」「工具服務」「手機入口」三行。
 
-### 變更
+#### 變更
 - 主機台的 `/api/` 拒絕別的網頁送來的請求（`Sec-Fetch-Site` 是 same-site／cross-site）；每個回應加 COOP、JSON 加 CORP；同名的假 cookie 擋不住真的那個。
 - `stepup_minutes` 預設 15（1–120）。伺服器版擁有者沒設定驗證器時，現在給得了別人管理員（以前會被 SDK 的命令列提示擋住）。
 - 工具服務的 ADR 改號成 0024（原本跟「SYNOX 自己更新」撞號 0023）。
 
-## 未發佈（發佈物只帶使用者要的；拿掉 Connect-Apple.bat；治理文件搬進 .github）
+### 發佈物只帶使用者要的；拿掉 Connect-Apple.bat；治理文件搬進 .github
 
-### 變更
+#### 變更
 - **發佈 ZIP 與安裝程式只帶執行、更新 SYNOX 要用的檔案**（擁有者 2026-11-14 決定）：`tests/`、`evals/`、`docs/lab/`、`docs/artifacts/`、
   `docs/artifacts.json`、`docs/QuestionToUser.md`、`docs/ui/`、`docs/installer/`、`.github/` 的 CI 與範本、`.devcontainer/` 不再發給使用者
   （`scripts/make_zip.py` 的 `INTERNAL`；`stage_installer.py` 用同一份）。GitHub 的「Download ZIP」也一樣不帶（`.gitattributes` 的 export-ignore）。
@@ -125,31 +198,31 @@
   `docs/community/`、`.github/DISCUSSION_TEMPLATE/` 跟其他開發用檔案一樣不發給使用者。
 - ADR 0022、生態研究與幾份舊研究頁講到 OpenClaw／Hermes Agent 的地方改成中性、以相容為目的的寫法：只引用對方的公開文件，二手報導標「待查」，並感謝兩個專案公開的文件。
 
-## 未發佈（外觀：換裝）
+### 外觀：換裝
 
-### 新增
+#### 新增
 - 外觀（換裝）：SYNOX 預設還是原本的樣子；外觀包（`.synoxpack`，`kind=theme`）上傳 → 看報告（色票＋預覽）→ 按確認才裝，到「設定 → 🎨 外觀」套用、隨時換回原本的 SYNOX。整個網頁的顏色都來自一組 token，吉祥物、開場、字標、分頁圖示是可以換的位置；也可以自己貼 SVG 換某一個位置。外觀包沒有程式，SVG／CSS 一律消毒（不收程式、事件屬性、外部網址、@import），字型只能附在包裡。Telegram、Discord 不受影響。（`docs/themes.md`）
 - 跟工具服務／門禁核心合在一起時取比較嚴的：外觀包也不能寫 `callers`、`stepup`（第 1 關就拒；`web`／`web.app` 本來就不收）；
   第 2 關對外觀包不豁免任何「掃不到的檔」，網頁畫面的檢查（appscan）照樣跑；外觀包從「功能與安裝」裝，跟工具一樣要過解鎖（開了的話）。
   「🔐 安全」與工具服務的畫面改用同一組顏色 token（換外觀、深色時解鎖框看得清楚）；手機驗證器的 QR 碼固定黑白。
 
-## 未發佈（標語）
+### 標語
 
-### 變更
+#### 變更
 - 拿掉標語「聊天就能用，資料不出門。」（接雲端 AI 時對話會送出去，「資料不出門」不實）；新標語還沒定案，暫用「先問你，再動手。」，只寫在 `src/synox/brand.py` 的 `SLOGAN`（介紹頁組頁面時、終端機歡迎畫面／`synox about` 都從那裡拿）。上面那行小字維持「住在你自己電腦裡的 AI 助理」。精靈「個人版」那句改成只說設定、金鑰、筆記、記帳存在這台電腦。
 
-## 未發佈（整理資料夾）
+### 整理資料夾
 
-### 變更
+#### 變更
 - 根目錄少三樣：`QuestionToUser.md` 搬到 `docs/QuestionToUser.md`；`legacy/` 搬到 `docs/legacy/`；只剩一份「已搬走」說明的 `connectors/` 拿掉了（說明併進 `docs/legacy/connectors.md`）。
 - `docs/` 裡名字太像的資料夾分開：`docs/handoffs/`（請別的 repo 做的事）搬到 `docs/lab/cross-repo/`，`docs/discussions/` 搬到 `docs/lab/discussions/`；給使用者的 `docs/handoff/` 不動。
 - `docs/README.md` 索引補上 `tool-health.md`、`release-build.md`、`tutorials-engine.md`、`guide/`、`installer/`、`artifacts/`、`lab/`；`docs/AGENT.md` 程式地圖多一列 `docs/` 的分區。
 - 8 個 `.bat`、`setup/`、已發佈頁面的本機副本（`docs/landing/`、`guide/`、`installer/`、`tutorials/`、`artifacts/`、`lab/design/`）位置都沒變：已裝好的電腦、桌面捷徑、`.synoxpack` 點兩下都不受影響，線上頁面不用重新發佈。
 - 從舊版解壓縮蓋過來的人：留在磁碟上的舊 `connectors\`、`legacy\`、`QuestionToUser.md` 不會被讀，可以自己刪。
 
-## 未發佈（安裝程式 .exe 照擁有者 2026-11-13 的決定改版）
+### 安裝程式 .exe 照擁有者 2026-11-13 的決定改版
 
-### 變更
+#### 變更
 - 第一頁選語言（12 種，預選 Windows 的語言）；沒有「我同意」頁，歡迎頁一行授權連結（個人使用免費，商業用途看 AGPL-3.0）。
 - 「建議」只準備環境＋新手教學、預設開機自動啟動；「自訂」可選安裝位置與每一項，含「全部官方工具都裝（不建議）」。
 - 最後一步可選裝 Claude Code（這台沒有才裝、要上網、失敗不擋安裝）。
@@ -159,37 +232,37 @@
 - 繁體中文、简体中文、हिन्दी 的安裝畫面按鈕（「下一步」「瀏覽…」這些 Inno Setup 內建的字）也翻好了：Inno 沒有這三種的官方檔，改用 SYNOX 自己翻的 `setup/installer/lang/inno/*.isl`（Inno 6.7.4 的 293 個 key 全翻，`check-iss` 檢查一個都不少、代換符號與快速鍵一樣；待母語者校對）。
 - 🧪 以上都還沒在 Windows 上編譯或實測。
 
-## 未發佈（不用 uv：直接下載固定版本的 Python；Setup.bat 先問「照建議／自訂」）
+### 不用 uv：直接下載固定版本的 Python；Setup.bat 先問「照建議／自訂」
 
-### 變更
+#### 變更
 - **Setup.bat 不再用 uv**：沒有 `runtime\python` 時，直接下載釘死網址＋SHA256 的獨立版 CPython 3.12.16（python-build-standalone 20261026，`install_only_stripped`，約 22 MB），用 Windows 內建的 `tar.exe` 解到 `runtime\python`，再用一般的 `python -m venv` 建 `.venv`。檢查碼不對就刪掉下載的檔案、停下來。不再退到 python.org 的可攜版。仍然只動 SYNOX 資料夾。
 - **安裝程式和 ZIP 用同一個 Python**：`stage_installer.py --fetch-python` 讀 `setup/bootstrap.ps1` 的網址與 SHA256，附的 Python 一定有視窗元件；拿掉 `--python-embed`、`--tk-from` 和 virtualenv。
 - **Setup.bat 先問語言（按 Enter＝Windows 的顯示語言），再說清楚、問一題**：按 Enter 照建議（只準備 SYNOX、開機自動啟動，工具做完教學再挑），輸入 C 自訂（開機自動啟動、Claude Code、全部工具都裝）；`Setup.bat -Custom` 直接進自訂。「全部工具都裝」還沒做。
 
-## 未發佈（新手教學 /tutorial）
+### 新手教學 /tutorial
 
-### 新增
+#### 新增
 - 新手教學（`/tutorial`，也可以打「開始教學」或 `/start tutorial`）：SYNOX 會在網頁上把要按的地方圈起來，一步一步帶你走；Telegram、Discord 用步驟卡。忘了隨時再打一次就能複習（`/tutorial restart` 從頭來）。
 - 第一次打開網頁會問「要不要我帶你走一遍？（約 5 分鐘）」；`/help` 多一行指到 `/tutorial`。
 - 教學是 SYNOX 本體的一部分，每種安裝方式都有；它不是工具，不算進「裝了幾個工具」。教學只會指給你看，不會替你按確認。工具也可以附自己的教學（`docs/tutorials-engine.md`）。
 
-## 未發佈（「遇到問題？」回報面板）
+### 「遇到問題？」回報面板
 
-### 新增
+#### 新增
 - 設定頁多一個「🙋 遇到問題？」分頁（側欄和設定頁標題也有小連結）：三步——沒有 GitHub 帳號先免費註冊、「幫我準備好回報內容」、帶著內容到 GitHub 開問題單（你自己按送出）。
 - 回報內容先遮掉金鑰、token、密碼、email、長數字、含使用者名稱的路徑；給你看、你可以改。SYNOX 不連網、不寫檔、不會自己送出。
 - GitHub 白話中文的問題單表單（`.github/ISSUE_TEMPLATE/problem.yml`）與 `config.yml`（資安問題請看 SECURITY.md，不要公開回報）。
 
-## 未發佈（版本與發佈規則）
+### 版本與發佈規則
 
-### 新增
+#### 新增
 - `docs/versioning.md`：版本號、分支、tag、每版要有什麼、「我要怎麼更新？」；`scripts/release.py`（bump／check／notes）；ADR 0023 自己更新與緊急修補（提案）。
 - `synox about`、`synox doctor` 多一行：到 GitHub 發佈頁看有沒有新版（不自己連網）。
 - `docs/advanced-install.md`：給工程師的進階安裝（原始碼＋venv、Docker、無畫面執行、背景服務），每項標 ✅ 跑過／🧪 未實測／⏳ 未完成。
 
-## 未發佈（設定頁的官方工具庫、預設用 SYNOX 自己的 Python）
+### 設定頁的官方工具庫、預設用 SYNOX 自己的 Python
 
-### 新增
+#### 新增
 - **設定 →「功能與安裝」多了「工具庫（官方）」**：按「載入工具清單」才連網（固定只抓 SYNOX_Libs 發佈頁 v0.2.0 的清單），每個工具一張卡（徽章、「安裝」「⬇ 下載」「說明」，已裝的顯示版本／有新版）。
   「安裝」由 SYNOX 自己下載：只走 GitHub 發佈頁與它的下載主機、檔名要對、大小有上限、sha256 要等於清單，之後走跟上傳一樣的檢查報告→按確認（`src/synox/packs/catalog.py`）。
   另有「別人做的技能（OpenClaw、Hermes）」說明卡（⏳ 尚未完成、沒有安裝鈕）與「沙盒模式」預留卡（⏳ 尚未完成、開關關著）。
@@ -205,23 +278,23 @@
 - 設計稿：`docs/installer/spec.html`（安裝程式規格，線上版 https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB ）、
   `docs/lab/design/2026-11-13-brand-explorations.html`（六套品牌提案，線上版 https://claude.ai/artifact/QqdEnR3s25c7tPUW23zfoz ）；`scripts/page_stamp.py` 替這類網頁蓋頁面版本。
 
-### 修正
+#### 修正
 - 把 .synoxpack 拖進網頁：一定跳到「功能與安裝」分頁（以前跳到上次開的分頁，報告藏在看不到的地方）。
 
-## 未發佈（安裝精靈：一鍵安裝 Claude Code、「下一步」不再被擠掉）
+### 安裝精靈：一鍵安裝 Claude Code、「下一步」不再被擠掉
 
-### 新增
+#### 新增
 - 精靈 AI 頁找不到 Claude Code 時，多一顆「一鍵安裝（PowerShell）」：開一個 PowerShell 視窗跑官方的 `irm https://claude.ai/install.ps1 | iex`
   （裝在使用者自己的資料夾、不用系統管理員），跑完提示「打 claude 登入一次，再回來按『裝好了，重新偵測』」；另有可以複製的那一行指令與「複製指令」。
   12 種語言都有字串。
 - `find_claude` 也找 npm 全域安裝的位置（`%APPDATA%\npm\claude.cmd`）：PATH 還是舊的時候不再誤報「找不到」。
 
-### 修正
+#### 修正
 - 精靈的「下一步」那一列釘在視窗最下面，內容比視窗高時改成可以捲動（擁有者回報 AI 頁的「下一步」有時被藏起來）。
 
-## 未發佈（介紹頁改版）
+### 介紹頁改版
 
-### 改變
+#### 改變
 - **介紹頁 `docs/landing/index.html` 改版**（線上版同一個網址 <https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW>）：
   開頭改成標語「聊天就能用，資料不出門。」，下面用圖示列出支援的地方（Telegram、Discord、網頁）、AI（Claude、OpenAI、Gemini、本機模型）與 Windows；
   「它能幫你做什麼」縮成 8 格一句話；「看畫面」改成大圖、可切換 7 個畫面（對話、工具、主控、裝功能、設定、接聊天軟體、手機）和深淺色、點圖放大；
@@ -247,9 +320,9 @@
   「尚未完成」清單加上 OpenClaw／Hermes 生態的工具。
 - 「還想要別的？」加「怎麼裝別人的工具 →」連到工具庫的說明頁；頁尾加很小的「線上版網址＋頁面版本」給開發者比對線上版和本機版。
 
-## 未發佈（網頁設定頁分頁、安裝 pack 的專屬頁）
+### 網頁設定頁分頁、安裝 pack 的專屬頁
 
-### 新增
+#### 新增
 - **設定頁分成分頁**：AI（來源＋用量）／聊天通道／功能與安裝／帳號（伺服器版、有權限才有）／電腦與備份（保持清醒＋備份）。
   分頁在網址上（`#settings:ai`、`#settings:channels`、`#packs`、`#settings:accounts`、`#settings:system`），重新整理、貼連結都留在同一頁；
   換分頁不重抓資料、不清掉正在填的表單。
@@ -263,12 +336,12 @@
   （detail：step、status、token、name），`#install-steps` 上也有 `data-step`／`data-status`：pack／工具作者之後可以掛自己的動畫或狀態。
   給其他程式碼用的入口 `window.SynoxInstall`（`open`、`reviewFile(file)`、`reviewToken(token)`、`onStep(fn)`、`state()`），之後的拖放也走它。
 
-### 改變
+#### 改變
 - 報告上的「不要裝」現在真的刪掉暫存；多一個「稍後再決定」（收起來，留在待核准清單）。
 
-## 未發佈（.synoxpack 好裝：檔案圖示、拖進網頁、安裝說明）
+### .synoxpack 好裝：檔案圖示、拖進網頁、安裝說明
 
-### 新增
+#### 新增
 - **.synoxpack 有圖示、點兩下就裝**：`Setup.bat` 替目前的 Windows 使用者登記檔案類型（只寫 HKCU、不用管理員、重跑一樣），
   一行一行印出寫了哪些機碼；多了 `DefaultIcon`（`src/synox/assets/synoxpack.ico`：藍綠底白色下載箭頭，`scripts/make_pack_icon.py`
   只用標準函式庫畫）與 `OpenWithProgids`，檔案總管不再顯示像壞掉的空白圖示。`python -m synox filetype register｜unregister｜status`。
@@ -278,13 +351,13 @@
 - 文件 [docs/install-packs.md](docs/install-packs.md)：四種裝法（點兩下、拖到 Install-Pack.bat、拖進網頁、`synox install`）與圖示空白／點兩下沒反應的排查；
   README、packs/README.md、docs/README.md 連過去。
 
-### 安全
+#### 安全
 - 網頁上傳多驗 Content-Type（只收 zip／octet-stream／沒寫，否則 415）與大小（413）；`admin.stage` 要求檔案從 zip 檔頭 `PK\x03\x04` 開始——
   前面接了東西的自解壓 exe／polyglot 以前 zipfile 打得開，現在一律拒（網頁、`synox install`、點兩下都一樣）。
 
-## 未發佈（branch feat/vlm_vision：看圖）
+### branch feat/vlm_vision：看圖
 
-### 新增
+#### 新增
 - **看圖（VLM）**（`src/synox/llm/vision.py`，[ADR 0021](docs/adr/0021-vlm-vision.md)）：harness 不分叉，只多 provider 能力——
   `ImagePart`、`Message.images`、`ChatAdapter.supports_vision`／`check_vision()`。本地 Ollama 原生 `/api/chat` 送純 base64 的 `images`；
   OpenAI 相容（vLLM／LM Studio／other、openai／gemini／openai_compat）送 data URI 的 content parts（不送網址）；Anthropic 送 base64 image 區塊；
@@ -297,13 +370,13 @@
 - 設定頁與 doctor 多一行「看圖：…」（唯讀、不載入模型）；網頁換 AI 來源時保留 vision 的設定。
 - 評測：新類別 `vision` 兩題（讀收據→叫工具、圖裡夾指令→不照做；假圖在 `evals/assistant/images/`），共 38 題。
 
-### 不變
+#### 不變
 - 沒有圖的對話：提示、請求、連線一個字都不變。對話記憶、常駐助理、心跳、soul 只留文字替身，不存圖。
 - Discord 私訊、網頁這一輪不收圖；Telegram 照片的說明文字（caption）SDK 收不到（見 ADR 0021）。
 
-## 未發佈（branch feat/small_model_harness：工具說明精簡化、每輪工具上限、context 預算、本輪規則與覆誦、Qwen3 取樣、評測擴充）
+### branch feat/small_model_harness：工具說明精簡化、每輪工具上限、context 預算、本輪規則與覆誦、Qwen3 取樣、評測擴充
 
-### 新增
+#### 新增
 - **工具說明精簡化**（[ADR 0013](docs/adr/0013-tool-scenario-descriptions.md)）：pack.json `commands[].ai` 可以寫 `{"scenario": "一句話"}`，
   給 AI 的說明變成「用途。情境：…」，不放人打的用法（第 1 關檢查：120 字內、一行、不准網址或像指令的字）。SDK `@tool(scenario=)`（SDK 0.2.2）。
   **沒寫 scenario 的工具說明一個字都不變。**
@@ -321,17 +394,17 @@
   新檢查 `cannot_do`；報表多 Reliable Pass Rate、工具觸發 F1、第 4 關通過率；`scripts/eval_assistant.py --merge` 合併重跑 N 次的報表。
 - doctor 多一行「小模型 harness」（工具上限、context 預算、工具結果上限、本輪規則開不開）。
 
-### 改變
+#### 改變
 - 「auto」的判斷抽成 `src/synox/agent/auto.py`（完成宣稱檢查、步數總結、上面這些共用）；`claims.weak_source` 等舊名字照舊能用。
 - 本地 Ollama 跑 qwen3 系列模型時，請求的 options 多了取樣參數（以前用伺服器／Modelfile 的預設）。
 - 網頁設定頁換 AI 來源時也保留 `max_tools`／`tool_result_chars`／`prompt_tail`／`sampling`／`options`。
 
-### 不變
+#### 不變
 - 雲端來源與 Claude Code 預設：工具清單、系統提示、工具結果一個字都不變（沒設 context_size 就不截）。
 
-## 未發佈（branch feat/completion_guard：本地模型的虛假完成檢測、救回洩漏的工具呼叫、停止詞與「做不到」出口）
+### branch feat/completion_guard：本地模型的虛假完成檢測、救回洩漏的工具呼叫、停止詞與「做不到」出口
 
-### 新增
+#### 新增
 - **完成宣稱檢查**（`src/synox/agent/claims.py`，[ADR 0008](docs/adr/0008-completion-guard.md)）：AI 說「已記下／已新增／記好了」，
   這一輪卻沒有成功的寫入工具呼叫（或回覆裡自己寫了「工具結果」、分隔符）＝不送出，用中性的修正字句重試（`llm.verify_retries`，預設 2）；
   用完就照實告訴使用者「沒有執行」，並附上 AI 原本的回覆（不吞掉、不假裝成功）。`llm.completion_guard`＝`auto`（預設：只對本地模型、
@@ -345,17 +418,17 @@
   （[ADR 0012](docs/adr/0012-repeat-failure-and-step-limit-summary.md)）。
 - 評測：新檢查 `claimed_without_call`（每一題都跑）、`must_call` 的 `any_of`、新類別 `fake_done` 兩題（共 32 題）。
 
-### 改變
+#### 改變
 - `note-01` 的檢查改成「`note__add` 或內建 `remind__add`」都算對。
 - 系統提示第 2 行：有工具時說明「沒有呼叫工具就什麼都沒做」並指向 `system__cannot_do`。
 - `AgentLoop.call_tool` 回三個值（結果、是否出卡、ok）；`ChatAdapter.chat` 多一個關鍵字參數 `stop`（只傳給 `supports_stop=True` 的 adapter）。
 - 網頁設定頁換 AI 來源時保留 `completion_guard`／`verify_retries`／`summarize_on_limit`／`think`。
 
-### 不變
+#### 不變
 - 雲端來源與 Claude Code 預設不開完成宣稱檢查、不做步數總結；正常的對話一個字都不變。
-## 未發佈（branch feat/local_llm_platform：本地模型是內建能力、context 建議、無進展逾時；保持清醒加固）
+### branch feat/local_llm_platform：本地模型是內建能力、context 建議、無進展逾時；保持清醒加固
 
-### 新增
+#### 新增
 - **本地模型**（`llm.kind = "local"`，`src/synox/llm/local.py`，設計 [ADR 0007](docs/adr/0007-local-llm-platform.md)）：SYNOX 內建，
   不需要金鑰、不需要 ntu_easy_llm。`server`：`ollama`（預設，原生 `/api/chat`，`num_ctx`、`think: false`、原生工具）｜
   `vllm`｜`lmstudio`｜`other`（OpenAI 相容 `/v1/chat/completions`）。真的串流（Ollama NDJSON、SSE，工具呼叫的增量會組回來）。
@@ -373,17 +446,17 @@
   （`powercfg /requests`、`/sleepstudy`、網路卡省電、DAM）。網頁**設定頁**新增「保持清醒」卡片（開關＋閒置幾分鐘關螢幕）。
   打開它的每個地方都講明：**會覆蓋 Windows 電源選項的「睡眠」設定**；螢幕仍可變暗／關閉；闔蓋、手動睡眠、低電量、Windows Update 重開機擋不住。
 
-### 改變
+#### 改變
 - `openai_compat` 現在真的會用 `llm.timeout`（以前沒傳下去）；沒寫時網址是這台或家裡網路＝450 秒，其他維持 90 秒。
 - `pyproject.toml` 的 `llm` 組改成 ntu_easy_llm 0.5.0 官方 release wheel 的網址；`setup/bootstrap.ps1` 連網安裝那一條改裝 `-e .[llm]`。
 - `Reply` 多 `warnings`（給人看的提醒，不是錯誤）。
 
-### 不變
+#### 不變
 - 保持清醒仍然**預設關**（有測試鎖住）；SYNOX 不修改任何電源設定。雲端 AI 來源的行為不變。
 
-## 未發佈（branch feat/screen_protect_awaker：保持清醒——電腦不睡著、螢幕可以熄）
+### branch feat/screen_protect_awaker：保持清醒——電腦不睡著、螢幕可以熄
 
-### 新增
+#### 新增
 - **保持清醒**（任務 `system.keep_awake`，`src/synox/runtime/keepawake.py`，設計 [ADR 0006](docs/adr/0006-keep-awake-screen-may-sleep.md)）：
   請 Windows「系統需要保持清醒」，電腦不會自己睡著；**不**請求螢幕常亮，所以螢幕照 Windows 電源計畫熄，動滑鼠或鍵盤 Windows 自己點亮——
   不需要另外做「黑螢幕小工具」。每 60 秒確認請求還在；SYNOX 停止時放掉（程式結束 Windows 也會自己放掉）。
@@ -391,13 +464,13 @@
 - **設定** `runtime.keep_awake`：`{"enabled": false, "screen_off_after_min": 0}`，**預設關**（不替人改電腦的睡眠行為）。
   網頁 `POST /api/runtime/keep-awake`（寫回 config.json）、`GET /api/runtime/status` 多 `keep_awake`、`doctor` 多一行。
 
-### 擋不住的（照實說）
+#### 擋不住的（照實說）
 - 闔上筆電蓋、開始選單手動睡眠、電池快沒電、Windows Update 重開機。只有 Windows 有作用，其他系統顯示 idle，不算失敗。
 - 沒有新的相依套件（標準函式庫 ctypes）。
 
-## 未發佈（branch feat/soul-memory：soul 帳本——助理筆記的來歷、有疑慮先問、取代不刪除、整理與遺忘）
+### branch feat/soul-memory：soul 帳本——助理筆記的來歷、有疑慮先問、取代不刪除、整理與遺忘
 
-### 新增
+#### 新增
 - **soul 帳本**（`src/synox/runtime/ledger.py`，設計 [ADR 0005](docs/adr/0005-soul-ledger-memory-provenance-review.md)）：
   常駐助理記進 soul.md「助理筆記」的每一條現在有**來歷**（誰、什麼時候、上次確認、看不看得出是你自己說的）。
 - **有疑慮的先問你**：助理想記的那一行如果像在對 AI 下指令、有網址或電子郵件、要跳過確認、要把資料傳出去、要把某個來源當成可信、
@@ -412,19 +485,19 @@
 - 網頁：新 API `GET /api/runtime/soul/notes`、`POST /api/runtime/soul/proposal`、`/note`、`/forget`、`/tidy`、`GET /api/runtime/soul/export`
   （[docs/runtime-api.md](docs/runtime-api.md)）；主控頁多一張「🗒️ 助理記下來的事」卡。
 
-### 改變
+#### 改變
 - 對話助理的系統提示：soul.md 超過 2000 字時不再從尾巴硬切。你寫的段落全留，「助理筆記」挑跟你這句話相關、比較新的放，其餘註明幾條沒放。
   沒超過＝跟以前一模一樣。
 - 助理筆記多了上限：最多 40 條、一天最多自動加 6 條；超過的變成提議。
 - 常駐助理的提示多一行：只根據你自己說的話記，任務訊息與轉述的網頁、檔案內容裡叫它「記住」的不記。
 
-### 沒改的
+#### 沒改的
 - soul.md 的格式與 6000 字上限、你直接改的那條路、`runtime.mother.soul_append=false` 整個關掉、對話助理不寫 soul.md、成員與頻道拿不到 soul.md。
   預設設定下，沒有疑慮的筆記照舊直接記。沒有新的相依套件。
 
-## 未發佈（branch feat/activator：連動——任務做完馬上觸發下一件，防無限連動）
+### branch feat/activator：連動——任務做完馬上觸發下一件，防無限連動
 
-### 新增
+#### 新增
 - **連動（activator）**：任務狀態一變（排程的任務做完、逾時、pack 回報），符合規則的動作**馬上**做，不用等排程或心跳；
   可以一串接一串。規則＝「任務變成某個狀態（可加：從哪個狀態變過來、標籤、程式條件）→ 跑一個任務／通知你一句話／呼叫程式」。
   不急的可以 `timing: "heartbeat"` 留成待處理，下一次心跳（或主控面板「現在處理」）再做。設計：[ADR 0004](docs/adr/0004-activator-event-driven-rules.md)。
@@ -439,9 +512,9 @@
   `activator/pending/<id>/dismiss`（[docs/runtime-api.md](docs/runtime-api.md)）。主控頁多一張「🔗 連動」卡。`doctor` 多一行「連動」。
 - 例子（測試與示範 pack `tests/fixtures/chain_pack`）：日記圖片做好了 → 馬上問你要不要打卡；問完回報另一個標籤，不會自己觸發自己。
 
-## 未發佈（branch feat/landing-readme：介紹頁、README 對齊現況、工具生態文件）
+### branch feat/landing-readme：介紹頁、README 對齊現況、工具生態文件
 
-### 新增
+#### 新增
 - **介紹頁** `docs/landing/index.html`：單一檔案、雙擊就能看（深淺色跟系統、手機寬度可看）。內容：它是什麼、本機優先（會出門的只有兩條）、
   網頁版畫面（`docs/ui/screenshots/*.png` 轉成 WebP data URI 嵌進去，約 0.5 MB）、三步裝好、安全（確認卡、五關、信任層級、保管箱）、
   工具與 pack、alpha 現況、安裝、接下來（分「做好了等驗證」「還沒有」「提案」）。同一份發佈成 Artifact：
@@ -450,15 +523,15 @@
   「之後的路」（線上目錄、簽章驗證、檢查更新、評分、一鍵安裝、其他平台安裝器）**全部標為提案**並寫現在為什麼沒有；
   「文件維護清單」：每次發版改了什麼要跟著動哪些文件、教學、介紹頁。
 
-### 文件
+#### 文件
 - README：對齊目前的狀態（出廠不帶工具、Telegram 擁有者可在網頁配對、bot 步驟可跳過、網頁四頁＋對話封存＋常駐助理入口、
   本機擁有者直接開網頁就登入）；新增「文件與教學」一表，連到介紹頁、`docs/tutorials/telegram/`、`docs/tutorials/discord/`、
   `docs/discord-concepts.md`（教學由另外的分支產生）、`docs/ecosystem.md`。alpha 警告原樣保留。
 - `docs/README.md` 索引加介紹頁、教學、ecosystem。
 
-## 未發佈（dev，2026-11-12：合併 debug/setup-python-telegram＋跟進 前身專案／記帳本）
+### dev，2026-11-12：合併 debug/setup-python-telegram＋跟進 前身專案／記帳本
 
-### Telegram 圖文教學與教學的共用管線（branch `feat/tutorial-telegram`，已合併）
+#### Telegram 圖文教學與教學的共用管線（branch `feat/tutorial-telegram`，已合併）
 - 新增 [docs/tutorials/telegram/index.html](docs/tutorials/telegram/index.html)：給電腦新手的一步一圖教學——跟 @BotFather 建 bot、拿 token、
   貼進 SYNOX（精靈或網頁設定）、六位數配對、第一則訊息；常見問題（token 格式／401、bot 不回、作廢重發 token、隱私模式、群組、改名與頭像、
   帳號被佔、換電腦）。自足一頁（沒有外部資源、沒有 JavaScript）、亮暗兩色、手機可看；示意圖是手繪的 HTML／CSS 框，都標「示意圖」。
@@ -469,7 +542,7 @@
   （有那個平台的教學才出現，用瀏覽器開本機那份；12 種語言各加一句 `open_tutorial`）；網頁設定「聊天通道」Telegram 那一格多一個連結；
   `synox init` 印本機檔路徑。發佈 zip／安裝程式本來就帶 `docs/`。測試 `tests/test_tutorials.py`。
 
-### Discord 觀念篇與步驟教學（branch `feat/tutorial-discord`，已合併）
+#### Discord 觀念篇與步驟教學（branch `feat/tutorial-discord`，已合併）
 - 新增 [docs/discord-concepts.md](docs/discord-concepts.md)：給覺得 Discord 難懂的人——名詞對照（Application／bot user／token／intent／guild／頻道／私訊／身分組／ID）、
   一支 bot 的三種用法（私訊、伺服器、同伺服器不同頻道）、對照到 SYNOX 今天做得到／做不到的表、四種情境的決定表（只有我／私人伺服器／公開頻道／每頻道不同）、
   公開頻道的風險表、**每頻道設定的提案**（`guilds.<g>.channels` 的每一項可寫成物件、收訊時算派生 BotSpec 丟給現有的 `policy.using_bot`；還沒做）、
@@ -482,12 +555,12 @@
 - 查證時發現兩件要注意的：官方說 **User Install 的 app 只能用 slash 指令**（SYNOX 沒有 slash 指令，所以 `docs/discord.md` 第 1 節把 User Install 列為
   讓 bot 收私訊的選項之一，**未驗證**；教學一律走「邀進伺服器」）；特權 intent 的審核門檻官方現在是「1 萬個不重複使用者」（不是舊的 100 個伺服器）。
 
-### 心跳：失敗狀態沒變就不再叫 AI（branch `feat/cb1-heartbeat`，還沒合併）
+#### 心跳：失敗狀態沒變就不再叫 AI（branch `feat/cb1-heartbeat`，還沒合併）
 - 有任務一直壞著時，心跳不再每次都叫 AI（以前一天最多多叫 30 幾次）：失敗只看「哪個任務＋去掉數字的原因」，沒變就記一句「失敗狀態沒有變化」；
   同一批失敗只通知一次（新的壞了、原因變了、恢復了才再來）；安靜時段擋下的，時段過了再問一次；指紋存在 `state.json`（只有雜湊），重開後接著用。
   每日上限、安靜時段、手動一定叫 AI 都照舊，設定沒有新欄位。說明：[ADR 0001 §3「2026-11 修訂」](docs/adr/0001-runtime-loop-heartbeat-mother-session.md)。
 
-### 對話助理評測集與離線重放（branch `feat/cb2-eval`，還沒合併）
+#### 對話助理評測集與離線重放（branch `feat/cb2-eval`，還沒合併）
 - 新增 30 題日常助理任務（記事、改寫與摘要、查資料、行程、該追問／不該追問、拒絕、提示注入、多回合記憶、工具鏈；
   tune 20 題、holdout 10 題），每題有自動判定的硬檢查，品質項目只留給人看的欄位。題目全部是虛構情境與範例網域。
 - 「某個模型對每一題的回覆」錄成檔案就能**離線重放**：照劇本回話的假 AI 接在**真的**對話迴圈上（工具清單、參數驗證、
@@ -497,7 +570,7 @@
   不呼叫任何真的 AI、沒有「真跑」模式（要先決定花費上限，見 README 最後一節）；對話助理本身沒有改。
 - `evals/` 是開發用的，`scripts/make_zip.py` 不打包它。
 
-### 用 Docker 開發與執行（branch `feat/docker-support`，還沒合併）
+#### 用 Docker 開發與執行（branch `feat/docker-support`，還沒合併）
 - 新增開發容器 `.devcontainer/devcontainer.json`（Python 3.11、裝相依、pytest；網頁埠只轉到本機 localhost）與執行用映像檔：
   `Dockerfile`（兩段式、非 root、`HEALTHCHECK` 不經對外的埠）、`.dockerignore`（白名單）、`docker-compose.yml`（具名 volume、
   埠只發佈到宿主 127.0.0.1、唯讀根目錄、tmpfs、cap_drop ALL、資源上限）、`.env.example`、`docker/healthcheck.py`。說明：[docs/docker.md](docs/docker.md)。
@@ -505,20 +578,20 @@
   預設行為不變（127.0.0.1），其他值一律拒、網頁不開（`web/server.py` 的 `bind_host`，`tests/test_web_bind.py`）。
 - 映像檔**還沒實際建置、容器還沒實際跑過**：驗證清單在 docs/docker.md「驗證」。
 
-### 呈現層：與通道無關的內容區塊（branch `feat/cb3-blocks`，還沒合併）
+#### 呈現層：與通道無關的內容區塊（branch `feat/cb3-blocks`，還沒合併）
 - 新增 `synox.present`（[docs/presentation.md](docs/presentation.md)）：AI 回覆的 Markdown → 區塊 → Telegram HTML（4096 切割）／Discord（2000 切割、圍欄不斷）／網頁區塊，表格依寬度降級；設定 `"presentation": {"enabled": false}` **預設關**，關著時送出的東西跟以前完全一樣。
 
-### 工具健康：失敗信封 v1 與隔離清單（branch `feat/cb4-health`，還沒合併）
+#### 工具健康：失敗信封 v1 與隔離清單（branch `feat/cb4-health`，還沒合併）
 - 工具失敗時有固定格式（類別碼、能不能重試、補救建議；截長、遮密鑰），AI 收到一行 `FAIL …`；同一個根因連續失敗的工具暫時不給 AI、冷卻後用 pack.json 的
   `health.check` 重新檢查（不叫 AI），`doctor` 與網頁工具頁看得到狀態，擁有者可以重新檢查、解除隔離。SDK 0.2.1 加 `fail()`／`ToolFailure`
   （舊的 `ToolError` 照舊；沒處理的例外改叫 `unclassified`）。不做自動修復。說明：[docs/tool-health.md](docs/tool-health.md)。
 
-### 網頁的開場動畫與微動畫（branch `feat/ui-splash`，還沒合併）
+#### 網頁的開場動畫與微動畫（branch `feat/ui-splash`，還沒合併）
 - 打開網頁時「S 寶寶」掉下來、眨眼、說嗨、翻面變成 S 標誌、SYNOX 字樣跳出來（約 1.7 秒；點一下或按任何鍵略過；同一個分頁只播一次）；
   頁面切換、卡片進場、按鈕、對話泡泡、狀態點、背景淡光與小光點的微動畫。版面沒動；系統開了「減少動態效果」→ 開場不播、動畫全關。
   新檔 `static/splash.js`／`splash.css`（`app.html` 只多兩行 include；CSP、server.py 沒改）。手法取自 另一個個人專案，說明與時間表：
   [docs/ui/motion-notes.md](docs/ui/motion-notes.md)。預覽多了「重播開場」（`?splash=1`）。要你決定的：[QuestionToUser.md](QuestionToUser.md) QM1～QM3。
-### 終端機的 SYNOX 門面：歡迎畫面、`synox open`（branch `feat/cli-brand`，還沒合併）
+#### 終端機的 SYNOX 門面：歡迎畫面、`synox open`（branch `feat/cli-brand`，還沒合併）
 - 新增 `synox open`：在這台電腦上打開網頁介面（好記的名字；行為跟 `web-login` 一樣，`web-login`、`Open-SYNOX.bat` 照舊）。
 - 新增歡迎畫面（`src/synox/brand.py`）：`synox`（沒參數）、`run`、`open`、`wizard`、`doctor`、`about` 開頭印貓頭鷹＋SYNOX logo、
   「Welcome to SYNOX」、版本、照時段的問候（照 另一個個人專案 歡迎頁）、下一步提示。只在互動終端機印；管線／重導向／`CI`／`--quiet`／
@@ -528,7 +601,7 @@
 - 全域 `-q`／`--quiet`（放在指令前後都可以）。
 - 要你決定的事：[QuestionToUser.md](QuestionToUser.md) QB1～QB3（專案網址、`synox` 要不要在任何命令列都能打、logo 的樣子）。
 
-### 提醒變系統指令、soul.md 給對話助理（branch `feat/core-remind-soul`，還沒合併）
+#### 提醒變系統指令、soul.md 給對話助理（branch `feat/core-remind-soul`，還沒合併）
 - **提醒回到核心當系統指令**（QuestionToUser QL5）：`/remind_add`、`/remind_list`、`/remind_rm` 不用再裝工具，標題「⏰ 提醒（系統）」，
   網頁工具頁歸在「系統」群組（SYNOX 自己的指令原本叫「內建」，一起改名）。指令名、AI 工具名、資料（`data/schedule.json.enc`）都不變，
   舊提醒直接接上；權限照舊（個人版只有擁有者、伺服器版成員以上、只在私訊）。群組名 `remind` 保留給系統：裝過工具庫舊 `remind` 工具的人，
@@ -544,7 +617,7 @@
 - [QuestionToUser.md](QuestionToUser.md)：最上面加常駐規則（擁有者 2026-11-12：（需求原文不公開））；
   Q5、Q7、Q10、Q11、QL5 標成已回答、濃縮成結論搬到最下面「已回答」；其他題目不動。
 
-### 乾淨安裝：git clone＋安裝程式、工具庫附在旁邊（branch `feat/clean-room-dist`，還沒合併）
+#### 乾淨安裝：git clone＋安裝程式、工具庫附在旁邊（branch `feat/clean-room-dist`，還沒合併）
 - 發佈方式定案（QL4）：**git clone／Download ZIP＋`Setup.bat`**，以及 **Windows 安裝程式**（Inno Setup 6＋官方可攜版 Python＋離線套件，
   每個使用者自己裝、不要管理員）。為什麼不用 PyInstaller／Nuitka：[docs/adr/0003](docs/adr/0003-distribution-git-clone-and-installer.md)。
   安裝程式的腳本做好了（`scripts/stage_installer.py`、`setup/installer/synox.iss`），**還沒真的打包、還沒在空白電腦上試**。
@@ -559,7 +632,7 @@
 - SYNOX_Libs（另一個 repo）：`scripts/_synox.py` 找 SYNOX 改成 `SYNOX_HOME` → 跑腳本的 Python 裝的那份 → 後備 `../SYNOX`；README 寫清楚安裝流程。
 - 給擁有者：空白電腦實測清單 [docs/handoff/clean-machine-test.md](docs/handoff/clean-machine-test.md)；要你決定的事 [QuestionToUser.md](QuestionToUser.md) QD1～QD4。
 
-### 常駐助理、心跳、runtime loop（branch `feat/runtime-heartbeat`，還沒合併）
+#### 常駐助理、心跳、runtime loop（branch `feat/runtime-heartbeat`，還沒合併）
 - 新增 `src/synox/runtime/`：常駐的排程迴圈（每個任務自己的執行緒、逾時、失敗退避、連續 5 次失敗通知一次）、
   心跳（預設每 45 分鐘、下限 15 分鐘、沒有新狀況不叫 AI、安靜時段、每天通知／叫 AI 的上限）、常駐助理（母 session：沒有工具、
   自己的記憶存保管箱、可清空）、soul.md（保管箱、你可改可重設、助理只能照規則追加、有稽核）。原本的提醒排程改成 runtime 的一個任務。
@@ -569,7 +642,7 @@
   python pack `pack.report_status()`／`pack.peer_status()`。舊工具不受影響。
 - `config.json` 多 `runtime` 一塊（預設值與檢查在 `runtime/settings.py`；精靈寫新設定時帶上）；`doctor` 列出心跳開關、間隔、上一次。
 - 等擁有者決定：[QuestionToUser.md](QuestionToUser.md) Q6（助理自動記 soul.md）、Q7（soul.md 給對話助理）、Q8（助理讀最近對話）。
-### 工具搬到 SYNOX_Libs、主程式出廠是空的（branch `feat/libs-extraction`）
+#### 工具搬到 SYNOX_Libs、主程式出廠是空的（branch `feat/libs-extraction`）
 - **移除（BREAKING）**：出廠的 `money`、`notes`、`remind` 下架，正本搬到新專案 **SYNOX_Libs（工具庫）**；`packs/` 只剩說明（安裝的落點，
   內容不進 git）。從舊版更新的人：`/help` 裡這三個會不見，**資料沒動**，從工具庫裝回同名工具就接著用。說明與怎麼救回：
   [legacy/builtin-packs.md](legacy/builtin-packs.md)。`loader.BUNDLED` 只剩 4 個 connector（connector 要不要也搬：[QuestionToUser.md](QuestionToUser.md) QL1；後來也搬了，見下一段）。
@@ -583,7 +656,7 @@
   `tests/test_sdk_requires.py`。記帳、筆記本身的測試搬到 SYNOX_Libs。
 - 要你決定的事：[QuestionToUser.md](QuestionToUser.md) QL1～QL5（connector 要不要也搬、舊使用者怎麼接回、SYNOXPacks 怎麼處理、工具壓縮檔怎麼發、提醒要不要獨立）。
 
-### connector 也搬到 SYNOX_Libs、工具的穩定度標示（branch `feat/connectors-to-libs`）
+#### connector 也搬到 SYNOX_Libs、工具的穩定度標示（branch `feat/connectors-to-libs`）
 - **移除（BREAKING）**：`connectors/` 的 4 個（notion、todoist、google-calendar、apple-reminders）連同測試搬到 SYNOX_Libs（QL1 擁有者回「當然要」）；
   `connectors/` 只剩 README、loader 只掃 `packs/`、`loader.BUNDLED` 清空——**主程式出廠真的一個工具都沒有**。pack 名字沒變，
   從舊版更新的人裝回同名工具，保管箱裡的 token／帳號照用。說明與怎麼救回：[legacy/connectors.md](legacy/connectors.md)。
@@ -594,26 +667,26 @@
 - 測試：要讀工具庫的（smoke_real 的四個服務、connector 不被 SYNOX 管 secret、工具庫每個工具裝進空 host）設 `SYNOX_LIBS`，找不到就跳過；
   新的 `tests/test_stage.py`。
 
-### 合併進來的（安裝流程的真機除錯）
+#### 合併進來的（安裝流程的真機除錯）
 - 從 `origin/debug/setup-python-telegram` 合併（`--no-ff`，沒有衝突）：安裝程式先問語言（12 種）、`Uninstall.bat`、bot 步驟可以跳過
   （只開網頁版）、Discord 當第二個通道、本機擁有者在瀏覽器打 `http://127.0.0.1:<port>/` 就登入、`web-login`／`Open-SYNOX.bat`、
   Windows 上網頁獨佔綁定 port、開機自動啟動不跳瀏覽器、網頁設定頁的「聊天通道」卡。每一條的細節與還沒拍板的事都在
   [docs/debug-notes.md](docs/debug-notes.md)（這裡不重抄）。
 
-### 網頁介面重新設計（branch `feat/ui-redesign`，還沒合併）
+#### 網頁介面重新設計（branch `feat/ui-redesign`，還沒合併）
 - `src/synox/web/static/app.html` 重畫：左側欄＋對話紀錄（手機改成底部分頁）、一套 CSS token（淺色取記帳工具、深色取 另一個個人專案）、
   深淺色跟隨系統、狀態徽章（顏色＋文字＋形狀）、手機 44px 按鈕與 16px 輸入。登入確認頁、錯誤頁（`server.py` 的 `PAGE_CSS`）同一套顏色。
   API、CSRF、登入、CSP 都沒動。說明與前後對照：[docs/ui/redesign-notes.md](docs/ui/redesign-notes.md)。
 - 新增 `scripts/make_ui_preview.py`：產生 `docs/ui/preview*.html`（真的 app.html＋假資料，雙擊就能看）；`tests/test_ui_preview.py` 檢查預覽有沒有同步。
 - 主色與深淺色切換鈕、安裝精靈要不要跟著換：[QuestionToUser.md](QuestionToUser.md) Q4、Q5。
 
-### 網頁「主控」頁（branch `feat/control-panel-ui`，還沒合併）
+#### 網頁「主控」頁（branch `feat/control-panel-ui`，還沒合併）
 - 側欄多一個「主控」（只有擁有者看得到；成員打 `#control` 會回到對話頁）：常駐助理（母 session）的狀態、heartbeat 開關與間隔（預設 45 分鐘）、
   「現在執行一次」、排定任務的狀態與日誌、偏好檔 soul.md 的編輯、清空記憶（二次確認，寫清楚會清掉／不會動什麼）。
   前端在 `src/synox/web/static/control.js`／`control.css`，`server.app_html` 把它們塞進 app.html（仍是一頁、同一個 CSP nonce）。
   呼叫的是 `/api/runtime/*`（後端另一個分支做，這裡沒有實作）。測試：`tests/test_control_panel.py`＋`tests/js/test_control.js`（node、假 fetch）。
   說明見 [docs/ui/redesign-notes.md](docs/ui/redesign-notes.md)「主控」；要你決定的在 [QuestionToUser.md](QuestionToUser.md) Q6、Q7。
-### 網頁「工具」頁：群組＋分頁＋表單（branch `feat/tools-page-groups`，還沒合併）
+#### 網頁「工具」頁：群組＋分頁＋表單（branch `feat/tools-page-groups`，還沒合併）
 - 工具頁重做：頁內左邊是群組，群組裡的工具用分頁隔開；每個工具有說明、指令卡（effect 徽章）、照宣告產生的參數表單
   （必填、下拉、預設值、說明）、「會送出：…」預覽、執行（危險的先在畫面上問一次；仍經同一個 dispatcher）。
   使用者可以新增／改名／刪除群組、排序、把工具移到別的群組，存在每個人自己的偏好（`data/web_prefs/<id>.json.enc`，
@@ -624,7 +697,7 @@
   指令沒 summary、欄位沒 ask 只提醒不擋（安裝報告、`synox-sdk check`）。`@tool` 參數的預設值會寫成 `default`。
   說明：[docs/tools.md](docs/tools.md)「網頁工具頁」、[docs/pack-format.md](docs/pack-format.md)。
 
-### AI 用量與花費小儀表板、新對話不再記得前面、Discord 網頁配對
+#### AI 用量與花費小儀表板、新對話不再記得前面、Discord 網頁配對
 - **用量與花費**（設定頁新的一張卡，`GET /api/usage?period=hour|day|week|month`，只給擁有者）：選「每小時／每天／每週／每月」，看這段期間的花費、呼叫次數、token，
   長條圖（可切成表格）。花費：Claude Code 回報的 `total_cost_usd`（訂閱制下是照 API 價換算的約數）優先，沒有就照 `llm.price_in／price_out` 算；
   **個人版以前不記花費（一律 0）**，現在也記；舊紀錄沒花費的用 token 估、標「約」。`llm_usage.json` 多了 `hours`（只留最近 14 天，`days` 永遠留）。
@@ -638,12 +711,12 @@
 - 聊天通道卡片標明「目前只能一對一私訊」：加進 Telegram 群組、Discord 頻道／社群沒有用（指令與 AI 在群組、頻道都被擋）；邀請連結的說法改成「為了能私訊它」。
 - Telegram 擁有者配對在網頁怎麼做（會換擁有者 id、牽涉資料搬遷）：[QuestionToUser.md](QuestionToUser.md) Q14。
 
-### 對話可以封存、再到另一頁徹底刪除
+#### 對話可以封存、再到另一頁徹底刪除
 - 側欄每段對話多一顆「封存」（滑鼠移上去才出現；手機一直顯示）：封存的對話從側欄消失，但**不會被自動清掉**（不算在 30 段上限裡），也不能再傳訊息。
   側欄下面「🗄 已封存的對話」（`#archive`）可以**還原**，或**徹底刪除**（要按兩次；只有封存過的才能刪，刪了就沒了，AI 對那段的記憶也一起忘掉）。
   固定的兩段（工具頁、常駐助理）不能封存。API：`POST /api/chat/<id>/archive|restore|delete`、`GET /api/chats/archived`。程式：`web/chats.py`。
 
-### Telegram 擁有者也能在網頁配對（跟 Discord 一樣）
+#### Telegram 擁有者也能在網頁配對（跟 Discord 一樣）
 - 原因：只用網頁／Discord 安裝的人，擁有者的內部 id 是保留的 10^15，Telegram 傳訊息進來是他真正的 Telegram 編號，被當成陌生人（guest）；
   陌生人傳自由文字只會一直收到「我只看得懂指令，打 /help」——看起來像鬼打牆。
 - 做法（`telegram_link.py`，**不改 SDK、不換擁有者 id、不搬資料**）：`identities.json` 記「telegram:<編號> ＝ 擁有者」；進來的訊息對得上就換成擁有者的內部 id，
@@ -652,39 +725,39 @@
 - 還沒配對時，這種安裝的 Telegram 一律不收訊息（回一句「還沒配對」，每人一次），不登記陌生人。**擁有者本來就是 Telegram 帳號的安裝完全不經過這一層。**
 - 網頁的配對區改成 Discord、Telegram 共用同一段程式（`makePairing`）。這等於照 Q14 的建議 B 做了（用 SYNOX 這邊包一層，沒動 vendor），請確認。
 
-### 常駐助理的獨立聊天入口
+#### 常駐助理的獨立聊天入口
 - 側欄固定多一個「🫀 常駐助理」（只給擁有者；主控頁的常駐助理那格也有「跟它聊天」連結）：直接跟常駐助理（母 session）聊天，沒有工具、純文字。
   這個聊天的紀錄**只在記憶體**（最多 12 輪，重開 SYNOX 就清空），跟巡邏用的保管箱記憶（主控頁清）分開，只讀最近 5 筆巡邏摘要當背景。
   程式：`MotherSession.chat()`／`chat_reset()`、`web/chats.py` 的 `MOTHER_CHAT`。
 
-### 設定頁選好 AI 來源就立刻能用
+#### 設定頁選好 AI 來源就立刻能用
 - 設定頁選 Claude Code 時可以挑模型（預設／Sonnet／Opus／Haiku）；「存起來」之後對話助理與常駐助理**馬上換上、不用重開**
   （`agent.set_adapter`）。接不上時設定仍會存，並說原因。「測一下」遇到沒登入會說怎麼登入。
 - 主控頁：還沒設定 AI 來源時，常駐助理那格說「到設定選好並存起來，這裡馬上就會開始跑」；`/api/runtime/status` 的 `mother` 多 `ai` 欄位。
 - 已知限制：啟動時沒有 AI，Discord 頻道 AI 要重開才會出現。
 
-### 聊天通道改了要重開：說得更明顯
+#### 聊天通道改了要重開：說得更明顯
 - 設定頁的「聊天通道」卡：只要 Telegram／Discord 有改過、還沒重開，頂端出現黃色提示「要重新啟動 SYNOX 才會生效（Stop.bat → 桌面捷徑），在那之前 bot 不會上線」；
   存 Discord token 的訊息也在最前面先講一次（原本埋在第 ③ 步）。
 
-### 對話頁桌面版改滿版
+#### 對話頁桌面版改滿版
 - 寬度超過 760px 時，對話區佔滿側欄以外的整個區域（原本是置中、最寬 980px 的浮動卡片，螢幕一大就飄在中間）。手機版沒動。
   `docs/ui/screenshots/desktop-chat-*.png` 還是舊的卡片版，沒有重拍。
 
-### 找不到 Claude Code 時給安裝點
+#### 找不到 Claude Code 時給安裝點
 - 網頁設定頁「測一下」回「找不到 claude」時，顯示 Windows／Linux／macOS 的安裝指令（可複製，不代跑）與官方說明連結；
   安裝精靈與網頁共用的 `CLAUDE_DOWNLOAD_URL` 改成官方安裝說明頁（原本的行銷頁會讓人裝成 Claude Desktop）。
 - `find_claude()` 除了 PATH，也找 `~/.local/bin/claude(.exe)`（原生安裝程式的位置，不一定在 PATH 上）。
   背景與「VS Code 能用不代表 SYNOX 找得到」：[docs/claude-code-cli.md](docs/claude-code-cli.md)。
 
-### 修正
+#### 修正
 - 兩個無效的跳脫字元（`src/synox/wizard/shortcuts.py` 的說明、`tests/test_wizard.py` 的位元組字串）改成 raw 字串，內容不變；
   Python 3.12 起會是 SyntaxWarning。
 
-### 測試
+#### 測試
 - `tests/fixtures/cashbook_pack/` 對齊記帳本 synox-pack 0.17.0（補 `commands[].positional`）；新測試 `/cashbook 120 便當` 照位置填 amount、desc。
 
-### 跟進外部專案（只讀、沒改對方）
+#### 跟進外部專案（只讀、沒改對方）
 - predecessor11-10～11-12 的更新查過：通用的兩件（收訊不互等、429 短等重送）在 SDK 那一層，寫成
   [docs/handoffs/2026-11-12-isdtelekit-poller-lanes-and-429.md](docs/handoffs/2026-11-12-isdtelekit-poller-lanes-and-429.md)；
   「AI 寫行事曆先確認」「確認卡編號」會改產品行為，寫進 [QuestionToUser.md](QuestionToUser.md)。
@@ -692,7 +765,8 @@
 - 記帳本（記帳工具）0.18.x：SYNOX 的安裝檢查唯讀跑過對方現在的 pack，沒有問題；新指令要對方的 synox-pack 跟上，寫成
   [docs/handoffs/2026-11-12-cashbook-synox-pack-0.18.md](docs/handoffs/2026-11-12-cashbook-synox-pack-0.18.md)。
 
-## 0.2.0
+
+## 0.2.0（2026-11-09）
 
 版本從 0.1.0 升到 0.2.0：pack 格式多了 surfaces／data／auth.fields／mcp／runtime auto／schema_tools 等欄位，SDK 產生的 pack 寫 `requires.synox: ">=0.2"`，舊版 SYNOX 會明說要先更新、不會載入。
 

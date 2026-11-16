@@ -106,5 +106,23 @@
     "effect": "danger",
     "params": [{"name": "path", "ask": "路徑", "required": true}],
     "results": [{"reply": "已刪除 {path}"}]
+  },
+  "alarm__set": {
+    "summary": "設一個提醒：到時間送訊息提醒使用者（time＝HH:MM 24 小時制；date＝YYYY-MM-DD，沒寫＝下一個到的那天；repeat＝once 或 daily）",
+    "effect": "write",
+    "params": [
+      {"name": "time", "ask": "幾點（HH:MM）", "required": true},
+      {"name": "text", "ask": "提醒什麼", "required": true},
+      {"name": "date", "ask": "哪一天（YYYY-MM-DD）"},
+      {"name": "repeat", "ask": "只一次或每天", "choices": ["once", "daily"]}
+    ],
+    "receipt": {
+      "kind": "remind",
+      "when": "明天 {time}",
+      "due": "2026-11-17T{time}:00+08:00",
+      "channels": ["telegram"],
+      "channel_labels": ["Telegram"],
+      "not_when": ["off", "asleep"]
+    }
   }
 }

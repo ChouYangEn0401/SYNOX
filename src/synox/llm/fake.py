@@ -87,6 +87,7 @@ def demo_reply(messages: Sequence[Message], tools: Sequence[ToolSpec]) -> Reply:
     last = messages[-1] if messages else Message(USER, "")
     if last.role == TOOL or last.content.startswith("〔工具結果〕"):
         result = last.content.split("\n", 1)[-1] if last.role != TOOL else last.content
+        result = "\n".join(x for x in result.split("\n") if not x.lstrip().startswith("〔排程回執〕"))   # 系統的機器行不照抄
         return Reply(text=f"好了，{result.strip() or '做完了'}")
     text = last.content.strip()
     names = {t.name for t in tools}

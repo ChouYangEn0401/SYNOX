@@ -1,14 +1,12 @@
 """
-排程器：每 30 秒掃一次 data/schedule.json(.enc)（伺服器版：每個人的 data/users/<id>/schedule.json.enc），到點就做（照 前身專案 routines/runner.py 的做法，只做
-「每天 HH:MM」與「某一天 HH:MM 一次」）。
+排程器：每 30 秒掃一次 data/schedule.json(.enc)（伺服器版：每個人的 data/users/<id>/schedule.json.enc），到點就做。
 
-- remind（/remind_add）：送一則「⏰ 提醒：…」給建立的那個人——走通知中心（synox/notify）：網頁跳出來、Telegram、Discord
-  都送，帶「知道了」「5 分鐘後再提醒」（伺服器版每個人收自己的）。
-- 晚了（電腦剛醒、SYNOX 剛開）：時間過了 LATE_MAX_MIN 分鐘以內照樣叫，多說一句晚了幾分鐘；超過就送「你錯過了 1 個鬧鐘」
-  （只算建立之後才到的那一次；每天的只看今天那一次）。一次性的不管叫了還是錯過都刪掉。
+- remind（/remind_*）：交給提醒引擎（engine.py，docs/adr/0029 §3.1）——到點判斷、晚了照響、錯過怎麼說、
+  送達確認與「沒送到不刪」都在那裡；送出走送達層（notify/delivery.py；還沒接上時退回通知中心的舊送法）。
 - command（/schedule_add）：以排程擁有者的身分造一則 Inbound 交給 dispatcher，via=ROUTINE——
   走的是跟打字一模一樣的指令路由與 authorize()（SDK invariant 1；建立時已經用 via=SCHEDULE 驗過）。
-- 一天只跑一次（last_run＝今天就跳過）；一次性的跑完就刪掉。
+  一天只跑一次（last_run＝今天就跳過）；一次性的跑完就刪掉。這一輪不換資料格式。
+- 提醒引擎連續失敗 ENGINE_ALERT_AFTER 次：直接通知「提醒引擎停了」（恢復時再說一聲）。
 - 只在 App.run()（Start.bat）時啟動；終端機模式不跑排程（不然提醒會插在你打字的中間）。
 """
 
@@ -27,16 +25,35 @@ from synox.schedule.store import ScheduleStore
 
 CHECK_INTERVAL = 30
 LATE_MAX_MIN = 60
+ENGINE_ALERT_AFTER = 3          # 提醒引擎連續失敗幾次就直接通知
+MAX_BACKOFF = 60.0              # runtime 任務的失敗退避上限（秒）：提醒不能等 30 分鐘
+
+T_ENGINE_DOWN = ("⚠️ 提醒引擎停了：連續 {n} 次檢查都失敗，到點的提醒可能不會響。"
+                 "SYNOX 每分鐘會再試一次；一直這樣的話，到網頁主控面板看「提醒與排程」的日誌，或重開 SYNOX。")
+T_ENGINE_BACK = "✅ 提醒引擎恢復了：剛剛沒響到的，會照補送的規則補上。"
+
+
+class EngineDown(RuntimeError):
+    pass
 
 
 class ScheduleRunner:
 
     def __init__(self, app, store: ScheduleStore, clock: Callable[[], datetime] = datetime.now):
+        from synox.schedule.engine import ReminderEngine, app_deliver, app_resolve
         self.app = app
         self.store = store
         self._clock = clock
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
+        config = getattr(app, "extras", {}).get("synox_config") or getattr(app, "config", None)
+        self.engine = ReminderEngine(store, lambda msg: app_deliver(app, msg),
+                                     resolve=lambda uid, key, **kw: app_resolve(app, uid, key, **kw),
+                                     owner_default=getattr(app, "owner_id", None),
+                                     status_dir=getattr(config, "data_dir", None), who="app")
+        self.engine_failures = 0
+        self.engine_alerted = False
+        self.skipped_for_sentinel = 0         # 哨兵還拿著引擎鎖、這一輪沒跑的次數（給測試、log）
 
     def start(self) -> None:
         if self._thread is not None and self._thread.is_alive():
@@ -56,6 +73,8 @@ class ScheduleRunner:
             except Exception:
                 logging.exception("[SCHEDULE] tick failed")
             self._stop.wait(CHECK_INTERVAL)
+
+    # ── /schedule_*（指令）的到點判斷：格式不變 ──────────────────────────────
 
     @staticmethod
     def _slot(it: dict, now: datetime) -> Optional[datetime]:
@@ -82,42 +101,30 @@ class ScheduleRunner:
         return max(1, int((now - slot).total_seconds() // 60))
 
     def due_pairs(self, now: Optional[datetime] = None) -> List[Tuple[ScheduleStore, dict]]:
-        """到點的 (那個人的 store, 項目)，包括晚了 LATE_MAX_MIN 分鐘以內的。個人版只有一份；伺服器版掃每個人自己的。"""
+        """到點的排程指令 (那個人的 store, 項目)，包括晚了 LATE_MAX_MIN 分鐘以內的。"""
         now = now or self._clock()
         out = []
         for store in self.store.all_stores():
-            for it in store.items():
+            for it in store.items("command"):
                 late = self._late_min(it, now)
                 if late is not None and late <= LATE_MAX_MIN:
-                    out.append((store, it))
-        return out
-
-    def missed_pairs(self, now: Optional[datetime] = None) -> List[Tuple[ScheduleStore, dict]]:
-        """錯過的提醒（晚超過 LATE_MAX_MIN 分鐘，或一次性的日期已經過了）：只算建立之後才到的那一次。"""
-        now = now or self._clock()
-        today = now.strftime("%Y-%m-%d")
-        out = []
-        for store in self.store.all_stores():
-            for it in store.items("remind"):
-                if it.get("date") and it.get("date") < today:
-                    out.append((store, it))
-                    continue
-                late = self._late_min(it, now)
-                if late is not None and late > LATE_MAX_MIN:
                     out.append((store, it))
         return out
 
     def due(self, now: Optional[datetime] = None) -> List[dict]:
         return [it for _store, it in self.due_pairs(now)]
 
+    # ── 一輪 ─────────────────────────────────────────────────────────
+
     def tick(self, now: Optional[datetime] = None) -> List[dict]:
-        """做完到點的那些，回傳做了哪幾個（測試用）。"""
+        """做完到點的那些，回傳做了哪幾個（響了的提醒＋跑了的指令；測試用）。
+        提醒引擎有清單讀不了＝丟 EngineDown（runtime 算一次失敗；連續失敗會通知）。"""
         now = now or self._clock()
+        fired = self._tick_engine(now)
         today = now.strftime("%Y-%m-%d")
-        fired = []
         for store, item in self.due_pairs(now):
             try:
-                self._fire(item, store.tg_id, late=self._late_min(item, now) or 0, today=today)
+                self._fire(item, store.tg_id)
             except Exception:
                 logging.exception("[SCHEDULE] item %s failed", item.get("id"))
             if item.get("date"):
@@ -125,46 +132,51 @@ class ScheduleRunner:
             else:
                 store.mark_run(item["id"], today)
             fired.append(item)
-        for store, item in self.missed_pairs(now):
-            try:
-                self._missed(item, store.tg_id, now)
-            except Exception:
-                logging.exception("[SCHEDULE] missed notice %s failed", item.get("id"))
-            if item.get("date"):
-                store.remove_id(item["id"])
-            else:
-                store.mark_run(item["id"], today)
+        if self.engine.failed_stores:
+            raise EngineDown(f"提醒引擎有 {self.engine.failed_stores} 份清單讀不了")
         return fired
+
+    def _tick_engine(self, now: datetime) -> List[dict]:
+        from synox.notify import delivery
+        if not delivery.is_engine(self.app):           # 提醒哨兵還在跑（還沒讓位）：它在送，這一輪不跑，不會重複
+            self.skipped_for_sentinel += 1
+            self.engine.failed_stores = 0
+            if self.skipped_for_sentinel == 1:
+                logging.info("[SCHEDULE] reminder sentinel still runs the reminder engine; skipping this round")
+            return []
+        self.skipped_for_sentinel = 0
+        try:
+            fired = self.engine.tick(now)
+            broken = bool(self.engine.failed_stores)
+        except Exception:
+            logging.exception("[SCHEDULE] reminder engine failed")
+            fired, broken = [], True
+            self.engine.failed_stores = max(1, self.engine.failed_stores)
+        if broken:
+            self.engine_failures += 1
+            if self.engine_failures >= ENGINE_ALERT_AFTER and not self.engine_alerted:
+                self.engine_alerted = True
+                self._alert(T_ENGINE_DOWN.format(n=self.engine_failures))
+        else:
+            if self.engine_alerted:
+                self._alert(T_ENGINE_BACK)
+            self.engine_failures = 0
+            self.engine_alerted = False
+        return fired
+
+    def _alert(self, text: str) -> None:
+        try:
+            from synox import notify
+            notify.owner(self.app, text, kind="safety", level="warn")
+        except Exception:
+            logging.exception("[SCHEDULE] cannot tell the owner the reminder engine is down")
 
     def _owner_of(self, item: dict, store_owner: Optional[int]) -> int:
         return int(store_owner if store_owner is not None else (item.get("owner") or self.app.owner_id))
 
-    def _missed(self, item: dict, store_owner: Optional[int], now: datetime) -> None:
-        from synox import notify
-        from synox.notify.alarms import friendly
-        owner = self._owner_of(item, store_owner)
-        slot = self._slot(item, now)
-        when = friendly(slot, now) if slot is not None else item.get("time", "")
-        hub = notify.of(self.app)
-        logging.info("[SCHEDULE] remind %s missed → %s", item.get("id"), owner)
-        if hub is not None:
-            hub.missed(owner, when, item.get("text", ""), key=f"missed:{item.get('id')}:{item.get('date') or ''}:{when}")
-        else:
-            self.app.notify(owner, f"⏰ 你錯過了 1 個鬧鐘：{when} {item.get('text', '')}")
-
-    def _fire(self, item: dict, store_owner: Optional[int] = None, *, late: int = 0, today: str = "") -> None:
+    def _fire(self, item: dict, store_owner: Optional[int] = None) -> None:
         # 伺服器版：每人一份的檔案是誰的就以誰的身分跑（不信檔案裡寫的 owner）
         owner = self._owner_of(item, store_owner)
-        if item.get("kind") == "remind":
-            logging.info("[SCHEDULE] remind %s → %s", item.get("id"), owner)
-            from synox import notify
-            hub = notify.of(self.app)
-            if hub is not None:
-                hub.alarm(owner, item.get("text", ""), late_min=late, item_id=item.get("id"),
-                          key=f"alarm:{item.get('id')}:{today}:{item.get('time')}:{item.get('created', '')}")
-            else:
-                self.app.notify(owner, f"⏰ 提醒：{item.get('text', '')}")
-            return
         command = item.get("command", "")
         logging.info("[SCHEDULE] command %s → %s: %s", item.get("id"), owner, command)
         inbound = Inbound(ROUTINE_CHANNEL, user_id=owner, chat_id=owner, text=command, username="schedule",

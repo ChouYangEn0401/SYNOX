@@ -14,6 +14,10 @@
   kind=local，或 kind=openai_compat 指到 loopback／私網；claude_code 與雲端來源預設不開（判斷共用 agent/auto.py）。
   `llm.verify_retries`（預設 2，0＝關）。
 - 標定（誤判率）：tests/test_claims_calibration.py，用真實的本地模型回覆與 evals 劇本；數字寫在 ADR 0008。
+- **未來承諾**（promise_verdict，docs/adr/0029 §3.2）：回覆說「會提醒／到時候通知／每天幫你」，這一輪卻沒有排程回執
+  （或工具庫宣告 promises 的指令成功）→ REJECT(future_without_receipt)；有回執但時間、日子、管道對不上 → REJECT(promise_mismatch)。
+  `〔排程回執〕` 只有系統會產生，AI 寫出來＝偽造。這一類對所有 AI 來源都開（promise_on）。跟上面的完成宣稱是兩個函式，
+  標定的數字不受影響。
 """
 
 from __future__ import annotations
@@ -36,8 +40,9 @@ LOCAL_KINDS = auto_mod.LOCAL_KINDS
 # ── 偽造的工具結果／洩漏的呼叫標記 ─────────────────────────────────────────
 
 RESULT_PREFIX = "〔工具結果〕"                     # textproto.result_message 的開頭（只有系統會產生）
-FORGED_MARKERS = (RESULT_PREFIX, "<tool_response>", "</tool_response>", "<tool_call>", "<function=", "<invoke ",
-                  "<minimax:tool_call>")
+RECEIPT_MARK = "〔排程回執〕"                       # schedule/receipt.MARK：排程回執的機器行（只有系統會產生，ADR 0029）
+FORGED_MARKERS = (RESULT_PREFIX, RECEIPT_MARK, "<tool_response>", "</tool_response>", "<tool_call>", "<function=",
+                  "<invoke ", "<minimax:tool_call>")
 _ROLE_TOOL = re.compile(r"""["']role["']\s*:\s*["']tool["']""")
 
 
@@ -129,6 +134,7 @@ class Evidence:
     carded: bool = False
     args: Dict[str, object] = field(default_factory=dict)
     result: str = ""
+    receipts: List[object] = field(default_factory=list)      # 這次呼叫交來的排程回執（schedule.receipt.ScheduleReceipt）
 
 
 @dataclass
@@ -232,6 +238,235 @@ def verdict(text: str, ledger: Sequence[Evidence]) -> Verdict:
     return Verdict(PASS)
 
 
+# ── 未來承諾（docs/adr/0029 §3.2、ADR 0030 的 promises）─────────────────────────
+#
+# 回覆說「會提醒你／到時候通知你／每天幫你…」＝承諾之後會發生的事。只有這一輪真的排上了才可以說：
+#   - 有排程回執（ScheduleReceipt，系統的提醒／排程排上時交給 CaptureApi.note_receipt），而且產生回執的工具
+#     在 agent.index.promised_tools 裡；或
+#   - 成功呼叫了「工具庫的工具」宣告過 promises 的指令（backers；它們沒有回執可交，pack-format.md 的規則＝成功即可背書）。
+#   系統自己的提醒／排程一定要有回執：沒有回執＝沒排上（例如時間已過被擋下、只是問了一句）。
+# 有回執時再對一次：回覆提到的時間要對得上回執的時分（而且至少要唸出一個）、日子（今天／明天）不能說錯、
+# 說「每天」要有每天的回執、說的管道不能超出回執的管道。
+# 這一類對所有 AI 來源都開（promise_on）：llm.completion_guard=off 或 verify_retries=0 才關。
+
+FUTURE_WITHOUT_RECEIPT, PROMISE_MISMATCH = "future_without_receipt", "promise_mismatch"
+_NOTIFY = (r"(?:提醒|提示|通知|叫醒|叫你|叫您|告訴你|告訴您|告诉你|跟你說|跟您說|跟你说|傳訊息給你|發訊息給你|傳給你|發給你|"
+           r"送給你|响|響)")
+FUTURE_PATTERNS = [
+    # 會提醒／將通知／會在明天 8 點提醒你／會準時叫你／我會記得提醒
+    re.compile(r"(?:會|会|將|将)(?:準時|准时|按時|按时|再|自動|自动|記得|记得)?"
+               r"(?:(?:在|用|透過|透过|從|从|經由|经由)[^，,。！？!?\n]{0,14}?)?" + _NOTIFY),
+    # 到時候（我）（會）提醒你
+    re.compile(r"到時(?:候)?(?:我|系統|系统)?(?:會|会|就會|就会|再)?[^，,。！？!?\n]{0,4}?" + _NOTIFY),
+    # 每天幫你／每晚替你
+    re.compile(r"每(?:天|日|晚|早|週|周|個月|个月)(?:都)?(?:會|会)?(?:幫|帮|替)(?:你|您)"),
+    # 會收到提醒／通知
+    re.compile(r"(?:會|会)收到(?:提醒|通知|訊息|消息)"),
+    # 明天 8 點提醒你／21:00 通知你（沒有「會」的承諾）
+    re.compile(r"(?:今天|今晚|明天|明早|明晚|後天|后天|每天|\d{1,2}[:：]\d{2}|"
+               r"(?:\d{1,2}|[一二兩两三四五六七八九十]{1,3})\s*[點点](?:半|\d{1,2}分?)?)"
+               r"[^，,。！？!?\n]{0,10}?(?:提醒|通知|叫)(?:你|您)"),
+    re.compile(r"(?i)\b(?:I'?ll|I will|we'?ll|will)\s+(?:remind|notify|ping|alert|message)\b"),
+]
+# 同一個子句裡、承諾前面有這些＝不算（否定、問、提議、條件、在說明怎麼用）
+FUTURE_EXCLUDE = (
+    "不", "沒", "没", "未", "無法", "无法", "別", "别", "要不要", "需要我", "是否", "可以", "可不可以", "能不能", "想要", "要我",
+    "如果", "若", "假如", "要是", "一旦", "只要", "的話", "的话", "例如", "比如", "像是", "設好", "設定後", "設定之後", "才會",
+    "not ", "n't", "never", "if ", "can ", "could ", "would ", "once ", "when ",
+)
+FUTURE_WINDOW = 16
+# 管道的說法 → 回執的管道 id（None＝回執永遠不會有的管道）
+CHANNEL_WORDS = (
+    (re.compile(r"(?i)telegram|(?<![a-z])tg(?![a-z])|電報"), "telegram"),
+    (re.compile(r"(?i)discord"), "discord"),
+    (re.compile(r"網頁|网页|瀏覽器|浏览器|鈴鐺"), "web"),
+    (re.compile(r"視窗|视窗|桌面通知|跳出來|彈出"), "desktop"),
+    (re.compile(r"(?i)(?<![a-z])line(?![a-z])|簡訊|短信|e-?mail|電子郵件|信箱|推播|打電話|來電|whatsapp|messenger|微信|wechat"),
+     None),
+)
+_CHANNEL_NEG = ("不", "沒", "没", "未", "無法", "无法")
+DAILY_WORDS = ("每天", "每日", "天天", "每晚", "每早")
+DAY_WORDS = {"今天": "今天", "今晚": "今天", "今早": "今天", "明天": "明天", "明早": "明天", "明晚": "明天",
+             "後天": "後天", "后天": "後天"}
+_CLOCK = re.compile(r"(?<![\d.])(?P<pre>凌晨|清晨|早上|上午|中午|下午|傍晚|晚上|今晚|明晚|明早|半夜)?\s*"
+                    r"(?P<h>[01]?\d|2[0-3])[:：](?P<m>[0-5]\d)(?!\d)")
+_DIAN = re.compile(r"(?P<pre>凌晨|清晨|早上|上午|中午|下午|傍晚|晚上|今晚|明晚|明早|半夜)?\s*"
+                   r"(?P<h>\d{1,2}|[零一二兩两三四五六七八九十]{1,3})\s*[點点](?:\s*(?P<m>半|一刻|三刻|\d{1,2}|"
+                   r"[零一二三四五六七八九十]{1,3})\s*分?)?")
+_CN_DIGITS = {"零": 0, "一": 1, "二": 2, "兩": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8, "九": 9}
+_PM = ("下午", "傍晚", "晚上", "今晚", "明晚")
+_AM = ("凌晨", "清晨", "早上", "上午", "明早", "半夜")
+
+
+def _cn_number(s: str) -> Optional[int]:
+    if s.isdigit():
+        return int(s)
+    if s == "十":
+        return 10
+    if "十" in s:
+        tens, _, ones = s.partition("十")
+        t = _CN_DIGITS.get(tens, 1) if tens else 1
+        o = _CN_DIGITS.get(ones, 0) if ones else 0
+        return t * 10 + o
+    return _CN_DIGITS.get(s)
+
+
+def _hours(h: int, pre: str) -> set:
+    """一個講出來的鐘點可能是哪幾個 24 小時制的小時（沒講上午下午、又 ≤12＝兩種都算）。"""
+    if h > 23:
+        return set()
+    if pre in _PM:
+        return {h + 12 if h < 12 else h}
+    if pre in _AM:
+        return {0 if h == 12 else h}
+    if pre == "中午":
+        return {12 if h == 12 else h + 12 if h < 6 else h}
+    if h <= 12:
+        return {h % 24, (h + 12) % 24, 0 if h == 12 else h}
+    return {h}
+
+
+def spoken_times(text: str) -> List[set]:
+    """回覆裡講到的每個時間 → 它可能代表的 (時, 分) 集合。「08:00」「晚上 10 點」「8 點半」「十點十五分」都收。"""
+    out: List[set] = []
+    taken: List[tuple] = []
+    for m in _CLOCK.finditer(text or ""):
+        pre, hour = m.group("pre") or "", m.group("h")
+        hours = _hours(int(hour), pre) if pre or len(hour) == 1 else {int(hour)}    # 「08:00」「20:00」＝24 小時制
+        out.append({(h, int(m.group("m"))) for h in hours})
+        taken.append(m.span())
+    for m in _DIAN.finditer(text or ""):
+        if any(a <= m.start() < b for a, b in taken):
+            continue
+        h = _cn_number(m.group("h"))
+        raw = m.group("m") or ""
+        minute = {"": 0, "半": 30, "一刻": 15, "三刻": 45}.get(raw)
+        if minute is None:
+            minute = _cn_number(raw)
+        if h is None or minute is None or minute > 59:
+            continue
+        out.append({(x, minute) for x in _hours(h, m.group("pre") or "")})
+    return [s for s in out if s]
+
+
+def _future_excluded(text: str, start: int, end: int) -> bool:
+    left, right = _sentence_bounds(text, start, end)
+    if text[left:right].rstrip().endswith(QUESTION_END):
+        return True
+    clause_start = max([left] + [text.rfind(ch, left, start) + 1 for ch in _CLAUSE_CUT])
+    window = text[max(clause_start, start - FUTURE_WINDOW):start].lower()
+    for harmless in _HARMLESS:
+        window = window.replace(harmless, "")
+    return any(word in window for word in FUTURE_EXCLUDE)
+
+
+def future_claims(text: str) -> List[Claim]:
+    """回覆裡「之後會發生」的承諾（會提醒、到時候通知、每天幫你…），排除否定、問句、提議、條件；同一段只算一次。"""
+    text = text or ""
+    out: List[Claim] = []
+    taken: List[tuple] = []
+    for pattern in FUTURE_PATTERNS:
+        for m in pattern.finditer(text):
+            s, e = m.span()
+            if any(s < b and a < e for a, b in taken) or _future_excluded(text, s, e):
+                continue
+            out.append(Claim("future", (s, e), _entity(text, e)))
+            taken.append((s, e))
+    return sorted(out, key=lambda c: c.span)
+
+
+def _receipt_hm(receipt) -> Optional[tuple]:
+    from datetime import datetime
+    due = getattr(receipt, "due", None)
+    if due:
+        try:
+            at = datetime.fromisoformat(str(due))
+            return at.hour, at.minute
+        except ValueError:
+            pass
+    m = re.search(r"(\d{1,2})[:：](\d{2})", str(getattr(receipt, "when", "") or ""))
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def _receipt_day(receipt) -> str:
+    when = str(getattr(receipt, "when", "") or "").strip()
+    return next((DAY_WORDS[w] for w in DAY_WORDS if when.startswith(w)), "")
+
+
+def _claim_sentences(text: str, found: Sequence[Claim]) -> List[str]:
+    seen, out = set(), []
+    for c in found:
+        bounds = _sentence_bounds(text, *c.span)
+        if bounds not in seen:
+            seen.add(bounds)
+            out.append(text[bounds[0]:bounds[1]])
+    return out
+
+
+def promise_problems(text: str, found: Sequence[Claim], receipts: Sequence[object]) -> List[str]:
+    """有回執時，回覆跟回執對不對得上；回不對的地方（給 log 與修正字句），都對＝[]。"""
+    problems: List[str] = []
+    timed = [r for r in receipts if _receipt_hm(r) is not None]
+    allowed_hm = {_receipt_hm(r) for r in timed}
+    sentences = _claim_sentences(text, found)
+    if not timed:
+        problems.append("回執是沒有時間的待辦，不會響")
+    else:
+        near = [s for sentence in sentences for s in spoken_times(sentence)]
+        if any(not (s & allowed_hm) for s in near):
+            problems.append("時間跟回執不同")
+        elif not any(s & allowed_hm for s in spoken_times(text)):
+            problems.append("沒有唸出回執的絕對時間")
+    days = {_receipt_day(r) for r in timed if _receipt_day(r)}
+    if days:
+        for sentence in sentences:
+            spoken = {DAY_WORDS[w] for w in DAY_WORDS if w in sentence}
+            if spoken and not (spoken & days):
+                problems.append("日子跟回執不同")
+                break
+    if any(w in s for s in sentences for w in DAILY_WORDS) and not any(
+            getattr(r, "repeat", "") == "daily" for r in receipts):
+        problems.append("說每天，但回執不是每天")
+    allowed_ch = {c for r in receipts for c in (getattr(r, "channels", None) or [])}
+    for sentence in sentences:
+        for pattern, channel in CHANNEL_WORDS:
+            for m in pattern.finditer(sentence):
+                before = sentence[max(0, m.start() - 6):m.start()]
+                if any(n in before for n in _CHANNEL_NEG):
+                    continue
+                if channel is None or channel not in allowed_ch:
+                    problems.append(f"管道超出回執：{m.group(0)}")
+    return list(dict.fromkeys(problems))
+
+
+def promise_verdict(text: str, ledger: Sequence[Evidence], *, promised: Optional[Dict[str, str]] = None,
+                    backers: Sequence[str] = ()) -> Verdict:
+    """未來承諾這一類（對所有 AI 來源）：
+    偽造回執標記 → REJECT(forged)；有承諾、這一輪沒有可背書的成功紀錄 → REJECT(future_without_receipt)；
+    有回執、回覆跟回執對不上 → REJECT(promise_mismatch)；其他 PASS。
+    promised＝agent.index.promised_tools(app)（None＝不限工具，只看有沒有回執）；backers＝成功就能背書的工具庫指令。"""
+    text = text or ""
+    if RECEIPT_MARK in text:
+        return Verdict(REJECT, FORGED, detail=f"marker {RECEIPT_MARK}")
+    found = future_claims(text)
+    if not found:
+        return Verdict(PASS)
+    ok = [e for e in ledger if e.ok and not e.carded]
+    receipts = [r for e in ok if promised is None or e.tool in promised for r in (e.receipts or [])]
+    if not receipts:
+        if any(e.tool in set(backers or ()) for e in ok):
+            return Verdict(PASS, claims=list(found))
+        return Verdict(REJECT, FUTURE_WITHOUT_RECEIPT, list(found), detail="no receipt")
+    problems = promise_problems(text, found, receipts)
+    if problems:
+        return Verdict(REJECT, PROMISE_MISMATCH, list(found), detail="；".join(problems))
+    return Verdict(PASS, claims=list(found))
+
+
+def receipts_of(ledger: Sequence[Evidence]) -> List[object]:
+    return [r for e in ledger if e.ok for r in (e.receipts or [])]
+
+
 # ── 字句（中性、具體；LessWrong 的 Inspect 字句消融：中性的修正字句作弊率約 1%）─────────────────
 
 CORRECTION = {
@@ -240,26 +475,56 @@ CORRECTION = {
     FORGED: ("系統檢查：你的回覆裡出現了工具結果的標記，但那不是真的工具結果。只有系統會產生工具結果。"
              "要用工具就呼叫它，然後等結果。"),
     PROGRESS_ONLY: "系統檢查：你說接下來要做，但沒有呼叫工具。要做就現在呼叫；做完了就直接回答使用者。",
+    FUTURE_WITHOUT_RECEIPT: ("系統檢查：你說之後會提醒或通知使用者，但這一輪沒有任何工具回〔排程回執〕，所以什麼都沒有排上。"
+                             "要排就現在呼叫能排時間的工具；沒有這種工具，就直接說做不到，並提一個真的做得到的替代。"
+                             "不要說「會提醒」「到時候通知」。"),
+    PROMISE_MISMATCH: ("系統檢查：你說的時間、日子或送到哪裡，跟工具回的〔排程回執〕對不上（{detail}）。"
+                       "照回執重講：唸出回執上的絕對時間（例如「明天 08:00」），只說回執列出的管道，不要自己加保證。"),
 }
 BLOCKED_PREFIX = "（AI 說做好了，"
+PROMISE_PREFIX = "（AI 說之後會提醒你，"
 BLOCKED_NOTICE = {
     CLAIM_WITHOUT_CALL: "（AI 說做好了，但這一輪沒有真的呼叫對應的工具，所以沒有執行。可以再說一次，或自己打指令。）",
     FORGED: "（AI 說做好了，但它的回覆裡有自己寫的「工具結果」；這一輪沒有真的呼叫工具，所以沒有執行。可以再說一次，或自己打指令。）",
+    FUTURE_WITHOUT_RECEIPT: ("（AI 說之後會提醒你，但這一輪沒有排上任何提醒或排程，到時候不會有通知。"
+                             "要的話再說一次，或自己打 /remind_add。）"),
+    PROMISE_MISMATCH: "（AI 說之後會提醒你，但它講的時間或管道跟實際排上的不一樣。以實際排上的為準：）",
 }
 ORIGINAL_HEAD = "AI 原本的回覆（沒有執行，僅供參考）："
+PROMISE_ORIGINAL_HEAD = "AI 原本的回覆（僅供參考）："
 NUDGE_NOTE = "（AI 說要做，但這一輪沒有呼叫任何工具，所以還沒有執行。可以再說一次，或自己打指令。）"
 MEMORY_NOTE = "（AI 宣稱完成但未執行，已攔下）"
+MEMORY_NOTES = {
+    FUTURE_WITHOUT_RECEIPT: "（AI 說會提醒但沒有排上，已攔下）",
+    PROMISE_MISMATCH: "（AI 講的時間或管道跟排程回執不同，已改用回執）",
+}
 ORIGINAL_MAX = 1500
 
 
-def blocked_message(reason: str, said: str) -> str:
-    """重試用完仍不放行時給使用者的字：先照實說「沒有執行」，再附上 AI 原本的回覆（不吞掉）。"""
+def correction(verdict_: "Verdict") -> str:
+    """重試時接在 AI 回覆後面的那一句（中性、具體）。"""
+    text = CORRECTION.get(verdict_.reason, CORRECTION[CLAIM_WITHOUT_CALL])
+    return text.replace("{detail}", verdict_.detail or "對不上") if verdict_.reason == PROMISE_MISMATCH else text
+
+
+def memory_note(reason: str) -> str:
+    return MEMORY_NOTES.get(reason, MEMORY_NOTE)
+
+
+def blocked_message(reason: str, said: str, receipts: Sequence[object] = ()) -> str:
+    """重試用完仍不放行時給使用者的字：先照實說「沒有執行／沒有排上」，再附上 AI 原本的回覆（不吞掉）。
+    時間或管道對不上（PROMISE_MISMATCH）：事情是真的排上了，改用回執的字（程式產生的）告訴使用者，AI 的原文附在後面。"""
     notice = BLOCKED_NOTICE.get(reason, BLOCKED_NOTICE[CLAIM_WITHOUT_CALL])
     said = (said or "").strip()
-    if not said:
-        return notice
     if len(said) > ORIGINAL_MAX:
         said = said[:ORIGINAL_MAX] + "…"
+    if reason == PROMISE_MISMATCH:
+        lines = [notice] + [r.reply_text() for r in receipts if callable(getattr(r, "reply_text", None))]
+        if said:
+            lines += ["", PROMISE_ORIGINAL_HEAD, said]
+        return "\n".join(lines)
+    if not said:
+        return notice
     return f"{notice}\n\n{ORIGINAL_HEAD}\n{said}"
 
 
@@ -271,7 +536,7 @@ def nudged_message(said: str) -> str:
 def harness_text(text: str) -> str:
     """評測用：使用者看到的字裡「AI 自己說的」部分。被閘門攔下的訊息（BLOCKED_NOTICE 開頭）＝系統已經照實說了，回 ""。"""
     text = text or ""
-    return "" if text.startswith(BLOCKED_PREFIX) else text
+    return "" if text.startswith((BLOCKED_PREFIX, PROMISE_PREFIX)) else text
 
 
 # ── 設定 ──────────────────────────────────────────────────────────────
@@ -311,6 +576,16 @@ def guard_on(llm: Optional[dict], adapter) -> bool:
     return retries > 0 and _resolve(mode, adapter)
 
 
+def promise_on(llm: Optional[dict]) -> bool:
+    """未來承諾這一類：**對所有 AI 來源都開**（auto 也開，不看本地或雲端）；llm.completion_guard=off 或 verify_retries=0 才關。"""
+    llm = llm or {}
+    try:
+        mode, retries = parse_mode(llm.get("completion_guard")), parse_retries(llm.get("verify_retries"))
+    except ValueError:
+        return True
+    return mode != "off" and retries > 0
+
+
 def retries_of(llm: Optional[dict]) -> int:
     try:
         return parse_retries((llm or {}).get("verify_retries"))
@@ -335,4 +610,5 @@ def doctor_line(llm: Optional[dict], adapter) -> str:
     head = (f"完成宣稱檢查（llm.completion_guard={mode}）：" + (f"開，重試最多 {retries_of(llm)} 次" if on else "關")
             + (f"（auto：{why}）" if mode == "auto" else ""))
     stop = "停止詞：" + ("有送" if getattr(adapter, "supports_stop", False) else "此來源不支援停止詞（不送）")
-    return f"{head}；{stop}"
+    promise = "未來承諾檢查（會提醒／到時候…要有排程回執）：" + ("開，所有 AI 來源" if promise_on(llm) else "關")
+    return f"{head}；{promise}；{stop}"

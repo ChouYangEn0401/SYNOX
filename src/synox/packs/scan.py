@@ -1715,3 +1715,54 @@ def scan(m: Manifest, exec_bits: Sequence[str] = ()) -> ScanReport:
 def gate2(m: Manifest) -> ScanReport:
     """scan() 的別名（讀起來像管線）。"""
     return scan(m)
+
+
+# ── 安裝報告：給 AI 的登記（agent 區塊，ADR 0030） ─────────────────────
+
+PROMISE_TEXT = {"schedule": "排定時間（成功後 AI 可以說「到時候會…」）",
+                "watch": "持續監看（成功後 AI 可以說「之後有變化會通知你」）"}
+
+
+def agent_report(m: Manifest) -> dict:
+    """安裝報告的「🧠 給 AI 的登記」那一段：每輪會多佔約幾個字、索引那一行、觸發字、可以背書的未來承諾、
+    只有核心信任才准的東西（agent.always／load=always）。外觀包、只登記的 connector／mcp＝{}。"""
+    if m.kind == "theme":
+        return {}
+    from synox.agent.index import entry_from_manifest
+    from synox.packs.manifest import agent_needs_core, required_packs, required_system
+    agent = m.agent or {}
+    entry = entry_from_manifest(m)
+    try:
+        needs_packs = [f"{n}{s}" for n, s in required_packs(m.requires)]
+        needs_system = required_system(m.requires)
+    except ValueError:
+        needs_packs, needs_system = [], []
+    return {"declared": bool(agent.get("declared")), "chars": entry.chars(), "line": entry.line() if entry.listed else "",
+            "triggers": list(agent.get("triggers") or []), "load": entry.load, "topics": entry.topics,
+            "provides": list(agent.get("provides") or []),
+            "promises": [{"command": k, "kind": v, "text": PROMISE_TEXT.get(v, v)}
+                         for k, v in sorted((agent.get("promises") or {}).items())],
+            "always": entry.always, "needs_core": agent_needs_core(m),
+            "requires_packs": needs_packs, "requires_system": needs_system}
+
+
+def format_agent(summary: dict) -> List[str]:
+    """終端機的「🧠 給 AI 的登記」那一段（admin.format_summary 用）。"""
+    info = summary.get("agent") or {}
+    if not info:
+        return []
+    lines = [f"🧠 給 AI 的登記：這個工具每輪會多佔約 {info.get('chars', 0)} 字（AI 能力清單"
+             + ("" if info.get("declared") else "；沒寫 agent 區塊，用 summary") + "）"]
+    if info.get("line"):
+        lines.append(f"  {info['line']}")
+    if info.get("triggers"):
+        lines.append(f"  觸發字：{'、'.join(info['triggers'])}")
+    for p in info.get("promises") or []:
+        lines.append(f"  承諾：/{summary.get('name')} 的 {p['command']} 成功後可以背書「{p['kind']}」——{p['text']}")
+    if info.get("needs_core"):
+        from synox.packs.admin import red
+        lines.append(red(f"🔴 寫了 {'、'.join(info['needs_core'])}（每輪都進 AI 的提示）：只有信任選「核心（core）」或有「✅ 官方」簽章才裝得進來"))
+    if info.get("requires_packs") or info.get("requires_system"):
+        lines.append("  相依：" + "、".join([f"工具 {x}" for x in info.get("requires_packs") or []]
+                                           + [f"系統能力 {x}" for x in info.get("requires_system") or []]))
+    return lines

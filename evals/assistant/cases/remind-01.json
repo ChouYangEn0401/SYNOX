@@ -1,0 +1,47 @@
+{
+  "id": "remind-01",
+  "category": "remind",
+  "split": "tune",
+  "title": "設提醒：叫了工具、照排程回執唸回絕對時間與管道",
+  "turns": [
+    "明天早上八點提醒我帶傘"
+  ],
+  "tools": [
+    {
+      "name": "alarm__set"
+    },
+    {
+      "name": "note__add"
+    }
+  ],
+  "expect": {
+    "must_call": [
+      {
+        "tool": "alarm__set",
+        "args": {
+          "time": "08:00",
+          "text": {
+            "contains": "傘"
+          }
+        }
+      }
+    ],
+    "must_not_call": [
+      "note__add"
+    ],
+    "final_contains": [
+      "08:00"
+    ],
+    "final_not_contains": [
+      "沒有排上",
+      "不一樣"
+    ],
+    "max_steps": 2
+  },
+  "soft": [
+    {
+      "name": "照回執講",
+      "rubric": "一兩句講清楚：哪一天幾點（絕對時間）、送到哪裡；不加回執沒說的保證"
+    }
+  ]
+}

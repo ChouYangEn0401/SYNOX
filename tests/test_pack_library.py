@@ -128,6 +128,17 @@ def test_real_release_index_is_read_into_friendly_cards():
     assert all("🧪 alpha" in t for t in texts.values())
 
 
+def test_help_pages_match_the_registered_tool_pages():
+    """工具卡片的「說明」連到工具庫網站那一頁；跟 docs/artifacts.json 登記的網址一樣（diary、google-sheets 之後才上架）。"""
+    assert catalog.HELP_PAGES["diary"] == "https://claude.ai/artifact/HRobvC114kdVY9CtkocFMt"
+    assert catalog.HELP_PAGES["google-sheets"] == "https://claude.ai/artifact/H74Xn3PdwzCsseG9dEkq1r"
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    with open(os.path.join(root, "docs", "artifacts.json"), encoding="utf-8") as f:
+        pages = {p["local"]: p["url"] for p in json.load(f)["pages"] if p.get("repo") == "SYNOX_Libs"}
+    for name, url in catalog.HELP_PAGES.items():
+        assert pages.get(f"docs/site/{name}.html") == url, name
+
+
 def test_unknown_tool_falls_back_to_catalog_title_and_summary():
     blob = _pack_zip()
     lib = catalog.parse_index(_index([_entry("hello", "0.1.0", blob)]))

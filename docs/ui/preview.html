@@ -4740,6 +4740,12 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     prefsSave: "存起來",
     prefsSaved: "存好了。",
     notLinked: "（沒接上）",
+    done: "完成",
+    deskTitle: "🖥️ 電腦提醒視窗",
+    deskWindow: "提醒時間到，在這台電腦右下角跳出提醒視窗（不按不會自己關）",
+    deskSentinel: "登入 Windows 時啟動提醒哨兵（SYNOX 沒開也會跳提醒、送 Telegram；SYNOX 開著時它會讓位）",
+    deskLocked: "config.json 裡關掉了電腦視窗（notify.desktop = false）。",
+    deskSaved: "存好了。",
     locked: "安全警告一定會在網頁上出現。",
     failed: "沒做成：{e}"
   };
@@ -4899,6 +4905,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     acts.forEach(function (a) {
       if (a.id === "ok") { hasOk = true; row.appendChild(btn(a.label || TEXT.ok, "sm", function () { read(it.id); })); }
       else if (a.id === "snooze") { row.appendChild(btn(a.label, "sm primary", function () { snooze(it.id); })); }
+      else if (a.id === "done") { row.appendChild(btn(a.label || TEXT.done, "sm primary", function () { done(it.id); })); }
       else if ((a.id === "app_stop" || a.id === "app_keep") && a.app && me && me.owner) {
         row.appendChild(btn(a.label, a.id === "app_stop" ? "sm primary" : "sm", function () {
           opts.api("POST", "/api/apps/" + encodeURIComponent(a.app) + (a.id === "app_stop" ? "/stop" : "/keep"), {})
@@ -4914,6 +4921,13 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   function read(id) {
     dropPop(id);
     return opts.api("POST", "/api/notifications/read", id === undefined ? {} : { id: id }).then(poll, fail);
+  }
+  function done(id) {
+    dropPop(id);
+    return opts.api("POST", "/api/notifications/" + id + "/done", {}).then(function (d) {
+      opts.toast(d.message || "");
+      return poll();
+    }, fail);
   }
   function snooze(id) {
     dropPop(id);
@@ -5117,8 +5131,37 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       }));
       r.appendChild(msg);
       body.appendChild(r);
+      if (d.desk && d.desk.supported) { body.appendChild(deskPrefs(d.desk)); }
       box.classList.remove("hidden");
     }).catch(function () { /* 沒有就不顯示 */ });
+  }
+  // 電腦提醒視窗（Windows 個人版的擁有者才有）：開關視窗、登入時啟動提醒哨兵
+  function deskPrefs(desk) {
+    var wrap = el("div", "ntf-desk");
+    wrap.appendChild(el("h3", "", TEXT.deskTitle));
+    function check(key, label, disabled) {
+      var lab = el("label", "row"), cb = el("input");
+      cb.type = "checkbox";
+      cb.checked = !!desk[key];
+      cb.disabled = !!disabled;
+      cb.dataset.key = key;
+      lab.appendChild(cb);
+      lab.appendChild(el("span", "", label));
+      wrap.appendChild(lab);
+      return cb;
+    }
+    var win = check("window", TEXT.deskWindow, desk.locked_off);
+    var sen = check("sentinel", TEXT.deskSentinel, false);
+    if (desk.locked_off) { wrap.appendChild(el("p", "muted", TEXT.deskLocked)); }
+    var r = el("div", "row"), msg = el("span", "muted");
+    r.appendChild(btn(TEXT.prefsSave, "primary", function () {
+      var body = { sentinel: sen.checked };
+      if (!win.disabled) { body.window = win.checked; }
+      opts.api("POST", "/api/notifications/desk", body).then(function () { msg.textContent = TEXT.deskSaved; }, fail);
+    }));
+    r.appendChild(msg);
+    wrap.appendChild(r);
+    return wrap;
   }
   function prefsCard() {
     var panel = document.querySelector('.tab-panel[data-tab="system"]');
@@ -8041,6 +8084,26 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   function capList(list) {
     return (list && list.length) ? list.map(function (c) { return CAP[c] || c; }).join("、") : "（沒有）";
   }
+  // 安裝報告的「🧠 給 AI 的登記」（ADR 0030；資料是 s.agent，同終端機的 scan.format_agent）
+  function showAgent(box, s) {
+    var a = s.agent || {};
+    if (!a || a.chars === undefined) { return; }
+    box.appendChild(el("p", "", "🧠 給 AI 的登記：這個工具每輪會多佔約 " + a.chars + " 字（AI 能力清單" +
+      (a.declared ? "" : "；沒寫 agent 區塊，用簡介") + "）"));
+    var ul = el("ul");
+    if (a.line) { ul.appendChild(el("li", "", a.line.replace(/^- /, ""))); }
+    if ((a.triggers || []).length) { ul.appendChild(el("li", "", "觸發字：" + a.triggers.join("、"))); }
+    (a.promises || []).forEach(function (p) {
+      ul.appendChild(el("li", "", "承諾：" + p.command + " 成功後，AI 可以說它會" + (p.kind === "watch" ? "持續監看" : "在排定的時間做") + "（" + p.text + "）"));
+    });
+    if ((a.needs_core || []).length) {
+      ul.appendChild(el("li", "alert", "🔴 寫了 " + a.needs_core.join("、") + "（每輪都進 AI 的提示）：只有信任選「核心」或有「✅ 官方」簽章才裝得進來"));
+    }
+    var deps = (a.requires_packs || []).map(function (x) { return "工具 " + x; })
+      .concat((a.requires_system || []).map(function (x) { return "系統能力 " + x; }));
+    if (deps.length) { ul.appendChild(el("li", "", "要先有：" + deps.join("、"))); }
+    if (ul.childNodes.length) { box.appendChild(ul); }
+  }
   // 安全管線第 1、2 關的結果（掃描報告）；canInstall＝過了，可以按確認（第 3 關在伺服器寫 packs.lock）
   function showReview(s, canInstall) {
     var box = $("pack-review");
@@ -8108,6 +8171,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       box.appendChild(el("p", "", "🖥 有自己的完整畫面" + (s.app.title ? "「" + s.app.title + "」" : "") + "（" + s.app.files + " 個檔）："));
       box.appendChild(appUl);
     }
+    showAgent(box, s);
     var upg = s.adopt ? null : s.upgrade, down = null;   // 送去安裝頁的那一份：原地那個就是它自己，不比版本
     if (upg) { down = showUpgrade(box, upg, s.name); }
     var trust = canInstall && s.token ? showScope(box, s, upg) : null;

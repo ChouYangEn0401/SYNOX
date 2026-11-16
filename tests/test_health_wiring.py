@@ -9,6 +9,7 @@ import json
 from conftest import OWNER_ID
 
 from synox import health, sdk
+from synox.agent import prompt as prompt_mod
 from synox.health import BROKEN, HEALTHY, NEEDS_ACTION, QUARANTINED
 from synox.llm.base import SYSTEM, TOOL
 
@@ -183,7 +184,8 @@ def test_ai_gets_one_fixed_line_and_broken_tool_leaves_the_list(make_bot, tmp_pa
     assert sorted(set(all_tools) - {"demo__price"}) == names                  # 只拿掉壞掉的那一個
     prompt = messages[0].content
     assert messages[0].role == SYSTEM
-    assert prompt.rstrip().splitlines()[-1].startswith("暫時不能用的功能：/demo_price（外部服務暫時不能用")
+    before_turn = prompt.split("\n\n" + prompt_mod.TURN_HEAD)[0]                # 第 7 層（本輪＋時間）永遠在最後
+    assert before_turn.rstrip().splitlines()[-1].startswith("暫時不能用的功能：/demo_price（外部服務暫時不能用")
     assert "DIAG-ONLY-MARK" not in prompt and "資料來源壞了" not in prompt    # 提示裡只有 SYNOX 的字
 
     _mode(folder, "ok")
