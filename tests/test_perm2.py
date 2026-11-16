@@ -9,7 +9,7 @@ import pytest
 from synox.packs import admin, loader, lock, upgrade
 from synox.packs.manifest import ManifestError, read, validate
 
-from conftest import trust_core
+from conftest import lock_all, trust_core
 from test_security import HELLO_PY, _write_pack, _zip_dir
 
 STORE_PY = ("def install(app, pack):\n"
@@ -190,6 +190,7 @@ def test_loader_private_only_unless_channel(make_bot, tmp_path, owner):
     _scoped_pack(base, "dmonly")
     _scoped_pack(base, "inchan", surfaces=["dm", "channel"], data="none")
     bot = make_bot()
+    lock_all(bot.app.config.data_dir, [str(base)])                     # 沒鎖的不載入（ADR 0027 §4）
     report = loader.load_all(bot.app, bot.app.config, None, dirs=[str(base)])
     assert {i.name: i.status for i in report.items} == {"dmonly": "loaded", "inchan": "loaded"}
     reg = bot.app.registry
@@ -228,6 +229,7 @@ def test_shared_write_untouched_in_personal_mode(make_bot, tmp_path):
     base = tmp_path / "extra"
     _scoped_pack(base, "board", data="shared")
     bot = make_bot()
+    lock_all(bot.app.config.data_dir, [str(base)])
     loader.load_all(bot.app, bot.app.config, None, dirs=[str(base)])
     assert bot.app.registry.node("board.put").policy.role < max(bot.app.registry.roles)
 

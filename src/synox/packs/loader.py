@@ -157,7 +157,7 @@ class Pack:
     app_exports: Dict[str, Callable] = field(default_factory=dict, repr=False)
 
     def tampered_since_load(self) -> List[str]:
-        """載入之後檔案被改過嗎（審查 B #D）：有鎖的 pack 每次叫 cli／開 mcp stdio 子程序之前問；[]＝對得上（或沒鎖）。"""
+        """載入之後檔案被改過嗎（審查 B #D）：有鎖的 pack 每次叫 cli／開 mcp stdio 子程序之前問；[]＝對得上（或沒鎖：只有出廠的會這樣載入）。"""
         if self.live is None:
             return []
         try:
@@ -374,6 +374,7 @@ def shared_write_admin(app, m: Manifest, server: bool) -> int:
 # 2026-11-12 起 SYNOX 出廠不帶任何工具：money、notes、remind（docs/legacy/builtin-packs.md）與 4 個 connector
 # （docs/legacy/connectors.md）都搬到 SYNOX_Libs，這張表是空的。**不要再把工具加回出廠**：新工具放 SYNOX_Libs、走安裝流程。
 # 機制留著（is_bundled 的位置＋名字判斷、審查 A #5 的「有鎖以鎖為準」），測試用 monkeypatch 填名字來測。
+# **不要再把名字加回 BUNDLED**：沒有鎖又不是出廠的不載入（ADR 0027 §4），加一個名字＝替它開一道不經安裝頁的門。
 BUNDLED: tuple = ()
 
 

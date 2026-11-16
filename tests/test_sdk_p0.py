@@ -11,7 +11,7 @@ import sys
 
 import pytest
 
-from conftest import OWNER_ID
+from conftest import OWNER_ID, lock_all
 
 from synox.agent import delimit
 from synox.agent import validate as gate4
@@ -191,6 +191,7 @@ def test_doctor_explains_incompatible(tmp_path, monkeypatch):
     cfg = tmp_path / "config.json"
     cfg.write_text(json.dumps({"owner_id": OWNER_ID, "data_dir": str(tmp_path / "data"), "vault": {"mode": "file"},
                                "llm": {"kind": "none"}, "packs": {"dirs": [str(packs)]}}), encoding="utf-8")
+    lock_all(tmp_path / "data", (str(packs),))                    # 沒鎖的不載入（ADR 0027 §4）：當作經安裝頁裝過
     lines = []
     doctor.run(offline=True, config_path=str(cfg), out=lines.append)
     hit = [ln for ln in lines if "echo" in ln and "不會載入" in ln]
