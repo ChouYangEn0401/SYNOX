@@ -149,6 +149,12 @@
   .badge.warn { background: var(--warn-soft); color: var(--warn); }
   .badge.bad, .badge.danger { background: var(--bad-soft); color: var(--bad); }
   .badge.bad::before, .badge.danger::before { border-radius: 2px; }
+  /* 標章（ADR 0027）：SYNOX 驗簽章的結果；字一定在（✅／✍️／⚠️／⛔），顏色只是加強 */
+  .badge.sig-official { background: var(--ok-soft); color: var(--ok); }
+  .badge.sig-author { background: var(--sunken); color: var(--text-2); }
+  .badge.sig-none { background: var(--warn-soft); color: var(--warn); }
+  .badge.sig-invalid { background: var(--bad-soft); color: var(--bad); }
+  .badge[class*="sig-"]::before { display: none; }
 
   /* 欄位：標題在上、說明在下 */
   label.f { display: block; margin: 12px 0 5px; font-size: 13px; font-weight: 600; color: var(--text-2); }
@@ -395,6 +401,9 @@
   #pack-review { margin-top: 14px; background: var(--surface-2); box-shadow: none; display: flex;
                  flex-direction: column; gap: 10px; }
   #pack-review > h3 { font-size: 16px; color: var(--text); }
+  #pack-review .sig-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-weight: 600; }
+  #pack-review .sig-row .badge { font-size: 14px; padding: 6px 12px; }
+  #pack-review .safety-notice { margin-top: 6px; }
   #pack-review label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .upload { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 14px; padding: 14px;
             border: 1px dashed var(--line-strong); border-radius: var(--r); background: var(--surface-2); }
@@ -955,11 +964,12 @@
           <div class="txt"><h2>別人做的技能（OpenClaw、Hermes） <span class="badge warn">⏳ 尚未完成</span></h2>
             <p class="sub">OpenClaw、Hermes 這類 AI 助理，有很多別人做好、可以下載的「技能」。</p></div></div>
         <ul class="plain-list">
-          <li>⚠️ 這些技能是<strong>別人做的</strong>，不一定安全：曾經有人在這些技能市集裡找到會偷資料、做壞事的技能。</li>
-          <li>⏳ SYNOX <strong>現在還不能裝</strong>這些技能，之後會做一個「匯入」的功能。</li>
-          <li>🛡 做好之後也一樣：先給你看檢查報告、你按確認才裝，而且建議開「沙盒模式」執行。</li>
+          <li>⏳ SYNOX <strong>現在還不能匯入</strong>這些技能。之後可以匯入，而且走的是<strong>同一個安裝頁</strong>：一樣先給你看檢查報告、一樣有安全提醒、你按確認才裝。</li>
+          <li>⚠️ 公開流通的技能裡，有一些帶著會偷資料或做壞事的程式。任何人都能上架的地方都有這個風險，不管來源是哪裡。</li>
+          <li>🏷 報告最上面會有 SYNOX 自己畫的標章：<strong>✅ 官方</strong>＝SYNOX 驗過擁有者的簽章；<strong>⚠️ 不是官方</strong>＝別人做的，SYNOX 無法確認是誰做的。工具自己寫的名字和說明改不了這個標章。</li>
+          <li>不確定就不要裝；只裝你信得過的人給的。</li>
         </ul>
-        <p class="muted later-note">進階：規劃寫在 ADR 0022（匯入、隔離執行）。</p>
+        <p class="muted later-note">進階：規劃寫在 ADR 0022（匯入）與 ADR 0027（簽章與標章）。</p>
       </div>
 
       <div id="set-install" class="card hidden" data-tour="settings.packs.upload">
@@ -2418,16 +2428,35 @@
   $("ch-dc-save").addEventListener("click", function () { saveChannel("dc"); });
 
   var STATUS = { loaded: "可以用", connector: "還沒接好", disabled: "關掉了", invalid: "檔案有問題", missing: "缺東西", incompatible: "跟這版 SYNOX 不合", error: "壞了",
-    tampered: "被改過了，先不開", rejected: "安全檢查沒過，先不開" };
+    tampered: "被改過了，先不開", rejected: "安全檢查沒過，先不開", unapproved: "沒有經過安裝頁，先不開" };
   // 狀態的顏色（顏色之外一定有字）：可以用＝綠、還沒接上／關掉＝黃、其他＝紅
-  var TONE = { loaded: "ok", connector: "warn", disabled: "", missing: "warn", incompatible: "warn" };
+  var TONE = { loaded: "ok", connector: "warn", disabled: "", missing: "warn", incompatible: "warn", unapproved: "warn" };
   var LOCK = { locked: "🔒", unlocked: "", tampered: "⚠️" };
+  // 標章（ADR 0027 §3）：只用伺服器給的狀態（安裝時 SYNOX 驗簽章、寫進鎖），不用工具自己寫的字
+  var SIG_LABEL = { official: "✅ 官方", author: "✍️ 作者簽章", none: "⚠️ 不是官方", invalid: "⛔ 被改過" };
+  function sigChip(status, label) {          // label：伺服器給的字（安裝報告）；沒有就照狀態
+    var s = SIG_LABEL.hasOwnProperty(status) ? status : "none";
+    return el("span", "badge sig-" + s, (SIG_LABEL.hasOwnProperty(status) && label) || SIG_LABEL[s]);
+  }
+  // 「送去安裝頁檢查」：手放進 packs/、沒經過安裝頁的工具（沒載入）→ 跟上傳一樣的檢查報告 → 你按確認才裝
+  function adoptPack(p, btn) {
+    btn.disabled = true;
+    $("pack-msg").textContent = "";
+    $("install-msg").textContent = "";
+    selectedToken = ""; markStaged();
+    setStep("check", "active", { token: "", name: p.name });
+    return api("POST", "/api/packs/adopt", { name: p.name })
+      .then(function (s) { showReview(s, true); loadStaged(); }).catch(reviewFailed)
+      .then(function () { btn.disabled = false; });
+  }
   function fillPacks(packs) {
     var body = $("pack-rows");
     clear(body);
     packs.forEach(function (p) {
       var tr = el("tr");
-      tr.appendChild(el("td", "name", (LOCK[p.lock] ? LOCK[p.lock] + " " : "") + p.name));
+      var nm = el("td", "name", (LOCK[p.lock] ? LOCK[p.lock] + " " : "") + p.name + " ");
+      if (p.lock && p.lock !== "unlocked" && p.status !== "unapproved") { nm.appendChild(sigChip(p.signature)); }
+      tr.appendChild(nm);
       var st = el("td");
       var tone = TONE.hasOwnProperty(p.status) ? TONE[p.status] : "bad";
       st.appendChild(el("span", "badge " + tone, STATUS[p.status] || p.status));
@@ -2435,6 +2464,13 @@
       tr.appendChild(st);
       tr.appendChild(el("td", "muted", p.version || ""));
       var td = el("td");
+      if (p.status === "unapproved" && p.removable) {
+        var go = el("button", "primary sm", "送去安裝頁檢查");
+        go.type = "button";
+        go.title = "先給你看檢查報告，你按確認才會裝；原本那一份會收到旁邊，不會刪掉";
+        go.addEventListener("click", function () { adoptPack(p, go); });
+        td.appendChild(go);
+      }
       if (p.removable) {
         var b = el("button", "danger sm", "移除");
         b.type = "button";
@@ -2464,6 +2500,17 @@
     box.classList.remove("hidden", "result");
     $("install-msg").textContent = "";
     if (s.token) { selectedToken = s.token; markStaged(); }
+    // 第一列一定是 SYNOX 畫的標章（ADR 0027 §3）；工具自己的標題、說明在它下面，只用 textContent，蓋不到它
+    var sig = s.signature;
+    if (sig && sig.status) {
+      var sigRow = el("div", "sig-row");
+      sigRow.appendChild(sigChip(sig.status, s.signature.label));
+      if (sig.text) { sigRow.appendChild(el("span", "", sig.text)); }
+      box.appendChild(sigRow);
+      (sig.lookalike || []).forEach(function (l) {
+        box.appendChild(el("p", "alert", "🔴 小心：它不是官方的，名字或說明卻像官方——" + l));
+      });
+    }
     box.appendChild(el("h3", "", s.title + "（" + s.name + " " + s.version + "）"));
     box.appendChild(el("p", "", s.summary));
     box.appendChild(el("p", "muted", "進階：種類 " + s.kind + "，誰能用 " + s.access + "，資料 " + s.storage +
@@ -2513,11 +2560,13 @@
       box.appendChild(el("p", "", "🖥 有自己的完整畫面" + (s.app.title ? "「" + s.app.title + "」" : "") + "（" + s.app.files + " 個檔）："));
       box.appendChild(appUl);
     }
-    var upg = s.upgrade, down = null;
+    var upg = s.adopt ? null : s.upgrade, down = null;   // 送去安裝頁的那一份：原地那個就是它自己，不比版本
     if (upg) { down = showUpgrade(box, upg, s.name); }
     var trust = canInstall && s.token ? showScope(box, s, upg) : null;
     var runtime = canInstall && s.token ? showRuntime(box, s, upg) : null;
     var pub = showTier(box, s, upg, canInstall && s.token);
+    // 安全提醒（每一次都有，不分來源）：放在確認鈕的正上方
+    var notice = s.safety_notice ? el("p", "note-line safety-notice", s.safety_notice) : null;
     var row = el("div", "row");
     var info = { token: s.token || "", name: s.name };
     if (canInstall && s.token) {
@@ -2534,6 +2583,7 @@
       refresh();
       ok.addEventListener("click", function () {
         var body = { token: s.token };
+        if (s.adopt) { body.adopt = true; }            // 伺服器改走 adopt.install（原地那一份收到旁邊，再裝這一份）
         if (upg) { body.upgrade = true; body.allow_downgrade = !!(down && down.checked); }
         if (trust) { body.trust = trust.value; }
         if (runtime) { body.runtime = runtime.value; }
@@ -2565,6 +2615,7 @@
     no.type = "button";
     no.addEventListener("click", function () { discardStaged(s.token); });
     if (canInstall && s.token) { row.appendChild(no); }
+    if (notice) { box.appendChild(notice); }
     box.appendChild(row);
     if (!(canInstall && s.token)) { setStep("check", "fail", info); }
     reveal(box);
@@ -2891,7 +2942,19 @@
     };
   }
   function reviewFailed(e) {
-    if (e.data && e.data.refused && e.data.refused.name) { showReview(e.data.refused, false); }
+    var refused = (e.data && e.data.refused) || null;
+    if (refused && refused.name) { showReview(refused, false); }     // 報告第一列照樣是標章（⛔ 被改過也在這裡）
+    else if (refused && refused.signature && refused.signature.status === "invalid") {
+      var box = $("pack-review");                                      // 連名字都沒讀到：只畫 ⛔ 與原因
+      clear(box);
+      box.classList.remove("hidden", "result");
+      var sigRow = el("div", "sig-row");
+      sigRow.appendChild(sigChip("invalid", refused.signature.label));
+      if (refused.signature.text) { sigRow.appendChild(el("span", "", refused.signature.text)); }
+      box.appendChild(sigRow);
+      setStep("check", "fail", { token: "", name: "" });
+      reveal(box);
+    }
     else { setStep("check", "fail", { token: "", name: "" }); }
     $("install-msg").textContent = "❌ " + e.message;
   }
