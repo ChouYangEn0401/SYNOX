@@ -11,7 +11,7 @@ SYNOX 出廠不帶任何工具（packs/ 只有說明；工具在 SYNOX_Libs）�
                   沒寫 transport（只有 url）＝同 connector，只登記
 
 安全管線（架構 v1 §4）在載入時做的是第 3 關：packs.lock 有記的 pack 每個檔重算 sha256，不符＝不載入
-（tampered）、通知擁有者一次。**沒有 packs.lock 那一筆的不載入**（ADR 0027 §4，S9）：手放進 packs/、packs.dirs 指過去的
+（tampered）、通知擁有者一次。**沒有 packs.lock 那一筆的不載入**（ADR 0028 §4，S9）：手放進 packs/、packs.dirs 指過去的
 ＝狀態 unapproved（「沒有經過安裝頁」）、通知擁有者一次；要用就送進安裝頁（packs/adopt.py）或 `packs lock --approve`。
 第 1、2 關在安裝時（packs/admin.py），所以載入時不再補掃。
 kind=cli 的 argv／env／cwd 樣板代換 {python}、{node}、{pack_dir}、{data_dir}、{user_data_dir}、{tg_id}（每次呼叫照下令的人）；
@@ -60,6 +60,7 @@ from synox.config import ROOT
 from synox.helpui import examples as help_examples
 from synox.packs import envs, kit, render
 from synox.packs import confirm as tool_confirm
+from synox.packs import pkgload
 from synox.packs import secrets as pack_secrets
 from synox.packs import lock as pack_lock
 from synox.packs.manifest import (Manifest, ManifestError, default_text, missing_requirements, read, safe_env,
@@ -374,7 +375,7 @@ def shared_write_admin(app, m: Manifest, server: bool) -> int:
 # 2026-11-12 起 SYNOX 出廠不帶任何工具：money、notes、remind（docs/legacy/builtin-packs.md）與 4 個 connector
 # （docs/legacy/connectors.md）都搬到 SYNOX_Libs，這張表是空的。**不要再把工具加回出廠**：新工具放 SYNOX_Libs、走安裝流程。
 # 機制留著（is_bundled 的位置＋名字判斷、審查 A #5 的「有鎖以鎖為準」），測試用 monkeypatch 填名字來測。
-# **不要再把名字加回 BUNDLED**：沒有鎖又不是出廠的不載入（ADR 0027 §4），加一個名字＝替它開一道不經安裝頁的門。
+# **不要再把名字加回 BUNDLED**：沒有鎖又不是出廠的不載入（ADR 0028 §4），加一個名字＝替它開一道不經安裝頁的門。
 BUNDLED: tuple = ()
 
 
@@ -390,7 +391,7 @@ def is_bundled(m: Manifest) -> bool:
 
 def python_trust(config, m: Manifest) -> str:
     """kind=python 在伺服器版的信任：有鎖＝packs.lock 的 trust（擁有者安裝時選的；舊鎖沒寫＝third-party）；
-    沒有鎖：出廠的＝core，其他＝third-party——但沒鎖又不是出廠的 pack 根本不載入（unapproved，ADR 0027 §4），
+    沒有鎖：出廠的＝core，其他＝third-party——但沒鎖又不是出廠的 pack 根本不載入（unapproved，ADR 0028 §4），
     這個答案只在 doctor／報告裡說明用。
     以前出廠的名字優先——第三方作者把 pack 取名 notes、經升級裝進 packs/，就被當成 core。"""
     locked = pack_lock.trust_of(getattr(config, "data_dir", "") or "", m.name)
@@ -412,7 +413,7 @@ def trust_reason(config, m: Manifest) -> str:
             f"（信得過就跑 python -m synox packs lock --approve {m.name} --trust core）")
 
 
-# ── 沒有經過安裝頁的（ADR 0027 §4，S9） ──────────────────────────────────
+# ── 沒有經過安裝頁的（ADR 0028 §4，S9） ──────────────────────────────────
 
 UNAPPROVED = "unapproved"
 UNAPPROVED_TEXT = ("這個工具不是從安裝頁裝的，SYNOX 沒有載入它。要用它：到網頁「設定 → 功能與安裝」按「送去安裝頁檢查」，"
@@ -521,7 +522,9 @@ def _drop_group(registry, group: str) -> None:
 
 def _install_python(app, pack: Pack) -> None:
     """從原始碼編譯、執行 pack.py（不讀 __pycache__ 的 .pyc：那裡的檔不在 packs.lock 的雜湊裡）。
-    有鎖時，編譯的那一份 bytes 再對一次雜湊（檢查完到執行之間被換掉也抓得到）。"""
+    有鎖時，編譯的那一份 bytes 再對一次雜湊（檢查完到執行之間被換掉也抓得到）。
+    python.package=true（多檔工具）：pack.py 是套件 synox_pack_<名字>，子模組由 pkgload 的載入器從原始碼編譯、
+    每個檔都對鎖、不准跑出工具資料夾；不加 sys.path。"""
     m = pack.manifest
     module_name = m.python.get("module", "pack")
     path = os.path.join(m.folder, f"{module_name}.py")
@@ -530,10 +533,15 @@ def _install_python(app, pack: Pack) -> None:
     expected = pack.locked_files.get(f"{module_name}.py")
     if expected and hashlib.sha256(source).hexdigest() != expected:
         raise ManifestError(f"{module_name}.py 跟 packs.lock 記的不一樣（剛剛被改過？）")
-    spec = importlib.util.spec_from_file_location(f"synox_pack_{m.name.replace('-', '_')}", path)
-    module = importlib.util.module_from_spec(spec)
-    sys.modules[spec.name] = module
-    exec(compile(source, path, "exec"), module.__dict__)
+    if m.python.get("package") is True:
+        # 多檔工具（packs/pkgload.py）：套件身分載入，子模組只從工具資料夾的 .py 原始碼編譯、有鎖時每個檔對雜湊
+        module = pkgload.load(m.name, m.folder, module_name, path, source, pack.locked_files)
+    else:
+        pkgload.forget(m.name)                  # 上一次載入留下的（含從多檔改回單檔的）先清掉
+        spec = importlib.util.spec_from_file_location(pkgload.module_name(m.name), path)
+        module = importlib.util.module_from_spec(spec)
+        sys.modules[spec.name] = module
+        exec(compile(source, path, "exec"), module.__dict__)
     if not callable(getattr(module, "install", None)):
         raise ManifestError(f"{module_name}.py 沒有 install(app, pack)")
     module.install(app, pack)
@@ -986,7 +994,7 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
             continue
         item.lock, changes = pack_lock.verify(config.data_dir, m.name, folder)
         if item.lock == pack_lock.UNLOCKED and not is_bundled(m):
-            # 沒有 packs.lock 那一筆＝沒有經過安裝頁（手放進 packs/、packs.dirs 指過去的）：不載入、不定義群組（ADR 0027 §4）
+            # 沒有 packs.lock 那一筆＝沒有經過安裝頁（手放進 packs/、packs.dirs 指過去的）：不載入、不定義群組（ADR 0028 §4）
             item.status, item.detail = UNAPPROVED, unapproved_text(m, folder, dirs)
             logging.warning("[PACKS] %s has no packs.lock entry (not installed through the install page): not loaded",
                             m.name)
@@ -1046,6 +1054,8 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         except Exception as e:
             logging.exception("[PACKS] %s failed to install", m.name)
             _drop_group(app.registry, m.group)
+            if m.kind == "python":
+                pkgload.forget(m.name)             # 不留半套模組（多檔工具的子模組也清掉）
             item.status, item.detail = "error", f"{type(e).__name__}: {e}"
             continue
         apply_scope(app, m)

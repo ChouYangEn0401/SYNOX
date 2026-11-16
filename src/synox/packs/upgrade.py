@@ -100,7 +100,8 @@ def _runtime_of(m: Manifest) -> Dict[str, object]:
     return {"kind": m.kind, "runtime": m.runtime or {}, "cli.argv": cli.get("argv") or [],
             "cli.python": cli.get("python") or "", "cli.cwd": cli.get("cwd") or "",
             "cli.env": cli.get("env") or {}, "python.module": (m.python or {}).get("module", "") if m.kind == "python"
-            else "", "mcp.url": (m.mcp or {}).get("url", ""), "mcp.transport": (m.mcp or {}).get("transport", ""),
+            else "", "python.package": bool((m.python or {}).get("package")) if m.kind == "python" else False,
+            "mcp.url": (m.mcp or {}).get("url", ""), "mcp.transport": (m.mcp or {}).get("transport", ""),
             "mcp.argv": (m.mcp or {}).get("argv") or [], "mcp.cwd": (m.mcp or {}).get("cwd") or "",
             "mcp.env": (m.mcp or {}).get("env") or {}}
 
@@ -341,7 +342,7 @@ def runtime_changes(old: Manifest, new: Manifest, installed: Optional[str], afte
 
 
 def signature_changes(old_sig: Optional[dict], new_sig: Optional[dict]) -> List[dict]:
-    """簽章的變化（ADR 0027 §3.1）：舊鎖的 signature → 這一版驗出來的。紅字＝以前是官方現在不是、作者的鑰匙換了、
+    """簽章的變化（ADR 0028 §3.1）：舊鎖的 signature → 這一版驗出來的。紅字＝以前是官方現在不是、作者的鑰匙換了、
     以前有簽章現在沒有。invalid 不會走到這裡（stage／upgrade_staged 先拒了）。"""
     from synox.packs import lock as _lock
     from synox.packs import signing
@@ -380,7 +381,7 @@ def report_for(old: Manifest, old_folder: str, new: Manifest, new_hashes: Dict[s
                signature: Optional[dict] = None) -> dict:
     """trust：擁有者這次選的（None＝還沒選：報告只給 installed_trust，畫面自己比）。
     report：新版的掃描報告（有就用它的掃不到內容清單；沒給現算）。runtime：這次選的 container｜host（None＝沿用）。
-    signature：新版驗出來的簽章（signing.SignatureResult.lock_block()；None＝當作沒有簽章）；跟舊鎖的比（ADR 0027 §3.1）。"""
+    signature：新版驗出來的簽章（signing.SignatureResult.lock_block()；None＝當作沒有簽章）；跟舊鎖的比（ADR 0028 §3.1）。"""
     from synox.packs import tier as pack_tier
     status, message = compare_versions(old.version, new.version)
     try:
@@ -565,7 +566,7 @@ def _verified_staged(token: str, data_dir: str):
     if reviewed != hashes:
         raise admin.PackAdminError("暫存的檔案在你看報告之後被改過了，不裝（重新上傳一次）："
                                    + "、".join(pack_lock.diff(reviewed, hashes)[:10]))
-    sig = admin.verified_signature(m, report, hashes, folder)          # ⛔ 被改過 → 拒（ADR 0027 §3.1）
+    sig = admin.verified_signature(m, report, hashes, folder)          # ⛔ 被改過 → 拒（ADR 0028 §3.1）
     return root, folder, m, report, hashes, sig
 
 

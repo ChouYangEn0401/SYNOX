@@ -190,7 +190,7 @@ def test_loader_private_only_unless_channel(make_bot, tmp_path, owner):
     _scoped_pack(base, "dmonly")
     _scoped_pack(base, "inchan", surfaces=["dm", "channel"], data="none")
     bot = make_bot()
-    lock_all(bot.app.config.data_dir, [str(base)])                     # 沒鎖的不載入（ADR 0027 §4）
+    lock_all(bot.app.config.data_dir, [str(base)])                     # 沒鎖的不載入（ADR 0028 §4）
     report = loader.load_all(bot.app, bot.app.config, None, dirs=[str(base)])
     assert {i.name: i.status for i in report.items} == {"dmonly": "loaded", "inchan": "loaded"}
     reg = bot.app.registry

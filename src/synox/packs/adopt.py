@@ -1,5 +1,5 @@
 """
-「送去安裝頁檢查」：把手放進 packs/、沒有 packs.lock 那一筆的工具送進正常的安裝流程（ADR 0027 §4，S9）。
+「送去安裝頁檢查」：把手放進 packs/、沒有 packs.lock 那一筆的工具送進正常的安裝流程（ADR 0028 §4，S9）。
 
 沒有經過安裝頁的工具 SYNOX 不載入（loader：狀態 unapproved）。擁有者在設定頁按「送去安裝頁檢查」→
   stage_unlocked(name, packs_dir, data_dir)：把 packs/<name>/ 原地壓成 zip 的位元組（只讀檔案，不執行任何東西；

@@ -414,7 +414,7 @@ def test_doctor_flags_unbuilt_env(tmp_path):
     from synox import doctor
     packs = tmp_path / "packs"
     _write_pack(str(packs / "tool"))
-    lock_all(tmp_path / "data", (str(packs),))                    # 沒鎖的不載入（ADR 0027 §4）：當作經安裝頁裝過
+    lock_all(tmp_path / "data", (str(packs),))                    # 沒鎖的不載入（ADR 0028 §4）：當作經安裝頁裝過
     lines = []
     doctor.run(offline=True, config_path=_config(tmp_path, packs), out=lines.append)
     hit = [x for x in lines if "tool" in x and "環境沒建好" in x]

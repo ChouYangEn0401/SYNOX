@@ -71,7 +71,7 @@
 - 每個 API 都用登入的那個人算權限（同一個 `authorize`）：別人只看得到自己的對話、自己能用的工具；AI 來源、pack 裝卸、備份只有擁有者；
   帳號頁只有伺服器版的擁有者／管理員。改東西的請求要帶每個 session 的 CSRF header，而且有 Origin 時要跟 Host 一樣。
 - 網頁本身：一頁、沒有外部資源（沒有 CDN）、每次回應一個 nonce 的 Content-Security-Policy、沒有 inline 事件、伺服器產生的字都 escape、
-  畫面上的字一律 `textContent`。pack 的面板（`web.panel`）**一律隔開**（官方的也一樣；[adr/0027](adr/0027-pack-signatures-official-badge.md) §5）：
+  畫面上的字一律 `textContent`。pack 的面板（`web.panel`）**一律隔開**（官方的也一樣；[adr/0028](adr/0028-pack-signatures-official-badge.md) §5）：
   工具頂先替你拿一張只給這個工具、綁這個登入的票，再用 `<iframe sandbox="allow-scripts">`（沒有 `allow-same-origin`）掛
   `/packs/<name>/panel/<票>/`，回應的 CSP 也帶 `sandbox allow-scripts`——面板是「沒有來源」的小頁：沒有 cookie、讀不到登入與 CSRF、
   打不到 `/api/`、碰不到主頁、不能開新視窗或導頁；要資料只能打相對網址 `api/<route>`（只有它自己在 `web.api` 宣告的 GET，伺服器只認票）。
@@ -311,7 +311,7 @@ python pack 沙盒管不到，伺服器版改用信任決定給不給成員（PE
 有鎖一律照鎖的 trust，所以就算以後又有出廠的，第三方作者把 pack 取同名、經升級裝進內建資料夾仍是 third-party；
 提醒 `/remind_*` 是 SYNOX 的系統指令「⏰ 提醒（系統）」，不是 pack，沒有 trust 的問題。出廠的第一次 `packs lock --approve`（沒有舊鎖）預設寫 core。）
 **沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）**不載入**（2026-11-16 起，個人版、伺服器版都一樣；
-[adr/0027](adr/0027-pack-signatures-official-badge.md) §4）：狀態 `unapproved`、通知擁有者一次、`doctor`／`packs status`／網頁的 pack 清單寫
+[adr/0028](adr/0028-pack-signatures-official-badge.md) §4）：狀態 `unapproved`、通知擁有者一次、`doctor`／`packs status`／網頁的 pack 清單寫
 「沒有經過安裝頁，先不開」，設定頁有「送去安裝頁檢查」鈕（原地那一份收到 `_removed/`、走跟上傳一樣的報告、你按確認才裝；資料在 `data/`，不動）。
 另外 `pack.path()`（`data/packs/<name>/`，全部人共用）在伺服器版 `data: user` 的 pack 呼叫會丟錯，要用 `pack.path_of(user, …)`
 （`data/users/<id>/<name>/files/`，擋 `..` 逃逸）；第 2 關也擋 `data: user` 的 python pack 用 `pack.path(`。
@@ -413,9 +413,9 @@ T2 多做的事（`src/synox/packs/tier.py`）：
 **publisher 只是作者自己寫的一個字串**，它不能證明檔案真的出自那個人；「明確輸入」的意義是讓你停下來想一次「我信的是誰」，
 以及事後在 packs.lock 查得到當時是誰、信了誰。**能證明「誰做的、有沒有被改過」的是簽章**（下一節）——兩者是兩回事：T2 講「掃得到多少」，簽章講「來源」。
 
-## 簽章與「官方」標章（ADR 0027）
+## 簽章與「官方」標章（ADR 0028）
 
-每個 `.synoxpack` 可以自帶一個簽章檔 `pack.sig.json`（列出其他每個檔的檢查碼，再用作者的鑰匙簽；[adr/0027](adr/0027-pack-signatures-official-badge.md) §1）。
+每個 `.synoxpack` 可以自帶一個簽章檔 `pack.sig.json`（列出其他每個檔的檢查碼，再用作者的鑰匙簽；[adr/0028](adr/0028-pack-signatures-official-badge.md) §1）。
 安裝時 SYNOX 對**解開在磁碟上的檔**驗，報告**第一列**是 SYNOX 自己畫的標章，四選一：
 
 | 標章 | 意思 | 能不能裝 |
@@ -432,7 +432,7 @@ T2 多做的事（`src/synox/packs/tier.py`）：
   私鑰只在擁有者手上、離線產生，不進 repo、不進 SYNOX。**到擁有者把公鑰貼進去的那一版之前，所有工具（包括官方工具庫下載的）都顯示「⚠️ 不是官方」**，報告會寫明原因。
 - 任何作者都能簽自己的工具：`synox-sdk keygen`／`sign`／`verify`（[sdk.md](sdk.md)「簽章」）。
 - 簽章擋不了：擁有者私鑰外流（只能換鑰匙）、「作者是誰」（作者簽章只證明一致）、工具本身的 bug、能改你電腦上任何檔案的攻擊者（下面誠實清單）。
-  工具庫的目錄 `index.json` 這一輪**還沒簽**（下一步；ADR 0027 §6）：目錄被換掉最多只能把官方的檔換成「⚠️ 不是官方」的，標章會變、你看得到。
+  工具庫的目錄 `index.json` 這一輪**還沒簽**（下一步；ADR 0028 §6）：目錄被換掉最多只能把官方的檔換成「⚠️ 不是官方」的，標章會變、你看得到。
 
 **維護者開發機的家規**：第三方的 exe、npm 套件、別人的腳本，**一律不在這台電腦上跑**——要測就在別台機器或隔離環境
 （雲端 session、容器、VM）。這是**政策，由維護者遵守，不是程式能保證的**：SYNOX 的 T2 只能把它們列出來、要你確認，
@@ -494,7 +494,7 @@ InaccessiblePaths＋BindPaths 巢狀是否照預期；`--setenv=名字` 在那�
 - `config.json` 的 bot token 是明文。
 - Web UI 沒有 TLS（只在本機 127.0.0.1 用不需要）；對外開放要營運者自己加（見上面「網頁介面」）。
 - Web UI 的 pack 面板已經隔開（2026-11-16），但隔開之後**在真的瀏覽器裡**還沒有人看過（開發機不開瀏覽器）：CSP `connect-src 'self'` 在沒有來源的小頁裡
-  怎麼算、`Access-Control-Allow-Origin: null` 讀不讀得到，要擁有者開一次工具頁確認（[adr/0027](adr/0027-pack-signatures-official-badge.md) §10）。
+  怎麼算、`Access-Control-Allow-Origin: null` 讀不讀得到，要擁有者開一次工具頁確認（[adr/0028](adr/0028-pack-signatures-official-badge.md) §10）。
 - **能寫 SYNOX 檔案的攻擊者**：`data/packs.lock`、`src/synox/`、`.venv` 都是本機檔案，能改它們的人也能改 SYNOX 本身——簽章與鎖守的是
   「檔案是不是從你按過確認的那份變來的」，不是「你的電腦有沒有被人拿走」。
 - **主機台的登入只靠 cookie，而 cookie 不分埠**（既有問題，還沒修；docs/lab/issues-to-open.md 第 5 筆）：同一台電腦上的另一個帳號或程式去聽

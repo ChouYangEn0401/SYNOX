@@ -7,7 +7,7 @@ SYNOX 出廠不帶工具（2026-11-12，docs/legacy/builtin-packs.md、docs/lega
 （那裡是使用者裝工具的地方，開發機上可能有東西）。提醒（/remind_*）是系統指令，不在這裡（QL5）。伺服器版的 make_bot 先把這兩個鎖成 trust=core
 （以前它們是「出廠＝core」；現在要經安裝流程，見 trust_core）。要測「空的 host」就給 pack_dirs=() 或換 PACK_DIRS。
 
-沒有 packs.lock 那一筆的 pack 不載入（ADR 0027 §4：狀態 unapproved）。所以 make_bot 在 build 之前把要掃的資料夾裡
+沒有 packs.lock 那一筆的 pack 不載入（ADR 0028 §4：狀態 unapproved）。所以 make_bot 在 build 之前把要掃的資料夾裡
 還沒鎖的 pack 全部鎖起來（lock_all：trust 預設 third-party＝擁有者「裝過」）；伺服器版先跑 trust_core，fixture 的 money／notes
 是 core。測「沒有經過安裝頁」的給 make_bot(..., lock_packs=False)。自己叫 build 的測試用 lock_all(data_dir, dirs)；
 build 之後才放進去、要 reload 載入的 pack 也要先 lock_all（或 lock.approve）。"""

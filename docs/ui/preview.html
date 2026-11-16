@@ -150,7 +150,7 @@
   .badge.warn { background: var(--warn-soft); color: var(--warn); }
   .badge.bad, .badge.danger { background: var(--bad-soft); color: var(--bad); }
   .badge.bad::before, .badge.danger::before { border-radius: 2px; }
-  /* 標章（ADR 0027）：SYNOX 驗簽章的結果；字一定在（✅／✍️／⚠️／⛔），顏色只是加強 */
+  /* 標章（ADR 0028）：SYNOX 驗簽章的結果；字一定在（✅／✍️／⚠️／⛔），顏色只是加強 */
   .badge.sig-official { background: var(--ok-soft); color: var(--ok); }
   .badge.sig-author { background: var(--sunken); color: var(--text-2); }
   .badge.sig-none { background: var(--warn-soft); color: var(--warn); }
@@ -833,7 +833,7 @@
   .tp-about p + p { margin-top: 4px; }
   .tp-panel > .section-label { margin: 16px 0 6px; }
   .tp-panel .connect, .tp-panel-box { margin-top: 10px; }
-  /* 面板上方 SYNOX 畫的那一行（ADR 0027 §5）：在 iframe 外面，面板蓋不到 */
+  /* 面板上方 SYNOX 畫的那一行（ADR 0028 §5）：在 iframe 外面，面板蓋不到 */
   .tp-panel-note { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; margin: 0 0 6px;
                    padding: 8px 10px; border-radius: var(--r); background: var(--surface-2);
                    border: 1px solid var(--line); color: var(--text-2); font-size: 13.5px; }
@@ -2397,7 +2397,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
           <li>🏷 報告最上面會有 SYNOX 自己畫的標章：<strong>✅ 官方</strong>＝SYNOX 驗過擁有者的簽章；<strong>⚠️ 不是官方</strong>＝別人做的，SYNOX 無法確認是誰做的。工具自己寫的名字和說明改不了這個標章。</li>
           <li>不確定就不要裝；只裝你信得過的人給的。</li>
         </ul>
-        <p class="muted later-note">進階：規劃寫在 ADR 0022（匯入）與 ADR 0027（簽章與標章）。</p>
+        <p class="muted later-note">進階：規劃寫在 ADR 0022（匯入）與 ADR 0028（簽章與標章）。</p>
       </div>
 
       <div id="set-install" class="card hidden" data-tour="settings.packs.upload">
@@ -5538,7 +5538,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     panel.appendChild(list);
   }
 
-  // ── 標章（ADR 0027 §3）：SYNOX 安裝時驗簽章、寫進鎖；伺服器只給 official／author／none ─────────
+  // ── 標章（ADR 0028 §3）：SYNOX 安裝時驗簽章、寫進鎖；伺服器只給 official／author／none ─────────
   var SIG = { official: "✅ 官方", author: "✍️ 作者簽章", none: "⚠️ 不是官方" };
   var SIG_HINT = { official: "SYNOX 驗過擁有者的簽章：官方發的，而且沒有被改過。",
     author: "作者自己簽的，不是官方：SYNOX 只能確認檔案跟作者簽的時候一樣。",
@@ -5550,7 +5550,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     return chip;
   }
 
-  // ── 面板（pack 的 web.panel；ADR 0027 §5）：一律隔開 ────────────────────
+  // ── 面板（pack 的 web.panel；ADR 0028 §5）：一律隔開 ────────────────────
   // 先拿一張票（綁這個工具＋這個登入），再用 sandbox="allow-scripts"（沒有同源）掛：
   // 面板是另一個「沒有來源」的小頁，沒有你的登入、碰不到這一頁。上面那一行字是 SYNOX 畫的，面板蓋不到。
   var PANEL_NOTE = "這個小畫面是工具作者做的。SYNOX 把它隔開了：它碰不到你的登入，只能讀這個工具自己的資料；" +
@@ -7980,7 +7980,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   // 狀態的顏色（顏色之外一定有字）：可以用＝綠、還沒接上／關掉＝黃、其他＝紅
   var TONE = { loaded: "ok", connector: "warn", disabled: "", missing: "warn", incompatible: "warn", unapproved: "warn" };
   var LOCK = { locked: "🔒", unlocked: "", tampered: "⚠️" };
-  // 標章（ADR 0027 §3）：只用伺服器給的狀態（安裝時 SYNOX 驗簽章、寫進鎖），不用工具自己寫的字
+  // 標章（ADR 0028 §3）：只用伺服器給的狀態（安裝時 SYNOX 驗簽章、寫進鎖），不用工具自己寫的字
   var SIG_LABEL = { official: "✅ 官方", author: "✍️ 作者簽章", none: "⚠️ 不是官方", invalid: "⛔ 被改過" };
   function sigChip(status, label) {          // label：伺服器給的字（安裝報告）；沒有就照狀態
     var s = SIG_LABEL.hasOwnProperty(status) ? status : "none";
@@ -8048,7 +8048,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     box.classList.remove("hidden", "result");
     $("install-msg").textContent = "";
     if (s.token) { selectedToken = s.token; markStaged(); }
-    // 第一列一定是 SYNOX 畫的標章（ADR 0027 §3）；工具自己的標題、說明在它下面，只用 textContent，蓋不到它
+    // 第一列一定是 SYNOX 畫的標章（ADR 0028 §3）；工具自己的標題、說明在它下面，只用 textContent，蓋不到它
     var sig = s.signature;
     if (sig && sig.status) {
       var sigRow = el("div", "sig-row");

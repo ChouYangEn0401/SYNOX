@@ -302,7 +302,7 @@ def test_tools_page_owner_sees_packs_and_panel(owner_client):
     assert any("記了：午餐 120 元" in m["text"] for m in c.events("tools"))
     status, summary = c.get("/api/packs/money/summary")
     assert status == 200 and summary["total"] == 120
-    assert c.raw("GET", "/packs/money/panel")[0] == 404                     # 舊的同源網址拿掉了（ADR 0027 §5）
+    assert c.raw("GET", "/packs/money/panel")[0] == 404                     # 舊的同源網址拿掉了（ADR 0028 §5）
     status, ticket = c.post("/api/packs/money/panel-ticket")
     assert status == 200
     status, headers, body = ui_of(bot).handle("GET", f"/packs/money/panel/{ticket['ticket']}/", {"Host": c.host})

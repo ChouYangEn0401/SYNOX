@@ -742,7 +742,7 @@ def cmd_packs(args, *, jobs=None) -> int:
         print(f"{marks[state]}  {name}  {folder}")
         if changes:
             print("    " + "、".join(changes))
-        if state == pack_lock.UNLOCKED:                 # ADR 0027 §4：沒有鎖＝不載入（出廠的例外，BUNDLED 現在是空的）
+        if state == pack_lock.UNLOCKED:                 # ADR 0028 §4：沒有鎖＝不載入（出廠的例外，BUNDLED 現在是空的）
             try:
                 bundled = pack_loader.is_bundled(read(folder))
             except ManifestError:

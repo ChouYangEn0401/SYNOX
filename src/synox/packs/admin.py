@@ -4,7 +4,7 @@ Web UI 設定頁、`python -m synox install <檔>`、`python -m synox packs lock
 
 .synoxpack＝一個 pack 資料夾壓成的 zip（pack.json 在最上層，或在唯一的那個資料夾裡）。
 
-    stage(blob, data_dir)            zip 檢查 → 解到 data/web_uploads/<token>/pack/ → 簽章（packs/signing.py，ADR 0027：
+    stage(blob, data_dir)            zip 檢查 → 解到 data/web_uploads/<token>/pack/ → 簽章（packs/signing.py，ADR 0028：
                                      ⛔ 被改過＝GateRefused、沒有 token）→ 第 1 關（宣告，嚴格版）
                                      → 第 2 關（靜態掃描＋integrity 對檔）→ (token, 摘要＋掃描報告)；過不了丟 GateRefused
     （給人看報告＋「要建環境」那一段（runtime.python／node = auto，packs/envs.py）、按確認）
@@ -19,7 +19,7 @@ zip 本身：不能有絕對路徑、`..`、磁碟代號、符號連結；檔名
 不能有雙向文字控制字元（U+202A–U+202E、U+2066–U+2069）或零寬字元（U+200B–U+200D、U+FEFF）；
 一段最多 MAX_PART 字、整條最多 MAX_REL_PATH 字；解壓縮時的 OSError 一律變成 PackAdminError（審查 C #C6，不再是網頁 500）；
 最多 MAX_FILES 個檔、解開最多 MAX_UNZIPPED（一邊解一邊數真的位元組，比宣告的大就停：壓縮炸彈）；
-同一個路徑兩次、兩個路徑只差大小寫 → 拒（ADR 0027 §1.1）。
+同一個路徑兩次、兩個路徑只差大小寫 → 拒（ADR 0028 §1.1）。
 摘要（summary_of）最前面是 signature（SYNOX 驗出來的標章＋look-alike 紅字）與 safety_notice（每一次都顯示）。
 名字跟已經裝的 pack 一樣＝升級：比對、版本檢查、舊的搬到 _removed、退回都在 upgrade.py（install_staged 只裝新的）；
 升級完環境要建／重建（upgrade.env_change）也走這裡的 build_env。
@@ -119,7 +119,7 @@ def _members(z: zipfile.ZipFile) -> List[Tuple[zipfile.ZipInfo, List[str]]]:
         parts = _safe_parts(info.filename)
         if not parts:
             continue
-        # ADR 0027 §1.1：同一個路徑兩次（一個給人看、一個真的解出來）、或只差大小寫（Windows 會蓋掉其中一個）→ 拒
+        # ADR 0028 §1.1：同一個路徑兩次（一個給人看、一個真的解出來）、或只差大小寫（Windows 會蓋掉其中一個）→ 拒
         rel = "/".join(parts)
         key = rel.casefold()
         if key in seen:
@@ -231,7 +231,7 @@ def skill_description(m: Manifest) -> str:
 
 
 def signature_summary(m: Manifest, sig: "signing.SignatureResult") -> dict:
-    """安裝報告的 signature 區塊（ADR 0027 §3）：官方的不查 look-alike；其他把「官方」「SYNOX」「✅」這類字標出來。"""
+    """安裝報告的 signature 區塊（ADR 0028 §3）：官方的不查 look-alike；其他把「官方」「SYNOX」「✅」這類字標出來。"""
     lookalike = [] if sig.status == signing.OFFICIAL else signing.lookalike_problems(m, skill_description(m))
     return signing.summary_block(sig, lookalike)
 
@@ -479,7 +479,7 @@ def stage(blob: bytes, data_dir: str) -> Tuple[str, Dict]:
         os.makedirs(folder)
         try:
             exec_bits = _extract(z, files, folder)
-            sig = signing.verify_folder(folder)            # ADR 0027 §1.1：解完、第 1 關之前；對磁碟上的檔算
+            sig = signing.verify_folder(folder)            # ADR 0028 §1.1：解完、第 1 關之前；對磁碟上的檔算
             if sig.status == signing.INVALID:
                 raise GateRefused(signing.INVALID_MESSAGE, refused_summary(folder, sig, exec_bits))
             m, report, hashes, problems = run_gates(folder, exec_bits)
@@ -617,7 +617,7 @@ def format_summary(summary: dict) -> str:
     scan_ = summary.get("scan") or {}
     lines = []
     sig = summary.get("signature") or {}
-    if sig:                                    # 第一行永遠是 SYNOX 自己驗出來的標章（ADR 0027 §3），工具的字在後面
+    if sig:                                    # 第一行永遠是 SYNOX 自己驗出來的標章（ADR 0028 §3），工具的字在後面
         lines.append(f"{sig.get('label')}　{sig.get('text')}")
         lines += [red(f"🔴 {line}") for line in sig.get("lookalike") or []]
     lines += [f"📦 {summary.get('title')}（{summary.get('name')} {summary.get('version')}，{summary.get('kind')}）",
@@ -880,6 +880,8 @@ def reload(app, config, vault, dirs) -> loader.LoadReport:
     packs = app.extras.setdefault("synox_packs", [])
     for pack in list(packs):
         loader._drop_group(app.registry, pack.manifest.group)
+        if pack.manifest.kind == "python":
+            loader.pkgload.forget(pack.manifest.name)   # sys.modules 裡 synox_pack_<名字> 與子模組全部清掉
     packs.clear()
     report = loader.load_all(app, config, vault, dirs=dirs)
     logging.info("[PACKS] reloaded: %s", ", ".join(f"{i.name}={i.status}" for i in report.items))

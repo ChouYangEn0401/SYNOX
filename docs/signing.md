@@ -1,7 +1,7 @@
 # 簽章：在家產生鑰匙、簽官方工具、簽 SYNOX 發佈
 
 給 SYNOX 擁有者的照做清單（第 1～5、7、8 節），以及想簽自己工具的作者（第 6 節）。
-規格與理由在 [adr/0027](adr/0027-pack-signatures-official-badge.md)（工具）與 [adr/0023](adr/0023-updates-and-hotfixes.md) §7（SYNOX 本體）；
+規格與理由在 [adr/0028](adr/0028-pack-signatures-official-badge.md)（工具）與 [adr/0023](adr/0023-updates-and-hotfixes.md) §7（SYNOX 本體）；
 使用者看到的標章說明在 [security.md](security.md)「簽章與官方標章」。這一頁只寫怎麼做。
 
 ## 1. 三十秒看懂
@@ -90,7 +90,7 @@
    所以 `index.json` 每一筆的 `sha256`／`size`、`SHA256SUMS`、`tools-<VERSION>.zip` 都要用**簽過的檔**重算、重包。
    這份文件寫的時候 `build.py` 還不知道簽章這回事——在它學會「先簽再算」之前，要自己補算（PowerShell：`Get-FileHash -Algorithm SHA256 <檔>`、`(Get-Item <檔>).Length`）。
 4. 上傳順序照手冊：先 `.synoxpack`、zip、`SHA256SUMS`，**最後才換 `index.json`**。
-5. 目錄 `index.json` 本身**還沒簽**（ADR 0027 §6，下一步）：目錄被換掉最多把官方檔換成「⚠️ 不是官方」的，標章會變、使用者看得到。
+5. 目錄 `index.json` 本身**還沒簽**（ADR 0028 §6，下一步）：目錄被換掉最多把官方檔換成「⚠️ 不是官方」的，標章會變、使用者看得到。
 
 ## 5. 每次發佈 SYNOX 本身
 

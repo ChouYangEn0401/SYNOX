@@ -1,6 +1,6 @@
 # Changelog
 
-## 未發佈（安全修補：簽章與官方標章、沒經過安裝頁的工具不載入、面板隔開；ADR 0027）
+## 未發佈（安全修補：簽章與官方標章、沒經過安裝頁的工具不載入、面板隔開；ADR 0028）
 
 ### 安全
 - **沒有經過安裝頁的工具不再載入**（以前手放進 `packs/`、或 `config.json` `packs.dirs` 指過去、沒有 `packs.lock` 那一筆的工具照樣載入，個人版連掃都不掃）。
@@ -23,9 +23,9 @@
 - 設定頁「別人做的技能」那張卡改字：之後的匯入走同一個安裝頁、同一份報告與提醒；拿掉「建議開沙盒模式」（Windows 上還沒有）。
 
 ### 文件
-- [ADR 0027](docs/adr/0027-pack-signatures-official-badge.md)（簽章與官方標章、不載入沒經過安裝頁的工具、面板隔開、SDK 指令、公鑰放哪）；
+- [ADR 0028](docs/adr/0028-pack-signatures-official-badge.md)（簽章與官方標章、不載入沒經過安裝頁的工具、面板隔開、SDK 指令、公鑰放哪）；
   稽核紀錄 [docs/lab/2026-11-16-security-hotfix-audit.md](docs/lab/2026-11-16-security-hotfix-audit.md)；`security.md`、`pack-format.md`、`sdk.md`、`install-packs.md` 跟著更新。
-  真的瀏覽器裡的面板行為沒有人看過（開發機不開瀏覽器），擁有者請照 ADR 0027 §10 開一次工具頁確認。
+  真的瀏覽器裡的面板行為沒有人看過（開發機不開瀏覽器），擁有者請照 ADR 0028 §10 開一次工具頁確認。
 - [docs/signing.md](docs/signing.md)：簽章照做清單——在家產生工具／發佈鑰匙（現用＋備用）、公鑰貼進 SYNOX（含要改的兩個測試）、每次發官方工具與 SYNOX 本體怎麼簽、作者簽自己的工具、鑰匙丟了／外流怎麼換。
 
 ## 未發佈（文件：ADR 0022 核准）

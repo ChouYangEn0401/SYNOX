@@ -20,10 +20,10 @@ synox.sdk：給 pack 作者（寫工具的人）的小工具。工具是什麼�
    `integrity.sha256` 寫進 zip 裡的 pack.json）。
 
 3. 範本：`init_pack(dir, kind, name, title)` 產生 pack.json、SKILL.md、README.md（＋python 的 pack.py、
-   cli 的範例工具 tool.py）；`panel=True`（`--panel`）才多一個面板 panel.html（ADR 0027 §5：面板隔開，用相對網址
+   cli 的範例工具 tool.py）；`panel=True`（`--panel`）才多一個面板 panel.html（ADR 0028 §5：面板隔開，用相對網址
    `fetch("api/summary")` 讀資料）。
 
-5. 簽章（ADR 0027；synox.packs.signing）：`keygen` 產生你自己的鑰匙（私鑰用密語加密），`sign` 在 .synoxpack 裡加
+5. 簽章（ADR 0028；synox.packs.signing）：`keygen` 產生你自己的鑰匙（私鑰用密語加密），`sign` 在 .synoxpack 裡加
    pack.sig.json，`verify` 看一個 .synoxpack 會顯示什麼標章。單檔版 sdk/synox_sdk.py 沒有這些。
 
 4. 作者端（synox.sdk.author，單檔版 sdk/synox_sdk.py）：`@tool`、`serve()`、`secret()`、`context()`、`ToolError`、`fail()`／`ToolFailure`（失敗信封 v1）、`Confirm`。
@@ -247,7 +247,7 @@ PANEL = """<!doctype html>
 <div id="out">讀取中…</div>
 <script>
 (function () {{
-  // 面板是隔開的（ADR 0027 §5）：碰不到 SYNOX 的登入，只能用相對網址讀自己在 pack.json web.api 宣告的那幾個
+  // 面板是隔開的（ADR 0028 §5）：碰不到 SYNOX 的登入，只能用相對網址讀自己在 pack.json web.api 宣告的那幾個
   // （"api/<route>"，前面不要加 /；不用帶登入資料）；字一律 textContent
   fetch("api/summary")
     .then(function (r) {{ if (!r.ok) {{ throw new Error(r.status); }} return r.json(); }})
@@ -395,7 +395,7 @@ def init_pack(folder: str, kind: str, name: str, title: str, app: bool = False, 
     if not NAME_RE.match(name or ""):
         raise ValueError("name 只能用小寫英數字、-、_（32 字內，英文字母開頭）")
     os.makedirs(folder, exist_ok=True)
-    # summary 不寫「SYNOX」：安裝報告會把工具自己寫的「SYNOX」「官方」標紅（ADR 0027 §4.3）
+    # summary 不寫「SYNOX」：安裝報告會把工具自己寫的「SYNOX」「官方」標紅（ADR 0028 §4.3）
     manifest = {"name": name, "title": title, "summary": f"{title}（用範本產生，改成你的說明）",
                 "version": "0.1.0", "kind": kind, "access": "owner", "surfaces": ["dm"],
                 "data": "user" if kind == "python" else "none", "skill": "SKILL.md",
@@ -756,7 +756,7 @@ def run_command(folder: str, command: str, args: List[str], *, data_dir: Optiona
     return 0
 
 
-# ── 簽章：keygen、sign、verify（ADR 0027 §8） ─────────────────────────
+# ── 簽章：keygen、sign、verify（ADR 0028 §8） ─────────────────────────
 
 def _stdin_tty() -> bool:
     from synox.packs import signing

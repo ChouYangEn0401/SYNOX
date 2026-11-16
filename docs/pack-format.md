@@ -45,6 +45,7 @@
 | `surfaces` | | 在哪裡能用：`["dm"]`（預設：只能私訊，群組／頻道裡打了 SDK 回「請私訊」）｜`["dm", "channel"]`（也能在頻道用）。一定要有 `dm`。見下面「權限宣告」 |
 | `data` | | 資料屬於誰：`none`｜`user`（每個人自己一份）｜`shared`（大家共用一份）。沒寫照預設推（下面「權限宣告」）；第 2 關照它檢查程式 |
 | `order` | | `/help` 的排序（小的在前，預設 100） |
+| `python.module`、`python.package` | | kind=python：`module` 是資料夾裡的主模組（預設 `pack`，即 `pack.py`）；`package: true`＝多檔工具（子模組用相對 import，見下面「三種 kind → python → 多檔工具」）；沒寫＝單檔 |
 | `skill` | | SKILL.md 的檔名（要存在） |
 | `storage` | | `vault`（`pack.store` 落地是密文 `data/<name>.json.enc`；伺服器版 `pack.store.of(user)` 是 `data/users/<id>/<name>.json.enc`）｜`plain`（`data/<name>.json`，預設） |
 | `requires.config` | | `config.json` 要有的欄位；缺了就不載入（doctor 會說缺什麼） |
@@ -52,7 +53,7 @@
 | `requires.synox` | | SYNOX 最低版本，例如 `">=0.3"`（逗號接好幾個：`">=0.3,<1.0"`；只寫 `"0.3"`＝`>=0.3`）。寫錯＝pack.json 不合；這台的 SYNOX 不合＝**不載入**（狀態「SYNOX 版本不合」），doctor、`packs status`、安裝報告會說要哪一版、這台是哪一版 |
 | `requires.sdk` | | **建議一定寫**：這個工具照哪一版 SYNOX SDK（給工具的介面合約，`synox_sdk.SDK_VERSION`，見 [sdk.md](sdk.md)「SDK 版本」）寫的，例如 `">=0.2,<0.3"`（0.x 寫到下一個 MINOR）。寫法同 `requires.synox`；寫錯＝pack.json 不合；這台的 SDK 不在範圍內＝**不裝**（安裝報告列原因）、**不載入**（狀態「版本不合」）。`synox-sdk init` 會自動寫好 |
 | `requires.pip` | | 要的 Python 套件。`runtime.python` 是 `"auto"`（只給 kind=cli）時，安裝會建 venv 照這份裝，每一項都要是 `名字==版本`（見下面「依賴與環境自動建置」）；沒有 `auto`＝SYNOX 不會幫你裝，只是給人看 |
-| `web.panel` | | Web UI 工具頁的面板：pack 資料夾裡的一個 `.html`（不能用 `..`、絕對路徑）。**一律隔開**（官方的也一樣，ADR 0027 §5）：工具頁先替看得到這個 pack 的人拿一張票（綁這個 pack＋那個登入，8 小時、登出就作廢），再用 `<iframe sandbox="allow-scripts">`（沒有 `allow-same-origin`）掛 `/packs/<name>/panel/<票>/`；回應的 CSP 也帶 `sandbox allow-scripts`。面板是「沒有來源」的小頁：沒有 cookie、讀不到登入、打不到 `/api/`、碰不到主頁，也不能開新視窗、送表單、導頁。要資料只能打**相對網址** `fetch("api/<route>")`（＝`/packs/<name>/panel/<票>/api/<route>`，只有 `web.api` 宣告的 GET，以拿票的那個人的身分）；**舊的 `fetch("/api/packs/<name>/<route>", {credentials: …})` 從面板打會被擋（401），要改成相對網址**。面板上方一定有 SYNOX 自己畫的一行說明與標章（「這個小畫面是工具作者做的…」），面板蓋不到。舊網址 `/packs/<name>/panel` 不再提供 |
+| `web.panel` | | Web UI 工具頁的面板：pack 資料夾裡的一個 `.html`（不能用 `..`、絕對路徑）。**一律隔開**（官方的也一樣，ADR 0028 §5）：工具頁先替看得到這個 pack 的人拿一張票（綁這個 pack＋那個登入，8 小時、登出就作廢），再用 `<iframe sandbox="allow-scripts">`（沒有 `allow-same-origin`）掛 `/packs/<name>/panel/<票>/`；回應的 CSP 也帶 `sandbox allow-scripts`。面板是「沒有來源」的小頁：沒有 cookie、讀不到登入、打不到 `/api/`、碰不到主頁，也不能開新視窗、送表單、導頁。要資料只能打**相對網址** `fetch("api/<route>")`（＝`/packs/<name>/panel/<票>/api/<route>`，只有 `web.api` 宣告的 GET，以拿票的那個人的身分）；**舊的 `fetch("/api/packs/<name>/<route>", {credentials: …})` 從面板打會被擋（401），要改成相對網址**。面板上方一定有 SYNOX 自己畫的一行說明與標章（「這個小畫面是工具作者做的…」），面板蓋不到。舊網址 `/packs/<name>/panel` 不再提供 |
 | `web.app` | | **完整的網頁畫面（工具服務，ADR 0024）**：只給 kind=python。擁有者在 SYNOX 開服務之後，在另一個本機位址（`127.0.0.2`）上看這個工具自己的畫面。規則見下面「完整網頁畫面（`web.app`）」與 [docs/tool-apps.md](tool-apps.md) |
 | `web.api` | | 面板能打的資料：`["GET /summary"]`（只支援 GET，名字小寫英數字）。pack 在 `install` 裡用 `pack.web_route("summary", fn)` 掛，`fn(user)` 回可以轉 JSON 的東西（**只回這個人自己的**：用 `pack.store.of(user)`）。沒宣告的 route 掛了也打不到 |
 | `health.check` | | **建議寫**：`{"check": "<這個 pack 的一個唯讀指令名>"}`。工具連續失敗被暫停、冷卻到了，SYNOX 用它**重新檢查**（不叫 AI；過了才放回 AI 的工具清單）。一定要是唯讀、不用填參數的指令：kind=cli 是 `cli.commands` 裡 `effect: READ`、沒有沒預設值的必填欄位、不是 `background`／`confirm`；kind=mcp 是 `tools_allow` 裡 `mcp.effects` 寫 `READ` 的工具；kind=python 寫指令名（執行時再確認是 READ）。安裝時寫錯＝拒裝；已裝的寫壞了＝當作沒寫（沒有自我檢查的工具冷卻結束後放回清單試用一次，每天最多 4 次）。見 [tool-health.md](tool-health.md) |
@@ -68,7 +69,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 **簽章**：`synox-sdk zip` 之後可以 `synox-sdk sign <檔>.synoxpack --key <你的私鑰>.pem`，zip 裡多一個 `pack.sig.json`（其他每個檔的 sha256 清單＋Ed25519 簽章＋公鑰）。
 安裝報告第一列是 SYNOX 自己驗出來的標章：✅ 官方（擁有者的鑰匙）／✍️ 作者簽章（你的鑰匙；不是官方）／⚠️ 不是官方（沒簽）／⛔ 被改過（驗不過，拒裝）。
 `name`、`title`、`summary`、`publisher`、SKILL.md 的 description 裡寫「官方」「official」「SYNOX」「✅」而不是官方鑰匙簽的 → 報告紅字（不拒裝）；
-安裝時 `title`／`summary`／`publisher` 不能有看不見的字元（雙向控制、零寬）或換行。細節：[adr/0027](adr/0027-pack-signatures-official-badge.md)、[sdk.md](sdk.md)「簽章」。
+安裝時 `title`／`summary`／`publisher` 不能有看不見的字元（雙向控制、零寬）或換行。細節：[adr/0028](adr/0028-pack-signatures-official-badge.md)、[sdk.md](sdk.md)「簽章」。
 官方工具的 `.synoxpack` 由 SYNOX 工具庫（SYNOX_Libs）的 `scripts/build.py` 產生，旁邊有一份目錄 `index.json`；
 `config.json` 的 `packs.library`（資料夾或網址）告訴 SYNOX 工具庫在哪，`/help`、`doctor`、網頁在還沒裝工具時會提示（`src/synox/packs/library.py`）。
 檢查 zip（沒有絕對路徑、`..`、符號連結；檔名不能是 Windows 保留名（`CON`、`NUL`、`COM1`…，加副檔名也算）、不能有冒號（NTFS 資料流 `x.py::$DATA`）或 `< > " | ? *`、結尾不能是空白或句點；5 MB／解開 20 MB／300 個檔以內）→ 第 1 關宣告 → 第 2 關靜態掃描 → 給人看報告 →
@@ -81,7 +82,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 
 - 新增／移除的 command（cli 的 `commands`、mcp 的 `tools_allow`；python pack 的指令寫在程式裡，比不出來，看檔案差異與掃描報告）
 - **紅字（醒目）**：effect 變寬（`READ` → `WRITE` → `DANGER`）、新增 `WRITE`／`DANGER` 的 command、`capabilities` 新增、
-  執行方式改了（`kind`、`runtime`、`cli.argv`／`python`／`cwd`／`env`、`python.module`、`mcp.url`）、`auth` 改了、
+  執行方式改了（`kind`、`runtime`、`cli.argv`／`python`／`cwd`／`env`、`python.module`、`python.package`、`mcp.url`）、`auth` 改了、
   多要密鑰環境變數、`access` 變寬、新加網頁面板、`storage` 從 `vault` 改成 `plain`、`surfaces` 多了 `channel`、
   `data` 變寬（`none` → `user` → `shared`）、這次選的 `trust` 跟裝著那一份的鎖不一樣（不管哪個方向；升級沒選＝沿用舊的）
 - 一般字：移除 command、effect 變窄、不再要某個能力；還有每個檔改了／多了／少了
@@ -129,7 +130,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
     （「未知指令」）、`/help` 與 AI 工具清單都沒有。`core`（擁有者安裝時選的）照常。
   - **沒有「出廠的」了**：以前內建的 notes、money、remind 與 `connectors/` 的 4 個 connector 2026-11-12 起都在工具庫，
     跟其他工具一樣要經安裝流程、看擁有者選的 trust（`loader.BUNDLED` 是空的，機制留著；提醒 `/remind_*` 是系統指令「⏰ 提醒（系統）」，不是 pack）。
-  - **沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）**不載入**（狀態 `unapproved`，個人版也一樣；ADR 0027 §4）。
+  - **沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）**不載入**（狀態 `unapproved`，個人版也一樣；ADR 0028 §4）。
     放在 `packs/` 的：設定頁「送去安裝頁檢查」；`packs.dirs` 的：`python -m synox packs lock --approve <name> [--trust core]`。
   - 為什麼只給擁有者，`doctor` 與 `packs status` 都會寫一行 🔐。kind=cli 的第三方 pack 另外看沙盒（見 `docs/security.md`「運行空間（沙盒）」）。
 
@@ -183,7 +184,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | 欄位 | 說明 |
 |---|---|
 | `capabilities` | 宣告要用的能力：`network`、`subprocess`、`filesystem:own`、`filesystem:any`（含 own）、`exec`。第 2 關的掃描看到用了、卻沒宣告 → **拒裝**。沒寫＝什麼都沒宣告（舊 pack 一樣，由掃描結果決定裝不裝得了）。`exec` 也包含：`sys.modules`、dunder 屬性（`x.__class__`、`__dict__`、`__globals__`…，用 `type(x)` 代替 `x.__class__`）、`getattr` 的屬性名不是字面字、`vars()`／`globals()`／`locals()`、呼叫對象看不出是什麼（`handlers[k](…)`、`f()(…)`：先指給一個變數再呼叫）。第 2 關攔的是直呼名與常見的間接取用，**是提醒不是門**；python pack 在 SYNOX 程序裡跑，個人版沒有任何隔離（[security.md](security.md)「五關」） |
-| `publisher` | 發行者（給人看；沒寫會在報告裡提醒）。**T2 pack 一定要寫**：安裝者要一字不差地輸入這個值才裝得了（見下面「信任層級」）；升級時換了一律紅字。只是作者寫的字：「誰做的、有沒有被改過」看簽章 `pack.sig.json`（ADR 0027） |
+| `publisher` | 發行者（給人看；沒寫會在報告裡提醒）。**T2 pack 一定要寫**：安裝者要一字不差地輸入這個值才裝得了（見下面「信任層級」）；升級時換了一律紅字。只是作者寫的字：「誰做的、有沒有被改過」看簽章 `pack.sig.json`（ADR 0028） |
 | `integrity.sha256` | `{"檔名": "64 個 16 進位字"}`，打包時算（`synox-sdk zip`）。有寫就每個檔都要對得上、也不能多出沒列的檔（`pack.json` 本身不算） |
 | `auth` | v0 的字串（`oauth`／`token`／`caldav`）照舊；v2 寫 `{"type": "none｜token｜oauth｜caldav｜file", "fields": [...]}`。`token`／`file` 的 `fields` 由 SYNOX 收，見下面「pack 的 secret」 |
 | `kind: "mcp"`＋`mcp` | 只登記：`{"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}`（不連、不能附程式檔）。**真的連**：`"transport": "stdio"`（見下面「`mcp`（stdio）」）或 `"transport": "http"`（遠端 MCP，見「`mcp`（http）」）。兩種都是 `tools_allow` 不能空、每個允許的工具都要有 effect（沒寫＝拒） |
@@ -385,6 +386,34 @@ def install(app, pack):
 
 `kit.command` 照位置填：`/money 120 午餐 跟同事` → amount、category、memo（最後一個欄位吃剩下的字）；
 也收 `key=value`（AI 走這條）。`positional=2` 表示只有前兩個欄位能照位置填，其餘要寫 `key=`。
+
+#### 多檔工具（`"python": {"module": "pack", "package": true}`）
+
+程式多到一個 `pack.py` 放不下時，pack.json 寫 `"package": true`，把其餘的模組放在工具資料夾的子資料夾裡，
+`pack.py` 用**相對 import** 取用（ADR 0027）：
+
+```
+packs/demo/
+  pack.json        {"kind": "python", "python": {"module": "pack", "package": true}, ...}
+  pack.py          from .engine import db     /  from .bridge.table import Cmd
+  engine/__init__.py
+  engine/db.py     from . import util         /  from ..bridge import table
+  engine/util.py
+  bridge/table.py  （沒有 __init__.py 的資料夾也可以 import，當作空的套件）
+```
+
+- `pack.py` 以套件 `synox_pack_<名字>`（名字的 `-` 換成 `_`）載入，子模組是 `synox_pack_<名字>.engine.db`。
+  **只有相對 import 找得到自己的模組**：`import engine` 這種絕對 import 找不到（工具資料夾不會加進 `sys.path`）。
+- 子模組跟 `pack.py` 一樣**一律從 `.py` 原始碼編譯**：不讀 `__pycache__`、不收 `.pyc`／`.pyw`／`.pyd`／`.so`；
+  模組名字的大小寫要跟檔名一樣；路徑（含符號連結）跑出工具資料夾＝`ImportError`。
+- 有 `packs.lock` 時，每個子模組**在編譯前**對鎖裡的 sha256：被改過、或核准之後才加的檔＝`ImportError`
+  （載入時第 3 關已經整個資料夾對過一次；這是「對完到真的 import 之間被換掉」也擋得到）。函式裡才 import 的也一樣。
+- `pack.py` 不能再被當子模組 import 一次（`from . import pack` 會被拒）。
+- 重新載入、移除、安裝失敗時，`sys.modules` 裡 `synox_pack_<名字>` 開頭的模組全部清掉。
+- 第 2 關照舊掃資料夾裡**每一個** `.py`；相對 import 自己的模組不算 exec、不用多宣告能力；
+  **絕對 import 另一個工具的模組（`synox_pack_別人`）一律拒裝**，宣告什麼都沒用。
+- 沒寫 `package`（或 `false`）＝單檔工具，行為跟以前完全一樣。`package` 不是 `true`／`false`＝拒裝；
+  只有 `kind=python` 可以寫。
 
 ### `cli`
 
