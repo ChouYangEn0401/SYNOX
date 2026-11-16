@@ -14,6 +14,7 @@ $r.EditionID      = $cv.EditionID            # Core = Home, Professional, Enterp
 $r.DisplayVersion = $cv.DisplayVersion       # 22H2, 24H2, 25H2 ...
 $r.Build          = "$build.$ubr"
 $r.IsWindows11    = ($build -ge 22000)
+$r.ProductName_registry = $cv.ProductName    # NOTE: still says "Windows 10 ..." on many Windows 11 PCs; trust Build, not this
 $r.Arch           = $env:PROCESSOR_ARCHITECTURE
 $r.IsAdminShell   = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 
@@ -22,7 +23,7 @@ $cpu = Get-CimInstance Win32_Processor | Select-Object -First 1
 $r.RAM_GB                 = [math]::Round($cs.TotalPhysicalMemory / 1GB, 1)
 $r.HypervisorPresent      = $cs.HypervisorPresent                 # True = a hypervisor (Hyper-V/WSL2 platform) is already running
 $r.VirtualizationFirmware = $cpu.VirtualizationFirmwareEnabled    # reads False when HypervisorPresent is True (normal)
-$r.SLAT                   = $cpu.SecondLevelAddressTranslationExtensions
+$r.SLAT                   = $cpu.SecondLevelAddressTranslationExtensions  # also reads False when HypervisorPresent is True
 
 # Tools on PATH (path + version; "docker --version" is the client only, it does not start or contact the engine)
 foreach ($t in 'node', 'npm', 'npx', 'python', 'py', 'git', 'docker', 'podman', 'wsl', 'curl', 'winget') {
@@ -33,7 +34,12 @@ if ($r.path_node)   { $r.node_version   = (& node --version) 2>$null }
 if ($r.path_npm)    { $r.npm_version    = (& npm --version) 2>$null }
 if ($r.path_docker) { $r.docker_version = (& docker --version) 2>$null }
 if ($r.path_podman) { $r.podman_version = (& podman --version) 2>$null }
-if ($r.path_wsl)    { $r.wsl_version    = ((& wsl --version) 2>$null | Select-Object -First 1) -replace "`0", '' }
+if ($r.path_wsl) {
+    # wsl.exe prints UTF-16 (NULs once decoded); with WSL not installed it prints nothing and exits non-zero
+    # (seen on Win 11 Home 26200), which used to leave an empty array here.
+    $wslOut = @((& wsl --version) 2>$null) | ForEach-Object { ($_ -replace "`0", '').Trim() } | Where-Object { $_ }
+    $r.wsl_version = if ($wslOut) { $wslOut[0] } else { "none (wsl --version exit $LASTEXITCODE; WSL probably not installed)" }
+}
 
 # Where node/python live decides whether an AppContainer or a separate sandbox user can read them
 $r.node_under_program_files   = [bool]($r.path_node -and $r.path_node.StartsWith($env:ProgramFiles, 'OrdinalIgnoreCase'))
