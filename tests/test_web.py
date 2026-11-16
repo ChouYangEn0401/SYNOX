@@ -295,16 +295,21 @@ def test_tools_page_owner_sees_packs_and_panel(owner_client):
     assert {"notes", "money"} <= set(packs) and "remind" not in packs
     remind = next(g for g in data["groups"] if g["id"] == "remind")            # ⏰ 提醒（系統）：系統群組，不是 pack
     assert remind["title"] == "⏰ 提醒（系統）" and remind["category"] == "系統"
-    assert packs["money"]["panel"] == "/packs/money/panel" and packs["money"]["status"] == "已連接"
+    assert packs["money"]["panel"] is True and packs["money"]["status"] == "已連接"
+    assert packs["money"]["signature"] == "none"                          # 鎖裡沒有簽章 → ⚠️ 不是官方
     assert any(cmd["command"] == "/money" and cmd["usage"] for cmd in packs["money"]["commands"])
     c.say("tools", "/money 120 午餐")
     assert any("記了：午餐 120 元" in m["text"] for m in c.events("tools"))
     status, summary = c.get("/api/packs/money/summary")
     assert status == 200 and summary["total"] == 120
-    status, headers, body = c.raw("GET", "/packs/money/panel")
+    assert c.raw("GET", "/packs/money/panel")[0] == 404                     # 舊的同源網址拿掉了（ADR 0027 §5）
+    status, ticket = c.post("/api/packs/money/panel-ticket")
+    assert status == 200
+    status, headers, body = ui_of(bot).handle("GET", f"/packs/money/panel/{ticket['ticket']}/", {"Host": c.host})
     h = dict(headers)
-    assert status == 200 and b"/api/packs/money/summary" in body
+    assert status == 200 and b'fetch("api/summary")' in body
     assert h["X-Frame-Options"] == "SAMEORIGIN" and "connect-src 'self'" in h["Content-Security-Policy"]
+    assert h["Content-Security-Policy"].startswith("sandbox allow-scripts;")
     assert c.get("/api/packs/money/secret")[0] == 404                        # 沒宣告的 route
 
 
@@ -316,7 +321,7 @@ def test_guest_sees_no_packs_member_only_theirs(make_bot, owner):
     g.login(GUEST_ID)
     m.login(OTHER_ID)
     assert g.get("/api/tools")[1]["packs"] == []
-    assert g.get("/packs/money/panel")[0] == 404 and g.get("/api/packs/money/summary")[0] == 404
+    assert g.post("/api/packs/money/panel-ticket")[0] == 404 and g.get("/api/packs/money/summary")[0] == 404
     names = {p["name"] for p in m.get("/api/tools")[1]["packs"]}
     assert {"notes", "money"} <= names and "notion" not in names
     assert "remind" in {grp["id"] for grp in m.get("/api/tools")[1]["groups"]}   # 成員看得到 ⏰ 提醒（系統）

@@ -146,6 +146,14 @@ class Sessions:
             session = self._items.get(key_digest)
             return session is not None and session.expires > self._clock()
 
+    def by_key(self, key_digest: str) -> Optional[Session]:
+        """用雜湊找登入（面板的票只記雜湊，web/paneltickets.py）：還在而且沒過期才回。"""
+        if not isinstance(key_digest, str) or not key_digest:
+            return None
+        with self._lock:
+            session = self._items.get(key_digest)
+            return session if session is not None and session.expires > self._clock() else None
+
     def drop(self, sid: Optional[str]) -> None:
         if not sid:
             return

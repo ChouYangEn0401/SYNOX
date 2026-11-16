@@ -52,13 +52,13 @@
 | `requires.synox` | | SYNOX 最低版本，例如 `">=0.3"`（逗號接好幾個：`">=0.3,<1.0"`；只寫 `"0.3"`＝`>=0.3`）。寫錯＝pack.json 不合；這台的 SYNOX 不合＝**不載入**（狀態「SYNOX 版本不合」），doctor、`packs status`、安裝報告會說要哪一版、這台是哪一版 |
 | `requires.sdk` | | **建議一定寫**：這個工具照哪一版 SYNOX SDK（給工具的介面合約，`synox_sdk.SDK_VERSION`，見 [sdk.md](sdk.md)「SDK 版本」）寫的，例如 `">=0.2,<0.3"`（0.x 寫到下一個 MINOR）。寫法同 `requires.synox`；寫錯＝pack.json 不合；這台的 SDK 不在範圍內＝**不裝**（安裝報告列原因）、**不載入**（狀態「版本不合」）。`synox-sdk init` 會自動寫好 |
 | `requires.pip` | | 要的 Python 套件。`runtime.python` 是 `"auto"`（只給 kind=cli）時，安裝會建 venv 照這份裝，每一項都要是 `名字==版本`（見下面「依賴與環境自動建置」）；沒有 `auto`＝SYNOX 不會幫你裝，只是給人看 |
-| `web.panel` | | Web UI 工具頁的面板：pack 資料夾裡的一個 `.html`（不能用 `..`、絕對路徑）。網頁在 `<iframe sandbox="allow-scripts allow-same-origin">` 裡掛 `/packs/<name>/panel`，只給看得到這個 pack 的人 |
+| `web.panel` | | Web UI 工具頁的面板：pack 資料夾裡的一個 `.html`（不能用 `..`、絕對路徑）。**一律隔開**（官方的也一樣，ADR 0027 §5）：工具頁先替看得到這個 pack 的人拿一張票（綁這個 pack＋那個登入，8 小時、登出就作廢），再用 `<iframe sandbox="allow-scripts">`（沒有 `allow-same-origin`）掛 `/packs/<name>/panel/<票>/`；回應的 CSP 也帶 `sandbox allow-scripts`。面板是「沒有來源」的小頁：沒有 cookie、讀不到登入、打不到 `/api/`、碰不到主頁，也不能開新視窗、送表單、導頁。要資料只能打**相對網址** `fetch("api/<route>")`（＝`/packs/<name>/panel/<票>/api/<route>`，只有 `web.api` 宣告的 GET，以拿票的那個人的身分）；**舊的 `fetch("/api/packs/<name>/<route>", {credentials: …})` 從面板打會被擋（401），要改成相對網址**。面板上方一定有 SYNOX 自己畫的一行說明與標章（「這個小畫面是工具作者做的…」），面板蓋不到。舊網址 `/packs/<name>/panel` 不再提供 |
 | `web.app` | | **完整的網頁畫面（工具服務，ADR 0024）**：只給 kind=python。擁有者在 SYNOX 開服務之後，在另一個本機位址（`127.0.0.2`）上看這個工具自己的畫面。規則見下面「完整網頁畫面（`web.app`）」與 [docs/tool-apps.md](tool-apps.md) |
 | `web.api` | | 面板能打的資料：`["GET /summary"]`（只支援 GET，名字小寫英數字）。pack 在 `install` 裡用 `pack.web_route("summary", fn)` 掛，`fn(user)` 回可以轉 JSON 的東西（**只回這個人自己的**：用 `pack.store.of(user)`）。沒宣告的 route 掛了也打不到 |
 | `health.check` | | **建議寫**：`{"check": "<這個 pack 的一個唯讀指令名>"}`。工具連續失敗被暫停、冷卻到了，SYNOX 用它**重新檢查**（不叫 AI；過了才放回 AI 的工具清單）。一定要是唯讀、不用填參數的指令：kind=cli 是 `cli.commands` 裡 `effect: READ`、沒有沒預設值的必填欄位、不是 `background`／`confirm`；kind=mcp 是 `tools_allow` 裡 `mcp.effects` 寫 `READ` 的工具；kind=python 寫指令名（執行時再確認是 READ）。安裝時寫錯＝拒裝；已裝的寫壞了＝當作沒寫（沒有自我檢查的工具冷卻結束後放回清單試用一次，每天最多 4 次）。見 [tool-health.md](tool-health.md) |
 
-面板範例：SYNOX 工具庫的 `packs/money/panel.html`（這個月的總額＋預算條，打 `GET /api/packs/money/summary`）。
-面板是 pack 自己的 HTML，跟 `pack.py` 一樣是你決定要不要信任的程式碼：它跟 Web UI 同源，能做你在網頁上能做的事。
+面板範例：SYNOX 工具庫的 `packs/money/panel.html`（這個月的總額＋預算條，打相對網址 `fetch("api/summary")`；不要帶 `credentials`，面板沒有 cookie）。
+面板是 pack 自己的 HTML＋JS，SYNOX 把它隔開：它只看得到自己 pack 在 `web.api` 宣告的資料，不能代替你在網頁上做事。畫面裡的字和按鈕是作者寫的，不是 SYNOX 的。
 
 `.synoxpack`＝一個 pack 資料夾壓成的 zip（`pack.json` 在最上層，或在唯一的那個資料夾裡）；`synox-sdk zip`／`scripts\pack_zip.py`
 會打包並算好 `integrity.sha256`（[sdk.md](sdk.md)）。裝的路有三條，都跑同一條安全管線（[security.md](security.md)「五關」）：
