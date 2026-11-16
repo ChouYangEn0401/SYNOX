@@ -28,6 +28,7 @@ import threading
 from datetime import datetime
 from typing import Callable, Dict, List, NamedTuple, Optional, Set
 
+from synox import notify
 from synox.runtime import settings as rs
 from synox.runtime.loop import MESSAGE_MAX, clean_text, iso
 
@@ -322,7 +323,7 @@ class Heartbeat:
         self._last_notify = text
         if failures:
             self._notified_failures = dict(failures)
-        self.app.notify_owner(f"🫀 常駐助理：{text}")
+        notify.owner(self.app, f"🫀 常駐助理：{text}", kind="assistant")
         return f"通知了你：{text}"
 
     def _soul_lines(self, lines: List[str]):

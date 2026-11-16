@@ -18,6 +18,8 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     GET  /api/packs/staged          擁有者：還沒按確認的暫存 pack（待核准清單，不用 token；過期的順便清掉）
     POST /api/packs/discard         {"token"}：擁有者「不要裝」，刪掉那一份暫存
     POST /api/packs/library         擁有者按「載入工具清單」：抓官方工具庫的清單（網址寫死在 packs/catalog.py，只有這時才連網）
+                                    ；updates＝裝著、有新版的工具與外觀包（網頁的「有 N 個工具可以更新」＋「全部更新」）
+    POST /api/packs/wardrobe        擁有者按「看衣櫃」：同一份官方清單，只列外觀包（kind=theme；設定 → 外觀 → 衣櫃）
     POST /api/packs/library/install {"name"}：伺服器從官方發佈頁下載那個工具、對大小與雜湊 → admin.stage（跟上傳同一條路）
                                     → 回同一份報告；裝要另外按確認（/api/packs/install）
     GET  /api/pack-secrets/<name>   工具頁「連接」：auth.fields 的狀態（有填、最後 4 碼；secret 的值永遠不回）
@@ -63,7 +65,7 @@ from urllib.parse import parse_qs, urlsplit
 
 from isdtelekit.core.channel import CallbackInfo, Inbound
 
-from synox import tutorials
+from synox import notify, tutorials
 from synox.guard import origin as guard_origin
 from synox.guard.stepup import sensitive_action as stepup_sensitive
 from synox.packs.manifest import stage_text
@@ -194,10 +196,14 @@ INCLUDES = {"tools.css": "style", "tools.js": "script", "tour.css": "style", "to
 INCLUDE_RE = re.compile(r"<!-- include: ([a-z0-9_.-]+) -->")
 
 
-def render_app(nonce: str, theme_head: str = "", mode: str = "auto", skin: str = "") -> str:
+CHAT_BG_VALUES = ("none", "color", "dots", "grid", "stripes", "glow")       # <html data-chat-bg>（外觀 → 背景）
+
+
+def render_app(nonce: str, theme_head: str = "", mode: str = "auto", skin: str = "", chat_bg: str = "") -> str:
     """app.html＋include 的檔，{{NONCE}} 換成這次的 nonce。
     theme_head：外觀（synox/theme/appearance.head_html）要塞進 <head> 的東西，放在 <!-- theme --> 那裡；
-    mode：light｜dark＝<html data-theme>（auto＝跟系統）；skin：套了哪個外觀包（<html data-skin>，給 CSS 掛勾用）。"""
+    mode：light｜dark＝<html data-theme>（auto＝跟系統）；skin：套了哪個外觀包（<html data-skin>，給 CSS 掛勾用）；
+    chat_bg：對話背景自己選的（<html data-chat-bg>：none、color、花紋名；空＝看 chat.background 這個 slot）。"""
     def include(m):
         name = m.group(1)
         tag = INCLUDES.get(name)
@@ -215,7 +221,8 @@ def render_app(nonce: str, theme_head: str = "", mode: str = "auto", skin: str =
         html = f.read().replace("{{NONCE}}", nonce)
     html = INCLUDE_RE.sub(include, INLINE_RE.sub(inline, html))
     attrs = (f' data-theme="{mode}"' if mode in ("light", "dark") else "") + \
-        (f' data-skin="{skin}"' if skin and NAME_RE.match(skin) else "")
+        (f' data-skin="{skin}"' if skin and NAME_RE.match(skin) else "") + \
+        (f' data-chat-bg="{chat_bg}"' if chat_bg in CHAT_BG_VALUES else "")
     if attrs:
         html = html.replace('<html lang="zh-Hant">', f'<html lang="zh-Hant"{attrs}>', 1)
     from synox.theme.appearance import default_templates
@@ -507,10 +514,11 @@ class WebUI:
         nonce = secrets.token_urlsafe(16)
         try:
             mode, skin, head = self.appearance.head(tg_id, nonce)
+            chat_bg = self.appearance.chat_bg(tg_id)
         except Exception:
             logging.exception("[WEB] appearance failed; using the original look")
-            mode, skin, head = "auto", "", ""
-        html = render_app(nonce, head, mode, skin)
+            mode, skin, head, chat_bg = "auto", "", "", ""
+        html = render_app(nonce, head, mode, skin, chat_bg)
         csp = (f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'nonce-{nonce}'; "
                "img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; "
                "base-uri 'none'; form-action 'self'")
@@ -686,16 +694,17 @@ class WebUI:
                      ("Cache-Control", "private, max-age=3600"), ("Content-Type", "font/woff2")], blob
 
     def appearance_save(self, user, data: dict) -> Resp:
-        """POST /api/appearance {"theme": 名字｜""（換回原本的 SYNOX）, "mode": auto｜light｜dark, "reset": true}。
+        """POST /api/appearance {"theme": 名字｜""（換回原本的 SYNOX）, "mode": auto｜light｜dark, "reset": true,
+        "background": {"kind": theme｜none｜color｜pattern｜svg, "color": "#rrggbb", "pattern": dots…}}。
         每個人改自己的（伺服器版的擁有者＝這台的預設）。"""
-        changes = {k: data[k] for k in ("theme", "mode", "reset") if k in data}
+        changes = {k: data[k] for k in ("theme", "mode", "background", "reset") if k in data}
         if not changes:
             return _err(400, "沒有要改的東西。")
         try:
             eff = self.appearance.save(user.tg_id, changes)
         except AppearanceError as e:
             return _err(400, str(e))
-        return _json(200, {"ok": True, "theme": eff["theme"], "mode": eff["mode"]})
+        return _json(200, {"ok": True, "theme": eff["theme"], "mode": eff["mode"], "background": eff["background"]})
 
     def appearance_custom(self, user, data: dict) -> Resp:
         """POST /api/appearance/custom {"slot", "text", "preview": true｜false}：自己貼的 SVG／HTML＋CSS。
@@ -741,9 +750,15 @@ class WebUI:
                 except (ValueError, UnicodeDecodeError):
                     return _err(400, "內容格式不對。")
             return apps_api.route(self, user, method, path, data, query)
+        if path == "/api/settings/update" or path.startswith("/api/settings/update/"):   # SYNOX 更新（ADR 0023）
+            from synox.update import web_api as update_api
+            return update_api.route(self, user, method, path, body)
         if path.startswith("/api/runtime/"):          # 主控面板：常駐助理／心跳／任務（docs/runtime-api.md；含 PUT）
             from synox.runtime import web_api as runtime_api
             return runtime_api.route(self, user, method, path, body)
+        if path == "/api/notifications" or path.startswith(("/api/notifications/", "/api/alarms")):   # 🔔、鬧鐘
+            from synox.notify import web_api as notify_api           # （synox/notify，docs/notifications.md）
+            return notify_api.route(self, user, method, path, body, query)
         if method == "GET":
             if path == "/api/me":
                 return _json(200, self.me(user, session))
@@ -847,6 +862,8 @@ class WebUI:
             return self.library_list(user)
         if path == "/api/packs/library/install":
             return self.library_install(user, data)
+        if path == "/api/packs/wardrobe":
+            return self.wardrobe_list(user)
         if path == "/api/packs/reload":
             return self.pack_reload(user)
         if path == "/api/accounts/role":
@@ -1105,7 +1122,7 @@ class WebUI:
             stored = self.prefs.get(user.tg_id, toolpage.LAYOUT_KEY)
         except Exception as e:                    # 保管箱解不開：照預設排，不蓋掉原本的檔
             logging.warning("[WEB] tool layout of %s unreadable: %s", user.tg_id, type(e).__name__)
-            stored, out["layout_error"] = None, "你的群組排版讀不到（保管箱解不開），先照預設排；存檔前請先看 doctor。"
+            stored, out["layout_error"] = None, "你存的群組排法讀不出來，先照建議的排。（進階：保管箱解不開，存檔前請先看 doctor）"
         out["layout"] = toolpage.effective(stored, self._tool_categories(out))
         return out
 
@@ -1195,12 +1212,12 @@ class WebUI:
         if pack is None or not self._pack_visible(user, pack):
             return None, _err(404, "沒有這個 pack。")
         if not getattr(pack, "secret_fields", None):
-            return None, _err(404, f"{name} 不用在這裡連接（沒有宣告 auth.fields，或 pack 自己有設定指令）。")
+            return None, _err(404, f"{name} 不用在這裡連接。（進階：沒有宣告 auth.fields，或這個工具自己有設定指令）")
         if not self._can_connect(user):
-            return None, _err(403, "只有擁有者能設定這台電腦的 pack 連接。")
+            return None, _err(403, "只有擁有者可以設定這台電腦上工具的連接。")
         store = self._secret_store()
         if store is None or not store.available:
-            return None, _err(400, "保管箱沒有打開，secret 沒地方放（python -m synox doctor 看原因）。")
+            return None, _err(400, "現在沒辦法把你填的東西安全地存起來，所以先不存。（進階：保管箱沒有打開，用 python -m synox doctor 看原因）")
         return pack, None
 
     def _secret_view(self, user, pack) -> dict:
@@ -1236,7 +1253,7 @@ class WebUI:
                      ",".join(sorted(k for k, v in values.items() if v)) or "-")
         out = self._secret_view(user, pack)
         out["ok"] = True
-        out["message"] = "✅ 已連接（存在保管箱，密文）。" if out["connected"] else \
+        out["message"] = "✅ 接好了。你填的東西已經鎖起來，存在這台電腦裡。" if out["connected"] else \
             "存好了，還缺：" + "、".join(out["missing"])
         if short:                                    # 存了，但太短的 secret 第 4 關保護不全：照實說
             out["warning"] = short_warning(short)
@@ -1791,7 +1808,22 @@ class WebUI:
             return failed
         have = self._installed_versions()
         return _json(200, {"version": lib.version, "releases": catalog.RELEASES_PAGE, "overview": catalog.OVERVIEW_URL,
-                           "tools": catalog.cards(lib, have)})
+                           "tools": catalog.cards(lib, have), "updates": catalog.updates(lib, have)})
+
+    def wardrobe_list(self, user) -> Resp:
+        """「看衣櫃」：同一份官方清單（同一個寫死的網址、同一套安全的抓法），只列外觀包。
+        清單裡還沒有外觀包＝themes 是空的（網頁說「衣櫃還沒上架，先到網頁看看」）。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from synox.packs import catalog
+        lib, failed = self._library()
+        if failed:
+            return failed
+        themes = catalog.wardrobe_cards(lib, self._installed_versions())
+        return _json(200, {"version": lib.version, "page": catalog.WARDROBE_URL, "releases": catalog.RELEASES_PAGE,
+                           **catalog.wardrobe_info(lib), "themes": themes,
+                           "empty": "" if themes else catalog.TEXT["wardrobe_empty"]})
 
     def library_install(self, user, data: dict) -> Resp:
         """「安裝」：重新抓清單 → 下載那一個檔（大小、雜湊對清單）→ admin.stage → 同一份報告（升級就多「改了什麼」）。
@@ -1820,7 +1852,8 @@ class WebUI:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:
             return _err(400, str(e))
-        if summary.get("name") != tool.name or summary.get("version") != tool.version:
+        if summary.get("name") != tool.name or summary.get("version") != tool.version or \
+                (summary.get("kind") == "theme") != tool.is_theme:          # 清單說是外觀包，裡面就要是外觀包（反過來也一樣）
             try:
                 discard_staged(token, self.config.data_dir)
             except PackAdminError:
@@ -1866,7 +1899,7 @@ class WebUI:
             text = (f"✅ pack {name} 的環境建好了，可以用了。" if result.ok
                     else f"⚠️ pack {name} {what}，但環境沒建好：{result.detail}")
             try:
-                self.app.notify_owner(text)
+                notify.owner(self.app, text, kind="tools", level="info" if result.ok else "warn")
             except Exception:
                 logging.exception("[WEB] env build notice failed")
 

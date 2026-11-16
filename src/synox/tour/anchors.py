@@ -42,7 +42,7 @@ ANCHORS: Dict[str, Tuple[str, str]] = {
     "settings.ai.source": ("設定頁：「AI 從哪裡來」那張卡", "0.2"),
     "settings.channels": ("設定頁：聊天通道（Telegram／Discord）那張卡", "0.2"),
     "settings.packs.catalog": ("設定頁：官方工具庫那張卡", "0.2"),
-    "settings.packs.catalog.load": ("設定頁：「載入工具清單」按鈕（只讀清單，不會裝任何東西）", "0.2"),
+    "settings.packs.catalog.load": ("設定頁：「看有哪些工具」按鈕（只讀清單，不會裝任何東西）", "0.2"),
     "settings.packs.upload": ("設定頁：上傳 .synoxpack 那張卡", "0.2"),
     "settings.packs.review": ("設定頁：安裝前的檢查報告（整張卡；不是確認鈕）", "0.2"),
     "settings.packs.installed": ("設定頁：已安裝的工具清單", "0.2"),

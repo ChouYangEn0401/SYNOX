@@ -13,16 +13,16 @@
   var MAX_BYTES = 5 * 1024 * 1024;               // 跟 packs/admin.py 的 MAX_UPLOAD 一樣
   var EXTS = [".synoxpack", ".zip"];
   var TEXT = {
-    overlay: "放開來檢查這個 .synoxpack（先看安全報告，按確認才會裝）",
-    hint: "也可以直接把 .synoxpack 拖進這個網頁；在檔案總管點兩下 .synoxpack，或拖到 SYNOX 資料夾的 Install-Pack.bat 上也行。不管哪一種，都會先檢查、給你看報告，按確認才裝。",
-    one: "一次拖一個 .synoxpack 就好。",
-    ext: "這不是 .synoxpack 檔：",
+    overlay: "放開滑鼠，我就檢查這個工具檔。會先給你看檢查的結果，你按確認才會裝。",
+    hint: "也可以把工具檔（.synoxpack）直接拖進這個網頁，或在電腦裡對它點兩下。不管哪一種，都會先檢查給你看，你按確認才會裝。",
+    one: "一次拖一個工具檔就好。",
+    ext: "這不是工具檔（檔名結尾要是 .synoxpack）：",
     big: "檔案太大（最多 5 MB）：",
     empty: "檔案是空的：",
-    login: "先登入 SYNOX，再把 .synoxpack 拖進來。",
+    login: "先登入 SYNOX，再把工具檔拖進來。",
     owner: "只有擁有者能裝功能。",
     checking: "檢查中：",
-    missing: "設定頁的上傳框不見了（重新整理看看）。"
+    missing: "找不到上傳的地方。把頁面重新整理，再試一次。"
   };
 
   /* 純函式（tests/js/test_packdrop.js）：拖進來的檔案清單 → {ok, file} 或 {ok:false, message} */

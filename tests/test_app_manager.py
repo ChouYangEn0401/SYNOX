@@ -46,7 +46,7 @@ def test_available_by_config(counter, raw, ok):
 def test_available_container_and_web_off(counter):
     bot, manager = counter()
     manager.environ = {"SYNOX_IN_CONTAINER": "1"}
-    assert manager.available() == (False, "容器版還沒開放工具服務。")
+    assert manager.available() == (False, "這種裝法（容器版）還不能用工具的完整畫面。")
     manager.environ = {"SYNOX_WEB_BIND": "0.0.0.0", "HOST": "0.0.0.0"}
     assert manager.available()[0]
     manager.exists = lambda p: p == "/.dockerenv"
@@ -294,7 +294,7 @@ def test_policies(counter, owner, policy, minutes, expect):
         elif e == "closed":
             assert new and "先關掉了" in new[-1] and manager.running() == []
         elif e == "suggest_keep":
-            assert new and "一直開著" in new[-1]
+            assert new and "我不會自己關" in new[-1]
         else:
             assert new and "再 15 分鐘" in new[-1]
 

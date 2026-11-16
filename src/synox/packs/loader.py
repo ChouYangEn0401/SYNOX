@@ -53,7 +53,7 @@ from typing import Any, Callable, Dict, List, Optional
 from isdtelekit.core import jsonstore
 from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 
-from synox import health, policy, sandbox
+from synox import health, notify, policy, sandbox
 from synox.config import ROOT
 from synox.helpui import examples as help_examples
 from synox.packs import envs, kit, render
@@ -914,8 +914,9 @@ def _tamper_notice(app, config, m: Manifest, changes: List[str]) -> None:
         if not pack_lock.first_notice(config.data_dir, m.name, fp):
             return
         listing = "\n".join(f"• {c}" for c in changes[:20])
-        app.notify_owner(f"⚠️ pack「{m.title}」（{m.name}）的檔案跟安裝時核准的不一樣，這次沒有載入：\n{listing}\n"
-                         f"如果是你自己改的，在電腦上跑 python -m synox packs lock --approve {m.name} 重新核准。")
+        notify.owner(app, f"⚠️ pack「{m.title}」（{m.name}）的檔案跟安裝時核准的不一樣，這次沒有載入：\n{listing}\n"
+                         f"如果是你自己改的，在電腦上跑 python -m synox packs lock --approve {m.name} 重新核准。",
+                     kind="safety", level="warn")
     except Exception:
         logging.exception("[PACKS] tamper notice for %s failed", m.name)
 

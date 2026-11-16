@@ -12,7 +12,22 @@
  */
 (function (root) {
   "use strict";
-  var NAMES = ["mascot.idle", "mascot.think", "mascot.happy", "mascot.warn", "opening", "wordmark", "appicon"];
+  var NAMES = ["mascot.idle", "mascot.think", "mascot.happy", "mascot.warn", "opening", "wordmark", "appicon",
+    "chat.background"];
+  // 對話背景會一直在畫面上：要求「減少動態效果」時，SVG 自己的動畫（<animate>）也停下來（CSS 動畫由 app.html 停）
+  var STILL = ["chat.background"];
+
+  function reduced() {
+    try { return !!(root.matchMedia && root.matchMedia("(prefers-reduced-motion: reduce)").matches); }
+    catch (e) { return false; }
+  }
+  function settle(node, name) {
+    if (STILL.indexOf(name) < 0 || !reduced() || !node.querySelectorAll) { return; }
+    var svgs = node.querySelectorAll("svg");
+    for (var i = 0; i < svgs.length; i++) {
+      if (typeof svgs[i].pauseAnimations === "function") { try { svgs[i].pauseAnimations(); } catch (e) { /* 舊瀏覽器 */ } }
+    }
+  }
 
   function doc() { return root.document || null; }
   function find(attr, name) {
@@ -53,6 +68,7 @@
       while (node.firstChild) { node.removeChild(node.firstChild); }
       node.appendChild(get(name));
       node.classList.add("slotted");
+      settle(node, name);
       if (node.parentNode && node.parentNode.classList) { node.parentNode.classList.add("slot-host"); }
     }
   }

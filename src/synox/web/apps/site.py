@@ -53,7 +53,7 @@ TEXT = {
     "button": "確定",
     "too_large": "送來的東西太大。",
     "error": "出錯了：{name}",
-    "owner_only": "只有擁有者能關這個服務。",
+    "owner_only": "只有擁有者可以關掉這個畫面。",
     "export_encrypted_only": "這台 SYNOX 是多人共用的，只能匯出加密的檔；這個功能還沒做好。",
     "export_confirm": "匯出的檔案沒有加密，打得開這個檔的人都看得到內容。存在你放心的地方，用完就刪。",
     "export_button": "下載",

@@ -76,10 +76,19 @@ SLOTS: Dict[str, Tuple[str, int, Tuple[str, ...]]] = {
                 ("svg", "html")),
     "wordmark": ("字標：側欄的「SYNOX」字樣（開場的字也跟著換）；預設是文字 SYNOX", 1, ("svg", "html")),
     "appicon": ("分頁圖示（favicon）：只收 SVG；預設是瀏覽器的預設圖示", 1, ("svg",)),
+    "chat.background": ("對話的背景：整個對話區後面的一張圖（鋪滿、在訊息底下、點不到）；只收 SVG；預設沒有。"
+                        "使用者在「外觀 → 背景」自己選的（不要、純色、花紋、自己貼）蓋過外觀包的", 1, ("svg",)),
 }
 RENAMED_SLOTS: Dict[str, str] = {}
 RENAMED_TOKENS: Dict[str, str] = {}
 MODES: Tuple[str, ...] = ("auto", "light", "dark")
+
+# ── 背景（設定 → 外觀 → 背景；每個人自己選，規則同 mode）──────────────────────────
+# theme＝跟著外觀（外觀包有 chat.background 就用它，沒有就沒有）；none＝不要背景（外觀包有也不要）；
+# color＝純色（跟底色混一半，深色也看得清楚）；pattern＝內建的花紋（只用 CSS 和 token 畫，跟著外觀換色）；
+# svg＝自己貼的 SVG（「自己貼」的 chat.background 那一格）。
+BACKGROUND_KINDS: Tuple[str, ...] = ("theme", "none", "color", "pattern", "svg")
+BACKGROUND_PATTERNS: Dict[str, str] = {"dots": "小圓點", "grid": "方格紙", "stripes": "細斜線", "glow": "淡淡的光"}
 
 
 def slot_name(name) -> str:

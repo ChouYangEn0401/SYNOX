@@ -104,7 +104,7 @@ def test_handoff(counter, owner):
     assert ui.handle("POST", "/apps/counter/open", {"Host": c.host}, b"csrf=x")[0] == 401
     # 服務關著：白話頁、沒有發票、沒有開起來
     status, headers, body = form_post(c, "/apps/counter/open", {"csrf": csrf})
-    assert status == 200 and "沒有開".encode() in body and manager.running() == [] and manager.tickets.count("counter") == 0
+    assert status == 200 and "還沒開".encode() in body and manager.running() == [] and manager.tickets.count("counter") == 0
     manager.start("counter", by=owner, via="web")
     assert form_post(c, "/apps/counter/open", {})[0] == 403
     assert form_post(c, "/apps/counter/open", {"csrf": "bad"})[0] == 403
@@ -134,7 +134,7 @@ def test_handoff_member_who_cannot_see(counter, owner):
     bot.make(777, BasicRoles.GUEST)
     g = console(bot, 777)
     status, _h, body = form_post(g, "/apps/counter/open", {"csrf": g.csrf})
-    assert status == 200 and "沒有開".encode() in body
+    assert status == 200 and "還沒開".encode() in body
 
 
 def test_apps_js_with_node():

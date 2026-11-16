@@ -91,6 +91,7 @@ STRINGS = {
     "finish_autostart": "Start SYNOX when I sign in (a small visible window you can close any time)",
     "finish_packs": "Double-click .synoxpack files to install them (still checked and confirmed first)",
     "finish_launch": "Open SYNOX when finished",
+    "finish_updates": "Check once a week whether there is a new version (only looks, never installs by itself)",
     "finish_discord_bot": "Discord bot {name}",
     "finish_hint_token": ("This computer is: {title}.\nClick \"Finish and start\": the settings are saved and "
                           "{who} starts; your phone will get \"I'm here\"."),

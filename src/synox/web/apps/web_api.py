@@ -20,11 +20,11 @@ from synox.web.apps.site import AppsError
 
 NAME = r"([a-z][a-z0-9_-]{0,31})"
 TEXT = {
-    "owner": "只有擁有者能開關工具服務。",
-    "not_on_title": "這個工具的服務沒有開",
-    "not_on": "要先在 SYNOX 的工具頁按「開啟」，再按「打開」。",
+    "owner": "只有擁有者可以打開和關掉工具的完整畫面。",
+    "not_on_title": "這個工具的完整畫面還沒開",
+    "not_on": "要先在 SYNOX 的工具頁按「開始用」，再按「打開」。",
     "csrf": "這個按鈕過期了，重新整理工具頁再按一次。",
-    "origin": "來源不對（不是從 SYNOX 自己的頁面送出的）。",
+    "origin": "這個動作不是從 SYNOX 的頁面按的，所以沒有做。回 SYNOX 的工具頁再按一次。",
     "login": "請先登入 SYNOX。",
     "not_found": "沒有這個東西。",
     "body": "內容格式不對。",

@@ -312,7 +312,15 @@
   function removeOffer() { remove(ui.offer); ui.offer = null; }
   function offer(tries) {
     if (!data || !data.offer || cur || ui.offer) { return; }
-    if (document.querySelector(".sx-splash") && (tries || 0) < 12) {     // 開場動畫還在：等它收掉再問（不要疊在一起）
+    var gate = root.SynoxSplash;
+    if (gate && gate.isOpen && gate.isOpen()) {         // 開場的門還開著（static/splash.js）：等使用者點進來再問（不要疊在一起）
+      document.addEventListener(gate.DONE, function again() {
+        document.removeEventListener(gate.DONE, again);
+        offer(tries);
+      });
+      return;
+    }
+    if (document.querySelector(".sx-splash") && (tries || 0) < 12) {     // 門正在淡出：等它收掉
       setTimeout(function () { offer((tries || 0) + 1); }, 400);
       return;
     }

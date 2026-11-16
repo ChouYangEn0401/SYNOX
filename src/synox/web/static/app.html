@@ -238,6 +238,12 @@
           font: 800 15px/1 var(--font-brand); color: var(--accent-ink);
           background: linear-gradient(140deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 55%, var(--accent-2)) 100%);
           box-shadow: 0 6px 16px -6px var(--accent), var(--highlight); }
+  /* 側欄（手機是上方列）的 S：是一顆按鈕，點了再看一次開場（static/splash.js 的 [data-splash-replay]）；樣子跟原本的 .mark 一樣 */
+  button.mark { min-height: 0; padding: 0; border: 0; font: 800 15px/1 var(--font-brand); color: var(--accent-ink); cursor: pointer; }
+  button.mark:hover { background: linear-gradient(140deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 55%, var(--accent-2)) 100%); }
+  button.mark { position: relative; }
+  button.mark::before { content: ""; position: absolute; inset: -7px; }   /* 手指比較好按到（44px），看起來不變 */
+  button.mark:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
   .brand .name { font-weight: 800; letter-spacing: .14em; font-size: 15px; font-family: var(--font-brand); min-width: 0; }
   .nav { display: flex; flex-direction: column; gap: 2px; }
   .nav a { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border-radius: var(--r);
@@ -301,6 +307,10 @@
           box-shadow: 0 0 0 3px var(--ok-soft); flex: none; }
   #stream { flex: 1; overflow: auto; padding: 20px 18px; display: flex; flex-direction: column; gap: 10px;
             scroll-behavior: smooth; }
+  /* 對話的背景（外觀 → 背景；slot chat.background）：鋪滿 #chat-main、在訊息底下、點不到（isolation 讓 z-index:-1 留在卡片裡） */
+  #chat-main { position: relative; isolation: isolate; }
+  .chat-bg { position: absolute; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+  .chat-bg > .slot { width: 100%; height: 100%; }
   .msg { max-width: min(78%, 640px); padding: 10px 14px; border-radius: calc(var(--radius) * 1.6); white-space: pre-wrap;
          word-break: break-word; line-height: 1.6; animation: rise .22s var(--ease); }
   .msg.me { align-self: flex-end; background: var(--me); color: var(--me-ink); border-bottom-right-radius: calc(var(--radius) * .6); }
@@ -495,6 +505,46 @@
                   border-radius: var(--r); background: var(--bg); }
   #custom-box { width: 110px; height: 110px; }
   #custom-box.wide { width: 140px; height: 44px; }
+  #custom-box.bgwide { width: 100%; height: 120px; border-radius: var(--r); }
+  /* 外觀 → 衣櫃（SYNOX 衣櫃：官方清單裡 kind=theme 的；packs/catalog.wardrobe_cards） */
+  .wd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 270px), 1fr)); gap: 12px; margin-top: 12px; }
+  .wd-card { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; align-items: start; min-width: 0;
+             padding: 12px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface-2); }
+  .wd-card.on { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .wd-chip { width: 48px; height: 48px; border-radius: calc(var(--radius) * 1.3); display: grid; place-items: center;
+             font: 800 20px/1 var(--font-brand); color: var(--accent-ink);
+             background: linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent) 55%, var(--accent2))); }
+  .wd-sw { width: 48px; height: 48px; border-radius: calc(var(--radius) * 1.3); overflow: hidden; display: flex;
+           border: 1px solid var(--line-strong); }
+  .wd-sw i { flex: 1 1 0; }
+  .wd-body { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+  .wd-body b { font-size: 15.5px; overflow-wrap: anywhere; }
+  .wd-name { font-family: var(--mono); font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+  .wd-line { color: var(--text-2); font-size: 14px; overflow-wrap: anywhere; margin: 0; }
+  .wd-badges { display: flex; flex-wrap: wrap; gap: 6px; }
+  .wd-badges .badge::before { display: none; }
+  .wd-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+  /* 外觀 → 背景：內建的花紋（只用 CSS＋token，跟著外觀換色；不載入任何圖片）。對話頁的 .chat-bg 與選擇用的小方塊共用 */
+  .bg-tiles { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
+  .bg-pick { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; font-size: 13px; }
+  .bg-pick input[type="radio"] { position: absolute; opacity: 0; width: 1px; height: 1px; }
+  .bg-tile { width: 72px; height: 52px; border-radius: var(--r); border: 1px solid var(--line-strong); background-color: var(--bg); }
+  .bg-pick input:checked + .bg-tile { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .bg-pick input:focus-visible + .bg-tile { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #bg-color { width: 64px; min-height: 40px; padding: 2px; }
+  :root[data-chat-bg="dots"] .chat-bg, .bg-tile.dots {
+    background-image: radial-gradient(circle, var(--line-strong) 1px, transparent 1.6px); background-size: 20px 20px; }
+  :root[data-chat-bg="grid"] .chat-bg, .bg-tile.grid {
+    background-image: linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+    background-size: 24px 24px; }
+  :root[data-chat-bg="stripes"] .chat-bg, .bg-tile.stripes {
+    background-image: repeating-linear-gradient(135deg, var(--line) 0 1px, transparent 1px 14px); }
+  :root[data-chat-bg="glow"] .chat-bg, .bg-tile.glow {
+    background-image: radial-gradient(60% 55% at 12% 0%, var(--soft), transparent 70%),
+                      radial-gradient(55% 50% at 100% 100%, color-mix(in srgb, var(--accent2) 12%, transparent), transparent 70%); }
+  :root[data-chat-bg="color"] .chat-bg { background: color-mix(in srgb, var(--chat-bg-color, var(--bg)) 45%, var(--bg)); }
+  :root[data-chat-bg="none"] .chat-bg { display: none; }
+  :root[data-chat-bg] .chat-bg > .slot { display: none; }        /* 自己選了不要／純色／花紋：外觀包的背景圖不顯示 */
   .custom-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
   .custom-item { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 10px; border-radius: var(--r);
                  background: var(--sunken); font-size: 13.5px; }
@@ -510,7 +560,7 @@
   .slot { display: block; }
   .slot > svg { display: block; width: 100%; height: 100%; }
   .mark > .slot { width: 100%; height: 100%; display: grid; place-items: center; }
-  .mark.slot-host { background: none; box-shadow: none; }
+  .mark.slot-host, button.mark.slot-host, button.mark.slot-host:hover { background: none; box-shadow: none; }
   .brand .name > .slot { display: inline-block; max-width: 100%; vertical-align: middle; }
   .brand .name > .slot > svg { height: 1.3em; width: auto; }
   .mood { width: 44px; height: 44px; flex: none; }
@@ -579,6 +629,7 @@
 <style nonce="{{NONCE}}">/*{{INCLUDE:report.css}}*/</style>
 <style nonce="{{NONCE}}">/*{{INCLUDE:security.css}}*/</style>
 <style nonce="{{NONCE}}">/*{{INCLUDE:apps.css}}*/</style>
+<style nonce="{{NONCE}}">/*{{INCLUDE:notify.css}}*/</style>
 <script nonce="{{NONCE}}">/*{{INCLUDE:slots.js}}*/</script>
 <!-- theme -->
 <style nonce="{{NONCE}}">/*{{INCLUDE:splash.css}}*/</style>
@@ -588,7 +639,7 @@
 <div class="shell">
 <aside class="side">
   <div class="brand-row">
-    <div class="brand"><span class="mark" aria-hidden="true"><span class="slot theme-slot-mascot-idle" data-slot="mascot.idle">S</span></span><span class="name"><span class="slot theme-slot-wordmark" data-slot="wordmark">SYNOX</span></span></div>
+    <div class="brand"><button id="brand-mark" class="mark" type="button" data-splash-replay title="再看一次開場" aria-label="再看一次開場"><span class="slot theme-slot-mascot-idle" data-slot="mascot.idle" aria-hidden="true">S</span></button><span class="name"><span class="slot theme-slot-wordmark" data-slot="wordmark">SYNOX</span></span></div>
     <button id="logout" class="ghost sm hidden" type="button" title="登出">
       <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg>
       <span>登出</span>
@@ -623,6 +674,12 @@
 </aside>
 
 <main>
+  <!-- 有新版（只有擁有者、只在查過之後；docs/adr/0023）：GET /api/settings/update 的 notice，「知道了」＝這一版不再顯示 -->
+  <div id="update-banner" class="restart-banner hidden" role="status">
+    <span id="update-banner-text"></span>
+    <a href="#settings:system">看看</a>
+    <button id="update-banner-ok" type="button" class="ghost">知道了</button>
+  </div>
   <section id="view-login" class="hidden">
     <div class="card login">
       <span class="mark" aria-hidden="true"><span class="slot theme-slot-mascot-idle" data-slot="mascot.idle">S</span></span>
@@ -638,6 +695,7 @@
 
   <section id="view-chat" class="hidden">
     <div id="chat-main">
+      <div class="chat-bg" aria-hidden="true"><span class="slot theme-slot-chat-background" data-slot="chat.background"></span></div>
       <div class="chat-head"><span class="live" aria-hidden="true"></span><span class="t" id="chat-title">對話</span></div>
       <div id="stream"><div class="empty">選一段對話，或按「新對話」。</div></div>
       <div id="helpdock" class="helpdock hidden" aria-label="範例"></div>
@@ -656,7 +714,7 @@
     <div class="page wide">
       <header class="page-head">
         <h1>工具</h1>
-        <p class="sub">你看得到、用得到的全部功能，照群組分好。填好參數按「執行」就跑（結果也會留在對話頁的「🧰 工具頁」）；群組可以按「編輯」自己排。</p>
+        <p class="sub">你能用的工具都在這裡，一組一組排好。把要填的填好，按「執行」就會做。結果也會留在對話頁的「🧰 工具頁」。想換排法，按「編輯」。</p>
       </header>
       <div id="tools-root" data-tour="tools.page"></div>
     </div>
@@ -797,6 +855,32 @@
         </div>
       </div>
 
+      <div id="set-update" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">🆕</span>
+          <div class="txt"><h2>SYNOX 更新</h2><p class="sub" id="upd-now">按「檢查更新」才會連到 GitHub 問最新的正式版（只看，不會自己下載或安裝；GitHub 看得到這台的 IP）。</p></div></div>
+        <label class="f"><input id="upd-weekly" type="checkbox"> 每週幫我看一次有沒有新版（只看，不會自己裝）</label>
+        <p class="muted">預設關著：沒打開的話，有安全更新也要你自己來按「檢查更新」才會知道。打開了，有新版時會在這裡、網頁上方和 Telegram／Discord 通知你一次。</p>
+        <div class="row">
+          <button id="upd-check" class="primary" type="button">檢查更新</button>
+          <a id="upd-releases" class="btn ghost" href="https://github.com/ChouYangEn0401/SYNOX/releases" target="_blank" rel="noopener noreferrer">發佈頁</a>
+          <span id="upd-msg" class="muted" role="status"></span>
+        </div>
+        <div id="upd-result" class="note-line hidden" role="status"></div>
+        <p id="upd-how" class="muted"></p>
+        <div class="row">
+          <button id="upd-go" class="hidden" type="button">更新…</button>
+        </div>
+        <div id="upd-confirm" class="note-line hidden" role="alertdialog" aria-labelledby="upd-confirm-text">
+          <p id="upd-confirm-text">會在這台電腦上打開「SYNOX 更新」視窗（Update.bat）：它先給你看這版改了什麼，再問你一次。
+            確定之後才下載、檢查檔案，然後 SYNOX 會<strong>暫時關掉</strong>（網頁會斷線）、換好再自己打開。你的設定、資料、工具都不會動；
+            舊版會留著，出問題可以 <code>Update.bat -Rollback</code> 退回。</p>
+          <div class="row">
+            <button id="upd-launch" class="primary" type="button">打開更新視窗</button>
+            <button id="upd-cancel" type="button">先不要</button>
+          </div>
+        </div>
+      </div>
+
       <div id="set-backup" class="card hidden" data-tour="settings.backup">
         <div class="card-head"><span class="tile" aria-hidden="true">💾</span>
           <div class="txt"><h2>備份</h2>
@@ -849,15 +933,19 @@
       <div class="tab-panel hidden" data-tab="packs" role="tabpanel">
       <div id="set-library" class="card hidden" data-tour="settings.packs.catalog">
         <div class="card-head"><span class="tile" aria-hidden="true">🧰</span>
-          <div class="txt"><h2>工具庫（官方）</h2><p class="sub">SYNOX 官方做的工具，挑你要的裝。按「載入工具清單」才會連到網路（GitHub）抓清單；
-            按「安裝」也一樣先給你看檢查報告，你按確認才會裝。</p></div></div>
+          <div class="txt"><h2>工具庫（官方）</h2><p class="sub">SYNOX 官方做的工具，挑你要的裝。按「看有哪些工具」，才會上網把清單拿回來。
+            按「安裝」後，會先給你看檢查的結果。你按「確認安裝」才會真的裝。</p></div></div>
         <div class="row">
-          <button id="lib-load" class="primary" type="button" data-tour="settings.packs.catalog.load">載入工具清單</button>
+          <button id="lib-load" class="primary" type="button" data-tour="settings.packs.catalog.load">看有哪些工具</button>
           <a id="lib-overview" class="btn ghost" href="https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL" target="_blank" rel="noopener noreferrer">工具庫介紹</a>
         </div>
         <p id="lib-msg" class="msgline" role="status"></p>
+        <!-- 有新版的工具（外觀包也算）：「全部更新」＝一個一個走同一條「下載 → 檢查報告 → 你按確認」，不會自己裝 -->
+        <div id="lib-updates" class="note-line hidden" role="status"><span id="lib-updates-text"></span>
+          <button id="lib-update-all" class="primary" type="button">全部更新</button></div>
+        <p id="lib-queue" class="msgline hidden" role="status"></p>
         <p id="lib-error" class="note-line hidden" role="alert"><span id="lib-error-text"></span>
-          <a id="lib-releases" href="https://github.com/ChouYangEn0401/SYNOX_Libs/releases" target="_blank" rel="noopener noreferrer">GitHub 發佈頁</a></p>
+          <a id="lib-releases" href="https://github.com/ChouYangEn0401/SYNOX_Libs/releases" target="_blank" rel="noopener noreferrer">下載頁（GitHub）</a></p>
         <p id="lib-legend" class="muted lib-legend hidden">👤 單人用＝只有你能用。👥 伺服器版也能用＝SYNOX 開給家人或社團一起用時，每個人都能用、各自一份資料；只有你自己用的話兩種沒有差別。</p>
         <div id="lib-list"></div>
       </div>
@@ -876,14 +964,14 @@
 
       <div id="set-install" class="card hidden" data-tour="settings.packs.upload">
         <div class="card-head"><span class="tile" aria-hidden="true">📦</span>
-          <div class="txt"><h2>安裝新功能</h2><p class="sub">選一個 .synoxpack（pack 資料夾壓成的 zip），先看安全檢查報告，按「確認安裝」才會裝。
-            雙擊 .synoxpack、Install-Pack.bat 或 <code>synox install &lt;檔&gt;</code> 開的報告也會直接出現在這裡。</p></div></div>
+          <div class="txt"><h2>安裝新功能</h2><p class="sub">選一個工具檔（檔名結尾是 .synoxpack）。會先給你看安全檢查的結果，你按「確認安裝」才會真的裝。
+            在電腦裡對工具檔點兩下，檢查的結果也會出現在這裡。</p></div></div>
         <div class="upload">
-          <input id="pack-file" type="file" accept=".synoxpack,.zip" aria-label=".synoxpack 檔">
+          <input id="pack-file" type="file" accept=".synoxpack,.zip" aria-label="工具檔（.synoxpack）">
           <button id="pack-upload" class="primary" type="button">上傳並檢查</button>
         </div>
         <div id="staged-wrap" class="staged hidden">
-          <h3>等你核准</h3>
+          <h3>等你決定</h3>
           <p class="muted" id="staged-note"></p>
           <div id="staged-list"></div>
         </div>
@@ -896,11 +984,11 @@
 
       <div id="set-packs" class="card hidden" data-tour="settings.packs.installed">
         <div class="card-head"><span class="tile" aria-hidden="true">🧩</span>
-          <div class="txt"><h2>功能（pack）</h2><p class="sub">裝了哪些功能、能不能用。移除的會搬到 packs/_removed/，不會刪掉。</p></div></div>
+          <div class="txt"><h2>裝好的功能</h2><p class="sub">這裡列出裝了哪些功能，和它們現在能不能用。按「移除」只是把它收到旁邊，不會真的刪掉。</p></div></div>
         <div class="tablewrap"><table><thead><tr><th>名字</th><th>狀態</th><th>版本</th><th></th></tr></thead>
           <tbody id="pack-rows"></tbody></table></div>
         <div class="row">
-          <button id="pack-reload" class="ghost" type="button">重新載入全部</button>
+          <button id="pack-reload" class="ghost" type="button">全部重新讀一次</button>
           <span id="pack-msg" class="msgline"></span>
         </div>
       </div>
@@ -936,7 +1024,7 @@
       </div>
       </div>
 
-      <!-- 外觀（每個登入的人都看得到；synox/theme、docs/themes.md）。順序照擁有者說的：挑外觀 → 自己貼 → 淺色／深色 -->
+      <!-- 外觀（每個登入的人都看得到；synox/theme、docs/themes.md）。順序照擁有者說的：挑外觀 → 衣櫃 → 背景 → 自己貼 → 淺色／深色 -->
       <div class="tab-panel hidden" data-tab="appearance" role="tabpanel">
       <div id="set-look" class="card">
         <div class="card-head"><span class="tile" aria-hidden="true">🎨</span>
@@ -954,6 +1042,46 @@
         <div id="look-list" class="look-grid"></div>
         <p id="look-get" class="muted"></p>
         <p id="look-msg" class="msgline" role="status"></p>
+      </div>
+
+      <!-- 衣櫃（SYNOX 衣櫃；packs/catalog.py）：按按鈕才連網，清單是官方工具庫的同一份（只列 kind=theme）。
+           安裝＝跟工具庫同一條路（下載 → 報告 → 確認安裝），裝好回來這裡按「套用」。 -->
+      <div id="set-wardrobe" class="card">
+        <div class="card-head"><span class="tile" aria-hidden="true">👗</span>
+          <div class="txt"><h2>衣櫃</h2>
+            <p class="sub">這裡有整套的外觀可以挑。按下面的按鈕，才會上網看有哪些。按「安裝」後會先給你看檢查的結果，你按「確認安裝」才會裝。裝好再按「套用」。</p></div></div>
+        <div class="row">
+          <button id="wd-load" class="primary" type="button">看衣櫃（會上網）</button>
+          <a id="wd-page" class="btn ghost" href="https://claude.ai/artifact/USzGNERZ2477E7XzPaPCsR" target="_blank" rel="noopener noreferrer">到衣櫃網頁看完整預覽</a>
+        </div>
+        <p id="wd-owner-only" class="muted hidden">外觀要由擁有者來裝。你可以先到衣櫃網頁看看，喜歡的請擁有者裝。裝好後，你就能在上面挑。</p>
+        <p id="wd-msg" class="msgline" role="status"></p>
+        <p id="wd-error" class="note-line hidden" role="alert"></p>
+        <div id="wd-list" class="wd-grid"></div>
+      </div>
+
+      <!-- 背景（slot chat.background；synox/theme/appearance.py）：自己選的蓋過外觀包的；不連任何網址 -->
+      <div id="set-bg" class="card">
+        <div class="card-head"><span class="tile" aria-hidden="true">🖼️</span>
+          <div class="txt"><h2>背景</h2>
+            <p class="sub">對話後面的背景。只用顏色、內建的花紋或你自己貼的 SVG，不會載入任何網路上的圖片。你自己選的會蓋過外觀包的；花紋跟著外觀的顏色走。</p></div></div>
+        <div class="row" role="radiogroup" aria-label="背景">
+          <label class="choice"><input type="radio" name="bg-kind" value="theme"> 跟著外觀</label>
+          <label class="choice"><input type="radio" name="bg-kind" value="none"> 不要背景</label>
+          <label class="choice"><input type="radio" name="bg-kind" value="color"> 純色</label>
+          <label class="choice"><input type="radio" name="bg-kind" value="pattern"> 花紋</label>
+          <label class="choice"><input type="radio" name="bg-kind" value="svg"> 自己貼 SVG</label>
+        </div>
+        <div id="bg-color-row" class="row hidden">
+          <label for="bg-color">顏色</label><input id="bg-color" type="color">
+          <span class="muted">會跟底色混一半，深色模式也看得清楚。</span>
+        </div>
+        <div id="bg-patterns" class="bg-tiles hidden" role="radiogroup" aria-label="花紋"></div>
+        <div id="bg-svg-row" class="hidden">
+          <p class="muted">在下面的「自己貼」選「chat.background」貼 SVG：一樣先消毒、預覽，按「套用到這個位置」就用它當背景。</p>
+          <button id="bg-svg-go" type="button">去貼背景的 SVG</button>
+        </div>
+        <p id="bg-msg" class="msgline" role="status"></p>
       </div>
 
       <div id="set-custom" class="card">
@@ -1065,6 +1193,7 @@
 <script nonce="{{NONCE}}">/*{{INCLUDE:report.js}}*/</script>
 <script nonce="{{NONCE}}">/*{{INCLUDE:security.js}}*/</script>
 <script nonce="{{NONCE}}">/*{{INCLUDE:apps.js}}*/</script>
+<script nonce="{{NONCE}}">/*{{INCLUDE:notify.js}}*/</script>
 <!-- include: tools.js -->
 <!-- include: tour.js -->
 <!-- include: helpdock.js -->
@@ -1357,6 +1486,8 @@
       var s = $("stream");
       var empty = s.querySelector(".empty");
       if (pend && d.messages.some(function (m) { return m.from !== "me" && !nodes[m.id]; })) { pendSet(false); }
+      if (primed && window.SynoxNotify && d.messages.some(function (m) {       // 剛設好鬧鐘：上方的「⏰ 下一個」馬上更新
+        return m.from === "bot" && !nodes[m.id] && String(m.text || "").indexOf("⏰") === 0; })) { window.SynoxNotify.refresh(); }
       d.messages.forEach(function (m) {
         var node = renderMessage(m);
         if (nodes[m.id]) { s.replaceChild(node, nodes[m.id]); }
@@ -1505,8 +1636,8 @@
       $("my-budget").textContent = d.ai_budget ?
         "這個月的 AI 額度：用了約 US$" + d.ai_budget.used.toFixed(2) + "／US$" + Number(d.ai_budget.limit).toFixed(2) : "";
       $("my-budget").classList.toggle("hidden", !d.ai_budget);
-      if (d.owner) { loadUsage(); fillLlm(d); fillPacks(d.packs || []); loadChannels(); loadAwake(); loadStaged(); }
-      else { $("set-awake").classList.add("hidden"); }
+      if (d.owner) { loadUsage(); fillLlm(d); fillPacks(d.packs || []); loadChannels(); loadAwake(); loadStaged(); loadUpdate(); }
+      else { $("set-awake").classList.add("hidden"); $("set-update").classList.add("hidden"); }
       if (d.accounts) { loadAccounts(); }
       loadLook();
     }).catch(function (e) { toast(e.message); });
@@ -1560,14 +1691,18 @@
     list.appendChild(lookCard("", "原本的 SYNOX", "預設的樣子", null));
     (look.themes || []).forEach(function (t) {
       var card = lookCard(t.name, t.title, t.name + " · v" + t.version + (t.publisher ? " · " + t.publisher : ""), t.tokens);
-      if (!t.ok) { card.appendChild(el("p", "alert", "⚠️ 這個外觀包過不了消毒，不能套用")); card.querySelector("button").disabled = true; }
+      if (!t.ok) { card.appendChild(el("p", "alert", "⚠️ 這套外觀沒通過安全檢查，不能套用")); card.querySelector("button").disabled = true; }
       list.appendChild(card);
     });
     $("look-get").textContent = look.owner ?
-      "想要更多外觀？到 SYNOX 品牌頁挑一套，下載 .synoxpack，再到「功能與安裝」上傳：一樣先給你看檢查報告、你按確認才裝。" :
-      "外觀包由擁有者安裝；你可以在裝好的裡面挑。";
+      "想要更多外觀？到 SYNOX 品牌頁挑一套，把檔案下載回來，再到「功能與安裝」上傳。一樣會先給你看檢查的結果，你按確認才會裝。" :
+      "外觀要由擁有者來裝。你可以在裝好的裡面挑。";
     drawCustomSlots();
     Array.prototype.forEach.call(document.querySelectorAll('input[name="look-mode"]'), function (r) { r.checked = r.value === (look.mode || "auto"); });
+    drawBg();
+    $("wd-load").classList.toggle("hidden", !look.owner);
+    $("wd-owner-only").classList.toggle("hidden", !!look.owner);
+    renderWardrobe();
   }
   function applyLook(name) {
     $("look-msg").textContent = "套用中…";
@@ -1594,7 +1729,7 @@
       var item = el("div", "custom-item");
       var txt = el("div", "txt");
       txt.appendChild(el("b", "", name));
-      txt.appendChild(document.createTextNode(c.ok ? "：用你貼的" : "：⚠️ " + (c.error || "過不了消毒，現在沒用到")));
+      txt.appendChild(document.createTextNode(c.ok ? "：用你貼的" : "：⚠️ " + (c.error || "沒通過安全檢查，現在沒用到")));
       item.appendChild(txt);
       var edit = el("button", "sm", "編輯");
       edit.type = "button";
@@ -1626,7 +1761,7 @@
     clearCustomPreview();
     var box = $("custom-box");
     box.setAttribute("data-slot", slot);
-    box.className = "slot" + (slot === "wordmark" ? " wide" : "");
+    box.className = "slot" + (slot === "wordmark" ? " wide" : slot === "chat.background" ? " bgwide" : "");
     box.innerHTML = d.markup;               // 伺服器消毒、白名單重建過的；CSP 也不讓裡面跑任何程式
     if (d.css && window.CSSStyleSheet && document.adoptedStyleSheets) {
       try {
@@ -1638,7 +1773,7 @@
     var notes = $("custom-notes");
     clear(notes);
     (d.notes || []).forEach(function (n) { notes.appendChild(el("li", "", n)); });
-    if (!(d.notes || []).length) { notes.appendChild(el("li", "", "✅ 消毒過了，沒有拿掉任何東西。")); }
+    if (!(d.notes || []).length) { notes.appendChild(el("li", "", "✅ 檢查過了，沒有拿掉任何東西。")); }
     $("custom-out").classList.remove("hidden");
   }
   function saveCustom(slot, text) {
@@ -1681,6 +1816,204 @@
       }).catch(function (e) { $("mode-msg").textContent = "❌ " + e.message; });
     });
   });
+  // ── 外觀 → 衣櫃（SYNOX 衣櫃）：按「看衣櫃」才連網（伺服器抓寫死在 packs/catalog.py 的官方清單；這裡不組任何網址）──
+  // 「安裝」＝跟工具庫同一條路（/api/packs/library/install → 同一份報告 showReview → 人按「確認安裝」）；裝好回來按「套用」。
+  var WD_TEXT = {
+    load: "看衣櫃（會上網）", reload: "重新看一次", loading: "讀取中…",
+    loaded: "{title}：{n} 套外觀。按「安裝」會先給你看檢查的結果。", empty: "衣櫃裡還沒有東西。可以先到衣櫃網頁看看。",
+    install: "安裝", update: "更新到 v{v}", working: "下載並檢查中…",
+    installed: "已安裝", newer: "有新版 v{v}", apply: "套用", using: "使用中"
+  };
+  var wdThemes = [];
+  function wdFail(text) {
+    $("wd-error").textContent = text || "";
+    $("wd-error").classList.toggle("hidden", !text);
+  }
+  function wdInstalled(name) {            // 裝好、能用的（GET /api/appearance 的 themes）
+    return (look && look.themes || []).filter(function (x) { return x.name === name; })[0] || null;
+  }
+  function wdPreview(t) {
+    if ((t.swatches || []).length) {
+      var sw = el("span", "wd-sw");
+      t.swatches.forEach(function (c) {
+        var i = el("i");
+        if (/^#[0-9a-fA-F]{3,6}$/.test(c)) { i.style.background = c; }   // CSSOM（不是 inline style 屬性）：CSP 放行
+        sw.appendChild(i);
+      });
+      sw.setAttribute("aria-hidden", "true");
+      return sw;
+    }
+    var chip = el("span", "wd-chip", t.letter || "?");
+    chip.setAttribute("aria-hidden", "true");
+    return chip;
+  }
+  function wdCard(t) {
+    var have = wdInstalled(t.name);
+    var using = !!have && look && look.theme === t.name;
+    var card = el("article", "wd-card" + (using ? " on" : ""));
+    card.setAttribute("data-name", t.name);
+    card.appendChild(wdPreview(t));
+    var body = el("div", "wd-body");
+    body.appendChild(el("b", "", t.title));
+    body.appendChild(el("span", "wd-name", t.name + " · v" + t.version));
+    var line = el("p", "wd-line", t.line);
+    if (t.summary && t.summary !== t.line) { line.title = t.summary; }
+    body.appendChild(line);
+    var badges = el("div", "wd-badges");
+    if (t.badge && t.badge.text) {
+      var st = el("span", "badge warn", t.badge.text);
+      if (t.badge.hint) { st.title = t.badge.hint; }
+      badges.appendChild(st);
+    }
+    if (t.installed) { badges.appendChild(el("span", "badge ok", WD_TEXT.installed)); }
+    if (t.newer) { badges.appendChild(el("span", "badge info", fill(WD_TEXT.newer, { v: t.version }))); }
+    body.appendChild(badges);
+    var act = el("div", "wd-actions");
+    if (look && look.owner && (!t.installed || t.newer)) {
+      var go = el("button", t.installed ? "sm" : "primary sm", t.newer ? fill(WD_TEXT.update, { v: t.version }) : WD_TEXT.install);
+      go.type = "button";
+      go.addEventListener("click", function () { wdInstall(t, go); });
+      act.appendChild(go);
+    }
+    if (have) {
+      var ap = el("button", using ? "sm" : "primary sm", using ? WD_TEXT.using : WD_TEXT.apply);
+      ap.type = "button";
+      ap.disabled = using || !have.ok;
+      ap.addEventListener("click", function () { applyLook(t.name); });
+      act.appendChild(ap);
+    }
+    body.appendChild(act);
+    card.appendChild(body);
+    return card;
+  }
+  function renderWardrobe() {
+    var box = $("wd-list");
+    clear(box);
+    wdThemes.forEach(function (t) {
+      var have = wdInstalled(t.name);
+      if (have) { t.installed = have.version || t.installed || "?"; t.newer = verNewer(t.version, t.installed); }
+      box.appendChild(wdCard(t));
+    });
+  }
+  function wdInstall(t, btn) {
+    var label = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = WD_TEXT.working;
+    wdFail("");
+    function toReport() {                 // 報告在「功能與安裝」那一頁（同一份報告、同一個確認鈕）
+      $("pack-review").classList.add("hidden");
+      $("install-msg").textContent = "";
+      selectedToken = ""; markStaged();
+      setStep("check", "active", { token: "", name: t.name });
+      pickTab("packs");
+      if (location.hash !== "#packs") { location.hash = "#packs"; }
+    }
+    api("POST", "/api/packs/library/install", { name: t.name })
+      .then(function (s) { toReport(); showReview(s, true); loadStaged(); })
+      .catch(function (e) {
+        if (e.data && e.data.refused) { toReport(); reviewFailed(e); return; }     // 檢查沒過：照樣給看報告（不能裝）
+        wdFail(e.message);
+      })
+      .then(function () { btn.disabled = false; btn.textContent = label; });
+  }
+  $("wd-load").addEventListener("click", function () {
+    var b = $("wd-load");
+    b.disabled = true;
+    b.textContent = WD_TEXT.loading;
+    wdFail("");
+    $("wd-msg").textContent = "";
+    api("POST", "/api/packs/wardrobe", {}).then(function (d) {
+      wdThemes = d.themes || [];
+      if (LINK_RE.test(d.page || "")) { $("wd-page").href = d.page; }
+      $("wd-msg").textContent = wdThemes.length ? fill(WD_TEXT.loaded, { title: d.title || "SYNOX 衣櫃", n: wdThemes.length }) :
+        (d.empty || WD_TEXT.empty);
+      b.className = wdThemes.length ? "ghost" : "primary";
+      renderWardrobe();
+    }).catch(function (e) { wdFail(e.message); })
+      .then(function () { b.disabled = false; b.textContent = wdThemes.length ? WD_TEXT.reload : WD_TEXT.load; });
+  });
+  // ── 衣櫃 end
+
+  // ── 外觀 → 背景（slot chat.background；自己選的蓋過外觀包的）─────────────────
+  // 不要／純色／花紋：當場換（<html data-chat-bg>＋--chat-bg-color），伺服器下次送網頁也照這個；跟著外觀／自己貼：重新整理。
+  function bgNow() { return (look && look.background) || { kind: "theme" }; }
+  function bgShow(kind) {
+    $("bg-color-row").classList.toggle("hidden", kind !== "color");
+    $("bg-patterns").classList.toggle("hidden", kind !== "pattern");
+    $("bg-svg-row").classList.toggle("hidden", kind !== "svg");
+  }
+  function bgLive(bg) {
+    var html = document.documentElement;
+    var attr = bg.kind === "pattern" ? bg.pattern : (bg.kind === "none" || bg.kind === "color" ? bg.kind : "");
+    if (attr) { html.setAttribute("data-chat-bg", attr); } else { html.removeAttribute("data-chat-bg"); }
+    if (bg.kind === "color") { html.style.setProperty("--chat-bg-color", bg.color); }
+  }
+  function drawBg() {
+    var bg = bgNow();
+    Array.prototype.forEach.call(document.querySelectorAll('input[name="bg-kind"]'), function (r) { r.checked = r.value === bg.kind; });
+    var box = $("bg-patterns");
+    clear(box);
+    (look.patterns || []).forEach(function (pt, i) {
+      var lab = el("label", "bg-pick");
+      var r = el("input");
+      r.type = "radio"; r.name = "bg-pattern"; r.value = pt.name;
+      r.checked = bg.kind === "pattern" ? bg.pattern === pt.name : i === 0;
+      r.addEventListener("change", function () { if (r.checked) { saveBg({ kind: "pattern", pattern: pt.name }); } });
+      lab.appendChild(r);
+      lab.appendChild(el("span", "bg-tile " + pt.name));
+      lab.appendChild(el("span", "", pt.text));
+      box.appendChild(lab);
+    });
+    if (bg.kind === "color" && bg.color) { $("bg-color").value = bg.color.length === 4 ?
+      "#" + bg.color.slice(1).split("").map(function (c) { return c + c; }).join("") : bg.color; }
+    else if (!$("bg-color").getAttribute("data-set")) {         // 第一次：用外觀的主色當起點
+      var ac = getComputedStyle(document.documentElement).getPropertyValue("--accent").trim();
+      if (/^#[0-9a-fA-F]{6}$/.test(ac)) { $("bg-color").value = ac; }
+    }
+    bgShow(bg.kind);
+  }
+  function saveBg(bg, reload) {
+    $("bg-msg").textContent = "存檔中…";
+    return api("POST", "/api/appearance", { background: bg }).then(function (d) {
+      if (look) { look.background = d.background || bg; }
+      if (reload) {
+        $("bg-msg").textContent = "✅ 換好了，重新整理畫面…";
+        setTimeout(function () { location.reload(); }, 250);
+        return;
+      }
+      bgLive(look ? look.background : bg);
+      $("bg-msg").textContent = "✅ 存好了";
+    }).catch(function (e) { $("bg-msg").textContent = "❌ " + e.message; drawBg(); });
+  }
+  function bgGoPaste() {
+    var sel = $("custom-slot");
+    sel.value = "chat.background";
+    syncCustomHelp();
+    reveal($("set-custom"));
+    $("custom-text").focus();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="bg-kind"]'), function (r) {
+    r.addEventListener("change", function () {
+      if (!r.checked) { return; }
+      var kind = r.value;
+      bgShow(kind);
+      $("bg-msg").textContent = "";
+      if (kind === "theme" || kind === "none") { saveBg({ kind: kind }, kind === "theme"); }
+      else if (kind === "color") { $("bg-color").setAttribute("data-set", "1"); saveBg({ kind: "color", color: $("bg-color").value }); }
+      else if (kind === "pattern") {
+        var pick = document.querySelector('input[name="bg-pattern"]:checked');
+        saveBg({ kind: "pattern", pattern: pick ? pick.value : "dots" });
+      } else if (look && (look.custom || {})["chat.background"]) { saveBg({ kind: "svg" }, true); }
+      else { $("bg-msg").textContent = "先在「自己貼」貼一張 SVG 當背景。"; bgGoPaste(); }
+    });
+  });
+  $("bg-color").addEventListener("change", function () {
+    $("bg-color").setAttribute("data-set", "1");
+    saveBg({ kind: "color", color: $("bg-color").value });
+  });
+  $("bg-svg-go").addEventListener("click", bgGoPaste);
+  // ── 背景 end
+
   function fillLlm(d) {
     llmChoices = d.llm_choices || [];
     var sel = $("llm-choice");
@@ -1796,6 +2129,62 @@
     api("POST", "/api/runtime/keep-awake", { enabled: $("awake-enabled").checked, screen_off_after_min: minutes })
       .then(function (ka) { fillAwake(ka); $("awake-msg").textContent = "存好了。" + $("awake-msg").textContent; })
       .catch(function (e) { $("awake-msg").textContent = "❌ " + e.message; });
+  });
+
+  // ── SYNOX 更新（docs/adr/0023：按了才查；每週檢查預設關；「更新」只打開 Update.bat，不在網頁裡換檔）────────
+  var updState = null;
+  function updateBanner(notice) {
+    var box = $("update-banner");
+    if (!notice) { box.classList.add("hidden"); return; }
+    $("update-banner-text").textContent = notice.security ?
+      "🔒 SYNOX 有安全更新 " + notice.latest + "：強烈建議更新。" : "🆕 SYNOX 有新版 " + notice.latest + "。";
+    box.classList.remove("hidden");
+  }
+  function drawUpdate(d) {
+    updState = d;
+    $("set-update").classList.remove("hidden");
+    $("upd-weekly").checked = !!d.weekly;
+    $("upd-how").textContent = d.how || "";
+    var r = d.result || d.last, box = $("upd-result");
+    clear(box);
+    box.classList.toggle("hidden", !r);
+    $("upd-go").classList.add("hidden");
+    $("upd-confirm").classList.add("hidden");
+    if (r) {
+      (r.lines || []).forEach(function (line) { box.appendChild(el("p", "", line)); });
+      if (r.status === "newer" && !r.signed && r.kind === "zip") {
+        box.appendChild(el("p", "muted", "這一版沒有簽章：更新視窗會先說明，要你明確同意（Update.bat -AllowUnsigned）才會換檔。"));
+      }
+      if (r.checked_at) { box.appendChild(el("p", "muted", "查的時間：" + new Date(r.checked_at * 1000).toLocaleString())); }
+      $("upd-go").classList.toggle("hidden", !(r.status === "newer" && d.can_launch));
+    }
+    updateBanner(d.notice);
+    if (r && typeof r.tools_newer === "number") { libHint(r.tools_newer); }
+  }
+  function loadUpdate() {
+    api("GET", "/api/settings/update").then(drawUpdate).catch(function () { $("set-update").classList.add("hidden"); });
+  }
+  $("upd-check").addEventListener("click", function () {
+    $("upd-msg").textContent = "問 GitHub 中…";
+    api("POST", "/api/settings/update/check", {}).then(function (d) { $("upd-msg").textContent = ""; drawUpdate(d); })
+      .catch(function (e) { $("upd-msg").textContent = "❌ " + e.message; });
+  });
+  $("upd-weekly").addEventListener("change", function () {
+    var on = $("upd-weekly").checked;
+    api("POST", "/api/settings/update/weekly", { enabled: on }).then(function (d) {
+      drawUpdate(d); $("upd-msg").textContent = on ? "存好了：每週看一次（只看，不會自己裝）。" : "存好了：只有你按「檢查更新」才查。";
+    }).catch(function (e) { $("upd-weekly").checked = !on; $("upd-msg").textContent = "❌ " + e.message; });
+  });
+  $("upd-go").addEventListener("click", function () { $("upd-confirm").classList.remove("hidden"); $("upd-launch").focus(); });
+  $("upd-cancel").addEventListener("click", function () { $("upd-confirm").classList.add("hidden"); });
+  $("upd-launch").addEventListener("click", function () {
+    $("upd-confirm").classList.add("hidden");
+    api("POST", "/api/settings/update/launch", {}).then(function (d) { $("upd-msg").textContent = d.message; })
+      .catch(function (e) { $("upd-msg").textContent = "❌ " + e.message; });
+  });
+  $("update-banner-ok").addEventListener("click", function () {
+    $("update-banner").classList.add("hidden");
+    api("POST", "/api/settings/update/dismiss", {}).catch(function () { /* 下次再顯示也沒關係 */ });
   });
 
   // ── AI 用量與花費（小儀表板）──────────────────────────────────────
@@ -2028,8 +2417,8 @@
   $("ch-tg-save").addEventListener("click", function () { saveChannel("tg"); });
   $("ch-dc-save").addEventListener("click", function () { saveChannel("dc"); });
 
-  var STATUS = { loaded: "可以用", connector: "還沒接上", disabled: "關掉了", invalid: "格式不對", missing: "缺東西", incompatible: "SYNOX 版本不合", error: "壞了",
-    tampered: "被改過了，沒有載入", rejected: "掃描沒過，沒有載入" };
+  var STATUS = { loaded: "可以用", connector: "還沒接好", disabled: "關掉了", invalid: "檔案有問題", missing: "缺東西", incompatible: "跟這版 SYNOX 不合", error: "壞了",
+    tampered: "被改過了，先不開", rejected: "安全檢查沒過，先不開" };
   // 狀態的顏色（顏色之外一定有字）：可以用＝綠、還沒接上／關掉＝黃、其他＝紅
   var TONE = { loaded: "ok", connector: "warn", disabled: "", missing: "warn", incompatible: "warn" };
   var LOCK = { locked: "🔒", unlocked: "", tampered: "⚠️" };
@@ -2050,9 +2439,9 @@
         var b = el("button", "danger sm", "移除");
         b.type = "button";
         b.addEventListener("click", function () {
-          if (!confirm("移除 " + p.name + "？（會搬到 packs/_removed/，不會刪掉）")) { return; }
+          if (!confirm("要移除 " + p.name + "？只是把它收到旁邊，不會真的刪掉。")) { return; }
           api("POST", "/api/packs/remove", { name: p.name }).then(function (d) {
-            $("pack-msg").textContent = "搬到 " + d.moved_to; loadSettings();
+            $("pack-msg").textContent = "移除了。進階：收在 " + d.moved_to; loadSettings();
             if (window.SynoxTour) { window.SynoxTour.signal("pack_removed"); }
           }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });
         });
@@ -2063,8 +2452,8 @@
     });
     libSync(packs);                    // 工具庫的卡片跟著更新「已安裝」
   }
-  var CAP = { network: "連網", subprocess: "開別的程式", "filesystem:own": "讀寫檔案",
-    "filesystem:any": "讀寫 pack 以外的檔案", exec: "動態執行程式碼" };
+  var CAP = { network: "會上網", subprocess: "會開別的程式", "filesystem:own": "會讀寫自己的檔案",
+    "filesystem:any": "會讀寫這個工具以外的檔案", exec: "會執行臨時產生的程式" };
   function capList(list) {
     return (list && list.length) ? list.map(function (c) { return CAP[c] || c; }).join("、") : "（沒有）";
   }
@@ -2077,22 +2466,22 @@
     if (s.token) { selectedToken = s.token; markStaged(); }
     box.appendChild(el("h3", "", s.title + "（" + s.name + " " + s.version + "）"));
     box.appendChild(el("p", "", s.summary));
-    box.appendChild(el("p", "muted", "種類 " + s.kind + "，誰能用 " + s.access + "，資料 " + s.storage +
-      (s.panel ? "，有網頁面板" : "") + "；" + (s.files || []).length + " 個檔案" +
-      (s.publisher ? "；發行者 " + s.publisher : "") + (s.integrity ? "；有打包時的雜湊" : "")));
+    box.appendChild(el("p", "muted", "進階：種類 " + s.kind + "，誰能用 " + s.access + "，資料 " + s.storage +
+      (s.panel ? "，有自己的小畫面" : "") + "；" + (s.files || []).length + " 個檔案" +
+      (s.publisher ? "；發行者 " + s.publisher : "") + (s.integrity ? "；有附檢查碼" : "")));
     var scan = s.scan || {};
-    box.appendChild(el("p", "", "宣告要：" + capList(scan.declared_capabilities) + "　掃描看到要：" +
+    box.appendChild(el("p", "", "它說它：" + capList(scan.declared_capabilities) + "　我檢查到它：" +
       capList(scan.required_capabilities)));
     if ((scan.problems || []).length) {
       var warnRow = el("div", "mood-row");
       warnRow.appendChild(slotNode("mascot.warn", "mood"));
-      warnRow.appendChild(el("p", "alert", "❌ 拒裝：安全檢查沒過"));
+      warnRow.appendChild(el("p", "alert", "❌ 不能裝：安全檢查沒過"));
       box.appendChild(warnRow);
       var bad = el("ul");
       scan.problems.forEach(function (p) { bad.appendChild(el("li", "", p)); });
       box.appendChild(bad);
     } else {
-      box.appendChild(el("p", "", "✅ 宣告檢查、靜態掃描都過了"));
+      box.appendChild(el("p", "", "✅ 安全檢查過了"));
     }
     var notes = (scan.findings || []).filter(function (f) { return !f.capability || f.kind === "env"; });
     if (notes.length) {
@@ -2104,24 +2493,24 @@
     var env = s.upgrade ? {} : (s.env || {});   // 升級：看升級報告那一段（跟舊版比過要不要建）
     if (env.needed) {
       // runtime.python／node = auto：按確認之後才建（packs/envs.py）
-      box.appendChild(el("p", "", "🧱 要建環境（按確認之後才建，要網路，最多 10 分鐘）："));
+      box.appendChild(el("p", "", "🧱 這個工具還要另外下載一些東西才能用。按確認後才會開始，要有網路，最多等 10 分鐘："));
       var el2 = el("ul");
       (env.lines || []).forEach(function (t) { el2.appendChild(el("li", "", t)); });
       (env.problems || []).forEach(function (t) { el2.appendChild(el("li", "", "⚠️ " + t)); });
       box.appendChild(el2);
-      box.appendChild(el("p", "muted", "建失敗的話 pack 照樣裝好，狀態會標「環境沒建好」，修好後可以重建。"));
+      box.appendChild(el("p", "muted", "如果下載失敗，工具還是會裝好，只是狀態會寫「環境沒建好」。問題排除後可以再試一次。"));
     }
     var ul = el("ul");
     (s.warnings || []).forEach(function (w) { ul.appendChild(el("li", "", w)); });
     if ((s.warnings || []).length) { box.appendChild(ul); }
     if (s.app) {                               // 工具服務（ADR 0024 §5）：畫面能做的動作與匯出
       var appUl = el("ul");
-      var effText = { write: "會寫入", danger: "危險：會先問你" };
+      var effText = { write: "會改資料", danger: "危險：做之前會先問你" };
       Object.keys(s.app.actions || {}).forEach(function (n) {
         appUl.appendChild(el("li", "", "🖥 畫面的動作 " + n + "：" + (effText[s.app.actions[n]] || s.app.actions[n])));
       });
       (s.app.exports || []).forEach(function (n) { appUl.appendChild(el("li", "", "🖥 畫面的匯出 " + n)); });
-      box.appendChild(el("p", "", "🖥 完整網頁畫面" + (s.app.title ? "「" + s.app.title + "」" : "") + "（" + s.app.files + " 個檔）："));
+      box.appendChild(el("p", "", "🖥 有自己的完整畫面" + (s.app.title ? "「" + s.app.title + "」" : "") + "（" + s.app.files + " 個檔）："));
       box.appendChild(appUl);
     }
     var upg = s.upgrade, down = null;
@@ -2231,12 +2620,12 @@
     st.appendChild(el("span", "badge " + tone, STATUS[d.status] || d.status || "？"));
     if (d.detail) { st.appendChild(document.createTextNode(" " + d.detail)); }
     box.appendChild(st);
-    if (d.upgraded && d.backup) { box.appendChild(el("p", "muted", "舊的在 " + d.backup + "（要退回：python -m synox packs rollback " + d.name + "）")); }
-    if (d.env === "building") { box.appendChild(el("p", "note-line", "🧱 環境在背景建（最多 10 分鐘），好了會通知你；在那之前狀態可能是「環境沒建好」。")); }
+    if (d.upgraded && d.backup) { box.appendChild(el("p", "muted", "進階：舊版收在 " + d.backup + "（要換回舊版：python -m synox packs rollback " + d.name + "）")); }
+    if (d.env === "building") { box.appendChild(el("p", "note-line", "🧱 還在下載它需要的東西，最多 10 分鐘，好了會通知你。在那之前，狀態可能會寫「環境沒建好」。")); }
     else if (d.env && d.env.indexOf("failed") === 0) { box.appendChild(el("p", "alert", "⚠️ 環境沒建好：" + d.env.slice(8))); }
     var isTheme = d.kind === "theme";
     box.appendChild(el("p", "muted", isTheme ? "這是外觀包：到「外觀」挑它、按「套用」才會換（隨時可以換回原本的 SYNOX）。" :
-      "已經重新載入，可以到工具頁用了。"));
+      "可以用了。到工具頁就看得到。"));
     var row = el("div", "row");
     var go = el("button", "primary", isTheme ? "去「外觀」套用" : "去工具頁");
     go.type = "button";
@@ -2299,7 +2688,7 @@
     if (!me || !me.owner) { return Promise.resolve(); }
     return api("GET", "/api/packs/staged").then(function (d) {
       stagedRows = d.staged || [];
-      $("staged-note").textContent = "還沒按確認的 pack；" + (d.max_age_days || 7) + " 天沒處理會自動清掉。";
+      $("staged-note").textContent = "這些是你還沒按確認的。放 " + (d.max_age_days || 7) + " 天沒處理，會自動清掉。";
       renderStaged();
     }).catch(function () {});
   }
@@ -2361,32 +2750,32 @@
   function showUpgrade(box, upg, name) {
     box.appendChild(el("h3", "", "🔁 這是升級：改了什麼（" + upg.installed_version + " → " + upg.new_version + "）"));
     box.appendChild(el("p", upg.version_ok ? "" : "alert", (upg.version_ok ? "✅ " : "⛔ ") + upg.version_message));
-    if (upg.installed_lock === "tampered") { box.appendChild(el("p", "alert", "⚠️ 裝著的那一份已經被改過（跟 packs.lock 不符）")); }
+    if (upg.installed_lock === "tampered") { box.appendChild(el("p", "alert", "⚠️ 現在裝著的這一份，裝好之後被改過了")); }
     var cl = el("ul");
     (upg.changes || []).forEach(function (c) { cl.appendChild(el("li", c.alert ? "alert" : "", (c.alert ? "🔴 " : "") + c.text)); });
-    if (!(upg.changes || []).length) { cl.appendChild(el("li", "muted", "宣告沒有變")); }
+    if (!(upg.changes || []).length) { cl.appendChild(el("li", "muted", "它會做的事沒有變")); }
     box.appendChild(cl);
     if ((upg.files || []).length) { box.appendChild(el("p", "muted", "檔案：" + upg.files.join("、"))); }
     var env = upg.env || {};
     if (env.keep) {
-      box.appendChild(el("p", "muted", "🧱 環境：套件清單跟舊版一樣，沿用 data/envs/" + name + "/（不重建）"));
+      box.appendChild(el("p", "muted", "🧱 它需要的東西跟舊版一樣，不用重新下載。（進階：沿用 data/envs/" + name + "/）"));
     } else if (env.needed) {
-      box.appendChild(el("p", "", "🧱 " + (env.rebuild ? "要重建環境" : "要建環境") + "（按確認升級之後才建，要網路，最多 10 分鐘）：" +
+      box.appendChild(el("p", "", "🧱 " + (env.rebuild ? "要重新下載它需要的東西" : "要下載它需要的東西") + "（按「確認升級」後才開始，要有網路，最多 10 分鐘）：" +
         (env.reason || "")));
       var envList = el("ul");
       (env.lines || []).forEach(function (t) { envList.appendChild(el("li", "", t)); });
       (env.problems || []).forEach(function (t) { envList.appendChild(el("li", "", "⚠️ " + t)); });
       box.appendChild(envList);
-      box.appendChild(el("p", "muted", "建失敗的話 pack 照樣升級好（不會退回），狀態會標「環境沒建好」，修好後可以重建。"));
+      box.appendChild(el("p", "muted", "如果下載失敗，工具還是會升級好（不會退回舊版），只是狀態會寫「環境沒建好」。問題排除後可以再試一次。"));
     }
-    box.appendChild(el("p", "muted", "資料（data/、使用者資料夾）不會動；資料格式要不要轉換由 pack 自己負責。舊版會搬到 packs/_removed/，" +
-      "要退回：python -m synox packs rollback " + name));
+    box.appendChild(el("p", "muted", "你的資料不會動。舊版會先收起來，不會刪掉。進階：舊版收在 packs/_removed/，" +
+      "要換回舊版就執行 python -m synox packs rollback " + name));
     if (upg.version_ok || !upg.can_force) { return null; }
     var lab = el("label", "alert");
     var cb = el("input");
     cb.type = "checkbox";
     lab.appendChild(cb);
-    lab.appendChild(document.createTextNode(" 我知道，照樣換成這一版（降級／重裝）"));
+    lab.appendChild(document.createTextNode(" 我知道這不是比較新的版本，還是要換成這一版"));
     box.appendChild(lab);
     return cb;
   }
@@ -2402,7 +2791,7 @@
       box.appendChild(tl);
     }
     box.appendChild(el("p", "", "🧭 在哪裡用：" + (s.surfaces_text || "") + "　資料：" + (s.data_text || s.data || "") +
-      (s.data_declared ? "" : "（沒寫，照預設推的）")));
+      (s.data_declared ? "" : "（工具沒寫，先照一般的算）")));
     var lab = el("label", "", "🔑 信任：");
     var sel = el("select");
     var current = upg ? (upg.installed_trust || "") : "";
@@ -2488,7 +2877,7 @@
     var cb = el("input");
     cb.type = "checkbox";
     lab.appendChild(cb);
-    lab.appendChild(document.createTextNode(" 我知道這個 pack 會執行掃不到內容的東西，我信任發行者："));
+    lab.appendChild(document.createTextNode(" 我知道這個工具裡有檢查不到的程式，我信任它的發行者："));
     var input = el("input");
     input.type = "text";
     input.placeholder = "輸入 " + t.publisher;
@@ -2508,7 +2897,7 @@
   }
   // 上傳一個檔 → 第 1、2 關（伺服器）→ 報告。拖放（之後另外做）也走這裡：window.SynoxInstall.reviewFile(file)
   function uploadFile(f) {
-    if (!f) { toast("先選一個 .synoxpack 檔"); return Promise.resolve(); }
+    if (!f) { toast("先選一個工具檔（.synoxpack）"); return Promise.resolve(); }
     $("pack-review").classList.add("hidden");
     $("install-msg").textContent = "";
     selectedToken = ""; markStaged();
@@ -2547,16 +2936,24 @@
     },
     state: function () { return { step: flow.step, status: flow.status, token: flow.token, name: flow.name }; }
   };
-  // ── 工具庫（官方）：按「載入工具清單」才連網（伺服器抓寫死在 packs/catalog.py 的官方網址；這裡不組任何網址）──
+  // ── 工具庫（官方）：按「看有哪些工具」才連網（伺服器抓寫死在 packs/catalog.py 的官方網址；這裡不組任何網址）──
   // 「安裝」＝伺服器下載、對檔 → 跟上傳同一份報告（showReview）→ 人按「確認安裝」才裝。有新版＝同一條路，報告會是升級的。
   var LIB_TEXT = {
-    load: "載入工具清單", reload: "重新載入清單", loading: "載入中…",
+    load: "看有哪些工具", reload: "重新看一次", loading: "讀取中…",
     loaded: "工具庫 v{v}：{n} 個工具。", empty: "工具庫裡現在沒有工具。",
     install: "安裝", update: "更新到 v{v}", working: "下載並檢查中…",
     download: "⬇ 下載", help: "說明", installed: "✅ 已安裝 v{v}", newer: "有新版 v{v}",
-    local: "存在這台電腦（不連網）", online: "接外面的服務"
+    local: "資料存在這台電腦（不用上網）", online: "要連到別的網站才能用",
+    updates: "有 {n} 個工具可以更新", updates_hint: "有 {n} 個工具可以更新（上次檢查更新時看到的）",
+    queue: "全部更新：第 {i}／{n} 個（{name}）。看完報告按「確認升級」，或按「稍後再決定」跳過，就會換下一個。",
+    queue_done: "全部更新：{n} 個都看過了。", queue_stopped: "全部更新停下來了：{name} 沒有下載成功（看下面的原因）。",
+    queue_none: "沒有要更新的工具。"
   };
   var libTools = [];
+  var libUpdates = [];                  // 伺服器給的 updates（工具與外觀包）：name、title、kind、installed、version
+  var libLoaded = false;
+  var libHintCount = 0;                 // 還沒載入清單時：上次「檢查更新」看到的數目（GET /api/settings/update）
+  var libQueue = null;                  // 全部更新：{ names, i, current }
   var LINK_RE = /^https:\/\/[^\s]+$/;
   function fill(t, o) { return t.replace(/\{(\w+)\}/g, function (_m, k) { return String(o[k]); }); }
   function verKey(v) {                  // "1.2.3-beta" → [1, 2, 3, 0]；正式版最後一位是 1（比同號的預覽版新）
@@ -2629,10 +3026,52 @@
       box.appendChild(grid);
     });
   }
+  function libUpdateBar() {
+    var n = libLoaded ? libUpdates.length : libHintCount;
+    $("lib-updates-text").textContent = n ? fill(libLoaded ? LIB_TEXT.updates : LIB_TEXT.updates_hint, { n: n }) : "";
+    $("lib-updates").classList.toggle("hidden", !n || !!libQueue);
+  }
+  function libHint(n) {                 // 「檢查更新」的結果（tools_newer）：清單還沒載入時先提示
+    libHintCount = Number(n) || 0;
+    if (!libLoaded) { libUpdateBar(); }
+  }
+  function libQueueNext() {             // 一次一個：同一個 libInstall → 同一份報告 → 人按確認
+    if (!libQueue) { return; }
+    if (libQueue.i >= libQueue.names.length) {
+      $("lib-queue").textContent = fill(LIB_TEXT.queue_done, { n: libQueue.names.length });
+      libQueue = null;
+      libUpdateBar();
+      return;
+    }
+    var name = libQueue.names[libQueue.i];
+    libQueue.i += 1;
+    libQueue.current = name;
+    $("lib-queue").textContent = fill(LIB_TEXT.queue, { i: libQueue.i, n: libQueue.names.length, name: name });
+    $("lib-queue").classList.remove("hidden");
+    libInstall({ name: name }, el("button", "", ""));
+  }
+  function libUpdateAll() {
+    var names = libUpdates.map(function (u) { return u.name; });
+    if (!names.length) { $("lib-queue").textContent = LIB_TEXT.queue_none; $("lib-queue").classList.remove("hidden"); return; }
+    libQueue = { names: names, i: 0, current: "" };
+    libUpdateBar();
+    libQueueNext();
+  }
+  // 這一個結束了（裝好＝done；「稍後再決定」「不要裝」「關掉」＝idle）→ 換下一個
+  document.addEventListener("synox:install-step", function (ev) {
+    var d = ev.detail || {};
+    if (!libQueue || !libQueue.current || (d.step !== "done" && d.step !== "idle")) { return; }
+    libQueue.current = "";
+    setTimeout(libQueueNext, d.step === "done" ? 1500 : 0);
+  });
   function libSync(packs) {            // 裝好／升級好之後（loadSettings → fillPacks）：不重抓清單，只更新「已安裝」
-    if (!libTools.length) { return; }
+    if (!libTools.length && !libUpdates.length) { return; }
     var have = {};
     (packs || []).forEach(function (p) { have[p.name] = p.version || "?"; });
+    libUpdates = libUpdates.filter(function (u) {
+      return Object.prototype.hasOwnProperty.call(have, u.name) && verNewer(u.version, have[u.name]);
+    });
+    libUpdateBar();
     libTools.forEach(function (t) {
       t.installed = Object.prototype.hasOwnProperty.call(have, t.name) ? have[t.name] : "";
       t.newer = !!t.installed && verNewer(t.version, t.installed);
@@ -2653,20 +3092,28 @@
       .then(function (s) { showReview(s, true); loadStaged(); })       // 跟上傳同一份報告、同一個確認鈕
       .catch(function (e) {
         if (e.data && e.data.refused) { reviewFailed(e); return; }      // 檢查沒過：照樣給看報告（不能裝）
+        if (libQueue) {                                                 // 全部更新：下載失敗就停，不跳過原因
+          $("lib-queue").textContent = fill(LIB_TEXT.queue_stopped, { name: t.name });
+          libQueue = null;
+          libUpdateBar();
+        }
         setStep("idle");
         libFail(e.message);
         reveal($("lib-error"));
       })
       .then(function () { btn.disabled = false; btn.textContent = label; });
   }
-  $("lib-load").addEventListener("click", function () {
+  function libLoad() {
     var b = $("lib-load");
     b.disabled = true;
     b.textContent = LIB_TEXT.loading;
     libFail("");
     $("lib-msg").textContent = "";
-    api("POST", "/api/packs/library", {}).then(function (d) {
+    return api("POST", "/api/packs/library", {}).then(function (d) {
       libTools = d.tools || [];
+      libUpdates = d.updates || [];
+      libLoaded = true;
+      libUpdateBar();
       if (LINK_RE.test(d.overview || "")) { $("lib-overview").href = d.overview; }
       if (LINK_RE.test(d.releases || "")) { $("lib-releases").href = d.releases; }
       $("lib-msg").textContent = libTools.length ? fill(LIB_TEXT.loaded, { v: d.version, n: libTools.length }) : LIB_TEXT.empty;
@@ -2674,14 +3121,20 @@
       b.className = libTools.length ? "ghost" : "primary";
       renderLib();
       if (window.SynoxTour) { window.SynoxTour.signal("catalog_loaded"); }
-    }).catch(function (e) { libFail(e.message); })
-      .then(function () { b.disabled = false; b.textContent = libTools.length ? LIB_TEXT.reload : LIB_TEXT.load; });
+      return true;
+    }).catch(function (e) { libFail(e.message); return false; })
+      .then(function (ok) { b.disabled = false; b.textContent = libTools.length ? LIB_TEXT.reload : LIB_TEXT.load; return ok; });
+  }
+  $("lib-load").addEventListener("click", function () { libLoad(); });
+  $("lib-update-all").addEventListener("click", function () {      // 還沒載入清單＝先載入（這時才連網），再一個一個來
+    if (libLoaded) { libUpdateAll(); return; }
+    libLoad().then(function (ok) { if (ok) { libUpdateAll(); } });
   });
   // ── 工具庫 end
 
   $("pack-reload").addEventListener("click", function () {
     api("POST", "/api/packs/reload", {}).then(function (d) {
-      $("pack-msg").textContent = d.ok ? "重新載入好了。" : "重新載入了，但有 pack 有問題（看上面的狀態）。";
+      $("pack-msg").textContent = d.ok ? "重新讀好了。" : "重新讀好了，但有功能出問題。看上面「狀態」那一欄。";
       loadSettings();
     }).catch(function (e) { $("pack-msg").textContent = "❌ " + e.message; });
   });
@@ -2756,11 +3209,15 @@
     $("nav-control").classList.toggle("hidden", !(control && control.canSee(d)));
     $("logout").classList.remove("hidden");
     showWho(d);
+    if (d.owner) {                             // 有新版的橫幅：只讀上次查的結果，不連網（docs/adr/0023）
+      api("GET", "/api/settings/update").then(function (u) { updateBanner(u.notice); }).catch(function () { /* 沒有就算了 */ });
+    }
     if (window.SynoxReport) { window.SynoxReport.init({ api: api, toast: toast }); }   // 遇到問題？（static/report.js）
     if (window.SynoxStepUp) { window.SynoxStepUp.init({ api: api, toast: toast }); }   // 🔐 安全（static/security.js）
     if (window.SynoxApps) {                                                             // 工具服務（static/apps.js）
       window.SynoxApps.init({ api: api, toast: toast, csrf: function () { return me ? me.csrf : ""; } });
     }
+    if (window.SynoxNotify) { window.SynoxNotify.init({ api: api, toast: toast, me: d }); }   // 🔔 通知與 ⏰ 鬧鐘（static/notify.js）
     route();
     function fillInput(text) {               // 範例、教學的「幫我填好」：只把字放進輸入框，不送出
       if (currentView !== "chat") { location.hash = "#chat"; }

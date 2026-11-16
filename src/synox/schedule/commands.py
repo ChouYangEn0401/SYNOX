@@ -74,16 +74,37 @@ def install_system_remind(app) -> None:
     app.extras.setdefault(SYSTEM_GROUPS_KEY, {})[REMIND_GROUP] = REMIND_RETIRED
 
 
+def ring_line(app, uid: int, at, now) -> str:
+    """設好鬧鐘之後那兩行：什麼時候、會在哪裡響（只列真的接上的），以及只有 SYNOX 開著才會響。"""
+    from synox import notify
+    from synox.notify import alarms
+    where = notify.where_text(app, uid)
+    when = alarms.friendly(at, now) if at is not None else ""
+    if where:
+        where += " " if where[-1].isascii() else ""          # 「Discord 提醒你」：英文字後面空一格
+        head = f"{when}，會在{where}提醒你。" if when else f"時間到會在{where}提醒你。"
+    else:
+        head = "⚠️ 現在沒有任何地方可以叫你：到網頁「設定 → 電腦與備份 → 通知要送到哪裡」打開。"
+    return head + "\n" + alarms.NOTE
+
+
 def install_remind(app, group) -> None:
     store = store_for(app)
 
     def add(api, chat_id, user, values):
+        from datetime import datetime
+        from synox.notify import alarms
+        now = datetime.now()
+        day = values.get("date", "")
+        if day == now.strftime("%Y-%m-%d") and values["time"] < now.strftime("%H:%M"):
+            api.send_message(chat_id, f"❌ 今天 {values['time']} 已經過了。要明天的話，日期填明天"
+                                      f"（date={(now.date() + Date.resolution).isoformat()}）。")
+            return
         mine = store.of(user)
-        item = mine.add("remind", values["time"], user.tg_id, text=values["text"].strip(),
-                        date=values.get("date", ""))
+        item = mine.add("remind", values["time"], user.tg_id, text=values["text"].strip(), date=day)
         n = len(mine.items("remind"))
         api.send_message(chat_id, f"⏰ 好，{_when(item)} 提醒你：{item['text']}（第 {n} 個）\n"
-                                  "（提醒只有 bot 開著時才會送出）")
+                                  + ring_line(app, user.tg_id, alarms.next_at(item, now), now))
 
     def list_(api, chat_id, user, values):
         items = store.of(user).items("remind")

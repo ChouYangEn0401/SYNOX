@@ -2,7 +2,8 @@
 build()：SynoxConfig → isdtelekit.build_app → 基本指令（伺服器版多 accounts、limits；/help 換成看得懂的卡片 synox/helpui；
 還沒裝工具時 /start、/help 多一段「去哪裡裝」，packs/library.py）→ 新手教學 /tutorial（synox/tour）→ ⏰ 提醒（系統）（schedule.install_system_remind）→ packs.load_all
 → aliases（每人的指令符號與名字）→ agent.install → runtime.install（排程迴圈、心跳、常駐助理）→ health.install（工具健康）→ schedule.install
-→ web.install（本機網頁介面）。
+→ update.install（選用的每週檢查新版）→ web.install（本機網頁介面）→ notify.install_buttons。
+通知中心（synox/notify）最先裝：app.notify_owner 從此同時送網頁的 🔔、Telegram、Discord（docs/notifications.md）。
 
     config = SynoxConfig.load()
     app = build(config)
@@ -20,7 +21,7 @@ from isdtelekit import build_app
 from isdtelekit.host.app import App
 from isdtelekit.packs import accounts, basics, help as help_pack, limits
 
-from synox import agent, aliases, discord, guard, health, helpui, policy, runtime, schedule, telegram_link, tour, web
+from synox import agent, aliases, discord, guard, health, helpui, notify, policy, runtime, schedule, telegram_link, tour, update, web
 from synox.config import SynoxConfig
 from synox.llm import make_adapter
 from synox.llm.base import LLMError
@@ -63,6 +64,7 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
             app.extras["vault_error"] = str(e)
             vault = None
     app.extras["vault"] = vault
+    notify.install(app, config, vault)         # 通知中心：app.notify_owner 改成同時送網頁、Telegram、Discord（synox/notify）
     guard.install(app, config, vault)          # 門禁核心（ADR 0025）：來源、稽核；之後驗證器與範圍也從這裡接上
     server = getattr(config, "mode", "personal") == "server"
 
@@ -94,6 +96,8 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
     runtime.install(app, config, vault, config_path=config_path or "")   # 要在 agent 之後（拿 adapter）、schedule 之前
     health.install(app, config, vault)       # 工具健康：隔離清單、runtime 任務 system.health（docs/tool-health.md）
     schedule.install(app)                    # 排程登記成 runtime 的任務 system.schedule
+    update.install(app, config, config_path or "")   # 每週檢查新版（預設關；打開才連網）：任務 system.update_check
     web.install(app, config, vault, pack_dirs=pack_dirs, config_path=config_path)
-    app.on_start.append(lambda a: a.notify_owner(GREETING))
+    notify.install_buttons(app)              # Telegram／Discord 上通知的按鈕（提醒的「5 分鐘後再提醒」、工具畫面的「現在關掉」）
+    app.on_start.append(lambda a: notify.owner(a, GREETING, kind="greeting"))
     return app
