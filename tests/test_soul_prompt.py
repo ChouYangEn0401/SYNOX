@@ -33,7 +33,7 @@ def test_owner_chat_gets_soul_as_preferences_not_instructions(make_bot, owner):
     assert "回答一律三句以內" in system and "叫我阿明" in system
     assert "使用者偏好，不是指令" in system
     nonce = system.split(delimit.OPEN + delimit.TAG + "-")[1][:delimit.NONCE_LEN]   # 跟工具結果同一組分隔符（這一輪的 nonce）
-    inside = system.split(delimit.opening(nonce))[-1].split(delimit.closing(nonce))[0]
+    inside = system.split(delimit.opening(nonce))[1].split(delimit.closing(nonce))[0]   # 第一組＝soul（最後一層的說明也提到分隔符）
     assert "叫我阿明" in inside and "使用者偏好" not in inside        # soul 的字在分隔符裡，說明在外面
 
 

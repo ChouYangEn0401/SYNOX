@@ -1,0 +1,35 @@
+{
+  "case": "remind-02",
+  "source": "broken",
+  "completion_guard": "on",
+  "note": "回執只有 Telegram 與電腦視窗，AI 卻說會用 LINE 提醒：管道超出回執",
+  "expected_failures": [
+    "final_not_contains",
+    "max_steps"
+  ],
+  "turns": [
+    [
+      {
+        "tool_calls": [
+          {
+            "name": "alarm__set",
+            "args": {
+              "time": "22:00",
+              "text": "吃藥",
+              "repeat": "daily"
+            }
+          }
+        ]
+      },
+      {
+        "text": "好，每天晚上 10 點會用 LINE 提醒你吃藥。"
+      },
+      {
+        "text": "好，每天晚上 10 點會用 LINE 提醒你吃藥。"
+      },
+      {
+        "text": "好，每天晚上 10 點會用 LINE 提醒你吃藥。"
+      }
+    ]
+  ]
+}
