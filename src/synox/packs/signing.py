@@ -1,5 +1,5 @@
 """
-工具（.synoxpack）的簽章與「官方」標章（docs/adr/0027 §1–3）。
+工具（.synoxpack）的簽章與「官方」標章（docs/adr/0028 §1–3）。
 
 每個 .synoxpack 可以自帶一個 `pack.sig.json`（跟 pack.json 並排）：列出其他每個檔的路徑＋sha256，再用 Ed25519 簽這份清單。
 
@@ -285,7 +285,7 @@ def verify_zip(path: str, official_keys: Optional[Iterable[str]] = None) -> Sign
         return verify_folder(folder, official_keys=official_keys)
 
 
-# ── 看起來像官方（只標紅、不拒裝；ADR 0027 §9 第 1 點） ─────────────────
+# ── 看起來像官方（只標紅、不拒裝；ADR 0028 §9 第 1 點） ─────────────────
 
 LOOKALIKE_WORDS = (("官方", "官方"), ("official", "official"), ("synox", "SYNOX"), ("✅", "✅"))
 LOOKALIKE_FIELDS = (("name", "名字"), ("title", "標題"), ("summary", "說明"), ("publisher", "發行者"),
@@ -314,7 +314,7 @@ def lookalike_problems(m, skill_description: str = "") -> List[str]:
 
 
 def summary_block(result: SignatureResult, lookalike: Sequence[str] = ()) -> dict:
-    """安裝報告的 signature 那一塊（ADR 0027 §3）。"""
+    """安裝報告的 signature 那一塊（ADR 0028 §3）。"""
     text = result.text or TEXTS.get(result.status, "")
     if result.status == NONE and result.no_official_keys:
         text += NO_OFFICIAL_KEYS_TEXT

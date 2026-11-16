@@ -329,7 +329,7 @@ SDK 只是幫你產生 pack.json、印信封。SYNOX 跟工具的接口只有 CL
 - 要第三方套件：`"runtime": {"python": "auto"}`＋`"requires": {"pip": ["名字==版本", …]}`（安裝時自動建 venv）。
 - 很久的工作標 `"background": true`；一般指令要在 `timeout` 內做完（AI 會等結果）。
 - 有網頁面板：`"web": {"panel": "panel.html", "api": ["GET /summary"]}`，`GET /summary` 由同名、`READ`、沒有必填欄位的 command 回答。
-  面板是**隔開的**（[adr/0027](adr/0027-pack-signatures-official-badge.md) §5）：碰不到 SYNOX 的登入、打不到 `/api/`，
+  面板是**隔開的**（[adr/0028](adr/0028-pack-signatures-official-badge.md) §5）：碰不到 SYNOX 的登入、打不到 `/api/`，
   只能用**相對網址**讀自己宣告的資料：`fetch("api/summary")`（前面不加 `/`、不帶 `credentials`）。
   舊的寫法 `fetch("/api/packs/<name>/summary", {credentials: "same-origin"})` 在隔開的面板裡會 401，要改這一行。
   `synox-sdk init` 預設**不**產生面板；要的話加 `--panel`（範本已經是新的寫法）。
@@ -362,7 +362,7 @@ T2 沒寫 `publisher` 會警告，而且結束碼不是 0（安裝時一定會�
 
 ## 簽章：keygen、sign、verify
 
-對方裝你的工具時，報告最上面有一個 SYNOX 自己畫的標章（[adr/0027](adr/0027-pack-signatures-official-badge.md)）：
+對方裝你的工具時，報告最上面有一個 SYNOX 自己畫的標章（[adr/0028](adr/0028-pack-signatures-official-badge.md)）：
 **✅ 官方**（SYNOX 擁有者的鑰匙簽的）、**✍️ 作者簽章**（你的鑰匙簽的，不是官方）、**⚠️ 不是官方**（沒有簽章）、
 **⛔ 被改過**（有簽章但檔案對不上：SYNOX 拒裝，沒有確認鈕）。標章只看簽章，`title`、`summary` 寫什麼都影響不了它；
 你自己寫「官方」「official」「SYNOX」「✅」的話，報告上會用紅字標出來。
@@ -403,7 +403,7 @@ synox-sdk verify dist\hello-0.1.0.synoxpack             看對方會看到什麼
 
 ## 還沒做的
 
-- 工具庫目錄（`index.json`）的簽章與撤銷清單（[adr/0027](adr/0027-pack-signatures-official-badge.md) §6）：每個 `.synoxpack` 已經自帶簽章，目錄本身還沒簽。
+- 工具庫目錄（`index.json`）的簽章與撤銷清單（[adr/0028](adr/0028-pack-signatures-official-badge.md) §6）：每個 `.synoxpack` 已經自帶簽章，目錄本身還沒簽。
 
 - SYNOX 端連 MCP server：已支援 stdio 與遠端 MCP（http，token 或 OAuth 貼回網址）；OAuth 的 loopback 收碼
   （暫時開 127.0.0.1 埠）、動態註冊、伺服器主動推播（GET 長連線）、

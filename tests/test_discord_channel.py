@@ -67,7 +67,7 @@ def make(tmp_path, *, mode="server", **lookup_over):
     vault = Vault(b"k" * 32, str(data))
     vault.set_secret("discord_bot_token:synox", TOK_DM)
     vault.set_secret("discord_bot_token:lookup", TOK_CH)
-    lock_all(data, config.pack_dirs())                    # 沒鎖的 pack 不載入（ADR 0027 §4）
+    lock_all(data, config.pack_dirs())                    # 沒鎖的 pack 不載入（ADR 0028 §4）
     app = build(config, home=None, adapter=FakeAdapter(None), vault=vault)
     http = FakeHTTP()
     for entry in app.extras["discord_entries"].values():

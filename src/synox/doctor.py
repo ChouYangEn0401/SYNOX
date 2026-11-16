@@ -463,7 +463,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 problems += 1
                 continue
             locked += lock_state == pack_lock.LOCKED
-            if lock_state == pack_lock.UNLOCKED and not loader.is_bundled(m):    # ADR 0027 §4：沒有經過安裝頁＝不載入
+            if lock_state == pack_lock.UNLOCKED and not loader.is_bundled(m):    # ADR 0028 §4：沒有經過安裝頁＝不載入
                 if loader.in_user_dir(folder, dirs):
                     step = "要用：到網頁「設定 → 功能與安裝」按「送去安裝頁檢查」，看過報告再按確認"
                 else:

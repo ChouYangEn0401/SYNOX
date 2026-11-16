@@ -302,7 +302,7 @@ def test_tools_page_owner_sees_packs_and_panel(owner_client):
     assert any("記了：午餐 120 元" in m["text"] for m in c.events("tools"))
     status, summary = c.get("/api/packs/money/summary")
     assert status == 200 and summary["total"] == 120
-    assert c.raw("GET", "/packs/money/panel")[0] == 404                     # 舊的同源網址拿掉了（ADR 0027 §5）
+    assert c.raw("GET", "/packs/money/panel")[0] == 404                     # 舊的同源網址拿掉了（ADR 0028 §5）
     status, ticket = c.post("/api/packs/money/panel-ticket")
     assert status == 200
     status, headers, body = ui_of(bot).handle("GET", f"/packs/money/panel/{ticket['ticket']}/", {"Host": c.host})
@@ -333,6 +333,23 @@ def test_guest_sees_no_packs_member_only_theirs(make_bot, owner):
 
 
 # ── 設定頁 ───────────────────────────────────────────────────────────
+
+def test_settings_shows_core_version(make_bot, owner, monkeypatch):
+    import synox
+    from synox import __version__
+    from synox.sdk.author import SDK_VERSION
+    bot = make_bot(raw={"mode": "server"})
+    bot.make(OTHER_ID, BasicRoles.MEMBER)
+    for who in (owner, OTHER_ID):                       # 擁有者、一般成員都看得到
+        c = Client(ui_of(bot))
+        c.login(who)
+        assert c.get("/api/settings")[1]["version"] == {"core": __version__, "sdk": SDK_VERSION}
+    monkeypatch.setattr(synox, "__version__", "9.8.7")   # 跟著 synox.__version__，不是寫死的
+    assert c.get("/api/settings")[1]["version"]["core"] == "9.8.7"
+    html = open(os.path.join(os.path.dirname(__file__), "..", "src", "synox", "web", "static", "app.html"),
+                encoding="utf-8").read()
+    assert 'id="set-version"' in html and "SYNOX 核心版本 " in html
+
 
 def test_owner_only_settings(make_bot, owner):
     bot = make_bot(raw={"mode": "server"})

@@ -1,6 +1,6 @@
 # Changelog
 
-## 未發佈（安全修補：簽章與官方標章、沒經過安裝頁的工具不載入、面板隔開；ADR 0027）
+## 未發佈（安全修補：簽章與官方標章、沒經過安裝頁的工具不載入、面板隔開；ADR 0028）
 
 ### 安全
 - **沒有經過安裝頁的工具不再載入**（以前手放進 `packs/`、或 `config.json` `packs.dirs` 指過去、沒有 `packs.lock` 那一筆的工具照樣載入，個人版連掃都不掃）。
@@ -23,9 +23,9 @@
 - 設定頁「別人做的技能」那張卡改字：之後的匯入走同一個安裝頁、同一份報告與提醒；拿掉「建議開沙盒模式」（Windows 上還沒有）。
 
 ### 文件
-- [ADR 0027](docs/adr/0027-pack-signatures-official-badge.md)（簽章與官方標章、不載入沒經過安裝頁的工具、面板隔開、SDK 指令、公鑰放哪）；
+- [ADR 0028](docs/adr/0028-pack-signatures-official-badge.md)（簽章與官方標章、不載入沒經過安裝頁的工具、面板隔開、SDK 指令、公鑰放哪）；
   稽核紀錄 [docs/lab/2026-11-16-security-hotfix-audit.md](docs/lab/2026-11-16-security-hotfix-audit.md)；`security.md`、`pack-format.md`、`sdk.md`、`install-packs.md` 跟著更新。
-  真的瀏覽器裡的面板行為沒有人看過（開發機不開瀏覽器），擁有者請照 ADR 0027 §10 開一次工具頁確認。
+  真的瀏覽器裡的面板行為沒有人看過（開發機不開瀏覽器），擁有者請照 ADR 0028 §10 開一次工具頁確認。
 - [docs/signing.md](docs/signing.md)：簽章照做清單——在家產生工具／發佈鑰匙（現用＋備用）、公鑰貼進 SYNOX（含要改的兩個測試）、每次發官方工具與 SYNOX 本體怎麼簽、作者簽自己的工具、鑰匙丟了／外流怎麼換。
 
 ## 未發佈（文件：ADR 0022 核准）
@@ -34,6 +34,11 @@
 - [ADR 0022](docs/adr/0022-ecosystem-bridge-and-sandbox.md)（接上其他生態、npm、市集、隔離、預覽）改成「已採用」：擁有者照建議核准 35 題，另加一條修正（設計中）——
   **所有來源一律可以安裝、一律顯示安全提醒；官方工具以擁有者簽章辨識**，細節另立 ADR。隔離、確認卡、釘住工具說明、鎖檔完整性、環境變數白名單、預覽照原計畫。
 - [沙盒路線圖](docs/sandbox-roadmap.md) 跟著更新：H8–H10 現在收 PR，H11（Windows 後端）等實測結果。程式沒有改動。
+
+## 未發佈（設定頁顯示 SYNOX 核心版本）
+
+### 新增
+- 網頁「設定」標題下一行小字「SYNOX 核心版本 0.2.0 · 工具 SDK 0.2.3」，每個分頁都看得到、每個登入的人都看得到。版本直接取自 `synox.__version__`（工具 SDK＝`synox.sdk.author.SDK_VERSION`），由 `GET /api/settings` 的新欄位 `version: {core, sdk}` 送出。
 
 ## 未發佈（工具更新、先測 SYNOX 更新、發佈手冊）
 

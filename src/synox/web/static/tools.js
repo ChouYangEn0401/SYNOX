@@ -381,7 +381,7 @@
     panel.appendChild(list);
   }
 
-  // ── 標章（ADR 0027 §3）：SYNOX 安裝時驗簽章、寫進鎖；伺服器只給 official／author／none ─────────
+  // ── 標章（ADR 0028 §3）：SYNOX 安裝時驗簽章、寫進鎖；伺服器只給 official／author／none ─────────
   var SIG = { official: "✅ 官方", author: "✍️ 作者簽章", none: "⚠️ 不是官方" };
   var SIG_HINT = { official: "SYNOX 驗過擁有者的簽章：官方發的，而且沒有被改過。",
     author: "作者自己簽的，不是官方：SYNOX 只能確認檔案跟作者簽的時候一樣。",
@@ -393,7 +393,7 @@
     return chip;
   }
 
-  // ── 面板（pack 的 web.panel；ADR 0027 §5）：一律隔開 ────────────────────
+  // ── 面板（pack 的 web.panel；ADR 0028 §5）：一律隔開 ────────────────────
   // 先拿一張票（綁這個工具＋這個登入），再用 sandbox="allow-scripts"（沒有同源）掛：
   // 面板是另一個「沒有來源」的小頁，沒有你的登入、碰不到這一頁。上面那一行字是 SYNOX 畫的，面板蓋不到。
   var PANEL_NOTE = "這個小畫面是工具作者做的。SYNOX 把它隔開了：它碰不到你的登入，只能讀這個工具自己的資料；" +

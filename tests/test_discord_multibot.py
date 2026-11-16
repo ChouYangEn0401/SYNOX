@@ -42,7 +42,7 @@ def make_app(tmp_path, discord, *, secrets=None, owner_discord="777"):
                                                          "discord_bot_token:bravo": TOK_B}).items():
         vault.set_secret(k, v)
     home = FakeChannel()
-    lock_all(data, config.pack_dirs())                    # 沒鎖的 pack 不載入（ADR 0027 §4）
+    lock_all(data, config.pack_dirs())                    # 沒鎖的 pack 不載入（ADR 0028 §4）
     app = build(config, home=home, adapter=FakeAdapter(None), vault=vault)
     http = FakeHTTP()
     for ch in app.extras.get("discord_bots").channels.values():

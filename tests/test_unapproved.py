@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""ADR 0027 §4（S9）：沒有經過安裝頁（沒有 packs.lock 那一筆）的 pack 不載入；「送去安裝頁檢查」（packs/adopt.py）；
+"""ADR 0028 §4（S9）：沒有經過安裝頁（沒有 packs.lock 那一筆）的 pack 不載入；「送去安裝頁檢查」（packs/adopt.py）；
 packs.dirs 的開發者路徑（packs lock --approve）。pack 都是 tmp 裡的小 python pack，不連網、不開埠、不跑子程序。"""
 import json
 import os

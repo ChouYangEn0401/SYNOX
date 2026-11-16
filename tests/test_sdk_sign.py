@@ -1,5 +1,5 @@
-"""synox-sdk keygen／sign／verify（ADR 0027 §8）：整條走一次 synox.sdk.main；密語一律走環境變數（測試沒有終端機）。
-init 預設不產生面板；--panel 才產生、用相對網址 api/summary（ADR 0027 §5）。"""
+"""synox-sdk keygen／sign／verify（ADR 0028 §8）：整條走一次 synox.sdk.main；密語一律走環境變數（測試沒有終端機）。
+init 預設不產生面板；--panel 才產生、用相對網址 api/summary（ADR 0028 §5）。"""
 
 import json
 import os
@@ -80,7 +80,7 @@ def test_sign_needs_right_passphrase(tmp_path, pack_file, capsys, monkeypatch):
     monkeypatch.delenv("SYNOX_RELEASE_KEY_PASSWORD", raising=False)
     assert sdk.main(["sign", pack_file, "--key", key_path]) == 2
     assert "密語" in capsys.readouterr().out
-    monkeypatch.setenv("SYNOX_RELEASE_KEY_PASSWORD", "one")              # 另一個環境變數也收（ADR 0027 §2）
+    monkeypatch.setenv("SYNOX_RELEASE_KEY_PASSWORD", "one")              # 另一個環境變數也收（ADR 0028 §2）
     assert sdk.main(["sign", pack_file, "--key", key_path]) == 0
     with zipfile.ZipFile(pack_file) as z:
         assert "pack.sig.json" in z.namelist()
@@ -139,7 +139,7 @@ def test_zip_drops_stale_signature(tmp_path, pack_file, monkeypatch):
 
 
 def test_keygen_asks_twice_on_a_terminal(tmp_path, monkeypatch, capsys):
-    """終端機上（stdin 是 tty）：synox-sdk keygen 與 release.py keygen 都問兩次密語（ADR 0027 §2）。"""
+    """終端機上（stdin 是 tty）：synox-sdk keygen 與 release.py keygen 都問兩次密語（ADR 0028 §2）。"""
     import getpass
     import sys
     sys.path.insert(0, os.path.join(signing.REPO_ROOT, "scripts"))

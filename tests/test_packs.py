@@ -85,7 +85,7 @@ def test_loader_report_and_isolation(make_bot, tmp_path):
     _pack(str(off), name="off", group="off")
     (off / "pack.py").write_text("def install(app, pack):\n    raise AssertionError('should not load')\n", encoding="utf-8")
     bot = make_bot(raw={"packs": {"enabled": "all", "disabled": ["off"]}})
-    lock_all(bot.app.config.data_dir, [str(base)])                # 沒鎖的不載入（ADR 0027 §4）
+    lock_all(bot.app.config.data_dir, [str(base)])                # 沒鎖的不載入（ADR 0028 §4）
     report = loader.load_all(bot.app, bot.app.config, bot.app.extras["vault"], dirs=[str(base)])
     status = {i.name: i.status for i in report.items}
     assert status == {"broken": "invalid", "good": "loaded", "boom": "error", "off": "disabled"}

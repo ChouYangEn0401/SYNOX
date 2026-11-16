@@ -419,7 +419,7 @@ def test_doctor_lists_missing_secrets(tmp_path):
            "packs": {"dirs": [packs[0]]}}
     path = tmp_path / "config.json"
     path.write_text(json.dumps(cfg), encoding="utf-8")
-    lock_all(data, (packs[0],))                    # 沒鎖的不載入（ADR 0027 §4）：當作經安裝頁裝過
+    lock_all(data, (packs[0],))                    # 沒鎖的不載入（ADR 0028 §4）：當作經安裝頁裝過
     lines = []
     doctor.run(offline=True, config_path=str(path), out=lines.append)
     text = "\n".join(lines)

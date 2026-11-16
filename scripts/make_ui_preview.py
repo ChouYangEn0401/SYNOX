@@ -132,7 +132,7 @@ TOOLS = {
          "commands": [_cmd("/ai_usage", "這個月用了多少")]},
     ],
 }
-for _t in TOOLS["packs"]:              # 標章（ADR 0027）：伺服器從 packs.lock 讀的 signature.status
+for _t in TOOLS["packs"]:              # 標章（ADR 0028）：伺服器從 packs.lock 讀的 signature.status
     _t["signature"] = {"notes": "official", "money": "official", "todoist": "author"}.get(_t["name"], "none")
 TOOLS["layout"] = toolpage.effective(None, [(t["id"], t["category"]) for t in TOOLS["packs"] + TOOLS["groups"]])
 

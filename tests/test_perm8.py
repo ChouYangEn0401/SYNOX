@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """PERM-8：伺服器版 python pack 的信任（third-party 只給擁有者）與 pack.path_of(user)。
-沒鎖的 pack 現在根本不載入（ADR 0027 §4，tests/test_unapproved.py）；這裡手放的 pack 由 conftest 的 make_bot 先鎖成 third-party。
+沒鎖的 pack 現在根本不載入（ADR 0028 §4，tests/test_unapproved.py）；這裡手放的 pack 由 conftest 的 make_bot 先鎖成 third-party。
 pack 都是 tmp 裡的小 python pack，不連網、不開埠、不跑子程序。"""
 import json
 import os
@@ -99,7 +99,7 @@ def test_locked_trust_decides(make_bot, tmp_path):
 
 def test_nothing_is_bundled_anymore(tmp_path, monkeypatch):
     """2026-11-12 起出廠真的全空（docs/legacy/connectors.md）：叫 notion、放在內建 packs/ 的 pack 沒鎖＝third-party
-    （而且不載入：沒有經過安裝頁，ADR 0027 §4）。"""
+    （而且不載入：沒有經過安裝頁，ADR 0028 §4）。"""
     packs = tmp_path / "packs"
     monkeypatch.setattr(loader, "PACK_DIRS", (str(packs),))
     notion = read(_pack(packs, "notion"))
@@ -169,7 +169,7 @@ def test_personal_mode_unaffected(make_bot, tmp_path):
     assert bot.last(OWNER_ID) == "跑了 ext"
 
 
-# ── 沒鎖的：以前載入時補第 2 關，現在不載入（ADR 0027 §4） ──────────────
+# ── 沒鎖的：以前載入時補第 2 關，現在不載入（ADR 0028 §4） ──────────────
 
 NET_PY = "import socket\n\ndef install(app, pack):\n    pack.group.leaf('run', lambda *a: None, 'x')\n"
 

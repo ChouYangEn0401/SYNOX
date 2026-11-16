@@ -1,4 +1,4 @@
-"""ADR 0027：工具的簽章（pack.sig.json）與 SYNOX 自己畫的標章——official／author／none／invalid、
+"""ADR 0028：工具的簽章（pack.sig.json）與 SYNOX 自己畫的標章——official／author／none／invalid、
 zip 的重複與大小寫相撞、壓縮炸彈、鎖記簽章、升級的紅字、看起來像官方的字。鑰匙一律在測試裡現產（不進 repo）。"""
 
 import base64
@@ -379,7 +379,7 @@ def test_manifest_strict_refuses_invisible(tmp_path, key, value):
     assert read(folder).name == "tool"                                # 載入時（舊的工具）照舊
 
 
-# ── 升級的紅字（ADR 0027 §3.1） ─────────────────────────────────────────
+# ── 升級的紅字（ADR 0028 §3.1） ─────────────────────────────────────────
 
 def _upgrade_changes(tmp_path, v1_key, v2_key, monkeypatch=None, official=()):
     if monkeypatch is not None:
@@ -439,7 +439,7 @@ def test_upgrade_refuses_invalid(tmp_path):
 # ── 鑰匙的規矩 ─────────────────────────────────────────────────────────
 
 def test_no_official_key_shipped_and_no_env_backdoor(monkeypatch):
-    assert tuple(signing.OFFICIAL_PACK_PUBLIC_KEYS) == ()           # 擁有者還沒產生鑰匙（ADR 0027 §2）
+    assert tuple(signing.OFFICIAL_PACK_PUBLIC_KEYS) == ()           # 擁有者還沒產生鑰匙（ADR 0028 §2）
     monkeypatch.setenv("SYNOX_UPDATE_TEST_PUBKEY", _pub(Ed25519PrivateKey.generate()))
     assert signing.official_raw_keys() == []                         # 沒有任何環境變數能加官方鑰匙
 

@@ -32,7 +32,7 @@ def test_init_check_zip_install(tmp_path, kind):
     folder = tmp_path / f"demo-{kind}"
     written = sdk.init_pack(str(folder), kind, f"demo-{kind}", "示範")
     assert {"pack.json", "SKILL.md", "README.md"} <= set(written)
-    assert "panel.html" not in written                                        # ADR 0027 §5：面板預設不產生
+    assert "panel.html" not in written                                        # ADR 0028 §5：面板預設不產生
     assert ("tool.py" if kind == "cli" else "pack.py") in written
     assert sdk.init_pack(str(folder), kind, f"demo-{kind}", "示範") == []          # 不蓋已經有的檔
     check = sdk.Pack.load(str(folder))

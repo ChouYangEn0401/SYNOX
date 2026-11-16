@@ -15,7 +15,7 @@
   用 app.home 通知擁有者一次（同樣的竄改只通知一次，記在 data/packs_tamper_notified.json）；doctor 也列出來。
 - 載入之後（審查 B #D）：有鎖的 cli pack 每次叫子程序前、mcp stdio 每次開子程序前再對一次（LiveCheck：
   先比 stat，不一樣才算雜湊；每 FULL_EVERY 秒全部重算），不符＝不執行、通知擁有者。
-- 沒有鎖的 pack（手放進 packs/、packs.dirs 指過去的；ADR 0027 §4）**不載入**：狀態 unapproved、報告與 doctor 說「沒有經過安裝頁」；
+- 沒有鎖的 pack（手放進 packs/、packs.dirs 指過去的；ADR 0028 §4）**不載入**：狀態 unapproved、報告與 doctor 說「沒有經過安裝頁」；
   要用它就從設定頁「送去安裝頁檢查」（packs/adopt.py），工程師可以 `python -m synox packs lock --approve <name>`（跑 1、2 關、印報告再鎖）。
   BUNDLED 是空的，所以沒有任何名字能不經安裝頁載入。
 - 雜湊涵蓋 pack 資料夾裡的**每一個檔**（P7：含 __pycache__、node_modules、執行檔；`"hash_scope": "all"`）。
@@ -30,9 +30,9 @@
 - runtime（S2，容器）：`"runtime": {"mode": "container"|"host", "image", "digest", "dockerfile_sha256", "base", "network",
   "chosen_by", "chosen_at"}`，跟 trust 並列，擁有者在安裝報告上選（pack.json 有 runtime.container 時預設 container）；
   `packs runtime <name> container|host` 只改這一塊。沒寫＝host（sandbox.runtime_mode）。
-- signature（ADR 0027 §3）：`"signature": {"status": "official"|"author", "key_id", "public_key"}` 或 `{"status": "none"}`，
+- signature（ADR 0028 §3）：`"signature": {"status": "official"|"author", "key_id", "public_key"}` 或 `{"status": "none"}`，
   安裝時驗出來的簽章（packs/signing.py）。之後不重驗簽章，靠上面的逐檔雜湊守著（pack.sig.json 本身也在 files 裡）。
-  讀的人一律用 signature_of(record)（ADR 0027 以前的鎖沒寫＝none）。
+  讀的人一律用 signature_of(record)（ADR 0028 以前的鎖沒寫＝none）。
 """
 
 from __future__ import annotations
@@ -171,7 +171,7 @@ def approve(data_dir: str, manifest, report, approved_by, *, via: str, hashes: O
             tier_fields: Optional[dict] = None, runtime: Optional[str] = None,
             signature: Optional[dict] = None) -> dict:
     """寫（或換掉）這個 pack 的鎖。hashes 沒給就現算 folder（預設 manifest.folder）；一律是每個檔（hash_scope=all）。
-    signature：安裝時驗出來的簽章（ADR 0027 §3：{"status", "key_id", "public_key"}；none 只有 status）；
+    signature：安裝時驗出來的簽章（ADR 0028 §3：{"status", "key_id", "public_key"}；none 只有 status）；
     沒給＝{"status": "none"}。
     trust：core｜third-party（沒給＝third-party；不認得丟 ValueError）。
     tier_fields：tier.lock_fields 的結果（tier、t2、trusted_publisher、trusted_at）；沒給＝照檔案現算 tier（不寫確認）。
@@ -204,8 +204,8 @@ SIGNED_STATUSES = ("official", "author")
 
 
 def signature_of(record: Optional[dict]) -> dict:
-    """這一筆鎖記的簽章（ADR 0027 §3）：{"status": "official"|"author", "key_id", "public_key"} 或 {"status": "none"}。
-    沒寫（ADR 0027 以前的鎖）、寫壞了＝{"status": "none"}。工具頁、設定頁、doctor、packs status 都從這裡拿標章。"""
+    """這一筆鎖記的簽章（ADR 0028 §3）：{"status": "official"|"author", "key_id", "public_key"} 或 {"status": "none"}。
+    沒寫（ADR 0028 以前的鎖）、寫壞了＝{"status": "none"}。工具頁、設定頁、doctor、packs status 都從這裡拿標章。"""
     sig = record.get("signature") if isinstance(record, dict) else None
     if isinstance(sig, dict) and sig.get("status") in SIGNED_STATUSES:
         return {"status": sig["status"], "key_id": str(sig.get("key_id") or ""),
@@ -340,7 +340,7 @@ def check_integrity(manifest, hashes: Dict[str, str]) -> List[str]:
     if not declared:
         return []
     # __pycache__ 不是作者打包的東西（synox-sdk zip 不放、安裝不解出來）：不跟 integrity 比；packs.lock 照樣鎖它
-    # pack.sig.json 是 zip 之後才 sign 加進去的（ADR 0027 §1）：不在 integrity 裡；packs.lock 照樣鎖它
+    # pack.sig.json 是 zip 之後才 sign 加進去的（ADR 0028 §1）：不在 integrity 裡；packs.lock 照樣鎖它
     skip = ("pack.json", "pack.sig.json")
     actual = {k: v for k, v in hashes.items() if k not in skip and "__pycache__" not in k.split("/")[:-1]}
     declared = {k: v for k, v in declared.items() if k != "pack.sig.json"}

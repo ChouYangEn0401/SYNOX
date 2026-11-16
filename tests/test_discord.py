@@ -365,7 +365,7 @@ def make_discord_bot(tmp_path, *, owner_discord=None, telegram=False):
     vault = Vault(b"k" * 32, str(data))
     vault.set_secret("discord_bot_token", TOKEN)
     home = FakeChannel()
-    lock_all(data, config.pack_dirs())                    # 沒鎖的 pack 不載入（ADR 0027 §4）
+    lock_all(data, config.pack_dirs())                    # 沒鎖的 pack 不載入（ADR 0028 §4）
     app = build(config, home=home, adapter=FakeAdapter(None), vault=vault)
     http = FakeHTTP()
     app.extras["discord"].http = http

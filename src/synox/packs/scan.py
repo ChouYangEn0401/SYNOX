@@ -25,6 +25,9 @@
                （來源不明，ImportContext）；只用字面字拆開再組回來的名字（"sys"+"tem"、"".join(…)、"%s" %、format、
                [::-1]、chr()）是開程式／dunder 名、或 format 的樣板是組出來的又取屬性 → exec。
                **是提醒不是門**：攔直呼名與常見的間接取用，不保證每一種寫法都抓得到（有心藏的作者一定寫得出掃不到的程式）
+    import     絕對 import 另一個工具的模組（synox_pack_別人…）→ 一律拒（不是能力，宣告什麼都沒用）。
+               相對 import 自己資料夾裡的模組（from .engine import db；多檔工具 python.package=true）不算 exec、
+               不用多宣告能力——被 import 的那些 .py 本來就跟 pack.py 一樣逐一被掃（pack_files 列資料夾裡每一個檔）
     env        os.environ、os.getenv：**只列出來給人看**（不算 capability，也不擋）；讀 SYNOX 自己注入的協定變數
                （SYNOX_ENV_OK：SYNOX_USER_DATA_DIR、SYNOX_CONFIRMED…，名字是字面字）不列；SYNOX_CONFIRM_TOKEN、SYNOX_SECRET_ENV 照列
     secret     pack.secret(…)：讀使用者在「連接」填的值（pack.json auth.fields）；只列出來，不算 capability
@@ -215,7 +218,9 @@ LABELS = {"network": "連網", "subprocess": "開別的程式", "filesystem:own"
           "syntax": "程式解析不了", "mcp": "MCP 設定", "data": "資料歸屬（data）不合",
           "external": "未鎖定執行環境（pack 外的程式）", "container": "容器設定（Dockerfile）不合",
           "container_note": "容器（Dockerfile）提醒", "app": "網頁畫面不合規則", "app_note": "網頁畫面（提醒）",
-          "theme": "外觀包不合規則"}
+          "theme": "外觀包不合規則", "import": "import 了別的工具"}
+# 工具的頂層模組名（packs/pkgload.py module_name）：絕對 import 別人的＝拒（"import"，不管宣告了什麼）
+PACK_MODULE_PREFIX = "synox_pack_"
 
 _PLACEHOLDER = re.compile(r"\{(\w+)\}")
 _FLAG_VALUE = re.compile(r"^--?[A-Za-z0-9][A-Za-z0-9_-]*=\{(\w+)\}$")
@@ -236,7 +241,7 @@ class Finding:
     @property
     def blocking(self) -> bool:
         """不管宣告了什麼都擋（樣板不合、connector 有程式、解析不了）。"""
-        return self.kind in ("argv", "code", "syntax", "mcp", "data", "container", "app", "theme")
+        return self.kind in ("argv", "code", "syntax", "mcp", "data", "container", "app", "theme", "import")
 
     def where(self) -> str:
         return f"{self.file}:{self.line}" if self.line else self.file
@@ -598,6 +603,7 @@ class ImportContext:
     """第 2 關判斷「這個 import 從哪裡來」用的：pack 資料夾＋requires.pip 的套件名。"""
     folder: str = ""
     pip: Sequence[str] = ()
+    own: str = ""               # 這個工具自己的頂層模組名（synox_pack_<名字>）；絕對 import 自己的可以，別人的拒
 
     def _pip_modules(self) -> set:
         out = set()
@@ -631,7 +637,7 @@ class ImportContext:
 
     def known(self, top: str, rel: str) -> bool:
         import sys
-        if top in SYNOX_MODULES or top in getattr(sys, "stdlib_module_names", ()):
+        if top in SYNOX_MODULES or top in getattr(sys, "stdlib_module_names", ()) or (self.own and top == self.own):
             return True
         return _norm_pkg(top) in self._pip_modules() or self.local(top, rel)
 
@@ -670,6 +676,15 @@ class _Visitor(ast.NodeVisitor):
         if top and not self.context.known(top, self.rel):
             self.add(node, "exec", f"{text}：{top} 不是標準函式庫、不在 pack 裡、requires.pip 也沒宣告（來源不明的模組）")
 
+    def _other_pack(self, node, module: str, text: str) -> bool:
+        """絕對 import 另一個工具的套件（synox_pack_別人）＝拒（不管宣告了什麼）：工具之間不准互相取用程式。
+        自己的（synox_pack_<自己>.engine）可以；相對 import（from .engine import x）本來就只會在自己的資料夾裡。"""
+        top = module.split(".")[0]
+        if not top.startswith(PACK_MODULE_PREFIX) or (self.context.own and top == self.context.own):
+            return False
+        self.add(node, "import", f"{text}：{top} 是另一個工具的模組（工具之間不准互相 import）")
+        return True
+
     def _trusted_alias(self, name: str) -> bool:
         """名字是從標準函式庫裡沒列風險的模組匯入的（from re import compile）→ 不當成內建的 compile／eval。"""
         target = self.aliases.get(name, "")
@@ -682,14 +697,15 @@ class _Visitor(ast.NodeVisitor):
             kind = self._module_kind(a.name)
             if kind:
                 self.add(node, kind, f"import {a.name}")
-            else:
+            elif not self._other_pack(node, a.name, f"import {a.name}"):
                 self._unknown_module(node, a.name, f"import {a.name}")
         self.generic_visit(node)
 
     def visit_ImportFrom(self, node):
         module = "." * node.level + (node.module or "")
         if node.level == 0 and module and not self._module_kind(module) and \
-                not any(self._module_kind(f"{module}.{a.name}") for a in node.names):
+                not any(self._module_kind(f"{module}.{a.name}") for a in node.names) and \
+                not self._other_pack(node, module, f"from {module} import …"):
             self._unknown_module(node, module, f"from {module} import …")
         for a in node.names:
             full = f"{module}.{a.name}" if module else a.name
@@ -977,7 +993,7 @@ def _python_texts(m: Manifest, files: List[str]):
 
 def _scan_python_files(m: Manifest, files: List[str]) -> List[Finding]:
     out = []
-    context = ImportContext(m.folder, pip_names(m))
+    context = ImportContext(m.folder, pip_names(m), PACK_MODULE_PREFIX + m.name.replace("-", "_"))
     for rel, text, error in _python_texts(m, files):
         if text is None:
             out.append(Finding(rel, 0, "syntax", "", f"讀不了：{error}"))

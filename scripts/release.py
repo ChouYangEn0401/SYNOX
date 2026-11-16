@@ -30,7 +30,7 @@ sign   (docs/adr/0023 U5, docs/release-build.md「簽章金鑰」) writes, next 
 keygen makes a new key pair (offline, once, by the founding maintainer): writes the private key (PEM; encrypted with
        SYNOX_RELEASE_KEY_PASSWORD, or with a passphrase asked twice on the terminal when that is unset) outside the
        repository and prints the public key for src/synox/update/signing.py RELEASE_PUBLIC_KEYS. Pack (.synoxpack)
-       signing uses a different key: `synox-sdk keygen` (docs/adr/0027 §2).
+       signing uses a different key: `synox-sdk keygen` (docs/adr/0028 §2).
 
 Standard library only (sign/keygen also need `cryptography`, already a SYNOX dependency); never connects to the
 network, never runs git. Exit code: 0 ok, 1 check failed, 2 cannot run.
@@ -535,7 +535,7 @@ def sign(root: str, dist: str, key_path: str, *, severity: str = "normal", summa
 
 
 def _ask_password() -> str:
-    """keygen 沒設 SYNOX_RELEASE_KEY_PASSWORD 時：在終端機上問兩次密語（ADR 0027 §2，跟 synox-sdk keygen 一致）。
+    """keygen 沒設 SYNOX_RELEASE_KEY_PASSWORD 時：在終端機上問兩次密語（ADR 0028 §2，跟 synox-sdk keygen 一致）。
     不是終端機（腳本、測試）＝回 ""；keygen 看到 "" 會拒絕，除非明說 --no-passphrase。"""
     if not _stdin_is_terminal():
         return ""
@@ -671,7 +671,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(f"私鑰寫在 {args.out}（離線保存；不要放進 repo、雲端硬碟或聊天）。上面這行公鑰加進 "
                   "src/synox/update/signing.py 的 RELEASE_PUBLIC_KEYS。", file=sys.stderr)
             print("（這把只簽 SYNOX 本體的發佈。簽工具 .synoxpack 的是另一把：synox-sdk keygen，"
-                  "公鑰貼進 src/synox/packs/signing.py 的 OFFICIAL_PACK_PUBLIC_KEYS；docs/adr/0027 §2）", file=sys.stderr)
+                  "公鑰貼進 src/synox/packs/signing.py 的 OFFICIAL_PACK_PUBLIC_KEYS；docs/adr/0028 §2）", file=sys.stderr)
             return 0
     except ReleaseError as e:
         print(f"❌ {e}", file=sys.stderr)

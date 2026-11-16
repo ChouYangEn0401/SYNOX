@@ -9,7 +9,7 @@ BaseHTTPRequestHandler 只是薄殼（讀 body、呼叫 handle、寫回去）。
     POST /login                     確認頁的按鈕（f＝一次性表單 token＋synox_login cookie、Origin 要是自己）
                                     → 用掉連結 → cookie session → 303 到 /#chat
     POST /api/packs/<name>/panel-ticket   看得到這個 pack 的人：拿一張面板的票（綁 pack＋這個登入＋這個人，8 小時；
-                                    登出就作廢；web/paneltickets.py、ADR 0027 §5）→ {"ticket"}
+                                    登出就作廢；web/paneltickets.py、ADR 0028 §5）→ {"ticket"}
     GET  /packs/<name>/panel/<票>/  pack 的 web.panel（工具頁用 <iframe sandbox="allow-scripts"> 掛：opaque origin、
                                     沒有 cookie）。只認票、不看 cookie；回應的 CSP 自己也帶 `sandbox allow-scripts`
     GET  /packs/<name>/panel/<票>/api/<route>   面板讀資料（面板裡寫相對網址 api/<route>）：只有這個 pack 在 web.api
@@ -139,7 +139,7 @@ MAX_BODY = 256 * 1024
 MAX_TEXT = 4000
 CHAT_RE = re.compile(r"^(c\d{1,6}|tools|mother)$")
 NAME_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
-# 隔開的面板（ADR 0027 §5）：/packs/<name>/panel/<票>/ 與 /packs/<name>/panel/<票>/api/<route>
+# 隔開的面板（ADR 0028 §5）：/packs/<name>/panel/<票>/ 與 /packs/<name>/panel/<票>/api/<route>
 PANEL_RE = re.compile(r"^/packs/([a-z][a-z0-9_-]{0,31})/panel/([A-Za-z0-9_-]{16,64})/"
                       r"(?:api/([a-z0-9][a-z0-9_-]{0,31}))?$")
 PANEL_TICKET_RE = re.compile(r"(/packs/[^/]+/panel/)[^/]+")      # 寫日誌前把票遮掉
@@ -318,7 +318,7 @@ class WebUI:
         data = config.data_dir
         self.tokens = LoginTokens(os.path.join(data, "web_tokens.json"), clock=clock)
         self.sessions = Sessions(os.path.join(data, "web_sessions.json"), clock=clock)
-        self.panel_tickets = PanelTickets(clock=clock)    # 面板的票（只在記憶體；ADR 0027 §5）
+        self.panel_tickets = PanelTickets(clock=clock)    # 面板的票（只在記憶體；ADR 0028 §5）
         self.chats = ChatStore(os.path.join(data, "web_chats"), vault, clock=clock)
         self.prefs = toolpage.UserPrefs(os.path.join(data, "web_prefs"), vault)   # 每個人的工具頁排版、外觀
         self.appearance = Appearance(app, config, self.prefs)                     # 設定 → 外觀（synox/theme）
@@ -637,7 +637,7 @@ class WebUI:
     SIGNATURE_STATUSES = ("official", "author", "none")
 
     def _signature(self, name: str) -> str:
-        """工具頁、設定頁的標章：packs.lock 那一筆的 signature.status（安裝時 SYNOX 自己驗的；ADR 0027 §3）。
+        """工具頁、設定頁的標章：packs.lock 那一筆的 signature.status（安裝時 SYNOX 自己驗的；ADR 0028 §3）。
         沒有鎖、舊的鎖（簽章功能之前裝的）、看不懂的值 → "none"（⚠️ 不是官方）。pack 自己寫什麼都影響不了它。"""
         from synox.packs import lock as pack_lock
         try:
@@ -652,7 +652,7 @@ class WebUI:
         group = self.app.registry.node(pack.manifest.group)
         return group is not None and self.app.registry.visible(user, group)
 
-    # ── 面板（pack 的 web.panel；ADR 0027 §5）────────────────────────────
+    # ── 面板（pack 的 web.panel；ADR 0028 §5）────────────────────────────
     # 面板是工具作者寫的 HTML＋JS：一律隔開（官方的也一樣）。工具頁用 <iframe sandbox="allow-scripts">（沒有
     # allow-same-origin）掛 /packs/<name>/panel/<票>/：面板是 opaque origin，沒有 cookie、讀不到 CSRF、打不到 /api/、
     # 碰不到主頁。它要資料只能打相對網址 api/<route>（這個 pack 在 web.api 宣告的 GET），伺服器只認票。
@@ -1176,7 +1176,7 @@ class WebUI:
                 "stage_text": stage_text(pack.manifest.stage),
                 "status": "要先設定" if connector else "已連接",
                 "panel": bool(pack.manifest.web.get("panel")),      # 有面板：工具頁先拿票（POST …/panel-ticket）
-                "signature": self._signature(pack.name),            # 標章：只看鎖裡 SYNOX 驗出來的（ADR 0027 §3）
+                "signature": self._signature(pack.name),            # 標章：只看鎖裡 SYNOX 驗出來的（ADR 0028 §3）
                 "app": bool(pack.manifest.web.get("app")),          # 工具服務：有完整畫面（卡片在 static/apps.js）
                 "commands": [self._leaf_info(n) for n in leaves]}
             self._health_marks(row, user)
@@ -1350,8 +1350,11 @@ class WebUI:
     # ── 設定頁 ───────────────────────────────────────────────────────
 
     def settings(self, user) -> dict:
+        from synox import brand
+        from synox.sdk.author import SDK_VERSION
         out = {"owner": self.is_owner(user), "mode": self.config.mode, "accounts": self.server_mode and
-               self.is_admin(user)}
+               self.is_admin(user),
+               "version": {"core": brand.version(), "sdk": SDK_VERSION}}   # 設定頁標題下那行「SYNOX 核心版本」
         budget = self.app.extras.get("synox_budget")
         if budget is not None and not budget.exempt(user):
             out["ai_budget"] = {"used": round(budget.month_usd(user.tg_id), 4), "limit": budget.limit(user.tg_id)}
@@ -1829,7 +1832,7 @@ class WebUI:
         return _json(200, self._with_upgrade(summary))
 
     def pack_adopt(self, user, data: dict) -> Resp:
-        """設定頁「送去安裝頁檢查」（ADR 0027 §4）：沒有經過安裝頁、所以沒載入的 pack（狀態 unapproved）
+        """設定頁「送去安裝頁檢查」（ADR 0028 §4）：沒有經過安裝頁、所以沒載入的 pack（狀態 unapproved）
         原地打包、走跟上傳一樣的檢查（zip、簽章、第 1、2 關）→ 同一份報告；裝要另外按確認（install 帶 adopt: true）。
         不附「升級報告」：原地那一份就是它自己，跟自己比版本只會擋住確認鈕。"""
         denied = self._owner_only(user)

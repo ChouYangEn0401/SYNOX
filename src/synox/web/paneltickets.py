@@ -1,5 +1,5 @@
 """
-工具頁面板（pack 的 `web.panel`）的「票」（ADR 0027 §5）。
+工具頁面板（pack 的 `web.panel`）的「票」（ADR 0028 §5）。
 
 面板在 `<iframe sandbox="allow-scripts">` 裡跑（opaque origin：沒有 cookie、碰不到主頁），所以它的網址要自己帶一張票：
 工具頁先 `POST /api/packs/<name>/panel-ticket`（要登入、要 CSRF）拿票，再開 `/packs/<name>/panel/<票>/`；
@@ -21,7 +21,7 @@ from typing import Callable, Dict, Optional
 
 from synox.web.tokens import digest
 
-TICKET_TTL = 8 * 3600          # 提案值（ADR 0027 §9 第 3 點，待擁有者確認）
+TICKET_TTL = 8 * 3600          # 提案值（ADR 0028 §9 第 3 點，待擁有者確認）
 MAX_TICKETS = 2000             # 記憶體上限：滿了先清過期的，再不夠就丟最舊的
 
 
