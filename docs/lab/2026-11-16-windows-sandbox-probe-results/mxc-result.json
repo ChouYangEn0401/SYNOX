@@ -1,0 +1,261 @@
+{
+ "windows": {
+  "major": 10,
+  "minor": 0,
+  "build": 26200
+ },
+ "python": "3.11.0 (main, Oct 24 2022, 18:26:48) [MSC v.1933 64 bit (AMD64)]",
+ "wxc_exec": "C:\\Users\\<user>\\AppData\\Local\\Temp\\claude\\fdf8beb82aca8242\\45345330-d08d-4a53-85e8-3a1fa683b093\\scratchpad\\sandbox-probe\\dl-mxc\\x\\package\\bin\\x64\\wxc-exec.exe",
+ "argv": [
+  "--wxc",
+  "C:\\Users\\<user>\\AppData\\Local\\Temp\\claude\\fdf8beb82aca8242\\45345330-d08d-4a53-85e8-3a1fa683b093\\scratchpad\\sandbox-probe\\dl-mxc\\x\\package\\bin\\x64\\wxc-exec.exe",
+  "--node",
+  "C:\\Users\\<user>\\AppData\\Local\\Temp\\claude\\fdf8beb82aca8242\\45345330-d08d-4a53-85e8-3a1fa683b093\\scratchpad\\sandbox-probe\\dl-node\\node-v24.22.3-win-x64\\node.exe",
+  "--ports",
+  "11434,8830",
+  "--net"
+ ],
+ "leftover_packages": [],
+ "results": [
+  {
+   "test": "M0",
+   "what": "wxc-exec --probe: native ProcessContainer available",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "tier=base-container",
+   "verdict": "PASS"
+  },
+  {
+   "test": "F1",
+   "what": "read a file in a readonlyPaths folder",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "0.1s out=ro-canary",
+   "verdict": "PASS"
+  },
+  {
+   "test": "F2",
+   "what": "write a file in a readwritePaths folder",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "file exists=True 0.1s",
+   "verdict": "PASS"
+  },
+  {
+   "test": "F2b",
+   "what": "write a file in a readonlyPaths folder",
+   "expect": "deny",
+   "exit_code": 1,
+   "note": "file exists=False 0.1s err=存取被拒。",
+   "verdict": "PASS"
+  },
+  {
+   "test": "F3",
+   "what": "read a file in a folder NOT in the policy",
+   "expect": "deny",
+   "exit_code": 1,
+   "note": "0.1s err=存取被拒。",
+   "verdict": "PASS"
+  },
+  {
+   "test": "F4",
+   "what": "write a file in a folder NOT in the policy",
+   "expect": "deny",
+   "exit_code": 1,
+   "note": "file exists=False 0.1s err=存取被拒。",
+   "verdict": "PASS"
+  },
+  {
+   "test": "F5",
+   "what": "list the user profile folder (output discarded)",
+   "expect": "deny",
+   "exit_code": 1,
+   "note": "0.1s err=存取被拒。",
+   "verdict": "PASS"
+  },
+  {
+   "test": "F6",
+   "what": "deniedPaths wins over readonlyPaths for the same folder",
+   "expect": "deny",
+   "exit_code": 1,
+   "note": "0.1s err=存取被拒。",
+   "verdict": "PASS"
+  },
+  {
+   "test": "E1",
+   "what": "default environment inside (names only + TEMP)",
+   "expect": "info",
+   "exit_code": 0,
+   "note": "marker_seen=False vars=42 TEMP=C:\\Users\\<user>\\AppData\\Local\\Packages\\sandbox.{afeece35-c000-4299-bc0a-ab7d67a6cbcc}\\AC\\Temp names=ALLUSERSPROFILE,APPDATA,COMPUTERNAME,ComSpec,CommonProgramFiles,CommonProgramFiles(x86),CommonProgramW6432,DriverData,HOMEDRIVE,HOMEPATH,LOCALAPPDATA,LOGONSERVER,NUMBER_OF_PROCESSORS,OLLAMA_NUM_GPU,OLLAMA_VULKAN,OS,OneDrive,OneDriveConsumer,PATHEXT,PROCESSOR_ARCHITECTUR",
+   "verdict": "INFO"
+  },
+  {
+   "test": "N2",
+   "what": "egress deny: connect to host loopback",
+   "expect": "deny",
+   "exit_code": 7,
+   "note": "listener hits=0 0.1s out=000",
+   "verdict": "PASS"
+  },
+  {
+   "test": "N4",
+   "what": "egress allow (no hostLoopback): connect to host loopback",
+   "expect": "deny",
+   "exit_code": 7,
+   "note": "listener hits=0 0.1s out=000",
+   "verdict": "PASS"
+  },
+  {
+   "test": "N4b",
+   "what": "ingress.hostLoopback=allow: connect to host loopback",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "listener hits=1 0.2s out=200",
+   "verdict": "PASS"
+  },
+  {
+   "test": "N6",
+   "what": "egress allow: GET / to existing host service 127.0.0.1:11434",
+   "expect": "deny",
+   "exit_code": 7,
+   "note": "0.1s out=000",
+   "verdict": "PASS"
+  },
+  {
+   "test": "X2",
+   "what": "proxy mode (identityless), egress deny: DIRECT GET / to 127.0.0.1:11434",
+   "expect": "deny",
+   "exit_code": 7,
+   "note": "0.3s out=000",
+   "verdict": "PASS"
+  },
+  {
+   "test": "N6b",
+   "what": "hostLoopback=allow: GET / to existing host service 127.0.0.1:11434",
+   "expect": "info",
+   "exit_code": 0,
+   "note": "0.1s out=200",
+   "verdict": "INFO"
+  },
+  {
+   "test": "N6",
+   "what": "egress allow: GET / to existing host service 127.0.0.1:8830",
+   "expect": "deny",
+   "exit_code": 7,
+   "note": "0.1s out=000",
+   "verdict": "PASS"
+  },
+  {
+   "test": "X2",
+   "what": "proxy mode (identityless), egress deny: DIRECT GET / to 127.0.0.1:8830",
+   "expect": "deny",
+   "exit_code": 7,
+   "note": "0.2s out=000",
+   "verdict": "PASS"
+  },
+  {
+   "test": "N6b",
+   "what": "hostLoopback=allow: GET / to existing host service 127.0.0.1:8830",
+   "expect": "info",
+   "exit_code": 0,
+   "note": "0.1s out=200",
+   "verdict": "INFO"
+  },
+  {
+   "test": "X1",
+   "what": "proxy mode (identityless), egress deny: DIRECT connect to the proxy endpoint",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "listener hits=1 0.2s out=200",
+   "verdict": "PASS"
+  },
+  {
+   "test": "X3",
+   "what": "proxy mode (identityless): DIRECT connect to another host loopback port",
+   "expect": "deny",
+   "exit_code": 7,
+   "note": "0.2s out=000",
+   "verdict": "PASS"
+  },
+  {
+   "test": "X4",
+   "what": "proxy mode: plain curl to a host NAME goes through HTTP(S)_PROXY set by MXC",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "listener hits=1 0.3s out=HTTPS_PROXY=http://127.0.0.1:60362 200",
+   "verdict": "PASS"
+  },
+  {
+   "test": "N1",
+   "what": "egress deny: HTTPS to example.com",
+   "expect": "deny",
+   "exit_code": 6,
+   "note": "0.1s out=000",
+   "verdict": "PASS"
+  },
+  {
+   "test": "P1",
+   "what": "per-user Python, its folder NOT in the policy",
+   "expect": "info",
+   "exit_code": 3221225781,
+   "note": "0.1s",
+   "verdict": "INFO"
+  },
+  {
+   "test": "P1c",
+   "what": "per-user Python, install folder in readonlyPaths (no ssl import)",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "0.1s out=2",
+   "verdict": "PASS"
+  },
+  {
+   "test": "P1d",
+   "what": "same, but 'import ssl' (UI/Win32k disabled = default)",
+   "expect": "info",
+   "exit_code": 1,
+   "note": "0.2s err=Traceback (most recent call last): File \"<string>\", line 1, in <module> File \"C:\\Users\\<user>\\AppData\\Local\\Programs\\Python\\Python311\\Lib\\ssl.py\", line 100, in <module> import _ssl # if we can't import it, let the error propagate ^^^^^^^^^^^ ImportError: DLL load failed w",
+   "verdict": "INFO"
+  },
+  {
+   "test": "P1e",
+   "what": "same 'import ssl' with ui.disable=false (clipboard none, injection off)",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "0.2s out=2",
+   "verdict": "PASS"
+  },
+  {
+   "test": "P2",
+   "what": "node.exe, its folder NOT in the policy",
+   "expect": "info",
+   "exit_code": 3221225794,
+   "note": "0.1s err=The target executable exited with STATUS_DLL_INIT_FAILED (0xC0000142). This often means the sandbox is blocking Win32k system calls (UI subsystem access), which is often required to initialize. Enable UI access in your sandbox policy: set `ui.disable: false` in the JSON config, or `ui.allowWindows:",
+   "verdict": "INFO"
+  },
+  {
+   "test": "P2c",
+   "what": "node.exe, its folder in readonlyPaths (UI disabled = default)",
+   "expect": "info",
+   "exit_code": 3221225794,
+   "note": "0.1s err=The target executable exited with STATUS_DLL_INIT_FAILED (0xC0000142). This often means the sandbox is blocking Win32k system calls (UI subsystem access), which is often required to initialize. Enable UI access in your sandbox policy: set `ui.disable: false` in the JSON config, or `ui.allowWindows:",
+   "verdict": "INFO"
+  },
+  {
+   "test": "P2e",
+   "what": "node.exe, folder in readonlyPaths, ui.disable=false",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "0.2s out=2",
+   "verdict": "PASS"
+  },
+  {
+   "test": "S1",
+   "what": "long-running stdio: 3 line round-trips over ~6s, then EOF",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "replies=['echo:ping0', 'echo:ping1', 'echo:ping2'] reply_secs=[0.102, 0.0, 0.0] total=6.2s",
+   "verdict": "PASS"
+  }
+ ]
+}
