@@ -13,7 +13,7 @@
 | [tools/local-llm-live/](tools/local-llm-live/) | 對真的 Ollama 跑 SYNOX AgentLoop 的測試腳本與原始結果 |
 | [discussions/](discussions/) | 沙盒／容器的設計討論（2026-11-10）：為什麼、比較表、階段 S0–S8，與實作 how-to（原 `docs/discussions/`） |
 | [2026-11-13-ecosystem-security-research.md](2026-11-13-ecosystem-security-research.md) | 接上 OpenClaw／Hermes 等生態、市集、沙盒與安全的研究（35 題擁有者決定在第七節，2026-11-16 已答） |
-| [2026-11-13-ecosystem-implementation-plan.md](2026-11-13-ecosystem-implementation-plan.md) | 上面那份的實作計畫；設計在 [adr/0022](../adr/0022-ecosystem-bridge-and-sandbox.md)（已採用，附擁有者修正 O1：先不接外來的工具與技能）；第零節是核准後的順序 |
+| [2026-11-13-ecosystem-implementation-plan.md](2026-11-13-ecosystem-implementation-plan.md) | 上面那份的實作計畫；設計在 [adr/0022](../adr/0022-ecosystem-bridge-and-sandbox.md)（已採用，附擁有者修正 O1（設計中）：所有來源一律可以安裝、一律顯示安全提醒）；第零節是核准後的現況 |
 | [PROMPT-ecosystem-bridge-and-sandbox.md](PROMPT-ecosystem-bridge-and-sandbox.md) | 生態接入與沙盒的完整任務書（分階段、兩道關卡）；第 0 節是現況與下一步 |
 | [2026-11-14-tool-apps-implementation-plan.md](2026-11-14-tool-apps-implementation-plan.md) | 工具服務（每個工具自己的完整網頁）的實作計畫：合約、八個工作包、只有擁有者能做的真機驗收；設計在 [adr/0024](../adr/0024-tool-apps-services.md)（提案） |
 | [2026-11-14-stepup-remote-plan.md](2026-11-14-stepup-remote-plan.md) | 門禁核心、手機驗證器、手機入口的實作計畫（S1–S15，含工具服務的八包）；設計在 [adr/0025](../adr/0025-guard-core-and-stepup.md)、[adr/0026](../adr/0026-remote-tool-apps.md) |

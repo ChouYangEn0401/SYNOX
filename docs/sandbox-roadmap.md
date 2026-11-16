@@ -11,19 +11,17 @@
 > their own Windows PCs and share the results, and lists concrete "help wanted" tasks with acceptance criteria.
 > Ideas and results go to GitHub Discussions; **security vulnerabilities go privately via [SECURITY.md](../SECURITY.md),
 > never in public**. Design decisions live in [ADR 0022](adr/0022-ecosystem-bridge-and-sandbox.md), **adopted on
-> 2026-11-16** with one owner amendment: **for now SYNOX does not install or run skills or tools imported from other
-> ecosystems** (Agent Skills hubs, npm package names, outside marketplaces). The settings page still lists the feature,
-> marked high risk and not installable, because third-party skills from any open hub (including SYNOX's own future
-> one) can carry malicious code and scanning cannot catch all of it. The isolation work on this page protects every
-> tool, official ones included, so it goes ahead: H8–H10 are open now; H11 (the Windows backend) waits for the probe
-> results. One question is still open with the owner: whether the amendment also covers installing any third-party
-> `.synoxpack` file, which is possible today.
+> 2026-11-16** as recommended, with one owner amendment that is still being designed: **every source can be installed
+> (the official library, any third-party `.synoxpack`, future imports) and every install shows a clear safety
+> warning**, because third-party skills from any open hub (including SYNOX's own future one) can carry malicious code
+> and scanning cannot catch all of it; official tools will be recognised by an owner signature. Details go into a
+> separate ADR. The isolation work on this page protects every tool, so it goes ahead: H8–H10 are open now; H11 (the
+> Windows backend) waits for the probe results.
 
-- 狀態：**公開的路線圖與徵求協助**。[ADR 0022](adr/0022-ecosystem-bridge-and-sandbox.md) **2026-11-16 已採用**（擁有者照建議核准），另加一條擁有者修正：
-  **目前 SYNOX 不安裝、也不執行從其他生態匯入的技能或工具**（Agent Skills 的技能集散地、npm 套件名、外面的市集）。設定頁照樣列出這個功能，標明高風險、不能裝。
-  理由：任何開放上架的技能來源（包括 SYNOX 自己之後的）都可能有帶惡意程式碼的技能，檢查也擋不完。
+- 狀態：**公開的路線圖與徵求協助**。[ADR 0022](adr/0022-ecosystem-bridge-and-sandbox.md) **2026-11-16 已採用**（擁有者照建議核准），另加一條擁有者修正（設計中）：
+  **所有來源一律可以安裝**（官方工具庫、任何人做的 `.synoxpack`、之後的匯入），**一律顯示安全提醒**；官方工具以擁有者簽章辨識；細節另立 ADR。
+  安全提醒的理由：任何開放上架的技能來源（包括 SYNOX 自己之後的）都可能有帶惡意程式碼的技能，檢查也擋不完。
   這一頁講的隔離保護的是**所有**工具（官方的也一樣），所以照常進行；設計核准了，但到 2026-11-16 為止 `src/` 還沒有為它改動。
-  還有一題在等擁有者：這條修正包不包括現在就能做的「裝任何人做的 `.synoxpack` 工具檔」。
 - 最後更新：2026-11-16。對過的程式：`src/synox/sandbox.py`、`src/synox/packs/container.py`、`src/synox/web/static/app.html`（`set-sandbox` 卡片）。
 - 有想法、有實測結果 → GitHub Discussions（討論串草稿：[community/discussion-ecosystem-and-sandbox.md](community/discussion-ecosystem-and-sandbox.md)）。
   **發現安全漏洞 → 照 [SECURITY.md](../SECURITY.md) 私下寄信，不要開公開 issue、不要貼在討論區。**
@@ -37,9 +35,8 @@ SYNOX 可以裝別人做的工具（pack）。工具會在你的電腦上跑程�
 沙盒想做到的是：就算裝到有問題的工具，它也**只碰得到自己的資料夾、只連得到它申請的網站**，碰不到你的文件、
 你的帳號、本機的其他服務（例如 Ollama 的 11434 埠、SYNOX 自己的 8830 埠）。
 
-匯入 OpenClaw、Hermes Agent 等 Agent Skills 生態的技能（[ADR 0022](adr/0022-ecosystem-bridge-and-sandbox.md) 第 1 節）的設計已經寫好，
-但擁有者決定**目前先不開放**（見上面的狀態）。之後如果重開，會有更多不是 SYNOX 維護者寫的程式在使用者電腦上跑，沙盒就更重要；
-在那之前，沙盒保護的是官方工具與你自己裝的工具。
+之後如果 SYNOX 能匯入 OpenClaw、Hermes Agent 等 Agent Skills 生態的技能（[ADR 0022](adr/0022-ecosystem-bridge-and-sandbox.md) 第 1 節；設計已核准，排在後面做），
+會有更多不是 SYNOX 維護者寫的程式在使用者電腦上跑，沙盒就更重要。
 
 ## 二、現在的狀態（老實版）
 
@@ -158,7 +155,7 @@ UDP／QUIC 出不去；Windows 上 DNS 由系統服務代做，擋不住。
 
 | 文件 | 內容 |
 |---|---|
-| [ADR 0022](adr/0022-ecosystem-bridge-and-sandbox.md) | 設計（2026-11-16 已採用，附擁有者修正 O1）：匯入器、npm、市集（這三塊目前先不做）、隔離（第 6 節）、預覽；擁有者決定對照表；第 13 節是哪些照做、哪些延後 |
+| [ADR 0022](adr/0022-ecosystem-bridge-and-sandbox.md) | 設計（2026-11-16 已採用，附擁有者修正 O1，設計中）：匯入器、npm、市集、隔離（第 6 節）、預覽；擁有者決定對照表；第 13 節是修正 O1 的影響 |
 | [第 3 階段研究](lab/2026-11-13-ecosystem-security-research.md) | 查到什麼、每一條的來源與標籤；主題 4 是 Windows 沙盒 |
 | [實作計畫](lab/2026-11-13-ecosystem-implementation-plan.md) | 分工與驗收；區塊 C 是隔離 |
 | [security.md](security.md) | 現在的安全邊界：五關、信任層級、運行空間（沙盒）、沒有做的保護 |

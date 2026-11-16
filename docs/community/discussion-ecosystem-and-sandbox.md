@@ -46,7 +46,7 @@ OpenClaw 對第三方技能的提醒）。兩個專案的信任模型是針對�
 ### 文件
 
 - 沙盒路線圖（現況、Windows 的候選路線、探測腳本、徵求協助的任務與驗收條件）：[docs/sandbox-roadmap.md](https://github.com/ChouYangEn0401/SYNOX/blob/dev/docs/sandbox-roadmap.md)
-- 設計 ADR 0022（2026-11-16 已採用；擁有者另加一條修正：目前先不安裝、不執行從其他生態匯入的技能與工具，隔離的工作照常進行）：[docs/adr/0022-ecosystem-bridge-and-sandbox.md](https://github.com/ChouYangEn0401/SYNOX/blob/dev/docs/adr/0022-ecosystem-bridge-and-sandbox.md)
+- 設計 ADR 0022（2026-11-16 已採用；擁有者另加一條修正（設計中）：所有來源一律可以安裝、一律顯示安全提醒，官方工具以擁有者簽章辨識；隔離的工作照常進行）：[docs/adr/0022-ecosystem-bridge-and-sandbox.md](https://github.com/ChouYangEn0401/SYNOX/blob/dev/docs/adr/0022-ecosystem-bridge-and-sandbox.md)
 - 研究（每一條都附來源）：[docs/lab/2026-11-13-ecosystem-security-research.md](https://github.com/ChouYangEn0401/SYNOX/blob/dev/docs/lab/2026-11-13-ecosystem-security-research.md)
 - 實作計畫：[docs/lab/2026-11-13-ecosystem-implementation-plan.md](https://github.com/ChouYangEn0401/SYNOX/blob/dev/docs/lab/2026-11-13-ecosystem-implementation-plan.md)
 - 怎麼貢獻：[CONTRIBUTING.md](https://github.com/ChouYangEn0401/SYNOX/blob/dev/CONTRIBUTING.md)
@@ -107,7 +107,7 @@ docs that is wrong, out of date, or unfair in tone, please tell us and we'll fix
 ### Documents
 
 - Sandbox roadmap (current state, Windows options, probe scripts, help-wanted tasks with acceptance criteria): [docs/sandbox-roadmap.md](https://github.com/ChouYangEn0401/SYNOX/blob/dev/docs/sandbox-roadmap.md)
-- Design ADR 0022 (adopted 2026-11-16, with one owner amendment: for now SYNOX does not install or run skills or tools imported from other ecosystems; the isolation work goes ahead): [docs/adr/0022-ecosystem-bridge-and-sandbox.md](https://github.com/ChouYangEn0401/SYNOX/blob/dev/docs/adr/0022-ecosystem-bridge-and-sandbox.md)
+- Design ADR 0022 (adopted 2026-11-16, with one owner amendment still being designed: every source can be installed and every install shows a safety warning; official tools are recognised by an owner signature; the isolation work goes ahead): [docs/adr/0022-ecosystem-bridge-and-sandbox.md](https://github.com/ChouYangEn0401/SYNOX/blob/dev/docs/adr/0022-ecosystem-bridge-and-sandbox.md)
 - Research (every claim has a source): [docs/lab/2026-11-13-ecosystem-security-research.md](https://github.com/ChouYangEn0401/SYNOX/blob/dev/docs/lab/2026-11-13-ecosystem-security-research.md)
 - Implementation plan: [docs/lab/2026-11-13-ecosystem-implementation-plan.md](https://github.com/ChouYangEn0401/SYNOX/blob/dev/docs/lab/2026-11-13-ecosystem-implementation-plan.md)
 - How to contribute: [CONTRIBUTING.md](https://github.com/ChouYangEn0401/SYNOX/blob/dev/CONTRIBUTING.md)
