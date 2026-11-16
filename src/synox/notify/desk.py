@@ -21,12 +21,18 @@
 - 檔案裡的提醒文字是明文、只放在本機 data/ 底下，處理掉就刪（見 ADR 0028 §3.4「隱私」）。
 - 視窗每 1 秒看 to_win；引擎每 ≤5 秒看 from_win（POLL_*）。
 
-本檔只有格式、檔名、純函式；讀寫資料夾與鎖的類別是 W2 的事（函式本體 NotImplementedError）。
+格式、檔名、純函式是 W0 定的契約；讀寫資料夾（FileSpool）、OS 鎖（FileLock／FileEngineLock）、讓位（request_yield…）、
+啟動資料夾（install_autostart）是 W2 的實作，放在本檔後半。
 """
 
 from __future__ import annotations
 
+import json
+import logging
+import os
 import re
+import sys
+import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Protocol
@@ -218,15 +224,299 @@ class EngineLock(Protocol):
         """讀 stamp（不保證拿著鎖的人還活著；判斷活著要看 try_acquire）。"""
 
 
-def spool_at(data_dir: str) -> Spool:
-    raise NotImplementedError("W2: desk.spool_at")
+def remind_dir(data_dir: str) -> str:
+    return os.path.join(data_dir, FOLDER)
 
 
-def engine_lock_at(data_dir: str) -> EngineLock:
-    raise NotImplementedError("W2: desk.engine_lock_at")
+def _write_json(folder: str, name: str, data: Dict[str, Any]) -> str:
+    """先寫 .<name>.tmp 再 os.replace（讀的人看不到寫一半的檔）。Windows 上對方剛好在讀時 replace 會失敗：等一下再試。"""
+    os.makedirs(folder, exist_ok=True)
+    path = os.path.join(folder, name)
+    tmp = os.path.join(folder, f".{name}.tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False)
+    for attempt in range(5):
+        try:
+            os.replace(tmp, path)
+            return path
+        except PermissionError:
+            if attempt == 4:
+                raise
+            time.sleep(0.05)
+    return path
 
 
-# ── 提醒哨兵的開機啟動（W2 實作；只在這個使用者帳號、不用管理員）──────────
+def _remove(path: str) -> bool:
+    try:
+        os.remove(path)
+        return True
+    except FileNotFoundError:
+        return False
+    except OSError as e:
+        logging.warning("[DESK] cannot remove %s: %s", os.path.basename(path), type(e).__name__)
+        return False
+
+
+class FileSpool:
+    """data/remind/desk 的讀寫。引擎那一邊用 put_show／put_close／put_todos／drop_show／take_from_win；
+    視窗那一邊用 pending_for_win／todos_for_win／put_shown／put_action／drop_close。"""
+
+    def __init__(self, root: str):
+        self.root = root
+        self.to_win = os.path.join(root, TO_WIN)
+        self.from_win = os.path.join(root, FROM_WIN)
+
+    # ── 共用 ─────────────────────────────────────────────────────────
+
+    def _names(self, folder: str, prefix: str = "") -> List[str]:
+        try:
+            names = os.listdir(folder)
+        except FileNotFoundError:
+            return []
+        return sorted(n for n in names if not is_temp(n) and n.endswith(".json") and n.startswith(prefix))
+
+    def _read(self, folder: str, name: str):
+        """讀一個檔 → dataclass；壞掉的（不是 JSON、type 不認得、token 不合規）記 log（不記內容）、刪掉、回 None。"""
+        path = os.path.join(folder, name)
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                raise ValueError("not an object")
+            return from_dict(data)
+        except FileNotFoundError:
+            return None
+        except (OSError, ValueError, TypeError) as e:
+            if isinstance(e, PermissionError):          # 對方正在寫（Windows）：下一輪再讀
+                return None
+            logging.warning("[DESK] dropping unreadable %s (%s)", name.split("-")[0], type(e).__name__)
+            _remove(path)
+            return None
+
+    # ── 引擎 → 視窗 ──────────────────────────────────────────────────
+
+    def put_show(self, card: ShowCard) -> None:
+        if not card.written_at:
+            card.written_at = time.time()
+        _write_json(self.to_win, show_name(card.token), to_dict(card))
+
+    def put_close(self, card: CloseCard) -> None:
+        _write_json(self.to_win, close_name(card.token), to_dict(card))
+
+    def put_todos(self, todos: TodoList) -> None:
+        todos.items = list(todos.items)[:TODO_SHOW]
+        if not todos.written_at:
+            todos.written_at = time.time()
+        _write_json(self.to_win, todos_name(todos.uid), to_dict(todos))
+
+    def drop_show(self, token: str) -> None:
+        if token_ok(token):
+            _remove(os.path.join(self.to_win, show_name(token)))
+
+    def has_show(self, token: str) -> bool:
+        return token_ok(token) and os.path.exists(os.path.join(self.to_win, show_name(token)))
+
+    def take_from_win(self) -> List[Any]:
+        out = []
+        names = sorted(self._names(self.from_win), key=lambda n: (not n.startswith("shown-"), n))   # 先確認、再處理按了什麼
+        for name in names:
+            obj = self._read(self.from_win, name)
+            if obj is None:
+                continue
+            if isinstance(obj, (ShownAck, DeskAction)):
+                out.append(obj)
+            else:
+                logging.warning("[DESK] unexpected %s in from_win", type(obj).__name__)
+            _remove(os.path.join(self.from_win, name))
+        return out
+
+    # ── 視窗那一邊 ───────────────────────────────────────────────────
+
+    def pending_for_win(self) -> List[Any]:
+        out = []
+        for name in self._names(self.to_win):
+            if not (name.startswith("show-") or name.startswith("close-")):
+                continue
+            obj = self._read(self.to_win, name)
+            if isinstance(obj, (ShowCard, CloseCard)):
+                out.append(obj)
+        return out
+
+    def todos_for_win(self, uid: Optional[int] = None) -> List[TodoList]:
+        out = []
+        for name in self._names(self.to_win, "todos-"):
+            obj = self._read(self.to_win, name)
+            if isinstance(obj, TodoList) and (uid is None or int(obj.uid) == int(uid)):
+                out.append(obj)
+        return out
+
+    def drop_close(self, token: str) -> None:
+        if token_ok(token):
+            _remove(os.path.join(self.to_win, close_name(token)))
+
+    def put_shown(self, ack: ShownAck) -> None:
+        _write_json(self.from_win, shown_name(ack.token), to_dict(ack))
+
+    def put_action(self, act: DeskAction) -> None:
+        _write_json(self.from_win, act_name(act.token, int(act.at * 1000) if act.at else now_ms()), to_dict(act))
+
+
+def spool_at(data_dir: str) -> FileSpool:
+    return FileSpool(os.path.join(remind_dir(data_dir), DESK))
+
+
+# ── OS 獨占鎖（程序死掉，作業系統自動放掉）──────────────────────────────
+
+_LOCK_OFFSET = 1 << 20          # Windows 鎖的是「檔案裡某一段」：鎖遠處的一個位元組，前面的 stamp 別人還讀得到
+_STAMP_WIDTH = 256              # stamp 固定寬度覆寫（不 truncate），後面補空白
+
+
+class FileLock:
+    """一個檔一把鎖：同一時間只有一個 handle 拿得到（同一個程序開兩個也一樣）。Windows msvcrt.locking；其他 fcntl.flock。"""
+
+    def __init__(self, path: str):
+        self.path = path
+        self._fd: Optional[int] = None
+
+    @property
+    def held(self) -> bool:
+        return self._fd is not None
+
+    def try_acquire(self) -> bool:
+        if self._fd is not None:
+            return True
+        os.makedirs(os.path.dirname(self.path) or ".", exist_ok=True)
+        fd = os.open(self.path, os.O_RDWR | os.O_CREAT, 0o600)
+        try:
+            if sys.platform == "win32":
+                import msvcrt
+                os.lseek(fd, _LOCK_OFFSET, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            os.close(fd)
+            return False
+        self._fd = fd
+        return True
+
+    def release(self) -> None:
+        fd, self._fd = self._fd, None
+        if fd is None:
+            return
+        try:
+            if sys.platform == "win32":
+                import msvcrt
+                os.lseek(fd, _LOCK_OFFSET, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        finally:
+            os.close(fd)
+
+    def _write_head(self, data: Dict[str, Any]) -> None:
+        if self._fd is None:
+            return
+        raw = json.dumps(data).encode("utf-8")[:_STAMP_WIDTH]
+        os.lseek(self._fd, 0, os.SEEK_SET)
+        os.write(self._fd, raw + b" " * (_STAMP_WIDTH - len(raw)))
+
+    def free(self) -> bool:
+        """現在沒有人拿著嗎（試拿一下馬上放；給「視窗程式開著沒」這種判斷用）。"""
+        if self.held:
+            return False
+        probe = FileLock(self.path)
+        if probe.try_acquire():
+            probe.release()
+            return True
+        return False
+
+
+class FileEngineLock(FileLock):
+    """data/remind/engine.lock：拿到＝我是提醒引擎；檔頭是 EngineStamp（who、pid、since、beat）。"""
+
+    def __init__(self, path: str, clock=time.time):
+        super().__init__(path)
+        self.clock = clock
+        self.stamp: Optional[EngineStamp] = None
+
+    def try_acquire(self, who: str = WHO_APP) -> bool:            # type: ignore[override]
+        if self.held:
+            return True
+        if not super().try_acquire():
+            return False
+        now = self.clock()
+        self.stamp = EngineStamp(who=who, pid=os.getpid(), since=now, beat=now)
+        self._write_stamp()
+        return True
+
+    def _write_stamp(self) -> None:
+        try:
+            self._write_head(asdict(self.stamp))
+        except OSError as e:
+            logging.warning("[DESK] cannot write engine stamp: %s", type(e).__name__)
+
+    def beat(self) -> None:
+        if self.held and self.stamp is not None:
+            self.stamp.beat = self.clock()
+            self._write_stamp()
+
+    def release(self) -> None:
+        self.stamp = None
+        super().release()
+
+    def holder(self) -> Optional[EngineStamp]:
+        try:
+            with open(self.path, "rb") as f:
+                raw = f.read(_STAMP_WIDTH).strip(b" \x00\r\n")
+            data = json.loads(raw.decode("utf-8")) if raw else None
+            if not isinstance(data, dict):
+                return None
+            return EngineStamp(**{k: v for k, v in data.items() if k in EngineStamp.__dataclass_fields__})
+        except (OSError, ValueError, TypeError):
+            return None
+
+
+def engine_lock_at(data_dir: str) -> FileEngineLock:
+    return FileEngineLock(os.path.join(remind_dir(data_dir), ENGINE_LOCK))
+
+
+def sentinel_lock_at(data_dir: str) -> FileLock:
+    return FileLock(os.path.join(remind_dir(data_dir), SENTINEL_LOCK))
+
+
+def popup_lock_at(data_dir: str) -> FileLock:
+    return FileLock(os.path.join(remind_dir(data_dir), POPUP_LOCK))
+
+
+# ── 讓位：主程式 → 哨兵 ─────────────────────────────────────────────────
+
+def request_yield(data_dir: str, pid: Optional[int] = None, at: Optional[float] = None) -> str:
+    req = YieldRequest(pid=int(pid if pid is not None else os.getpid()), at=float(at if at is not None else time.time()))
+    return _write_json(remind_dir(data_dir), YIELD_REQUEST, asdict(req))
+
+
+def yield_requested(data_dir: str) -> Optional[YieldRequest]:
+    path = os.path.join(remind_dir(data_dir), YIELD_REQUEST)
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return YieldRequest(**{k: v for k, v in data.items() if k in YieldRequest.__dataclass_fields__})
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError, TypeError, AttributeError):
+        return YieldRequest(pid=0, at=0.0)          # 壞掉的也算「有人要你讓」：寧可讓
+
+
+def clear_yield(data_dir: str) -> None:
+    _remove(os.path.join(remind_dir(data_dir), YIELD_REQUEST))
+
+
+# ── 提醒哨兵的開機啟動（只在這個使用者帳號、不用管理員）──────────────────
 #
 # 跟精靈的「開機自動啟動」同一個地方（wizard.shortcuts.startup_dir()：使用者的「啟動」資料夾），放一個
 # SENTINEL_STARTUP_NAME + ".cmd"，內容是用 pythonw 跑 `python -m synox sentinel`（不跳黑窗）。
@@ -235,13 +525,52 @@ def engine_lock_at(data_dir: str) -> EngineLock:
 SENTINEL_STARTUP_NAME = "SYNOX-remind-sentinel"
 
 
-def install_autostart(folder: str, command: List[str]) -> str:
+def _cmd_quote(arg: str) -> str:
+    arg = str(arg)
+    if arg and not any(c in arg for c in ' \t"&|<>^()%'):
+        return arg
+    return '"' + arg.replace('"', '""') + '"'
+
+
+def autostart_text(command: List[str], cwd: str = "") -> str:
+    """啟動檔的內容（CRLF；UTF-8，第一行把主控台切成 UTF-8，中文路徑也能用）。"""
+    lines = ["@echo off", "chcp 65001 >nul",
+             "rem SYNOX reminder sentinel, created by SYNOX. Delete this file to stop it.",
+             'set "PYTHONUTF8=1"', 'set "PYTHONIOENCODING=utf-8"']
+    if cwd:
+        lines.append(f"cd /d {_cmd_quote(cwd)}")
+    lines.append('start "" ' + " ".join(_cmd_quote(c) for c in command))
+    return "\r\n".join(lines) + "\r\n"
+
+
+def autostart_path(folder: str) -> str:
+    return os.path.join(folder, SENTINEL_STARTUP_NAME + ".cmd")
+
+
+def install_autostart(folder: str, command: List[str], cwd: str = "") -> str:
     """在 folder 放啟動檔（回檔案路徑）。已經有了就覆寫成一樣的內容（冪等）。"""
-    raise NotImplementedError("W2: desk.install_autostart")
+    if not command:
+        raise ValueError("command is empty")
+    os.makedirs(folder, exist_ok=True)
+    path = autostart_path(folder)
+    data = autostart_text(command, cwd).encode("utf-8")
+    try:
+        with open(path, "rb") as f:
+            if f.read() == data:
+                return path
+    except OSError:
+        pass
+    with open(path, "wb") as f:
+        f.write(data)
+    return path
 
 
 def remove_autostart(folder: str) -> bool:
-    raise NotImplementedError("W2: desk.remove_autostart")
+    return _remove(autostart_path(folder))
+
+
+def autostart_installed(folder: str) -> bool:
+    return os.path.exists(autostart_path(folder))
 
 
 def now_ms() -> int:
@@ -253,4 +582,7 @@ __all__ = ["BTN_DONE", "BTN_SNOOZE_10", "BTN_SNOOZE_60", "BTN_SNOOZE_TYPED", "Cl
            "POLL_WIN_S", "POPUP_LOCK", "SENTINEL_LOCK", "SHOWN_TIMEOUT_S", "STAMP_STALE_S", "ShowCard", "ShownAck", "TODO_SHOW", "TodoList",
            "SENTINEL_STARTUP_NAME", "Spool", "TO_WIN", "install_autostart", "remove_autostart", "VERSION", "WHO_APP", "WHO_SENTINEL", "YIELD_REQUEST", "YIELD_WAIT_S", "YieldRequest",
            "act_name", "close_name", "engine_lock_at", "from_dict", "is_temp", "make_token", "show_name",
-           "shown_name", "spool_at", "to_dict", "todos_name", "token_ok"]
+           "shown_name", "spool_at", "to_dict", "todos_name", "token_ok",
+           # W2 的實作（契約之外多的）
+           "FileEngineLock", "FileLock", "FileSpool", "autostart_installed", "autostart_path", "autostart_text",
+           "clear_yield", "popup_lock_at", "remind_dir", "request_yield", "sentinel_lock_at", "yield_requested"]

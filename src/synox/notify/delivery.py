@@ -14,7 +14,8 @@
   送達層回頭叫它）。W1 不寫任何送出的程式；W2 不 import synox.schedule 的引擎。
 - Hub.notify 的簽名與行為不變（其他種類的通知照舊一次送完、不重試）；只有走 deliver() 的才有確認與重試。
 
-本檔只有型別、常數、純函式（RetryPolicy 的數字）；要動檔案或管道的函式本體是 NotImplementedError，等 W2。
+本檔是契約（型別、常數、RetryPolicy 的數字）＋四個函式的入口；本體在 outbox.py、channels.py、deskapp.py（W2）。
+多的兩個入口：is_engine(app)（提醒哨兵在跑時主程式先不跑引擎）、publish_todos(app, uid, items)（視窗下半部的待辦）。
 """
 
 from __future__ import annotations
@@ -201,23 +202,61 @@ class Outbox(Protocol):
 
 # ── W1 呼叫的四個函式（W2 實作本體）──────────────────────────────────
 
+#
+# 本體在 notify/outbox.py（佇列）、notify/channels.py（四個管道）、notify/deskapp.py（接上主程式）。
+# `app` 只要有 extras：extras[OUTBOX_EXTRA] 是佇列（哨兵自己放一個），沒有的話用通知中心現場裝一個。
+
+def _outbox(app):
+    from synox.notify import deskapp
+    outbox = deskapp.ensure(app)
+    if outbox is None:
+        raise RuntimeError("notify hub is not installed")
+    return outbox
+
+
 def deliver(app, msg: Message) -> DeliveryTicket:
     """送一則要確認的通知：馬上試一次，失敗的照 RetryPolicy 留在佇列。冪等（同 key 不重送）。"""
-    raise NotImplementedError("W2: delivery.deliver")
+    return _outbox(app).submit(msg)
 
 
 def resolve(app, uid: int, key: str, *, note: str = "", via: str = "") -> None:
-    raise NotImplementedError("W2: delivery.resolve")
+    _outbox(app).resolve(int(uid), key, note=note, via=via)
 
 
 def status(app, uid: int, key: str) -> Optional[DeliveryTicket]:
-    raise NotImplementedError("W2: delivery.status")
+    return _outbox(app).status(int(uid), key)
 
 
 def planned_channels(app, uid: int, kind: str = "alarm") -> List[str]:
     """現在這一類會送到哪些管道（id，CHANNELS 的順序）：給排程回執的 channels。
     跟 hub.where 同一套判斷，多一個 desktop。"""
-    raise NotImplementedError("W2: delivery.planned_channels")
+    from synox import notify
+    from synox.notify import channels, deskapp
+    hub = notify.of(app)
+    if hub is None:
+        return []
+    deskapp.ensure(app)
+    desk = app.extras.get(deskapp.DESK_EXTRA)
+    return channels.planned(hub, int(uid), kind, desk.available if desk is not None else (lambda _uid: False))
+
+
+def is_engine(app) -> bool:
+    """這支程式現在是不是提醒引擎（engine.lock 在我手上）。提醒哨兵在跑、還沒讓位時是 False：
+    W1 的到點檢查要先看這個，False 就這一輪不跑（哨兵在送，不會重複）。還沒 start（測試）一律 True。"""
+    from synox.notify import deskapp
+    gate = getattr(app, "extras", {}).get(deskapp.GATE_EXTRA)
+    return True if gate is None else bool(gate.mine)
+
+
+def publish_todos(app, uid: int, items: List[Dict[str, Any]]) -> None:
+    """待辦（沒有時間的）有變動時整份交給電腦視窗的下半部：items＝[{"rid": 5, "text": "繳電話費"}]（最多 20 筆）。
+    不是 Windows 個人版、不是擁有者就什麼都不做。W1 在待辦新增／完成／刪除後叫。"""
+    from synox.notify import deskapp
+    if deskapp.ensure(app) is None:
+        return
+    desk = app.extras.get(deskapp.DESK_EXTRA)
+    if desk is not None:
+        desk.put_todos(int(uid), items)
 
 
 def message_key(rid: int, occurrence: str, owner: int) -> str:
@@ -229,4 +268,5 @@ __all__ = ["ACTIONS_EXTRA", "ActionOutcome", "CHANNELS", "CHAT", "ChannelAdapter
            "DESKTOP_LABEL", "DISCORD", "DeliveryRecord", "DeliveryResult", "DeliveryTicket", "ERRORS", "FAILED",
            "GAVE_UP", "Message", "OUTBOX_EXTRA", "OUTBOX_FOLDER", "Outbox", "PERMANENT_ERRORS", "PUMP_INTERVAL",
            "PUMP_TASK_ID", "QUEUED", "RETRACTED", "ReminderActions", "ReminderRef", "RetryPolicy", "SENT", "SKIPPED",
-           "STATES", "TELEGRAM", "WEB", "deliver", "message_key", "planned_channels", "resolve", "status"]
+           "STATES", "TELEGRAM", "WEB", "deliver", "is_engine", "message_key", "planned_channels", "publish_todos",
+           "resolve", "status"]

@@ -100,15 +100,12 @@ def test_retry_policy_numbers():
     assert delivery.DeliveryResult("telegram", delivery.FAILED, error="blocked").permanent
 
 
-def test_delivery_shells_are_not_implemented_yet():
+def test_delivery_contract_shapes():
+    # 送達層（tests/test_notify_outbox.py）與 headless_engine（tests/test_remind_catchup.py）都已實作；這裡只守格式
     msg = delivery.Message(key=delivery.message_key(3, "2026-11-16T00:51:00+08:00", 1001), uid=1001, text="x",
                            ref=delivery.ReminderRef(3, "2026-11-16T00:51:00+08:00"))
     assert msg.key == "rem:1001:3:2026-11-16T00:51:00+08:00"
-    for fn, args in ((delivery.deliver, (None, msg)), (delivery.planned_channels, (None, 1001)),
-                     (desk.spool_at, ("x",))):
-        with pytest.raises(NotImplementedError):
-            fn(*args)
-    assert callable(reminder.headless_engine("x", None, print).tick)          # W1 已實作（tests/test_remind_catchup.py）
+    assert callable(reminder.headless_engine("x", None, print).tick)
     ticket = delivery.DeliveryTicket(msg.key, 1001, {"web": delivery.DeliveryRecord("web", state=delivery.SENT),
                                                      "telegram": delivery.DeliveryRecord("telegram", next_try=5.0)})
     assert ticket.notified and not ticket.settled
