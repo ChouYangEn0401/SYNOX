@@ -112,7 +112,9 @@ STAGE_INFO = {
     "beta": ("🚧", "公測版", "功能齊了、有人實際用過一陣子；可能還有小問題，資料格式不會隨便改"),
     "stable": ("⭐", "穩定版", "長時間實際使用過、有測試；不相容的改動會升主版號並寫清楚怎麼搬"),
 }
-_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f​-‏‪-‮⁦-⁩]")
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f​-‏‪-‮⁦-⁩﻿]")
+# 看不見的字元：零寬（U+200B–U+200D）、LRM／RLM、雙向文字控制、BOM（ADR 0028：報告上會顯示成別的字）
+_INVISIBLE_RE = re.compile("[​-‏‪-‮⁦-⁩﻿]")
 # cli 的 argv／env 樣板裡 loader 會代換的名字（欄位不能取這些名字）
 RESERVED_PLACEHOLDERS = ("python", "node", "pack_dir", "data_dir", "user_data_dir", "tg_id")
 V2_KEYS = ("capabilities", "publisher", "integrity", "mcp", "commands", "runtime", "env")
@@ -570,6 +572,17 @@ def one_line_problem(value, label: str, limit: int = MAX_DOC_TEXT) -> str:
         return f"{label} 太長了（最多 {limit} 字）"
     if _CONTROL_RE.search(value):
         return f"{label} 不能有換行、控制字元或雙向文字控制字元"
+    return ""
+
+
+def invisible_problem(value, label: str) -> str:
+    """title／summary／publisher（安裝時）：不能有看不見的字元或換行、控制字元（""＝沒問題；不是字串的別的地方會說）。"""
+    if not isinstance(value, str):
+        return ""
+    if _INVISIBLE_RE.search(value):
+        return f"{label} 不能有看不見的字元（雙向文字控制或零寬字元）：請 pack 作者拿掉再打包一次"
+    if _CONTROL_RE.search(value):
+        return f"{label} 不能有換行或控制字元：請 pack 作者改成一行字再打包一次"
     return ""
 
 
@@ -1360,13 +1373,15 @@ def agent_needs_core(m: "Manifest") -> List[str]:
     return out
 
 
-def agent_trust_problem(m: "Manifest", trust: Optional[str]) -> str:
-    """第三方（不是 core）的工具寫了 agent.always／load=always → 拒絕的一句話；沒事 → ""。"""
+def agent_trust_problem(m: "Manifest", trust: Optional[str], signature: str = "") -> str:
+    """第三方（不是 core）的工具寫了 agent.always／load=always → 拒絕的一句話；沒事 → ""。
+    signature：SYNOX 驗出來的簽章狀態（ADR 0028）。「official」（官方鑰匙簽的、沒被改過）跟信任選 core 一樣算可信；
+    「author」（作者自己的鑰匙）不算——任何人都能做一把。"""
     needs = agent_needs_core(m)
-    if not needs or trust == "core":
+    if not needs or trust == "core" or signature == "official":
         return ""
-    return (f"{'、'.join(needs)} 只給信任選「核心（core）」的工具（每輪都進 AI 的提示）；"
-            "這個工具的信任是第三方，所以拒絕。信得過就在報告上把信任改成核心再裝，或請作者拿掉這一項")
+    return (f"{'、'.join(needs)} 只給信任選「核心（core）」或有「✅ 官方」簽章的工具（每輪都進 AI 的提示）；"
+            "這個工具兩者都不是，所以拒絕。信得過就在報告上把信任改成核心再裝，或請作者拿掉這一項")
 
 
 # ── 權限宣告：surfaces、data（PERM-2） ─────────────────────────────────
@@ -1458,6 +1473,11 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
     for key in ("name", "title", "summary", "version", "kind"):
         if not isinstance(raw.get(key), str) or not raw.get(key).strip():
             problems.append(f"少了 {key}")
+    if strict:                                 # ADR 0028：給人看的名字不能藏看不見的字（舊的工具載入時不擋）
+        for key in ("title", "summary", "publisher"):
+            problem = invisible_problem(raw.get(key), key)
+            if problem:
+                problems.append(problem)
     name = str(raw.get("name", ""))
     if name and not NAME_RE.match(name):
         problems.append(f"name {name!r} 只能用小寫英數字、-、_（32 字內）")

@@ -103,7 +103,7 @@ def test_third_party_with_agent_always_is_refused(make_bot, tmp_path):
     m, _report, problems = admin.approve_installed(folder, str(data), trust="third-party")
     assert problems and "agent.always" in problems[0] and "核心" in problems[0]
     assert lock.entry(str(data), "pushy") is None                           # 沒寫鎖
-    bot = make_bot(["好"], pack_dirs=(str(tmp_path / "packs"),))           # 沒鎖（手放的）＝第三方 → 不載入
+    bot = make_bot(["好"], pack_dirs=(str(tmp_path / "packs"),))           # make_bot 把它鎖成第三方（沒經過安裝頁的不會載入，見 test_unapproved）→ rejected
     status, detail = _status(bot)["pushy"]
     assert status == "rejected" and "agent.always" in detail
     assert "每輪都提醒一句話。" not in agent_index.always_lines(bot.app)
@@ -118,13 +118,43 @@ def test_core_trust_allows_agent_always(make_bot, tmp_path):
     assert "pushy__" in toolpick.keep_for(bot.app)                          # load=always：挑工具時永遠保留
 
 
+def test_official_signature_counts_as_trusted_for_agent_always(make_bot, tmp_path):
+    """ADR 0028 的「✅ 官方」簽章（鎖裡記著、安裝時驗過）跟信任選 core 一樣可以寫 agent.always；作者自己的簽章不行。"""
+    from synox.packs.manifest import agent_trust_problem
+    folder = _pack(tmp_path / "packs", "pushy", {"index": "測試", "always": "每輪都提醒一句話。"})
+    m = read(folder)
+    assert agent_trust_problem(m, "third-party", "official") == ""
+    assert "agent.always" in agent_trust_problem(m, "third-party", "author")
+    assert "agent.always" in agent_trust_problem(m, "third-party", "none")
+    data = str(tmp_path / "data")
+    lock.approve(data, m, None, None, via="test", folder=folder, trust="third-party",
+                 signature={"status": "official", "key_id": "k1", "public_key": "pub"})
+    bot = make_bot(["好"], pack_dirs=(str(tmp_path / "packs"),))
+    assert _status(bot)["pushy"][0] == "loaded"
+    assert "每輪都提醒一句話。" in agent_index.always_lines(bot.app)
+    lock.approve(data, m, None, None, via="test", folder=folder, trust="third-party",
+                 signature={"status": "author", "key_id": "k2", "public_key": "pub2"})
+    bot = make_bot(["好"], pack_dirs=(str(tmp_path / "packs"),))
+    assert _status(bot)["pushy"][0] == "rejected"
+
+
+def test_unapproved_pack_never_reaches_the_index(make_bot, tmp_path):
+    """沒經過安裝頁（沒有鎖）的工具不載入，也就不進 AI 的能力清單（ADR 0028 §4 在索引彙整之前）。"""
+    _pack(tmp_path / "packs", "sneaky", {"index": "偷偷進索引的工具", "triggers": ["偷偷"]})
+    bot = make_bot(["好"], pack_dirs=(str(tmp_path / "packs"),), lock_packs=False)
+    assert _status(bot)["sneaky"][0] == "unapproved"
+    assert agent_index.current(bot.app).get("sneaky") is None
+    assert not any("偷偷進索引的工具" in line for line in agent_index.lines_for(bot.app))
+    assert "sneaky__" not in agent_index.trigger_map(bot.app)
+
+
 def test_install_report_shows_per_turn_chars_and_refuses_third_party_always(tmp_path):
     folder = _pack(tmp_path, "pushy", {"index": "測試", "always": "每輪都提醒一句話。"})
     m = read(folder, strict=True)
     info = admin.summary_of(m, admin.scan(m), {}, [])["agent"]
     assert info["chars"] > 0 and info["needs_core"] == ["agent.always"]
     text = admin.format_summary(admin.summary_of(m, admin.scan(m), {}, []))
-    assert "每輪會多佔約" in text and "只有信任選「核心（core）」才裝得進來" in text
+    assert "每輪會多佔約" in text and "只有信任選「核心（core）」或有「✅ 官方」簽章才裝得進來" in text
 
 
 # ── 缺相依不載入、說缺什麼 ────────────────────────────────────────────────

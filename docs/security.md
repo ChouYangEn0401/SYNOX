@@ -29,7 +29,7 @@
 | | 內容 |
 |---|---|
 | **現在做得到** | 安裝流程會擋掉很多明顯的手法：pack.json 格式不合、偷偷用到沒宣告的能力、`{python}` 跑不是 `.py` 的檔、用環境變數叫 Python 先載入別的程式、網路路徑、怪檔名、npm 套件指到官方 registry 以外的主機、pip 讀機器上的設定檔換來源……都會在報告裡寫出來或直接拒裝。T2 pack 要你親手打出發行者的名字才裝得下去。 |
-| **現在做不到** | **掃描是提醒不是門**——惡意作者可以寫出掃不到的程式。**T2 不是沙盒**：它只是把「這包會執行你看不到內容的東西」講清楚、逼你確認你信的是誰；發行者名字是作者自己寫的字，沒有簽章。pip／npm 套件就算來自官方來源，內容 SYNOX 也不看。個人版沒有隔離（同情境一），伺服器版的沙盒還沒真機驗證（同情境二）。 |
+| **現在做不到** | **掃描是提醒不是門**——惡意作者可以寫出掃不到的程式。**T2 不是沙盒**：它只是把「這包會執行你看不到內容的東西」講清楚、逼你確認你信的是誰；發行者名字是作者自己寫的字。簽章（「✅ 官方／⚠️ 不是官方」）只講來源與有沒有被改過，不講內容安不安全；擁有者還沒貼公鑰之前全部顯示「不是官方」。pip／npm 套件就算來自官方來源，內容 SYNOX 也不看。個人版沒有隔離（同情境一），伺服器版的沙盒還沒真機驗證（同情境二）。 |
 | **建議** | **現在不要這樣用。** 這一版的設計前提是「pack 作者是你信得過的人」。真的要收陌生人的 pack，只在一台沒有重要資料、可以隨時重灌的機器（或虛擬機）上跑，而且只收不含程式的 connector／遠端 MCP（T0）。 |
 
 **一句話**：T1 不等於安全、T2 不等於沙盒、加密不防營運者、確認卡防的是 AI 被騙去做危險的事，不是 pack 本身做壞事。
@@ -71,8 +71,11 @@
 - 每個 API 都用登入的那個人算權限（同一個 `authorize`）：別人只看得到自己的對話、自己能用的工具；AI 來源、pack 裝卸、備份只有擁有者；
   帳號頁只有伺服器版的擁有者／管理員。改東西的請求要帶每個 session 的 CSRF header，而且有 Origin 時要跟 Host 一樣。
 - 網頁本身：一頁、沒有外部資源（沒有 CDN）、每次回應一個 nonce 的 Content-Security-Policy、沒有 inline 事件、伺服器產生的字都 escape、
-  畫面上的字一律 `textContent`。pack 的面板放在 `<iframe sandbox="allow-scripts allow-same-origin">`：**同源**，所以面板跟 `pack.py` 一樣是
-  「你決定要不要信任」的程式碼——它能做你在網頁上能做的事。
+  畫面上的字一律 `textContent`。pack 的面板（`web.panel`）**一律隔開**（官方的也一樣；[adr/0028](adr/0028-pack-signatures-official-badge.md) §5）：
+  工具頂先替你拿一張只給這個工具、綁這個登入的票，再用 `<iframe sandbox="allow-scripts">`（沒有 `allow-same-origin`）掛
+  `/packs/<name>/panel/<票>/`，回應的 CSP 也帶 `sandbox allow-scripts`——面板是「沒有來源」的小頁：沒有 cookie、讀不到登入與 CSRF、
+  打不到 `/api/`、碰不到主頁、不能開新視窗或導頁；要資料只能打相對網址 `api/<route>`（只有它自己在 `web.api` 宣告的 GET，伺服器只認票）。
+  面板上方一定有 SYNOX 自己畫的一行說明與標章，面板蓋不到。2026-11-16 以前面板是同源的（面板的 JS 讀得到 CSRF、按得了「確認安裝」），已修。
 - **對外開放（例如伺服器版讓成員從手機用）是營運者自己的事**：SYNOX 不處理 TLS、不處理對外的身分驗證以外的防護。要對外就自己架
   反向代理（或 CSP 的通道），**一定要加 TLS**（不然 cookie 與登入連結在網路上是明文），並把 `web.public_url` 設成對外網址（登入連結會用它）。
   反向代理要把 Host 原樣轉過來（CSRF 的 Origin 檢查比對 Host）。不要把 8830 直接開到網路上。
@@ -307,8 +310,9 @@ python pack 沙盒管不到，伺服器版改用信任決定給不給成員（PE
 從工具庫裝的跟其他工具一樣看安裝時選的 trust。`loader.BUNDLED`「出廠＝core」的機制留著但名單是空的：它**只在沒有鎖時**看名字＋位置，
 有鎖一律照鎖的 trust，所以就算以後又有出廠的，第三方作者把 pack 取同名、經升級裝進內建資料夾仍是 third-party；
 提醒 `/remind_*` 是 SYNOX 的系統指令「⏰ 提醒（系統）」，不是 pack，沒有 trust 的問題。出廠的第一次 `packs lock --approve`（沒有舊鎖）預設寫 core。）
-**沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）＝third-party，而且載入前補跑一次第 2 關掃描（安裝流程沒掃過它），
-沒過＝狀態 `rejected`、不載入。原因在 `doctor`、`packs status`、網頁的 pack 清單寫一行。個人版不受影響（沒有成員）。
+**沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）**不載入**（2026-11-16 起，個人版、伺服器版都一樣；
+[adr/0028](adr/0028-pack-signatures-official-badge.md) §4）：狀態 `unapproved`、通知擁有者一次、`doctor`／`packs status`／網頁的 pack 清單寫
+「沒有經過安裝頁，先不開」，設定頁有「送去安裝頁檢查」鈕（原地那一份收到 `_removed/`、走跟上傳一樣的報告、你按確認才裝；資料在 `data/`，不動）。
 另外 `pack.path()`（`data/packs/<name>/`，全部人共用）在伺服器版 `data: user` 的 pack 呼叫會丟錯，要用 `pack.path_of(user, …)`
 （`data/users/<id>/<name>/files/`，擋 `..` 逃逸）；第 2 關也擋 `data: user` 的 python pack 用 `pack.path(`。
 這仍然是**可見性**，不是隔離：擁有者自己選 core 的 pack 照樣在程序裡、讀得到全部資料——不認識的作者就別選 core。
@@ -325,11 +329,12 @@ python pack 沙盒管不到，伺服器版改用信任決定給不給成員（PE
 **個人版的 python pack 在 SYNOX 程序裡跑，沒有任何隔離**：讀得到你全部的資料、保管箱解開的東西、整台電腦的檔案；
 伺服器版靠 PERM-8 把第三方的 python pack 只給擁有者（下面）。cli pack 的子程序在個人版／Windows 也沒有沙盒（後端 none）。
 它做的是「擋掉明顯的、逼作者把要做的事寫清楚、讓你在裝之前看到」，最後一道仍然是第 5 關的結構（核准卡）——**只裝你信得過的人給的 pack**。
-工程師直接放進 `packs/`（或 `packs.dirs`）的 pack 沒有鎖（`doctor`／`packs status` 標「未鎖定」），照舊載入；要鎖就 `packs lock --approve`。
-（伺服器版：手放的、沒鎖的 pack 載入前補跑第 2 關，沒過不載入；python 的當作 third-party，見上面 PERM-8。）
+工程師直接放進 `packs/`（或 `packs.dirs`）的 pack 沒有鎖，**不載入**（`doctor`／`packs status` 標「⛔ 沒有經過安裝頁」）：
+放在 `packs/` 的從設定頁「送去安裝頁檢查」；`packs.dirs` 指過去的（別的 repo 原地接進來）在電腦上跑 `python -m synox packs lock --approve <name>`
+（跑第 1、2 關、印報告、T2 要 `--trust-publisher`，寫鎖之後才載入）。`loader.BUNDLED` 是空的，沒有任何名字能不經安裝頁載入。
 
 **升級**（同名再裝）走同一條五關，另外跟裝著的那一份比對（`packs/upgrade.py`）：權限變大的地方——effect 變寬、新增 WRITE／DANGER
-的 command、新增 capabilities、執行方式（runtime、cli.argv…）或 auth 改了、多要密鑰、access 變寬、新加面板——在報告裡用紅字標出來，
+的 command、新增 capabilities、執行方式（runtime、cli.argv…）或 auth 改了、多要密鑰、access 變寬、新加面板、**簽章變了**（以前是官方現在不是、作者的鑰匙換了、以前有簽章現在沒有）——在報告裡用紅字標出來，
 讓「更新時夾帶」看得到。版本要是 semver 且比裝著的新，一樣或比較舊要明確選降級才換（避免被換回有漏洞的舊版）。
 舊的不刪，搬到 `packs/_removed/`、旁邊留當時的鎖；`python -m synox packs rollback <name>` 搬回來時，檔案跟當時的鎖對得上才把鎖改回，
 對不上（在 `_removed` 裡被改過）就不鎖、要你重新核准。`_removed` 的舊版本身不會載入。
@@ -405,8 +410,29 @@ T2 多做的事（`src/synox/packs/tier.py`）：
   `policy.sandbox.required_for`；沒有＝整組只對擁有者可見（沿用 PERM-7 的機制）。T2 的 python pack 在 SYNOX 程序裡跑、
   沙盒包不到，伺服器版一律只給擁有者。個人版照用，`doctor` 每個 T2 pack 提醒一行。
 
-**publisher 只是作者自己寫的一個字串**：沒有簽章驗證（見「沒有做的保護」），它不能證明檔案真的出自那個人；
-「明確輸入」的意義是讓你停下來想一次「我信的是誰」，以及事後在 packs.lock 查得到當時是誰、信了誰。
+**publisher 只是作者自己寫的一個字串**，它不能證明檔案真的出自那個人；「明確輸入」的意義是讓你停下來想一次「我信的是誰」，
+以及事後在 packs.lock 查得到當時是誰、信了誰。**能證明「誰做的、有沒有被改過」的是簽章**（下一節）——兩者是兩回事：T2 講「掃得到多少」，簽章講「來源」。
+
+## 簽章與「官方」標章（ADR 0028）
+
+每個 `.synoxpack` 可以自帶一個簽章檔 `pack.sig.json`（列出其他每個檔的檢查碼，再用作者的鑰匙簽；[adr/0028](adr/0028-pack-signatures-official-badge.md) §1）。
+安裝時 SYNOX 對**解開在磁碟上的檔**驗，報告**第一列**是 SYNOX 自己畫的標章，四選一：
+
+| 標章 | 意思 | 能不能裝 |
+|---|---|---|
+| ✅ 官方 | 用擁有者的官方鑰匙（`src/synox/packs/signing.py` 的 `OFFICIAL_PACK_PUBLIC_KEYS`）驗過：官方發的、沒被改過 | 可以（照樣看報告、按確認） |
+| ✍️ 作者簽章 | 別把鑰匙驗過：**不是官方**。只證明「跟作者簽的時候一樣」，不證明作者是誰。升級時鑰匙跟第一次裝的不一樣 → 紅字 | 可以 |
+| ⚠️ 不是官方 | 沒有簽章：無法確認是誰做的、有沒有被改過 | 可以，提醒更強 |
+| ⛔ 被改過 | 有簽章但驗不過（少一個檔、多一個檔、改一個位元組都算） | **不能**，沒有任何覆寫方式 |
+
+- 標章**只看簽章驗出來的結果**；工具自己寫的名字、標題、說明、SKILL.md 改不了它。非官方的工具在這些字裡寫「官方」「official」「SYNOX」「✅」→ 報告紅字標出來（不拒裝）。
+- 每一次安裝報告都有一段安全提醒（不分來源）：公開流通的工具裡有一些帶著會偷資料或做壞事的程式，裝之前看完報告、不確定就不要裝。
+- 簽章結果寫進 `packs.lock`，之後靠逐檔雜湊鎖守著；工具頁、設定頁、`doctor`、`packs status` 的標章都從鎖讀。
+- 兩組鑰匙分開：發 SYNOX 本體的（`update/signing.py` `RELEASE_PUBLIC_KEYS`，Update.bat 驗）、簽官方工具的（`packs/signing.py` `OFFICIAL_PACK_PUBLIC_KEYS`）。
+  私鑰只在擁有者手上、離線產生，不進 repo、不進 SYNOX。**到擁有者把公鑰貼進去的那一版之前，所有工具（包括官方工具庫下載的）都顯示「⚠️ 不是官方」**，報告會寫明原因。
+- 任何作者都能簽自己的工具：`synox-sdk keygen`／`sign`／`verify`（[sdk.md](sdk.md)「簽章」）。
+- 簽章擋不了：擁有者私鑰外流（只能換鑰匙）、「作者是誰」（作者簽章只證明一致）、工具本身的 bug、能改你電腦上任何檔案的攻擊者（下面誠實清單）。
+  工具庫的目錄 `index.json` 這一輪**還沒簽**（下一步；ADR 0028 §6）：目錄被換掉最多只能把官方的檔換成「⚠️ 不是官方」的，標章會變、你看得到。
 
 **維護者開發機的家規**：第三方的 exe、npm 套件、別人的腳本，**一律不在這台電腦上跑**——要測就在別台機器或隔離環境
 （雲端 session、容器、VM）。這是**政策，由維護者遵守，不是程式能保證的**：SYNOX 的 T2 只能把它們列出來、要你確認，
@@ -467,7 +493,10 @@ InaccessiblePaths＋BindPaths 巢狀是否照預期；`--setenv=名字` 在那�
 
 - `config.json` 的 bot token 是明文。
 - Web UI 沒有 TLS（只在本機 127.0.0.1 用不需要）；對外開放要營運者自己加（見上面「網頁介面」）。
-- Web UI 的 pack 面板跟網頁同源。
+- Web UI 的 pack 面板已經隔開（2026-11-16），但隔開之後**在真的瀏覽器裡**還沒有人看過（開發機不開瀏覽器）：CSP `connect-src 'self'` 在沒有來源的小頁裡
+  怎麼算、`Access-Control-Allow-Origin: null` 讀不讀得到，要擁有者開一次工具頁確認（[adr/0028](adr/0028-pack-signatures-official-badge.md) §10）。
+- **能寫 SYNOX 檔案的攻擊者**：`data/packs.lock`、`src/synox/`、`.venv` 都是本機檔案，能改它們的人也能改 SYNOX 本身——簽章與鎖守的是
+  「檔案是不是從你按過確認的那份變來的」，不是「你的電腦有沒有被人拿走」。
 - **主機台的登入只靠 cookie，而 cookie 不分埠**（既有問題，還沒修；docs/lab/issues-to-open.md 第 5 筆）：同一台電腦上的另一個帳號或程式去聽
   `127.0.0.1` 的任何一個埠，再讓擁有者的瀏覽器連過去一次（一個連結就夠），就收得到主機台的登入 cookie。共用電腦的人要知道這件事。
   已經做的：主機台的 `/api/` 拒絕別的網頁（`Sec-Fetch-Site` 是 `same-site`／`cross-site`）送來的請求；同名的假 cookie 擋不住真的那個；
@@ -477,7 +506,7 @@ InaccessiblePaths＋BindPaths 巢狀是否照預期；`--setenv=名字` 在那�
 - 4–7 字的短 secret 只在它自己那個 pack 的呼叫裡做「夾在值裡」的比對，送給別的 pack 時只擋完全相等；更短的只擋完全相等。
 - Discord 的身分檔（`data/identities.json`）：只用 Discord 時擁有者＝10^15，**配對之前私訊型 bot 不收任何人的私訊**；
   舊版檔案裡對到 10^15 的帳號標「待確認」直到重新配對；檔案壞掉不開 Discord（見 docs/discord.md「身分與安全」）。
-- 裝 pack 的五關不是沙盒（見上面「五關」最後一段）；沒鎖的 pack（出廠的、手動放進 packs/ 的）不檢查雜湊。
+- 裝 pack 的五關不是沙盒（見上面「五關」最後一段）；沒鎖的 pack 不載入（2026-11-16 起），所以也沒有「不檢查雜湊卻在跑」的 pack。
   載入後的再檢查（cli 每次呼叫前）是「快速檢查＋每 10 分鐘全部重算」：同樣大小、又刻意把修改時間改回去的換檔，最多 10 分鐘內抓不到；
   檢查完到子程序真的讀檔之間的極短空檔也不保證。mcp stdio 只在開子程序時檢查（長駐程序已經載入的程式不會重讀）；
   python pack 的程式載入時就進了記憶體，之後才 import 的同資料夾模組要等下次載入才驗。
@@ -492,7 +521,7 @@ InaccessiblePaths＋BindPaths 巢狀是否照預期；`--setenv=名字` 在那�
   相對路徑、v1 lock 裡寫成網址的 version ＝安裝報告紅字列出來、拒裝；已經裝好的舊 pack 重建環境時也擋），`npm ci` 固定加
   `--registry=https://registry.npmjs.org/`（`~/.npmrc` 的 registry 換不掉）。但 `integrity` 也是作者寫的、套件內容本身
   SYNOX 不看——官方 registry 上的惡意套件一樣裝得進來，只是不會連到作者指定的主機。
-  `publisher` 沒有簽章驗證（ed25519 驗簽還沒做），任何人都能在 pack.json 寫任何名字；個人版的 T2 沒有沙盒。
+  `publisher` 仍然是作者自己寫的字（簽章證明的是檔案沒被改、以及是不是官方鑰匙，不證明 publisher 這個名字；見「簽章與官方標章」）；個人版的 T2 沒有沙盒。
   第三方的 exe／npm 套件不在開發機上跑是維護者的政策，不是程式擋得住的。
 - 本機跑過留下的 `__pycache__`（對得到同一層 `.py` 的）不算掃不到內容的檔；手動放進 packs/ 的 pack 裡那種 `.pyc` 被換掉，
   只有已經寫了 P7 之後的鎖才抓得到（P7 以前寫的鎖照舊不看 `__pycache__`，重新 `packs lock --approve` 一次就會涵蓋）。

@@ -159,7 +159,7 @@ def diff_manifests(old: Manifest, new: Manifest) -> List[dict]:
         wider = ACCESS_RANK.get(new.access, 2) > ACCESS_RANK.get(old.access, 2)
         add("access", f"誰能用 {old.access} → {new.access}" + ("（變寬）" if wider else "（變窄）"), wider)
     if new.web.get("panel") and not old.web.get("panel"):
-        add("panel", "新加了網頁面板（跟 Web UI 同源）", True)
+        add("panel", "新加了網頁面板（工具頁的小畫面；SYNOX 會隔開它，但畫面裡的字是作者寫的）", True)
     if old.storage != new.storage:
         add("storage", f"資料存法 {old.storage} → {new.storage}", new.storage == "plain")
     if (old.publisher or "") != (new.publisher or ""):
@@ -383,10 +383,47 @@ def runtime_changes(old: Manifest, new: Manifest, installed: Optional[str], afte
     return out
 
 
+def signature_changes(old_sig: Optional[dict], new_sig: Optional[dict]) -> List[dict]:
+    """簽章的變化（ADR 0028 §3.1）：舊鎖的 signature → 這一版驗出來的。紅字＝以前是官方現在不是、作者的鑰匙換了、
+    以前有簽章現在沒有。invalid 不會走到這裡（stage／upgrade_staged 先拒了）。"""
+    from synox.packs import lock as _lock
+    from synox.packs import signing
+    before = _lock.signature_of({"signature": old_sig})
+    after = _lock.signature_of({"signature": new_sig})
+    a, b = before["status"], after["status"]
+    out: List[dict] = []
+
+    def add(text: str, alert: bool) -> None:
+        out.append({"kind": "signature", "text": text, "alert": alert})
+
+    if a == signing.OFFICIAL:
+        if b == signing.OFFICIAL:
+            add(signing.LABELS[signing.OFFICIAL], False)
+        else:
+            add("以前是官方的，這一版不是官方", True)
+    elif a == signing.AUTHOR:
+        if b == signing.AUTHOR:
+            same = (before["public_key"] == after["public_key"]) if before["public_key"] and after["public_key"] \
+                else before["key_id"] == after["key_id"]
+            if same:
+                add("作者簽章：鑰匙跟第一次裝的一樣", False)
+            else:
+                add("簽章的鑰匙跟第一次裝的不一樣（可能換人做了，或有人冒名）", True)
+        elif b == signing.OFFICIAL:
+            add("這一版有官方簽章了", False)
+        else:
+            add("以前有作者簽章，這一版沒有", True)
+    elif b in (signing.AUTHOR, signing.OFFICIAL):
+        add("這一版有簽章了", False)
+    return out
+
+
 def report_for(old: Manifest, old_folder: str, new: Manifest, new_hashes: Dict[str, str],
-               data_dir: str, trust: Optional[str] = None, report=None, runtime: Optional[str] = None) -> dict:
+               data_dir: str, trust: Optional[str] = None, report=None, runtime: Optional[str] = None,
+               signature: Optional[dict] = None) -> dict:
     """trust：擁有者這次選的（None＝還沒選：報告只給 installed_trust，畫面自己比）。
-    report：新版的掃描報告（有就用它的掃不到內容清單；沒給現算）。runtime：這次選的 container｜host（None＝沿用）。"""
+    report：新版的掃描報告（有就用它的掃不到內容清單；沒給現算）。runtime：這次選的 container｜host（None＝沿用）。
+    signature：新版驗出來的簽章（signing.SignatureResult.lock_block()；None＝當作沒有簽章）；跟舊鎖的比（ADR 0028 §3.1）。"""
     from synox.packs import tier as pack_tier
     status, message = compare_versions(old.version, new.version)
     try:
@@ -394,7 +431,10 @@ def report_for(old: Manifest, old_folder: str, new: Manifest, new_hashes: Dict[s
     except OSError:
         old_hashes = {}
     lock_state, _changes = pack_lock.verify(data_dir, old.name, old_folder)
-    changes = diff_manifests(old, new)
+    installed_signature = pack_lock.signature_of(pack_lock.entry(data_dir, old.name))
+    new_signature = pack_lock.signature_of({"signature": signature})
+    changes = signature_changes(installed_signature, new_signature)
+    changes += diff_manifests(old, new)
     installed_trust = pack_lock.trust_of(data_dir, old.name)
     moved = trust_change(installed_trust, trust)
     if moved:
@@ -409,7 +449,8 @@ def report_for(old: Manifest, old_folder: str, new: Manifest, new_hashes: Dict[s
             "alerts": sum(1 for c in changes if c["alert"]), "files": pack_lock.diff(old_hashes, new_hashes)[:50],
             "installed_lock": lock_state, "env": env_change(old, new, data_dir),
             "installed_trust": installed_trust, "trust": trust or installed_trust or pack_lock.DEFAULT_TRUST,
-            "tier": t2, "installed_runtime": installed_runtime, "runtime": after_runtime}
+            "tier": t2, "installed_runtime": installed_runtime, "runtime": after_runtime,
+            "installed_signature": installed_signature, "signature": new_signature}
 
 
 def installed_manifest(packs_dir: str, name: str) -> Optional[Tuple[Manifest, str]]:
@@ -441,8 +482,9 @@ def staged_upgrade(token: str, data_dir: str, packs_dir: str, trust: Optional[st
         exec_bits = admin.staged_meta(token, data_dir).get("exec_bits") or ()
     except admin.PackAdminError:
         exec_bits = ()
+    from synox.packs import signing
     return report_for(old, old_folder, new, pack_lock.hash_files(folder), data_dir, trust=trust,
-                      report=scan(new, exec_bits))
+                      report=scan(new, exec_bits), signature=signing.verify_folder(folder).lock_block())
 
 
 def format_upgrade(upg: dict) -> str:
@@ -566,7 +608,8 @@ def _verified_staged(token: str, data_dir: str):
     if reviewed != hashes:
         raise admin.PackAdminError("暫存的檔案在你看報告之後被改過了，不裝（重新上傳一次）："
                                    + "、".join(pack_lock.diff(reviewed, hashes)[:10]))
-    return root, folder, m, report, hashes
+    sig = admin.verified_signature(m, report, hashes, folder)          # ⛔ 被改過 → 拒（ADR 0028 §3.1）
+    return root, folder, m, report, hashes, sig
 
 
 def upgrade_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, via: str = "web",
@@ -581,19 +624,20 @@ def upgrade_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
     from synox.packs import admin
     if trust is not None:
         trust = admin._trust(trust)
-    root, folder, m, report, hashes = _verified_staged(token, data_dir)
+    root, folder, m, report, hashes, sig = _verified_staged(token, data_dir)
     found = installed_manifest(packs_dir, m.name)
     if found is None:
         raise admin.PackAdminError(f"還沒裝過 {m.name}，不是升級（用一般的「確認安裝」）")
     old, target = found
-    upg = report_for(old, target, m, hashes, data_dir, trust=trust, report=report, runtime=runtime)
+    upg = report_for(old, target, m, hashes, data_dir, trust=trust, report=report, runtime=runtime,
+                     signature=sig.lock_block())
     trust = upg["trust"]
     if not upg["version_ok"] and not (allow_downgrade and upg["can_force"]):
         hint = "（真的要換，明確選「降級／重裝」）" if upg["can_force"] else ""
         raise admin.PackAdminError(f"不升級：{upg['version_message']}{hint}")
     from synox.packs import tier as pack_tier
     from synox.packs.manifest import agent_trust_problem
-    refused = agent_trust_problem(m, trust)              # 第三方寫了 agent.always／load=always（ADR 0030）
+    refused = agent_trust_problem(m, trust, sig.status)  # 第三方寫了 agent.always／load=always（ADR 0030；官方簽章＝可信）
     if refused:
         raise admin.PackAdminError("不升級：" + refused)
     t2 = upg["tier"]
@@ -618,7 +662,7 @@ def upgrade_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
         raise
     shutil.rmtree(root, ignore_errors=True)
     pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=target, trust=trust,
-                      tier_fields=fields, runtime=upg["runtime"])
+                      tier_fields=fields, runtime=upg["runtime"], signature=sig.lock_block())
     logging.info("[PACKS] upgraded %s %s → %s (approved by %s via %s; old one in %s)",
                  m.name, old.version, m.version, approved_by, via, backup)
     return {"name": m.name, "from": old.version, "to": m.version, "backup": backup, "report": upg,

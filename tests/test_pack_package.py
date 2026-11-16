@@ -291,6 +291,8 @@ def test_switching_from_package_to_single_file_cleans_up(make_bot, tmp_path):
     assert "synox_pack_pkga.engine.db" in sys.modules
     _manifest(folder, "pkga", package=None)                        # 改回單檔
     _write(os.path.join(folder, "pack.py"), "def install(app, pack):\n    pass\n")
+    # 改過的檔要重新核准一次，不然就是「被改過」不載入（ADR 0028 §4）：當作重新經過安裝頁
+    lock.approve(str(tmp_path / "data"), read(folder), None, 100, via="test")
     report = admin.reload(bot.app, bot.app.config, None, (str(base),))
     assert _status(report)["pkga"][0] == "loaded"
     assert _mods("pkga") == ["synox_pack_pkga"] and not pkgload.registered("pkga")

@@ -665,8 +665,9 @@ def cmd_rollback(args, data_dir: str, config) -> int:
         print(f"❌ {e}")
         return 2
     lock_note = {"restored": "packs.lock 改回當時核准的那一筆",
-                 "unlocked": "當時就沒有鎖（未鎖定）；要鎖：python -m synox packs lock --approve " + done["name"],
-                 "mismatch": "⚠️ 檔案跟當時的鎖對不上，沒有鎖；檢查過再 python -m synox packs lock --approve "
+                 "unlocked": "當時就沒有鎖＝沒有經過安裝頁，SYNOX 不會載入它；要用：python -m synox packs lock --approve "
+                             + done["name"],
+                 "mismatch": "⚠️ 檔案跟當時的鎖對不上，沒有鎖、不會載入；檢查過再 python -m synox packs lock --approve "
                              + done["name"]}[done["lock"]]
     print(f"↩️ 退回了：{done['name']} 現在是 {done['version']}（{lock_note}）。")
     if done.get("env"):                                                  # 舊版要的環境對不上：只提示，不自動建
@@ -734,31 +735,40 @@ def cmd_packs(args, *, jobs=None) -> int:
         return 0
     if args.packs_cmd == "runtime":
         return cmd_packs_runtime(args, found, data_dir, config)
-    marks = {pack_lock.LOCKED: "🔒 鎖定", pack_lock.UNLOCKED: "· 未鎖定", pack_lock.TAMPERED: "⚠️ 被改過"}
+    marks = {pack_lock.LOCKED: "🔒 鎖定", pack_lock.UNLOCKED: "⛔ 沒有經過安裝頁", pack_lock.TAMPERED: "⚠️ 被改過"}
+    from synox.packs import loader as pack_loader
     from synox.packs.manifest import synox_problem
+    status_dirs = args.dirs or default_dirs
     for name, folder in sorted(found.items()):
         state, changes = pack_lock.verify(data_dir, name, folder)
         print(f"{marks[state]}  {name}  {folder}")
         if changes:
             print("    " + "、".join(changes))
+        if state == pack_lock.UNLOCKED:                 # ADR 0028 §4：沒有鎖＝不載入（出廠的例外，BUNDLED 現在是空的）
+            try:
+                bundled = pack_loader.is_bundled(read(folder))
+            except ManifestError:
+                bundled = False
+            if not bundled:
+                if pack_loader.in_user_dir(folder, status_dirs):
+                    print("    ⛔ 沒有經過安裝頁，沒有載入。要用：到網頁「設定 → 功能與安裝」按「送去安裝頁檢查」，"
+                          "看過報告再按確認")
+                else:
+                    print("    ⛔ 沒有經過安裝頁，沒有載入。要用（packs.dirs 指過去的）："
+                          f"python -m synox packs lock --approve {name}（會先檢查、印報告再鎖）")
+                continue
         try:
             too_old = synox_problem(read(folder))
         except ManifestError:
             too_old = None
         if too_old:
             print(f"    ⛔ 不會載入：{too_old}")
-        if config is not None and not changes:          # PERM-8：伺服器版第三方 python pack、沒鎖的補掃
-            from synox.packs import loader as pack_loader
+        if config is not None and not changes:          # PERM-8：伺服器版第三方 python pack 只給擁有者
             try:
                 m = read(folder)
             except ManifestError:
                 continue
-            scan_problems = pack_loader.unlocked_scan(config, m, state)
-            if scan_problems:
-                print(f"    ❌ 沒有 packs.lock、第 2 關掃描沒過，不會載入：{'；'.join(scan_problems[:3])}")
-            elif scan_problems is not None:
-                print("    🔍 沒有 packs.lock：載入時補跑的第 2 關掃描過了")
-            reason = "" if scan_problems else pack_loader.trust_reason(config, m)
+            reason = pack_loader.trust_reason(config, m)
             if reason:
                 print(f"    🔐 {reason}")
             from synox import sandbox

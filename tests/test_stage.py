@@ -6,7 +6,7 @@ import os
 
 import pytest
 
-from conftest import OWNER_ID
+from conftest import OWNER_ID, lock_all
 
 from synox.packs import admin, loader
 from synox.packs.manifest import (DEFAULT_STAGE, STAGES, ManifestError, read, stage_label, stage_problem,
@@ -120,6 +120,7 @@ def test_doctor_lists_stage(tmp_path, monkeypatch):
     cfg = tmp_path / "config.json"
     cfg.write_text(json.dumps({"owner_id": OWNER_ID, "data_dir": str(tmp_path / "data"), "vault": {"mode": "file"}}),
                    encoding="utf-8")
+    lock_all(tmp_path / "data", (str(packs),))                    # 沒鎖的不載入（ADR 0028 §4）：當作經安裝頁裝過
     lines = []
     doctor.run(offline=True, config_path=str(cfg), out=lines.append)
     assert any("d1 0.1.0 🚧 beta（python" in line for line in lines), lines

@@ -561,6 +561,14 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 problems += 1
                 continue
             locked += lock_state == pack_lock.LOCKED
+            if lock_state == pack_lock.UNLOCKED and not loader.is_bundled(m):    # ADR 0028 §4：沒有經過安裝頁＝不載入
+                if loader.in_user_dir(folder, dirs):
+                    step = "要用：到網頁「設定 → 功能與安裝」按「送去安裝頁檢查」，看過報告再按確認"
+                else:
+                    step = f"要用（packs.dirs 指過去的）：python -m synox packs lock --approve {m.name}"
+                lines.append(f"  ⛔ {m.name} {m.version}：沒有經過安裝頁，沒有載入。{step}  {rel}")
+                problems += 1
+                continue
             too_old = synox_problem(m)               # requires.synox
             if too_old and enabled:
                 lines.append(f"  ⛔ {m.name} {m.version}：不會載入。{too_old}  {rel}")
@@ -597,14 +605,8 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 t2_note = sandbox.t2_personal_note(config, m) if config is not None else ""
                 if t2_note:                                  # SDK P7：個人版的 T2 照用，只提醒
                     lines.append(f"     ⚠️ {t2_note}")
-                if config is not None:                       # PERM-8：伺服器版第三方 python pack、沒鎖的補掃
-                    scan_problems = loader.unlocked_scan(config, m, lock_state)
-                    if scan_problems:
-                        lines.append(f"     ❌ 沒有 packs.lock、第 2 關掃描沒過，不會載入：{'；'.join(scan_problems[:3])}")
-                        problems += 1
-                    elif scan_problems is not None:
-                        lines.append("     🔍 沒有 packs.lock：載入時補跑的第 2 關掃描過了")
-                    trusted_out = "" if scan_problems else loader.trust_reason(config, m)
+                if config is not None:                       # PERM-8：伺服器版第三方 python pack 只給擁有者
+                    trusted_out = loader.trust_reason(config, m)
                     if trusted_out:
                         lines.append(f"     🔐 {trusted_out}")
         except ManifestError as e:
