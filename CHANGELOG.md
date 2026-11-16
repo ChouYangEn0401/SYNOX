@@ -26,6 +26,7 @@
 - [ADR 0027](docs/adr/0027-pack-signatures-official-badge.md)（簽章與官方標章、不載入沒經過安裝頁的工具、面板隔開、SDK 指令、公鑰放哪）；
   稽核紀錄 [docs/lab/2026-11-16-security-hotfix-audit.md](docs/lab/2026-11-16-security-hotfix-audit.md)；`security.md`、`pack-format.md`、`sdk.md`、`install-packs.md` 跟著更新。
   真的瀏覽器裡的面板行為沒有人看過（開發機不開瀏覽器），擁有者請照 ADR 0027 §10 開一次工具頁確認。
+- [docs/signing.md](docs/signing.md)：簽章照做清單——在家產生工具／發佈鑰匙（現用＋備用）、公鑰貼進 SYNOX（含要改的兩個測試）、每次發官方工具與 SYNOX 本體怎麼簽、作者簽自己的工具、鑰匙丟了／外流怎麼換。
 
 ## 未發佈（文件：ADR 0022 核准）
 

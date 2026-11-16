@@ -14,6 +14,7 @@
 | [release-playbook.md](release-playbook.md) | 維護者（人或 Claude session） | **發版就照這一頁**：先測更新（`make_update_testkit.py`、`Update.bat -FromZip`、`SYNOX_UPDATE_API`）、SYNOX 發 pre-release → 標 Latest（`gh` 指令）、SYNOX_Libs 摘要、下載連結怎麼保持最新（`LINK_MODE`、`OFFICIAL_INDEX_URL`）、每道關卡擋什麼、出事怎麼退、給新 session 的檢查表 |
 | [sandbox-roadmap.md](sandbox-roadmap.md) | 使用者、作者、維護者、想參與的人 | 沙盒路線圖（徵求協助）：現在哪裡有隔離、哪裡沒有（Windows 還沒有）；Windows 的候選路線與取捨；志願者怎麼跑探測腳本；help wanted 任務與驗收條件 |
 | [security.md](security.md) | 使用者、作者 | 資料存在哪、誰看得到、裝別人的 pack 時的五關、信任層級、沙盒、沒有做的保護 |
+| [signing.md](signing.md) | 維護者、作者 | 簽章照做清單：在家產生工具／發佈鑰匙（現用＋備用）、公鑰貼進 SYNOX、每次發官方工具與 SYNOX 本體怎麼簽、作者簽自己的工具、鑰匙丟了／外流怎麼換 |
 | [security/web-threats.md](security/web-threats.md) | 維護者 | 網頁最常被打的地方，SYNOX 各自怎麼擋（會一直更新的清單，每一列點名測試；接手安全的人先讀） |
 | [discord.md](discord.md) | 使用者 | Discord 通道的現況與設定（含多個 bot） |
 | [docker.md](docker.md) | 使用者、維護者 | 用 Docker 跑 SYNOX（compose、資料 volume、網頁只發佈到 127.0.0.1）與開發容器；已知限制、驗證清單、檢查表（**還沒實際建置過**） |
