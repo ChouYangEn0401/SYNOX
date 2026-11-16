@@ -372,7 +372,7 @@ def key_needs_passphrase(path: str) -> bool:
             head = f.read(4096)
     except OSError:
         return False
-    return b"-----BEGIN ENCRYPTED PRIVATE KEY-----" in head
+    return b"-----BEGIN ENCRYPTED PRIVATE KEY-----" in head  # prepublish-check: allow（只比對 PEM 檔頭字樣，不是金鑰）
 
 
 def load_private_key(path: str, passphrase: Optional[str] = None, root: str = REPO_ROOT):
