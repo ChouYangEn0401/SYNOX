@@ -105,9 +105,10 @@ def test_delivery_shells_are_not_implemented_yet():
                            ref=delivery.ReminderRef(3, "2026-11-16T00:51:00+08:00"))
     assert msg.key == "rem:1001:3:2026-11-16T00:51:00+08:00"
     for fn, args in ((delivery.deliver, (None, msg)), (delivery.planned_channels, (None, 1001)),
-                     (desk.spool_at, ("x",)), (reminder.headless_engine, ("x", None, print))):
+                     (desk.spool_at, ("x",))):
         with pytest.raises(NotImplementedError):
             fn(*args)
+    assert callable(reminder.headless_engine("x", None, print).tick)          # W1 已實作（tests/test_remind_catchup.py）
     ticket = delivery.DeliveryTicket(msg.key, 1001, {"web": delivery.DeliveryRecord("web", state=delivery.SENT),
                                                      "telegram": delivery.DeliveryRecord("telegram", next_try=5.0)})
     assert ticket.notified and not ticket.settled

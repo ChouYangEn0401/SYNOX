@@ -65,7 +65,12 @@ def local_tz():
 
 def aware(dt: datetime) -> datetime:
     """沒有時區的 datetime 當作本機時間（測試與舊程式傳的都是這種）。"""
-    return dt if dt.tzinfo is not None else dt.astimezone()
+    if dt.tzinfo is not None:
+        return dt
+    try:
+        return dt.astimezone()
+    except (OSError, OverflowError, ValueError):       # Windows：1970 之前（舊資料 created=0 推出來的）會丟 OSError
+        return dt.replace(tzinfo=local_tz())
 
 
 def to_iso(dt: Optional[datetime]) -> Optional[str]:
@@ -100,6 +105,7 @@ class Reminder:
     last_run: str = ""                             # 舊欄位（每天型：最後一次處理的日期 YYYY-MM-DD）
     kind: str = KIND
     v: int = VERSION
+    rang_at: Optional[str] = None                  # 選填（W1 加）：這一次開始響的時間（ISO），算 24 小時沒人回用
 
     # ── 推出來的 ─────────────────────────────────────────────────────
 
@@ -148,7 +154,7 @@ def check(rem: Reminder) -> str:
         return f"status 不認得：{rem.status!r}"
     if (rem.due is None) != (rem.repeat == NONE):
         return "待辦（repeat=none）不能有 due；有 due 的一定要是 once／daily"
-    for name in ("due", "occurrence", "snooze_until", "done_at"):
+    for name in ("due", "occurrence", "snooze_until", "done_at", "rang_at"):
         value = getattr(rem, name)
         if value is not None:
             try:
@@ -229,10 +235,15 @@ class Engine(Protocol):
         """處理所有「到點時間 ≤ now、這一次還沒處理」的（冪等：多叫幾次結果一樣），回處理了哪些（測試用）。"""
 
 
-def headless_engine(data_dir: str, vault, deliver: Callable[[Any], Any], *, per_user: bool = False) -> Engine:
+def headless_engine(data_dir: str, vault, deliver: Callable[[Any], Any], *, per_user: bool = False,
+                    resolve: Optional[Callable[..., Any]] = None) -> Engine:
     """不需要整個 App 的引擎（給提醒哨兵）：讀同一份 data/schedule.json(.enc)，到點時呼叫 deliver(Message)
-    （哨兵傳自己的 Outbox.submit）。W1 實作；哨兵（W2）只呼叫它。"""
-    raise NotImplementedError("W1: reminder.headless_engine")
+    （哨兵傳自己的 Outbox.submit）。W1 實作；哨兵（W2）只呼叫它。
+    resolve（選填）：resolve(uid, key, note=, via=)——24 小時沒人回收掉時，讓其他管道收掉（哨兵傳 Outbox.resolve）。
+    只處理提醒（kind=remind）；/schedule_* 的指令要整個 App 才能跑，哨兵不跑。"""
+    from synox.schedule.engine import ReminderEngine
+    from synox.schedule.store import ScheduleStore
+    return ReminderEngine(ScheduleStore(data_dir, vault, per_user=per_user), deliver, resolve=resolve)
 
 
 __all__ = ["CLOSED", "Engine", "headless_engine", "CANCELLED", "DAILY", "DONE", "EXPIRED", "EXPIRE_AFTER_H", "HISTORY_KEEP", "KIND", "MISSED",
