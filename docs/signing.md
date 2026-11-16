@@ -32,11 +32,11 @@
 .venv\Scripts\python.exe scripts\release.py keygen --out D:\keys\synox-release-backup.pem
 ```
 
-- 每一道都會**問密語兩次**（打字不顯示）。`synox-sdk keygen` 不給空密語；`release.py keygen` 直接按 Enter 會寫出**沒有加密**的私鑰——不要按 Enter，一定要打密語。
+- 每一道都會**問密語兩次**（打字不顯示）。兩個指令都不收空密語（直接按 Enter＝不產生鑰匙）。
   四把可以用同一句密語，也可以不同；忘了就等於鑰匙丟了（第 7 節）。
 - 不會蓋掉已經存在的檔；印出的東西要**抄下來**（放在備份旁邊，之後貼進程式）：
   - `synox-sdk keygen`：`public_key: <44 字>` 與 `key_id: <16 字>`。
-  - `release.py keygen`：第一行就是公鑰（44 字）；它沒有 key_id。
+  - `release.py keygen`：第一行就是公鑰（44 字），下面接著印 `key_id: <16 字>`。
 - 私鑰檔開頭是 `BEGIN ENCRYPTED PRIVATE KEY`（看到 `BEGIN PRIVATE KEY` 沒有 ENCRYPTED＝沒加密，刪掉重做）。
 - **備份**：四個 `.pem` 複製到 USB 隨身碟（或密碼管理器的附件）、拔下來收好；密語另外記在密碼管理器。
   其他開發機、雲端硬碟、聊天、issue、CI secret 都**不要有私鑰**。別台電腦只負責寫程式與打包，簽章只在家做。
@@ -99,13 +99,11 @@
 ```
 .venv\Scripts\python.exe scripts\make_zip.py --tools <SYNOX_Libs 的 dist>
 gh release download <tag> -R ChouYangEn0401/SYNOX -p "SYNOX-Setup-*.exe" -D dist        （有安裝程式才有）
-$s = Read-Host -AsSecureString "發佈私鑰的密語"; $env:SYNOX_RELEASE_KEY_PASSWORD = [Net.NetworkCredential]::new("", $s).Password
 .venv\Scripts\python.exe scripts\release.py sign --dist dist --key D:\keys\synox-release.pem [--security] [--summary "一句白話"]
-Remove-Item Env:SYNOX_RELEASE_KEY_PASSWORD
 ```
 
-- `release.py sign` **不會問密語**，只讀環境變數 `SYNOX_RELEASE_KEY_PASSWORD`（上面用 `Read-Host` 設，密語不會留在 PowerShell 歷史裡）。
-  沒設會印 `❌ 私鑰檔打不開（密碼放在 SYNOX_RELEASE_KEY_PASSWORD？）`。`--key` 也可以改用環境變數 `SYNOX_RELEASE_KEY_FILE`（放路徑）。
+- `release.py sign` 會在終端機上**問密語**（打字不顯示）。不在終端機上跑（腳本）時改讀環境變數 `SYNOX_RELEASE_KEY_PASSWORD`。
+  `--key` 也可以改用環境變數 `SYNOX_RELEASE_KEY_FILE`（放路徑）。
 - 寫出 `dist\SHA256SUMS.txt`、`dist\release.json`、`dist\release.json.sig`；安全修正加 `--security`。`dist\` 裡要先有 `SYNOX-<版本>.zip`。
 - 上傳四個檔：`SYNOX-<版本>.zip`、`SHA256SUMS.txt`、`release.json`、`release.json.sig`。
 - `release.py sign --key D:\keys\synox-release.pem --show-public` 只印公鑰（對照 `RELEASE_PUBLIC_KEYS` 貼對沒）。
@@ -140,7 +138,7 @@ synox-sdk verify dist\<name>-<版本>.synoxpack           會看到 ✍️ 作�
 
 - 不要把 `.pem` 放進 repo、任何 git 資料夾、雲端硬碟、聊天、issue、CI secret；不要貼進任何 AI 對話。`synox-sdk keygen`／`sign` 會拒絕 git 資料夾裡的私鑰，但擋不了你複製過去。
 - 不要在別台開發機簽章；別台只 build，簽在家。
-- 不要用 `--no-passphrase`、不要在 `release.py keygen` 按 Enter 跳過密語。
+- 不要用 `--no-passphrase`。
 - 不要把密語打在命令列上（`$env:X = "…"` 會留在 PowerShell 歷史）；用第 5 節的 `Read-Host`。
 - 不要把工具鑰匙拿來簽發佈、或反過來（兩邊的 `sign` 都吃得下去，但驗的是另一組公鑰：工具會變成 ✍️ 作者簽章、`Update.bat` 會因為簽章對不上而拒絕更新）。
 - 不要簽完再碰檔案；不要在 `tools-<VERSION>.zip`、`index.json` 裡混進沒簽的那一份。
