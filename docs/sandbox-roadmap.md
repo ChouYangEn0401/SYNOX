@@ -10,12 +10,19 @@
 > Docker Desktop / WSL 2) with their trade-offs, explains how volunteers can run our **read-only probe scripts** on
 > their own Windows PCs and share the results, and lists concrete "help wanted" tasks with acceptance criteria.
 > Ideas and results go to GitHub Discussions; **security vulnerabilities go privately via [SECURITY.md](../SECURITY.md),
-> never in public**. Design decisions live in [ADR 0022](adr/0022-ecosystem-bridge-and-sandbox.md) (a proposal,
-> not yet approved by the owner).
+> never in public**. Design decisions live in [ADR 0022](adr/0022-ecosystem-bridge-and-sandbox.md), **adopted on
+> 2026-11-16** as recommended, with one owner amendment that is still being designed: **every source can be installed
+> (the official library, any third-party `.synoxpack`, future imports) and every install shows a clear safety
+> warning**, because third-party skills from any open hub (including SYNOX's own future one) can carry malicious code
+> and scanning cannot catch all of it; official tools will be recognised by an owner signature. Details go into a
+> separate ADR. The isolation work on this page protects every tool, so it goes ahead: H8–H10 are open now; H11 (the
+> Windows backend) waits for the probe results.
 
-- 狀態：**公開的路線圖與徵求協助**。這裡寫的設計都還是[ADR 0022](adr/0022-ecosystem-bridge-and-sandbox.md) 的**提案**，擁有者還沒核准；
-  核准之前 SYNOX 的程式（`src/`）不會為了這件事改動。
-- 最後更新：2026-11-14。對過的程式：`src/synox/sandbox.py`、`src/synox/packs/container.py`、`src/synox/web/static/app.html`（`set-sandbox` 卡片）。
+- 狀態：**公開的路線圖與徵求協助**。[ADR 0022](adr/0022-ecosystem-bridge-and-sandbox.md) **2026-11-16 已採用**（擁有者照建議核准），另加一條擁有者修正（設計中）：
+  **所有來源一律可以安裝**（官方工具庫、任何人做的 `.synoxpack`、之後的匯入），**一律顯示安全提醒**；官方工具以擁有者簽章辨識；細節另立 ADR。
+  安全提醒的理由：任何開放上架的技能來源（包括 SYNOX 自己之後的）都可能有帶惡意程式碼的技能，檢查也擋不完。
+  這一頁講的隔離保護的是**所有**工具（官方的也一樣），所以照常進行；設計核准了，但到 2026-11-16 為止 `src/` 還沒有為它改動。
+- 最後更新：2026-11-16。對過的程式：`src/synox/sandbox.py`、`src/synox/packs/container.py`、`src/synox/web/static/app.html`（`set-sandbox` 卡片）。
 - 有想法、有實測結果 → GitHub Discussions（討論串草稿：[community/discussion-ecosystem-and-sandbox.md](community/discussion-ecosystem-and-sandbox.md)）。
   **發現安全漏洞 → 照 [SECURITY.md](../SECURITY.md) 私下寄信，不要開公開 issue、不要貼在討論區。**
 - 連到 `docs/lab/` 的連結只在 GitHub 上（或 `git clone`）看得到；發佈 ZIP 與安裝程式不帶這個資料夾。
@@ -28,7 +35,7 @@ SYNOX 可以裝別人做的工具（pack）。工具會在你的電腦上跑程�
 沙盒想做到的是：就算裝到有問題的工具，它也**只碰得到自己的資料夾、只連得到它申請的網站**，碰不到你的文件、
 你的帳號、本機的其他服務（例如 Ollama 的 11434 埠、SYNOX 自己的 8830 埠）。
 
-之後如果 SYNOX 能匯入 OpenClaw、Hermes Agent 等生態的技能（[ADR 0022](adr/0022-ecosystem-bridge-and-sandbox.md) 第 1 節），
+之後如果 SYNOX 能匯入 OpenClaw、Hermes Agent 等 Agent Skills 生態的技能（[ADR 0022](adr/0022-ecosystem-bridge-and-sandbox.md) 第 1 節；設計已核准，排在後面做），
 會有更多不是 SYNOX 維護者寫的程式在使用者電腦上跑，沙盒就更重要。
 
 ## 二、現在的狀態（老實版）
@@ -69,8 +76,9 @@ SYNOX 可以裝別人做的工具（pack）。工具會在你的電腦上跑程�
 
 沒有任何一條路同時滿足「不用另外裝、不要管理員、Windows 10 也行、有網域名單」。
 
-**ADR 0022 的提案**（等擁有者決定 11–14，**而且先實測再定**）：Windows 11 新版走 MXC；舊系統退到自製 AppContainer（保護等級「基本」：檔案隔離＋全斷或全開網路）；
+**ADR 0022 的決定**（2026-11-16 照建議核准決定 11–14，**而且先實測再定**）：Windows 11 新版走 MXC；舊系統退到自製 AppContainer（保護等級「基本」：檔案隔離＋全斷或全開網路）；
 專用帳號＋防火牆之後做成選配的「加強保護」。Linux 與跨平台的部分（共用的抽象、連外代理、環境變數白名單、網域宣告格式）可以先做。
+維護者的一台 Windows 11 Home（25H2）正在跑探測腳本（含「MXC 在 Home 版能不能用」），**還沒有結果**；有結果之後會更新這一頁。
 
 不管哪條路都有的限制：代理只看用戶端自報的主機名、不解 TLS（有 domain fronting 的空間）；不走代理的程式連不上允許的網站；
 UDP／QUIC 出不去；Windows 上 DNS 由系統服務代做，擋不住。
@@ -105,7 +113,8 @@ UDP／QUIC 出不去；Windows 上 DNS 由系統服務代做，擋不住。
 
 ## 五、徵求協助（help wanted）
 
-「現在就能做」的不用改 SYNOX 的程式；「等 ADR 0022 核准」的要等擁有者核准設計之後才收 PR（先在 Discussions 講你想做哪一項，避免白做）。
+「現在就能做」的不用改 SYNOX 的程式。ADR 0022 已經核准（2026-11-16），所以 H8–H10 現在也收 PR；H11 還要等 Windows 的實測結果與路線。
+要改程式的項目，請先在 Discussions 講你想做哪一項，避免跟維護者重工或白做。
 
 ### 現在就能做
 
@@ -119,13 +128,18 @@ UDP／QUIC 出不去；Windows 上 DNS 由系統服務代做，擋不住。
 | **H6** | 在 Linux／Windows 上驗證容器後端 | 照 [handoff/container-verification.md](handoff/container-verification.md) 逐項回報（podman rootless、Docker Engine、Docker Desktop 各算一份） |
 | **H7** | 幫研究挑錯，特別是講到其他專案的地方 | 每一處修正附對方的一手來源（官方文件、官方 advisory）；過時的資訊標出日期；語氣維持中性、以相容為目的 |
 
-### 等 ADR 0022 核准之後
+### 設計已核准，現在收 PR（先在 Discussions 講一聲）
 
 | # | 任務 | 驗收條件 |
 |---|---|---|
 | **H8** | 連外代理（只用標準函式庫）：每個工具一個入口，只放行宣告的主機的 443 | 主機名解析出來是回送、內網、link-local 的一律拒；被擋的連線記主機名；測試不連真的網路、不開對外的埠（`CONTRIBUTING.md` 的規則） |
 | **H9** | Linux bwrap：宣告了網路時也拿掉網路命名空間，只經 unix socket 接到代理 | 工具連不到主機的 127.0.0.1（Ollama 11434、SYNOX 8830）；名單上的網站連得到、名單外的被擋；有自動測試（用假後端）＋一份真機驗證紀錄 |
 | **H10** | 執行期環境變數改成白名單 | 子程序只拿到系統必要的、pack 宣告的、代理的變數；先警告一個版本再擋；現有工具的測試照過 |
+
+### 等 Windows 的實測結果
+
+| # | 任務 | 驗收條件 |
+|---|---|---|
 | **H11** | Windows 後端（MXC 或 AppContainer，看實測結果與擁有者的決定） | 只在擁有者決定路線之後開始；`isolates` 照實回報；`doctor` 與設定頁的說明跟實際做到的一致；設定頁的開關只在真的有隔離時才能打開 |
 
 ## 六、怎麼參與
@@ -141,7 +155,7 @@ UDP／QUIC 出不去；Windows 上 DNS 由系統服務代做，擋不住。
 
 | 文件 | 內容 |
 |---|---|
-| [ADR 0022](adr/0022-ecosystem-bridge-and-sandbox.md) | 設計提案：匯入器、npm、市集、隔離（第 6 節）、預覽；擁有者決定對照表 |
+| [ADR 0022](adr/0022-ecosystem-bridge-and-sandbox.md) | 設計（2026-11-16 已採用，附擁有者修正 O1，設計中）：匯入器、npm、市集、隔離（第 6 節）、預覽；擁有者決定對照表；第 13 節是修正 O1 的影響 |
 | [第 3 階段研究](lab/2026-11-13-ecosystem-security-research.md) | 查到什麼、每一條的來源與標籤；主題 4 是 Windows 沙盒 |
 | [實作計畫](lab/2026-11-13-ecosystem-implementation-plan.md) | 分工與驗收；區塊 C 是隔離 |
 | [security.md](security.md) | 現在的安全邊界：五關、信任層級、運行空間（沙盒）、沒有做的保護 |
