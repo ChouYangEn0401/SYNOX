@@ -8097,7 +8097,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       ul.appendChild(el("li", "", "承諾：" + p.command + " 成功後，AI 可以說它會" + (p.kind === "watch" ? "持續監看" : "在排定的時間做") + "（" + p.text + "）"));
     });
     if ((a.needs_core || []).length) {
-      ul.appendChild(el("li", "alert", "🔴 寫了 " + a.needs_core.join("、") + "（每輪都進 AI 的提示）：只有信任選「核心」才裝得進來"));
+      ul.appendChild(el("li", "alert", "🔴 寫了 " + a.needs_core.join("、") + "（每輪都進 AI 的提示）：只有信任選「核心」或有「✅ 官方」簽章才裝得進來"));
     }
     var deps = (a.requires_packs || []).map(function (x) { return "工具 " + x; })
       .concat((a.requires_system || []).map(function (x) { return "系統能力 " + x; }));
