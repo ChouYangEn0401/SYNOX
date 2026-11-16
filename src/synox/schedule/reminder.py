@@ -235,18 +235,47 @@ class Engine(Protocol):
         """處理所有「到點時間 ≤ now、這一次還沒處理」的（冪等：多叫幾次結果一樣），回處理了哪些（測試用）。"""
 
 
+class HeadlessEngine:
+    """哨兵用的引擎：tick（到點檢查）＋act／on_delivery（delivery.ReminderActions：視窗、Telegram 按的鍵）。"""
+
+    def __init__(self, engine, actions):
+        self.engine = engine
+        self.actions = actions
+
+    def tick(self, now: Optional[datetime] = None) -> List[Dict[str, Any]]:
+        return self.engine.tick(now)
+
+    def act(self, uid: int, rid: int, occurrence: str, action: str, *, until: Optional[str] = None,
+            typed: str = "", via: str = ""):
+        return self.actions.act(uid, rid, occurrence, action, until=until, typed=typed, via=via)
+
+    def on_delivery(self, uid: int, rid: int, occurrence: str, record) -> None:
+        self.actions.on_delivery(uid, rid, occurrence, record)
+
+    @property
+    def last_tick(self) -> Optional[float]:
+        return self.engine.last_tick
+
+
 def headless_engine(data_dir: str, vault, deliver: Callable[[Any], Any], *, per_user: bool = False,
-                    resolve: Optional[Callable[..., Any]] = None) -> Engine:
+                    resolve: Optional[Callable[..., Any]] = None,
+                    todos: Optional[Callable[[int, List[Dict[str, Any]]], Any]] = None,
+                    clock: Optional[Callable[[], datetime]] = None) -> Engine:
     """不需要整個 App 的引擎（給提醒哨兵）：讀同一份 data/schedule.json(.enc)，到點時呼叫 deliver(Message)
-    （哨兵傳自己的 Outbox.submit）。W1 實作；哨兵（W2）只呼叫它。
-    resolve（選填）：resolve(uid, key, note=, via=)——24 小時沒人回收掉時，讓其他管道收掉（哨兵傳 Outbox.resolve）。
+    （哨兵傳自己的 Outbox.submit）。回的物件同時是 delivery.ReminderActions（act／on_delivery）。
+    resolve（選填）：resolve(uid, key, note=, via=)——按了完成／延後、24 小時沒人回時讓其他管道收掉（哨兵傳 Outbox.resolve）。
+    todos（選填）：todos(uid, items)——在視窗上按掉一筆待辦之後，整份待辦交給視窗（哨兵傳 DeskService.put_todos）。
     只處理提醒（kind=remind）；/schedule_* 的指令要整個 App 才能跑，哨兵不跑。"""
+    from synox.schedule.actions import Actions
     from synox.schedule.engine import ReminderEngine
     from synox.schedule.store import ScheduleStore
-    return ReminderEngine(ScheduleStore(data_dir, vault, per_user=per_user), deliver, resolve=resolve)
+    store = ScheduleStore(data_dir, vault, per_user=per_user)
+    engine = ReminderEngine(store, deliver, resolve=resolve, status_dir=data_dir, who="sentinel")
+    actions = Actions(store, resolve=resolve, todos=todos, **({"clock": clock} if clock is not None else {}))
+    return HeadlessEngine(engine, actions)
 
 
-__all__ = ["CLOSED", "Engine", "headless_engine", "CANCELLED", "DAILY", "DONE", "EXPIRED", "EXPIRE_AFTER_H", "HISTORY_KEEP", "KIND", "MISSED",
+__all__ = ["CLOSED", "Engine", "HeadlessEngine", "headless_engine", "CANCELLED", "DAILY", "DONE", "EXPIRED", "EXPIRE_AFTER_H", "HISTORY_KEEP", "KIND", "MISSED",
            "MISSED_NOTICE_MAX_H", "NONE", "ONCE", "OPEN", "PENDING", "REPEATS", "RING_LATE_MAX_MIN", "RINGING",
            "Reminder", "SNOOZED", "SOURCES", "STATUSES", "VERSION", "aware", "check", "from_iso", "is_v2",
            "new_reminder", "to_iso", "upgrade_item"]

@@ -20,6 +20,7 @@ import sys
 import threading
 import time
 from dataclasses import dataclass
+from datetime import datetime
 from types import SimpleNamespace
 from typing import Any, Callable, Optional
 
@@ -95,7 +96,8 @@ class Sentinel:
             return
         if self.last_tick is None or now - self.last_tick >= ENGINE_TICK_S:
             self.last_tick = now
-            for name, fn in (("engine", lambda: r.engine.tick()), ("outbox", lambda: r.outbox.pump(now))):
+            at = datetime.fromtimestamp(now)
+            for name, fn in (("engine", lambda: r.engine.tick(at)), ("outbox", lambda: r.outbox.pump(now))):
                 try:
                     fn()
                 except Exception as e:
@@ -144,11 +146,10 @@ def build_round(config, vault, *, launcher=None) -> Round:
                          allow_chat=False)
     app.extras.update({notify.EXTRA: hub, delivery.OUTBOX_EXTRA: outbox, DESK_EXTRA: desk, "synox_config": config,
                        "vault": vault, SENTINEL_EXTRA: True})
-    engine = reminder.headless_engine(config.data_dir, vault, outbox.submit)
-    actions = engine if hasattr(engine, "act") else None
-    if actions is not None:
-        app.extras[delivery.ACTIONS_EXTRA] = actions
-    return Round(engine=engine, outbox=outbox, desk=desk, actions=actions)
+    engine = reminder.headless_engine(config.data_dir, vault, outbox.submit, resolve=outbox.resolve,
+                                      todos=desk.put_todos)
+    app.extras[delivery.ACTIONS_EXTRA] = engine          # 視窗、Telegram 按的鍵回頭叫它（act／on_delivery）
+    return Round(engine=engine, outbox=outbox, desk=desk, actions=engine)
 
 
 def _log_to_file(data_dir: str) -> None:

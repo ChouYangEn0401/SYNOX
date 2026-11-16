@@ -8001,6 +8001,26 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   function capList(list) {
     return (list && list.length) ? list.map(function (c) { return CAP[c] || c; }).join("、") : "（沒有）";
   }
+  // 安裝報告的「🧠 給 AI 的登記」（ADR 0029；資料是 s.agent，同終端機的 scan.format_agent）
+  function showAgent(box, s) {
+    var a = s.agent || {};
+    if (!a || a.chars === undefined) { return; }
+    box.appendChild(el("p", "", "🧠 給 AI 的登記：這個工具每輪會多佔約 " + a.chars + " 字（AI 能力清單" +
+      (a.declared ? "" : "；沒寫 agent 區塊，用簡介") + "）"));
+    var ul = el("ul");
+    if (a.line) { ul.appendChild(el("li", "", a.line.replace(/^- /, ""))); }
+    if ((a.triggers || []).length) { ul.appendChild(el("li", "", "觸發字：" + a.triggers.join("、"))); }
+    (a.promises || []).forEach(function (p) {
+      ul.appendChild(el("li", "", "承諾：" + p.command + " 成功後，AI 可以說它會" + (p.kind === "watch" ? "持續監看" : "在排定的時間做") + "（" + p.text + "）"));
+    });
+    if ((a.needs_core || []).length) {
+      ul.appendChild(el("li", "alert", "🔴 寫了 " + a.needs_core.join("、") + "（每輪都進 AI 的提示）：只有信任選「核心」才裝得進來"));
+    }
+    var deps = (a.requires_packs || []).map(function (x) { return "工具 " + x; })
+      .concat((a.requires_system || []).map(function (x) { return "系統能力 " + x; }));
+    if (deps.length) { ul.appendChild(el("li", "", "要先有：" + deps.join("、"))); }
+    if (ul.childNodes.length) { box.appendChild(ul); }
+  }
   // 安全管線第 1、2 關的結果（掃描報告）；canInstall＝過了，可以按確認（第 3 關在伺服器寫 packs.lock）
   function showReview(s, canInstall) {
     var box = $("pack-review");
@@ -8057,6 +8077,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       box.appendChild(el("p", "", "🖥 有自己的完整畫面" + (s.app.title ? "「" + s.app.title + "」" : "") + "（" + s.app.files + " 個檔）："));
       box.appendChild(appUl);
     }
+    showAgent(box, s);
     var upg = s.upgrade, down = null;
     if (upg) { down = showUpgrade(box, upg, s.name); }
     var trust = canInstall && s.token ? showScope(box, s, upg) : null;

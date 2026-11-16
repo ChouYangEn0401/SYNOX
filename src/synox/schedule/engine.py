@@ -20,7 +20,9 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
+import os
 import time
 from dataclasses import replace
 from datetime import datetime, timedelta
@@ -40,6 +42,8 @@ T_OK = "知道了"
 T_SNOOZE = "5 分鐘後再提醒"
 LATE_WHY = "剛剛電腦可能睡著了，或 SYNOX 沒在跑。"
 EXPIRED_NOTE = "⌛ 24 小時沒人回，先收起來了。"
+MISSED_MARK = "（錯過了）"           # 電腦視窗卡片上：補送的「你錯過了」只有「完成」一顆鍵
+BTN_DONE = "done"                   # 同 notify.desk.BTN_DONE
 
 
 def _labels() -> Tuple[str, str]:
@@ -165,15 +169,47 @@ def close_occurrence(rem: Reminder, status: str, now: datetime, via: str = "") -
     return replace(rem, status=status, done_at=R.to_iso(now), done_via=via, snooze_until=None)
 
 
+STATUS_FILE = "engine.json"        # data/remind/engine.json：上一次到點檢查（給健康檢查；沒有個人資料）
+
+
+def status_path(data_dir: str) -> str:
+    from synox.notify import desk as deskmod
+    return os.path.join(deskmod.remind_dir(data_dir), STATUS_FILE)
+
+
+def write_status(data_dir: str, who: str, last_tick: float, failed_stores: int) -> None:
+    """記下「誰在什麼時候檢查過」（主程式／哨兵）。寫不進去只記 log，不影響提醒。"""
+    from synox.notify import desk as deskmod
+    try:
+        deskmod._write_json(deskmod.remind_dir(data_dir), STATUS_FILE,
+                            {"v": 1, "who": who, "last_tick": float(last_tick), "failed_stores": int(failed_stores),
+                             "pid": os.getpid()})
+    except Exception as e:
+        logging.warning("[REMIND] cannot write engine status: %s", type(e).__name__)
+
+
+def read_status(data_dir: str) -> Optional[Dict[str, Any]]:
+    try:
+        with open(status_path(data_dir), "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
 class ReminderEngine:
-    """reminder.Engine 的實作。store＝ScheduleStore（個人版一份、伺服器版 all_stores() 每人一份）。"""
+    """reminder.Engine 的實作。store＝ScheduleStore（個人版一份、伺服器版 all_stores() 每人一份）。
+    status_dir（選填）：每一輪把「誰、幾點檢查過」寫進 data/remind/engine.json（who＝app｜sentinel）。"""
 
     def __init__(self, store, deliver: Callable[[delivery.Message], Any], *,
-                 resolve: Optional[Callable[..., Any]] = None, owner_default: Optional[int] = None):
+                 resolve: Optional[Callable[..., Any]] = None, owner_default: Optional[int] = None,
+                 status_dir: Optional[str] = None, who: str = "app"):
         self.store = store
         self._deliver = deliver
         self._resolve = resolve
         self.owner_default = owner_default
+        self.status_dir = status_dir
+        self.who = who
         self.failed_stores = 0
         self.last_tick: Optional[float] = None
 
@@ -190,6 +226,8 @@ class ReminderEngine:
                 self.failed_stores += 1
                 logging.exception("[REMIND] engine failed on one list")
         self.last_tick = time.time()
+        if self.status_dir:
+            write_status(self.status_dir, self.who, self.last_tick, self.failed_stores)
         return fired
 
     def _owner(self, st, rem: Reminder) -> int:
@@ -245,7 +283,7 @@ class ReminderEngine:
                                   late_min=late if late <= R.RING_LATE_MAX_MIN else 0, snoozed=True)
             else:
                 if not notified(rem):
-                    self._redeliver(st, rem, owner)
+                    self._redeliver(st, rem, owner, now)
                 return None
         occ = occurrence_due(rem, now)
         if occ is None:
@@ -277,7 +315,8 @@ class ReminderEngine:
             kind="alarm", level="alarm", actions=[{"id": "ok", "label": ok}, {"id": "snooze", "label": snooze}],
             data={"text": rem.text, "alarm": rem.id, "rid": rem.id, "occurrence": occ_iso},
             ref=delivery.ReminderRef(rem.id, occ_iso),
-            desktop={"when": friendly(occ, now), "late_min": late_min, "snooze_count": rem_now.snooze_count})
+            desktop={"text": rem.text, "when": friendly(occ, now), "late_min": late_min,
+                     "snooze_count": rem_now.snooze_count})
         logging.info("[REMIND] reminder %s rings → %s", rem.id, owner)
         ticket = self._send(msg)                     # 丟例外：不改任何東西，下一輪再試
         records = records_of(ticket)
@@ -291,14 +330,17 @@ class ReminderEngine:
         st.update_reminder(rem.id, apply)
         return {**rem.to_dict(), "occurrence": occ_iso, "late_min": late_min}
 
-    def _redeliver(self, st, rem: Reminder, owner: int) -> None:
+    def _redeliver(self, st, rem: Reminder, owner: int, now: datetime) -> None:
         """響著、卻還沒有任何管道成功：再交給送達層一次（同一個 key＝不重送，只回現況；舊路沒有佇列＝再試一次）。"""
         ok, snooze = _labels()
+        occ = R.from_iso(rem.occurrence)
         msg = delivery.Message(key=ring_key(rem, owner), uid=owner, text=ring_text(rem.text, snooze_count=rem.snooze_count),
                                kind="alarm", level="alarm",
                                actions=[{"id": "ok", "label": ok}, {"id": "snooze", "label": snooze}],
                                data={"text": rem.text, "alarm": rem.id, "rid": rem.id, "occurrence": rem.occurrence},
-                               ref=delivery.ReminderRef(rem.id, rem.occurrence or ""))
+                               ref=delivery.ReminderRef(rem.id, rem.occurrence or ""),
+                               desktop={"text": rem.text, "when": friendly(occ, now) if occ is not None else "",
+                                        "late_min": 0, "snooze_count": rem.snooze_count})
         records = records_of(self._send(msg))
         if records:
             st.update_reminder(rem.id, lambda r: replace(r, deliveries=records) if r.occurrence == rem.occurrence else r)
@@ -310,7 +352,9 @@ class ReminderEngine:
                                text=missed_text(friendly(occ, now), rem.text), kind="alarm", level="alarm",
                                actions=[{"id": "ok", "label": ok}],
                                data={"text": rem.text, "missed": True, "rid": rem.id, "occurrence": occ_iso},
-                               ref=delivery.ReminderRef(rem.id, occ_iso))
+                               ref=delivery.ReminderRef(rem.id, occ_iso),
+                               desktop={"text": f"{MISSED_MARK}{rem.text}", "when": friendly(occ, now),
+                                        "late_min": int((now - occ).total_seconds() // 60), "buttons": [BTN_DONE]})
         logging.info("[REMIND] reminder %s missed → %s", rem.id, owner)
         records = records_of(self._send(msg))
         st.update_reminder(rem.id, lambda r: self._mark_missed(r, occ, now, records))
@@ -405,5 +449,6 @@ def hub_deliver(app, msg: delivery.Message) -> delivery.DeliveryTicket:
     return ticket
 
 
-__all__ = ["ReminderEngine", "app_deliver", "app_resolve", "close_occurrence", "hub_deliver", "notified",
-           "occurrence_due", "removable", "ring_key", "ring_text", "settled"]
+__all__ = ["ReminderEngine", "STATUS_FILE", "app_deliver", "app_resolve", "close_occurrence", "hub_deliver",
+           "notified", "occurrence_due", "read_status", "removable", "ring_key", "ring_text", "settled", "status_path",
+           "write_status"]

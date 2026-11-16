@@ -20,7 +20,12 @@ def install(app) -> ScheduleRunner:
     store = store_for(app)
     runner = ScheduleRunner(app, store)
     app.extras["synox_schedule_runner"] = runner
-    app.extras[delivery.ACTIONS_EXTRA] = Actions(store, resolve=lambda uid, key, **kw: app_resolve(app, uid, key, **kw))
+    actions = Actions(store, resolve=lambda uid, key, **kw: app_resolve(app, uid, key, **kw),
+                      todos=lambda uid, items: delivery.publish_todos(app, uid, items))
+    app.extras[delivery.ACTIONS_EXTRA] = actions
+    owner = getattr(app, "owner_id", None)
+    if owner:                                          # 開起來時把待辦交給電腦視窗一次（哨兵那段時間可能改過）
+        app.on_start.append(lambda _app: actions.publish_todos(int(owner)))
     rt = app.extras.get("synox_runtime")
     if rt is not None:
         rt.loop.register(TASK_ID, "提醒與排程", fn=lambda ctx: _tick_text(runner.tick()), interval=CHECK_INTERVAL,

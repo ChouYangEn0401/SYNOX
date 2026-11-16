@@ -137,9 +137,10 @@ def _systems(app) -> Dict[str, Entry]:
 # 出廠一定有的系統能力：系統自己的程式還沒登記時用這幾筆（登記過就以它們的為準）。
 CORE_ENTRIES = {
     "remind": dict(title="⏰ 提醒（系統）", group="remind", load="always",
-                   index="在指定的時間提醒使用者一件事（每天或某一天）、看或刪提醒",
-                   triggers=["提醒", "叫我", "鬧鐘", "記得", "別忘了"],
-                   provides=["remind.add", "remind.list", "remind.rm"], promises={"add": "schedule"}),
+                   index="在指定的時間提醒使用者一件事（每天或某一天）、記沒有時間的待辦、看／完成／刪",
+                   triggers=["提醒", "叫我", "鬧鐘", "記得", "別忘了", "待辦", "試響"],
+                   provides=["remind.add", "remind.todo", "remind.done", "remind.list", "remind.rm", "remind.test"],
+                   promises={"add": "schedule", "test": "schedule"}),
     "schedule": dict(title="🗓 排程（系統）", group="schedule", load="on_trigger",
                      index="到了時間替使用者執行一個指令（每天或某一天）",
                      triggers=["排程", "定時", "每天幫我", "自動執行"],

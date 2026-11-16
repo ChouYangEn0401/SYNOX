@@ -151,6 +151,22 @@ class FileOutbox:
             pass
         return sorted(found)
 
+    def summary(self) -> Dict[str, Any]:
+        """健康檢查用：卡住的件數（還沒處理掉、有管道還在重試或已經放棄）＋最近一次失敗的是哪條管道（只有種類，沒有內容）。"""
+        stuck, last = 0, None
+        with self._lock:
+            for uid in self.uids():
+                for t in self._data(uid)["tickets"].values():
+                    recs = [DeliveryRecord.from_dict(r) for r in (t.get("records") or {}).values()]
+                    bad = [r for r in recs if r.state in (FAILED, GAVE_UP) or (r.error and r.state == QUEUED)]
+                    if bad and not t.get("resolved"):
+                        stuck += 1
+                    for r in bad:
+                        if last is None or (r.last_try or 0) > (last.last_try or 0):
+                            last = r
+        return {"stuck": stuck, "last_failed": None if last is None else
+                {"channel": last.channel, "error": last.error, "state": last.state, "at": last.last_try}}
+
     # ── ticket ───────────────────────────────────────────────────────
 
     @staticmethod

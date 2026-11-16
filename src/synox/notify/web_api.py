@@ -5,7 +5,7 @@
 |---|---|
 | `GET /api/notifications?since=<rev>` | rev 之後變了的通知、沒讀幾則、下一個鬧鐘 |
 | `POST /api/notifications/read` `{"id"}`（沒給 id＝全部已讀） | 知道了／全部已讀 |
-| `POST /api/notifications/<id>/snooze` | 5 分鐘後再提醒（有登記提醒引擎就交給它；沒有就加一個只響一次的提醒） |
+| `POST /api/notifications/<id>/snooze` | 5 分鐘後再提醒（交給提醒引擎延後同一個提醒，不另加一筆） |
 | `POST /api/notifications/<id>/done` | 完成（有登記提醒引擎就交給它；沒有＝知道了） |
 | `GET/POST /api/notifications/prefs` `{"off": {kind: [channel]}}` | 哪一類送到哪裡（Windows 個人版的擁有者多一塊 `desk`） |
 | `POST /api/notifications/desk` `{"window", "sentinel"}` | 電腦提醒視窗開／關、登入時啟動提醒哨兵（擁有者、Windows 個人版） |
@@ -114,14 +114,15 @@ def route(ui, user, method: str, path: str, body: bytes, query=None):
     if m:
         if not can_alarm(ui, user):
             return _err(403, "你現在不能用提醒。")
-        answer = hub.press(uid, int(m.group(1)), m.group(2), "web")
-        if answer is not None:
-            return _resp(200, {"ok": True, "message": answer})
+        got = hub.press_result(uid, int(m.group(1)), m.group(2), "web")
+        if got is not None:
+            ok, answer = got
+            return _resp(200, {"ok": True, "message": answer}) if ok else _err(404, answer)
         if m.group(2) == "done":                              # 沒有提醒引擎：「完成」＝知道了
             if not hub.dismiss(uid, int(m.group(1))):
                 return _err(404, T["gone"])
             return _resp(200, {"ok": True, "message": T["done_ok"]})
-        hhmm = hub.snooze(uid, int(m.group(1)))
+        hhmm = hub.snooze(uid, int(m.group(1)))              # press 沒接（不是提醒）＝這裡也是 None
         if hhmm is None:
             return _err(404, T["gone"])
         return _resp(200, {"ok": True, "at": hhmm, "message": T["snoozed"].format(hhmm=hhmm)})
@@ -159,11 +160,13 @@ def route(ui, user, method: str, path: str, body: bytes, query=None):
     if m:
         if not can_alarm(ui, user):
             return _err(403, "你現在不能用提醒。")
-        from synox.schedule.commands import store_for
+        from synox.schedule.commands import removed, store_for
         mine = store_for(ui.app).of(uid)
         aid = int(m.group(1))
-        if not any(it.get("id") == aid for it in mine.items("remind")):
+        gone = next((it for it in mine.items("remind") if it.get("id") == aid), None)
+        if gone is None:
             return _err(404, "沒有這個鬧鐘（可能已經刪掉了）。")
         mine.remove_id(aid)
+        removed(ui.app, uid, gone)                            # 待辦：更新電腦視窗；正在響的：各管道收掉
         return _resp(200, {"ok": True})
     return _err(404, "沒有這個 API。")
