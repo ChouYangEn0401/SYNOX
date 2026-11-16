@@ -737,6 +737,7 @@
       <header class="page-head">
         <h1>設定</h1>
         <p class="sub">AI 來源、聊天通道、功能和備份。改完的東西存在這台電腦。<a href="#settings:help">遇到問題？</a></p>
+        <p id="set-version" class="muted hidden"></p>
       </header>
 
       <div id="set-notowner" class="card hidden">
@@ -1625,6 +1626,9 @@
   function loadSettings() {
     api("GET", "/api/settings").then(function (d) {
       $("set-notowner").classList.toggle("hidden", d.owner);
+      var ver = d.version || {};                 // SYNOX 核心版本（synox.__version__）＋工具 SDK 版本
+      $("set-version").textContent = ver.core ? "SYNOX 核心版本 " + ver.core + (ver.sdk ? " · 工具 SDK " + ver.sdk : "") : "";
+      $("set-version").classList.toggle("hidden", !ver.core);
       ["set-llm", "set-usage", "set-channels", "set-library", "set-skills", "set-install", "set-packs",
         "set-sandbox", "set-backup"].forEach(function (id) { $(id).classList.toggle("hidden", !d.owner); });
       $("set-accounts").classList.toggle("hidden", !d.accounts);
