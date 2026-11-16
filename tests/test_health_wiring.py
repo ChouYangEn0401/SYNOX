@@ -23,7 +23,7 @@ from synox_sdk import ToolError, context, fail, serve, tool
 
 def _mode(name):
     try:
-        with open(os.path.join(context().pack_dir, name), encoding="utf-8") as f:
+        with open(os.path.join(os.path.dirname(context().pack_dir), name), encoding="utf-8") as f:
             return f.read().strip() or "ok"
     except OSError:
         return "ok"
@@ -32,7 +32,7 @@ def _mode(name):
 @tool("READ")
 def price(item: str = "apple"):
     """查價格。"""
-    with open(os.path.join(context().pack_dir, "runs.log"), "a", encoding="utf-8") as f:
+    with open(os.path.join(os.path.dirname(context().pack_dir), "runs.log"), "a", encoding="utf-8") as f:
         f.write("x")
     mode = _mode("mode.txt")
     if mode == "ok":
@@ -52,7 +52,7 @@ def price(item: str = "apple"):
 @tool("READ")
 def ping():
     """自我檢查。"""
-    with open(os.path.join(context().pack_dir, "pings.log"), "a", encoding="utf-8") as f:
+    with open(os.path.join(os.path.dirname(context().pack_dir), "pings.log"), "a", encoding="utf-8") as f:
         f.write("x")
     if _mode("ping.txt") == "ok":
         return "pong"
@@ -115,12 +115,13 @@ class Clock:
         return self.now
 
 
+# 測試用的開關／紀錄檔放在 pack 資料夾旁邊（不在 pack 裡：pack 有 packs.lock，裡面多一個檔＝被改過、不執行）
 def _mode(folder, value, name="mode.txt"):
-    (folder / name).write_text(value, encoding="utf-8")
+    (folder.parent / name).write_text(value, encoding="utf-8")
 
 
 def _runs(folder, name="runs.log"):
-    path = folder / name
+    path = folder.parent / name
     return len(path.read_text(encoding="utf-8")) if path.exists() else 0
 
 

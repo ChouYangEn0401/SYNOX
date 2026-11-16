@@ -217,9 +217,11 @@ def test_zip_ordinary_names_still_ok(tmp_path, name):
     assert token
 
 
-def test_unlocked_pack_has_no_live_check(make_bot, tmp_path):
+def test_unlocked_pack_is_not_loaded_at_all(make_bot, tmp_path):
+    """以前：沒鎖的照舊載入、沒有 live check。現在沒鎖＝沒有經過安裝頁，根本不載入（ADR 0027 §4）。"""
     from test_t2_trust import _raw, _write
     _write(str(tmp_path / "packs" / "bin"), _raw(publisher=None))
-    bot = make_bot(pack_dirs=(str(tmp_path / "packs"),))
-    pack = next(p for p in bot.app.extras["synox_packs"] if p.name == "bin")
-    assert pack.live is None and pack.tampered_since_load() == []
+    bot = make_bot(pack_dirs=(str(tmp_path / "packs"),), lock_packs=False)
+    assert not any(p.name == "bin" for p in bot.app.extras["synox_packs"])
+    item = next(i for i in bot.app.extras["synox_pack_report"].items if i.name == "bin")
+    assert item.status == "unapproved"

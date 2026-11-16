@@ -9,7 +9,7 @@ import pytest
 
 from isdtelekit.users.roles import BasicRoles
 
-from conftest import FIXTURE_PACKS, OTHER_ID, OWNER_ID
+from conftest import FIXTURE_PACKS, OTHER_ID, OWNER_ID, lock_all
 
 from synox.config import ROOT
 from synox.packs import admin, library, loader
@@ -111,6 +111,7 @@ def test_doctor_on_empty_host(tmp_path, empty_dirs):
 def test_doctor_counts_installed_tools(tmp_path, monkeypatch):
     from synox import doctor
     monkeypatch.setattr(loader, "PACK_DIRS", (FIXTURE_PACKS,))
+    lock_all(tmp_path / "data", (FIXTURE_PACKS,))                    # 沒鎖的不載入（ADR 0027 §4）：當作經安裝頁裝過
     lines = []
     doctor.run(offline=True, config_path=_write_config(tmp_path), out=lines.append)
     assert "• 工具：裝了 2 個（money、notes）" in "\n".join(lines)
