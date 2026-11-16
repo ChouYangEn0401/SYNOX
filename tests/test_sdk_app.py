@@ -43,7 +43,8 @@ def test_init_without_app_is_unchanged(tmp_path):
     written = sdk.init_pack(str(folder), "python", "plain", "一般")
     assert not any(w.startswith("app/") for w in written) and not (folder / "app").exists()
     manifest = json.loads((folder / "pack.json").read_text(encoding="utf-8"))
-    assert manifest["web"] == {"panel": "panel.html", "api": ["GET /summary"]}
+    assert manifest["web"] == {"api": ["GET /summary"]}                       # ADR 0027 §5：面板要 --panel
+    assert not (folder / "panel.html").exists()
     assert (folder / "pack.py").read_text(encoding="utf-8") == sdk.PACK_PY.format(title="一般")
     with pytest.raises(ValueError):
         sdk.init_pack(str(tmp_path / "x"), "cli", "x", "x", app=True)

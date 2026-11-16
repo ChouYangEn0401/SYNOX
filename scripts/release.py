@@ -27,9 +27,10 @@ sign   (docs/adr/0023 U5, docs/release-build.md「簽章金鑰」) writes, next 
        bytes of release.json, base64). Upload all three with the ZIP. The private key comes from --key <file> or
        SYNOX_RELEASE_KEY_FILE (a PEM file, password in SYNOX_RELEASE_KEY_PASSWORD, or one line of base64 = the 32-byte
        seed); it must live outside the repository (refused otherwise) and never goes into git.
-keygen makes a new key pair (offline, once, by the founding maintainer): writes the private key (PEM; encrypted when
-       SYNOX_RELEASE_KEY_PASSWORD is set) outside the repository and prints the public key for
-       src/synox/update/signing.py RELEASE_PUBLIC_KEYS.
+keygen makes a new key pair (offline, once, by the founding maintainer): writes the private key (PEM; encrypted with
+       SYNOX_RELEASE_KEY_PASSWORD, or with a passphrase asked twice on the terminal when that is unset) outside the
+       repository and prints the public key for src/synox/update/signing.py RELEASE_PUBLIC_KEYS. Pack (.synoxpack)
+       signing uses a different key: `synox-sdk keygen` (docs/adr/0027 §2).
 
 Standard library only (sign/keygen also need `cryptography`, already a SYNOX dependency); never connects to the
 network, never runs git. Exit code: 0 ok, 1 check failed, 2 cannot run.
@@ -530,6 +531,32 @@ def sign(root: str, dist: str, key_path: str, *, severity: str = "normal", summa
     return out
 
 
+def _ask_password() -> str:
+    """keygen 沒設 SYNOX_RELEASE_KEY_PASSWORD 時：在終端機上問兩次密語（ADR 0027 §2，跟 synox-sdk keygen 一致）。
+    不是終端機（腳本、測試）＝回 ""（照舊：不加密）。"""
+    if not _stdin_is_terminal():
+        return ""
+    import getpass
+    first = getpass.getpass("替發佈私鑰設一個密語（打字時不會顯示；直接按 Enter＝不加密，不建議）：")
+    if first and getpass.getpass("再輸入一次密語：") != first:
+        raise ReleaseError("兩次輸入的密語不一樣，沒有產生鑰匙。請再跑一次")
+    return first
+
+
+def _stdin_is_terminal() -> bool:
+    try:
+        tty = bool(sys.stdin and sys.stdin.isatty())
+        if tty and os.name == "nt":                 # Windows 的 NUL 也說自己是 tty：另外問是不是真的主控台
+            import ctypes
+            import msvcrt
+            mode = ctypes.c_uint32()
+            tty = bool(ctypes.windll.kernel32.GetConsoleMode(msvcrt.get_osfhandle(sys.stdin.fileno()),
+                                                             ctypes.byref(mode)))
+    except (AttributeError, ValueError, OSError):
+        tty = False
+    return tty
+
+
 def keygen(out_path: str, root: str = ROOT) -> str:
     """產生新的 Ed25519 金鑰：私鑰（PEM）寫到 out_path（repo 以外、不能蓋掉舊檔），回傳公鑰 base64。"""
     from cryptography.hazmat.primitives import serialization
@@ -539,7 +566,7 @@ def keygen(out_path: str, root: str = ROOT) -> str:
     if os.path.exists(out_path):
         raise ReleaseError(f"{out_path} 已經有檔案了，不會蓋掉")
     key = Ed25519PrivateKey.generate()
-    password = os.environ.get(KEY_PASSWORD_ENV)
+    password = os.environ.get(KEY_PASSWORD_ENV) or _ask_password()
     enc = serialization.BestAvailableEncryption(password.encode()) if password else serialization.NoEncryption()
     pem = key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, enc)
     fd = os.open(out_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
@@ -627,6 +654,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             print(pub)
             print(f"私鑰寫在 {args.out}（離線保存；不要放進 repo、雲端硬碟或聊天）。上面這行公鑰加進 "
                   "src/synox/update/signing.py 的 RELEASE_PUBLIC_KEYS。", file=sys.stderr)
+            print("（這把只簽 SYNOX 本體的發佈。簽工具 .synoxpack 的是另一把：synox-sdk keygen，"
+                  "公鑰貼進 src/synox/packs/signing.py 的 OFFICIAL_PACK_PUBLIC_KEYS；docs/adr/0027 §2）", file=sys.stderr)
             return 0
     except ReleaseError as e:
         print(f"❌ {e}", file=sys.stderr)
