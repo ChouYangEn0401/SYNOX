@@ -521,8 +521,9 @@ def test_api_status_shape(api):
     assert data["mother"]["ai"] is True
     assert data["mother"]["state"] == "idle"
     ids = [t["id"] for t in data["tasks"]]
-    assert ids == ["system.health", "system.heartbeat", "system.remote", "system.schedule", "system.soul_tidy",
-                   "system.tool_apps", "system.update_check", "pack.weather"]   # system.tool_apps／system.remote：工具服務、手機入口（只有開著時才排）；
+    assert ids == ["system.health", "system.heartbeat", "system.notify.desk", "system.notify.outbox", "system.remote",
+                   "system.schedule", "system.soul_tidy",
+                   "system.tool_apps", "system.update_check", "pack.weather"]   # system.notify.*：送達重試、電腦提醒視窗（ADR 0028）；system.tool_apps／system.remote：工具服務、手機入口（只有開著時才排）；
     #                                                       system.update_check：每週檢查新版（任務都在，沒打開就不連網，ADR 0023）
     for t in data["tasks"]:
         assert set(t) == {"id", "name", "owner", "schedule", "state", "last_run_at", "last_message"}

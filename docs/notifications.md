@@ -92,6 +92,49 @@ notify.of(app).notify(uid, "⏰ 提醒：吃藥", kind="alarm", key="alarm:3:202
 
 數字：晚 60 分鐘內照常響（不變）；60 分鐘～6 小時一則一則說錯過；超過 6 小時併成一則；送失敗重試到 6 小時；響了 24 小時沒人按自動收掉。
 
+### 送達確認與重試（`notify/outbox.py`、`notify/channels.py`、`notify/deskapp.py`）
+
+提醒到點時，提醒引擎呼叫 `delivery.deliver(app, Message)`（不是 `hub.notify`）。`Hub.notify` 的用法與行為不變，
+其他種類的通知照舊一次送完、不重試。
+
+- **管道回報成功才算送到**：網頁（通知清單存好了）、Telegram／Discord（回 `ok`）、電腦視窗（視窗回「卡片出現了」）。
+  任一條成功＝「有通知到」，其他條繼續試。
+- **失敗就留在佇列重試**：30 秒、1 分、2 分、5 分、10 分，之後每 15 分；第一次試之後滿 6 小時放棄。
+  Telegram 說「太快了，N 秒後再來」就照它的；**對方封鎖了 bot、token 壞了不重試**（之後健康檢查會說哪一條壞了）；
+  Telegram 把一模一樣的字當重複擋掉時，重試的字尾加「（第 N 次）」。
+- **佇列存檔**：`data/notifications/outbox/<id>.json`，保管箱開著時是 `.json.enc`（跟通知清單同一把金鑰）；
+  SYNOX 重開照樣重試。runtime 任務「📮 通知重送」（`system.notify.outbox`）每 15 秒看一次。
+- **同一則不重送**：同一個提醒的同一次（`delivery.message_key`）只會進佇列一次；通知中心 12 小時的去重也認得這個 key。
+- **一處按了、其他處收掉**：在 Telegram、Discord、網頁或電腦視窗按「完成／知道了／延後」→ 交給提醒引擎
+  （`app.extras["synox_reminder_actions"]` 的 `act`）→ 其他地方的按鈕拿掉、訊息改成「✅ 在…做完了」、電腦視窗那張關掉。
+  還沒有提醒引擎登記時，按鈕照舊（「5 分鐘後再提醒」＝在提醒清單加一個只響一次的）。
+
+### 電腦提醒視窗與提醒哨兵（`synox/remindwin/`）
+
+Windows 個人版**預設開**。提醒時間到，這台電腦右下角跳出一張提醒卡：
+
+- 永遠在最上層、好幾張會往上疊、跳出來時響一聲；**不按不會自己關**。
+- 按鈕：✅ 完成、10 分鐘後、1 小時後、自己打時間（「15:30」「+2h」「半小時後」「明天 9 點」）。
+- 卡片下半部列沒有時間的待辦，每筆一個 ✓。
+- 視窗跟 SYNOX 之間只有 `data/remind/desk/` 裡的小檔案（不開任何網路埠、不靠網頁；網頁關著也能用）。
+  SYNOX 每 5 秒內讀到你按了什麼。卡片上的提醒文字以明文放在這個資料夾，處理掉就刪。
+- 寫了卡片 60 秒都沒跳出來（視窗程式沒開成）＝這一次算沒送到，照上面的重試再開一次。
+
+**提醒哨兵**：登入 Windows 時自動啟動的小程式（`python -m synox sentinel`，用 pythonw 跑、沒有黑色視窗；
+只登記在你這個帳號的「啟動」資料夾，檔名 `SYNOX-remind-sentinel.cmd`，不用管理員、不動系統排程）。
+SYNOX 沒開的時候，它照同一份提醒資料到點就跳視窗、送 Telegram；SYNOX 一開，它把提醒交回來（`data/remind/engine.lock`
+決定現在誰在跑，同一時間只有一個）。電腦關機或睡著時誰都叫不了，開機後補送。
+
+**怎麼關**：
+
+| 要關的 | 怎麼做 |
+|---|---|
+| 電腦提醒視窗 | 設定 → 💻 電腦與備份 →「🔔 通知要送到哪裡」下面的「🖥️ 電腦提醒視窗」取消第一格；或在 `config.json` 加 `"notify": {"desktop": false}`（一律關，設定頁就改不回來） |
+| 提醒哨兵（登入時啟動） | 同一塊取消「登入 Windows 時啟動提醒哨兵」再按「存起來」（馬上把啟動檔拿掉；已經在跑的哨兵下次登入就不會再開）；或直接刪掉「啟動」資料夾裡的 `SYNOX-remind-sentinel.cmd` |
+
+設定存在 `data/remind/settings.json`。伺服器版、不是 Windows 的電腦沒有電腦視窗、也不跑哨兵（只有聊天與網頁）。
+試看看視窗長什麼樣子：`python -m synox remind-window --demo`（放一張試跳的卡，不碰 SYNOX 的資料）。
+
 ## 網頁 API（`synox/notify/web_api.py`）
 
 | 方法與路徑 | 做什麼 |
@@ -99,7 +142,9 @@ notify.of(app).notify(uid, "⏰ 提醒：吃藥", kind="alarm", key="alarm:3:202
 | `GET /api/notifications?since=<rev>` | rev 之後變了的通知、沒讀幾則、下一個鬧鐘（每 10 秒；分頁在背景 30 秒） |
 | `POST /api/notifications/read` `{"id"}` | 知道了（沒給 id＝全部已讀） |
 | `POST /api/notifications/<id>/snooze` | 5 分鐘後再提醒 |
-| `GET/POST /api/notifications/prefs` | 哪一類送到哪裡 |
+| `POST /api/notifications/<id>/done` | 完成（交給提醒引擎；沒有引擎＝知道了） |
+| `GET/POST /api/notifications/prefs` | 哪一類送到哪裡（Windows 個人版的擁有者多一塊 `desk`：電腦視窗、哨兵） |
+| `POST /api/notifications/desk` `{"window", "sentinel"}` | 電腦提醒視窗開／關、登入時啟動提醒哨兵（擁有者、Windows 個人版） |
 | `GET /api/alarms` | 接下來的鬧鐘、會在哪裡響、可能漏掉的原因 |
 | `POST /api/alarms/<id>/delete`、`POST /api/alarms/test` | 刪掉、試響一下 |
 
@@ -109,4 +154,5 @@ notify.of(app).notify(uid, "⏰ 提醒：吃藥", kind="alarm", key="alarm:3:202
 
 一般人聽得懂的話：不說服務、網址、埠、閒置。例如「記帳的完整畫面 30 分鐘沒人用了。要關掉嗎？不理我的話，再 90 分鐘我會自己關。」
 
-測試：`tests/test_notify.py`（假的 Telegram／Discord，不連網）。畫面：`static/notify.js`、`static/notify.css`（顏色只用 token）。
+測試：`tests/test_notify.py`（假的 Telegram／Discord，不連網）、`tests/test_notify_outbox.py`（佇列、重試、按鈕回頭叫提醒引擎）、
+`tests/test_remindwin_spool.py`（視窗的檔案往返、鎖、哨兵、啟動檔；不開視窗、不碰真的啟動資料夾）。畫面：`static/notify.js`、`static/notify.css`（顏色只用 token）。

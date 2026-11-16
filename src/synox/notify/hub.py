@@ -48,6 +48,8 @@ KINDS: Dict[str, dict] = {
 # 白話（docs/notifications.md 的「用字」）
 T = {
     "ok": "知道了",
+    "done": "完成",
+    "done_ok": "好，記成做完了。",
     "snooze": f"{SNOOZE_MIN} 分鐘後再提醒",
     "snoozed": "好，{hhmm} 再叫你一次。",
     "gone": "這則提醒已經處理過了。",
@@ -214,6 +216,8 @@ class Hub:
                 row.append({"text": a.get("label") or T["ok"], "callback_data": f"ntf:ok:{nid}"})
             elif a.get("id") == "snooze":
                 row.append({"text": a.get("label") or T["snooze"], "callback_data": f"ntf:s5:{nid}"})
+            elif a.get("id") == "done":
+                row.append({"text": a.get("label") or T["done"], "callback_data": f"ntf:d:{nid}"})
             elif a.get("id") in ("app_stop", "app_keep") and a.get("app"):
                 what = "stop" if a["id"] == "app_stop" else "keep"
                 row.append({"text": a.get("label") or "", "callback_data": f"ntfa:{what}:{a['app']}"[:64]})
@@ -253,9 +257,48 @@ class Hub:
         item = self.store.get(uid, nid)
         if item is None:
             return False
-        acts = [a for a in item.get("actions") or [] if a.get("id") not in ("ok", "snooze")]
+        acts = [a for a in item.get("actions") or [] if a.get("id") not in ("ok", "snooze", "done")]
         self.store.update(uid, nid, actions=acts, read=True)
         return True
+
+    # ── 按鈕回頭叫提醒引擎（ADR 0028：有登記 ReminderActions 才走這條）────
+
+    def press(self, uid: int, nid: int, what: str, via: str) -> Optional[str]:
+        """按了「知道了」（ok）／「5 分鐘後再提醒」（snooze）／「完成」（done）。
+        這一則是送達層送的提醒（data.remind 有 rid、occurrence），而且 app.extras 登記了 ReminderActions
+        → 叫它的 act，成功就讓其他管道收掉，回給按的人的那句話。其他情況回 None（呼叫的人走舊的 snooze／dismiss）。"""
+        from synox.notify import delivery
+        actions = self.app.extras.get(delivery.ACTIONS_EXTRA)
+        item = self.store.get(uid, nid)
+        ref = ((item or {}).get("data") or {}).get("remind")
+        if actions is None or not isinstance(ref, dict) or "rid" not in ref:
+            return None
+        action = {"ok": "ack", "snooze": "snooze", "done": "done"}.get(what)
+        if action is None:
+            return None
+        until = None
+        if action == "snooze":
+            until = (datetime.fromtimestamp(self.clock()) + timedelta(minutes=SNOOZE_MIN)).astimezone() \
+                .replace(microsecond=0).isoformat()
+        try:
+            outcome = actions.act(int(uid), int(ref["rid"]), str(ref.get("occurrence") or ""), action, until=until,
+                                  via=via)
+        except Exception as e:
+            _log_fail("reminder action", uid, e)
+            return T["gone"]
+        self.store.update(uid, nid, actions=[], read=True)
+        if getattr(outcome, "ok", False):
+            try:
+                delivery.resolve(self.app, int(uid), str(ref.get("key") or ""), note=getattr(outcome, "note", ""),
+                                 via=via)
+            except Exception as e:
+                _log_fail("resolve", uid, e)
+            if outcome.text:
+                return outcome.text
+            if action == "snooze":
+                return T["snoozed"].format(hhmm=until[11:16])
+            return T["done_ok"] if action == "done" else T["ok"]
+        return getattr(outcome, "text", "") or T["gone"]
 
 
 def install_buttons(app, hub: Hub) -> None:
@@ -272,11 +315,14 @@ def install_buttons(app, hub: Hub) -> None:
             api.answer_callback_query(cb.cq_id, text=T["gone"])
             return
         uid = int(cb.clicker_id)
-        if what == "s5":
-            hhmm = hub.snooze(uid, nid)
-            answer = T["snoozed"].format(hhmm=hhmm) if hhmm else T["gone"]
-        else:
-            answer = T["ok"] if hub.dismiss(uid, nid) else T["gone"]
+        via = "discord" if getattr(api, "channel_name", "") == "discord" else "telegram"
+        answer = hub.press(uid, nid, {"s5": "snooze", "d": "done"}.get(what, "ok"), via)   # 提醒引擎（ADR 0028）
+        if answer is None:                             # 沒登記 ReminderActions、或不是送達層送的：舊的路
+            if what == "s5":
+                hhmm = hub.snooze(uid, nid)
+                answer = T["snoozed"].format(hhmm=hhmm) if hhmm else T["gone"]
+            else:
+                answer = T["ok"] if hub.dismiss(uid, nid) else T["gone"]
         try:
             api.remove_buttons(cb.chat_id, cb.message_id)
         except Exception:

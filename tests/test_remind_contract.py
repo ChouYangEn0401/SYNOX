@@ -104,8 +104,8 @@ def test_delivery_shells_are_not_implemented_yet():
     msg = delivery.Message(key=delivery.message_key(3, "2026-11-16T00:51:00+08:00", 1001), uid=1001, text="x",
                            ref=delivery.ReminderRef(3, "2026-11-16T00:51:00+08:00"))
     assert msg.key == "rem:1001:3:2026-11-16T00:51:00+08:00"
-    for fn, args in ((delivery.deliver, (None, msg)), (delivery.planned_channels, (None, 1001)),
-                     (desk.spool_at, ("x",)), (reminder.headless_engine, ("x", None, print))):
+    # W2 實作了 deliver／planned_channels／spool_at（tests/test_notify_outbox.py）；剩 W1 的 headless_engine
+    for fn, args in ((reminder.headless_engine, ("x", None, print)),):
         with pytest.raises(NotImplementedError):
             fn(*args)
     ticket = delivery.DeliveryTicket(msg.key, 1001, {"web": delivery.DeliveryRecord("web", state=delivery.SENT),

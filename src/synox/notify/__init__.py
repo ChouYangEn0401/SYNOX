@@ -27,6 +27,13 @@ def install(app, config, vault=None) -> Hub:
     return hub
 
 
+def install_delivery(app, config, vault=None, *, config_path: str = ""):
+    """送達層（ADR 0028）：佇列＋重試（runtime 任務 system.notify.outbox）、電腦提醒視窗、提醒引擎鎖、哨兵的啟動檔。
+    要在 runtime.install 之後叫（登記任務）。視窗、鎖、啟動檔只有 app 真的 start 之後才動（notify/deskapp.py）。"""
+    from synox.notify import deskapp
+    return deskapp.install(app, config, vault, config_path=config_path)
+
+
 def of(app) -> Optional[Hub]:
     return getattr(app, "extras", {}).get(EXTRA)
 
@@ -51,4 +58,5 @@ def where_text(app, uid: int, kind: str = "alarm") -> str:
     return "、".join(hub.where(uid, kind)) if hub is not None else ""
 
 
-__all__ = ["CHANNEL_LABELS", "EXTRA", "Hub", "KINDS", "install", "install_buttons", "of", "where_text"]
+__all__ = ["CHANNEL_LABELS", "EXTRA", "Hub", "KINDS", "install", "install_buttons", "install_delivery", "of",
+           "where_text"]
