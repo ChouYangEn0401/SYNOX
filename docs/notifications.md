@@ -77,6 +77,21 @@ notify.of(app).notify(uid, "⏰ 提醒：吃藥", kind="alarm", key="alarm:3:202
 （`runtime/keepawake.py`，docs/adr/0006）讓電腦不要自己睡著，但闔上筆電、按睡眠、沒電、Windows Update 重開機都擋不住。
 電腦關著或睡著時到的鬧鐘，醒來後 60 分鐘內會補叫，更晚的只會告訴你錯過了。
 
+## 契約：提醒必達（ADR 0028，實作中）
+
+上面是現在的行為。接下來要補「送出去有沒有成功」「SYNOX 沒開也會響」「電腦上的提醒視窗」「待辦」「排程回執」，
+**疊在通知中心上**，`Hub.notify` 的用法不變。完整欄位、例子與差距表在 [adr/0028](adr/0028-reminder-delivery-on-notify-hub.md)；
+四份契約程式（只有型別與簽名，測試 `tests/test_remind_contract.py`）：
+
+| 檔 | 定什麼 |
+|---|---|
+| `schedule/reminder.py` | 一筆提醒／待辦：絕對到點時間 `due`、`repeat`（once／daily／none＝待辦）、`status`（七種）、延後、每個管道的送達紀錄；舊資料怎麼轉（`upgrade_item`，舊欄位 `time`／`date` 照寫） |
+| `schedule/receipt.py` | 排程回執：排上了才有；何時（`when`、`due`）、從哪些管道送、什麼情況不會送；回覆的字由程式產生 |
+| `notify/delivery.py` | 送達介面：`deliver(Message)`、管道回報 `DeliveryResult`、`RetryPolicy`（30 秒起、最多 6 小時）、佇列、`resolve`（一處按了其他處收掉）、`ReminderActions`（按鈕回頭叫提醒引擎） |
+| `notify/desk.py` | 電腦提醒視窗與提醒哨兵：`data/remind/` 的檔名、欄位、誰寫誰刪；`engine.lock` 與讓位 |
+
+數字：晚 60 分鐘內照常響（不變）；60 分鐘～6 小時一則一則說錯過；超過 6 小時併成一則；送失敗重試到 6 小時；響了 24 小時沒人按自動收掉。
+
 ## 網頁 API（`synox/notify/web_api.py`）
 
 | 方法與路徑 | 做什麼 |
