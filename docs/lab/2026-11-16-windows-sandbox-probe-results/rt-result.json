@@ -1,0 +1,107 @@
+{
+ "windows": {
+  "major": 10,
+  "minor": 0,
+  "build": 26200
+ },
+ "python": "3.11.0 (main, Oct 24 2022, 18:26:48) [MSC v.1933 64 bit (AMD64)]",
+ "argv": [],
+ "results": [
+  {
+   "test": "R1",
+   "what": "write a file in the granted folder",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "file exists=True",
+   "verdict": "PASS"
+  },
+  {
+   "test": "R2",
+   "what": "write a file in a folder NOT granted",
+   "expect": "deny",
+   "exit_code": 1,
+   "note": "file exists=False",
+   "verdict": "PASS"
+  },
+  {
+   "test": "R3",
+   "what": "read a file in a folder NOT granted (expected ALLOWED: reads are not restricted)",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "",
+   "verdict": "PASS"
+  },
+  {
+   "test": "R4",
+   "what": "list the user profile folder (expected ALLOWED; output discarded)",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "",
+   "verdict": "PASS"
+  },
+  {
+   "test": "R5",
+   "what": "write into the user's %TEMP% root (not granted)",
+   "expect": "deny",
+   "exit_code": 1,
+   "note": "file existed=False",
+   "verdict": "PASS"
+  },
+  {
+   "test": "R6",
+   "what": "python: connect to host loopback (expected ALLOWED: network is not restricted)",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "listener hits=1",
+   "verdict": "PASS"
+  },
+  {
+   "test": "R7",
+   "what": "python: TCP connect to existing host service 127.0.0.1:11434 (expected ALLOWED)",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "",
+   "verdict": "PASS"
+  },
+  {
+   "test": "R7",
+   "what": "python: TCP connect to existing host service 127.0.0.1:8830 (expected ALLOWED)",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "",
+   "verdict": "PASS"
+  },
+  {
+   "test": "R8",
+   "what": "System32 curl.exe plain HTTP to loopback (does curl.exe even start?)",
+   "expect": "info",
+   "exit_code": 0,
+   "note": "listener hits=1",
+   "verdict": "INFO"
+  },
+  {
+   "test": "R9",
+   "what": "System32 curl.exe HTTPS (Schannel) under the restricted token",
+   "expect": "info",
+   "exit_code": 35,
+   "note": "",
+   "verdict": "INFO"
+  },
+  {
+   "test": "J1",
+   "what": "Job ActiveProcessLimit=1: a child process must fail to start",
+   "expect": "deny",
+   "exit_code": 1,
+   "note": "",
+   "verdict": "PASS"
+  },
+  {
+   "test": "J2",
+   "what": "same command without the process limit (control)",
+   "expect": "allow",
+   "exit_code": 0,
+   "note": "",
+   "verdict": "PASS"
+  }
+ ]
+}
