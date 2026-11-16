@@ -17,8 +17,9 @@ package-lock.json 跟舊版不同、或現在的 data/envs/<name>/ 對不上 →
 「改了什麼」：新增／移除的 command（cli 的 commands、mcp 的 tools_allow；python pack 的指令寫在程式裡，比不出來）；
 effect 變寬（READ→WRITE→DANGER）、capabilities 新增、執行方式（kind、runtime、cli.argv／python／cwd／env、python.module）
 或 auth 改動、access 變寬、多要密鑰環境變數、新加網頁面板、surfaces 多了 channel、data 變寬（none → user → shared）、
-trust（擁有者這次選的，跟舊鎖不同；不在 pack.json）、publisher 改了、mcp.schema_tools 多了工具（巢狀參數給 AI）
-——這些 alert=True，畫面上用紅字標出來。
+trust（擁有者這次選的，跟舊鎖不同；不在 pack.json）、publisher 改了、mcp.schema_tools 多了工具（巢狀參數給 AI）、
+agent.promises 新增或改了、agent.always 新加或改了、agent.load 變成 always（agent_changes，ADR 0029）
+——這些 alert=True，畫面上用紅字標出來。第三方信任的新版寫了 agent.always／load=always＝不升級。
 容器（S2）：runtime.container 改了（映像 digest、network、resources、mounts、user…）＝「執行方式改了」紅字；
 network false → true、映像換了另外各一行紅字；原本用容器、升級後不用（新版不再提供或這次選 host）＝紅字。
 執行環境沒選＝沿用舊鎖的 runtime.mode（舊的沒寫、新版有提供容器＝container）。
@@ -164,6 +165,47 @@ def diff_manifests(old: Manifest, new: Manifest) -> List[dict]:
     if (old.publisher or "") != (new.publisher or ""):
         add("publisher", f"發行者 publisher {old.publisher or '（沒寫）'} → {new.publisher or '（沒寫）'}", True)
     out += scope_changes(old, new)
+    out += agent_changes(old, new)
+    return out
+
+
+def agent_changes(old: Manifest, new: Manifest) -> List[dict]:
+    """agent 區塊的變化（ADR 0029）：新增或改了 promises（能背書未來的事）、新增或改了 agent.always、load 變成 always＝紅字；
+    索引那一行、觸發字、說明書主題、相依改了＝一般字。"""
+    a, b = getattr(old, "agent", None) or {}, getattr(new, "agent", None) or {}
+    out: List[dict] = []
+    old_promises, new_promises = a.get("promises") or {}, b.get("promises") or {}
+    for name in sorted(new_promises):
+        if old_promises.get(name) != new_promises[name]:
+            out.append({"kind": "agent_promise", "alert": True,
+                        "text": f"新增承諾：指令 {name} 成功後 AI 可以背書未來的事（{new_promises[name]}）"})
+    for name in sorted(set(old_promises) - set(new_promises)):
+        out.append({"kind": "agent_promise", "alert": False, "text": f"不再承諾：指令 {name}"})
+    if (b.get("always") or "") != (a.get("always") or ""):
+        if b.get("always"):
+            out.append({"kind": "agent_always", "alert": True,
+                        "text": f"每輪都進 AI 提示的那一段（agent.always）{'改了' if a.get('always') else '新加了'}："
+                                + _short(b["always"])})
+        else:
+            out.append({"kind": "agent_always", "alert": False, "text": "拿掉了 agent.always"})
+    if b.get("load") == "always" and a.get("load") != "always":
+        out.append({"kind": "agent_load", "alert": True, "text": "載入方式改成 always（每輪都給 AI 這個工具的規格）"})
+    elif (a.get("load") or "on_trigger") != (b.get("load") or "on_trigger"):
+        out.append({"kind": "agent_load", "alert": False,
+                    "text": f"載入方式 {a.get('load') or 'on_trigger'} → {b.get('load') or 'on_trigger'}"})
+    if (a.get("index") or "") != (b.get("index") or ""):
+        out.append({"kind": "agent_index", "alert": False, "text": f"AI 能力清單那一行：{_short(b.get('index') or '（用 summary）')}"})
+    if list(a.get("triggers") or []) != list(b.get("triggers") or []):
+        out.append({"kind": "agent_triggers", "alert": False,
+                    "text": "觸發字：" + ("、".join(b.get("triggers") or []) or "（沒有）")})
+    if sorted(a.get("topics") or {}) != sorted(b.get("topics") or {}):
+        out.append({"kind": "agent_topics", "alert": False,
+                    "text": "說明書主題：" + ("、".join(sorted(b.get("topics") or {})) or "（沒有）")})
+    for key, label in (("packs", "相依的工具"), ("system", "要的系統能力")):
+        before, after = (old.requires or {}).get(key) or [], (new.requires or {}).get(key) or []
+        if before != after:
+            out.append({"kind": f"requires_{key}", "alert": False,
+                        "text": f"{label}：{'、'.join(map(str, after)) or '（沒有）'}"})
     return out
 
 
@@ -550,6 +592,10 @@ def upgrade_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
         hint = "（真的要換，明確選「降級／重裝」）" if upg["can_force"] else ""
         raise admin.PackAdminError(f"不升級：{upg['version_message']}{hint}")
     from synox.packs import tier as pack_tier
+    from synox.packs.manifest import agent_trust_problem
+    refused = agent_trust_problem(m, trust)              # 第三方寫了 agent.always／load=always（ADR 0029）
+    if refused:
+        raise admin.PackAdminError("不升級：" + refused)
     t2 = upg["tier"]
     previous = pack_lock.entry(data_dir, m.name)
     if t2["needs_publisher"] or (t2["tier"] == pack_tier.T2 and trust_publisher):

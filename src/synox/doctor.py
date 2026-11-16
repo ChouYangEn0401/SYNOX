@@ -336,6 +336,37 @@ ROOT_NOTES = {"SYNOX_HOME": "（來自環境變數 SYNOX_HOME；不是你要的�
               "cwd": "（⚠️ 不是原始碼的版面，用的是目前所在的資料夾；要固定就設環境變數 SYNOX_HOME）"}
 
 
+def agent_lines(config, manifests) -> tuple:
+    """工具登記（ADR 0029）：requires.packs／requires.system 缺什麼（不會載入）、第三方寫了 agent.always（不會載入）、
+    AI 能力清單每輪的總量與每個工具的佔用（最大的三個標出來）。只看 pack.json，不載入。回 (行, 問題數)。"""
+    from synox.agent import index as agent_index
+    from synox.packs import loader
+    lines: List[str] = []
+    bad = 0
+    ok = list(manifests)
+    changed = True
+    while changed:                               # 缺相依的不會載入 → 依賴它的也載入不了（重算到不再變）
+        changed = False
+        loaded = {m.name: m.version for m in ok if m.kind != "theme"}
+        for m in list(ok):
+            missing = agent_index.dependency_problems(m, loaded, agent_index.CORE_SYSTEM)
+            if missing:
+                lines.append(f"  ⛔ {m.name} {m.version}：不會載入，缺 {'、'.join(missing)}")
+                bad += 1
+                ok.remove(m)
+                changed = True
+    for m in list(ok):
+        untrusted = loader.agent_trust_reason(config, m) if config is not None else ""
+        if untrusted:
+            lines.append(f"  ❌ {m.name} {m.version}：不會載入。{untrusted}")
+            bad += 1
+            ok.remove(m)
+    usage = agent_index.usage_lines(agent_index.static_index(ok))
+    lines.append(f"• {usage[0]}")
+    lines += [f"  {line}" for line in usage[1:]]
+    return lines, bad
+
+
 def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] = print) -> int:
     problems = 0
     out(f"🩺 SYNOX {__version__} 健康檢查")
@@ -443,6 +474,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
     tools: List[str] = []
     lock_dir = config.data_dir if config else os.path.join(ROOT, "data")
     locked = 0
+    loadable: List = []                          # 會載入的工具（相依與 AI 能力清單的佔用在迴圈之後算，ADR 0029）
     dirs = config.pack_dirs() if config else PACK_DIRS
     secret_lookup = _secret_lookup(config)
     for extra in dirs[len(PACK_DIRS):]:
@@ -479,6 +511,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
             lock_mark = "🔒" if lock_state == pack_lock.LOCKED else "未鎖定"
             lines.append(f"  {state} {m.name} {m.version} {m.stage_label}（{m.kind}，/{m.group}，{lock_mark}）  {rel}")
             if enabled:
+                loadable.append(m)
                 note = secret_lookup(m)
                 if note:
                     lines.append(f"     {note}")
@@ -514,6 +547,10 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
     out(f"• packs：{len(lines)} 個（packs.lock 鎖定 {locked} 個；python -m synox packs status 看細節）")
     for line in lines:
         out(line)
+    agent_text, bad = agent_lines(config, loadable)      # 相依缺漏、第三方的 agent.always、每個工具每輪佔用（ADR 0029）
+    for line in agent_text:
+        out(line)
+    problems += bad
     from synox.packs import library                  # SYNOX 出廠不帶工具：裝了幾個、工具庫在哪裡
     for line in library.doctor_lines(config, tools):
         out(line)
