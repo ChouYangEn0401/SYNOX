@@ -8052,7 +8052,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       if (sig.text) { sigRow.appendChild(el("span", "", sig.text)); }
       box.appendChild(sigRow);
       (sig.lookalike || []).forEach(function (l) {
-        box.appendChild(el("p", "alert", "🔴 小心：它不是官方的，名字或說明卻像官方——" + l));
+        box.appendChild(el("p", "alert", "🔴 " + l + "（官方的看上面的標章，不看名字）"));
       });
     }
     box.appendChild(el("h3", "", s.title + "（" + s.name + " " + s.version + "）"));

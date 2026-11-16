@@ -743,7 +743,8 @@ def warnings_for(m: Manifest, report: Optional[ScanReport] = None) -> List[str]:
     if report is not None and any(f.kind == "env" for f in report.findings):
         out.append("它會讀環境變數（可能讀得到放在環境變數裡的密鑰）。")
     if m.panel_path:
-        out.append("它有網頁面板：面板跟 Web UI 同源，能做你在網頁上能做的事。")
+        out.append("它有網頁面板（工具頁的小畫面）：SYNOX 會把它隔開——它碰不到你的登入、只能讀這個工具自己的資料；"
+                   "但畫面裡的字和按鈕都是作者寫的，不是 SYNOX 的。")
     if not m.publisher:
         out.append("沒有寫發行者（publisher）。")
     from synox.packs.manifest import doc_warnings

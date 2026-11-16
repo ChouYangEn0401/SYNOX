@@ -63,7 +63,12 @@
 `.synoxpack`＝一個 pack 資料夾壓成的 zip（`pack.json` 在最上層，或在唯一的那個資料夾裡）；`synox-sdk zip`／`scripts\pack_zip.py`
 會打包並算好 `integrity.sha256`（[sdk.md](sdk.md)）。裝的路有三條，都跑同一條安全管線（[security.md](security.md)「五關」）：
 Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Install-Pack.bat`）、`python -m synox install <檔> [--yes]`。
-（開發用的第四條：`config.json` 的 `packs.dirs` 直接指到一個資料夾，不經安裝流程、沒有鎖。）
+（開發用的第四條：`config.json` 的 `packs.dirs` 直接指到一個資料夾——**沒有鎖就不載入**（2026-11-16 起），要在電腦上跑
+`python -m synox packs lock --approve <name>`（跑第 1、2 關、印報告再鎖）。直接複製進 `packs/` 的也一樣不載入，設定頁會列「沒有經過安裝頁」＋「送去安裝頁檢查」鈕。）
+**簽章**：`synox-sdk zip` 之後可以 `synox-sdk sign <檔>.synoxpack --key <你的私鑰>.pem`，zip 裡多一個 `pack.sig.json`（其他每個檔的 sha256 清單＋Ed25519 簽章＋公鑰）。
+安裝報告第一列是 SYNOX 自己驗出來的標章：✅ 官方（擁有者的鑰匙）／✍️ 作者簽章（你的鑰匙；不是官方）／⚠️ 不是官方（沒簽）／⛔ 被改過（驗不過，拒裝）。
+`name`、`title`、`summary`、`publisher`、SKILL.md 的 description 裡寫「官方」「official」「SYNOX」「✅」而不是官方鑰匙簽的 → 報告紅字（不拒裝）；
+安裝時 `title`／`summary`／`publisher` 不能有看不見的字元（雙向控制、零寬）或換行。細節：[adr/0027](adr/0027-pack-signatures-official-badge.md)、[sdk.md](sdk.md)「簽章」。
 官方工具的 `.synoxpack` 由 SYNOX 工具庫（SYNOX_Libs）的 `scripts/build.py` 產生，旁邊有一份目錄 `index.json`；
 `config.json` 的 `packs.library`（資料夾或網址）告訴 SYNOX 工具庫在哪，`/help`、`doctor`、網頁在還沒裝工具時會提示（`src/synox/packs/library.py`）。
 檢查 zip（沒有絕對路徑、`..`、符號連結；檔名不能是 Windows 保留名（`CON`、`NUL`、`COM1`…，加副檔名也算）、不能有冒號（NTFS 資料流 `x.py::$DATA`）或 `< > " | ? *`、結尾不能是空白或句點；5 MB／解開 20 MB／300 個檔以內）→ 第 1 關宣告 → 第 2 關靜態掃描 → 給人看報告 →
@@ -124,8 +129,8 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
     （「未知指令」）、`/help` 與 AI 工具清單都沒有。`core`（擁有者安裝時選的）照常。
   - **沒有「出廠的」了**：以前內建的 notes、money、remind 與 `connectors/` 的 4 個 connector 2026-11-12 起都在工具庫，
     跟其他工具一樣要經安裝流程、看擁有者選的 trust（`loader.BUNDLED` 是空的，機制留著；提醒 `/remind_*` 是系統指令「⏰ 提醒（系統）」，不是 pack）。
-  - **沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）＝`third-party`；而且載入前補跑一次第 2 關靜態掃描，
-    沒過＝狀態 `rejected`、不載入（理由列 `檔名:行號`）。信得過就 `python -m synox packs lock --approve <name> --trust core`。
+  - **沒有鎖的**（手動放進 `packs/` 或 `packs.dirs`、沒走安裝流程）**不載入**（狀態 `unapproved`，個人版也一樣；ADR 0027 §4）。
+    放在 `packs/` 的：設定頁「送去安裝頁檢查」；`packs.dirs` 的：`python -m synox packs lock --approve <name> [--trust core]`。
   - 為什麼只給擁有者，`doctor` 與 `packs status` 都會寫一行 🔐。kind=cli 的第三方 pack 另外看沙盒（見 `docs/security.md`「運行空間（沙盒）」）。
 
 ### 完整網頁畫面（`web.app`，工具服務）
@@ -178,7 +183,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 | 欄位 | 說明 |
 |---|---|
 | `capabilities` | 宣告要用的能力：`network`、`subprocess`、`filesystem:own`、`filesystem:any`（含 own）、`exec`。第 2 關的掃描看到用了、卻沒宣告 → **拒裝**。沒寫＝什麼都沒宣告（舊 pack 一樣，由掃描結果決定裝不裝得了）。`exec` 也包含：`sys.modules`、dunder 屬性（`x.__class__`、`__dict__`、`__globals__`…，用 `type(x)` 代替 `x.__class__`）、`getattr` 的屬性名不是字面字、`vars()`／`globals()`／`locals()`、呼叫對象看不出是什麼（`handlers[k](…)`、`f()(…)`：先指給一個變數再呼叫）。第 2 關攔的是直呼名與常見的間接取用，**是提醒不是門**；python pack 在 SYNOX 程序裡跑，個人版沒有任何隔離（[security.md](security.md)「五關」） |
-| `publisher` | 發行者（給人看；沒寫會在報告裡提醒）。**T2 pack 一定要寫**：安裝者要一字不差地輸入這個值才裝得了（見下面「信任層級」）；升級時換了一律紅字 |
+| `publisher` | 發行者（給人看；沒寫會在報告裡提醒）。**T2 pack 一定要寫**：安裝者要一字不差地輸入這個值才裝得了（見下面「信任層級」）；升級時換了一律紅字。只是作者寫的字：「誰做的、有沒有被改過」看簽章 `pack.sig.json`（ADR 0027） |
 | `integrity.sha256` | `{"檔名": "64 個 16 進位字"}`，打包時算（`synox-sdk zip`）。有寫就每個檔都要對得上、也不能多出沒列的檔（`pack.json` 本身不算） |
 | `auth` | v0 的字串（`oauth`／`token`／`caldav`）照舊；v2 寫 `{"type": "none｜token｜oauth｜caldav｜file", "fields": [...]}`。`token`／`file` 的 `fields` 由 SYNOX 收，見下面「pack 的 secret」 |
 | `kind: "mcp"`＋`mcp` | 只登記：`{"url": "…", "tools_allow": ["search"], "effects": {"search": "READ"}}`（不連、不能附程式檔）。**真的連**：`"transport": "stdio"`（見下面「`mcp`（stdio）」）或 `"transport": "http"`（遠端 MCP，見「`mcp`（http）」）。兩種都是 `tools_allow` 不能空、每個允許的工具都要有 effect（沒寫＝拒） |

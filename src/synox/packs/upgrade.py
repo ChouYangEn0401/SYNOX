@@ -157,7 +157,7 @@ def diff_manifests(old: Manifest, new: Manifest) -> List[dict]:
         wider = ACCESS_RANK.get(new.access, 2) > ACCESS_RANK.get(old.access, 2)
         add("access", f"誰能用 {old.access} → {new.access}" + ("（變寬）" if wider else "（變窄）"), wider)
     if new.web.get("panel") and not old.web.get("panel"):
-        add("panel", "新加了網頁面板（跟 Web UI 同源）", True)
+        add("panel", "新加了網頁面板（工具頁的小畫面；SYNOX 會隔開它，但畫面裡的字是作者寫的）", True)
     if old.storage != new.storage:
         add("storage", f"資料存法 {old.storage} → {new.storage}", new.storage == "plain")
     if (old.publisher or "") != (new.publisher or ""):

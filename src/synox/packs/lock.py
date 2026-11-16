@@ -15,8 +15,9 @@
   用 app.home 通知擁有者一次（同樣的竄改只通知一次，記在 data/packs_tamper_notified.json）；doctor 也列出來。
 - 載入之後（審查 B #D）：有鎖的 cli pack 每次叫子程序前、mcp stdio 每次開子程序前再對一次（LiveCheck：
   先比 stat，不一樣才算雜湊；每 FULL_EVERY 秒全部重算），不符＝不執行、通知擁有者。
-- 沒有鎖的 pack（出廠的、工程師直接放進 packs/ 的）照舊載入，報告與 doctor 標「未鎖定」——
-  要鎖就 `python -m synox packs lock --approve <name>`。
+- 沒有鎖的 pack（手放進 packs/、packs.dirs 指過去的；ADR 0027 §4）**不載入**：狀態 unapproved、報告與 doctor 說「沒有經過安裝頁」；
+  要用它就從設定頁「送去安裝頁檢查」（packs/adopt.py），工程師可以 `python -m synox packs lock --approve <name>`（跑 1、2 關、印報告再鎖）。
+  BUNDLED 是空的，所以沒有任何名字能不經安裝頁載入。
 - 雜湊涵蓋 pack 資料夾裡的**每一個檔**（P7：含 __pycache__、node_modules、執行檔；`"hash_scope": "all"`）。
   P7 以前寫的鎖沒有 hash_scope：照當時的算法（跳過 __pycache__）對檔，不會因為升級 SYNOX 就全部變成被改過。
   SYNOX 開 cli／mcp 子程序時一律 PYTHONDONTWRITEBYTECODE=1，自己不會在 pack 資料夾裡產生 __pycache__。
