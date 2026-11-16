@@ -8,6 +8,8 @@ import pytest
 from isdtelekit.host.config import ConfigError
 from isdtelekit.testing import OWNER_ID, FakeChannel
 
+from conftest import lock_all
+
 from synox import discord as dc
 from synox.app import build
 from synox.config import SynoxConfig
@@ -40,6 +42,7 @@ def make_app(tmp_path, discord, *, secrets=None, owner_discord="777"):
                                                          "discord_bot_token:bravo": TOK_B}).items():
         vault.set_secret(k, v)
     home = FakeChannel()
+    lock_all(data, config.pack_dirs())                    # 沒鎖的 pack 不載入（ADR 0027 §4）
     app = build(config, home=home, adapter=FakeAdapter(None), vault=vault)
     http = FakeHTTP()
     for ch in app.extras.get("discord_bots").channels.values():

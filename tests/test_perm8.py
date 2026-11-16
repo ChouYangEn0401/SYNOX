@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
-"""PERM-8：伺服器版 python pack 的信任（third-party 只給擁有者、沒鎖的補第 2 關）與 pack.path_of(user)。
+"""PERM-8：伺服器版 python pack 的信任（third-party 只給擁有者）與 pack.path_of(user)。
+沒鎖的 pack 現在根本不載入（ADR 0027 §4，tests/test_unapproved.py）；這裡手放的 pack 由 conftest 的 make_bot 先鎖成 third-party。
 pack 都是 tmp 裡的小 python pack，不連網、不開埠、不跑子程序。"""
 import json
 import os
@@ -64,12 +65,12 @@ def _item(bot, name):
 
 # ── 信任：third-party 只給擁有者 ──────────────────────────────────────
 
-def test_unlocked_python_pack_owner_only_on_server(make_bot, tmp_path):
+def test_third_party_python_pack_owner_only_on_server(make_bot, tmp_path):
     _pack(tmp_path / "packs", "ext")
-    bot = _server(make_bot, tmp_path)
+    bot = _server(make_bot, tmp_path)                      # conftest 鎖成 third-party（擁有者安裝時的預設）
     item = _item(bot, "ext")
-    assert item.status == "loaded" and item.scan == "passed"
-    assert "只對擁有者開放" in item.detail and "沒有 packs.lock" in item.detail and "--trust core" in item.detail
+    assert item.status == "loaded" and item.scan == ""
+    assert "只對擁有者開放" in item.detail and "安裝時信任選的是第三方" in item.detail and "--trust core" in item.detail
     assert _sees(bot, OWNER_ID, "ext") and not _sees(bot, OTHER_ID, "ext")
     bot.say(OTHER_ID, "/ext")
     assert bot.last(OTHER_ID) == "未知指令：/ext，輸入 /help 查看可用指令。"        # 跟不存在的一模一樣
@@ -97,7 +98,8 @@ def test_locked_trust_decides(make_bot, tmp_path):
 
 
 def test_nothing_is_bundled_anymore(tmp_path, monkeypatch):
-    """2026-11-12 起出廠真的全空（docs/legacy/connectors.md）：叫 notion、放在內建 packs/ 的 pack 沒鎖＝third-party。"""
+    """2026-11-12 起出廠真的全空（docs/legacy/connectors.md）：叫 notion、放在內建 packs/ 的 pack 沒鎖＝third-party
+    （而且不載入：沒有經過安裝頁，ADR 0027 §4）。"""
     packs = tmp_path / "packs"
     monkeypatch.setattr(loader, "PACK_DIRS", (str(packs),))
     notion = read(_pack(packs, "notion"))
@@ -105,6 +107,7 @@ def test_nothing_is_bundled_anymore(tmp_path, monkeypatch):
                                 require_token=False, root=str(tmp_path))
     assert loader.BUNDLED == () and not loader.is_bundled(notion)
     assert loader.python_trust(cfg, notion) == lock.THIRD_PARTY and "只對擁有者開放" in loader.trust_reason(cfg, notion)
+    assert "不會載入" in loader.trust_reason(cfg, notion)
 
 
 def test_bundled_core_unless_the_lock_says_otherwise(tmp_path, monkeypatch):
@@ -166,21 +169,21 @@ def test_personal_mode_unaffected(make_bot, tmp_path):
     assert bot.last(OWNER_ID) == "跑了 ext"
 
 
-# ── 沒鎖的：載入時補第 2 關 ───────────────────────────────────────────
+# ── 沒鎖的：以前載入時補第 2 關，現在不載入（ADR 0027 §4） ──────────────
 
 NET_PY = "import socket\n\ndef install(app, pack):\n    pack.group.leaf('run', lambda *a: None, 'x')\n"
 
 
-def test_unlocked_pack_failing_scan_is_not_loaded(make_bot, tmp_path):
+def test_unlocked_pack_is_unapproved_not_scanned(make_bot, tmp_path):
     _pack(tmp_path / "packs", "sneaky", py=NET_PY)                                  # 連網但沒宣告 network
-    bot = _server(make_bot, tmp_path)
+    bot = make_bot(raw={"mode": "server"}, pack_dirs=(str(tmp_path / "packs"),), lock_packs=False)
     item = _item(bot, "sneaky")
-    assert item.status == "rejected" and item.scan == "failed" and "pack.py:1" in item.detail
-    assert bot.app.registry.node("sneaky") is None and not bot.app.extras["synox_pack_report"].ok
+    assert item.status == "unapproved" and item.scan == "" and "送去安裝頁檢查" in item.detail
+    assert bot.app.registry.node("sneaky") is None
     bot.say(OWNER_ID, "/sneaky")
     assert bot.last(OWNER_ID).startswith("未知指令")
-    personal = make_bot(pack_dirs=(str(tmp_path / "packs"),))                       # 個人版照舊載入
-    assert _item(personal, "sneaky").status == "loaded"
+    personal = make_bot(pack_dirs=(str(tmp_path / "packs"),), lock_packs=False)   # 個人版也一樣不載入
+    assert _item(personal, "sneaky").status == "unapproved"
 
 
 def test_doctor_and_packs_status_explain(tmp_path, capsys):
@@ -189,16 +192,19 @@ def test_doctor_and_packs_status_explain(tmp_path, capsys):
     base = tmp_path / "packs"
     _pack(base, "ext")
     _pack(base, "sneaky", py=NET_PY)
+    data = tmp_path / "data"
+    lock.approve(str(data), read(str(base / "ext")), None, OWNER_ID, via="web")    # third-party
     path = tmp_path / "config.json"
-    path.write_text(json.dumps({"owner_id": OWNER_ID, "data_dir": str(tmp_path / "data"), "mode": "server",
+    path.write_text(json.dumps({"owner_id": OWNER_ID, "data_dir": str(data), "mode": "server",
                                 "llm": {"kind": "none"}, "packs": {"dirs": [str(base)]}}), encoding="utf-8")
     lines = []
     doctor.run(offline=True, config_path=str(path), out=lines.append)
     text = "\n".join(lines)
-    assert "第 2 關掃描沒過，不會載入" in text and "沒有 packs.lock（手動放進來的）" in text
+    assert "sneaky 0.1.0：沒有經過安裝頁，沒有載入" in text and "安裝時信任選的是第三方" in text
+    assert "第 2 關掃描" not in text
     assert main(["--config", str(path), "packs", "status"]) == 0
     out = capsys.readouterr().out
-    assert "第 2 關掃描沒過" in out and "只對擁有者開放" in out
+    assert "沒有經過安裝頁" in out and "只對擁有者開放" in out
 
 
 # ── pack.path_of(user) ───────────────────────────────────────────────

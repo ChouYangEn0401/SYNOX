@@ -351,6 +351,7 @@
       badge = el("span", "badge " + (t.status === "已連接" ? "ok" : "warn"), t.status);
       h.appendChild(badge);
     }
+    if (t.name) { h.appendChild(signatureChip(t.signature)); }   // 標章：只用伺服器從鎖讀的值，不用工具自己的字
     if (t.stage_label) {                  // 穩定度（pack.json 的 stage；符號＋字，不只靠顏色）
       var stage = el("span", "badge stage", t.stage_label);
       if (t.stage_text) { stage.title = t.stage_text; }
@@ -371,19 +372,52 @@
     else if (t.missing && t.missing.length) {
       panel.appendChild(el("p", "note-line", "還沒接好，還缺：" + t.missing.join("、") + "。請擁有者到工具頁按「🔌 連接」填好。"));
     }
-    if (t.panel) {
-      var frame = el("iframe", "panel");
-      frame.setAttribute("sandbox", "allow-scripts allow-same-origin");
-      frame.setAttribute("title", t.title + " 面板");
-      frame.src = t.panel;
-      panel.appendChild(frame);
-    }
+    if (t.panel && t.name) { panel.appendChild(panelBlock(t)); }
     var cmds = t.commands || [];
     panel.appendChild(el("div", "section-label", "指令（" + cmds.length + "）"));
     var list = el("div", "tp-cmds");
     // 一進來全部折疊好（整齊）；要看哪一個再自己點開
     cmds.forEach(function (c) { list.appendChild(commandCard(c, false, t)); });
     panel.appendChild(list);
+  }
+
+  // ── 標章（ADR 0027 §3）：SYNOX 安裝時驗簽章、寫進鎖；伺服器只給 official／author／none ─────────
+  var SIG = { official: "✅ 官方", author: "✍️ 作者簽章", none: "⚠️ 不是官方" };
+  var SIG_HINT = { official: "SYNOX 驗過擁有者的簽章：官方發的，而且沒有被改過。",
+    author: "作者自己簽的，不是官方：SYNOX 只能確認檔案跟作者簽的時候一樣。",
+    none: "沒有簽章：SYNOX 無法確認是誰做的、有沒有被改過。" };
+  function signatureChip(status) {
+    var s = SIG.hasOwnProperty(status) ? status : "none";
+    var chip = el("span", "badge sig-" + s, SIG[s]);
+    chip.title = SIG_HINT[s];
+    return chip;
+  }
+
+  // ── 面板（pack 的 web.panel；ADR 0027 §5）：一律隔開 ────────────────────
+  // 先拿一張票（綁這個工具＋這個登入），再用 sandbox="allow-scripts"（沒有同源）掛：
+  // 面板是另一個「沒有來源」的小頁，沒有你的登入、碰不到這一頁。上面那一行字是 SYNOX 畫的，面板蓋不到。
+  var PANEL_NOTE = "這個小畫面是工具作者做的。SYNOX 把它隔開了：它碰不到你的登入，只能讀這個工具自己的資料；" +
+    "畫面裡的字和按鈕都是作者寫的，不是 SYNOX 的。";
+  function panelBlock(t) {
+    var box = el("section", "tp-panel-box");
+    var note = el("p", "tp-panel-note");
+    note.appendChild(signatureChip(t.signature));
+    note.appendChild(el("span", "", PANEL_NOTE));
+    box.appendChild(note);
+    var msg = el("p", "muted", "小畫面載入中…");
+    box.appendChild(msg);
+    api("POST", "/api/packs/" + encodeURIComponent(t.name) + "/panel-ticket", {}).then(function (d) {
+      if (!d || !/^[A-Za-z0-9_-]{16,64}$/.test(d.ticket || "")) { throw new Error("沒有拿到票"); }
+      var frame = el("iframe", "panel");
+      frame.setAttribute("sandbox", "allow-scripts");
+      frame.setAttribute("referrerpolicy", "no-referrer");
+      frame.setAttribute("title", t.title + " 面板（工具作者做的）");
+      frame.src = "/packs/" + encodeURIComponent(t.name) + "/panel/" + d.ticket + "/";
+      box.replaceChild(frame, msg);
+    }).catch(function (e) {
+      msg.textContent = "小畫面打不開（" + e.message + "）。重新整理頁面再試一次；還是不行，指令照樣可以用。";
+    });
+    return box;
   }
 
   // ── 工具健康（docs/tool-health.md）：狀態徽章、原因、擁有者的「重新檢查」「解除隔離」 ─────
