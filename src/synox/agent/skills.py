@@ -8,7 +8,7 @@ SKILL.md（agentskills.io 格式）：開頭的 frontmatter（name、description
     ---
     # 正文…
 
-主題檔（pack.json 的 agent.skill.topics，ADR 0029）：說明書太長時拆成幾章，`skill_read` 多一個 `topic` 參數只讀那一章
+主題檔（pack.json 的 agent.skill.topics，ADR 0030）：說明書太長時拆成幾章，`skill_read` 多一個 `topic` 參數只讀那一章
 （先讀總表、再讀主題）。主題檔永遠不自動進脈絡。沒有任何工具宣告主題時，`skill_read` 的規格跟以前一模一樣（只有 name）。
 能力清單（提示第 3、4 層）改由工具登記索引產生：agent/index.py 的 lines_for／prompt_block；這裡的 prompt_block 是舊的寫法，
 留給還沒換過去的呼叫端。

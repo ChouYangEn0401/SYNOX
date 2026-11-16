@@ -241,7 +241,7 @@ CHANNEL_TEXT = {"web": "網頁", "telegram": "Telegram", "discord": "Discord", "
 
 
 def remind_lines(config, *, vault=None, now: Optional[float] = None) -> tuple:
-    """提醒引擎（ADR 0028）：上一次到點檢查是幾秒前、誰是引擎（主程式／哨兵，engine.lock 的戳記）、
+    """提醒引擎（ADR 0029）：上一次到點檢查是幾秒前、誰是引擎（主程式／哨兵，engine.lock 的戳記）、
     送達佇列裡卡住幾件、最近失敗的是哪條管道。只讀檔，不拿鎖、不送任何東西。回 (行, 問題數)。"""
     from synox.notify import desk as deskmod
     from synox.notify.deskapp import EngineGate, outbox_folder
@@ -392,7 +392,7 @@ ROOT_NOTES = {"SYNOX_HOME": "（來自環境變數 SYNOX_HOME；不是你要的�
 
 
 def agent_lines(config, manifests) -> tuple:
-    """工具登記（ADR 0029）：requires.packs／requires.system 缺什麼（不會載入）、第三方寫了 agent.always（不會載入）、
+    """工具登記（ADR 0030）：requires.packs／requires.system 缺什麼（不會載入）、第三方寫了 agent.always（不會載入）、
     AI 能力清單每輪的總量與每個工具的佔用（最大的三個標出來）。只看 pack.json，不載入。回 (行, 問題數)。"""
     from synox.agent import index as agent_index
     from synox.packs import loader
@@ -540,7 +540,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
     tools: List[str] = []
     lock_dir = config.data_dir if config else os.path.join(ROOT, "data")
     locked = 0
-    loadable: List = []                          # 會載入的工具（相依與 AI 能力清單的佔用在迴圈之後算，ADR 0029）
+    loadable: List = []                          # 會載入的工具（相依與 AI 能力清單的佔用在迴圈之後算，ADR 0030）
     dirs = config.pack_dirs() if config else PACK_DIRS
     secret_lookup = _secret_lookup(config)
     for extra in dirs[len(PACK_DIRS):]:
@@ -613,7 +613,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
     out(f"• packs：{len(lines)} 個（packs.lock 鎖定 {locked} 個；python -m synox packs status 看細節）")
     for line in lines:
         out(line)
-    agent_text, bad = agent_lines(config, loadable)      # 相依缺漏、第三方的 agent.always、每個工具每輪佔用（ADR 0029）
+    agent_text, bad = agent_lines(config, loadable)      # 相依缺漏、第三方的 agent.always、每個工具每輪佔用（ADR 0030）
     for line in agent_text:
         out(line)
     problems += bad

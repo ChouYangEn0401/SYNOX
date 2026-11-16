@@ -14,7 +14,7 @@
   kind=local，或 kind=openai_compat 指到 loopback／私網；claude_code 與雲端來源預設不開（判斷共用 agent/auto.py）。
   `llm.verify_retries`（預設 2，0＝關）。
 - 標定（誤判率）：tests/test_claims_calibration.py，用真實的本地模型回覆與 evals 劇本；數字寫在 ADR 0008。
-- **未來承諾**（promise_verdict，docs/adr/0028 §3.2）：回覆說「會提醒／到時候通知／每天幫你」，這一輪卻沒有排程回執
+- **未來承諾**（promise_verdict，docs/adr/0029 §3.2）：回覆說「會提醒／到時候通知／每天幫你」，這一輪卻沒有排程回執
   （或工具庫宣告 promises 的指令成功）→ REJECT(future_without_receipt)；有回執但時間、日子、管道對不上 → REJECT(promise_mismatch)。
   `〔排程回執〕` 只有系統會產生，AI 寫出來＝偽造。這一類對所有 AI 來源都開（promise_on）。跟上面的完成宣稱是兩個函式，
   標定的數字不受影響。
@@ -40,7 +40,7 @@ LOCAL_KINDS = auto_mod.LOCAL_KINDS
 # ── 偽造的工具結果／洩漏的呼叫標記 ─────────────────────────────────────────
 
 RESULT_PREFIX = "〔工具結果〕"                     # textproto.result_message 的開頭（只有系統會產生）
-RECEIPT_MARK = "〔排程回執〕"                       # schedule/receipt.MARK：排程回執的機器行（只有系統會產生，ADR 0028）
+RECEIPT_MARK = "〔排程回執〕"                       # schedule/receipt.MARK：排程回執的機器行（只有系統會產生，ADR 0029）
 FORGED_MARKERS = (RESULT_PREFIX, RECEIPT_MARK, "<tool_response>", "</tool_response>", "<tool_call>", "<function=",
                   "<invoke ", "<minimax:tool_call>")
 _ROLE_TOOL = re.compile(r"""["']role["']\s*:\s*["']tool["']""")
@@ -238,7 +238,7 @@ def verdict(text: str, ledger: Sequence[Evidence]) -> Verdict:
     return Verdict(PASS)
 
 
-# ── 未來承諾（docs/adr/0028 §3.2、ADR 0029 的 promises）─────────────────────────
+# ── 未來承諾（docs/adr/0029 §3.2、ADR 0030 的 promises）─────────────────────────
 #
 # 回覆說「會提醒你／到時候通知你／每天幫你…」＝承諾之後會發生的事。只有這一輪真的排上了才可以說：
 #   - 有排程回執（ScheduleReceipt，系統的提醒／排程排上時交給 CaptureApi.note_receipt），而且產生回執的工具

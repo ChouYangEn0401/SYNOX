@@ -4,7 +4,7 @@
 
 via_ai = True：SDK 的 Forms 與 Node.precheck 看這個旗標（經 AI 呼叫時不開問答，例如驗證碼）。
 note_failure：loader／mcp 經 health.observe_failure 交來的失敗（agent/loop.py 改回 AI 一行 `FAIL …`）。
-note_receipt：schedule.receipt.emit 交來的排程回執（docs/adr/0028 §3.2）；loop 在工具結果後面附上 machine_line()、
+note_receipt：schedule.receipt.emit 交來的排程回執（docs/adr/0029 §3.2）；loop 在工具結果後面附上 machine_line()、
 記進證據帳本，承諾把關（agent/claims.promise_verdict）看這一輪有沒有回執。
 """
 
@@ -42,7 +42,7 @@ class CaptureApi:
         self.failure = failure
 
     def note_receipt(self, receipt) -> None:
-        """schedule.receipt.emit 交來的排程回執（ADR 0028 §3.2）：只有真的排上了才會有。
+        """schedule.receipt.emit 交來的排程回執（ADR 0029 §3.2）：只有真的排上了才會有。
         loop 把每張的 machine_line() 附在工具結果後面，並記進這一輪的證據（claims.promise_verdict）。"""
         with self._lock:
             self.receipts.append(receipt)

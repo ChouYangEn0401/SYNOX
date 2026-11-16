@@ -21,7 +21,7 @@ pack 有 runtime.container、擁有者選了容器、這台找得到引擎 → s
 伺服器版 kind=python 的信任（PERM-8）：出廠的（BUNDLED，現在是空的）＝core；有鎖看 packs.lock 的 trust；沒鎖（手動放的）＝third-party。
 third-party 的 python pack 整組 owner_only（成員打了跟不存在一樣、AI 工具清單也沒有；detail 寫原因）。
 伺服器版沒鎖、不是出廠的 pack 載入前補跑一次第 2 關（scan.gate2），沒過＝status rejected、不載入。
-工具登記（ADR 0029，agent/index.py）：requires.packs 的工具排在用它的前面載入；缺了（沒裝、版本不合、沒載入成功）或
+工具登記（ADR 0030，agent/index.py）：requires.packs 的工具排在用它的前面載入；缺了（沒裝、版本不合、沒載入成功）或
 requires.system 的系統能力這台沒有＝status missing、detail 寫缺什麼。第三方信任的工具寫了 agent.always／load=always＝rejected。
 全部載入完彙整成索引（記憶體＋data/agent_index.json）。
 
@@ -1024,7 +1024,7 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         if missing:
             item.status, item.detail = "missing", f"缺 {missing}"
             continue
-        lacking = agent_index.dependency_problems(m, loaded, systems)    # requires.packs／requires.system（ADR 0029）
+        lacking = agent_index.dependency_problems(m, loaded, systems)    # requires.packs／requires.system（ADR 0030）
         if lacking:
             item.status, item.detail = "missing", "缺 " + "、".join(lacking)
             logging.warning("[PACKS] %s not loaded, missing: %s", m.name, "; ".join(lacking))

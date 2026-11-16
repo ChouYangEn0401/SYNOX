@@ -18,7 +18,7 @@ package-lock.json 跟舊版不同、或現在的 data/envs/<name>/ 對不上 →
 effect 變寬（READ→WRITE→DANGER）、capabilities 新增、執行方式（kind、runtime、cli.argv／python／cwd／env、python.module）
 或 auth 改動、access 變寬、多要密鑰環境變數、新加網頁面板、surfaces 多了 channel、data 變寬（none → user → shared）、
 trust（擁有者這次選的，跟舊鎖不同；不在 pack.json）、publisher 改了、mcp.schema_tools 多了工具（巢狀參數給 AI）、
-agent.promises 新增或改了、agent.always 新加或改了、agent.load 變成 always（agent_changes，ADR 0029）
+agent.promises 新增或改了、agent.always 新加或改了、agent.load 變成 always（agent_changes，ADR 0030）
 ——這些 alert=True，畫面上用紅字標出來。第三方信任的新版寫了 agent.always／load=always＝不升級。
 容器（S2）：runtime.container 改了（映像 digest、network、resources、mounts、user…）＝「執行方式改了」紅字；
 network false → true、映像換了另外各一行紅字；原本用容器、升級後不用（新版不再提供或這次選 host）＝紅字。
@@ -170,7 +170,7 @@ def diff_manifests(old: Manifest, new: Manifest) -> List[dict]:
 
 
 def agent_changes(old: Manifest, new: Manifest) -> List[dict]:
-    """agent 區塊的變化（ADR 0029）：新增或改了 promises（能背書未來的事）、新增或改了 agent.always、load 變成 always＝紅字；
+    """agent 區塊的變化（ADR 0030）：新增或改了 promises（能背書未來的事）、新增或改了 agent.always、load 變成 always＝紅字；
     索引那一行、觸發字、說明書主題、相依改了＝一般字。"""
     a, b = getattr(old, "agent", None) or {}, getattr(new, "agent", None) or {}
     out: List[dict] = []
@@ -593,7 +593,7 @@ def upgrade_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
         raise admin.PackAdminError(f"不升級：{upg['version_message']}{hint}")
     from synox.packs import tier as pack_tier
     from synox.packs.manifest import agent_trust_problem
-    refused = agent_trust_problem(m, trust)              # 第三方寫了 agent.always／load=always（ADR 0029）
+    refused = agent_trust_problem(m, trust)              # 第三方寫了 agent.always／load=always（ADR 0030）
     if refused:
         raise admin.PackAdminError("不升級：" + refused)
     t2 = upg["tier"]

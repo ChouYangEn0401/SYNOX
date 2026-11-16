@@ -6,7 +6,7 @@
 還沒在真的 Windows 電腦上從頭到尾用過；一般人請等正式版。從 0.2.0 更新上來的人：內建工具都搬進工具庫了，
 更新完到「設定 → 🧩 功能與安裝 → 工具庫」把要用的工具裝回來（資料還在）。
 
-### 這版重點：提醒一定送到（核心基本盤，[ADR 0028](docs/adr/0028-reminder-delivery-on-notify-hub.md)、[docs/notifications.md](docs/notifications.md)）
+### 這版重點：提醒一定送到（核心基本盤，[ADR 0029](docs/adr/0029-reminder-delivery-on-notify-hub.md)、[docs/notifications.md](docs/notifications.md)）
 
 #### 新增
 - **提醒晚了也會響**：電腦剛醒、SYNOX 剛開時，晚 60 分鐘內照樣響並說晚了幾分鐘；晚 1～6 小時會一則一則告訴你「你錯過了 1 個鬧鐘」；
@@ -43,7 +43,7 @@
 - 設定 → 💻 電腦與備份 →「🔔 通知要送到哪裡」：每一類通知 × 網頁／Telegram／Discord 分開開關。
 - 選用（要自己按才打開）：網頁的提示音、瀏覽器的桌面通知。
 
-### 工具登記：工具告訴 AI 什麼時候該用它（[ADR 0029](docs/adr/0029-tool-registration-index.md)）
+### 工具登記：工具告訴 AI 什麼時候該用它（[ADR 0030](docs/adr/0030-tool-registration-index.md)）
 
 #### 新增
 - 工具的 `pack.json` 可以多寫一段 `agent`：一句話說這個工具做什麼、哪些字出現時該想到它、它會不會「答應幫你排時間」。

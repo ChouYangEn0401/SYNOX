@@ -1,5 +1,5 @@
 """
-送達層接上主程式（或提醒哨兵）：佇列、電腦提醒視窗的設定與檔案往返、誰是提醒引擎（docs/adr/0028 §3.3–3.5）。
+送達層接上主程式（或提醒哨兵）：佇列、電腦提醒視窗的設定與檔案往返、誰是提醒引擎（docs/adr/0029 §3.3–3.5）。
 
     notify.install_delivery(app, config, vault, config_path=…)     app.build 在 schedule.install 之後叫
 

@@ -375,7 +375,7 @@ if __name__ == "__main__":
 
 
 def agent_skeleton(title: str) -> dict:
-    """新工具骨架的 agent 區塊（給 AI 的登記；docs/pack-format.md「agent 區塊」、ADR 0029）：index 與 triggers 改成你的。"""
+    """新工具骨架的 agent 區塊（給 AI 的登記；docs/pack-format.md「agent 區塊」、ADR 0030）：index 與 triggers 改成你的。"""
     return {"index": f"{title[:40]}：改成「什麼時候找我」（一行、60 字內）"[:60],
             "triggers": [], "load": "on_trigger"}
 

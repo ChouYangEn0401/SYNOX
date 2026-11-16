@@ -19,11 +19,11 @@ pack.json 的格式與檢查（docs/pack-format.md 是人看的版本）。安�
       "requires": {"pip": [], "config": [], "env": {},  env：要有的環境變數（也是 cli 子程序唯一看得到的密鑰名）
                    "synox": ">=0.3",               synox：SYNOX 最低版本（不合＝不載入，doctor 說明）
                    "sdk": ">=0.2,<0.3",            sdk：照哪一版 SDK 介面寫的（對 synox.sdk.author.SDK_VERSION；不合＝不裝、不載入）
-                   "packs": ["notes>=0.2"],        packs：相依的其他工具（缺了或版本不合＝不載入，doctor 說缺哪個；ADR 0029）
+                   "packs": ["notes>=0.2"],        packs：相依的其他工具（缺了或版本不合＝不載入，doctor 說缺哪個；ADR 0030）
                    "system": ["notify"]},          system：要的系統能力（agent/index.system_names；這台沒有＝不載入）
       "agent": {"index": "…", "triggers": […], "load": "on_trigger", "skill": {"file", "topics"},
                 "provides": […], "promises": {"指令": "schedule"}, "always": "…"}
-                                                 選填：給 AI 的登記（parse_agent；agent/index.py 彙整成索引；ADR 0029）
+                                                 選填：給 AI 的登記（parse_agent；agent/index.py 彙整成索引；ADR 0030）
       "skill": "SKILL.md",
       "storage": "vault",                        vault（pack.store 落地是密文）｜plain
       "web": {"panel": "panel.html",             選用：Web UI 工具頁的面板（pack 資料夾裡的一個 .html）
@@ -321,7 +321,7 @@ class Manifest:
     stepup: List[str] = field(default_factory=list)
     # kind=theme：整理過的 theme（tokens、slots、css、fonts；synox/theme/pack.py，docs/themes.md）
     theme: dict = field(default_factory=dict)
-    # 給 AI 的登記（選填的 agent 區塊；ADR 0029、agent/index.py）：整理過的
+    # 給 AI 的登記（選填的 agent 區塊；ADR 0030、agent/index.py）：整理過的
     # {"declared", "index", "triggers", "load", "topics", "provides", "promises", "always"}；沒寫＝AGENT_DEFAULT
     agent: dict = field(default_factory=lambda: dict(AGENT_DEFAULT))
 
@@ -1145,7 +1145,7 @@ def _check_requires(requires: dict, problems: List[str]) -> None:
             problems.append(str(e))
 
 
-# ── requires.packs／requires.system（ADR 0029） ─────────────────────────
+# ── requires.packs／requires.system（ADR 0030） ─────────────────────────
 
 REQUIRES_PACK_RE = re.compile(r"^\s*([a-z][a-z0-9_-]{0,31})\s*(.*)$")
 SYSTEM_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
@@ -1198,7 +1198,7 @@ def pack_version_problem(name: str, spec: str, version: Optional[str]) -> str:
     return ""
 
 
-# ── agent 區塊（ADR 0029；agent/index.py 彙整成索引） ──────────────────
+# ── agent 區塊（ADR 0030；agent/index.py 彙整成索引） ──────────────────
 
 AGENT_KEYS = ("index", "triggers", "load", "skill", "provides", "promises", "always")
 AGENT_LOADS = ("on_trigger", "on_call", "always")
@@ -1593,7 +1593,7 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
         raw, kind, cli.get("commands") if kind == "cli" and isinstance(cli.get("commands"), list) else [], strict)
     if strict:                                 # 安裝時說清楚；載入時壞的那一條丟掉（只是少了範例）
         problems += help_bad
-    agent, agent_bad = parse_agent(raw, folder, kind, cli, strict)    # 選填的 agent 區塊（ADR 0029）
+    agent, agent_bad = parse_agent(raw, folder, kind, cli, strict)    # 選填的 agent 區塊（ADR 0030）
     if agent_bad:
         if strict:                             # 安裝時拒；載入時壞的那一項當作沒寫（記 log）
             problems += agent_bad

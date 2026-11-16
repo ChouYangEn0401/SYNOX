@@ -1,4 +1,4 @@
-# ADR 0028：提醒必達——疊在通知中心上的資料格式、排程回執、送達介面
+# ADR 0029：提醒必達——疊在通知中心上的資料格式、排程回執、送達介面
 
 - 日期：2026-11-16
 - 狀態：**提案（契約已定，實作分三包）**。分支 `feat/core-w0-remind-contract`。
@@ -7,7 +7,7 @@
   `src/synox/schedule/reminder.py`（一筆提醒／待辦）、`src/synox/schedule/receipt.py`（排程回執）、
   `src/synox/notify/delivery.py`（送達介面）、`src/synox/notify/desk.py`（電腦提醒視窗與哨兵的檔案溝通）。
 - 測試：`tests/test_remind_contract.py`
-- 編號：工具登記與索引的 ADR 請用 0029。
+- 編號：工具登記與索引的 ADR 請用 0030。
 
 ## 背景
 

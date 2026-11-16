@@ -1,4 +1,4 @@
-# ADR 0029：工具登記與索引（pack.json 的 `agent` 區塊、相依、系統層同一個登記口）
+# ADR 0030：工具登記與索引（pack.json 的 `agent` 區塊、相依、系統層同一個登記口）
 
 - 日期：2026-11-16
 - 狀態：已採用（分支 `feat/core-w3-register`）

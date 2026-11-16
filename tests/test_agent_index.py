@@ -1,4 +1,4 @@
-"""工具登記與索引（ADR 0029；agent/index.py、pack.json 的 agent 區塊與 requires.packs／requires.system）。
+"""工具登記與索引（ADR 0030；agent/index.py、pack.json 的 agent 區塊與 requires.packs／requires.system）。
 
 全部在 tmp 裡手放假工具、記憶體裡的 bot；不開埠、不開子程序。"""
 

@@ -1,5 +1,5 @@
 """
-延後與完成（docs/adr/0028 §3.3 ReminderActions）：使用者在任何管道按了「完成／知道了／延後」，送達層回頭叫這裡。
+延後與完成（docs/adr/0029 §3.3 ReminderActions）：使用者在任何管道按了「完成／知道了／延後」，送達層回頭叫這裡。
 登記在 app.extras["synox_reminder_actions"]（delivery.ACTIONS_EXTRA）。
 
 - act(uid, rid, occurrence, action, until=, typed=, via=)：

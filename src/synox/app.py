@@ -96,7 +96,7 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
     runtime.install(app, config, vault, config_path=config_path or "")   # 要在 agent 之後（拿 adapter）、schedule 之前
     health.install(app, config, vault)       # 工具健康：隔離清單、runtime 任務 system.health（docs/tool-health.md）
     schedule.install(app)                    # 排程登記成 runtime 的任務 system.schedule
-    notify.install_delivery(app, config, vault, config_path=config_path or "")   # 送達確認＋重試、電腦提醒視窗、提醒哨兵（ADR 0028）
+    notify.install_delivery(app, config, vault, config_path=config_path or "")   # 送達確認＋重試、電腦提醒視窗、提醒哨兵（ADR 0029）
     update.install(app, config, config_path or "")   # 每週檢查新版（預設關；打開才連網）：任務 system.update_check
     web.install(app, config, vault, pack_dirs=pack_dirs, config_path=config_path)
     notify.install_buttons(app)              # Telegram／Discord 上通知的按鈕（提醒的「5 分鐘後再提醒」、工具畫面的「現在關掉」）

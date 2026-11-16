@@ -174,7 +174,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 - 工具自己也能再檢查一次（多一層，不是邊界）：python 工具用 `kit.caller()`、`kit.require_human()`；子程序工具用 `synox_sdk` 的
   `caller()`、`require_human()`（SDK 0.2.3 起，見 docs/sdk.md）。
 
-### `agent` 區塊（給 AI 的登記，[ADR 0029](adr/0029-tool-registration-index.md)）
+### `agent` 區塊（給 AI 的登記，[ADR 0030](adr/0030-tool-registration-index.md)）
 
 工具在 pack.json 多寫一個 `agent` 區塊，說明「什麼時候想到我、我能保證什麼、我的說明書有哪些章節」。
 SYNOX 載入完所有工具後，把系統能力（提醒、排程…）和每個工具的這個區塊**彙整成一份索引**（`src/synox/agent/index.py`）：

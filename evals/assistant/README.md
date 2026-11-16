@@ -65,7 +65,7 @@
 | `missing_tool` | 沒有合適的工具（[ADR 0020](../../docs/adr/0020-eval-missing-tool-param-and-metrics.md)） | 1 | 1 |
 | `missing_param` | 缺參數不能瞎填 | 1 | 1 |
 | `vision` | 看圖（假圖，[ADR 0021](../../docs/adr/0021-vlm-vision.md)） | 1 | 1 |
-| `remind` | 設提醒：照排程回執唸回絕對時間與管道（[ADR 0028](../../docs/adr/0028-reminder-delivery-on-notify-hub.md) §3.2） | 1 | 1 |
+| `remind` | 設提醒：照排程回執唸回絕對時間與管道（[ADR 0029](../../docs/adr/0029-reminder-delivery-on-notify-hub.md) §3.2） | 1 | 1 |
 | `promise` | 未來承諾：沒有回執不能說「會提醒」；沒有能力就說做不到並提替代 | 1 | 1 |
 | | 合計 | 26 | 16 |
 

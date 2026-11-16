@@ -1717,7 +1717,7 @@ def gate2(m: Manifest) -> ScanReport:
     return scan(m)
 
 
-# ── 安裝報告：給 AI 的登記（agent 區塊，ADR 0029） ─────────────────────
+# ── 安裝報告：給 AI 的登記（agent 區塊，ADR 0030） ─────────────────────
 
 PROMISE_TEXT = {"schedule": "排定時間（成功後 AI 可以說「到時候會…」）",
                 "watch": "持續監看（成功後 AI 可以說「之後有變化會通知你」）"}

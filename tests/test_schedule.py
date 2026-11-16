@@ -155,7 +155,7 @@ def test_remind_permissions_follow_the_old_pack(make_bot, owner):
     assert server.app.registry.node("remind").own.private_only
 
 
-# ── 提醒引擎（docs/adr/0028）：回執、時間用語、待辦、試響 ──────────────────────────
+# ── 提醒引擎（docs/adr/0029）：回執、時間用語、待辦、試響 ──────────────────────────
 
 def test_remind_add_replies_with_a_receipt(make_bot, owner):
     bot = make_bot()

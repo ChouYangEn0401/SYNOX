@@ -2461,7 +2461,7 @@
   function capList(list) {
     return (list && list.length) ? list.map(function (c) { return CAP[c] || c; }).join("、") : "（沒有）";
   }
-  // 安裝報告的「🧠 給 AI 的登記」（ADR 0029；資料是 s.agent，同終端機的 scan.format_agent）
+  // 安裝報告的「🧠 給 AI 的登記」（ADR 0030；資料是 s.agent，同終端機的 scan.format_agent）
   function showAgent(box, s) {
     var a = s.agent || {};
     if (!a || a.chars === undefined) { return; }

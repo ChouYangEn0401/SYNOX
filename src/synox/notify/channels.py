@@ -1,5 +1,5 @@
 """
-送達層的四個管道（docs/adr/0028 §3.3 的 ChannelAdapter 實作）＋網頁通知清單那一則（anchor）＋「這一則送哪裡」。
+送達層的四個管道（docs/adr/0029 §3.3 的 ChannelAdapter 實作）＋網頁通知清單那一則（anchor）＋「這一則送哪裡」。
 
 **包住 hub 現有的送法，不另寫一套**：誰接得到（hub.telegram_ok／discord_ok／web_ok）、哪一類關掉了哪裡（hub.off_for）、
 按鈕長什麼樣子（hub._chat_markup）都直接用 Hub 的。差別只在：這裡看每一條送出去的「結果」，分成

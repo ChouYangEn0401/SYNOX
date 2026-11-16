@@ -1,5 +1,5 @@
 """
-提醒引擎（docs/adr/0028 §3.1「到點與補送」）：讀排程清單裡的提醒（kind=remind），到點就經過送達層送出。
+提醒引擎（docs/adr/0029 §3.1「到點與補送」）：讀排程清單裡的提醒（kind=remind），到點就經過送達層送出。
 
     engine = ReminderEngine(store, deliver=lambda msg: app_deliver(app, msg), resolve=…)
     engine.tick(now)            # runtime 任務 system.schedule 每 30 秒叫；提醒哨兵用 reminder.headless_engine

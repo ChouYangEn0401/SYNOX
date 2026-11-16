@@ -9,7 +9,7 @@
 
 1. `toolpick.pick(tools, query, limit, keep=)`：一般工具 ≤ limit 原樣回；否則用使用者這句話與（名稱、說明（含 scenario）、
    參數名與參數說明）的**字元 2-gram 重疊數**排序取前 limit 個（同分照原順序），輸出照原本的順序。不用嵌入模型、不用第三方套件。
-2. **永遠保留**：`system__cannot_do`、`skill_read`、系統指令——不再寫死 `remind__*`：問工具登記索引（[ADR 0029](0029-tool-registration-index.md)，`toolpick.keep_for(app)`＝`load: always` 的項目＋`app.extras[SYSTEM_GROUPS_KEY]` 登記的群組）。
+2. **永遠保留**：`system__cannot_do`、`skill_read`、系統指令——不再寫死 `remind__*`：問工具登記索引（[ADR 0030](0030-tool-registration-index.md)，`toolpick.keep_for(app)`＝`load: always` 的項目＋`app.extras[SYSTEM_GROUPS_KEY]` 登記的群組）。
    挑工具不能讓「做不到」的出口消失。
 3. `llm.max_tools`＝`auto`（預設）｜`0`（不限）｜1～200。**auto＝本地／弱來源 12、雲端與 Claude Code 不限**——判斷抽成
    `agent/auto.py` 的 `weak_source`／`switch_on`（completion guard、步數總結、這裡、0015～0018 共用；`claims.py` 留舊名字）。

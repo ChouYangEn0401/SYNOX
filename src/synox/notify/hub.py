@@ -256,7 +256,7 @@ class Hub:
         self.store.update(uid, nid, actions=acts, read=True)
         return True
 
-    # ── 按鈕回頭叫提醒引擎（ADR 0028：有登記 ReminderActions 才走這條）────
+    # ── 按鈕回頭叫提醒引擎（ADR 0029：有登記 ReminderActions 才走這條）────
 
     def press(self, uid: int, nid: int, what: str, via: str) -> Optional[str]:
         """按了「知道了」（ok）／「5 分鐘後再提醒」（snooze）／「完成」（done）。
@@ -328,7 +328,7 @@ def install_buttons(app, hub: Hub) -> None:
             return
         uid = int(cb.clicker_id)
         via = "discord" if getattr(api, "channel_name", "") == "discord" else "telegram"
-        answer = hub.press(uid, nid, {"s5": "snooze", "d": "done"}.get(what, "ok"), via)   # 提醒引擎（ADR 0028）
+        answer = hub.press(uid, nid, {"s5": "snooze", "d": "done"}.get(what, "ok"), via)   # 提醒引擎（ADR 0029）
         if answer is None:                             # 不是提醒（或沒有提醒引擎）：按鈕收掉就好，不另加提醒
             dismissed = hub.dismiss(uid, nid)
             answer = T["ok"] if dismissed and what != "s5" else T["gone"]

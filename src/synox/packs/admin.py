@@ -551,7 +551,7 @@ def format_summary(summary: dict) -> str:
     lines += format_theme(summary)
     lines += format_scope(summary)
     lines += format_tier(summary.get("tier") or {})
-    lines += format_agent(summary)                # 給 AI 的登記：每輪佔用、承諾、agent.always（ADR 0029）
+    lines += format_agent(summary)                # 給 AI 的登記：每輪佔用、承諾、agent.always（ADR 0030）
     lines += format_runtime(summary)
     env = summary.get("env") or {}
     if env.get("needed"):
@@ -691,7 +691,7 @@ def install_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
     refused = pack_tier.confirm_problem(info, m, trust_publisher)        # T2：要明確輸入 publisher
     if refused:
         raise PackAdminError(refused)
-    refused = agent_trust_problem(m, trust)                              # 第三方寫了 agent.always（ADR 0029）
+    refused = agent_trust_problem(m, trust)                              # 第三方寫了 agent.always（ADR 0030）
     if refused:
         raise PackAdminError("拒裝：" + refused)
     os.makedirs(packs_dir, exist_ok=True)
@@ -726,7 +726,7 @@ def approve_installed(folder: str, data_dir: str, approved_by=None, via: str = "
     trust = _trust(trust)
     if problems:
         return m, report, problems
-    refused = agent_trust_problem(m, trust)                              # 第三方寫了 agent.always（ADR 0029）
+    refused = agent_trust_problem(m, trust)                              # 第三方寫了 agent.always（ADR 0030）
     if refused:
         return m, report, [refused]
     info = pack_tier.assess(m, report)

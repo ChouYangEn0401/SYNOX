@@ -1,7 +1,7 @@
 """
 排程器：每 30 秒掃一次 data/schedule.json(.enc)（伺服器版：每個人的 data/users/<id>/schedule.json.enc），到點就做。
 
-- remind（/remind_*）：交給提醒引擎（engine.py，docs/adr/0028 §3.1）——到點判斷、晚了照響、錯過怎麼說、
+- remind（/remind_*）：交給提醒引擎（engine.py，docs/adr/0029 §3.1）——到點判斷、晚了照響、錯過怎麼說、
   送達確認與「沒送到不刪」都在那裡；送出走送達層（notify/delivery.py；還沒接上時退回通知中心的舊送法）。
 - command（/schedule_add）：以排程擁有者的身分造一則 Inbound 交給 dispatcher，via=ROUTINE——
   走的是跟打字一模一樣的指令路由與 authorize()（SDK invariant 1；建立時已經用 via=SCHEDULE 驗過）。

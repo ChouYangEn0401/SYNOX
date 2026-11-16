@@ -91,9 +91,9 @@ notify.of(app).notify(uid, "⏰ 提醒：吃藥", kind="alarm", key="alarm:3:202
 （`runtime/keepawake.py`，docs/adr/0006）讓電腦不要自己睡著，但闔上筆電、按睡眠、沒電、Windows Update 重開機都擋不住。
 電腦關著或睡著時到的鬧鐘，醒來後 60 分鐘內會補叫，更晚的只會告訴你錯過了。
 
-## 契約：提醒必達（ADR 0028）
+## 契約：提醒必達（ADR 0029）
 
-「送出去有沒有成功」「SYNOX 沒開也會響」「電腦上的提醒視窗」「待辦」「排程回執」都**疊在通知中心上**，`Hub.notify` 的用法不變。完整欄位、例子與差距表在 [adr/0028](adr/0028-reminder-delivery-on-notify-hub.md)；
+「送出去有沒有成功」「SYNOX 沒開也會響」「電腦上的提醒視窗」「待辦」「排程回執」都**疊在通知中心上**，`Hub.notify` 的用法不變。完整欄位、例子與差距表在 [adr/0029](adr/0029-reminder-delivery-on-notify-hub.md)；
 四份契約程式（只有型別與簽名，測試 `tests/test_remind_contract.py`）：
 
 | 檔 | 定什麼 |

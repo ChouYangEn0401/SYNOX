@@ -1,5 +1,5 @@
 """
-提醒哨兵（docs/adr/0028 §3.5）：`python -m synox sentinel`，登入 Windows 時自動啟動（使用者的「啟動」資料夾，不用管理員）。
+提醒哨兵（docs/adr/0029 §3.5）：`python -m synox sentinel`，登入 Windows 時自動啟動（使用者的「啟動」資料夾，不用管理員）。
 
 只做一件事：**SYNOX 主程式沒開的時候**，照同一份提醒資料到點就跳電腦視窗＋送 Telegram。
 

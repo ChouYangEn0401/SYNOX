@@ -7,9 +7,9 @@
 - 否則每個一般工具打分數＝使用者這句話與（名稱去掉 __、說明（含 scenario）、參數名與參數說明）的**字元 2-gram 重疊數**
   （不用嵌入模型、不用第三方套件），取前 limit 個；同分照原本的順序。輸出**照原本的順序**（不照分數排，前段穩定）。
 - **永遠保留**：system__cannot_do（做不到的出口）、skill_read、keep 給的開頭——挑工具不能讓「做不到」的出口或系統指令消失。
-  系統指令不再寫死在這裡（以前的 SYSTEM_PREFIXES）：問工具登記索引（agent/index.py，ADR 0029）——
+  系統指令不再寫死在這裡（以前的 SYSTEM_PREFIXES）：問工具登記索引（agent/index.py，ADR 0030）——
   `keep_for(app)`＝load=always 的項目（提醒）＋app 登記的系統群組。
-- **觸發字**（pack.json 的 agent.triggers，ADR 0029）：這句話含某個工具的觸發字 → 那個工具的分數加 TRIGGER_BONUS，排在前面。
+- **觸發字**（pack.json 的 agent.triggers，ADR 0030）：這句話含某個工具的觸發字 → 那個工具的分數加 TRIGGER_BONUS，排在前面。
   `pick_for(app, tools, query, limit, also)` 一次做完（keep＋觸發字）。
 - 誰開：`llm.max_tools`＝"auto"（預設；本地／弱來源＝12，雲端與 Claude Code＝0 不限，判斷共用 agent/auto.py）｜0（不限）｜正整數。
 - 權限不在這裡：清單只是「這一輪先給 AI 看哪些」；模型叫了清單外、但他有權的工具，loop.call_tool 照常判斷與執行
