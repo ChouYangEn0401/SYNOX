@@ -142,7 +142,7 @@ def test_redirects_only_to_github():
                 "https://api.github.com/repos/someone/else/releases/latest",
                 "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v1/x",
                 "https://release-assets.githubusercontent.com/x",
-                "https://user:pw@github.com/ChouYangEn0401/SYNOX/releases/download/x",
+                "https://user:pw@github.com/ChouYangEn0401/SYNOX/releases/download/x",   # prepublish-check: allow（假的帳密網址，測試要擋）
                 "https://github.com:8443/ChouYangEn0401/SYNOX/releases/download/x",
                 "https://github.com/ChouYangEn0401/SYNOX/releases/download/../../x"):
         assert not upd.allowed(bad, first=True), bad
