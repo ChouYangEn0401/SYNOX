@@ -22,8 +22,10 @@ pack.json 的格式與檢查（docs/pack-format.md 是人看的版本）。安�
                    "packs": ["notes>=0.2"],        packs：相依的其他工具（缺了或版本不合＝不載入，doctor 說缺哪個；ADR 0030）
                    "system": ["notify"]},          system：要的系統能力（agent/index.system_names；這台沒有＝不載入）
       "agent": {"index": "…", "triggers": […], "load": "on_trigger", "skill": {"file", "topics"},
-                "provides": […], "promises": {"指令": "schedule"}, "always": "…"}
-                                                 選填：給 AI 的登記（parse_agent；agent/index.py 彙整成索引；ADR 0030）
+                "provides": […], "promises": {"指令": "schedule"}, "always": "…",
+                "prefs": [{"key": "a.b", "type": "int", "default": 1, "ask": "…", "min", "max", "looser"}]}
+                                                 選填：給 AI 的登記（parse_agent；agent/index.py 彙整成索引；ADR 0030）；
+                                                 prefs＝這個工具讀的習慣鍵（soul.md「習慣與規則」，runtime/habits.py）
       "skill": "SKILL.md",
       "storage": "vault",                        vault（pack.store 落地是密文）｜plain
       "web": {"panel": "panel.html",             選用：Web UI 工具頁的面板（pack 資料夾裡的一個 .html）
@@ -116,7 +118,7 @@ _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f​-‏‪-‮⁦-⁩﻿]")
 # 看不見的字元：零寬（U+200B–U+200D）、LRM／RLM、雙向文字控制、BOM（ADR 0028：報告上會顯示成別的字）
 _INVISIBLE_RE = re.compile("[​-‏‪-‮⁦-⁩﻿]")
 # cli 的 argv／env 樣板裡 loader 會代換的名字（欄位不能取這些名字）
-RESERVED_PLACEHOLDERS = ("python", "node", "pack_dir", "data_dir", "user_data_dir", "tg_id")
+RESERVED_PLACEHOLDERS = ("python", "node", "pack_dir", "data_dir", "user_data_dir", "tg_id", "prefs_file")
 V2_KEYS = ("capabilities", "publisher", "integrity", "mcp", "commands", "runtime", "env")
 ACCESS = ("owner", "member", "everyone")
 SURFACES = ("dm", "channel")
@@ -1213,7 +1215,7 @@ def pack_version_problem(name: str, spec: str, version: Optional[str]) -> str:
 
 # ── agent 區塊（ADR 0030；agent/index.py 彙整成索引） ──────────────────
 
-AGENT_KEYS = ("index", "triggers", "load", "skill", "provides", "promises", "always")
+AGENT_KEYS = ("index", "triggers", "load", "skill", "provides", "promises", "always", "prefs")
 AGENT_LOADS = ("on_trigger", "on_call", "always")
 PROMISE_KINDS = ("schedule", "watch")
 AGENT_INDEX_MAX = 60
@@ -1225,7 +1227,7 @@ AGENT_PROVIDES_MAX = 16
 PROVIDES_RE = re.compile(r"^[a-z0-9][a-z0-9_]*(\.[a-z0-9_]+)+$")
 TOPIC_RE = re.compile(r"^[a-z][a-z0-9_-]{0,31}$")
 AGENT_DEFAULT = {"declared": False, "index": "", "triggers": [], "load": "on_trigger", "topics": {},
-                 "provides": [], "promises": {}, "always": ""}
+                 "provides": [], "promises": {}, "always": "", "prefs": []}
 
 
 def _ai_text_problem(value, label: str, limit: int, multiline: bool = False) -> str:
@@ -1276,7 +1278,7 @@ def parse_agent(raw: dict, folder: str, kind, cli: dict, strict: bool) -> "tuple
     安裝時（strict）問題＝拒裝；載入時壞掉的那一項當作沒寫（工具照樣載入，只是少了那一項）。
     agent.always 與 load=always 只給「核心」信任的工具：這裡只檢查格式，信任在安裝（admin／upgrade）與載入（loader）時對。"""
     value = raw.get("agent")
-    out = dict(AGENT_DEFAULT, triggers=[], topics={}, provides=[], promises={})
+    out = dict(AGENT_DEFAULT, triggers=[], topics={}, provides=[], promises={}, prefs=[])
     if value is None:
         return out, []
     bad: List[str] = []
@@ -1359,6 +1361,11 @@ def parse_agent(raw: dict, folder: str, kind, cli: dict, strict: bool) -> "tuple
             bad.append(problem)
         else:
             out["always"] = value["always"].strip()
+    if "prefs" in value:                          # 習慣與規則的鍵（核心統一規劃 11.4；runtime/habits.py）
+        from synox.runtime.habits import parse_decls
+        prefs, prefs_bad = parse_decls(value["prefs"], pack=str(raw.get("name") or ""))
+        bad += prefs_bad
+        out["prefs"] = [p.as_dict() for p in prefs]
     return out, bad
 
 

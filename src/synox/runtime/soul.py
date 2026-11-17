@@ -12,6 +12,13 @@ soul.md：常駐助理的靈魂檔（docs/adr/0001 §5）。存保管箱（加�
                                           與新舊挑著放（docs/adr/0005），不是從尾巴硬切
     soul.filter_notes(keep, by=, what=)   只能**拿掉**「助理筆記」段裡的行（別的段落碰不到）；soul 帳本（ledger.py）收起、整理、遺忘用
     soul.record(by, what) / soul.redact_audit(needle)   多記一筆稽核／把稽核裡提到某段字的那幾筆蓋掉（遺忘用）
+    soul.habits() / soul.prefs()          「## 習慣與規則」段解析（runtime/habits.py，核心統一規劃 11.4）：
+                                          prefs()＝{鍵: 值}（同鍵兩次後面的贏；habits().conflicts 列出來）
+    soul.set_habit(line, by="owner")      加或取代一行習慣（只動「習慣與規則」段；AI 的提議要擁有者按了才會走到這裡）
+    soul.declarations                     () → {鍵: Pref}：已載入工具宣告的鍵（runtime.install 接上；None＝不查型別）
+
+「習慣與規則」段是擁有者的：append_notes／filter_notes 只碰「助理筆記」段，碰不到它。write／set_habit 時
+〔〕語法壞掉、型別不合宣告 → SoulError；沒有工具宣告的鍵照存（網頁標「目前沒有工具在用」）。
 
 保管箱打不開（vault=None）＝讀寫都丟 SoulError（不退回明文存）；for_prompt 回 ""。
 """
@@ -24,6 +31,7 @@ import time
 from typing import Callable, List, Optional, Set, Tuple
 
 from synox.packs.kit import TOKEN_PATTERNS
+from synox.runtime import habits as habits_mod
 
 KEY = "runtime_soul"
 AUDIT_KEY = "runtime_soul_audit"
@@ -44,6 +52,11 @@ DEFAULT_SOUL = (
     "## 語氣\n"
     "\n"
     "## 長期注意事項\n"
+    "\n"
+    f"{habits_mod.HEADING}\n"
+    "\n"
+    "<!-- 一行一條：人話在前，工具讀的值寫在〔鍵=值〕，例如：- 一天最多排一部。〔schedule.plan.per_day=1〕"
+    "（有哪些鍵看網頁的 SOUL 頁）。只有你改得到；AI 只能提議，你按了才會寫進來。 -->\n"
     "\n"
     f"{NOTES_HEADING}\n"
 )
@@ -181,6 +194,15 @@ class SoulStore:
         self._vault = vault
         self._clock = clock
         self._lock = threading.Lock()
+        self.declarations: Optional[Callable[[], dict]] = None     # () → {鍵: habits.Pref}（runtime.install 接上）
+
+    def _decls(self) -> dict:
+        if self.declarations is None:
+            return {}
+        try:
+            return self.declarations() or {}
+        except Exception:                           # 讀宣告出錯：當作沒有宣告（照存，不擋擁有者改）
+            return {}
 
     @property
     def available(self) -> bool:
@@ -255,7 +277,7 @@ class SoulStore:
         text = normalize(text)
         if len(text) > MAX_CHARS:
             raise SoulError(f"soul.md 最多 {MAX_CHARS} 字（現在 {len(text)} 字）。")
-        problem = secret_problem(text)
+        problem = secret_problem(text) or habits_mod.check_text(text, self._decls())
         if problem:
             raise SoulError(problem)
         with self._lock:
@@ -266,6 +288,34 @@ class SoulStore:
                 text += "\n"
             at = self._save(text, by, f"改了全文（{len(text)} 字）")
             return {"text": text, "updated_at": at}
+
+    # ── 習慣與規則（runtime/habits.py） ────────────────────────────────
+
+    def habits(self) -> "habits_mod.Habits":
+        """「## 習慣與規則」段解析（照目前的宣告檢查型別）。保管箱沒開丟 SoulError。"""
+        return habits_mod.parse(self.text(), self._decls())
+
+    def prefs(self) -> dict:
+        """{鍵: 值}：同鍵兩次＝後面的贏（habits().conflicts 回報）；型別不合宣告的那一個不算。"""
+        return self.habits().values
+
+    def set_habit(self, line: str, *, by: str = "owner") -> dict:
+        """加或取代一行習慣（habits.insert 的規則：鍵一樣的取代、放在這段最後）。
+        回 {"line", "replaced": [...], "shadowed": [...]}。語法、型別、密鑰、字數不合 → SoulError。"""
+        try:
+            line, _values = habits_mod.check_line(line, self._decls())
+        except habits_mod.HabitError as e:
+            raise SoulError(f"這一行不能加：{e}")
+        problem = secret_problem(line)
+        if problem:
+            raise SoulError(problem)
+        with self._lock:
+            new_text, replaced, shadowed = habits_mod.insert(self.text(), line)
+            if len(new_text) > MAX_CHARS:
+                raise SoulError(f"soul.md 最多 {MAX_CHARS} 字，加了這一行會超過。")
+            what = "習慣：" + line + (f"（取代 {len(replaced)} 行）" if replaced else "")
+            self._save(new_text, by, what)
+        return {"line": line, "replaced": replaced, "shadowed": shadowed}
 
     def append_notes(self, lines: List[str], *, by: str = "mother") -> List[str]:
         """常駐助理追加（規則見模組說明）。回實際加進去的行（已經是 "- …" 的樣子）。"""
