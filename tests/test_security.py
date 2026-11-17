@@ -230,6 +230,22 @@ def test_install_cli_command(tmp_path, monkeypatch, capsys):
     assert "拒裝" in capsys.readouterr().out
 
 
+def test_install_without_config_says_not_set_up_not_not_running(tmp_path, monkeypatch, capsys):
+    """沒有 config.json（Setup.bat 沒跑完）：不說「SYNOX 沒開」，說還沒設定、先雙擊 Setup.bat；不裝、不開網頁。"""
+    from synox import __main__ as cli
+    src = _write_pack(str(tmp_path / "hello"), {"name": "hello"}, {"pack.py": HELLO_PY})
+    path = tmp_path / "hello-0.1.0.synoxpack"
+    path.write_bytes(_zip_dir(src))
+    monkeypatch.setattr(cli, "_data_dir", lambda config: str(tmp_path / "data"))   # 預設的 data/ 換成拋棄式的
+    opened = []
+    args = cli.argparse.Namespace(config=str(tmp_path / "no-config.json"), file=str(path), yes=False,
+                                  packs_dir=str(tmp_path / "packs"))
+    assert cli.cmd_install(args, is_up=lambda port: True, open_url=opened.append) == 1
+    out = capsys.readouterr().out
+    assert "SYNOX 還沒設定，先雙擊 Setup.bat" in out and "SYNOX 沒開" not in out
+    assert not opened and not (tmp_path / "packs" / "hello").exists()
+
+
 def test_web_upload_refused_shows_report(make_bot, owner, tmp_path):
     from test_web import Client, ui_of
     bot = make_bot(pack_dirs=(str(tmp_path / "userpacks"),) + loader.PACK_DIRS)

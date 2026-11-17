@@ -321,6 +321,7 @@
   .msg { max-width: min(78%, 640px); padding: 10px 14px; border-radius: calc(var(--radius) * 1.6); white-space: pre-wrap;
          word-break: break-word; line-height: 1.6; animation: rise .22s var(--ease); }
   .msg.me { align-self: flex-end; background: var(--me); color: var(--me-ink); border-bottom-right-radius: calc(var(--radius) * .6); }
+  .msg.me .text a { color: inherit; }
   .msg.bot { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--line);
              border-bottom-left-radius: calc(var(--radius) * .6); }
   .msg.pending { color: var(--muted); font-size: 14px; display: flex; align-items: center; gap: 10px; }
@@ -6780,7 +6781,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
 /* SYNOX 網頁對話頁：呈現層的區塊（synox/present/web.py 的 wire）→ DOM。
  *
  * config.json 的 presentation.enabled 開著時，AI 回覆的訊息多一個 blocks（JSON），app.html 的 renderMessage
- * 用這裡的 render(document, blocks) 畫；沒有 blocks 的訊息照舊整段 textContent。
+ * 用這裡的 render(document, blocks) 畫；沒有 blocks 的訊息用 linkText(document, text)：照舊整段文字，只把網址變成連結。
  * 伺服器把這個檔原地塞進 app.html 主程式那個 script 標籤開頭的 INCLUDE:blocks.js（server.render_app，同一個 CSP nonce，
  * 不多一個 script 標籤）。
  *
@@ -6890,7 +6891,32 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     return box;
   }
 
-  var api = { render: render, safeHref: safeHref };
+  // 純文字訊息（沒有 blocks）：整段照舊是文字，只有裡面的 http(s):// 網址變成可以點的連結。
+  // 網址只認 ASCII 可見字元（碰到空白、全形字、引號、角括號就停），句尾的標點不算進網址；
+  // 連結一樣過 safeHref、開新分頁、noopener；其他字一律 createTextNode。
+  var URL_RE = /https?:\/\/[^\s<>"'`\u0080-￿]+/gi;
+  var TRAILING = /[.,;:!?)\]}]+$/;
+
+  function linkText(doc, text, cls) {
+    var box = make(doc, "div", cls === undefined ? "text" : cls);
+    var s = text === undefined || text === null ? "" : String(text);
+    var last = 0, m;
+    URL_RE.lastIndex = 0;
+    while ((m = URL_RE.exec(s)) !== null) {
+      var url = m[0].replace(TRAILING, "");
+      var href = safeHref(url);
+      if (!href || /^https?:\/\/$/i.test(url)) { continue; }
+      if (m.index > last) { box.appendChild(doc.createTextNode(s.slice(last, m.index))); }
+      var a = make(doc, "a", "", url);
+      a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer";
+      box.appendChild(a);
+      last = m.index + url.length;
+    }
+    if (last < s.length) { box.appendChild(doc.createTextNode(s.slice(last))); }
+    return box;
+  }
+
+  var api = { render: render, safeHref: safeHref, linkText: linkText };
   if (typeof module === "object" && module && module.exports) { module.exports = api; }
   else { root.SynoxBlocks = api; }
 })(typeof window !== "undefined" ? window : this);
@@ -7101,7 +7127,9 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     // type=examples 的區塊是 /help 卡片的範例（synox/helpui）：畫成小標籤，點了＝填進輸入框、不送出（static/helpdock.js）
     var exBlock = blocks.filter(function (b) { return b && b.type === "examples"; })[0];
     blocks = blocks.filter(function (b) { return !(b && (b.type === "tour" || b.type === "examples")); });
-    box.appendChild(blocks.length ? window.SynoxBlocks.render(document, blocks) : el("div", "text", m.text));
+    // 沒有 blocks 的純文字：照舊 textContent，只有 http(s):// 網址變成連結（blocks.js 的 linkText，過 safeHref）
+    box.appendChild(blocks.length ? window.SynoxBlocks.render(document, blocks)
+                                  : window.SynoxBlocks.linkText(document, m.text));
     if (tourBlock && window.SynoxTour && !chat) {
       box.appendChild(window.SynoxTour.chatButton(tourBlock, primed && !nodes[m.id], m.id));
     }
