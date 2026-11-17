@@ -207,7 +207,7 @@ def test_packs_without_agent_block_behave_as_before(make_bot, owner):
     bot = make_bot(["好"])
     for pack in bot.app.extras["synox_packs"]:
         assert pack.manifest.agent == {"declared": False, "index": "", "triggers": [], "load": "on_trigger",
-                                       "topics": {}, "provides": [], "promises": {}, "always": ""}
+                                       "topics": {}, "provides": [], "promises": {}, "always": "", "prefs": []}
     loop = bot.app.extras["synox_agent"]
     skills = skills_mod.from_packs(loop.visible_packs(None))
     spec = skills_mod.read_tool_spec(skills)

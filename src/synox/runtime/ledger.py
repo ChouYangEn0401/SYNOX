@@ -104,6 +104,8 @@ RISK_RULES: Tuple[Tuple[str, "re.Pattern"], ...] = (
         r"請記住|記住[:：]|記得[:：]|從現在(?:起|開始)|從今以後|"
         + _en(r"from now on|remember (?:that|to)|always remember"), re.I)),
     ("有一長串數字（像電話或證號）", re.compile(r"\d{8,}")),
+    # 「習慣與規則」的值（runtime/habits.py）只有擁有者設得了；助理筆記裡夾了〔鍵=值〕的先問人（工具不讀筆記段，但 AI 讀得到）
+    ("寫了習慣的〔鍵=值〕", re.compile(r"〔[^〔〕]*=")),
     ("夾了標記或分隔符", re.compile(r"[⟦⟧]|<\|?/?[a-z_]+\|?>|```|\[/?(?:system|inst)\]", re.I)),
 )
 _NEGATIONS = set("不沒没別别非無无未勿免")
@@ -375,6 +377,21 @@ class SoulLedger:
             state["pending"] = [p for p in state["pending"] if p["id"] != pid]
             self._save(state)
             return self._view(state)
+
+    def suppress_line(self, line: str, *, by: str = "owner", what: str = "") -> None:
+        """你說「不要」的一行（習慣提議卡按 ❌，runtime/habit_card.py）：只記雜湊，之後再提同一行直接擋。"""
+        with self._lock:
+            state = self._state()
+            self._suppress(state, note_id(line))
+            self._save(state)
+            self.soul.record(by, what or ("不要這一條：" + soul_mod.clean_note(line)))
+
+    def is_suppressed(self, line: str) -> bool:
+        """這一行你拒絕過、收起來過或要它忘掉過嗎（保管箱沒開＝False）。"""
+        if self._vault is None:
+            return False
+        with self._lock:
+            return note_id(line) in self._state()["suppress"]
 
     def retire(self, nid: str) -> dict:
         """你把一條筆記收起來（不在 soul.md 裡了、AI 讀不到；「收起來的」裡還在，可以放回去）。"""

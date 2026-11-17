@@ -240,6 +240,18 @@ ERROR_TEXT = {"network": "連不上", "rate_limited": "送太快被擋", "blocke
 CHANNEL_TEXT = {"web": "網頁", "telegram": "Telegram", "discord": "Discord", "desktop": "電腦視窗", "chat": "聊天"}
 
 
+def habit_lines(vault) -> list:
+    """soul.md「習慣與規則」（runtime/habits.py）：幾條、看不懂的行、同鍵兩次。保管箱沒開＝[]（不改任何檔）。"""
+    if vault is None:
+        return []
+    try:
+        from synox.runtime.habits import doctor_lines
+        from synox.runtime.soul import SoulStore
+        return doctor_lines(SoulStore(vault).text())
+    except Exception:
+        return []
+
+
 def remind_lines(config, *, vault=None, now: Optional[float] = None) -> tuple:
     """提醒引擎（ADR 0029）：上一次到點檢查是幾秒前、誰是引擎（主程式／哨兵，engine.lock 的戳記）、
     送達佇列裡卡住幾件、最近失敗的是哪條管道。只讀檔，不拿鎖、不送任何東西。回 (行, 問題數)。"""
@@ -469,6 +481,8 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
             for line in remind_text:
                 out(line)
             problems += bad
+            for line in habit_lines(remind_vault):          # soul.md「習慣與規則」看不懂的行（只列，不算問題）
+                out(line)
             for line in remote_lines(config):
                 out(line)
             if config.discord_enabled:

@@ -207,6 +207,7 @@ SYNOX 載入完所有工具後，把系統能力（提醒、排程…）和每�
 | `provides` | 能力代號（`工具.動作`），給能力自述與相依檢查 | 小寫英數字、`_`，至少一個點；最多 16 個 |
 | `promises` | 哪個指令成功之後，AI 才可以說「會…／到時候…」：`schedule`（排定時間）｜`watch`（持續監看） | **只能指向這個工具宣告過的指令**（kind=cli 對 `commands`、kind=mcp 對 `tools_allow`；kind=python 的指令寫在程式裡，安裝時只看名字格式，載入後對不到的那一條丟掉並記 log）。升級時新增或改了＝升級報告**紅字** |
 | `always` | 每輪都進 AI 提示的一小段（放在行為守則之後） | 200 字內（可以換行）、同上的檢查。**只給系統層與信任選「核心（core）」的工具：第三方寫了＝拒裝**（安裝、升級都拒；手放的／沒鎖的當作第三方，載入時狀態 `rejected`）。新加或改了＝升級報告紅字 |
+| `prefs` | 這個工具讀的使用者習慣（soul.md「習慣與規則」的〔鍵=值〕，[ADR 0031](adr/0031-soul-habits-and-prefs.md)）：`[{"key", "type", "default", "ask"?, "min"?, "max"?, "looser"?}]`。kind=cli 用 `{prefs_file}` 拿值、kind=python 用 `pack.prefs(user, chat_id)` | `key` 小寫英數字與點（至少一個點）；`type`＝`int`｜`number`｜`bool`｜`time`｜`str`｜`regex`｜`list`｜`json`；`default` 必填且合型別；`min`／`max` 只給 int／number；`looser`（`smaller`｜`larger`，越小／越大越寬鬆）只給 int／number／time，網頁與提議卡用它標紅「放寬」；最多 40 個 |
 
 - **能力清單的總量上限 1,500 字**：超過就把每一行的說明從 60 字逐級縮到 40、28、20、12、0（只剩標題）；還是太多才把最後幾行併成「…另有 N 項」。
   每個人看到的清單照權限過濾（他看不到的工具不會出現）。
@@ -327,6 +328,7 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
 | `{data_dir}` | SYNOX 的 `data/` |
 | `{user_data_dir}` | 伺服器版 `data/users/<tg_id>`（第一次用時建立）；個人版 `data/` |
 | `{tg_id}` | 下令的人的 Telegram id（排程、網頁也是那個人） |
+| `{prefs_file}` | 這個工具在 `agent.prefs` 宣告的習慣的現值：一份暫存 JSON `{"v": 1, "prefs": {鍵: 值}}`（每次呼叫一個新資料夾 `data/prefs/<pack>/<亂數>/prefs.json`，沙盒只准讀那一個資料夾，指令結束連資料夾刪；只能讀，不要寫回去）。只有擁有者自己的對話帶 soul.md 的值，其他人＝預設值。常見寫法 `"--prefs={prefs_file}"`（[ADR 0031](adr/0031-soul-habits-and-prefs.md)） |
 
 欄位不能取這幾個名字。使用者給的值只換一次（值裡寫 `{data_dir}` 不會被換）。
 **`{python} -m 模組` 時 `cli.cwd`（`mcp.cwd`）一定要在 pack 資料夾裡**（`.`、`./子資料夾`、`{pack_dir}…`）：

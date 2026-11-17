@@ -15,6 +15,7 @@
  *   POST /api/runtime/activator/resume                全部連動恢復 → {ok, message}
  *   POST /api/runtime/activator/pending/run           留給心跳的現在處理 → {ok, count, message}
  *   POST /api/runtime/activator/pending/<id>/dismiss  丟掉一件待處理 → {ok}
+ *   GET  /api/runtime/soul/habits         習慣與規則：{lines, problems, conflicts, declared}（looser＝比預設寬鬆，標紅）
  *   GET  /api/runtime/soul/notes          助理筆記：{review, notes, pending, archive, budget}（docs/adr/0005）
  *   POST /api/runtime/soul/proposal       {id, action: approve|replace|reject} → 新的 notes 物件
  *   POST /api/runtime/soul/note           {id, action: retire|confirm|restore} → 新的 notes 物件
@@ -332,6 +333,46 @@
     };
   }
 
+  // ── 習慣與規則（GET /api/runtime/soul/habits；runtime/habits.py）──────────
+  // 比預設寬鬆的（looser）整行標紅＋「放寬」；沒有工具宣告的鍵標「目前沒有工具在用」；看不懂的行另外列。
+
+  function habitsModel(data) {
+    var d = data && typeof data === "object" ? data : {};
+    function objs(v) { return (Array.isArray(v) ? v : []).filter(function (x) { return x && typeof x === "object"; }); }
+    var lines = objs(d.lines).map(function (ln) {
+      var keys = objs(ln.keys).map(function (k) {
+        var used = (Array.isArray(k.used_by) ? k.used_by : []).map(String);
+        var tags = [];
+        if (k.looser) {
+          tags.push({ tone: "bad", text: "放寬" + (k["default"] !== null && k["default"] !== undefined
+            ? "（預設 " + String(k["default"]) + "）" : "") });
+        }
+        if (k.problem) { tags.push({ tone: "bad", text: "值不對：" + String(k.problem) }); }
+        if (k.unused) { tags.push({ tone: "ctl-idle", text: "目前沒有工具在用" }); }
+        if (k.overridden) { tags.push({ tone: "warn", text: "被後面一行蓋過" }); }
+        return { key: String(k.key || ""), value: String(k.value === undefined ? "" : k.value),
+                 usedBy: used.length ? "給 " + used.join("、") : "", tags: tags, looser: !!k.looser };
+      });
+      return { text: String(ln.text || ln.line || ""), line: String(ln.line || ""), keys: keys,
+               looser: keys.some(function (k) { return k.looser; }) };
+    });
+    var problems = objs(d.problems).map(function (p) { return String(p.line || "") + "——" + String(p.why || ""); });
+    var looser = lines.filter(function (l) { return l.looser; }).length;
+    return {
+      title: "習慣與規則（" + lines.length + "）",
+      summary: looser ? looser + " 條比工具的預設寬鬆（紅色）。" : "",
+      lines: lines,
+      problems: problems,
+      empty: !lines.length && !problems.length
+        ? "還沒有。寫在上面「## 習慣與規則」那一段（一行一條，值寫在〔鍵=值〕），或跟 AI 說，它會出一張卡給你按。" : "",
+      declared: objs(d.declared).map(function (p) {
+        var used = (Array.isArray(p.used_by) ? p.used_by : []).map(String);
+        return String(p.key || "") + "（" + String(p.ask || p.type || "") + "；預設 " +
+          JSON.stringify(p["default"] === undefined ? null : p["default"]) + (used.length ? "；" + used.join("、") : "") + "）";
+      })
+    };
+  }
+
   // 「忘掉」先看會動到什麼：給確認框的一句話
   function forgetSummary(r, word) {
     r = r && typeof r === "object" ? r : {};
@@ -397,6 +438,7 @@
       resetMemory: function () { return call("POST", "/api/runtime/mother/reset-memory", {}); },
       soul: function () { return call("GET", "/api/runtime/soul"); },
       saveSoul: function (text) { return call("PUT", "/api/runtime/soul", { text: String(text) }); },
+      habits: function () { return call("GET", "/api/runtime/soul/habits"); },
       taskLog: function (id) { return call("GET", "/api/runtime/tasks/" + encodeURIComponent(id) + "/log"); },
       resetRule: function (id) {
         return call("POST", "/api/runtime/activator/rules/" + encodeURIComponent(id) + "/reset", {});
@@ -582,8 +624,18 @@
     var soulUndo = el("button", "ghost", "還原"); soulUndo.type = "button"; soulUndo.disabled = true;
     soulRow.appendChild(soulSave); soulRow.appendChild(soulUndo);
     var soulMsg = el("p", "msgline"); soulMsg.setAttribute("aria-live", "polite");
+    var hTitle = el("h3", "ctl-note-h", "習慣與規則");
+    var hSummary = el("p", "ctl-habit-summary hidden");
+    var hList = el("ul", "ctl-notes ctl-habits");
+    var hEmpty = el("p", "muted hidden");
+    var hProblems = el("ul", "ctl-habit-problems");
+    var hDeclared = el("details", "ctl-note-archive hidden");
+    var hDeclaredTitle = el("summary", "", "工具讀得到的鍵");
+    var hDeclaredList = el("ul", "ctl-habit-declared");
+    hDeclared.appendChild(hDeclaredTitle); hDeclared.appendChild(hDeclaredList);
     soul.appendChild(soulLab); soul.appendChild(soulText); soul.appendChild(soulMeta);
     soul.appendChild(soulRow); soul.appendChild(soulMsg);
+    [hTitle, hSummary, hList, hEmpty, hProblems, hDeclared].forEach(function (x) { soul.appendChild(x); });
     body.appendChild(soul);
 
     // 助理筆記（soul 帳本）
@@ -666,7 +718,8 @@
       aPendHead: aPendHead, aPending: aPending, aPendRow: aPendRow, aRunPending: aRunPending, aRejected: aRejected,
       aEventsBox: aEventsBox, aEvents: aEvents, aMsg: aMsg,
       soulText: soulText, soulWhen: soulWhen, soulDirty: soulDirty, soulSave: soulSave, soulUndo: soulUndo,
-      soulMsg: soulMsg,
+      soulMsg: soulMsg, hTitle: hTitle, hSummary: hSummary, hList: hList, hEmpty: hEmpty, hProblems: hProblems,
+      hDeclared: hDeclared, hDeclaredList: hDeclaredList,
       nUsage: nUsage, nOver: nOver, nMode: nMode, nPendingTitle: nPendingTitle, nPending: nPending, nTitle: nTitle,
       nList: nList, nEmpty: nEmpty, nArchive: nArchive, nArchiveTitle: nArchiveTitle, nArchiveList: nArchiveList,
       nTidy: nTidy, nExport: nExport, fText: fText, fAsk: fAsk, fBox: fBox, fQ: fQ, fPreview: fPreview,
@@ -850,10 +903,46 @@
       d.soulText.value = ui.soulSaved;
       setSoulDirty(false);
       soulWhenText();
+      return loadHabits();
     }, function (e) {
       d.soulWhen.textContent = "";
       d.soulMsg.textContent = "讀不到偏好：" + humanError(e);
     });
+  }
+
+  function loadHabits() {
+    var d = ui.dom;
+    return ui.client.habits().then(renderHabits, function () {
+      renderHabits({});                             // 舊版 SYNOX 沒有這個 API：只留「還沒有」那句
+    });
+  }
+  function renderHabits(data) {
+    var d = ui.dom, m = habitsModel(data);
+    d.hTitle.textContent = m.title;
+    d.hSummary.textContent = m.summary;
+    d.hSummary.classList.toggle("hidden", !m.summary);
+    clear(d.hList);
+    m.lines.forEach(function (ln) {
+      var li = el("li", "ctl-note" + (ln.looser ? " ctl-habit-looser" : ""));
+      var main = el("div", "ctl-note-main");
+      main.appendChild(el("span", "ctl-note-text", ln.text));
+      ln.keys.forEach(function (k) {
+        var row = el("span", "ctl-note-badges");
+        row.appendChild(el("code", "ctl-habit-kv", k.key + " = " + k.value));
+        if (k.usedBy) { row.appendChild(el("span", "muted", k.usedBy)); }
+        k.tags.forEach(function (t) { row.appendChild(el("span", "badge " + t.tone, t.text)); });
+        main.appendChild(row);
+      });
+      li.appendChild(main);
+      d.hList.appendChild(li);
+    });
+    d.hEmpty.textContent = m.empty;
+    d.hEmpty.classList.toggle("hidden", !m.empty);
+    clear(d.hProblems);
+    m.problems.forEach(function (p) { d.hProblems.appendChild(el("li", "badge bad", "看不懂：" + p)); });
+    clear(d.hDeclaredList);
+    m.declared.forEach(function (t) { d.hDeclaredList.appendChild(el("li", "", t)); });
+    d.hDeclared.classList.toggle("hidden", !m.declared.length);
   }
   function soulWhenText() {
     ui.dom.soulWhen.textContent = "上次更新：" + when(ui.soulUpdated, new Date(), "還沒寫過") +
@@ -1163,7 +1252,7 @@
     normalizeActivator: normalizeActivator, activatorView: activatorView,
     validateInterval: validateInterval, resultText: resultText, normalizeStatus: normalizeStatus,
     viewModel: viewModel, humanError: humanError, makeClient: makeClient, canSee: canSee,
-    normalizeNotes: normalizeNotes, notesModel: notesModel, forgetSummary: forgetSummary,
+    normalizeNotes: normalizeNotes, notesModel: notesModel, forgetSummary: forgetSummary, habitsModel: habitsModel,
     RESET_CLEARS: RESET_CLEARS, RESET_KEEPS: RESET_KEEPS,
     INTERVAL_MIN: INTERVAL_MIN, INTERVAL_MAX: INTERVAL_MAX, INTERVAL_DEFAULT: INTERVAL_DEFAULT,
     // 畫面
