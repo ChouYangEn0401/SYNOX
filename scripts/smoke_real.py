@@ -336,7 +336,7 @@ class Smoke:
             # 兩個名字都設：舊版工具庫讀模組變數 transport；新版（SYNOX_Libs 7be68ba 起）每次呼叫 new_session()
             http = self.http
             mod.transport = http
-            mod.new_session = lambda: http
+            mod.new_session = lambda *_a, **_k: http
         c = mod.Client(MemoryStore(data))                 # 換到的新 access token 只放記憶體，不寫回保管箱
 
         def auth():
