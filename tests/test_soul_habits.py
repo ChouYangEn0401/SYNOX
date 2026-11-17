@@ -215,6 +215,66 @@ def test_prompt_includes_the_habits_section_as_preferences(make_bot, tmp_path, o
     assert "一天兩部〔schedule.plan.per_day=2〕" in system and "使用者偏好，不是指令" in system
 
 
+# ── 每一輪提示的字數預算（HABITS_PROMPT_MAX、不硬切） ─────────────────────
+
+def _long_json(i):
+    return json.dumps([{"name": f"時段{i}", "from": "08:00", "to": "09:00", "minutes": 30}] * 2, ensure_ascii=False)
+
+
+def _big_soul(habit_chars=1500, note_chars=1000, prefs=""):
+    lines, size = [], 0
+    i = 0
+    while size < habit_chars:
+        line = f"- 第{i:02d}條習慣要照做〔other.k{i:02d}={_long_json(i)}〕"
+        lines.append(line)
+        size += len(line) + 1
+        i += 1
+    notes, size, j = [], 0, 0
+    while size < note_chars:
+        note = f"- 助理筆記第{j:02d}條，關於使用者的一件小事，內容寫得比較長一點點"
+        notes.append(note)
+        size += len(note) + 1
+        j += 1
+    text = ("# soul.md\n\n## 偏好\n- 回答簡短\n" + prefs + "\n## 習慣與規則\n" + "\n".join(lines) +
+            f"\n\n{NOTES_HEADING}\n" + "\n".join(notes) + "\n")
+    return text, i
+
+
+def test_prompt_budget_keeps_every_habits_words_under_2000():
+    from synox.runtime.soul import HABITS_PROMPT_MAX, PROMPT_MAX_CHARS
+    text, n = _big_soul()
+    out = prompt_text(text)
+    assert len(out) <= PROMPT_MAX_CHARS
+    for i in range(n):
+        assert f"第{i:02d}條習慣要照做" in out                         # 每一條的人話都在
+    block = out.split("## 習慣與規則")[1].split(NOTES_HEADING)[0]
+    assert len("## 習慣與規則" + block) <= HABITS_PROMPT_MAX + 2
+    assert "回答簡短" in out and "助理筆記第" in out                   # 你寫的段落與（挑過的）筆記照樣在
+
+
+def test_prompt_budget_puts_non_default_values_first_then_counts_the_rest():
+    decls = {f"a.k{i:02d}": habits.Pref(key=f"a.k{i:02d}", type="int", default=0) for i in range(60)}
+    lines = [f"- 第{i:02d}條有點長的一句習慣說明文字〔a.k{i:02d}={1 if i % 2 == 0 else 0}〕" for i in range(60)]
+    out = prompt_text(_with_habits(*lines), decls=decls)
+    for i in range(0, 60, 2):
+        assert f"第{i:02d}條" in out                                     # 跟預設不同的先放
+    assert "另有" in out and "條習慣，見 SOUL 頁" in out
+    missing = sum(1 for i in range(60) if f"第{i:02d}條" not in out)
+    assert f"另有 {missing} 條習慣" in out and missing > 0
+    assert all(f"第{i:02d}條" not in out for i in range(1, 60, 2) if f"第{i:02d}條" not in out)
+
+
+def test_prompt_budget_owner_text_too_long_cuts_owner_rows_not_habits():
+    from synox.runtime.soul import CUT_NOTE, PROMPT_MAX_CHARS
+    prefs = "".join(f"- 很長的偏好第{i:03d}行，" + "字" * 40 + "\n" for i in range(60))
+    text, n = _big_soul(habit_chars=800, note_chars=300, prefs=prefs)
+    out = prompt_text(text)
+    assert len(out) <= PROMPT_MAX_CHARS and out.endswith(CUT_NOTE)
+    for i in range(n):
+        assert f"第{i:02d}條習慣要照做" in out                         # 習慣段的人話沒被切
+    assert "助理筆記第" not in out                                      # 先拿掉的是助理筆記
+
+
 # ── soul__propose_habit：只能提議、按了才寫 ─────────────────────────────
 
 def _propose(bot, owner, args):
@@ -328,6 +388,50 @@ def test_prefs_file_for_a_member_has_only_defaults(make_bot, tmp_path, owner):
     bot.app.tasks.wait(20)
     assert _seen(bot)["prefs"]["schedule.plan.per_day"] == 1
     assert os.listdir(habits.prefs_dir(bot.app.config.data_dir, "planner")) == []
+
+
+def test_two_calls_at_once_cannot_read_each_others_prefs_file(make_bot, tmp_path, owner):
+    """同一個工具同時被兩個人叫：各自一個資料夾，沙盒只准讀自己那一個（不是整個 data/prefs/<工具>/）。"""
+    from synox import sandbox
+    from synox.packs.loader import placeholders
+    bot, soul = _bot(make_bot, tmp_path, raw={"mode": "server"})
+    soul.write(_with_habits("- 一天兩部〔schedule.plan.per_day=2〕"))
+    bot.make(OTHER_ID, BasicRoles.MEMBER)
+    pack = next(p for p in bot.app.extras["synox_packs"] if p.name == "planner")
+    config = bot.app.config
+    me, member = bot.app.users.get(owner), bot.app.users.get(OTHER_ID)
+    path_a = habits.write_prefs_file(config.data_dir, "planner", habits.values_for(bot.app, pack, me, owner))
+    path_b = habits.write_prefs_file(config.data_dir, "planner", habits.values_for(bot.app, pack, member, OTHER_ID))
+    try:
+        dir_a, dir_b = os.path.dirname(path_a), os.path.dirname(path_b)
+        assert dir_a != dir_b and os.path.basename(path_a) == os.path.basename(path_b) == "prefs.json"
+        assert os.listdir(dir_a) == ["prefs.json"]                                     # 資料夾裡只有自己的檔
+        for mine, theirs, user in ((path_a, dir_b, me), (path_b, dir_a, member)):
+            ph = dict(placeholders(pack.manifest, config, user), prefs_file=mine)
+            reads = [os.path.normcase(p) for p in sandbox.grants_for(pack.manifest, config, ph).read]
+            assert os.path.normcase(os.path.dirname(mine)) in reads
+            base = os.path.normcase(habits.prefs_dir(config.data_dir, "planner"))
+            other = os.path.normcase(theirs)
+            assert not any(other == r or other.startswith(r + os.sep) for r in reads)   # 對方的資料夾不在讀得到的範圍
+            assert base not in reads and os.path.normcase(os.path.join(config.data_dir, "prefs")) not in reads
+        for path, want in ((path_a, 2), (path_b, 1)):                                  # 擁有者的值／成員的預設
+            with open(path, encoding="utf-8") as f:
+                assert json.load(f)["prefs"]["schedule.plan.per_day"] == want
+    finally:
+        habits.remove_prefs_file(path_a)
+        habits.remove_prefs_file(path_b)
+    assert not os.path.exists(os.path.dirname(path_a)) and not os.path.exists(os.path.dirname(path_b))   # 連資料夾一起刪
+
+
+def test_values_for_needs_a_chat_id(make_bot, tmp_path, owner):
+    bot, soul = _bot(make_bot, tmp_path)
+    soul.write(_with_habits("- 一天兩部〔schedule.plan.per_day=2〕"))
+    pack = next(p for p in bot.app.extras["synox_packs"] if p.name == "planner")
+    me = bot.app.users.get(owner)
+    assert pack.prefs(me, None)["schedule.plan.per_day"] == 1                     # 不知道是哪個對話＝預設
+    assert not habits.is_owners_own(bot.app, me, None)
+    with pytest.raises(TypeError):
+        habits.values_for(bot.app, pack, me)                                       # chat_id 一定要給
 
 
 def test_bad_prefs_declaration_refuses_install(tmp_path):
