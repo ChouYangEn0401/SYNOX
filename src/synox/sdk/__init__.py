@@ -762,7 +762,11 @@ def run_command(folder: str, command: str, args: List[str], *, data_dir: Optiona
     if code != 0 or reply.get("ok", True) is False:
         say(f"SYNOX 會回：❌ {command}：{reply.get('reason') or reply.get('error') or reply.get('message') or f'結束碼 {code}'}")
         return 1
-    say("SYNOX 會回：" + (render.render(reply) or "（沒有輸出）"))
+    from synox.agent import structured
+    say("SYNOX 會回：" + (render.render(structured.for_people(reply)) or "（沒有輸出）"))
+    has, payload = structured.payload_of(reply)
+    if has:                                         # 經 AI 呼叫時 AI 拿到的那一份（規劃 11.6；上限用預設值）
+        say("AI 會拿到：" + structured.compose(structured.message_of(reply), payload, structured.DEFAULT_CHARS))
     return 0
 
 

@@ -11,6 +11,7 @@ from isdtelekit.users.roles import BasicRoles
 
 from conftest import OTHER_ID, OWNER_ID, trust_core
 
+from synox.agent.wake import QUIET   # 核准卡按了之後叫醒 AI：AI 沒事要說（規劃 11.10）
 from synox import sandbox, sdk
 from synox.agent import tools as tools_mod
 from synox.agent.loop import ai_decision
@@ -310,7 +311,7 @@ def test_ai_unlisted_tool_refused_danger_card_and_delimited(make_bot, tmp_path, 
     bot, _ = _bot(make_bot, tmp_path, script=[{"tool": "demo__hidden", "args": {}},
                                               {"tool": "demo__echo", "args": {"args": "hey"}},     # 還不知道欄位
                                               {"tool": "demo__echo", "args": {"text": "yo", "times": "2"}}, "好了",
-                                              {"tool": "demo__wipe_all", "args": {}}, "不該走到這裡"])
+                                              {"tool": "demo__wipe_all", "args": {}}, QUIET])
     bots.append(bot)
     assert "args" in tools_mod.schema(bot.app.registry.node("demo.echo"))["properties"]
     bot.talk(OWNER_ID, "叫一下")
@@ -346,11 +347,11 @@ def test_needs_confirm_round_trip_with_meta(make_bot, tmp_path, bots):
 
 
 def test_needs_confirm_via_ai(make_bot, tmp_path, bots):
-    bot, _ = _bot(make_bot, tmp_path, script=[{"tool": "demo__purge", "args": {"days": "7"}}, "不該走到這裡"])
+    bot, _ = _bot(make_bot, tmp_path, script=[{"tool": "demo__purge", "args": {"days": "7"}}, QUIET])
     bots.append(bot)
     _echo(bot)                                                               # 先讓欄位已知
     bot.talk(OWNER_ID, "刪舊的")
-    assert "要刪 3 筆" in bot.last(OWNER_ID) and "不該走到這裡" not in "\n".join(bot.texts(OWNER_ID))
+    assert "要刪 3 筆" in bot.last(OWNER_ID) and QUIET not in "\n".join(bot.texts(OWNER_ID))
     bot.press_and_wait(OWNER_ID, _buttons(bot, "go")[0])
     assert bot.last(OWNER_ID) == "刪了 3 筆 token=tok-7"
 

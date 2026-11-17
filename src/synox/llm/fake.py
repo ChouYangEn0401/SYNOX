@@ -9,7 +9,8 @@
   - [ {…}, {…} ]                 → 同一次回覆裡好幾個工具呼叫
   - Reply                        → 原樣回
   - callable(messages, tools)    → 它回的 Reply
-劇本用完回「（劇本結束）」。calls 記下每次收到的 (messages, tools)，測試可以檢查 AI 看到了什麼；
+劇本用完回「（劇本結束）」；但核准卡按了之後叫醒 AI 的那一輪（[系統事件]，agent/wake.py）劇本用完回〔沒事〕
+（不送出），示範模式也一樣——不然每個按卡的測試最後都多一則「（劇本結束）」。calls 記下每次收到的 (messages, tools)，測試可以檢查 AI 看到了什麼；
 stops 記下每次收到的停止詞（supports_stop=True，docs/adr/0010）。
 
 script=None 是「示範模式」（config 的 llm.kind = "fake"）：認得幾句固定的話，讓 Console.bat 不接真的 AI
@@ -50,7 +51,7 @@ class FakeAdapter(ChatAdapter):
         if self.script is None:
             reply = demo_reply(messages, tools)
         elif not self.script:
-            reply = Reply(text="（劇本結束）")
+            reply = Reply(text=_QUIET if _woken(messages) else "（劇本結束）")
         else:
             reply = self._step(self.script.pop(0), messages, tools)
         if not reply.usage:
@@ -83,11 +84,24 @@ _REMIND = re.compile(r"(\d{1,2}:\d{2}).*?提醒我?\s*(.+)")
 _NOTE = re.compile(r"(?:記住|筆記)[：:\s]\s*(.+)")
 
 
+def _woken(messages: Sequence[Message]) -> bool:
+    """這一輪是核准卡按了之後的叫醒（最後一則 user 訊息是 [系統事件]）。"""
+    from synox.agent import wake
+    last = messages[-1] if messages else None
+    return last is not None and last.role == USER and wake.is_event(last.content)
+
+
+_QUIET = "〔沒事〕"
+
+
 def demo_reply(messages: Sequence[Message], tools: Sequence[ToolSpec]) -> Reply:
     last = messages[-1] if messages else Message(USER, "")
+    if _woken(messages):
+        return Reply(text=_QUIET)
     if last.role == TOOL or last.content.startswith("〔工具結果〕"):
         result = last.content.split("\n", 1)[-1] if last.role != TOOL else last.content
-        result = "\n".join(x for x in result.split("\n") if not x.lstrip().startswith("〔排程回執〕"))   # 系統的機器行不照抄
+        result = "\n".join(x for x in result.split("\n")                 # 系統的機器行、給 AI 的 JSON 不照抄
+                           if not x.lstrip().startswith(("〔排程回執〕", "結構化結果（JSON）：")))
         return Reply(text=f"好了，{result.strip() or '做完了'}")
     text = last.content.strip()
     names = {t.name for t in tools}

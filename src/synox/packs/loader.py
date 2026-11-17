@@ -675,6 +675,7 @@ def _install_cli(app, pack: Pack) -> None:
     from isdtelekit.packs import service
 
     from synox import runtime
+    from synox.agent import structured as ai_result
     from synox.agent import validate as gate4
 
     m = pack.manifest
@@ -834,11 +835,16 @@ def _install_cli(app, pack: Pack) -> None:
                         ask_confirm(api, chat_id, user, raw_values, values, reply.data, again=confirmed is not None)
                         return
                     try:
-                        text = render.render(reply.data)         # SYNOX 自己攤平 JSON（SDK 的只會印「N 筆」）
+                        # SYNOX 自己攤平 JSON（SDK 的只會印「N 筆」）；信封的 "ai" 只給 AI，不進給人看的字
+                        text = render.render(ai_result.for_people(reply.data))
                     except Exception as e:
                         text = f"⚠️ 服務回了結果，但顯示的時候出錯：{e}"
                     if text:
                         say(api, chat_id, text)
+                    has, payload = ai_result.payload_of(reply.data)
+                    note = getattr(type(api), "note_structured", None)
+                    if has and callable(note):               # 經 AI（或核准卡之後）：AI 拿 message＋精簡 JSON（規劃 11.6）
+                        note(api, text or "", ai_result.message_of(reply.data), payload)
                 finally:
                     done.set()
 
@@ -846,9 +852,10 @@ def _install_cli(app, pack: Pack) -> None:
                 say(api, chat_id, f"⏳ {cmd.name} 開始了，做完通知你。")
                 cli.start(*argv, on_done=finish, **timeout)
                 return
-            if getattr(api, "via_ai", False) is True:
+            if getattr(api, "via_ai", False) is True or getattr(api, "sync_result", False) is True:
                 # 經 AI 呼叫（agent 的 CaptureApi）：同步跑完，回覆被攔下來當工具結果交回 AI
                 # （loop 再包 nonce 分隔符）。AI 那一輪本來就在 app.tasks 上，不會卡住收訊。
+                # sync_result：AI 發的核准卡按 ✅ 之後（agent/capture.CardRunApi，已經在 app.tasks 上）——結果要交回 AI。
                 finish(cli.call(*argv, **timeout))
                 return
             typing = getattr(api, "typing", None)

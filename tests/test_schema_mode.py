@@ -8,6 +8,7 @@ import pytest
 
 from conftest import OWNER_ID
 
+from synox.agent.wake import QUIET   # 核准卡按了之後叫醒 AI：AI 沒事要說（規劃 11.10）
 from synox import sandbox
 from synox.agent import tools as tools_mod
 from synox.agent import validate as gate4
@@ -367,7 +368,7 @@ def test_unsupported_schema_tools_are_not_given_to_ai(make_bot, tmp_path, bots):
 
 def test_danger_card_lists_structured_args_then_runs_same_args(make_bot, tmp_path, bots):
     args = {"parent": "根", "pages": [{"title": "第一頁", "body": "內容" * 60}, {"title": "第二頁"}]}
-    bot, _, calls = _bot(make_bot, tmp_path, bots, script=[{"tool": "demo__create_pages", "args": args}, "不該走到"])
+    bot, _, calls = _bot(make_bot, tmp_path, bots, script=[{"tool": "demo__create_pages", "args": args}, QUIET])
     before = len(_calls(calls))
     bot.talk(OWNER_ID, "建兩頁")
     card = bot.last(OWNER_ID)
@@ -382,7 +383,7 @@ def test_danger_card_lists_structured_args_then_runs_same_args(make_bot, tmp_pat
 
 def test_danger_card_cancel_does_not_run(make_bot, tmp_path, bots):
     args = {"pages": [{"title": "x"}]}
-    bot, _, calls = _bot(make_bot, tmp_path, bots, script=[{"tool": "demo__create_pages", "args": args}, "x"])
+    bot, _, calls = _bot(make_bot, tmp_path, bots, script=[{"tool": "demo__create_pages", "args": args}, QUIET])
     before = len(_calls(calls))
     bot.talk(OWNER_ID, "建")
     bot.press_and_wait(OWNER_ID, _buttons(bot, "no")[0])

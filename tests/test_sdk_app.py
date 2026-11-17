@@ -54,7 +54,7 @@ def test_single_file_matches_source():
     with open(os.path.join(ROOT, "sdk", "synox_sdk.py"), encoding="utf-8") as f:
         assert f.read() == sdk.single_file_source()
     from synox.sdk import author
-    assert author.SDK_VERSION == "0.2.3"
+    assert author.SDK_VERSION == "0.2.4"                   # 0.2.4：信封的 "ai"（只加不改）
 
 
 @pytest.mark.parametrize("name", ["docs/tool-apps.md", "docs/security.md"])
