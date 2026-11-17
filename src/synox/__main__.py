@@ -578,6 +578,9 @@ def _review_staged(token: str, summary: dict, args, config, data_dir: str, *, is
         print(f"   {url}")
         print("   （網頁要先登入：雙擊 Open-SYNOX.bat，或在 Telegram 打 /web 拿登入連結。）")
         return 0
+    if config is None:                                                   # 沒有 config.json：不是「沒開」，是還沒設定
+        print("ℹ️ 還沒裝。SYNOX 還沒設定，先雙擊 Setup.bat（設定好、開了 SYNOX 之後再裝一次這個檔）。")
+        return 1
     print("ℹ️ 還沒裝。SYNOX 沒開（或網頁介面關著）：")
     tier = summary.get("tier") or {}
     extra = f' --trust-publisher "{tier.get("publisher")}"' if tier.get("needs_publisher") and tier.get("publisher") else ""
