@@ -207,8 +207,11 @@ def from_dict(data) -> WorkState | None                # 看不懂＝None（當�
 - 只叫 READ 的角色。`apply` 與 `revert` 只在人按了按鈕之後才叫。
 - 叫不動（逾時、失敗信封、被拒）：`check`＝用方案自己帶的 `violations`；`show`＝**不開卡**，回 AI「讀不到方案，重新 {plan}」；`verify`＝`report()` 的「核對叫不動」。
 
-原始信封：`CaptureApi` 要留著工具回的最後一個信封（完整的 `data`，在截短給 AI 之前）。給 AI 結構化結果的那個實作分支如果已經提供就用它的；
-沒有就在工作模式的 PR 加 `capture.envelope`。**工作模式讀的一律是這一份，不是 AI 看到的那一份。**
+原始信封：工作模式讀的是**工具回的整個信封**（`ok`、`code`、完整的 `data`），不是 AI 看到的那一份。
+給 AI 結構化結果的那個實作分支（`feat/ai-structured-results`）的 `CaptureApi` 只留了「給 AI 的那一份」
+（信封有 `ai` 就是 `ai`，沒有才是 `data`；**已查證**那個分支的 `agent/capture.py`）——工具同時給 `ai`（精簡版）與 `data`（完整版）時，
+完整版就不見了。所以工作模式的 PR 要加：loader／mcp 把整個信封也交給 capture（`capture.envelope`，只留最後一個、只在記憶體），
+`workhost.after_call()` 讀它。核准卡按 ✅ 之後執行用的 `CardRunApi` 同樣要有。
 
 ### 結果訊息與退回按鈕
 
