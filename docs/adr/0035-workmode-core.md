@@ -131,7 +131,7 @@ def from_dict(data) -> WorkState | None                # 看不懂＝None（當�
 
 | `step` | 意思 | 怎麼進來 | `status_line` 的下一步 |
 |---|---|---|---|
-| `query` | 要先看現況 | G1 擋下時 `start()`；`apply` 回 `stale`；人打 `/work <kind>` | `{query}` |
+| `query` | 要先看現況 | G1 擋下時 `start()`；`apply` 回 `stale`；人打 `/work_on <kind>` | `{query}` |
 | `plan` | 有現況，要算方案 | `query` 成功 | `{plan}` |
 | `check` | 有方案 | `plan` 成功（AI 直接叫 `plan` 也算，那時 `start()` 之後直接到這一步） | 有違規＝`{plan}`（重算）；沒有＝`{apply}` |
 | `critic` | 挑錯者退回了 | `with_critic()` 而且要退回 | `{plan}`（重算） |
@@ -241,6 +241,7 @@ def from_dict(data) -> WorkState | None                # 看不懂＝None（當�
 | 指令 | 做什麼 |
 |---|---|
 | `/work` | 列出這個聊天進行中的每一件：哪一種、第幾步、方案編號、卡開著沒、還剩多久過期 |
+| `/work_on <kind>` | 人自己開：這個聊天進入那一種工作（`step = query`）。`kind` 不只一個工具有時要寫 `<工具名>.<kind>` |
 | `/work_off [kind]` | 收掉（沒給 `kind`＝全部）。開著的卡一起作廢。不退回任何已經套用的東西 |
 
 指令名由路徑產生（SDK 的規則），所以是 `/work_off`，不是 `/work off`。
@@ -327,7 +328,7 @@ def from_dict(data) -> WorkState | None                # 看不懂＝None（當�
 10. `status_line` 出現在第 7 層；把 context 預算壓到很小時它還在。
 11. 每輪工具數上限開著（`llm.max_tools = 3`）：工作模式中那六個工具都在。
 12. 狀態存在保管箱的密文裡；重開（重新 `app.build`）後 `step=card` 的狀態變成 `check`，下一輪開頭有那句話。
-13. `/work`、`/work_off`：AI 的工具清單裡沒有它們；`/work_off` 之後舊卡按了＝過期。
+13. `/work`、`/work_on`、`/work_off`：AI 的工具清單裡沒有它們；`/work_on schedule` 之後狀態在 `query`、第 7 層有那一行；`/work_off` 之後舊卡按了＝過期。
 14. 閒置過期：下一輪回覆最上面有 `expired()` 那句。
 15. 伺服器版：成員甲的狀態成員乙讀不到、`/work` 只列自己的。
 
@@ -340,7 +341,7 @@ def from_dict(data) -> WorkState | None                # 看不懂＝None（當�
 | `WorkState` 沒有 `violations`、`unplaced`、`plan_expires`、`stale`、挑錯者那幾欄 | 加上 | G2／G3／G4 要有東西可以判斷；`gate()` 是純函式，不能自己去問工具 |
 | `gate` 一個函式做完 | 多 `spec_for`、`start`、`card_event`、`critic_due`、`with_critic`、`on_human`、`card_head`、`to_dict`／`from_dict` | 卡片、挑錯者、新的一句、存檔都會改狀態；都放在純函式裡，另一個 host 才能原樣用 |
 | G2 只管 `apply` | 也管「重算太多次」與「排不進去的」 | 規劃第 4 節的步驟表有這兩條，閘門表漏了 |
-| `/work off` | `/work_off` | SDK 的指令名由路徑產生 |
+| `/work`、`/work off` | `/work`、`/work_on <kind>`、`/work_off` | SDK 的指令名由路徑產生；「人自己開」在來源的設計稿裡有，規劃的指令表漏了 |
 | 狀態「每個聊天一份」 | 每個聊天、每種工作一份 | 排程排到一半順便對帳，兩件事不該互相蓋掉 |
 | 「↩ 整批退回」綁在哪沒寫 | 核心節點 `work.revert` 再轉給工具的 `revert` | 一個按鈕前綴只能綁一個節點（SDK 的規則） |
 
