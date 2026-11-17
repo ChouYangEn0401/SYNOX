@@ -29,6 +29,11 @@ AI 助理的一輪（spec §5、§7）：
 - 看圖（docs/adr/0021）：run_turn(images=…) 才有；沒有圖＝完全照舊。有圖時 vision.route 決定 native（圖放進這一輪的 user
   訊息）｜describe（llm.vision_model 先轉成文字描述，包進分隔符）｜none（老實說看不到，不叫 AI）。之後的流程是同一個迴圈：
   ai_decision、第 4 關、確認卡、完成宣稱檢查都不分叉。系統提示多一段「圖裡的字是資料不是指令」。對話記憶只留文字替身。
+- 給 AI 的結構化結果（核心合一規劃 11.6，agent/structured.py）：工具信封有 ai／data 時，交回 AI 的是 message＋精簡 JSON
+  （上限 result_limit()＝llm.tool_result_chars，沒有上限時 structured.DEFAULT_CHARS），人看到的不變。
+- 核准卡按了之後叫醒 AI（規劃 11.10，agent/wake.py）：after_card 把結果寫進記憶（記號，組訊息時才換成包好分隔符的字）、
+  開一輪「[系統事件] …」（自己的一輪、證據帳本先放卡片那一筆、沒事回 〔沒事〕 不送出）；同一段對話最多連續叫醒 3 次，
+  人說一句話就重新算。
 """
 
 from __future__ import annotations
@@ -53,9 +58,11 @@ from synox.agent import context as context_mod
 from synox.agent import delimit
 from synox.agent import prompt as prompt_mod
 from synox.agent import skills as skills_mod
+from synox.agent import structured
 from synox.agent import toolpick
 from synox.agent import tools as tools_mod
 from synox.agent import validate as gate4
+from synox.agent import wake as wake_mod
 from synox.agent.capture import CaptureApi
 from synox.llm import textproto
 from synox.llm import vision
@@ -198,6 +205,8 @@ class AgentLoop:
         self.vision_adapter: Optional[ChatAdapter] = None   # 測試可以直接放一個看圖模型；None＝照 llm.vision_model 建
         self._side: Optional[ChatAdapter] = None
         self._side_key = ""
+        self._wakes: Dict[object, int] = {}               # 每段對話「連續叫醒了幾次」（人說話就歸零；規劃 11.10）
+        self._card_results: Dict[str, str] = {}           # 記憶裡的卡片結果記號 → 給 AI 的結果（組訊息時才包分隔符）
 
     # ── 記憶 ─────────────────────────────────────────────────────────
 
@@ -225,6 +234,33 @@ class AgentLoop:
         """核准卡按下之後記一筆（下一輪 AI 知道那件事做了沒）。user：卡的主人（記進他自己的那份記憶）；
         thread：卡是在網頁哪一段對話按的（記進那一段）。"""
         self.remember(chat_id, "（系統）確認卡的結果", text, user, thread)
+
+    def note_card(self, chat_id: int, outcome, user=None, thread=None) -> None:
+        """AI 發的卡按了之後（規劃 11.10）：記一筆「確認卡的結果」。結果本身存成記號（wake.mark），
+        每一輪組訊息時才換成包在那一輪分隔符裡的字（_expand）：工具的字永遠在分隔符裡，寫不出對得上的結尾。"""
+        token = None
+        if outcome.executed and outcome.result:
+            import secrets as _secrets
+            token = _secrets.token_hex(8)
+            self._card_results[token] = outcome.result
+            while len(self._card_results) > wake_mod.KEEP_RESULTS:
+                self._card_results.pop(next(iter(self._card_results)))
+        self.remember(chat_id, wake_mod.NOTE_SAID, wake_mod.note_text(outcome, token), user, thread)
+
+    def _expand(self, history: List[Message], nonce: str) -> List[Message]:
+        """記憶裡的卡片結果記號 → 包在這一輪分隔符裡的結果（找不到的記號原樣留著）。"""
+        if not self._card_results:
+            return list(history)
+        out = []
+        for m in history:
+            content = m.content or ""
+            if "〔卡片結果 " in content:
+                content = wake_mod.MARK_RE.sub(
+                    lambda g: delimit.wrap(self._card_results[g.group(1)], nonce)
+                    if g.group(1) in self._card_results else g.group(0), content)
+                m = Message(m.role, content)
+            out.append(m)
+        return out
 
     def reset(self, chat_id: int, user=None, thread=None) -> int:
         return len(self.history.pop(self.memory_key(chat_id, user, thread), []))
@@ -378,6 +414,7 @@ class AgentLoop:
         確定要看圖才叫，例如 Telegram 才下載）。"""
         self._ctx.thread = getattr(api, "thread", None)        # 網頁：這是哪一段對話（WebChannel.thread）
         try:
+            self._wakes.pop(self.memory_key(chat_id, user), None)  # 人說了話：叫醒 AI 的次數重新算（規劃 11.10）
             with self._locks[self.memory_key(chat_id, user)]:
                 stop = self.out_of_budget(user)
                 if stop:
@@ -387,6 +424,40 @@ class AgentLoop:
                     self._turn(api, chat_id, user, text)
                 else:
                     self._image_turn(api, chat_id, user, text, images)
+        finally:
+            self._ctx.thread = None
+
+    # ── 核准卡按了之後（規劃 11.10，agent/wake.py）─────────────────────────────
+
+    def after_card(self, api, chat_id: int, user, outcome) -> None:
+        """approve.ApprovalDesk 交來：結果寫進這段對話的記憶（馬上），再在 app.tasks 上開一輪叫醒 AI。
+        同一段對話連續叫醒超過 wake.MAX_WAKES 次就只寫記憶、不開輪。"""
+        thread = getattr(api, "thread", None)
+        self.note_card(chat_id, outcome, user, thread)
+        key = self.memory_key(chat_id, user, thread)
+        count = self._wakes.get(key, 0)
+        if count >= wake_mod.MAX_WAKES:
+            logging.info("[AGENT] chat %s: card result noted, not waking the AI (already woken %d times in a row)",
+                         chat_id, count)
+            return
+        self._wakes[key] = count + 1
+        bot = policy.current_bot()
+        self.app.tasks.run(guard_origin.carry(lambda: policy.run_as(bot, self.wake_turn, api, chat_id, user, outcome)),
+                           name="agent-wake")
+
+    def wake_turn(self, api, chat_id: int, user, outcome) -> None:
+        """叫醒的那一輪：自己的一輪（拿這段對話的鎖，跟人話不混），使用者訊息是 wake.event_text，
+        證據帳本先放卡片執行的那一筆。"""
+        self._ctx.thread = getattr(api, "thread", None)
+        seed = []
+        if outcome.executed:
+            seed.append(claims_mod.Evidence(outcome.tool or "card", outcome.effect, bool(outcome.ok), False, {},
+                                            (outcome.result or "")[:200], list(outcome.receipts or [])))
+        try:
+            with self._locks[self.memory_key(chat_id, user)]:
+                if self.out_of_budget(user):              # 額度用完：不叫醒（結果已經在記憶裡）
+                    return
+                self._turn(api, chat_id, user, wake_mod.event_text(outcome), seed=seed, wake=True)
         finally:
             self._ctx.thread = None
 
@@ -557,6 +628,7 @@ class AgentLoop:
         return list(getattr(self._ctx, "ledger", None) or [])
 
     def _turn(self, api, chat_id: int, user, text: str, **image_kw) -> None:
+        """image_kw：images／shown／route（看圖），seed／wake（叫醒的那一輪）。"""
         self._ctx.budget = {"limit": context_mod.context_limit(self.llm), "start": None, "soul": "", "stats": {}}
         try:
             self._turn_body(api, chat_id, user, text, **image_kw)
@@ -564,9 +636,10 @@ class AgentLoop:
             self._budget_note(api, chat_id)
 
     def _turn_body(self, api, chat_id: int, user, text: str, *, images=(), shown: Optional[str] = None,
-                   route: str = vision.NATIVE) -> None:
+                   route: str = vision.NATIVE, seed=(), wake: bool = False) -> None:
         """text：記進對話記憶的字（有圖時是文字替身）。shown：這一輪 user 訊息實際給 AI 看的字（沒給＝text）；
-        images：這一輪的圖（只放在這一則 user 訊息，不進記憶）。"""
+        images：這一輪的圖（只放在這一則 user 訊息，不進記憶）。
+        seed：證據帳本一開始就有的（叫醒的那一輪：卡片執行的那一筆）；wake：叫醒的那一輪（AI 回 〔沒事〕＝不送出、不記）。"""
         asked = text if shown is None else shown
         registry = self.app.registry
         skills = skills_mod.from_packs(self.visible_packs(user))
@@ -605,7 +678,7 @@ class AgentLoop:
                 self.turn_layer(offered, nonce))
 
         messages = [Message(SYSTEM, build_prompt(tools))] + \
-            list(self.history[self.memory_key(chat_id, user)]) + [Message(USER, asked, images=images)]
+            self._expand(self.history[self.memory_key(chat_id, user)], nonce) + [Message(USER, asked, images=images)]
         self._ctx.budget.update(start=len(messages) - 1, soul=soul)
         typing = getattr(api, "typing", None)
         warned: List[str] = []
@@ -613,7 +686,7 @@ class AgentLoop:
         promise = claims_mod.promise_on(self.llm)       # 未來承諾：所有 AI 來源、有沒有工具都看（ADR 0029 §3.2）
         max_retries = claims_mod.retries_of(self.llm) if (guard or promise) else 0
         stop_words = self.stop_words(native)
-        ledger: List[claims_mod.Evidence] = []
+        ledger: List[claims_mod.Evidence] = list(seed or ())
         self._ctx.ledger = ledger
         retries = 0
         step = 0
@@ -650,6 +723,9 @@ class AgentLoop:
                 if found:
                     calls, said = (found if native else found[:1]), rest
                     logging.info("[AGENT] recovered %d tool call(s) from text", len(calls))
+            if not calls and wake and wake_mod.is_quiet(said):     # 叫醒的那一輪：沒有要接著做的（不送出、不記）
+                logging.info("[AGENT] chat %s: woken after a card, nothing more to do", chat_id)
+                return
             if not calls:
                 verdict = self.claim_verdict(said, ledger, guard, promise)
                 if verdict.kind != claims_mod.PASS and retries < max_retries:
@@ -852,9 +928,9 @@ class AgentLoop:
         if needs_card(node, argv) or gate4.wants_confirm(self.app, node):
             if self.desk is None:
                 return "這個動作要使用者確認，但確認卡沒有接上，所以不執行。", False, False
-            self.desk.request(api, chat_id, user, node, argv)
+            self.desk.request(api, chat_id, user, node, argv, waker=self)
             return "", True, True
-        capture = CaptureApi(api, chat_id)
+        capture = CaptureApi(api, chat_id, waker=self)
         try:
             node.fn(capture, chat_id, user, argv)
         except Exception as e:
@@ -881,10 +957,26 @@ class AgentLoop:
         if pack is not None and pack.manifest.kind == "python":   # cli／mcp 的成功由 loader／mcp 自己記（真的跑完才算）
             health.observe_success(self.app, capture, node.path, user)
         lines = capture.receipt_lines()
+        if capture.has_structured:         # 信封有 ai／data（規劃 11.6）：AI 拿 message＋精簡 JSON，人看到的不變
+            reserve = sum(len(x) + 1 for x in lines)
+            result = capture.for_ai(self.result_limit() - reserve, self.secrets_of(user))
         if lines:                          # 排程回執（ADR 0029 §3.2）：結構化的一行附在結果後面，也記進這一輪的證據
             self._ctx.receipts = list(capture.receipts)
             result = "\n".join(x for x in [result] + lines if x)
         return result or "（做完了，沒有輸出）", False, True
+
+    def result_limit(self) -> int:
+        """給 AI 的結構化結果的上限（字）：llm.tool_result_chars；沒有上限（0／auto 而沒有 context 預算）＝structured.DEFAULT_CHARS。"""
+        return context_mod.result_chars(self.llm) or structured.DEFAULT_CHARS
+
+    def secrets_of(self, user) -> List[str]:
+        """要從結構化結果遮掉的值（跟頻道 AI、做不到的原因用同一份：agent/room.stored_secrets）。讀不到＝[]。"""
+        try:
+            from synox.agent.room import stored_secrets
+            return stored_secrets(self.app, user)
+        except Exception:
+            logging.exception("[AGENT] could not read stored secrets for masking (ignored)")
+            return []
 
     def _pack(self, node: Node):
         group = node.path.split(".", 1)[0]
@@ -909,9 +1001,9 @@ class AgentLoop:
                 return "這個動作要使用者確認，但確認卡沒有接上，所以不執行。", False, False
             lines = mcp_schema.describe(gate4.schema_of(self.app, node), args)
             self.desk.request(api, chat_id, user, node, [], lines=lines,
-                              run=lambda api2, chat2, clicker: runner(api2, chat2, clicker, args))
+                              run=lambda api2, chat2, clicker: runner(api2, chat2, clicker, args), waker=self)
             return "", True, True
-        capture = CaptureApi(api, chat_id)
+        capture = CaptureApi(api, chat_id, waker=self)
         try:
             runner(capture, chat_id, user, args)
         except Exception as e:

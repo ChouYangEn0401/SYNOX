@@ -23,6 +23,7 @@ synox_sdk：寫一個 Python 函式，就是一個 SYNOX 工具（也是一個 M
       python tool.py add --amount=120 --memo=午餐 --json     → 最後一行印 SYNOX 的 JSON 信封（kind=cli pack 用這條）
       python tool.py --mcp                                 → MCP stdio server（JSON-RPC 2.0，給其他 AI 用戶端）
 - 函式回什麼：字串＝給人看的那句話；dict／list／數字＝data；`Ok(message, data)` 兩個都給；
+  `Ok(message, data, ai=…)`＝另給 AI 一份精簡的結構化結果（信封的 "ai"；人看到的照舊，SDK 0.2.4 起）；
   `raise ToolError(code, message)`＝失敗；`raise Confirm(summary)`（或 return）＝要確認（信封 needs_confirm）。
 - `fail(code, reason, retry_after=…, remedy=…, scope=…, diag=…)`＝失敗信封 v1（穩定的類別碼、能不能重試、補救建議；
   SYNOX 用它決定要不要暫時把工具從 AI 的清單拿掉）。丟的是 `ToolFailure`（`ToolError` 的子類別，舊的 except 照樣接得到）。
@@ -60,7 +61,7 @@ __all__ = ["tool", "serve", "secret", "context", "confirmed", "Context", "Caller
            "Ok", "SpecError", "tool_spec", "commands_for", "run_cli", "run_mcp", "registered", "report_status",
            "peer_status"]
 
-SDK_VERSION = "0.2.3"                  # SYNOX 給工具的介面合約的版本（pack.json 的 requires.sdk 對這個；docs/sdk.md「SDK 版本」）
+SDK_VERSION = "0.2.4"                  # SYNOX 給工具的介面合約的版本（pack.json 的 requires.sdk 對這個；docs/sdk.md「SDK 版本」）
 SYNOX_REQUIRES = ">=0.2"               # 產生的 pack.json 的 requires.synox（SYNOX_* 環境變數、ai／confirm 從這版起）
 
 
@@ -206,22 +207,26 @@ class Confirm(Exception):
 
 
 class Ok:
-    """同時給一句話與資料：`return Ok("共 3 筆", {"count": 3})`。"""
+    """同時給一句話與資料：`return Ok("共 3 筆", {"count": 3})`。
+    ai＝只給 AI 的那一份（SDK 0.2.4 起）：`Ok("共 3 筆", rows, ai={"count": 3, "ids": [...]})`。SYNOX 經 AI 呼叫時
+    交回 AI 的是 message＋這份 JSON（沒給就用 data；太長 SYNOX 會結構化地截，結果仍是合法 JSON）；人看到的照舊。"""
 
-    def __init__(self, message: str = "", data: Any = None):
-        self.message, self.data = str(message or ""), data
+    def __init__(self, message: str = "", data: Any = None, ai: Any = None):
+        self.message, self.data, self.ai = str(message or ""), data, ai
 
 
 class SpecError(ValueError):
     """@tool 的宣告不合（沒寫 effect、不支援的型別、名字不對…）。"""
 
 
-def ok_envelope(data: Any = None, message: str = "") -> dict:
+def ok_envelope(data: Any = None, message: str = "", ai: Any = None) -> dict:
     out: Dict[str, Any] = {"ok": True}
     if message:
         out["message"] = str(message)
     if data is not None:
         out["data"] = data
+    if ai is not None:
+        out["ai"] = ai                                  # 只給 AI 的結構化結果（舊版 SYNOX 不認得，直接忽略）
     return out
 
 
@@ -542,7 +547,7 @@ def _call_inner(spec: dict, values: Dict[str, Any]):
     if isinstance(result, Confirm):
         return confirm_envelope(result.summary, result.token), EXIT_OK
     if isinstance(result, Ok):
-        return ok_envelope(result.data, result.message), EXIT_OK
+        return ok_envelope(result.data, result.message, result.ai), EXIT_OK
     if isinstance(result, str):
         return ok_envelope(None, result), EXIT_OK
     return ok_envelope(result), EXIT_OK

@@ -17,14 +17,22 @@
 - 工具自己要確認（needs_confirm，SDK P3；packs/confirm.py）：request_tool_confirm() 出同一種卡（why＝工具給的 summary，
   人打字或 AI 呼叫都一樣），payload 多一個一次性確認憑證與 rerun。按 ✅ 一樣先 authorize，再 rerun（同一組參數，
   帶憑證；loader 驗過才給子程序 SYNOX_CONFIRMED=1）；按 ❌ 作廢憑證。
+- AI 發的卡（規劃 11.10，agent/wake.py）：卡記得是哪個 AgentLoop 發的（waker：loop 直接出的卡帶 waker=self；
+  經 AI 呼叫的工具回 needs_confirm 出的卡，從 CaptureApi.waker 拿）。按 ✅ 用 CardRunApi 執行（每一則照常送給使用者、
+  順便記下結果），之後交給 waker.after_card：結果寫進 AI 記憶、開一輪叫醒 AI。取消、按的時候已經不能執行也交過去
+  （「沒有執行」）。人自己打的指令出的卡沒有 waker：照舊。
 """
 
 from __future__ import annotations
 
+import logging
 from typing import Callable, List, Optional
 
 from isdtelekit.core.registry import BUTTON
 from isdtelekit.core.timing import Pending
+
+from synox.agent.capture import CaptureApi, CardRunApi
+from synox.agent.wake import CardOutcome
 
 PREFIX = "agent_ok:"
 EXPIRED = "⌛ 這張確認卡過期了（或不是你的），請重新跟 AI 說一次。"
@@ -54,9 +62,10 @@ class ApprovalDesk:
 
     def request(self, api, chat_id: int, user, node, argv: List[str], why: str = "", *, grant: str = "",
                 rerun: Optional[Callable] = None, header: str = "⚠️ AI 想執行", lines: Optional[List[str]] = None,
-                run: Optional[Callable] = None) -> None:
+                run: Optional[Callable] = None, waker=None) -> None:
         """lines＋run：schema 模式（巢狀參數）的卡——參數一行一個列在卡上，按 ✅ 叫 run(api, chat_id, 按的人)
-        （同一組結構化參數，不經 argv）。"""
+        （同一組結構化參數，不經 argv）。
+        waker：發卡的 AgentLoop（按了之後叫醒它，規劃 11.10）；沒給而 api 是 AI 的 CaptureApi＝用它記的那一個。"""
         ttl = self.app.timing.confirm_ttl
         where = chat_id
         chat_id = getattr(user, "tg_id", chat_id)          # 卡一律送下令那個人的私訊（不進群組）
@@ -65,6 +74,10 @@ class ApprovalDesk:
             payload.update(grant=grant, rerun=rerun)
         if run is not None:
             payload["run"] = run
+        if waker is None and isinstance(api, CaptureApi):
+            waker = api.waker
+        if waker is not None and callable(getattr(waker, "after_card", None)):
+            payload["waker"] = waker
         token = self.pending.put(payload, user.tg_id, ttl)
         shown = " ".join([node.command] + list(argv))
         minutes = max(1, int(ttl // 60))
@@ -108,28 +121,116 @@ class ApprovalDesk:
             return
         shown = " ".join([node.command if node else payload["path"]] + payload["argv"])
         grant = payload.get("grant") or ""
+        waker = payload.get("waker")
         if action != "go":
             self._discard(grant)
             api.send_message(cb.chat_id, f"好，不執行 {shown}。")
+            if waker is not None:
+                self._wake(waker, api, cb, CardOutcome(shown, executed=False, reason="使用者按了 ❌ 取消"))
+                return
             self._done(cb.chat_id, f"使用者取消了 {shown}", cb.clicker_id, api)
             return
         if node is None or node.is_group:
             self._discard(grant)
             api.send_message(cb.chat_id, f"❌ {payload['path']} 已經不存在了。")
+            if waker is not None:
+                self._wake(waker, api, cb, CardOutcome(shown, executed=False, reason="這個指令已經不存在了"))
             return
         clicker = self.app.users.get_or_create(cb.clicker_id)
         decision = registry.authorize(clicker, node, BUTTON, cb.chat_id)
         if not decision.allowed:
             self._discard(grant)
             api.send_message(cb.chat_id, decision.message)
+            if waker is not None:
+                self._wake(waker, api, cb, CardOutcome(shown, executed=False, reason="按的時候權限檢查沒有過"))
             return
-        if grant and callable(payload.get("rerun")):
-            payload["rerun"](api, cb.chat_id, clicker, grant)     # 同一組參數重跑，帶一次性憑證（loader 驗）
-        elif callable(payload.get("run")):
-            payload["run"](api, cb.chat_id, clicker)              # schema 模式：同一組結構化參數
-        else:
-            node.fn(api, cb.chat_id, clicker, list(payload["argv"]))
+        if waker is not None:
+            self._run_for_ai(waker, api, cb, clicker, node, payload, shown)
+            return
+        self._execute(api, cb.chat_id, clicker, node, payload)
         self._done(cb.chat_id, f"使用者按了 ✅，已執行 {shown}", cb.clicker_id, api)
+
+    @staticmethod
+    def _execute(api, chat_id: int, clicker, node, payload) -> None:
+        grant = payload.get("grant") or ""
+        if grant and callable(payload.get("rerun")):
+            payload["rerun"](api, chat_id, clicker, grant)        # 同一組參數重跑，帶一次性憑證（loader 驗）
+        elif callable(payload.get("run")):
+            payload["run"](api, chat_id, clicker)                 # schema 模式：同一組結構化參數
+        else:
+            node.fn(api, chat_id, clicker, list(payload["argv"]))
+
+    def _slow(self, node, payload) -> bool:
+        """這一張要在 app.tasks 上跑：cli／mcp 的工具（要同步跑完才收得到結果，不能卡住收訊的執行緒）。
+        其他（kind=python、SYNOX 自己的指令）照以前在按鈕的執行緒上直接跑。"""
+        if payload.get("grant") or callable(payload.get("run")):
+            return True
+        group = node.path.split(".", 1)[0]
+        pack = next((p for p in self.app.extras.get("synox_packs", []) if p.manifest.group == group), None)
+        return pack is not None and pack.manifest.kind in ("cli", "mcp")
+
+    def _run_for_ai(self, waker, api, cb, clicker, node, payload, shown: str) -> None:
+        """AI 發的卡按 ✅（規劃 11.10）：用 CardRunApi 執行（照常送給使用者、順便記下來），再交給 waker.after_card。"""
+        run = CardRunApi(api, cb.chat_id, waker=waker)      # 執行中工具又要確認：那張新卡也記得是這個 AI
+        effect = node.effect_of(list(payload["argv"]))
+        tool = node.path.replace(".", "__")
+
+        def execute() -> None:
+            crashed = None
+            asking = self._asking(cb.chat_id)
+            try:
+                self._execute(run, cb.chat_id, clicker, node, payload)
+            except Exception as e:                  # 跟以前一樣交給 dispatcher 記 log；AI 那邊記成失敗
+                crashed = e
+            if crashed is None and run.carded:      # 又出了一張卡（工具回 needs_confirm）：等那一張按了再叫醒
+                run.close()
+                return
+            if crashed is None and not asking and self._asking(cb.chat_id):
+                # 指令開了問答在等人（例如問驗證碼）：結果之後直接給人，這時叫醒 AI 只會插話——只記一筆、不叫醒
+                run.close()
+                try:
+                    waker.note_card(cb.chat_id, CardOutcome(shown, executed=False, reason="在等使用者回答（例如驗證碼），"
+                                                            "結果會直接給使用者"), clicker, getattr(api, "thread", None))
+                except Exception:
+                    logging.exception("[AGENT] after-card note failed (ignored)")
+                return
+            try:
+                if crashed is not None:
+                    from synox import health
+                    run.note_failure(health.failures.from_exception(crashed))
+                ok, text = run.outcome(waker.result_limit(), waker.secrets_of(clicker))
+                outcome = CardOutcome(shown, executed=True, ok=ok, result=text, tool=tool, effect=effect,
+                                      receipts=list(run.receipts) if ok else [])
+                self._wake(waker, api, cb, outcome)
+            except Exception:
+                logging.exception("[AGENT] after-card wake failed (ignored)")
+            if crashed is not None:
+                raise crashed
+
+        if not self._slow(node, payload):
+            execute()
+            return
+        from synox import policy
+        from synox.guard import origin as guard_origin
+        bot = policy.current_bot()
+        typing = getattr(api, "typing", None)
+        if callable(typing):
+            typing(cb.chat_id)
+        self.app.tasks.run(guard_origin.carry(lambda: policy.run_as(bot, execute)), name="agent-card-run")
+
+    def _asking(self, chat_id: int) -> bool:
+        """這個聊天現在有沒有開著的問答（SDK 的 ConversationManager；讀不到＝沒有）。"""
+        try:
+            return bool(self.app.conversations.is_active(chat_id))
+        except Exception:
+            return False
+
+    def _wake(self, waker, api, cb, outcome: CardOutcome) -> None:
+        try:
+            owner = self.app.users.get_or_create(cb.clicker_id)
+            waker.after_card(api, cb.chat_id, owner, outcome)
+        except Exception:
+            logging.exception("[AGENT] after-card handoff failed (ignored)")
 
     def _discard(self, grant: str) -> None:
         if grant:

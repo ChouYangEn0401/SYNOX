@@ -39,7 +39,8 @@ synox-sdk zip .                                                 → dist/hello-0
 
 ## SDK 版本（`requires.sdk`）
 
-SDK＝SYNOX 給工具的**介面合約**，有自己的版本號 `SDK_VERSION`（現在 `0.2.3`，寫在 `src/synox/sdk/author.py`，單檔版、`pip` 套件都讀它）。
+SDK＝SYNOX 給工具的**介面合約**，有自己的版本號 `SDK_VERSION`（現在 `0.2.4`，寫在 `src/synox/sdk/author.py`，單檔版、`pip` 套件都讀它）。
+0.2.4 加了：`Ok(message, data, ai=…)`／`reply_ok(..., ai=…)`，信封多一個選填的 `"ai"`（只給 AI 的結構化結果，見下面「給 AI 的結構化結果」；只加不改）。
 0.2.3 加了：`caller()`／`require_human()`（誰叫的）、工具服務的 `pack.app_read`／`app_action`／`app_export`、`kit.check_values`／`AppError`／`Download`／`csv_bytes`、`synox-sdk init --kind python --app`（只加不改；見 [tool-apps.md](tool-apps.md)）。
 合約包含：pack.json 的格式、子程序工具拿到的環境變數與 JSON 信封（`synox_sdk.py`）、kind=python 工具的 `install(app, pack)` 介面
 （`pack.store`／`store.of(user)`／`path_of`／`secret`／`web_route`、`synox.packs.kit`、`isdtelekit.core.registry` 的 `Field`／`READ`／`WRITE`／`DANGER`）。
@@ -93,12 +94,23 @@ SYNOX 安裝時（第 1、2 關）、載入時、doctor 都會對這台的 `SDK_
 | `return "記了 120 元"` | `{"ok": true, "message": "記了 120 元"}` | 0 |
 | `return {"count": 3}`（dict、list、數字） | `{"ok": true, "data": {"count": 3}}` | 0 |
 | `return Ok("共 3 筆", {"count": 3})` | `{"ok": true, "message": "共 3 筆", "data": {...}}` | 0 |
+| `return Ok("共 3 筆", rows, ai={"count": 3})`（0.2.4 起） | `{"ok": true, "message": "共 3 筆", "data": [...], "ai": {"count": 3}}` | 0 |
 | `raise ToolError("not_found", "找不到這筆")` | `{"ok": false, "error": "找不到這筆", "code": "not_found"}` | 1 |
 | `fail("upstream_changed", "格式變了", remedy="needs_update")` | `{"ok": false, "error": "格式變了", "code": "upstream_changed", "failure": {"v": 1, "remedy": {"kind": "needs_update"}}}`（下一節） | 1 |
 | `raise Confirm("要刪 3 筆")`（或 return） | `{"ok": true, "needs_confirm": true, "summary": "要刪 3 筆", "confirm_token": "…"}` | 0 |
 | 其他例外 | `{"ok": false, "code": "unclassified", "error": "RuntimeError: …", "failure": {"v": 1, "diag": {"exception": "RuntimeError"}}}`（traceback 印到 stderr；0.2.0 以前的 code 是 `internal`，SYNOX 兩個都認得） | 1 |
 
 SYNOX 把 `message` 直接回給使用者；沒有就把 `data` 攤平成幾行。`print()` 的 log 沒關係：SYNOX 只看**最後一行**。
+
+### 給 AI 的結構化結果（`ai`，0.2.4 起）
+
+經 AI 呼叫時（對話助理替使用者按指令），SYNOX 交回 AI 的不是攤平的那幾行，而是 `message`＋一段精簡的 JSON：
+信封有 `"ai"` 就用它，沒有就用 `"data"`（兩個都沒有＝只有 `message`）。人看到的照舊（`"ai"` 不會出現在給人看的字裡）。
+
+- 上限照 SYNOX 設定的 `llm.tool_result_chars`（沒有上限時用預設 4000 字）。太長時**結構化地截**：清單留前幾項，最後一項換成
+  `{"_more": <剩幾項>}`；太長的字串截短加「…」；太深的層換成一句摘要。結果一定是合法 JSON。
+- 想讓 AI 拿到算好的數字、id、日期，又不想讓人看到一大串：把那些放 `ai`，`message` 寫給人看的一句。
+- 跟其他工具結果一樣包在第 5 關的分隔符裡；使用者存的 secret 會先遮掉（`***`）。核准卡按 ✅ 執行之後，AI 也拿到同一份。
 
 ## fail()：失敗信封 v1（SDK 0.2.1 起）
 

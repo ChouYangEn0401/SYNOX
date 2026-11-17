@@ -9,6 +9,7 @@ import time
 
 from conftest import OWNER_ID
 
+from synox.agent.wake import QUIET   # 核准卡按了之後叫醒 AI：AI 沒事要說（規劃 11.10）
 from synox import sdk
 from synox.packs import confirm as tc
 from synox.sdk import author
@@ -231,11 +232,11 @@ def test_tampered_args_cannot_reuse_grant(make_bot, tmp_path):
 # ── 經 AI ──────────────────────────────────────────────────────────────
 
 def test_ai_call_needs_confirm_ends_turn_and_card_goes_to_user(make_bot, tmp_path):
-    bot = _bot(make_bot, tmp_path, script=[{"tool": "demo__purge", "args": {"days": "7"}}, "不該走到這裡"])
+    bot = _bot(make_bot, tmp_path, script=[{"tool": "demo__purge", "args": {"days": "7"}}, QUIET])
     bot.talk(OWNER_ID, "把 7 天前的刪掉")
     adapter = bot.app.extras["synox_agent"].adapter
     assert len(adapter.calls) == 1                                         # 卡出去了，這一輪停住
-    assert "要刪 3 筆（7 天前的）" in bot.last(OWNER_ID) and "不該走到這裡" not in _joined(bot)
+    assert "要刪 3 筆（7 天前的）" in bot.last(OWNER_ID) and QUIET not in _joined(bot)
     bot.press_and_wait(OWNER_ID, _buttons(bot, "go")[0])
     assert "刪了 3 筆 token=d7 confirmed=True" in bot.last(OWNER_ID)       # 結果直接給人
     history = bot.app.extras["synox_agent"].history
