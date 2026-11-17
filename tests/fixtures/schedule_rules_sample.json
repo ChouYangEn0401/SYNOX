@@ -1,0 +1,32 @@
+{
+  "_說明": "測試用的假資料：照另一個助理的排程規則檔的格式（schedule_rules.json）寫的通用預設，不是任何人的設定。",
+  "enabled": true,
+  "class": {
+    "_說明": "哪些行程算課、課後多久不排。",
+    "title_regex": "課|上課|class|lecture",
+    "exclude_prefixes": [],
+    "after_minutes": 30
+  },
+  "meals": [
+    {"name": "午餐", "from": "11:00", "to": "14:00", "minutes": 30},
+    {"name": "晚餐", "from": "17:00", "to": "20:30", "minutes": 30}
+  ],
+  "busy": {
+    "max_hours": 4,
+    "break_minutes": 30,
+    "day_latest": "23:30"
+  },
+  "series": {"enabled": true},
+  "delete_series": {"enabled": true},
+  "naming": [],
+  "plan": {
+    "per_day": 1,
+    "split": false,
+    "overdue": true,
+    "horizon_days": 120,
+    "step_minutes": 15,
+    "margin_minutes": 15,
+    "windows": {"weekday": ["20:00", "23:00"], "weekend": ["09:00", "23:00"]}
+  },
+  "something_new": 5
+}
