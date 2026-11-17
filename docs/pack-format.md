@@ -327,7 +327,7 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
 | `{data_dir}` | SYNOX 的 `data/` |
 | `{user_data_dir}` | 伺服器版 `data/users/<tg_id>`（第一次用時建立）；個人版 `data/` |
 | `{tg_id}` | 下令的人的 Telegram id（排程、網頁也是那個人） |
-| `{prefs_file}` | 這個工具在 `agent.prefs` 宣告的習慣的現值：一份暫存 JSON `{"v": 1, "prefs": {鍵: 值}}`（`data/prefs/<pack>/`，指令結束就刪）。只有擁有者自己的對話帶 soul.md 的值，其他人＝預設值。常見寫法 `"--prefs={prefs_file}"`（[ADR 0031](adr/0031-soul-habits-and-prefs.md)） |
+| `{prefs_file}` | 這個工具在 `agent.prefs` 宣告的習慣的現值：一份暫存 JSON `{"v": 1, "prefs": {鍵: 值}}`（每次呼叫一個新資料夾 `data/prefs/<pack>/<亂數>/prefs.json`，沙盒只准讀那一個資料夾，指令結束連資料夾刪；只能讀，不要寫回去）。只有擁有者自己的對話帶 soul.md 的值，其他人＝預設值。常見寫法 `"--prefs={prefs_file}"`（[ADR 0031](adr/0031-soul-habits-and-prefs.md)） |
 
 欄位不能取這幾個名字。使用者給的值只換一次（值裡寫 `{data_dir}` 不會被換）。
 **`{python} -m 模組` 時 `cli.cwd`（`mcp.cwd`）一定要在 pack 資料夾裡**（`.`、`./子資料夾`、`{pack_dir}…`）：
