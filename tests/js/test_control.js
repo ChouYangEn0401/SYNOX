@@ -341,6 +341,37 @@ test("activator client calls follow the contract (POST + CSRF, ids encoded)", as
   f.calls.forEach((x) => assert.strictEqual(x.headers["X-SYNOX-CSRF"], "tok"));
 });
 
+test("habitsModel marks looser lines red, unused keys and unreadable lines", () => {
+  const m = C.habitsModel({
+    lines: [
+      { line: "- 一天三部〔a.per_day=3〕", text: "一天三部",
+        keys: [{ key: "a.per_day", value: "3", used_by: ["假的排程工具"], unused: false, looser: true, "default": "1",
+                 problem: "", overridden: false }] },
+      { line: "- 沒人用〔x.y=1〕", text: "沒人用",
+        keys: [{ key: "x.y", value: "1", used_by: [], unused: true, looser: false, "default": null, problem: "" }] }
+    ],
+    problems: [{ line: "- 壞的〔a.b=1", why: "〔〕沒有成對" }],
+    declared: [{ key: "a.per_day", type: "int", "default": 1, ask: "一天幾部", used_by: ["假的排程工具"] }]
+  });
+  assert.strictEqual(m.title, "習慣與規則（2）");
+  assert.strictEqual(m.lines[0].looser, true);
+  assert.deepStrictEqual(m.lines[0].keys[0].tags, [{ tone: "bad", text: "放寬（預設 1）" }]);
+  assert.strictEqual(m.lines[0].keys[0].usedBy, "給 假的排程工具");
+  assert.strictEqual(m.lines[1].looser, false);
+  assert.deepStrictEqual(m.lines[1].keys[0].tags, [{ tone: "ctl-idle", text: "目前沒有工具在用" }]);
+  assert.ok(m.summary.indexOf("1 條比工具的預設寬鬆") === 0);
+  assert.deepStrictEqual(m.problems, ["- 壞的〔a.b=1——〔〕沒有成對"]);
+  assert.strictEqual(m.declared[0], "a.per_day（一天幾部；預設 1；假的排程工具）");
+  const empty = C.habitsModel(null);
+  assert.ok(empty.empty.indexOf("還沒有") === 0 && empty.lines.length === 0 && empty.summary === "");
+});
+
+test("habits client is a GET", async () => {
+  const f = fakeFetch([{ lines: [] }]);
+  await C.makeClient(f, () => "tok").habits();
+  assert.deepStrictEqual([f.calls[0].method, f.calls[0].url], ["GET", "/api/runtime/soul/habits"]);
+});
+
 (async () => {
   let failed = 0;
   for (const [name, fn] of tests) {
