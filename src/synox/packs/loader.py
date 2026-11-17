@@ -15,6 +15,8 @@ SYNOX 出廠不帶任何工具（packs/ 只有說明；工具在 SYNOX_Libs）�
 ＝狀態 unapproved（「沒有經過安裝頁」）、通知擁有者一次；要用就送進安裝頁（packs/adopt.py）或 `packs lock --approve`。
 第 1、2 關在安裝時（packs/admin.py），所以載入時不再補掃。
 kind=cli 的 argv／env／cwd 樣板代換 {python}、{node}、{pack_dir}、{data_dir}、{user_data_dir}、{tg_id}（每次呼叫照下令的人）；
+{prefs_file}＝這個工具 agent.prefs 宣告的鍵的現值（暫存 JSON，data/prefs/<工具>/，指令結束就刪；擁有者自己的對話才帶
+soul.md 的值，其他人＝預設；runtime/habits.py）；kind=python 用 pack.prefs(user, chat_id)。
 子程序另外拿到 SYNOX_USER_DATA_DIR／SYNOX_TG_ID／SYNOX_MODE／SYNOX_PACK_DIR／SYNOX_PACK_NAME／SYNOX_SECRET_ENV（context_env，給 synox_sdk）。
 runtime.python／node = "auto" 的環境在安裝時建（packs/envs.py）；沒建好＝status missing、detail 說怎麼重建。
 每次叫 cli 子程序都先過 synox/sandbox.py（PERM-7）：grants 從宣告算、後端包一層 argv（none＝原樣）；
@@ -200,6 +202,13 @@ class Pack:
                     when=when, emits=tuple(emits), timing=timing, cooldown_s=cooldown_s, max_per_hour=max_per_hour,
                     owner=self.name, name=name or f"{self.manifest.title}：{rule_id}")
         return runtime.add_rule(self.app, rule)
+
+    def prefs(self, user, chat_id: Optional[int] = None) -> Dict[str, Any]:
+        """這個工具在 pack.json agent.prefs 宣告的鍵 → 這一次的值（核心統一規劃 11.4，runtime/habits.py）：
+        擁有者自己的對話（chat_id 沒給或是他自己）＝soul.md「習慣與規則」的值蓋過預設；成員、群組、頻道＝預設值。
+        只回這個工具宣告的鍵。"""
+        from synox.runtime import habits
+        return habits.values_for(self.app, self, user, chat_id)
 
     def peer_status(self) -> Dict[str, dict]:
         """別的任務／pack 的狀態：{任務 id: {"state", "at"}}（只有狀態與時間，沒有訊息）。"""
@@ -687,6 +696,8 @@ def _install_cli(app, pack: Pack) -> None:
     # SYNOX_CONFIRM_TOKEN 名字像密鑰，但值是 SYNOX 自己每次明寫的（packs/confirm.py），要留著
     keep_env = list(secret_env_names(m)) + list(tool_confirm.ENV_NAMES)
     by_name = {c["name"]: c for c in m.commands}
+    from synox.runtime import habits
+    uses_prefs = habits.uses_prefs_file(m)
     grants = tool_confirm.grants_of(app)
     nodes: Dict[str, Any] = {}           # 指令名 → 節點（needs_confirm 出卡要用；節點在 submit 之後才掛）
 
@@ -810,13 +821,23 @@ def _install_cli(app, pack: Pack) -> None:
                 if confirmed is None:                   # 過期、用過、參數或人對不上：不執行
                     say(api, chat_id, tool_confirm.EXPIRED)
                     return
-            box_view = boxed(ph)
-            cli = make_cli(ph, user, confirmed, box_view)
-            view = box_view[1]                          # 容器裡跑：{user_data_dir} 這些是容器裡的路徑
-            argv = build_argv(cmd.argv, {**values, **view})
-            timeout = {"timeout": cmd.timeout} if cmd.timeout else {}
-            if stdin_template:
-                timeout["stdin"] = substitute(stdin_template, {**values, **view})
+            # {prefs_file}（核心統一規劃 11.4）：只有這個工具宣告的鍵、這一次的值（擁有者自己的對話才帶 soul.md 的），
+            # 寫成暫存 JSON；指令結束（finish）或啟動失敗就刪
+            prefs_path = habits.write_prefs_file(config.data_dir, m.name, habits.values_for(app, pack, user, chat_id)) \
+                if uses_prefs else ""
+            if prefs_path:
+                ph = dict(ph, prefs_file=prefs_path)
+            try:
+                box_view = boxed(ph)
+                cli = make_cli(ph, user, confirmed, box_view)
+                view = box_view[1]                      # 容器裡跑：{user_data_dir} 這些是容器裡的路徑
+                argv = build_argv(cmd.argv, {**values, **view})
+                timeout = {"timeout": cmd.timeout} if cmd.timeout else {}
+                if stdin_template:
+                    timeout["stdin"] = substitute(stdin_template, {**values, **view})
+            except Exception:
+                habits.remove_prefs_file(prefs_path)
+                raise
             done = bridge._started()
 
             def finish(reply):
@@ -840,21 +861,34 @@ def _install_cli(app, pack: Pack) -> None:
                     if text:
                         say(api, chat_id, text)
                 finally:
+                    habits.remove_prefs_file(prefs_path)
                     done.set()
 
-            if cmd.background:
-                say(api, chat_id, f"⏳ {cmd.name} 開始了，做完通知你。")
-                cli.start(*argv, on_done=finish, **timeout)
-                return
-            if getattr(api, "via_ai", False) is True:
-                # 經 AI 呼叫（agent 的 CaptureApi）：同步跑完，回覆被攔下來當工具結果交回 AI
-                # （loop 再包 nonce 分隔符）。AI 那一輪本來就在 app.tasks 上，不會卡住收訊。
-                finish(cli.call(*argv, **timeout))
-                return
-            typing = getattr(api, "typing", None)
-            if callable(typing):
-                typing(chat_id)
-            app.tasks.run(lambda: finish(cli.call(*argv, **timeout)), name=f"pack-{m.name}-{cmd.name}")
+            def call_and_finish():
+                try:
+                    reply = cli.call(*argv, **timeout)
+                except Exception:
+                    habits.remove_prefs_file(prefs_path)
+                    raise
+                finish(reply)
+
+            try:
+                if cmd.background:
+                    say(api, chat_id, f"⏳ {cmd.name} 開始了，做完通知你。")
+                    cli.start(*argv, on_done=finish, **timeout)
+                    return
+                if getattr(api, "via_ai", False) is True:
+                    # 經 AI 呼叫（agent 的 CaptureApi）：同步跑完，回覆被攔下來當工具結果交回 AI
+                    # （loop 再包 nonce 分隔符）。AI 那一輪本來就在 app.tasks 上，不會卡住收訊。
+                    call_and_finish()
+                    return
+                typing = getattr(api, "typing", None)
+                if callable(typing):
+                    typing(chat_id)
+                app.tasks.run(call_and_finish, name=f"pack-{m.name}-{cmd.name}")
+            except Exception:
+                habits.remove_prefs_file(prefs_path)     # 沒跑起來（finish 不會被叫）：暫存檔照樣收掉
+                raise
         return submit
 
     def panel_route(c: dict):
