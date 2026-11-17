@@ -203,9 +203,10 @@ class Pack:
                     owner=self.name, name=name or f"{self.manifest.title}：{rule_id}")
         return runtime.add_rule(self.app, rule)
 
-    def prefs(self, user, chat_id: Optional[int] = None) -> Dict[str, Any]:
+    def prefs(self, user, chat_id: Optional[int]) -> Dict[str, Any]:
         """這個工具在 pack.json agent.prefs 宣告的鍵 → 這一次的值（核心統一規劃 11.4，runtime/habits.py）：
-        擁有者自己的對話（chat_id 沒給或是他自己）＝soul.md「習慣與規則」的值蓋過預設；成員、群組、頻道＝預設值。
+        擁有者自己的對話（chat_id 一定要給、就是他自己）＝soul.md「習慣與規則」的值蓋過預設；
+        成員、群組、頻道、chat_id 是 None＝預設值。
         只回這個工具宣告的鍵。"""
         from synox.runtime import habits
         return habits.values_for(self.app, self, user, chat_id)

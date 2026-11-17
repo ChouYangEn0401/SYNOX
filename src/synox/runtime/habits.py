@@ -9,8 +9,8 @@
 - 有哪些鍵、什麼型別、預設多少：由各工具的 pack.json `agent.prefs` 宣告（`parse_decls`）；SYNOX 自己不寫死任何鍵。
 - 這一段是擁有者的：常駐助理（append_notes／filter_notes）、soul 帳本的整理都碰不到；只有擁有者直接改，
   或 AI 用 `soul__propose_habit` 提議、擁有者按 ✅（runtime/habit_card.py）才會寫。
-- 工具拿到值的方式：kind=cli 的 `{prefs_file}`（只有那個工具宣告的鍵、用完就刪；`write_prefs_file`）、
-  kind=python 的 `pack.prefs(user)`。只有擁有者自己的對話才帶 soul 裡的值；成員、頻道＝宣告的預設值（`values_for`）。
+- 工具拿到值的方式：kind=cli 的 `{prefs_file}`（只有那個工具宣告的鍵、每次一個資料夾、用完就刪；`write_prefs_file`）、
+  kind=python 的 `pack.prefs(user, chat_id)`。只有擁有者自己的對話才帶 soul 裡的值；成員、頻道＝宣告的預設值（`values_for`）。
 
 這個檔只有純函式（不碰保管箱、不碰 registry），SoulStore、loader、網頁、匯入程式都用它。
 """
@@ -38,7 +38,7 @@ _GROUP = re.compile(r"〔([^〔〕]*)〕")
 _TIME = re.compile(r"^(?:[01]\d|2[0-3]):[0-5]\d$")
 TRUE_WORDS = {"true", "yes", "on", "是", "要", "開"}
 FALSE_WORDS = {"false", "no", "off", "否", "不要", "關"}
-PREFS_DIR = "prefs"                # data/prefs/<工具>/：{prefs_file} 的暫存檔（用完就刪）
+PREFS_DIR = "prefs"                # data/prefs/<工具>/<每次一個亂數資料夾>/prefs.json：{prefs_file}（用完連資料夾刪）
 
 UNUSED = "目前沒有工具在用"
 LOOSER_WORD = "放寬"
@@ -471,14 +471,15 @@ def owner_values(app) -> Dict[str, Any]:
         return {}
 
 
-def is_owners_own(app, user, chat_id=None) -> bool:
-    """擁有者自己的對話（私訊、網頁；chat_id 沒給＝不是群組或頻道）。成員、訪客、頻道一律 False。"""
-    if user is None or not app.registry.is_owner(user):
+def is_owners_own(app, user, chat_id) -> bool:
+    """擁有者自己的對話（私訊、網頁：chat_id 就是他自己）。chat_id 一定要給——None、群組、頻道、成員、訪客一律 False
+    （不知道是哪個對話就當作不是他的，拿預設值）。"""
+    if user is None or chat_id is None or not app.registry.is_owner(user):
         return False
-    return chat_id is None or chat_id == getattr(user, "tg_id", None)
+    return chat_id == getattr(user, "tg_id", None)
 
 
-def values_for(app, pack, user, chat_id=None) -> Dict[str, Any]:
+def values_for(app, pack, user, chat_id) -> Dict[str, Any]:
     """這個工具宣告的鍵 → 這一次的值：擁有者自己的對話＝soul.md 的值蓋過預設；其他人、頻道＝預設值。
     只回這個工具宣告的鍵（別的工具的、沒人宣告的都不給）。"""
     prefs = pack_prefs(pack)
@@ -493,22 +494,40 @@ def prefs_dir(data_dir: str, pack_name: str) -> str:
     return os.path.join(data_dir, PREFS_DIR, pack_name)
 
 
+PREFS_FILE = "prefs.json"
+
+
 def write_prefs_file(data_dir: str, pack_name: str, values: Dict[str, Any]) -> str:
-    """{prefs_file}：寫一份暫存 JSON（data/prefs/<工具>/<亂數>.json），回完整路徑。用完呼叫 remove_prefs_file。"""
-    folder = prefs_dir(data_dir, pack_name)
-    os.makedirs(folder, exist_ok=True)
-    path = os.path.join(folder, secrets.token_hex(8) + ".json")
+    """{prefs_file}：每一次呼叫自己開一個資料夾 data/prefs/<工具>/<亂數>/，裡面只有 prefs.json；回那個檔的完整路徑。
+    沙盒只准讀這一個資料夾（sandbox.grants_for 用檔案所在的資料夾），所以同一個工具同時被兩個人叫，彼此讀不到對方的檔。
+    用完呼叫 remove_prefs_file（連資料夾一起刪）。"""
+    base = prefs_dir(data_dir, pack_name)
+    os.makedirs(base, exist_ok=True)
+    while True:
+        folder = os.path.join(base, secrets.token_hex(8))
+        try:
+            os.mkdir(folder)                         # 一定是新的（亂數撞到就再抽一次）
+            break
+        except FileExistsError:
+            continue
+    path = os.path.join(folder, PREFS_FILE)
     with open(path, "w", encoding="utf-8") as f:
         json.dump({"v": 1, "prefs": values}, f, ensure_ascii=False)
     return path
 
 
 def remove_prefs_file(path: str) -> None:
-    if path:
-        try:
-            os.remove(path)
-        except OSError:
-            pass
+    """刪掉 {prefs_file} 與它那一次的資料夾（只刪 write_prefs_file 開的：檔名對、資料夾在 data/prefs/<工具>/ 底下）。"""
+    if not path or os.path.basename(path) != PREFS_FILE:
+        return
+    try:
+        os.remove(path)
+    except OSError:
+        pass
+    try:
+        os.rmdir(os.path.dirname(path))
+    except OSError:
+        pass
 
 
 def uses_prefs_file(m) -> bool:

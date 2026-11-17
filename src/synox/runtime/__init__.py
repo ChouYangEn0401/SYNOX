@@ -97,7 +97,7 @@ def install(app, config, vault=None, *, config_path: str = "") -> Runtime:
     soul = SoulStore(vault)
     from synox.runtime import habits
     soul.declarations = lambda: habits.declarations(app)     # 「習慣與規則」的型別照已載入工具的 agent.prefs（11.4）
-    mother =MotherSession(app, adapter, soul, settings=conf["mother"], vault=vault)
+    mother = MotherSession(app, adapter, soul, settings=conf["mother"], vault=vault)
     act_conf = conf.get("activator") or rs.defaults()["activator"]
     activator = Activator(loop, settings=act_conf)
     for rule in rules_from_config(act_conf.get("rules") or []):     # config.json 的（已在 settings.parse 檢查過循環）

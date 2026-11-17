@@ -742,7 +742,9 @@ def grants_for(m, config, ph: Dict[str, str], *, pass_env: Sequence[str] = ()) -
     elif scope == "shared":
         write.append(os.path.join(data_dir, "packs", m.name))
     read = [m.folder, envs.env_dir(data_dir, m.name)]
-    if ph.get("prefs_file"):                  # {prefs_file}（runtime/habits.py）：只讀那個暫存檔所在的資料夾
+    if ph.get("prefs_file"):
+        # {prefs_file}（runtime/habits.py）：只准讀這一次呼叫自己的那個資料夾 data/prefs/<工具>/<亂數>/
+        # （裡面只有 prefs.json）；不是 data/prefs/<工具>/ 整個——同時在跑的別人那一次讀不到
         read.append(os.path.dirname(ph["prefs_file"]))
     for p in (sys.prefix, getattr(sys, "base_prefix", sys.prefix)):
         if p and p not in read:
