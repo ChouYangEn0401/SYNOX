@@ -313,6 +313,18 @@ def test_tightening_is_not_marked_looser_and_no_suppresses(make_bot, tmp_path, o
     assert not [b for b in bot.buttons(owner) if b.startswith("soul_habit:")]   # 說過不要：不再出卡
 
 
+def test_no_button_when_the_ledger_cannot_write_says_so(make_bot, tmp_path, owner, monkeypatch):
+    bot, soul = _bot(make_bot, tmp_path)
+    _propose(bot, owner, {"text": "課後一小時內不排", "key": "schedule.class.after_minutes", "value": "60"})
+    ledger = runtime.of(bot.app).ledger
+
+    def broken(*_a, **_k):
+        raise OSError("disk full")
+    monkeypatch.setattr(ledger, "suppress_line", broken)
+    bot.press(owner, [b for b in bot.buttons(owner) if b.startswith("soul_habit:no:")][0])
+    assert soul.prefs() == {} and "這次沒記成「不要」" in bot.last(owner)      # 照樣不寫，老實說記不住
+
+
 def test_unknown_keys_and_bad_values_are_refused(make_bot, tmp_path, owner):
     bot, soul = _bot(make_bot, tmp_path)
     bot.say(owner, "/soul_propose_habit 亂寫 key=not.declared value=1")

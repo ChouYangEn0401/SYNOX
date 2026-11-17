@@ -20,6 +20,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import List, Optional
 
 from isdtelekit.core.registry import WRITE, Field
@@ -159,12 +160,15 @@ def install(app) -> None:
         line = payload["line"]
         if action != "go":
             ledger = _ledger(app)
+            remembered = False
             try:
                 if ledger is not None:
                     ledger.suppress_line(line, what="不要這一條習慣：" + line)
-            except Exception:
-                pass
-            api.send_message(cb.chat_id, "好，不寫。之後再提同一條會直接擋掉。")
+                    remembered = True
+            except Exception:                         # 帳本寫不了（保管箱壞了）：照樣不寫，但老實說記不住
+                logging.exception("[SOUL] could not remember a rejected habit (ignored)")
+            api.send_message(cb.chat_id, "好，不寫。" + ("之後再提一模一樣的一條會直接擋掉。" if remembered
+                                                     else "（這次沒記成「不要」，AI 之後可能會再提一次。）"))
             _note(app, cb.chat_id, cb.clicker_id, f"使用者不要這一條習慣：{line}")
             return
         soul = _soul(app)
