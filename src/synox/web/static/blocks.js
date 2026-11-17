@@ -1,7 +1,7 @@
 /* SYNOX 網頁對話頁：呈現層的區塊（synox/present/web.py 的 wire）→ DOM。
  *
  * config.json 的 presentation.enabled 開著時，AI 回覆的訊息多一個 blocks（JSON），app.html 的 renderMessage
- * 用這裡的 render(document, blocks) 畫；沒有 blocks 的訊息照舊整段 textContent。
+ * 用這裡的 render(document, blocks) 畫；沒有 blocks 的訊息用 linkText(document, text)：照舊整段文字，只把網址變成連結。
  * 伺服器把這個檔原地塞進 app.html 主程式那個 script 標籤開頭的 INCLUDE:blocks.js（server.render_app，同一個 CSP nonce，
  * 不多一個 script 標籤）。
  *
@@ -111,7 +111,32 @@
     return box;
   }
 
-  var api = { render: render, safeHref: safeHref };
+  // 純文字訊息（沒有 blocks）：整段照舊是文字，只有裡面的 http(s):// 網址變成可以點的連結。
+  // 網址只認 ASCII 可見字元（碰到空白、全形字、引號、角括號就停），句尾的標點不算進網址；
+  // 連結一樣過 safeHref、開新分頁、noopener；其他字一律 createTextNode。
+  var URL_RE = /https?:\/\/[^\s<>"'`\u0080-￿]+/gi;
+  var TRAILING = /[.,;:!?)\]}]+$/;
+
+  function linkText(doc, text, cls) {
+    var box = make(doc, "div", cls === undefined ? "text" : cls);
+    var s = text === undefined || text === null ? "" : String(text);
+    var last = 0, m;
+    URL_RE.lastIndex = 0;
+    while ((m = URL_RE.exec(s)) !== null) {
+      var url = m[0].replace(TRAILING, "");
+      var href = safeHref(url);
+      if (!href || /^https?:\/\/$/i.test(url)) { continue; }
+      if (m.index > last) { box.appendChild(doc.createTextNode(s.slice(last, m.index))); }
+      var a = make(doc, "a", "", url);
+      a.href = href; a.target = "_blank"; a.rel = "noopener noreferrer";
+      box.appendChild(a);
+      last = m.index + url.length;
+    }
+    if (last < s.length) { box.appendChild(doc.createTextNode(s.slice(last))); }
+    return box;
+  }
+
+  var api = { render: render, safeHref: safeHref, linkText: linkText };
   if (typeof module === "object" && module && module.exports) { module.exports = api; }
   else { root.SynoxBlocks = api; }
 })(typeof window !== "undefined" ? window : this);
