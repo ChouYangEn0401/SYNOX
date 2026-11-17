@@ -46,6 +46,28 @@ def load_script():
 
 
 smoke_real = load_script()
+
+
+@pytest.fixture(autouse=True)
+def no_network(monkeypatch):
+    """保險：這裡全部走 FakeNet，任何真的往外連線（含查 DNS）都直接丟例外，結束時再檢查一次沒有人試過。
+    工具庫的測試接口再改名、假網路沒接上時，測試會當場失敗，不會偷偷連到真的服務。"""
+    import socket
+    tried = []
+
+    def refuse(*a, **_k):
+        tried.append(a[1:] if len(a) > 1 else a)
+        raise AssertionError(f"smoke 測試不准連網：{a[1:] if len(a) > 1 else a}")
+
+    def refuse_lookup(*a, **_k):
+        tried.append(a)
+        raise AssertionError(f"smoke 測試不准連網（DNS）：{a[:2]}")
+    monkeypatch.setattr(socket.socket, "connect", refuse)
+    monkeypatch.setattr(socket.socket, "connect_ex", refuse)
+    monkeypatch.setattr(socket, "create_connection", lambda *a, **k: refuse(None, *a))
+    monkeypatch.setattr(socket, "getaddrinfo", refuse_lookup)
+    yield tried
+    assert not tried, f"有測試試著連網：{tried}"
 # Notion、Todoist、Google 日曆、Apple 的程式 2026-11-12 起在 SYNOX 工具庫（不在這個 repo）：smoke_real 找得到工具庫才測；
 # Discord（SYNOX 本體）的測試照跑。設 SYNOX_LIBS=<SYNOX_Libs 資料夾>，或把它放在 SYNOX 旁邊。
 needs_libs = pytest.mark.skipif(not smoke_real.libs_packs_dir(),
