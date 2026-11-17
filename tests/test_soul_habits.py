@@ -476,24 +476,49 @@ def test_import_dry_run_prints_every_line_and_changes_nothing(make_bot, tmp_path
     assert habit_import.run(SAMPLE, out=out.append) == 0
     text = "\n".join(out)
     lines = [x for x in out if x.startswith("- ")]
-    assert out[0].startswith("乾跑") and len(lines) == 17
-    assert "- 上完課 30 分鐘內不排別的。〔schedule.class.after_minutes=30〕" in lines
-    assert "- 一部不要切段。〔schedule.plan.split=false〕" in lines
-    assert "- 每天最晚排到 23:30。〔schedule.busy.day_latest=23:30〕" in lines
+    assert out[0].startswith("乾跑") and len(lines) == 4                    # 只有跟預設不同的四項
+    assert "- 上完課 90 分鐘內不排別的。〔schedule.class.after_minutes=90〕" in lines
+    assert "- 一部要切段。〔schedule.plan.split=true〕" in lines
+    assert "- 每天最晚排到 23:00。〔schedule.busy.day_latest=23:00〕" in lines
+    assert any("〔schedule.meals=" in x and "晚餐" in x for x in lines)
+    assert "plan.per_day：跟預設一樣（1），不寫" in text                     # 跟預設一樣的列在略過
+    assert text.count("跟預設一樣") == 12
+    assert "plan.horizon_days：型別或範圍不合（最大是 366），不寫" in text  # 範圍不合的不寫
     assert "enabled：整個檢查的總開關" in text and "something_new" in text
-    for line in lines:                                                        # 每一行都讀得回原本的值
-        habits.check_line(line)
+    for line in lines:                                                        # 每一行都過得了宣告的檢查
+        habits.check_line(line, habit_import.declarations())
 
 
 def test_import_apply_writes_and_can_rerun(make_bot, tmp_path):
     bot, soul = _bot(make_bot, tmp_path)
     assert habit_import.run(SAMPLE, apply=True, soul=soul, out=lambda _x: None) == 0
     first = soul.prefs()
-    assert first["schedule.plan.per_day"] == 1 and first["schedule.meals"][0]["name"] == "午餐"
-    assert first["schedule.plan.windows"] == {"weekday": ["20:00", "23:00"], "weekend": ["09:00", "23:00"]}
+    assert first["schedule.class.after_minutes"] == 90 and first["schedule.meals"][1]["name"] == "晚餐"
+    assert "schedule.plan.per_day" not in first and "schedule.plan.horizon_days" not in first
     count = len(soul.habits().lines)
     assert habit_import.run(SAMPLE, apply=True, soul=soul, out=lambda _x: None) == 0
     assert len(soul.habits().lines) == count and soul.habits().conflicts == {}    # 重跑＝取代，不會越來越多
+
+
+def test_import_apply_without_tools_checks_types_with_its_own_table(tmp_path):
+    """命令列沒有載入工具：--apply 用匯入表自己的宣告，SoulStore 照樣擋型別與範圍。"""
+    from synox.runtime.soul import SoulStore
+    from synox.vault import Vault
+    soul = SoulStore(Vault(b"k" * 32, str(tmp_path)))                       # 跟命令列一樣：沒有任何工具的宣告
+    path = tmp_path / "rules.json"
+    path.write_text(json.dumps({"class": {"after_minutes": 60}}), encoding="utf-8")
+    assert habit_import.run(str(path), apply=True, soul=soul, out=lambda _x: None) == 0
+    assert soul.prefs() == {"schedule.class.after_minutes": 60}
+    with pytest.raises(SoulError, match="最大是 240"):                          # apply 之後 SoulStore 用匯入表的宣告擋
+        soul.set_habit("- 課後很久〔schedule.class.after_minutes=999〕")
+    lines, skipped = habit_import.convert({"plan": {"per_day": "很多", "step_minutes": 0}, "class": {"after_minutes": 999}})
+    assert lines == []
+    assert any("plan.per_day：型別或範圍不合（要是整數）" in s for s in skipped)
+    assert any("plan.step_minutes：型別或範圍不合（最小是 1）" in s for s in skipped)
+    assert any("class.after_minutes：型別或範圍不合（最大是 240）" in s for s in skipped)
+    decls = habit_import.declarations()
+    with pytest.raises(habits.HabitError, match="最大是 240"):
+        habits.check_line("- 課後很久〔schedule.class.after_minutes=999〕", decls)
 
 
 def test_import_null_means_skip(tmp_path):
@@ -501,9 +526,8 @@ def test_import_null_means_skip(tmp_path):
     assert lines == ["- 連續排超過 0 小時要休息。〔schedule.busy.max_hours=0〕"]
     assert any(s.startswith("busy.day_latest＝null") for s in skipped)
 
-
 def test_import_cli_entry(tmp_path, capsys):
     from synox.__main__ import main
     assert main(["import-legacy", "schedule-rules", f"--from={SAMPLE}"]) == 0
-    assert "〔schedule.plan.per_day=1〕" in capsys.readouterr().out
+    assert "〔schedule.class.after_minutes=90〕" in capsys.readouterr().out
     assert main(["import-legacy", "schedule-rules", f"--from={tmp_path / 'missing.json'}"]) == 2
