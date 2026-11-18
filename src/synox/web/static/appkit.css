@@ -22,9 +22,42 @@ a { color: var(--accent); }
 .bad { color: var(--bad); }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
-.synox-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 8px 14px; background: var(--surface);
-  border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 10; }
-.synox-bar small { flex-basis: 100%; }
+/* SYNOX 自己的頁首列與遮罩（appkit.js 畫的）：工具的樣式表排在 kit.css 後面，可能也用 .btn／.danger／.muted、
+   也可能在 :root 改掉 --bad、--bg 這些名字（記帳本就把 .btn.danger 的字改成紅色，紅底紅字看不到）。
+   所以這一塊只用 synox- 開頭的 class、自己的 --synox-* 顏色（定義在 .synox-bar／.synox-mask 本身，不從 :root 繼承），
+   顏色加 !important：工具的 CSS 不管怎麼排，這幾顆按鈕的字都看得到。對比度（WCAG AA ≥ 4.5:1）由 tests/test_appkit.py 檢查。 */
+.synox-bar, .synox-mask {
+  --synox-surface: #ffffff; --synox-ink: #131b26; --synox-muted: #4f5b6b; --synox-line: #d5dce5;
+  --synox-link: #0a6b61; --synox-primary: #0a6b61; --synox-primary-ink: #ffffff;
+  --synox-danger: #b42323; --synox-danger-ink: #ffffff; --synox-ghost-line: #9aa6b5;
+}
+@media (prefers-color-scheme: dark) {
+  .synox-bar, .synox-mask {
+    --synox-surface: #121924; --synox-ink: #dbe4ef; --synox-muted: #9aaabf; --synox-line: #2a3a4f;
+    --synox-link: #35e0c4; --synox-primary: #35e0c4; --synox-primary-ink: #04221d;
+    --synox-danger: #ff8a8f; --synox-danger-ink: #2a0508; --synox-ghost-line: #5d6f86;
+  }
+}
+.synox-bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 8px 14px; position: sticky; top: 0;
+  z-index: 10; background: var(--synox-surface) !important; color: var(--synox-ink) !important;
+  border-bottom: 1px solid var(--synox-line); font-size: 15px; line-height: 1.5; }
+.synox-bar small { flex-basis: 100%; font-size: 13px; }
+.synox-bar .synox-title { color: var(--synox-ink) !important; }
+.synox-bar .synox-muted { color: var(--synox-muted) !important; }
+.synox-bar a.synox-link { color: var(--synox-link) !important; text-decoration: underline; }
+.synox-bar .synox-badge { font-size: 12px; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--synox-line);
+  color: var(--synox-ink) !important; }
+.synox-bar .synox-btn, .synox-mask .synox-btn { font: inherit; font-size: 14px; line-height: 1.4; border-radius: 8px;
+  padding: 6px 12px; min-height: 0; cursor: pointer; text-decoration: none; display: inline-block; white-space: nowrap;
+  opacity: 1; box-shadow: none; }
+.synox-bar .synox-btn.synox-btn-ghost { background: transparent !important; color: var(--synox-ink) !important;
+  border: 1px solid var(--synox-ghost-line) !important; }
+.synox-bar .synox-btn.synox-btn-danger { background: var(--synox-danger) !important; color: var(--synox-danger-ink) !important;
+  border: 1px solid var(--synox-danger) !important; font-weight: 600; }
+.synox-mask .synox-btn.synox-btn-primary { background: var(--synox-primary) !important;
+  color: var(--synox-primary-ink) !important; border: 1px solid var(--synox-primary) !important; font-weight: 600; }
+.synox-bar .synox-btn:focus-visible, .synox-mask .synox-btn:focus-visible, .synox-bar a.synox-link:focus-visible {
+  outline: 2px solid var(--synox-ink); outline-offset: 2px; }
 .bar { display: flex; gap: 10px; align-items: center; padding: 8px 0; }
 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; margin: 12px; }
@@ -66,4 +99,6 @@ a { color: var(--accent); }
 .synox-modal, .synox-mask, .modal, .mask { position: fixed; inset: 0; background: rgba(0, 0, 0, .45); display: flex;
   flex-direction: column; align-items: center; justify-content: center; padding: 16px; z-index: 40; }
 .synox-modal .card { max-width: 420px; width: 100%; }
-.synox-mask { background: var(--bg); text-align: center; gap: 12px; z-index: 50; }
+.synox-mask { background: var(--synox-surface) !important; color: var(--synox-ink) !important; text-align: center; gap: 12px;
+  z-index: 50; }
+.synox-mask p { max-width: 32em; margin: 0; }
