@@ -226,10 +226,12 @@ class ChatStore:
 
     def reply_target(self, tg_id: int, chat_id: str, message_id) -> Optional[dict]:
         """要回覆的那一則：一定要在這個人的「這一段」對話裡、還沒刪掉；不是 → None。回那則訊息的複本。"""
-        try:
-            message_id = int(message_id)
-        except (TypeError, ValueError):
-            return None
+        if isinstance(message_id, bool) or not isinstance(message_id, (int, str)):
+            return None                  # True、1.5、清單…不收（int(True)＝1、int(1.9)＝1 會默默變成別則）
+        if isinstance(message_id, str):
+            if not message_id.strip().isdigit() or not message_id.strip().isascii():
+                return None
+            message_id = int(message_id.strip())
         with self._lock:
             chat, msg = self.find(tg_id, message_id)
             if chat is None or chat["id"] != chat_id or msg.get("deleted"):
