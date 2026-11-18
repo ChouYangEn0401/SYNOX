@@ -23,7 +23,7 @@ Windows 寫法列在每段後面。**整個流程不需要任何真的金鑰、t
 | 能連 PyPI | 必要（裝相依時） | `requests`、`cryptography`、`websocket-client`、`pytest` |
 | 能連 github.com | 選用 | `pip install -e ".[llm]"`（ntu_easy_llm 是 GitHub release 的 wheel，不在 PyPI） |
 | Node.js | 選用 | `tests/js/*.js`（網頁前端的測試；沒有 node 就略過那幾個） |
-| SYNOX_Libs（工具庫）的 clone | 選用 | 少數整合測試（設 `SYNOX_LIBS=<資料夾>`，沒有就略過） |
+| SYNOX_Libs（工具庫）的 clone | 選用 | 少數整合測試（設 `SYNOX_LIBS=<資料夾>`，沒有就略過）。注意：工具庫自己的測試對現在的 `dev` 有一批已知的紅（它的 `tests/conftest.py` 還沒替個人版上鎖，另一條分支正在修），見工具庫 repo（SYNOX_Libs，網址在 [../README.md](../README.md) 頂端）的 `docs/HANDOFF.md`第 8 節 |
 | tkinter＋螢幕 | 選用 | 安裝精靈與提醒視窗的畫面測試（沒有就略過） |
 
 ## 2. clone 與建環境
@@ -87,7 +87,7 @@ Linux 上會**略過**或**已知失敗**的，原因都跟你的改動無關：
 | Windows 專屬：DPAPI、登錄檔（`.synoxpack` 檔案關聯）、junction、Windows PowerShell | 略過（`skipif(sys.platform != "win32")`） | Linux 沒有這些 |
 | 沒有 tkinter 或沒有螢幕 | 略過（`no display`） | 安裝精靈、教學、提醒視窗的畫面測試 |
 | 沒有 node | 略過 `tests/js/*` 對應的測試 | 前端 JS 測試用 node 跑 |
-| 沒有工具庫（`SYNOX_LIBS`） | 略過 `test_empty_host`、`test_smoke_real`、`test_sdk_p2_secret` 的整合測試 | 工具的正本在另一個 repo |
+| 沒有工具庫（`SYNOX_LIBS`） | 略過 `test_empty_host`、`test_smoke_real`、`test_sdk_p2_secret` 的整合測試 | 工具的正本在另一個 repo。設了 `SYNOX_LIBS` 的話，工具庫那邊對現在的 `dev` 有已知的紅，見它的 `docs/HANDOFF.md` 第 8 節 |
 | 沒裝 ntu_easy_llm | `tests/test_llm.py` 幾個 openai／anthropic／gemini 的測試**失敗**、`test_vision` 有兩個略過 | 介面卡經 ntu_easy_llm 組請求；裝 `.[llm]` 就會過 |
 | 幾個寫死 Windows 路徑規則或行為的測試 | **失敗** | 例：`C:\` 開頭算不算絕對路徑、`.synoxpack` 的登錄檔、程式名字怎麼顯示 |
 
@@ -147,11 +147,17 @@ python scripts/release.py check                    # 版本一致、SDK 單檔�
 | 只給 SYNOX 自己的測試用 | `tests/fixtures/`（`tests/fixtures/packs/` 的 money／notes 是凍結的複本，**不加功能**） |
 | 自己用、或給朋友的 | 你自己的地方；打成 `.synoxpack` 直接給人 |
 
+**要在工具庫做新工具，先讀工具庫 repo（SYNOX_Libs，網址在 [../README.md](../README.md) 頂端）的 `docs/HANDOFF.md`**（只拿到那個 repo 就能開發一個工具並交回：檔案組成、閘門、測試、已知落差）。工具庫比 SYNOX 嚴，現在有兩條要先知道：
+
+- **工具庫目前只收 `kind=python`**（它的 `tests/test_gates.py` 擋）。想做 `cli`／`mcp`，先開 issue 問維護者，測試要一起改。下面 6.2 講的「`kind=cli` 首選」是 SYNOX 對一般作者的建議，不適用於工具庫。
+- **新工具先不要做 `panel.html`**：SYNOX 的面板已經隔開（[adr/0028](adr/0028-pack-signatures-official-badge.md) §5），只能打相對網址 `fetch("api/<route>")`；工具庫現有的面板與它的 `test_gates.py` 還是舊寫法（`/api/packs/<name>/…` 帶 credentials），那種寫法在新的 SYNOX 會 401。真的需要面板，在 PR 說明提出，等維護者決定。
+
 **SYNOX 本體不再收工具**（`packs/` 出廠是空的、`loader.BUNDLED` 是空的；[AGENT.md](AGENT.md) invariant 13）。新功能如果是「一個工具」，就做成 pack。
 只有系統層的東西（提醒、排程、通知、教學、說明、權限、安裝流程）才改核心。
 
 ### 6.2 規格
 
+- 要交給工具庫的：以工具庫 repo（SYNOX_Libs，網址在 [../README.md](../README.md) 頂端）的 `docs/HANDOFF.md`為準（只收 `kind=python`、先不要面板，見 6.1）。其他作者：
 - 從 [tools.md](tools.md) 開始：三條接入路（`kind=cli` 首選、`python`、`mcp`）怎麼選、十行入門、權限欄位（`access`、`capabilities`、`surfaces`、`data`、每個指令的 `effect`／`ai`／`confirm`）、
   secret、確認來回、環境建置、升級、測試、**安全自檢表**。
 - 每個欄位的完整規則：[pack-format.md](pack-format.md)。Python SDK（`@tool`、`serve()`、`secret()`、`fail()`…）：[sdk.md](sdk.md)。
@@ -192,7 +198,7 @@ synox-sdk zip <資料夾>                                            # 先 check
 
 - 簽章（`pack.sig.json`，Ed25519）證明「檔案跟簽的時候一樣」。**✅ 官方**只能由擁有者的工具鑰匙簽；那把私鑰只在擁有者手上，
   永遠不會出現在任何 repo、CI 或雲端 session。（現在程式裡的官方公鑰 `OFFICIAL_PACK_PUBLIC_KEYS` 還是空的，所以所有工具都顯示「⚠️ 不是官方」，這是正常的。）
-- **外部作者、雲端 session 交件時不簽、也不附 `pack.sig.json`**：交原始碼（pack 資料夾）到 SYNOX_Libs 的 PR。官方工具由擁有者在發佈時 build、簽、重算雜湊（[signing.md](signing.md) 第 4 節）。
+- **外部作者、雲端 session 交件時不簽、也不附 `pack.sig.json`**：交原始碼（pack 資料夾）到 SYNOX_Libs 的 PR（流程照它的 `docs/HANDOFF.md`）。官方工具由擁有者在發佈時 build、簽、重算雜湊（[signing.md](signing.md) 第 4 節）。
 - 自己發佈給別人的工具，可以用**你自己的**鑰匙簽（標章是 ✍️ 作者簽章，永遠不會是官方）：`synox-sdk keygen`／`sign`／`verify`（[sdk.md](sdk.md)「簽章」、[signing.md](signing.md) 第 6 節）。
   私鑰放在任何 git 資料夾以外（指令會拒絕 git 資料夾裡的私鑰）。
 - 名字、標題、說明不要寫「官方」「official」「SYNOX」「✅」：不是官方的工具寫這些，安裝報告會紅字標出來。

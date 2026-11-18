@@ -22,6 +22,7 @@
 
 - **出廠不帶工具**：記帳、筆記、接外部服務的工具都在另一個公開 repo **SYNOX_Libs（工具庫）**，一個工具一個 `.synoxpack`，使用者挑來裝。
   SYNOX 本體只有系統指令（提醒、排程、說明、教學、帳號…）。
+  要在工具庫開發新工具：讀工具庫 repo（SYNOX_Libs，網址在 [../README.md](../README.md) 頂端）的 `docs/HANDOFF.md`。
 - **底層 SDK**：`vendor/isdtelekit/` 是上游 SDK 的原樣複本（指令樹、dispatcher、表單、Telegram 通道、角色），**不改它**，差異在 `src/synox/` 寫轉接。
 - **授權**：核心 AGPL-3.0-or-later；工具 SDK 與範例 Apache-2.0（[../LICENSING.md](../LICENSING.md)）。
 - **現況**：0.2.1 的預覽版（tag 已到 `v0.2.1-beta.2`，發佈分支 `release/0.2.1`；目前的版本號看 `pyproject.toml`）。很多東西只在自動測試裡跑過、沒在真的 Windows／真的服務上驗證，README 頂端的 alpha 說明是準的。
@@ -122,7 +123,7 @@
 | 想做的事 | 讀這些 |
 |---|---|
 | 建環境、跑測試、交 PR | [development.md](development.md) |
-| 寫一個工具（pack） | [development.md](development.md)「開發 pack」→ [tools.md](tools.md) → [pack-format.md](pack-format.md)、[sdk.md](sdk.md)、[../examples/](../examples/) |
+| 寫一個工具（pack） | [development.md](development.md)「開發 pack」→ [tools.md](tools.md) → [pack-format.md](pack-format.md)、[sdk.md](sdk.md)、[../examples/](../examples/)；要交給工具庫的，以工具庫 repo 的 `docs/HANDOFF.md` 為準 |
 | 改核心 | [development.md](development.md)「改核心的規則」→ [AGENT.md](AGENT.md) invariants → 相關的 ADR |
 | 動到安全 | [security.md](security.md)、[security/web-threats.md](security/web-threats.md)、[sandbox-roadmap.md](sandbox-roadmap.md) |
 | 發版（只有擁有者決定時） | [versioning.md](versioning.md)、[release-playbook.md](release-playbook.md)、[signing.md](signing.md) |
