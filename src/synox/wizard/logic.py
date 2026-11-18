@@ -214,7 +214,9 @@ def build_config(token: str, owner_id: int, llm: dict, *, existing: Optional[dic
         cfg["mode"] = mode
     cfg.setdefault("mode", "personal")
     cfg.update({"bot_token": token.strip(), "owner_id": int(owner_id)})
-    cfg["llm"] = {"max_steps": 6, "max_tokens": 1024, **{k: v for k, v in llm.items()}}
+    from synox.config import LOCAL_MAX_TOKENS
+    cfg["llm"] = {"max_steps": 6, "max_tokens": LOCAL_MAX_TOKENS if llm.get("kind") == "local" else 1024,
+                  **{k: v for k, v in llm.items()}}
     cfg.setdefault("vault", {"mode": "dpapi" if os.name == "nt" else "file"})
     cfg.setdefault("packs", {"enabled": "all", "disabled": []})
     from synox.runtime import settings as runtime_settings

@@ -539,3 +539,196 @@ def test_settings_page_has_the_local_fields():
     for needle in ('id="llm-local-ctx"', 'id="llm-local-advice"', "/api/settings/llm/local-advice",
                    "建議值都是估算", "llm.timeout"):
         assert needle in html, needle
+
+
+# ── LM Studio：API key、取樣參數、看圖能力、思考用光 max_tokens ─────────────────────
+
+LMS_MODELS = {"data": [{"id": "qwen3.5-9b", "type": "vlm", "arch": "qwen35", "state": "loaded",
+                        "max_context_length": 262144, "loaded_context_length": 32768, "capabilities": ["tool_use"]},
+                       {"id": "qwen3-coder-30b-a3b-instruct", "type": "llm", "state": "not-loaded",
+                        "max_context_length": 262144}]}
+
+
+def _sse(*chunks):
+    return [f"data: {json.dumps(c, ensure_ascii=False)}" for c in chunks] + ["data: [DONE]"]
+
+
+def test_lmstudio_api_key_and_only_the_sampling_you_wrote():
+    lines = _sse({"choices": [{"delta": {"content": "好"}, "finish_reason": "stop"}]})
+    a, opener = ollama({("POST", "/v1/chat/completions"): FakeResp(lines)}, model="qwen3.5-9b", server="lmstudio",
+                       base_url="http://localhost:1235/v1", api_key="sk-lm-test",
+                       options={"temperature": 0.1, "top_p": 0.8, "mirostat": 1})
+    assert a.chat([Message(USER, "hi")]).text == "好"
+    seen = {}
+    a2 = LocalAdapter("m", server="lmstudio", api_key="sk-lm-test",
+                      opener=lambda req, t: seen.update(auth=req.get_header("Authorization")) or FakeResp(lines))
+    a2.chat([Message(USER, "hi")])
+    assert seen["auth"] == "Bearer sk-lm-test"
+    body = opener.calls[0]["body"]
+    assert opener.calls[0]["url"] == "http://localhost:1235/v1/chat/completions"
+    assert body["temperature"] == 0.1 and body["top_p"] == 0.8 and "mirostat" not in body   # 只送 OpenAI 認得的
+    b, opener_b = ollama({("POST", "/v1/chat/completions"): FakeResp(lines)}, model="m", server="lmstudio")
+    b.chat([Message(USER, "hi")])
+    assert "temperature" not in opener_b.calls[0]["body"]              # 沒寫＝伺服器預設
+
+
+def test_no_api_key_sends_no_authorization_header():
+    seen = {}
+    lines = _sse({"choices": [{"delta": {"content": "好"}, "finish_reason": "stop"}]})
+    a = LocalAdapter("m", server="lmstudio", opener=lambda req, t: seen.update(h=req.get_header("Authorization")) or FakeResp(lines))
+    a.chat([Message(USER, "hi")])
+    assert seen["h"] is None
+
+
+def test_lmstudio_vision_auto_reads_the_model_type():
+    a, opener = ollama({("GET", "/api/v0/models"): json_resp(LMS_MODELS)}, model="qwen3.5-9b", server="lmstudio")
+    assert a.check_vision() is True
+    assert a.check_vision() is True and opener.paths().count("/api/v0/models") == 1    # 問一次就記住
+    b, _ = ollama({("GET", "/api/v0/models"): json_resp(LMS_MODELS)}, model="qwen3-coder-30b-a3b-instruct",
+                  server="lmstudio")
+    assert b.check_vision() is False
+    c, _ = ollama({}, model="qwen3.5-9b", server="lmstudio")             # 連不上：這次當不支援
+    assert c.check_vision() is False and c._vision_looked is False
+    d, _ = ollama({("GET", "/api/v0/models"): json_resp(LMS_MODELS)}, model="qwen3.5-9b", server="lmstudio", vision="off")
+    assert d.check_vision() is False
+
+
+def test_lmstudio_image_goes_out_as_a_data_uri():
+    from synox.llm.base import ImagePart
+    lines = _sse({"choices": [{"delta": {"content": "一張流程圖"}, "finish_reason": "stop"}]})
+    a, opener = ollama({("GET", "/api/v0/models"): json_resp(LMS_MODELS),
+                        ("POST", "/v1/chat/completions"): FakeResp(lines)}, model="qwen3.5-9b", server="lmstudio")
+    reply = a.chat([Message(USER, "這是什麼？", images=[ImagePart("image/png", b"\x89PNG fake")])])
+    assert reply.text == "一張流程圖"
+    content = next(c for c in opener.calls if c["path"] == "/v1/chat/completions")["body"]["messages"][0]["content"]
+    assert content[0] == {"type": "text", "text": "這是什麼？"}
+    assert content[1]["type"] == "image_url" and content[1]["image_url"]["url"].startswith("data:image/png;base64,")
+
+
+def test_reasoning_is_hidden_and_running_out_while_thinking_is_named():
+    lines = _sse({"choices": [{"delta": {"reasoning_content": "使用者要我…"}}]},
+                 {"choices": [{"delta": {"reasoning_content": "我先想想"}, "finish_reason": "length"}]})
+    a, _ = ollama({("POST", "/v1/chat/completions"): FakeResp(lines)}, model="m", server="lmstudio", max_tokens=300)
+    reply = a.chat([Message(USER, "描述這張圖")])
+    assert reply.text == "" and "使用者要我" not in json.dumps(reply.warnings, ensure_ascii=False)
+    assert any("思考用光了 max_tokens（300）" in w for w in reply.warnings)
+    lines = _sse({"choices": [{"delta": {"reasoning_content": "想"}}]},
+                 {"choices": [{"delta": {"content": "答到一半"}, "finish_reason": "length"}]})
+    b, _ = ollama({("POST", "/v1/chat/completions"): FakeResp(lines)}, model="m", server="lmstudio")
+    assert any(w.startswith("回覆到了 max_tokens") for w in b.chat([Message(USER, "x")]).warnings)
+
+
+def test_lmstudio_inspect_reports_loaded_state_and_capabilities():
+    a, opener = ollama({("GET", "/v1/models"): json_resp({"data": [{"id": "qwen3.5-9b"}, {"id": "qwen3-coder-30b-a3b-instruct"}]}),
+                        ("GET", "/api/v0/models"): json_resp(LMS_MODELS)}, model="qwen3.5-9b", server="lmstudio")
+    report = a.inspect()
+    assert report["max_context"] == 32768 and "vision" in report["capabilities"] and not report["problems"]
+    assert a.supports_vision is True
+    assert not any(p in CHAT_PATHS for p in opener.paths())                # 唯讀
+    b, _ = ollama({("GET", "/v1/models"): json_resp({"data": [{"id": "qwen3-coder-30b-a3b-instruct"}]}),
+                   ("GET", "/api/v0/models"): json_resp(LMS_MODELS)}, model="qwen3-coder-30b-a3b-instruct",
+                  server="lmstudio")
+    notes = " ".join(b.inspect()["notes"])
+    assert "沒有載入" in notes and "看得懂圖" not in notes
+
+
+def test_config_and_factory_take_api_key(monkeypatch):
+    with pytest.raises(ValueError):
+        local.validate({"kind": "local", "model": "m", "api_key": 123})
+    assert local.validate({"kind": "local", "model": "m"})["api_key"] == ""
+    monkeypatch.setenv("LMS_TOKEN", "tok-from-env")
+    a = make_adapter({"llm": {"kind": "local", "server": "lmstudio", "base_url": "http://localhost:1235/v1",
+                              "model": "qwen3.5-9b", "api_key": "env:LMS_TOKEN"}})
+    assert a.api_key == "tok-from-env" and a.root == "http://localhost:1235"
+
+
+# ── 自動接續（max_tokens 切掉時不用使用者打「繼續」）、本地預設 4096、伺服器 context 當預算 ─────────
+
+class _ScriptAdapter:
+    """照順序吐 Reply；記下每次收到的訊息與 max_tokens。"""
+    name, kind, supports_tools, supports_stop, supports_vision = "script", "local", True, False, False
+    supports_max_tokens = True
+    max_tokens = 1024
+
+    def __init__(self, replies, ctx=None):
+        self.replies, self.calls, self.ctx = list(replies), [], ctx
+
+    def check_vision(self):
+        return False
+
+    def server_context(self):
+        return self.ctx
+
+    def chat(self, messages, tools=(), *, stop=(), max_tokens=None):
+        self.calls.append({"messages": list(messages), "max_tokens": max_tokens, "tools": list(tools)})
+        return self.replies.pop(0)
+
+
+def _loop(adapter, **llm):
+    from types import SimpleNamespace
+    from synox.agent.loop import AgentLoop
+    loop = AgentLoop.__new__(AgentLoop)
+    loop.adapter, loop.llm = adapter, {"max_tokens": 1024, **llm}
+    loop._ctx = SimpleNamespace(budget=None)
+    return loop
+
+
+def test_cut_answer_is_continued_without_the_user():
+    a = _ScriptAdapter([Reply(text="第一段", finish="length", warnings=["回覆到了 max_tokens（1024）被切掉。"],
+                              usage={"input": 10, "output": 1024}),
+                        Reply(text="，第二段完。", usage={"input": 20, "output": 5})])
+    reply = _loop(a)._chat([Message(USER, "寫長文")], [SPEC], ())
+    assert reply.text == "第一段，第二段完。" and reply.finish == "" and reply.warnings == []
+    assert reply.usage == {"input": 30, "output": 1029}
+    sent = a.calls[1]["messages"]
+    assert sent[-2].role == ASSISTANT and sent[-2].content == "第一段" and "接著寫" in sent[-1].content
+    assert a.calls[1]["tools"] == []                                  # 接續不帶工具
+
+
+def test_running_out_while_thinking_retries_with_a_bigger_budget():
+    a = _ScriptAdapter([Reply(text="", finish="thinking", warnings=["思考用光了"]), Reply(text="答案")])
+    reply = _loop(a)._chat([Message(USER, "看圖")], [], ())
+    assert reply.text == "答案" and a.calls[1]["max_tokens"] == 2048 and a.calls[0]["max_tokens"] is None
+
+
+def test_auto_continue_stops_at_the_limit_and_can_be_turned_off():
+    cut = lambda: Reply(text="又", finish="length")
+    a = _ScriptAdapter([cut(), cut(), cut()])
+    reply = _loop(a)._chat([Message(USER, "x")], [], ())
+    assert len(a.calls) == 3 and reply.text == "又又又" and reply.finish == "length"   # 預設最多接 2 次
+    b = _ScriptAdapter([cut()])
+    assert _loop(b, auto_continue=0)._chat([Message(USER, "x")], [], ()).text == "又" and len(b.calls) == 1
+    c = _ScriptAdapter([Reply(text="我來記", finish="length", tool_calls=[ToolCall("money__add", {"amount": "8"})])])
+    assert len(_loop(c)._chat([Message(USER, "x")], [SPEC], ()).tool_calls) == 1 and len(c.calls) == 1
+
+
+def test_server_context_becomes_the_budget_when_context_size_is_not_set():
+    assert _loop(_ScriptAdapter([], ctx=32768))._server_context() == 32768
+    assert _loop(_ScriptAdapter([], ctx=None))._server_context() == 0
+    a, opener = ollama({("GET", "/api/v0/models"): json_resp(LMS_MODELS), ("GET", "/v1/models"): json_resp({"data": []})},
+                       model="qwen3.5-9b", server="lmstudio")
+    assert a.server_context() == 32768 and a.server_context() == 32768
+    assert opener.paths().count("/api/v0/models") == 1 and not any(p in CHAT_PATHS for p in opener.paths())
+
+
+def test_local_reply_reports_where_it_was_cut_and_takes_a_one_off_budget():
+    lines = _sse({"choices": [{"delta": {"content": "一半"}, "finish_reason": "length"}]})
+    a, opener = ollama({("POST", "/v1/chat/completions"): FakeResp(lines)}, model="m", server="lmstudio")
+    reply = a.chat([Message(USER, "x")], max_tokens=8192)
+    assert reply.finish == "length" and opener.calls[0]["body"]["max_tokens"] == 8192 and a.max_tokens == 1024
+    done = ndjson({"message": {"content": "半"}, "done": True, "done_reason": "length"})
+    b, ob = ollama({("POST", "/api/chat"): FakeResp(done)})
+    assert b.chat([Message(USER, "x")], max_tokens=2048).finish == "length"
+    assert ob.calls[0]["body"]["options"]["num_predict"] == 2048
+
+
+def test_local_defaults_to_4096_max_tokens_unless_written():
+    base = {"owner_id": 1}
+    cfg = SynoxConfig.from_dict({**base, "llm": {"kind": "local", "server": "lmstudio", "model": "qwen3.5-9b"}},
+                                require_token=False)
+    assert cfg.llm["max_tokens"] == 4096
+    cfg = SynoxConfig.from_dict({**base, "llm": {"kind": "local", "model": "m", "max_tokens": 2000}}, require_token=False)
+    assert cfg.llm["max_tokens"] == 2000
+    cfg = SynoxConfig.from_dict({**base, "llm": {"kind": "openai_compat", "base_url": "http://x/v1", "model": "m"}},
+                                require_token=False)
+    assert cfg.llm["max_tokens"] == 1024

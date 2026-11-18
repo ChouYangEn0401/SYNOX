@@ -51,6 +51,9 @@ class AgentFallback:
             return Route(FALLBACK, "unlock.on")
         route = self.app.dispatcher.log_route(inbound, text, Route(FALLBACK, "agent.ai"))
         bot = policy.current_bot()                   # 收訊的 bot：AI 那一輪在別的執行緒，要帶過去（工具清單照它過濾）
+        attached = getattr(api, "attachments", None)   # 網頁對話的附件（web/uploads.py；只有網頁的 channel 有）
+        if attached:
+            return self._attached(api, inbound, user, text, list(attached), bot, route)
         from synox.agent import media
         file_id = media.telegram_image(inbound, text)
         if file_id is not None:                      # 私訊傳的照片（docs/adr/0021）：file_id 不當文字給 AI
@@ -61,6 +64,33 @@ class AgentFallback:
             return route
         self.app.tasks.run(lambda: policy.run_as(bot, self.loop.run_turn, api, inbound.chat_id, user, text),
                            name="agent-turn")
+        return route
+
+
+    def _attached(self, api, inbound, user, text: str, items, bot, route) -> Route:
+        """網頁附件：圖片照 ADR 0021 走看圖（vision.prepare 去中繼資料、擋大小）；表格／文件／文字檔轉成文字給這一輪。"""
+        from synox.llm import vision
+        from synox.web import uploads
+        pics = [i for i in items if i.kind == uploads.IMAGE]
+        blocks, problems = uploads.blocks_for_ai([i for i in items if i.kind != uploads.IMAGE])
+        if problems:
+            api.send_message(inbound.chat_id, "📎 " + "\n".join(problems))
+        loader = None
+        if pics:
+            limits = vision.limits_of(self.loop.llm)
+
+            def loader():
+                big = [p.name for p in pics if p.size > limits["max_bytes"]]
+                parts, more = vision.prepare_all([p.data for p in pics if p.size <= limits["max_bytes"]], limits)
+                return parts, [f"「{n}」超過 {limits['max_bytes'] // 1048576} MB，沒有送給 AI。" for n in big] + more
+            loader.count = len(pics)
+        if loader is None and not blocks:
+            if not text.startswith("（使用者只傳了附件"):
+                self.app.tasks.run(lambda: policy.run_as(bot, self.loop.run_turn, api, inbound.chat_id, user, text),
+                                   name="agent-turn")
+            return route
+        self.app.tasks.run(lambda: policy.run_as(bot, self.loop.run_turn, api, inbound.chat_id, user, text,
+                                                 images=loader, files=blocks), name="agent-turn")
         return route
 
 

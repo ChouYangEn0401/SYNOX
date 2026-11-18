@@ -14,8 +14,13 @@
 - 截斷：回報的 prompt token ≥ context 的 97%＝「很可能被截斷」（Ollama 超過 num_ctx 是靜默截掉前面），
   寫 logging.warning、放進 Reply.warnings 與 adapter.last_warning（網頁設定頁、doctor 看得到），不靜默。
 - 取樣參數（docs/adr/0019）：`sampling`＝auto（預設：模型名有 qwen3 才送 Qwen3 不思考模式的建議值）｜qwen3｜off，
-  `options`＝自己蓋過的 Ollama options（num_ctx／num_predict／stop 由 SYNOX 管，不收）。**只有 server=ollama 會送**；
-  vLLM／LM Studio／其他照舊（OpenAI 相容的請求不加任何取樣參數）。
+  `options`＝自己蓋過的 Ollama options（num_ctx／num_predict／stop 由 SYNOX 管，不收）。sampling 的建議值**只有
+  server=ollama 會送**；vLLM／LM Studio／其他只送 `options` 裡自己寫的 OPENAI_SAMPLING 那幾個（temperature、top_p…），
+  沒寫＝伺服器／模型預設。
+- api_key：伺服器有開驗證（LM Studio「Require Authentication」、vLLM `--api-key`）才填，送 `Authorization: Bearer`；
+  可以寫 `vault:名稱`／`env:變數`（factory.resolve_secret）。
+- LM Studio：唯讀的 `GET /api/v0/models` 那一筆給 context、`type`（vlm＝看得到圖，vision auto 用它）、`state`（載入了沒）。
+- 思考段（`reasoning_content`）不給人看；思考把 max_tokens 用光、還沒開始回答時，提醒講明是思考用光的。
 - 看圖（docs/adr/0021）：訊息轉換集中在 `ollama_message`（原生 /api/chat 的 `images`：純 base64）與 `openai_message`
   （content parts 的 `image_url`，一律 data URI——Ollama 的 /v1 收到 http 網址回 400）。`vision`＝auto（預設：ollama 唯讀查
   一次 /api/show 的 capabilities 有沒有 vision；其他伺服器查不到＝不支援）｜on｜off；只在有圖的那一輪才查（check_vision）。
@@ -59,6 +64,9 @@ DEFAULTS = {"server": "ollama", "base_url": "", "model": "", "context_size": 0, 
 QWEN3_NO_THINK = {"temperature": 0.7, "top_p": 0.8, "top_k": 20, "min_p": 0}
 SAMPLINGS = ("auto", "qwen3", "off")
 RESERVED_OPTIONS = ("num_ctx", "num_predict", "stop")      # SYNOX 自己管（context_size、max_tokens、停止詞）
+# OpenAI 相容伺服器（vLLM／LM Studio／其他）：llm.options 裡只有這幾個會放進請求本體（自己寫了才送，沒寫＝伺服器預設）
+OPENAI_SAMPLING = ("temperature", "top_p", "top_k", "min_p", "presence_penalty", "frequency_penalty",
+                   "repeat_penalty", "seed")
 MAX_OPTIONS = 20
 _OPTION_KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 
@@ -120,6 +128,9 @@ def validate(llm: dict) -> dict:
         raise ValueError("llm.tools 只能是 true 或 false（false＝走文字協定）。")
     out["sampling"] = parse_sampling(out.get("sampling"))
     out["options"] = parse_options(out.get("options"))
+    if not isinstance(out.get("api_key", ""), str):
+        raise ValueError('llm.api_key 要是文字（伺服器有開驗證才要填；可以寫 "vault:名稱" 或 "env:環境變數"）。')
+    out["api_key"] = (out.get("api_key") or "").strip()
     return out
 
 
@@ -273,7 +284,7 @@ class LocalAdapter(ChatAdapter):
     def __init__(self, model: str = "", *, server: str = "ollama", base_url: str = "", context_size: int = 0,
                  timeout: float = 0, max_total_timeout: float = DEFAULT_MAX_TOTAL, tools: bool = True,
                  max_tokens: int = 1024, opener: Optional[Opener] = None, clock: Optional[Callable[[], float]] = None,
-                 sampling: str = "auto", options: Optional[dict] = None, vision: str = "auto"):
+                 sampling: str = "auto", options: Optional[dict] = None, vision: str = "auto", api_key: str = ""):
         if server not in SERVERS:
             raise LLMError(f"不認得的本地模型伺服器 {server}（只能是 {'、'.join(SERVERS)}）。")
         self.server = server
@@ -286,7 +297,8 @@ class LocalAdapter(ChatAdapter):
         self.supports_tools = bool(tools)
         self.max_tokens = int(max_tokens or 1024)
         self.sampling = sampling if sampling in SAMPLINGS else "auto"
-        self.options = dict(options or {})                # 只給 Ollama（docs/adr/0019）
+        self.options = dict(options or {})                # Ollama：整包 options；其他：只送 OPENAI_SAMPLING 那幾個
+        self.api_key = (api_key or "").strip()             # 伺服器有開驗證（LM Studio「Require Authentication」、vLLM --api-key）
         self._open = opener or default_opener
         self._clock = clock or time.monotonic
         self.server_ctx: Optional[int] = None        # 從伺服器讀到的 context（Ollama /api/ps、vLLM max_model_len）
@@ -308,6 +320,8 @@ class LocalAdapter(ChatAdapter):
         headers = {"Accept": "application/json, text/event-stream, application/x-ndjson"}
         if data is not None:
             headers["Content-Type"] = "application/json"
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
         return urllib.request.Request(self.root + path, data=data, headers=headers, method=method)
 
     def _where(self) -> str:
@@ -405,7 +419,19 @@ class LocalAdapter(ChatAdapter):
             return OLLAMA_DEFAULT_CTX, f"沒設 context_size，假設 Ollama 預設 {OLLAMA_DEFAULT_CTX}"
         return 0, "不知道"
 
-    def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = (), *, stop: Sequence[str] = ()) -> Reply:
+    supports_max_tokens = True        # chat(max_tokens=) 可以這一次放大回覆上限（agent 自動接續用）
+
+    def server_context(self) -> Optional[int]:
+        """伺服器實際的 context（給 agent 的 context 預算用）：llm.context_size 有設就是它；沒設＝唯讀問伺服器一次
+        （LM Studio /api/v0/models、vLLM /v1/models、Ollama /api/ps），問不到＝None。不送 chat、不載入模型。"""
+        if self.context_size:
+            return self.context_size
+        self._learn_context()
+        return self.server_ctx
+
+    def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = (), *, stop: Sequence[str] = (),
+             max_tokens: Optional[int] = None) -> Reply:
+        limit = int(max_tokens or 0) or self.max_tokens
         if not self.model:
             raise LLMError("還沒填本地模型的名稱（例如 qwen3.5:9b；Ollama 的話是 `ollama list` 看得到的名字）。")
         if has_images(messages) and not self.check_vision():
@@ -417,9 +443,9 @@ class LocalAdapter(ChatAdapter):
         stop = [s for s in (stop or ()) if isinstance(s, str) and s]
         try:
             if self.server == "ollama":
-                reply = self._chat_ollama(messages, tools if native else (), warnings, stop)
+                reply = self._chat_ollama(messages, tools if native else (), warnings, stop, limit)
             else:
-                reply = self._chat_openai(messages, tools if native else (), warnings, stop)
+                reply = self._chat_openai(messages, tools if native else (), warnings, stop, limit)
         except _HTTPProblem as p:
             raise LLMError(self._http_text(p))
         from synox.llm.textproto import strip_think
@@ -440,9 +466,10 @@ class LocalAdapter(ChatAdapter):
         reply.warnings = warnings
         return reply
 
-    def _chat_ollama(self, messages, tools, warnings, stop=()) -> Reply:
+    def _chat_ollama(self, messages, tools, warnings, stop=(), limit: int = 0) -> Reply:
+        limit = limit or self.max_tokens
         body = {"model": self.model, "messages": [ollama_message(m) for m in messages], "stream": True,
-                "options": {"num_predict": self.max_tokens}}
+                "options": {"num_predict": limit}}
         body["options"].update(sampling_options(self.model, self.sampling))      # Qwen3 不思考模式（docs/adr/0019）
         body["options"].update({k: v for k, v in self.options.items() if k not in RESERVED_OPTIONS})
         if self.context_size:
@@ -459,8 +486,9 @@ class LocalAdapter(ChatAdapter):
         except _HTTPProblem as p:
             if self._think and p.status == 400 and "think" in (p.body or "").lower():
                 self._think = False                  # 舊版 Ollama／不支援的模型：拿掉 think 再試一次
-                return self._chat_ollama(messages, tools, warnings, stop)
+                return self._chat_ollama(messages, tools, warnings, stop, limit)
             raise
+        finish = ""
         text: List[str] = []
         calls: List[ToolCall] = []
         usage: Dict[str, int] = {}
@@ -490,22 +518,29 @@ class LocalAdapter(ChatAdapter):
             if obj.get("done"):
                 usage = {"input": int(obj.get("prompt_eval_count") or 0), "output": int(obj.get("eval_count") or 0)}
                 if obj.get("done_reason") == "length":
-                    warnings.append(f"回覆到了 max_tokens（{self.max_tokens}）被切掉。")
+                    finish = "length"
+                    warnings.append(f"回覆到了 max_tokens（{limit}）被切掉。")
                 done = True
                 break
         if not done:
             raise LLMError("本地模型的回應中途斷了（沒有收到結束訊號）。")
-        return Reply(text="".join(text), tool_calls=[c for c in calls if c.name], usage=usage)
+        return Reply(text="".join(text), tool_calls=[c for c in calls if c.name], usage=usage, finish=finish)
 
-    def _chat_openai(self, messages, tools, warnings, stop=()) -> Reply:
+    def _chat_openai(self, messages, tools, warnings, stop=(), limit: int = 0) -> Reply:
+        limit = limit or self.max_tokens
         body = {"model": self.model, "messages": [openai_message(m) for m in messages], "stream": True,
-                "stream_options": {"include_usage": True}, "max_tokens": self.max_tokens}
+                "stream_options": {"include_usage": True}, "max_tokens": limit}
         if stop:
             body["stop"] = list(stop)[:4]           # OpenAI 相容的伺服器多半最多收 4 個
         if tools:
             body["tools"] = [tool_schema(t) for t in tools]
+        for key in OPENAI_SAMPLING:                     # 自己在 llm.options 寫了才送（沒寫＝伺服器／模型預設）
+            if key in self.options:
+                body[key] = self.options[key]
         start = self._clock()
         resp = self._open_or_raise(self._request("/v1/chat/completions", body, "POST"), self.timeout)
+        reasoned = False
+        cut = ""
         text: List[str] = []
         parts: Dict[int, dict] = {}
         usage: Dict[str, int] = {}
@@ -540,6 +575,8 @@ class LocalAdapter(ChatAdapter):
                 delta = choice.get("delta") or choice.get("message") or {}
                 if delta.get("content"):
                     text.append(str(delta["content"]))
+                if delta.get("reasoning_content") or delta.get("reasoning"):
+                    reasoned = True                     # 思考段：不給人看，只記得有（max_tokens 被它用光時要講清楚）
                 for tc in delta.get("tool_calls") or []:
                     index = tc.get("index")
                     index = index if isinstance(index, int) else len(parts)
@@ -558,7 +595,13 @@ class LocalAdapter(ChatAdapter):
                 if choice.get("finish_reason"):
                     finished = True
                     if choice["finish_reason"] == "length":
-                        warnings.append(f"回覆到了 max_tokens（{self.max_tokens}）被切掉。")
+                        if reasoned and not "".join(text).strip():
+                            cut = "thinking"
+                            warnings.append(f"模型的思考用光了 max_tokens（{limit}），還沒開始回答：把 llm.max_tokens "
+                                            "調大（會思考的模型建議 4096 以上），或在伺服器那邊關掉這個模型的思考。")
+                        else:
+                            cut = "length"
+                            warnings.append(f"回覆到了 max_tokens（{limit}）被切掉。")
         if not finished:
             raise LLMError("本地模型的回應中途斷了（沒有收到結束訊號）。")
         calls = []
@@ -570,7 +613,7 @@ class LocalAdapter(ChatAdapter):
             if not ok:
                 warnings.append(f"工具 {slot['name']} 的參數不是合法的 JSON（當成沒有參數）。")
             calls.append(ToolCall(name=slot["name"], args=args, id=slot["id"] or f"local-{index}"))
-        return Reply(text="".join(text), tool_calls=calls, usage=usage)
+        return Reply(text="".join(text), tool_calls=calls, usage=usage, finish=cut)
 
     def _learn_context(self) -> None:
         """伺服器實際用的 context（只讀、只問一次，問不到就算了）：Ollama 沒設 context_size 時看 /api/ps（剛剛那次 chat 已經
@@ -593,13 +636,21 @@ class LocalAdapter(ChatAdapter):
             if m.get("id") == self.model and m.get("max_model_len"):
                 return int(m["max_model_len"])
         if self.server == "lmstudio":
-            try:
-                for m in (self._get_json("/api/v0/models") or {}).get("data") or []:
-                    if m.get("id") == self.model:
-                        found = m.get("loaded_context_length") or m.get("max_context_length")
-                        return int(found) if found else None
-            except (LLMError, _HTTPProblem):
-                return None
+            m = self._lmstudio_entry()
+            if m:
+                found = m.get("loaded_context_length") or m.get("max_context_length")
+                return int(found) if found else None
+        return None
+
+    def _lmstudio_entry(self) -> Optional[dict]:
+        """LM Studio 的 GET /api/v0/models 裡這個模型那一筆（type：llm｜vlm｜embeddings、state：loaded｜not-loaded）。
+        唯讀、不載入模型；問不到＝None。"""
+        try:
+            for m in (self._get_json("/api/v0/models") or {}).get("data") or []:
+                if isinstance(m, dict) and m.get("id") == self.model:
+                    return m
+        except (LLMError, _HTTPProblem):
+            return None
         return None
 
     # ── 唯讀的探測 ─────────────────────────────────────────────────────
@@ -608,6 +659,13 @@ class LocalAdapter(ChatAdapter):
         """收不收得下圖（docs/adr/0021）：on／off 照設定；auto＝ollama 唯讀問一次 /api/show（只讀中繼資料，不載入模型）的
         capabilities 有沒有 vision，記住答案；其他伺服器查不到＝不支援。問不到（連不上）＝這次當不支援，下次再問。"""
         if self._vision_looked:
+            return self.supports_vision
+        if self.server == "lmstudio" and self.model:      # LM Studio：/api/v0/models 的 type＝vlm 就是看得到圖
+            entry = self._lmstudio_entry()
+            if entry is None:
+                return False                              # 問不到：這次當不支援，下次再問
+            self._vision_looked = True
+            self.supports_vision = entry.get("type") == "vlm"
             return self.supports_vision
         if self.server != "ollama" or not self.model:
             self._vision_looked = True
@@ -711,6 +769,29 @@ class LocalAdapter(ChatAdapter):
             out["notes"].append(f"伺服器的 context 上限：{out['max_context']}。")
         else:
             out["notes"].append("伺服器沒有回報 context 上限：SYNOX 只能用回報的 token 數事後提醒截斷。")
+        if self.server == "lmstudio":
+            self._inspect_lmstudio(out)
+
+    def _inspect_lmstudio(self, out: dict) -> None:
+        """LM Studio 多給的中繼資料（唯讀）：載入了沒、看不看得到圖、會不會用工具。"""
+        entry = self._lmstudio_entry()
+        if not entry:
+            return
+        caps = [c for c in entry.get("capabilities") or [] if isinstance(c, str)]
+        if entry.get("type") == "vlm":
+            caps.append("vision")
+        out["capabilities"] = caps
+        if entry.get("state") and entry.get("state") != "loaded":
+            out["notes"].append("這個模型現在沒有載入：第一次對話時 LM Studio 會先載入（要開 JIT），會多等一下；"
+                                "也可以先在 LM Studio 或用 `lms load` 載入。")
+        if self.vision == "auto":
+            self._vision_looked = True
+            self.supports_vision = "vision" in caps
+        if "vision" in caps:
+            out["notes"].append("這個模型看得懂圖（vision）：" + (
+                "llm.vision＝off，SYNOX 不會把圖送給它。" if self.vision == "off" else "傳給 SYNOX 的照片會直接給它看。"))
+        if self.supports_tools and entry.get("capabilities") is not None and "tool_use" not in caps:
+            out["notes"].append("LM Studio 沒標這個模型會用工具（tool_use）：工具呼叫不順的話，把 llm.tools 設成 false（走文字協定）。")
 
     def _judge(self, out: dict) -> None:
         max_ctx, ctx = out.get("max_context"), self.context_size

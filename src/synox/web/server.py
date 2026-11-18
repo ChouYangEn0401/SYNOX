@@ -320,6 +320,8 @@ class WebUI:
         self.sessions = Sessions(os.path.join(data, "web_sessions.json"), clock=clock)
         self.panel_tickets = PanelTickets(clock=clock)    # 面板的票（只在記憶體；ADR 0028 §5）
         self.chats = ChatStore(os.path.join(data, "web_chats"), vault, clock=clock)
+        from synox.web.uploads import UploadStore
+        self.uploads = UploadStore(clock=clock)          # 對話的附件：只在記憶體（web/uploads.py）
         self.prefs = toolpage.UserPrefs(os.path.join(data, "web_prefs"), vault)   # 每個人的工具頁排版、外觀
         self.appearance = Appearance(app, config, self.prefs)                     # 設定 → 外觀（synox/theme）
         self._clock = clock
@@ -897,6 +899,9 @@ class WebUI:
             return _err(405, "只收 GET、POST。")
         if path == "/api/packs/upload":
             return self.pack_upload(user, body, headers)
+        m = re.match(r"^/api/chat/([a-z0-9]+)/(upload|unupload)$", path)
+        if m:
+            return self.chat_upload(user, m.group(1), body, headers, drop=m.group(2) == "unupload")
         try:
             data = json.loads(body.decode("utf-8") or "{}") if body else {}
         except (ValueError, UnicodeDecodeError):
@@ -925,6 +930,12 @@ class WebUI:
             return self.test_llm(user, data)
         if path == "/api/settings/llm/local-advice":
             return self.local_advice(user, data)
+        if path == "/api/settings/llm/local-models":
+            return self.local_models(user, data)
+        if path == "/api/settings/llm/local-load":
+            return self.local_load(user, data, unload=False)
+        if path == "/api/settings/llm/local-unload":
+            return self.local_load(user, data, unload=True)
         if path == "/api/settings/channels/telegram":
             return self.save_telegram(user, data)
         if path == "/api/settings/channels/discord":
@@ -1042,21 +1053,57 @@ class WebUI:
     def channel(self, user, chat_id: str) -> WebChannel:
         return WebChannel(self.chats, user.tg_id, chat_id, home=self.app.home)
 
+    def chat_upload(self, user, chat_id: str, body: bytes, headers: Optional[Dict[str, str]], *, drop: bool) -> Resp:
+        """對話的附件（web/uploads.py）：原始位元組放 body，檔名放 X-SYNOX-Filename（encodeURIComponent 過的）。
+        只放在記憶體、回一個隨機 id；送出訊息時帶 attachments: [id]。檔名只拿來顯示，從來不當路徑。
+        unupload：body 是 JSON {"id": …}，把還沒送出的附件拿掉。"""
+        chat = self._chat(user, chat_id)
+        if chat is None or chat_id == MOTHER_CHAT:
+            return _err(404, "沒有這段對話（常駐助理不收附件）。")
+        if chat.get("archived"):
+            return _err(409, "這段對話封存了：先還原才能繼續。")
+        from synox.web import uploads
+        if drop:
+            try:
+                item_id = str((json.loads(body.decode("utf-8") or "{}") or {}).get("id") or "")
+            except (ValueError, UnicodeDecodeError, AttributeError):
+                return _err(400, "送來的不是 JSON。")
+            return _json(200, {"ok": self.uploads.drop(user.tg_id, chat_id, item_id)})
+        from urllib.parse import unquote
+        raw_name = unquote(str((headers or {}).get("x-synox-filename") or ""), errors="replace")
+        try:
+            item = self.uploads.put(user.tg_id, chat_id, raw_name, body)
+        except uploads.Refused as e:
+            return _err(400, str(e))
+        return _json(200, {"ok": True, **item.public()})
+
     def send(self, user, chat_id: str, data: dict) -> Resp:
         if self._chat(user, chat_id) is None:
             return _err(404, "沒有這段對話。")
         text = str(data.get("text") or "").strip()
-        if not text:
+        ids = data.get("attachments") or []
+        if not isinstance(ids, list) or len(ids) > 20:
+            return _err(400, "attachments 要是附件 id 的清單。")
+        if not text and not ids:
             return _err(400, "沒有內容。")
         if len(text) > MAX_TEXT:
             return _err(400, f"太長了（最多 {MAX_TEXT} 字）。")
         if (self._chat(user, chat_id) or {}).get("archived"):
             return _err(409, "這段對話封存了：先還原才能繼續。")
-        self.chats.append(user.tg_id, chat_id, "me", mask_code(text))      # 驗證碼不進對話紀錄（ADR 0025 §5.3）
+        files = self.uploads.take(user.tg_id, chat_id, ids) if ids else []
+        if ids and not files:
+            return _err(409, "附件已經過期或送過了：請重新附上。")
+        from synox.web.uploads import placeholder
+        shown = (mask_code(text) + ("\n" if text and files else "") + placeholder(files)).strip()
+        self.chats.append(user.tg_id, chat_id, "me", shown)      # 驗證碼不進對話紀錄（ADR 0025 §5.3）；附件只留名字
         if chat_id == MOTHER_CHAT:
             return self._send_mother(user, text)
-        inbound = Inbound(WEB, user.tg_id, user.tg_id, text, username=user.username or "web", sent_at=time.time())
-        route = self.app.dispatcher.handle(self.channel(user, chat_id), inbound)
+        channel = self.channel(user, chat_id)
+        if files:
+            channel.attachments = files              # agent/__init__.py 的 AgentFallback 會拿去（只有網頁有這個欄位）
+        said = text or "（使用者只傳了附件）"
+        inbound = Inbound(WEB, user.tg_id, user.tg_id, said, username=user.username or "web", sent_at=time.time())
+        route = self.app.dispatcher.handle(channel, inbound)
         return _json(200, {"ok": True, "route": getattr(route, "kind", ""), "rev": self.chats.rev(user.tg_id)})
 
     def _send_mother(self, user, text: str) -> Resp:
@@ -1408,7 +1455,7 @@ class WebUI:
             api_key, keep = "（沿用）", True               # 留空＝沿用原本的金鑰
         if choice == "local":
             tools = data.get("tools", current.get("tools", True) if current.get("kind") == "local" else True)
-            return logic.llm_settings("local", server=str(data.get("server") or "ollama"),
+            llm, problem = logic.llm_settings("local", server=str(data.get("server") or "ollama"),
                                       base_url=str(data.get("base_url") or ""), model=str(data.get("model") or ""),
                                       context_size=data.get("context_size", 0), tools=tools,
                                       timeout=data.get("timeout") if data.get("timeout") not in (None, "") else
@@ -1416,6 +1463,12 @@ class WebUI:
                                       max_total_timeout=data.get("max_total_timeout")
                                       if data.get("max_total_timeout") not in (None, "") else
                                       (current.get("max_total_timeout") if current.get("kind") == "local" else None))
+            if llm:                                    # 伺服器有開驗證才要 API key；留空＝沿用原本的
+                if api_key.strip():
+                    llm["api_key"] = api_key.strip()
+                elif current.get("kind") == "local" and current.get("api_key"):
+                    llm["api_key"] = current["api_key"]
+            return llm, problem
         llm, problem = logic.llm_settings(choice, base_url=str(data.get("base_url") or ""), api_key=api_key,
                                           model=str(data.get("model") or ""), provider=provider)
         if problem:
@@ -1441,7 +1494,11 @@ class WebUI:
             llm["api_key"] = VAULT_PREFIX + logic.SECRET_NAME
         cfg = logic.read_existing(self.config_path)
         old = cfg.get("llm") or {}
-        cfg["llm"] = {"max_steps": old.get("max_steps", 6), "max_tokens": old.get("max_tokens", 1024),
+        from synox.config import LOCAL_MAX_TOKENS
+        max_tokens = old.get("max_tokens", 1024)
+        if llm.get("kind") == "local" and old.get("kind") != "local" and max_tokens == 1024:
+            max_tokens = LOCAL_MAX_TOKENS                    # 換成本地模型：舊的預設 1024 對會思考的模型太少
+        cfg["llm"] = {"max_steps": old.get("max_steps", 6), "max_tokens": max_tokens,
                       **{k: old[k] for k in KEEP_LLM_KEYS if k in old}, **llm}     # 換來源不洗掉完成宣稱檢查等設定
         logic.write_config(self.config_path, cfg)
         stale = ("kind", "api_key", "base_url", "model", "tools", "server", "context_size", "timeout",
@@ -1558,6 +1615,73 @@ class WebUI:
         if url_warning(base_url):
             advice["notes"].insert(0, url_warning(base_url))
         return _json(200, advice)
+
+    def _local_target(self, data: dict):
+        """(server, base_url, api_key) 或 錯誤 Resp。API key：表單填的；沒填＝現在設定裡的（同一台伺服器才沿用）。"""
+        from synox.wizard import logic
+        server = str(data.get("server") or "ollama")
+        if server not in logic.LOCAL_SERVERS:
+            return None, _err(400, "server 只能是 " + "、".join(logic.LOCAL_SERVERS) + "。")
+        base_url = str(data.get("base_url") or "").strip()
+        if base_url and not base_url.startswith(("http://", "https://")):
+            return None, _err(400, "網址要以 http:// 或 https:// 開頭。")
+        from synox.llm.local import DEFAULT_URLS, root_url
+        base_url = base_url or DEFAULT_URLS[server]
+        api_key = str(data.get("api_key") or "").strip()
+        current = self.config.llm or {}
+        if not api_key and current.get("kind") == "local" and current.get("api_key") and \
+                root_url(str(current.get("base_url") or "")) == root_url(base_url):
+            from synox.llm.factory import resolve_secret
+            try:
+                api_key = resolve_secret(current["api_key"], self.vault)
+            except Exception:
+                api_key = ""
+        return (server, base_url, api_key), None
+
+    def local_models(self, user, data: dict) -> Resp:
+        """設定頁的模型下拉選單：唯讀列出本地伺服器上的模型（哪些已載入、看不看得到圖、會不會用工具）。只給擁有者；
+        用 POST（要 CSRF header）：會讓 SYNOX 去連使用者填的網址。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        target, bad = self._local_target(data)
+        if bad:
+            return bad
+        from synox.llm import local_models
+        from synox.llm.base import LLMError
+        try:
+            out = local_models.list_models(*target)
+        except LLMError as e:
+            return _json(200, {"ok": False, "message": f"❌ 連不上：{e}", "models": [], "can_load": False})
+        out["ok"] = True
+        out["suggested"] = local_models.pick_default(out["models"])
+        return _json(200, out)
+
+    def local_load(self, user, data: dict, *, unload: bool) -> Resp:
+        """載入／卸載本地模型（「釋放顯卡」＝model 空、全部卸載）。只給擁有者按按鈕；AI 叫不到（不是工具）。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        target, bad = self._local_target(data)
+        if bad:
+            return bad
+        from synox.llm import local_models
+        from synox.llm.base import LLMError
+        server, base_url, api_key = target
+        model = str(data.get("model") or "").strip()
+        try:
+            if unload:
+                message = local_models.unload(server, base_url, model, api_key)
+            else:
+                try:
+                    ctx = int(data.get("context_length") or 0)
+                except (TypeError, ValueError):
+                    return _err(400, "context_length 要是整數。")
+                message = local_models.load(server, base_url, model, ctx, api_key)
+        except LLMError as e:
+            return _json(200, {"ok": False, "message": f"❌ {e}"})
+        logging.info("[WEB] local model %s on %s by the owner", "unload" if unload else "load", server)
+        return _json(200, {"ok": True, "message": message})
 
     # ── 聊天通道（Telegram／Discord）：跟精靈同一套檢查與存法；token 永遠不回傳、不寫 log ──────
     # 改了要重開 SYNOX 才生效（App 沒有「執行中換通道」）。擁有者配對不在這裡做（Setup.bat／discord pair）。
@@ -2214,7 +2338,13 @@ class _Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
             length = -1
-        limit = MAX_UPLOAD + 1024 if self.path.startswith("/api/packs/upload") else MAX_BODY
+        from synox.web.uploads import MAX_FILE_BYTES
+        if self.path.startswith("/api/packs/upload"):
+            limit = MAX_UPLOAD + 1024
+        elif re.match(r"^/api/chat/[a-z0-9]+/upload$", self.path):
+            limit = MAX_FILE_BYTES + 1024          # 對話的附件（web/uploads.py）
+        else:
+            limit = MAX_BODY
         if length < 0 or length > limit:
             status, headers, body = _err(413, "送來的東西太大。")
         else:

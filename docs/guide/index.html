@@ -444,14 +444,14 @@ span.hl { display: inline-block; }
 </nav>
 
 <footer class="wrap">
-  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>62692a3eb2 · 2026-11-14</span></p>
+  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>1419ac817f · 2026-11-18</span></p>
 </footer>
 
 <script type="application/json" id="tour-steps">
 {
  "id": "basics",
  "title": "SYNOX 新手教學",
- "version": "1.1.0",
+ "version": "1.2.0",
  "minutes": 5,
  "steps": [
   {
@@ -546,6 +546,15 @@ span.hl { display: inline-block; }
    ],
    "view": "settings",
    "tab": "packs"
+  },
+  {
+   "id": "wardrobe",
+   "title": "幫 SYNOX 換衣服",
+   "body": "想幫 SYNOX 換衣服嗎？到「設定 → 🎨 外觀」的「衣櫃」挑一套試穿。外觀只改網頁的樣子，功能不變；不喜歡隨時在同一頁換回原本的 SYNOX。不想換就按「下一步」。",
+   "anchors": [
+    "settings.tab.appearance"
+   ],
+   "view": "settings"
   },
   {
    "id": "get-help",
@@ -1094,7 +1103,7 @@ span.hl { display: inline-block; }
       var side = '<div class="side"><span class="br2"><span class="mk">S</span>SYNOX</span>' + nv("chat", "對話") + nv("tools", "工具") + nv("settings", "設定") + '</div>';
       var main;
       if (view === "settings") {
-        var tabs = [["ai", "🤖 AI"], ["channels", "💬 聊天通道"], ["packs", "🧩 功能與安裝"], ["system", "💻 電腦與備份"], ["commands", "⌨️ 我的指令"], ["help", "🙋 遇到問題？"]];
+        var tabs = [["ai", "🤖 AI"], ["channels", "💬 聊天通道"], ["packs", "🧩 功能與安裝"], ["system", "💻 電腦與備份"], ["appearance", "🎨 外觀"], ["commands", "⌨️ 我的指令"], ["help", "🙋 遇到問題？"]];
         main = '<h4>設定</h4><div class="tabs" data-hl="settings.tabs">' + tabs.map(function (t) {
           return '<span class="' + (t[0] === tab ? "on" : "") + '" data-hl="settings.tab.' + t[0] + '">' + t[1] + '</span>'; }).join("") + '</div>';
         if (tab === "packs") {
