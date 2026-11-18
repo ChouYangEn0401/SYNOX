@@ -14,6 +14,7 @@
   var EXTS = [".synoxpack", ".zip"];
   var TEXT = {
     overlay: "放開滑鼠，我就檢查這個工具檔。會先給你看檢查的結果，你按確認才會裝。",
+    chat: "放開滑鼠，就附到這則訊息（圖片、表格、文字檔）。工具檔（.synoxpack）一樣會先檢查給你看。",
     hint: "也可以把工具檔（.synoxpack）直接拖進這個網頁，或在電腦裡對它點兩下。不管哪一種，都會先檢查給你看，你按確認才會裝。",
     one: "一次拖一個工具檔就好。",
     ext: "這不是工具檔（檔名結尾要是 .synoxpack）：",
@@ -85,10 +86,14 @@
     var depth = 0;
     function showOverlay(on) { overlay.classList.toggle("hidden", !on); }
 
+    function chatView() {                                   // 對話頁：拖進來的一般檔案當附件（app.html 的 SynoxChatDrop）
+      return doc.body.getAttribute("data-view") === "chat" && typeof root.SynoxChatDrop === "function";
+    }
     doc.addEventListener("dragenter", function (e) {
       if (!hasFiles(e)) { return; }
       e.preventDefault();
       depth += 1;
+      box.textContent = chatView() ? TEXT.chat : TEXT.overlay;
       showOverlay(true);
     });
     doc.addEventListener("dragover", function (e) {
@@ -107,6 +112,7 @@
       depth = 0;
       showOverlay(false);
       var r = check(e.dataTransfer.files);
+      if (!r.ok && chatView()) { root.SynoxChatDrop(e.dataTransfer.files); return; }
       if (!r.ok) { say(r.message); return; }
       if (doc.body.getAttribute("data-view") === "login") { say(TEXT.login); return; }
       root.fetch("/api/me", { credentials: "same-origin" }).then(function (resp) {

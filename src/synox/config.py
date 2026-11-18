@@ -71,6 +71,7 @@ CONFIG_PATH = os.path.join(ROOT, "config.json")
 LLM_KINDS = ("openai", "anthropic", "gemini", "openai_compat", "claude_code", "local", "fake", "none")
 DEFAULT_LLM = {"kind": "none", "max_steps": 6, "max_tokens": 1024, "completion_guard": "auto", "verify_retries": 2,
                "summarize_on_limit": "auto"}
+LOCAL_MAX_TOKENS = 4096        # kind=local 沒寫 max_tokens 時的預設（llm/local.py、精靈、網頁設定頁共用）
 DEFAULT_VAULT = {"mode": "dpapi" if os.name == "nt" else "file"}
 DEFAULT_PACKS = {"enabled": "all", "disabled": []}
 DEFAULT_WEB = {"enabled": True, "port": 8830, "public_url": ""}
@@ -196,6 +197,8 @@ class SynoxConfig(BotConfig):
         root = os.path.abspath(root or ROOT)
         data_dir = base.data_dir if os.path.isabs(base.data_dir) else os.path.join(root, base.data_dir)
         llm = {**DEFAULT_LLM, **(raw.get("llm") or {})}
+        if llm.get("kind") == "local" and "max_tokens" not in (raw.get("llm") or {}):
+            llm["max_tokens"] = LOCAL_MAX_TOKENS          # 本地模型多半會思考：沒寫就給 4096（1024 常常想完就用光）
         if llm.get("kind") not in LLM_KINDS:
             raise ConfigError(f"config.json 的 llm.kind 只能是 {'、'.join(LLM_KINDS)}（現在是 {llm.get('kind')!r}）。")
         llm = parse_llm_extras(llm)

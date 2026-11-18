@@ -70,6 +70,7 @@ class Reply:
     tool_calls: List[ToolCall] = field(default_factory=list)
     usage: Dict[str, int] = field(default_factory=dict)   # {"input": n, "output": n}
     warnings: List[str] = field(default_factory=list)     # 給人看的提醒（例如本地模型的提示很可能被截斷）；不是錯誤
+    finish: str = ""          # 被 max_tokens 切掉：length＝答到一半｜thinking＝還在思考就用完；空＝正常結束（agent 會自動接續）
 
 
 class LLMError(Exception):

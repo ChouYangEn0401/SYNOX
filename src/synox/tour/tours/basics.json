@@ -2,7 +2,7 @@
   "schema": 1,
   "id": "basics",
   "title": "SYNOX 新手教學",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "minutes": 5,
   "summary": "認識對話、工具、設定，學會看安裝報告、裝和移除工具，最後自己挑想要的工具。",
   "steps": [
@@ -95,6 +95,14 @@
       "where": {"anchor": "settings.packs.installed"},
       "go": {"view": "settings", "tab": "packs"},
       "audience": "owner"
+    },
+    {
+      "id": "wardrobe",
+      "title": "幫 SYNOX 換衣服",
+      "body": "想幫 SYNOX 換衣服嗎？到「設定 → 🎨 外觀」的「衣櫃」挑一套試穿。外觀只改網頁的樣子，功能不變；不喜歡隨時在同一頁換回原本的 SYNOX。不想換就按「下一步」。",
+      "chat": "想幫 SYNOX 換衣服嗎？在網頁的「設定 → 🎨 外觀」有「SYNOX 衣櫃」，按「看衣櫃」挑一套試穿。外觀只改網頁的樣子，不影響功能；不喜歡隨時在同一頁換回原本的 SYNOX。不想換也沒關係。",
+      "where": {"anchor": "settings.tab.appearance"},
+      "go": {"view": "settings"}
     },
     {
       "id": "get-help",

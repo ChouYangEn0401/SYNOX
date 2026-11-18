@@ -40,7 +40,7 @@ def test_builtin_tutorial_loads_and_is_plain():
     tour = schema.load_file(BASICS)
     assert tour.id == "basics" and tour.source == ""
     owner, member = tour.steps_for(True), tour.steps_for(False)
-    assert 8 <= len(owner) <= 12 and 5 <= len(member) <= 12
+    assert 8 <= len(owner) <= 13 and 5 <= len(member) <= 12
     assert owner[-1].id == "done-owner" and "現在你可以自己挑想要的工具了" in owner[-1].body
     assert owner[-1].go == {"view": "settings", "tab": "packs"}            # 最後一步連到工具庫
     ids = [s.id for s in owner]

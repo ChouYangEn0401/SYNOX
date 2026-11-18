@@ -4,14 +4,21 @@
 **預設關**；打開＝覆蓋 Windows 電源選項裡的「睡眠」設定（NOTICE，網頁與 doctor 都顯示這段）。
 
     ka = KeepAwake(loop, settings=config.runtime["keep_awake"])
-    ka.register()        任務每 60 秒確認一次請求還在（被別的程式清掉就重要一次），並看要不要熄螢幕
+    ka.register()        任務每 60 秒確認一次請求還在（被別的程式清掉就重要一次）
     ka.release()         App 停止時放掉（程式結束 Windows 也會自己放掉，不會留著）
     ka.update(enabled=, screen_off_after_min=)
 
-為什麼不用自己做「黑螢幕小工具」：只請求「系統清醒」（PowerRequestSystemRequired）、不請求「螢幕常亮」時，
-Windows 電源計畫裡「幾分鐘後關閉螢幕」照樣生效，而且任何滑鼠、鍵盤動作都會把螢幕點亮——這就是要的行為。
-只有電源計畫把「關閉螢幕」設成「永不」時，才需要 screen_off_after_min：閒置超過這麼久就請 Windows 關螢幕一次
-（SC_MONITORPOWER），之後同樣是動一下就亮。
+螢幕（screen_off_after_min）：
+    0   ＝照 Windows 電源計畫（只請求「系統清醒」、不請求「螢幕常亮」，計畫裡「幾分鐘後關閉螢幕」照樣生效）。
+    N>0 ＝閒置 N 分鐘關螢幕：把目前電源計畫的「關閉顯示器前的時間」（VIDEOIDLE，插電＋電池）設成 N 分鐘，
+          由 Windows 自己關（動滑鼠或鍵盤就亮）。關掉保持清醒、改回 0／-1、App 停止時改回原本的值
+          （只在值還是我們寫的那個時才改回；使用者自己在 Windows 設定改過就不動）。不設上限（只防溢位）。
+    -1  ＝螢幕永不關（另外請求 PowerRequestDisplayRequired）。
+
+2026-11-13 hotfix：以前 N>0 是閒置到了就廣播 SC_MONITORPOWER 關螢幕。在現代待命機型上 Windows 把它當成按了睡眠鍵
+（事件記錄 Kernel-Power 506「The system is entering Modern Standby — Reason: SC_MONITORPOWER」、
+566「Reason SleepButton」），螢幕一關電腦就跟著睡——跟要的相反。電源計畫自己的「關閉螢幕」計時只關螢幕，
+不會讓電腦進入待命（睡眠由「睡眠啟動時間」＋我們的系統清醒請求決定），所以改用它。**不要再用 SC_MONITORPOWER。**
 
 做不到的（照實說）：闔上筆電蓋、按電源鍵／開始選單的睡眠、電池快沒電、Windows Update 重開機，這個請求都擋不住。
 只有 Windows 有作用；其他系統任務會顯示「idle：這個系統不支援」，不算失敗（不會吵心跳）。
@@ -20,7 +27,7 @@ Windows 電源計畫裡「幾分鐘後關閉螢幕」照樣生效，而且任何
 PowerRequestExecutionRequired（後者盡力而為：設不上不算失敗）。Microsoft 文件：插電時電源請求會讓系統一直停在進入待命前的
 階段（不會睡）、用電池時最多 5 分鐘；使用者主動睡眠（電源鍵、闔蓋、開始選單）會終止所有請求。
 是不是現代待命機型用 CallNtPowerInformation(SystemPowerCapabilities).AoAc 判斷，view()／doctor 多一行說明（MS_NOTE）。
-不修改任何電源設定。
+除了上面 N>0 時暫時改「關閉顯示器前的時間」，不修改任何電源設定。
 """
 
 from __future__ import annotations
@@ -34,7 +41,8 @@ TASK_ID = "system.keep_awake"
 TASK_NAME = "保持清醒（電腦不睡著）"
 INTERVAL_S = 60.0
 TIMEOUT = 20.0
-MAX_SCREEN_OFF_MIN = 240
+SCREEN_NEVER = -1                               # 螢幕永不關
+MAX_SCREEN_OFF_MIN = 525600                     # 一年：實際上不設限，只防溢位（VIDEOIDLE 以秒存成 DWORD）
 
 R_OFF = "沒有開（runtime.keep_awake.enabled=false）。"
 R_UNSUPPORTED = "這個系統不支援（只有 Windows 有作用）。"
@@ -51,23 +59,25 @@ MS_NOTE = ("這台是「現代待命」（Modern Standby）機型：系統清醒
 # Windows 常數
 POWER_REQUEST_CONTEXT_VERSION = 0
 POWER_REQUEST_CONTEXT_SIMPLE_STRING = 0x1
+POWER_REQUEST_DISPLAY_REQUIRED = 0              # PowerRequestDisplayRequired（screen_off_after_min=-1）
 POWER_REQUEST_SYSTEM_REQUIRED = 1               # PowerRequestSystemRequired
 POWER_REQUEST_EXECUTION_REQUIRED = 3            # PowerRequestExecutionRequired（Windows 8 起）
 SYSTEM_POWER_CAPABILITIES = 4                   # POWER_INFORMATION_LEVEL：SystemPowerCapabilities
 AOAC_OFFSET = 20                                # SYSTEM_POWER_CAPABILITIES.AoAc 的位移（winnt.h：15 個 BOOLEAN＋5 個位元組之後）
 CAPABILITIES_SIZE = 76
-WM_SYSCOMMAND, SC_MONITORPOWER, MONITOR_OFF = 0x0112, 0xF170, 2
-HWND_BROADCAST = 0xFFFF
+SUB_VIDEO = "7516b95f-f776-4464-8c53-06167f40cc99"
+VIDEOIDLE = "3c0bc021-c8a8-4e07-a973-6b14cbcb2b7e"   # 關閉顯示器前的時間（秒，0＝永不）
 
 
 class WinPower:
-    """Windows 的電源請求（ctypes）。獨立出來，測試換假的。"""
+    """Windows 的電源請求與「關閉顯示器前的時間」（ctypes）。獨立出來，測試換假的。"""
 
     available = sys.platform == "win32"
 
     def __init__(self):
         self._handle = None
         self.execution = False                       # PowerRequestExecutionRequired 有沒有設上（盡力而為）
+        self.display = False                         # PowerRequestDisplayRequired（螢幕永不關）
         self._aoac: Optional[bool] = None
 
     def hold(self, reason: str) -> bool:
@@ -99,17 +109,79 @@ class WinPower:
         self._handle = handle
         return True
 
+    def keep_display(self, on: bool) -> None:
+        """螢幕永不關（PowerRequestDisplayRequired）開／關；要先 hold()。"""
+        if not self._handle or bool(on) == self.display:
+            return
+        import ctypes
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        if on:
+            if not k32.PowerSetRequest(self._handle, POWER_REQUEST_DISPLAY_REQUIRED):
+                raise RuntimeError("Windows 不肯接受「螢幕常亮」請求")
+        else:
+            k32.PowerClearRequest(self._handle, POWER_REQUEST_DISPLAY_REQUIRED)
+        self.display = bool(on)
+
     def release(self) -> None:
         if not self._handle:
             return
         import ctypes
         k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        if self.display:
+            k32.PowerClearRequest(self._handle, POWER_REQUEST_DISPLAY_REQUIRED)
         if self.execution:
             k32.PowerClearRequest(self._handle, POWER_REQUEST_EXECUTION_REQUIRED)
         k32.PowerClearRequest(self._handle, POWER_REQUEST_SYSTEM_REQUIRED)
         k32.CloseHandle(self._handle)
         self._handle = None
         self.execution = False
+        self.display = False
+
+    # ── 電源計畫「關閉顯示器前的時間」（screen_off_after_min=N）──────────────
+    @staticmethod
+    def _guid(text: str):
+        import ctypes
+        import uuid
+        return (ctypes.c_ubyte * 16).from_buffer_copy(uuid.UUID(text).bytes_le)
+
+    @staticmethod
+    def _active_scheme():
+        """目前電源計畫的 GUID（複製一份，Windows 給的那份用 LocalFree 還回去）。"""
+        import ctypes
+        pp = ctypes.WinDLL("powrprof")
+        ptr = ctypes.c_void_p()
+        if pp.PowerGetActiveScheme(None, ctypes.byref(ptr)) != 0 or not ptr.value:
+            raise RuntimeError("讀不到目前的電源計畫")
+        try:
+            return (ctypes.c_ubyte * 16).from_buffer_copy(ctypes.string_at(ptr.value, 16))
+        finally:
+            ctypes.windll.kernel32.LocalFree(ptr)
+
+    def display_timeout(self) -> tuple:
+        """目前電源計畫「關閉顯示器前的時間」：(插電秒數, 電池秒數)；0＝永不。"""
+        import ctypes
+        from ctypes import wintypes
+        pp = ctypes.WinDLL("powrprof")
+        scheme, sub, setting = self._active_scheme(), self._guid(SUB_VIDEO), self._guid(VIDEOIDLE)
+        out = []
+        for fn in (pp.PowerReadACValueIndex, pp.PowerReadDCValueIndex):
+            value = wintypes.DWORD()
+            if fn(None, ctypes.byref(scheme), ctypes.byref(sub), ctypes.byref(setting), ctypes.byref(value)) != 0:
+                raise RuntimeError("讀不到「關閉顯示器前的時間」")
+            out.append(int(value.value))
+        return tuple(out)
+
+    def set_display_timeout(self, ac: int, dc: int) -> None:
+        """改目前電源計畫「關閉顯示器前的時間」並立刻生效（跟 powercfg /change monitor-timeout-ac 一樣，不用管理員）。"""
+        import ctypes
+        from ctypes import wintypes
+        pp = ctypes.WinDLL("powrprof")
+        scheme, sub, setting = self._active_scheme(), self._guid(SUB_VIDEO), self._guid(VIDEOIDLE)
+        for fn, value in ((pp.PowerWriteACValueIndex, ac), (pp.PowerWriteDCValueIndex, dc)):
+            if fn(None, ctypes.byref(scheme), ctypes.byref(sub), ctypes.byref(setting), wintypes.DWORD(value)) != 0:
+                raise RuntimeError("改不了「關閉顯示器前的時間」")
+        if pp.PowerSetActiveScheme(None, ctypes.byref(scheme)) != 0:
+            raise RuntimeError("電源計畫改了，但套用不上")
 
     def modern_standby(self) -> Optional[bool]:
         """這台是不是現代待命（S0 低電源閒置）：CallNtPowerInformation(SystemPowerCapabilities).AoAc。只讀；量不到＝None。"""
@@ -127,22 +199,9 @@ class WinPower:
             return None
         return self._aoac
 
-    def idle_seconds(self) -> float:
-        """距離上次滑鼠或鍵盤動作幾秒（取不到＝0，當作剛有人用過）。"""
-        import ctypes
-        from ctypes import wintypes
 
-        class _Last(ctypes.Structure):
-            _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
-
-        info = _Last(ctypes.sizeof(_Last), 0)
-        if not ctypes.windll.user32.GetLastInputInfo(ctypes.byref(info)):
-            return 0.0
-        return max(0, (ctypes.windll.kernel32.GetTickCount() - info.dwTime) & 0xFFFFFFFF) / 1000.0
-
-    def screen_off(self) -> None:
-        import ctypes
-        ctypes.windll.user32.PostMessageW(HWND_BROADCAST, WM_SYSCOMMAND, SC_MONITORPOWER, MONITOR_OFF)
+def valid_minutes(value) -> bool:
+    return not isinstance(value, bool) and isinstance(value, int) and SCREEN_NEVER <= value <= MAX_SCREEN_OFF_MIN
 
 
 class KeepAwake:
@@ -152,7 +211,9 @@ class KeepAwake:
         self.settings = dict(settings)
         self.power = power if power is not None else WinPower()
         self._lock = threading.Lock()
-        self._blanked = False                  # 這一段閒置已經請 Windows 關過螢幕：有人動過才會再關
+        self._applied_min = 0                  # 目前寫進電源計畫的分鐘（0＝沒寫）
+        self._saved: Optional[tuple] = None    # 寫之前電源計畫原本的（插電, 電池）秒數
+        self._written: Optional[tuple] = None  # 我們寫進去的值：還是它才改回去
         self.last_result: Optional[str] = None
 
     @property
@@ -175,9 +236,8 @@ class KeepAwake:
 
     def update(self, *, enabled: Optional[bool] = None, screen_off_after_min: Optional[int] = None) -> dict:
         if screen_off_after_min is not None:
-            if isinstance(screen_off_after_min, bool) or not isinstance(screen_off_after_min, int) \
-                    or not 0 <= screen_off_after_min <= MAX_SCREEN_OFF_MIN:
-                raise ValueError(f"熄螢幕的閒置分鐘要是 0～{MAX_SCREEN_OFF_MIN} 的整數（0＝照 Windows 電源計畫）。")
+            if not valid_minutes(screen_off_after_min):
+                raise ValueError("熄螢幕的閒置分鐘要是整數：-1＝螢幕永不關、0＝照 Windows 電源計畫、N＝閒置 N 分鐘關螢幕。")
             self.settings["screen_off_after_min"] = screen_off_after_min
         if enabled is not None:
             self.settings["enabled"] = bool(enabled)
@@ -209,6 +269,7 @@ class KeepAwake:
         holding = bool(getattr(self.power, "_handle", None)) if self.power.available else False
         return {"enabled": self.enabled, "supported": bool(self.power.available),
                 "holding": holding, "execution_required": holding and bool(getattr(self.power, "execution", False)),
+                "display_required": holding and bool(getattr(self.power, "display", False)),
                 "screen_off_after_min": self.screen_off_after_min, "max_screen_off_min": MAX_SCREEN_OFF_MIN,
                 "last_result": self.last_result, "tagline": TAGLINE, "notice": NOTICE,
                 "modern_standby": ms, "modern_standby_note": MS_NOTE if ms else ""}
@@ -234,24 +295,51 @@ class KeepAwake:
         except Exception as e:
             logging.warning("[KEEPAWAKE] cannot hold power request: %s", e)
             raise RuntimeError(f"沒辦法請 Windows 保持清醒：{e}")
-        note = "電腦保持清醒中（螢幕可以熄，動滑鼠或鍵盤就亮）"
-        limit = self.screen_off_after_min * 60
-        if limit:
-            try:
-                idle = self.power.idle_seconds()
-                if idle < limit:
-                    self._blanked = False
-                elif not self._blanked:
-                    self.power.screen_off()
-                    self._blanked = True
-                    note += f"；閒置超過 {self.screen_off_after_min} 分鐘，請 Windows 關了螢幕"
-            except Exception as e:
-                logging.warning("[KEEPAWAKE] screen off skipped: %s", e)
-        return note + "。"
+        minutes = self.screen_off_after_min
+        try:
+            self.power.keep_display(minutes == SCREEN_NEVER)
+        except Exception as e:
+            logging.warning("[KEEPAWAKE] display request: %s", e)
+        if minutes > 0:
+            if self._applied_min != minutes:     # 只在設定變了才寫：使用者之後自己在 Windows 改，不跟他搶
+                try:
+                    self._apply_timer(minutes)
+                except Exception as e:
+                    logging.warning("[KEEPAWAKE] screen timer: %s", e)
+                    return f"電腦保持清醒中，但沒辦法設定閒置 {minutes} 分鐘關螢幕：{e}。"
+            return f"電腦保持清醒中；閒置 {minutes} 分鐘 Windows 會關螢幕（動滑鼠或鍵盤就亮）。"
+        self._restore_timer()
+        if minutes == SCREEN_NEVER:
+            return "電腦保持清醒中；螢幕永不關。"
+        return "電腦保持清醒中（螢幕照 Windows 電源計畫，動滑鼠或鍵盤就亮）。"
+
+    def _apply_timer(self, minutes: int) -> None:
+        want = (minutes * 60, minutes * 60)
+        current = tuple(self.power.display_timeout())
+        if self._saved is None and current != want:
+            self._saved = current
+        if current != want:
+            self.power.set_display_timeout(*want)
+        self._written = want
+        self._applied_min = minutes
+
+    def _restore_timer(self) -> None:
+        """改回電源計畫原本的「關閉螢幕」時間——只在值還是我們寫的那個時（使用者自己改過就不動）。"""
+        saved, written = self._saved, self._written
+        self._saved = self._written = None
+        self._applied_min = 0
+        if not saved or not written:
+            return
+        try:
+            if tuple(self.power.display_timeout()) == written:
+                self.power.set_display_timeout(*saved)
+        except Exception as e:
+            logging.warning("[KEEPAWAKE] restore screen timer: %s", e)
 
     def release(self) -> None:
+        if self.power.available:
+            self._restore_timer()
         try:
             self.power.release()
         except Exception:
             logging.exception("[KEEPAWAKE] release failed")
-        self._blanked = False

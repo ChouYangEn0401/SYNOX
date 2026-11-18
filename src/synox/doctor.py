@@ -201,7 +201,9 @@ def _keep_awake_line(config) -> str:
     if sys.platform != "win32":
         return "  保持清醒：開，但只有 Windows 有作用，這個系統什麼都不會做"
     minutes = ka.get("screen_off_after_min", 0)
-    screen = f"閒置 {minutes} 分鐘後請 Windows 關螢幕" if minutes else "螢幕照 Windows 電源計畫（動滑鼠或鍵盤就亮）"
+    screen = ("螢幕永不關" if minutes == -1 else
+              f"電源計畫的「關閉螢幕」設成 {minutes} 分鐘（動滑鼠或鍵盤就亮）" if minutes > 0 else
+              "螢幕照 Windows 電源計畫（動滑鼠或鍵盤就亮）")
     line = f"  保持清醒：開，電腦不會自己睡著；{screen}\n    ℹ️ {NOTICE}"
     if WinPower().modern_standby():
         line += f"\n    ⚠️ {MS_NOTE}"

@@ -9,11 +9,12 @@ from synox.runtime.keepawake import R_UNSUPPORTED, TASK_ID, KeepAwake
 class FakePower:
     available = True
 
-    def __init__(self, idle=0.0, hold_ok=True):
+    def __init__(self, hold_ok=True, timeout=(18000, 180)):
         self._handle = None
-        self.idle = idle
         self.hold_ok = hold_ok
-        self.blanks = 0
+        self.display = False
+        self.timeout = tuple(timeout)                 # 電源計畫「關閉顯示器前的時間」（插電, 電池）秒
+        self.writes = []
 
     def hold(self, reason):
         if not self.hold_ok:
@@ -23,12 +24,17 @@ class FakePower:
 
     def release(self):
         self._handle = None
+        self.display = False
 
-    def idle_seconds(self):
-        return self.idle
+    def keep_display(self, on):
+        self.display = bool(on) and bool(self._handle)
 
-    def screen_off(self):
-        self.blanks += 1
+    def display_timeout(self):
+        return self.timeout
+
+    def set_display_timeout(self, ac, dc):
+        self.timeout = (ac, dc)
+        self.writes.append((ac, dc))
 
 
 class FakeTask:
@@ -62,7 +68,9 @@ def test_defaults_are_off_and_validated():
     ka = rs.defaults()["keep_awake"]
     assert ka == {"enabled": False, "screen_off_after_min": 0}
     assert rs.parse({"keep_awake": {"enabled": True, "screen_off_after_min": 10}})["keep_awake"]["enabled"] is True
-    for bad in ({"enabled": "yes"}, {"screen_off_after_min": 241}, {"screen_off_after_min": -1},
+    assert rs.parse({"keep_awake": {"screen_off_after_min": -1}})["keep_awake"]["screen_off_after_min"] == -1
+    assert rs.parse({"keep_awake": {"screen_off_after_min": 600}})["keep_awake"]["screen_off_after_min"] == 600
+    for bad in ({"enabled": "yes"}, {"screen_off_after_min": -2}, {"screen_off_after_min": 10 ** 9},
                 {"screen_off_after_min": True}):
         with pytest.raises(rs.RuntimeConfigError):
             rs.parse({"keep_awake": bad})
@@ -91,25 +99,55 @@ def test_failure_to_hold_raises_so_the_task_shows_failed():
     ka.register()                       # register 不能因為這樣讓 SYNOX 起不來
 
 
-def test_screen_off_follows_windows_unless_asked():
-    ka, power = make(minutes=0, idle=99999)
+def test_screen_follows_windows_plan_by_default():
+    ka, power = make(minutes=0)
     ka.run()
-    assert power.blanks == 0
+    assert power.writes == [] and power.display is False
 
 
-def test_screen_off_after_idle_only_once_per_idle_period():
-    ka, power = make(minutes=5, idle=299)
+def test_screen_timer_is_written_to_the_plan_and_restored():
+    """2026-11-13 hotfix：不再廣播 SC_MONITORPOWER（現代待命上＝按睡眠鍵）；改設電源計畫的「關閉螢幕」，停用時改回。"""
+    import synox.runtime.keepawake as k
+    assert not hasattr(k, "SC_MONITORPOWER") and not hasattr(k.WinPower, "screen_off")
+    ka, power = make(minutes=300)
     ka.run()
-    assert power.blanks == 0
-    power.idle = 301
     ka.run()
+    assert power.writes == [(18000, 18000)]                 # 只寫一次，不每分鐘重寫
+    ka.update(enabled=False)
+    assert power.timeout == (18000, 180)                     # 改回原本的（插電 300 分、電池 3 分）
+
+
+def test_screen_timer_change_and_back_to_zero():
+    ka, power = make(minutes=10)
     ka.run()
-    assert power.blanks == 1                       # 同一段閒置只關一次，不然一動滑鼠又被關掉
-    power.idle = 2                                 # 有人用過
+    ka.update(screen_off_after_min=20)
+    assert power.timeout == (1200, 1200)
+    ka.update(screen_off_after_min=0)
+    assert power.timeout == (18000, 180)
+
+
+def test_user_change_in_windows_is_not_fought_or_overwritten():
+    ka, power = make(minutes=10)
     ka.run()
-    power.idle = 400
+    power.timeout = (60, 60)                                 # 使用者自己在 Windows 設定改了
     ka.run()
-    assert power.blanks == 2
+    assert power.timeout == (60, 60)
+    ka.release()
+    assert power.timeout == (60, 60)                         # 不是我們寫的值：不改回
+
+
+def test_minus_one_keeps_the_screen_on():
+    ka, power = make(minutes=-1)
+    assert "永不關" in ka.run()
+    assert power.display is True and ka.view()["display_required"] is True
+    ka.update(screen_off_after_min=0)
+    assert power.display is False
+
+
+def test_no_upper_limit_beyond_overflow_guard():
+    ka, power = make(minutes=0)
+    ka.update(screen_off_after_min=600)
+    assert power.timeout == (36000, 36000)
 
 
 def test_update_toggles_and_validates():
@@ -117,7 +155,7 @@ def test_update_toggles_and_validates():
     assert ka.update(enabled=True)["holding"] is True
     assert ka.loop.intervals[TASK_ID] == 60.0
     assert ka.update(screen_off_after_min=15)["screen_off_after_min"] == 15
-    for bad in (-1, 241, 1.5, True, "5"):
+    for bad in (-2, 10 ** 9, 1.5, True, "5"):
         with pytest.raises(ValueError):
             ka.update(screen_off_after_min=bad)
     assert ka.update(enabled=False)["holding"] is False
@@ -260,7 +298,8 @@ def test_web_settings_toggle_and_notice(make_bot, owner, tmp_path):
     assert status == 200 and data["enabled"] is True and data["holding"] is True and data["notice"] == NOTICE
     cfg = json.load(open(ui_of(bot).config_path, encoding="utf-8"))
     assert cfg["runtime"]["keep_awake"] == {"enabled": True, "screen_off_after_min": 10}
-    assert c.post("/api/runtime/keep-awake", {"screen_off_after_min": 999})[0] == 400
+    assert c.post("/api/runtime/keep-awake", {"screen_off_after_min": -5})[0] == 400
+    assert c.post("/api/runtime/keep-awake", {"screen_off_after_min": 999})[0] == 200     # 不再限 4 小時
     status, data = c.post("/api/runtime/keep-awake", {"enabled": False})
     assert data["enabled"] is False and data["holding"] is False and rt.keep_awake.power._handle is None
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))

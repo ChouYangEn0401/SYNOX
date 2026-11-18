@@ -180,8 +180,9 @@ def test_other_models_and_off_get_server_defaults():
 def test_options_override_and_openai_servers_untouched():
     opts = _send({"model": "qwen3:8b", "options": {"temperature": 0.5, "repeat_penalty": 1.05}})["options"]
     assert opts["temperature"] == 0.5 and opts["repeat_penalty"] == 1.05 and opts["top_p"] == 0.8
-    body = _send({"model": "qwen3:8b", "options": {"temperature": 0.5}}, server="vllm")
-    assert not any(k in body for k in ("temperature", "top_p", "top_k", "min_p", "options"))
+    body = _send({"model": "qwen3:8b", "options": {"temperature": 0.5, "mirostat": 1}}, server="vllm")
+    assert body["temperature"] == 0.5                       # 自己寫的 OpenAI 取樣參數照送（2026-11-18 起）
+    assert not any(k in body for k in ("top_p", "top_k", "min_p", "options", "mirostat"))   # 建議值、Ollama 專用的不送
 
 
 def test_sampling_and_options_are_checked_and_reach_the_adapter():

@@ -41,7 +41,7 @@ def test_every_anchor_in_the_tutorial_has_a_place_on_the_guide_mock():
     used = {a for s in data["steps"] for a in s["anchors"]}
     drawn = set(re.findall(r'data-hl="([a-z.]+)"', mock))
     drawn |= {f"nav.{n}" for n in ("chat", "tools", "settings")}
-    drawn |= {f"settings.tab.{t}" for t in ("ai", "channels", "packs", "system", "commands", "help")}
+    drawn |= {f"settings.tab.{t}" for t in ("ai", "channels", "packs", "system", "appearance", "commands", "help")}
     assert used <= drawn, used - drawn
     assert used <= set(anchors.ANCHORS)
 
