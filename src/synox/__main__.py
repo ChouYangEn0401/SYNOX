@@ -355,16 +355,86 @@ def cmd_stop(args) -> int:
         print("SYNOX 沒有在跑（留下的鎖檔是舊的，已清掉）。")
         os.remove(lock)
         return 0
-    if os.name == "nt":
-        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
-    else:  # pragma: no cover
-        os.kill(int(pid), 15)
+    _kill_tree(int(pid))
     try:
         os.remove(lock)
     except OSError:
         pass
     print(f"🛑 SYNOX 停了（pid {pid}）。")
     return 0
+
+
+def cmd_restart(args, *, alive=None, kill=None, is_up=None, running=None, start=None, sleep=None,
+                clock=None) -> int:
+    """網頁的「🔄 重新啟動 SYNOX」開的小幫手（synox/web/restart.py；不是給人直接打的）：
+    等 --after-pid 那支 SYNOX 自己結束（太久就跟 `synox stop` 一樣 taskkill），等網頁的埠放掉、確認沒有別支 SYNOX
+    拿著 host.lock，才跟 Open-SYNOX.bat 一樣背景開 Start.bat。任何一步不對就停下來、不開：寧可沒開，也不要兩支。"""
+    import time as _time
+    from isdtelekit.core.jsonstore import load_json
+    from isdtelekit.host.lock import _alive
+    from synox.web import restart as restart_mod
+    alive = alive or _alive
+    is_up = is_up or web_is_up
+    running = running or _synox_running
+    start = start or _start_synox_quietly
+    sleep = sleep or _time.sleep
+    clock = clock or _time.monotonic
+    pid = int(args.after_pid)
+    created = args.created
+    try:
+        created = int(created) if created not in (None, "") else None    # 鎖檔記的建立時間（pid 被重用時分得出來）
+    except ValueError:
+        created = None
+    try:
+        config = SynoxConfig.load(args.config or None, require_token=False)
+    except ConfigError as e:
+        print(f"❌ {e}")
+        return 2
+    port = int((config.web or {}).get("port") or 0) if (config.web or {}).get("enabled", True) else 0
+
+    def wait(cond, seconds: float) -> bool:
+        end = clock() + seconds
+        while clock() < end:
+            if cond():
+                return True
+            sleep(0.5)
+        return cond()
+
+    print(f"🔄 等 SYNOX（pid {pid}）結束…")
+    if not wait(lambda: not alive(pid, created), restart_mod.STOP_WAIT):
+        print("   等太久了：直接停掉它（跟 Stop.bat 一樣）。")
+        (kill or _kill_tree)(pid)
+        if not wait(lambda: not alive(pid, created), 10):
+            print("❌ 停不掉舊的那一支，沒有重新開（不要同時開兩支）。請手動：先雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑。")
+            return 1
+        lock = config.path("host.lock")
+        held = load_json(lock, {})
+        if isinstance(held, dict) and held.get("pid") == pid:
+            try:
+                os.remove(lock)
+            except OSError:
+                pass
+    if port and not wait(lambda: not is_up(port), 15):
+        print(f"❌ 網頁的埠 {port} 還被占著，沒有重新開。請手動：先雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑。")
+        return 1
+    if running(config):
+        print("SYNOX 已經開著了（別的地方開的），不再開第二支。")
+        return 0
+    root = os.path.abspath(getattr(config, "root", "") or os.path.dirname(os.path.abspath(args.config or CONFIG_PATH)))
+    if not os.path.isfile(os.path.join(root, "Start.bat")):
+        print(f"❌ 找不到 Start.bat（{root}），沒有重新開。請雙擊桌面的 SYNOX 捷徑。")
+        return 1
+    start(root)
+    print("✅ 已經重新開了 SYNOX（Start.bat）。")
+    return 0
+
+
+def _kill_tree(pid: int) -> None:
+    """跟 cmd_stop 一樣的停法（Windows：taskkill /T /F，連它開的子行程一起）。"""
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
+    else:  # pragma: no cover
+        os.kill(int(pid), 15)
 
 
 def _config_quiet(path: str):
@@ -1074,6 +1144,9 @@ def main(argv=None) -> int:
     p = sub.add_parser("doctor", help="健康檢查")
     p.add_argument("--offline", action="store_true", help="不實際打 AI")
     sub.add_parser("stop", help="停掉正在跑的 bot")
+    p = sub.add_parser("restart", help="（網頁的「重新啟動 SYNOX」用的）等舊的那支結束，再用 Start.bat 開")
+    p.add_argument("--after-pid", required=True, type=int, help=argparse.SUPPRESS)
+    p.add_argument("--created", default=None, help=argparse.SUPPRESS)
     p = sub.add_parser("install", help="裝一個 .synoxpack（安全檢查 → 核准 → 裝）")
     p.add_argument("file", help=".synoxpack 檔")
     p.add_argument("--yes", action="store_true", help="看完報告直接在終端機核准（同名已裝＝升級）")
@@ -1147,6 +1220,7 @@ def main(argv=None) -> int:
     brand.add_quiet_flags(sub, [c for c in brand.BANNER_COMMANDS if c])
     args = parser.parse_args(argv)
     handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop,
+                "restart": cmd_restart,
                 "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord, "web-login": cmd_web_login,
                 "stepup": cmd_stepup,
                 "open": cmd_open, "about": cmd_about, "tips": cmd_tips,

@@ -73,12 +73,12 @@ from urllib.parse import parse_qs, urlsplit
 
 from isdtelekit.core.channel import CallbackInfo, Inbound
 
-from synox import notify, tutorials
+from synox import __version__, notify, tutorials
 from synox.guard import origin as guard_origin
 from synox.guard.stepup import sensitive_action as stepup_sensitive
 from synox.packs.manifest import stage_text
 from synox.theme.appearance import Appearance, AppearanceError
-from synox.web import api_commands, report as reporting, toolpage
+from synox.web import api_commands, report as reporting, restart as restart_api, toolpage
 from synox.web.channel import WEB, WebChannel
 from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore
 from synox.web.paneltickets import PanelTickets
@@ -334,6 +334,11 @@ class WebUI:
         self._channels_changed: set = set()   # 這次執行中改過的聊天通道（要重開才生效）
         self.bind_host = bind_host            # 綁哪個位址（start 時讀環境變數；測試換成假的容器證據）
         self.catalog_opener = None            # 官方工具庫的連網（packs/catalog.py）；None＝真的，測試換假的
+        self.boot_id = restart_api.new_boot_id()   # 這次開機的代號（/alive；網頁等重開回來時比對）
+        self.started_at = clock()                   # 「已開 N 小時」
+        self.restarter = restart_api.Restarter(data, os.path.abspath(getattr(config, "root", ".")),
+                                               config_path=self.config_path, stop=restart_api.app_stopper(app),
+                                               clock=clock)   # 🔄 重新啟動 SYNOX（web/restart.py；測試換假的）
         reporting.install_log_buffer()        # 「遇到問題？」的最近錯誤（記憶體裡最後幾行，web/report.py）
 
     # ── 登入連結 ─────────────────────────────────────────────────────
@@ -446,6 +451,8 @@ class WebUI:
             m = re.match(r"^/theme/font/([a-z][a-z0-9_-]{0,31})/([A-Za-z0-9_./-]{1,160}\.woff2)$", path)
             if m and method == "GET":
                 return self.theme_font(m.group(1), m.group(2))
+            if path == "/alive" and method == "GET":    # 不用登入：只回這次開機的代號（網頁等重開回來用；web/restart.py）
+                return restart_api.alive(self)
             if path == "/login" and method == "GET":
                 return self.login_page((query.get("t") or [""])[0], headers, session)
             m = re.match(r"^/apps/([a-z][a-z0-9_-]{0,31})/open$", path)
@@ -852,6 +859,8 @@ class WebUI:
         if path == "/api/settings/update" or path.startswith("/api/settings/update/"):   # SYNOX 更新（ADR 0023）
             from synox.update import web_api as update_api
             return update_api.route(self, user, method, path, body)
+        if path == "/api/settings/restart":            # 🔄 重新啟動 SYNOX（只有擁有者；web/restart.py）
+            return restart_api.route(self, user, method, path, body)
         if path.startswith("/api/runtime/"):          # 主控面板：常駐助理／心跳／任務（docs/runtime-api.md；含 PUT）
             from synox.runtime import web_api as runtime_api
             return runtime_api.route(self, user, method, path, body)
@@ -1012,7 +1021,9 @@ class WebUI:
             self.app.extras.get("synox_agent") is not None
         return {"id": user.tg_id, "username": user.username, "role": self.role_name(user.role),
                 "owner": self.is_owner(user), "admin": self.is_admin(user), "mode": self.config.mode,
-                "csrf": session.csrf, "ai": bool(can_ai), "accounts": self.server_mode and self.is_admin(user)}
+                "csrf": session.csrf, "ai": bool(can_ai), "accounts": self.server_mode and self.is_admin(user),
+                "version": __version__, "uptime_s": max(0, int(self._clock() - self.started_at)),
+                "restart": restart_api.status_for_me(self, user)}       # 左下角的使用者選單（static/usermenu.js）
 
     # ── 對話 ─────────────────────────────────────────────────────────
 
