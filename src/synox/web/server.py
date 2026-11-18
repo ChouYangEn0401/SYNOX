@@ -80,7 +80,8 @@ from synox.packs.manifest import stage_text
 from synox.theme.appearance import Appearance, AppearanceError
 from synox.web import api_commands, report as reporting, restart as restart_api, toolpage
 from synox.web.channel import WEB, WebChannel
-from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore
+from synox.agent.quote import quote_plain, reply_quote
+from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore, excerpt
 from synox.web.paneltickets import PanelTickets
 from synox.web.tokens import LoginTokens, Session, Sessions, digest
 
@@ -1116,23 +1117,33 @@ class WebUI:
             return _err(400, f"太長了（最多 {MAX_TEXT} 字）。")
         if (self._chat(user, chat_id) or {}).get("archived"):
             return _err(409, "這段對話封存了：先還原才能繼續。")
+        target = None
+        if data.get("reply_to") not in (None, ""):          # 回覆某一則：只能是這一段對話裡、還在的訊息（web/chats.py）
+            target = self.chats.reply_target(user.tg_id, chat_id, data.get("reply_to"))
+            if target is None:
+                return _err(400, "要回覆的那則訊息不在這段對話裡（可能刪掉或太舊了）。")
         files = self.uploads.take(user.tg_id, chat_id, ids) if ids else []
         if ids and not files:
             return _err(409, "附件已經過期或送過了：請重新附上。")
         from synox.web.uploads import placeholder
         shown = (mask_code(text) + ("\n" if text and files else "") + placeholder(files)).strip()
-        self.chats.append(user.tg_id, chat_id, "me", shown)      # 驗證碼不進對話紀錄（ADR 0025 §5.3）；附件只留名字
+        reply_to = ({"id": target["id"], "from": target.get("from", ""), "excerpt": excerpt(target.get("text", ""))}
+                    if target else None)
+        self.chats.append(user.tg_id, chat_id, "me", shown, reply_to=reply_to)   # 驗證碼不進對話紀錄（ADR 0025 §5.3）；附件只留名字
+        quote = reply_quote(target) if target else None      # 給 AI 的引用（agent/quote.py）
         if chat_id == MOTHER_CHAT:
-            return self._send_mother(user, text)
+            return self._send_mother(user, text, quote)
         channel = self.channel(user, chat_id)
         if files:
             channel.attachments = files              # agent/__init__.py 的 AgentFallback 會拿去（只有網頁有這個欄位）
+        if quote:
+            channel.reply_quote = quote              # 同上：AgentFallback 交給 loop.run_turn(quote=…)
         said = text or "（使用者只傳了附件）"
         inbound = Inbound(WEB, user.tg_id, user.tg_id, said, username=user.username or "web", sent_at=time.time())
         route = self.app.dispatcher.handle(channel, inbound)
         return _json(200, {"ok": True, "route": getattr(route, "kind", ""), "rev": self.chats.rev(user.tg_id)})
 
-    def _send_mother(self, user, text: str) -> Resp:
+    def _send_mother(self, user, text: str, quote=None) -> Resp:
         """跟常駐助理聊天：不經 dispatcher／對話助理，叫 runtime 的母 session（沒有工具）；背景跑，不卡 request。"""
         from synox import runtime
         rt = runtime.of(self.app)
@@ -1140,7 +1151,8 @@ class WebUI:
 
         def run():
             try:
-                answer = rt.mother.chat(text) if rt is not None else "常駐助理沒有啟用（runtime 沒有裝上）。"
+                said = quote_plain(quote, text) if quote else text      # 回覆某一則：引用放前面（agent/quote.py）
+                answer = rt.mother.chat(said) if rt is not None else "常駐助理沒有啟用（runtime 沒有裝上）。"
             except Exception as e:
                 logging.exception("[WEB] mother chat failed")
                 answer = f"⚠️ 常駐助理沒有回應：{e}"

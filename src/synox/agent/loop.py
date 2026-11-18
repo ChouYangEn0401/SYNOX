@@ -57,6 +57,7 @@ from synox.agent import claims as claims_mod
 from synox.agent import context as context_mod
 from synox.agent import delimit
 from synox.agent import prompt as prompt_mod
+from synox.agent import quote as quote_mod
 from synox.agent import skills as skills_mod
 from synox.agent import structured
 from synox.agent import toolpick
@@ -422,10 +423,11 @@ class AgentLoop:
         present.deliver(self.app, api, chat_id, text)
         return text
 
-    def run_turn(self, api, chat_id: int, user, text: str, images=None, files=None) -> None:
+    def run_turn(self, api, chat_id: int, user, text: str, images=None, files=None, quote=None) -> None:
         """images（docs/adr/0021）：None＝沒有圖（照舊）；ImagePart 的清單；或延遲載入的 callable（回 (ImagePart 清單, 問題清單)，
         確定要看圖才叫，例如 Telegram 才下載）。
-        files（網頁附件，web/uploads.py）：[(標題, 內容)]——內容只給這一輪的 AI（包進分隔符），對話記憶只留檔名。"""
+        files（網頁附件，web/uploads.py）：[(標題, 內容)]——內容只給這一輪的 AI（包進分隔符），對話記憶只留檔名。
+        quote（agent/quote.py）：使用者在回覆哪一則——原文包進分隔符放在這一輪 user 訊息前面，記憶只留一行記號。"""
         self._ctx.thread = getattr(api, "thread", None)        # 網頁：這是哪一段對話（WebChannel.thread）
         try:
             self._wakes.pop(self.memory_key(chat_id, user), None)  # 人說了話：叫醒 AI 的次數重新算（規劃 11.10）
@@ -435,6 +437,9 @@ class AgentLoop:
                     api.send_message(chat_id, stop)
                     return
                 kw = {"files": list(files)} if files else {}
+                q = quote_mod.coerce(quote)
+                if q is not None:
+                    kw["quote"] = q
                 if images is None:
                     self._turn(api, chat_id, user, text, **kw)
                 else:
@@ -492,7 +497,7 @@ class AgentLoop:
             self._side_key = key
         return self._side
 
-    def _image_turn(self, api, chat_id: int, user, text: str, images, files=None) -> None:
+    def _image_turn(self, api, chat_id: int, user, text: str, images, files=None, quote=None) -> None:
         """有圖的一輪：先決定走哪條路（看不到就不下載、不叫 AI），再交給同一個 _turn。"""
         route = vision.route(self.adapter, self.llm)
         if route == vision.DESCRIBE and self.vision_side() is None:
@@ -500,6 +505,8 @@ class AgentLoop:
         hint = getattr(images, "count", None) if callable(images) else len(images)
         logging.info("[AGENT] chat %s: image turn (%s image(s)), route=%s", chat_id, hint or "?", route)
         kw = {"files": list(files)} if files else {}
+        if quote is not None:
+            kw["quote"] = quote
         if route == vision.NONE and files:               # 看不到圖但有其他附件：說一聲，照樣處理檔案
             api.send_message(chat_id, "🖼️ " + vision.no_vision_text(self.adapter))
             self._turn(api, chat_id, user, text, **kw)
@@ -742,7 +749,7 @@ class AgentLoop:
             self._budget_note(api, chat_id)
 
     def _turn_body(self, api, chat_id: int, user, text: str, *, images=(), shown: Optional[str] = None,
-                   route: str = vision.NATIVE, seed=(), wake: bool = False, files=()) -> None:
+                   route: str = vision.NATIVE, seed=(), wake: bool = False, files=(), quote=None) -> None:
         """text：記進對話記憶的字（有圖時是文字替身）。shown：這一輪 user 訊息實際給 AI 看的字（沒給＝text）；
         images：這一輪的圖（只放在這一則 user 訊息，不進記憶）。
         seed：證據帳本一開始就有的（叫醒的那一輪：卡片執行的那一筆）；wake：叫醒的那一輪（AI 回 〔沒事〕＝不送出、不記）。"""
@@ -762,6 +769,9 @@ class AgentLoop:
                 FILE_HEAD.format(title=title) + "\n" + delimit.wrap(content, nonce) for title, content in files)
             text = ((text or "").strip() + "\n" + "".join(f"〔附件：{title}〕" for title, _ in files) +
                     "（附件內容沒有保留，要再看請重傳）").strip()
+        if quote is not None:                        # 回覆某一則（agent/quote.py）：原文包進分隔符＝資料；記憶只留一行記號
+            asked = quote_mod.for_ai(quote, asked, nonce)
+            text = quote_mod.memory_line(quote, text)
         full_tools = tools
         named = self.alias_keep(user, chat_id, asked)   # 他用自己取的指令名字說話：那個工具一定在這一輪的清單裡
         tools = self.pick_tools(full_tools, asked, named)  # 每輪工具數上限（docs/adr/0014）；預設只對本地／弱來源
