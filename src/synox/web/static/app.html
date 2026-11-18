@@ -1463,6 +1463,8 @@
     // type=examples 的區塊是 /help 卡片的範例（synox/helpui）：畫成小標籤，點了＝填進輸入框、不送出（static/helpdock.js）
     var exBlock = blocks.filter(function (b) { return b && b.type === "examples"; })[0];
     blocks = blocks.filter(function (b) { return !(b && (b.type === "tour" || b.type === "examples")); });
+    // AI 回的 Markdown（presentation 關著時沒有 blocks）：瀏覽器這邊畫成粗體、程式碼區塊…（blocks.js 的 markdown；不是 Markdown 就照舊）
+    if (!blocks.length && who === "bot" && !m.deleted) { blocks = window.SynoxBlocks.markdown(m.text) || []; }
     // 沒有 blocks 的純文字：照舊 textContent，只有 http(s):// 網址變成連結（blocks.js 的 linkText，過 safeHref）
     box.appendChild(blocks.length ? window.SynoxBlocks.render(document, blocks)
                                   : window.SynoxBlocks.linkText(document, m.text));
