@@ -25,7 +25,7 @@
   要在工具庫開發新工具：讀工具庫 repo（SYNOX_Libs，網址在 [../README.md](../README.md) 頂端）的 `docs/HANDOFF.md`。
 - **底層 SDK**：`vendor/isdtelekit/` 是上游 SDK 的原樣複本（指令樹、dispatcher、表單、Telegram 通道、角色），**不改它**，差異在 `src/synox/` 寫轉接。
 - **授權**：核心 AGPL-3.0-or-later；工具 SDK 與範例 Apache-2.0（[../LICENSING.md](../LICENSING.md)）。
-- **現況**：0.2.1 的預覽版（tag 已到 `v0.2.1-beta.2`，發佈分支 `release/0.2.1`；目前的版本號看 `pyproject.toml`）。很多東西只在自動測試裡跑過、沒在真的 Windows／真的服務上驗證，README 頂端的 alpha 說明是準的。
+- **現況**：0.2.1 的預覽版（tag 已到 `v0.2.1-beta.2`，發佈分支 `release/0.2.1`）。**`dev` 上 `pyproject.toml` 的版本號可能比 release 分支或最新的 tag 舊**（升號是在 release 分支上做、之後才合回 `dev`）；要知道發到哪一版，看 `git tag` 與 release 分支，不要照 `dev` 的版本號推斷。很多東西只在自動測試裡跑過、沒在真的 Windows／真的服務上驗證，README 頂端的 alpha 說明是準的。
 
 ## 2. 架構大圖
 
@@ -111,6 +111,7 @@
   全部測試與開發設定都用假的東西（[development.md](development.md)「不用金鑰的開發設定」）。看到某件事「需要真的帳號」，就寫進交件說明，留給擁有者在他的電腦上驗。
 - **機密的設計與計畫文件不在這個 repo**。需要時由擁有者另行經加密分支提供（分支名 `encrypted/<主題>-<日期>[-<序號>]`），
   解密方式見該分支的 `encrypted/README.md`（若該分支存在）；解出來的內容**不能**寫進這個公開 repo 的檔案、commit 訊息或 PR。
+  **解密用的私鑰不在任何分支裡**，只會由維護者設在雲端環境的祕密（secret／環境變數）裡；環境裡沒有這個祕密，就停下來回報，不要找別的方法拿、也不要請人把私鑰貼進對話。
 - **這是公開 repo**：檔案、commit 訊息、PR 說明都不能有真名、信箱、本機路徑（`C:\Users\<名字>`、`/home/<名字>`）、token、別人的個人資料；
   範例一律用假資料。交件前跑 `python scripts/prepublish_check.py --worktree-only`（[AGENT.md](AGENT.md)「公開前檢查清單」）。
 - **Windows 專屬的東西在 Linux 上驗不了**（`.bat`、PowerShell、DPAPI、登錄檔、tkinter 視窗、Job Object、安裝程式）：
