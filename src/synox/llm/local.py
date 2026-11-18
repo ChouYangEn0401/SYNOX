@@ -11,6 +11,9 @@
 - 只用標準函式庫（urllib）、不走系統 proxy；`opener(request, timeout) -> response` 可以換掉（測試用假的，不開 port、不連網）。
 - probe()／inspect() **唯讀**：ollama 只打 GET /api/tags、POST /api/show（只讀模型的中繼資料，不載入模型），
   其他打 GET /v1/models；絕不送 chat／generate。
+- smoke_test()（網頁「測一下」的第二步）：模型**已經載入**才真的送一句很短的話（max_tokens 64、無進展 60 秒、總共 120 秒），
+  回成功與否、花幾秒、回了什麼。不會自己載入模型：沒載入（或看不出來）就不送，說怎麼載入（LM Studio 開了 JIT
+  的話，送 chat 會偷偷載入；Ollama 的 num_ctx 跟載入時不同會重新載入——所以 Ollama 照 /api/ps 的 context 送）。
 - 截斷：回報的 prompt token ≥ context 的 97%＝「很可能被截斷」（Ollama 超過 num_ctx 是靜默截掉前面），
   寫 logging.warning、放進 Reply.warnings 與 adapter.last_warning（網頁設定頁、doctor 看得到），不靜默。
 - 取樣參數（docs/adr/0019）：`sampling`＝auto（預設：模型名有 qwen3 才送 Qwen3 不思考模式的建議值）｜qwen3｜off，
@@ -42,7 +45,7 @@ import urllib.parse
 import urllib.request
 from typing import Callable, Dict, List, Optional, Sequence
 
-from synox.llm.base import (ASSISTANT, TOOL, ChatAdapter, LLMError, Message, Reply, ToolCall, ToolSpec, has_images,
+from synox.llm.base import (ASSISTANT, TOOL, USER, ChatAdapter, LLMError, Message, Reply, ToolCall, ToolSpec, has_images,
                             http_error, no_vision)
 
 SERVERS = ("ollama", "vllm", "lmstudio", "other")
@@ -57,6 +60,10 @@ TRUNCATION_RATIO = 0.97
 OLLAMA_DEFAULT_CTX = 4096             # Ollama 沒設 num_ctx／OLLAMA_CONTEXT_LENGTH 時的預設（測試紀錄 /api/ps 看到的）
 CHARS_PER_TOKEN = 2.5                 # 估 token 用；中文偏保守（實際 1 個中文字常常 ≥ 1 token）
 PROBE_TIMEOUT = 15.0
+SMOKE_PROMPT = "請只回一個字：好"
+SMOKE_MAX_TOKENS = 64
+SMOKE_TIMEOUT, SMOKE_TOTAL = 60.0, 120.0
+LOADED_CONTEXT_TTL = 30.0             # 伺服器實際載入的 context 最多記這麼久（重新載入之後很快就看得到新的值）
 
 DEFAULTS = {"server": "ollama", "base_url": "", "model": "", "context_size": 0, "timeout": 0,
             "max_total_timeout": DEFAULT_MAX_TOTAL, "tools": True}
@@ -303,6 +310,7 @@ class LocalAdapter(ChatAdapter):
         self._clock = clock or time.monotonic
         self.server_ctx: Optional[int] = None        # 從伺服器讀到的 context（Ollama /api/ps、vLLM max_model_len）
         self._ctx_looked = False
+        self._loaded_at: Optional[float] = None      # loaded_context() 上次問伺服器的時間
         self._think = True                            # 送 think=false；伺服器不認得就拿掉再試一次
         self.last_warning = ""
         self.vision = vision if vision in ("auto", "on", "off") else "auto"
@@ -328,8 +336,10 @@ class LocalAdapter(ChatAdapter):
         return f"{SERVER_LABELS[self.server]}（{self.root}）"
 
     def _no_progress(self) -> LLMError:
-        return LLMError(f"本地模型超過 {int(self.timeout)} 秒沒有任何進展（無進展逾時：連第一個字都還沒出來，或吐到一半停住）。"
-                        f"CPU 上大模型、長提示可能要更久：調大 llm.timeout，或換小一點的模型、調小 context_size。")
+        err = LLMError(f"本地模型超過 {int(self.timeout)} 秒沒有任何進展（無進展逾時：連第一個字都還沒出來，或吐到一半停住）。"
+                       f"CPU 上大模型、長提示可能要更久：調大 llm.timeout，或換小一點的模型、調小 context_size。")
+        err.no_progress = True
+        return err
 
     def _too_long(self) -> LLMError:
         return LLMError(f"本地模型一直有在回，但超過總上限 {int(self.max_total)} 秒，已中止（總上限 llm.max_total_timeout）。"
@@ -402,6 +412,9 @@ class LocalAdapter(ChatAdapter):
             if self.server == "ollama":
                 return f"模型 {self.model} 不在這台 Ollama 上：先在終端機跑 `ollama pull {self.model}`，或改填已經下載的模型名稱。"
             return f"伺服器上沒有模型 {self.model}（或網址不對）：{' '.join(detail.split())[:160]}"
+        if "context" in low and any(w in low for w in ("overflow", "exceed", "greater than", "too long", "too many")):
+            return ("提示比模型現在的 context 還長：把 context 調大（LM Studio：用更大的 Context Length 重新載入模型），"
+                    f"或少裝幾個工具。\n伺服器說：{' '.join(detail.split())[:200]}")
         if "memory" in low and ("more" in low or "insufficient" in low or "not enough" in low):
             return ("記憶體不夠載入這個模型（或這個 context）：把 context_size 調小、換小一點的模型，或關掉其他吃記憶體的程式。"
                     f"\n伺服器說：{' '.join(detail.split())[:200]}")
@@ -422,12 +435,32 @@ class LocalAdapter(ChatAdapter):
     supports_max_tokens = True        # chat(max_tokens=) 可以這一次放大回覆上限（agent 自動接續用）
 
     def server_context(self) -> Optional[int]:
-        """伺服器實際的 context（給 agent 的 context 預算用）：llm.context_size 有設就是它；沒設＝唯讀問伺服器一次
-        （LM Studio /api/v0/models、vLLM /v1/models、Ollama /api/ps），問不到＝None。不送 chat、不載入模型。"""
+        """伺服器實際的 context（給 agent 的 context 預算用）。Ollama：llm.context_size 有設就是它（每次請求都帶 num_ctx）；
+        沒設＝唯讀問一次 /api/ps。LM Studio／vLLM／其他：context 是伺服器決定的，SYNOX 送不過去，所以先照
+        loaded_context()（實際載入的），問不到才退回 llm.context_size。問不到＝None。不送 chat、不載入模型。"""
+        if self.server != "ollama":
+            return self.loaded_context() or self.context_size or None
         if self.context_size:
             return self.context_size
         self._learn_context()
         return self.server_ctx
+
+    def loaded_context(self) -> Optional[int]:
+        """伺服器**現在實際**用的 context：LM Studio 載入時設的（loaded_context_length，不是模型最多多長）、vLLM 的
+        max_model_len。Ollama＝None（context 是 SYNOX 每次請求帶 num_ctx 決定的）。唯讀，最多每 30 秒問一次；
+        模型沒載入或問不到＝None。"""
+        if self.server == "ollama":
+            return None
+        now = self._clock()
+        if self._loaded_at is not None and now - self._loaded_at < LOADED_CONTEXT_TTL:
+            return self.server_ctx
+        self._loaded_at = now
+        try:
+            found = self._openai_max_len()
+        except Exception:
+            found = None
+        self.server_ctx = found
+        return found
 
     def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = (), *, stop: Sequence[str] = (),
              max_tokens: Optional[int] = None) -> Reply:
@@ -618,6 +651,9 @@ class LocalAdapter(ChatAdapter):
     def _learn_context(self) -> None:
         """伺服器實際用的 context（只讀、只問一次，問不到就算了）：Ollama 沒設 context_size 時看 /api/ps（剛剛那次 chat 已經
         載入模型）；vLLM／其他看 /v1/models 的 max_model_len。"""
+        if self.server != "ollama":
+            self.loaded_context()                      # 有快取（30 秒）；重新載入之後會跟著換
+            return
         if self._ctx_looked or self.server_ctx or (self.server == "ollama" and self.context_size):
             return
         self._ctx_looked = True
@@ -635,16 +671,22 @@ class LocalAdapter(ChatAdapter):
         for m in (self._get_json("/v1/models") or {}).get("data") or []:
             if m.get("id") == self.model and m.get("max_model_len"):
                 return int(m["max_model_len"])
-        if self.server == "lmstudio":
+        if self.server == "lmstudio":                 # 只算「現在載入的」；沒載入＝不知道（JIT 會用 LM Studio 的預設）
             m = self._lmstudio_entry()
-            if m:
-                found = m.get("loaded_context_length") or m.get("max_context_length")
-                return int(found) if found else None
+            if m and m.get("state", "loaded") == "loaded" and m.get("loaded_context_length"):
+                return int(m["loaded_context_length"])
         return None
 
     def _lmstudio_entry(self) -> Optional[dict]:
-        """LM Studio 的 GET /api/v0/models 裡這個模型那一筆（type：llm｜vlm｜embeddings、state：loaded｜not-loaded）。
-        唯讀、不載入模型；問不到＝None。"""
+        """LM Studio 裡這個模型那一筆，統一成 /api/v0/models 的樣子（type：llm｜vlm、state：loaded｜not-loaded、
+        max_context_length＝模型本身最多多長、loaded_context_length＝**現在載入時設的**長度）。先問 0.4 起的
+        GET /api/v1/models，沒有再退回 /api/v0/models。唯讀、不載入模型；問不到＝None。"""
+        try:
+            for m in (self._get_json("/api/v1/models") or {}).get("models") or []:
+                if isinstance(m, dict) and m.get("key") == self.model:
+                    return _lmstudio_v1_entry(m)
+        except (LLMError, _HTTPProblem):
+            pass
         try:
             for m in (self._get_json("/api/v0/models") or {}).get("data") or []:
                 if isinstance(m, dict) and m.get("id") == self.model:
@@ -684,6 +726,7 @@ class LocalAdapter(ChatAdapter):
         """唯讀：模型在不在、最大 context、設定合不合理。不送 chat／generate，不載入模型。"""
         out = {"server": self.server, "base_url": self.root, "model": self.model, "reachable": False,
                "model_found": None, "models": [], "model_size": 0, "max_context": None,
+               "loaded_context": None, "loaded": None,
                "context_size": self.context_size, "capabilities": [], "model_info": {}, "problems": [], "notes": []}
         warn = url_warning(self.base_url)
         if warn:
@@ -747,7 +790,7 @@ class LocalAdapter(ChatAdapter):
         out["reachable"] = True
         models = data.get("data") or []
         out["models"] = [{"name": m.get("id") or "", "size": 0} for m in models]
-        if self.context_size:
+        if self.context_size and self.server != "lmstudio":
             out["notes"].append(f"context_size={self.context_size} 對 {SERVER_LABELS[self.server]} 沒辦法由 SYNOX 設定，會被忽略："
                                 + ("在 vLLM 啟動參數設 --max-model-len。" if self.server == "vllm" else
                                    "在 LM Studio 載入模型時設 Context Length。" if self.server == "lmstudio" else
@@ -760,30 +803,49 @@ class LocalAdapter(ChatAdapter):
             names = "、".join(m["name"] for m in out["models"][:8]) or "（一個都沒有）"
             out["problems"].append(f"伺服器上沒有模型 {self.model}（有的：{names}）。")
             return
+        if self.server == "lmstudio":                 # 「模型最多多長」跟「現在載入成多長」是兩件事，分開回報
+            self._inspect_lmstudio(out)
+            return
         try:
             out["max_context"] = self._openai_max_len()
         except (LLMError, _HTTPProblem):
             out["max_context"] = None
         if out["max_context"]:
             self.server_ctx = out["max_context"]
+            out["loaded_context"] = out["max_context"]    # vLLM：max_model_len 就是現在實際用的長度
             out["notes"].append(f"伺服器的 context 上限：{out['max_context']}。")
         else:
             out["notes"].append("伺服器沒有回報 context 上限：SYNOX 只能用回報的 token 數事後提醒截斷。")
-        if self.server == "lmstudio":
-            self._inspect_lmstudio(out)
 
     def _inspect_lmstudio(self, out: dict) -> None:
         """LM Studio 多給的中繼資料（唯讀）：載入了沒、看不看得到圖、會不會用工具。"""
         entry = self._lmstudio_entry()
         if not entry:
+            out["notes"].append("LM Studio 沒有回報這個模型的 context：SYNOX 只能用回報的 token 數事後提醒截斷。")
             return
         caps = [c for c in entry.get("capabilities") or [] if isinstance(c, str)]
         if entry.get("type") == "vlm":
             caps.append("vision")
         out["capabilities"] = caps
-        if entry.get("state") and entry.get("state") != "loaded":
+        out["model_size"] = int(entry.get("size_bytes") or 0)       # 只有 /api/v1 有；估記憶體用
+        max_ctx = entry.get("max_context_length")
+        out["max_context"] = int(max_ctx) if max_ctx else None
+        state = entry.get("state")
+        out["loaded"] = (state == "loaded") if state else None
+        loaded_ctx = entry.get("loaded_context_length") if state == "loaded" else None
+        out["loaded_context"] = int(loaded_ctx) if loaded_ctx else None
+        if out["loaded_context"]:
+            self.server_ctx = out["loaded_context"]
+            out["notes"].append(f"LM Studio 現在用 context {out['loaded_context']} 載入這個模型"
+                                + (f"（模型本身最多 {out['max_context']}）" if out["max_context"] else "") + "。")
+            if self.context_size and self.context_size != out["loaded_context"]:
+                out["notes"].append(f"設定的 context_size {self.context_size} 跟 LM Studio 現在載入的 {out['loaded_context']} "
+                                    f"不一樣：實際用的是 {out['loaded_context']}。要換，按「用 {self.context_size} 重新載入」。")
+        elif out["max_context"]:
+            out["notes"].append(f"這個模型最多 {out['max_context']}。")
+        if state and state != "loaded":
             out["notes"].append("這個模型現在沒有載入：第一次對話時 LM Studio 會先載入（要開 JIT），會多等一下；"
-                                "也可以先在 LM Studio 或用 `lms load` 載入。")
+                                "也可以先按「載入這個模型」，或在 LM Studio 裡載入。")
         if self.vision == "auto":
             self._vision_looked = True
             self.supports_vision = "vision" in caps
@@ -807,6 +869,70 @@ class LocalAdapter(ChatAdapter):
         """唯讀（不載入模型）：None＝模型在、設定合理；否則第一個問題。細節看 inspect()。"""
         report = self.inspect()
         return report["problems"][0] if report["problems"] else None
+
+    def smoke_test(self, report: Optional[dict] = None) -> dict:
+        """「測一下」的第二步：模型已經載入才真的送一句很短的話。report：剛剛 inspect() 的結果（沒給就自己讀）。
+        回 {"sent", "ok", "message", "seconds", "reply", "context"}；context＝模型現在實際用的長度（知道的話）。
+        不會自己載入模型：沒載入或看不出來就不送（sent＝False），說怎麼載入。"""
+        report = report if report is not None else self.inspect()
+        out = {"sent": False, "ok": False, "message": "", "seconds": None, "reply": "", "context": None}
+        if report.get("problems"):
+            out["message"] = "上面的問題先解決，才會真的送一句話給模型試。"
+            return out
+        not_loaded = (f"模型 {self.model} 還沒載入，所以沒有真的送話給它試。先按「載入這個模型」（或在 "
+                      f"{SERVER_LABELS[self.server]} 裡載入），再按一次「測一下」。測一下不會自己載入模型（怕突然吃掉大量記憶體）。")
+        ctx = 0
+        if self.server == "lmstudio":
+            if report.get("loaded") is not True:
+                out["message"] = not_loaded if report.get("loaded") is False else \
+                    "看不出 LM Studio 有沒有載入這個模型，為了不意外載入，沒有送話給它試。在 LM Studio 確認已經載入再試一次。"
+                return out
+            out["context"] = report.get("loaded_context")
+        elif self.server == "ollama":
+            try:
+                running = (self._get_json("/api/ps") or {}).get("models") or []
+            except (LLMError, _HTTPProblem):
+                out["message"] = "讀不到 Ollama 現在載入了哪些模型，為了不意外載入，沒有送話給它試。"
+                return out
+            found = next((m for m in running if _same_model(m.get("name") or m.get("model") or "", self.model)), None)
+            if found is None:
+                out["message"] = not_loaded
+                return out
+            ctx = int(found.get("context_length") or 0) or self.context_size   # 照載入時的 num_ctx 送，才不會重新載入
+            out["context"] = ctx or None
+        else:
+            out["context"] = report.get("loaded_context") or report.get("max_context")
+        tester = LocalAdapter(self.model, server=self.server, base_url=self.base_url, context_size=ctx,
+                              timeout=SMOKE_TIMEOUT, max_total_timeout=SMOKE_TOTAL, tools=False,
+                              max_tokens=SMOKE_MAX_TOKENS, opener=self._open, clock=self._clock, sampling=self.sampling,
+                              options=self.options, vision="off", api_key=self.api_key)
+        tester._ctx_looked = True                   # 只測接不接得通：不要另外再問 context
+        tester._loaded_at = tester._clock()
+        out["sent"] = True
+        start = self._clock()
+        try:
+            reply = tester.chat([Message(USER, SMOKE_PROMPT)])
+        except LLMError as e:
+            out["seconds"] = round(self._clock() - start, 1)
+            if getattr(e, "no_progress", False):
+                out["message"] = (f"❌ 送了一句話給模型，{int(SMOKE_TIMEOUT)} 秒內一個字都沒回（測一下只等這麼久）：電腦可能太忙、"
+                                  f"模型正在處理別的請求，或還在載入。等一下再試；真正對話時會等到 {int(self.timeout)} 秒。")
+            else:
+                out["message"] = f"❌ 送了一句話給模型，但失敗了：{e}"
+            return out
+        secs = round(self._clock() - start, 1)
+        out["seconds"] = secs
+        text = " ".join((reply.text or "").split())
+        out["reply"] = text[:80]
+        out["ok"] = True
+        if text:
+            out["message"] = f"✅ 模型有回話（{secs} 秒）：「{out['reply']}」"
+        elif reply.finish in ("thinking", "length"):
+            out["message"] = (f"✅ 模型有回應（{secs} 秒），但這次只給 {SMOKE_MAX_TOKENS} 個字的額度，它還在想就用完了、沒回出字。"
+                              "接得通；真正對話時額度大很多。")
+        else:
+            out["message"] = f"⚠️ 模型有回應（{secs} 秒），但回了空白：接得通，只是沒說話。換個模型或再試一次。"
+        return out
 
     def advice(self, *, prompt_chars: Optional[int] = None, ram=None) -> dict:
         """context 建議（synox/llm/local_advice.py）：唯讀探測＋這台的記憶體。連不上就退回靜態表。"""
@@ -832,6 +958,17 @@ def report_lines(report: dict) -> List[str]:
     lines += [f"❌ {p}" for p in report.get("problems") or []]
     lines += [f"ℹ️ {n}" for n in report.get("notes") or []]
     return lines
+
+
+def _lmstudio_v1_entry(m: dict) -> dict:
+    """LM Studio /api/v1/models 的一筆 → /api/v0/models 的樣子（inspect、看圖判斷共用）。"""
+    caps = m.get("capabilities") or {}
+    inst = [i for i in m.get("loaded_instances") or [] if isinstance(i, dict)]
+    ctx = next((int((i.get("config") or {}).get("context_length") or 0) for i in inst), 0) or None
+    return {"id": m.get("key"), "type": "vlm" if caps.get("vision") else "llm",
+            "state": "loaded" if inst else "not-loaded", "max_context_length": m.get("max_context_length"),
+            "loaded_context_length": ctx, "size_bytes": m.get("size_bytes"),
+            "capabilities": ["tool_use"] if caps.get("trained_for_tool_use") else []}
 
 
 def _same_model(name: str, wanted: str) -> bool:

@@ -505,8 +505,10 @@ def test_web_settings_local_choice_save_test_and_advice(make_bot, owner, tmp_pat
     assert [s["value"] for s in choice["servers"]] == ["ollama", "vllm", "lmstudio", "other"]
     assert choice["context_options"] == list(local_advice.OPTIONS)
 
+    routes[("GET", "/api/ps")] = json_resp({"models": []})                     # Ollama 開著，但模型沒載入
     status, data = c.post("/api/settings/llm/test", {"choice": "local", "model": "qwen3.5:9b", "context_size": 8192})
-    assert status == 200 and data["ok"] is True and data["lines"]
+    assert status == 200 and data["ok"] is False and data["sent"] is False and data["lines"]   # 不送、不自己載入
+    assert "還沒載入" in data["message"] and "載入這個模型" in data["message"]
     status, data = c.post("/api/settings/llm/test", {"choice": "local", "model": "nope", "context_size": 8192})
     assert data["ok"] is False and "ollama pull nope" in data["message"]
 
@@ -622,7 +624,8 @@ def test_lmstudio_inspect_reports_loaded_state_and_capabilities():
     a, opener = ollama({("GET", "/v1/models"): json_resp({"data": [{"id": "qwen3.5-9b"}, {"id": "qwen3-coder-30b-a3b-instruct"}]}),
                         ("GET", "/api/v0/models"): json_resp(LMS_MODELS)}, model="qwen3.5-9b", server="lmstudio")
     report = a.inspect()
-    assert report["max_context"] == 32768 and "vision" in report["capabilities"] and not report["problems"]
+    assert report["max_context"] == 262144 and report["loaded_context"] == 32768 and report["loaded"] is True   # 兩件事分開
+    assert "vision" in report["capabilities"] and not report["problems"]
     assert a.supports_vision is True
     assert not any(p in CHAT_PATHS for p in opener.paths())                # 唯讀
     b, _ = ollama({("GET", "/v1/models"): json_resp({"data": [{"id": "qwen3-coder-30b-a3b-instruct"}]}),
@@ -732,3 +735,126 @@ def test_local_defaults_to_4096_max_tokens_unless_written():
     cfg = SynoxConfig.from_dict({**base, "llm": {"kind": "openai_compat", "base_url": "http://x/v1", "model": "m"}},
                                 require_token=False)
     assert cfg.llm["max_tokens"] == 1024
+
+
+# ── LM Studio：「模型最多多長」跟「現在載入成多長」分開；建議講清楚怎麼重新載入 ─────────────────
+
+RAM_OWNER = (68_800_000_000, 137_000_000_000)
+
+
+def _lms(mode="honor", **kw):
+    from fake_lmstudio import FakeLMStudio
+    fake = FakeLMStudio(mode, **kw)
+    return LocalAdapter("qwen3.5-9b", server="lmstudio", base_url="http://127.0.0.1:1234", opener=fake), fake
+
+
+def test_lmstudio_advice_uses_the_real_max_and_says_to_reload_when_loaded_context_is_too_small():
+    a, fake = _lms()                                        # 載入成 8192；模型本身最多 262144
+    out = a.advice(prompt_chars=23835, ram=RAM_OWNER)       # 約 9534 tokens（擁有者畫面上的數字）
+    assert out["model_max_ctx"] == 262144 and out["loaded_context"] == 8192
+    assert [r["ctx"] for r in out["options"]][-1] == 131072 and out["recommended"] == 16384 and out["reload_to"] == 16384
+    text = " ".join(out["notes"])
+    assert "現在載入的 context 只有 8192" in text and "用 16384 重新載入" in text and "Context Length" in text
+    assert "不是記憶體不夠" in text and "記憶體都不夠" not in text and "沒有一個選項" not in text
+    assert "最多 8192" not in text
+    assert not set(fake.paths()) & set(CHAT_PATHS)          # 看建議只讀
+
+
+def test_advice_blames_the_right_thing_when_nothing_fits():
+    small = local_advice.advise(avail_ram=64 * 10 ** 9, model_max_ctx=8192, prompt_tokens=9534, max_tokens=1024)
+    assert small["recommended"] is None and any("本身最多只能 8192" in n for n in small["notes"])
+    assert not any("記憶體" in n and n.startswith("❌") for n in small["notes"])
+    enough = local_advice.advise(avail_ram=64 * 10 ** 9, model_max_ctx=262144, loaded_ctx=32768, prompt_tokens=9534,
+                                 max_tokens=1024, server="lmstudio")
+    assert enough["reload_to"] is None and any(n.startswith("✅ 模型現在載入的 context 32768") for n in enough["notes"])
+
+
+def test_lmstudio_budget_follows_the_loaded_context_not_the_setting():
+    a, fake = _lms()
+    a.context_size = 16384                                  # 設定寫 16384，LM Studio 實際載入 8192
+    assert a.server_context() == 8192 and a.loaded_context() == 8192
+    loop = _loop(a, context_size=16384)
+    assert loop._context_budget() == (8192, "server")
+    assert "16384" in a.last_warning and "8192" in a.last_warning
+    from synox.agent import context as context_mod
+    note = context_mod.note_text(limit=8192, source="server", dropped_turns=1)
+    assert "模型實際載入的 context 8192" in note and "llm.context_size" not in note
+    b = _loop(_ScriptAdapter([], ctx=None), context_size=4096)                  # 沒有 loaded_context 的來源照舊
+    assert b._context_budget() == (4096, "config")
+    ollama_a, _ = ollama({}, context_size=16384)
+    assert ollama_a.loaded_context() is None and _loop(ollama_a, context_size=16384)._context_budget() == (16384, "config")
+
+
+def test_loaded_context_is_re_read_after_a_reload():
+    clock = Clock()
+    from fake_lmstudio import FakeLMStudio
+    fake = FakeLMStudio("honor")
+    a = LocalAdapter("qwen3.5-9b", server="lmstudio", opener=fake, clock=clock)
+    assert a.loaded_context() == 8192
+    from synox.llm import local_models
+    local_models.reload("lmstudio", "http://127.0.0.1:1234", "qwen3.5-9b", 16384, opener=fake, ram=RAM_OWNER)
+    assert a.loaded_context() == 8192                       # 30 秒內用快取
+    clock.t += local.LOADED_CONTEXT_TTL + 1
+    assert a.loaded_context() == 16384
+
+
+# ── 「測一下」真的送一句話（模型已經載入才送；不自己載入）─────────────────────────
+
+def test_smoke_test_sends_one_small_request_when_the_model_is_loaded():
+    a, fake = _lms(reply="好")
+    report = a.inspect()
+    out = a.smoke_test(report)
+    assert out["sent"] and out["ok"] and out["reply"] == "好" and out["seconds"] is not None and "✅" in out["message"]
+    assert out["context"] == 8192
+    chats = [c for c in fake.calls if c["path"] == "/v1/chat/completions"]
+    assert len(chats) == 1 and chats[0]["body"]["max_tokens"] == local.SMOKE_MAX_TOKENS
+    assert chats[0]["timeout"] == local.SMOKE_TIMEOUT and "tools" not in chats[0]["body"]
+    assert "/api/v1/models/load" not in fake.paths()
+
+
+def test_smoke_test_does_not_load_a_model_that_is_not_loaded():
+    a, fake = _lms(loaded={})
+    out = a.smoke_test()
+    assert out["sent"] is False and out["ok"] is False and "還沒載入" in out["message"]
+    assert not set(fake.paths()) & set(CHAT_PATHS) and "/api/v1/models/load" not in fake.paths()
+
+
+def test_smoke_test_ollama_uses_the_loaded_num_ctx_and_reports_timeouts():
+    stream = FakeResp(ndjson({"message": {"content": "好"}, "done": True, "prompt_eval_count": 9, "eval_count": 1}))
+    ps = {"models": [{"name": "qwen3.5:9b", "context_length": 16384}]}
+    a, opener = ollama({("GET", "/api/tags"): json_resp(TAGS), ("POST", "/api/show"): json_resp(SHOW),
+                        ("GET", "/api/ps"): json_resp(ps), ("POST", "/api/chat"): stream}, context_size=8192)
+    out = a.smoke_test()
+    assert out["ok"] and out["reply"] == "好" and out["context"] == 16384
+    body = [c for c in opener.calls if c["path"] == "/api/chat"][0]["body"]
+    assert body["options"]["num_ctx"] == 16384 and body["options"]["num_predict"] == local.SMOKE_MAX_TOKENS
+    stall = FakeResp(stall_after=0)
+    b, _ = ollama({("GET", "/api/tags"): json_resp(TAGS), ("POST", "/api/show"): json_resp(SHOW),
+                   ("GET", "/api/ps"): json_resp(ps), ("POST", "/api/chat"): stall}, context_size=8192)
+    out = b.smoke_test()
+    assert out["sent"] and out["ok"] is False and "60 秒內一個字都沒回" in out["message"]
+    down, _ = ollama({("GET", "/api/tags"): json_resp(TAGS), ("POST", "/api/show"): json_resp(SHOW),
+                      ("GET", "/api/ps"): json_resp(ps),
+                      ("POST", "/api/chat"): urllib.error.URLError(ConnectionRefusedError())}, context_size=8192)
+    assert "連不到" in down.smoke_test()["message"]
+
+
+def test_smoke_test_thinking_model_that_runs_out_still_counts_as_reachable():
+    lines = _sse({"choices": [{"delta": {"reasoning_content": "想"}, "finish_reason": "length"}]})
+    a, _ = ollama({("GET", "/v1/models"): json_resp({"data": [{"id": "m", "max_model_len": 16384}]}),
+                   ("POST", "/v1/chat/completions"): FakeResp(lines)}, model="m", server="vllm")
+    out = a.smoke_test()
+    assert out["ok"] and "還在想就用完了" in out["message"]
+
+
+def test_web_test_really_sends_and_says_when_the_loaded_context_is_too_small(make_bot, owner, monkeypatch):
+    from fake_lmstudio import FakeLMStudio
+    from test_web import Client, ui_of
+    fake = FakeLMStudio("honor", loaded={"qwen3.5-9b": 512})
+    monkeypatch.setattr(local, "default_opener", fake)
+    c = Client(ui_of(make_bot()))
+    c.login(owner)
+    status, data = c.post("/api/settings/llm/test", {"choice": "local", "server": "lmstudio", "model": "qwen3.5-9b"})
+    assert status == 200 and data["ok"] is True and data["sent"] is True and data["reply"] == "好"
+    assert "✅ 模型有回話" in data["message"] and "只有 512" in data["message"] and "重新載入" in data["message"]
+    assert "/v1/chat/completions" in fake.paths() and "/api/v1/models/load" not in fake.paths()

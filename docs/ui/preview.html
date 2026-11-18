@@ -2274,11 +2274,13 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
             <button id="llm-local-free" type="button">釋放顯卡（全部卸載）</button>
           </div>
           <p id="llm-local-models-msg" class="muted"></p>
-          <label class="f" for="llm-local-ctx">Context 長度（越大越佔記憶體；LM Studio 是按「載入這個模型」時用這個長度）</label>
+          <label class="f" for="llm-local-ctx">Context 長度（越大越佔記憶體；LM Studio 是載入模型時用這個長度）</label>
           <div class="row">
             <select id="llm-local-ctx"></select>
             <button id="llm-local-advice" type="button">看建議</button>
+            <button id="llm-local-reload" type="button" class="hidden">用 <span id="llm-local-reload-n">—</span> 重新載入這個模型</button>
           </div>
+          <p id="llm-local-reload-msg" class="muted"></p>
           <p class="muted">不確定電腦撐不撐得住？按「看建議」：只讀取模型資料與這台電腦的記憶體，不會載入模型。建議值都是估算。</p>
           <ul id="llm-local-notes" class="muted"></ul>
           <p class="muted">逾時：模型只要還在回應就不會被中止；完全沒有進展超過 <span id="llm-local-timeout">450</span> 秒才中止，
@@ -7952,8 +7954,14 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     $("llm-local-model").placeholder = h[1];
   }
   $("llm-local-server").addEventListener("change", syncLocalHint);
-  // ── 本地模型清單、載入／卸載（POST /api/settings/llm/local-models、local-load、local-unload）──────
-  var localModels = [];
+  // ── 本地模型清單、載入／卸載（POST /api/settings/llm/local-models、local-load、local-unload、local-reload）──────
+  var localModels = [], localCanLoad = false;
+  function syncReload() {                          // 「用 N 重新載入」：只有 LM Studio（能從這裡載入）才有
+    var n = Number($("llm-local-ctx").value || 0);
+    $("llm-local-reload-n").textContent = n ? String(n) : "—";
+    $("llm-local-reload").classList.toggle("hidden", !(localCanLoad && $("llm-local-server").value === "lmstudio"));
+    $("llm-local-reload").disabled = !n;
+  }
   function localTarget() {
     return { server: $("llm-local-server").value, base_url: $("llm-local-url").value, api_key: $("llm-local-key").value };
   }
@@ -7979,6 +7987,8 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     if (!cur && d.suggested) { $("llm-local-model").value = d.suggested; cur = d.suggested; }
     if (cur && localModels.some(function (m) { return m.id === cur; })) { sel.value = cur; useLoadedContext(cur); }
     $("llm-local-loadrow").classList.toggle("hidden", !d.can_load);
+    localCanLoad = !!d.can_load;
+    syncReload();
     var loaded = localModels.filter(function (m) { return m.loaded; }).length;
     var msg = d.ok === false ? d.message : "找到 " + localModels.length + " 個模型，" + (loaded ? loaded + " 個已載入。" : "目前都沒有載入。");
     if (!quiet || d.ok === false) { $("llm-local-models-msg").textContent = msg + (d.notes && d.notes.length ? "　" + d.notes.join("　") : ""); }
@@ -8014,6 +8024,25 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     }
     sel.value = want;
   }
+  $("llm-local-ctx").addEventListener("change", syncReload);
+  $("llm-local-server").addEventListener("change", syncReload);
+  $("llm-local-reload").addEventListener("click", function () {
+    var model = $("llm-local-model").value, n = Number($("llm-local-ctx").value || 0), btn = $("llm-local-reload");
+    if (!model) { $("llm-local-reload-msg").textContent = "先選一個模型。"; return; }
+    if (!n) { $("llm-local-reload-msg").textContent = "先在左邊選一個 context 長度（0 不能拿來重新載入）。"; return; }
+    if (!confirm("會先把 " + model + " 從 LM Studio 卸載，再用 context " + n + " 重新載入。\n\n" +
+                 "正在用這個模型的其他程式（或正在跑的對話）會被中斷；其他模型不會動。載入前會先估記憶體，撐不住就不動。\n\n要繼續嗎？")) { return; }
+    var body = localTarget();
+    body.model = model;
+    body.context_length = n;
+    btn.disabled = true;
+    $("llm-local-reload-msg").textContent = "重新載入中…大模型可能要幾十秒，請稍等。";
+    api("POST", "/api/settings/llm/local-reload", body).then(function (d) {
+      $("llm-local-reload-msg").textContent = d.message;   // ✅ 只在 LM Studio 讀回來的 context＝選的值時才出現
+      return listLocalModels(true);
+    }).catch(function (e) { $("llm-local-reload-msg").textContent = "❌ " + e.message; })
+      .then(function () { btn.disabled = false; syncReload(); });
+  });
   $("llm-local-load").addEventListener("click", function () {
     var body = localTarget();
     body.model = $("llm-local-model").value;
@@ -8034,13 +8063,15 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     showNotes(["讀取中…（不會載入模型）"]);
     api("POST", "/api/settings/llm/local-advice", { server: $("llm-local-server").value,
         base_url: $("llm-local-url").value, model: $("llm-local-model").value }).then(function (d) {
-      fillContext(d.options || [], d.recommended || $("llm-local-ctx").value);
+      fillContext(d.options || [], d.reload_to || d.recommended || $("llm-local-ctx").value);
+      syncReload();
       showNotes((d.options || []).map(function (r) { return r.ctx + "：" + r.text + (r.recommended ? "　← 推薦" : ""); })
         .concat(d.notes || []));
     }).catch(function (e) { showNotes(["❌ " + e.message]); });
   });
   $("llm-test").addEventListener("click", function () {
-    $("llm-msg").textContent = "測試中…";
+    $("llm-msg").textContent = $("llm-local-fields").classList.contains("hidden") ? "測試中…" :
+      "測試中…（先讀模型資料；模型已經載入的話會送一句很短的話給它，最多等 60 秒）";
     $("llm-install").classList.add("hidden");
     api("POST", "/api/settings/llm/test", llmBody()).then(function (d) {
       $("llm-msg").textContent = d.message;

@@ -949,6 +949,8 @@ class WebUI:
             return self.local_load(user, data, unload=False)
         if path == "/api/settings/llm/local-unload":
             return self.local_load(user, data, unload=True)
+        if path == "/api/settings/llm/local-reload":
+            return self.local_reload(user, data)
         if path == "/api/settings/channels/telegram":
             return self.save_telegram(user, data)
         if path == "/api/settings/channels/discord":
@@ -1570,16 +1572,8 @@ class WebUI:
         llm, problem = self._llm_from(data)
         if problem:
             return _err(400, problem)
-        if llm.get("kind") == "local":               # 唯讀探測（不載入模型）：模型在不在、context 合不合理
-            from synox.llm import make_adapter
-            from synox.llm.local import report_lines
-            try:
-                report = make_adapter({"llm": llm}).inspect()
-            except Exception as e:
-                return _json(200, {"ok": False, "message": f"❌ {e}"})
-            ok = not report["problems"]
-            head = "✅ 找到模型，設定看起來合理（只讀了模型資料，沒有真的載入模型）" if ok else "❌ " + report["problems"][0]
-            return _json(200, {"ok": ok, "message": head, "lines": report_lines(report)})
+        if llm.get("kind") == "local":
+            return self._test_local(user, llm)
         if str(llm.get("api_key", "")).startswith(("vault:", "env:")):
             llm["api_key"] = resolve_secret(llm["api_key"], self.vault)
         result = logic.probe_llm(llm)
@@ -1590,6 +1584,77 @@ class WebUI:
                 out["download_url"] = logic.CLAUDE_DOWNLOAD_URL
             elif "登入" in result:                  # 裝了但還沒登入
                 out["message"] += "　→ 在終端機輸入 claude，照畫面登入一次，再按「測一下」。"
+        return _json(200, out)
+
+    def _test_local(self, user, llm: dict) -> Resp:
+        """本地模型的「測一下」：① 唯讀讀模型資料（在不在、context）② 模型已經載入才真的送一句很短的話（smoke_test：
+        max_tokens 很小、逾時很短；沒載入就不送、不會自己載入）③ 模型現在實際的 context 放不放得下 SYNOX 的提示。"""
+        from synox.llm import make_adapter
+        from synox.llm.factory import resolve_secret
+        from synox.llm.local import report_lines
+        if str(llm.get("api_key", "")).startswith(("vault:", "env:")):
+            try:
+                llm = {**llm, "api_key": resolve_secret(llm["api_key"], self.vault)}
+            except Exception:
+                pass
+        try:
+            adapter = make_adapter({"llm": llm})
+            report = adapter.inspect()
+        except Exception as e:
+            return _json(200, {"ok": False, "message": f"❌ {e}"})
+        lines = report_lines(report)
+        if report["problems"]:
+            return _json(200, {"ok": False, "message": "❌ " + report["problems"][0], "lines": lines})
+        smoke = adapter.smoke_test(report)
+        message = smoke["message"]
+        lines.append(("🧪 " if smoke["sent"] else "ℹ️ ") + smoke["message"])
+        warn = self._context_fit_line(user, smoke.get("context"), llm.get("server") or "ollama")
+        if warn:
+            lines.append(warn)
+            if smoke["ok"] and not warn.startswith("✅"):
+                message += "　" + warn
+        return _json(200, {"ok": bool(smoke["ok"]), "sent": smoke["sent"], "message": message,
+                           "seconds": smoke["seconds"], "reply": smoke["reply"], "context": smoke.get("context"),
+                           "lines": lines})
+
+    def _context_fit_line(self, user, ctx, server: str) -> str:
+        """模型現在實際的 context 夠不夠放這個人的 SYNOX 提示（一句人話；不知道 context＝""）。"""
+        if not ctx:
+            return ""
+        from synox.llm import local_advice
+        try:
+            from synox.agent import prompt_chars
+            prompt = local_advice.tokens_from_chars(prompt_chars(self.app, user))
+        except Exception:
+            return ""
+        try:
+            max_tokens = int((self.config.llm or {}).get("max_tokens") or 1024)
+        except (TypeError, ValueError):
+            max_tokens = 1024
+        min_ctx = prompt + max_tokens
+        comfortable = prompt + local_advice.HISTORY_RESERVE + max_tokens
+        want = next((c for c in local_advice.OPTIONS if c >= comfortable * 1.25), comfortable)
+        return local_advice.loaded_context_note(int(ctx), min_ctx=min_ctx, comfortable=comfortable, want=want,
+                                                server=server)
+
+    def local_reload(self, user, data: dict) -> Resp:
+        """LM Studio：用選的 context 重新載入這個模型（先估記憶體、只動這個模型、載入後讀回來確認）。只給擁有者按按鈕；
+        畫面上先跳確認框。ok 只在 LM Studio 讀回來的 context＝要的值時才是 True。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        target, bad = self._local_target(data)
+        if bad:
+            return bad
+        from synox.llm import local_models
+        from synox.llm.base import LLMError
+        server, base_url, api_key = target
+        try:
+            out = local_models.reload(server, base_url, str(data.get("model") or "").strip(),
+                                      data.get("context_length"), api_key)
+        except LLMError as e:
+            return _json(200, {"ok": False, "message": f"❌ {e}"})
+        logging.info("[WEB] local model reload on %s by the owner: ok=%s", server, out.get("ok"))
         return _json(200, out)
 
     def local_advice(self, user, data: dict) -> Resp:
@@ -1616,9 +1681,11 @@ class WebUI:
             max_tokens = int((self.config.llm or {}).get("max_tokens") or 1024)
         except (TypeError, ValueError):
             max_tokens = 1024
+        target, _bad = self._local_target(data)
+        api_key = target[2] if target else ""
         try:
             advice = logic.local_advice(server, base_url, str(data.get("model") or ""), prompt_chars=chars,
-                                        max_tokens=max_tokens)
+                                        max_tokens=max_tokens, api_key=api_key)
         except Exception as e:
             return _err(400, f"算不出建議：{e}")
         from synox.llm.local_advice import option_label

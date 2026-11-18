@@ -81,3 +81,32 @@ claude_login／openai_login 包的是「別人的登入」（訂閱、token 檔�
    `POST /api/v1/models/unload`；舊版退回 `/api/v0/models`、只能列不能載），Ollama 用 `/api/tags`、`/api/ps`、
    `/api/generate` 的 keep_alive。「釋放顯卡」＝全部卸載。**不是 AI 工具**：載入會佔記憶體，只有人按按鈕才做。
    API key 欄位：留空＝同一台伺服器沿用存好的金鑰；別台伺服器不送。模型名稱的提示跟著選的伺服器換。
+
+## 後續修改（2026-11-18 之二）：「模型最多多長」跟「現在載入成多長」分開、用選的 context 重新載入、「測一下」真的送一句
+
+起因：LM Studio 把模型載入成 8192 時，「看建議」說「這個模型最多 8192」、選項只剩 4096／8192，還說「換小一點的模型、關掉其他程式」
+（這台明明有幾十 GB 可用）。原因是建議拿 `loaded_context_length or max_context_length`（**先拿載入的**）當模型上限；
+SYNOX 的 context 預算也照 `llm.context_size` 算，跟 LM Studio 實際載入的長度可能不一樣。
+
+1. **兩個數字分開**：`inspect()` 的 `max_context`＝模型本身最多多長（LM Studio `max_context_length`，只限制選項），
+   `loaded_context`＝現在載入成多長（`loaded_instances[].config.context_length`；vLLM 的 `max_model_len`）。
+   LM Studio 先讀 `GET /api/v1/models`，沒有才退回 `/api/v0/models`。
+2. **建議講清楚原因與做法**：載入的 context 放不下 SYNOX 的提示時，明說「不是記憶體或模型的問題，是載入時設太小」，
+   並給做法（設定頁「用 N 重新載入」，或在 LM Studio Eject 後用 Context Length ≥ N 重新載入）。❌「沒有一個選項」分三種原因講：
+   模型本身太短、選項都放不下、記憶體估計撐不住。
+3. **context 預算照實際載入的**（`AgentLoop._context_budget`）：伺服器決定 context 的來源（LM Studio、vLLM：
+   `adapter.loaded_context()` 問得到）一律照實際載入的值算；跟 `llm.context_size` 不一樣就寫 log、放進 `last_warning`。
+   提醒文字寫「模型實際載入的 context N」而不是 `llm.context_size=N`。`loaded_context()` 唯讀、快取 30 秒，重新載入後會跟上。
+4. **用選的 context 重新載入**（`local_models.reload`，`POST /api/settings/llm/local-reload`，只給擁有者、要 CSRF，畫面先跳確認框）：
+   檢查不超過模型上限 → 估記憶體（同一套估算；撐不住就不動，說估計撐得住的最大值）→ **只卸載這個模型**的實例 → 用新的
+   context 載入 → **讀回來確認**：`loaded_instances[].config.context_length` 等於要的值才回成功；不一樣或讀不到＝失敗並說 LM Studio
+   實際回報多少。新 context 載入失敗就試著用原本的 context 載回去。「載入這個模型」帶了 context 也一樣讀回來比。
+   Ollama 不需要（context 是每次請求帶 num_ctx）；vLLM 要改啟動參數。
+5. **「測一下」真的送一句**（`LocalAdapter.smoke_test`，取代第 5 點「絕不送 chat」的限制，只限「測一下」）：先做原本的唯讀檢查，
+   模型**已經載入**才送「請只回一個字：好」（max_tokens 64、無進展 60 秒、總共 120 秒、不帶工具），回成功、秒數、回了什麼；
+   沒載入（或看不出來）就**不送**，說先按「載入這個模型」——LM Studio 開 JIT 時送 chat 會偷偷載入，Ollama 的 num_ctx 跟載入時
+   不同會重新載入，所以 Ollama 照 `/api/ps` 的 context 送。doctor 與精靈的 `probe()` 仍然唯讀。
+
+API 依據：LM Studio 官方文件 REST `POST /api/v1/models/load`（`model`、`context_length`）、`GET /api/v1/models`
+（`max_context_length`＝模型層級上限、`loaded_instances[].config.context_length`＝實例載入的長度）、CLI
+`lms load <model_key> --context-length N`／`lms unload <model_key>`。沒有在真機上測過（只有假的 LM Studio）。

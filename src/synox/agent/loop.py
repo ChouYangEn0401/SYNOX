@@ -654,6 +654,33 @@ class AgentLoop:
             logging.info("[AGENT] could not read the server context (ignored)")
             return 0
 
+    def _context_budget(self) -> tuple:
+        """(這一輪的 context 預算, 來源 config｜server)。context 由伺服器決定的（LM Studio 載入時設的、vLLM 的
+        max_model_len：adapter.loaded_context() 問得到）一律照**實際載入的**算——llm.context_size 對它們送不過去，
+        照設定算會比實際大（被伺服器截掉）或小（白白省略）。兩個不一樣就寫 log、放進 adapter.last_warning（設定頁看得到）。"""
+        configured = context_mod.context_limit(self.llm)
+        probe = getattr(self.adapter, "loaded_context", None)
+        real = 0
+        if callable(probe):
+            try:
+                real = int(probe() or 0)
+            except Exception:
+                logging.info("[AGENT] could not read the loaded context (ignored)")
+                real = 0
+        if real:
+            if configured and configured != real:
+                warn = (f"設定的 context_size {configured} 跟伺服器實際載入的 {real} 不一樣：SYNOX 照實際的 {real} 算。"
+                        "要用別的長度，到設定頁重新載入模型。")
+                logging.warning("[AGENT] context: %s", warn)
+                try:
+                    self.adapter.last_warning = warn
+                except Exception:
+                    pass
+            return real, "server"
+        if configured:
+            return configured, "config"
+        return self._server_context(), "server"
+
     # ── context 預算（docs/adr/0015、0016）──────────────────────────────
 
     def _fit(self, messages, tools):
@@ -693,7 +720,8 @@ class AgentLoop:
         self._ctx.budget = None
         if not state or not state["stats"]:
             return
-        note = context_mod.note_text(limit=state["limit"] or context_mod.context_limit(self.llm), **state["stats"])
+        note = context_mod.note_text(limit=state["limit"] or context_mod.context_limit(self.llm),
+                                     source=state.get("source", "config"), **state["stats"])
         if note:
             try:
                 api.send_message(chat_id, note)              # 另一則、不進對話記憶：截斷不靜默
@@ -706,8 +734,8 @@ class AgentLoop:
 
     def _turn(self, api, chat_id: int, user, text: str, **image_kw) -> None:
         """image_kw：images／shown／route（看圖），seed／wake（叫醒的那一輪）。"""
-        limit = context_mod.context_limit(self.llm) or self._server_context()
-        self._ctx.budget = {"limit": limit, "start": None, "soul": "", "stats": {}}
+        limit, source = self._context_budget()
+        self._ctx.budget = {"limit": limit, "start": None, "soul": "", "stats": {}, "source": source}
         try:
             self._turn_body(api, chat_id, user, text, **image_kw)
         finally:
