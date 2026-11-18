@@ -531,6 +531,16 @@ class WebUI:
 
     # ── 頁面 ─────────────────────────────────────────────────────────
 
+    def _handoff_origins(self) -> List[str]:
+        """工具服務「打開」的 303 目的地（127.0.0.2:<埠>）。CSP3 的 form-action 也管表單送出後的轉址：
+        只寫 'self' 的話，瀏覽器會擋掉轉去 127.0.0.2 的那一步，新分頁一片空白（重新整理才過，因為那次不是頁面送的表單）。"""
+        manager = getattr(self, "apps", None)
+        try:
+            return list(manager.handoff_origins()) if manager is not None else []
+        except Exception:
+            logging.exception("[WEB] apps handoff origins failed")
+            return []
+
     def app_page(self, tg_id: Optional[int] = None) -> Resp:
         """tg_id：登入的人（None＝還沒登入，用擁有者選的外觀）。外觀壞掉不擋網頁：照原本的 SYNOX。"""
         nonce = secrets.token_urlsafe(16)
@@ -543,7 +553,7 @@ class WebUI:
         html = render_app(nonce, head, mode, skin, chat_bg)
         csp = (f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'nonce-{nonce}'; "
                "img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; "
-               "base-uri 'none'; form-action 'self'")
+               "base-uri 'none'; form-action " + " ".join(["'self'"] + self._handoff_origins()))
         return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "DENY"),
                                     ("Content-Security-Policy", csp)], html.encode("utf-8")
 

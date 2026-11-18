@@ -23,7 +23,7 @@ from isdtelekit.core import jsonstore
 
 from synox.web.apps import spec as spec_mod
 from synox.web.apps.audit import FILE as AUDIT_FILE, Audit, safe_trace
-from synox.web.apps.listen import open_listener
+from synox.web.apps.listen import APP_HOST, open_listener
 from synox.web.apps.sessions import HandoffTickets
 from synox.web.apps.site import AppSite, AppsError
 
@@ -365,6 +365,21 @@ class AppManager:
     def port_of(self, name: str) -> int:
         st = self._states.get(name)
         return st.port if st is not None and st.status == "on" else 0
+
+    def handoff_origins(self) -> List[str]:
+        """主機台頁面 CSP 的 form-action 要放行的位址：「打開」表單 POST 之後 303 轉到這裡，瀏覽器會拿 form-action
+        檢查轉址的目的地（CSP3），不在名單上就整個擋掉、新分頁一片空白。只列設定的埠範圍＋已經配過的埠，不用萬用字元。"""
+        if not self.settings.get("enabled", True):
+            return []
+        s = self.settings
+        first, count = int(s["port_first"]), int(s["port_count"])
+        ports = set(range(first, first + count))
+        for port in self._data()["ports"].values():
+            try:
+                ports.add(int(port))
+            except (TypeError, ValueError):
+                continue
+        return [f"http://{APP_HOST}:{p}" for p in sorted(ports) if 0 < p < 65536]
 
     def site_of(self, name: str):
         st = self._states.get(name)
