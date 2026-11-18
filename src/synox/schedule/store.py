@@ -29,7 +29,7 @@ def visible(it: dict) -> bool:
     if not isinstance(it, dict) or it.get("v") != 2 or it.get("kind") != "remind":
         return True
     status = it.get("status")
-    if status in ("done", "missed", "cancelled", "expired"):
+    if status in ("done", "dismissed", "missed", "cancelled", "expired"):
         return False
     if it.get("repeat") == "once" and status == "ringing":
         return False                     # 響過了、等人按（或還在重送）：以前這時候就從清單刪掉了

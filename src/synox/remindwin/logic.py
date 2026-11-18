@@ -4,12 +4,17 @@
     model = DeskModel(spool_at(data_dir))
     changes = model.poll()            # 每 1 秒：新的卡、要關的卡、待辦
     model.shown(token)                # 卡片真的畫出來了 → from_win/shown-<token>.json（＝desktop 送到了）
-    model.act(token, "snooze:10")     # 按了 → from_win/act-<token>-<ms>.json（引擎 5 秒內讀到）
+    model.act(token, "snooze:15")     # 按了 → from_win/act-<token>-<ms>.json（引擎 5 秒內讀到）
+
+按鈕（desk.BTN_*，卡片上有哪些由引擎決定）→ 引擎的動作（schedule/actions.py）：
+    我完成了 done → done　　我知道了 ack → ack（不響了、不算做完）
+    稍後再叫我 5／15 分鐘、1 小時、自選（幾分鐘或打時間）→ snooze
+    改到別天 明天同一時間、挑日子＋時間 → reschedule（只有一次性的提醒有）
 
 - 視窗顯示的就是 to_win 裡的 show 檔（扣掉剛按過的）：引擎處理掉才刪 show 檔，所以引擎沒在跑、或不接受
   （例如打的時間看不懂）時，那張卡 ACT_HIDE_S 秒後會再跳出來，不會默默消失。
 - close 檔（在別處處理掉了）：關掉那張卡、刪掉 close 檔。
-- 自己打時間：看得懂就填 until（ISO），看不懂也照樣把原字交給引擎（引擎說了算）。
+- 自己打時間：看得懂就填 until（ISO），看不懂也照樣把原字交給引擎（引擎說了算）。只打數字＝幾分鐘後。
 """
 
 from __future__ import annotations
@@ -17,33 +22,50 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from typing import Dict, List, Optional, Tuple
 
 from synox.notify import desk as deskmod
 
 ACT_HIDE_S = 20.0                 # 按過的卡，這麼久之內不再顯示（等引擎處理）
 IDLE_EXIT_S = 600.0               # 沒有卡、這麼久之後視窗程式自己結束（要跳時引擎會再開）
-PRESET_MIN = {deskmod.BTN_SNOOZE_10: 10, deskmod.BTN_SNOOZE_60: 60}
+PRESET_MIN = {deskmod.BTN_SNOOZE_5: 5, deskmod.BTN_SNOOZE_10: 10, deskmod.BTN_SNOOZE_15: 15,
+              deskmod.BTN_SNOOZE_60: 60}
+PICK_DAYS = 7                     # 「挑日子」列幾天（明天起）
+WEEK = "一二三四五六日"
 
 LABELS = {
-    deskmod.BTN_DONE: "✅ 完成",
-    deskmod.BTN_SNOOZE_10: "10 分鐘後",
-    deskmod.BTN_SNOOZE_60: "1 小時後",
-    deskmod.BTN_SNOOZE_TYPED: "自己打時間…",
+    deskmod.BTN_DONE: "我完成了",
+    deskmod.BTN_ACK: "我知道了",
+    deskmod.BTN_SNOOZE_5: "5 分鐘",
+    deskmod.BTN_SNOOZE_10: "10 分鐘",
+    deskmod.BTN_SNOOZE_15: "15 分鐘",
+    deskmod.BTN_SNOOZE_60: "1 小時",
+    deskmod.BTN_SNOOZE_TYPED: "自選…",
+    deskmod.BTN_RESCHEDULE_TOMORROW: "明天同一時間",
+    deskmod.BTN_RESCHEDULE_PICK: "挑日子…",
 }
 T = {
-    "title": "⏰ 提醒",
+    "title": "提醒",
+    "brand": "SYNOX",
     "late": "晚了 {n} 分鐘",
     "snoozed": "延後第 {n} 次之後",
-    "todos": "📝 待辦",
+    "snooze_head": "稍後再叫我",
+    "move_head": "改到別天",
+    "todos": "待辦",
     "todo_done": "✓",
-    "typed_hint": "例如 15:30、+2h、半小時後、明天 9 點",
+    "typed_hint": "幾分鐘（例如 20），或 15:30、+2h、明天 9 點",
     "typed_ok": "確定",
     "typed_empty": "先打一個時間。",
+    "pick_hint": "幾點，例如 09:00、下午 3 點",
+    "pick_ok": "改過去",
+    "pick_bad": "看不懂這個時間：打 09:00 或 下午 3 點。",
+    "pick_past": "要挑現在之後的時間。",
     "done": "好，記成做完了。",
+    "ack": "好，這次先不叫你了。",
     "snooze_at": "好，{when} 再叫你一次。",
     "snooze_typed": "好，交給 SYNOX 排時間。",
+    "moved": "好，改到 {when} 再叫你。",
 }
 
 _DIGITS = {"零": 0, "〇": 0, "一": 1, "二": 2, "兩": 2, "两": 2, "三": 3, "四": 4, "五": 5, "六": 6, "七": 7, "八": 8,
@@ -105,6 +127,8 @@ def parse_typed(text: str, now: Optional[datetime] = None) -> Optional[datetime]
     s = (text or "").strip().lower().replace(" ", "")
     if not s:
         return None
+    if re.fullmatch(r"\d{1,3}", s) and 0 < int(s) <= 24 * 60:          # 只打數字＝幾分鐘後（「自選」那一格）
+        return now + timedelta(minutes=int(s))
     m = re.fullmatch(r"\+(?:(\d{1,3})h)?(?:(\d{1,4})m(?:in)?)?", s)
     if m and (m.group(1) or m.group(2)):
         return now + timedelta(hours=int(m.group(1) or 0), minutes=int(m.group(2) or 0))
@@ -132,6 +156,46 @@ def parse_typed(text: str, now: Optional[datetime] = None) -> Optional[datetime]
     return at
 
 
+def day_choices(now: Optional[datetime] = None, n: int = PICK_DAYS) -> List[Tuple[date, str]]:
+    """「挑日子」的選項：明天起 n 天 → [(那一天, 「明天」「後天」「11/21（五）」)]。"""
+    today = (now or datetime.now()).date()
+    out = []
+    for i in range(1, n + 1):
+        d = today + timedelta(days=i)
+        label = "明天" if i == 1 else "後天" if i == 2 else f"{d.month}/{d.day}（{WEEK[d.weekday()]}）"
+        out.append((d, label))
+    return out
+
+
+def pick_at(day: date, text: str) -> Optional[datetime]:
+    """挑的那一天＋打的時間（「09:00」「9 點半」「下午 3 點」）→ 那一刻（本機、沒有時區）；看不懂＝None。"""
+    hm = _clock_part((text or "").replace(" ", ""))
+    if hm is None:
+        return None
+    return datetime(day.year, day.month, day.day, hm[0], hm[1])
+
+
+def same_time_tomorrow(occurrence: str, now: datetime) -> datetime:
+    """「明天同一時間」：這一次原本的牆上時間＋1 天（已經過了就再往後）。本機、沒有時區。"""
+    try:
+        occ = datetime.fromisoformat(occurrence)
+        occ = occ.astimezone().replace(tzinfo=None) if occ.tzinfo else occ
+    except (TypeError, ValueError):
+        occ = now
+    at = occ.replace(second=0, microsecond=0) + timedelta(days=1)
+    while at <= now:
+        at += timedelta(days=1)
+    return at
+
+
+def when_text(at: datetime, now: datetime) -> str:
+    """給人看的時間：今天的只寫 HH:MM，別天的寫「明天 09:00」「11 月 21 日（五）09:00」。"""
+    if at.date() == now.date():
+        return at.strftime("%H:%M")
+    from synox.notify.alarms import friendly
+    return friendly(at, now)
+
+
 def stack_positions(n: int, screen_w: int, screen_h: int, w: int, h: int, *, margin: int = 12,
                     bottom: int = 56) -> List[Tuple[int, int]]:
     """n 張卡在右下角往上疊（第 0 張最下面）；疊到頂就往左開一欄。回每張的 (x, y)。"""
@@ -141,6 +205,20 @@ def stack_positions(n: int, screen_w: int, screen_h: int, w: int, h: int, *, mar
         col, row = divmod(i, per_col)
         x = screen_w - (col + 1) * (w + margin)
         y = screen_h - bottom - (row + 1) * (h + margin)
+        out.append((max(0, x), max(0, y)))
+    return out
+
+
+def stack_heights(heights: List[int], screen_w: int, screen_h: int, w: int, *, margin: int = 12,
+                  bottom: int = 56) -> List[Tuple[int, int]]:
+    """高度不一樣的卡（每張依內容長高）在右下角往上疊；疊到頂就往左開一欄。回每張的 (x, y)。"""
+    out = []
+    col, y = 0, screen_h - bottom
+    for h in heights:
+        if y - h - margin < 0 and y != screen_h - bottom:          # 這一欄放不下：往左開一欄
+            col, y = col + 1, screen_h - bottom
+        y -= h + margin
+        x = screen_w - (col + 1) * (w + margin)
         out.append((max(0, x), max(0, y)))
     return out
 
@@ -228,8 +306,10 @@ class DeskModel:
     def shown(self, token: str, now: Optional[float] = None) -> None:
         self.spool.put_shown(deskmod.ShownAck(token=token, at=self.clock() if now is None else now))
 
-    def act(self, token: str, button: str, typed: str = "", now: Optional[float] = None) -> Tuple[bool, str]:
-        """按了卡片上的按鈕。回 (有沒有送出去, 給人看的一句)。打時間但沒打字＝不送。"""
+    def act(self, token: str, button: str, typed: str = "", now: Optional[float] = None,
+            at: Optional[datetime] = None) -> Tuple[bool, str]:
+        """按了卡片上的按鈕。回 (有沒有送出去, 給人看的一句)。打時間但沒打字＝不送。
+        at：「挑日子」挑好的那一刻（本機、沒有時區；pick_at 算的），沒有＝看不懂、不送。"""
         card = self.cards.get(token)
         if card is None:
             return False, ""
@@ -237,6 +317,18 @@ class DeskModel:
         until: Optional[str] = None
         if button == deskmod.BTN_DONE:
             action, message = "done", T["done"]
+        elif button == deskmod.BTN_ACK:
+            action, message = "ack", T["ack"]
+        elif button in (deskmod.BTN_RESCHEDULE_TOMORROW, deskmod.BTN_RESCHEDULE_PICK):
+            here = datetime.fromtimestamp(ts).replace(microsecond=0)
+            if button == deskmod.BTN_RESCHEDULE_TOMORROW:
+                at = same_time_tomorrow(card.occurrence, here)
+            elif at is None:
+                return False, T["pick_bad"]
+            elif at <= here:
+                return False, T["pick_past"]
+            action, until = "reschedule", at.astimezone().isoformat()
+            message = T["moved"].format(when=when_text(at, here))
         elif button in PRESET_MIN:
             at = datetime.fromtimestamp(ts).replace(microsecond=0) + timedelta(minutes=PRESET_MIN[button])
             action, until = "snooze", at.astimezone().isoformat()
@@ -282,5 +374,6 @@ def demo_card(uid: int = 0, now: Optional[datetime] = None) -> deskmod.ShowCard:
                             text="這是試跳的提醒：按一個按鈕看看", when=f"今天 {now.strftime('%H:%M')}")
 
 
-__all__ = ["ACT_HIDE_S", "Changes", "DeskModel", "IDLE_EXIT_S", "LABELS", "PRESET_MIN", "T", "card_lines",
+__all__ = ["ACT_HIDE_S", "Changes", "DeskModel", "IDLE_EXIT_S", "LABELS", "PICK_DAYS", "PRESET_MIN", "T", "card_lines",
+           "day_choices", "pick_at", "same_time_tomorrow", "stack_heights", "when_text",
            "demo_card", "parse_typed", "stack_positions"]

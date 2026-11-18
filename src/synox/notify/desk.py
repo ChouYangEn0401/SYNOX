@@ -10,6 +10,7 @@
         show-<token>.json    要顯示的一張卡（ShowCard）。**引擎寫、引擎刪**（處理掉才刪）；視窗開起來時把現有的全部顯示
         close-<token>.json   要關掉的一張（CloseCard，例如在 Telegram 按了完成）。引擎寫、**視窗處理完刪**
         todos-<uid>.json     待辦清單（TodoList，視窗下半部）。引擎在待辦有變動時整份覆寫；視窗只讀不刪
+      desk/style.json      視窗的外觀（跟著網頁的外觀包與淺色／深色；remindwin/style.py）。主程式寫、視窗只讀；沒有個人資料
       desk/from_win/       視窗 → 引擎
         shown-<token>.json   卡片真的出現在螢幕上了（ShownAck）＝desktop 管道的送達確認。視窗寫、**引擎讀完刪**
         act-<token>-<ms>.json 使用者按了（DeskAction）。視窗寫、**引擎讀完刪**
@@ -53,11 +54,19 @@ YIELD_WAIT_S = 15.0                       # 主程式送出 yield.request 後最
 STAMP_STALE_S = 120.0                     # engine.lock 內容的 beat 多久沒更新算「卡住」（健康檢查用；誰是引擎看 OS 鎖，不看這個）
 
 # 視窗上的按鈕（ShowCard.buttons 的值）
-BTN_DONE = "done"
-BTN_SNOOZE_10 = "snooze:10"
+BTN_DONE = "done"                         # 我完成了（記成 done）
+BTN_ACK = "ack"                           # 我知道了（這一次不響了，不算做完）
+BTN_SNOOZE_5 = "snooze:5"
+BTN_SNOOZE_10 = "snooze:10"               # 舊的卡片可能還有（照樣認得）
+BTN_SNOOZE_15 = "snooze:15"
 BTN_SNOOZE_60 = "snooze:60"
-BTN_SNOOZE_TYPED = "snooze:typed"         # 自己打時間（「15:30」「+2h」「半小時後」「明天 9 點」）
-DEFAULT_BUTTONS = (BTN_DONE, BTN_SNOOZE_10, BTN_SNOOZE_60, BTN_SNOOZE_TYPED)
+BTN_SNOOZE_TYPED = "snooze:typed"         # 自選：幾分鐘，或打時間（「15:30」「+2h」「半小時後」「明天 9 點」）
+BTN_RESCHEDULE_TOMORROW = "reschedule:tomorrow"   # 改到明天同一時間（只有一次性的提醒有）
+BTN_RESCHEDULE_PICK = "reschedule:pick"           # 改到別天：挑日子＋時間
+SNOOZE_BUTTONS = (BTN_SNOOZE_5, BTN_SNOOZE_15, BTN_SNOOZE_60, BTN_SNOOZE_TYPED)
+DAILY_BUTTONS = (BTN_DONE, BTN_ACK) + SNOOZE_BUTTONS                      # 每天的：明天本來就會響，沒有「改到別天」
+DEFAULT_BUTTONS = DAILY_BUTTONS + (BTN_RESCHEDULE_TOMORROW, BTN_RESCHEDULE_PICK)
+MISSED_BUTTONS = (BTN_ACK,)               # 補送的「你錯過了」：那一次已經記成錯過，只有「我知道了」
 
 # 誰是引擎
 WHO_APP, WHO_SENTINEL = "app", "sentinel"
@@ -152,7 +161,7 @@ class DeskAction:
     token: str
     rid: int
     occurrence: str
-    action: str                           # done｜snooze
+    action: str                           # done｜ack｜snooze｜reschedule
     at: float
     until: Optional[str] = None
     typed: str = ""
@@ -577,7 +586,9 @@ def now_ms() -> int:
     return int(datetime.now().timestamp() * 1000)
 
 
-__all__ = ["BTN_DONE", "BTN_SNOOZE_10", "BTN_SNOOZE_60", "BTN_SNOOZE_TYPED", "CloseCard", "DEFAULT_BUTTONS",
+__all__ = ["BTN_ACK", "BTN_DONE", "BTN_RESCHEDULE_PICK", "BTN_RESCHEDULE_TOMORROW", "BTN_SNOOZE_5", "BTN_SNOOZE_10",
+           "BTN_SNOOZE_15", "BTN_SNOOZE_60", "BTN_SNOOZE_TYPED", "CloseCard", "DAILY_BUTTONS", "DEFAULT_BUTTONS",
+           "MISSED_BUTTONS", "SNOOZE_BUTTONS",
            "DeskAction", "ENGINE_LOCK", "EngineLock", "EngineStamp", "FOLDER", "FROM_WIN", "POLL_ENGINE_S",
            "POLL_WIN_S", "POPUP_LOCK", "SENTINEL_LOCK", "SHOWN_TIMEOUT_S", "STAMP_STALE_S", "ShowCard", "ShownAck", "TODO_SHOW", "TodoList",
            "SENTINEL_STARTUP_NAME", "Spool", "TO_WIN", "install_autostart", "remove_autostart", "VERSION", "WHO_APP", "WHO_SENTINEL", "YIELD_REQUEST", "YIELD_WAIT_S", "YieldRequest",
