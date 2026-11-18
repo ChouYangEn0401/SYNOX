@@ -1,7 +1,7 @@
 # ADR 0029：提醒必達——疊在通知中心上的資料格式、排程回執、送達介面
 
 - 日期：2026-11-16
-- 狀態：**提案（契約已定，實作分三包）**。分支 `feat/core-w0-remind-contract`。
+- 狀態：**已採用**（契約在分支 `feat/core-w0-remind-contract`；提醒引擎 W1、送達層＋視窗＋哨兵 W2、兩邊接起來的 W5 都已合進 `dev`，隨 0.2.1-alpha.1 發佈，合併 `1497025`）。下面是當初定的契約，照它做；實際行為以程式與 [docs/notifications.md](../notifications.md) 為準。
 - 基準：通知中心（`docs/notifications.md`、`src/synox/notify/`）與排程（`src/synox/schedule/`）在 `c132b4c` 的樣子。
 - 契約程式（只有型別、常數、純函式；要動檔案或管道的本體是 `NotImplementedError`）：
   `src/synox/schedule/reminder.py`（一筆提醒／待辦）、`src/synox/schedule/receipt.py`（排程回執）、

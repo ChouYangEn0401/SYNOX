@@ -1,7 +1,7 @@
 # ADR 0038：核准卡執行完叫醒 AI
 
 - 日期：2026-11-17
-- 狀態：**第一段已經有程式**（同時進行的分支 `feat/ai-structured-results`：`src/synox/agent/wake.py`、`tests/test_ai_wake.py`）；
+- 狀態：**第一段已採用**（分支 `feat/ai-structured-results` 已合進 `dev`，合併 `8aa9efd`：`src/synox/agent/wake.py`、`tests/test_ai_wake.py`）；
   **之後兩段是提案**（批次方案的卡、併卡、過期）。這份把第一段的介面記下來，並定後兩段要怎麼接上去。
 - 基準：分支 `dev`，commit `86a930d`；第一段的介面讀的是 `feat/ai-structured-results` 在 `71f4272` 的樣子（**已查證**，只讀）。
 - 來源：合一規劃（維護者的私有文件庫，2026-11-17）第 11.10 節；給 AI 的那一份結果照同一份規劃的第 11.6 節（`src/synox/agent/structured.py`）。
