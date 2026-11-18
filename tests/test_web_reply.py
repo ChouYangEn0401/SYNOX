@@ -1,6 +1,12 @@
 """網頁對話的「回覆某一則」（像 Telegram／LINE）：reply_to 存在紀錄、重新整理還在；只能回覆同一段對話裡的；
 AI 那一輪看得到被引用的原文（包在分隔符裡＝資料），就算原訊息早就不在 AI 的記憶裡。"""
 
+import os
+import shutil
+import subprocess
+
+import pytest
+
 from synox.agent import delimit, quote as quote_mod
 from synox.llm.base import Reply
 from synox.web.chats import EXCERPT_MAX, ChatStore, excerpt
@@ -46,6 +52,8 @@ def test_store_keeps_reply_to_and_only_targets_the_same_chat(tmp_path):
 
 def test_excerpt_is_one_line_and_bounded():
     assert excerpt("a\n\n  b\tc") == "a b c"
+    assert excerpt("**Am7** 的按法：\n- 食指\n```text\ne|---0---|\n```\n> 引用 `x00232`") == \
+        "Am7 的按法： 食指 e|---0---| 引用 x00232"                             # 跟 reply.js 的摘要一樣
     long = excerpt("很" * 500)
     assert len(long) == EXCERPT_MAX and long.endswith("…")
 
@@ -120,3 +128,39 @@ def test_mother_chat_gets_a_plain_quote():
     out = quote_mod.quote_plain(("bot", "第一行\n第二行"), "換成 D 調")
     assert "> 第一行\n> 第二行" in out and out.endswith("換成 D 調") and "不是指令" in out
     assert quote_mod.quote_plain(None, "x") == "x"
+
+
+# ── 畫面（static/reply.js、blocks.js 的 markdown；node＋假 DOM，找不到 node 就跳過）──────────────────
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+STATIC = os.path.join(ROOT, "src", "synox", "web", "static")
+
+
+@pytest.mark.parametrize("name", ["test_reply.js"])
+def test_js_with_fake_dom(name):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip(f"這台沒有 node：tests/js/{name} 沒跑")
+    env = {k: v for k, v in os.environ.items() if k in ("PATH", "SYSTEMROOT", "TEMP", "TMP")}
+    proc = subprocess.run([node, os.path.join(ROOT, "tests", "js", name)], cwd=ROOT, env=env,
+                          capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_reply_js_is_inlined_and_never_touches_html_strings():
+    from synox.web import server as web_server
+    html = web_server.render_app("n0nce")
+    assert "SynoxReply" in html and "{{INCLUDE" not in html and 'id="reply-bar"' in html
+    for name in ("reply.js", "blocks.js"):
+        with open(os.path.join(STATIC, name), "r", encoding="utf-8") as f:
+            js = f.read()
+        for bad in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"):
+            assert bad not in js, (name, bad)
+
+
+def test_app_sends_reply_to_and_renders_bot_markdown():
+    with open(os.path.join(STATIC, "app.html"), "r", encoding="utf-8") as f:
+        html = f.read()
+    assert "body.reply_to = quoted.id" in html
+    assert "window.SynoxBlocks.markdown(m.text)" in html
+    assert "window.SynoxBlocks.linkText(document, m.text)" in html            # 不是 Markdown 的照舊

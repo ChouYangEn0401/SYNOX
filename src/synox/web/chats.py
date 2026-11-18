@@ -24,6 +24,7 @@
 from __future__ import annotations
 
 import os
+import re
 import threading
 import time
 from typing import Callable, Dict, List, Optional, Tuple
@@ -279,6 +280,10 @@ class ChatStore:
 
 
 def excerpt(text: str, limit: int = EXCERPT_MAX) -> str:
-    """一則訊息的一小段：空白摺成一個空格，超過 limit 字就截掉加「…」。"""
-    flat = " ".join(str(text or "").split())
+    """一則訊息的一小段：Markdown 的排版記號拿掉（字留著）、空白摺成一個空格，超過 limit 字就截掉加「…」。
+    跟 static/reply.js 的 excerpt 同一套規則。"""
+    text = re.sub(r"`{3,}[^\n]*", " ", str(text or ""))
+    text = re.sub(r"\*\*|`", "", text)
+    text = re.sub(r"^[ \t]*(?:#{1,6}|>|[-*+])[ \t]+", "", text, flags=re.MULTILINE)
+    flat = " ".join(text.split())
     return flat if len(flat) <= limit else flat[:max(1, limit - 1)].rstrip() + "…"
