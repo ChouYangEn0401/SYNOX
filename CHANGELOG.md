@@ -1,5 +1,18 @@
 # Changelog
 
+## 未發佈（branch fix/telegram-token-vault：Telegram bot token 搬進保管箱）
+
+#### 安全
+- **Telegram bot token 不再明文寫在 `config.json`**：跟 Discord token、AI 金鑰一樣存進保管箱（`data/secrets.json.enc`），
+  `config.json` 只寫 `"bot_token": "vault:telegram_bot_token"`。安裝精靈、`python -m synox init`、網頁「設定 → 聊天通道」都這樣存；
+  `"env:環境變數名"` 照樣可以用。（`src/synox/telegram_token.py`）
+- **舊的明文自動搬**：`python -m synox run`（Start.bat）一啟動、重跑精靈或 `init` 時，`config.json` 裡的明文 token 存進保管箱、
+  讀回來確認一樣之後才原子地改寫成參照；旁邊的 `config.json.*` 殘檔（`.bak`、`.tmp`…）裡的明文也換掉，不另外留備份。
+  重複跑沒關係；保管箱打不開就不動 `config.json`，只在 log 留一句白話警告（不印 token）。
+- **token 不會出現在**：log（解開的 token 登記到 log 遮罩，SDK 連線錯誤印出的 `…/bot<token>/getUpdates` 網址也遮成 `***`）、
+  `repr(config)`、doctor（只說「在保管箱／環境變數／⚠️ 明文」）、回報摘要、網頁 API（設定頁只顯示最後 4 個字「…AB12」）、錯誤訊息。
+- 參照解不開（保管箱壞了、裡面沒有）：Telegram 這次不開、啟動與 doctor 說原因；網頁、Discord 照常。
+
 ## 0.2.1-beta.1（2026-11-18）
 
 **預覽版（beta）：給外部測試的人用。** 從 0.2.0 更新上來的人：內建工具都搬進工具庫了，更新完到「設定 → 🧩 功能與安裝 → 工具庫」把要用的工具裝回來（資料還在）。
