@@ -6,6 +6,8 @@
          "messages": [{"id": 7, "rev": 11, "from": "me"|"bot"|"note", "text": "…",
                        "buttons": [[{"text": "✅ 執行", "data": "agent_ok:go:…"}]], "at": …}]}]}
 
+- "images"（選配）：工具回覆帶的圖（synox/web/chatmedia.py）：[{"id", "type", "w", "h", "alt"}]；圖本身存在
+  data/web_chats/media/<tg_id>/，網頁用 GET /api/chat/<段>/image/<id> 拿。訊息被擠掉、清空、刪掉時圖一起刪（self.media）。
 - "blocks"（選配）：呈現層的區塊（synox/present/web.py 的 wire；config presentation.enabled 開著時 AI 回覆才有），
   網頁用 static/blocks.js 畫；text 仍是原本的文字（預覽、常駐助理讀的都是它）。改字或刪掉時一起拿掉。
 
@@ -62,6 +64,15 @@ class ChatStore:
         self.keep = keep
         self._lock = threading.RLock()
         self._cache: Dict[int, dict] = {}
+        self.media = None                  # chatmedia.ChatMedia（伺服器設）：訊息不見了，圖一起刪
+
+    def _forget(self, tg_id: int, messages) -> None:
+        if self.media is None:
+            return
+        from synox.web.chatmedia import image_ids
+        ids = image_ids(messages)
+        if ids:
+            self.media.drop(tg_id, ids)
 
     # ── 檔案 ─────────────────────────────────────────────────────────
 
@@ -144,6 +155,7 @@ class ChatStore:
             if chat is None or not chat.get("archived"):
                 return False
             self._data(tg_id)["chats"].remove(chat)
+            self._forget(tg_id, chat["messages"])
             self._save(tg_id)
             return True
 
@@ -166,6 +178,7 @@ class ChatStore:
                             key=lambda c: c.get("updated", 0))
             for old in normal[:max(0, len(normal) - MAX_CHATS)]:
                 data["chats"].remove(old)
+                self._forget(tg_id, old["messages"])
             self._save(tg_id)
             return chat
 
@@ -180,6 +193,7 @@ class ChatStore:
             if chat is not None and chat["messages"]:
                 data = self._data(tg_id)
                 data["rev"] = int(data.get("rev", 0)) + 1
+                self._forget(tg_id, chat["messages"])
                 chat["messages"] = []
                 self._save(tg_id)
 
@@ -189,7 +203,7 @@ class ChatStore:
 
     # ── 訊息 ─────────────────────────────────────────────────────────
 
-    def append(self, tg_id: int, chat_id: str, who: str, text: str, buttons=None, blocks=None) -> dict:
+    def append(self, tg_id: int, chat_id: str, who: str, text: str, buttons=None, blocks=None, images=None) -> dict:
         with self._lock:
             data = self._data(tg_id)
             chat = self.get(tg_id, chat_id)
@@ -200,9 +214,13 @@ class ChatStore:
                    "buttons": buttons or [], "at": self._clock()}
             if blocks:
                 msg["blocks"] = list(blocks)
+            if images:
+                msg["images"] = [dict(i) for i in images]
             data["next_id"] = msg["id"] + 1
             chat["messages"].append(msg)
-            del chat["messages"][:max(0, len(chat["messages"]) - self.keep)]
+            gone = chat["messages"][:max(0, len(chat["messages"]) - self.keep)]
+            self._forget(tg_id, gone)
+            del chat["messages"][:len(gone)]
             chat["updated"] = msg["at"]
             if who == "me" and chat.get("title") == "新對話" and text.strip():
                 chat["title"] = text.strip().splitlines()[0][:24]
@@ -218,7 +236,8 @@ class ChatStore:
             return None, None
 
     def edit(self, tg_id: int, message_id: int, text: Optional[str] = None, buttons=_KEEP_BUTTONS,
-             deleted: bool = False, blocks=None) -> bool:
+             deleted: bool = False, blocks=None, images=None) -> bool:
+        """images：None＝圖不變；清單（可以是空的）＝換成這幾張（舊的圖刪掉）。"""
         with self._lock:
             data = self._data(tg_id)
             _chat, msg = self.find(tg_id, message_id)
@@ -231,6 +250,11 @@ class ChatStore:
                     msg["blocks"] = list(blocks)
             if buttons is not _KEEP_BUTTONS:
                 msg["buttons"] = buttons or []
+            if images is not None or deleted:
+                self._forget(tg_id, [msg])
+                msg.pop("images", None)
+                if images and not deleted:
+                    msg["images"] = [dict(i) for i in images]
             if deleted:
                 msg["text"], msg["buttons"], msg["deleted"] = "（這則訊息已刪除）", [], True
                 msg.pop("blocks", None)
