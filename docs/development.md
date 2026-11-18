@@ -68,7 +68,7 @@ Dev Container（VS Code）：用 `.devcontainer/` 打開就是上面這套（Pyt
 
 ```bash
 python -m pytest -q -p no:cacheprovider                   # 全部（約 3800 個；幾分鐘到十幾分鐘）
-python -m pytest -q tests/test_command_tree.py            # 只跑一個檔
+python -m pytest -q tests/test_web.py                     # 只跑一個檔
 python -m pytest -q -k "pack and sign"                    # 照名字挑
 ```
 
