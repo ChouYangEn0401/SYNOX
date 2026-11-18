@@ -148,6 +148,12 @@ SETTINGS = {
                     {"value": "opus", "label": "Opus（最強、較慢）"}, {"value": "haiku", "label": "Haiku（最快、最省）"}]},
         {"label": "API 金鑰：OpenAI", "choice": "keys", "provider": "openai", "model": "（照預設）"},
         {"label": "API 金鑰：本機或相容的服務", "choice": "keys", "provider": "openai_compat", "needs_url": True},
+        {"label": "本地模型（Ollama、LM Studio 等，在這台或家裡網路的電腦上跑）", "choice": "local",
+         "servers": [{"value": "ollama", "label": "Ollama", "base_url": "http://127.0.0.1:11434"},
+                     {"value": "vllm", "label": "vLLM", "base_url": "http://127.0.0.1:8000"},
+                     {"value": "lmstudio", "label": "LM Studio", "base_url": "http://127.0.0.1:1234"},
+                     {"value": "other", "label": "OpenAI 相容伺服器", "base_url": "http://127.0.0.1:8000"}],
+         "context_options": [4096, 8192, 16384, 32768, 65536, 131072]},
         {"label": "先不用 AI", "choice": "none"},
     ],
     "packs": [
@@ -460,6 +466,16 @@ MOCK = r"""
         connected: false, fields: D.secrets.fields });
     }
     if (p === "/api/settings") { return reply(D.settings); }
+    if (p === "/api/settings/llm/local-models") {   // 本地模型清單：假的兩個模型（預覽不連網）
+      return reply({ ok: true, can_load: true, notes: [], suggested: "qwen3.5-9b", models: [
+        { id: "qwen3.5-9b", label: "Qwen3.5 9B", loaded: true, context: 32768, vision: true, tools: true, params: "9B",
+          quant: "Q8_0", size: 9304201000 },
+        { id: "qwen3-coder-30b-a3b-instruct", label: "qwen3-coder-30b-a3b-instruct", loaded: false, vision: false,
+          tools: true, params: "30B-A3B", quant: "Q4_K_M", size: 18630000000 }] });
+    }
+    if (p === "/api/settings/llm/local-load" || p === "/api/settings/llm/local-unload") {
+      return reply({ ok: true, message: "（預覽：沒有真的" + (p.slice(-6) === "unload" ? "卸載" : "載入") + "）" });
+    }
     if (p === "/api/appearance" && method === "GET") { return reply(D.appearance); }
     if (p === "/api/settings/channels") { return reply(D.channels); }
     var pr = /^\/api\/settings\/channels\/(telegram|discord)\/pair$/.exec(p);

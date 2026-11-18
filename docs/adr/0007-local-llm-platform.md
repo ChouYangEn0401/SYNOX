@@ -75,3 +75,9 @@ claude_login／openai_login 包的是「別人的登入」（訂閱、token 檔�
 4. **沒設 `context_size` 也有 context 預算**：`LocalAdapter.server_context()` 唯讀問伺服器實際的 context（LM Studio 的
    `loaded_context_length`），`AgentLoop` 拿它當 ADR 0015 的上限：太長就自動省略最舊的對話與舊的工具結果再送，
    不讓伺服器報錯、不用使用者處理。這是「省略」，不是「摘要」：被省略的舊對話 AI 就看不到了（會另送一則提醒）。
+5. **設定頁的模型清單與載入／卸載**（`llm/local_models.py`；網頁 `POST /api/settings/llm/local-models`、`local-load`、
+   `local-unload`，只給擁有者、要 CSRF）：打開設定頁就列出這台伺服器上能聊天的模型（已載入的排前面、標 context／看圖／工具），
+   沒填模型就選已載入的那個。LM Studio 用官方 REST（`GET /api/v1/models`、`POST /api/v1/models/load`、
+   `POST /api/v1/models/unload`；舊版退回 `/api/v0/models`、只能列不能載），Ollama 用 `/api/tags`、`/api/ps`、
+   `/api/generate` 的 keep_alive。「釋放顯卡」＝全部卸載。**不是 AI 工具**：載入會佔記憶體，只有人按按鈕才做。
+   API key 欄位：留空＝同一台伺服器沿用存好的金鑰；別台伺服器不送。模型名稱的提示跟著選的伺服器換。

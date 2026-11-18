@@ -925,6 +925,12 @@ class WebUI:
             return self.test_llm(user, data)
         if path == "/api/settings/llm/local-advice":
             return self.local_advice(user, data)
+        if path == "/api/settings/llm/local-models":
+            return self.local_models(user, data)
+        if path == "/api/settings/llm/local-load":
+            return self.local_load(user, data, unload=False)
+        if path == "/api/settings/llm/local-unload":
+            return self.local_load(user, data, unload=True)
         if path == "/api/settings/channels/telegram":
             return self.save_telegram(user, data)
         if path == "/api/settings/channels/discord":
@@ -1408,7 +1414,7 @@ class WebUI:
             api_key, keep = "（沿用）", True               # 留空＝沿用原本的金鑰
         if choice == "local":
             tools = data.get("tools", current.get("tools", True) if current.get("kind") == "local" else True)
-            return logic.llm_settings("local", server=str(data.get("server") or "ollama"),
+            llm, problem = logic.llm_settings("local", server=str(data.get("server") or "ollama"),
                                       base_url=str(data.get("base_url") or ""), model=str(data.get("model") or ""),
                                       context_size=data.get("context_size", 0), tools=tools,
                                       timeout=data.get("timeout") if data.get("timeout") not in (None, "") else
@@ -1416,6 +1422,12 @@ class WebUI:
                                       max_total_timeout=data.get("max_total_timeout")
                                       if data.get("max_total_timeout") not in (None, "") else
                                       (current.get("max_total_timeout") if current.get("kind") == "local" else None))
+            if llm:                                    # 伺服器有開驗證才要 API key；留空＝沿用原本的
+                if api_key.strip():
+                    llm["api_key"] = api_key.strip()
+                elif current.get("kind") == "local" and current.get("api_key"):
+                    llm["api_key"] = current["api_key"]
+            return llm, problem
         llm, problem = logic.llm_settings(choice, base_url=str(data.get("base_url") or ""), api_key=api_key,
                                           model=str(data.get("model") or ""), provider=provider)
         if problem:
@@ -1562,6 +1574,73 @@ class WebUI:
         if url_warning(base_url):
             advice["notes"].insert(0, url_warning(base_url))
         return _json(200, advice)
+
+    def _local_target(self, data: dict):
+        """(server, base_url, api_key) 或 錯誤 Resp。API key：表單填的；沒填＝現在設定裡的（同一台伺服器才沿用）。"""
+        from synox.wizard import logic
+        server = str(data.get("server") or "ollama")
+        if server not in logic.LOCAL_SERVERS:
+            return None, _err(400, "server 只能是 " + "、".join(logic.LOCAL_SERVERS) + "。")
+        base_url = str(data.get("base_url") or "").strip()
+        if base_url and not base_url.startswith(("http://", "https://")):
+            return None, _err(400, "網址要以 http:// 或 https:// 開頭。")
+        from synox.llm.local import DEFAULT_URLS, root_url
+        base_url = base_url or DEFAULT_URLS[server]
+        api_key = str(data.get("api_key") or "").strip()
+        current = self.config.llm or {}
+        if not api_key and current.get("kind") == "local" and current.get("api_key") and \
+                root_url(str(current.get("base_url") or "")) == root_url(base_url):
+            from synox.llm.factory import resolve_secret
+            try:
+                api_key = resolve_secret(current["api_key"], self.vault)
+            except Exception:
+                api_key = ""
+        return (server, base_url, api_key), None
+
+    def local_models(self, user, data: dict) -> Resp:
+        """設定頁的模型下拉選單：唯讀列出本地伺服器上的模型（哪些已載入、看不看得到圖、會不會用工具）。只給擁有者；
+        用 POST（要 CSRF header）：會讓 SYNOX 去連使用者填的網址。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        target, bad = self._local_target(data)
+        if bad:
+            return bad
+        from synox.llm import local_models
+        from synox.llm.base import LLMError
+        try:
+            out = local_models.list_models(*target)
+        except LLMError as e:
+            return _json(200, {"ok": False, "message": f"❌ 連不上：{e}", "models": [], "can_load": False})
+        out["ok"] = True
+        out["suggested"] = local_models.pick_default(out["models"])
+        return _json(200, out)
+
+    def local_load(self, user, data: dict, *, unload: bool) -> Resp:
+        """載入／卸載本地模型（「釋放顯卡」＝model 空、全部卸載）。只給擁有者按按鈕；AI 叫不到（不是工具）。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        target, bad = self._local_target(data)
+        if bad:
+            return bad
+        from synox.llm import local_models
+        from synox.llm.base import LLMError
+        server, base_url, api_key = target
+        model = str(data.get("model") or "").strip()
+        try:
+            if unload:
+                message = local_models.unload(server, base_url, model, api_key)
+            else:
+                try:
+                    ctx = int(data.get("context_length") or 0)
+                except (TypeError, ValueError):
+                    return _err(400, "context_length 要是整數。")
+                message = local_models.load(server, base_url, model, ctx, api_key)
+        except LLMError as e:
+            return _json(200, {"ok": False, "message": f"❌ {e}"})
+        logging.info("[WEB] local model %s on %s by the owner", "unload" if unload else "load", server)
+        return _json(200, {"ok": True, "message": message})
 
     # ── 聊天通道（Telegram／Discord）：跟精靈同一套檢查與存法；token 永遠不回傳、不寫 log ──────
     # 改了要重開 SYNOX 才生效（App 沒有「執行中換通道」）。擁有者配對不在這裡做（Setup.bat／discord pair）。
