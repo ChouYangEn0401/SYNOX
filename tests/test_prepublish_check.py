@@ -159,3 +159,117 @@ def test_binary_files_are_skipped(tmp_path):
     repo = make_repo(tmp_path, {"README.md": "x\n"})
     (repo / "blob.bin").write_bytes(b"\0\1" + FAKE["AKIA"].encode())
     assert pc.scan_worktree(str(repo)) == []
+
+
+# ---- private terms (the maintainer's list lives outside the repo) and the pre-push mode ----------------------
+
+TERM = "Zq" + "xprivproj"            # made up at run time, so this file never contains the "private" word itself
+
+
+@pytest.fixture(autouse=True)
+def _no_terms_from_the_environment(monkeypatch):
+    """A maintainer's own list (env vars) must not leak into these temp-repo tests."""
+    monkeypatch.delenv(pc.TERMS_ENV, raising=False)
+    monkeypatch.delenv(pc.TERMS_TEXT_ENV, raising=False)
+
+
+def write_terms(repo, text=None):
+    common = subprocess.run(["git", "-C", str(repo), "rev-parse", "--path-format=absolute", "--git-common-dir"],
+                            stdout=subprocess.PIPE, check=True).stdout.decode().strip()
+    path = os.path.join(common, "info", pc.TERMS_FILE)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        f.write(text if text is not None else f"# @category: private_project\n{TERM}\nre:(?i)secret[-_]?thing\n")
+    return path
+
+
+def test_terms_found_in_files_paths_history_and_messages_without_printing_them(tmp_path, capsys):
+    repo = make_repo(tmp_path, {"README.md": f"made with {TERM.lower()}\n", f"docs/{TERM}-notes.md": "x\n"})
+    (repo / "old.md").write_text("from secret_thing\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", f"talk about {TERM}")
+    os.remove(repo / "old.md")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "drop it")
+    write_terms(repo)
+    assert pc.main(["--repo", str(repo)]) == 1
+    out = capsys.readouterr().out
+    assert "README.md:1" in out and "old.md:1" in out and "的訊息" in out and "檔名含私人詞" in out
+    assert TERM.lower() not in out.lower() and "secret_thing" not in out
+    assert "synox-private-terms.txt（2 筆）" in out
+
+
+def test_without_terms_normal_run_warns_loudly(tmp_path, capsys):
+    repo = make_repo(tmp_path, {"README.md": f"{TERM}\n"})
+    assert pc.main(["--repo", str(repo), "--worktree-only"], ) == 0
+    cap = capsys.readouterr()
+    assert "沒有私人詞清單" in cap.err and "私人詞沒有檢查" in cap.out
+
+
+def test_terms_from_env_text_and_missing_file_is_an_error(tmp_path, monkeypatch):
+    repo = make_repo(tmp_path, {"README.md": f"{TERM}\n"})
+    monkeypatch.setenv(pc.TERMS_TEXT_ENV, TERM)
+    assert pc.main(["--repo", str(repo), "--worktree-only"]) == 1
+    monkeypatch.setenv(pc.TERMS_ENV, str(tmp_path / "nope.txt"))
+    assert pc.main(["--repo", str(repo), "--worktree-only"]) == 2
+
+
+def _push_lines(repo, ref="refs/heads/main"):
+    sha = subprocess.run(["git", "-C", str(repo), "rev-parse", "HEAD"], stdout=subprocess.PIPE, check=True).stdout.decode().strip()
+    return f"{ref} {sha} {ref} {pc.ZERO}\n"
+
+
+def test_pre_push_refuses_without_terms(tmp_path, capsys):
+    repo = make_repo(tmp_path, {"README.md": "x\n"})
+    assert pc.main(["--repo", str(repo), "--pre-push", "origin"], stdin_text=_push_lines(repo)) == 2
+    assert "擋下" in capsys.readouterr().err
+    assert pc.main(["--repo", str(repo), "--pre-push", "origin", "--allow-no-terms"], stdin_text=_push_lines(repo)) == 0
+
+
+def test_pre_push_scans_the_whole_tree_not_only_the_new_commit(tmp_path, capsys):
+    """An old file that the pushed commit does not touch is still checked (the bug this mode exists for)."""
+    upstream = tmp_path / "up.git"
+    subprocess.run(["git", "init", "-q", "--bare", str(upstream)], check=True)
+    repo = make_repo(tmp_path, {"old.md": f"{TERM}\n", "README.md": "x\n"})
+    git(repo, "remote", "add", "origin", str(upstream))
+    git(repo, "push", "-q", "--no-verify", "origin", "HEAD:refs/heads/main")
+    git(repo, "fetch", "-q", "origin")
+    (repo / "README.md").write_text("y\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "clean change")
+    write_terms(repo)
+    assert pc.main(["--repo", str(repo), "--pre-push", "origin"], stdin_text=_push_lines(repo)) == 1
+    out = capsys.readouterr().out
+    assert "old.md:1" in out and "要推出去的版本" in out and TERM not in out
+
+
+def test_pre_push_checks_new_commit_messages_and_deleted_files(tmp_path, capsys):
+    repo = make_repo(tmp_path, {"README.md": "x\n"})
+    (repo / "tmp.md").write_text(f"{TERM}\n", encoding="utf-8")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", "add")
+    os.remove(repo / "tmp.md")
+    git(repo, "add", "-A")
+    git(repo, "commit", "-q", "-m", f"remove {TERM}")
+    write_terms(repo)
+    assert pc.main(["--repo", str(repo), "--pre-push", "origin"], stdin_text=_push_lines(repo)) == 1
+    out = capsys.readouterr().out
+    assert "tmp.md:1" in out and "的訊息" in out and TERM not in out
+
+
+def test_pre_push_clean_push_passes_and_deletes_are_ignored(tmp_path):
+    repo = make_repo(tmp_path, {"README.md": "x\n"})
+    write_terms(repo)
+    assert pc.main(["--repo", str(repo), "--pre-push", "origin"], stdin_text=_push_lines(repo)) == 0
+    assert pc.main(["--repo", str(repo), "--pre-push", "origin"],
+                   stdin_text=f"(delete) {pc.ZERO} refs/heads/x {'1' * 40}\n") == 0
+
+
+def test_no_term_list_is_committed_in_this_repo():
+    """The list must never be in the public repo; only the hook and the checker are."""
+    tracked = subprocess.run(["git", "-C", ROOT, "ls-files"], stdout=subprocess.PIPE, check=True).stdout.decode("utf-8", "replace")
+    names = {p.rsplit("/", 1)[-1].lower() for p in tracked.splitlines()}
+    assert pc.TERMS_FILE not in names and not any("terms" in n and n.endswith(".txt") for n in names)
+    hook = os.path.join(ROOT, "scripts", "hooks", "pre-push")
+    with open(hook, encoding="utf-8") as f:
+        assert "--pre-push" in f.read()

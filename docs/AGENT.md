@@ -432,6 +432,23 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 5. 文件：README 頂端的 alpha 說明仍然屬實；`<待補：…>` 佔位（SECURITY.md、LICENSING.md、CONTRIBUTING.md、.github/MAINTAINERS.md）都填好了。
 6. 測試全過：`.venv\Scripts\python.exe -m pytest -q`。
 
+### 維護者推送之前（每一次，2026-11 起）
+
+公開 repo 的歷史曾經帶出私人專案名與原話：舊的推送檢查只看「這次新增的行」，已經在檔案裡的字一直沒被擋。現在改成：
+
+1. **私人詞清單放在 repo 外**：`.git/info/synox-private-terms.txt`（在 `.git` 裡，不會被 commit；同一個 clone 的所有 worktree 共用）。
+   格式：一行一個字（不分大小寫）、`re:` 開頭是正規式、`#` 是註解、`# @category: <類別>`、`# @level: block|note`（note 不擋）。
+   也可以用 `--terms <檔>`、環境變數 `SYNOX_PRIVATE_TERMS`（檔案路徑）或 `SYNOX_PRIVATE_TERMS_TEXT`（內容本身，給 CI 的 secret）。
+   **清單不要放進 repo、不要貼進 issue／PR／commit 訊息。** 沒有清單時檢查會大聲警告；推送前檢查會直接擋下。
+2. **裝推送前檢查**（每個 clone 一次）：`cp scripts/hooks/pre-push .git/hooks/pre-push`（已經有自己的 pre-push 就在裡面呼叫它）。
+   它跑 `scripts/prepublish_check.py --pre-push <remote>`：每個要推的 ref 都看**推上去之後的整棵樹**（不是只看 diff），
+   加上遠端還沒有的**每一個 commit**（訊息、作者／提交者、帶進來的每個檔案與檔名）和 annotated tag 的訊息。有發現就擋下，報告只列位置與種類。
+3. **推之前自己再跑一次全量**：`.venv\Scripts\python.exe scripts\prepublish_check.py`（目前的檔案＋所有分支的歷史＋所有 commit／tag 訊息）。
+4. 被擋下時：把字換成中性說法（例如「另一個個人專案」）再 commit；已經推上去的舊 commit 裡有，要不要改寫歷史由維護者決定。
+   `git push --no-verify` 只有維護者本人可以決定。
+5. CI（`.github/workflows/prepublish-check.yml`）每次 push／PR 跑同一支檢查（目前的所有檔案；舊 commit 由推送前檢查與本機全量檢查負責）；repo 的 secret `SYNOX_PRIVATE_TERMS_TEXT`
+   有放清單時連私人詞一起查，沒有就只查其他項目並在紀錄裡警告。
+
 ## 線上頁面（Artifact）的規則（擁有者 2026-11-13）
 
 - **每一份**發佈到 claude.ai 的 Artifact 都要有 repo 裡的本機 HTML 副本（Artifact 壞了也還能給人用），並登記在 `docs/artifacts.json`

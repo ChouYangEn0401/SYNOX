@@ -1,0 +1,33 @@
+# Pre-publication check on every push and pull request: the same scripts/prepublish_check.py the maintainer's
+# pre-push hook runs (docs/AGENT.md, "公開前檢查清單"), over every checked-out file: secrets, local paths,
+# personal e-mails, sensitive file names. (Old commits are covered by the maintainer's pre-push hook and the
+# full local run; old test files carry documented fake keys that would make a history run red forever.)
+# Private terms: only when the repository secret SYNOX_PRIVATE_TERMS_TEXT holds the maintainer's list (never in the
+# repo). Without it the job prints a loud warning and checks everything else. Standard library only; no network.
+
+name: Pre-publication check
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  prepublish:
+    name: prepublish_check (all files)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Run the check
+        env:
+          SYNOX_PRIVATE_TERMS_TEXT: ${{ secrets.SYNOX_PRIVATE_TERMS_TEXT }}
+          PYTHONIOENCODING: "utf-8"
+        run: python3 -I scripts/prepublish_check.py --worktree-only --allow-no-terms
