@@ -65,3 +65,18 @@
 
 **沒做**：不修改任何電源設定、網路卡設定或登錄檔（只讀、只請求）；在這台只讀了 `AoAc`，**沒有真的讓它進待命實測**。
 提醒文字只有正式中文（網頁介面與 doctor 本來就只有中文）。
+
+## 附記 2026-11-13（hotfix）：SC_MONITORPOWER 在現代待命機型上＝睡眠
+
+實測：閒置 N 分鐘廣播 `SC_MONITORPOWER` 關螢幕後，事件記錄 Kernel-Power 506「The system is entering Modern Standby —
+Reason: SC_MONITORPOWER」、566「Reason SleepButton」——**螢幕一關電腦就睡了**，跟本 ADR 要的（螢幕暗、電腦照跑）相反。
+
+改成：
+- `screen_off_after_min = N > 0`：把目前電源計畫的「關閉顯示器前的時間」（VIDEOIDLE，插電＋電池）設成 N 分鐘，由 Windows 自己關螢幕
+  （這個計時只關螢幕，不讓電腦進入待命；睡眠由「睡眠啟動時間」＋系統清醒請求決定）。只在設定改變時寫一次；停用、改回 0／-1、
+  App 停止時改回原值，而且只在值還是 SYNOX 寫的那個時才改回（使用者自己改過就不動）。這推翻上面「不修改任何電源設定」的這一項。
+- 不設上限（原本 0～240）；只防溢位（≤ 525600 分鐘）。
+- `-1`＝螢幕永不關（PowerRequestDisplayRequired）。
+- `SC_MONITORPOWER` 整個拿掉，不要再用。
+
+已知限制：SYNOX 當掉（沒走到 release）時，電源計畫會留著 N 分鐘；下次啟動不會知道原值。
