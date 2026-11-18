@@ -60,6 +60,7 @@ class _RedactArgs(logging.Filter):
         self._commands: set = set()
         self._lock = threading.Lock()
         self._pattern: Optional["re.Pattern"] = None
+        self._secrets: tuple = ()                     # 已知的密鑰值（mask_in_logs）：出現在任何 log 行都遮
 
     def add(self, command: str) -> None:
         with self._lock:
@@ -67,7 +68,15 @@ class _RedactArgs(logging.Filter):
             names = "|".join(re.escape(c) for c in sorted(self._commands, key=len, reverse=True))
             self._pattern = re.compile(r"(" + names + r")(?:@\w+)?(?![\w])[^'\"\n]*")
 
+    def add_secret(self, value: str) -> None:
+        with self._lock:
+            if value not in self._secrets:
+                self._secrets = tuple(sorted(self._secrets + (value,), key=len, reverse=True))
+
     def redact(self, text: str) -> str:
+        for value in self._secrets:
+            if value in text:
+                text = text.replace(value, MASK)
         pattern = self._pattern
         if pattern is not None:
             text = pattern.sub(lambda m: m.group(1) + " ***", text)
@@ -94,6 +103,19 @@ def install_log_redaction() -> None:
     root = logging.getLogger()
     if _REDACT not in root.filters:
         root.addFilter(_REDACT)
+
+
+def mask_in_logs(value: str) -> None:
+    """這串值（例如解出來的 Telegram bot token）不准出現在 log：任何一行有它就換成 ***。
+    裝在 root logger 和它現有的 handler 上（子 logger 的紀錄只經過 handler）；重複叫沒關係。"""
+    value = str(value or "")
+    if len(value) < 8:
+        return
+    _REDACT.add_secret(value)
+    install_log_redaction()
+    for handler in logging.getLogger().handlers:
+        if _REDACT not in handler.filters:
+            handler.addFilter(_REDACT)
 
 
 def redact_in_logs(command: str) -> None:
