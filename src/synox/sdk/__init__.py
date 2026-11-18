@@ -12,6 +12,8 @@ synox.sdk：給 pack 作者（寫工具的人）的小工具。工具是什麼�
                                             "confirm_token": "…", "message": "…"}                           結束碼 0
 
    SYNOX 把 message 直接回給使用者；沒有 message 就把 data 的簡單欄位列出來。失敗回「❌ <error>」。
+   reply_ok(..., ai=…)：只給 AI 的精簡結構化結果（信封多一個 "ai"；經 AI 呼叫時交回 AI 的是 message＋這份 JSON，
+   沒給就用 data；人看到的照舊）。
    reply_confirm：SYNOX 出核准卡（why＝summary）；按 ✅ 用同一組參數重跑，那一次環境變數有 SYNOX_CONFIRMED=1、
    SYNOX_CONFIRM_TOKEN＝這裡給的 token（SYNOX 驗過一次性憑證才給；見 docs/sdk.md「確認來回」）。
    每個函式都印出來並回結束碼：`sys.exit(reply_ok({...}))`。
@@ -62,8 +64,8 @@ def _emit(obj: dict, out=None) -> None:
     stream.flush()
 
 
-def reply_ok(data: Any = None, message: str = "", *, out=None) -> int:
-    _emit(ok_envelope(data, message), out)
+def reply_ok(data: Any = None, message: str = "", *, ai: Any = None, out=None) -> int:
+    _emit(ok_envelope(data, message, ai), out)
     return EXIT_OK
 
 
@@ -760,7 +762,11 @@ def run_command(folder: str, command: str, args: List[str], *, data_dir: Optiona
     if code != 0 or reply.get("ok", True) is False:
         say(f"SYNOX 會回：❌ {command}：{reply.get('reason') or reply.get('error') or reply.get('message') or f'結束碼 {code}'}")
         return 1
-    say("SYNOX 會回：" + (render.render(reply) or "（沒有輸出）"))
+    from synox.agent import structured
+    say("SYNOX 會回：" + (render.render(structured.for_people(reply)) or "（沒有輸出）"))
+    has, payload = structured.payload_of(reply)
+    if has:                                         # 經 AI 呼叫時 AI 拿到的那一份（規劃 11.6；上限用預設值）
+        say("AI 會拿到：" + structured.compose(structured.message_of(reply), payload, structured.DEFAULT_CHARS))
     return 0
 
 

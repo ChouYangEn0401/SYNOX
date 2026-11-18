@@ -81,6 +81,8 @@ def build(config: SynoxConfig, *, home=None, adapter=_UNSET, vault=_UNSET, pack_
     if server:
         install_server_packs(app)
     schedule.install_system_remind(app)        # ⏰ 提醒（系統）：系統指令，先佔住群組名再載入 pack（QL5）
+    from synox.runtime import habit_card
+    habit_card.install(app)                    # 📜 習慣與規則（系統）：soul__propose_habit，AI 只能提議、你按了才寫（11.4）
     loader.load_all(app, config, vault, dirs=pack_dirs)
     aliases.install(app, config, vault)        # 每人自己的指令符號與名字（只在網頁對話；synox/aliases.py）
     if adapter is _UNSET:

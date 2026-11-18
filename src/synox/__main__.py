@@ -578,6 +578,9 @@ def _review_staged(token: str, summary: dict, args, config, data_dir: str, *, is
         print(f"   {url}")
         print("   （網頁要先登入：雙擊 Open-SYNOX.bat，或在 Telegram 打 /web 拿登入連結。）")
         return 0
+    if config is None:                                                   # 沒有 config.json：不是「沒開」，是還沒設定
+        print("ℹ️ 還沒裝。SYNOX 還沒設定，先雙擊 Setup.bat（設定好、開了 SYNOX 之後再裝一次這個檔）。")
+        return 1
     print("ℹ️ 還沒裝。SYNOX 沒開（或網頁介面關著）：")
     tier = summary.get("tier") or {}
     extra = f' --trust-publisher "{tier.get("publisher")}"' if tier.get("needs_publisher") and tier.get("publisher") else ""
@@ -912,6 +915,26 @@ def cmd_stepup(args) -> int:
         return 1
 
 
+def cmd_import_legacy(args) -> int:
+    """import-legacy schedule-rules --from=<檔> [--apply]：排程規則 → soul.md「習慣與規則」（runtime/habit_import.py）。
+    乾跑不碰保管箱、不改任何檔；--apply 才打開保管箱寫。"""
+    from synox.runtime import habit_import
+    if not args.apply:
+        return habit_import.run(args.import_from, kind=args.import_kind)
+    from synox.runtime.soul import SoulStore
+    from synox.vault import KeyringError, VaultError, open_vault
+    try:
+        config = SynoxConfig.load(args.config or None, require_token=False)
+        vault = open_vault(config)
+    except ConfigError as e:
+        print(f"❌ {e}")
+        return 2
+    except (KeyringError, VaultError) as e:
+        print(f"❌ 保管箱打不開：{e}")
+        return 2
+    return habit_import.run(args.import_from, apply=True, soul=SoulStore(vault), kind=args.import_kind)
+
+
 def cmd_discord(args) -> int:
     """discord token：把 bot token 存進保管箱（getpass，不經聊天）；加 --clear＝從保管箱刪掉｜
     discord pair：私訊配對碼，把你的 Discord 帳號接到擁有者。"""
@@ -1100,6 +1123,10 @@ def main(argv=None) -> int:
     p = sub.add_parser("stepup", help="手機驗證器：setup（設定）｜status（狀態）｜reset（重設）")
     p.add_argument("stepup_cmd", choices=["setup", "status", "reset"])
     p.add_argument("--user", type=int, default=None, help="伺服器版：替哪個 Telegram id（預設擁有者）")
+    p = sub.add_parser("import-legacy", help="把另一個助理的設定轉進 soul.md（schedule-rules＝排程規則→習慣與規則；不加 --apply 只印）")
+    p.add_argument("import_kind", choices=["schedule-rules"])
+    p.add_argument("--from", dest="import_from", required=True, metavar="FILE", help="要轉的 JSON 檔")
+    p.add_argument("--apply", action="store_true", help="真的寫進 soul.md（沒加＝乾跑，只印會寫哪幾行）")
     p = sub.add_parser("update", help="SYNOX 有沒有新版：--check（只看）｜--weekly on|off（每週檢查）｜換檔用 Update.bat")
     p.add_argument("--check", action="store_true", help="問 GitHub 最新的正式版（只看，不下載、不安裝；不加也一樣）")
     p.add_argument("--weekly", choices=["on", "off"], default=None, help="每週自己看一次（預設 off）")
@@ -1124,7 +1151,7 @@ def main(argv=None) -> int:
                 "stepup": cmd_stepup,
                 "open": cmd_open, "about": cmd_about, "tips": cmd_tips,
                 "init": cmd_init, "tools": cmd_tools, "filetype": cmd_filetype, "update": cmd_update,
-                "sentinel": cmd_sentinel, "remind-window": cmd_remind_window}
+                "sentinel": cmd_sentinel, "remind-window": cmd_remind_window, "import-legacy": cmd_import_legacy}
     if args.cmd in brand.BANNER_COMMANDS:
         brand.show_banner(args.cmd, quiet=args.quiet)
     if args.cmd not in handlers:

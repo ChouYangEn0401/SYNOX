@@ -13,6 +13,7 @@ from isdtelekit.users.roles import BasicRoles
 
 from conftest import OTHER_ID, OWNER_ID
 
+from synox.agent.wake import QUIET   # 核准卡按了之後叫醒 AI：AI 沒事要說（規劃 11.10）
 from synox.agent import tools as tools_mod
 from synox.agent.loop import ai_decision
 from synox.packs import admin, mcp, mcp_http, oauth, scan
@@ -359,7 +360,7 @@ def test_not_connected_does_not_call(make_bot, tmp_path, bots, remote):
 def test_ai_unlisted_refused_danger_card_and_confirm(make_bot, tmp_path, bots, remote):
     bot = _bot(make_bot, tmp_path, bots, script=[{"tool": "demo__hidden", "args": {}},
                                                  {"tool": "demo__echo", "args": {"text": "yo"}}, "好了",
-                                                 {"tool": "demo__wipe_all", "args": {}}, "不該走到這裡"])
+                                                 {"tool": "demo__wipe_all", "args": {}}, QUIET])
     json.loads(_say(bot, "/demo_echo hi"))                                     # 先讀過 tools/list
     bot.talk(OWNER_ID, "叫一下")
     adapter = bot.app.extras["synox_agent"].adapter

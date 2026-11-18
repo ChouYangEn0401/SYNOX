@@ -207,6 +207,7 @@ SYNOX 載入完所有工具後，把系統能力（提醒、排程…）和每�
 | `provides` | 能力代號（`工具.動作`），給能力自述與相依檢查 | 小寫英數字、`_`，至少一個點；最多 16 個 |
 | `promises` | 哪個指令成功之後，AI 才可以說「會…／到時候…」：`schedule`（排定時間）｜`watch`（持續監看） | **只能指向這個工具宣告過的指令**（kind=cli 對 `commands`、kind=mcp 對 `tools_allow`；kind=python 的指令寫在程式裡，安裝時只看名字格式，載入後對不到的那一條丟掉並記 log）。升級時新增或改了＝升級報告**紅字** |
 | `always` | 每輪都進 AI 提示的一小段（放在行為守則之後） | 200 字內（可以換行）、同上的檢查。**只給系統層與信任選「核心（core）」的工具：第三方寫了＝拒裝**（安裝、升級都拒；手放的／沒鎖的當作第三方，載入時狀態 `rejected`）。新加或改了＝升級報告紅字 |
+| `prefs` | 這個工具讀的使用者習慣（soul.md「習慣與規則」的〔鍵=值〕，[ADR 0031](adr/0031-soul-habits-and-prefs.md)）：`[{"key", "type", "default", "ask"?, "min"?, "max"?, "looser"?}]`。kind=cli 用 `{prefs_file}` 拿值、kind=python 用 `pack.prefs(user, chat_id)` | `key` 小寫英數字與點（至少一個點）；`type`＝`int`｜`number`｜`bool`｜`time`｜`str`｜`regex`｜`list`｜`json`；`default` 必填且合型別；`min`／`max` 只給 int／number；`looser`（`smaller`｜`larger`，越小／越大越寬鬆）只給 int／number／time，網頁與提議卡用它標紅「放寬」；最多 40 個 |
 
 - **能力清單的總量上限 1,500 字**：超過就把每一行的說明從 60 字逐級縮到 40、28、20、12、0（只剩標題）；還是太多才把最後幾行併成「…另有 N 項」。
   每個人看到的清單照權限過濾（他看不到的工具不會出現）。
@@ -245,6 +246,7 @@ SYNOX 載入完所有工具後，把系統能力（提醒、排程…）和每�
 | `commands[].effect` | cli 的每個 command：`READ`／`WRITE`／`DANGER`（大小寫都收）。`commands` 也可以放最上層（等於 `cli.commands`） |
 | `commands[].ai`、`commands[].confirm` | cli 的 command：`"ai": false`＝不給 AI 當工具；`"ai": {"scenario": "使用者說『記一下…』時"}`＝給 AI，附一句使用情境（120 字內、一行、不准網址或像指令的字；給 AI 的說明變成「用途。情境：…」，不放人打的用法，[ADR 0013](adr/0013-tool-scenario-descriptions.md)）；`"confirm": true`＝AI 呼叫前先送確認卡給人按（effect 照寫的算）。`confirm` 一定要是 true／false。synox_sdk 的 `@tool(ai=…, confirm=…, scenario=…)` 會產生。跟工具執行中回的 `needs_confirm`（下一列）並存 |
 | 回 `needs_confirm`（確認來回） | cli 工具最後一行印 `{"ok": true, "needs_confirm": true, "summary": "要刪 3 筆", "confirm_token": "…"}`（結束碼 0）→ SYNOX 出核准卡給下令的人（人打字、AI 呼叫都一樣），按 ✅ 用**同一組參數**重跑，那一次環境變數 `SYNOX_CONFIRMED=1`、`SYNOX_CONFIRM_TOKEN`＝你給的 `confirm_token`（只收英數字與 `. _ : -`、128 字內）；其他每一次都是 `SYNOX_CONFIRMED=0`（`cli.env` 寫了也會被蓋掉）。❌、過期、參數對不上＝不執行。任何語言都能用：自己讀這兩個環境變數。說明見 [sdk.md](sdk.md)「確認來回」 |
+| 成功信封的 `ai`（給 AI 的結構化結果） | 成功時最後一行可以多帶 `"ai": {…}`（任何 JSON；SDK 0.2.4 的 `Ok(message, data, ai=…)`）。經 AI 呼叫時（以及 AI 發的核准卡按 ✅ 之後）交回 AI 的是 `message`＋一段精簡 JSON：有 `ai` 用它，沒有用 `data`，都沒有＝照舊（給人看的那幾行）。上限照 `llm.tool_result_chars`（沒有上限時 4000 字），太長結構化地截（清單留前幾項＋`{"_more": 剩幾項}`），一定是合法 JSON；使用者存的 secret 先遮掉；一樣包在第 5 關的分隔符裡。**人看到的不變**（`ai` 不進給人看的字）。說明見 [sdk.md](sdk.md)「給 AI 的結構化結果」 |
 | 失敗信封 v1 | 失敗時最後一行印 `{"ok": false, "error": "<人話原因>", "code": "<類別碼>", "failure": {"v": 1, "scope": …, "retry": {"ok": …, "after_s": …}, "remedy": {"kind": …, "id": …, "summary": …}, "diag": {…}}}`（結束碼 1）。`failure` 選填（舊的只有 `code` 照舊能用，SYNOX 依類別碼補預設值）；類別碼表、各欄位的意思與上限見 [tool-health.md](tool-health.md)。SYNOX 用它決定要不要暫時把工具從 AI 的清單拿掉；`diag` 不給 AI、`remedy` 只給人看（SYNOX 不執行任何補救）。synox_sdk 的 `fail()` 會印好 |
 | `commands[].summary`、`fields[].ask`、`fields[].help`、`fields[].required`、`fields[].default` | 網頁工具頁的表單與 AI 的工具說明靠這些：`summary`＝這個指令做什麼；`ask`＝欄位的名字（問人的那句話，也是 AI 看到的參數說明）；`help`＝表單上欄位下面的補充說明（例如「只放數字，例如 1200」；**只給人看**，不進 AI 的 schema）；`required`＝必填（`true`／`false`）；`default`＝沒填時用的值（字串、數字或 `true`／`false`，要合 `kind`／`choices`；SYNOX 會自己補上再交給程式；`""`＝沒有預設）。**安裝時（strict）檢查型別**：`summary`／`ask`／`help` 要是 200 字內的一行字、`required` 要是布林（`"false"` 這種字串會被當成必填）、`default` 要合格式——不合＝拒裝；已裝的舊 pack 載入時不擋。沒寫 `summary`／`ask`、或 SKILL.md 沒有 frontmatter 不擋，但安裝報告與 `synox-sdk check` 會提醒（工具頁只看得到英文名字）。synox_sdk 的 `@tool` 會把函式參數的預設值（字串、數字、布林）寫成 `default` |
 | `commands[].fields[].kind` | `text`（預設）｜`int`（整數，可有千分位逗號）｜`number`（數字）｜`bool`（是／否：`yes/no`、`true/false`、`1/0`、`是/否`…）｜`path`（值一定要在使用者自己的資料夾裡，第 4 關）｜`choice`（要寫 `choices: ["Red", "Blue"]`，大小寫不拘）。對 AI 的參數 schema 一律是字串；SYNOX 在交給程式**之前**照 kind 檢查（人打字與 AI 呼叫都會），不合回一句人話（例如「次數要是整數（例如 3）」）、不執行。交給程式的值整理過：`bool` → `true`／`false`、`int`／`number` 拿掉逗號、`choice` 換成 `choices` 裡的拼法 |
@@ -326,6 +328,7 @@ pack 要使用者的 API key、token、憑證檔時，寫在 `auth.fields`，**S
 | `{data_dir}` | SYNOX 的 `data/` |
 | `{user_data_dir}` | 伺服器版 `data/users/<tg_id>`（第一次用時建立）；個人版 `data/` |
 | `{tg_id}` | 下令的人的 Telegram id（排程、網頁也是那個人） |
+| `{prefs_file}` | 這個工具在 `agent.prefs` 宣告的習慣的現值：一份暫存 JSON `{"v": 1, "prefs": {鍵: 值}}`（每次呼叫一個新資料夾 `data/prefs/<pack>/<亂數>/prefs.json`，沙盒只准讀那一個資料夾，指令結束連資料夾刪；只能讀，不要寫回去）。只有擁有者自己的對話帶 soul.md 的值，其他人＝預設值。常見寫法 `"--prefs={prefs_file}"`（[ADR 0031](adr/0031-soul-habits-and-prefs.md)） |
 
 欄位不能取這幾個名字。使用者給的值只換一次（值裡寫 `{data_dir}` 不會被換）。
 **`{python} -m 模組` 時 `cli.cwd`（`mcp.cwd`）一定要在 pack 資料夾裡**（`.`、`./子資料夾`、`{pack_dir}…`）：

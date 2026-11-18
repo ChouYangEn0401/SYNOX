@@ -1015,8 +1015,8 @@ def install(app, pack) -> None:
     not_connected = backend.not_connected
 
     def dispatch(api, chat_id, work: Callable[[], None], cmd: str) -> None:
-        if getattr(api, "via_ai", False) is True:     # 經 AI：同步做完，結果交回 AI（loop 包 nonce 分隔符）
-            work()
+        if getattr(api, "via_ai", False) is True or getattr(api, "sync_result", False) is True:
+            work()                                    # 經 AI（或 AI 的核准卡按 ✅ 之後）：同步做完，結果交回 AI
             return
         typing = getattr(api, "typing", None)
         if callable(typing):

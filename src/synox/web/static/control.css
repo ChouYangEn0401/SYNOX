@@ -91,6 +91,14 @@
   .ctl-note-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1; }
   .ctl-note-text { overflow-wrap: anywhere; }
   .ctl-note-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+  /* 習慣與規則：比預設寬鬆的整行標紅（不只靠顏色：還有「放寬」字樣的徽章） */
+  .ctl-habit-looser { background: var(--bad-soft); box-shadow: inset 3px 0 0 var(--bad); }
+  .ctl-habit-looser .ctl-note-text { color: var(--bad); font-weight: 600; }
+  .ctl-habit-kv { font-size: 12px; overflow-wrap: anywhere; }
+  .ctl-habit-summary { margin: 4px 0; color: var(--bad); font-weight: 600; }
+  .ctl-habit-problems { list-style: none; padding: 0; margin: 6px 0; display: flex; flex-direction: column; gap: 4px; }
+  .ctl-habit-problems:empty { display: none; }
+  .ctl-habit-declared { margin: 6px 0 0; padding-left: 18px; font-size: 13px; }
   .ctl-note-why { font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
   .ctl-note-acts { flex: none; justify-content: flex-end; }
   .ctl-note-archive { margin-top: 12px; }

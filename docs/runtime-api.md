@@ -251,8 +251,9 @@ body：
 ```
 
 - `text` 一定要是字串，最多 6000 字；超過 → `400`。
-- **空字串（或只有空白）＝重設**成預設內容（四個空的段落）。
+- **空字串（或只有空白）＝重設**成預設內容（幾個空的段落，含「## 習慣與規則」）。
 - 內容看起來像密鑰（API key、bot token、私鑰…）→ `400 {"error": "內容看起來有密鑰（…），soul.md 會送給 AI，不能放。"}`。
+- 「## 習慣與規則」段有〔〕語法壞掉、或值不合工具宣告的型別 → `400`（訊息點出是哪一行；[adr/0031](adr/0031-soul-habits-and-prefs.md)）。
 - 換行一律存成 `\n`。
 
 回應 `200`：
@@ -260,6 +261,27 @@ body：
 ```json
 {"ok": true, "text": "# soul.md\n\n## 偏好\n- 早上不要吵我\n", "updated_at": "2026-11-12T15:01:00+08:00"}
 ```
+
+## `GET /api/runtime/soul/habits`
+
+soul.md「習慣與規則」段的解析（[adr/0031](adr/0031-soul-habits-and-prefs.md)）。主控頁的 soul 卡片照它畫：`looser` 的整行標紅＋「放寬」。
+
+```json
+{"heading": "## 習慣與規則",
+ "lines": [{"line": "- 一天三部〔schedule.plan.per_day=3〕", "text": "一天三部",
+            "keys": [{"key": "schedule.plan.per_day", "value": "3", "used_by": ["行事曆"], "unused": false,
+                      "looser": true, "default": "1", "problem": "", "overridden": false}]}],
+ "problems": [{"line": "- 壞的〔a.b=1", "why": "〔〕沒有成對（…）"}],
+ "conflicts": ["schedule.plan.per_day"],
+ "declared": [{"key": "schedule.plan.per_day", "type": "int", "default": 1, "ask": "一天最多排幾部",
+               "min": 1, "max": 5, "looser": "larger", "used_by": ["行事曆"]}]}
+```
+
+- `looser`：比宣告它的工具的**預設值**寬鬆（照 pack.json `agent.prefs[].looser`：`smaller`＝越小越寬鬆、`larger`＝越大越寬鬆）。
+- `unused`：沒有任何已載入的工具宣告這個鍵（照存，只是現在沒人讀）。
+- `overridden`：同一個鍵後面還有一行（後面的算數）；`conflicts` 列出寫了兩次以上的鍵。
+- `problems`：語法看不懂的行（型別不合的在那一個鍵的 `problem`）。
+- 保管箱打不開 → `503`。
 
 ## 助理筆記（soul 帳本）
 

@@ -52,6 +52,8 @@ def route(ui, user, method: str, path: str, body: bytes):
             return _json(200, rt.status())
         if path == "/api/runtime/soul":
             return soul_get(rt)
+        if path == "/api/runtime/soul/habits":
+            return habits_get(ui.app, rt)
         if path == "/api/runtime/soul/notes":
             return ledger_call(rt, lambda ledger: ledger.view())
         if path == "/api/runtime/soul/export":
@@ -181,6 +183,17 @@ def soul_get(rt):
         return _json(200, {"text": rt.soul.text(), "updated_at": iso(rt.soul.updated_at())})
     except SoulError as e:
         return _err(503, str(e))
+
+
+def habits_get(app, rt):
+    """「習慣與規則」段（runtime/habits.py）：每一行的鍵與值、哪個工具在用、比預設寬鬆（looser＝畫面標紅）、
+    沒有工具在用、看不懂的行、同鍵兩次；declared＝已載入工具宣告的全部鍵（含預設值）。"""
+    from synox.runtime import habits
+    try:
+        text = rt.soul.text()
+    except SoulError as e:
+        return _err(503, str(e))
+    return _json(200, habits.view(text, habits.declarations(app), habits.users_of(app)))
 
 
 def soul_put(rt, data: dict):

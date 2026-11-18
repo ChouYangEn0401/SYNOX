@@ -163,6 +163,24 @@ def test_blocks_js_with_fake_dom():
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
+def test_plain_text_urls_become_links_with_fake_dom():
+    """沒有 blocks 的訊息：網址變成連結（blocks.js 的 linkText，只收 http／https）；tests/js/test_linktext.js。"""
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("這台沒有 node：tests/js/test_linktext.js 沒跑")
+    env = {k: v for k, v in os.environ.items() if k in ("PATH", "SYSTEMROOT", "TEMP", "TMP")}
+    proc = subprocess.run([node, os.path.join(ROOT, "tests", "js", "test_linktext.js")], cwd=ROOT, env=env,
+                          capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
+def test_app_renders_plain_text_messages_through_link_text():
+    with open(os.path.join(ROOT, "src", "synox", "web", "static", "app.html"), "r", encoding="utf-8") as f:
+        html = f.read()
+    assert "window.SynoxBlocks.linkText(document, m.text)" in html
+    assert 'el("div", "text", m.text)' not in html
+
+
 def test_blocks_js_never_touches_html_strings():
     with open(os.path.join(ROOT, "src", "synox", "web", "static", "blocks.js"), "r", encoding="utf-8") as f:
         js = f.read()

@@ -10,6 +10,7 @@ call "%~dp0setup\clean-python-env.bat"
 set "PYTHONIOENCODING=utf-8"
 set "PYTHONUTF8=1"
 if not exist "%VENV_PY%" goto notinstalled
+if not exist "%~dp0config.json" goto notinstalled
 if "%~1"=="" goto usage
 "%VENV_PY%" -m synox install "%~1"
 echo.
