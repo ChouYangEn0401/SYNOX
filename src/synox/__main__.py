@@ -59,7 +59,7 @@ def _utf8_console() -> None:
 def cmd_run(args) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     try:
-        config = SynoxConfig.load(args.config or None, require_token=False)
+        config = load_for_run(args.config or None)
         channels = run_channels(config)
     except ConfigError as e:
         print(f"❌ {e}")
@@ -83,6 +83,18 @@ def cmd_run(args) -> int:
             app.on_start.append(lambda _app: _web_only_started(_app, config, failed, open_browser=_wants_browser(args)))
     app.run(channels)
     return 2 if failed else 0
+
+
+def load_for_run(path=None) -> SynoxConfig:
+    """啟動用：config.json 的 Telegram token 還是明文就先搬進保管箱（synox/telegram_token.py；搬不成＝config 不動、
+    log 一句警告），再讀設定（bot_token 是參照就解開；解不開＝當沒填，印原因）。"""
+    from synox import telegram_token
+    path = path or CONFIG_PATH
+    telegram_token.migrate(path)
+    config = SynoxConfig.load(path, require_token=False)
+    if config.token_problem:
+        print(f"⚠️ Telegram 這次不開：{config.token_problem}")
+    return config
 
 
 def _wants_browser(args) -> bool:
