@@ -364,6 +364,13 @@
   #input { flex: 1; resize: none; min-height: 40px; max-height: 160px; border: 0; padding: 9px 0; background: transparent;
            box-shadow: none; }
   #input:focus { box-shadow: none; }
+  #attach-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 14px 6px; }
+  #attach-list:empty { display: none; }
+  .att-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 280px; padding: 4px 6px 4px 10px;
+              border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); font-size: 13px; }
+  .att-chip .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .att-chip .k { color: var(--muted); font-size: 12px; }
+  .att-chip button { padding: 0 6px; min-height: 0; border: 0; background: transparent; }
   .hint { font-size: 12px; color: var(--muted); text-align: center; margin: -6px 0 10px; }
   .empty { color: var(--muted); text-align: center; margin: auto; display: flex; flex-direction: column;
            align-items: center; gap: 10px; padding: 24px; }
@@ -377,6 +384,7 @@
     .chat-head { padding: 12px 24px; background: var(--surface); }
     #stream { padding: 20px 24px; }
     #composer { margin: 0 24px 14px; }
+    #attach-list { margin: 0 24px 6px; }
     .hint { margin-bottom: 12px; }
   }
 
@@ -709,14 +717,18 @@
       <div class="chat-head"><span class="live" aria-hidden="true"></span><span class="t" id="chat-title">對話</span></div>
       <div id="stream"><div class="empty">選一段對話，或按「新對話」。</div></div>
       <div id="helpdock" class="helpdock hidden" aria-label="範例"></div>
+      <div id="attach-list" aria-live="polite"></div>
       <form id="composer" data-tour="chat.input">
         <button id="examples-btn" class="ghost" type="button" data-tour="chat.examples" title="看範例：點一下就放進輸入框">💡 範例</button>
+        <button id="attach-btn" class="ghost" type="button" title="附上圖片、表格（.xlsx／.csv）或文字檔；也可以拖進來或直接貼上圖片">📎</button>
+        <input id="attach-input" type="file" multiple hidden
+               accept="image/png,image/jpeg,image/webp,image/gif,.xlsx,.docx,.csv,.tsv,.txt,.md,.json,.log">
         <textarea id="input" rows="1" placeholder="打字跟 SYNOX 說，或打 /指令"></textarea>
         <button class="primary" type="submit" data-tour="chat.send">
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M13 6l6 6-6 6"/></svg>
           <span>送出</span></button>
       </form>
-      <p class="hint">Enter 送出，Shift+Enter 換行；按「💡 範例」或打 /help 看你有哪些工具，打 /tutorial 看新手教學</p>
+      <p class="hint">📎 可附圖片、表格、文字檔（也能拖進來、貼上）；Enter 送出，Shift+Enter 換行；打 /help 看工具、/tutorial 看教學</p>
     </div>
   </section>
 
@@ -1533,10 +1545,72 @@
       if (text.charAt(0) === "/") { window.SynoxTour.signal("command", text.slice(1).split(/\s/)[0].toLowerCase()); }
     }
     pendSet(true);
-    return api("POST", "/api/chat/" + encodeURIComponent(current) + "/send", { text: text })
+    var ids = attached.filter(function (a) { return a.id; }).map(function (a) { return a.id; });
+    var sent = attached;
+    attached = [];
+    drawAttached();
+    return api("POST", "/api/chat/" + encodeURIComponent(current) + "/send", { text: text, attachments: ids })
       .then(function () { poll(); setTimeout(poll, 700); })
-      .catch(function (e) { pendSet(false); toast(e.message); });
+      .catch(function (e) { pendSet(false); toast(e.message); attached = sent.concat(attached); drawAttached(); });
   }
+  // ── 對話的附件（POST /api/chat/<id>/upload；web/uploads.py）：先上傳到記憶體拿 id，送出時一起帶 ──────
+  var attached = [];            // [{id, name, label, uploading}]
+  var ATTACH_MAX = 10 * 1024 * 1024;
+  function drawAttached() {
+    var box = $("attach-list");
+    clear(box);
+    attached.forEach(function (a) {
+      var chip = el("span", "att-chip");
+      chip.appendChild(el("span", "n", a.name));          // textContent：檔名不會被當成 HTML
+      chip.appendChild(el("span", "k", a.uploading ? "上傳中…" : (a.label || "")));
+      var x = el("button", "", "✕");
+      x.type = "button";
+      x.title = "拿掉這個附件";
+      x.setAttribute("aria-label", "拿掉 " + a.name);
+      x.addEventListener("click", function () {
+        attached = attached.filter(function (b) { return b !== a; });
+        drawAttached();
+        if (a.id && current) { api("POST", "/api/chat/" + encodeURIComponent(current) + "/unupload", { id: a.id }).catch(function () {}); }
+      });
+      chip.appendChild(x);
+      box.appendChild(chip);
+    });
+  }
+  function attachFiles(list) {
+    if (!current) { toast("先選一段對話，或按「新對話」。"); return; }
+    Array.prototype.forEach.call(list || [], function (f) {
+      if (f.size > ATTACH_MAX) { toast("「" + f.name + "」太大（每個最多 10 MB）。"); return; }
+      var a = { id: "", name: f.name || "貼上的圖片", label: "", uploading: true };
+      var chat = current;
+      attached.push(a);
+      drawAttached();
+      f.arrayBuffer().then(function (buf) {
+        return fetch("/api/chat/" + encodeURIComponent(chat) + "/upload", { method: "POST", credentials: "same-origin",
+          headers: { "X-SYNOX-CSRF": me ? me.csrf : "", "Content-Type": "application/octet-stream",
+                     "X-SYNOX-Filename": encodeURIComponent(a.name) }, body: buf });
+      }).then(function (r) {
+        return r.json().then(function (d) { if (!r.ok) { throw new Error(d.error || ("HTTP " + r.status)); } return d; });
+      }).then(function (d) {
+        a.id = d.id; a.name = d.name; a.label = d.label; a.uploading = false;
+        if (chat !== current) { attached = attached.filter(function (b) { return b !== a; }); }
+        drawAttached();
+      }).catch(function (e) {
+        attached = attached.filter(function (b) { return b !== a; });
+        drawAttached();
+        toast("「" + a.name + "」沒有附上：" + e.message);
+      });
+    });
+  }
+  $("attach-btn").addEventListener("click", function () { $("attach-input").click(); });
+  $("attach-input").addEventListener("change", function () {
+    attachFiles($("attach-input").files);
+    $("attach-input").value = "";
+  });
+  $("input").addEventListener("paste", function (ev) {        // 直接貼上截圖
+    var files = ev.clipboardData && ev.clipboardData.files;
+    if (files && files.length) { ev.preventDefault(); attachFiles(files); }
+  });
+  window.SynoxChatDrop = attachFiles;              // 拖進對話頁的檔案（static/packdrop.js 先看是不是工具檔，不是才交給這裡）
   function press(chat, messageId, data, btn) {
     if (btn) { btn.disabled = true; }
     return api("POST", "/api/chat/" + encodeURIComponent(chat) + "/press", { message_id: messageId, data: data })
@@ -1548,7 +1622,8 @@
     ev.preventDefault();
     var input = $("input");
     var text = input.value.trim();
-    if (!text) { return; }
+    if (attached.some(function (a) { return a.uploading; })) { toast("附件還在上傳，等一下再送出。"); return; }
+    if (!text && !attached.length) { return; }
     input.value = "";
     input.style.height = "";
     send(text);

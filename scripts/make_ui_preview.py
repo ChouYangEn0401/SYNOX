@@ -473,6 +473,12 @@ MOCK = r"""
         { id: "qwen3-coder-30b-a3b-instruct", label: "qwen3-coder-30b-a3b-instruct", loaded: false, vision: false,
           tools: true, params: "30B-A3B", quant: "Q4_K_M", size: 18630000000 }] });
     }
+    if (/^\/api\/chat\/[a-z0-9]+\/upload$/.test(p)) {    // 附件：假的（預覽不上傳任何東西）
+      var fname = decodeURIComponent((opts && opts.headers && opts.headers["X-SYNOX-Filename"]) || "附件");
+      var kind = /\.(png|jpe?g|webp|gif)$/i.test(fname) ? ["image", "圖片"] : /\.xlsx$/i.test(fname) ? ["table", "表格"] : ["text", "文字檔"];
+      return reply({ ok: true, id: "u" + Date.now(), name: fname, kind: kind[0], label: kind[1], size: 1 });
+    }
+    if (/^\/api\/chat\/[a-z0-9]+\/unupload$/.test(p)) { return reply({ ok: true }); }
     if (p === "/api/settings/llm/local-load" || p === "/api/settings/llm/local-unload") {
       return reply({ ok: true, message: "（預覽：沒有真的" + (p.slice(-6) === "unload" ? "卸載" : "載入") + "）" });
     }

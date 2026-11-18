@@ -320,6 +320,8 @@ class WebUI:
         self.sessions = Sessions(os.path.join(data, "web_sessions.json"), clock=clock)
         self.panel_tickets = PanelTickets(clock=clock)    # 面板的票（只在記憶體；ADR 0028 §5）
         self.chats = ChatStore(os.path.join(data, "web_chats"), vault, clock=clock)
+        from synox.web.uploads import UploadStore
+        self.uploads = UploadStore(clock=clock)          # 對話的附件：只在記憶體（web/uploads.py）
         self.prefs = toolpage.UserPrefs(os.path.join(data, "web_prefs"), vault)   # 每個人的工具頁排版、外觀
         self.appearance = Appearance(app, config, self.prefs)                     # 設定 → 外觀（synox/theme）
         self._clock = clock
@@ -897,6 +899,9 @@ class WebUI:
             return _err(405, "只收 GET、POST。")
         if path == "/api/packs/upload":
             return self.pack_upload(user, body, headers)
+        m = re.match(r"^/api/chat/([a-z0-9]+)/(upload|unupload)$", path)
+        if m:
+            return self.chat_upload(user, m.group(1), body, headers, drop=m.group(2) == "unupload")
         try:
             data = json.loads(body.decode("utf-8") or "{}") if body else {}
         except (ValueError, UnicodeDecodeError):
@@ -1048,21 +1053,57 @@ class WebUI:
     def channel(self, user, chat_id: str) -> WebChannel:
         return WebChannel(self.chats, user.tg_id, chat_id, home=self.app.home)
 
+    def chat_upload(self, user, chat_id: str, body: bytes, headers: Optional[Dict[str, str]], *, drop: bool) -> Resp:
+        """對話的附件（web/uploads.py）：原始位元組放 body，檔名放 X-SYNOX-Filename（encodeURIComponent 過的）。
+        只放在記憶體、回一個隨機 id；送出訊息時帶 attachments: [id]。檔名只拿來顯示，從來不當路徑。
+        unupload：body 是 JSON {"id": …}，把還沒送出的附件拿掉。"""
+        chat = self._chat(user, chat_id)
+        if chat is None or chat_id == MOTHER_CHAT:
+            return _err(404, "沒有這段對話（常駐助理不收附件）。")
+        if chat.get("archived"):
+            return _err(409, "這段對話封存了：先還原才能繼續。")
+        from synox.web import uploads
+        if drop:
+            try:
+                item_id = str((json.loads(body.decode("utf-8") or "{}") or {}).get("id") or "")
+            except (ValueError, UnicodeDecodeError, AttributeError):
+                return _err(400, "送來的不是 JSON。")
+            return _json(200, {"ok": self.uploads.drop(user.tg_id, chat_id, item_id)})
+        from urllib.parse import unquote
+        raw_name = unquote(str((headers or {}).get("x-synox-filename") or ""), errors="replace")
+        try:
+            item = self.uploads.put(user.tg_id, chat_id, raw_name, body)
+        except uploads.Refused as e:
+            return _err(400, str(e))
+        return _json(200, {"ok": True, **item.public()})
+
     def send(self, user, chat_id: str, data: dict) -> Resp:
         if self._chat(user, chat_id) is None:
             return _err(404, "沒有這段對話。")
         text = str(data.get("text") or "").strip()
-        if not text:
+        ids = data.get("attachments") or []
+        if not isinstance(ids, list) or len(ids) > 20:
+            return _err(400, "attachments 要是附件 id 的清單。")
+        if not text and not ids:
             return _err(400, "沒有內容。")
         if len(text) > MAX_TEXT:
             return _err(400, f"太長了（最多 {MAX_TEXT} 字）。")
         if (self._chat(user, chat_id) or {}).get("archived"):
             return _err(409, "這段對話封存了：先還原才能繼續。")
-        self.chats.append(user.tg_id, chat_id, "me", mask_code(text))      # 驗證碼不進對話紀錄（ADR 0025 §5.3）
+        files = self.uploads.take(user.tg_id, chat_id, ids) if ids else []
+        if ids and not files:
+            return _err(409, "附件已經過期或送過了：請重新附上。")
+        from synox.web.uploads import placeholder
+        shown = (mask_code(text) + ("\n" if text and files else "") + placeholder(files)).strip()
+        self.chats.append(user.tg_id, chat_id, "me", shown)      # 驗證碼不進對話紀錄（ADR 0025 §5.3）；附件只留名字
         if chat_id == MOTHER_CHAT:
             return self._send_mother(user, text)
-        inbound = Inbound(WEB, user.tg_id, user.tg_id, text, username=user.username or "web", sent_at=time.time())
-        route = self.app.dispatcher.handle(self.channel(user, chat_id), inbound)
+        channel = self.channel(user, chat_id)
+        if files:
+            channel.attachments = files              # agent/__init__.py 的 AgentFallback 會拿去（只有網頁有這個欄位）
+        said = text or "（使用者只傳了附件）"
+        inbound = Inbound(WEB, user.tg_id, user.tg_id, said, username=user.username or "web", sent_at=time.time())
+        route = self.app.dispatcher.handle(channel, inbound)
         return _json(200, {"ok": True, "route": getattr(route, "kind", ""), "rev": self.chats.rev(user.tg_id)})
 
     def _send_mother(self, user, text: str) -> Resp:
@@ -2297,7 +2338,13 @@ class _Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length") or 0)
         except ValueError:
             length = -1
-        limit = MAX_UPLOAD + 1024 if self.path.startswith("/api/packs/upload") else MAX_BODY
+        from synox.web.uploads import MAX_FILE_BYTES
+        if self.path.startswith("/api/packs/upload"):
+            limit = MAX_UPLOAD + 1024
+        elif re.match(r"^/api/chat/[a-z0-9]+/upload$", self.path):
+            limit = MAX_FILE_BYTES + 1024          # 對話的附件（web/uploads.py）
+        else:
+            limit = MAX_BODY
         if length < 0 or length > limit:
             status, headers, body = _err(413, "送來的東西太大。")
         else:
