@@ -632,7 +632,8 @@
     .login { padding: 22px 18px; }
   }
 
-  .preview-bar { position: fixed; top: 8px; right: 8px; z-index: 60; display: flex; flex-wrap: wrap; gap: 4px;
+  /* z-index 要比通知小卡（notify.css 的 .ntf-stack，70；同樣在右上角）高，不然預覽列的按鈕被小卡蓋住、點了沒反應 */
+  .preview-bar { position: fixed; top: 8px; right: 8px; z-index: 80; display: flex; flex-wrap: wrap; gap: 4px;
     align-items: center; max-width: calc(100% - 16px); padding: 5px 8px; font-size: 12px; border-radius: 10px;
     background: var(--text); color: var(--bg); box-shadow: var(--shadow-md); opacity: .92; }
   .preview-bar b { margin-right: 4px; }
