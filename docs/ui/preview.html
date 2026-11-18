@@ -362,7 +362,10 @@
   #composer { display: flex; gap: 8px; align-items: flex-end; margin: 0 14px 14px; padding: 8px 8px 8px 14px;
               border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface);
               transition: border-color .15s var(--ease), box-shadow .15s var(--ease); }
-  #composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  /* 輸入框的邊要看得出來（WCAG 1.4.11 ≥3:1）：--muted 是給字用的（≥4.5:1），摻一點 --line-strong 讓它不要太重 */
+  #composer { border-color: color-mix(in srgb, var(--muted) 85%, var(--line-strong)); box-shadow: var(--shadow-sm); }
+  #composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-soft); }
+  body.chat-dragging #composer { border-style: dashed; border-color: var(--accent); }
   #input { flex: 1; resize: none; min-height: 40px; max-height: 160px; border: 0; padding: 9px 0; background: transparent;
            box-shadow: none; }
   #input:focus { box-shadow: none; }
@@ -7789,6 +7792,135 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   else { root.SynoxReply = api; }
 })(typeof window !== "undefined" ? window : this);
 
+/* SYNOX 網頁對話頁：附件的三個入口（📎 選檔、Ctrl+V 貼上截圖、把檔案拖進對話區）共用的檢查。
+ *
+ *   var files = SynoxAttach.fromClipboard(ev.clipboardData);   // 貼上：只拿檔案（截圖）；剪貼簿有文字就不拿（照常貼字）
+ *   var files = SynoxAttach.fromDrop(ev.dataTransfer);         // 拖進來：只拿檔案
+ *   var p = SynoxAttach.plan(files, attached.length, input.getAttribute("accept"));
+ *   // p.ok：要上傳的 File；p.problems：給人看的一句話（太大、空的、不支援的類型、超過數量）
+ *
+ * - 只收瀏覽器給的 File／Blob 物件（有 arrayBuffer 的），從來不收路徑字串（text/uri-list 的 file:// 一律不理）。
+ * - 類型照 #attach-input 的 accept（同一份清單，📎 也是它）：image/png 這種 MIME、.xlsx 這種副檔名。
+ * - 大小、數量跟伺服器一樣（web/uploads.py 的 MAX_FILE_BYTES、MAX_PENDING）；伺服器還會再看內容檢查一次，這裡只是早點說人話。
+ * - 從 Excel／Word 複製一段字時，剪貼簿裡除了字還有一張「那段字的圖」：有文字就當貼字，不變成附件。
+ * 伺服器把這個檔原地塞進 app.html 主程式那個 script 標籤（INCLUDE:attach.js，跟 blocks.js 一樣，同一個 CSP nonce）。
+ * tests/js/test_attach.js 用 node 跑。
+ */
+(function (root) {
+  "use strict";
+
+  var MAX_BYTES = 10 * 1024 * 1024;          // web/uploads.py MAX_FILE_BYTES
+  var MAX_COUNT = 10;                        // web/uploads.py MAX_PENDING（還沒送出的附件）
+  var TEXT = {
+    pasted: "貼上的圖片",
+    big: "「{name}」太大（每個最多 10 MB）。",
+    empty: "「{name}」是空的檔案。",
+    type: "「{name}」不支援：可以附圖片（png／jpg／webp／gif）、表格（.xlsx／.csv）、文件（.docx）或文字檔。",
+    count: "一次最多先放 {max} 個附件；多的沒有附上（先送出再傳）。",
+    drop: "放開滑鼠，就附到這則訊息（圖片、表格、文字檔，可以一次好幾個）。"
+  };
+  var MIME_EXT = { "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif" };
+
+  function fill(s, vars) {
+    return String(s).replace(/\{(\w+)\}/g, function (_, k) { return vars[k] === undefined ? "" : String(vars[k]); });
+  }
+
+  function isFile(f) {
+    return !!f && typeof f === "object" && typeof f.arrayBuffer === "function" && typeof f.size === "number";
+  }
+
+  function toArray(list) {
+    var out = [];
+    if (!list) { return out; }
+    for (var i = 0; i < list.length; i++) { if (isFile(list[i])) { out.push(list[i]); } }
+    return out;
+  }
+
+  // 貼上：剪貼簿有文字 → []（讓瀏覽器照常貼字）；不然拿 files，沒有再從 items（kind=file）拿
+  function fromClipboard(cd) {
+    if (!cd) { return []; }
+    var text = "";
+    try { text = typeof cd.getData === "function" ? String(cd.getData("text/plain") || "") : ""; } catch (e) { text = ""; }
+    if (text.trim()) { return []; }
+    var files = toArray(cd.files);
+    if (files.length) { return files; }
+    var items = cd.items, out = [];
+    for (var i = 0; items && i < items.length; i++) {
+      var it = items[i];
+      if (it && it.kind === "file" && typeof it.getAsFile === "function") {
+        var f = it.getAsFile();
+        if (isFile(f)) { out.push(f); }
+      }
+    }
+    return out;
+  }
+
+  // 拖進來：只拿檔案（拖一段字、一個網址進來 → []）
+  function fromDrop(dt) {
+    return dt ? toArray(dt.files) : [];
+  }
+
+  function hasFiles(dt) {
+    var types = dt && dt.types;
+    if (!types) { return false; }
+    for (var i = 0; i < types.length; i++) { if (types[i] === "Files") { return true; } }
+    return false;
+  }
+
+  function displayName(f) {
+    var name = String((f && f.name) || "").trim();
+    if (name) { return name; }
+    return TEXT.pasted + (MIME_EXT[String(f && f.type || "").toLowerCase()] || "");
+  }
+
+  // accept 屬性的規則（<input type=file accept=…>）：".ext" 比副檔名、"type/*" 比大類、其他比完整 MIME；空的＝都收
+  function accepts(f, accept) {
+    var rules = String(accept || "").split(",").map(function (s) { return s.trim().toLowerCase(); })
+      .filter(function (s) { return s; });
+    if (!rules.length) { return true; }
+    var name = displayName(f).toLowerCase(), mime = String(f.type || "").toLowerCase();
+    return rules.some(function (r) {
+      if (r.charAt(0) === ".") { return name.length > r.length && name.slice(-r.length) === r; }
+      if (r.slice(-2) === "/*") { return mime.indexOf(r.slice(0, -1)) === 0; }
+      return mime === r;
+    });
+  }
+
+  // files → {ok: [{file, name}], problems: ["…"]}；already＝已經附上（還沒送出）的個數
+  function plan(files, already, accept) {
+    var ok = [], problems = [], room = Math.max(0, MAX_COUNT - (already | 0)), over = false;
+    toArray(files).forEach(function (f) {
+      var name = displayName(f);
+      if (!accepts(f, accept)) { problems.push(fill(TEXT.type, { name: name })); return; }
+      if (!(f.size > 0)) { problems.push(fill(TEXT.empty, { name: name })); return; }
+      if (f.size > MAX_BYTES) { problems.push(fill(TEXT.big, { name: name })); return; }
+      if (ok.length >= room) { over = true; return; }
+      ok.push({ file: f, name: name });
+    });
+    if (over) { problems.push(fill(TEXT.count, { max: MAX_COUNT })); }
+    return { ok: ok, problems: problems };
+  }
+
+  // 貼上的 listener（掛在 document）：只在對話頁；焦點在輸入框，或不在別的可以打字的地方；有檔案才攔下來交給 attach(files)
+  function pasteListener(doc, input, attach) {
+    return function (ev) {
+      if (!doc.body || doc.body.getAttribute("data-view") !== "chat") { return; }
+      var t = ev.target;
+      if (t && t !== input && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(String(t.tagName || "")))) { return; }
+      var files = fromClipboard(ev.clipboardData);
+      if (!files.length) { return; }
+      ev.preventDefault();
+      attach(files);
+    };
+  }
+
+  var api = { MAX_BYTES: MAX_BYTES, MAX_COUNT: MAX_COUNT, TEXT: TEXT, fromClipboard: fromClipboard, fromDrop: fromDrop,
+              hasFiles: hasFiles, displayName: displayName, accepts: accepts, plan: plan,
+              pasteListener: pasteListener };
+  if (typeof module === "object" && module && module.exports) { module.exports = api; }
+  else { root.SynoxAttach = api; }
+})(typeof window !== "undefined" ? window : this);
+
 (function () {
   "use strict";
   var me = null;
@@ -8138,7 +8270,6 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   }
   // ── 對話的附件（POST /api/chat/<id>/upload；web/uploads.py）：先上傳到記憶體拿 id，送出時一起帶 ──────
   var attached = [];            // [{id, name, label, uploading}]
-  var ATTACH_MAX = 10 * 1024 * 1024;
   function drawAttached() {
     var box = $("attach-list");
     clear(box);
@@ -8159,11 +8290,14 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       box.appendChild(chip);
     });
   }
+  // 📎、貼上、拖進來都走這裡：同一套類型（#attach-input 的 accept）、大小、數量檢查（static/attach.js）；只收 File 物件
   function attachFiles(list) {
     if (!current) { toast("先選一段對話，或按「新對話」。"); return; }
-    Array.prototype.forEach.call(list || [], function (f) {
-      if (f.size > ATTACH_MAX) { toast("「" + f.name + "」太大（每個最多 10 MB）。"); return; }
-      var a = { id: "", name: f.name || "貼上的圖片", label: "", uploading: true };
+    var p = window.SynoxAttach.plan(list, attached.length, $("attach-input").getAttribute("accept"));
+    if (p.problems.length) { toast(p.problems.join(" ")); }
+    p.ok.forEach(function (one) {
+      var f = one.file;
+      var a = { id: "", name: one.name, label: "", uploading: true };
       var chat = current;
       attached.push(a);
       drawAttached();
@@ -8189,10 +8323,8 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     attachFiles($("attach-input").files);
     $("attach-input").value = "";
   });
-  $("input").addEventListener("paste", function (ev) {        // 直接貼上截圖
-    var files = ev.clipboardData && ev.clipboardData.files;
-    if (files && files.length) { ev.preventDefault(); attachFiles(files); }
-  });
+  // 直接貼上截圖（Ctrl+V）：在輸入框，或對話區裡沒有在打別的字的地方；剪貼簿有文字就照常貼字（static/attach.js）
+  document.addEventListener("paste", window.SynoxAttach.pasteListener(document, $("input"), attachFiles));
   window.SynoxChatDrop = attachFiles;              // 拖進對話頁的檔案（static/packdrop.js 先看是不是工具檔，不是才交給這裡）
   function press(chat, messageId, data, btn) {
     if (btn) { btn.disabled = true; }
@@ -10146,7 +10278,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   var EXTS = [".synoxpack", ".zip"];
   var TEXT = {
     overlay: "放開滑鼠，我就檢查這個工具檔。會先給你看檢查的結果，你按確認才會裝。",
-    chat: "放開滑鼠，就附到這則訊息（圖片、表格、文字檔）。工具檔（.synoxpack）一樣會先檢查給你看。",
+    chat: "放開滑鼠，就附到這則訊息（圖片、表格、文字檔，可以一次好幾個）。工具檔（.synoxpack）一樣會先檢查給你看。",
     hint: "也可以把工具檔（.synoxpack）直接拖進這個網頁，或在電腦裡對它點兩下。不管哪一種，都會先檢查給你看，你按確認才會裝。",
     one: "一次拖一個工具檔就好。",
     ext: "這不是工具檔（檔名結尾要是 .synoxpack）：",
@@ -10176,6 +10308,13 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
      （例如 AI），報告就出現在看不到的分頁裡。已經在安裝頁就不動網址。 */
   function installHash(current) {
     return current === "#packs" || current === "#settings:packs" ? current : "#packs";
+  }
+
+  /* 純函式：拖進來的檔要去哪裡。"pack"＝一個工具檔（照原本的安裝流程）；"chat"＝在對話頁、不是工具檔 → 當附件
+     （app.html 的 SynoxChatDrop，跟 📎 同一套檢查）；"refuse"＝其他頁、不是工具檔（說原因）。 */
+  function route(files, inChat) {
+    if (check(files).ok) { return "pack"; }
+    return inChat ? "chat" : "refuse";
   }
 
   function hasFiles(e) {
@@ -10216,7 +10355,10 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       say.timer = setTimeout(function () { t.classList.add("hidden"); }, 4500);
     }
     var depth = 0;
-    function showOverlay(on) { overlay.classList.toggle("hidden", !on); }
+    function showOverlay(on) {
+      overlay.classList.toggle("hidden", !on);
+      doc.body.classList.toggle("chat-dragging", !!on && chatView());   // 對話頁：輸入框也亮起來（app.html 的 CSS）
+    }
 
     function chatView() {                                   // 對話頁：拖進來的一般檔案當附件（app.html 的 SynoxChatDrop）
       return doc.body.getAttribute("data-view") === "chat" && typeof root.SynoxChatDrop === "function";
@@ -10244,8 +10386,9 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       depth = 0;
       showOverlay(false);
       var r = check(e.dataTransfer.files);
-      if (!r.ok && chatView()) { root.SynoxChatDrop(e.dataTransfer.files); return; }
-      if (!r.ok) { say(r.message); return; }
+      var where = route(e.dataTransfer.files, chatView());
+      if (where === "chat") { root.SynoxChatDrop(e.dataTransfer.files); return; }
+      if (where === "refuse") { say(r.message); return; }
       if (doc.body.getAttribute("data-view") === "login") { say(TEXT.login); return; }
       root.fetch("/api/me", { credentials: "same-origin" }).then(function (resp) {
         if (!resp.ok) { throw new Error(TEXT.login); }
@@ -10277,7 +10420,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     }
   }
 
-  var api = { check: check, hasFiles: hasFiles, installHash: installHash, MAX_BYTES: MAX_BYTES, TEXT: TEXT };
+  var api = { check: check, route: route, hasFiles: hasFiles, installHash: installHash, MAX_BYTES: MAX_BYTES, TEXT: TEXT };
   if (typeof module === "object" && module && module.exports) { module.exports = api; }
   else {
     root.SynoxPackDrop = api;
