@@ -18,3 +18,9 @@
 ## 擋不住的
 
 - MiniMax／DeepSeek 家族要保留思考段，目前不支援；用 Ollama 只保證 Qwen 系列測過。
+
+## 後續修改（2026-11-18）
+
+- OpenAI 相容的伺服器（vLLM／LM Studio／其他）**也會送 `llm.options` 裡自己寫的取樣參數**，但只送 OpenAI 認得的那幾個
+  （`local.OPENAI_SAMPLING`：temperature、top_p、top_k、min_p、presence_penalty、frequency_penalty、repeat_penalty、seed）。
+  Qwen3 的建議值（`sampling`）仍然只給 Ollama；沒寫＝伺服器／模型預設。理由：擁有者要能在 LM Studio 上調 temperature／top_p。
