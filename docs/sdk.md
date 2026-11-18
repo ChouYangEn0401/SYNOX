@@ -39,7 +39,8 @@ synox-sdk zip .                                                 → dist/hello-0
 
 ## SDK 版本（`requires.sdk`）
 
-SDK＝SYNOX 給工具的**介面合約**，有自己的版本號 `SDK_VERSION`（現在 `0.2.4`，寫在 `src/synox/sdk/author.py`，單檔版、`pip` 套件都讀它）。
+SDK＝SYNOX 給工具的**介面合約**，有自己的版本號 `SDK_VERSION`（現在 `0.2.5`，寫在 `src/synox/sdk/author.py`，單檔版、`pip` 套件都讀它）。
+0.2.5 加了：kind=python 工具的回覆可以帶圖：`kit.send_image`／`kit.edit_image`／`kit.can_show_images`（見下面「回覆帶圖」；只加不改）。
 0.2.4 加了：`Ok(message, data, ai=…)`／`reply_ok(..., ai=…)`，信封多一個選填的 `"ai"`（只給 AI 的結構化結果，見下面「給 AI 的結構化結果」；只加不改）。
 0.2.3 加了：`caller()`／`require_human()`（誰叫的）、工具服務的 `pack.app_read`／`app_action`／`app_export`、`kit.check_values`／`AppError`／`Download`／`csv_bytes`、`synox-sdk init --kind python --app`（只加不改；見 [tool-apps.md](tool-apps.md)）。
 合約包含：pack.json 的格式、子程序工具拿到的環境變數與 JSON 信封（`synox_sdk.py`）、kind=python 工具的 `install(app, pack)` 介面
@@ -56,6 +57,35 @@ SYNOX 安裝時（第 1、2 關）、載入時、doctor 都會對這台的 `SDK_
 只**加**新 API、舊的照舊能用（例如 0.2.1 的 `fail()`）：0.x 升最後一段（PATCH），`requires.sdk` 的範圍不變（`>=0.2,<0.3` 的工具照樣裝得上）；
 1.x 以後升 MINOR。用了新 API 的工具帶著自己那一份 `synox_sdk.py`（單檔版），所以不用另外要求這台的 SDK 版本。
 工具庫（SYNOX_Libs）打包前也檢查每個工具都寫了、而且跟打包用的 SYNOX 相容（設計見 SYNOX_Libs 的 `docs/adr/0001-tool-library-and-sdk-dependency.md`）。
+
+## 回覆帶圖（kind=python，0.2.5 起）
+
+工具的回覆可以帶圖（例如吉他工具的和弦圖），使用者在網頁對話的泡泡裡直接看到，Telegram／Discord 收到照片：
+
+```python
+from synox.packs import kit
+
+svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 140">…</svg>'
+kit.send_image(api, chat_id, [{"svg": svg, "png": png_bytes, "alt": "D/F# 和弦圖"}], caption="D/F#：2 x 0 2 3 2",
+               reply_markup=None)          # reply_markup：跟 send_message 一樣的 inline 按鈕（網頁畫在圖下面）
+kit.edit_image(api, chat_id, message_id, [...], caption="2／3 簡易", reply_markup=...)   # 按鈕按了換圖（翻頁）
+kit.can_show_images(api)                   # 這個 channel 能不能把圖跟按鈕放在同一則（網頁＝True）
+```
+
+- 每張圖是 PNG／JPEG／WebP／GIF 的 bytes，或 `{"svg": …, "png": …, "alt": …}`。網頁先用 SVG（清楚、檔小），不收就退回 PNG；
+  Telegram／Discord 只送 PNG（照片）。只有 SVG、沒有 PNG 的圖在 Telegram／Discord 送不出去：`send_image` 回 `{"ok": False}`，
+  **你自己改送文字**（建議永遠同時送一行文字版，例如按法 `2 x 0 2 3 2`）。
+- SYNOX 檢查（`src/synox/web/chatmedia.py`）：類型看檔頭（不信副檔名）、每張 ≤ 2 MB、每邊 ≤ 4096、一則 ≤ 8 張、alt ≤ 200 字；
+  SVG 只收白名單的元素（svg、g、line、rect、circle、ellipse、path、polyline、polygon、text、tspan、title、desc）與屬性（座標、顏色、
+  線寬、字型…），沒有 script、foreignObject、use、image、style、動畫、on* 事件、href、外部網址；有任何一樣不在白名單＝整張不收。
+  存的是照白名單重寫的 SVG。用 presentation 屬性（`fill="#333"`），不要用 `style=`、`class` 配樣式表。
+- 網頁：圖存在 `data/web_chats/media/<id>/`（有保管箱＝加密），跟著對話紀錄（重新整理還在；訊息被擠掉、清空、刪掉時一起刪）；
+  畫面用 `<img src="/api/chat/<段>/image/<id>">`（同源、要登入、只給那個人），不 inline 進頁面；那個網址回
+  `Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; sandbox`。點圖放大。
+- 經 AI 呼叫時：圖直接給使用者（不經過 AI），AI 拿到一行「〔已直接傳給使用者 N 張圖（使用者看得到）〕＋caption」，
+  所以 AI 不會說「我不能畫圖」。工具的文字結果照樣交回 AI。
+- 舊的 `api.send_photo(chat_id, 本機路徑, caption)` 照舊能用；網頁版以前只記一行「〔圖片〕」，現在也畫出來（同一套檢查）。
+- 要在舊版 SYNOX 也能載入：`getattr(kit, "send_image", None)` 沒有就只送文字（`requires.sdk` 不用改）。
 
 ## @tool
 
