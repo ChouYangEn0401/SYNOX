@@ -73,7 +73,8 @@ kit.can_show_images(api)                   # 這個 channel 能不能把圖跟�
 ```
 
 - 每張圖是 PNG／JPEG／WebP／GIF 的 bytes，或 `{"svg": …, "png": …, "alt": …}`。網頁先用 SVG（清楚、檔小），不收就退回 PNG；
-  Telegram／Discord 只送 PNG（照片）。只有 SVG、沒有 PNG 的圖在 Telegram／Discord 送不出去：`send_image` 回 `{"ok": False}`，
+  Telegram／Discord 只送 PNG（照片）；照片上放不了按鈕，有 `reply_markup` 時照片不帶字、緊接著一則「caption＋按鈕」，
+  `edit_image` 在那邊改送新的一張（Telegram 的改圖還沒接）。只有 SVG、沒有 PNG 的圖在 Telegram／Discord 送不出去：`send_image` 回 `{"ok": False}`，
   **你自己改送文字**（建議永遠同時送一行文字版，例如按法 `2 x 0 2 3 2`）。
 - SYNOX 檢查（`src/synox/web/chatmedia.py`）：類型看檔頭（不信副檔名）、每張 ≤ 2 MB、每邊 ≤ 4096、一則 ≤ 8 張、alt ≤ 200 字；
   SVG 只收白名單的元素（svg、g、line、rect、circle、ellipse、path、polyline、polygon、text、tspan、title、desc）與屬性（座標、顏色、

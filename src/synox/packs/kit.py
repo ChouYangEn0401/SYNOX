@@ -367,7 +367,7 @@ def send_image(api, chat_id, images, caption: str = "", reply_markup=None) -> di
 
     - 網頁對話（channel 有 send_image）：一則訊息、圖畫在泡泡裡（SVG 照白名單重寫；不收的退回 PNG）；reply_markup 照樣有按鈕。
     - Telegram／Discord（沒有 send_image）：PNG 寫進暫存檔、用 send_photo（好幾張用 send_media_group）送，送完刪掉；
-      按鈕放不上圖，有 reply_markup 時另外送一則「caption＋按鈕」的字。
+      按鈕放不上圖，有 reply_markup 時照片不帶字、緊接著送一則「caption＋按鈕」（caption 只出現一次）。
     - 都送不了（沒有 PNG、channel 不收圖）：回 {"ok": False}，呼叫的人自己改送文字。
     經 AI 呼叫時（agent/capture.CaptureApi）圖直接給使用者，AI 拿到「已經傳了 N 張圖」。"""
     images = list(images or [])
@@ -401,7 +401,7 @@ def send_image(api, chat_id, images, caption: str = "", reply_markup=None) -> di
             with open(path, "wb") as f:
                 f.write(data)
             paths.append(path)
-        short = (caption or "")[:1000]
+        short = "" if reply_markup is not None else (caption or "")[:1000]     # 有按鈕：字跟按鈕放同一則，不重複
         try:
             if len(paths) == 1:
                 out = api.send_photo(chat_id, paths[0], caption=short)

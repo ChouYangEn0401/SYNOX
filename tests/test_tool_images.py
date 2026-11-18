@@ -191,6 +191,15 @@ def test_kit_falls_back_to_a_png_photo_and_cleans_up():
     assert not kit.can_show_images(api)
 
 
+def test_kit_photo_with_buttons_says_the_caption_once():
+    api = PhotoOnly()
+    markup = {"inline_keyboard": [[{"text": "下一個 ›", "callback_data": "x:1"}]]}
+    assert kit.send_image(api, 1, [{"png": png()}], caption="F　1 3 3 2 1 1", reply_markup=markup)["ok"]
+    (kind, _data, photo_caption), (kind2, text, buttons) = api.sent
+    assert kind == "photo" and photo_caption == ""                         # 照片不帶字
+    assert kind2 == "text" and text == "F　1 3 3 2 1 1" and buttons == markup
+
+
 def test_ai_path_gives_the_user_the_image_and_tells_the_ai(tmp_path):
     store = store_at(tmp_path)
     cap = CaptureApi(WebChannel(store, 42, "c1"), 42)
