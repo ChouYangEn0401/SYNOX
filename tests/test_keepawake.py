@@ -1,5 +1,6 @@
 """保持清醒（docs/adr/0006）：假的 Windows 電源，不碰真的電腦睡眠設定。"""
 
+import os
 import pytest
 
 from synox.runtime import settings as rs
@@ -317,3 +318,21 @@ def test_doctor_line_mentions_the_override_and_modern_standby(monkeypatch):
     monkeypatch.setattr(doctor.sys, "platform", "win32")
     on = doctor._keep_awake_line(SimpleNamespace(runtime={"keep_awake": {"enabled": True, "screen_off_after_min": 0}}))
     assert keepawake.NOTICE in on and keepawake.MS_NOTE in on
+
+
+def test_killed_process_is_recovered_on_next_start(tmp_path):
+    """程式被強制結束時電源計畫留著我們寫的分鐘數：下次開機（功能已關）要改回原本的。"""
+    state = str(tmp_path / "keepawake_state.json")
+    power = FakePower()
+    ka = KeepAwake(FakeLoop(), settings={"enabled": True, "screen_off_after_min": 10}, power=power, state_path=state)
+    ka.run()
+    assert power.timeout == (600, 600) and os.path.exists(state)
+    # 程序死掉：不呼叫 release()。新的程序、功能已關：
+    ka2 = KeepAwake(FakeLoop(), settings={"enabled": False, "screen_off_after_min": 0}, power=power, state_path=state)
+    assert power.timeout == (18000, 180) and not os.path.exists(state)
+    # 使用者在死掉後自己改過電源計畫：不動它
+    ka3 = KeepAwake(FakeLoop(), settings={"enabled": True, "screen_off_after_min": 10}, power=power, state_path=state)
+    ka3.run()
+    power.timeout = (999, 999)
+    KeepAwake(FakeLoop(), settings={"enabled": False, "screen_off_after_min": 0}, power=power, state_path=state)
+    assert power.timeout == (999, 999) and not os.path.exists(state)
