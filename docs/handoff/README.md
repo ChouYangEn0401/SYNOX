@@ -2,6 +2,8 @@
 
 開發用的電腦只用程式內的假傳輸測過 connector 和 Discord；這個資料夾是「帶到另一台可以上網的電腦，用真的帳號試」的全部東西。
 
+> 要接手**開發**（不是真機測試）的人或雲端 agent：入口在 [../HANDOFF.md](../HANDOFF.md)、流程在 [../development.md](../development.md)。
+
 | 文件／程式 | 做什麼 | 先讀順序 |
 |---|---|---|
 | [real-service-testing.md](real-service-testing.md) | 準備那台電腦、Notion／Todoist／Google 日曆／Apple 提醒事項的憑證與設定、跑煙霧測試、錯誤排除、清理、回報格式、安全守則 | 1 |

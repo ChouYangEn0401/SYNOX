@@ -19,8 +19,9 @@ SYNOX 出廠**不帶任何工具**（2026-11-12 起；為什麼：[legacy/builti
 | **SYNOX 工具庫（SYNOX_Libs）** | 另一個 repo。官方工具的正本：記帳 `money`、隨手記 `notes`、接 Notion／Todoist／Google 日曆／Apple 提醒事項的工具。打包成一堆 `.synoxpack`＋一份目錄 `index.json`（名稱、版本、標題、說明、建議組合 `bundles`、`requires.sdk`、sha256） | ✅ 已實作。發佈版把打包好的工具庫放在 SYNOX 資料夾的 `tools\`；工具目前全部標 🧪 alpha |
 | **別人給你的 `.synoxpack`** | 任何人用 SDK（或自己手寫）做的 pack，壓成 zip | ✅ 已實作：走同一套安裝檢查 |
 | **別人架的遠端 MCP、本機 MCP、Claude 技能** | 不是 pack 的東西 | 遠端 MCP：自己寫一份只有宣告的 `pack.json` 就能裝（T0）；本機 MCP 可以但沒有沙盒；技能現在不能直接用。怎麼判斷、怎麼做：[install-third-party-tools.md](install-third-party-tools.md) |
-| **直接讀一個資料夾** | 開發工具的人不打包，讓 SYNOX 讀原始資料夾 | ✅ `config.json` 的 `"packs": {"dirs": ["<資料夾>"]}`；沒有雜湊鎖，伺服器版當第三方、只給擁有者 |
-| 線上目錄、商店 | 從網址列出、下載、安裝 | ❌ 還沒有（見「之後的路」）。`packs.library` 寫網址時 SYNOX 只會顯示，**不會自動下載** |
+| **直接讀一個資料夾** | 開發工具的人不打包，讓 SYNOX 讀原始資料夾 | ✅ `config.json` 的 `"packs": {"dirs": ["<資料夾>"]}`，再 `synox packs lock --approve <名字>`（跑第 1、2 關、寫鎖；**沒有鎖的不載入**，改了檔要再 approve，[adr/0028](adr/0028-pack-signatures-official-badge.md) §4）；伺服器版當第三方、只給擁有者 |
+| 官方工具庫的線上清單 | 網頁「設定 → 🧩 功能與安裝 → 工具庫（官方）」、`synox tools check`／`synox tools update` | ✅ 只在使用者按按鈕或打指令時連網，網址寫死在 `src/synox/packs/catalog.py`（只讀 SYNOX_Libs 的發佈頁），下載後對大小與 sha256，再走同一份報告與確認 |
+| 其他線上目錄、商店 | 任意網址的目錄、別人的商店 | ❌ 還沒有（見「之後的路」）。`packs.library` 寫網址時 SYNOX 只會顯示，**不會自動下載** |
 
 工具庫在哪裡：`config.json` 的 `packs.library`（相對於 SYNOX 資料夾，或絕對路徑）；沒寫就找 SYNOX 資料夾裡的 `tools\`（要有 `index.json` 才算）。
 `doctor`、`/help`（還沒裝工具時）、網頁設定頁都會提示這個位置。規則在 `src/synox/wizard/tools.py`、`src/synox/packs/library.py`。
@@ -61,7 +62,7 @@ synox doctor              「• 工具：…」那一行：裝了幾個、工�
 - 舊的搬到 `packs/_removed/<名字>-<版本>-<時間>/`，旁邊留舊鎖；資料**不在** pack 資料夾，不會動（資料格式升級由工具自己負責）。
 - 退回：`synox packs rollback <名字>`（把 `_removed/` 裡最近一份搬回、鎖改回）。
 
-沒有「檢查有沒有新版」：SYNOX 不連網查版本（見「之後的路」）。`synox tools list` 會標已裝，但不比較版本號；要知道工具庫有沒有更新，看工具庫的 `index.json` 或它的 CHANGELOG。
+**檢查有沒有新版**：`synox tools check`（問官方工具庫的線上清單，只看不裝；結束碼 10＝有新版）、`synox tools update <名字…>`／`--all`（每一個都照樣下載、檢查、給你看報告，你核准了才換）。網頁「設定 → 🧩 功能與安裝」的工具庫卡片也會標「有新版」。只有按了才連網。`synox tools list` 看的是本機的工具庫資料夾，不比較版本號。
 
 ### 移除
 
@@ -89,7 +90,7 @@ synox-sdk zip .                                                → dist/hello-0.
 1. `pack.json` 寫好 `version`（semver）、`requires.sdk`（`synox-sdk init` 會寫）、`stage`（不寫＝alpha）、`category`（網頁工具頁的建議群組）、`publisher`（T2 一定要）。
 2. `README.md` 寫清楚：有哪些指令、資料存哪、連哪些外面的服務、要填什麼帳號（裝的人會看「連哪裡」決定要不要信你）。
 3. `synox-sdk check` 沒有紅字；有第三方套件就 `requires.pip` 釘 `==版本`（建議加 `--hash=sha256:`）。
-4. 把 `.synoxpack` 給人：現在就是傳檔案（任何方式）。要進官方工具庫，到 SYNOX_Libs 那個 repo 開 PR（它會檢查每個工具的 `requires.sdk` 跟打包用的 SYNOX 相容，並寫進 `index.json` 的 sha256）。
+4. 把 `.synoxpack` 給人：現在就是傳檔案（任何方式）。要進官方工具庫，到 SYNOX_Libs 那個 repo 開 PR（它會檢查每個工具的 `requires.sdk` 跟打包用的 SYNOX 相容，並寫進 `index.json` 的 sha256）。交原始碼就好、**不用簽章**：官方簽章由擁有者在發佈時加（[signing.md](signing.md) 第 4 節）。自己發給別人的工具可以用自己的鑰匙簽（✍️ 作者簽章，[sdk.md](sdk.md)「簽章」）。
 5. 升級版：版本號往上、不要偷偷變大權限（會紅字）、資料格式自己做相容。
 
 ## 之後的路（提案）
@@ -99,8 +100,8 @@ synox-sdk zip .                                                → dist/hello-0.
 | 提案 | 想做什麼 | 現在為什麼沒有 | 要先決定的事 |
 |---|---|---|---|
 | **線上目錄（registry／index）** | `packs.library` 寫網址時，SYNOX 真的去抓 `index.json` 與 `.synoxpack`；`synox tools list` 看得到線上的、`install` 直接下載 | 現在 `index.json` 只有本機資料夾；SYNOX 刻意**不連網**做安裝（除了建環境的 pip／npm）。要加「從網址下載」就多了一條會出門的路、要處理代理、快取、下載到一半 | 誰架目錄、放哪、要不要 HTTPS 以外的驗證、離線發佈版怎麼共存 |
-| **簽章驗證** | `index.json` 與每個 `.synoxpack` 由工具庫維護者簽名（例如 ed25519），SYNOX 驗簽才裝；`publisher` 對得上公鑰 | 現在 `publisher` 只是 pack.json 裡的一個名字，任何人都能寫（[security.md](security.md)「沒有做的保護」明寫）；sha256 只擋「下載壞了、被換過」，擋不了一開始就是惡意的 | 金鑰放哪、怎麼輪換、第三方作者的公鑰怎麼進 SYNOX（信任第一次？） |
-| **檢查更新** | `synox tools list` 比對已裝版本與目錄版本、標「有新版」；網頁設定頁一顆「更新」 | 本機目錄可以做（只讀 `index.json`，不連網），還沒寫；線上的要等 registry | 要不要自動更新（建議不要：升級報告要人看） |
+| **目錄的簽章與撤銷清單** | 工具庫的目錄 `index.json` 也簽名、可以撤銷外流的鑰匙 | **每個 `.synoxpack` 的簽章已經做了**（[adr/0028](adr/0028-pack-signatures-official-badge.md)：`pack.sig.json`、✅ 官方／✍️ 作者簽章／⚠️ 不是官方／⛔ 被改過，官方公鑰由擁有者貼進程式）；目錄本身還沒簽（ADR 0028 §6） | 撤銷清單放哪、怎麼發 |
+| **本機工具庫的檢查更新** | `synox tools list` 比對本機工具庫資料夾（`tools\`）與已裝版本、標「有新版」 | 官方工具庫的線上清單**已經可以**檢查與更新（`synox tools check`／`update`、網頁的工具庫卡片）；本機資料夾那條還沒寫 | 要不要自動更新（建議不要：升級報告要人看） |
 | **評分與回報** | 工具頁上看別人用得怎樣、回報問題 | 需要線上服務與帳號，跟「本機優先」有張力 | 先用 GitHub issue 就好？ |
 | **從介紹頁一鍵安裝** | [landing/index.html](landing/index.html) 上按一下就裝 | 網頁介面只聽 127.0.0.1，外面的頁面碰不到；要做得先有 registry 與 `synox://` 之類的協定登記 | 等 registry |
 | **macOS／Linux 安裝器** | `Setup.bat` 以外的一鍵安裝 | 程式跨平台，但只做了 Windows 的安裝路徑與 DPAPI 保管箱；其他平台主金鑰是明文 | 保管箱在其他平台怎麼保護 |
