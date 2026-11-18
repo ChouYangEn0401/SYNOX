@@ -334,14 +334,16 @@ class KeepAwake:
         saved, written = self._saved, self._written
         self._saved = self._written = None
         self._applied_min = 0
-        self._persist()
         if not saved or not written:
+            self._persist()
             return
         try:
             if tuple(self.power.display_timeout()) == written:
                 self.power.set_display_timeout(*saved)
         except Exception as e:
             logging.warning("[KEEPAWAKE] restore screen timer: %s", e)
+            return                             # 狀態檔留著：下次開機再試
+        self._persist()
 
     def _persist(self) -> None:
         if not self.state_path:
