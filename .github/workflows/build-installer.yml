@@ -33,7 +33,7 @@ env:
   LIBS_REPO: "ChouYangEn0401/SYNOX_Libs"
   LIBS_TAG: "v0.2.0"
   LIBS_TOOLS_ZIP: "tools-0.2.0.zip"
-  LIBS_TOOLS_SHA256: "4dc19891f0645bd3ec947cbbcb8297596bf36d107d77797ee671c2d8edcda4fa"
+  LIBS_TOOLS_SHA256: "4901da07e1dd9dfad99dcea9f018c0a614afb5583cbb9a49355078e8f64cecaa"
   # Inno Setup 6 (synox.iss is written for 6.x), official installer from the jrsoftware/issrc GitHub release.
   INNO_VERSION: "6.7.4"
   INNO_TAG: "is-6_7_4"
