@@ -361,7 +361,9 @@
   #composer { display: flex; gap: 8px; align-items: flex-end; margin: 0 14px 14px; padding: 8px 8px 8px 14px;
               border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface);
               transition: border-color .15s var(--ease), box-shadow .15s var(--ease); }
-  #composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  /* 輸入框的邊要看得出來（WCAG 1.4.11 ≥3:1）：--muted 是給字用的（≥4.5:1），摻一點 --line-strong 讓它不要太重 */
+  #composer { border-color: color-mix(in srgb, var(--muted) 85%, var(--line-strong)); box-shadow: var(--shadow-sm); }
+  #composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-soft); }
   body.chat-dragging #composer { border-style: dashed; border-color: var(--accent); }
   #input { flex: 1; resize: none; min-height: 40px; max-height: 160px; border: 0; padding: 9px 0; background: transparent;
            box-shadow: none; }
