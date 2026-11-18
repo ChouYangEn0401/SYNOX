@@ -67,7 +67,7 @@ Dev Container（VS Code）：用 `.devcontainer/` 打開就是上面這套（Pyt
 ## 3. 跑測試
 
 ```bash
-python -m pytest -q -p no:cacheprovider                   # 全部（約 3800 個；幾分鐘）
+python -m pytest -q -p no:cacheprovider                   # 全部（約 3800 個；幾分鐘到十幾分鐘）
 python -m pytest -q tests/test_command_tree.py            # 只跑一個檔
 python -m pytest -q -k "pack and sign"                    # 照名字挑
 ```
@@ -91,7 +91,7 @@ Linux 上會**略過**或**已知失敗**的，原因都跟你的改動無關：
 | 沒裝 ntu_easy_llm | `tests/test_llm.py` 幾個 openai／anthropic／gemini 的測試**失敗**、`test_vision` 有兩個略過 | 介面卡經 ntu_easy_llm 組請求；裝 `.[llm]` 就會過 |
 | 幾個寫死 Windows 路徑規則或行為的測試 | **失敗** | 例：`C:\` 開頭算不算絕對路徑、`.synoxpack` 的登錄檔、程式名字怎麼顯示 |
 
-2026-11-14 在 Linux 雲端的實測是「14 個失敗、其他全過或略過」，清單在 [handoff/2026-11-14-session-handoff.md](handoff/2026-11-14-session-handoff.md) 第 4 節。
+2026-11-18 在 Windows 的實測是「3813 過、16 略過」（略過一個會開埠的測試）。2026-11-14 在 Linux 雲端的實測是「14 個失敗、其他全過或略過」，清單在 [handoff/2026-11-14-session-handoff.md](handoff/2026-11-14-session-handoff.md) 第 4 節。
 那之後 repo 又改了很多，**這張清單可能已經過期**——以你自己記的基準線為準；有疑問就在 PR 裡把失敗清單貼出來。
 
 其他常用的檢查：
