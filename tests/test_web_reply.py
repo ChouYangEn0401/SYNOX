@@ -116,7 +116,7 @@ def test_bad_reply_to_is_refused(make_bot, owner):
     assert c.post(f"/api/chat/{a}/send", {"text": "在 A 說的"})[0] == 200
     c.ui.app.tasks.wait(10)
     other = _events(c, a)[0]["id"]
-    for bad in (other, 99999, "abc", [1], {"id": 1}):
+    for bad in (other, 99999, "abc", [1], {"id": 1}, True, 1.5, "١"):
         status, data = c.post(f"/api/chat/{b}/send", {"text": "hi", "reply_to": bad})
         assert status == 400, (bad, data)
     assert not [m for m in _events(c, b) if m["from"] == "me"]                 # 被擋的沒有寫進紀錄
@@ -136,7 +136,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 STATIC = os.path.join(ROOT, "src", "synox", "web", "static")
 
 
-@pytest.mark.parametrize("name", ["test_reply.js"])
+@pytest.mark.parametrize("name", ["test_reply.js", "test_attach.js"])
 def test_js_with_fake_dom(name):
     node = shutil.which("node")
     if not node:
@@ -151,7 +151,8 @@ def test_reply_js_is_inlined_and_never_touches_html_strings():
     from synox.web import server as web_server
     html = web_server.render_app("n0nce")
     assert "SynoxReply" in html and "{{INCLUDE" not in html and 'id="reply-bar"' in html
-    for name in ("reply.js", "blocks.js"):
+    assert "SynoxAttach" in html
+    for name in ("reply.js", "blocks.js", "attach.js"):
         with open(os.path.join(STATIC, name), "r", encoding="utf-8") as f:
             js = f.read()
         for bad in ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function"):
@@ -164,3 +165,18 @@ def test_app_sends_reply_to_and_renders_bot_markdown():
     assert "body.reply_to = quoted.id" in html
     assert "window.SynoxBlocks.markdown(m.text)" in html
     assert "window.SynoxBlocks.linkText(document, m.text)" in html            # 不是 Markdown 的照舊
+
+
+def test_every_attach_path_shares_one_check():
+    """📎、貼上、拖進來都走 attachFiles → SynoxAttach.plan（同一份 accept、大小、數量）；拖進來由 packdrop.js 轉交。"""
+    with open(os.path.join(STATIC, "app.html"), "r", encoding="utf-8") as f:
+        html = f.read()
+    assert 'window.SynoxAttach.plan(list, attached.length, $("attach-input").getAttribute("accept"))' in html
+    assert "window.SynoxAttach.pasteListener(document, $(\"input\"), attachFiles)" in html
+    assert "window.SynoxChatDrop = attachFiles" in html
+    assert "attachFiles($(\"attach-input\").files)" in html
+    from synox.web import uploads
+    with open(os.path.join(STATIC, "attach.js"), "r", encoding="utf-8") as f:
+        js = f.read()
+    assert f"MAX_BYTES = {uploads.MAX_FILE_BYTES // (1024 * 1024)} * 1024 * 1024" in js
+    assert f"MAX_COUNT = {uploads.MAX_PENDING};" in js
