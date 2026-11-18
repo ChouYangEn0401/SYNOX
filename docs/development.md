@@ -23,7 +23,7 @@ Windows 寫法列在每段後面。**整個流程不需要任何真的金鑰、t
 | 能連 PyPI | 必要（裝相依時） | `requests`、`cryptography`、`websocket-client`、`pytest` |
 | 能連 github.com | 選用 | `pip install -e ".[llm]"`（ntu_easy_llm 是 GitHub release 的 wheel，不在 PyPI） |
 | Node.js | 選用 | `tests/js/*.js`（網頁前端的測試；沒有 node 就略過那幾個） |
-| SYNOX_Libs（工具庫）的 clone | 選用 | 少數整合測試（設 `SYNOX_LIBS=<資料夾>`，沒有就略過）。注意：工具庫自己的測試對現在的 `dev` 有一批已知的紅（它的 `tests/conftest.py` 還沒替個人版上鎖，另一條分支正在修），見工具庫 repo（SYNOX_Libs，網址在 [../README.md](../README.md) 頂端）的 `docs/HANDOFF.md`第 8 節 |
+| SYNOX_Libs（工具庫）的 clone | 選用 | 少數整合測試（設 `SYNOX_LIBS=<資料夾>`，沒有就略過）。注意：工具庫自己的測試對現在的 `dev` 有一批已知的紅（工具庫 repo 的 `tests/conftest.py` 還沒替個人版上鎖，另一條分支正在修），見工具庫 repo（SYNOX_Libs，網址在 [../README.md](../README.md) 頂端）的 `docs/HANDOFF.md`第 8 節 |
 | tkinter＋螢幕 | 選用 | 安裝精靈與提醒視窗的畫面測試（沒有就略過） |
 
 ## 2. clone 與建環境
@@ -149,7 +149,7 @@ python scripts/release.py check                    # 版本一致、SDK 單檔�
 
 **要在工具庫做新工具，先讀工具庫 repo（SYNOX_Libs，網址在 [../README.md](../README.md) 頂端）的 `docs/HANDOFF.md`**（只拿到那個 repo 就能開發一個工具並交回：檔案組成、閘門、測試、已知落差）。工具庫比 SYNOX 嚴，現在有兩條要先知道：
 
-- **工具庫目前只收 `kind=python`**（它的 `tests/test_gates.py` 擋）。想做 `cli`／`mcp`，先開 issue 問維護者，測試要一起改。下面 6.2 講的「`kind=cli` 首選」是 SYNOX 對一般作者的建議，不適用於工具庫。
+- **工具庫目前只收 `kind=python`**（工具庫 repo 裡的 `tests/test_gates.py` 擋；這個 repo 沒有這個檔）。想做 `cli`／`mcp`，先開 issue 問維護者，測試要一起改。下面 6.2 講的「`kind=cli` 首選」是 SYNOX 對一般作者的建議，不適用於工具庫。
 - **新工具先不要做 `panel.html`**：SYNOX 的面板已經隔開（[adr/0028](adr/0028-pack-signatures-official-badge.md) §5），只能打相對網址 `fetch("api/<route>")`；工具庫現有的面板與它的 `test_gates.py` 還是舊寫法（`/api/packs/<name>/…` 帶 credentials），那種寫法在新的 SYNOX 會 401。真的需要面板，在 PR 說明提出，等維護者決定。
 
 **SYNOX 本體不再收工具**（`packs/` 出廠是空的、`loader.BUNDLED` 是空的；[AGENT.md](AGENT.md) invariant 13）。新功能如果是「一個工具」，就做成 pack。
