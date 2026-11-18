@@ -89,7 +89,7 @@
 
 ## 4. 重要的 ADR（一行一份）
 
-全部 40 份與狀態在 [adr/README.md](adr/README.md)（也寫了什麼時候要寫新的、編號規則）。最常碰到的：
+全部 39 份（0001–0040，0032 是空號）的標題與狀態在 [adr/README.md](adr/README.md)（也寫了什麼時候要寫新的、編號規則）。最常碰到的：
 
 - [0001](adr/0001-runtime-loop-heartbeat-mother-session.md) runtime loop、心跳、常駐助理、soul.md——背景工作的骨架。
 - [0002](adr/0002-soul-md-in-chat-assistant-prompt.md)／[0005](adr/0005-soul-ledger-memory-provenance-review.md)／[0031](adr/0031-soul-habits-and-prefs.md) soul.md 怎麼進提示、帳本、習慣與規則。
