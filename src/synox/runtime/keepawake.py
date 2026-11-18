@@ -32,7 +32,9 @@ PowerRequestExecutionRequired（後者盡力而為：設不上不算失敗）。
 
 from __future__ import annotations
 
+import json
 import logging
+import os
 import sys
 import threading
 from typing import Callable, Optional
@@ -206,8 +208,10 @@ def valid_minutes(value) -> bool:
 
 class KeepAwake:
 
-    def __init__(self, loop, *, settings: dict, power: Optional[WinPower] = None):
+    def __init__(self, loop, *, settings: dict, power: Optional[WinPower] = None,
+                 state_path: str = ""):
         self.loop = loop
+        self.state_path = state_path           # 寫進電源計畫的值記在這裡：程式被強制結束後，下次開機才還原得了
         self.settings = dict(settings)
         self.power = power if power is not None else WinPower()
         self._lock = threading.Lock()
@@ -215,6 +219,7 @@ class KeepAwake:
         self._saved: Optional[tuple] = None    # 寫之前電源計畫原本的（插電, 電池）秒數
         self._written: Optional[tuple] = None  # 我們寫進去的值：還是它才改回去
         self.last_result: Optional[str] = None
+        self._recover()
 
     @property
     def enabled(self) -> bool:
@@ -321,6 +326,7 @@ class KeepAwake:
         if current != want:
             self.power.set_display_timeout(*want)
         self._written = want
+        self._persist()
         self._applied_min = minutes
 
     def _restore_timer(self) -> None:
@@ -328,6 +334,7 @@ class KeepAwake:
         saved, written = self._saved, self._written
         self._saved = self._written = None
         self._applied_min = 0
+        self._persist()
         if not saved or not written:
             return
         try:
@@ -335,6 +342,32 @@ class KeepAwake:
                 self.power.set_display_timeout(*saved)
         except Exception as e:
             logging.warning("[KEEPAWAKE] restore screen timer: %s", e)
+
+    def _persist(self) -> None:
+        if not self.state_path:
+            return
+        try:
+            if self._saved and self._written:
+                with open(self.state_path, "w", encoding="utf-8") as f:
+                    json.dump({"saved": list(self._saved), "written": list(self._written)}, f)
+            elif os.path.exists(self.state_path):
+                os.remove(self.state_path)
+        except OSError as e:
+            logging.warning("[KEEPAWAKE] state file: %s", e)
+
+    def _recover(self) -> None:
+        """上次沒正常結束（當掉、被強制關）就留著我們寫的螢幕時間：開機時接回來，下一次還原（或關掉時還原）。"""
+        if not self.state_path or not os.path.exists(self.state_path):
+            return
+        try:
+            with open(self.state_path, encoding="utf-8") as f:
+                d = json.load(f)
+            self._saved, self._written = tuple(int(x) for x in d["saved"]), tuple(int(x) for x in d["written"])
+            if self.power.available and not (self.enabled and self.screen_off_after_min > 0):
+                self._restore_timer()
+        except Exception as e:
+            logging.warning("[KEEPAWAKE] recover state: %s", e)
+            self._saved = self._written = None
 
     def release(self) -> None:
         if self.power.available:

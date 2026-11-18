@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from datetime import datetime
 from typing import Callable, Optional
 
@@ -114,7 +115,8 @@ def install(app, config, vault=None, *, config_path: str = "") -> Runtime:
     heartbeat.activator = activator
     heartbeat.register()
     SoulTidy(app, ledger, quiet=heartbeat._in_quiet).register(loop)
-    keep_awake = KeepAwake(loop, settings=conf.get("keep_awake") or rs.defaults()["keep_awake"])
+    ka_state = os.path.join(os.path.dirname(os.path.abspath(config_path)), "keepawake_state.json") if config_path else ""
+    keep_awake = KeepAwake(loop, settings=conf.get("keep_awake") or rs.defaults()["keep_awake"], state_path=ka_state)
     rt = Runtime(loop, heartbeat, mother, soul, config_path=config_path, activator=activator, ledger=ledger,
                  keep_awake=keep_awake)
     app.extras[RUNTIME_KEY] = rt

@@ -1,6 +1,8 @@
 """未來承諾的把關（agent/claims.promise_verdict，ADR 0029 §3.2）：純函式＋真的迴圈（FakeAdapter 劇本、整支 bot 在記憶體裡）。
 回執用自己造的 ScheduleReceipt（系統的提醒還沒交回執時，用假的 remind__add 模擬「排上了」）。全部假資料。"""
 
+import datetime
+
 import pytest
 
 from synox.agent import capture as capture_mod
@@ -179,7 +181,7 @@ def _remind_emits(bot, rec):
     node.fn = fn
 
 
-ADD = {"tool": "remind__add", "args": {"time": "08:00", "text": "吃藥", "date": "2026-11-17"}}
+ADD = {"tool": "remind__add", "args": {"time": "08:00", "text": "吃藥", "date": (datetime.date.today() + datetime.timedelta(days=1)).isoformat()}}
 
 
 def test_promise_without_receipt_is_rejected_on_a_cloud_source(make_bot, owner):

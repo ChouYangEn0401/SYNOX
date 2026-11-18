@@ -121,8 +121,9 @@ def test_owner_summary_has_versions_kinds_packs_and_redacted_errors(make_bot, ow
     assert "AI：fake" in text and "網頁" in text
     assert "money" in text and "notes" in text                   # 裝了哪些工具（名字＋版本）
     assert "upstream said" in text                              # 最近的錯誤有收進來
-    for leak in (VAULT_SECRET, TG_TOKEN, str(owner), os.path.expanduser("~")):
+    for leak in (VAULT_SECRET, TG_TOKEN, os.path.expanduser("~")):
         assert leak not in text, leak
+    assert not re.search(rf"(?<![\d.]){owner}(?![\d.])", text), owner      # 單獨的 id；不是 Windows 組建號 10.0.26100 的一段
     assert d["issue"] == {"url": report.ISSUE_NEW, "template": report.ISSUE_TEMPLATE, "field": report.SUMMARY_FIELD,
                           "max_url": report.MAX_URL}
 
