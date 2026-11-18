@@ -419,7 +419,19 @@ class LocalAdapter(ChatAdapter):
             return OLLAMA_DEFAULT_CTX, f"沒設 context_size，假設 Ollama 預設 {OLLAMA_DEFAULT_CTX}"
         return 0, "不知道"
 
-    def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = (), *, stop: Sequence[str] = ()) -> Reply:
+    supports_max_tokens = True        # chat(max_tokens=) 可以這一次放大回覆上限（agent 自動接續用）
+
+    def server_context(self) -> Optional[int]:
+        """伺服器實際的 context（給 agent 的 context 預算用）：llm.context_size 有設就是它；沒設＝唯讀問伺服器一次
+        （LM Studio /api/v0/models、vLLM /v1/models、Ollama /api/ps），問不到＝None。不送 chat、不載入模型。"""
+        if self.context_size:
+            return self.context_size
+        self._learn_context()
+        return self.server_ctx
+
+    def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = (), *, stop: Sequence[str] = (),
+             max_tokens: Optional[int] = None) -> Reply:
+        limit = int(max_tokens or 0) or self.max_tokens
         if not self.model:
             raise LLMError("還沒填本地模型的名稱（例如 qwen3.5:9b；Ollama 的話是 `ollama list` 看得到的名字）。")
         if has_images(messages) and not self.check_vision():
@@ -431,9 +443,9 @@ class LocalAdapter(ChatAdapter):
         stop = [s for s in (stop or ()) if isinstance(s, str) and s]
         try:
             if self.server == "ollama":
-                reply = self._chat_ollama(messages, tools if native else (), warnings, stop)
+                reply = self._chat_ollama(messages, tools if native else (), warnings, stop, limit)
             else:
-                reply = self._chat_openai(messages, tools if native else (), warnings, stop)
+                reply = self._chat_openai(messages, tools if native else (), warnings, stop, limit)
         except _HTTPProblem as p:
             raise LLMError(self._http_text(p))
         from synox.llm.textproto import strip_think
@@ -454,9 +466,10 @@ class LocalAdapter(ChatAdapter):
         reply.warnings = warnings
         return reply
 
-    def _chat_ollama(self, messages, tools, warnings, stop=()) -> Reply:
+    def _chat_ollama(self, messages, tools, warnings, stop=(), limit: int = 0) -> Reply:
+        limit = limit or self.max_tokens
         body = {"model": self.model, "messages": [ollama_message(m) for m in messages], "stream": True,
-                "options": {"num_predict": self.max_tokens}}
+                "options": {"num_predict": limit}}
         body["options"].update(sampling_options(self.model, self.sampling))      # Qwen3 不思考模式（docs/adr/0019）
         body["options"].update({k: v for k, v in self.options.items() if k not in RESERVED_OPTIONS})
         if self.context_size:
@@ -473,8 +486,9 @@ class LocalAdapter(ChatAdapter):
         except _HTTPProblem as p:
             if self._think and p.status == 400 and "think" in (p.body or "").lower():
                 self._think = False                  # 舊版 Ollama／不支援的模型：拿掉 think 再試一次
-                return self._chat_ollama(messages, tools, warnings, stop)
+                return self._chat_ollama(messages, tools, warnings, stop, limit)
             raise
+        finish = ""
         text: List[str] = []
         calls: List[ToolCall] = []
         usage: Dict[str, int] = {}
@@ -504,16 +518,18 @@ class LocalAdapter(ChatAdapter):
             if obj.get("done"):
                 usage = {"input": int(obj.get("prompt_eval_count") or 0), "output": int(obj.get("eval_count") or 0)}
                 if obj.get("done_reason") == "length":
-                    warnings.append(f"回覆到了 max_tokens（{self.max_tokens}）被切掉。")
+                    finish = "length"
+                    warnings.append(f"回覆到了 max_tokens（{limit}）被切掉。")
                 done = True
                 break
         if not done:
             raise LLMError("本地模型的回應中途斷了（沒有收到結束訊號）。")
-        return Reply(text="".join(text), tool_calls=[c for c in calls if c.name], usage=usage)
+        return Reply(text="".join(text), tool_calls=[c for c in calls if c.name], usage=usage, finish=finish)
 
-    def _chat_openai(self, messages, tools, warnings, stop=()) -> Reply:
+    def _chat_openai(self, messages, tools, warnings, stop=(), limit: int = 0) -> Reply:
+        limit = limit or self.max_tokens
         body = {"model": self.model, "messages": [openai_message(m) for m in messages], "stream": True,
-                "stream_options": {"include_usage": True}, "max_tokens": self.max_tokens}
+                "stream_options": {"include_usage": True}, "max_tokens": limit}
         if stop:
             body["stop"] = list(stop)[:4]           # OpenAI 相容的伺服器多半最多收 4 個
         if tools:
@@ -524,6 +540,7 @@ class LocalAdapter(ChatAdapter):
         start = self._clock()
         resp = self._open_or_raise(self._request("/v1/chat/completions", body, "POST"), self.timeout)
         reasoned = False
+        cut = ""
         text: List[str] = []
         parts: Dict[int, dict] = {}
         usage: Dict[str, int] = {}
@@ -579,10 +596,12 @@ class LocalAdapter(ChatAdapter):
                     finished = True
                     if choice["finish_reason"] == "length":
                         if reasoned and not "".join(text).strip():
-                            warnings.append(f"模型的思考用光了 max_tokens（{self.max_tokens}），還沒開始回答：把 llm.max_tokens "
+                            cut = "thinking"
+                            warnings.append(f"模型的思考用光了 max_tokens（{limit}），還沒開始回答：把 llm.max_tokens "
                                             "調大（會思考的模型建議 4096 以上），或在伺服器那邊關掉這個模型的思考。")
                         else:
-                            warnings.append(f"回覆到了 max_tokens（{self.max_tokens}）被切掉。")
+                            cut = "length"
+                            warnings.append(f"回覆到了 max_tokens（{limit}）被切掉。")
         if not finished:
             raise LLMError("本地模型的回應中途斷了（沒有收到結束訊號）。")
         calls = []
@@ -594,7 +613,7 @@ class LocalAdapter(ChatAdapter):
             if not ok:
                 warnings.append(f"工具 {slot['name']} 的參數不是合法的 JSON（當成沒有參數）。")
             calls.append(ToolCall(name=slot["name"], args=args, id=slot["id"] or f"local-{index}"))
-        return Reply(text="".join(text), tool_calls=calls, usage=usage)
+        return Reply(text="".join(text), tool_calls=calls, usage=usage, finish=cut)
 
     def _learn_context(self) -> None:
         """伺服器實際用的 context（只讀、只問一次，問不到就算了）：Ollama 沒設 context_size 時看 /api/ps（剛剛那次 chat 已經

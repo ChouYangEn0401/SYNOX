@@ -1441,7 +1441,11 @@ class WebUI:
             llm["api_key"] = VAULT_PREFIX + logic.SECRET_NAME
         cfg = logic.read_existing(self.config_path)
         old = cfg.get("llm") or {}
-        cfg["llm"] = {"max_steps": old.get("max_steps", 6), "max_tokens": old.get("max_tokens", 1024),
+        from synox.config import LOCAL_MAX_TOKENS
+        max_tokens = old.get("max_tokens", 1024)
+        if llm.get("kind") == "local" and old.get("kind") != "local" and max_tokens == 1024:
+            max_tokens = LOCAL_MAX_TOKENS                    # 換成本地模型：舊的預設 1024 對會思考的模型太少
+        cfg["llm"] = {"max_steps": old.get("max_steps", 6), "max_tokens": max_tokens,
                       **{k: old[k] for k in KEEP_LLM_KEYS if k in old}, **llm}     # 換來源不洗掉完成宣稱檢查等設定
         logic.write_config(self.config_path, cfg)
         stale = ("kind", "api_key", "base_url", "model", "tools", "server", "context_size", "timeout",

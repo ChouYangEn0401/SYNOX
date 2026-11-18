@@ -80,11 +80,23 @@ REPEAT_HINT = "（這個呼叫已連續失敗 2 次：換個參數、換個工�
 REPEAT_STOP = "（同一個動作連續失敗 3 次，先停。可以換個說法再試，或自己打指令。）"
 REPEAT_MEMORY = "（同一個動作連續失敗 3 次，停下來了）"
 SUMMARY_ASK = "步數用完。用一兩句告訴使用者做到哪裡、還差什麼。不要呼叫工具。"
+# 回覆被 max_tokens 切掉時自動接續（使用者不用打「繼續」）：llm.auto_continue＝最多接幾次（預設 2，0＝不接）
+CONTINUE_ASK = "（系統：你上一則回覆因為長度上限被切斷了。請從中斷的地方直接接著寫，不要重複已經寫過的內容，也不要加開場白。）"
+DEFAULT_AUTO_CONTINUE = 2
+MAX_THINK_TOKENS = 16384              # 思考把上限用光時，自動放大重試的天花板
 SUMMARY_MAX = 400
 CANNOT_DO_MAX = 200
 TAIL_HEAD = prompt_mod.TAIL_HEAD
 GOAL_MAX = 80
 RECITE = "（目標：{goal}；做完就回答，做不到就說）"
+
+
+def _add_usage(a: dict, b: dict) -> dict:
+    out = dict(a or {})
+    for k, v in (b or {}).items():
+        if isinstance(v, (int, float)):
+            out[k] = out.get(k, 0) + v
+    return out
 
 
 def ai_decision(app, user, node: Node, *, chat_id: Optional[int] = None, bot=None):
@@ -573,9 +585,65 @@ class AgentLoop:
 
     def _chat(self, messages, tools, stop):
         messages = self._fit(messages, tools)       # context 預算（docs/adr/0015）：送副本，對話紀錄本身不改
+        reply = self._send(messages, tools, stop)
+        return self._auto_continue(reply, messages, tools, stop)
+
+    def _send(self, messages, tools, stop, max_tokens: Optional[int] = None):
+        kw = {}
         if stop:
-            return self.adapter.chat(messages, tools, stop=stop)
-        return self.adapter.chat(messages, tools)
+            kw["stop"] = stop
+        if max_tokens and getattr(self.adapter, "supports_max_tokens", False):
+            kw["max_tokens"] = max_tokens
+        return self.adapter.chat(messages, tools, **kw)
+
+    def auto_continue_times(self) -> int:
+        try:
+            value = int(self.llm.get("auto_continue", DEFAULT_AUTO_CONTINUE))
+        except (TypeError, ValueError):
+            value = DEFAULT_AUTO_CONTINUE
+        return max(0, min(value, 5))
+
+    def _auto_continue(self, reply, messages, tools, stop):
+        """回覆被 max_tokens 切掉（Reply.finish）時自己接續，不要使用者打「繼續」：
+        - thinking（還在思考就用完）：同一個請求、回覆上限加倍再送一次（最多 MAX_THINK_TOKENS；adapter 要支援 max_tokens=）。
+        - length（答到一半）：把已寫的當成 AI 的話，請它從中斷處接著寫，接回同一則回覆。
+        有工具呼叫的回覆不接（工具照常走）；接成功就拿掉「被切掉」的提醒。最多 llm.auto_continue 次。"""
+        times = self.auto_continue_times()
+        budget = int(getattr(self.adapter, "max_tokens", 0) or self.llm.get("max_tokens") or 1024)
+        tries = 0
+        while getattr(reply, "finish", "") and not reply.tool_calls and tries < times:
+            tries += 1
+            if reply.finish == "thinking":
+                if not getattr(self.adapter, "supports_max_tokens", False) or budget >= MAX_THINK_TOKENS:
+                    break
+                budget = min(budget * 2, MAX_THINK_TOKENS)
+                logging.info("[AGENT] reply ran out while thinking: retrying with max_tokens=%d", budget)
+                again = self._send(messages, tools, stop, max_tokens=budget)
+                again.usage = _add_usage(reply.usage, again.usage)
+                reply = again
+                continue
+            partial = reply.text or ""
+            if not partial.strip():
+                break
+            logging.info("[AGENT] reply was cut at max_tokens: continuing (%d/%d)", tries, times)
+            more = self._send(list(messages) + [Message(ASSISTANT, partial), Message(USER, CONTINUE_ASK)], (), stop)
+            reply.text = partial + (more.text or "")
+            reply.usage = _add_usage(reply.usage, more.usage)
+            reply.warnings = [w for w in (reply.warnings or []) if "max_tokens" not in w] + list(more.warnings or [])
+            reply.finish = getattr(more, "finish", "")
+        return reply
+
+    def _server_context(self) -> int:
+        """llm.context_size 沒設時，用伺服器實際的 context 當預算（本地模型才問得到；唯讀）：太長就自動省略舊的對話，
+        不讓伺服器報錯或靜默截掉系統提示。問不到＝0（照以前：不裁）。"""
+        probe = getattr(self.adapter, "server_context", None)
+        if not callable(probe):
+            return 0
+        try:
+            return int(probe() or 0)
+        except Exception:
+            logging.info("[AGENT] could not read the server context (ignored)")
+            return 0
 
     # ── context 預算（docs/adr/0015、0016）──────────────────────────────
 
@@ -629,7 +697,8 @@ class AgentLoop:
 
     def _turn(self, api, chat_id: int, user, text: str, **image_kw) -> None:
         """image_kw：images／shown／route（看圖），seed／wake（叫醒的那一輪）。"""
-        self._ctx.budget = {"limit": context_mod.context_limit(self.llm), "start": None, "soul": "", "stats": {}}
+        limit = context_mod.context_limit(self.llm) or self._server_context()
+        self._ctx.budget = {"limit": limit, "start": None, "soul": "", "stats": {}}
         try:
             self._turn_body(api, chat_id, user, text, **image_kw)
         finally:

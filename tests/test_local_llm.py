@@ -640,3 +640,95 @@ def test_config_and_factory_take_api_key(monkeypatch):
     a = make_adapter({"llm": {"kind": "local", "server": "lmstudio", "base_url": "http://localhost:1235/v1",
                               "model": "qwen3.5-9b", "api_key": "env:LMS_TOKEN"}})
     assert a.api_key == "tok-from-env" and a.root == "http://localhost:1235"
+
+
+# ── 自動接續（max_tokens 切掉時不用使用者打「繼續」）、本地預設 4096、伺服器 context 當預算 ─────────
+
+class _ScriptAdapter:
+    """照順序吐 Reply；記下每次收到的訊息與 max_tokens。"""
+    name, kind, supports_tools, supports_stop, supports_vision = "script", "local", True, False, False
+    supports_max_tokens = True
+    max_tokens = 1024
+
+    def __init__(self, replies, ctx=None):
+        self.replies, self.calls, self.ctx = list(replies), [], ctx
+
+    def check_vision(self):
+        return False
+
+    def server_context(self):
+        return self.ctx
+
+    def chat(self, messages, tools=(), *, stop=(), max_tokens=None):
+        self.calls.append({"messages": list(messages), "max_tokens": max_tokens, "tools": list(tools)})
+        return self.replies.pop(0)
+
+
+def _loop(adapter, **llm):
+    from types import SimpleNamespace
+    from synox.agent.loop import AgentLoop
+    loop = AgentLoop.__new__(AgentLoop)
+    loop.adapter, loop.llm = adapter, {"max_tokens": 1024, **llm}
+    loop._ctx = SimpleNamespace(budget=None)
+    return loop
+
+
+def test_cut_answer_is_continued_without_the_user():
+    a = _ScriptAdapter([Reply(text="第一段", finish="length", warnings=["回覆到了 max_tokens（1024）被切掉。"],
+                              usage={"input": 10, "output": 1024}),
+                        Reply(text="，第二段完。", usage={"input": 20, "output": 5})])
+    reply = _loop(a)._chat([Message(USER, "寫長文")], [SPEC], ())
+    assert reply.text == "第一段，第二段完。" and reply.finish == "" and reply.warnings == []
+    assert reply.usage == {"input": 30, "output": 1029}
+    sent = a.calls[1]["messages"]
+    assert sent[-2].role == ASSISTANT and sent[-2].content == "第一段" and "接著寫" in sent[-1].content
+    assert a.calls[1]["tools"] == []                                  # 接續不帶工具
+
+
+def test_running_out_while_thinking_retries_with_a_bigger_budget():
+    a = _ScriptAdapter([Reply(text="", finish="thinking", warnings=["思考用光了"]), Reply(text="答案")])
+    reply = _loop(a)._chat([Message(USER, "看圖")], [], ())
+    assert reply.text == "答案" and a.calls[1]["max_tokens"] == 2048 and a.calls[0]["max_tokens"] is None
+
+
+def test_auto_continue_stops_at_the_limit_and_can_be_turned_off():
+    cut = lambda: Reply(text="又", finish="length")
+    a = _ScriptAdapter([cut(), cut(), cut()])
+    reply = _loop(a)._chat([Message(USER, "x")], [], ())
+    assert len(a.calls) == 3 and reply.text == "又又又" and reply.finish == "length"   # 預設最多接 2 次
+    b = _ScriptAdapter([cut()])
+    assert _loop(b, auto_continue=0)._chat([Message(USER, "x")], [], ()).text == "又" and len(b.calls) == 1
+    c = _ScriptAdapter([Reply(text="我來記", finish="length", tool_calls=[ToolCall("money__add", {"amount": "8"})])])
+    assert len(_loop(c)._chat([Message(USER, "x")], [SPEC], ()).tool_calls) == 1 and len(c.calls) == 1
+
+
+def test_server_context_becomes_the_budget_when_context_size_is_not_set():
+    assert _loop(_ScriptAdapter([], ctx=32768))._server_context() == 32768
+    assert _loop(_ScriptAdapter([], ctx=None))._server_context() == 0
+    a, opener = ollama({("GET", "/api/v0/models"): json_resp(LMS_MODELS), ("GET", "/v1/models"): json_resp({"data": []})},
+                       model="qwen3.5-9b", server="lmstudio")
+    assert a.server_context() == 32768 and a.server_context() == 32768
+    assert opener.paths().count("/api/v0/models") == 1 and not any(p in CHAT_PATHS for p in opener.paths())
+
+
+def test_local_reply_reports_where_it_was_cut_and_takes_a_one_off_budget():
+    lines = _sse({"choices": [{"delta": {"content": "一半"}, "finish_reason": "length"}]})
+    a, opener = ollama({("POST", "/v1/chat/completions"): FakeResp(lines)}, model="m", server="lmstudio")
+    reply = a.chat([Message(USER, "x")], max_tokens=8192)
+    assert reply.finish == "length" and opener.calls[0]["body"]["max_tokens"] == 8192 and a.max_tokens == 1024
+    done = ndjson({"message": {"content": "半"}, "done": True, "done_reason": "length"})
+    b, ob = ollama({("POST", "/api/chat"): FakeResp(done)})
+    assert b.chat([Message(USER, "x")], max_tokens=2048).finish == "length"
+    assert ob.calls[0]["body"]["options"]["num_predict"] == 2048
+
+
+def test_local_defaults_to_4096_max_tokens_unless_written():
+    base = {"owner_id": 1}
+    cfg = SynoxConfig.from_dict({**base, "llm": {"kind": "local", "server": "lmstudio", "model": "qwen3.5-9b"}},
+                                require_token=False)
+    assert cfg.llm["max_tokens"] == 4096
+    cfg = SynoxConfig.from_dict({**base, "llm": {"kind": "local", "model": "m", "max_tokens": 2000}}, require_token=False)
+    assert cfg.llm["max_tokens"] == 2000
+    cfg = SynoxConfig.from_dict({**base, "llm": {"kind": "openai_compat", "base_url": "http://x/v1", "model": "m"}},
+                                require_token=False)
+    assert cfg.llm["max_tokens"] == 1024

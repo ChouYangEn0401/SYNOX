@@ -60,3 +60,18 @@ claude_login／openai_login 包的是「別人的登入」（訂閱、token 檔�
 - vLLM／LM Studio／其他伺服器沒有在真機測過（只有假 opener）；Ollama 只做了一次最小的冒煙測試。
 - VLM、「宣稱完成但沒有對應工具呼叫」的檢查（測試紀錄建議 1）這一輪不做。
 - 文字協定（`tools=false`）照舊一次只解析一個工具呼叫。
+
+## 後續修改（2026-11-18）：LM Studio 實機、自動接續、預設值
+
+擁有者在 LM Studio（port 1235、qwen3.5-9b／qwen3.8-27b）實測後的要求：「預設就能用、卡住不要讓使用者打 continue」。
+
+1. **LM Studio**：`llm.api_key`（明文／`vault:`／`env:`，送 `Authorization: Bearer`）；`GET /api/v0/models` 那一筆給 context、
+   `type`（vlm＝看得到圖，`vision: auto` 用它）、`state`（沒載入就在 probe 提醒）；`llm.options` 的 OpenAI 取樣參數照送（ADR 0019 後續）。
+2. **本地預設 `max_tokens` 4096**（`config.LOCAL_MAX_TOKENS`）：沒寫才套；精靈與網頁設定頁換成本地模型時，舊的預設 1024 也換成 4096。
+   理由：Qwen3.5 會先思考，實測 300 tokens 時思考就用完、`content` 是空的。
+3. **自動接續**（`AgentLoop._auto_continue`，`llm.auto_continue` 預設 2、0＝關）：adapter 在 `Reply.finish` 說明被切在哪——
+   `thinking`（還在思考就用完）＝同一個請求、回覆上限加倍重送（最多 16384，adapter 要支援 `chat(max_tokens=)`）；
+   `length`（答到一半）＝把已寫的當 AI 的話、請它接著寫，接回同一則回覆（不帶工具）。有工具呼叫的回覆不接。
+4. **沒設 `context_size` 也有 context 預算**：`LocalAdapter.server_context()` 唯讀問伺服器實際的 context（LM Studio 的
+   `loaded_context_length`），`AgentLoop` 拿它當 ADR 0015 的上限：太長就自動省略最舊的對話與舊的工具結果再送，
+   不讓伺服器報錯、不用使用者處理。這是「省略」，不是「摘要」：被省略的舊對話 AI 就看不到了（會另送一則提醒）。
