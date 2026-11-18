@@ -181,12 +181,12 @@ body（兩個都可以省略；省略＝不改）：
 > 變暗／關閉，以保護螢幕、省電。闔上筆電蓋、手動睡眠、低電量、Windows Update 重開機擋不住。
 > （這段字就是回應裡的 `notice`，介面照著顯示。）
 
-- 請求（兩個都選填）：`{"enabled": true, "screen_off_after_min": 10}`。`screen_off_after_min` 要是 0～240 的整數（0＝照 Windows 電源計畫）。
+- 請求（兩個都選填）：`{"enabled": true, "screen_off_after_min": 10}`。`screen_off_after_min` 要是整數：`-1`＝螢幕永不關（PowerRequestDisplayRequired）、`0`＝照 Windows 電源計畫、`N`（不設上限）＝把目前電源計畫的「關閉顯示器前的時間」設成 N 分鐘，由 Windows 自己關螢幕；停用、改回 0／-1、App 停止時改回原值（值被使用者自己改過就不動）。**不再用 SC_MONITORPOWER**——現代待命機型上它等於按睡眠鍵（2026-11-13 hotfix）。
 - 回 200（`GET /api/runtime/status` 的 `keep_awake` 一樣）：
 
   ```json
   {"enabled": true, "supported": true, "holding": true, "execution_required": true,
-   "screen_off_after_min": 10, "max_screen_off_min": 240, "last_result": "電腦保持清醒中（…）。",
+   "screen_off_after_min": 10, "max_screen_off_min": 525600, "display_required": false, "last_result": "電腦保持清醒中（…）。",
    "tagline": "像一個穩定的 heartbeat：…", "notice": "開啟後會覆蓋 Windows 電源選項裡的「睡眠」設定：…",
    "modern_standby": true, "modern_standby_note": "這台是「現代待命」（Modern Standby）機型：…"}
   ```

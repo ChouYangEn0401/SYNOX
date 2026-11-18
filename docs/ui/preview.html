@@ -2291,8 +2291,9 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
           <div class="txt"><h2>保持清醒</h2><p class="sub" id="awake-tagline">像一個穩定的 heartbeat：維持系統運轉，但螢幕可以暗（保護螢幕或省電）。</p></div></div>
         <p class="note-line" id="awake-notice">⚠️ 開啟後會覆蓋 Windows 電源選項裡的「睡眠」設定：電腦不再自動睡眠。螢幕仍可照電源計畫，或設定「閒置 N 分鐘後主動關螢幕」變暗／關閉，以保護螢幕、省電。闔上筆電蓋、手動睡眠、低電量、Windows Update 重開機擋不住。</p>
         <label class="f"><input id="awake-enabled" type="checkbox"> 讓電腦不要自動睡眠（預設關閉）</label>
-        <label class="f" for="awake-minutes">閒置幾分鐘後主動關螢幕（0＝照 Windows 電源計畫）</label>
-        <input id="awake-minutes" type="number" min="0" max="240" step="1" size="6">
+        <label class="f" for="awake-minutes">閒置幾分鐘後關螢幕（0＝照 Windows 電源計畫；-1＝螢幕永不關）</label>
+        <input id="awake-minutes" type="number" min="-1" step="1" size="6">
+        <p class="muted">設 N 分鐘＝把 Windows 電源計畫的「關閉螢幕」改成 N 分鐘，只關螢幕、電腦繼續跑；關掉保持清醒時改回原本的值。</p>
         <p class="note-line hidden" id="awake-ms"></p>
         <hr class="rule">
         <div class="row">
@@ -7849,8 +7850,8 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   }
   $("awake-save").addEventListener("click", function () {
     var minutes = Number($("awake-minutes").value || 0);
-    if (!(minutes >= 0 && minutes <= 240 && Math.floor(minutes) === minutes)) {
-      $("awake-msg").textContent = "❌ 分鐘要是 0～240 的整數。"; return;
+    if (!(minutes >= -1 && minutes <= 525600 && Math.floor(minutes) === minutes)) {
+      $("awake-msg").textContent = "❌ 分鐘要是整數：-1＝螢幕永不關、0＝照電源計畫、N＝閒置 N 分鐘。"; return;
     }
     api("POST", "/api/runtime/keep-awake", { enabled: $("awake-enabled").checked, screen_off_after_min: minutes })
       .then(function (ka) { fillAwake(ka); $("awake-msg").textContent = "存好了。" + $("awake-msg").textContent; })
