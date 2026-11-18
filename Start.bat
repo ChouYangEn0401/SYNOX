@@ -16,6 +16,8 @@ start "SYNOX" /min "%ComSpec%" /c ""%~f0" --here"
 exit /b 0
 :run
 title SYNOX
+rem Tells SYNOX it was started here, so the web page can restart it the same way (src/synox/web/restart.py).
+set "SYNOX_LAUNCHER=start.bat"
 "%VENV_PY%" -m synox run
 if errorlevel 1 pause
 exit /b

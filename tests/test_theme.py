@@ -229,9 +229,9 @@ COLOR_EXCEPTIONS = {
 COLOR_RE = re.compile(r"#[0-9a-fA-F]{3,8}\b|\b(?:rgba?|hsla?|hwb|oklch|oklab|lab|lch)\(|"
                       r"(?<![-\w])(?:white|black|red|blue|green|gray|grey|orange|yellow|purple|pink|silver)(?![-\w])")
 CSS_FILES = ("control.css", "tools.css", "tour.css", "packdrop.css", "report.css", "splash.css", "security.css", "apps.css",
-             "notify.css")
+             "notify.css", "usermenu.css")
 JS_FILES = ("app.html", "control.js", "tools.js", "tour.js", "packdrop.js", "report.js", "splash.js", "slots.js",
-            "blocks.js", "security.js", "apps.js", "notify.js")
+            "blocks.js", "security.js", "apps.js", "notify.js", "usermenu.js")
 
 
 def _styles(html):

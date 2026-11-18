@@ -648,6 +648,7 @@
 <style nonce="{{NONCE}}">/*{{INCLUDE:security.css}}*/</style>
 <style nonce="{{NONCE}}">/*{{INCLUDE:apps.css}}*/</style>
 <style nonce="{{NONCE}}">/*{{INCLUDE:notify.css}}*/</style>
+<style nonce="{{NONCE}}">/*{{INCLUDE:usermenu.css}}*/</style>
 <script nonce="{{NONCE}}">/*{{INCLUDE:slots.js}}*/</script>
 <!-- theme -->
 <style nonce="{{NONCE}}">/*{{INCLUDE:splash.css}}*/</style>
@@ -658,10 +659,9 @@
 <aside class="side">
   <div class="brand-row">
     <div class="brand"><button id="brand-mark" class="mark" type="button" data-splash-replay title="再看一次開場" aria-label="再看一次開場"><span class="slot theme-slot-mascot-idle" data-slot="mascot.idle" aria-hidden="true">S</span></button><span class="name"><span class="slot theme-slot-wordmark" data-slot="wordmark">SYNOX</span></span></div>
-    <button id="logout" class="ghost sm hidden" type="button" title="登出">
-      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg>
-      <span>登出</span>
-    </button>
+    <!-- 🔄 重新啟動（只有擁有者）、手機的頭像（打開使用者選單）：static/usermenu.js。登出在選單裡 -->
+    <button id="restart-btn" class="restart-btn hidden" type="button" title="重新啟動 SYNOX" aria-label="重新啟動 SYNOX"><span class="rs-ico" aria-hidden="true">⟳</span><span class="um-dot hidden" data-um-dot aria-hidden="true"></span></button>
+    <button id="um-phone" class="um-phone hidden" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="user-menu" aria-label="我的選單"><span class="avatar" id="avatar-m" aria-hidden="true"></span><span class="um-dot hidden" data-um-dot aria-hidden="true"></span></button>
   </div>
   <nav id="nav" class="nav hidden">
     <a href="#chat" data-view="chat" data-tour="nav.chat">
@@ -685,9 +685,26 @@
   </div>
   <a id="apps-side" class="hidden" href="#tools" title="工具服務：到工具頁看、關掉"></a>
   <div id="side-foot" class="side-foot hidden">
-    <span class="avatar" id="avatar" aria-hidden="true"></span>
-    <span class="who" id="who"></span>
-    <a id="help-link" class="help-link" href="#settings:help" title="遇到問題？告訴我們，一起把它修好">遇到問題？</a>
+    <button id="um-card" class="um-card" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="user-menu" title="我的選單">
+      <span class="avatar" id="avatar" aria-hidden="true"></span>
+      <span class="who" id="who"></span>
+      <span class="um-dot hidden" data-um-dot aria-hidden="true"></span>
+      <svg class="i um-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14l5-5 5 5"/></svg>
+    </button>
+  </div>
+  <!-- 使用者選單（點上面的卡片；手機點上方列的頭像）：static/usermenu.js、usermenu.css -->
+  <div id="user-menu" class="um hidden" role="menu" aria-label="我的選單">
+    <div class="um-head" role="none">
+      <div class="um-state"><span class="um-live" aria-hidden="true"></span><span id="um-status">SYNOX 運作中</span><span class="um-ver" id="um-ver"></span></div>
+      <div class="um-me"><span class="avatar" id="um-avatar" aria-hidden="true"></span><span class="txt"><span id="um-name"></span><span id="um-role"></span></span></div>
+    </div>
+    <button id="um-restart" class="um-item hidden" type="button" role="menuitem"><span class="um-ico" aria-hidden="true">🔄</span><span class="um-label">重新啟動 SYNOX</span><span class="um-pill hidden" data-um-dot>待生效</span></button>
+    <button id="um-notify" class="um-item hidden" type="button" role="menuitem"><span class="um-ico" aria-hidden="true">🔔</span><span class="um-label">通知</span></button>
+    <a class="um-item" href="#settings" role="menuitem"><span class="um-ico" aria-hidden="true">⚙️</span><span class="um-label">設定</span></a>
+    <a class="um-item" href="#settings:appearance" role="menuitem"><span class="um-ico" aria-hidden="true">🎨</span><span class="um-label">換外觀</span></a>
+    <a id="help-link" class="um-item" href="#settings:help" role="menuitem" title="遇到問題？告訴我們，一起把它修好"><span class="um-ico" aria-hidden="true">❓</span><span class="um-label">遇到問題？</span></a>
+    <div class="um-sep" role="separator"></div>
+    <button id="um-logout" class="um-item um-out" type="button" role="menuitem"><span class="um-ico" aria-hidden="true">↪</span><span class="um-label">登出</span></button>
   </div>
 </aside>
 
@@ -938,7 +955,7 @@
         <p class="note-line scope-note">💬 <strong>目前只能一對一私訊</strong>：要在 Telegram 或 Discord 裡<strong>私訊</strong> bot 才會回你。
           把 bot 加進 Telegram 群組、Discord 伺服器的頻道或「社群」裡 @ 它，<strong>不會有用</strong>（指令與 AI 在群組、頻道裡都被擋掉，這是為了不讓別人碰到你的資料）。</p>
         <p id="ch-restart" class="restart-banner hidden" role="status">⚠ 聊天通道的設定改了，要<strong>重新啟動 SYNOX</strong> 才會生效：
-          先雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑。在那之前 bot 不會上線、也不會回你。</p>
+          先雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑。在那之前 bot 不會上線、也不會回你。<button type="button" class="sm primary restart-now" data-restart-now>立即重新啟動</button></p>
         <div class="channel">
           <h3>Telegram</h3>
           <p id="ch-tg-now" class="muted"></p>
@@ -1233,6 +1250,7 @@
 <script nonce="{{NONCE}}">/*{{INCLUDE:security.js}}*/</script>
 <script nonce="{{NONCE}}">/*{{INCLUDE:apps.js}}*/</script>
 <script nonce="{{NONCE}}">/*{{INCLUDE:notify.js}}*/</script>
+<script nonce="{{NONCE}}">/*{{INCLUDE:usermenu.js}}*/</script>
 <!-- include: tools.js -->
 <!-- include: tour.js -->
 <!-- include: helpdock.js -->
@@ -1332,7 +1350,7 @@
   function showLogin() {
     me = null;
     $("nav").classList.add("hidden");
-    $("logout").classList.add("hidden");
+    if (window.SynoxUserMenu) { window.SynoxUserMenu.reset(); }       // 使用者選單、⟳（static/usermenu.js）
     $("side-foot").classList.add("hidden");
     clear($("who"));
     show("login");
@@ -2620,6 +2638,7 @@
     api("GET", "/api/settings/channels").then(function (d) {
       var t = d.telegram, c = d.discord;
       $("ch-restart").classList.toggle("hidden", !(t.restart || c.restart));
+      if (window.SynoxUserMenu) { window.SynoxUserMenu.setPending(t.restart || c.restart); }   // 選單上的小點
       $("ch-tg-now").textContent = channelLine(t, function (n) { return "@" + n; }) +
         (t.saved && !t.owner_paired ? (t.pairable ? "還沒配對擁有者：用下面的「配對我的 Telegram 帳號」。" :
           "還沒配對擁有者：雙擊 Setup.bat 重跑安裝精靈配對（token 會自動帶入）。") : "");
@@ -3496,9 +3515,9 @@
     }).catch(function (e) { $("backup-msg").textContent = "❌ " + e.message; });
   });
 
-  $("logout").addEventListener("click", function () {
+  function logout() {                         // 使用者選單的「↪ 登出」
     api("POST", "/api/logout", {}).then(showLogin, showLogin);
-  });
+  }
   window.addEventListener("hashchange", route);
 
   // 左下角的「目前登入」：名字一行、角色一行（文字一律 textContent）
@@ -3515,7 +3534,6 @@
     me = d;
     $("nav").classList.remove("hidden");
     $("nav-control").classList.toggle("hidden", !(control && control.canSee(d)));
-    $("logout").classList.remove("hidden");
     showWho(d);
     if (d.owner) {                             // 有新版的橫幅：只讀上次查的結果，不連網（docs/adr/0023）
       api("GET", "/api/settings/update").then(function (u) { updateBanner(u.notice); }).catch(function () { /* 沒有就算了 */ });
@@ -3526,6 +3544,7 @@
       window.SynoxApps.init({ api: api, toast: toast, csrf: function () { return me ? me.csrf : ""; } });
     }
     if (window.SynoxNotify) { window.SynoxNotify.init({ api: api, toast: toast, me: d }); }   // 🔔 通知與 ⏰ 鬧鐘（static/notify.js）
+    if (window.SynoxUserMenu) { window.SynoxUserMenu.init({ api: api, toast: toast, me: d, logout: logout }); }   // 使用者選單（static/usermenu.js）
     route();
     function fillInput(text) {               // 範例、教學的「幫我填好」：只把字放進輸入框，不送出
       if (currentView !== "chat") { location.hash = "#chat"; }

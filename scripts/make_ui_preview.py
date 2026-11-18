@@ -9,12 +9,12 @@
                               ?tooledit=1 工具頁直接打開「編輯群組」；?lib=1 設定頁「功能與安裝」直接按好「載入工具清單」
                               （假的清單＝tests/fixtures 裡那份真的 v0.2.0 目錄；預覽不連網）；?ctl=error 主控頁讀不到時的樣子、?member=1 用成員身分看
                               （沒有「主控」）；?help=1 設定頁「遇到問題？」直接按好「幫我準備好回報內容」（假的摘要）；
-                              #chat／#tools／#settings／#control／#settings:help 切頁。
+                              ?menu=1 左下角的使用者選單直接打開（手機寬度是上方列的頭像）；?restart=1「重新啟動 SYNOX？」的確認框；#chat／#tools／#settings／#control／#settings:help 切頁。
                               開場的門（static/splash.js）：預覽預設不出現（window.SYNOX_NO_SPLASH）；?splash=1 出現並等你點
                               （預覽列的「重播開場」；左上角的 S 也可以）；?splashat=600 讓開場停在第 600 毫秒（拍關鍵影格用）。
                               工具頁的群組編輯可以真的操作（存在這一頁的記憶體裡，重新整理就回到預設）。
 - docs/ui/preview-phone.html、preview-phone-dark.html
-                              八個 390px 寬的框（登入、對話、工具、工具的編輯群組、設定、功能與安裝、遇到問題？、主控），看手機寬度用。
+                              九個 390px 寬的框（登入、對話、工具、工具的編輯群組、設定、功能與安裝、遇到問題？、主控、使用者選單），看手機寬度用。
                               「登入」那一格每次打開都會出現開場的門（點一下進去），其他格不出現。
 - docs/ui/preview-login.html  伺服器產生的「登入確認頁」（server.py 的 login_page，用假的帳號資料）。
 - docs/ui/preview-error.html  伺服器產生的小頁（server.py 的 _page，例如登入連結不能用）。
@@ -37,7 +37,9 @@ from synox.web import server, toolpage  # noqa: E402
 OUT = os.path.join(ROOT, "docs", "ui")
 
 # ── 假資料（形狀照 server.py 各 API 的回應；名字、id 都是佔位） ─────────────────
-ME = {"id": 100001, "username": "小明", "role": "admin", "owner": True, "csrf": "preview"}
+ME = {"id": 100001, "username": "小明", "role": "admin", "owner": True, "csrf": "preview", "version": "0.2.1",
+      "uptime_s": 3 * 3600 + 600,                       # 使用者選單（static/usermenu.js）：已開 3 小時；聊天通道改過、要重開
+      "restart": {"can": True, "pending": True, "reasons": ["Telegram 的設定改了"], "mode": "launcher"}}
 
 CHATS = [
     {"id": "c1", "title": "今天要做的事", "last": "好，兩件都記下來了。"},
@@ -409,6 +411,14 @@ MOCK = r"""
     var p = String(path).split("?")[0];
     if (p.indexOf("/api/runtime/") === 0) { return runtime(p, method, opts); }
     if (p === "/api/me") { return loggedOut ? reply({ error: "請先登入" }, 401) : reply(D.me); }
+    // 🔄 重新啟動：預覽不會真的重開；按下去之後 /alive 一直是同一個開機代號，所以會停在「重新啟動中…」，等滿 90 秒再說明
+    if (p === "/api/settings/restart") {
+      return method === "GET" ? reply({ mode: "launcher", can: true, busy: false, pending: D.me.restart.pending,
+        reasons: D.me.restart.reasons, wait_s: 0, boot: "preview", version: D.me.version,
+        how: "會先關掉 SYNOX，再用跟桌面捷徑一樣的方式自己開起來（大約 10～30 秒）。這段時間 bot 不會回訊息。" })
+        : reply({ ok: true, boot: "preview", message: "（預覽：不會真的重新啟動）" }, 202);
+    }
+    if (p === "/alive") { return reply({ ok: true, boot: "preview" }); }
     // 封存：假的，只在這個頁面的記憶體裡動（預覽不存任何東西）
     D.archived = D.archived || [{ id: "c90", title: "上週的旅遊規劃", last: "好，行程排好了。", count: 12, archived: Date.now() / 1000 - 86400 * 3 },
                                 { id: "c91", title: "寫給房東的信", last: "已經幫你改好語氣。", count: 6, archived: Date.now() / 1000 - 86400 * 9 }];
@@ -617,6 +627,25 @@ MOCK = r"""
       else if (helpTries > 50) { clearInterval(helpWait); }
     }, 100);
   }
+  if (q.get("menu") === "1") {            // 左下角的使用者選單直接打開（截圖用；手機寬度是上方列的頭像）
+    var menuTries = 0;
+    var menuWait = setInterval(function () {
+      menuTries += 1;
+      var card = document.getElementById("um-card"), phone = document.getElementById("um-phone");
+      var t = phone && phone.offsetParent ? phone : card;
+      if (t && !t.classList.contains("hidden") && t.offsetParent) { clearInterval(menuWait); t.click(); }
+      else if (menuTries > 50) { clearInterval(menuWait); }
+    }, 100);
+  }
+  if (q.get("restart") === "1") {         // 「重新啟動 SYNOX？」的確認框直接跳出來（截圖用；按下去會停在「重新啟動中…」）
+    var rsTries = 0;
+    var rsWait = setInterval(function () {
+      rsTries += 1;
+      var item = document.getElementById("um-restart");
+      if (window.SynoxUserMenu && item && !item.classList.contains("hidden")) { clearInterval(rsWait); window.SynoxUserMenu.restart(); }
+      else if (rsTries > 50) { clearInterval(rsWait); }
+    }, 100);
+  }
   if (q.get("tooledit") === "1") {        // 工具頁直接打開「編輯群組」（截圖用）
     var tries = 0;
     var wait = setInterval(function () {
@@ -653,6 +682,7 @@ MOCK = r"""
                  ["設定", function () { return "?" + theme + "#settings"; }],
                  ["功能與安裝", function () { return "?" + (theme ? theme + "&" : "") + "lib=1#packs"; }],
                  ["遇到問題？", function () { return "?" + (theme ? theme + "&" : "") + "help=1#settings:help"; }],
+                 ["使用者選單", function () { return "?" + (theme ? theme + "&" : "") + "menu=1#chat"; }],
                  ["主控", function () { return "?" + theme + "#control"; }],
                  ["主控讀不到", function () { return "?ctl=error" + (theme ? "&" + theme : "") + "#control"; }],
                  ["成員看到的", function () { return "?member=1" + (theme ? "&" + theme : "") + "#control"; }],
@@ -780,7 +810,7 @@ PHONE = """<!doctype html>
 def phone_preview() -> str:
     frames = [("登入", "login=1"), ("對話", "#chat"), ("工具", "#tools"), ("工具：編輯群組", "tooledit=1#tools"),
               ("設定", "#settings"), ("功能與安裝", "lib=1#packs"), ("遇到問題？", "help=1#settings:help"),
-              ("主控", "#control")]
+              ("主控", "#control"), ("使用者選單", "menu=1#chat")]
     out = []
     for title, q in frames:
         query, _, hash_ = q.partition("#")
