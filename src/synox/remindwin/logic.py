@@ -9,7 +9,7 @@
 按鈕（desk.BTN_*，卡片上有哪些由引擎決定）→ 引擎的動作（schedule/actions.py）：
     我完成了 done → done　　我知道了 ack → ack（不響了、不算做完）
     稍後再叫我 5／15 分鐘、1 小時、自選（幾分鐘或打時間）→ snooze
-    改到別天 明天同一時間、挑日子＋時間 → reschedule（只有一次性的提醒有）
+    安排到別天 明天同一時間、挑日期時間 → reschedule（只有一次性的提醒有）
 
 - 視窗顯示的就是 to_win 裡的 show 檔（扣掉剛按過的）：引擎處理掉才刪 show 檔，所以引擎沒在跑、或不接受
   （例如打的時間看不懂）時，那張卡 ACT_HIDE_S 秒後會再跳出來，不會默默消失。
@@ -43,15 +43,15 @@ LABELS = {
     deskmod.BTN_SNOOZE_60: "1 小時",
     deskmod.BTN_SNOOZE_TYPED: "自選…",
     deskmod.BTN_RESCHEDULE_TOMORROW: "明天同一時間",
-    deskmod.BTN_RESCHEDULE_PICK: "挑日子…",
+    deskmod.BTN_RESCHEDULE_PICK: "挑日期時間…",
 }
 T = {
-    "title": "提醒",
+    "title": "⏰ 提醒",
     "brand": "SYNOX",
     "late": "晚了 {n} 分鐘",
     "snoozed": "延後第 {n} 次之後",
     "snooze_head": "稍後再叫我",
-    "move_head": "改到別天",
+    "move_head": "安排到別天",
     "todos": "待辦",
     "todo_done": "✓",
     "typed_hint": "幾分鐘（例如 20），或 15:30、+2h、明天 9 點",
