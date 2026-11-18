@@ -143,6 +143,50 @@ test("technical detail only inside the collapsed 進階 line, never first", () =
   assert.ok(walk(card).find((n) => n.tagName === "details" && n.className.includes("app-more")).children.includes(adv));
 });
 
+function btn(card, text) { return walk(card).find((n) => n.tagName === "button" && n._text === text); }
+function deferred() { let res, rej; const p = new Promise((a, b) => { res = a; rej = b; }); return { p, res, rej }; }
+
+test("stop: row buttons disabled and text 關閉中… while the request runs, restored after", async () => {
+  const d = deferred();
+  const c = ctx({ onStop: (v, mark) => { mark(); return d.p; } });
+  const card = A.renderCard(doc, view({ state: "on", open: "/apps/money/open", suggest_close: true }), c);
+  const stop = btn(card, A.TEXT.stop), keep = btn(card, A.TEXT.keep);
+  stop.click();
+  assert.strictEqual(stop._text, A.TEXT.stopping);
+  assert.ok(stop.disabled && keep.disabled && stop.attrs["aria-busy"] === "true");
+  d.rej(new Error("x")); await d.p.catch(() => {}); await null;
+  assert.strictEqual(stop._text, A.TEXT.stop);
+  assert.ok(!stop.disabled && !keep.disabled);
+});
+
+test("keep shows 處理中…; start shows 開啟中…", async () => {
+  const d = deferred();
+  const card = A.renderCard(doc, view({ state: "on", open: "/apps/money/open", suggest_close: true }),
+                            ctx({ onKeep: (v, mark) => { mark(); return d.p; } }));
+  const keep = btn(card, A.TEXT.keep); keep.click();
+  assert.strictEqual(keep._text, A.TEXT.working);
+  const off = A.renderCard(doc, view(), ctx({ onStart: (v, mark) => { mark(); return d.p; } }));
+  const start = btn(off, A.TEXT.start); start.click();
+  assert.ok(start._text === A.TEXT.starting && start.disabled);
+  d.res(null); await d.p; await null;
+  assert.ok(start._text === A.TEXT.start && !start.disabled);
+});
+
+test("start: confirm cancelled (mark never called) leaves the button as is", async () => {
+  const card = A.renderCard(doc, view(), ctx({ onStart: () => Promise.resolve(undefined) }));
+  const start = btn(card, A.TEXT.start); start.click();
+  assert.ok(start._text === A.TEXT.start && !start.disabled);
+});
+
+test("open form: submit briefly disables the button, form stays a post to _blank", async () => {
+  const f = A.openForm(doc, "money", "C1");
+  const b = f.children.find((n) => n.tagName === "button");
+  (f.listeners.submit || []).forEach((fn) => fn({}));
+  assert.ok(!b.disabled);                 // 不在送出當下停用
+  await new Promise((r) => setTimeout(r, 5));
+  assert.ok(b.disabled && f.method === "post" && f.target === "_blank");
+});
+
 (async () => {
   let failed = 0;
   for (const [n, f] of tests) {

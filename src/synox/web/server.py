@@ -452,6 +452,9 @@ class WebUI:
             if m and method == "POST":                  # 工具服務的「打開」：表單送出 → 303 到 127.0.0.2（交接票）
                 from synox.web.apps import web_api as apps_api
                 return apps_api.open_handoff(self, session, m.group(1), headers, body)
+            if m and method == "GET":                   # 重新整理新分頁、貼網址：只給說明頁，不發票、不開服務、不轉址、不回顯名字
+                return _page(405, "要從工具頁打開", "這個連結要從 SYNOX 的工具頁按「打開」才能用。請回 SYNOX，到那個工具的頁面再按一次「打開」。",
+                             [("Allow", "POST")])
             if path == "/login" and method == "POST":
                 return self.login_post(headers, body)
             m = PANEL_RE.match(path)

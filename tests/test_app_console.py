@@ -125,7 +125,24 @@ def test_handoff(counter, owner):
     assert AppClient(manager, "counter").post("/api/enter", {"ticket": tickets[-1]})[0] == 200
     raw = open(manager.audit.path, encoding="utf-8").read()
     assert '"handoff"' in raw and ticket not in raw
-    assert c.raw("GET", "/apps/counter/open")[0] in (404, 405)
+    status, gh, gbody = c.raw("GET", "/apps/counter/open")
+    assert status == 405                         # 說明頁，不是「找不到」
+    gh = dict(gh)
+    assert gh["Allow"] == "POST" and "Location" not in gh
+    assert gh["Referrer-Policy"] == "no-referrer" and gh["Cache-Control"] == "no-store"
+    assert "工具頁按「打開」才能用".encode() in gbody and b'href="/"' in gbody
+    assert open(manager.audit.path, encoding="utf-8").read().count('"handoff"') == raw.count('"handoff"')  # 沒發票
+
+
+def test_handoff_get_page_issues_nothing(counter, owner):
+    bot, manager = counter(raw={"mode": "server"})
+    c = console(bot, owner)
+    status, h, body = c.raw("GET", "/apps/counter/open?x=<script>alert(1)</script>")
+    assert status == 405 and "Location" not in dict(h)
+    assert b"<script>alert" not in body and b"counter" not in body
+    assert manager.running() == []               # 沒開服務
+    bad = c.raw("GET", "/apps/%3Cx%3E/open")
+    assert bad[0] == 404 and b"<x>" not in bad[2]
 
 
 def test_handoff_member_who_cannot_see(counter, owner):
