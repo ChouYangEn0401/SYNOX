@@ -245,6 +245,10 @@ class HeadlessEngine:
     def tick(self, now: Optional[datetime] = None) -> List[Dict[str, Any]]:
         return self.engine.tick(now)
 
+    def next_wake(self, now: Optional[datetime] = None) -> Optional[datetime]:
+        """下一件要做的事幾點（哨兵睡到那時候；見 engine.wake_at）。"""
+        return self.engine.next_wake(now)
+
     def act(self, uid: int, rid: int, occurrence: str, action: str, *, until: Optional[str] = None,
             typed: str = "", via: str = ""):
         return self.actions.act(uid, rid, occurrence, action, until=until, typed=typed, via=via)

@@ -38,7 +38,7 @@
   "tasks": [
     {"id": "system.heartbeat", "name": "心跳（常駐助理巡一次）", "owner": "system", "schedule": "每 45 分鐘",
      "state": "ok", "last_run_at": "2026-11-12T14:30:00+08:00", "last_message": "巡過了，沒有要通知你的事。"},
-    {"id": "system.schedule", "name": "提醒與排程", "owner": "system", "schedule": "每 30 秒",
+    {"id": "system.schedule", "name": "提醒與排程", "owner": "system", "schedule": "到點就跑（最多每 10 秒看一次）",
      "state": "ok", "last_run_at": "2026-11-12T14:59:30+08:00", "last_message": "沒有到點的項目"},
     {"id": "pack.weather", "name": "🌤 天氣", "owner": "weather", "schedule": "自己回報",
      "state": "failed", "last_run_at": "2026-11-12T13:02:00+08:00", "last_message": "API 回 503"}

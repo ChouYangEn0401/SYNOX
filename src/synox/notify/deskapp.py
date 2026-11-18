@@ -31,7 +31,7 @@ from synox.notify.store import FOLDER as NOTIFY_FOLDER
 DESK_EXTRA = "synox_notify_desk"
 GATE_EXTRA = "synox_remind_gate"
 DESK_TASK_ID = "system.notify.desk"
-DESK_TASK_INTERVAL = deskmod.POLL_ENGINE_S - 1      # runtime 每 5 秒看一次：設 4 秒＝每一輪都跑
+DESK_TASK_INTERVAL = deskmod.POLL_ENGINE_S          # 每 5 秒讀一次視窗的回覆（runtime 睡到 next_due，不再被 5 秒一格吃掉）
 SETTINGS_FILE = "settings.json"                     # data/remind/settings.json
 YIELD_AGAIN_S = 30.0                                # 主程式拿不到鎖：多久再送一次讓位請求
 

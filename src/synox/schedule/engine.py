@@ -2,7 +2,7 @@
 提醒引擎（docs/adr/0029 §3.1「到點與補送」）：讀排程清單裡的提醒（kind=remind），到點就經過送達層送出。
 
     engine = ReminderEngine(store, deliver=lambda msg: app_deliver(app, msg), resolve=…)
-    engine.tick(now)            # runtime 任務 system.schedule 每 30 秒叫；提醒哨兵用 reminder.headless_engine
+    engine.tick(now)            # runtime 任務 system.schedule 叫（睡到 engine.next_wake()，最多 10 秒）；提醒哨兵用 reminder.headless_engine
 
 1. 讀檔時舊格式自動轉 v2（reminder.upgrade_item），存回去；讀不懂的原樣留著、不響、不刪。
 2. 到點＝「due ≤ 現在、而且這一次（occurrence）還沒處理」；多叫幾次結果一樣。
@@ -169,6 +169,33 @@ def close_occurrence(rem: Reminder, status: str, now: datetime, via: str = "") -
     return replace(rem, status=status, done_at=R.to_iso(now), done_via=via, snooze_until=None)
 
 
+def wake_at(rem: Reminder, now: datetime) -> Optional[datetime]:
+    """這一筆下一次需要引擎看一眼的時間（> now）；沒有＝None。給 next_wake：排程睡到那時候就醒，提醒準時響。
+    pending：到點時間（每天型的 due 已經過了＝下一個牆上時刻）；snoozed：延後到的時間；
+    ringing／snoozed：24 小時沒人回要收掉的時間、每天型的下一天（上一次要收掉）。"""
+    times: List[datetime] = []
+    due = rem.due_at
+    if rem.status == R.PENDING and due is not None:
+        if rem.repeat == R.DAILY and due <= now:
+            hm = _wall(rem)
+            slot = slot_on(local(now), hm)
+            times.append(slot if slot > now else slot_on(local(now) + timedelta(days=1), hm))
+        else:
+            times.append(due)
+    elif rem.status in (R.RINGING, R.SNOOZED):
+        if rem.status == R.SNOOZED:
+            until = R.from_iso(rem.snooze_until)
+            if until is not None:
+                times.append(until)
+        rang = R.from_iso(rem.rang_at)
+        if rem.status == R.RINGING and rang is not None:
+            times.append(rang + EXPIRE_AFTER)
+        if rem.repeat == R.DAILY and due is not None:
+            times.append(due)
+    later = [t for t in times if t > now]
+    return min(later) if later else None
+
+
 STATUS_FILE = "engine.json"        # data/remind/engine.json：上一次到點檢查（給健康檢查；沒有個人資料）
 
 
@@ -229,6 +256,26 @@ class ReminderEngine:
         if self.status_dir:
             write_status(self.status_dir, self.who, self.last_tick, self.failed_stores)
         return fired
+
+    def next_wake(self, now: Optional[datetime] = None) -> Optional[datetime]:
+        """所有清單裡最早的 wake_at（> now）；都沒有＝None。只讀檔、不改任何東西；讀不了的清單略過（tick 會報）。"""
+        now = R.aware(now or datetime.now())
+        best: Optional[datetime] = None
+        for st in self.store.all_stores():
+            try:
+                items = st.raw_items()
+            except Exception:
+                continue
+            for data in items:
+                if not R.is_v2(data):
+                    continue
+                try:
+                    at = wake_at(Reminder.from_dict(data), now)
+                except (ValueError, TypeError):
+                    continue
+                if at is not None and (best is None or at < best):
+                    best = at
+        return best
 
     def _owner(self, st, rem: Reminder) -> int:
         if getattr(st, "tg_id", None) is not None:
@@ -449,6 +496,6 @@ def hub_deliver(app, msg: delivery.Message) -> delivery.DeliveryTicket:
     return ticket
 
 
-__all__ = ["ReminderEngine", "STATUS_FILE", "app_deliver", "app_resolve", "close_occurrence", "hub_deliver",
+__all__ = ["ReminderEngine", "STATUS_FILE", "app_deliver", "app_resolve", "close_occurrence", "hub_deliver", "wake_at",
            "notified", "occurrence_due", "read_status", "removable", "ring_key", "ring_text", "settled", "status_path",
            "write_status"]

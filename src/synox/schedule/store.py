@@ -46,6 +46,18 @@ class ScheduleStore:
         self.per_user = per_user
         self.tg_id = tg_id                     # 伺服器版每人一份時：這份是誰的
         self._scoped: Dict[int, "ScheduleStore"] = {}
+        self._listeners: List[Callable[[], None]] = []   # 清單存檔之後叫（排程馬上重看：新提醒、延後）；每人一份的共用同一串
+
+    def add_listener(self, fn: Callable[[], None]) -> None:
+        """清單有寫入（新增、改、刪、延後…）之後叫 fn()（在寫入的那條執行緒、還拿著清單的鎖時叫：要快，不要等別的執行緒來讀這份清單；例外只記 log）。"""
+        self._listeners.append(fn)
+
+    def _changed(self) -> None:
+        for fn in list(self._listeners):
+            try:
+                fn()
+            except Exception:
+                logging.exception("[SCHEDULE] change listener failed")
 
     # ── 每人一份 ─────────────────────────────────────────────────────
 
@@ -61,6 +73,7 @@ class ScheduleStore:
                 folder = os.path.join(self._data_dir, USERS_DIR, str(tg_id))
                 vault = self._vault.for_user(tg_id) if self._vault is not None else None
                 found = self._scoped[tg_id] = ScheduleStore(folder, vault, tg_id=tg_id)
+                found._listeners = self._listeners
             return found
 
     def all_stores(self) -> List["ScheduleStore"]:
@@ -93,6 +106,7 @@ class ScheduleStore:
         else:
             os.makedirs(self._data_dir, exist_ok=True)
             jsonstore.save_json(self._path, items)
+        self._changed()
 
     @property
     def lock(self):
