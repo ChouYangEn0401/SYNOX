@@ -150,7 +150,7 @@ python scripts/release.py check                    # 版本一致、SDK 單檔�
 **要在工具庫做新工具，先讀工具庫 repo（SYNOX_Libs，網址在 [../README.md](../README.md) 頂端）的 `docs/HANDOFF.md`**（只拿到那個 repo 就能開發一個工具並交回：檔案組成、閘門、測試、已知落差）。工具庫比 SYNOX 嚴，現在有兩條要先知道：
 
 - **工具庫目前只收 `kind=python`**（工具庫 repo 裡的 `tests/test_gates.py` 擋；這個 repo 沒有這個檔）。想做 `cli`／`mcp`，先開 issue 問維護者，測試要一起改。下面 6.2 講的「`kind=cli` 首選」是 SYNOX 對一般作者的建議，不適用於工具庫。
-- **新工具先不要做 `panel.html`**：SYNOX 的面板已經隔開（[adr/0028](adr/0028-pack-signatures-official-badge.md) §5），只能打相對網址 `fetch("api/<route>")`；工具庫現有的面板與它的 `test_gates.py` 還是舊寫法（`/api/packs/<name>/…` 帶 credentials），那種寫法在新的 SYNOX 會 401。真的需要面板，在 PR 說明提出，等維護者決定。
+- **面板（`panel.html`）只打相對網址 `fetch("api/<route>")`**：SYNOX 的面板已經隔開（[adr/0028](adr/0028-pack-signatures-official-badge.md) §5），不帶 credentials、不寫 `/api/packs/<name>/…`（那種舊寫法會 401）。工具庫的面板與它的 `test_gates.py` 已改成這個寫法，做法與範例見工具庫 `docs/HANDOFF.md` 3.6 節。
 
 **SYNOX 本體不再收工具**（`packs/` 出廠是空的、`loader.BUNDLED` 是空的；[AGENT.md](AGENT.md) invariant 13）。新功能如果是「一個工具」，就做成 pack。
 只有系統層的東西（提醒、排程、通知、教學、說明、權限、安裝流程）才改核心。
