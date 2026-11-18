@@ -249,7 +249,7 @@ pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的
 
 **先讀 [docs/HANDOFF.md](docs/HANDOFF.md)**（全貌、架構、目錄地圖、雲端 session 注意事項）與 [docs/development.md](docs/development.md)（Linux／Windows 建環境、跑測試、不用金鑰的開發設定、交 PR、開發 pack、改核心的規則）；AI 程式助理的短版規則在 [AGENTS.md](AGENTS.md)。
 
-用 `git clone`：發佈 ZIP、安裝程式、GitHub 的 Download ZIP 都不帶 `tests/`、`evals/`、`docs/lab/` 這類開發用的檔案
+用 `git clone`：發佈 ZIP、安裝程式、GitHub 的 Download ZIP 都不帶 `tests/`、`evals/`、`docs/lab/`、上面這幾份交接文件這類開發用的檔案
 （清單在 `scripts/make_zip.py` 的 `INTERNAL`）。
 
 ```

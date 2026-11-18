@@ -23,7 +23,7 @@
 
 ## 從哪裡開始
 
-- 全貌與目錄地圖：[docs/HANDOFF.md](docs/HANDOFF.md)；建環境、跑測試、不用金鑰的開發設定、開發工具（pack）、改核心的規則：[docs/development.md](docs/development.md)。
+- 全貌與目錄地圖：[docs/HANDOFF.md](docs/HANDOFF.md)；建環境、跑測試、不用金鑰的開發設定、開發工具（pack）、改核心的規則：[docs/development.md](docs/development.md)（兩份都只在 git clone／GitHub 上有，發佈 ZIP 與安裝程式不帶）。
 - 從最新的 `dev` 開分支（`feat/…`、`fix/…`、`docs/…`），pull request 開到 `dev`。`main` 只放正式版。
 - 新的工具（pack）請送到工具庫 SYNOX_Libs，不送到這個 repo；SYNOX 本體出廠不帶工具。
 - 改權限、核准卡、驗證碼、pack 安裝、對外合約（pack.json、SDK）或資料格式之前，先寫一份 ADR（[docs/adr/README.md](docs/adr/README.md)）。

@@ -34,9 +34,13 @@ EXCLUDED_FILES = {"config.json"}
 # 只給在 SYNOX 上開發的人（git clone 才有）：發佈 ZIP、安裝程式都不帶，執行、更新 SYNOX 都用不到（擁有者 2026-11-14 決定 D2）。
 # 結尾有 / 的是資料夾，只比 SYNOX 資料夾最上層（src/synox/evals 是程式碼，照發）。改這份清單要一起改 .gitattributes 的
 # export-ignore（GitHub 的 Download ZIP）與 setup/installer/synox.iss 的 [InstallDelete]（舊版裝過的人更新時刪掉）。
+# 開發者的交接文件（AGENTS.md、CLAUDE.md 給 AI 程式助理、docs/HANDOFF.md、docs/development.md、舊的工作交接）也算：
+# 使用者用不到，發出去只會多一份過期的交接。
 INTERNAL = ("tests/", "evals/", "docs/lab/", "docs/artifacts/", "docs/artifacts.json", "docs/QuestionToUser.md",
             "docs/ui/", "docs/installer/", "docs/community/", ".github/workflows/", ".github/ISSUE_TEMPLATE/",
-            ".github/DISCUSSION_TEMPLATE/", ".github/pull_request_template.md", ".devcontainer/")
+            ".github/DISCUSSION_TEMPLATE/", ".github/pull_request_template.md", ".devcontainer/",
+            "AGENTS.md", "CLAUDE.md", "docs/HANDOFF.md", "docs/development.md",
+            "docs/handoff/2026-11-14-session-handoff.md")
 
 
 def internal(rel: str) -> bool:

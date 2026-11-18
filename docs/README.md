@@ -5,6 +5,8 @@
 > 2. [development.md](development.md)：從零開始（建環境、跑測試、不用金鑰的開發設定、交 PR）、開發 pack、改核心的規則；
 > 3. [AGENT.md](AGENT.md)：程式地圖與不能破壞的規則（invariants）。
 >
+> 前兩份與 `../AGENTS.md`、`../CLAUDE.md`只在 git clone／GitHub 上有：發佈 ZIP 與安裝程式不帶（`scripts/make_zip.py` 的 `INTERNAL`）。
+>
 > 只是想裝來用：看 [../README.md](../README.md)。想寫工具：從 [tools.md](tools.md) 開始。
 
 標示：**使用者**＝裝 SYNOX 來用的人（含架伺服器版的營運者）；**作者**＝寫工具（pack）接進 SYNOX 的人；**維護者**＝改 SYNOX 本身的人。
@@ -12,9 +14,9 @@
 | 文件 | 給誰 | 一行說明 |
 |---|---|---|
 | [../README.md](../README.md) | 使用者 | 怎麼裝、每天怎麼用、個人版與伺服器版的差別、常見問題 |
-| [HANDOFF.md](HANDOFF.md) | 維護者、作者（含雲端 agent） | **交接入口**：SYNOX 是什麼、架構大圖（模式、Node、守門、pack、soul、帳本、網頁、通道）、目錄地圖、每份重要 ADR 一行、雲端 session 注意事項 |
-| [development.md](development.md) | 維護者、作者 | **開發指南**：Linux／Windows 從 clone 到跑測試（哪些會略過、為什麼）、不用金鑰的開發設定（假 AI、假時鐘）、開分支交 PR、開發 pack 的完整流程（SDK、`packs.dirs`、`packs lock --approve`、簽章與交件）、改核心的規則、交件前檢查表 |
-| [../AGENTS.md](../AGENTS.md)、[../CLAUDE.md](../CLAUDE.md) | AI 程式助理 | 每次載入的短版規則，指到上面兩份 |
+| [HANDOFF.md](HANDOFF.md) | 維護者、作者（含雲端 agent） | **交接入口**：SYNOX 是什麼、架構大圖（模式、Node、守門、pack、soul、帳本、網頁、通道）、目錄地圖、每份重要 ADR 一行、雲端 session 注意事項；只在 git clone／GitHub 上有 |
+| [development.md](development.md) | 維護者、作者 | **開發指南**：Linux／Windows 從 clone 到跑測試（哪些會略過、為什麼）、不用金鑰的開發設定（假 AI、假時鐘）、開分支交 PR、開發 pack 的完整流程（SDK、`packs.dirs`、`packs lock --approve`、簽章與交件）、改核心的規則、交件前檢查表；只在 git clone／GitHub 上有 |
+| [../AGENTS.md](../AGENTS.md)、[../CLAUDE.md](../CLAUDE.md) | AI 程式助理 | 每次載入的短版規則，指到上面兩份；只在 git clone／GitHub 上有 |
 | [landing/index.html](landing/index.html) | 使用者 | 介紹頁（雙擊就能看；線上版 <https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox>）：標語與支援平台、能做什麼、網頁版畫面（可切換、可放大）、放心用、三步裝好、給開發者、alpha 現況。原稿是 `landing/page.html`，`scripts/make_landing.py` 組成 index.html |
 | [tutorials/](tutorials/README.md) | 使用者 | 第一次裝、接 Telegram／Discord 的圖文教學；Discord 的名詞在 [discord-concepts.md](discord-concepts.md) |
 | [commands.md](commands.md) | 使用者 | `/help` 怎麼看、「💡 範例」、把指令換成自己順手的打法（符號與名字，例如 `@記帳`）、不用符號的風險與反斜線、各平台的限制 |
@@ -31,7 +33,7 @@
 | [docker.md](docker.md) | 使用者、維護者 | 用 Docker 跑 SYNOX（compose、資料 volume、網頁只發佈到 127.0.0.1）與開發容器；已知限制、驗證清單、檢查表（**還沒實際建置過**） |
 | [advanced-install.md](advanced-install.md) | 使用者（工程師） | 進階安裝：從原始碼裝（venv）、Docker 指令速查、沒有螢幕的伺服器、背景服務（Windows 自動啟動、systemd 範例）、測試與打包；標出哪些沒驗證過 |
 | [guide/index.html](guide/index.html) | 使用者 | 安裝教學（一步一步，雙擊就能看；線上版 <https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F>） |
-| [handoff/](handoff/README.md) | 使用者、維護者 | 到另一台電腦用真的帳號測 connector 與 Discord：教學、Discord 交接、煙霧測試 `scripts/smoke_real.py`；空白 Windows 的安裝實測、容器與 Linux 沙盒的真機驗證；2026-11-14 那一輪的工作交接（歷史紀錄，現況看 [HANDOFF.md](HANDOFF.md)） |
+| [handoff/](handoff/README.md) | 使用者、維護者 | 到另一台電腦用真的帳號測 connector 與 Discord：教學、Discord 交接、煙霧測試 `scripts/smoke_real.py`；空白 Windows 的安裝實測、容器與 Linux 沙盒的真機驗證；2026-11-14 那一輪的工作交接（歷史紀錄，現況看 [HANDOFF.md](HANDOFF.md)；只在 git clone／GitHub 上有） |
 | [tools.md](tools.md) | 作者 | **從這裡開始**：三條接入路怎麼選、權限欄位、secret、確認來回、測試、安全自檢表 |
 | [sdk.md](sdk.md) | 作者 | Python 工具 SDK（`@tool`、`serve()`、`secret()`、`context()`、`synox-sdk` 指令） |
 | [tool-apps.md](tool-apps.md) | 作者 | 給工具附一個完整的網頁畫面（工具服務，`web.app`）：怎麼宣告、只有這台電腦打得開、登入與閒置由 SYNOX 管 |
