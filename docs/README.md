@@ -56,9 +56,9 @@
 | [tutorials-engine.md](tutorials-engine.md) | 維護者 | 新手教學引擎（`/tutorial`）：怎麼寫一份教學、畫面上可以圈的位置清單 |
 | [release-build.md](release-build.md) | 維護者 | GitHub Actions 自動建置 Windows 安裝程式：怎麼開始、第一次跑要看什麼 |
 | [installer/spec.html](installer/spec.html) | 維護者 | 安裝程式規格（已發佈的頁面，擁有者指定永久保留；線上版 <https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB>） |
-| [artifacts.json](artifacts.json)、[artifacts/](artifacts/README.md) | 維護者 | 已發佈的 claude.ai 頁面登記表（線上網址↔本機副本）；`artifacts/` 是較早頁面的本機副本與舊登記表 |
+| [artifacts.json](artifacts.json)、[artifacts/](artifacts/README.md) | 維護者 | 已發佈的 claude.ai 頁面登記表（線上網址↔本機副本）；`artifacts/` 只剩說明（較早的規劃與調查頁面是維護者的私有文件，已移出公開 repo） |
 | [lab/](lab/README.md) | 維護者 | 實驗紀錄、研究、設計提案；`lab/discussions/` 沙盒／容器討論紀錄 |
-| [QuestionToUser.md](QuestionToUser.md) | 維護者 | 等擁有者拍板的事（每題有建議，不答就照建議） |
+| [QuestionToUser.md](QuestionToUser.md) | 維護者 | 待決定事項的清單是維護者的私有文件；這裡只留說明，其他文件裡的題號指向那份清單 |
 | [../LICENSING.md](../LICENSING.md) | 全部 | 授權：核心 AGPL-3.0-or-later，工具 SDK 與範例 Apache-2.0 |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | 維護者 | 怎麼貢獻、貢獻者同意書、GitHub Discussions |
 | [community/](community/discussion-ecosystem-and-sandbox.md) | 維護者 | 要貼到 GitHub Discussions 的貼文草稿（生態相容與沙盒，中英雙語）；只在 git clone／GitHub 上有 |
