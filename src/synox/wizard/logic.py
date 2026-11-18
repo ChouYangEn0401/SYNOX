@@ -82,11 +82,12 @@ def local_defaults(server: str = "ollama") -> dict:
 
 
 def local_advice(server: str = "ollama", base_url: str = "", model: str = "", *, prompt_chars=None,
-                 max_tokens: int = 1024, opener=None, ram=None) -> dict:
+                 max_tokens: int = 1024, opener=None, ram=None, api_key: str = "") -> dict:
     """context-size 建議（唯讀探測＋這台的記憶體；連不上退回靜態表）。精靈、文字版 init、網頁設定頁共用。"""
     from synox.llm.local import SERVERS, LocalAdapter
     server = server if server in SERVERS else "ollama"
-    adapter = LocalAdapter(model, server=server, base_url=base_url, max_tokens=max_tokens, opener=opener)
+    adapter = LocalAdapter(model, server=server, base_url=base_url, max_tokens=max_tokens, opener=opener,
+                           api_key=api_key)
     return adapter.advice(prompt_chars=prompt_chars, ram=ram)
 
 
