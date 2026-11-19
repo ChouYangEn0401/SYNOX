@@ -392,12 +392,10 @@ main{padding:8px 10px;display:flex;flex-direction:column;gap:6px;min-width:0;pos
 
 
 def preview_tokens(tokens: Optional[dict]) -> str:
-    """預覽頁的 token：外觀包的（沒給＝原本的 SYNOX，進階的用算的）。"""
-    if not tokens:
-        light = dict(contract.DEFAULTS["light"])
-        dark = {**{k: light[k] for k in contract.MASCOT_TOKENS + ("m-hi",) if k in light}, **contract.DEFAULTS["dark"]}
-        tokens = {"light": light, "dark": dark}
-    return theme_tokens.token_css(tokens)
+    """預覽頁的 token：先墊 SYNOX 原本的（跟網頁的 :root 同一份，contract.root_css），再蓋外觀包的。
+    外觀包沒給的 token（例如比它新的 SYNOX 才加的）跟真的網頁一樣沿用 SYNOX 的，預覽不會缺色（ADR 0042）。"""
+    base = contract.root_css()
+    return base + "\n" + theme_tokens.token_css(tokens) if tokens else base
 
 
 def preview_page(title: str, mode: str, bundle: Optional[theme_pack.Bundle], tokens: Optional[dict]) -> str:

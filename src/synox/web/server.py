@@ -78,6 +78,7 @@ from synox.guard import origin as guard_origin
 from synox.guard.stepup import sensitive_action as stepup_sensitive
 from synox.packs import packwarn
 from synox.packs.manifest import stage_text
+from synox.theme import contract as theme_contract
 from synox.theme.appearance import Appearance, AppearanceError
 from synox.web import api_commands, report as reporting, restart as restart_api, toolpage
 from synox.web.channel import WEB, WebChannel
@@ -172,19 +173,24 @@ def _err(status: int, message: str) -> Resp:
 INLINE_RE = re.compile(r"/\*\{\{INCLUDE:([a-z][a-z0-9_-]{0,40}\.(?:js|css))\}\}\*/")
 
 
-# 伺服器自己產生的小頁（登入確認、登入失敗）共用的樣式：跟 static/app.html 同一套 token 的精簡版
-# （CSP 是 style-src 'unsafe-inline'，沒有 script；改顏色先改 app.html，再對這裡）。
+# 伺服器自己產生的小頁（登入確認、登入失敗）共用的樣式：顏色從 synox/theme/contract.py 拿（ADR 0042：只宣告一次）。
+# 這幾頁不套外觀包（還沒登入、沒有 nonce），用的是 SYNOX 原本的顏色；CSP 是 style-src 'unsafe-inline'，沒有 script。
+PAGE_TOKENS = ("bg", "surface", "line", "text", "muted", "accent", "accent-ink", "soft", "warn-soft", "warn")
+
+
+def _page_vars(mode: str) -> str:
+    values = theme_contract.default_tokens(mode)
+    return ";".join(f"--{'accent-soft' if k == 'soft' else k}:{values[k]}" for k in PAGE_TOKENS)
+
+
 PAGE_CSS = (
-    ":root{--bg:#f3f5f8;--surface:#fff;--line:#e2e7ee;--text:#131b26;--muted:#6a7687;--accent:#0a7c70;"
-    "--accent-ink:#fff;--accent-soft:#e0f2ef;--warn-soft:#fdf1dc;--warn:#9a6400;color-scheme:light dark}"
-    "@media (prefers-color-scheme:dark){:root{--bg:#0b0f14;--surface:#121924;--line:#1f2b3b;--text:#dbe4ef;"
-    "--muted:#7f90a7;--accent:#35e0c4;--accent-ink:#04221d;--accent-soft:rgba(53,224,196,.12);"
-    "--warn-soft:rgba(255,180,84,.12);--warn:#ffb454}}"
+    f":root{{{_page_vars('light')};color-scheme:light dark}}"
+    f"@media (prefers-color-scheme:dark){{:root{{{_page_vars('dark')}}}}}"
     "*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;"
     "background:var(--bg);color:var(--text);font:15px/1.6 \"Segoe UI\",\"Microsoft JhengHei UI\","
     "\"Microsoft JhengHei\",\"PingFang TC\",\"Noto Sans TC\",system-ui,sans-serif}"
     ".card{width:min(500px,100%);background:var(--surface);border:1px solid var(--line);border-radius:14px;"
-    "padding:28px;box-shadow:0 10px 30px -10px rgba(19,27,38,.22)}"
+    f"padding:28px;box-shadow:{theme_contract.FIXED['light']['shadow-md']}}}"
     ".mark{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;margin-bottom:16px;"
     "font-weight:800;font-size:20px;color:var(--accent-ink);background:var(--accent)}"
     "h1{font-size:22px;margin:0 0 10px}p{margin:10px 0}.big{font-size:1.15em}.muted{color:var(--muted);font-size:14px}"
@@ -213,6 +219,8 @@ def _page(status: int, title: str, text: str, extra: Optional[List[Tuple[str, st
 INCLUDES = {"tools.css": "style", "tools.js": "script", "tour.css": "style", "tour.js": "script",
             "helpdock.css": "style", "helpdock.js": "script", "aliases.js": "script"}
 INCLUDE_RE = re.compile(r"<!-- include: ([a-z0-9_.-]+) -->")
+# app.html 的 :root 裡的 /*{{TOKENS:light|dark}}*/：換成 synox/theme/contract.py 的顏色（ADR 0042：整個 SYNOX 只宣告一次）
+TOKENS_RE = re.compile(r"^([ \t]*)/\*\{\{TOKENS:(light|dark)\}\}\*/", re.MULTILINE)
 
 
 CHAT_BG_VALUES = ("none", "color", "dots", "grid", "stripes", "glow")       # <html data-chat-bg>（外觀 → 背景）
@@ -239,6 +247,7 @@ def render_app(nonce: str, theme_head: str = "", mode: str = "auto", skin: str =
     with open(os.path.join(STATIC, "app.html"), "r", encoding="utf-8") as f:
         html = f.read().replace("{{NONCE}}", nonce)
     html = INCLUDE_RE.sub(include, INLINE_RE.sub(inline, html))
+    html = TOKENS_RE.sub(lambda m: theme_contract.root_decls(m.group(2), indent=m.group(1)), html)
     attrs = (f' data-theme="{mode}"' if mode in ("light", "dark") else "") + \
         (f' data-skin="{skin}"' if skin and NAME_RE.match(skin) else "") + \
         (f' data-chat-bg="{chat_bg}"' if chat_bg in CHAT_BG_VALUES else "")

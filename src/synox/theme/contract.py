@@ -6,6 +6,8 @@
 - token、slot 的名字只加不改。真的要改名：新名字進表、舊名字放進 RENAMED_*（舊 → 新）至少留一個 MINOR。
 - 刪掉一個 slot 也要至少留一個 MINOR：先在說明寫「下一版拿掉」。
 - tests/test_theme.py 會比對 app.html 用到的 token、data-slot 與這裡：多一個少一個都會失敗。
+- 顏色的值只在這裡（DEFAULTS、FIXED；ADR 0042）：app.html 的 :root 送出時由 root_decls 產生。
+- 向前相容（ADR 0042）：外觀包一定要給的只有 REQUIRED_COLORS（凍結）；以後加的 token 一律選填，沒給的用 DERIVED 或 DEFAULTS。
 - CONTRACT_VERSION：加名字不用升；改名／刪名（過了相容期）才升。外觀包的 theme.contract 寫它照哪一版做的。
 """
 
@@ -32,19 +34,89 @@ ALL_TOKENS: Tuple[str, ...] = TOKENS + MASCOT_TOKENS + ADVANCED_TOKENS
 TOKEN_KIND: Dict[str, str] = {**{t: "color" for t in CORE_COLORS + MASCOT_TOKENS + ADVANCED_TOKENS},
                               "radius": "length", "font-ui": "font", "font-brand": "font", "shadow-up": "shadow"}
 
-# SYNOX 原本的樣子（app.html 的 :root 與深色那一段；tests/test_theme.py 對過，改了兩邊要一起改）
+# 外觀包一定要給的：合約第 1 版的核心 12 色。**以後加的 token 一律選填**（ADR 0042）：
+# 沒更新的舊外觀包不會因為 SYNOX 多了 token 就裝不上；它沒給的照下面 DEFAULTS（或 DERIVED）走。
+REQUIRED_COLORS: Tuple[str, ...] = CORE_COLORS
+
+# ── SYNOX 原本的顏色：**整個 SYNOX 只在這裡宣告**（ADR 0042）────────────────────────────────
+# 網頁 app.html 最上面的 :root（淺色、跟隨系統的深色、強制深色三段）在送出時由這兩張表產生（root_decls）；
+# 預覽頁、登入的小頁（web/server.PAGE_CSS）、電腦提醒視窗（remindwin/style）也都從這裡拿。
+# light＝每個合約 token 都有值；dark＝深色時換掉的（沒列的跟淺色一樣：吉祥物、圓角、字型）。
+# 加一個 token：名字進上面的表、值進這裡（淺色一定要有）；app.html 會自己多一行，舊外觀包沒給的就用這裡的。
 DEFAULTS: Dict[str, Dict[str, str]] = {
-    "light": {"bg": "#f3f5f8", "surface": "#ffffff", "text": "#131b26", "muted": "#6a7687", "line": "#e2e7ee",
-              "accent": "#0a7c70", "accent-ink": "#ffffff", "accent2": "#2f7fd6", "soft": "#e0f2ef",
-              "ok": "#12823b", "warn": "#9a6400", "bad": "#c62f2f", "radius": "10px",
-              "m1": "#4f8df5", "m2": "#2f66d0", "mi": "#ffffff", "m-hi": "#8bb6ff"},
-    "dark": {"bg": "#0b0f14", "surface": "#121924", "text": "#dbe4ef", "muted": "#7f90a7", "line": "#1f2b3b",
-             "accent": "#35e0c4", "accent-ink": "#04221d", "accent2": "#4aa8ff", "soft": "rgba(53, 224, 196, .12)",
-             "ok": "#46d17f", "warn": "#ffb454", "bad": "#ff6b78"},
+    "light": {
+        "bg": "#f3f5f8", "surface": "#ffffff", "text": "#131b26", "muted": "#6a7687", "line": "#e2e7ee",
+        "accent": "#0a7c70", "accent-ink": "#ffffff", "accent2": "#2f7fd6", "soft": "#e0f2ef",
+        "ok": "#12823b", "warn": "#9a6400", "bad": "#c62f2f",
+        "radius": "10px",
+        "font-ui": '"Segoe UI Variable Text", "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", '
+                   '"PingFang TC", "Noto Sans TC", system-ui, sans-serif',
+        "font-brand": "var(--font-ui)",
+        "m1": "#4f8df5", "m2": "#2f66d0", "mi": "#ffffff", "mb": "color-mix(in srgb, var(--bad) 55%, transparent)",
+        "bg-glow": "#e3eef0", "surface-2": "#f7f9fb", "sunken": "#eef1f5", "line-strong": "#cdd5df",
+        "text-2": "#465264", "accent-hover": "#086a60", "accent-line": "#9fd6cd", "ok-soft": "#e6f4ea",
+        "warn-soft": "#fdf1dc", "bad-soft": "#fbe8e8", "me": "#dff1ee", "me-ink": "#0c3a35", "m-hi": "#8bb6ff",
+        "scrim": "rgba(10, 15, 22, .4)", "shadow-up": "0 -8px 24px -16px rgba(0, 0, 0, .4)",
+    },
+    "dark": {
+        "bg": "#0b0f14", "surface": "#121924", "text": "#dbe4ef", "muted": "#7f90a7", "line": "#1f2b3b",
+        "accent": "#35e0c4", "accent-ink": "#04221d", "accent2": "#4aa8ff", "soft": "rgba(53, 224, 196, .12)",
+        "ok": "#46d17f", "warn": "#ffb454", "bad": "#ff6b78",
+        "bg-glow": "#13222b", "surface-2": "#161f2c", "sunken": "#0d131b", "line-strong": "#2d3b4f",
+        "text-2": "#aab6c6", "accent-hover": "#63ead5", "accent-line": "rgba(53, 224, 196, .42)",
+        "ok-soft": "rgba(70, 209, 127, .12)", "warn-soft": "rgba(255, 180, 84, .12)",
+        "bad-soft": "rgba(255, 93, 108, .13)", "me": "#163836", "me-ink": "#dff7f2", "scrim": "rgba(3, 7, 12, .66)",
+    },
 }
 
+# SYNOX 自己用、外觀包**不能換**的顏色（陰影、圖片的白底、暗幕）：一樣只在這裡宣告，一樣產生到 app.html 的 :root。
+FIXED: Dict[str, Dict[str, str]] = {
+    "light": {
+        "img-bg": "#ffffff",                     # 工具回覆的圖（多半是透明底的 SVG／PNG）深色也墊白底才看得清楚
+        "img-scrim": "rgba(0, 0, 0, .72)",       # 點圖放大時後面的暗幕
+        "shadow-sm": "0 1px 2px rgba(19, 27, 38, .05), 0 1px 3px rgba(19, 27, 38, .06)",
+        "shadow-md": "0 10px 30px -10px rgba(19, 27, 38, .22)",
+        "shadow-lg": "0 24px 60px -18px rgba(19, 27, 38, .35)",
+        "highlight": "inset 0 1px 0 rgba(255, 255, 255, .7)",
+        "tour-scrim": "rgba(8, 12, 18, .38)",
+    },
+    "dark": {
+        "shadow-sm": "0 1px 2px rgba(0, 0, 0, .4)",
+        "shadow-md": "0 14px 34px -12px rgba(0, 0, 0, .75)",
+        "shadow-lg": "0 28px 70px -20px rgba(0, 0, 0, .85)",
+        "highlight": "inset 0 1px 0 rgba(255, 255, 255, .045)",
+    },
+}
+
+# 沒給的時候沿用 SYNOX 預設、也不用提醒的（暗幕、陰影：哪一套外觀都合用）。套用清單上不算「要注意」。
+NEUTRAL_TOKENS: Tuple[str, ...] = ("scrim", "shadow-up")
+
+
+def default_tokens(mode: str) -> Dict[str, str]:
+    """這個 mode 下 SYNOX 原本的每一個合約 token（深色＝淺色＋深色換掉的）。"""
+    out = dict(DEFAULTS["light"])
+    if mode == "dark":
+        out.update(DEFAULTS["dark"])
+    return out
+
+
+def root_decls(mode: str, indent: str = "") -> str:
+    """:root 那一段的宣告（合約 token＋FIXED），一行一個 `--名字: 值;`。mode＝light｜dark（dark 只列換掉的）。"""
+    values = {**DEFAULTS[mode], **FIXED[mode]}
+    return "\n".join(f"{indent}--{k}: {v};" for k, v in values.items())
+
+
+def root_css() -> str:
+    """SYNOX 原本的顏色，三段（淺色、跟隨系統的深色、強制深色），選擇器同 app.html：給沒有 app.html 的頁（預覽頁）墊底。"""
+    light, dark = " ".join(root_decls("light").split("\n")), " ".join(root_decls("dark").split("\n"))
+    return (f":root {{ {light} color-scheme: light; }}\n"
+            f"@media (prefers-color-scheme: dark) {{ :root:not([data-theme=\"light\"]) {{ {dark} "
+            f"color-scheme: dark; }} }}\n"
+            f":root[data-theme=\"dark\"] {{ {dark} color-scheme: dark; }}")
+
+
 # 套了外觀包時，進階 token 怎麼從核心 token 算（外觀包自己寫了就用它寫的）。
-# 預設的 SYNOX 不用這張表：app.html 裡是原本調好的顏色。
+# 預設的 SYNOX 不用這張表：用上面 DEFAULTS 裡原本調好的顏色。
 DERIVED: Dict[str, str] = {
     "bg-glow": "color-mix(in srgb, var(--accent) 9%, var(--bg))",
     "surface-2": "color-mix(in srgb, var(--surface) 62%, var(--bg))",

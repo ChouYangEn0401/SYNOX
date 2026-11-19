@@ -26,33 +26,18 @@ from dataclasses import dataclass, field
 from typing import Dict, Iterable, Optional
 
 from synox.notify import desk as deskmod
+from synox.theme import contract
 
 FILE = "style.json"                      # data/remind/desk/style.json
 VERSION = 1
 
-# 視窗用到的 token（名字同 synox/theme/contract；SYNOX 原本的值同 app.html）
-DEFAULTS: Dict[str, Dict[str, str]] = {
-    "light": {"bg": "#f3f5f8", "surface": "#ffffff", "surface-2": "#f7f9fb", "sunken": "#eef1f5",
-              "line": "#e2e7ee", "line-strong": "#cdd5df", "text": "#131b26", "text-2": "#465264",
-              "muted": "#6a7687", "accent": "#0a7c70", "accent-hover": "#086a60", "accent-ink": "#ffffff",
-              "soft": "#e0f2ef", "accent-line": "#9fd6cd", "ok": "#12823b", "warn": "#9a6400", "bad": "#c62f2f",
-              "warn-soft": "#fdf1dc"},
-    "dark": {"bg": "#0b0f14", "surface": "#121924", "surface-2": "#161f2c", "sunken": "#0d131b",
-             "line": "#1f2b3b", "line-strong": "#2d3b4f", "text": "#dbe4ef", "text-2": "#aab6c6",
-             "muted": "#7f90a7", "accent": "#35e0c4", "accent-hover": "#63ead5", "accent-ink": "#04221d",
-             "soft": "rgba(53, 224, 196, .12)", "accent-line": "rgba(53, 224, 196, .42)", "ok": "#46d17f",
-             "warn": "#ffb454", "bad": "#ff6b78", "warn-soft": "rgba(255, 180, 84, .12)"},
-}
-# 外觀包沒寫的進階 token：同 synox/theme/contract.DERIVED（這裡只放視窗用到的）
-DERIVED: Dict[str, str] = {
-    "surface-2": "color-mix(in srgb, var(--surface) 62%, var(--bg))",
-    "sunken": "color-mix(in srgb, var(--bg) 82%, var(--line))",
-    "line-strong": "color-mix(in srgb, var(--line) 78%, var(--text))",
-    "text-2": "color-mix(in srgb, var(--text) 72%, var(--muted))",
-    "accent-hover": "color-mix(in srgb, var(--accent) 84%, var(--text))",
-    "accent-line": "color-mix(in srgb, var(--accent) 45%, var(--surface))",
-    "warn-soft": "color-mix(in srgb, var(--warn) 13%, var(--surface))",
-}
+# 視窗用到的 token：值從 synox/theme/contract.py 拿（ADR 0042：整個 SYNOX 的顏色只宣告一次）
+WINDOW_TOKENS = ("bg", "surface", "surface-2", "sunken", "line", "line-strong", "text", "text-2", "muted", "accent",
+                 "accent-hover", "accent-ink", "soft", "accent-line", "ok", "warn", "bad", "warn-soft")
+DEFAULTS: Dict[str, Dict[str, str]] = {mode: {k: contract.default_tokens(mode)[k] for k in WINDOW_TOKENS}
+                                       for mode in ("light", "dark")}
+# 外觀包沒寫的進階 token：同 contract.DERIVED（只拿視窗用到的）
+DERIVED: Dict[str, str] = {k: v for k, v in contract.DERIVED.items() if k in WINDOW_TOKENS}
 DEFAULT_RADIUS = 10
 DEFAULT_FONTS = ("Microsoft JhengHei UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", "Microsoft YaHei UI")
 CJK_FONTS = frozenset(DEFAULT_FONTS + ("Noto Sans CJK TC", "Source Han Sans TC", "Microsoft YaHei", "SimHei",

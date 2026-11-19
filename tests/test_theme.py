@@ -1,7 +1,7 @@
 """外觀（換裝）：synox/theme（docs/themes.md）。
 
 - 消毒：SVG／HTML／CSS 有程式、事件屬性、javascript:、外部網址、@import、<foreignObject>…一律拒絕；好的照白名單重建
-- token 合約：網頁的顏色只從 app.html 最上面的 token 來（例外寫在 COLOR_EXCEPTIONS）；合約的名字都在、預設值對得上
+- token 合約：網頁的顏色只從 token 來（例外寫在 COLOR_EXCEPTIONS），token 的值只在 contract.py（app.html 送出時產生）；合約的名字都在
 - slot 合約：網頁用到的 data-slot 都在 contract.SLOTS、每個 slot 都有地方用；slots.js 的清單一樣
 - 外觀包（kind=theme）：第 1、2 關、信任層級 T0、上傳 → 報告（色票、預覽）→ 確認才裝 → 套用 → 換回原本的
 - 自己貼：預覽、套用、拒絕；伺服器版每個人自己一份（沒選的跟擁有者一樣）
@@ -281,18 +281,25 @@ def _decls(block):
 
 
 def test_contract_tokens_are_defined_and_defaults_match_app_html():
-    light, dark = (_decls(b) for b in _root_blocks(_read_static("app.html")))
+    # app.html 的 :root 在送出時由 contract 產生（ADR 0042）：看送出去的那一頁
+    rendered = web_server.render_app("n0nce")
+    light, dark = (_decls(b) for b in _root_blocks(rendered))
     for name in contract.TOKENS + contract.MASCOT_TOKENS + contract.ADVANCED_TOKENS:
         assert name in light, f"app.html 的 :root 少了 --{name}"
     for mode, block in (("light", light), ("dark", dark)):
-        for name, value in contract.DEFAULTS[mode].items():
-            assert block.get(name) == value, (mode, name, block.get(name), value)
+        for name, value in {**contract.DEFAULTS[mode], **contract.FIXED[mode]}.items():
+            assert block.get(name) == " ".join(value.split()), (mode, name, block.get(name), value)
     for old, new in (("accent-2", "accent2"), ("accent-soft", "soft"), ("r", "radius"), ("font", "font-ui")):
         assert light[old] == f"var(--{new})"                      # 舊名字是別名
     # 深色那兩段（跟隨系統、強制）一樣
-    css = _styles(_read_static("app.html"))
+    css = _styles(rendered)
     follow = re.search(r':root:not\(\[data-theme="light"\]\) \{(.*?)\n    \}', css, re.DOTALL).group(1)
     assert _decls(follow) == dark
+    # app.html 自己一個顏色都不寫（token 區也是），送出去的頁也沒有留下沒換掉的記號
+    raw_tokens = _styles(_read_static("app.html")).split("/* ── 基本", 1)[0]
+    raw_tokens = re.sub(r"/\*.*?\*/", "", raw_tokens, flags=re.DOTALL)
+    assert not COLOR_RE.search(raw_tokens), COLOR_RE.search(raw_tokens).group(0)
+    assert "{{TOKENS" not in rendered
 
 
 def test_token_css_covers_all_three_mode_selectors_and_derives_the_rest():
