@@ -2629,6 +2629,14 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
         </div>
       </div>
 
+      <div id="set-data" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">🗂️</span>
+          <div class="txt"><h2>資料版本</h2>
+            <p class="sub">每份資料是哪一版的格式。SYNOX 或工具升級後，舊資料會在下次啟動時自動升到新格式（先備份；失敗就還原、不會改壞）。</p></div></div>
+        <ul id="data-list" class="plain-list"></ul>
+        <p id="data-note" class="muted"></p>
+      </div>
+
       <div id="set-backup" class="card hidden" data-tour="settings.backup">
         <div class="card-head"><span class="tile" aria-hidden="true">💾</span>
           <div class="txt"><h2>備份</h2>
@@ -8583,6 +8591,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       if (d.owner) { loadUsage(); fillLlm(d); fillPacks(d.packs || []); loadChannels(); loadAwake(); loadStaged(); loadUpdate(); }
       else { $("set-awake").classList.add("hidden"); $("set-update").classList.add("hidden"); }
       if (d.accounts) { loadAccounts(); }
+      if (d.owner) { loadDataVersions(); } else { $("set-data").classList.add("hidden"); }
       loadLook();
     }).catch(function (e) { toast(e.message); });
   }
@@ -9231,6 +9240,30 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   }
   function loadUpdate() {
     api("GET", "/api/settings/update").then(drawUpdate).catch(function () { $("set-update").classList.add("hidden"); });
+  }
+  // 資料版本（ADR 0043）：只看；升級在 SYNOX 啟動、工具載入前自動做
+  var DATA_MARK = { current: "✅", planned: "⬆️", too_new: "⛔", failed: "❌", missing: "·" };
+  function dataLine(r) {
+    var name = r.kind;
+    if (r.action === "missing") { return DATA_MARK.missing + " " + name + "：還沒有這份資料"; }
+    if (r.action === "current") { return DATA_MARK.current + " " + name + "：資料版本 " + r.after + "（最新）"; }
+    if (r.action === "planned") { return DATA_MARK.planned + " " + name + "：資料版本 " + r.before + " → " + r.current + "（下次啟動 SYNOX 時自動升級）"; }
+    return (DATA_MARK[r.action] || "⚠️") + " " + name + "：" + (r.message || "");
+  }
+  function drawDataVersions(d) {
+    var list = $("data-list");
+    clear(list);
+    (d.core || []).concat(d.packs || []).forEach(function (r) {
+      var li = document.createElement("li");
+      li.textContent = dataLine(r);
+      list.appendChild(li);
+    });
+    $("data-note").textContent = d.problems ? "有資料沒辦法用（看上面的 ⛔／❌ 那幾行）：照說明升級 SYNOX／工具，或從備份還原。"
+      : (d.needs_upgrade ? "有資料要升級：重新啟動 SYNOX 時會自動做（先備份）。" : "");
+    $("set-data").classList.remove("hidden");
+  }
+  function loadDataVersions() {
+    api("GET", "/api/settings/data").then(drawDataVersions).catch(function () { $("set-data").classList.add("hidden"); });
   }
   $("upd-check").addEventListener("click", function () {
     $("upd-msg").textContent = "問 GitHub 中…";

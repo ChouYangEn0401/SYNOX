@@ -10,7 +10,7 @@ import pytest
 
 from synox.datastore import packdata, versioned
 from synox.packs import lock, upgrade
-from synox.packs.manifest import ManifestError, read, validate
+from synox.packs.manifest import ManifestError, read
 from synox.vault import Vault
 
 OWNER = 123456789
