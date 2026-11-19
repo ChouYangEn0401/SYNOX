@@ -7,7 +7,7 @@
 >
 > 前兩份與 `../AGENTS.md`、`../CLAUDE.md`只在 git clone／GitHub 上有：發佈 ZIP 與安裝程式不帶（`scripts/make_zip.py` 的 `INTERNAL`）。
 >
-> 只是想裝來用：看 [../README.md](../README.md)。想寫工具：從 [tools.md](tools.md) 開始。
+> 只是想裝來用：看 [../README.md](../README.md)。想寫工具：先看 [sdk-quickstart.md](sdk-quickstart.md)（十分鐘上手），再到 [tools.md](tools.md)。
 
 標示：**使用者**＝裝 SYNOX 來用的人（含架伺服器版的營運者）；**作者**＝寫工具（pack）接進 SYNOX 的人；**維護者**＝改 SYNOX 本身的人。
 
@@ -36,6 +36,7 @@
 | [handoff/](handoff/README.md) | 使用者、維護者 | 到另一台電腦用真的帳號測 connector 與 Discord：教學、Discord 交接、煙霧測試 `scripts/smoke_real.py`；空白 Windows 的安裝實測、容器與 Linux 沙盒的真機驗證；2026-11-14 那一輪的工作交接（歷史紀錄，現況看 [HANDOFF.md](HANDOFF.md)；只在 git clone／GitHub 上有） |
 | [testing/pack-warnings-checklist.md](testing/pack-warnings-checklist.md) | 維護者、測試的人 | pack 標記警告（ADR 0041）的驗收清單：自動測試涵蓋什麼、必須在真機人工驗證的項目（每項步驟、預期、結果欄）；**全部勾完才算過關** |
 | [tools.md](tools.md) | 作者 | **從這裡開始**：三條接入路怎麼選、權限欄位、secret、確認來回、測試、安全自檢表 |
+| [sdk-quickstart.md](sdk-quickstart.md) | 作者 | **第一次用 SDK 從這裡開始**：十分鐘走完寫函式 → 試跑 → 檢查 → 打包 → 安裝；文末有「SDK 的文件在哪」地圖（SYNOX 與 SYNOX_Libs 各放什麼） |
 | [sdk.md](sdk.md) | 作者 | Python 工具 SDK（`@tool`、`serve()`、`secret()`、`context()`、`synox-sdk` 指令） |
 | [tool-apps.md](tool-apps.md) | 作者 | 給工具附一個完整的網頁畫面（工具服務，`web.app`）：怎麼宣告、只有這台電腦打得開、登入與閒置由 SYNOX 管 |
 | [apps-api.md](apps-api.md) | 維護者 | 工具服務的介面合約（伺服器那一側現在實際的樣子；要改先改這份） |
