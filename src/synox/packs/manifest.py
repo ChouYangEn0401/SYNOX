@@ -31,6 +31,9 @@ pack.json 的格式與檢查（docs/pack-format.md 是人看的版本）。安�
       "web": {"panel": "panel.html",             選用：Web UI 工具頁的面板（pack 資料夾裡的一個 .html）
               "api": ["GET /summary"]}           面板能打的 GET /api/packs/<name>/<route>（pack 用 pack.web_route 掛）
       "health": {"check": "ping"}                選填：工具壞掉時 SYNOX 重新檢查用的唯讀指令（health_problem；docs/tool-health.md）
+      "warnings": [{"code": "vendor_no_security_guarantee",   選填：標記警告（packs/packwarn.py、ADR 0041）；
+                    "text": "官方不保證安全",                 列表、安裝報告、/help、doctor、給 AI 的清單都顯示；
+                    "advice": "建議在 docker 或 sandbox 執行"}],  第一次啟用要擁有者確認（--accept-warning <code>）
       "help": {"featured": ["add"],              選填：指令的白話說明與範例（/help 的卡片、網頁「💡 範例」；只給人看、不進 AI）
                "commands": {"add": {"plain": "把一筆花掉的錢記下來", "examples": [{"text": "120 午餐", "note": "…"}],
                                     "alias_suggest": ["記帳"]}}}      規則在 synox/helpui/examples.py（安裝時嚴格、載入時壞的丟掉）
@@ -328,6 +331,16 @@ class Manifest:
     # 給 AI 的登記（選填的 agent 區塊；ADR 0030、agent/index.py）：整理過的
     # {"declared", "index", "triggers", "load", "topics", "provides", "promises", "always"}；沒寫＝AGENT_DEFAULT
     agent: dict = field(default_factory=lambda: dict(AGENT_DEFAULT))
+    # 標記警告（選填的 warnings；packs/packwarn.py、ADR 0041）：[{"code", "text", "advice"}]（清過的）；沒寫＝[]
+    warnings: List[dict] = field(default_factory=list)
+    # warnings 寫壞的地方（不擋載入、不靜默：安裝報告列出來、載入時寫 log、doctor 看得到）
+    warning_problems: List[str] = field(default_factory=list)
+    # 資料版本（選填的 data_schema；synox/datastore/packdata.py、ADR 0044）：{"version": N, "files": [...]}；沒寫＝{}
+    data_schema: dict = field(default_factory=dict)
+
+    @property
+    def warning_codes(self) -> List[str]:
+        return [w["code"] for w in self.warnings]
 
     @property
     def agent_declared(self) -> bool:
@@ -1626,8 +1639,22 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
             problems += agent_bad
         else:
             logging.warning("[PACKS] %s: agent block problems ignored: %s", name, "；".join(agent_bad))
+    # 資料版本（ADR 0044）：寫壞了安裝、載入都不收（照壞的宣告跑，可能用舊格式讀新資料）；
+    # 安裝時（strict）再用 AST 看 migrations 的步驟序列有沒有洞（不執行工具的程式）
+    from synox.datastore import packdata
+    data_schema, schema_bad = packdata.parse(raw, kind)
+    problems += schema_bad
+    if strict and data_schema:
+        problems += packdata.step_problems(data_schema, folder, kind)[0]
+    extra["data_schema"] = data_schema
     if problems:
         raise ManifestError("；".join(problems))
+    # 標記警告（ADR 0041）：寫壞了不擋（安裝、載入都一樣），但一定記下來；看不懂的那條換成「警告寫壞了」照樣顯示
+    from synox.packs import packwarn
+    pack_warnings, warning_problems = packwarn.parse(raw.get("warnings"), present="warnings" in raw)
+    if warning_problems:
+        logging.warning("[PACKS] %s: warnings field problems: %s", name, "；".join(warning_problems))
+    extra["warnings"], extra["warning_problems"] = pack_warnings, warning_problems
     auth_type = extra["auth_info"].get("type", "none")
     return Manifest(name=name, title=raw["title"], summary=raw["summary"], version=version, kind=kind,
                     folder=folder, group=group, access=access, skill=skill, storage=storage,

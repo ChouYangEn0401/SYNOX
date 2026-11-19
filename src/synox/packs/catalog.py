@@ -40,9 +40,9 @@ from synox.packs.manifest import STAGES, stage_label, stage_text
 from synox.wizard.tools import MAX_INDEX_BYTES
 
 REPO_PATH = "/ChouYangEn0401/SYNOX_Libs/releases/"
-# 工具庫目前唯一的發佈 v0.2.0 標成「預先發行」，latest/download 會 404，所以先釘在這一版；
-# 之後有正式發佈（不是 pre-release）就改回 releases/latest/download/index.json。
-OFFICIAL_INDEX_URL = "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/index.json"
+# 工具庫的發佈（v0.2.0、v0.3.0、v0.3.1）都標成「預先發行」，latest/download 會 404，所以先釘在這一版（v0.3.1）；
+# 之後有正式發佈（不是 pre-release、標成 Latest）就改回 releases/latest/download/index.json。
+OFFICIAL_INDEX_URL = "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.3.1/index.json"
 DOWNLOAD_PREFIX = "https://github.com" + REPO_PATH + "download/"
 RELEASES_PAGE = "https://github.com/ChouYangEn0401/SYNOX_Libs/releases"
 OVERVIEW_URL = "https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL"          # 工具庫介紹（線上）
@@ -78,6 +78,7 @@ TEXT = {
     "member": "👥 伺服器版也能用",
     "member_hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到",
     "wardrobe_empty": "衣櫃裡還沒有東西。可以先到衣櫃網頁看看。",
+    "blocked": "⛔ 這台的 SYNOX 用不了這一版",
 }
 WARDROBE_TITLE = "SYNOX 衣櫃"
 
@@ -143,6 +144,10 @@ class Tool:
     kind: str = ""                          # "theme"＝外觀包（衣櫃）；其他＝工具
     series: str = ""                        # 衣櫃：系列字母（卡片的字母方塊）
     swatches: List[str] = field(default_factory=list)   # 衣櫃：小預覽的顏色（#hex，最多 6 個）
+    # 清單上的標記警告（工具庫照 pack.json 的 warnings 抄過來，ADR 0041；同一套檢查）。真正擋人的是安裝報告的那一份
+    warnings: List[dict] = field(default_factory=list)
+    # 清單上的 requires（只收 synox、sdk 兩個字串；工具庫 build.py 從 pack.json 抄過來）。不合這台＝不算「有新版」
+    requires: Dict[str, str] = field(default_factory=dict)
 
     @property
     def is_theme(self) -> bool:
@@ -275,7 +280,11 @@ def _tool(item, tag: str) -> Optional[Tool]:
     theme = item.get("kind") == "theme"
     swatches = item.get("swatches") if theme and isinstance(item.get("swatches"), list) else []
     series = item.get("series") if theme and isinstance(item.get("series"), str) else ""
-    return Tool(kind="theme" if theme else "",
+    from synox.packs import packwarn
+    warned, _bad = packwarn.parse(item.get("warnings"), present="warnings" in item)
+    req = item.get("requires") if isinstance(item.get("requires"), dict) else {}
+    requires = {k: req[k][:60] for k in ("synox", "sdk") if isinstance(req.get(k), str) and req[k].strip()}
+    return Tool(kind="theme" if theme else "", warnings=warned, requires=requires,
                 series=series.upper() if SERIES_RE.match(series) else "",
                 swatches=[c.lower() for c in swatches if isinstance(c, str) and HEX_RE.match(c)][:6],
                 name=name, title=_text(item.get("title"), 60), summary=_text(item.get("summary"), 300),
@@ -342,6 +351,21 @@ def _newer(catalog_version: str, installed: str) -> bool:
     return bool(installed) and compare_versions(installed, catalog_version)[0] == UPGRADE
 
 
+def blocked(tool: Tool) -> str:
+    """清單上這一版的 requires.synox／requires.sdk 不合這台 → 一句話（跟安裝第 1 關同一個檢查、同一句話）；合或沒寫 → ""。
+    docs/versioning.md §6：不相容的新版不算「有新版」，卡片寫原因；真的去裝，安裝報告一樣會擋。"""
+    from synox.packs import manifest
+    from synox import __version__
+    from synox.sdk.author import SDK_VERSION
+    for key, current in (("synox", __version__), ("sdk", SDK_VERSION)):
+        spec = tool.requires.get(key)
+        if spec:
+            problem = manifest._range_problem(spec, current, key)
+            if problem:
+                return problem
+    return ""
+
+
 def card(tool: Tool, installed: str = "") -> dict:
     """網頁的一張工具卡（字都是純文字，網頁用 textContent 放）。"""
     emoji, title = _split_title(tool.title)
@@ -349,19 +373,25 @@ def card(tool: Tool, installed: str = "") -> dict:
     emoji = emoji or (static[0] if static else "🧩")
     title = title or (static[1] if static else tool.name)
     line = tool.line or (static[2] if static else tool.summary)
-    badges = [{"text": stage_label(tool.stage), "tone": "warn", "hint": stage_text(tool.stage)}]
+    # 作者標的警告（ADR 0041）排最前面、紅色；hint 是建議怎麼做
+    badges = [{"text": f"⚠️ {w['text']}", "tone": "bad", "hint": w.get("advice") or ""} for w in tool.warnings]
+    badges.append({"text": stage_label(tool.stage), "tone": "warn", "hint": stage_text(tool.stage)})
     if tool.name in SIMULATED_ONLY:
         badges.append({"text": TEXT["simulated"], "tone": "", "hint": TEXT["simulated_hint"]})
     elif tool.capabilities is not None and "network" not in tool.capabilities:
         badges.append({"text": TEXT["offline_ok"], "tone": "ok", "hint": TEXT["offline_ok_hint"]})
     who = "owner" if tool.access == "owner" else "member"
     badges.append({"text": TEXT[who], "tone": "", "hint": TEXT[who + "_hint"]})
+    stop = blocked(tool)
+    if stop:
+        badges.insert(0, {"text": TEXT["blocked"], "tone": "bad", "hint": stop})
     online = tool.capabilities is not None and "network" in tool.capabilities
     return {"name": tool.name, "emoji": emoji, "title": title, "line": line, "summary": tool.summary,
             "example": static[3] if static else "", "version": tool.version, "badges": badges,
             "group": "online" if online or tool.name in SIMULATED_ONLY else "local",
             "help_url": tool.help_url, "download_url": tool.download_url,
-            "installed": installed or "", "newer": _newer(tool.version, installed)}
+            "installed": installed or "", "newer": _newer(tool.version, installed) and not stop, "blocked": stop,
+            "warnings": [dict(w) for w in tool.warnings]}
 
 
 def cards(lib: Library, installed: Dict[str, str]) -> List[dict]:
@@ -379,7 +409,8 @@ def wardrobe_card(tool: Tool, installed: str = "") -> dict:
     return {"name": tool.name, "title": title or tool.name, "line": tool.line or tool.summary, "summary": tool.summary,
             "version": tool.version, "letter": letter, "swatches": list(tool.swatches),
             "badge": {"text": stage_label(tool.stage), "hint": stage_text(tool.stage)},
-            "installed": installed or "", "newer": _newer(tool.version, installed)}
+            "installed": installed or "", "newer": _newer(tool.version, installed) and not blocked(tool),
+            "blocked": blocked(tool)}
 
 
 def wardrobe_cards(lib: Library, installed: Dict[str, str]) -> List[dict]:
@@ -397,12 +428,12 @@ def wardrobe_info(lib: Library) -> dict:
 # ── 有新版的工具（「全部更新」、`synox tools check／update`、每週檢查）───────────────
 
 def updates(lib: Library, installed: Dict[str, str]) -> List[dict]:
-    """裝著、而且清單上的版本比較新的：工具和外觀包（kind=theme）都算。照名字排。
+    """裝著、而且清單上的版本比較新的：工具和外觀包（kind=theme）都算；新版要的 SYNOX／SDK 這台不合的不算。照名字排。
     每一筆：name、title、kind（"theme"＝外觀包，"tool"＝工具）、installed（裝著的）、version（清單上的）。"""
     out = []
     for tool in lib.tools:
         have = installed.get(tool.name, "")
-        if _newer(tool.version, have):
+        if _newer(tool.version, have) and not blocked(tool):
             _emoji, title = _split_title(tool.title)
             static = TOOLS.get(tool.name)
             out.append({"name": tool.name, "title": title or (static[1] if static else tool.name),

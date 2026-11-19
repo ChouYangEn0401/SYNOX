@@ -1,10 +1,22 @@
 # SYNOX 文件索引
 
+> **新來的開發者、雲端 agent：先讀這 3 份**
+> 1. [HANDOFF.md](HANDOFF.md)：SYNOX 是什麼、架構大圖、目錄地圖、重要 ADR、在雲端 session 工作的注意事項；
+> 2. [development.md](development.md)：從零開始（建環境、跑測試、不用金鑰的開發設定、交 PR）、開發 pack、改核心的規則；
+> 3. [AGENT.md](AGENT.md)：程式地圖與不能破壞的規則（invariants）。
+>
+> 前兩份與 `../AGENTS.md`、`../CLAUDE.md`只在 git clone／GitHub 上有：發佈 ZIP 與安裝程式不帶（`scripts/make_zip.py` 的 `INTERNAL`）。
+>
+> 只是想裝來用：看 [../README.md](../README.md)。想寫工具：從 [tools.md](tools.md) 開始。
+
 標示：**使用者**＝裝 SYNOX 來用的人（含架伺服器版的營運者）；**作者**＝寫工具（pack）接進 SYNOX 的人；**維護者**＝改 SYNOX 本身的人。
 
 | 文件 | 給誰 | 一行說明 |
 |---|---|---|
 | [../README.md](../README.md) | 使用者 | 怎麼裝、每天怎麼用、個人版與伺服器版的差別、常見問題 |
+| [HANDOFF.md](HANDOFF.md) | 維護者、作者（含雲端 agent） | **交接入口**：SYNOX 是什麼、架構大圖（模式、Node、守門、pack、soul、帳本、網頁、通道）、目錄地圖、每份重要 ADR 一行、雲端 session 注意事項；只在 git clone／GitHub 上有 |
+| [development.md](development.md) | 維護者、作者 | **開發指南**：Linux／Windows 從 clone 到跑測試（哪些會略過、為什麼）、不用金鑰的開發設定（假 AI、假時鐘）、開分支交 PR、開發 pack 的完整流程（SDK、`packs.dirs`、`packs lock --approve`、簽章與交件）、改核心的規則、交件前檢查表；只在 git clone／GitHub 上有 |
+| [../AGENTS.md](../AGENTS.md)、[../CLAUDE.md](../CLAUDE.md) | AI 程式助理 | 每次載入的短版規則，指到上面兩份；只在 git clone／GitHub 上有 |
 | [landing/index.html](landing/index.html) | 使用者 | 介紹頁（雙擊就能看；線上版 <https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox>）：標語與支援平台、能做什麼、網頁版畫面（可切換、可放大）、放心用、三步裝好、給開發者、alpha 現況。原稿是 `landing/page.html`，`scripts/make_landing.py` 組成 index.html |
 | [tutorials/](tutorials/README.md) | 使用者 | 第一次裝、接 Telegram／Discord 的圖文教學；Discord 的名詞在 [discord-concepts.md](discord-concepts.md) |
 | [commands.md](commands.md) | 使用者 | `/help` 怎麼看、「💡 範例」、把指令換成自己順手的打法（符號與名字，例如 `@記帳`）、不用符號的風險與反斜線、各平台的限制 |
@@ -21,20 +33,23 @@
 | [docker.md](docker.md) | 使用者、維護者 | 用 Docker 跑 SYNOX（compose、資料 volume、網頁只發佈到 127.0.0.1）與開發容器；已知限制、驗證清單、檢查表（**還沒實際建置過**） |
 | [advanced-install.md](advanced-install.md) | 使用者（工程師） | 進階安裝：從原始碼裝（venv）、Docker 指令速查、沒有螢幕的伺服器、背景服務（Windows 自動啟動、systemd 範例）、測試與打包；標出哪些沒驗證過 |
 | [guide/index.html](guide/index.html) | 使用者 | 安裝教學（一步一步，雙擊就能看；線上版 <https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F>） |
-| [handoff/](handoff/README.md) | 使用者 | 到另一台電腦用真的帳號測 connector 與 Discord：教學、Discord 交接、煙霧測試 `scripts/smoke_real.py` |
+| [handoff/](handoff/README.md) | 使用者、維護者 | 到另一台電腦用真的帳號測 connector 與 Discord：教學、Discord 交接、煙霧測試 `scripts/smoke_real.py`；空白 Windows 的安裝實測、容器與 Linux 沙盒的真機驗證；2026-11-14 那一輪的工作交接（歷史紀錄，現況看 [HANDOFF.md](HANDOFF.md)；只在 git clone／GitHub 上有） |
+| [testing/pack-warnings-checklist.md](testing/pack-warnings-checklist.md) | 維護者、測試的人 | pack 標記警告（ADR 0041）的驗收清單：自動測試涵蓋什麼、必須在真機人工驗證的項目（每項步驟、預期、結果欄）；**全部勾完才算過關** |
 | [tools.md](tools.md) | 作者 | **從這裡開始**：三條接入路怎麼選、權限欄位、secret、確認來回、測試、安全自檢表 |
 | [sdk.md](sdk.md) | 作者 | Python 工具 SDK（`@tool`、`serve()`、`secret()`、`context()`、`synox-sdk` 指令） |
 | [tool-apps.md](tool-apps.md) | 作者 | 給工具附一個完整的網頁畫面（工具服務，`web.app`）：怎麼宣告、只有這台電腦打得開、登入與閒置由 SYNOX 管 |
 | [apps-api.md](apps-api.md) | 維護者 | 工具服務的介面合約（伺服器那一側現在實際的樣子；要改先改這份） |
 | [pack-format.md](pack-format.md) | 作者、維護者 | pack.json 每個欄位的完整規則、kind=cli／mcp／python 的細節、升級與環境建置 |
 | [themes.md](themes.md) | 外觀包作者、維護者 | 外觀（換裝）：顏色 token、可以換的位置（slot）、kind=theme 的格式、消毒規則、怎麼從品牌頁做一個外觀包 |
+| [data-migrations.md](data-migrations.md) | 作者、維護者 | 資料版本與自動升級：每份資料的版本號、逐版遷移步驟、工具的 `data_schema`（python `migrations.py`、cli `migrate` 子命令）、盤點表（ADR 0044） |
 | [tool-health.md](tool-health.md) | 作者、維護者 | 工具健康：失敗信封 v1、類別碼、隔離清單（同一根因連續失敗就暫停給 AI 用）；作者那側是 SDK 的 `fail()` |
+| [notifications.md](notifications.md) | 使用者、維護者 | 通知中心與提醒：通知送到哪些地方、鬧鐘、送達確認與重試、電腦提醒視窗與提醒哨兵、每一類通知的開關（[adr/0029](adr/0029-reminder-delivery-on-notify-hub.md)） |
 | [../packs/README.md](../packs/README.md) | 使用者 | SYNOX 出廠不帶工具：工具在 SYNOX 工具庫（SYNOX_Libs，另一個 repo），怎麼裝 |
 | [legacy/builtin-packs.md](legacy/builtin-packs.md) | 使用者、維護者 | 下架的內建工具（記帳、隨手記、提醒）：為什麼、舊資料怎麼接回、怎麼救回 |
 | [legacy/connectors.md](legacy/connectors.md) | 使用者、維護者 | 搬到工具庫的 4 個 connector（Notion、Todoist、Google 日曆、Apple 提醒事項）：為什麼、token／帳號怎麼接回、怎麼救回 |
 | [../examples/](../examples/) | 作者 | 可以照抄的範例：`hello`（SDK）、`any-language-cli`（不用 SDK）、`node-mcp-tool`（MCP stdio）、`mcp-remote-*`（遠端 MCP） |
 | [AGENT.md](AGENT.md) | 維護者 | 程式地圖、不能破壞的規則（invariants）、已知限制 |
-| [adr/](adr/) | 維護者 | 架構決定（一件一檔）：[0001](adr/0001-runtime-loop-heartbeat-mother-session.md) runtime loop、心跳、常駐助理、soul.md；[0002](adr/0002-soul-md-in-chat-assistant-prompt.md) soul.md 放進對話助理的系統提示（Q7）；[0005](adr/0005-soul-ledger-memory-provenance-review.md) soul 帳本（助理筆記的來歷、有疑慮先問、取代不刪除、整理與遺忘）；[0004](adr/0004-activator-event-driven-rules.md) 連動：任務做完馬上觸發下一件、防無限連動；[0006](adr/0006-keep-awake-screen-may-sleep.md) 保持清醒（含現代待命附記）；[0007](adr/0007-local-llm-platform.md) 本地模型是內建能力（context 建議、無進展逾時）；[0024](adr/0024-tool-apps-services.md) 工具服務：每個工具自己的完整網頁，要用才開、不用就關（原本叫 0023，跟 SYNOX 自己更新的 0023 撞號，改號；計畫 [lab/2026-11-14-tool-apps-implementation-plan.md](lab/2026-11-14-tool-apps-implementation-plan.md)）；[0025](adr/0025-guard-core-and-stepup.md) 門禁核心與手機驗證器；[0026](adr/0026-remote-tool-apps.md) 在手機上打開工具的畫面（計畫 [lab/2026-11-14-stepup-remote-plan.md](lab/2026-11-14-stepup-remote-plan.md)）；[0027](adr/0027-multi-file-python-packs.md) python 工具可以是多個檔（`python.package`，相對 import、不加 sys.path）；[0028](adr/0028-pack-signatures-official-badge.md) 工具的簽章與「官方」標章、沒經過安裝頁的工具不載入、面板隔開（稽核 [lab/2026-11-16-security-hotfix-audit.md](lab/2026-11-16-security-hotfix-audit.md)）；[0029](adr/0029-reminder-delivery-on-notify-hub.md) 提醒必達（疊在通知中心上的資料格式、排程回執、送達與重試、電腦提醒視窗與提醒哨兵）；[0030](adr/0030-tool-registration-index.md) 工具登記與索引（pack.json 的 `agent` 區塊、`requires.packs`／`requires.system`）；**0033–0040 是「一次改好幾筆」那一批的設計定稿（提案，還沒有程式；0031、0032 留給同時進行的兩個實作分支）**：[0033](adr/0033-work-protocol-work1.md) 工作協定 `work/1`（工具的七個動作：查、算方案、檢查、給人看、套用、核對、退回）；[0034](adr/0034-pack-agent-work.md) pack.json 的 `agent.work`（工具怎麼宣告它支援批次改動）；[0035](adr/0035-workmode-core.md) 工作模式的核心（不依賴 host 的 `workmode.py`、五個閘門、在 SYNOX 的掛點、共用的驗收劇本）；[0036](adr/0036-triangle-review.md) 三角審查（執行者、挑錯者、驗證者；`llm.roles`、`llm.triangle`）；[0037](adr/0037-approval-cards-upgrade.md) 核准卡升級（卡上的檢查與「之前 → 之後」、一張卡好幾個動作、編號與清單、AI 收回自己的卡、過期明說）；[0038](adr/0038-wake-ai-after-card.md) 核准卡執行完叫醒 AI（結果的格式、證據、最多連續 3 次、人話與事件不混輪）；[0039](adr/0039-local-project-link.md) 本機專案直接接（`link`、「synox-agent 結構」＝Agent Skill 資料夾＋pack.json、改過要重新核准、五道關卡怎麼套）；[0040](adr/0040-notify-lanes.md) 通知分流（每個入口主線與安靜線、響不響、太久沒處理才升級、工具宣告自己發哪幾類）[0031](adr/0031-soul-habits-and-prefs.md) 習慣與規則：soul.md 的〔鍵=值〕、工具照 `agent.prefs` 拿值（`{prefs_file}`、`pack.prefs`）、AI 只能提議（`soul__propose_habit`，按了才寫）、匯入程式 |
+| [adr/](adr/README.md) | 維護者 | 架構決定（一件一檔）。**[adr/README.md](adr/README.md) 是索引**：全部 ADR 的標題與狀態（已採用／提案）、什麼時候要寫 ADR、編號規則（下一號 0045；0032 是空號）。最常碰到的：0001 runtime loop 與常駐助理、0003 發佈與乾淨安裝、0022／0028 生態、沙盒、簽章、0024–0026 工具服務、門禁、手機入口、0029 提醒必達、0030 工具登記；0033–0040 是「一次改好幾筆」、核准卡升級、通知分流的提案（還沒有程式；0038 第一段已做）；0041 pack.json 的標記警告（`warnings`）；0042 外觀的顏色只宣告一次與向前相容；0043 版本號的排序、升級矩陣與錯版補救 |
 | [keep-awake-troubleshooting.md](keep-awake-troubleshooting.md) | 使用者 | 保持清醒開著、Google Drive 還是斷線：現代待命機型的排查步驟（只看、不改設定） |
 | [presentation.md](presentation.md) | 維護者 | 呈現層（預設關）：AI 回覆的 Markdown → Telegram HTML／Discord／網頁區塊、各通道的降級規則、黃金檔案怎麼重產 |
 | [runtime-api.md](runtime-api.md) | 維護者（前端） | 主控面板用的 `/api/runtime/...` 合約（狀態、心跳設定、soul.md、任務日誌、連動規則） |
@@ -45,9 +60,9 @@
 | [tutorials-engine.md](tutorials-engine.md) | 維護者 | 新手教學引擎（`/tutorial`）：怎麼寫一份教學、畫面上可以圈的位置清單 |
 | [release-build.md](release-build.md) | 維護者 | GitHub Actions 自動建置 Windows 安裝程式：怎麼開始、第一次跑要看什麼 |
 | [installer/spec.html](installer/spec.html) | 維護者 | 安裝程式規格（已發佈的頁面，擁有者指定永久保留；線上版 <https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB>） |
-| [artifacts.json](artifacts.json)、[artifacts/](artifacts/README.md) | 維護者 | 已發佈的 claude.ai 頁面登記表（線上網址↔本機副本）；`artifacts/` 是較早頁面的本機副本與舊登記表 |
+| [artifacts.json](artifacts.json)、[artifacts/](artifacts/README.md) | 維護者 | 已發佈的 claude.ai 頁面登記表（線上網址↔本機副本）；`artifacts/` 只剩說明（較早的規劃與調查頁面是維護者的私有文件，已移出公開 repo） |
 | [lab/](lab/README.md) | 維護者 | 實驗紀錄、研究、設計提案；`lab/discussions/` 沙盒／容器討論紀錄 |
-| [QuestionToUser.md](QuestionToUser.md) | 維護者 | 等擁有者拍板的事（每題有建議，不答就照建議） |
+| [QuestionToUser.md](QuestionToUser.md) | 維護者 | 待決定事項的清單是維護者的私有文件；這裡只留說明，其他文件裡的題號指向那份清單 |
 | [../LICENSING.md](../LICENSING.md) | 全部 | 授權：核心 AGPL-3.0-or-later，工具 SDK 與範例 Apache-2.0 |
 | [../CONTRIBUTING.md](../CONTRIBUTING.md) | 維護者 | 怎麼貢獻、貢獻者同意書、GitHub Discussions |
 | [community/](community/discussion-ecosystem-and-sandbox.md) | 維護者 | 要貼到 GitHub Discussions 的貼文草稿（生態相容與沙盒，中英雙語）；只在 git clone／GitHub 上有 |

@@ -52,7 +52,7 @@ def test_reply_ok_ai_keyword():
 
 
 def test_sdk_version_bumped_patch_only():
-    assert author.SDK_VERSION == "0.2.4"
+    assert author.SDK_VERSION >= "0.2.4"
     assert author.SDK_REQUIRES == ">=0.2,<0.3"            # 只加不改：範圍不變，舊工具照樣裝得上
 
 

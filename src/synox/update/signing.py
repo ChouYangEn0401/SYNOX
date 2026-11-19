@@ -28,7 +28,10 @@ TEST_KEY_ENV = "SYNOX_UPDATE_TEST_PUBKEY"
 
 # 創始維護者產生金鑰之後，把公鑰加在這裡：32 位元組原始公鑰的 base64（44 個字，結尾是 =）。
 # `python scripts/release.py keygen` 產生一對、`python scripts/release.py sign --key <私鑰檔> --show-public` 印公鑰。
-RELEASE_PUBLIC_KEYS: Sequence[str] = ()
+RELEASE_PUBLIC_KEYS: Sequence[str] = (
+    "m0LFfoG19Vb06lSkz3XdDM0kMglnsoZKEmetEIALceg=",   # 現用
+    "Ri2ON/LnhdJFcHJAQKwOqEiiursdbz2B88p95vsj+M8=",   # 備用
+)
 
 
 class SignatureError(Exception):

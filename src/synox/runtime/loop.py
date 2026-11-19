@@ -8,6 +8,11 @@ Runtime loop（docs/adr/0001 §1、§2）：一條排程執行緒＋登記的任
     loop.tick()                         測試用：照假時鐘看一次（spawn 換成同步）
 
 - 每個任務在**自己的執行緒**跑（`spawn`），排程執行緒只看「到點了沒、逾時了沒」：慢的不卡別的，例外不拖垮迴圈。
+- 排程執行緒**睡到最早的那個 next_due**（最多 TICK_SECONDS，好看逾時）：任務準時在 next_due 跑，不會被 5 秒一格吃掉；
+  每個任務還是照自己的間隔跑（不會因為別人到點就多跑）。任務做完、登記、poke 都會叫醒它重算。
+- next_hint（選填）：任務做完時問它「下一件事在幾點」（epoch 秒），比 now＋間隔早就提早到那時候跑（系統提醒用：
+  到點的提醒準時響，不用每秒看）。poke(task_id)：有東西變了（新增／改了提醒）→ 這個任務馬上再跑一次（正在跑＝不管，
+  做完時的 next_hint 會看到新的）。
 - fn(ctx) 回字串（或 None）＝ok；丟例外＝failed。ctx.log(line) 寫日誌尾巴。
 - 逾時：超過 timeout 標 failed（算一次失敗）；那次執行晚回來的結果丟掉（generation 對不上）。上一次沒結束不開下一次。
 - 失敗退避：下一次＝min(間隔, RETRY_BASE × 2^(n-1))；連續 NOTIFY_AFTER 次通知擁有者一次、退避拉長到 max(間隔, LONG_BACKOFF)
@@ -34,7 +39,9 @@ from typing import Callable, Deque, Dict, List, NamedTuple, Optional, Tuple
 from isdtelekit.core import jsonstore
 
 STATES = ("ok", "running", "failed", "idle")
-TICK_SECONDS = 5
+TICK_SECONDS = 5                # 排程執行緒最多睡多久（看逾時）；到點的任務不等這個，睡到它的 next_due 就醒
+MIN_SLEEP = 0.02                # 睡最短多久（時鐘誤差、剛好到點時不空轉）
+HINT_MIN_GAP = 0.5              # next_hint 最早排到幾秒後（防止回了「現在」一直重跑）
 RETRY_BASE = 60.0
 LONG_BACKOFF = 30 * 60.0
 NOTIFY_AFTER = 5
@@ -120,7 +127,8 @@ class Task:
 
     def __init__(self, task_id: str, name: str, owner: str = "system", *, fn: Optional[Callable] = None,
                  interval: Optional[float] = None, timeout: float = DEFAULT_TIMEOUT, schedule: str = "",
-                 clock: Callable[[], float] = time.time, max_backoff: Optional[float] = None):
+                 clock: Callable[[], float] = time.time, max_backoff: Optional[float] = None,
+                 next_hint: Optional[Callable[[float], Optional[float]]] = None):
         if not ID_RE.match(task_id):
             raise ValueError(f"task id {task_id!r}: 只能用小寫英數字與 . _ -，64 字內")
         self.id = task_id
@@ -130,6 +138,7 @@ class Task:
         self.interval = float(interval) if interval else None
         self.timeout = float(timeout)
         self.max_backoff = float(max_backoff) if max_backoff else None   # 失敗退避的上限（秒）；None＝照預設
+        self.next_hint = next_hint            # 做完時問：下一件事幾點（epoch 秒，None＝不知道）；早於 now＋間隔就提早跑
         self._schedule = schedule
         self._clock = clock
         self.state = "idle"
@@ -175,6 +184,7 @@ class RuntimeLoop:
         self.tasks: Dict[str, Task] = {}
         self._lock = threading.RLock()
         self._stop = threading.Event()
+        self._wake = threading.Event()        # 有任務的 next_due 可能變早了：排程執行緒醒來重算要睡多久
         self._thread_obj: Optional[threading.Thread] = None
         data_dir = getattr(getattr(app, "config", None), "data_dir", "") or ""
         self.state_path = state_path if state_path is not None else (os.path.join(data_dir, STATE_FILE) if data_dir else "")
@@ -216,14 +226,16 @@ class RuntimeLoop:
 
     def register(self, task_id: str, name: str, *, owner: str = "system", fn: Optional[Callable] = None,
                  interval: Optional[float] = None, timeout: float = DEFAULT_TIMEOUT, first_delay: Optional[float] = None,
-                 schedule: str = "", max_backoff: Optional[float] = None) -> Task:
+                 schedule: str = "", max_backoff: Optional[float] = None,
+                 next_hint: Optional[Callable[[float], Optional[float]]] = None) -> Task:
         """登記（同 id 再登記＝換掉設定，保留狀態）。first_delay：第一次在幾秒後跑（預設＝一個間隔後）。
-        max_backoff：失敗後最多等幾秒再試（選填；系統提醒用 60 秒，不能等到 LONG_BACKOFF 的 30 分鐘）。"""
+        max_backoff：失敗後最多等幾秒再試（選填；系統提醒用 60 秒，不能等到 LONG_BACKOFF 的 30 分鐘）。
+        next_hint(now)：選填，做完時回「下一件事的時間」（epoch 秒）；比 now＋interval 早就提早跑（interval 變成上限）。"""
         with self._lock:
             task = self.tasks.get(task_id)
             if task is None:
                 task = Task(task_id, name, owner, fn=fn, interval=interval, timeout=timeout, schedule=schedule,
-                            clock=self._clock, max_backoff=max_backoff)
+                            clock=self._clock, max_backoff=max_backoff, next_hint=next_hint)
                 old = (self._saved.get("tasks") or {}).get(task_id) or {}
                 if isinstance(old.get("last_run_at"), (int, float)):
                     task.last_run_at = float(old["last_run_at"])
@@ -236,13 +248,41 @@ class RuntimeLoop:
                 task.name, task.owner, task.fn, task.timeout = name, owner, fn, float(timeout)
                 task.interval = float(interval) if interval else None
                 task.max_backoff = float(max_backoff) if max_backoff else None
+                task.next_hint = next_hint
                 task.set_schedule_text(schedule)
             if task.interval and task.fn is not None:
                 delay = task.interval if first_delay is None else max(0.0, float(first_delay))
                 task.next_due = self._clock() + delay
             else:
                 task.next_due = None
-            return task
+        self._wake.set()
+        return task
+
+    def poke(self, task_id: str) -> bool:
+        """有東西變了，這個任務現在就該再看一次（例如新增／延後了一個提醒）：next_due 拉到現在、叫醒排程執行緒。
+        正在跑、沒有這個任務、沒有排程（沒有 fn／間隔）＝什麼都不做，回 False。"""
+        task = self.tasks.get(task_id)
+        if task is None or task.fn is None or not task.interval:
+            return False
+        with task.lock:
+            if task.running_since is not None:
+                return False                     # 正在跑：做完時的 next_hint 會看到新的
+            now = self._clock()
+            if task.next_due is None or task.next_due > now:
+                task.next_due = now
+        self._wake.set()
+        return True
+
+    def sleep_for(self, now: Optional[float] = None) -> float:
+        """排程執行緒這一次要睡幾秒：到最早的 next_due（沒在跑的任務），最多 TICK_SECONDS、最少 MIN_SLEEP。"""
+        now = self._clock() if now is None else now
+        with self._lock:
+            tasks = list(self.tasks.values())
+        due = [t.next_due for t in tasks
+               if t.fn is not None and t.next_due is not None and t.running_since is None]
+        if not due:
+            return float(TICK_SECONDS)
+        return max(MIN_SLEEP, min(float(TICK_SECONDS), min(due) - now))
 
     def reschedule(self, task_id: str, interval: Optional[float]) -> Optional[Task]:
         """改間隔（心跳的設定改了）：下一次＝上一次＋新間隔（已經過了＝60 秒後）；沒跑過＝現在＋新間隔；None＝關掉。"""
@@ -260,7 +300,8 @@ class RuntimeLoop:
                 task.next_due = now + task.interval
             else:
                 task.next_due = max(now + 60.0, task.last_run_at + task.interval)
-            return task
+        self._wake.set()
+        return task
 
     def task(self, task_id: str) -> Optional[Task]:
         return self.tasks.get(task_id)
@@ -329,15 +370,22 @@ class RuntimeLoop:
 
     def stop(self) -> None:
         self._stop.set()
+        self._wake.set()
         self.started = False
 
     def _run(self) -> None:
         while not self._stop.is_set():
+            self._wake.clear()                   # 先清再看：看的時候有人 poke，下面的 wait 會馬上回來
             try:
                 self.tick()
             except Exception:
                 logging.exception("[RUNTIME] tick failed")
-            self._stop.wait(TICK_SECONDS)
+            try:
+                delay = self.sleep_for()
+            except Exception:
+                logging.exception("[RUNTIME] cannot work out the next wake-up")
+                delay = float(TICK_SECONDS)
+            self._wake.wait(delay)
 
     @staticmethod
     def _thread(fn: Callable[[], None], name: str) -> None:
@@ -400,6 +448,7 @@ class RuntimeLoop:
             logging.exception("[RUNTIME] task %s failed", task.id)
             result, error = None, f"{type(e).__name__}: {e}"
         now = self._clock()
+        hint = self._hint(task, now) if error is None else None
         with task.lock:
             if gen != task.generation or task.running_since is None:
                 return                                    # 已經判逾時了：晚回來的結果不算
@@ -408,11 +457,24 @@ class RuntimeLoop:
             if error is not None:
                 self._failed(task, error, now)
             else:
-                self._ok(task, "" if result is None else str(result), now)
+                self._ok(task, "" if result is None else str(result), now, hint)
         self.save()
+        self._wake.set()                          # next_due 變了：排程執行緒重算要睡多久
         self._emit(task, prev, "", cause)
 
-    def _ok(self, task: Task, message: str, now: float) -> None:
+    @staticmethod
+    def _hint(task: Task, now: float) -> Optional[float]:
+        """做完時問任務「下一件事幾點」（鎖外叫）；沒給、丟例外、回不是數字＝None。"""
+        if task.next_hint is None:
+            return None
+        try:
+            at = task.next_hint(now)
+        except Exception:
+            logging.exception("[RUNTIME] next_hint of %s failed", task.id)
+            return None
+        return float(at) if isinstance(at, (int, float)) and not isinstance(at, bool) else None
+
+    def _ok(self, task: Task, message: str, now: float, hint: Optional[float] = None) -> None:
         recovered = task.notified
         task.state = "ok"
         task.last_run_at = now
@@ -422,6 +484,8 @@ class RuntimeLoop:
         task.add_log(f"ok {message}".strip())
         if task.interval:
             task.next_due = now + task.interval
+            if hint is not None and hint < task.next_due:
+                task.next_due = max(hint, now + HINT_MIN_GAP)
         if recovered:
             self._say(f"✅ 背景任務「{task.name}」恢復正常了。")
 

@@ -113,7 +113,10 @@ def _skill_line(skill, limit: Optional[int]) -> str:
         text += f"（{skill.when}）"
     if limit is not None and len(text) > limit:
         text = text[:max(0, limit - 1)] + "…" if limit > 0 else ""
-    return f"- {skill.name}：{text}" if text else f"- {skill.name}"
+    # 標記警告（ADR 0041）緊接在名字後面、不縮掉（縮短時只剩 code 與 text）
+    note_of = getattr(skill, "note", None)
+    name = skill.name + (note_of(long=limit is None or limit >= 20) if callable(note_of) else "")
+    return f"- {name}：{text}" if text else f"- {name}"
 
 
 def skill_index(skills, limit: int = CAPS_MAX // 2) -> str:

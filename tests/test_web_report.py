@@ -175,7 +175,7 @@ def test_help_tab_and_entry_points_exist():
     section = html.split('<section id="view-settings"')[1].split("</section>")[0]
     assert '<a href="#settings:help" data-tab="help" role="tab"' in section
     assert 'id="set-help"' in section and 'id="report-text"' in section
-    assert 'href="#settings:help"' in html.split('<div id="side-foot"')[1].split("</aside>")[0]   # 側欄底下的小連結
+    assert 'href="#settings:help"' in html.split('<div id="side-foot"')[1].split("</aside>")[0]   # 使用者選單裡的「遇到問題？」
     for link in (report.SIGNUP, report.ISSUES, report.SECURITY, report.GUIDE):
         assert f'href="{link}"' in section, link
     assert "{{INCLUDE:report.js}}" in html and "{{INCLUDE:report.css}}" in html

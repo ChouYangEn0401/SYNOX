@@ -7,7 +7,8 @@
 
 - 安裝（開發）：`py -3.11 -m venv .venv` → `.venv\Scripts\python.exe -m pip install -e .[dev]`；
   用 API 金鑰的 AI 要再裝 ntu_easy_llm（見下面「ntu_easy_llm」）
-- 測試：`.venv\Scripts\python.exe -m pytest -q`（2026-11-12 約 1500 個、3～4 分鐘；不連網、不開 Telegram、不叫 `claude`）。
+- 測試：`.venv\Scripts\python.exe -m pytest -q`（2026-11-18 在 Windows：3813 過、16 略過，約 16 分鐘（機器忙時）；不連網、不開 Telegram、不叫 `claude`）。
+  Linux／雲端容器的寫法、會略過或已知失敗的測試與原因：[development.md](development.md)「跑測試」（只在 git clone／GitHub 上有）。
   例外：`tests/test_web.py::test_port_already_in_use_is_a_bind_failure` 會在 127.0.0.1 暫時 listen 一個 port（測獨佔綁定）；
   不想開任何 port 的機器加 `--deselect tests/test_web.py::test_port_already_in_use_is_a_bind_failure`
 - 終端機：`.venv\Scripts\python.exe -m synox console`（`--llm fake` 換假 AI；沒有 config.json 用示範設定）
@@ -26,7 +27,7 @@
 | Path | Role |
 |---|---|
 | `vendor/isdtelekit/` | ISDTeleKitSDK 的**原樣**複製（版本與 commit 在 `vendor/VERSION`）。不要改；要不同的行為就在 `src/synox` 寫轉接 |
-| `src/synox/__main__.py` | `python -m synox run｜console｜wizard｜init｜tools list｜tools install <名字…>｜doctor｜stop｜open（＝web-login）｜about｜tips [--all]｜install <檔> [--yes] [--trust-publisher <名字>]｜packs status｜packs lock --approve <name> [--trust-publisher <名字>] [--runtime container|host]｜packs runtime <name> container|host｜packs env rebuild <name>｜import-legacy schedule-rules --from=<檔> [--apply]`（install 也收 `--runtime`；import 沒加 --apply＝乾跑） |
+| `src/synox/__main__.py` | `python -m synox run｜console [--llm fake|none] [--as <id>]｜wizard｜init｜tools list｜install <名字…>｜check｜update <名字…>|--all｜doctor [--offline]｜stop｜open（＝web-login）｜about｜tips [--all]｜install <檔> [--yes] [--trust-publisher <名字>] [--runtime container|host]｜packs status｜packs lock --approve <name> [--trust-publisher <名字>] [--runtime container|host]｜packs runtime <name> container|host｜packs rollback <name>｜packs env rebuild <name>｜connect <pack>｜discord token｜pair｜stepup setup｜status｜reset｜update --check｜--weekly on|off｜filetype register｜unregister｜status｜sentinel｜remind-window｜import-legacy schedule-rules --from=<檔> [--apply]`（import 沒加 --apply＝乾跑；全部以 `python -m synox --help` 為準） |
 | `src/synox/app.py` | `build(config, home=, adapter=, vault=, config_path=)`：SDK `build_app` → basics/help → `packs.load_all` → `agent.install` → `schedule.install` → `web.install` |
 | `src/synox/config.py` | `SynoxConfig`＝SDK `BotConfig`＋`mode`（personal｜server）／`llm`／`vault`／`packs`／`policy`；路徑相對 SYNOX 資料夾（`ROOT`＝`default_root()`：SYNOX_HOME → 原始碼版面 → 目前資料夾，`ROOT_SOURCE` 記哪一種，doctor 會印） |
 | `src/synox/policy.py` | `decide`（權限唯一交會點）、`parse_policy`（`policy.roles` 能力上限，第 1 關式檢查）、`group_policy_for`（loader 用）、`ceiling`／`fits`；bot 範圍 `bot_scope`／`using_bot`／`current_bot`／`run_as`；`install`（把 decide 接到 SDK 的 `registry.authorize`） |
@@ -42,16 +43,15 @@
 | `src/synox/sdk/` | 給 pack 作者：JSON 信封、`Pack.load`、`init_pack`（預設不產生面板，`--panel` 才有）、`zip_pack`；`synox-sdk init｜check｜zip｜keygen｜sign｜verify`（`python -m synox.sdk`；簽章三個要 `cryptography`，單檔版沒有）。說明 [sdk.md](sdk.md) |
 | `src/synox/agent/` | `tools.py`（葉節點 → ToolSpec；`description(node, app)`：pack.json 寫了 `commands[].ai.scenario` 的＝「用途。情境：…」（[adr/0013](adr/0013-tool-scenario-descriptions.md)），沒寫＝照舊；`CANNOT_DO`／`cannot_do_spec`＝「做不到」的偽工具，[adr/0011](adr/0011-cannot-do-exit.md)）、`loop.py`（`ai_decision`、一輪、用量；停止詞、救回洩漏的呼叫、連續失敗、步數用完的總結；`system_prompt`／`turn_layer`／`tail_rules` 呼叫 `prompt.py`（七層提示：身分、行為守則與承諾規則、能力清單（工具登記索引）、說明書索引、工具規格、使用者偏好、本輪規則＋時間最後一行；前四層多輪逐字相同）、`recite_line`＝多步覆誦目標（`llm.prompt_tail`，[adr/0017](adr/0017-tail-rules-and-time-last.md)、[0018](adr/0018-goal-recitation.md)）；`pick_tools`、`_fit`、`_cap`）、`claims.py`（完成宣稱檢查：`verdict`／`claims`／`forged`／`progress_only`、`Evidence` 證據帳本、修正字句、`guard_on`（auto＝本地／私網來源）；[adr/0008](adr/0008-completion-guard.md)）、`auto.py`（「auto」開關的共用判斷：`weak_source`＝kind=local 或指到 loopback／私網的 openai_compat、`switch_on`、doctor 的 harness 行）、`toolpick.py`（每輪工具數上限：2-gram 排序、永遠保留 `system__cannot_do`／`skill_read`／系統指令（不寫死 `remind__*`，問工具登記索引的 `keep_for(app)`，[adr/0030](adr/0030-tool-registration-index.md)）、觸發字加分、`llm.max_tools`；[adr/0014](adr/0014-per-turn-tool-cap.md)）、`context.py`（context 預算：`estimate`、`fit`（Qwen-Agent 式分級截斷）、`cap_result`、`llm.context_size`／`llm.tool_result_chars`；[adr/0015](adr/0015-context-budget.md)、[0016](adr/0016-tool-result-cap.md)）、`validate.py`（第 4 關呼叫驗證）、`delimit.py`（第 5 關工具結果分隔符）、`media.py`（Telegram 私訊的照片 → 記憶體裡的位元組：`telegram_image`、`fetch_telegram`（getFile＋串流、超過上限就停、不寫檔）、`telegram_loader`＝給 `run_turn(images=…)` 的延遲載入；[adr/0021](adr/0021-vlm-vision.md)）、`budget.py`（伺服器版成員每月額度；`BotPool` 頻道型 bot 一池）、`room.py`（頻道 AI：`RoomAgent`、`redact_reply`）、`capture.py`（`CaptureApi`；`note_structured`／`for_ai`＝給 AI 的那一份；`CardRunApi`＝核准卡按 ✅ 之後執行用：照常送給人、順便記下）、`structured.py`（給 AI 的結構化結果：信封的 `ai`／`data` → message＋精簡 JSON，一定合法、在上限內；`for_people` 拿掉 `ai`；規劃 11.6）、`approve.py`（核准卡；AI 發的卡記得 `waker`）、`wake.py`（核准卡按了之後叫醒 AI：`CardOutcome`、`event_text`、`QUIET`、連續最多 `MAX_WAKES`＝3 次；規劃 11.10）、`skills.py` |
 | `src/synox/evals/`、`evals/assistant/` | 對話助理的離線評測（量，不改助理）：`cases.py`（題目格式、`DISTRIBUTION`、範例網域檢查；`images`＝每一輪附的假圖，`evals/assistant/images/`，[adr/0021](adr/0021-vlm-vision.md)）、`fake_tools.py`（假工具掛成指令樹的葉節點）、`replay.py`（`ReplayAdapter` 照劇本回話、`run_case` 用 `app.build` 建暫存的整支 SYNOX 跑真的 `AgentLoop`、不同步＝`replay_mismatch`、`stamp`）、`checks.py`（硬檢查、拒絕／替代標記、簡體字表；`claimed_without_call` 每題都跑、`must_call` 的 `any_of`、`cannot_do`＝missing_tool 題）、`report.py`（決定性的文字＋JSON；`metrics`＝Reliable Pass Rate、工具觸發 F1、第 4 關通過率，`merge_repeats`＝重跑 N 次的合併，[adr/0020](adr/0020-eval-missing-tool-param-and-metrics.md)）；題目與劇本在 `evals/assistant/`（不進發佈物：`make_zip.ROOT_ONLY_DIRS`）。**沒有真跑的路徑**，要加先看 README 最後一節 |
-| `src/synox/runtime/` | 常駐的排程迴圈與常駐助理（[adr/0001](adr/0001-runtime-loop-heartbeat-mother-session.md)，網頁合約 [runtime-api.md](runtime-api.md)）：`loop.py`（`RuntimeLoop`／`Task`：每 5 秒看、每個任務自己的執行緒、逾時、退避、連續 5 次失敗通知一次、`report`、`peer_states`、`data/runtime/state.json`）、`heartbeat.py`（`system.heartbeat`、快照與「沒事別吵」的規則）、`mother.py`（`MotherSession`：沒有工具、自己的記憶在保管箱、`NOTIFY:`／`SOUL+:` 格式）、`soul.py`（`SoulStore`：保管箱、追加規則、稽核、超過上限時挑筆記）、`ledger.py`（`SoulLedger`：助理筆記的來歷、等擁有者確認的提議、收起來的、整理 `system.soul_tidy`、遺忘、匯出；[adr/0005](adr/0005-soul-ledger-memory-provenance-review.md)）、`habits.py`（soul.md「習慣與規則」段的〔鍵=值〕：解析、型別、放寬、`declarations`／`values_for`、`{prefs_file}` 暫存檔、網頁與 doctor 的檢視；純函式）、`habit_card.py`（系統群組 `soul`：`soul__propose_habit` 只出卡、擁有者按 ✅ 才 `set_habit`、❌ 進帳本 suppress；範圍只收 human／ai）、`habit_import.py`（`python -m synox import-legacy schedule-rules`；[adr/0031](adr/0031-soul-habits-and-prefs.md)）、`activator.py`（`Activator`／`Rule`：狀態一變照規則觸發下一件、靜態找循環、連動串的層數與總件數、每條規則的冷卻與每小時上限、全部的總量、斷路器與重設、留給心跳的待處理；[adr/0004](adr/0004-activator-event-driven-rules.md)）、`settings.py`（config `runtime` 的預設與檢查，含 `activator.rules`）、`web_api.py`（`/api/runtime/...`）、`__init__.py`（`install`、`report`／`ingest_envelope`／`peer_env`，`Runtime.use_fakes` 給測試） |
-| `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（`tick` 由 runtime 的任務 `system.schedule` 每 30 秒叫；沒有 runtime 才自己開執行緒；via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`install_system_remind`＝系統指令「⏰ 提醒（系統）」`/remind_*`，app.build 在載入 pack 之前掛；`/schedule_*`） |
-| `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS）、`__init__.py`（`install`、`/web`、`/web_off`） |
-| `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（30 秒、via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`/remind_*`＝⏰ 提醒（系統）、`/schedule_*`） |
+| `src/synox/runtime/` | 常駐的排程迴圈與常駐助理（[adr/0001](adr/0001-runtime-loop-heartbeat-mother-session.md)，網頁合約 [runtime-api.md](runtime-api.md)）：`loop.py`（`RuntimeLoop`／`Task`：睡到最早的 next_due（最多 5 秒）、`next_hint`／`poke`、每個任務自己的執行緒、逾時、退避、連續 5 次失敗通知一次、`report`、`peer_states`、`data/runtime/state.json`）、`heartbeat.py`（`system.heartbeat`、快照與「沒事別吵」的規則）、`mother.py`（`MotherSession`：沒有工具、自己的記憶在保管箱、`NOTIFY:`／`SOUL+:` 格式）、`soul.py`（`SoulStore`：保管箱、追加規則、稽核、超過上限時挑筆記）、`ledger.py`（`SoulLedger`：助理筆記的來歷、等擁有者確認的提議、收起來的、整理 `system.soul_tidy`、遺忘、匯出；[adr/0005](adr/0005-soul-ledger-memory-provenance-review.md)）、`habits.py`（soul.md「習慣與規則」段的〔鍵=值〕：解析、型別、放寬、`declarations`／`values_for`、`{prefs_file}` 暫存檔、網頁與 doctor 的檢視；純函式）、`habit_card.py`（系統群組 `soul`：`soul__propose_habit` 只出卡、擁有者按 ✅ 才 `set_habit`、❌ 進帳本 suppress；範圍只收 human／ai）、`habit_import.py`（`python -m synox import-legacy schedule-rules`；[adr/0031](adr/0031-soul-habits-and-prefs.md)）、`activator.py`（`Activator`／`Rule`：狀態一變照規則觸發下一件、靜態找循環、連動串的層數與總件數、每條規則的冷卻與每小時上限、全部的總量、斷路器與重設、留給心跳的待處理；[adr/0004](adr/0004-activator-event-driven-rules.md)）、`settings.py`（config `runtime` 的預設與檢查，含 `activator.rules`）、`web_api.py`（`/api/runtime/...`）、`__init__.py`（`install`、`report`／`ingest_envelope`／`peer_env`，`Runtime.use_fakes` 給測試） |
+| `src/synox/schedule/` | `store.py`（伺服器版 `store.of(user)` 每人一份、`all_stores()`）、`runner.py`（`tick` 由 runtime 的任務 `system.schedule` 叫：睡到下一件事的時間（`next_wake`）、最多每 10 秒一次，清單有寫入就 `poke` 馬上重看；沒有 runtime 才自己開執行緒；via=ROUTINE，以檔案主人的身分跑）、`commands.py`（`install_system_remind`＝系統指令「⏰ 提醒（系統）」`/remind_*`，app.build 在載入 pack 之前掛；`/schedule_*`）；提醒必達（[adr/0029](adr/0029-reminder-delivery-on-notify-hub.md)）：`reminder.py`（一筆提醒／待辦的格式，契約）、`engine.py`（`ReminderEngine`：到點、晚了補響、交給送達層）、`receipt.py`（排程回執，契約）、`actions.py`（`ReminderActions`：任何管道按的完成／延後）、`timeparse.py`（「半小時後」「明天 9 點」，讀法差很多時反問） |
 | `src/synox/web/` | Web UI：`server.py`（`WebUI.route(method, path, headers, body, session)` 做全部判斷；`_Handler` 是薄殼；只綁 127.0.0.1）、`channel.py`（`WebChannel`＝SDK Channel）、`chats.py`（每人的對話紀錄，密文）、`tokens.py`（一次性登入連結、cookie session）、`static/app.html`（一頁、vanilla JS；設定頁分頁＝`#settings:<tab>`，安裝 pack 的頁＝`#packs`：待核准清單、步驟 `synox:install-step` 事件、`window.SynoxInstall` 入口）、`__init__.py`（`install`、`/web`、`/web_off`）；工具頁：`toolpage.py`（指令卡與參數表單的資訊 `command_info`、群組排版 `effective`／`parse_layout`、每人的偏好 `UserPrefs`＝`data/web_prefs/<id>.json.enc`）＋`static/tools.js`／`tools.css`（`server.render_app` 換掉 app.html 的 `<!-- include: … -->`，同一個 nonce） |
 | `src/synox/web/apps/` | 工具服務（[adr/0024](adr/0024-tool-apps-services.md)）：`manager.py`（`AppManager`：開關、埠、閒置、交接票；`start` 只收 web／telegram）、`site.py`（`AppSite.handle`：一個工具的站，C4–C6.1）、`listen.py`（唯一開埠的地方，`127.0.0.2`）、`sessions.py`（交接票、app 登入，綁在有 `alive()` 的上一層）、`spec.py`、`audit.py`（`data/apps_audit.jsonl`、`safe_trace`）、`web_api.py`（主機台的 `/api/apps…`、`POST /apps/<名>/open`）、`commands.py`（`/apps`、`/app_open`、`/app_close`）、`testing.py`（`AppClient`、`FakeListen`）；共用元件 `static/appkit.js`／`appkit.css` |
 | `src/synox/guard/` | 門禁核心（[adr/0025](adr/0025-guard-core-and-stepup.md)）：`origin.py`（來源）、`inputs.py`（輸入的基本檢查）、`limits.py`、`audit.py`（`data/security_audit.jsonl`）、`stepup.py`（手機驗證器）、`scope.py`（callers／stepup）、`store.py`、`qr.py`、`commands.py`（/unlock）、`web_api.py`（/api/stepup）、`cli.py`（`python -m synox stepup`）、`testing.py` |
 | `src/synox/web/remote/` | 手機入口（[adr/0026](adr/0026-remote-tool-apps.md)）：`manager.py`（`RemoteManager`：前提、開、關、時間）、`gate.py`（`RemoteGate.handle_raw`：進門頁、鑰匙＋新碼、白名單轉給工具站）、`tunnel.py`（`Tunnel` 介面、`CloudflaredTunnel`）、`binary.py`（通道程式的雜湊與核准）、`commands.py`（`/app_remote`）、`web_api.py`（`/api/remote…`）、`testing.py`（`FakeTunnel`、`RemoteClient`）；請求檢查在 `guard/http.py`；進門頁 `static/remote_enter.*` |
 | `src/synox/present/` | 呈現層（[presentation.md](presentation.md)，`config.json` `presentation.enabled`，**預設關**）：`blocks.py`（區塊、Span、信任等級 system／assistant／external、`safe_url`、`visible`）、`markdown.py`（Markdown／純文字 → 區塊，不用第三方套件、不丟例外）、`telegram.py`／`discord.py`／`web.py`（輸出；切割在 `split.py`、表格降級在 `tables.py`、寬度在 `width.py`）、`__init__.py`（`render`、`deliver`）。只接 AI 回覆（`AgentLoop.say`、`RoomAgent.say`）；按鈕群／確認卡只有 system 才是真的按鈕；網頁送 JSON 區塊給 `static/blocks.js`（textContent） |
 | `src/synox/packs/signing.py` | 工具簽章與標章（ADR 0028）：`OFFICIAL_PACK_PUBLIC_KEYS`（擁有者貼公鑰的地方，現在空的）、`pack.sig.json` 的 `verify_folder`／`verify_zip`／`sign_zip`、`lookalike_problems`（非官方寫「官方／SYNOX」標紅）、`summary_block`、`SAFETY_NOTICE`；私鑰只有 `synox-sdk keygen／sign` 讀，SYNOX 本身從不碰 |
+| `src/synox/packs/packwarn.py` | pack.json 的標記警告（ADR 0041）：`parse`（形狀、清理、壞格式換成 `malformed_warning`）、`official_problem`（官方＋`vendor_no_security_guarantee` 拒）、`accept_problem`／`unaccepted_codes`／`merge_accepted`（第一次啟用要確認，記在鎖的 `accepted_warnings`）、顯示用的 `badge`／`lines`／`agent_note`／`for_agent`／`AGENT_RULE` |
 | `src/synox/packs/adopt.py` | 「送去安裝頁檢查」：`stage_unlocked(name, packs_dir, data_dir)`（沒鎖的 pack 原地打包 → `admin.stage`，summary 多 `adopt`）、`install(token, …)`（原地那份 `upgrade.archive` 到 `_removed` → `install_staged`，失敗搬回） |
 | `src/synox/web/paneltickets.py` | 面板的票（ADR 0028 §5）：`PanelTickets.issue／get／drop_session／drop_all`，只在記憶體、只存雜湊、綁 pack＋session＋tg_id、8 小時；`server.py` 的 `POST /api/packs/<name>/panel-ticket`、`GET /packs/<name>/panel/<票>/[api/<route>]` 用 |
 | `src/synox/packs/admin.py` | `.synoxpack`：stage（zip 檢查（重複路徑、大小寫相撞、一邊解一邊數位元組）→ 簽章（`signing.verify_folder`，⛔ 被改過＝GateRefused）→ 第 1、2 關；記 zip 的執行位元、不解出 `__pycache__`；summary 第一塊是 `signature`＋`safety_notice`）→ install_staged（再驗一次＋T2 要 `trust_publisher`＋第 3 關寫鎖）／移除到 `packs/_removed/`／`reload()`（Web UI、`synox install` 共用）；`list_staged`（待核准清單，順便清掉過期／半套的暫存）／`discard_staged`；`format_tier`／`red`＝T2 的紅字段 |
@@ -64,6 +64,13 @@
 | `src/synox/doctor.py` | 健康檢查（不改任何檔、不產生金鑰） |
 | `src/synox/health/` | 工具健康（[tool-health.md](tool-health.md)）：`failure.py`（失敗信封 v1、類別碼表、正規化、`ai_line`）、`state.py`（狀態機、指紋）、`store.py`（`data/health/tools.json.enc`，保管箱）、`settings.py`（config `health`）、`__init__.py`（`HealthRegistry`、fail open 的入口 `observe_*`／`hidden`、runtime 任務 `system.health`）。loader（cli）、`packs/mcp.py`、`agent/loop.py` 只經這些入口；權限仍只看 `policy.decide` |
 | `src/synox/brand.py` | 終端機門面：歡迎畫面（`show_banner`；`BANNER_COMMANDS`＝沒參數／run／open／wizard／init／doctor／about）、`about_text`、`TIPS`。只在互動終端機印；`--quiet`、`SYNOX_NO_BANNER`、`CI`、管線＝不印（既有輸出一個字都不變），`TERM=dumb`＝一行，`NO_COLOR`＝不上色；Windows 主控台 code page 不是 65001（cp950）或 `SYNOX_ASCII=1`＝ASCII logo。預覽 `docs/ui/cli-welcome.txt`（`scripts/make_cli_welcome.py`） |
+| `src/synox/notify/` | 通知中心（[notifications.md](notifications.md)）：`hub.py`（同一則送網頁、Telegram、Discord；`notify.install` 把 `app.notify_owner` 換成 hub 的）、`channels.py`（送達層的管道，包住 hub 的送法）、`outbox.py`（要確定送到的那幾則：每人一份、重開照樣重試）、`delivery.py`（送達介面，契約）、`desk.py`（跟電腦提醒視窗與哨兵的檔案溝通，不開埠，契約）、`deskapp.py`（`install_delivery`：佇列、視窗、誰是提醒引擎）、`alarms.py`（接下來會響的、可能漏掉的原因）、`store.py`、`web_api.py`；`install_buttons` 在 app.build 最後裝（[adr/0029](adr/0029-reminder-delivery-on-notify-hub.md)） |
+| `src/synox/remindwin/` | 電腦提醒視窗＋提醒哨兵（Windows 個人版）：`logic.py`（不開視窗就能測的邏輯）、`window.py`（tkinter，只負責畫）、`sentinel.py`（`python -m synox sentinel`：SYNOX 沒開時當提醒引擎，開著時讓位）、`launcher.py` |
+| `src/synox/update/` | SYNOX 自己更新（[adr/0023](adr/0023-updates-and-hotfixes.md)）：`check.py`（只在按了或打開每週檢查時才連網）、`prepare.py`（`Update.bat` 的前半段：下載、驗 SHA256／簽章、解到暫存）、`signing.py`（`release.json` 的 Ed25519、`RELEASE_PUBLIC_KEYS`）、`web_api.py`；換檔與退回在 `setup/update.ps1` |
+| `src/synox/helpui/`、`src/synox/aliases.py`、`src/synox/web/api_commands.py` | 新的 `/help`（工具按鈕 → 工具卡 → 指令卡，白話＋範例；`/help all` 照舊）；每人自己的指令符號與名字（例 `@記帳`，[commands.md](commands.md)）；網頁的 `/api/help`、`/api/aliases` |
+| `src/synox/tour/`、`src/synox/tutorials.py` | 新手教學引擎（`/tutorial`，[tutorials-engine.md](tutorials-engine.md)）：內建 `tour/tours/*.json`、畫面位置只能用 `tour/anchors.py` 的名字（不寫 CSS 選擇器）；`tutorials.py` 給圖文教學頁的路徑 |
+| `src/synox/theme/` | 外觀（換裝，[themes.md](themes.md)）：token 與 slot 的合約（`contract.py`）、SVG／CSS 消毒（`sanitize.py`）、外觀包 `kind=theme`（`pack.py`）、每個人選哪一套（`appearance.py`） |
+| `src/synox/identity.py`、`src/synox/telegram_link.py` | 身分對照：（通道, 外部 id）→ 內部使用者 id（`data/identities.json`；伺服器頻道用負號 id）；擁有者沒有 Telegram id 時之後在網頁配對 Telegram（資料不用搬） |
 | `packs/` | **出廠是空的**（2026-11-12，[legacy/builtin-packs.md](legacy/builtin-packs.md)）：使用者裝的工具的落點（`PACK_DIRS` 只有它），只有 `README.md` 進 git。所有工具的正本在 **SYNOX_Libs**（工具庫，另一個 repo；ADR 在它的 `docs/adr/0001`） |
 | ~~`connectors/`~~ | **已拿掉**（2026-11-12 搬走、2026-11-13 連說明都刪了，[legacy/connectors.md](legacy/connectors.md)）：以前的 notion、todoist、google-calendar、apple-reminders 連同測試在 SYNOX_Libs；loader 不掃、`BUNDLED` 是空的；舊版解壓縮蓋過來留下的 `connectors\` 不會被載入 |
 | `src/synox/packs/library.py` | 「還沒裝任何工具、去哪裡裝」：`installed_tools`（不算 `BUNDLED`；現在是空的）、`empty_hint`／`start_hint`（/start、/help 只給擁有者）、`install`（包 SDK 的 /help）、`status`（網頁 `/api/tools`、`/api/settings` 的 `library`）、`doctor_lines`；工具庫位置＝`config.json` 的 `packs.library`（`library_location`，不寫死路徑） |
@@ -71,6 +78,7 @@
 | `tests/fixtures/packs/` | host 測試用的 money／notes（下架前的凍結複本，不是正本、不加功能）；提醒直接測核心的 `/remind_*` |
 | `src/synox/connect.py` | `python -m synox connect <pack>`（例如 `connect apple-reminders`；入口屬於工具本身，SYNOX 不再附 `.bat`；要先從工具庫裝好那個工具）：照 pack.json `auth.fields` 用 getpass 問帳密，存進 `pack_secrets`（`src/synox/packs/secrets.py`，保管箱的鍵 `packs/<pack>/<field>`；跟 Web UI 工具頁「連接」表單是同一份）。帳密不經聊天：Telegram 會留紀錄、`[ROUTE]` log 印指令全文 |
 | `Setup.bat`、`setup/bootstrap.ps1` | 一鍵安裝；`Start.bat`／`Stop.bat`／`Console.bat` |
+| `src/synox/datastore/` | 資料版本與逐版升級（ADR 0044，[data-migrations.md](data-migrations.md)）：`versioned.py`（版本號、原子寫入、檔案鎖、備份）、`migrate.py`（`Chain`、升級 JSON／密文／旁檔／SQLite／資料夾）、`core.py`（`config.json`、`packs.lock`、`pack_data.json`，啟動時升）、`packdata.py`（工具的 `data_schema`、載入前升）、`report.py`（doctor、`data` 指令、設定頁共用）。**不變式：改任何持久化資料的格式＝加一個 `v→v+1` 步驟＋舊格式假資料的測試；寫檔先過 `Chain.upgrade_data`；不跳號、不降級** |
 | `tests/` | pytest；`conftest.py` 的 `make_bot` 用測試用的 packs＋真的 Vault＋`FakeAdapter`＋SDK `BotHarness`。測試期間 `loader.PACK_DIRS` 一律換成 `tests/fixtures/packs`（autouse `_test_pack_dirs`；不讀 repo 的 `packs/`），伺服器版的 make_bot 先把三個測試 pack 鎖成 core。空 host 的測試在 `tests/test_empty_host.py`。要讀工具庫的測試（`SYNOX_LIBS=<工具庫>`，沒有就跳過）：`test_empty_host` 的「工具庫每個工具打包→裝進空 host」、`test_smoke_real` 的四個服務、`test_sdk_p2_secret` 的 connector 不被 SYNOX 管 secret。connector 自己的測試在工具庫。穩定度 `stage` 的測試在 `tests/test_stage.py` |
 | `docs/` | 文件，索引在 [README.md](README.md)（新文件要登記在那裡）。產品文件是頂層的 `*.md`；`adr/` 架構決定；`handoff/` 給使用者的真機測試教學；`legacy/` 下架說明；`QuestionToUser.md` 等擁有者拍板的問答；`lab/` 實驗、研究、提案（`lab/discussions/` 設計討論、`lab/cross-repo/` 請別的 repo 做的事）。**已發佈頁面的本機副本不能搬**：`landing/`、`guide/`、`installer/`、`tutorials/`（執行時讀取）、`artifacts/`、`lab/design/`（`artifacts.json` 的 `local`、頁尾路徑、`tests/test_artifact_registry.py`） |
 
@@ -161,6 +169,13 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     狀態 `unapproved`、通知擁有者一次、設定頁「送去安裝頁檢查」（`packs/adopt.py`：原地打包 → `admin.stage` → 確認 → 原地那份搬到 `_removed` → `install_staged`）；
     `packs.dirs` 的用 `packs lock --approve`。`unlocked_scan` 已拿掉。**測試**：`make_bot` 預設把 `pack_dirs` 裡每個沒鎖的 pack 先鎖起來（`conftest.lock_all`，third-party）；
     要測「沒經過安裝頁」傳 `lock_packs=False`；自己叫 `build`／`load_all` 的測試要先 `lock_all(data_dir, dirs)`；手放的 python pack 要給成員看仍用 `trust_core`。
+    **標記警告（ADR 0041，`packs/packwarn.py`）**：pack.json 的 `warnings` 寫壞了不擋、不靜默（換成 `malformed_warning`、問題寫 log）；
+    有警告的 pack 鎖裡的 `accepted_warnings` 沒涵蓋全部 code＝不載入（狀態 `unaccepted`，`loader.warnings_reason`）；
+    鎖記「✅ 官方」又帶 `vendor_no_security_guarantee`＝`rejected`。`lock_all` 不會幫你確認警告：要測載入的就 `lock.approve(…, accepted_warnings=[code])`。
+    每個列出工具給人或 AI 看的地方都要帶警告（`packwarn.badge／lines／agent_note`、結構化的用 `for_agent`）；新增列出工具的地方也要接上。
+    警告下面的「這台實況」（ADR 0041 §5.5 S1）用 `sandbox.isolation_note(config, m, installing=)`＋`isolation_line`：只是顯示、沒有警告回 `{}`
+    （沒有警告的 pack 不准多任何鍵或字）；字要照實（只說這台的設定會怎麼跑，不說「已在 sandbox」）。
+    伺服器版 S2：`sandbox.no_guarantee(m)` 讓 `required()`／`restricted_reason()` 把 `vendor_no_security_guarantee` 當 T2 處理（只給擁有者，沿用 `owner_only`）。
 
 14. **kind=mcp stdio 的程序一律經 `packs/mcp.py` 的 `McpPool`**（P4a）：每個 `Scope.key(pack, user)` 一個長駐子程序（預設
     `PerUserScope`＝(pack, tg_id)；`SharedScope` 只有介面，擁有者還沒決定伺服器版要共用還是一人一個，**不要偷偷改成共用**）。
@@ -396,21 +411,19 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 - `Setup.bat` 的完整安裝路徑（winget、embeddable zip、wheelhouse 離線、文字版 init 退路）與安裝程式（`setup/installer/synox.iss`）
   都沒有在任何一台陌生電腦上跑過（清單：[handoff/clean-machine-test.md](handoff/clean-machine-test.md)）；精靈的畫面沒有自動化測試（只測了 logic／probe／shortcuts）。
   `requirements.lock` 還沒產生（開發機的 .venv 少 websocket-client，要在發佈機的乾淨 venv 產生）。
-- connector 全部接上了，但都只對假傳輸測過。網頁工具頁對 kind=python 一律顯示「已連接」，沒設憑證時要打各自的 `_status`；
 - 工具庫的 connector（notion、todoist、google-calendar、apple-reminders）全部接上了，但都只對假傳輸測過（標 🧪 alpha）。網頁工具頁對 kind=python 一律顯示「已連接」，沒設憑證時要打各自的 `_status`；
   Notion 指令參數照空白切（換行變空白）；Todoist 呼叫是同步的、逾時 15 秒；Apple 的帳號在電腦上用 `python -m synox connect apple-reminders`（或網頁工具頁的「連接」）設。
 - `[ROUTE]` log 會印指令全文（SDK dispatcher），所以任何密碼都不能設計成「在聊天裡打」的指令（Notion／Todoist 的 token 指令靠 `redact_in_logs` 遮罩）。
 - Google 日曆：連接只有指令（`/gcal_setup`、貼網址列回來），網頁沒有「連接」按鈕；只用主要日曆；`/gcal_rm` 的編號是最近一次列表；沒有改行程。
 - 文字協定一次只解析一個工具呼叫。
-- 看圖（[adr/0021](adr/0021-vlm-vision.md)）：只有 Telegram 私訊收圖，而且 SDK 把照片的說明文字（caption）丟了（AI 收到固定的「使用者只傳了圖片」）；
-  Discord 私訊、網頁沒有收圖的入口。沒有在任何真的 VLM 上跑過；Pillow 那條路（縮圖、轉正、GIF 第一幀）沒測；context 預算不估圖的 token。
+- 看圖（[adr/0021](adr/0021-vlm-vision.md)）：收圖的入口是 Telegram 私訊與網頁對話（📎、拖進來、貼上截圖，`web/uploads.py`，只在記憶體）；Telegram 那條 SDK 把照片的說明文字（caption）丟了（AI 收到固定的「使用者只傳了圖片」）；Discord 私訊沒有收圖的入口。沒有在任何真的 VLM 上跑過；Pillow 那條路（縮圖、轉正、GIF 第一幀）沒測；context 預算不估圖的 token。
 - kind=mcp：stdio（P4a）與遠端 http（P4b，token／OAuth 貼回網址）；OAuth loopback、動態註冊、GET 長連線串流沒做；巢狀 object／array 參數只有列進 `mcp.schema_tools` 的工具給 AI（schema 模式，
   `$ref`／`oneOf` 之類不支援、人打字打不出巢狀），其他的不給（doctor 列出）；還沒啟動過的 MCP 工具第一次只有 `args`
   一個參數（讀完 tools/list 才換成真的欄位，同一輪 AI 的 schema 是舊的、但第 4 關已經用新欄位）；`SharedScope` 沒做；
   沙盒後端包長駐程序（bwrap／systemd-run `--pipe`）沒在 Linux 真機驗過。
 - 伺服器版：個人版的舊資料不會自動搬到擁有者的 `data/users/<id>/`；精靈的伺服器版沒有多問「誰是管理員」（擁有者之後用 `/user_role <id> admin`
   或網頁帳號頁）。成員的 AI 額度用 token × 單價估（`llm.price_in`／`price_out`，預設 3／15 美元每百萬 token），不是供應者的帳單。
-- Web UI：主動通知（提醒、排程的結果、申請通知）仍然只走 Telegram（`app.home`），網頁對話頁只看得到在網頁上講的；圖片、檔案在網頁只顯示一行說明；
+- Web UI：主動通知經通知中心同時送到網頁（🔔）、Telegram、Discord（[notifications.md](notifications.md)），但網頁的**對話頁**只看得到在網頁上講的；圖片、檔案在網頁只顯示一行說明；
   網頁與 Telegram 的私訊共用同一份 AI 對話記憶（chat_id 都是那個人的 id）；pack reload 拿不掉 pack 自己綁的按鈕前綴；
   Telegram 指令選單在 reload 之後不會自動重設（重開 bot 才會）；設定頁改 AI 來源**立刻生效**（`agent.set_adapter`：對話助理與常駐助理一起換；只有「啟動時沒有 AI 才沒建的 Discord 頻道 AI」要重開才出現）。
 - `/backup` 的 Telegram 指令與還原按鈕沒做（只有網頁下載＋`synox.backup.restore_cli`）；備份綁 DPAPI，換電腦解不開。
@@ -428,10 +441,27 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 5. 文件：README 頂端的 alpha 說明仍然屬實；`<待補：…>` 佔位（SECURITY.md、LICENSING.md、CONTRIBUTING.md、.github/MAINTAINERS.md）都填好了。
 6. 測試全過：`.venv\Scripts\python.exe -m pytest -q`。
 
+### 維護者推送之前（每一次，2026-11 起）
+
+公開 repo 的歷史曾經帶出私人專案名與原話：舊的推送檢查只看「這次新增的行」，已經在檔案裡的字一直沒被擋。現在改成：
+
+1. **私人詞清單放在 repo 外**：`.git/info/synox-private-terms.txt`（在 `.git` 裡，不會被 commit；同一個 clone 的所有 worktree 共用）。
+   格式：一行一個字（不分大小寫）、`re:` 開頭是正規式、`#` 是註解、`# @category: <類別>`、`# @level: block|note`（note 不擋）。
+   也可以用 `--terms <檔>`、環境變數 `SYNOX_PRIVATE_TERMS`（檔案路徑）或 `SYNOX_PRIVATE_TERMS_TEXT`（內容本身，給 CI 的 secret）。
+   **清單不要放進 repo、不要貼進 issue／PR／commit 訊息。** 沒有清單時檢查會大聲警告；推送前檢查會直接擋下。
+2. **裝推送前檢查**（每個 clone 一次）：`cp scripts/hooks/pre-push .git/hooks/pre-push`（已經有自己的 pre-push 就在裡面呼叫它）。
+   它跑 `scripts/prepublish_check.py --pre-push <remote>`：每個要推的 ref 都看**推上去之後的整棵樹**（不是只看 diff），
+   加上遠端還沒有的**每一個 commit**（訊息、作者／提交者、帶進來的每個檔案與檔名）和 annotated tag 的訊息。有發現就擋下，報告只列位置與種類。
+3. **推之前自己再跑一次全量**：`.venv\Scripts\python.exe scripts\prepublish_check.py`（目前的檔案＋所有分支的歷史＋所有 commit／tag 訊息）。
+4. 被擋下時：把字換成中性說法（例如「另一個個人專案」）再 commit；已經推上去的舊 commit 裡有，要不要改寫歷史由維護者決定。
+   `git push --no-verify` 只有維護者本人可以決定。
+5. CI（`.github/workflows/prepublish-check.yml`）每次 push／PR 跑同一支檢查（目前的所有檔案；舊 commit 由推送前檢查與本機全量檢查負責）；repo 的 secret `SYNOX_PRIVATE_TERMS_TEXT`
+   有放清單時連私人詞一起查，沒有就只查其他項目並在紀錄裡警告。
+
 ## 線上頁面（Artifact）的規則（擁有者 2026-11-13）
 
 - **每一份**發佈到 claude.ai 的 Artifact 都要有 repo 裡的本機 HTML 副本（Artifact 壞了也還能給人用），並登記在 `docs/artifacts.json`
-  （更早的頁面在 `docs/artifacts/registry-archive.json`；工具庫的頁面在 SYNOX_Libs 的 `docs/site/`）。
+  （更早的規劃與調查頁面是維護者的私有文件，不在公開 repo；工具庫的頁面在 SYNOX_Libs 的 `docs/site/`）。
 - 頁尾最下面一行很小的字（使用者不會注意）：線上網址＋本機路徑＋頁面版本 `<span data-stamp>`。頁面版本＝內容的 sha256 前 10 碼＋日期，
   線上版和本機版一樣＝同一份。改頁面的順序：改本機檔 → `python scripts/page_stamp.py <檔>`（介紹頁用 `scripts/make_landing.py`）→ 重新發佈同一個網址。
 - `tests/test_artifact_registry.py` 會擋：沒有本機副本、頁尾沒有線上網址、改了內容沒重蓋頁面版本。

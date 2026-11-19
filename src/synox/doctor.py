@@ -141,6 +141,19 @@ def _discord_bot_line(spec, vault) -> tuple:
     return f"{head}：⚠️ token 直接寫在 config.json（建議改用保管箱：python -m synox discord token）", 0
 
 
+def _token_where(value) -> str:
+    """bot_token 放在哪（不印 token 本身）。"""
+    from synox import telegram_token as tt
+    value = str(value or "").strip()
+    if not value:
+        return ""
+    if value.startswith(tt.VAULT_PREFIX):
+        return "（在保管箱）"
+    if value.startswith(tt.ENV_PREFIX):
+        return f"（環境變數 {value[len(tt.ENV_PREFIX):]}）"
+    return "（⚠️ 明文寫在 config.json：下次啟動 SYNOX 會自動搬進保管箱）"
+
+
 def _heartbeat_line(config) -> str:
     """心跳（docs/adr/0001）：開關、間隔、安靜時段＋data/runtime/state.json 記的上一次（沒有個人資料的那份；不改檔）。"""
     from synox.runtime.loop import STATE_FILE, iso
@@ -436,6 +449,31 @@ def agent_lines(config, manifests) -> tuple:
     return lines, bad
 
 
+def data_lines(config, config_path: str) -> "tuple[List[str], int]":
+    """• 資料版本：核心的檔＋有 data_schema 的工具，各自的版本、要不要升級（ADR 0044；只看，不拿鎖、不寫）。
+    要升級的不算問題（下次啟動會自己升）；失敗、比這一版新的算。"""
+    from synox.datastore import core as data_core
+    from synox.datastore import report as data_report
+    try:
+        if config is None:
+            collected = {"core": data_core.status(None, os.path.join(ROOT, "data")), "packs": []}
+        else:
+            vault = None
+            if os.path.exists(os.path.join(config.data_dir, ".synox.key")):
+                try:
+                    from synox.vault import open_vault
+                    vault = open_vault(config)
+                except Exception:
+                    vault = None
+            collected = data_report.collect(config_path if os.path.exists(config_path) else None, config, vault)
+    except Exception as e:                              # 看不了不該讓 doctor 整段掛掉
+        return [f"• 資料版本：讀不了（{type(e).__name__}: {e}）"], 1
+    pending = any(r.needs_upgrade for g in collected.values() for r in g)
+    head = "• 資料版本：" + ("有要升級的（下次啟動 SYNOX 會自己升；先看會做什麼：python -m synox data upgrade --dry-run）"
+                          if pending else "都是這一版的格式")
+    return [head] + data_report.lines(collected), data_report.problems(collected)
+
+
 def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] = print) -> int:
     problems = 0
     out(f"🩺 SYNOX {__version__} 健康檢查")
@@ -454,7 +492,10 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
             config = SynoxConfig.load(path, require_token=False)
             r = redacted(config.raw)
             out(f"• 設定：✅ {os.path.basename(path)}　bot_token {'格式正確' if config.has_token else '❌ 不是有效的 token'}"
-                f"　owner_id {'有填' if config.owner_id else '❌ 沒填'}")
+                f"{_token_where(config.raw.get('bot_token'))}　owner_id {'有填' if config.owner_id else '❌ 沒填'}")
+            if config.token_problem:
+                out(f"  ⚠️ {config.token_problem}")
+                problems += 1
             out(f"  模式：{config.mode}（{MODE_LABELS[config.mode]}）"
                 + ("　陌生人是訪客、vault 的資料每人一份 data/users/<id>/" if config.server else ""))
             if config.server:                                  # 架構限制（只說明，不算問題）
@@ -549,7 +590,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
     # packs
     from synox.packs import envs
     from synox.packs import lock as pack_lock
-    from synox.packs import loader
+    from synox.packs import loader, packwarn
     from synox.packs.loader import PACK_DIRS, discover
     from synox.packs.manifest import ManifestError, read, synox_problem
     lines: List[str] = []
@@ -595,11 +636,26 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 lines.append(f"  ⚠️ {m.name} {m.version}：{no_env}  {rel}")
                 problems += 1
                 continue
+            warned = loader.warnings_reason(config, m) if config is not None and enabled else None   # ADR 0041
+            if warned:
+                lines.append(f"  ⛔ {m.name} {m.version}：不會載入。{warned[1]}  {rel}")
+                problems += 1
+                continue
             state = "connector（只登記）" if m.registered_only else ("✅" if enabled else "⏸ 停用")
             if enabled and not loader.is_bundled(m):
                 tools.append(m.name)                 # 使用者自己裝的工具（出廠的不算；loader.BUNDLED 現在是空的）
             lock_mark = "🔒" if lock_state == pack_lock.LOCKED else "未鎖定"
-            lines.append(f"  {state} {m.name} {m.version} {m.stage_label}（{m.kind}，/{m.group}，{lock_mark}）  {rel}")
+            badge = packwarn.badge(m.warnings)
+            lines.append(f"  {state} {m.name} {m.version} {m.stage_label}" + (f" {badge}" if badge else "")
+                         + f"（{m.kind}，/{m.group}，{lock_mark}）  {rel}")
+            for warn_line in packwarn.lines(m.warnings):     # 作者標的警告：每條一行（擁有者確認過也照樣列）
+                lines.append(f"     ⚠️ {warn_line}")
+            if m.warnings:                                   # 警告下面：SYNOX 自己寫的「這台實況」（ADR 0041 S1，只是顯示）
+                iso = sandbox.isolation_line(sandbox.isolation_note(config, m))
+                if iso:
+                    lines.append(f"     {iso}")
+            for warn_problem in m.warning_problems:          # warnings 寫壞的地方（不擋載入，但不靜默）
+                lines.append(f"     ⚠️ warnings 寫得不對：{warn_problem}")
             if enabled:
                 loadable.append(m)
                 note = secret_lookup(m)
@@ -641,6 +697,10 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
         problems += "⚠️" in line
     health_text, bad = health_lines(config, os.path.join(ROOT, "data"))
     for line in health_text:
+        out(line)
+    problems += bad
+    data_text, bad = data_lines(config, path)          # 資料版本（ADR 0044）：只看，不升級、不改檔
+    for line in data_text:
         out(line)
     problems += bad
 

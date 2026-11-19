@@ -11,6 +11,8 @@
 - 存的是貼上的原文；每次送網頁都重新消毒（消毒規則更新了，舊的東西照新規則；過不了＝那一格當作沒貼）。
 - 背景（chat.background）：自己選的（不要、純色、花紋、自己貼）蓋過外觀包的；「跟著外觀」＝外觀包有就用它的。
   網頁上是 <html data-chat-bg="none|color|dots|grid|stripes|glow">（空＝看 slot 有沒有東西）＋純色的 --chat-bg-color。
+- 電腦提醒視窗（synox/remindwin）跟著擁有者的外觀：SYNOX 開起來時、擁有者改外觀時，把外觀包的顏色 token 與
+  淺色／深色寫進 data/remind/desk/style.json（publish_desk_style；只有顏色、字型名、圓角，沒有個人資料）。
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ import re
 import threading
 from typing import Dict, List, Optional, Tuple
 
+from synox.theme import check as theme_check
 from synox.theme import contract, defaults, sanitize
 from synox.theme import pack as theme_pack
 from synox.theme import tokens as theme_tokens
@@ -90,6 +93,36 @@ class Appearance:
         self._lock = threading.Lock()
         self._bundles: Dict[str, tuple] = {}            # 名字 → (signature, Bundle 或 None)
         self._custom: Dict[str, sanitize.Clean] = {}    # (slot, sha256) → Clean
+        on_start = getattr(app, "on_start", None)
+        if isinstance(on_start, list):                  # 真的跑起來才寫（只 build 的測試不碰 data/remind）
+            on_start.append(lambda _app: self.publish_desk_style())
+
+    # ── 電腦提醒視窗 ──
+    def desk_style(self) -> Tuple[str, str, Dict[str, Dict[str, str]]]:
+        """擁有者現在的外觀 → (外觀包名字, mode, {"light": {...}, "dark": {...}} 檢查過的 token)。"""
+        pref = self.effective(self.owner_id())
+        name, tokens = "", {}
+        if pref.get("theme"):
+            m = self.manifest(pref["theme"])
+            if m is not None and self.bundle_of(m) is not None:
+                parsed, problems = theme_tokens.parse_tokens((getattr(m, "theme", None) or {}).get("tokens") or {})
+                if not problems:
+                    name, tokens = m.name, parsed
+        return name, pref.get("mode") or "auto", tokens
+
+    def publish_desk_style(self) -> None:
+        """寫 data/remind/desk/style.json（電腦提醒視窗的顏色）。伺服器版沒有電腦視窗：不寫。失敗只記 log。"""
+        if getattr(self.config, "mode", "personal") == "server":
+            return
+        data_dir = getattr(self.config, "data_dir", "")
+        if not data_dir:
+            return
+        try:
+            from synox.remindwin import style as desk_style
+            name, mode, tokens = self.desk_style()
+            desk_style.write(data_dir, theme=name, mode=mode, tokens=tokens)
+        except Exception:
+            logging.exception("[THEME] cannot pass the look to the reminder window")
 
     # ── 裝了哪些 ──
     def installed(self) -> List:
@@ -192,6 +225,8 @@ class Appearance:
         if changes.get("reset"):
             current = {}
         self.prefs.set(int(tg_id), PREF_KEY, current or None)
+        if int(tg_id) == self.owner_id():
+            self.publish_desk_style()                   # 電腦提醒視窗下一張卡照新的外觀
         return self.effective(tg_id)
 
     def clean_custom(self, slot: str, text) -> sanitize.Clean:
@@ -267,7 +302,8 @@ class Appearance:
         for m in self.installed():
             themes.append({"name": m.name, "title": m.title, "summary": m.summary, "version": m.version,
                            "publisher": m.publisher, "tokens": m.theme.get("tokens") or {},
-                           "slots": sorted(m.theme.get("slots") or {}), "ok": self.bundle_of(m) is not None})
+                           "slots": sorted(m.theme.get("slots") or {}), "ok": self.bundle_of(m) is not None,
+                           "check": theme_check.coverage(m.theme)})          # 套用檢查（ADR 0042）：提示，不擋
         custom = {}
         for slot, text in (eff.get("custom") or {}).items():
             try:
@@ -358,12 +394,10 @@ main{padding:8px 10px;display:flex;flex-direction:column;gap:6px;min-width:0;pos
 
 
 def preview_tokens(tokens: Optional[dict]) -> str:
-    """預覽頁的 token：外觀包的（沒給＝原本的 SYNOX，進階的用算的）。"""
-    if not tokens:
-        light = dict(contract.DEFAULTS["light"])
-        dark = {**{k: light[k] for k in contract.MASCOT_TOKENS + ("m-hi",) if k in light}, **contract.DEFAULTS["dark"]}
-        tokens = {"light": light, "dark": dark}
-    return theme_tokens.token_css(tokens)
+    """預覽頁的 token：先墊 SYNOX 原本的（跟網頁的 :root 同一份，contract.root_css），再蓋外觀包的。
+    外觀包沒給的 token（例如比它新的 SYNOX 才加的）跟真的網頁一樣沿用 SYNOX 的，預覽不會缺色（ADR 0042）。"""
+    base = contract.root_css()
+    return base + "\n" + theme_tokens.token_css(tokens) if tokens else base
 
 
 def preview_page(title: str, mode: str, bundle: Optional[theme_pack.Bundle], tokens: Optional[dict]) -> str:

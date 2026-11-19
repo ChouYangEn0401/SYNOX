@@ -263,6 +263,31 @@ test("remote: no back link, no export request, close-remote button", async () =>
   assert.ok(texts(t2.env.document).includes(K.TEXT.back));
 });
 
+test("ticket refused: never a blank page — mask says what happened and links back to SYNOX", async () => {
+  const t = await started([{ status: 401, body: { ok: false, code: "login" } }], { hash: "#t=abcdefghijklmnopqrstuvwxyz" });
+  const mask = find(t.env.document, (n) => n.className === "synox-mask");
+  assert.ok(mask, "mask shown");
+  assert.ok(texts({ body: mask }).includes(K.TEXT.ticket));
+  const back = find({ body: mask }, (n) => n.tagName === "a");
+  assert.strictEqual(back.href, "CONSOLE");
+  assert.strictEqual(back._text, K.TEXT.back);
+  assert.ok(!texts(t.env.document).includes("abcdefghij"));      // 票不出現在畫面上
+  assert.ok(!("synox.app.token" in t.store));
+  const t2 = await started(["down"], { hash: "#t=abcdefghijklmnopqrstuvwxyz" });
+  assert.ok(texts(t2.env.document).includes(K.TEXT.closed));
+});
+
+test("shell bar: own synox- classes, not the tool's .btn/.danger", async () => {
+  const t = await started([{ status: 200, body: ME }], { token: "T" });
+  const bar = find(t.env.document, (n) => n.className === "synox-bar");
+  const close = find({ body: bar }, (n) => n.tagName === "button" && n._text === K.TEXT.closeService);
+  const leave = find({ body: bar }, (n) => n.tagName === "button" && n._text === K.TEXT.leave);
+  assert.strictEqual(close.className, "synox-btn synox-btn-danger");
+  assert.strictEqual(leave.className, "synox-btn synox-btn-ghost");
+  assert.strictEqual(close.type, "button");
+  walk(bar).forEach((n) => { assert.ok(!/(^|\s)(btn|danger|muted|ghost|badge)(\s|$)/.test(n.className), n.className); });
+});
+
 (async () => {
   let failed = 0;
   for (const [name, fn] of tests) {

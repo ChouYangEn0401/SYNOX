@@ -14,6 +14,9 @@
     start: "開始用",
     stop: "關掉",
     keep: "先不要關",
+    starting: "開啟中…",
+    stopping: "關閉中…",
+    working: "處理中…",
     stopAll: "全部關掉",
     whatIs: "這是什麼？為什麼要關？",
     inUseTitle: "怎樣算「有在用」：",
@@ -126,7 +129,41 @@
     var b = el("button", "primary", TEXT.open);
     b.type = "submit";
     f.appendChild(b);
+    // 送出後短暫停用，免得連按開出好幾張交接票；要等表單真的送出去才停用（放到下一輪，不擋這次送出）
+    f.addEventListener("submit", function () {
+      if (typeof setTimeout !== "function") { return; }
+      setTimeout(function () {
+        b.disabled = true;
+        setTimeout(function () { b.disabled = false; }, 2000);
+      }, 0);
+    });
     return f;
+  }
+
+  /* 按下去之後：請求真的開始時（mark()）把這一列的按鈕都停用、按下的那顆改字；請求結束（成功或失敗）都還原。
+   * 成功時 refresh 會重畫整張卡片，舊的這列就不見了；還原是給 refresh 失敗、卡片沒被重畫的時候，不讓按鈕永遠卡住。 */
+  function whileBusy(row, button, label, run) {
+    var saved = null;
+    function mark() {
+      if (saved) { return; }
+      saved = { text: button.textContent, list: [] };
+      (row.children || []).forEach(function (n) {
+        if (n.tagName && String(n.tagName).toLowerCase() === "button") { saved.list.push([n, n.disabled]); n.disabled = true; }
+      });
+      button.textContent = label;
+      button.setAttribute("aria-busy", "true");
+    }
+    function restore() {
+      if (!saved) { return; }
+      saved.list.forEach(function (p) { p[0].disabled = p[1]; });
+      button.textContent = saved.text;
+      button.setAttribute("aria-busy", "false");
+      saved = null;
+    }
+    var p;
+    try { p = run(mark); } catch (e) { restore(); throw e; }
+    if (p && typeof p.then === "function") { p.then(restore, restore); } else { restore(); }
+    return p;
   }
 
   /* ctx：{ canManage, csrf, explain, onStart(view), onStop(view), onKeep(view), onPolicy(view, body), confirm(text) → Promise } */
@@ -150,16 +187,16 @@
     if (ctx.canManage) {
       if (view.state === "on") {
         var stop = el("button", "", TEXT.stop);
-        stop.addEventListener("click", function () { ctx.onStop(view); });
+        stop.addEventListener("click", function () { whileBusy(row, stop, TEXT.stopping, function (mark) { return ctx.onStop(view, mark); }); });
         row.appendChild(stop);
         if (view.suggest_close) {
           var keep = el("button", "", TEXT.keep);
-          keep.addEventListener("click", function () { ctx.onKeep(view); });
+          keep.addEventListener("click", function () { whileBusy(row, keep, TEXT.working, function (mark) { return ctx.onKeep(view, mark); }); });
           row.appendChild(keep);
         }
       } else if (policy.mode !== "blocked" && !view.problem) {
         var start = el("button", "primary", TEXT.start);
-        start.addEventListener("click", function () { ctx.onStart(view); });
+        start.addEventListener("click", function () { whileBusy(row, start, TEXT.starting, function (mark) { return ctx.onStart(view, mark); }); });
         row.appendChild(start);
       }
     }
@@ -281,17 +318,17 @@
     return {
       canManage: !!(last && last.can_manage), csrf: deps.csrf ? deps.csrf() : "", explain: last && last.explain,
       confirm: confirmBox,
-      onStart: function (view) {
+      onStart: function (view, mark) {
         var first = last && !last.explained;
-        var go = function () { return act("/api/apps/" + view.name + "/start", { explained: true }); };
-        if (!first) { return act("/api/apps/" + view.name + "/start", {}); }
+        var go = function () { if (mark) { mark(); } return act("/api/apps/" + view.name + "/start", { explained: true }); };
+        if (!first) { if (mark) { mark(); } return act("/api/apps/" + view.name + "/start", {}); }
         var e = last.explain || {};
         return confirmBox([TEXT.firstTitle, e.what, e.why_close, e.restart].join("\n"), TEXT.firstOk).then(function (yes) {
           if (yes) { return go(); }
         });
       },
-      onStop: function (view) { return act("/api/apps/" + view.name + "/stop"); },
-      onKeep: function (view) { return act("/api/apps/" + view.name + "/keep"); },
+      onStop: function (view, mark) { if (mark) { mark(); } return act("/api/apps/" + view.name + "/stop"); },
+      onKeep: function (view, mark) { if (mark) { mark(); } return act("/api/apps/" + view.name + "/keep"); },
       onPolicy: function (view, body) { return act("/api/apps/" + view.name + "/policy", body); }
     };
   }

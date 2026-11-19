@@ -130,6 +130,15 @@ def read_cfg(tmp_path):
         return json.load(f)
 
 
+def saved_token(tmp_path) -> str:
+    """config.json 只寫 "vault:telegram_bot_token"：照啟動的方式解開（同一個 tmp 保管箱）。明文不准留在檔裡。"""
+    from synox.config import SynoxConfig
+    path = tmp_path / "config.json"
+    assert read_cfg(tmp_path)["bot_token"] == "vault:telegram_bot_token"
+    assert TOKEN not in path.read_text(encoding="utf-8")
+    return SynoxConfig.load(str(path), require_token=False).bot_token
+
+
 def test_init_non_interactive_web_only(tmp_path):
     rc, text = run_init(tmp_path, init_args(llm="none"))
     assert rc == 0, text
@@ -197,7 +206,7 @@ def test_init_interactive(tmp_path):
                         answers=["2", "42", "1", "", "starter", "y"], secrets=[TOKEN])
     assert rc == 0, text
     cfg = read_cfg(tmp_path)
-    assert (cfg["mode"], cfg["owner_id"], cfg["bot_token"], cfg["llm"]["kind"]) == ("server", 42, TOKEN, "none")
+    assert (cfg["mode"], cfg["owner_id"], saved_token(tmp_path), cfg["llm"]["kind"]) == ("server", 42, TOKEN, "none")
     assert os.path.isfile(tmp_path / "packs" / "notes" / "pack.json") and not (tmp_path / "packs" / "money").exists()
 
 
@@ -214,7 +223,7 @@ def test_init_interactive_keeps_existing_and_can_cancel(tmp_path):
     assert rc == 1 and read_cfg(tmp_path)["web"]["port"] == 9999
     rc, text = run_init(tmp_path, init_args(llm="none"))
     cfg = read_cfg(tmp_path)
-    assert rc == 0 and (cfg["mode"], cfg["owner_id"], cfg["bot_token"], cfg["web"]["port"]) == ("server", 7, TOKEN, 9999)
+    assert rc == 0 and (cfg["mode"], cfg["owner_id"], saved_token(tmp_path), cfg["web"]["port"]) == ("server", 7, TOKEN, 9999)
 
 
 def test_init_key_goes_to_vault_not_config(tmp_path):

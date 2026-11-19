@@ -14,6 +14,9 @@
 
 截斷：SYNOX 的提示（系統說明＋全部工具規格）用字元數 ÷ 2.5 估 token（中文偏保守）；context 小於
 「提示＋回覆上限」的選項標成「會截斷」（測試紀錄：Ollama 預設 4096 超過時會靜默丟掉最前面）。
+
+「模型本身最多多長」（model_max_ctx：選項的上限）跟「現在載入成多長」（loaded_ctx：LM Studio／vLLM 實際在用的）是兩件事：
+LM Studio 載入時設的 Context Length 太小，不是記憶體或模型的問題，要講清楚怎麼重新載入（loaded_context_note）。
 """
 
 from __future__ import annotations
@@ -33,6 +36,49 @@ OK_RATIO, TIGHT_RATIO = 0.60, 0.85
 STATIC_WEIGHTS = 6.0e9
 STATIC_KV_PER_TOKEN = 2 * 36 * 8 * 128 * 2       # 36 層、8 個 kv head、head_dim 128、f16 ≈ 144 KB／token
 LEVEL_TEXT = {"ok": "建議", "tight": "吃緊", "risky": "可能撐不住", "unknown": "量不到記憶體"}
+SERVER_NAMES = {"ollama": "Ollama", "vllm": "vLLM", "lmstudio": "LM Studio", "other": "伺服器"}
+
+
+def need_bytes(ctx: int, weights_bytes: Optional[int] = None, kv_per_token: Optional[int] = None) -> int:
+    """這個 context 估計要多少記憶體（權重＋KV cache＋執行時額外；估算）。"""
+    weights = int(weights_bytes) if weights_bytes else int(STATIC_WEIGHTS)
+    per_token = int(kv_per_token) if kv_per_token else STATIC_KV_PER_TOKEN
+    return int(weights + per_token * int(ctx) + OVERHEAD_BYTES + OVERHEAD_RATIO * weights)
+
+
+def level_of(need: int, avail_ram: Optional[int]) -> str:
+    if not avail_ram:
+        return "unknown"
+    if need <= avail_ram * OK_RATIO:
+        return "ok"
+    if need <= avail_ram * TIGHT_RATIO:
+        return "tight"
+    return "risky"
+
+
+def how_to_reload(server: str, want: int) -> str:
+    """要把 context 換成 want 時怎麼做（一句人話）。"""
+    if server == "lmstudio":
+        return (f"做法：在上面選 {want}，按「用 {want} 重新載入」；或在 LM Studio 把這個模型退出（Eject），"
+                f"重新載入時把 Context Length 設成 {want} 以上。")
+    if server == "ollama":
+        return f"做法：Context 長度選 {want}，按「存起來」。"
+    if server == "vllm":
+        return f"做法：vLLM 啟動參數加 --max-model-len {want}（或更大），重開伺服器。"
+    return f"做法：在伺服器那邊把 context 設成 {want} 以上，再重開伺服器。"
+
+
+def loaded_context_note(loaded_ctx: int, *, min_ctx: int, comfortable: int, want: Optional[int] = None,
+                        server: str = "lmstudio") -> str:
+    """模型**現在載入的** context 夠不夠放 SYNOX 的提示（一句人話；夠＝✅）。want：建議換成多長。"""
+    want = int(want or comfortable)
+    if loaded_ctx < min_ctx:
+        return (f"❌ 模型現在載入的 context 只有 {loaded_ctx}，放不下 SYNOX 的提示（至少要 {min_ctx}）。"
+                "這不是記憶體不夠或模型太大，是載入時 Context Length 設得太小。" + how_to_reload(server, want))
+    if loaded_ctx < comfortable:
+        return (f"⚠️ 模型現在載入的 context {loaded_ctx} 只夠放 SYNOX 的提示，對話一長就會被截斷。"
+                + how_to_reload(server, want))
+    return f"✅ 模型現在載入的 context {loaded_ctx} 夠放 SYNOX 的提示和對話。"
 
 
 def tokens_from_chars(chars: int) -> int:
@@ -99,8 +145,11 @@ def _gb(n) -> str:
 def advise(*, avail_ram: Optional[int], total_ram: Optional[int] = None, weights_bytes: Optional[int] = None,
            kv_per_token: Optional[int] = None, kv_source: str = "static", model_max_ctx: Optional[int] = None,
            prompt_tokens: Optional[int] = None, max_tokens: int = 1024, source: str = "ollama",
-           options=OPTIONS) -> dict:
-    """純函式：每個選項的等級＋建議值＋說明。source：ollama（讀到模型資料）｜static（沒連上，用靜態假設）。"""
+           options=OPTIONS, loaded_ctx: Optional[int] = None, loaded: Optional[bool] = None,
+           server: str = "ollama") -> dict:
+    """純函式：每個選項的等級＋建議值＋說明。source：ollama（讀到模型資料）｜server（連上了，但伺服器沒給算 KV 的
+    細節）｜static（沒連上，用靜態假設）。model_max_ctx＝模型本身最多多長（選項上限）；loaded_ctx＝現在載入成多長
+    （LM Studio／vLLM；只拿來說夠不夠、怎麼重新載入，不限制選項）；loaded＝False 時說怎麼載入。"""
     measured = prompt_tokens is not None
     prompt = int(prompt_tokens) if measured else DEFAULT_PROMPT_TOKENS
     weights = int(weights_bytes) if weights_bytes else int(STATIC_WEIGHTS)
@@ -112,15 +161,8 @@ def advise(*, avail_ram: Optional[int], total_ram: Optional[int] = None, weights
         choices = [int(model_max_ctx)]
     rows = []
     for ctx in choices:
-        need = weights + per_token * ctx + OVERHEAD_BYTES + OVERHEAD_RATIO * weights
-        if not avail_ram:
-            level = "unknown"
-        elif need <= avail_ram * OK_RATIO:
-            level = "ok"
-        elif need <= avail_ram * TIGHT_RATIO:
-            level = "tight"
-        else:
-            level = "risky"
+        need = need_bytes(ctx, weights, per_token)
+        level = level_of(need, avail_ram)
         truncates = ctx < min_ctx
         text = LEVEL_TEXT[level] + f"（估計要 {_gb(need)}）"
         if truncates:
@@ -138,6 +180,11 @@ def advise(*, avail_ram: Optional[int], total_ram: Optional[int] = None, weights
     notes = ["⚠️ 以下都是**估算**，不是量測：實際用量看模型、量化、伺服器版本與同時開著的程式。"]
     if source == "static":
         notes.append("沒連上 Ollama（或不是 Ollama）：用常見 7–9B、Q4 模型的假設（權重約 6 GB）粗估。連上之後會照你的模型重算。")
+    elif source == "server":
+        name = SERVER_NAMES.get(server, server)
+        notes.append(f"{name} 沒給算 KV cache 要的模型細節："
+                     + (f"權重照 {name} 回報的約 {_gb(weights)}，" if weights_bytes else "權重用常見 7–9B、Q4 的假設（約 6 GB），")
+                     + "KV cache 用常見 7–9B 模型的保守假設粗估。")
     else:
         kv_text = {"exact": "照模型資料算", "rough": "模型資料不齊，用偏大的估計", "static": "沒有模型資料，用保守假設"}[kv_source]
         notes.append(f"根據：權重約 {_gb(weights)}＋KV cache 每 1000 tokens 約 {per_token * 1000 / 1e6:.0f} MB（{kv_text}）"
@@ -153,12 +200,29 @@ def advise(*, avail_ram: Optional[int], total_ram: Optional[int] = None, weights
                  + f"；context 小於 {min_ctx}（提示＋回覆上限 {max_tokens}）一定會被截斷，"
                    f"建議至少 {comfortable}（再留對話紀錄的空間）。")
     if model_max_ctx:
-        notes.append(f"這個模型最多 {model_max_ctx}；選項不會超過它。")
+        notes.append(f"這個模型本身最多 {model_max_ctx}；選項不會超過它。")
+    want = recommended or comfortable
+    reload_to = None
+    if loaded_ctx:
+        notes.append(loaded_context_note(int(loaded_ctx), min_ctx=min_ctx, comfortable=comfortable, want=want,
+                                         server=server))
+        if int(loaded_ctx) < comfortable and recommended:
+            reload_to = recommended
+    elif loaded is False and server == "lmstudio":
+        notes.append(f"模型還沒載入：在上面選 {want}，按「載入這個模型」；或在 LM Studio 載入時把 Context Length 設成 {want} 以上。")
     if recommended is None:
-        notes.append("❌ 沒有一個選項夠放 SYNOX 的提示又不吃緊：換小一點的模型、關掉其他程式，或少裝幾個工具。")
+        if model_max_ctx and int(model_max_ctx) < min_ctx:
+            notes.append(f"❌ 這個模型本身最多只能 {model_max_ctx}，放不下 SYNOX 的提示（至少要 {min_ctx}）："
+                         "換一個 context 更長的模型，或少裝幾個工具。")
+        elif not any(not r["truncates"] for r in rows):
+            notes.append(f"❌ 沒有一個選項放得下 SYNOX 的提示（至少要 {min_ctx}）：少裝幾個工具。")
+        else:
+            notes.append("❌ 沒有一個選項夠放 SYNOX 的提示又撐得住：放得下的那幾個，估計這台電腦的記憶體都不夠——"
+                         "換小一點的模型、關掉其他程式，或少裝幾個工具。")
     return {"options": rows, "recommended": recommended, "min_context": min_ctx, "comfortable": comfortable,
             "prompt_tokens": prompt, "prompt_measured": measured, "source": source, "notes": notes,
-            "avail_ram": avail_ram, "total_ram": total_ram, "model_max_ctx": model_max_ctx}
+            "avail_ram": avail_ram, "total_ram": total_ram, "model_max_ctx": model_max_ctx,
+            "loaded_context": int(loaded_ctx) if loaded_ctx else None, "reload_to": reload_to}
 
 
 def from_report(report: Optional[dict], *, prompt_chars: Optional[int] = None, max_tokens: int = 1024,
@@ -166,19 +230,26 @@ def from_report(report: Optional[dict], *, prompt_chars: Optional[int] = None, m
     """LocalAdapter.inspect() 的結果（或 None＝沒探測）→ advise()。ram：(可用, 總共)，測試傳假的；None＝量這台。"""
     avail, total = ram if ram is not None else system_ram()
     prompt_tokens = tokens_from_chars(prompt_chars) if prompt_chars else None
-    usable = bool(report) and report.get("reachable") and report.get("model_found") and server == "ollama"
+    reached = bool(report) and report.get("reachable") and report.get("model_found")
+    usable = reached and server == "ollama"
+    got = report or {}
     if usable:
         per_token, how = kv_bytes_per_token(report.get("model_info"))
         out = advise(avail_ram=avail, total_ram=total, weights_bytes=report.get("model_size") or None,
                      kv_per_token=per_token, kv_source=how, model_max_ctx=report.get("max_context"),
-                     prompt_tokens=prompt_tokens, max_tokens=max_tokens, source="ollama")
+                     prompt_tokens=prompt_tokens, max_tokens=max_tokens, source="ollama", server=server)
     else:
-        out = advise(avail_ram=avail, total_ram=total, model_max_ctx=(report or {}).get("max_context"),
-                     prompt_tokens=prompt_tokens, max_tokens=max_tokens, source="static")
+        out = advise(avail_ram=avail, total_ram=total, weights_bytes=got.get("model_size") or None,
+                     model_max_ctx=got.get("max_context"), loaded_ctx=got.get("loaded_context"),
+                     loaded=got.get("loaded"), prompt_tokens=prompt_tokens, max_tokens=max_tokens,
+                     source="server" if reached else "static", server=server)
         if report and report.get("problems"):
             out["notes"].insert(1, "探測：" + report["problems"][0])
-    if server != "ollama":
-        out["notes"].insert(1, "提醒：vLLM／LM Studio／其他伺服器的 context 要在伺服器那邊設，SYNOX 只拿來對照截斷。")
+    if server == "lmstudio":
+        out["notes"].insert(1, "提醒：LM Studio 的 context 是載入模型時決定的，對話時 SYNOX 改不了；要換長度就重新載入"
+                               "（設定頁的按鈕，或在 LM Studio 裡）。")
+    elif server != "ollama":
+        out["notes"].insert(1, "提醒：vLLM／其他伺服器的 context 要在伺服器那邊設，SYNOX 只拿來對照截斷。")
     out["server"] = server
     return out
 

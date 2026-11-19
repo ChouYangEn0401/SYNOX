@@ -1,7 +1,7 @@
 """預覽版的版本號（0.2.1-alpha.1 這種）在 SYNOX 每個比版本的地方都要對（docs/versioning.md）。
 
 - SYNOX 自己的新舊（檢查更新、Update.bat、-FromZip）：semver，0.2.0 < 0.2.1-alpha.1 < 0.2.1-beta.1 < 0.2.1。
-- 工具的 requires.synox：照 versioning.md §5 只比 X.Y.Z、預覽版的尾巴不看（0.2.1-alpha.1 當成 0.2.1）。
+- 工具的 requires.synox：照 versioning.md §6 只比 X.Y.Z、預覽版的尾巴不看（0.2.1-alpha.1 當成 0.2.1）。
 """
 
 import json

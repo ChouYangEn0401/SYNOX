@@ -1,5 +1,7 @@
 # 交接：2026-11-13～14 這兩輪（接在 docs/lab/HANDOFF-2026-11-13-round2.md 之後）
 
+> **歷史紀錄（2026-11-14 的狀態），不是現況。** 之後已經打了 `v0.2.1-alpha.1`、`v0.2.1-beta.1`、`v0.2.1-beta.2` 的 tag（發佈分支 `release/0.2.1`；第 4 節「還沒發過任何 release、沒打過 tag」、第 3 節工具庫的分支狀態都過期了）。現在的入口是 [../HANDOFF.md](../HANDOFF.md)，開發流程與測試基準線怎麼記在 [../development.md](../development.md)。
+
 **給誰**：接手 SYNOX 的下一個人（或下一個 Claude）。照順序讀，先看「沒在 Windows 上試過」那一節。
 **依據**：`git log dev`（2026-11-13 下午～2026-11-14 凌晨的合併）、`CHANGELOG.md` 最上面幾節「未發佈」、`docs/artifacts.json`。
 兩邊不一樣時以程式為準。

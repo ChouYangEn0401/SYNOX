@@ -66,6 +66,7 @@ SENSITIVE = {
     "/api/backup": "備份",
     "/api/accounts/role": "改帳號的角色",
     "/api/settings/update/launch": "更新 SYNOX",
+    "/api/settings/restart": "重新啟動 SYNOX",
 }
 
 # 預設就擋（deny-by-default）：這幾個前綴底下的非 GET 都算敏感（改設定、裝工具、金鑰、背景任務、帳號、備份），

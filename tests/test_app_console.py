@@ -125,7 +125,24 @@ def test_handoff(counter, owner):
     assert AppClient(manager, "counter").post("/api/enter", {"ticket": tickets[-1]})[0] == 200
     raw = open(manager.audit.path, encoding="utf-8").read()
     assert '"handoff"' in raw and ticket not in raw
-    assert c.raw("GET", "/apps/counter/open")[0] in (404, 405)
+    status, gh, gbody = c.raw("GET", "/apps/counter/open")
+    assert status == 405                         # 說明頁，不是「找不到」
+    gh = dict(gh)
+    assert gh["Allow"] == "POST" and "Location" not in gh
+    assert gh["Referrer-Policy"] == "no-referrer" and gh["Cache-Control"] == "no-store"
+    assert "工具頁按「打開」才能用".encode() in gbody and b'href="/"' in gbody
+    assert open(manager.audit.path, encoding="utf-8").read().count('"handoff"') == raw.count('"handoff"')  # 沒發票
+
+
+def test_handoff_get_page_issues_nothing(counter, owner):
+    bot, manager = counter(raw={"mode": "server"})
+    c = console(bot, owner)
+    status, h, body = c.raw("GET", "/apps/counter/open?x=<script>alert(1)</script>")
+    assert status == 405 and "Location" not in dict(h)
+    assert b"<script>alert" not in body and b"counter" not in body
+    assert manager.running() == []               # 沒開服務
+    bad = c.raw("GET", "/apps/%3Cx%3E/open")
+    assert bad[0] == 404 and b"<x>" not in bad[2]
 
 
 def test_handoff_member_who_cannot_see(counter, owner):
@@ -152,3 +169,37 @@ def test_console_page_still_nonce_only():
     assert "SynoxApps" in html and 'id="apps-side"' in html
     for attrs in re.findall(r"<(?:script|style)\b([^>]*)>", html):
         assert 'nonce="N0NCE"' in attrs
+
+
+def _form_action(ui):
+    csp = dict(ui.app_page()[1])["Content-Security-Policy"]
+    directive = next(d.strip() for d in csp.split(";") if d.strip().startswith("form-action "))
+    return directive.split()[1:]
+
+
+def test_console_csp_lets_the_open_form_redirect_to_the_app(counter, owner):
+    # 回歸（第一次按「打開」新分頁一片空白，重新整理、確認重送表單才進得去）：主機台頁的 CSP 只有 form-action 'self'，
+    # 瀏覽器（CSP3）連表單送出後的 303 轉址也拿 form-action 檢查，轉去 127.0.0.2 就整個擋掉。重新整理那次不是頁面送的表單才過。
+    bot, manager = counter()
+    ui = bot.app.extras["synox_web"]
+    sources = _form_action(ui)
+    assert sources[0] == "'self'" and "*" not in " ".join(sources)
+    assert all(re.fullmatch(r"http://127\.0\.0\.2:\d+", s) for s in sources[1:])
+    c = console(bot, owner)
+    manager.start("counter", by=owner, via="web")
+    location = dict(form_post(c, "/apps/counter/open", {"csrf": c.csrf})[1])["Location"]
+    target = location.split("/#t=", 1)[0]
+    assert target in _form_action(ui), (target, _form_action(ui))
+    assert all(location.split("#t=", 1)[1] not in s for s in _form_action(ui))
+
+
+def test_console_csp_form_action_ports(counter):
+    bot, manager = counter(raw={"web": {"apps": {"port_first": 9001, "port_count": 3, "max_running": 2}}})
+    ui = bot.app.extras["synox_web"]
+    stored = manager._data()
+    stored["ports"]["old"] = 8999                         # 以前配過、現在不在範圍裡的埠也要放行
+    manager._save_data(stored)
+    assert _form_action(ui) == ["'self'", "http://127.0.0.2:8999", "http://127.0.0.2:9001", "http://127.0.0.2:9002",
+                               "http://127.0.0.2:9003"]
+    bot2, _m2 = counter(raw={"web": {"apps": {"enabled": False}}})
+    assert _form_action(bot2.app.extras["synox_web"]) == ["'self'"]

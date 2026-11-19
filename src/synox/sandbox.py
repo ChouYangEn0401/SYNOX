@@ -37,6 +37,8 @@ grants（Grants）從 pack.json 的宣告算（grants_for）：
 在伺服器版又沒有真隔離 → 只對擁有者可見（loader 把群組改成 owner_only，doctor 說明原因）。個人版不受影響。
 T2 pack（SDK P7，packs/tier.py：掃不到內容的執行檔／外部程式／runtime auto 套件）一定命中，不管 trust、required_for；
 T2 的 python pack 在程序裡跑、包不到，伺服器版一律只給擁有者。個人版的 T2 照用，doctor 提醒（t2_personal_note）。
+作者在 pack.json warnings 標了 vendor_no_security_guarantee（ADR 0041 S2）：跟 T2 同一條路（required 命中、python 只給擁有者）。
+帶警告的 pack 在警告下面多一行「這台實況」（isolation_note，S1／S4）：只是顯示，不改執行行為。
 這支檔只用標準函式庫（jobobject 的 launcher 用 python -I 直接跑這個檔）。
 **沙盒後端的真機驗證要在 Linux 伺服器上做；寫這一版的 Windows 電腦只驗證了組出來的 argv。**
 （容器的清單：docs/handoff/container-verification.md）
@@ -671,11 +673,20 @@ def trust_of(data_dir: str, m) -> str:
     return THIRD_PARTY if found.get("via") in ("web", "console") else CORE
 
 
+def no_guarantee(m) -> bool:
+    """作者標了「官方不保證安全」（pack.json warnings 的 vendor_no_security_guarantee，ADR 0041）。
+    伺服器版跟 T2 同一條路：一定要沙盒（required）；python pack 包不到 → 只給擁有者（restricted_reason）。"""
+    from synox.packs import packwarn
+    return packwarn.VENDOR_NO_GUARANTEE in packwarn.codes(getattr(m, "warnings", None))
+
+
 def required(config, m) -> bool:
     """policy.sandbox.required_for 命中這個 pack 嗎（只看 SYNOX 會開子程序的：kind=cli、kind=mcp stdio；
     python pack 在程序裡跑，沙盒管不到，見 PERM-8）。"""
     if not runs_subprocess(m):
         return False
+    if no_guarantee(m):              # ADR 0041 S2：作者標了「官方不保證安全」＝跟 T2 一樣一定命中
+        return True
     if is_t2(m):                     # SDK P7：T2（掃不到內容的執行檔／外部相依）一定命中，不管 trust、required_for
         return True
     rule = settings_of(config).get("required_for", "third-party")
@@ -702,6 +713,9 @@ def restricted_reason(config, m, box: Optional[Sandbox] = None) -> str:
     if getattr(m, "kind", "") == "python" and is_t2(m):
         return ("只對擁有者開放：這是 T2 python pack（附了掃不到內容的執行檔／編譯檔），在 SYNOX 程序裡跑、"
                 "沙盒包不到；伺服器版不給成員用（不管 trust 怎麼選）")
+    if getattr(m, "kind", "") == "python" and no_guarantee(m):
+        return ("只對擁有者開放：作者標了「官方不保證安全」（vendor_no_security_guarantee），這是 python 工具，"
+                "在 SYNOX 程序裡跑、沒有任何後端包得到；伺服器版不給成員用（不管 trust 怎麼選）")
     if not required(config, m):
         return ""
     box = box_for(config, m, host=box)            # 選了容器、引擎找得到 → 容器（算真隔離）
@@ -712,6 +726,9 @@ def restricted_reason(config, m, box: Optional[Sandbox] = None) -> str:
     hint = ""
     if container_spec(m) is not None and runtime_mode(config, m) != "container":
         hint = f"；這個 pack 有提供容器：python -m synox packs runtime {m.name} container 改用容器就能給成員"
+    if no_guarantee(m):
+        return (f"只對擁有者開放：作者標了「官方不保證安全」（vendor_no_security_guarantee），一定要沙盒"
+                f"（不管 trust、required_for），但目前的後端是 {box.name}{why}，不算真隔離（要 bwrap、systemd 或容器）{hint}")
     if is_t2(m):
         return (f"只對擁有者開放：這是 T2 pack（會執行掃不到內容的東西），一定要沙盒（不管 trust、required_for），"
                 f"但目前的後端是 {box.name}{why}，不算真隔離（要 bwrap、systemd 或容器）{hint}")
@@ -728,6 +745,91 @@ def t2_personal_note(config, m) -> str:
     what = "、".join(runs[:5]) if runs else "runtime auto 的套件"
     return (f"T2：會執行掃不到內容的東西（{what}）；個人版沒有沙盒，它用你的 Windows 帳號權限跑——"
             "只裝你信得過的發行者給的")
+
+
+# ── 帶警告的 pack：這台實際能做什麼（ADR 0041 S1／S4；只有顯示文字，不改任何執行行為） ─────────────
+
+ISOLATION_LABEL = "SYNOX 查這台的實況"
+_HOST_OPEN = "會以你的權限直接執行（讀得到你的檔案、連得到網路）"
+
+
+def _host_words(box: Sandbox) -> Tuple[str, str, bool]:
+    """不是容器時，這台的後端 → (長的一句, 短的一句, 算不算隔離)。"""
+    if box.isolates:
+        return (f"SYNOX 會用 {box.name} 把它包起來跑（只看得到宣告的資料夾，沒宣告網路就斷網）",
+                f"由 {box.name} 包起來跑", True)
+    if box.name == "jobobject":
+        return (f"這台沒有可用的隔離（jobobject 只限制記憶體與程序數，不管檔案與網路），這個工具{_HOST_OPEN}",
+                "沒有隔離（只限記憶體與程序數），以使用者的權限執行", False)
+    return f"這台沒有可用的隔離，這個工具{_HOST_OPEN}", "沒有隔離，以使用者的權限執行", False
+
+
+def isolation_note(config, m, *, installing: bool = False) -> dict:
+    """帶 warnings 的 pack（ADR 0041）在警告下面多一行 SYNOX 自己寫的實況：這台真的能把它關起來嗎。
+    回 {"state", "text", "short", "isolated"}；沒有警告回 {}（沒有警告的 pack 每個地方都不多一個字）。
+
+    state：in_process（kind=python：任何後端都包不到，S4 紅字）｜no_code（外觀包）｜not_run（只登記）｜
+    remote（遠端 MCP）｜container（選了容器、這台找得到引擎）｜isolated（bwrap／systemd）｜
+    container_offered（有提供容器但沒用上）｜none（沒有隔離）。
+    installing=True：安裝報告用（還沒有鎖、擁有者還沒選「用容器」）——有提供容器就說「要在報告上選」。
+    **只說這台現在的設定與 PATH 上看得到的東西**（引擎只用 which、不執行），不說「已經在 sandbox 裡」。"""
+    if not getattr(m, "warnings", None):
+        return {}
+    kind = getattr(m, "kind", "")
+
+    def out(state: str, text: str, short: str, isolated: bool = False) -> dict:
+        return {"state": state, "text": text, "short": short, "isolated": isolated}
+
+    if kind == "python":
+        return out("in_process",
+                   "這是 Python 工具，在 SYNOX 自己的程序裡跑：沒有任何後端（沙盒、容器）能把它關起來，"
+                   f"它{_HOST_OPEN}",
+                   "Python 工具，沒有任何後端能把它關起來，以使用者的權限執行")
+    if kind == "theme":
+        return out("no_code", "這是外觀包，沒有程式，SYNOX 不會執行它的任何東西", "外觀包，沒有程式")
+    if getattr(m, "registered_only", False):
+        return out("not_run", "SYNOX 只登記這個工具，不會在這台執行它的程式", "只登記，不在這台執行")
+    if not runs_subprocess(m):                     # kind=mcp http：程式在別處
+        return out("remote", "這個工具連到別處的服務（遠端 MCP），程式不在這台跑；SYNOX 的沙盒管不到那一端",
+                   "遠端服務，程式不在這台跑，SYNOX 管不到")
+    settings = settings_of(config)
+    engine = pick_engine(settings, _engine_which)
+    seen = f"這台已偵測到 {engine}" if engine else "這台沒偵測到"
+    offered = container_spec(m) is not None
+    if installing:
+        host_long, host_short, host_iso = _host_words(sandbox_for(config))
+        if not offered:
+            return out("isolated" if host_iso else "none", host_long, host_short, host_iso)
+        if engine:
+            return out("container_offered",
+                       f"這個工具有提供容器（需要 podman 或 docker，{seen}）：在下面「🧱 執行環境」選「用容器」才會在容器裡跑；"
+                       f"不選的話，{host_long}",
+                       f"有提供容器（已偵測到 {engine}），要在安裝時選用；不選：{host_short}", host_iso)
+        return out("container_offered",
+                   f"這個工具有提供容器（需要 podman 或 docker，{seen}）：現在用不了容器，{host_long}",
+                   f"有提供容器但沒偵測到 podman／docker；{host_short}", host_iso)
+    box = box_for(config, m)
+    if box.isolates and box.name == "container":
+        return out("container",
+                   f"SYNOX 會用 {engine or '容器引擎'} 的容器跑這個工具（只掛它自己的資料夾，沒宣告網路就斷網）",
+                   f"在 {engine or '容器'} 容器裡跑", True)
+    host_long, host_short, host_iso = _host_words(box)
+    if offered and not host_iso:
+        if runtime_mode(config, m) == "container":     # 選了容器，但找不到引擎
+            return out("container_offered", f"選了容器，但{seen} podman 或 docker：{host_long}",
+                       f"選了容器但沒偵測到 podman／docker；{host_short}")
+        how = f"（改用容器：python -m synox packs runtime {m.name} container）" if engine else ""
+        return out("container_offered",
+                   f"這個工具有提供容器（需要 podman 或 docker，{seen}），目前選「不用容器」：{host_long}{how}",
+                   f"有提供容器但沒選用；{host_short}")
+    return out("isolated" if host_iso else "none", host_long, host_short, host_iso)
+
+
+def isolation_line(note: Optional[dict]) -> str:
+    """顯示用的一行：「ℹ️ SYNOX 查這台的實況：…」；沒有＝""。"""
+    if not note or not note.get("text"):
+        return ""
+    return f"ℹ️ {ISOLATION_LABEL}：{note['text']}"
 
 
 def grants_for(m, config, ph: Dict[str, str], *, pass_env: Sequence[str] = ()) -> Grants:

@@ -73,14 +73,17 @@ from urllib.parse import parse_qs, urlsplit
 
 from isdtelekit.core.channel import CallbackInfo, Inbound
 
-from synox import notify, tutorials
+from synox import __version__, notify, tutorials
 from synox.guard import origin as guard_origin
 from synox.guard.stepup import sensitive_action as stepup_sensitive
+from synox.packs import packwarn
 from synox.packs.manifest import stage_text
+from synox.theme import contract as theme_contract
 from synox.theme.appearance import Appearance, AppearanceError
-from synox.web import api_commands, report as reporting, toolpage
+from synox.web import api_commands, report as reporting, restart as restart_api, toolpage
 from synox.web.channel import WEB, WebChannel
-from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore
+from synox.agent.quote import quote_plain, reply_quote
+from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore, excerpt
 from synox.web.paneltickets import PanelTickets
 from synox.web.tokens import LoginTokens, Session, Sessions, digest
 
@@ -170,19 +173,24 @@ def _err(status: int, message: str) -> Resp:
 INLINE_RE = re.compile(r"/\*\{\{INCLUDE:([a-z][a-z0-9_-]{0,40}\.(?:js|css))\}\}\*/")
 
 
-# 伺服器自己產生的小頁（登入確認、登入失敗）共用的樣式：跟 static/app.html 同一套 token 的精簡版
-# （CSP 是 style-src 'unsafe-inline'，沒有 script；改顏色先改 app.html，再對這裡）。
+# 伺服器自己產生的小頁（登入確認、登入失敗）共用的樣式：顏色從 synox/theme/contract.py 拿（ADR 0042：只宣告一次）。
+# 這幾頁不套外觀包（還沒登入、沒有 nonce），用的是 SYNOX 原本的顏色；CSP 是 style-src 'unsafe-inline'，沒有 script。
+PAGE_TOKENS = ("bg", "surface", "line", "text", "muted", "accent", "accent-ink", "soft", "warn-soft", "warn")
+
+
+def _page_vars(mode: str) -> str:
+    values = theme_contract.default_tokens(mode)
+    return ";".join(f"--{'accent-soft' if k == 'soft' else k}:{values[k]}" for k in PAGE_TOKENS)
+
+
 PAGE_CSS = (
-    ":root{--bg:#f3f5f8;--surface:#fff;--line:#e2e7ee;--text:#131b26;--muted:#6a7687;--accent:#0a7c70;"
-    "--accent-ink:#fff;--accent-soft:#e0f2ef;--warn-soft:#fdf1dc;--warn:#9a6400;color-scheme:light dark}"
-    "@media (prefers-color-scheme:dark){:root{--bg:#0b0f14;--surface:#121924;--line:#1f2b3b;--text:#dbe4ef;"
-    "--muted:#7f90a7;--accent:#35e0c4;--accent-ink:#04221d;--accent-soft:rgba(53,224,196,.12);"
-    "--warn-soft:rgba(255,180,84,.12);--warn:#ffb454}}"
+    f":root{{{_page_vars('light')};color-scheme:light dark}}"
+    f"@media (prefers-color-scheme:dark){{:root{{{_page_vars('dark')}}}}}"
     "*{box-sizing:border-box}body{margin:0;min-height:100vh;display:grid;place-items:center;padding:16px;"
     "background:var(--bg);color:var(--text);font:15px/1.6 \"Segoe UI\",\"Microsoft JhengHei UI\","
     "\"Microsoft JhengHei\",\"PingFang TC\",\"Noto Sans TC\",system-ui,sans-serif}"
     ".card{width:min(500px,100%);background:var(--surface);border:1px solid var(--line);border-radius:14px;"
-    "padding:28px;box-shadow:0 10px 30px -10px rgba(19,27,38,.22)}"
+    f"padding:28px;box-shadow:{theme_contract.FIXED['light']['shadow-md']}}}"
     ".mark{width:44px;height:44px;border-radius:13px;display:grid;place-items:center;margin-bottom:16px;"
     "font-weight:800;font-size:20px;color:var(--accent-ink);background:var(--accent)}"
     "h1{font-size:22px;margin:0 0 10px}p{margin:10px 0}.big{font-size:1.15em}.muted{color:var(--muted);font-size:14px}"
@@ -211,6 +219,8 @@ def _page(status: int, title: str, text: str, extra: Optional[List[Tuple[str, st
 INCLUDES = {"tools.css": "style", "tools.js": "script", "tour.css": "style", "tour.js": "script",
             "helpdock.css": "style", "helpdock.js": "script", "aliases.js": "script"}
 INCLUDE_RE = re.compile(r"<!-- include: ([a-z0-9_.-]+) -->")
+# app.html 的 :root 裡的 /*{{TOKENS:light|dark}}*/：換成 synox/theme/contract.py 的顏色（ADR 0042：整個 SYNOX 只宣告一次）
+TOKENS_RE = re.compile(r"^([ \t]*)/\*\{\{TOKENS:(light|dark)\}\}\*/", re.MULTILINE)
 
 
 CHAT_BG_VALUES = ("none", "color", "dots", "grid", "stripes", "glow")       # <html data-chat-bg>（外觀 → 背景）
@@ -237,6 +247,7 @@ def render_app(nonce: str, theme_head: str = "", mode: str = "auto", skin: str =
     with open(os.path.join(STATIC, "app.html"), "r", encoding="utf-8") as f:
         html = f.read().replace("{{NONCE}}", nonce)
     html = INCLUDE_RE.sub(include, INLINE_RE.sub(inline, html))
+    html = TOKENS_RE.sub(lambda m: theme_contract.root_decls(m.group(2), indent=m.group(1)), html)
     attrs = (f' data-theme="{mode}"' if mode in ("light", "dark") else "") + \
         (f' data-skin="{skin}"' if skin and NAME_RE.match(skin) else "") + \
         (f' data-chat-bg="{chat_bg}"' if chat_bg in CHAT_BG_VALUES else "")
@@ -320,6 +331,8 @@ class WebUI:
         self.sessions = Sessions(os.path.join(data, "web_sessions.json"), clock=clock)
         self.panel_tickets = PanelTickets(clock=clock)    # 面板的票（只在記憶體；ADR 0028 §5）
         self.chats = ChatStore(os.path.join(data, "web_chats"), vault, clock=clock)
+        from synox.web.chatmedia import ChatMedia
+        self.chats.media = ChatMedia(os.path.join(data, "web_chats", "media"), vault)   # 工具回覆帶的圖（chatmedia.py）
         from synox.web.uploads import UploadStore
         self.uploads = UploadStore(clock=clock)          # 對話的附件：只在記憶體（web/uploads.py）
         self.prefs = toolpage.UserPrefs(os.path.join(data, "web_prefs"), vault)   # 每個人的工具頁排版、外觀
@@ -334,6 +347,11 @@ class WebUI:
         self._channels_changed: set = set()   # 這次執行中改過的聊天通道（要重開才生效）
         self.bind_host = bind_host            # 綁哪個位址（start 時讀環境變數；測試換成假的容器證據）
         self.catalog_opener = None            # 官方工具庫的連網（packs/catalog.py）；None＝真的，測試換假的
+        self.boot_id = restart_api.new_boot_id()   # 這次開機的代號（/alive；網頁等重開回來時比對）
+        self.started_at = clock()                   # 「已開 N 小時」
+        self.restarter = restart_api.Restarter(data, os.path.abspath(getattr(config, "root", ".")),
+                                               config_path=self.config_path, stop=restart_api.app_stopper(app),
+                                               clock=clock)   # 🔄 重新啟動 SYNOX（web/restart.py；測試換假的）
         reporting.install_log_buffer()        # 「遇到問題？」的最近錯誤（記憶體裡最後幾行，web/report.py）
 
     # ── 登入連結 ─────────────────────────────────────────────────────
@@ -446,12 +464,17 @@ class WebUI:
             m = re.match(r"^/theme/font/([a-z][a-z0-9_-]{0,31})/([A-Za-z0-9_./-]{1,160}\.woff2)$", path)
             if m and method == "GET":
                 return self.theme_font(m.group(1), m.group(2))
+            if path == "/alive" and method == "GET":    # 不用登入：只回這次開機的代號（網頁等重開回來用；web/restart.py）
+                return restart_api.alive(self)
             if path == "/login" and method == "GET":
                 return self.login_page((query.get("t") or [""])[0], headers, session)
             m = re.match(r"^/apps/([a-z][a-z0-9_-]{0,31})/open$", path)
             if m and method == "POST":                  # 工具服務的「打開」：表單送出 → 303 到 127.0.0.2（交接票）
                 from synox.web.apps import web_api as apps_api
                 return apps_api.open_handoff(self, session, m.group(1), headers, body)
+            if m and method == "GET":                   # 重新整理新分頁、貼網址：只給說明頁，不發票、不開服務、不轉址、不回顯名字
+                return _page(405, "要從工具頁打開", "這個連結要從 SYNOX 的工具頁按「打開」才能用。請回 SYNOX，到那個工具的頁面再按一次「打開」。",
+                             [("Allow", "POST")])
             if path == "/login" and method == "POST":
                 return self.login_post(headers, body)
             m = PANEL_RE.match(path)
@@ -528,6 +551,16 @@ class WebUI:
 
     # ── 頁面 ─────────────────────────────────────────────────────────
 
+    def _handoff_origins(self) -> List[str]:
+        """工具服務「打開」的 303 目的地（127.0.0.2:<埠>）。CSP3 的 form-action 也管表單送出後的轉址：
+        只寫 'self' 的話，瀏覽器會擋掉轉去 127.0.0.2 的那一步，新分頁一片空白（重新整理才過，因為那次不是頁面送的表單）。"""
+        manager = getattr(self, "apps", None)
+        try:
+            return list(manager.handoff_origins()) if manager is not None else []
+        except Exception:
+            logging.exception("[WEB] apps handoff origins failed")
+            return []
+
     def app_page(self, tg_id: Optional[int] = None) -> Resp:
         """tg_id：登入的人（None＝還沒登入，用擁有者選的外觀）。外觀壞掉不擋網頁：照原本的 SYNOX。"""
         nonce = secrets.token_urlsafe(16)
@@ -540,7 +573,7 @@ class WebUI:
         html = render_app(nonce, head, mode, skin, chat_bg)
         csp = (f"default-src 'none'; script-src 'nonce-{nonce}'; style-src 'nonce-{nonce}'; "
                "img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-src 'self'; frame-ancestors 'none'; "
-               "base-uri 'none'; form-action 'self'")
+               "base-uri 'none'; form-action " + " ".join(["'self'"] + self._handoff_origins()))
         return 200, BASE_HEADERS + [("Content-Type", "text/html; charset=utf-8"), ("X-Frame-Options", "DENY"),
                                     ("Content-Security-Policy", csp)], html.encode("utf-8")
 
@@ -638,16 +671,20 @@ class WebUI:
 
     SIGNATURE_STATUSES = ("official", "author", "none")
 
-    def _signature(self, name: str) -> str:
+    def _signature(self, name: str, warnings=()) -> str:
         """工具頁、設定頁的標章：packs.lock 那一筆的 signature.status（安裝時 SYNOX 自己驗的；ADR 0028 §3）。
-        沒有鎖、舊的鎖（簽章功能之前裝的）、看不懂的值 → "none"（⚠️ 不是官方）。pack 自己寫什麼都影響不了它。"""
+        沒有鎖、舊的鎖（簽章功能之前裝的）、看不懂的值 → "none"（⚠️ 不是官方）。pack 自己寫什麼都影響不了它。
+        warnings（這個 pack 的標記警告，ADR 0041）帶 vendor_no_security_guarantee → 永遠不顯示成官方（載入時也會拒）。"""
         from synox.packs import lock as pack_lock
+        from synox.packs import packwarn
         try:
             sig = (pack_lock.entry(self.config.data_dir, name) or {}).get("signature") or {"status": "none"}
         except Exception:
             logging.exception("[WEB] reading packs.lock for %s failed", name)
             return "none"
         status = sig.get("status") if isinstance(sig, dict) else None
+        if status == "official" and any(c in packwarn.NO_OFFICIAL_CODES for c in packwarn.codes(warnings)):
+            return "none"
         return status if status in self.SIGNATURE_STATUSES else "none"
 
     def _pack_visible(self, user, pack) -> bool:
@@ -839,6 +876,11 @@ class WebUI:
         if path == "/api/settings/update" or path.startswith("/api/settings/update/"):   # SYNOX 更新（ADR 0023）
             from synox.update import web_api as update_api
             return update_api.route(self, user, method, path, body)
+        if path == "/api/settings/data":               # 資料版本（只看；ADR 0044，synox/datastore/web_api.py）
+            from synox.datastore import web_api as data_api
+            return data_api.route(self, user, method, path, body)
+        if path == "/api/settings/restart":            # 🔄 重新啟動 SYNOX（只有擁有者；web/restart.py）
+            return restart_api.route(self, user, method, path, body)
         if path.startswith("/api/runtime/"):          # 主控面板：常駐助理／心跳／任務（docs/runtime-api.md；含 PUT）
             from synox.runtime import web_api as runtime_api
             return runtime_api.route(self, user, method, path, body)
@@ -861,6 +903,9 @@ class WebUI:
             m = re.match(r"^/api/chat/([a-z0-9]+)/events$", path)
             if m:
                 return self.events(user, m.group(1), (query.get("since") or ["0"])[0])
+            m = re.match(r"^/api/chat/([a-z0-9]+)/image/([A-Za-z0-9_-]{8,40})$", path)
+            if m:
+                return self.chat_image(user, m.group(1), m.group(2))
             if path == "/api/tools":
                 return _json(200, self.tools(user))
             m = re.match(r"^/api/pack-staged/([A-Za-z0-9_-]{8,64})$", path)
@@ -936,6 +981,8 @@ class WebUI:
             return self.local_load(user, data, unload=False)
         if path == "/api/settings/llm/local-unload":
             return self.local_load(user, data, unload=True)
+        if path == "/api/settings/llm/local-reload":
+            return self.local_reload(user, data)
         if path == "/api/settings/channels/telegram":
             return self.save_telegram(user, data)
         if path == "/api/settings/channels/discord":
@@ -997,7 +1044,9 @@ class WebUI:
             self.app.extras.get("synox_agent") is not None
         return {"id": user.tg_id, "username": user.username, "role": self.role_name(user.role),
                 "owner": self.is_owner(user), "admin": self.is_admin(user), "mode": self.config.mode,
-                "csrf": session.csrf, "ai": bool(can_ai), "accounts": self.server_mode and self.is_admin(user)}
+                "csrf": session.csrf, "ai": bool(can_ai), "accounts": self.server_mode and self.is_admin(user),
+                "version": __version__, "uptime_s": max(0, int(self._clock() - self.started_at)),
+                "restart": restart_api.status_for_me(self, user)}       # 左下角的使用者選單（static/usermenu.js）
 
     # ── 對話 ─────────────────────────────────────────────────────────
 
@@ -1050,6 +1099,25 @@ class WebUI:
         messages, rev = self.chats.events(user.tg_id, chat_id, since_n)
         return _json(200, {"messages": messages, "rev": rev})
 
+    def chat_image(self, user, chat_id: str, image_id: str) -> Resp:
+        """工具回覆帶的圖（chatmedia.py）：只給這個人、這段對話裡真的有這張圖的訊息。網頁用 <img src> 拿，不 inline 進 DOM；
+        CSP 什麼都不准（SVG 直接開也不跑程式、不抓東西）＋sandbox＋nosniff。"""
+        chat = self._chat(user, chat_id)
+        media = self.chats.media
+        if chat is None or media is None:
+            return _err(404, "沒有這張圖。")
+        if not any(i.get("id") == image_id for m in chat.get("messages") or [] for i in (m.get("images") or [])):
+            return _err(404, "沒有這張圖。")
+        got = media.get(user.tg_id, image_id)
+        if got is None:
+            return _err(404, "沒有這張圖。")
+        mime, data = got
+        return 200, [("X-Content-Type-Options", "nosniff"), ("Referrer-Policy", "no-referrer"),
+                     ("Cache-Control", "private, max-age=86400"), ("Content-Type", mime),
+                     ("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox"),
+                     ("Cross-Origin-Resource-Policy", "same-origin"), ("X-Frame-Options", "DENY"),
+                     ("Content-Disposition", "inline")], data
+
     def channel(self, user, chat_id: str) -> WebChannel:
         return WebChannel(self.chats, user.tg_id, chat_id, home=self.app.home)
 
@@ -1090,23 +1158,33 @@ class WebUI:
             return _err(400, f"太長了（最多 {MAX_TEXT} 字）。")
         if (self._chat(user, chat_id) or {}).get("archived"):
             return _err(409, "這段對話封存了：先還原才能繼續。")
+        target = None
+        if data.get("reply_to") not in (None, ""):          # 回覆某一則：只能是這一段對話裡、還在的訊息（web/chats.py）
+            target = self.chats.reply_target(user.tg_id, chat_id, data.get("reply_to"))
+            if target is None:
+                return _err(400, "要回覆的那則訊息不在這段對話裡（可能刪掉或太舊了）。")
         files = self.uploads.take(user.tg_id, chat_id, ids) if ids else []
         if ids and not files:
             return _err(409, "附件已經過期或送過了：請重新附上。")
         from synox.web.uploads import placeholder
         shown = (mask_code(text) + ("\n" if text and files else "") + placeholder(files)).strip()
-        self.chats.append(user.tg_id, chat_id, "me", shown)      # 驗證碼不進對話紀錄（ADR 0025 §5.3）；附件只留名字
+        reply_to = ({"id": target["id"], "from": target.get("from", ""), "excerpt": excerpt(target.get("text", ""))}
+                    if target else None)
+        self.chats.append(user.tg_id, chat_id, "me", shown, reply_to=reply_to)   # 驗證碼不進對話紀錄（ADR 0025 §5.3）；附件只留名字
+        quote = reply_quote(target) if target else None      # 給 AI 的引用（agent/quote.py）
         if chat_id == MOTHER_CHAT:
-            return self._send_mother(user, text)
+            return self._send_mother(user, text, quote)
         channel = self.channel(user, chat_id)
         if files:
             channel.attachments = files              # agent/__init__.py 的 AgentFallback 會拿去（只有網頁有這個欄位）
+        if quote:
+            channel.reply_quote = quote              # 同上：AgentFallback 交給 loop.run_turn(quote=…)
         said = text or "（使用者只傳了附件）"
         inbound = Inbound(WEB, user.tg_id, user.tg_id, said, username=user.username or "web", sent_at=time.time())
         route = self.app.dispatcher.handle(channel, inbound)
         return _json(200, {"ok": True, "route": getattr(route, "kind", ""), "rev": self.chats.rev(user.tg_id)})
 
-    def _send_mother(self, user, text: str) -> Resp:
+    def _send_mother(self, user, text: str, quote=None) -> Resp:
         """跟常駐助理聊天：不經 dispatcher／對話助理，叫 runtime 的母 session（沒有工具）；背景跑，不卡 request。"""
         from synox import runtime
         rt = runtime.of(self.app)
@@ -1114,7 +1192,8 @@ class WebUI:
 
         def run():
             try:
-                answer = rt.mother.chat(text) if rt is not None else "常駐助理沒有啟用（runtime 沒有裝上）。"
+                said = quote_plain(quote, text) if quote else text      # 回覆某一則：引用放前面（agent/quote.py）
+                answer = rt.mother.chat(said) if rt is not None else "常駐助理沒有啟用（runtime 沒有裝上）。"
             except Exception as e:
                 logging.exception("[WEB] mother chat failed")
                 answer = f"⚠️ 常駐助理沒有回應：{e}"
@@ -1223,7 +1302,10 @@ class WebUI:
                 "stage_text": stage_text(pack.manifest.stage),
                 "status": "要先設定" if connector else "已連接",
                 "panel": bool(pack.manifest.web.get("panel")),      # 有面板：工具頁先拿票（POST …/panel-ticket）
-                "signature": self._signature(pack.name),            # 標章：只看鎖裡 SYNOX 驗出來的（ADR 0028 §3）
+                "signature": self._signature(pack.name, pack.manifest.warnings),   # 標章：只看鎖裡 SYNOX 驗出來的（ADR 0028 §3）
+                # 作者標的警告（ADR 0041）：工具卡上一定顯示（badge＋每條一行）
+                "warnings": packwarn.for_agent(pack.manifest.warnings),
+                "warning_badge": packwarn.badge(pack.manifest.warnings),
                 "app": bool(pack.manifest.web.get("app")),          # 工具服務：有完整畫面（卡片在 static/apps.js）
                 "commands": [self._leaf_info(n) for n in leaves]}
             self._health_marks(row, user)
@@ -1432,7 +1514,12 @@ class WebUI:
         report = self.app.extras.get("synox_pack_report")
         user_dir = os.path.realpath(self.pack_dirs[0]) if self.pack_dirs else ""
         out["packs"] = [{"name": i.name, "status": i.status, "detail": i.detail, "kind": i.kind,
-                         "version": i.version, "lock": getattr(i, "lock", ""), "signature": self._signature(i.name),
+                         "version": i.version, "lock": getattr(i, "lock", ""),
+                         "signature": self._signature(i.name, getattr(i, "warnings", [])),
+                         "warnings": list(getattr(i, "warnings", []) or []),            # 標記警告（ADR 0041）
+                         "warning_problems": list(getattr(i, "warning_problems", []) or []),
+                         # 有警告才有：SYNOX 自己寫的「這台實況」（ADR 0041 S1）；沒有警告的列一個字都不多
+                         **({"isolation": i.isolation} if getattr(i, "isolation", None) else {}),
                          "removable": bool(user_dir) and os.path.realpath(os.path.dirname(i.folder)) == user_dir}
                         for i in (report.items if report else [])]
         from synox.packs import library             # 出廠不帶工具：裝了幾個、工具庫在哪、怎麼裝（packs/library.py）
@@ -1557,16 +1644,8 @@ class WebUI:
         llm, problem = self._llm_from(data)
         if problem:
             return _err(400, problem)
-        if llm.get("kind") == "local":               # 唯讀探測（不載入模型）：模型在不在、context 合不合理
-            from synox.llm import make_adapter
-            from synox.llm.local import report_lines
-            try:
-                report = make_adapter({"llm": llm}).inspect()
-            except Exception as e:
-                return _json(200, {"ok": False, "message": f"❌ {e}"})
-            ok = not report["problems"]
-            head = "✅ 找到模型，設定看起來合理（只讀了模型資料，沒有真的載入模型）" if ok else "❌ " + report["problems"][0]
-            return _json(200, {"ok": ok, "message": head, "lines": report_lines(report)})
+        if llm.get("kind") == "local":
+            return self._test_local(user, llm)
         if str(llm.get("api_key", "")).startswith(("vault:", "env:")):
             llm["api_key"] = resolve_secret(llm["api_key"], self.vault)
         result = logic.probe_llm(llm)
@@ -1577,6 +1656,77 @@ class WebUI:
                 out["download_url"] = logic.CLAUDE_DOWNLOAD_URL
             elif "登入" in result:                  # 裝了但還沒登入
                 out["message"] += "　→ 在終端機輸入 claude，照畫面登入一次，再按「測一下」。"
+        return _json(200, out)
+
+    def _test_local(self, user, llm: dict) -> Resp:
+        """本地模型的「測一下」：① 唯讀讀模型資料（在不在、context）② 模型已經載入才真的送一句很短的話（smoke_test：
+        max_tokens 很小、逾時很短；沒載入就不送、不會自己載入）③ 模型現在實際的 context 放不放得下 SYNOX 的提示。"""
+        from synox.llm import make_adapter
+        from synox.llm.factory import resolve_secret
+        from synox.llm.local import report_lines
+        if str(llm.get("api_key", "")).startswith(("vault:", "env:")):
+            try:
+                llm = {**llm, "api_key": resolve_secret(llm["api_key"], self.vault)}
+            except Exception:
+                pass
+        try:
+            adapter = make_adapter({"llm": llm})
+            report = adapter.inspect()
+        except Exception as e:
+            return _json(200, {"ok": False, "message": f"❌ {e}"})
+        lines = report_lines(report)
+        if report["problems"]:
+            return _json(200, {"ok": False, "message": "❌ " + report["problems"][0], "lines": lines})
+        smoke = adapter.smoke_test(report)
+        message = smoke["message"]
+        lines.append(("🧪 " if smoke["sent"] else "ℹ️ ") + smoke["message"])
+        warn = self._context_fit_line(user, smoke.get("context"), llm.get("server") or "ollama")
+        if warn:
+            lines.append(warn)
+            if smoke["ok"] and not warn.startswith("✅"):
+                message += "　" + warn
+        return _json(200, {"ok": bool(smoke["ok"]), "sent": smoke["sent"], "message": message,
+                           "seconds": smoke["seconds"], "reply": smoke["reply"], "context": smoke.get("context"),
+                           "lines": lines})
+
+    def _context_fit_line(self, user, ctx, server: str) -> str:
+        """模型現在實際的 context 夠不夠放這個人的 SYNOX 提示（一句人話；不知道 context＝""）。"""
+        if not ctx:
+            return ""
+        from synox.llm import local_advice
+        try:
+            from synox.agent import prompt_chars
+            prompt = local_advice.tokens_from_chars(prompt_chars(self.app, user))
+        except Exception:
+            return ""
+        try:
+            max_tokens = int((self.config.llm or {}).get("max_tokens") or 1024)
+        except (TypeError, ValueError):
+            max_tokens = 1024
+        min_ctx = prompt + max_tokens
+        comfortable = prompt + local_advice.HISTORY_RESERVE + max_tokens
+        want = next((c for c in local_advice.OPTIONS if c >= comfortable * 1.25), comfortable)
+        return local_advice.loaded_context_note(int(ctx), min_ctx=min_ctx, comfortable=comfortable, want=want,
+                                                server=server)
+
+    def local_reload(self, user, data: dict) -> Resp:
+        """LM Studio：用選的 context 重新載入這個模型（先估記憶體、只動這個模型、載入後讀回來確認）。只給擁有者按按鈕；
+        畫面上先跳確認框。ok 只在 LM Studio 讀回來的 context＝要的值時才是 True。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        target, bad = self._local_target(data)
+        if bad:
+            return bad
+        from synox.llm import local_models
+        from synox.llm.base import LLMError
+        server, base_url, api_key = target
+        try:
+            out = local_models.reload(server, base_url, str(data.get("model") or "").strip(),
+                                      data.get("context_length"), api_key)
+        except LLMError as e:
+            return _json(200, {"ok": False, "message": f"❌ {e}"})
+        logging.info("[WEB] local model reload on %s by the owner: ok=%s", server, out.get("ok"))
         return _json(200, out)
 
     def local_advice(self, user, data: dict) -> Resp:
@@ -1603,9 +1753,11 @@ class WebUI:
             max_tokens = int((self.config.llm or {}).get("max_tokens") or 1024)
         except (TypeError, ValueError):
             max_tokens = 1024
+        target, _bad = self._local_target(data)
+        api_key = target[2] if target else ""
         try:
             advice = logic.local_advice(server, base_url, str(data.get("model") or ""), prompt_chars=chars,
-                                        max_tokens=max_tokens)
+                                        max_tokens=max_tokens, api_key=api_key)
         except Exception as e:
             return _err(400, f"算不出建議：{e}")
         from synox.llm.local_advice import option_label
@@ -1724,9 +1876,14 @@ class WebUI:
         tg, dc = self._probes()
         cfg = logic.read_existing(self.config_path)
         owner = self._file_owner(cfg)
-        token = str(cfg.get("bot_token") or "").strip()
+        from synox import telegram_token as tt
+        try:                                                  # config.json 只有 "vault:telegram_bot_token"
+            token, tg_problem = tt.resolve(cfg.get("bot_token"), self.vault), ""
+        except tt.TokenUnavailable as e:
+            token, tg_problem = "", str(e)
         telegram = {"saved": tg.valid_token(token), "active": bool(self.config.has_token),
-                    "owner_paired": 0 < owner < BASE, "bot": "", "problem": ""}
+                    "owner_paired": 0 < owner < BASE, "bot": "", "problem": tg_problem,
+                    "masked": tt.mask(token) if tg.valid_token(token) else ""}    # 畫面只給看「…AB12」
         if telegram["saved"]:
             ok, info = tg.get_me(token)
             telegram["bot" if ok else "problem"] = self._scrub(info, token)
@@ -1876,13 +2033,19 @@ class WebUI:
         token = str(data.get("token") or "").strip()
         if not token:
             return _err(400, "要貼上 Telegram bot 的 token（@BotFather 給的那串）。")
+        if self.vault is None:
+            return _err(400, "保管箱沒有打開，token 沒地方放（python -m synox doctor 看原因）。")
         ok, info = tg.get_me(token)
         if not ok:
             return _err(400, self._scrub(info, token))
         cfg = logic.read_existing(self.config_path)
         if not cfg:
             return _err(400, "讀不到 config.json，沒有存（重跑 Setup.bat）。")
-        cfg["bot_token"] = token                                # 跟精靈一樣寫在 config.json
+        from synox import telegram_token
+        try:                                                    # 跟精靈一樣：token 進保管箱，config.json 只寫參照
+            telegram_token.store(cfg, token, self.vault)
+        except Exception as e:
+            return _err(400, "token 存不進保管箱：" + self._scrub(e, token))
         if cfg.get("owner_id", cfg.get("machine_owner_id")) in (None, ""):
             cfg["owner_id"] = int(self.config.owner_id)         # 只用 Discord 的設定沒寫 owner_id：照現在的擁有者寫
         logic.write_config(self.config_path, cfg)
@@ -1948,7 +2111,7 @@ class WebUI:
         if len(body) > MAX_UPLOAD:
             return _err(413, f"檔案太大（最多 {MAX_UPLOAD // (1024 * 1024)} MB）。")
         try:
-            _token, summary = stage(body, self.config.data_dir)        # 安全管線第 1、2 關
+            _token, summary = stage(body, self.config.data_dir, config=self.config)   # 安全管線第 1、2 關
         except GateRefused as e:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:
@@ -1971,7 +2134,7 @@ class WebUI:
             return _err(400, "這一版 SYNOX 還不能把手放的工具送進安裝流程。請改用「上傳並檢查」裝它的 .synoxpack 檔。")
         from synox.packs.admin import GateRefused, PackAdminError
         try:
-            _token, summary = adopt.stage_unlocked(name, self.pack_dirs[0], self.config.data_dir)
+            _token, summary = adopt.stage_unlocked(name, self.pack_dirs[0], self.config.data_dir, config=self.config)
         except GateRefused as e:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:
@@ -2084,7 +2247,7 @@ class WebUI:
         except catalog.CatalogError as e:
             return _json(502 if e.offline else 400, {"error": str(e), "releases": catalog.RELEASES_PAGE})
         try:
-            token, summary = stage(blob, self.config.data_dir)          # 安全管線第 1、2 關（跟上傳一樣）
+            token, summary = stage(blob, self.config.data_dir, config=self.config)   # 安全管線第 1、2 關（跟上傳一樣）
         except GateRefused as e:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:
@@ -2119,7 +2282,8 @@ class WebUI:
             name = installer(str(data.get("token") or ""), self.config.data_dir, self.pack_dirs[0],
                              approved_by=user.tg_id, via="web", trust=data.get("trust") or None,
                              trust_publisher=str(data.get("trust_publisher") or "") or None,
-                             runtime=str(data.get("runtime") or "") or None)       # S2：用容器／不用
+                             runtime=str(data.get("runtime") or "") or None,       # S2：用容器／不用
+                             accept_warnings=self._accepted_warnings(data))        # ADR 0041：勾過的警告
         except GateRefused as e:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:
@@ -2130,6 +2294,15 @@ class WebUI:
         return _json(200, {"ok": True, "name": name, "status": status.status if status else "",
                            "detail": status.detail if status else "", "env": env,
                            "kind": status.kind if status else ""})
+
+    @staticmethod
+    def _accepted_warnings(data: dict) -> list:
+        """POST 的 accept_warnings（擁有者在報告上逐條勾的標記警告 code，ADR 0041）：只收字串清單，其他當作沒勾。"""
+        value = data.get("accept_warnings")
+        if not isinstance(value, list):
+            return []
+        from synox.packs import packwarn
+        return packwarn.normalize_accept([v for v in value if isinstance(v, str)][:20])
 
     def _start_env_build(self, name: str, what: str = "裝好了") -> str:
         """裝好（或升級好）之後建環境（runtime.python／node = auto）：在 JobRunner 上背景跑，好了重新載入、通知擁有者。
@@ -2164,7 +2337,8 @@ class WebUI:
                                   approved_by=user.tg_id, via="web", allow_downgrade=bool(data.get("allow_downgrade")),
                                   trust=data.get("trust") or None,
                                   trust_publisher=str(data.get("trust_publisher") or "") or None,
-                                  runtime=str(data.get("runtime") or "") or None)
+                                  runtime=str(data.get("runtime") or "") or None,
+                                  accept_warnings=self._accepted_warnings(data))
         except GateRefused as e:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:

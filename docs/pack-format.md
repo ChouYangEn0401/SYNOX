@@ -108,8 +108,20 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 舊版要環境、而 `data/envs/<name>/` 跟它對不上（例如升級時已經重建成新版的套件）→ 退回後會提示跑 `packs env rebuild <name>`，**不自動建**。
 
 **資料不在 pack 資料夾裡**（`data/<name>.json.enc`／`data/<name>.json`、伺服器版 `data/users/<id>/`、cli 的 `{user_data_dir}/<name>/`），
-升級、退回都不會動到資料。**資料格式（schema）要不要升級是 pack 自己的事**：建議在資料裡存一個 `schema` 版本號，
-新版程式讀到舊格式就自己轉換；退回到舊版時舊程式要能看得懂（或至少不弄壞）新版寫的資料——做不到就在 SKILL.md／README 寫清楚「不能退回」。
+搬資料夾、退回都不會動到資料。**資料格式要升級就宣告 `data_schema`**（ADR 0044，細節在 [data-migrations.md](data-migrations.md)）：
+
+```json
+"data_schema": {"version": 3, "files": ["store", "store:history", "dir"]}
+```
+
+- `version`：這一版工具寫出的資料版本（整數 ≥ 1）；改資料格式＝`+1`，並補一個遷移步驟。沒有持久化資料的工具不用寫。
+- `files`：哪些資料跟著升級——`store`（`pack.store` 的主檔）、`store:<key>`（`pack.store.save(x, key=…)` 的檔）、`dir`（工具自己的資料夾）。
+- 步驟：kind=python 放 `migrations.py`（或 `migrations/*.py`），頂層函式 `migrate_<n>_to_<n+1>(data)`（store）／`migrate_<n>_to_<n+1>_dir(path)`（dir）；
+  kind=cli 實作子命令 `<cli.argv> migrate --from N --to N+1 --data <資料夾>`（只支援 `dir`）。其他 kind 不支援（安裝時拒）。
+- 欄位名是 `data_schema`，不是 `data`：`data` 是下面的「資料屬於誰」。
+- SYNOX 在**工具載入前**（升級後重新載入、每次啟動）把資料從登記的版本一路升到 `version`：先備份、全部在暫存跑完才寫回；
+  任何一步失敗＝全部還原、工具不載入（狀態寫原因）；資料比工具新（退回舊版之後）＝不載入、不動資料。升級報告會寫「資料會從 N 升到 M」，
+  新版認得的資料版本比現在的舊＝紅字。安裝時（第 1 關）與 `synox-sdk check` 用 AST 看步驟，有洞就擋。
 
 ### 權限宣告：`surfaces`、`data`、安裝時選的 `trust`
 
@@ -229,6 +241,32 @@ SYNOX 載入完所有工具後，把系統能力（提醒、排程…）和每�
   以及系統層用 `register_system` 登記過的名字。這台沒有＝不載入，detail 寫「缺 系統能力 xxx（這台的 SYNOX 沒有）」。
 - 格式寫錯（不是字串清單、名字不合、版本條件看不懂）＝pack.json 不合（安裝拒、已裝的不載入）。
 - 升級時相依改了＝升級報告一般字。
+
+### 標記警告：`warnings`（[ADR 0041](adr/0041-pack-warnings.md)）
+
+作者自己標「這個工具有什麼要先知道的風險」。選填；沒寫＝跟以前完全一樣。
+
+```json
+"warnings": [{"code": "vendor_no_security_guarantee", "text": "官方不保證安全", "advice": "建議在 docker 或 sandbox 執行"}]
+```
+
+| 欄位 | 規則 |
+|---|---|
+| `code` | 小寫英數字與 `_`、字母開頭、48 字內；固定的代號（確認、規則都用它）。SYNOX 認得 `vendor_no_security_guarantee`（沒寫 text／advice 就用內建的字） |
+| `text` | 給人看的一句話，60 字內 |
+| `advice` | 建議怎麼做，選填，120 字內 |
+| 條數 | 最多 5 條；同一個 code 只留第一條 |
+
+- **清理**：換行、控制字元、零寬字元、雙向文字控制字元一律拿掉；太長截斷加「…」。這段字也會給 AI 看：像在對 AI 下指令、要跳過確認、
+  夾分隔符、或有「✅」的字會換成內建的字。
+- **寫壞了不掛掉、也不靜默**：整個工具照樣能裝、能載入；看不懂的那一條換成「⚠️ 這個工具的警告寫壞了」（照樣要確認），
+  不認得的欄位照收；每個問題寫進 log、安裝報告、doctor。
+- **官方＋`vendor_no_security_guarantee` 不能同時成立**：官方鑰匙簽的工具標了這個 code＝拒裝、不載入。
+- **第一次啟用要確認**：有警告的工具，安裝／核准／升級時要逐條確認——終端機 `--accept-warning <code>`（可以重複）、網頁在報告上逐條勾「我知道」。
+  沒確認＝不裝；確認過的記在 `packs.lock` 的 `accepted_warnings`，升級時沿用（新的 code 要再確認）。鎖裡沒確認＝不載入（狀態 `unaccepted`）。
+- **簽章涵蓋**：`pack.sig.json` 簽了 `pack.json` 的每個位元組，拿掉或改掉警告＝⛔ 被改過；裝好之後改＝跟 `packs.lock` 不符，不載入。
+- **哪裡看得到**：安裝報告（標章正下方、紅字）、/help 標題、網頁工具頁、設定頁、doctor、`packs status`、工具庫清單；
+  給 AI 的能力清單、技能索引、`skill_read`、每個指令的工具說明都附「〔⚠️警告 code：text〕」，`data/agent_index.json` 每項有 `warnings` 欄位。
 
 ## pack.json v2（架構 v1 §4）
 

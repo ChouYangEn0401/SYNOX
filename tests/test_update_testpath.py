@@ -131,7 +131,7 @@ def test_test_mode_runs_the_real_check_and_prepare_against_local_files(tmp_path,
     assert upd.notice_text(r).startswith("⚠️⚠️ 測試模式")                    # 通知最上面也說
     root = synox_folder(tmp_path)
     said = []
-    with pytest.raises(upd.UpdateError, match="AllowUnsigned"):              # 測試公鑰沒設：一樣算沒簽章
+    with pytest.raises(upd.UpdateError, match="簽章對不上"):                 # 測試公鑰沒設：測試鑰匙簽的＝跟官方公鑰對不上，拒絕
         prepare.prepare(root, installed="0.2.0", say=said.append)
     assert said[0].startswith("⚠️⚠️ 測試模式")
     monkeypatch.setenv(signing.TEST_KEY_ENV, pub)
@@ -157,10 +157,10 @@ def test_test_key_is_ignored_by_the_real_github_update(tmp_path, monkeypatch):
     key, pub = keypair()
     from test_update import served
     monkeypatch.setenv(signing.TEST_KEY_ENV, pub)                             # 沒有 SYNOX_UPDATE_API：正式的路
-    with pytest.raises(upd.UpdateError, match="AllowUnsigned"):
+    with pytest.raises(upd.UpdateError, match="簽章對不上"):                 # 正式的路不信測試公鑰：測試鑰匙簽的＝拒絕
         prepare.prepare(synox_folder(tmp_path), installed="0.2.0", opener=served(key=key), **QUIET)
-    assert not upd.check("0.1.0", opener=github(assets=[(signing.MANIFEST_ASSET, b"{}", False),
-                                                         (signing.SIG_ASSET, b"x", False)])).signed
+    import base64
+    assert base64.b64decode(pub) not in signing.public_keys()                  # 測試公鑰沒有混進正式的公鑰
 
 
 # ── --from-zip（Update.bat -FromZip）───────────────────────────────

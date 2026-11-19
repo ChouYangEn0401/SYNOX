@@ -59,7 +59,10 @@ def tools(app, user) -> List[Tool]:
             continue
         leaves = _visible_leaves(app, user, group)
         if leaves:
-            out.append(Tool(m.group, m.title, m.summary, leaves, getattr(m, "stage_label", ""), m.name))
+            from synox.packs.packwarn import badge
+            warned = badge(getattr(m, "warnings", None))          # 作者標的警告（ADR 0041）：跟穩定度標籤放在一起
+            label = getattr(m, "stage_label", "") + (f"　{warned}" if warned else "")
+            out.append(Tool(m.group, m.title, m.summary, leaves, label, m.name))
     for node in reg.root.children.values():
         if not node.is_group or node.name in seen or not reg.visible(user, node):
             continue

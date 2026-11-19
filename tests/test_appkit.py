@@ -43,3 +43,57 @@ def test_appkit_css_rules():
     for cls in (".bar", ".card", ".btn", ".primary", ".danger", ".ghost", ".field", ".badge", ".table", ".toast",
                 ".modal", ".mask", ".tabs", ".meter"):
         assert re.search(re.escape(cls) + r"\b", css), cls
+
+
+def _hex_lum(hex_color):
+    h = hex_color.lstrip("#")
+    if len(h) == 3:
+        h = "".join(c * 2 for c in h)
+    out = []
+    for i in (0, 2, 4):
+        c = int(h[i:i + 2], 16) / 255
+        out.append(c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4)
+    return 0.2126 * out[0] + 0.7152 * out[1] + 0.0722 * out[2]
+
+
+def _contrast(a, b):
+    la, lb = sorted((_hex_lum(a), _hex_lum(b)), reverse=True)
+    return (la + 0.05) / (lb + 0.05)
+
+
+def _shell_tokens(css):
+    """.synox-bar／.synox-mask 自己的 --synox-* 顏色：淺色一組、prefers-color-scheme: dark 裡一組。"""
+    blocks = re.findall(r"\.synox-bar, \.synox-mask \{([^}]*)\}", css)
+    assert len(blocks) == 2, "淺色、深色各一組"
+    return [dict(re.findall(r"(--synox-[a-z-]+):\s*(#[0-9a-fA-F]{3,6})", b)) for b in blocks]
+
+
+def test_shell_bar_colors_are_readable_in_light_and_dark():
+    # 回歸：記帳本的 .btn.danger { color: var(--bad) } 蓋掉 kit 的白字 → 紅底紅字。頁首列改用自己的 class 與顏色
+    css = _read("appkit.css")
+    for tokens in _shell_tokens(css):
+        for ink, bg in (("--synox-danger-ink", "--synox-danger"), ("--synox-ink", "--synox-surface"),
+                        ("--synox-muted", "--synox-surface"), ("--synox-link", "--synox-surface"),
+                        ("--synox-primary-ink", "--synox-primary")):
+            ratio = _contrast(tokens[ink], tokens[bg])
+            assert ratio >= 4.5, (ink, bg, round(ratio, 2))
+    danger = re.search(r"\.synox-bar \.synox-btn\.synox-btn-danger \{([^}]*)\}", css).group(1)
+    assert "color: var(--synox-danger-ink) !important" in danger
+    assert "background: var(--synox-danger) !important" in danger
+    js = _read("appkit.js")
+    assert '"synox-btn synox-btn-danger"' in js and '"btn danger"' not in js     # 不再用工具也會用的 .btn／.danger
+
+
+def test_shell_bar_survives_a_tool_stylesheet_like_money():
+    """工具的樣式表排在 kit.css 後面，就算寫了 .btn.danger／.muted、或在 :root 改 --bad：頁首列的按鈕顏色都是 !important，
+    也不引用工具會改的 --bad、--bg、--text 這些名字。"""
+    css = _read("appkit.css")
+    rules = re.findall(r"([^{}]*\.synox-(?:bar|mask)[^{}]*)\{([^}]*)\}", css)
+    buttons = [(sel.strip(), body) for sel, body in rules if re.search(r"\.synox-btn\.synox-btn-\w+\s*$", sel.strip())]
+    assert len(buttons) == 3, buttons                                   # ghost、danger、mask 的 primary
+    for sel, body in buttons:
+        for prop in ("background", "color"):
+            assert re.search(r"(?:^|[;\s])" + prop + r":[^;]*!important", body), (sel, prop)
+    for sel, body in rules:
+        for name in ("--bad)", "--bg)", "--text)", "--surface)", "--muted)", "--accent)"):
+            assert "var(" + name not in body, (sel, name)

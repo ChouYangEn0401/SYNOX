@@ -60,6 +60,7 @@ class _RedactArgs(logging.Filter):
         self._commands: set = set()
         self._lock = threading.Lock()
         self._pattern: Optional["re.Pattern"] = None
+        self._secrets: tuple = ()                     # 已知的密鑰值（mask_in_logs）：出現在任何 log 行都遮
 
     def add(self, command: str) -> None:
         with self._lock:
@@ -67,7 +68,15 @@ class _RedactArgs(logging.Filter):
             names = "|".join(re.escape(c) for c in sorted(self._commands, key=len, reverse=True))
             self._pattern = re.compile(r"(" + names + r")(?:@\w+)?(?![\w])[^'\"\n]*")
 
+    def add_secret(self, value: str) -> None:
+        with self._lock:
+            if value not in self._secrets:
+                self._secrets = tuple(sorted(self._secrets + (value,), key=len, reverse=True))
+
     def redact(self, text: str) -> str:
+        for value in self._secrets:
+            if value in text:
+                text = text.replace(value, MASK)
         pattern = self._pattern
         if pattern is not None:
             text = pattern.sub(lambda m: m.group(1) + " ***", text)
@@ -94,6 +103,19 @@ def install_log_redaction() -> None:
     root = logging.getLogger()
     if _REDACT not in root.filters:
         root.addFilter(_REDACT)
+
+
+def mask_in_logs(value: str) -> None:
+    """這串值（例如解出來的 Telegram bot token）不准出現在 log：任何一行有它就換成 ***。
+    裝在 root logger 和它現有的 handler 上（子 logger 的紀錄只經過 handler）；重複叫沒關係。"""
+    value = str(value or "")
+    if len(value) < 8:
+        return
+    _REDACT.add_secret(value)
+    install_log_redaction()
+    for handler in logging.getLogger().handlers:
+        if _REDACT not in handler.filters:
+            handler.addFilter(_REDACT)
 
 
 def redact_in_logs(command: str) -> None:
@@ -355,3 +377,83 @@ def command(group: Group, name: str, fn: Callable, summary: str, *, fields: Sequ
     if doc:
         node.help_doc = doc
     return node
+
+
+# ── 回覆帶圖（docs/sdk.md「回覆帶圖」；SDK 0.2.5 起）──────────────────────────────────────
+
+IMAGE_FALLBACK_MAX = 10                # Telegram 一組相簿最多 10 張
+
+
+def send_image(api, chat_id, images, caption: str = "", reply_markup=None) -> dict:
+    """回覆帶圖。images：每張是 bytes（PNG／JPEG…）或 {"svg": SVG 字串或 bytes, "png": PNG bytes, "alt": "說明"}。
+
+    - 網頁對話（channel 有 send_image）：一則訊息、圖畫在泡泡裡（SVG 照白名單重寫；不收的退回 PNG）；reply_markup 照樣有按鈕。
+    - Telegram／Discord（沒有 send_image）：PNG 寫進暫存檔、用 send_photo（好幾張用 send_media_group）送，送完刪掉；
+      按鈕放不上圖，有 reply_markup 時照片不帶字、緊接著送一則「caption＋按鈕」（caption 只出現一次）。
+    - 都送不了（沒有 PNG、channel 不收圖）：回 {"ok": False}，呼叫的人自己改送文字。
+    經 AI 呼叫時（agent/capture.CaptureApi）圖直接給使用者，AI 拿到「已經傳了 N 張圖」。"""
+    images = list(images or [])
+    if not images:
+        return {"ok": False, "error": "沒有圖"}
+    fn = getattr(api, "send_image", None)
+    if callable(fn):
+        try:
+            out = fn(chat_id, images, caption=caption, reply_markup=reply_markup)
+        except Exception:
+            logging.exception("[KIT] send_image failed")
+            out = {"ok": False}
+        if (out or {}).get("ok"):
+            return out
+    rasters = []
+    for item in images[:IMAGE_FALLBACK_MAX]:
+        data = item if isinstance(item, (bytes, bytearray)) else (item or {}).get("png") or (item or {}).get("data")
+        if data:
+            rasters.append(bytes(data))
+    if not rasters:
+        return {"ok": False, "error": "這個 channel 不能顯示 SVG，也沒有 PNG"}
+    import os
+    import shutil
+    import tempfile
+    folder = tempfile.mkdtemp(prefix="synox-img-")
+    try:
+        paths = []
+        for i, data in enumerate(rasters):
+            ext = ".jpg" if data[:3] == b"\xff\xd8\xff" else ".png"
+            path = os.path.join(folder, f"image{i + 1}{ext}")
+            with open(path, "wb") as f:
+                f.write(data)
+            paths.append(path)
+        short = "" if reply_markup is not None else (caption or "")[:1000]     # 有按鈕：字跟按鈕放同一則，不重複
+        try:
+            if len(paths) == 1:
+                out = api.send_photo(chat_id, paths[0], caption=short)
+            else:
+                out = api.send_media_group(chat_id, paths, short, "photo")
+        except Exception:
+            logging.exception("[KIT] send_photo failed")
+            out = {"ok": False}
+    finally:
+        shutil.rmtree(folder, ignore_errors=True)
+    if (out or {}).get("ok") and reply_markup is not None:
+        api.send_message(chat_id, caption or "👇", reply_markup=reply_markup)
+    return out or {"ok": False}
+
+
+def edit_image(api, chat_id, message_id, images, caption: Optional[str] = None, reply_markup=None) -> dict:
+    """換掉之前 send_image 送出的那則（例如「下一個按法」）。channel 不能改圖（Telegram…）＝改送一則新的（send_image）。"""
+    fn = getattr(api, "edit_image", None)
+    if callable(fn):
+        try:
+            out = fn(chat_id, message_id, images, caption=caption, reply_markup=reply_markup)
+        except Exception:
+            logging.exception("[KIT] edit_image failed")
+            out = {"ok": False}
+        if (out or {}).get("ok"):
+            return out
+    return send_image(api, chat_id, images, caption or "", reply_markup)
+
+
+def can_show_images(api) -> bool:
+    """這個 channel 能不能把 send_image 畫在同一則訊息裡（網頁＝True）。不能的照樣可以送 PNG（send_photo）。"""
+    real = getattr(api, "_real", None) or api            # agent/capture.CaptureApi 包在外面：看裡面那個
+    return callable(getattr(real, "send_image", None))

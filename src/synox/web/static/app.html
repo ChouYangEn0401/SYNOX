@@ -6,36 +6,17 @@
 <meta name="color-scheme" content="light dark">
 <title>SYNOX</title>
 <style nonce="{{NONCE}}">
-  /* ── 設計 token（說明：docs/ui/redesign-notes.md；外觀的合約：docs/themes.md）────────────────
-     淺色取記帳工具（記帳本）的簡約、深色取 另一個個人專案 的層次；跟隨系統，
-     :root[data-theme="light|dark"] 強制（設定 → 外觀的「淺色／深色」）。
-     **整個網頁的顏色只從這裡來**（tests/test_theme.py 檢查）：外觀包（kind=theme）只蓋這些 token、換 data-slot 的內容。
-     合約上的名字：--bg --surface --text --muted --line --accent --accent-ink --accent2 --soft --ok --warn --bad
-     --radius --font-ui --font-brand，吉祥物 --m1 --m2 --mi --mb；其他（--surface-2、--accent-hover…）是進階 token，
-     外觀包沒寫就照 synox/theme/contract.DERIVED 算。舊名字 --accent-2、--accent-soft、--r、--font 是別名。 */
+  /* ── 設計 token（說明：docs/ui/redesign-notes.md；外觀的合約：docs/themes.md；ADR 0042）──────────
+     **整個 SYNOX 的顏色只在 synox/theme/contract.py 宣告一次**（DEFAULTS＝外觀包可以換的、FIXED＝SYNOX 自己的陰影與暗幕）；
+     下面的 TOKENS 記號在送出網頁時換成那兩張表（web/server.render_app），這個檔裡不寫任何顏色（tests/test_theme.py 檢查）。
+     淺色取記帳工具的簡約、深色取另一個專案的層次；跟隨系統，:root[data-theme="light|dark"] 強制（設定 → 外觀的「淺色／深色」）。
+     外觀包（kind=theme）只蓋這些 token、換 data-slot 的內容；沒給的照 contract（DERIVED 或 DEFAULTS），所以舊外觀包遇到新 token 不會缺色。
+     舊名字 --accent-2、--accent-soft、--r、--font 是別名。 */
   :root {
-    --bg: #f3f5f8; --bg-glow: #e3eef0; --surface: #ffffff; --surface-2: #f7f9fb; --sunken: #eef1f5;
-    --line: #e2e7ee; --line-strong: #cdd5df;
-    --text: #131b26; --text-2: #465264; --muted: #6a7687;
-    --accent: #0a7c70; --accent-hover: #086a60; --accent-ink: #ffffff; --soft: #e0f2ef; --accent-line: #9fd6cd;
-    --accent2: #2f7fd6;
-    --ok: #12823b; --ok-soft: #e6f4ea; --warn: #9a6400; --warn-soft: #fdf1dc; --bad: #c62f2f; --bad-soft: #fbe8e8;
-    --me: #dff1ee; --me-ink: #0c3a35;
-    --m1: #4f8df5; --m2: #2f66d0; --mi: #ffffff; --m-hi: #8bb6ff; --mb: color-mix(in srgb, var(--bad) 55%, transparent);
+    /*{{TOKENS:light}}*/
     --accent-2: var(--accent2); --accent-soft: var(--soft);
-    --shadow-sm: 0 1px 2px rgba(19, 27, 38, .05), 0 1px 3px rgba(19, 27, 38, .06);
-    --shadow-md: 0 10px 30px -10px rgba(19, 27, 38, .22);
-    --shadow-lg: 0 24px 60px -18px rgba(19, 27, 38, .35);
-    --highlight: inset 0 1px 0 rgba(255, 255, 255, .7);
-    --scrim: rgba(10, 15, 22, .4);
-    --shadow-up: 0 -8px 24px -16px rgba(0, 0, 0, .4);
-    --tour-scrim: rgba(8, 12, 18, .38);
-    --radius: 10px;
     --r-sm: calc(var(--radius) * .8); --r: var(--radius); --r-lg: calc(var(--radius) * 1.4);
     --r-xl: calc(var(--radius) * 1.8); --pill: 999px;
-    --font-ui: "Segoe UI Variable Text", "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", "PingFang TC",
-            "Noto Sans TC", system-ui, sans-serif;
-    --font-brand: var(--font-ui);
     --font: var(--font-ui);
     --mono: "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, monospace;
     --ease: cubic-bezier(.2, .9, .3, 1);
@@ -44,36 +25,12 @@
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #0b0f14; --bg-glow: #13222b; --surface: #121924; --surface-2: #161f2c; --sunken: #0d131b;
-      --line: #1f2b3b; --line-strong: #2d3b4f;
-      --text: #dbe4ef; --text-2: #aab6c6; --muted: #7f90a7;
-      --accent: #35e0c4; --accent-hover: #63ead5; --accent-ink: #04221d; --soft: rgba(53, 224, 196, .12);
-      --accent-line: rgba(53, 224, 196, .42); --accent2: #4aa8ff;
-      --ok: #46d17f; --ok-soft: rgba(70, 209, 127, .12); --warn: #ffb454; --warn-soft: rgba(255, 180, 84, .12);
-      --bad: #ff6b78; --bad-soft: rgba(255, 93, 108, .13);
-      --me: #163836; --me-ink: #dff7f2;
-      --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
-      --shadow-md: 0 14px 34px -12px rgba(0, 0, 0, .75);
-      --shadow-lg: 0 28px 70px -20px rgba(0, 0, 0, .85);
-      --highlight: inset 0 1px 0 rgba(255, 255, 255, .045);
-      --scrim: rgba(3, 7, 12, .66);
+      /*{{TOKENS:dark}}*/
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #0b0f14; --bg-glow: #13222b; --surface: #121924; --surface-2: #161f2c; --sunken: #0d131b;
-    --line: #1f2b3b; --line-strong: #2d3b4f;
-    --text: #dbe4ef; --text-2: #aab6c6; --muted: #7f90a7;
-    --accent: #35e0c4; --accent-hover: #63ead5; --accent-ink: #04221d; --soft: rgba(53, 224, 196, .12);
-    --accent-line: rgba(53, 224, 196, .42); --accent2: #4aa8ff;
-    --ok: #46d17f; --ok-soft: rgba(70, 209, 127, .12); --warn: #ffb454; --warn-soft: rgba(255, 180, 84, .12);
-    --bad: #ff6b78; --bad-soft: rgba(255, 93, 108, .13);
-    --me: #163836; --me-ink: #dff7f2;
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
-    --shadow-md: 0 14px 34px -12px rgba(0, 0, 0, .75);
-    --shadow-lg: 0 28px 70px -20px rgba(0, 0, 0, .85);
-    --highlight: inset 0 1px 0 rgba(255, 255, 255, .045);
-    --scrim: rgba(3, 7, 12, .66);
+    /*{{TOKENS:dark}}*/
     color-scheme: dark;
   }
 
@@ -345,6 +302,13 @@
                border-radius: var(--r); border: 1px solid var(--line-strong); background: var(--surface);
                text-decoration: none; font-size: 14px; }
   /* 呈現層的區塊（config presentation.enabled；synox/present/web.py 的 wire → renderBlocks） */
+  /* 工具回覆帶的圖（m.images；appendImages）：同源 <img>，點了放大 */
+  .msg .msg-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; white-space: normal; }
+  .msg .msg-images img { display: block; max-width: 100%; max-height: 360px; height: auto; border-radius: 8px;
+    background: var(--img-bg); border: 1px solid var(--line); cursor: zoom-in; }
+  .img-zoom { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
+    background: var(--img-scrim); padding: 16px; cursor: zoom-out; }
+  .img-zoom img { max-width: 100%; max-height: 100%; background: var(--img-bg); border-radius: 10px; }
   .msg .blocks { white-space: normal; }
   .msg .blocks > * { margin: 0 0 8px; }
   .msg .blocks > *:last-child { margin-bottom: 0; }
@@ -353,6 +317,7 @@
   .msg .blocks ul, .msg .blocks ol { padding-left: 1.4em; }
   .msg .blocks li > ul, .msg .blocks li > ol { margin: 2px 0 0; }
   .msg .blocks pre { overflow-x: auto; padding: 8px 10px; border-radius: 8px; background: var(--sunken); white-space: pre; }
+  .msg .blocks pre, .msg .blocks code { font-variant-ligatures: none; }      /* TAB 譜的 |--- 不要被字型連成線 */
   .msg .blocks blockquote { margin-left: 0; padding-left: 10px; border-left: 3px solid var(--line-strong); color: var(--muted); }
   .msg .blocks .tablewrap { background: var(--surface); }
   .msg .blocks .status { font-weight: 650; }
@@ -360,7 +325,10 @@
   #composer { display: flex; gap: 8px; align-items: flex-end; margin: 0 14px 14px; padding: 8px 8px 8px 14px;
               border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface);
               transition: border-color .15s var(--ease), box-shadow .15s var(--ease); }
-  #composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  /* 輸入框的邊要看得出來（WCAG 1.4.11 ≥3:1）：--muted 是給字用的（≥4.5:1），摻一點 --line-strong 讓它不要太重 */
+  #composer { border-color: color-mix(in srgb, var(--muted) 85%, var(--line-strong)); box-shadow: var(--shadow-sm); }
+  #composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-soft); }
+  body.chat-dragging #composer { border-style: dashed; border-color: var(--accent); }
   #input { flex: 1; resize: none; min-height: 40px; max-height: 160px; border: 0; padding: 9px 0; background: transparent;
            box-shadow: none; }
   #input:focus { box-shadow: none; }
@@ -371,6 +339,36 @@
   .att-chip .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .att-chip .k { color: var(--muted); font-size: 12px; }
   .att-chip button { padding: 0 6px; min-height: 0; border: 0; background: transparent; }
+  /* 回覆某一則（static/reply.js）：泡泡上的「↩ 回覆」、送出那則上面的引用塊、輸入框上方的引用列 */
+  /* 觸控（沒有滑鼠移上去）：泡泡底下一行小字，一直看得到；有滑鼠：浮在泡泡旁邊、移上去或 Tab 到才出現（不佔位置） */
+  .msg { position: relative; }
+  .msg .reply-btn { display: block; margin: 4px -6px -6px auto; padding: 0 6px; min-height: 28px; font-size: 12px;
+                    font-weight: 500; border: 0; background: transparent; box-shadow: none; color: inherit; opacity: .65;
+                    white-space: nowrap; }
+  .msg .reply-btn:hover { background: transparent; opacity: 1; text-decoration: underline; }
+  @media (hover: hover) {
+    .msg .reply-btn { position: absolute; bottom: 2px; margin: 0; color: var(--muted); opacity: 0; }
+    .msg.me .reply-btn { right: 100%; margin-right: 4px; }
+    .msg.bot .reply-btn { left: 100%; margin-left: 4px; }
+    .msg:hover .reply-btn, .msg:focus-within .reply-btn { opacity: 1; }
+  }
+  .msg .reply-quote { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; min-height: 0;
+                      margin: 0 0 6px; padding: 4px 8px; text-align: left; white-space: normal; color: var(--text-2);
+                      border: 0; border-left: 3px solid var(--accent); border-radius: 6px; box-shadow: none;
+                      background: var(--surface-2); font-weight: 400; cursor: pointer; }
+  .msg .reply-quote:hover { background: var(--sunken); }
+  .msg .reply-quote .rq-who { font-size: 12px; font-weight: 650; color: var(--accent); }
+  .msg .reply-quote .rq-text { font-size: 12.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg.flash { animation: reply-flash 1.6s var(--ease); }
+  @keyframes reply-flash { 0%, 60% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+  @media (prefers-reduced-motion: reduce) { .msg.flash { animation: none; outline: 3px solid var(--accent); outline-offset: 2px; } }
+  .reply-bar { display: flex; align-items: center; gap: 8px; margin: 0 14px 6px; padding: 6px 6px 6px 10px;
+               border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--r);
+               background: var(--surface); }
+  .reply-bar .rb-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .reply-bar .rb-who { font-size: 12px; font-weight: 650; color: var(--accent); }
+  .reply-bar .rb-text { font-size: 13px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .reply-bar .rb-x { flex: none; padding: 0 10px; min-height: 32px; border: 0; background: transparent; box-shadow: none; }
   .hint { font-size: 12px; color: var(--muted); text-align: center; margin: -6px 0 10px; }
   .empty { color: var(--muted); text-align: center; margin: auto; display: flex; flex-direction: column;
            align-items: center; gap: 10px; padding: 24px; }
@@ -385,6 +383,7 @@
     #stream { padding: 20px 24px; }
     #composer { margin: 0 24px 14px; }
     #attach-list { margin: 0 24px 6px; }
+    .reply-bar { margin: 0 24px 6px; }
     .hint { margin-bottom: 12px; }
   }
 
@@ -511,6 +510,14 @@
   .look-card .row { margin-top: auto; }
   #custom-text { width: 100%; font-family: var(--mono); font-size: 13px; }
   iframe.theme-preview { width: 100%; height: 250px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+  /* 套用檢查（synox/theme/check.py，ADR 0042）：摘要＋要注意的；展開看每一項 */
+  .theme-check { font-size: 13px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .theme-check ul { margin: 2px 0 0; padding-left: 18px; }
+  .theme-check details summary { cursor: pointer; color: var(--muted); }
+  .theme-check table { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 12px; }
+  .theme-check th, .theme-check td { text-align: left; padding: 2px 6px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+  .theme-check td.v { font-family: var(--mono); color: var(--muted); }
+  .theme-check tr.issue td { color: var(--warn); }
   .theme-previews { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 10px; }
   .swatches { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
   .swatches .muted { margin-right: 4px; }
@@ -648,6 +655,7 @@
 <style nonce="{{NONCE}}">/*{{INCLUDE:security.css}}*/</style>
 <style nonce="{{NONCE}}">/*{{INCLUDE:apps.css}}*/</style>
 <style nonce="{{NONCE}}">/*{{INCLUDE:notify.css}}*/</style>
+<style nonce="{{NONCE}}">/*{{INCLUDE:usermenu.css}}*/</style>
 <script nonce="{{NONCE}}">/*{{INCLUDE:slots.js}}*/</script>
 <!-- theme -->
 <style nonce="{{NONCE}}">/*{{INCLUDE:splash.css}}*/</style>
@@ -658,10 +666,9 @@
 <aside class="side">
   <div class="brand-row">
     <div class="brand"><button id="brand-mark" class="mark" type="button" data-splash-replay title="再看一次開場" aria-label="再看一次開場"><span class="slot theme-slot-mascot-idle" data-slot="mascot.idle" aria-hidden="true">S</span></button><span class="name"><span class="slot theme-slot-wordmark" data-slot="wordmark">SYNOX</span></span></div>
-    <button id="logout" class="ghost sm hidden" type="button" title="登出">
-      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg>
-      <span>登出</span>
-    </button>
+    <!-- 🔄 重新啟動（只有擁有者）、手機的頭像（打開使用者選單）：static/usermenu.js。登出在選單裡 -->
+    <button id="restart-btn" class="restart-btn hidden" type="button" title="重新啟動 SYNOX" aria-label="重新啟動 SYNOX"><span class="rs-ico" aria-hidden="true">⟳</span><span class="um-dot hidden" data-um-dot aria-hidden="true"></span></button>
+    <button id="um-phone" class="um-phone hidden" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="user-menu" aria-label="我的選單"><span class="avatar" id="avatar-m" aria-hidden="true"></span><span class="um-dot hidden" data-um-dot aria-hidden="true"></span></button>
   </div>
   <nav id="nav" class="nav hidden">
     <a href="#chat" data-view="chat" data-tour="nav.chat">
@@ -685,9 +692,26 @@
   </div>
   <a id="apps-side" class="hidden" href="#tools" title="工具服務：到工具頁看、關掉"></a>
   <div id="side-foot" class="side-foot hidden">
-    <span class="avatar" id="avatar" aria-hidden="true"></span>
-    <span class="who" id="who"></span>
-    <a id="help-link" class="help-link" href="#settings:help" title="遇到問題？告訴我們，一起把它修好">遇到問題？</a>
+    <button id="um-card" class="um-card" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="user-menu" title="我的選單">
+      <span class="avatar" id="avatar" aria-hidden="true"></span>
+      <span class="who" id="who"></span>
+      <span class="um-dot hidden" data-um-dot aria-hidden="true"></span>
+      <svg class="i um-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14l5-5 5 5"/></svg>
+    </button>
+  </div>
+  <!-- 使用者選單（點上面的卡片；手機點上方列的頭像）：static/usermenu.js、usermenu.css -->
+  <div id="user-menu" class="um hidden" role="menu" aria-label="我的選單">
+    <div class="um-head" role="none">
+      <div class="um-state"><span class="um-live" aria-hidden="true"></span><span id="um-status">SYNOX 運作中</span><span class="um-ver" id="um-ver"></span></div>
+      <div class="um-me"><span class="avatar" id="um-avatar" aria-hidden="true"></span><span class="txt"><span id="um-name"></span><span id="um-role"></span></span></div>
+    </div>
+    <button id="um-restart" class="um-item hidden" type="button" role="menuitem"><span class="um-ico" aria-hidden="true">🔄</span><span class="um-label">重新啟動 SYNOX</span><span class="um-pill hidden" data-um-dot>待生效</span></button>
+    <button id="um-notify" class="um-item hidden" type="button" role="menuitem"><span class="um-ico" aria-hidden="true">🔔</span><span class="um-label">通知</span></button>
+    <a class="um-item" href="#settings" role="menuitem"><span class="um-ico" aria-hidden="true">⚙️</span><span class="um-label">設定</span></a>
+    <a class="um-item" href="#settings:appearance" role="menuitem"><span class="um-ico" aria-hidden="true">🎨</span><span class="um-label">換外觀</span></a>
+    <a id="help-link" class="um-item" href="#settings:help" role="menuitem" title="遇到問題？告訴我們，一起把它修好"><span class="um-ico" aria-hidden="true">❓</span><span class="um-label">遇到問題？</span></a>
+    <div class="um-sep" role="separator"></div>
+    <button id="um-logout" class="um-item um-out" type="button" role="menuitem"><span class="um-ico" aria-hidden="true">↪</span><span class="um-label">登出</span></button>
   </div>
 </aside>
 
@@ -717,6 +741,7 @@
       <div class="chat-head"><span class="live" aria-hidden="true"></span><span class="t" id="chat-title">對話</span></div>
       <div id="stream"><div class="empty">選一段對話，或按「新對話」。</div></div>
       <div id="helpdock" class="helpdock hidden" aria-label="範例"></div>
+      <div id="reply-bar" class="reply-bar hidden" aria-live="polite"></div>
       <div id="attach-list" aria-live="polite"></div>
       <form id="composer" data-tour="chat.input">
         <button id="examples-btn" class="ghost" type="button" data-tour="chat.examples" title="看範例：點一下就放進輸入框">💡 範例</button>
@@ -822,11 +847,13 @@
             <button id="llm-local-free" type="button">釋放顯卡（全部卸載）</button>
           </div>
           <p id="llm-local-models-msg" class="muted"></p>
-          <label class="f" for="llm-local-ctx">Context 長度（越大越佔記憶體；LM Studio 是按「載入這個模型」時用這個長度）</label>
+          <label class="f" for="llm-local-ctx">Context 長度（越大越佔記憶體；LM Studio 是載入模型時用這個長度）</label>
           <div class="row">
             <select id="llm-local-ctx"></select>
             <button id="llm-local-advice" type="button">看建議</button>
+            <button id="llm-local-reload" type="button" class="hidden">用 <span id="llm-local-reload-n">—</span> 重新載入這個模型</button>
           </div>
+          <p id="llm-local-reload-msg" class="muted"></p>
           <p class="muted">不確定電腦撐不撐得住？按「看建議」：只讀取模型資料與這台電腦的記憶體，不會載入模型。建議值都是估算。</p>
           <ul id="llm-local-notes" class="muted"></ul>
           <p class="muted">逾時：模型只要還在回應就不會被中止；完全沒有進展超過 <span id="llm-local-timeout">450</span> 秒才中止，
@@ -917,6 +944,14 @@
         </div>
       </div>
 
+      <div id="set-data" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">🗂️</span>
+          <div class="txt"><h2>資料版本</h2>
+            <p class="sub">每份資料是哪一版的格式。SYNOX 或工具升級後，舊資料會在下次啟動時自動升到新格式（先備份；失敗就還原、不會改壞）。</p></div></div>
+        <ul id="data-list" class="plain-list"></ul>
+        <p id="data-note" class="muted"></p>
+      </div>
+
       <div id="set-backup" class="card hidden" data-tour="settings.backup">
         <div class="card-head"><span class="tile" aria-hidden="true">💾</span>
           <div class="txt"><h2>備份</h2>
@@ -936,7 +971,7 @@
         <p class="note-line scope-note">💬 <strong>目前只能一對一私訊</strong>：要在 Telegram 或 Discord 裡<strong>私訊</strong> bot 才會回你。
           把 bot 加進 Telegram 群組、Discord 伺服器的頻道或「社群」裡 @ 它，<strong>不會有用</strong>（指令與 AI 在群組、頻道裡都被擋掉，這是為了不讓別人碰到你的資料）。</p>
         <p id="ch-restart" class="restart-banner hidden" role="status">⚠ 聊天通道的設定改了，要<strong>重新啟動 SYNOX</strong> 才會生效：
-          先雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑。在那之前 bot 不會上線、也不會回你。</p>
+          先雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑。在那之前 bot 不會上線、也不會回你。<button type="button" class="sm primary restart-now" data-restart-now>立即重新啟動</button></p>
         <div class="channel">
           <h3>Telegram</h3>
           <p id="ch-tg-now" class="muted"></p>
@@ -1231,12 +1266,16 @@
 <script nonce="{{NONCE}}">/*{{INCLUDE:security.js}}*/</script>
 <script nonce="{{NONCE}}">/*{{INCLUDE:apps.js}}*/</script>
 <script nonce="{{NONCE}}">/*{{INCLUDE:notify.js}}*/</script>
+<script nonce="{{NONCE}}">/*{{INCLUDE:usermenu.js}}*/</script>
 <!-- include: tools.js -->
 <!-- include: tour.js -->
 <!-- include: helpdock.js -->
 <!-- include: aliases.js -->
 <script nonce="{{NONCE}}">
 /*{{INCLUDE:blocks.js}}*/
+/*{{INCLUDE:reply.js}}*/
+/*{{INCLUDE:semver.js}}*/
+/*{{INCLUDE:attach.js}}*/
 (function () {
   "use strict";
   var me = null;
@@ -1330,7 +1369,7 @@
   function showLogin() {
     me = null;
     $("nav").classList.add("hidden");
-    $("logout").classList.add("hidden");
+    if (window.SynoxUserMenu) { window.SynoxUserMenu.reset(); }       // 使用者選單、⟳（static/usermenu.js）
     $("side-foot").classList.add("hidden");
     clear($("who"));
     show("login");
@@ -1378,6 +1417,7 @@
   function openChat(id, keep) {
     if (current === id && keep && Object.keys(nodes).length) { markActive(); return; }
     pendSet(false);
+    stopReply();
     current = id; rev = 0; nodes = {}; primed = false;
     var s = $("stream");
     clear(s);
@@ -1433,6 +1473,34 @@
     api("POST", "/api/chats", {}).then(function (d) { current = null; loadChats(d.id); })
       .catch(function (e) { toast(e.message); });
   }
+  // 工具回覆帶的圖（docs/sdk.md「回覆帶圖」）：一律 <img src＝同源網址>，不把 SVG 插進 DOM；點了放大、Esc／點一下關
+  function appendImages(box, m, chat) {
+    var imgs = Array.isArray(m.images) ? m.images : [];
+    var cid = chat || current;
+    if (!imgs.length || !cid) { return; }
+    var wrap = el("div", "msg-images");
+    imgs.forEach(function (im) {
+      if (!im || !/^[A-Za-z0-9_-]{8,40}$/.test(String(im.id || ""))) { return; }
+      var img = document.createElement("img");
+      img.src = "/api/chat/" + encodeURIComponent(cid) + "/image/" + im.id;
+      img.alt = String(im.alt || "圖");
+      img.loading = "lazy";
+      if (im.w > 0 && im.h > 0) { img.width = Math.min(im.w, 640); }
+      img.addEventListener("click", function () {
+        var z = el("div", "img-zoom");
+        var big = document.createElement("img");
+        big.src = img.src; big.alt = img.alt;
+        z.appendChild(big);
+        function close() { if (z.parentNode) { z.parentNode.removeChild(z); } document.removeEventListener("keydown", onKey); }
+        function onKey(e) { if (e.key === "Escape") { close(); } }
+        z.addEventListener("click", close);
+        document.addEventListener("keydown", onKey);
+        document.body.appendChild(z);
+      });
+      wrap.appendChild(img);
+    });
+    if (wrap.childNodes.length) { box.appendChild(wrap); }
+  }
   function renderMessage(m, chat, after) {
     var who = m.from === "me" ? "me" : (m.from === "note" ? "note" : "bot");
     var box = el("div", "msg " + who);
@@ -1443,9 +1511,15 @@
     // type=examples 的區塊是 /help 卡片的範例（synox/helpui）：畫成小標籤，點了＝填進輸入框、不送出（static/helpdock.js）
     var exBlock = blocks.filter(function (b) { return b && b.type === "examples"; })[0];
     blocks = blocks.filter(function (b) { return !(b && (b.type === "tour" || b.type === "examples")); });
+    // 回覆某一則（static/reply.js）：上面一小塊引用，點了捲到原訊息
+    var rq = !chat && m.reply_to && window.SynoxReply ? window.SynoxReply.quote(document, m.reply_to, jumpTo) : null;
+    if (rq) { box.appendChild(rq); }
+    // AI 回的 Markdown（presentation 關著時沒有 blocks）：瀏覽器這邊畫成粗體、程式碼區塊…（blocks.js 的 markdown；不是 Markdown 就照舊）
+    if (!blocks.length && who === "bot" && !m.deleted) { blocks = window.SynoxBlocks.markdown(m.text) || []; }
     // 沒有 blocks 的純文字：照舊 textContent，只有 http(s):// 網址變成連結（blocks.js 的 linkText，過 safeHref）
     box.appendChild(blocks.length ? window.SynoxBlocks.render(document, blocks)
                                   : window.SynoxBlocks.linkText(document, m.text));
+    appendImages(box, m, chat);
     if (tourBlock && window.SynoxTour && !chat) {
       box.appendChild(window.SynoxTour.chatButton(tourBlock, primed && !nodes[m.id], m.id));
     }
@@ -1474,7 +1548,24 @@
       });
       box.appendChild(kb);
     }
+    if (!chat && !m.deleted && who !== "note" && window.SynoxReply) {
+      box.appendChild(window.SynoxReply.button(document, function () { startReply(m); }));
+    }
     return box;
+  }
+  // ── 回覆某一則 ──
+  var replying = null;           // 要回覆的那則 {id, from, text}；送出時帶 reply_to
+  function startReply(m) {
+    replying = { id: m.id, from: m.from, text: m.text };
+    window.SynoxReply.bar(document, $("reply-bar"), replying, stopReply);
+    $("input").focus();
+  }
+  function stopReply() {
+    replying = null;
+    if (window.SynoxReply) { window.SynoxReply.bar(document, $("reply-bar"), null, stopReply); }
+  }
+  function jumpTo(id) {
+    if (!window.SynoxReply.jump(nodes[id])) { toast(window.SynoxReply.TEXT.gone); }
   }
   // 外觀的 slot（static/slots.js）：吉祥物、字標…換了外觀就是外觀的，沒換就是原本的 SYNOX
   function slotNode(name, cls) {
@@ -1550,13 +1641,19 @@
     var sent = attached;
     attached = [];
     drawAttached();
-    return api("POST", "/api/chat/" + encodeURIComponent(current) + "/send", { text: text, attachments: ids })
+    var body = { text: text, attachments: ids };
+    var quoted = replying;
+    if (quoted) { body.reply_to = quoted.id; }
+    stopReply();
+    return api("POST", "/api/chat/" + encodeURIComponent(current) + "/send", body)
       .then(function () { poll(); setTimeout(poll, 700); })
-      .catch(function (e) { pendSet(false); toast(e.message); attached = sent.concat(attached); drawAttached(); });
+      .catch(function (e) {
+        pendSet(false); toast(e.message); attached = sent.concat(attached); drawAttached();
+        if (quoted && !replying) { startReply(quoted); }       // 沒送成功：引用列放回去
+      });
   }
   // ── 對話的附件（POST /api/chat/<id>/upload；web/uploads.py）：先上傳到記憶體拿 id，送出時一起帶 ──────
   var attached = [];            // [{id, name, label, uploading}]
-  var ATTACH_MAX = 10 * 1024 * 1024;
   function drawAttached() {
     var box = $("attach-list");
     clear(box);
@@ -1577,11 +1674,14 @@
       box.appendChild(chip);
     });
   }
+  // 📎、貼上、拖進來都走這裡：同一套類型（#attach-input 的 accept）、大小、數量檢查（static/attach.js）；只收 File 物件
   function attachFiles(list) {
     if (!current) { toast("先選一段對話，或按「新對話」。"); return; }
-    Array.prototype.forEach.call(list || [], function (f) {
-      if (f.size > ATTACH_MAX) { toast("「" + f.name + "」太大（每個最多 10 MB）。"); return; }
-      var a = { id: "", name: f.name || "貼上的圖片", label: "", uploading: true };
+    var p = window.SynoxAttach.plan(list, attached.length, $("attach-input").getAttribute("accept"));
+    if (p.problems.length) { toast(p.problems.join(" ")); }
+    p.ok.forEach(function (one) {
+      var f = one.file;
+      var a = { id: "", name: one.name, label: "", uploading: true };
       var chat = current;
       attached.push(a);
       drawAttached();
@@ -1607,10 +1707,8 @@
     attachFiles($("attach-input").files);
     $("attach-input").value = "";
   });
-  $("input").addEventListener("paste", function (ev) {        // 直接貼上截圖
-    var files = ev.clipboardData && ev.clipboardData.files;
-    if (files && files.length) { ev.preventDefault(); attachFiles(files); }
-  });
+  // 直接貼上截圖（Ctrl+V）：在輸入框，或對話區裡沒有在打別的字的地方；剪貼簿有文字就照常貼字（static/attach.js）
+  document.addEventListener("paste", window.SynoxAttach.pasteListener(document, $("input"), attachFiles));
   window.SynoxChatDrop = attachFiles;              // 拖進對話頁的檔案（static/packdrop.js 先看是不是工具檔，不是才交給這裡）
   function press(chat, messageId, data, btn) {
     if (btn) { btn.disabled = true; }
@@ -1630,6 +1728,7 @@
     send(text);
   });
   $("input").addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && replying) { ev.preventDefault(); stopReply(); return; }
     if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) {
       ev.preventDefault();
       $("composer").requestSubmit ? $("composer").requestSubmit() : $("composer").dispatchEvent(new Event("submit"));
@@ -1748,6 +1847,7 @@
       if (d.owner) { loadUsage(); fillLlm(d); fillPacks(d.packs || []); loadChannels(); loadAwake(); loadStaged(); loadUpdate(); }
       else { $("set-awake").classList.add("hidden"); $("set-update").classList.add("hidden"); }
       if (d.accounts) { loadAccounts(); }
+      if (d.owner) { loadDataVersions(); } else { $("set-data").classList.add("hidden"); }
       loadLook();
     }).catch(function (e) { toast(e.message); });
   }
@@ -1800,6 +1900,7 @@
     list.appendChild(lookCard("", "原本的 SYNOX", "預設的樣子", null));
     (look.themes || []).forEach(function (t) {
       var card = lookCard(t.name, t.title, t.name + " · v" + t.version + (t.publisher ? " · " + t.publisher : ""), t.tokens);
+      if (t.check) { card.insertBefore(themeCheckBox(t.check, true), card.lastChild); }
       if (!t.ok) { card.appendChild(el("p", "alert", "⚠️ 這套外觀沒通過安全檢查，不能套用")); card.querySelector("button").disabled = true; }
       list.appendChild(card);
     });
@@ -2000,7 +2101,7 @@
     clear(box);
     wdThemes.forEach(function (t) {
       var have = wdInstalled(t.name);
-      if (have) { t.installed = have.version || t.installed || "?"; t.newer = verNewer(t.version, t.installed); }
+      if (have) { t.installed = have.version || t.installed || "?"; t.newer = !t.blocked && verNewer(t.version, t.installed); }
       box.appendChild(wdCard(t));
     });
   }
@@ -2189,8 +2290,14 @@
     $("llm-local-model").placeholder = h[1];
   }
   $("llm-local-server").addEventListener("change", syncLocalHint);
-  // ── 本地模型清單、載入／卸載（POST /api/settings/llm/local-models、local-load、local-unload）──────
-  var localModels = [];
+  // ── 本地模型清單、載入／卸載（POST /api/settings/llm/local-models、local-load、local-unload、local-reload）──────
+  var localModels = [], localCanLoad = false;
+  function syncReload() {                          // 「用 N 重新載入」：只有 LM Studio（能從這裡載入）才有
+    var n = Number($("llm-local-ctx").value || 0);
+    $("llm-local-reload-n").textContent = n ? String(n) : "—";
+    $("llm-local-reload").classList.toggle("hidden", !(localCanLoad && $("llm-local-server").value === "lmstudio"));
+    $("llm-local-reload").disabled = !n;
+  }
   function localTarget() {
     return { server: $("llm-local-server").value, base_url: $("llm-local-url").value, api_key: $("llm-local-key").value };
   }
@@ -2216,6 +2323,8 @@
     if (!cur && d.suggested) { $("llm-local-model").value = d.suggested; cur = d.suggested; }
     if (cur && localModels.some(function (m) { return m.id === cur; })) { sel.value = cur; useLoadedContext(cur); }
     $("llm-local-loadrow").classList.toggle("hidden", !d.can_load);
+    localCanLoad = !!d.can_load;
+    syncReload();
     var loaded = localModels.filter(function (m) { return m.loaded; }).length;
     var msg = d.ok === false ? d.message : "找到 " + localModels.length + " 個模型，" + (loaded ? loaded + " 個已載入。" : "目前都沒有載入。");
     if (!quiet || d.ok === false) { $("llm-local-models-msg").textContent = msg + (d.notes && d.notes.length ? "　" + d.notes.join("　") : ""); }
@@ -2251,6 +2360,25 @@
     }
     sel.value = want;
   }
+  $("llm-local-ctx").addEventListener("change", syncReload);
+  $("llm-local-server").addEventListener("change", syncReload);
+  $("llm-local-reload").addEventListener("click", function () {
+    var model = $("llm-local-model").value, n = Number($("llm-local-ctx").value || 0), btn = $("llm-local-reload");
+    if (!model) { $("llm-local-reload-msg").textContent = "先選一個模型。"; return; }
+    if (!n) { $("llm-local-reload-msg").textContent = "先在左邊選一個 context 長度（0 不能拿來重新載入）。"; return; }
+    if (!confirm("會先把 " + model + " 從 LM Studio 卸載，再用 context " + n + " 重新載入。\n\n" +
+                 "正在用這個模型的其他程式（或正在跑的對話）會被中斷；其他模型不會動。載入前會先估記憶體，撐不住就不動。\n\n要繼續嗎？")) { return; }
+    var body = localTarget();
+    body.model = model;
+    body.context_length = n;
+    btn.disabled = true;
+    $("llm-local-reload-msg").textContent = "重新載入中…大模型可能要幾十秒，請稍等。";
+    api("POST", "/api/settings/llm/local-reload", body).then(function (d) {
+      $("llm-local-reload-msg").textContent = d.message;   // ✅ 只在 LM Studio 讀回來的 context＝選的值時才出現
+      return listLocalModels(true);
+    }).catch(function (e) { $("llm-local-reload-msg").textContent = "❌ " + e.message; })
+      .then(function () { btn.disabled = false; syncReload(); });
+  });
   $("llm-local-load").addEventListener("click", function () {
     var body = localTarget();
     body.model = $("llm-local-model").value;
@@ -2271,13 +2399,15 @@
     showNotes(["讀取中…（不會載入模型）"]);
     api("POST", "/api/settings/llm/local-advice", { server: $("llm-local-server").value,
         base_url: $("llm-local-url").value, model: $("llm-local-model").value }).then(function (d) {
-      fillContext(d.options || [], d.recommended || $("llm-local-ctx").value);
+      fillContext(d.options || [], d.reload_to || d.recommended || $("llm-local-ctx").value);
+      syncReload();
       showNotes((d.options || []).map(function (r) { return r.ctx + "：" + r.text + (r.recommended ? "　← 推薦" : ""); })
         .concat(d.notes || []));
     }).catch(function (e) { showNotes(["❌ " + e.message]); });
   });
   $("llm-test").addEventListener("click", function () {
-    $("llm-msg").textContent = "測試中…";
+    $("llm-msg").textContent = $("llm-local-fields").classList.contains("hidden") ? "測試中…" :
+      "測試中…（先讀模型資料；模型已經載入的話會送一句很短的話給它，最多等 60 秒）";
     $("llm-install").classList.add("hidden");
     api("POST", "/api/settings/llm/test", llmBody()).then(function (d) {
       $("llm-msg").textContent = d.message;
@@ -2366,6 +2496,30 @@
   }
   function loadUpdate() {
     api("GET", "/api/settings/update").then(drawUpdate).catch(function () { $("set-update").classList.add("hidden"); });
+  }
+  // 資料版本（ADR 0044）：只看；升級在 SYNOX 啟動、工具載入前自動做
+  var DATA_MARK = { current: "✅", planned: "⬆️", too_new: "⛔", failed: "❌", missing: "·" };
+  function dataLine(r) {
+    var name = r.kind;
+    if (r.action === "missing") { return DATA_MARK.missing + " " + name + "：還沒有這份資料"; }
+    if (r.action === "current") { return DATA_MARK.current + " " + name + "：資料版本 " + r.after + "（最新）"; }
+    if (r.action === "planned") { return DATA_MARK.planned + " " + name + "：資料版本 " + r.before + " → " + r.current + "（下次啟動 SYNOX 時自動升級）"; }
+    return (DATA_MARK[r.action] || "⚠️") + " " + name + "：" + (r.message || "");
+  }
+  function drawDataVersions(d) {
+    var list = $("data-list");
+    clear(list);
+    (d.core || []).concat(d.packs || []).forEach(function (r) {
+      var li = document.createElement("li");
+      li.textContent = dataLine(r);
+      list.appendChild(li);
+    });
+    $("data-note").textContent = d.problems ? "有資料沒辦法用（看上面的 ⛔／❌ 那幾行）：照說明升級 SYNOX／工具，或從備份還原。"
+      : (d.needs_upgrade ? "有資料要升級：重新啟動 SYNOX 時會自動做（先備份）。" : "");
+    $("set-data").classList.remove("hidden");
+  }
+  function loadDataVersions() {
+    api("GET", "/api/settings/data").then(drawDataVersions).catch(function () { $("set-data").classList.add("hidden"); });
   }
   $("upd-check").addEventListener("click", function () {
     $("upd-msg").textContent = "問 GitHub 中…";
@@ -2589,7 +2743,9 @@
     api("GET", "/api/settings/channels").then(function (d) {
       var t = d.telegram, c = d.discord;
       $("ch-restart").classList.toggle("hidden", !(t.restart || c.restart));
+      if (window.SynoxUserMenu) { window.SynoxUserMenu.setPending(t.restart || c.restart); }   // 選單上的小點
       $("ch-tg-now").textContent = channelLine(t, function (n) { return "@" + n; }) +
+        (t.masked ? "（token " + t.masked + "，存在保管箱）" : (!t.saved && t.problem ? "⚠️ " + t.problem : "")) +
         (t.saved && !t.owner_paired ? (t.pairable ? "還沒配對擁有者：用下面的「配對我的 Telegram 帳號」。" :
           "還沒配對擁有者：雙擊 Setup.bat 重跑安裝精靈配對（token 會自動帶入）。") : "");
       $("ch-dc-form").classList.toggle("hidden", c.multi);
@@ -2621,9 +2777,11 @@
   $("ch-dc-save").addEventListener("click", function () { saveChannel("dc"); });
 
   var STATUS = { loaded: "可以用", connector: "還沒接好", disabled: "關掉了", invalid: "檔案有問題", missing: "缺東西", incompatible: "跟這版 SYNOX 不合", error: "壞了",
-    tampered: "被改過了，先不開", rejected: "安全檢查沒過，先不開", unapproved: "沒有經過安裝頁，先不開" };
+    tampered: "被改過了，先不開", rejected: "安全檢查沒過，先不開", unapproved: "沒有經過安裝頁，先不開",
+    unaccepted: "有警告還沒確認，先不開" };
   // 狀態的顏色（顏色之外一定有字）：可以用＝綠、還沒接上／關掉＝黃、其他＝紅
-  var TONE = { loaded: "ok", connector: "warn", disabled: "", missing: "warn", incompatible: "warn", unapproved: "warn" };
+  var TONE = { loaded: "ok", connector: "warn", disabled: "", missing: "warn", incompatible: "warn", unapproved: "warn",
+    unaccepted: "warn" };
   var LOCK = { locked: "🔒", unlocked: "", tampered: "⚠️" };
   // 標章（ADR 0028 §3）：只用伺服器給的狀態（安裝時 SYNOX 驗簽章、寫進鎖），不用工具自己寫的字
   var SIG_LABEL = { official: "✅ 官方", author: "✍️ 作者簽章", none: "⚠️ 不是官方", invalid: "⛔ 被改過" };
@@ -2649,6 +2807,14 @@
       var tr = el("tr");
       var nm = el("td", "name", (LOCK[p.lock] ? LOCK[p.lock] + " " : "") + p.name + " ");
       if (p.lock && p.lock !== "unlocked" && p.status !== "unapproved") { nm.appendChild(sigChip(p.signature)); }
+      (p.warnings || []).forEach(function (w) {   // 作者標的警告（ADR 0041）：每條一行，不折疊
+        nm.appendChild(el("span", "badge bad", "⚠️ " + w.text));
+        if (w.advice) { nm.appendChild(el("span", "detail", w.advice)); }
+      });
+      if (p.isolation && p.isolation.text) {      // 警告下面：SYNOX 自己寫的「這台實況」（ADR 0041 S1；只是顯示）
+        nm.appendChild(el("span", "detail" + (p.isolation.isolated ? "" : " alert"),
+                          "ℹ️ SYNOX 查這台的實況：" + p.isolation.text));
+      }
       tr.appendChild(nm);
       var st = el("td");
       var tone = TONE.hasOwnProperty(p.status) ? TONE[p.status] : "bad";
@@ -2724,6 +2890,8 @@
         box.appendChild(el("p", "alert", "🔴 " + l + "（官方的看上面的標章，不看名字）"));
       });
     }
+    // 作者標的警告（ADR 0041）：緊接在標章下面；每一條都要勾「我知道」才能按確認（升級時已確認過的沿用）
+    var warned = showPackWarnings(box, s, s.adopt ? null : s.upgrade, canInstall && s.token);
     box.appendChild(el("h3", "", s.title + "（" + s.name + " " + s.version + "）"));
     box.appendChild(el("p", "", s.summary));
     box.appendChild(el("p", "muted", "進階：種類 " + s.kind + "，誰能用 " + s.access + "，資料 " + s.storage +
@@ -2789,11 +2957,12 @@
       var busy = false;
       var refresh = function () {             // 該勾的都勾了＝走到「確認」那一步
         var versionOk = !(upg && !upg.version_ok) || !!(down && down.checked);
-        ok.disabled = busy || !versionOk || (pub && !pub.ready());
+        ok.disabled = busy || !versionOk || (pub && !pub.ready()) || (warned && !warned.ready());
         if (!busy) { setStep(ok.disabled ? "review" : "confirm", "active", info); }
       };
       if (down) { down.addEventListener("change", refresh); }
       if (pub) { pub.onchange(refresh); }
+      if (warned) { warned.onchange(refresh); }
       refresh();
       ok.addEventListener("click", function () {
         var body = { token: s.token };
@@ -2802,6 +2971,7 @@
         if (trust) { body.trust = trust.value; }
         if (runtime) { body.runtime = runtime.value; }
         if (pub) { body.trust_publisher = pub.value(); }
+        if (warned) { body.accept_warnings = warned.value(); }
         busy = true; ok.disabled = true; later.disabled = true; no.disabled = true;
         ok.textContent = upg ? "升級中…" : "安裝中…";
         setStep("installing", "active", info);
@@ -2856,6 +3026,59 @@
     f.src = "/theme/preview?" + query;
     return f;
   }
+  // 套用檢查（synox/theme/check.py，ADR 0042）：每個 token／位置是有給、沿用預設、還是被忽略。只是提示，不擋套用。
+  var CHECK_TEXT = { provided: "外觀包有給", derived: "沒給 → 用外觀包自己的顏色算", "default": "沒給 → 沿用 SYNOX 預設",
+    ignored: "給了但這版 SYNOX 不認得 → 忽略" };
+  var SLOT_CHECK_TEXT = { provided: "外觀包有換", "default": "沒換 → 沿用 SYNOX 原本的", ignored: "給了但這版 SYNOX 沒有這個位置 → 忽略" };
+  var MODE_TEXT = { light: "淺色", dark: "深色" };
+  function countLine(c, texts) {
+    return Object.keys(texts).filter(function (k) { return c && c[k]; }).map(function (k) { return texts[k] + " " + c[k]; }).join("、");
+  }
+  function checkTable(rows, slot) {
+    var table = el("table");
+    var head = el("tr");
+    [slot ? "位置" : "token", "結果", slot ? "" : "值"].forEach(function (h) { if (h || !slot) { head.appendChild(el("th", "", h)); } });
+    table.appendChild(head);
+    (rows || []).forEach(function (r) {
+      var tr = el("tr", r.issue ? "issue" : "");
+      tr.appendChild(el("td", "", (r.issue ? "⚠️ " : "") + (slot ? r.slot : "--" + r.token)));
+      tr.appendChild(el("td", "", (slot ? SLOT_CHECK_TEXT : CHECK_TEXT)[r.status] + (r.from === "light" ? "（跟淺色同一個）" : "")));
+      if (!slot) { tr.appendChild(el("td", "v", r.value || "")); }
+      table.appendChild(tr);
+    });
+    return table;
+  }
+  // compact（設定 → 外觀的卡片）：一行結果＋要注意的，數字收進「展開」；報告上數字直接列出來
+  function themeCheckBox(check, compact) {
+    var box = el("div", "theme-check");
+    if (!check) { return box; }
+    var c = check.counts || {};
+    var more = el("details");
+    more.appendChild(el("summary", "", "展開看每一項"));
+    var counts = compact ? more : box;
+    box.appendChild(el("div", "", "套用檢查（只是提示，不擋套用；沒給的都有值）"));
+    ["light", "dark"].forEach(function (m) { counts.appendChild(el("div", "muted", MODE_TEXT[m] + "：" + countLine(c[m], CHECK_TEXT))); });
+    counts.appendChild(el("div", "muted", "吉祥物與開場的位置：" + countLine(c.slots, SLOT_CHECK_TEXT)));
+    var issues = check.issues || [];
+    if (issues.length) {
+      box.appendChild(el("div", "", "⚠️ 要注意 " + issues.length + " 項："));
+      var ul = el("ul");
+      issues.forEach(function (it) {
+        ul.appendChild(el("li", "", (it.mode ? MODE_TEXT[it.mode] + " " : "") + (it.kind === "token" ? "--" : "") + it.name + "：" + it.why));
+      });
+      box.appendChild(ul);
+    } else {
+      box.appendChild(el("div", "", "✅ 沒有要注意的"));
+    }
+    ["light", "dark"].forEach(function (m) {
+      more.appendChild(el("div", "", MODE_TEXT[m] + "的每一個 token"));
+      more.appendChild(checkTable((check.tokens || {})[m], false));
+    });
+    more.appendChild(el("div", "", "吉祥物與開場的位置（slot）"));
+    more.appendChild(checkTable(check.slots, true));
+    box.appendChild(more);
+    return box;
+  }
   function showThemeReport(box, s) {
     var th = s.theme || {};
     box.appendChild(el("p", "", "🎨 外觀包：只換顏色、字型、吉祥物圖案，沒有程式。換掉的位置：" +
@@ -2863,6 +3086,7 @@
     var tk = th.tokens || {};
     box.appendChild(swatchRow(tk.light, "淺色"));
     box.appendChild(swatchRow(tk.dark, "深色"));
+    if (th.check) { box.appendChild(themeCheckBox(th.check)); }
     if (s.token && !((s.scan || {}).problems || []).length) {
       var pv = el("div", "theme-previews");
       pv.appendChild(previewFrame("staged=" + encodeURIComponent(s.token) + "&mode=light", s.title + "（淺色預覽）"));
@@ -3116,6 +3340,41 @@
     check();
     return sel;
   }
+  // ADR 0041：作者標的警告（pack.json 的 warnings）。每條紅字＋「我知道」勾選；全部勾了才能按確認。
+  // 升級：舊版已經確認過的 code 沿用（upg.pack_warnings.accepted），只勾新的。回 null＝沒有要勾的。
+  function showPackWarnings(box, s, upg, canInstall) {
+    var pw = s.pack_warnings || {};
+    var items = pw.items || [];
+    (pw.problems || []).forEach(function (p) { box.appendChild(el("p", "muted", "⚠️ warnings 寫得不對：" + p)); });
+    if (!items.length) { return null; }
+    var accepted = (upg && upg.pack_warnings && upg.pack_warnings.accepted) || [];
+    box.appendChild(el("p", "alert", "⚠️ 這個工具的作者標了 " + items.length + " 個警告（要你確認才會啟用）："));
+    var boxes = [];
+    items.forEach(function (w) {
+      var text = "⚠️ " + w.text + (w.advice ? "——" + w.advice : "") + "　〔" + w.code + "〕";
+      if (accepted.indexOf(w.code) >= 0) {
+        box.appendChild(el("p", "alert", text + "（之前確認過，沿用）"));
+        return;
+      }
+      if (!canInstall) { box.appendChild(el("p", "alert", text)); return; }
+      var lab = el("label", "alert");
+      var cb = el("input");
+      cb.type = "checkbox";
+      cb.value = w.code;
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(" 我知道：" + text));
+      box.appendChild(lab);
+      boxes.push(cb);
+    });
+    var iso = pw.isolation || {};               // 警告下面：SYNOX 自己寫的「這台實況」（ADR 0041 S1；只是顯示）
+    if (iso.text) { box.appendChild(el("p", iso.isolated ? "muted" : "alert", "ℹ️ SYNOX 查這台的實況：" + iso.text)); }
+    if (!boxes.length) { return null; }
+    return {
+      ready: function () { return boxes.every(function (b) { return b.checked; }); },
+      value: function () { return boxes.filter(function (b) { return b.checked; }).map(function (b) { return b.value; }); },
+      onchange: function (fn) { boxes.forEach(function (b) { b.addEventListener("change", fn); }); }
+    };
+  }
   // SDK P7：信任層級。T2（有掃不到內容的執行檔、外部程式、runtime auto 的套件）：紅字＋勾選＋輸入 publisher
   //（一字不差才能按確認）；升級時只有發行者變了／新增 exec／可執行的東西變多才要重新確認
   function showTier(box, s, upg, canInstall) {
@@ -3233,15 +3492,8 @@
   var libQueue = null;                  // 全部更新：{ names, i, current }
   var LINK_RE = /^https:\/\/[^\s]+$/;
   function fill(t, o) { return t.replace(/\{(\w+)\}/g, function (_m, k) { return String(o[k]); }); }
-  function verKey(v) {                  // "1.2.3-beta" → [1, 2, 3, 0]；正式版最後一位是 1（比同號的預覽版新）
-    var m = /^(\d+)\.(\d+)\.(\d+)(-.*)?$/.exec(String(v || ""));
-    return m ? [+m[1], +m[2], +m[3], m[4] ? 0 : 1] : null;
-  }
-  function verNewer(a, b) {             // a 比 b 新？
-    var x = verKey(a), y = verKey(b);
-    if (!x || !y) { return false; }
-    for (var i = 0; i < 4; i++) { if (x[i] !== y[i]) { return x[i] > y[i]; } }
-    return false;
+  function verNewer(a, b) {             // a 比 b 新？SemVer（static/semver.js，跟伺服器 packs/upgrade.semver_key 同一套）
+    return SynoxSemver.newer(a, b);
   }
   function libFail(text) {
     $("lib-error-text").textContent = text || "";
@@ -3351,7 +3603,7 @@
     libUpdateBar();
     libTools.forEach(function (t) {
       t.installed = Object.prototype.hasOwnProperty.call(have, t.name) ? have[t.name] : "";
-      t.newer = !!t.installed && verNewer(t.version, t.installed);
+      t.newer = !!t.installed && !t.blocked && verNewer(t.version, t.installed);   // blocked：這台的 SYNOX 用不了那一版
     });
     renderLib();
   }
@@ -3465,9 +3717,9 @@
     }).catch(function (e) { $("backup-msg").textContent = "❌ " + e.message; });
   });
 
-  $("logout").addEventListener("click", function () {
+  function logout() {                         // 使用者選單的「↪ 登出」
     api("POST", "/api/logout", {}).then(showLogin, showLogin);
-  });
+  }
   window.addEventListener("hashchange", route);
 
   // 左下角的「目前登入」：名字一行、角色一行（文字一律 textContent）
@@ -3484,7 +3736,6 @@
     me = d;
     $("nav").classList.remove("hidden");
     $("nav-control").classList.toggle("hidden", !(control && control.canSee(d)));
-    $("logout").classList.remove("hidden");
     showWho(d);
     if (d.owner) {                             // 有新版的橫幅：只讀上次查的結果，不連網（docs/adr/0023）
       api("GET", "/api/settings/update").then(function (u) { updateBanner(u.notice); }).catch(function () { /* 沒有就算了 */ });
@@ -3495,6 +3746,7 @@
       window.SynoxApps.init({ api: api, toast: toast, csrf: function () { return me ? me.csrf : ""; } });
     }
     if (window.SynoxNotify) { window.SynoxNotify.init({ api: api, toast: toast, me: d }); }   // 🔔 通知與 ⏰ 鬧鐘（static/notify.js）
+    if (window.SynoxUserMenu) { window.SynoxUserMenu.init({ api: api, toast: toast, me: d, logout: logout }); }   // 使用者選單（static/usermenu.js）
     route();
     function fillInput(text) {               // 範例、教學的「幫我填好」：只把字放進輸入框，不送出
       if (currentView !== "chat") { location.hash = "#chat"; }

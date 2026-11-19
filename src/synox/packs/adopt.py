@@ -108,7 +108,7 @@ def _link_error(rel_base: str, name: str) -> str:
             "SYNOX 不會把它送去安裝。請把捷徑換成真正的檔案，或向作者要 .synoxpack 檔從安裝頁上傳")
 
 
-def stage_unlocked(name: str, packs_dir: str, data_dir: str) -> Tuple[str, Dict]:
+def stage_unlocked(name: str, packs_dir: str, data_dir: str, config=None) -> Tuple[str, Dict]:
     """沒有鎖的 packs/<name> → 壓成 zip → admin.stage（zip 檢查、簽章、第 1、2 關）→ (token, 摘要)。
     摘要多一個 "adopt": name（網頁照一般安裝報告畫，確認時改叫 install）。
     PackAdminError／GateRefused 照原樣往外丟（GateRefused 帶報告、沒有確認鈕）。"""
@@ -116,7 +116,7 @@ def stage_unlocked(name: str, packs_dir: str, data_dir: str) -> Tuple[str, Dict]
     if pack_lock.entry(data_dir, name) is not None:
         raise PackAdminError(f"{name} 已經經過安裝頁、有鎖了，不用再送。重新整理設定頁看看它的狀態")
     blob = _zip_folder(folder)
-    token, summary = admin.stage(blob, data_dir)
+    token, summary = admin.stage(blob, data_dir, config=config)
     try:
         meta = admin.staged_meta(token, data_dir)
         staged_name = meta.get("name")
@@ -144,7 +144,7 @@ def adopted_name(token: str, data_dir: str) -> Optional[str]:
 
 def install(token: str, data_dir: str, packs_dir: str, approved_by=None, via: str = "web",
             trust: Optional[str] = None, trust_publisher: Optional[str] = None,
-            runtime: Optional[str] = None) -> str:
+            runtime: Optional[str] = None, accept_warnings=None) -> str:
     """按了確認：packs/<name> 仍然沒有鎖 → 搬到 packs/_removed/（不刪）→ admin.install_staged 裝暫存那一份、寫鎖。
     任何一步失敗：搬走的那一份搬回原位、錯誤照原樣往外丟（PackAdminError／GateRefused）。回工具名字。"""
     meta = admin.staged_meta(token, data_dir)
@@ -175,7 +175,8 @@ def install(token: str, data_dir: str, packs_dir: str, approved_by=None, via: st
     backup = upgrade.archive(folder, name, version, packs_dir, data_dir, reason="adopt")
     try:
         return admin.install_staged(token, data_dir, packs_dir, approved_by=approved_by, via=via, trust=trust,
-                                    trust_publisher=trust_publisher, runtime=runtime)
+                                    trust_publisher=trust_publisher, runtime=runtime,
+                                    accept_warnings=accept_warnings)
     except BaseException:
         _put_back(backup, folder, os.path.join(packs_dir, name), data_dir, name)
         raise

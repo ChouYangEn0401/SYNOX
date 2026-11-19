@@ -56,6 +56,7 @@
     failed: "沒做成：{e}"
   };
   var POLL_MS = 10000, POLL_HIDDEN_MS = 30000, SOFT_HIDE_MS = 9000, MAX_POPS = 4;
+  var ALARM_GRACE_MS = 1500, POLL_MIN_MS = 1000;   // 下一個鬧鐘響的那一刻＋1.5 秒多看一次（不用等滿 10 秒）
   var opts = null, me = null, rev = 0, primed = false, timer = null;
   var items = {};                 // id → item
   var pops = {};                  // id → 小卡 DOM
@@ -174,7 +175,16 @@
   }
   function schedule() {
     clearTimeout(timer);
-    timer = setTimeout(function () { poll().then(schedule, schedule); }, document.hidden ? POLL_HIDDEN_MS : POLL_MS);
+    timer = setTimeout(function () { poll().then(schedule, schedule); }, nextWait(Date.now()));
+  }
+  function nextWait(nowMs) {
+    // 平常 10 秒（看不到分頁 30 秒）；下一個鬧鐘比那更早響＝在它響之後 1.5 秒就看（提醒引擎準時送出，網頁也準時跳）
+    var wait = document.hidden ? POLL_HIDDEN_MS : POLL_MS;
+    if (!document.hidden && nextAlarm && nextAlarm.ts) {
+      var until = nextAlarm.ts * 1000 - nowMs + ALARM_GRACE_MS;
+      if (until > 0 && until < wait) { wait = Math.max(POLL_MIN_MS, until); }
+    }
+    return wait;
   }
 
   // ── 跳出來的小卡 ─────────────────────────────────────────────────

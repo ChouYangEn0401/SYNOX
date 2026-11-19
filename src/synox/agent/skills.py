@@ -33,9 +33,15 @@ class Skill:
     path: str
     when: str = ""
     topics: Dict[str, str] = field(default_factory=dict)      # 主題名 → 檔案的完整路徑
+    warnings: List[dict] = field(default_factory=list)       # 這個工具的標記警告（ADR 0041；pack.json 的 warnings）
 
     def body(self) -> str:
         return parse(read_text(self.path))[1]
+
+    def note(self, long: bool = True) -> str:
+        """附在名字後面的警告標記（沒有警告＝""）。"""
+        from synox.packs.packwarn import agent_note
+        return agent_note(self.warnings, long=long)
 
 
 def read_text(path: str) -> str:
@@ -78,6 +84,7 @@ def from_packs(packs) -> List[Skill]:
         if skill is not None:
             topics = (getattr(pack.manifest, "agent", None) or {}).get("topics") or {}
             skill.topics = {k: os.path.join(pack.manifest.folder, v) for k, v in topics.items()}
+            skill.warnings = [dict(w) for w in getattr(pack.manifest, "warnings", None) or []]
             out.append(skill)
     return out
 
@@ -86,7 +93,10 @@ def prompt_block(skills: List[Skill]) -> str:
     if not skills:
         return ""
     lines = ["## 技能（要知道細節時，用 skill_read 讀全文）"]
-    lines += [f"- {s.name}：{s.description}" + (f"（{s.when}）" if s.when else "") for s in skills]
+    if any(s.warnings for s in skills):
+        from synox.packs.packwarn import AGENT_RULE
+        lines.append(AGENT_RULE)
+    lines += [f"- {s.name}{s.note()}：{s.description}" + (f"（{s.when}）" if s.when else "") for s in skills]
     return "\n".join(lines)
 
 
@@ -106,14 +116,23 @@ def read_skill(skills: List[Skill], name: str, topic: Optional[str] = None) -> s
     """技能的正文；topic＝只讀那一章（agent.skill.topics 宣告過的主題檔）。"""
     for s in skills:
         if s.name == str(name or "").strip():
+            head = _warning_head(s)                  # 標記警告（ADR 0041）：正文、主題都先附上，AI 讀說明書一定看得到
             topic = str(topic or "").strip()
             if topic:
-                return read_topic(s, topic)
+                return head + read_topic(s, topic)
             try:
-                return s.body() or "（這個技能沒有正文）"
+                return head + (s.body() or "（這個技能沒有正文）")
             except OSError as e:
                 return f"讀不到：{e}"
     return f"沒有叫 {name!r} 的技能。可讀：{'、'.join(s.name for s in skills) or '（沒有）'}"
+
+
+def _warning_head(skill: Skill) -> str:
+    """skill_read 回的字最前面：「〔⚠️警告 …〕＋守則」；沒有警告＝""（跟以前一模一樣）。"""
+    if not skill.warnings:
+        return ""
+    from synox.packs.packwarn import AGENT_RULE
+    return f"{skill.note()}\n{AGENT_RULE}\n\n"
 
 
 def read_topic(skill: Skill, topic: str) -> str:

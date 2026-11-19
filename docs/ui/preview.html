@@ -7,36 +7,57 @@
 <meta name="color-scheme" content="light dark">
 <title>SYNOX</title>
 <style nonce="preview">
-  /* ── 設計 token（說明：docs/ui/redesign-notes.md；外觀的合約：docs/themes.md）────────────────
-     淺色取記帳工具（記帳本）的簡約、深色取 另一個個人專案 的層次；跟隨系統，
-     :root[data-theme="light|dark"] 強制（設定 → 外觀的「淺色／深色」）。
-     **整個網頁的顏色只從這裡來**（tests/test_theme.py 檢查）：外觀包（kind=theme）只蓋這些 token、換 data-slot 的內容。
-     合約上的名字：--bg --surface --text --muted --line --accent --accent-ink --accent2 --soft --ok --warn --bad
-     --radius --font-ui --font-brand，吉祥物 --m1 --m2 --mi --mb；其他（--surface-2、--accent-hover…）是進階 token，
-     外觀包沒寫就照 synox/theme/contract.DERIVED 算。舊名字 --accent-2、--accent-soft、--r、--font 是別名。 */
+  /* ── 設計 token（說明：docs/ui/redesign-notes.md；外觀的合約：docs/themes.md；ADR 0042）──────────
+     **整個 SYNOX 的顏色只在 synox/theme/contract.py 宣告一次**（DEFAULTS＝外觀包可以換的、FIXED＝SYNOX 自己的陰影與暗幕）；
+     下面的 TOKENS 記號在送出網頁時換成那兩張表（web/server.render_app），這個檔裡不寫任何顏色（tests/test_theme.py 檢查）。
+     淺色取記帳工具的簡約、深色取另一個專案的層次；跟隨系統，:root[data-theme="light|dark"] 強制（設定 → 外觀的「淺色／深色」）。
+     外觀包（kind=theme）只蓋這些 token、換 data-slot 的內容；沒給的照 contract（DERIVED 或 DEFAULTS），所以舊外觀包遇到新 token 不會缺色。
+     舊名字 --accent-2、--accent-soft、--r、--font 是別名。 */
   :root {
-    --bg: #f3f5f8; --bg-glow: #e3eef0; --surface: #ffffff; --surface-2: #f7f9fb; --sunken: #eef1f5;
-    --line: #e2e7ee; --line-strong: #cdd5df;
-    --text: #131b26; --text-2: #465264; --muted: #6a7687;
-    --accent: #0a7c70; --accent-hover: #086a60; --accent-ink: #ffffff; --soft: #e0f2ef; --accent-line: #9fd6cd;
+    --bg: #f3f5f8;
+    --surface: #ffffff;
+    --text: #131b26;
+    --muted: #6a7687;
+    --line: #e2e7ee;
+    --accent: #0a7c70;
+    --accent-ink: #ffffff;
     --accent2: #2f7fd6;
-    --ok: #12823b; --ok-soft: #e6f4ea; --warn: #9a6400; --warn-soft: #fdf1dc; --bad: #c62f2f; --bad-soft: #fbe8e8;
-    --me: #dff1ee; --me-ink: #0c3a35;
-    --m1: #4f8df5; --m2: #2f66d0; --mi: #ffffff; --m-hi: #8bb6ff; --mb: color-mix(in srgb, var(--bad) 55%, transparent);
-    --accent-2: var(--accent2); --accent-soft: var(--soft);
+    --soft: #e0f2ef;
+    --ok: #12823b;
+    --warn: #9a6400;
+    --bad: #c62f2f;
+    --radius: 10px;
+    --font-ui: "Segoe UI Variable Text", "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", system-ui, sans-serif;
+    --font-brand: var(--font-ui);
+    --m1: #4f8df5;
+    --m2: #2f66d0;
+    --mi: #ffffff;
+    --mb: color-mix(in srgb, var(--bad) 55%, transparent);
+    --bg-glow: #e3eef0;
+    --surface-2: #f7f9fb;
+    --sunken: #eef1f5;
+    --line-strong: #cdd5df;
+    --text-2: #465264;
+    --accent-hover: #086a60;
+    --accent-line: #9fd6cd;
+    --ok-soft: #e6f4ea;
+    --warn-soft: #fdf1dc;
+    --bad-soft: #fbe8e8;
+    --me: #dff1ee;
+    --me-ink: #0c3a35;
+    --m-hi: #8bb6ff;
+    --scrim: rgba(10, 15, 22, .4);
+    --shadow-up: 0 -8px 24px -16px rgba(0, 0, 0, .4);
+    --img-bg: #ffffff;
+    --img-scrim: rgba(0, 0, 0, .72);
     --shadow-sm: 0 1px 2px rgba(19, 27, 38, .05), 0 1px 3px rgba(19, 27, 38, .06);
     --shadow-md: 0 10px 30px -10px rgba(19, 27, 38, .22);
     --shadow-lg: 0 24px 60px -18px rgba(19, 27, 38, .35);
     --highlight: inset 0 1px 0 rgba(255, 255, 255, .7);
-    --scrim: rgba(10, 15, 22, .4);
-    --shadow-up: 0 -8px 24px -16px rgba(0, 0, 0, .4);
     --tour-scrim: rgba(8, 12, 18, .38);
-    --radius: 10px;
+    --accent-2: var(--accent2); --accent-soft: var(--soft);
     --r-sm: calc(var(--radius) * .8); --r: var(--radius); --r-lg: calc(var(--radius) * 1.4);
     --r-xl: calc(var(--radius) * 1.8); --pill: 999px;
-    --font-ui: "Segoe UI Variable Text", "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", "PingFang TC",
-            "Noto Sans TC", system-ui, sans-serif;
-    --font-brand: var(--font-ui);
     --font: var(--font-ui);
     --mono: "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, monospace;
     --ease: cubic-bezier(.2, .9, .3, 1);
@@ -45,36 +66,68 @@
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #0b0f14; --bg-glow: #13222b; --surface: #121924; --surface-2: #161f2c; --sunken: #0d131b;
-      --line: #1f2b3b; --line-strong: #2d3b4f;
-      --text: #dbe4ef; --text-2: #aab6c6; --muted: #7f90a7;
-      --accent: #35e0c4; --accent-hover: #63ead5; --accent-ink: #04221d; --soft: rgba(53, 224, 196, .12);
-      --accent-line: rgba(53, 224, 196, .42); --accent2: #4aa8ff;
-      --ok: #46d17f; --ok-soft: rgba(70, 209, 127, .12); --warn: #ffb454; --warn-soft: rgba(255, 180, 84, .12);
-      --bad: #ff6b78; --bad-soft: rgba(255, 93, 108, .13);
-      --me: #163836; --me-ink: #dff7f2;
+      --bg: #0b0f14;
+      --surface: #121924;
+      --text: #dbe4ef;
+      --muted: #7f90a7;
+      --line: #1f2b3b;
+      --accent: #35e0c4;
+      --accent-ink: #04221d;
+      --accent2: #4aa8ff;
+      --soft: rgba(53, 224, 196, .12);
+      --ok: #46d17f;
+      --warn: #ffb454;
+      --bad: #ff6b78;
+      --bg-glow: #13222b;
+      --surface-2: #161f2c;
+      --sunken: #0d131b;
+      --line-strong: #2d3b4f;
+      --text-2: #aab6c6;
+      --accent-hover: #63ead5;
+      --accent-line: rgba(53, 224, 196, .42);
+      --ok-soft: rgba(70, 209, 127, .12);
+      --warn-soft: rgba(255, 180, 84, .12);
+      --bad-soft: rgba(255, 93, 108, .13);
+      --me: #163836;
+      --me-ink: #dff7f2;
+      --scrim: rgba(3, 7, 12, .66);
       --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
       --shadow-md: 0 14px 34px -12px rgba(0, 0, 0, .75);
       --shadow-lg: 0 28px 70px -20px rgba(0, 0, 0, .85);
       --highlight: inset 0 1px 0 rgba(255, 255, 255, .045);
-      --scrim: rgba(3, 7, 12, .66);
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #0b0f14; --bg-glow: #13222b; --surface: #121924; --surface-2: #161f2c; --sunken: #0d131b;
-    --line: #1f2b3b; --line-strong: #2d3b4f;
-    --text: #dbe4ef; --text-2: #aab6c6; --muted: #7f90a7;
-    --accent: #35e0c4; --accent-hover: #63ead5; --accent-ink: #04221d; --soft: rgba(53, 224, 196, .12);
-    --accent-line: rgba(53, 224, 196, .42); --accent2: #4aa8ff;
-    --ok: #46d17f; --ok-soft: rgba(70, 209, 127, .12); --warn: #ffb454; --warn-soft: rgba(255, 180, 84, .12);
-    --bad: #ff6b78; --bad-soft: rgba(255, 93, 108, .13);
-    --me: #163836; --me-ink: #dff7f2;
+    --bg: #0b0f14;
+    --surface: #121924;
+    --text: #dbe4ef;
+    --muted: #7f90a7;
+    --line: #1f2b3b;
+    --accent: #35e0c4;
+    --accent-ink: #04221d;
+    --accent2: #4aa8ff;
+    --soft: rgba(53, 224, 196, .12);
+    --ok: #46d17f;
+    --warn: #ffb454;
+    --bad: #ff6b78;
+    --bg-glow: #13222b;
+    --surface-2: #161f2c;
+    --sunken: #0d131b;
+    --line-strong: #2d3b4f;
+    --text-2: #aab6c6;
+    --accent-hover: #63ead5;
+    --accent-line: rgba(53, 224, 196, .42);
+    --ok-soft: rgba(70, 209, 127, .12);
+    --warn-soft: rgba(255, 180, 84, .12);
+    --bad-soft: rgba(255, 93, 108, .13);
+    --me: #163836;
+    --me-ink: #dff7f2;
+    --scrim: rgba(3, 7, 12, .66);
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
     --shadow-md: 0 14px 34px -12px rgba(0, 0, 0, .75);
     --shadow-lg: 0 28px 70px -20px rgba(0, 0, 0, .85);
     --highlight: inset 0 1px 0 rgba(255, 255, 255, .045);
-    --scrim: rgba(3, 7, 12, .66);
     color-scheme: dark;
   }
 
@@ -346,6 +399,13 @@
                border-radius: var(--r); border: 1px solid var(--line-strong); background: var(--surface);
                text-decoration: none; font-size: 14px; }
   /* 呈現層的區塊（config presentation.enabled；synox/present/web.py 的 wire → renderBlocks） */
+  /* 工具回覆帶的圖（m.images；appendImages）：同源 <img>，點了放大 */
+  .msg .msg-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; white-space: normal; }
+  .msg .msg-images img { display: block; max-width: 100%; max-height: 360px; height: auto; border-radius: 8px;
+    background: var(--img-bg); border: 1px solid var(--line); cursor: zoom-in; }
+  .img-zoom { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
+    background: var(--img-scrim); padding: 16px; cursor: zoom-out; }
+  .img-zoom img { max-width: 100%; max-height: 100%; background: var(--img-bg); border-radius: 10px; }
   .msg .blocks { white-space: normal; }
   .msg .blocks > * { margin: 0 0 8px; }
   .msg .blocks > *:last-child { margin-bottom: 0; }
@@ -354,6 +414,7 @@
   .msg .blocks ul, .msg .blocks ol { padding-left: 1.4em; }
   .msg .blocks li > ul, .msg .blocks li > ol { margin: 2px 0 0; }
   .msg .blocks pre { overflow-x: auto; padding: 8px 10px; border-radius: 8px; background: var(--sunken); white-space: pre; }
+  .msg .blocks pre, .msg .blocks code { font-variant-ligatures: none; }      /* TAB 譜的 |--- 不要被字型連成線 */
   .msg .blocks blockquote { margin-left: 0; padding-left: 10px; border-left: 3px solid var(--line-strong); color: var(--muted); }
   .msg .blocks .tablewrap { background: var(--surface); }
   .msg .blocks .status { font-weight: 650; }
@@ -361,7 +422,10 @@
   #composer { display: flex; gap: 8px; align-items: flex-end; margin: 0 14px 14px; padding: 8px 8px 8px 14px;
               border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface);
               transition: border-color .15s var(--ease), box-shadow .15s var(--ease); }
-  #composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  /* 輸入框的邊要看得出來（WCAG 1.4.11 ≥3:1）：--muted 是給字用的（≥4.5:1），摻一點 --line-strong 讓它不要太重 */
+  #composer { border-color: color-mix(in srgb, var(--muted) 85%, var(--line-strong)); box-shadow: var(--shadow-sm); }
+  #composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-soft); }
+  body.chat-dragging #composer { border-style: dashed; border-color: var(--accent); }
   #input { flex: 1; resize: none; min-height: 40px; max-height: 160px; border: 0; padding: 9px 0; background: transparent;
            box-shadow: none; }
   #input:focus { box-shadow: none; }
@@ -372,6 +436,36 @@
   .att-chip .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .att-chip .k { color: var(--muted); font-size: 12px; }
   .att-chip button { padding: 0 6px; min-height: 0; border: 0; background: transparent; }
+  /* 回覆某一則（static/reply.js）：泡泡上的「↩ 回覆」、送出那則上面的引用塊、輸入框上方的引用列 */
+  /* 觸控（沒有滑鼠移上去）：泡泡底下一行小字，一直看得到；有滑鼠：浮在泡泡旁邊、移上去或 Tab 到才出現（不佔位置） */
+  .msg { position: relative; }
+  .msg .reply-btn { display: block; margin: 4px -6px -6px auto; padding: 0 6px; min-height: 28px; font-size: 12px;
+                    font-weight: 500; border: 0; background: transparent; box-shadow: none; color: inherit; opacity: .65;
+                    white-space: nowrap; }
+  .msg .reply-btn:hover { background: transparent; opacity: 1; text-decoration: underline; }
+  @media (hover: hover) {
+    .msg .reply-btn { position: absolute; bottom: 2px; margin: 0; color: var(--muted); opacity: 0; }
+    .msg.me .reply-btn { right: 100%; margin-right: 4px; }
+    .msg.bot .reply-btn { left: 100%; margin-left: 4px; }
+    .msg:hover .reply-btn, .msg:focus-within .reply-btn { opacity: 1; }
+  }
+  .msg .reply-quote { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; min-height: 0;
+                      margin: 0 0 6px; padding: 4px 8px; text-align: left; white-space: normal; color: var(--text-2);
+                      border: 0; border-left: 3px solid var(--accent); border-radius: 6px; box-shadow: none;
+                      background: var(--surface-2); font-weight: 400; cursor: pointer; }
+  .msg .reply-quote:hover { background: var(--sunken); }
+  .msg .reply-quote .rq-who { font-size: 12px; font-weight: 650; color: var(--accent); }
+  .msg .reply-quote .rq-text { font-size: 12.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg.flash { animation: reply-flash 1.6s var(--ease); }
+  @keyframes reply-flash { 0%, 60% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+  @media (prefers-reduced-motion: reduce) { .msg.flash { animation: none; outline: 3px solid var(--accent); outline-offset: 2px; } }
+  .reply-bar { display: flex; align-items: center; gap: 8px; margin: 0 14px 6px; padding: 6px 6px 6px 10px;
+               border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--r);
+               background: var(--surface); }
+  .reply-bar .rb-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .reply-bar .rb-who { font-size: 12px; font-weight: 650; color: var(--accent); }
+  .reply-bar .rb-text { font-size: 13px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .reply-bar .rb-x { flex: none; padding: 0 10px; min-height: 32px; border: 0; background: transparent; box-shadow: none; }
   .hint { font-size: 12px; color: var(--muted); text-align: center; margin: -6px 0 10px; }
   .empty { color: var(--muted); text-align: center; margin: auto; display: flex; flex-direction: column;
            align-items: center; gap: 10px; padding: 24px; }
@@ -386,6 +480,7 @@
     #stream { padding: 20px 24px; }
     #composer { margin: 0 24px 14px; }
     #attach-list { margin: 0 24px 6px; }
+    .reply-bar { margin: 0 24px 6px; }
     .hint { margin-bottom: 12px; }
   }
 
@@ -512,6 +607,14 @@
   .look-card .row { margin-top: auto; }
   #custom-text { width: 100%; font-family: var(--mono); font-size: 13px; }
   iframe.theme-preview { width: 100%; height: 250px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+  /* 套用檢查（synox/theme/check.py，ADR 0042）：摘要＋要注意的；展開看每一項 */
+  .theme-check { font-size: 13px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .theme-check ul { margin: 2px 0 0; padding-left: 18px; }
+  .theme-check details summary { cursor: pointer; color: var(--muted); }
+  .theme-check table { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 12px; }
+  .theme-check th, .theme-check td { text-align: left; padding: 2px 6px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+  .theme-check td.v { font-family: var(--mono); color: var(--muted); }
+  .theme-check tr.issue td { color: var(--warn); }
   .theme-previews { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 10px; }
   .swatches { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
   .swatches .muted { margin-right: 4px; }
@@ -1044,10 +1147,6 @@
                background: var(--sunken); white-space: pre-wrap; overflow-wrap: anywhere; }
 #report-review .row { justify-content: space-between; }
 .help-foot { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
-/* 側欄底下的「遇到問題？」：小小一行，不搶眼 */
-.side-foot .help-link { flex: none; font-size: 12.5px; color: var(--muted); text-decoration: none; padding: 4px 6px;
-                        border-radius: var(--r-sm); white-space: nowrap; }
-.side-foot .help-link:hover { color: var(--accent); background: var(--sunken); }
 @media (max-width: 760px) {
   .help-steps > li { padding: 12px; gap: 10px; }
   .help-body .row > * { flex: 1 1 auto; }
@@ -1154,6 +1253,120 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   body.ntf-open .ntf-stack { display: none; }          /* 清單開著時小卡先收起來（清單裡同一則也按得到） */
 }
 </style>
+<style nonce="preview">/* 左下角的使用者選單、⟳ 重新啟動、「重新啟動中…」（static/usermenu.js）。顏色只用 app.html 最上面的 token（每個外觀、淺深色都跟著換）。 */
+
+/* 使用者卡片：整張是一顆按鈕 */
+.side-foot { padding: 4px; }
+.um-card { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; padding: 6px 8px; min-height: 48px;
+           text-align: left; border: 1px solid transparent; background: transparent; box-shadow: none;
+           border-radius: var(--r); color: var(--text); font-weight: 400; position: relative; }
+.um-card:hover { background: var(--sunken); border-color: transparent; }
+.um-card[aria-expanded="true"] { background: var(--soft); border-color: var(--accent-line); }
+.um-card .who { flex: 1; }
+.um-chev { width: 16px; height: 16px; flex: none; color: var(--muted); transition: transform .2s var(--ease); }
+.um-card[aria-expanded="true"] .um-chev { transform: rotate(180deg); color: var(--accent); }
+
+/* 小點：有設定要重開才生效 */
+.um-dot { width: 9px; height: 9px; flex: none; border-radius: 50%; background: var(--warn);
+          box-shadow: 0 0 0 3px var(--warn-soft); }
+.um-dot.hidden { display: none; }
+.um-card > .um-dot, .restart-btn > .um-dot, .um-phone > .um-dot { position: absolute; top: 3px; right: 3px; }
+.um-card > .um-dot { top: 6px; right: 6px; }
+
+/* ⟳ 重新啟動（圖示 ⟳，滑過去轉半圈）；不管 DOM 順序都排在最右邊 */
+.restart-btn { order: 9; position: relative; width: 32px; height: 32px; min-height: 32px; padding: 0; flex: none;
+               border-radius: var(--r-sm); border: 1px solid var(--line); background: var(--surface-2); box-shadow: none;
+               color: var(--muted); font-size: 17px; line-height: 1; }
+.restart-btn .rs-ico { display: inline-block; transition: transform .35s var(--ease); }
+.restart-btn:hover { color: var(--accent); border-color: var(--accent-line); background: var(--surface); }
+.restart-btn:hover .rs-ico { transform: rotate(180deg); }
+
+/* 手機：側欄的卡片不見了，上方列多一顆頭像 */
+.um-phone { display: none; order: 10; position: relative; width: 36px; height: 36px; min-height: 36px; padding: 0;
+            border-radius: 50%; border: 1px solid var(--line); background: var(--surface); }
+.um-phone .avatar { width: 30px; height: 30px; font-size: 13px; }
+
+/* 選單本體：像遊戲裡的小卡，從卡片那邊彈出來 */
+.um { position: fixed; z-index: 60; width: 300px; max-width: calc(100vw - 32px); padding: 6px;
+      background: var(--surface); color: var(--text); border: 1px solid var(--line); border-radius: var(--r-xl);
+      box-shadow: var(--shadow-lg), var(--highlight); transform-origin: 24px 100%;
+      animation: um-pop .2s var(--ease); }
+.um.um-down { transform-origin: calc(100% - 18px) 0; animation-name: um-drop; }
+.um.hidden { display: none; }
+@keyframes um-pop { from { opacity: 0; transform: translateY(8px) scale(.95); } to { opacity: 1; transform: none; } }
+@keyframes um-drop { from { opacity: 0; transform: translateY(-8px) scale(.95); } to { opacity: 1; transform: none; } }
+
+.um-head { padding: 12px 12px 10px; margin-bottom: 4px; border-radius: calc(var(--r-xl) - 4px);
+           background: linear-gradient(135deg, var(--soft) 0%, color-mix(in srgb, var(--accent2) 10%, transparent) 100%);
+           border: 1px solid color-mix(in srgb, var(--accent-line) 60%, transparent); }
+.um-state { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-2); font-weight: 600; }
+.um-live { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--ok);
+           box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 55%, transparent); animation: um-live 2.2s ease-out infinite; }
+@keyframes um-live { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 55%, transparent); }
+                     70%, 100% { box-shadow: 0 0 0 7px color-mix(in srgb, var(--ok) 0%, transparent); } }
+.um-state #um-status { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.um-ver { flex: none; font: 600 11px/1 var(--mono); padding: 4px 7px; border-radius: var(--pill); color: var(--accent);
+          background: var(--surface); border: 1px solid var(--accent-line); }
+.um-ver:empty { display: none; }
+.um-me { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
+.um-me .avatar { width: 40px; height: 40px; font-size: 17px; color: var(--accent-ink);
+                 background: linear-gradient(140deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 55%, var(--accent2)) 100%);
+                 box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent-line); }
+.um-me .txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+#um-name { font-weight: 700; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#um-role { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* 一列一列的選項 */
+.um-item { display: flex; width: 100%; align-items: center; gap: 11px; min-height: 42px; padding: 6px 10px 6px 6px;
+           border: 1px solid transparent; border-radius: var(--r); background: transparent; box-shadow: none;
+           color: var(--text); font-size: 14px; font-weight: 550; text-align: left; text-decoration: none;
+           cursor: pointer; transition: background .15s var(--ease), border-color .15s var(--ease); }
+.um-item.hidden { display: none; }
+.um-ico { width: 30px; height: 30px; flex: none; display: grid; place-items: center; font-size: 15px;
+          border-radius: var(--r-sm); background: var(--sunken); transition: transform .2s var(--ease), background .15s var(--ease); }
+.um-label { flex: 1; min-width: 0; }
+.um-item:hover, .um-item:focus-visible { background: var(--soft); border-color: transparent; color: var(--text); outline: none; }
+.um-item:focus-visible { border-color: var(--accent-line); }
+.um-item:hover .um-ico, .um-item:focus-visible .um-ico { transform: translateX(2px) scale(1.06); background: var(--surface); }
+.um-item:active { transform: none; }
+.um-pill { flex: none; font-size: 11.5px; font-weight: 650; padding: 2px 8px; border-radius: var(--pill);
+           color: var(--warn); background: var(--warn-soft); }
+.um-pill.hidden { display: none; }
+.um-item.um-out { color: var(--bad); }
+.um-item.um-out .um-ico { background: var(--bad-soft); }
+.um-item.um-out:hover, .um-item.um-out:focus-visible { background: var(--bad-soft); }
+.um-sep { height: 1px; margin: 5px 8px; background: var(--line); }
+
+/* 聊天通道的黃色提示裡的「立即重新啟動」 */
+.restart-banner .restart-now { margin-left: 8px; vertical-align: middle; }
+
+/* 確認框、「重新啟動中…」 */
+.um-scrim { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 16px;
+            background: var(--scrim); animation: um-fade .15s var(--ease); }
+@keyframes um-fade { from { opacity: 0; } to { opacity: 1; } }
+.um-dialog { width: min(400px, 100%); padding: 22px 22px 18px; text-align: center; background: var(--surface);
+             border: 1px solid var(--line); border-radius: var(--r-xl); box-shadow: var(--shadow-lg), var(--highlight);
+             animation: um-pop .2s var(--ease); }
+.um-dialog:focus { outline: none; }
+.um-dialog-icon { width: 56px; height: 56px; margin: 0 auto 12px; display: grid; place-items: center; font-size: 26px;
+                  border-radius: 50%; color: var(--accent); background: var(--soft); border: 1px solid var(--accent-line); }
+.um-dialog-icon.spin { animation: um-spin 1.1s linear infinite; }
+@keyframes um-spin { to { transform: rotate(360deg); } }
+.um-dialog h2 { font-size: 17px; margin-bottom: 6px; }
+.um-dialog-text { color: var(--text-2); font-size: 14px; }
+.um-dialog-list { text-align: left; margin: 10px 0 0; padding: 8px 12px 8px 28px; border-radius: var(--r);
+                  background: var(--warn-soft); color: var(--text); font-size: 13.5px; }
+.um-dialog-wait { margin-top: 8px; color: var(--muted); font-size: 13px; min-height: 1.2em; }
+.um-dialog-actions { display: flex; justify-content: center; gap: 8px; margin-top: 18px; flex-wrap: wrap; }
+.um-dialog-actions:empty { display: none; }
+
+@media (max-width: 760px) {
+  .um-phone { display: inline-flex; }
+  .um-item { min-height: 48px; font-size: 15px; }
+  .um-dialog-actions > button { flex: 1 1 0; }
+  .restart-btn { display: none; }                  /* 上方列擠不下：手機從頭像的選單重新啟動（小點也在頭像上） */
+}
+</style>
 <script nonce="preview">
 (function () {
   "use strict";
@@ -1163,7 +1376,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   // 開場的門（static/splash.js）預設不出現，才看得到畫面；?splash=1（預覽列的「重播開場」）照樣出現、等你點。
   // 左上角的 S 也照樣能重播。
   window.SYNOX_NO_SPLASH = true;
-  var D = {"me": {"id": 100001, "username": "小明", "role": "admin", "owner": true, "csrf": "preview"}, "chats": [{"id": "c1", "title": "今天要做的事", "last": "好，兩件都記下來了。"}, {"id": "c2", "title": "記帳", "last": "記了：午餐 120 元"}, {"id": "c3", "title": "週末行程", "last": "（還沒有訊息）"}, {"id": "tools", "title": "🧰 工具頁", "last": "/note_list"}], "events": {"c1": [{"id": 1, "from": "me", "text": "幫我記：買牛奶、繳電費"}, {"id": 2, "from": "bot", "text": "好，兩件都記下來了。\n📝 買牛奶\n📝 繳電費"}, {"id": 3, "from": "me", "text": "把筆記全部刪掉"}, {"id": 4, "from": "note", "text": "AI 想用一個會刪東西的工具，先問你"}, {"id": 5, "from": "bot", "text": "⚠️ 要刪掉全部 2 則筆記嗎？這個沒辦法復原。", "buttons": [[{"text": "✅ 刪掉", "data": "ok"}, {"text": "取消", "data": "no"}]]}], "c2": [{"id": 1, "from": "me", "text": "/money 120 午餐"}, {"id": 2, "from": "bot", "text": "記了：午餐 120 元\n這個月：3,420／預算 12,000"}], "c3": [], "tools": [{"id": 1, "from": "me", "text": "/note_list"}, {"id": 2, "from": "bot", "text": "1. 買牛奶\n2. 繳電費"}]}, "tools": {"packs": [{"id": "note", "name": "notes", "title": "📝 筆記", "version": "0.2.0", "kind": "python", "category": "生活", "summary": "隨手記下想到的事", "description": "使用者想記下一件事、看記過的事、或清掉筆記時使用。", "status": "已連接", "commands": [{"command": "/note", "usage": "", "summary": "記一則筆記", "effect": "write", "path": "note", "default": true, "ai": true, "confirm": false, "fields": [{"name": "text", "label": "內容", "kind": "text", "required": true, "default": ""}], "asks_code": false}, {"command": "/note_list", "usage": "", "summary": "列出全部筆記", "effect": "read", "path": "note_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/note_clear", "usage": "", "summary": "全部刪掉（不能復原）", "effect": "danger", "path": "note_clear", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}], "signature": "official"}, {"id": "money", "name": "money", "title": "💰 記帳", "version": "0.2.0", "kind": "python", "category": "生活", "summary": "記一筆、看這個月花了多少", "description": "使用者提到花了多少錢、想記帳、問這個月花多少時使用。", "status": "已連接", "commands": [{"command": "/money", "usage": "", "summary": "記一筆支出", "effect": "write", "path": "money", "default": true, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "金額", "kind": "number", "required": true, "default": "", "help": "只放數字，例如 120"}, {"name": "category", "label": "類別", "kind": "text", "required": false, "default": "其他", "help": "例如 餐飲、交通"}, {"name": "memo", "label": "備註", "kind": "text", "required": false, "default": ""}], "asks_code": false}, {"command": "/money_month", "usage": "", "summary": "這個月的合計與預算", "effect": "read", "path": "money_month", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/money_budget", "usage": "", "summary": "設每月預算", "effect": "write", "path": "money_budget", "default": false, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "每月預算", "kind": "int", "required": true, "default": ""}], "asks_code": false}], "signature": "official"}, {"id": "todoist", "name": "todoist", "title": "✅ Todoist", "version": "0.2.0", "kind": "python", "category": "待辦與行程", "summary": "把待辦送進 Todoist", "description": "", "status": "要先設定", "connect": true, "missing": ["API token"], "commands": [{"command": "/todo", "usage": "", "summary": "新增一個待辦", "effect": "write", "path": "todo", "default": true, "ai": true, "confirm": false, "fields": [{"name": "content", "label": "要做什麼", "kind": "text", "required": true, "default": ""}, {"name": "due", "label": "什麼時候", "kind": "text", "required": false, "default": "", "help": "例如 明天、週五 15:00；不填＝沒有期限"}], "asks_code": false}, {"command": "/todo_list", "usage": "", "summary": "今天的待辦", "effect": "read", "path": "todo_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}], "signature": "author"}, {"id": "gcal", "name": "google-calendar", "title": "📅 Google 日曆", "version": "0.2.0", "kind": "python", "category": "待辦與行程", "summary": "看行程、加行程", "description": "", "status": "已連接", "commands": [{"command": "/gcal_list", "usage": "", "summary": "接下來的行程", "effect": "read", "path": "gcal_list", "default": true, "ai": true, "confirm": false, "fields": [{"name": "days", "label": "看幾天", "kind": "int", "required": false, "default": "7"}], "asks_code": false}, {"command": "/gcal_add", "usage": "", "summary": "加一個行程", "effect": "write", "path": "gcal_add", "default": false, "ai": true, "confirm": true, "fields": [{"name": "title", "label": "標題", "kind": "text", "required": true, "default": ""}, {"name": "when", "label": "時間", "kind": "text", "required": true, "default": "", "help": "例如 11/20 14:00"}], "asks_code": false}, {"command": "/gcal_rm", "usage": "", "summary": "刪掉一個行程", "effect": "danger", "path": "gcal_rm", "default": false, "ai": true, "confirm": false, "fields": [{"name": "number", "label": "編號（/gcal_list 的）", "kind": "int", "required": true, "default": ""}], "asks_code": false}], "signature": "none"}, {"id": "hello", "name": "hello", "title": "👋 範例", "version": "0.1.0", "kind": "cli", "category": "", "summary": "算小費、打招呼（synox_sdk 的最小範例）", "description": "", "status": "已連接", "commands": [{"command": "/hello", "usage": "", "summary": "算含小費的總額", "effect": "read", "path": "hello", "default": true, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "帳單金額", "kind": "number", "required": true, "default": ""}, {"name": "percent", "label": "小費幾 %", "kind": "int", "required": false, "default": "10"}, {"name": "round_up", "label": "要不要進位到整數", "kind": "bool", "required": false, "default": "false"}], "asks_code": false}, {"command": "/hello_greet", "usage": "", "summary": "跟某人打招呼", "effect": "read", "path": "hello_greet", "default": false, "ai": true, "confirm": false, "fields": [{"name": "name", "label": "要打招呼的人", "kind": "text", "required": true, "default": ""}, {"name": "style", "label": "語氣", "kind": "choice", "required": false, "default": "casual", "choices": ["casual", "formal"]}], "asks_code": false}], "signature": "none"}], "groups": [{"id": "_basics", "title": "🧭 基本", "summary": "開始、說明、結束問答", "category": "系統", "commands": [{"command": "/start", "usage": "", "summary": "開始", "effect": "read", "path": "start", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/help", "usage": "", "summary": "看全部指令", "effect": "read", "path": "help", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "remind", "title": "⏰ 提醒（系統）", "summary": "SYNOX 內建的提醒：每天幾點、或指定哪一天提醒你一件事（不是 Apple 提醒事項）", "category": "系統", "commands": [{"command": "/remind_add", "usage": "<HH:MM> <內容> [date=…]", "summary": "加一個提醒（系統；每天，或 date= 指定那天一次）", "effect": "write", "path": "remind_add", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/remind_list", "usage": "", "summary": "列出提醒（系統）", "effect": "read", "path": "remind_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "schedule", "title": "🗓 排程指令", "summary": "每天幾點自動替你執行一個指令", "category": "系統", "commands": [{"command": "/schedule_list", "usage": "", "summary": "列出排程", "effect": "read", "path": "schedule_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "agent", "title": "🤖 AI", "summary": "", "category": "系統", "commands": [{"command": "/ai_usage", "usage": "", "summary": "這個月用了多少", "effect": "read", "path": "ai_usage", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}], "layout": {"groups": [{"id": "a-15d208d1b4", "title": "生活", "tools": ["note", "money"], "auto": true}, {"id": "a-e31e24dad3", "title": "待辦與行程", "tools": ["todoist", "gcal"], "auto": true}, {"id": "a-607089b311", "title": "未分類", "tools": ["hello"], "auto": true}, {"id": "a-6df543c4a4", "title": "系統", "tools": ["_basics", "remind", "schedule", "agent"], "auto": true}], "custom": false}}, "secrets": {"fields": [{"name": "token", "label": "API token", "required": true, "secret": true, "set": false, "help": "Todoist 網頁 → 設定 → 整合 → 開發者"}]}, "settings": {"owner": true, "accounts": true, "ai_budget": null, "llm": {"kind": "claude_code", "model": "", "base_url": "", "has_key": false}, "llm_choices": [{"label": "Claude Code（用你自己的 Claude 訂閱）", "choice": "claude_code", "models": [{"value": "", "label": "預設（讓 Claude Code 自己選）"}, {"value": "sonnet", "label": "Sonnet（平衡）"}, {"value": "opus", "label": "Opus（最強、較慢）"}, {"value": "haiku", "label": "Haiku（最快、最省）"}]}, {"label": "API 金鑰：OpenAI", "choice": "keys", "provider": "openai", "model": "（照預設）"}, {"label": "API 金鑰：本機或相容的服務", "choice": "keys", "provider": "openai_compat", "needs_url": true}, {"label": "本地模型（Ollama、LM Studio 等，在這台或家裡網路的電腦上跑）", "choice": "local", "servers": [{"value": "ollama", "label": "Ollama", "base_url": "http://127.0.0.1:11434"}, {"value": "vllm", "label": "vLLM", "base_url": "http://127.0.0.1:8000"}, {"value": "lmstudio", "label": "LM Studio", "base_url": "http://127.0.0.1:1234"}, {"value": "other", "label": "OpenAI 相容伺服器", "base_url": "http://127.0.0.1:8000"}], "context_options": [4096, 8192, 16384, 32768, 65536, 131072]}, {"label": "先不用 AI", "choice": "none"}], "packs": [{"name": "notes", "status": "loaded", "version": "0.1.0", "lock": "locked", "removable": false, "signature": "official"}, {"name": "money", "status": "loaded", "version": "0.2.0", "lock": "locked", "removable": false, "signature": "official"}, {"name": "todoist", "status": "connector", "version": "0.2.0", "lock": "locked", "removable": false, "signature": "author"}, {"name": "example-tool", "status": "rejected", "detail": "掃描沒過：用了動態執行程式碼", "version": "1.0.0", "lock": "locked", "removable": true, "signature": "none"}, {"name": "hand-copied", "status": "unapproved", "version": "0.1.0", "lock": "unlocked", "removable": true, "signature": "none", "detail": "這個工具不是從安裝頁裝的，SYNOX 沒有載入它。要用它：按「送去安裝頁檢查」，看過報告、按確認才會裝。"}]}, "channels": {"telegram": {"saved": true, "bot": "my_synox_bot", "active": true, "owner_paired": false, "pairable": true, "pair_ready": true, "paired_as": "", "pairing": {"code": "482915", "expires_in": 840}}, "discord": {"saved": true, "bot": "SYNOX test", "active": true, "multi": false, "owner_paired": true, "paired_as": "138765878633601855", "pair_ready": true, "pairing": null, "invite": "https://discord.com/oauth2/authorize?client_id=1&scope=bot&permissions=2048"}}, "accounts": {"roles": ["guest", "member", "admin"], "users": [{"id": 100001, "username": "小明", "role": "admin", "owner": true, "messages_today": 12, "messages_limit": 200, "ai_month_usd": 1.2, "ai_limit_usd": 20}, {"id": 100002, "username": "阿華", "role": "member", "messages_today": 3, "messages_limit": 100, "ai_month_usd": 0.4, "ai_limit_usd": 2}, {"id": 100003, "username": "新朋友", "role": "guest", "pending": true}]}, "library": {"version": "0.2.0", "releases": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases", "overview": "https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL", "tools": [{"name": "notes", "emoji": "📒", "title": "隨手記", "line": "記一筆、找、刪", "summary": "記一筆、找、刪（加密存在這台電腦）", "example": "/note 買牛奶", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不用上網", "tone": "ok", "hint": "這個工具不會上網，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/NpYbd3FtMAkXmASXc1pJzh", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/notes-0.1.1.synoxpack", "installed": "0.1.0", "newer": true}, {"name": "todo", "emoji": "✅", "title": "待辦", "line": "重要度、專案、到期日、打勾完成", "summary": "加待辦（!! 重要、#專案、明天到期）、看今天／逾期、打勾完成（加密存在這台電腦）", "example": "/todo !! 繳電費 明天", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不用上網", "tone": "ok", "hint": "這個工具不會上網，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/JuKURoMhZY58fWyR4j3961", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/todo-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "money", "emoji": "💰", "title": "記帳", "line": "支出、收入、轉帳、預算", "summary": "記支出、收入、轉帳，自己的類別與選配範本，預算與單項上限（加密存在這台電腦）", "example": "/money 120 午餐", "version": "0.2.0", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不用上網", "tone": "ok", "hint": "這個工具不會上網，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/6kA9jSkwVFPPBthsCjmz6d", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/money-0.2.0.synoxpack", "installed": "0.2.0", "newer": false}, {"name": "calendar", "emoji": "📅", "title": "行事曆", "line": "存在這台電腦的行程，可匯出 .ics", "summary": "加行程（明天 14:00 看牙醫）、看今天／這週、匯出 .ics（加密存在這台電腦）", "example": "/cal 明天 14:00 看牙醫", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不用上網", "tone": "ok", "hint": "這個工具不會上網，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/Fm6dXH5oiua8zPY3U5RYQ5", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/calendar-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "bullet", "emoji": "•", "title": "子彈筆記", "line": "快速記錄、今天、月誌、搬到今天", "summary": "快速記錄（• 任務 ○ 事件 – 筆記）、今天、月誌、把沒做完的搬到今天（加密存在這台電腦）", "example": "/bj • 買牛奶", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不用上網", "tone": "ok", "hint": "這個工具不會上網，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/BTdPArDtbddRk4ijNqExZ3", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/bullet-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "notion", "emoji": "🗂", "title": "Notion", "line": "搜尋、讀頁面、加一列、改欄位", "summary": "搜尋、讀頁面、加頁面／資料庫一列、改欄位（用你自己的 integration token）", "example": "/notion 會議", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用假資料測過", "tone": "", "hint": "還沒有真的連上去長時間用過，只用假資料測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/B36np3VigMinvyFuyz74dJ", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/notion-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "todoist", "emoji": "✅", "title": "Todoist", "line": "看、加、完成、改期 Todoist 的待辦", "summary": "看 Todoist 的待辦（今天、逾期、專案、標籤）、加待辦、打勾完成、改期", "example": "/todoist !! 繳電費 明天", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用假資料測過", "tone": "", "hint": "還沒有真的連上去長時間用過，只用假資料測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/D3zgGcZ9h1LRrDLu2QD5Mw", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/todoist-0.1.1.synoxpack", "installed": "0.2.0", "newer": false}, {"name": "google-calendar", "emoji": "📅", "title": "Google 日曆", "line": "看今天／這週、加行程、刪行程", "summary": "看今天／這週、加行程、刪行程（直接連你的 Google 日曆）", "example": "/gcal 明天 14:00 看牙醫", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用假資料測過", "tone": "", "hint": "還沒有真的連上去長時間用過，只用假資料測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/NyhRhPrRL1n9NMMbMEv3mx", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/google-calendar-0.1.1.synoxpack", "installed": "", "newer": false}, {"name": "apple-reminders", "emoji": "🍎", "title": "Apple 提醒事項", "line": "CalDAV 提醒事項（升級過的 iCloud 讀不到）", "summary": "看、加、完成提醒事項（CalDAV；iCloud 升級過的提醒事項 Apple 不開放，見說明）", "example": "/applerem_add 買牛奶", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用假資料測過", "tone": "", "hint": "還沒有真的連上去長時間用過，只用假資料測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/Jm4tdCTZdaQ1mc1waTatYp", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/apple-reminders-0.1.1.synoxpack", "installed": "", "newer": false}]}, "runtime": {"heartbeat": {"enabled": true, "interval_min": 45, "last_run_min": -12, "next_run_min": 33, "last_result": {"ok": true, "message": "看過一輪：任務都正常，沒有要提醒你的事。"}}, "mother": {"state": "idle", "last_active_min": -3, "soul_updated_min": -1560}, "tasks": [{"id": "morning-digest", "name": "早上的摘要", "owner": "SYNOX", "schedule": "每天 08:00", "state": "ok", "last_run_min": -300, "last_message": "送出了：今天 2 個行程、1 個待辦"}, {"id": "budget-watch", "name": "預算檢查", "owner": "example-budget", "schedule": "每 6 小時", "state": "failed", "last_run_min": -40, "last_message": "讀不到這個月的資料，下一輪會再試"}, {"id": "calendar-sync", "name": "行事曆同步", "owner": "example-calendar", "schedule": "每 30 分鐘", "state": "running", "last_run_min": -1, "last_message": "同步中…"}, {"id": "weekly-review", "name": "每週回顧", "owner": "example-notes", "schedule": "每週日 21:00", "state": "idle", "last_run_min": null, "last_message": ""}]}, "report": {"full": true, "summary": "【SYNOX 回報摘要】（SYNOX 自動整理：token、金鑰、對話內容、有使用者名稱的路徑都拿掉了）\nSYNOX 版本：0.2.0\n作業系統：Windows 11（10.0.22631）\nPython：3.11.9\n用法：個人版\nAI：claude_code\n聊天通道：Telegram、網頁\n裝了的工具（4 個）：notes 0.1.0、money 0.2.0、todoist 0.2.0、example-tool 1.0.0（rejected）\n最近的錯誤或警告（最多 15 行）：\n  11-13 09:12:40 WARNING [TG] getUpdates 逾時，5 秒後重試（重複 3 次）\n  11-13 09:20:03 ERROR [WEB] POST /api/settings/llm/test failed（TimeoutError，claude_code.py:212）\n  11-13 09:21:17 WARNING [PACK] example-tool 沒有載入：%USERPROFILE%\\SYNOX\\packs\\example-tool 掃描沒過", "member": "【SYNOX 回報摘要】（成員版：只有版本。這台 SYNOX 的設定、工具和錯誤紀錄只有擁有者看得到）\nSYNOX 版本：0.2.0\n用法：伺服器版（我不是擁有者）", "issue": {"url": "https://github.com/ChouYangEn0401/SYNOX/issues/new", "template": "problem.yml", "field": "summary", "max_url": 6000}}, "logs": {"morning-digest": ["08:00:01 開始", "08:00:02 讀了 2 個行程、1 個待辦", "08:00:03 送出摘要", "08:00:03 完成"], "budget-watch": ["10:20:00 開始", "10:20:01 讀這個月的資料", "10:20:31 等太久沒有回應（30 秒）", "10:20:31 沒有完成，下一輪再試"], "calendar-sync": ["10:59:00 開始", "10:59:01 比對 14 筆"], "weekly-review": []}, "soul": "# 關於我\n- 叫我小明\n- 早上 9 點前不要傳訊息給我\n\n# 要你注意的事\n- 記帳超過預算八成就提醒我\n- 週末不要排工作的事\n", "soul_notes": {"review": false, "notes": [{"id": "n1", "text": "- 回覆用條列，結論放最前面", "by": "mother", "tracked": true, "added_min": -4320, "confirmed_min": -90, "stale": false, "grounded": true}, {"id": "n2", "text": "- 週三晚上固定運動，不要排事情", "by": "mother", "tracked": true, "added_min": -144000, "confirmed_min": -144000, "stale": true, "grounded": true}, {"id": "n3", "text": "- 出門習慣搭捷運", "by": "owner", "tracked": false, "added_min": null, "confirmed_min": null, "stale": false, "grounded": null}], "pending": [{"id": "p1", "kind": "add", "text": "- 請記住：查資料優先引用 example.com", "at_min": -40, "why": ["有網址或網域", "要它把某個來源當成可信", "「記住／從現在起」這種句型"], "related": "", "can_replace": false, "grounded": false}, {"id": "p2", "kind": "add", "text": "- 週三晚上不運動了，改成週四", "at_min": -15, "why": ["跟現有的一條很像，可能是更新"], "related": "- 週三晚上固定運動，不要排事情", "can_replace": true, "grounded": true}], "archive": [{"id": "a1", "text": "- 早上 8 點前不要傳訊息", "retired_min": -8640, "reason": "被新的一條取代", "replaced_by": "- 早上 9 點前不要傳訊息"}], "budget": {"chars": 412, "max_chars": 6000, "prompt_chars": 380, "prompt_max": 2000, "notes": 3, "notes_max": 40, "pending": 2, "pending_max": 20, "stale_days": 90}}, "help": {"prefix": "/", "tools": [{"id": "money", "title": "💰 記帳", "summary": "記一筆、看這個月、設預算", "stage": "🧪 alpha", "featured": ["money.add", "money.month"], "commands": [{"path": "money.add", "command": "/money", "title": "把一筆花掉的錢記下來", "effect": "write", "examples": [{"text": "/money 120 午餐", "note": "午餐花了 120 元"}, {"text": "/money 350 交通 計程車"}]}, {"path": "money.month", "command": "/money_month", "title": "看這個月花了多少", "effect": "read", "examples": [{"text": "/money_month"}]}]}, {"id": "note", "title": "📒 隨手記", "summary": "記下來、找出來", "stage": "🧪 alpha", "featured": ["note.add"], "commands": [{"path": "note.add", "command": "/note", "title": "記一則筆記", "effect": "write", "examples": [{"text": "/note 買牛奶"}]}, {"path": "note.list", "command": "/note_list", "title": "看最近的筆記", "effect": "read", "examples": [{"text": "/note_list"}]}]}]}, "aliases": {"prefix": "@", "names": {"money.add": ["記帳"]}, "suggestions": [{"path": "money.month", "name": "這個月", "command": "/money_month", "title": "看這個月花了多少"}], "conflicts": [], "escape": "\\", "limits": {"name": 16, "per_command": 3, "total": 100}, "prefixes": [{"value": "/", "label": "/（原本的）"}, {"value": "$", "label": "$"}, {"value": "!", "label": "!"}, {"value": ".", "label": "."}, {"value": "~", "label": "~"}, {"value": ";", "label": ";"}, {"value": ",", "label": ","}, {"value": "@", "label": "@"}, {"value": "+", "label": "+"}, {"value": "", "label": "不用符號（進階）"}], "warnings": {"@": "在群組或頻道裡，@ 常被當成「提到某個人」。私訊與 SYNOX 網頁沒問題；在群組裡比較穩的是 /。", "": "不用符號：只要訊息的第一個詞剛好是你取的名字或原本的指令名，就會被當成指令。"}, "targets": [{"path": "money.add", "command": "/money", "title": "把一筆花掉的錢記下來", "tool": "💰 記帳"}, {"path": "money.month", "command": "/money_month", "title": "看這個月花了多少", "tool": "💰 記帳"}, {"path": "note.add", "command": "/note", "title": "記一則筆記", "tool": "📒 隨手記"}]}, "appearance": {"themes": [], "theme": "", "mode": "auto", "custom": {}, "inherited": [], "owner": true, "server": false, "background": {"kind": "theme"}, "patterns": [{"name": "dots", "text": "小圓點"}, {"name": "grid", "text": "方格紙"}, {"name": "stripes", "text": "細斜線"}, {"name": "glow", "text": "淡淡的光"}], "scope": "install", "contract": 1, "tokens": ["bg", "surface", "text", "muted", "line", "accent", "accent-ink", "accent2", "soft", "ok", "warn", "bad", "radius", "font-ui", "font-brand"], "slots": [{"name": "mascot.idle", "text": "吉祥物（平常）：側欄與登入卡左上角的標誌、空白對話的插圖；預設是「S」方塊", "kinds": ["svg", "html"]}, {"name": "mascot.think", "text": "吉祥物（在想）：等 AI 回覆時那顆會晃的小方塊；預設是藍色方塊", "kinds": ["svg", "html"]}, {"name": "mascot.happy", "text": "吉祥物（開心）：裝好、套用成功的時候；預設是笑臉的 S 寶寶", "kinds": ["svg", "html"]}, {"name": "mascot.warn", "text": "吉祥物（注意）：安裝被拒、出問題的時候；預設是擔心的 S 寶寶", "kinds": ["svg", "html"]}, {"name": "opening", "text": "開場動畫：打開網頁時播的那一段（SVG＋CSS 動畫；時間 SYNOX 管，約 1.7 秒）；預設是 S 寶寶掉下來", "kinds": ["svg", "html"]}, {"name": "wordmark", "text": "字標：側欄的「SYNOX」字樣（開場的字也跟著換）；預設是文字 SYNOX", "kinds": ["svg", "html"]}, {"name": "appicon", "text": "分頁圖示（favicon）：只收 SVG；預設是瀏覽器的預設圖示", "kinds": ["svg"]}, {"name": "chat.background", "text": "對話的背景：整個對話區後面的一張圖（鋪滿、在訊息底下、點不到）；只收 SVG；預設沒有。使用者在「外觀 → 背景」自己選的（不要、純色、花紋、自己貼）蓋過外觀包的", "kinds": ["svg"]}]}, "wardrobe": {"version": "0.3.0", "page": "https://claude.ai/artifact/USzGNERZ2477E7XzPaPCsR", "releases": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases", "title": "SYNOX 衣櫃", "summary": "整套外觀：顏色、吉祥物、開場一起換。", "themes": [{"name": "costume-a-bubble", "title": "泡泡", "line": "圓圓的對話泡泡，說話時會輕輕鼓起來", "summary": "圓圓的對話泡泡，說話時會輕輕鼓起來", "version": "1.0.0", "letter": "A", "swatches": ["#f4f7fb", "#ffffff", "#3b82f6", "#a5c8ff"], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false}, {"name": "costume-b-lantern", "title": "提燈", "line": "幫你顧家的一盞小燈，會像心跳一樣一亮一亮", "summary": "幫你顧家的一盞小燈，會像心跳一樣一亮一亮", "version": "1.0.0", "letter": "B", "swatches": ["#f5f3ef", "#fffdf9", "#c77d12", "#f2c46d"], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "0.9.0", "newer": true}, {"name": "costume-c-stamp", "title": "印章", "line": "蓋一下就記住了：朱紅色的方印", "summary": "蓋一下就記住了：朱紅色的方印", "version": "1.0.0", "letter": "C", "swatches": [], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false}, {"name": "costume-d-snail", "title": "蝸牛", "line": "慢慢來也會到：殼上的螺旋就是進度", "summary": "慢慢來也會到：殼上的螺旋就是進度", "version": "1.0.0", "letter": "D", "swatches": [], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false}, {"name": "costume-f-mochi", "title": "麻糬", "line": "軟軟的一團，戳一下會彈回來", "summary": "軟軟的一團，戳一下會彈回來", "version": "1.0.0", "letter": "F", "swatches": ["#fbf6f1", "#ffffff", "#e57399", "#f7c9d6"], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false}, {"name": "costume-h-teapot", "title": "茶壺", "line": "泡一壺茶等你：冒煙就是在想", "summary": "泡一壺茶等你：冒煙就是在想", "version": "1.0.0", "letter": "H", "swatches": [], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false}], "empty": ""}};
+  var D = {"me": {"id": 100001, "username": "小明", "role": "admin", "owner": true, "csrf": "preview", "version": "0.2.1", "uptime_s": 11400, "restart": {"can": true, "pending": true, "reasons": ["Telegram 的設定改了"], "mode": "launcher"}}, "chats": [{"id": "c1", "title": "今天要做的事", "last": "好，兩件都記下來了。"}, {"id": "c2", "title": "記帳", "last": "記了：午餐 120 元"}, {"id": "c3", "title": "週末行程", "last": "（還沒有訊息）"}, {"id": "tools", "title": "🧰 工具頁", "last": "/note_list"}], "events": {"c1": [{"id": 1, "from": "me", "text": "幫我記：買牛奶、繳電費"}, {"id": 2, "from": "bot", "text": "好，兩件都記下來了。\n📝 買牛奶\n📝 繳電費"}, {"id": 3, "from": "me", "text": "把筆記全部刪掉"}, {"id": 4, "from": "note", "text": "AI 想用一個會刪東西的工具，先問你"}, {"id": 5, "from": "bot", "text": "⚠️ 要刪掉全部 2 則筆記嗎？這個沒辦法復原。", "buttons": [[{"text": "✅ 刪掉", "data": "ok"}, {"text": "取消", "data": "no"}]]}], "c2": [{"id": 1, "from": "me", "text": "/money 120 午餐"}, {"id": 2, "from": "bot", "text": "記了：午餐 120 元\n這個月：3,420／預算 12,000"}], "c3": [], "tools": [{"id": 1, "from": "me", "text": "/note_list"}, {"id": 2, "from": "bot", "text": "1. 買牛奶\n2. 繳電費"}]}, "tools": {"packs": [{"id": "note", "name": "notes", "title": "📝 筆記", "version": "0.2.0", "kind": "python", "category": "生活", "summary": "隨手記下想到的事", "description": "使用者想記下一件事、看記過的事、或清掉筆記時使用。", "status": "已連接", "commands": [{"command": "/note", "usage": "", "summary": "記一則筆記", "effect": "write", "path": "note", "default": true, "ai": true, "confirm": false, "fields": [{"name": "text", "label": "內容", "kind": "text", "required": true, "default": ""}], "asks_code": false}, {"command": "/note_list", "usage": "", "summary": "列出全部筆記", "effect": "read", "path": "note_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/note_clear", "usage": "", "summary": "全部刪掉（不能復原）", "effect": "danger", "path": "note_clear", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}], "signature": "official"}, {"id": "money", "name": "money", "title": "💰 記帳", "version": "0.2.0", "kind": "python", "category": "生活", "summary": "記一筆、看這個月花了多少", "description": "使用者提到花了多少錢、想記帳、問這個月花多少時使用。", "status": "已連接", "commands": [{"command": "/money", "usage": "", "summary": "記一筆支出", "effect": "write", "path": "money", "default": true, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "金額", "kind": "number", "required": true, "default": "", "help": "只放數字，例如 120"}, {"name": "category", "label": "類別", "kind": "text", "required": false, "default": "其他", "help": "例如 餐飲、交通"}, {"name": "memo", "label": "備註", "kind": "text", "required": false, "default": ""}], "asks_code": false}, {"command": "/money_month", "usage": "", "summary": "這個月的合計與預算", "effect": "read", "path": "money_month", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/money_budget", "usage": "", "summary": "設每月預算", "effect": "write", "path": "money_budget", "default": false, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "每月預算", "kind": "int", "required": true, "default": ""}], "asks_code": false}], "signature": "official"}, {"id": "todoist", "name": "todoist", "title": "✅ Todoist", "version": "0.2.0", "kind": "python", "category": "待辦與行程", "summary": "把待辦送進 Todoist", "description": "", "status": "要先設定", "connect": true, "missing": ["API token"], "commands": [{"command": "/todo", "usage": "", "summary": "新增一個待辦", "effect": "write", "path": "todo", "default": true, "ai": true, "confirm": false, "fields": [{"name": "content", "label": "要做什麼", "kind": "text", "required": true, "default": ""}, {"name": "due", "label": "什麼時候", "kind": "text", "required": false, "default": "", "help": "例如 明天、週五 15:00；不填＝沒有期限"}], "asks_code": false}, {"command": "/todo_list", "usage": "", "summary": "今天的待辦", "effect": "read", "path": "todo_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}], "signature": "author"}, {"id": "gcal", "name": "google-calendar", "title": "📅 Google 日曆", "version": "0.2.0", "kind": "python", "category": "待辦與行程", "summary": "看行程、加行程", "description": "", "status": "已連接", "commands": [{"command": "/gcal_list", "usage": "", "summary": "接下來的行程", "effect": "read", "path": "gcal_list", "default": true, "ai": true, "confirm": false, "fields": [{"name": "days", "label": "看幾天", "kind": "int", "required": false, "default": "7"}], "asks_code": false}, {"command": "/gcal_add", "usage": "", "summary": "加一個行程", "effect": "write", "path": "gcal_add", "default": false, "ai": true, "confirm": true, "fields": [{"name": "title", "label": "標題", "kind": "text", "required": true, "default": ""}, {"name": "when", "label": "時間", "kind": "text", "required": true, "default": "", "help": "例如 11/20 14:00"}], "asks_code": false}, {"command": "/gcal_rm", "usage": "", "summary": "刪掉一個行程", "effect": "danger", "path": "gcal_rm", "default": false, "ai": true, "confirm": false, "fields": [{"name": "number", "label": "編號（/gcal_list 的）", "kind": "int", "required": true, "default": ""}], "asks_code": false}], "signature": "none"}, {"id": "hello", "name": "hello", "title": "👋 範例", "version": "0.1.0", "kind": "cli", "category": "", "summary": "算小費、打招呼（synox_sdk 的最小範例）", "description": "", "status": "已連接", "commands": [{"command": "/hello", "usage": "", "summary": "算含小費的總額", "effect": "read", "path": "hello", "default": true, "ai": true, "confirm": false, "fields": [{"name": "amount", "label": "帳單金額", "kind": "number", "required": true, "default": ""}, {"name": "percent", "label": "小費幾 %", "kind": "int", "required": false, "default": "10"}, {"name": "round_up", "label": "要不要進位到整數", "kind": "bool", "required": false, "default": "false"}], "asks_code": false}, {"command": "/hello_greet", "usage": "", "summary": "跟某人打招呼", "effect": "read", "path": "hello_greet", "default": false, "ai": true, "confirm": false, "fields": [{"name": "name", "label": "要打招呼的人", "kind": "text", "required": true, "default": ""}, {"name": "style", "label": "語氣", "kind": "choice", "required": false, "default": "casual", "choices": ["casual", "formal"]}], "asks_code": false}], "signature": "none"}], "groups": [{"id": "_basics", "title": "🧭 基本", "summary": "開始、說明、結束問答", "category": "系統", "commands": [{"command": "/start", "usage": "", "summary": "開始", "effect": "read", "path": "start", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/help", "usage": "", "summary": "看全部指令", "effect": "read", "path": "help", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "remind", "title": "⏰ 提醒（系統）", "summary": "SYNOX 內建的提醒：每天幾點、或指定哪一天提醒你一件事（不是 Apple 提醒事項）", "category": "系統", "commands": [{"command": "/remind_add", "usage": "<HH:MM> <內容> [date=…]", "summary": "加一個提醒（系統；每天，或 date= 指定那天一次）", "effect": "write", "path": "remind_add", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}, {"command": "/remind_list", "usage": "", "summary": "列出提醒（系統）", "effect": "read", "path": "remind_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "schedule", "title": "🗓 排程指令", "summary": "每天幾點自動替你執行一個指令", "category": "系統", "commands": [{"command": "/schedule_list", "usage": "", "summary": "列出排程", "effect": "read", "path": "schedule_list", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}, {"id": "agent", "title": "🤖 AI", "summary": "", "category": "系統", "commands": [{"command": "/ai_usage", "usage": "", "summary": "這個月用了多少", "effect": "read", "path": "ai_usage", "default": false, "ai": true, "confirm": false, "fields": [], "asks_code": false}]}], "layout": {"groups": [{"id": "a-15d208d1b4", "title": "生活", "tools": ["note", "money"], "auto": true}, {"id": "a-e31e24dad3", "title": "待辦與行程", "tools": ["todoist", "gcal"], "auto": true}, {"id": "a-607089b311", "title": "未分類", "tools": ["hello"], "auto": true}, {"id": "a-6df543c4a4", "title": "系統", "tools": ["_basics", "remind", "schedule", "agent"], "auto": true}], "custom": false}}, "secrets": {"fields": [{"name": "token", "label": "API token", "required": true, "secret": true, "set": false, "help": "Todoist 網頁 → 設定 → 整合 → 開發者"}]}, "settings": {"owner": true, "accounts": true, "ai_budget": null, "llm": {"kind": "claude_code", "model": "", "base_url": "", "has_key": false}, "llm_choices": [{"label": "Claude Code（用你自己的 Claude 訂閱）", "choice": "claude_code", "models": [{"value": "", "label": "預設（讓 Claude Code 自己選）"}, {"value": "sonnet", "label": "Sonnet（平衡）"}, {"value": "opus", "label": "Opus（最強、較慢）"}, {"value": "haiku", "label": "Haiku（最快、最省）"}]}, {"label": "API 金鑰：OpenAI", "choice": "keys", "provider": "openai", "model": "（照預設）"}, {"label": "API 金鑰：本機或相容的服務", "choice": "keys", "provider": "openai_compat", "needs_url": true}, {"label": "本地模型（Ollama、LM Studio 等，在這台或家裡網路的電腦上跑）", "choice": "local", "servers": [{"value": "ollama", "label": "Ollama", "base_url": "http://127.0.0.1:11434"}, {"value": "vllm", "label": "vLLM", "base_url": "http://127.0.0.1:8000"}, {"value": "lmstudio", "label": "LM Studio", "base_url": "http://127.0.0.1:1234"}, {"value": "other", "label": "OpenAI 相容伺服器", "base_url": "http://127.0.0.1:8000"}], "context_options": [4096, 8192, 16384, 32768, 65536, 131072]}, {"label": "先不用 AI", "choice": "none"}], "packs": [{"name": "notes", "status": "loaded", "version": "0.1.0", "lock": "locked", "removable": false, "signature": "official"}, {"name": "money", "status": "loaded", "version": "0.2.0", "lock": "locked", "removable": false, "signature": "official"}, {"name": "todoist", "status": "connector", "version": "0.2.0", "lock": "locked", "removable": false, "signature": "author"}, {"name": "example-tool", "status": "rejected", "detail": "掃描沒過：用了動態執行程式碼", "version": "1.0.0", "lock": "locked", "removable": true, "signature": "none"}, {"name": "hand-copied", "status": "unapproved", "version": "0.1.0", "lock": "unlocked", "removable": true, "signature": "none", "detail": "這個工具不是從安裝頁裝的，SYNOX 沒有載入它。要用它：按「送去安裝頁檢查」，看過報告、按確認才會裝。"}]}, "channels": {"telegram": {"saved": true, "bot": "my_synox_bot", "active": true, "owner_paired": false, "pairable": true, "pair_ready": true, "paired_as": "", "pairing": {"code": "482915", "expires_in": 840}}, "discord": {"saved": true, "bot": "SYNOX test", "active": true, "multi": false, "owner_paired": true, "paired_as": "138765878633601855", "pair_ready": true, "pairing": null, "invite": "https://discord.com/oauth2/authorize?client_id=1&scope=bot&permissions=2048"}}, "accounts": {"roles": ["guest", "member", "admin"], "users": [{"id": 100001, "username": "小明", "role": "admin", "owner": true, "messages_today": 12, "messages_limit": 200, "ai_month_usd": 1.2, "ai_limit_usd": 20}, {"id": 100002, "username": "阿華", "role": "member", "messages_today": 3, "messages_limit": 100, "ai_month_usd": 0.4, "ai_limit_usd": 2}, {"id": 100003, "username": "新朋友", "role": "guest", "pending": true}]}, "library": {"version": "0.2.0", "releases": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases", "overview": "https://claude.ai/artifact/M8zGBGy9kRtGTjNS24wBVL", "tools": [{"name": "notes", "emoji": "📒", "title": "隨手記", "line": "記一筆、找、刪", "summary": "記一筆、找、刪（加密存在這台電腦）", "example": "/note 買牛奶", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不用上網", "tone": "ok", "hint": "這個工具不會上網，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/NpYbd3FtMAkXmASXc1pJzh", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/notes-0.1.1.synoxpack", "installed": "0.1.0", "newer": true, "blocked": "", "warnings": []}, {"name": "todo", "emoji": "✅", "title": "待辦", "line": "重要度、專案、到期日、打勾完成", "summary": "加待辦（!! 重要、#專案、明天到期）、看今天／逾期、打勾完成（加密存在這台電腦）", "example": "/todo !! 繳電費 明天", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不用上網", "tone": "ok", "hint": "這個工具不會上網，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/JuKURoMhZY58fWyR4j3961", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/todo-0.1.1.synoxpack", "installed": "", "newer": false, "blocked": "", "warnings": []}, {"name": "money", "emoji": "💰", "title": "記帳", "line": "支出、收入、轉帳、預算", "summary": "記支出、收入、轉帳，自己的類別與選配範本，預算與單項上限（加密存在這台電腦）", "example": "/money 120 午餐", "version": "0.2.0", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不用上網", "tone": "ok", "hint": "這個工具不會上網，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/6kA9jSkwVFPPBthsCjmz6d", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/money-0.2.0.synoxpack", "installed": "0.2.0", "newer": false, "blocked": "", "warnings": []}, {"name": "calendar", "emoji": "📅", "title": "行事曆", "line": "存在這台電腦的行程，可匯出 .ics", "summary": "加行程（明天 14:00 看牙醫）、看今天／這週、匯出 .ics（加密存在這台電腦）", "example": "/cal 明天 14:00 看牙醫", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不用上網", "tone": "ok", "hint": "這個工具不會上網，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/Fm6dXH5oiua8zPY3U5RYQ5", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/calendar-0.1.1.synoxpack", "installed": "", "newer": false, "blocked": "", "warnings": []}, {"name": "bullet", "emoji": "•", "title": "子彈筆記", "line": "快速記錄、今天、月誌、搬到今天", "summary": "快速記錄（• 任務 ○ 事件 – 筆記）、今天、月誌、把沒做完的搬到今天（加密存在這台電腦）", "example": "/bj • 買牛奶", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "不用上網", "tone": "ok", "hint": "這個工具不會上網，資料存在這台電腦"}, {"text": "👥 伺服器版也能用", "tone": "", "hint": "伺服器版裡每個人都能用，各自一份資料、互相看不到"}], "group": "local", "help_url": "https://claude.ai/artifact/BTdPArDtbddRk4ijNqExZ3", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/bullet-0.1.1.synoxpack", "installed": "", "newer": false, "blocked": "", "warnings": []}, {"name": "notion", "emoji": "🗂", "title": "Notion", "line": "搜尋、讀頁面、加一列、改欄位", "summary": "搜尋、讀頁面、加頁面／資料庫一列、改欄位（用你自己的 integration token）", "example": "/notion 會議", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用假資料測過", "tone": "", "hint": "還沒有真的連上去長時間用過，只用假資料測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/B36np3VigMinvyFuyz74dJ", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/notion-0.1.1.synoxpack", "installed": "", "newer": false, "blocked": "", "warnings": []}, {"name": "todoist", "emoji": "✅", "title": "Todoist", "line": "看、加、完成、改期 Todoist 的待辦", "summary": "看 Todoist 的待辦（今天、逾期、專案、標籤）、加待辦、打勾完成、改期", "example": "/todoist !! 繳電費 明天", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用假資料測過", "tone": "", "hint": "還沒有真的連上去長時間用過，只用假資料測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/D3zgGcZ9h1LRrDLu2QD5Mw", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/todoist-0.1.1.synoxpack", "installed": "0.2.0", "newer": false, "blocked": "", "warnings": []}, {"name": "google-calendar", "emoji": "📅", "title": "Google 日曆", "line": "看今天／這週、加行程、刪行程", "summary": "看今天／這週、加行程、刪行程（直接連你的 Google 日曆）", "example": "/gcal 明天 14:00 看牙醫", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用假資料測過", "tone": "", "hint": "還沒有真的連上去長時間用過，只用假資料測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/NyhRhPrRL1n9NMMbMEv3mx", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/google-calendar-0.1.1.synoxpack", "installed": "", "newer": false, "blocked": "", "warnings": []}, {"name": "apple-reminders", "emoji": "🍎", "title": "Apple 提醒事項", "line": "CalDAV 提醒事項（升級過的 iCloud 讀不到）", "summary": "看、加、完成提醒事項（CalDAV；iCloud 升級過的提醒事項 Apple 不開放，見說明）", "example": "/applerem_add 買牛奶", "version": "0.1.1", "badges": [{"text": "🧪 alpha", "tone": "warn", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, {"text": "只用假資料測過", "tone": "", "hint": "還沒有真的連上去長時間用過，只用假資料測過"}, {"text": "👤 單人用", "tone": "", "hint": "只有安裝 SYNOX 的那個人能用；伺服器版的其他人看不到"}], "group": "online", "help_url": "https://claude.ai/artifact/Jm4tdCTZdaQ1mc1waTatYp", "download_url": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/apple-reminders-0.1.1.synoxpack", "installed": "", "newer": false, "blocked": "", "warnings": []}]}, "runtime": {"heartbeat": {"enabled": true, "interval_min": 45, "last_run_min": -12, "next_run_min": 33, "last_result": {"ok": true, "message": "看過一輪：任務都正常，沒有要提醒你的事。"}}, "mother": {"state": "idle", "last_active_min": -3, "soul_updated_min": -1560}, "tasks": [{"id": "morning-digest", "name": "早上的摘要", "owner": "SYNOX", "schedule": "每天 08:00", "state": "ok", "last_run_min": -300, "last_message": "送出了：今天 2 個行程、1 個待辦"}, {"id": "budget-watch", "name": "預算檢查", "owner": "example-budget", "schedule": "每 6 小時", "state": "failed", "last_run_min": -40, "last_message": "讀不到這個月的資料，下一輪會再試"}, {"id": "calendar-sync", "name": "行事曆同步", "owner": "example-calendar", "schedule": "每 30 分鐘", "state": "running", "last_run_min": -1, "last_message": "同步中…"}, {"id": "weekly-review", "name": "每週回顧", "owner": "example-notes", "schedule": "每週日 21:00", "state": "idle", "last_run_min": null, "last_message": ""}]}, "report": {"full": true, "summary": "【SYNOX 回報摘要】（SYNOX 自動整理：token、金鑰、對話內容、有使用者名稱的路徑都拿掉了）\nSYNOX 版本：0.2.0\n作業系統：Windows 11（10.0.22631）\nPython：3.11.9\n用法：個人版\nAI：claude_code\n聊天通道：Telegram、網頁\n裝了的工具（4 個）：notes 0.1.0、money 0.2.0、todoist 0.2.0、example-tool 1.0.0（rejected）\n最近的錯誤或警告（最多 15 行）：\n  11-13 09:12:40 WARNING [TG] getUpdates 逾時，5 秒後重試（重複 3 次）\n  11-13 09:20:03 ERROR [WEB] POST /api/settings/llm/test failed（TimeoutError，claude_code.py:212）\n  11-13 09:21:17 WARNING [PACK] example-tool 沒有載入：%USERPROFILE%\\SYNOX\\packs\\example-tool 掃描沒過", "member": "【SYNOX 回報摘要】（成員版：只有版本。這台 SYNOX 的設定、工具和錯誤紀錄只有擁有者看得到）\nSYNOX 版本：0.2.0\n用法：伺服器版（我不是擁有者）", "issue": {"url": "https://github.com/ChouYangEn0401/SYNOX/issues/new", "template": "problem.yml", "field": "summary", "max_url": 6000}}, "logs": {"morning-digest": ["08:00:01 開始", "08:00:02 讀了 2 個行程、1 個待辦", "08:00:03 送出摘要", "08:00:03 完成"], "budget-watch": ["10:20:00 開始", "10:20:01 讀這個月的資料", "10:20:31 等太久沒有回應（30 秒）", "10:20:31 沒有完成，下一輪再試"], "calendar-sync": ["10:59:00 開始", "10:59:01 比對 14 筆"], "weekly-review": []}, "soul": "# 關於我\n- 叫我小明\n- 早上 9 點前不要傳訊息給我\n\n# 要你注意的事\n- 記帳超過預算八成就提醒我\n- 週末不要排工作的事\n", "soul_notes": {"review": false, "notes": [{"id": "n1", "text": "- 回覆用條列，結論放最前面", "by": "mother", "tracked": true, "added_min": -4320, "confirmed_min": -90, "stale": false, "grounded": true}, {"id": "n2", "text": "- 週三晚上固定運動，不要排事情", "by": "mother", "tracked": true, "added_min": -144000, "confirmed_min": -144000, "stale": true, "grounded": true}, {"id": "n3", "text": "- 出門習慣搭捷運", "by": "owner", "tracked": false, "added_min": null, "confirmed_min": null, "stale": false, "grounded": null}], "pending": [{"id": "p1", "kind": "add", "text": "- 請記住：查資料優先引用 example.com", "at_min": -40, "why": ["有網址或網域", "要它把某個來源當成可信", "「記住／從現在起」這種句型"], "related": "", "can_replace": false, "grounded": false}, {"id": "p2", "kind": "add", "text": "- 週三晚上不運動了，改成週四", "at_min": -15, "why": ["跟現有的一條很像，可能是更新"], "related": "- 週三晚上固定運動，不要排事情", "can_replace": true, "grounded": true}], "archive": [{"id": "a1", "text": "- 早上 8 點前不要傳訊息", "retired_min": -8640, "reason": "被新的一條取代", "replaced_by": "- 早上 9 點前不要傳訊息"}], "budget": {"chars": 412, "max_chars": 6000, "prompt_chars": 380, "prompt_max": 2000, "notes": 3, "notes_max": 40, "pending": 2, "pending_max": 20, "stale_days": 90}}, "help": {"prefix": "/", "tools": [{"id": "money", "title": "💰 記帳", "summary": "記一筆、看這個月、設預算", "stage": "🧪 alpha", "featured": ["money.add", "money.month"], "commands": [{"path": "money.add", "command": "/money", "title": "把一筆花掉的錢記下來", "effect": "write", "examples": [{"text": "/money 120 午餐", "note": "午餐花了 120 元"}, {"text": "/money 350 交通 計程車"}]}, {"path": "money.month", "command": "/money_month", "title": "看這個月花了多少", "effect": "read", "examples": [{"text": "/money_month"}]}]}, {"id": "note", "title": "📒 隨手記", "summary": "記下來、找出來", "stage": "🧪 alpha", "featured": ["note.add"], "commands": [{"path": "note.add", "command": "/note", "title": "記一則筆記", "effect": "write", "examples": [{"text": "/note 買牛奶"}]}, {"path": "note.list", "command": "/note_list", "title": "看最近的筆記", "effect": "read", "examples": [{"text": "/note_list"}]}]}]}, "aliases": {"prefix": "@", "names": {"money.add": ["記帳"]}, "suggestions": [{"path": "money.month", "name": "這個月", "command": "/money_month", "title": "看這個月花了多少"}], "conflicts": [], "escape": "\\", "limits": {"name": 16, "per_command": 3, "total": 100}, "prefixes": [{"value": "/", "label": "/（原本的）"}, {"value": "$", "label": "$"}, {"value": "!", "label": "!"}, {"value": ".", "label": "."}, {"value": "~", "label": "~"}, {"value": ";", "label": ";"}, {"value": ",", "label": ","}, {"value": "@", "label": "@"}, {"value": "+", "label": "+"}, {"value": "", "label": "不用符號（進階）"}], "warnings": {"@": "在群組或頻道裡，@ 常被當成「提到某個人」。私訊與 SYNOX 網頁沒問題；在群組裡比較穩的是 /。", "": "不用符號：只要訊息的第一個詞剛好是你取的名字或原本的指令名，就會被當成指令。"}, "targets": [{"path": "money.add", "command": "/money", "title": "把一筆花掉的錢記下來", "tool": "💰 記帳"}, {"path": "money.month", "command": "/money_month", "title": "看這個月花了多少", "tool": "💰 記帳"}, {"path": "note.add", "command": "/note", "title": "記一則筆記", "tool": "📒 隨手記"}]}, "appearance": {"themes": [], "theme": "", "mode": "auto", "custom": {}, "inherited": [], "owner": true, "server": false, "background": {"kind": "theme"}, "patterns": [{"name": "dots", "text": "小圓點"}, {"name": "grid", "text": "方格紙"}, {"name": "stripes", "text": "細斜線"}, {"name": "glow", "text": "淡淡的光"}], "scope": "install", "contract": 1, "tokens": ["bg", "surface", "text", "muted", "line", "accent", "accent-ink", "accent2", "soft", "ok", "warn", "bad", "radius", "font-ui", "font-brand"], "slots": [{"name": "mascot.idle", "text": "吉祥物（平常）：側欄與登入卡左上角的標誌、空白對話的插圖；預設是「S」方塊", "kinds": ["svg", "html"]}, {"name": "mascot.think", "text": "吉祥物（在想）：等 AI 回覆時那顆會晃的小方塊；預設是藍色方塊", "kinds": ["svg", "html"]}, {"name": "mascot.happy", "text": "吉祥物（開心）：裝好、套用成功的時候；預設是笑臉的 S 寶寶", "kinds": ["svg", "html"]}, {"name": "mascot.warn", "text": "吉祥物（注意）：安裝被拒、出問題的時候；預設是擔心的 S 寶寶", "kinds": ["svg", "html"]}, {"name": "opening", "text": "開場動畫：打開網頁時播的那一段（SVG＋CSS 動畫；時間 SYNOX 管，約 1.7 秒）；預設是 S 寶寶掉下來", "kinds": ["svg", "html"]}, {"name": "wordmark", "text": "字標：側欄的「SYNOX」字樣（開場的字也跟著換）；預設是文字 SYNOX", "kinds": ["svg", "html"]}, {"name": "appicon", "text": "分頁圖示（favicon）：只收 SVG；預設是瀏覽器的預設圖示", "kinds": ["svg"]}, {"name": "chat.background", "text": "對話的背景：整個對話區後面的一張圖（鋪滿、在訊息底下、點不到）；只收 SVG；預設沒有。使用者在「外觀 → 背景」自己選的（不要、純色、花紋、自己貼）蓋過外觀包的", "kinds": ["svg"]}]}, "wardrobe": {"version": "0.3.0", "page": "https://claude.ai/artifact/USzGNERZ2477E7XzPaPCsR", "releases": "https://github.com/ChouYangEn0401/SYNOX_Libs/releases", "title": "SYNOX 衣櫃", "summary": "整套外觀：顏色、吉祥物、開場一起換。", "themes": [{"name": "costume-a-bubble", "title": "泡泡", "line": "圓圓的對話泡泡，說話時會輕輕鼓起來", "summary": "圓圓的對話泡泡，說話時會輕輕鼓起來", "version": "1.0.0", "letter": "A", "swatches": ["#f4f7fb", "#ffffff", "#3b82f6", "#a5c8ff"], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false, "blocked": ""}, {"name": "costume-b-lantern", "title": "提燈", "line": "幫你顧家的一盞小燈，會像心跳一樣一亮一亮", "summary": "幫你顧家的一盞小燈，會像心跳一樣一亮一亮", "version": "1.0.0", "letter": "B", "swatches": ["#f5f3ef", "#fffdf9", "#c77d12", "#f2c46d"], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "0.9.0", "newer": true, "blocked": ""}, {"name": "costume-c-stamp", "title": "印章", "line": "蓋一下就記住了：朱紅色的方印", "summary": "蓋一下就記住了：朱紅色的方印", "version": "1.0.0", "letter": "C", "swatches": [], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false, "blocked": ""}, {"name": "costume-d-snail", "title": "蝸牛", "line": "慢慢來也會到：殼上的螺旋就是進度", "summary": "慢慢來也會到：殼上的螺旋就是進度", "version": "1.0.0", "letter": "D", "swatches": [], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false, "blocked": ""}, {"name": "costume-f-mochi", "title": "麻糬", "line": "軟軟的一團，戳一下會彈回來", "summary": "軟軟的一團，戳一下會彈回來", "version": "1.0.0", "letter": "F", "swatches": ["#fbf6f1", "#ffffff", "#e57399", "#f7c9d6"], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false, "blocked": ""}, {"name": "costume-h-teapot", "title": "茶壺", "line": "泡一壺茶等你：冒煙就是在想", "summary": "泡一壺茶等你：冒煙就是在想", "version": "1.0.0", "letter": "H", "swatches": [], "badge": {"text": "🧪 alpha", "hint": "能用，但還沒在真的服務上長時間用過；指令與資料格式之後可能會改"}, "installed": "", "newer": false, "blocked": ""}], "empty": ""}};
   var loggedOut = q.get("login") === "1";
   if (q.get("member") === "1") {
     D.me.owner = false; D.me.role = "member"; D.me.username = "阿華";
@@ -1267,6 +1480,14 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     var p = String(path).split("?")[0];
     if (p.indexOf("/api/runtime/") === 0) { return runtime(p, method, opts); }
     if (p === "/api/me") { return loggedOut ? reply({ error: "請先登入" }, 401) : reply(D.me); }
+    // 🔄 重新啟動：預覽不會真的重開；按下去之後 /alive 一直是同一個開機代號，所以會停在「重新啟動中…」，等滿 90 秒再說明
+    if (p === "/api/settings/restart") {
+      return method === "GET" ? reply({ mode: "launcher", can: true, busy: false, pending: D.me.restart.pending,
+        reasons: D.me.restart.reasons, wait_s: 0, boot: "preview", version: D.me.version,
+        how: "會先關掉 SYNOX，再用跟桌面捷徑一樣的方式自己開起來（大約 10～30 秒）。這段時間 bot 不會回訊息。" })
+        : reply({ ok: true, boot: "preview", message: "（預覽：不會真的重新啟動）" }, 202);
+    }
+    if (p === "/alive") { return reply({ ok: true, boot: "preview" }); }
     // 封存：假的，只在這個頁面的記憶體裡動（預覽不存任何東西）
     D.archived = D.archived || [{ id: "c90", title: "上週的旅遊規劃", last: "好，行程排好了。", count: 12, archived: Date.now() / 1000 - 86400 * 3 },
                                 { id: "c91", title: "寫給房東的信", last: "已經幫你改好語氣。", count: 6, archived: Date.now() / 1000 - 86400 * 9 }];
@@ -1475,6 +1696,25 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       else if (helpTries > 50) { clearInterval(helpWait); }
     }, 100);
   }
+  if (q.get("menu") === "1") {            // 左下角的使用者選單直接打開（截圖用；手機寬度是上方列的頭像）
+    var menuTries = 0;
+    var menuWait = setInterval(function () {
+      menuTries += 1;
+      var card = document.getElementById("um-card"), phone = document.getElementById("um-phone");
+      var t = phone && phone.offsetParent ? phone : card;
+      if (t && !t.classList.contains("hidden") && t.offsetParent) { clearInterval(menuWait); t.click(); }
+      else if (menuTries > 50) { clearInterval(menuWait); }
+    }, 100);
+  }
+  if (q.get("restart") === "1") {         // 「重新啟動 SYNOX？」的確認框直接跳出來（截圖用；按下去會停在「重新啟動中…」）
+    var rsTries = 0;
+    var rsWait = setInterval(function () {
+      rsTries += 1;
+      var item = document.getElementById("um-restart");
+      if (window.SynoxUserMenu && item && !item.classList.contains("hidden")) { clearInterval(rsWait); window.SynoxUserMenu.restart(); }
+      else if (rsTries > 50) { clearInterval(rsWait); }
+    }, 100);
+  }
   if (q.get("tooledit") === "1") {        // 工具頁直接打開「編輯群組」（截圖用）
     var tries = 0;
     var wait = setInterval(function () {
@@ -1511,6 +1751,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
                  ["設定", function () { return "?" + theme + "#settings"; }],
                  ["功能與安裝", function () { return "?" + (theme ? theme + "&" : "") + "lib=1#packs"; }],
                  ["遇到問題？", function () { return "?" + (theme ? theme + "&" : "") + "help=1#settings:help"; }],
+                 ["使用者選單", function () { return "?" + (theme ? theme + "&" : "") + "menu=1#chat"; }],
                  ["主控", function () { return "?" + theme + "#control"; }],
                  ["主控讀不到", function () { return "?ctl=error" + (theme ? "&" + theme : "") + "#control"; }],
                  ["成員看到的", function () { return "?member=1" + (theme ? "&" + theme : "") + "#control"; }],
@@ -2110,10 +2351,9 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
 <aside class="side">
   <div class="brand-row">
     <div class="brand"><button id="brand-mark" class="mark" type="button" data-splash-replay title="再看一次開場" aria-label="再看一次開場"><span class="slot theme-slot-mascot-idle" data-slot="mascot.idle" aria-hidden="true">S</span></button><span class="name"><span class="slot theme-slot-wordmark" data-slot="wordmark">SYNOX</span></span></div>
-    <button id="logout" class="ghost sm hidden" type="button" title="登出">
-      <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3"/><path d="M10 17l-5-5 5-5"/><path d="M5 12h11"/></svg>
-      <span>登出</span>
-    </button>
+    <!-- 🔄 重新啟動（只有擁有者）、手機的頭像（打開使用者選單）：static/usermenu.js。登出在選單裡 -->
+    <button id="restart-btn" class="restart-btn hidden" type="button" title="重新啟動 SYNOX" aria-label="重新啟動 SYNOX"><span class="rs-ico" aria-hidden="true">⟳</span><span class="um-dot hidden" data-um-dot aria-hidden="true"></span></button>
+    <button id="um-phone" class="um-phone hidden" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="user-menu" aria-label="我的選單"><span class="avatar" id="avatar-m" aria-hidden="true"></span><span class="um-dot hidden" data-um-dot aria-hidden="true"></span></button>
   </div>
   <nav id="nav" class="nav hidden">
     <a href="#chat" data-view="chat" data-tour="nav.chat">
@@ -2137,9 +2377,26 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   </div>
   <a id="apps-side" class="hidden" href="#tools" title="工具服務：到工具頁看、關掉"></a>
   <div id="side-foot" class="side-foot hidden">
-    <span class="avatar" id="avatar" aria-hidden="true"></span>
-    <span class="who" id="who"></span>
-    <a id="help-link" class="help-link" href="#settings:help" title="遇到問題？告訴我們，一起把它修好">遇到問題？</a>
+    <button id="um-card" class="um-card" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="user-menu" title="我的選單">
+      <span class="avatar" id="avatar" aria-hidden="true"></span>
+      <span class="who" id="who"></span>
+      <span class="um-dot hidden" data-um-dot aria-hidden="true"></span>
+      <svg class="i um-chev" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 14l5-5 5 5"/></svg>
+    </button>
+  </div>
+  <!-- 使用者選單（點上面的卡片；手機點上方列的頭像）：static/usermenu.js、usermenu.css -->
+  <div id="user-menu" class="um hidden" role="menu" aria-label="我的選單">
+    <div class="um-head" role="none">
+      <div class="um-state"><span class="um-live" aria-hidden="true"></span><span id="um-status">SYNOX 運作中</span><span class="um-ver" id="um-ver"></span></div>
+      <div class="um-me"><span class="avatar" id="um-avatar" aria-hidden="true"></span><span class="txt"><span id="um-name"></span><span id="um-role"></span></span></div>
+    </div>
+    <button id="um-restart" class="um-item hidden" type="button" role="menuitem"><span class="um-ico" aria-hidden="true">🔄</span><span class="um-label">重新啟動 SYNOX</span><span class="um-pill hidden" data-um-dot>待生效</span></button>
+    <button id="um-notify" class="um-item hidden" type="button" role="menuitem"><span class="um-ico" aria-hidden="true">🔔</span><span class="um-label">通知</span></button>
+    <a class="um-item" href="#settings" role="menuitem"><span class="um-ico" aria-hidden="true">⚙️</span><span class="um-label">設定</span></a>
+    <a class="um-item" href="#settings:appearance" role="menuitem"><span class="um-ico" aria-hidden="true">🎨</span><span class="um-label">換外觀</span></a>
+    <a id="help-link" class="um-item" href="#settings:help" role="menuitem" title="遇到問題？告訴我們，一起把它修好"><span class="um-ico" aria-hidden="true">❓</span><span class="um-label">遇到問題？</span></a>
+    <div class="um-sep" role="separator"></div>
+    <button id="um-logout" class="um-item um-out" type="button" role="menuitem"><span class="um-ico" aria-hidden="true">↪</span><span class="um-label">登出</span></button>
   </div>
 </aside>
 
@@ -2169,6 +2426,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       <div class="chat-head"><span class="live" aria-hidden="true"></span><span class="t" id="chat-title">對話</span></div>
       <div id="stream"><div class="empty">選一段對話，或按「新對話」。</div></div>
       <div id="helpdock" class="helpdock hidden" aria-label="範例"></div>
+      <div id="reply-bar" class="reply-bar hidden" aria-live="polite"></div>
       <div id="attach-list" aria-live="polite"></div>
       <form id="composer" data-tour="chat.input">
         <button id="examples-btn" class="ghost" type="button" data-tour="chat.examples" title="看範例：點一下就放進輸入框">💡 範例</button>
@@ -2274,11 +2532,13 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
             <button id="llm-local-free" type="button">釋放顯卡（全部卸載）</button>
           </div>
           <p id="llm-local-models-msg" class="muted"></p>
-          <label class="f" for="llm-local-ctx">Context 長度（越大越佔記憶體；LM Studio 是按「載入這個模型」時用這個長度）</label>
+          <label class="f" for="llm-local-ctx">Context 長度（越大越佔記憶體；LM Studio 是載入模型時用這個長度）</label>
           <div class="row">
             <select id="llm-local-ctx"></select>
             <button id="llm-local-advice" type="button">看建議</button>
+            <button id="llm-local-reload" type="button" class="hidden">用 <span id="llm-local-reload-n">—</span> 重新載入這個模型</button>
           </div>
+          <p id="llm-local-reload-msg" class="muted"></p>
           <p class="muted">不確定電腦撐不撐得住？按「看建議」：只讀取模型資料與這台電腦的記憶體，不會載入模型。建議值都是估算。</p>
           <ul id="llm-local-notes" class="muted"></ul>
           <p class="muted">逾時：模型只要還在回應就不會被中止；完全沒有進展超過 <span id="llm-local-timeout">450</span> 秒才中止，
@@ -2369,6 +2629,14 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
         </div>
       </div>
 
+      <div id="set-data" class="card hidden">
+        <div class="card-head"><span class="tile" aria-hidden="true">🗂️</span>
+          <div class="txt"><h2>資料版本</h2>
+            <p class="sub">每份資料是哪一版的格式。SYNOX 或工具升級後，舊資料會在下次啟動時自動升到新格式（先備份；失敗就還原、不會改壞）。</p></div></div>
+        <ul id="data-list" class="plain-list"></ul>
+        <p id="data-note" class="muted"></p>
+      </div>
+
       <div id="set-backup" class="card hidden" data-tour="settings.backup">
         <div class="card-head"><span class="tile" aria-hidden="true">💾</span>
           <div class="txt"><h2>備份</h2>
@@ -2388,7 +2656,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
         <p class="note-line scope-note">💬 <strong>目前只能一對一私訊</strong>：要在 Telegram 或 Discord 裡<strong>私訊</strong> bot 才會回你。
           把 bot 加進 Telegram 群組、Discord 伺服器的頻道或「社群」裡 @ 它，<strong>不會有用</strong>（指令與 AI 在群組、頻道裡都被擋掉，這是為了不讓別人碰到你的資料）。</p>
         <p id="ch-restart" class="restart-banner hidden" role="status">⚠ 聊天通道的設定改了，要<strong>重新啟動 SYNOX</strong> 才會生效：
-          先雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑。在那之前 bot 不會上線、也不會回你。</p>
+          先雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑。在那之前 bot 不會上線、也不會回你。<button type="button" class="sm primary restart-now" data-restart-now>立即重新啟動</button></p>
         <div class="channel">
           <h3>Telegram</h3>
           <p id="ch-tg-now" class="muted"></p>
@@ -4411,6 +4679,9 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     start: "開始用",
     stop: "關掉",
     keep: "先不要關",
+    starting: "開啟中…",
+    stopping: "關閉中…",
+    working: "處理中…",
     stopAll: "全部關掉",
     whatIs: "這是什麼？為什麼要關？",
     inUseTitle: "怎樣算「有在用」：",
@@ -4523,7 +4794,41 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     var b = el("button", "primary", TEXT.open);
     b.type = "submit";
     f.appendChild(b);
+    // 送出後短暫停用，免得連按開出好幾張交接票；要等表單真的送出去才停用（放到下一輪，不擋這次送出）
+    f.addEventListener("submit", function () {
+      if (typeof setTimeout !== "function") { return; }
+      setTimeout(function () {
+        b.disabled = true;
+        setTimeout(function () { b.disabled = false; }, 2000);
+      }, 0);
+    });
     return f;
+  }
+
+  /* 按下去之後：請求真的開始時（mark()）把這一列的按鈕都停用、按下的那顆改字；請求結束（成功或失敗）都還原。
+   * 成功時 refresh 會重畫整張卡片，舊的這列就不見了；還原是給 refresh 失敗、卡片沒被重畫的時候，不讓按鈕永遠卡住。 */
+  function whileBusy(row, button, label, run) {
+    var saved = null;
+    function mark() {
+      if (saved) { return; }
+      saved = { text: button.textContent, list: [] };
+      (row.children || []).forEach(function (n) {
+        if (n.tagName && String(n.tagName).toLowerCase() === "button") { saved.list.push([n, n.disabled]); n.disabled = true; }
+      });
+      button.textContent = label;
+      button.setAttribute("aria-busy", "true");
+    }
+    function restore() {
+      if (!saved) { return; }
+      saved.list.forEach(function (p) { p[0].disabled = p[1]; });
+      button.textContent = saved.text;
+      button.setAttribute("aria-busy", "false");
+      saved = null;
+    }
+    var p;
+    try { p = run(mark); } catch (e) { restore(); throw e; }
+    if (p && typeof p.then === "function") { p.then(restore, restore); } else { restore(); }
+    return p;
   }
 
   /* ctx：{ canManage, csrf, explain, onStart(view), onStop(view), onKeep(view), onPolicy(view, body), confirm(text) → Promise } */
@@ -4547,16 +4852,16 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     if (ctx.canManage) {
       if (view.state === "on") {
         var stop = el("button", "", TEXT.stop);
-        stop.addEventListener("click", function () { ctx.onStop(view); });
+        stop.addEventListener("click", function () { whileBusy(row, stop, TEXT.stopping, function (mark) { return ctx.onStop(view, mark); }); });
         row.appendChild(stop);
         if (view.suggest_close) {
           var keep = el("button", "", TEXT.keep);
-          keep.addEventListener("click", function () { ctx.onKeep(view); });
+          keep.addEventListener("click", function () { whileBusy(row, keep, TEXT.working, function (mark) { return ctx.onKeep(view, mark); }); });
           row.appendChild(keep);
         }
       } else if (policy.mode !== "blocked" && !view.problem) {
         var start = el("button", "primary", TEXT.start);
-        start.addEventListener("click", function () { ctx.onStart(view); });
+        start.addEventListener("click", function () { whileBusy(row, start, TEXT.starting, function (mark) { return ctx.onStart(view, mark); }); });
         row.appendChild(start);
       }
     }
@@ -4678,17 +4983,17 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     return {
       canManage: !!(last && last.can_manage), csrf: deps.csrf ? deps.csrf() : "", explain: last && last.explain,
       confirm: confirmBox,
-      onStart: function (view) {
+      onStart: function (view, mark) {
         var first = last && !last.explained;
-        var go = function () { return act("/api/apps/" + view.name + "/start", { explained: true }); };
-        if (!first) { return act("/api/apps/" + view.name + "/start", {}); }
+        var go = function () { if (mark) { mark(); } return act("/api/apps/" + view.name + "/start", { explained: true }); };
+        if (!first) { if (mark) { mark(); } return act("/api/apps/" + view.name + "/start", {}); }
         var e = last.explain || {};
         return confirmBox([TEXT.firstTitle, e.what, e.why_close, e.restart].join("\n"), TEXT.firstOk).then(function (yes) {
           if (yes) { return go(); }
         });
       },
-      onStop: function (view) { return act("/api/apps/" + view.name + "/stop"); },
-      onKeep: function (view) { return act("/api/apps/" + view.name + "/keep"); },
+      onStop: function (view, mark) { if (mark) { mark(); } return act("/api/apps/" + view.name + "/stop"); },
+      onKeep: function (view, mark) { if (mark) { mark(); } return act("/api/apps/" + view.name + "/keep"); },
       onPolicy: function (view, body) { return act("/api/apps/" + view.name + "/policy", body); }
     };
   }
@@ -4890,6 +5195,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     failed: "沒做成：{e}"
   };
   var POLL_MS = 10000, POLL_HIDDEN_MS = 30000, SOFT_HIDE_MS = 9000, MAX_POPS = 4;
+  var ALARM_GRACE_MS = 1500, POLL_MIN_MS = 1000;   // 下一個鬧鐘響的那一刻＋1.5 秒多看一次（不用等滿 10 秒）
   var opts = null, me = null, rev = 0, primed = false, timer = null;
   var items = {};                 // id → item
   var pops = {};                  // id → 小卡 DOM
@@ -5008,7 +5314,16 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   }
   function schedule() {
     clearTimeout(timer);
-    timer = setTimeout(function () { poll().then(schedule, schedule); }, document.hidden ? POLL_HIDDEN_MS : POLL_MS);
+    timer = setTimeout(function () { poll().then(schedule, schedule); }, nextWait(Date.now()));
+  }
+  function nextWait(nowMs) {
+    // 平常 10 秒（看不到分頁 30 秒）；下一個鬧鐘比那更早響＝在它響之後 1.5 秒就看（提醒引擎準時送出，網頁也準時跳）
+    var wait = document.hidden ? POLL_HIDDEN_MS : POLL_MS;
+    if (!document.hidden && nextAlarm && nextAlarm.ts) {
+      var until = nextAlarm.ts * 1000 - nowMs + ALARM_GRACE_MS;
+      if (until > 0 && until < wait) { wait = Math.max(POLL_MIN_MS, until); }
+    }
+    return wait;
   }
 
   // ── 跳出來的小卡 ─────────────────────────────────────────────────
@@ -5336,6 +5651,358 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     TEXT: TEXT
   };
 })(window);
+</script>
+<script nonce="preview">/* 左下角的使用者選單（點使用者卡片打開；手機是上方列的頭像）＋「🔄 重新啟動 SYNOX」。樣式在 static/usermenu.css。
+ *
+ * - 選單（role=menu）：上面是狀態（● SYNOX 運作中 · 已開 N 小時、版本、名字與角色），下面一列一列的 menuitem：
+ *   🔄 重新啟動 SYNOX（只有擁有者；要重開才生效的設定改了就有小點）、🔔 通知、⚙️ 設定、🎨 換外觀、❓ 遇到問題？、↪ 登出。
+ *   Esc／點外面關；上下鍵、Home／End 移動；Tab 在選單裡繞（不會跑出去）；關掉時焦點回到卡片。
+ * - 重新啟動：先問（自己的確認框）→ POST /api/settings/restart → 蓋一層「重新啟動中…」→ 每 1.5 秒問 GET /alive，
+ *   開機代號（boot）換了＝新的那支起來了 → 重新整理。等太久就說明下一步。伺服器那一半在 web/restart.py。
+ * - 側欄上方的 ⟳、聊天通道黃色提示的「立即重新啟動」都走同一個 restart()。
+ * 字一律 textContent；字串集中在 TEXT。app.html 拿到 /api/me 之後叫 window.SynoxUserMenu.init({ api, toast, me, logout })。
+ */
+(function (root) {
+  "use strict";
+  var TEXT = {
+    running: "SYNOX 運作中",
+    justNow: "剛開好",
+    minutes: "已開 {n} 分鐘",
+    hours: "已開 {n} 小時",
+    days: "已開 {d} 天",
+    daysHours: "已開 {d} 天 {h} 小時",
+    version: "v{v}",
+    owner: "擁有者",
+    roles: { admin: "管理員", member: "成員", guest: "訪客", owner: "擁有者" },
+    restart: "重新啟動 SYNOX",
+    restartPending: "重新啟動 SYNOX（有設定要重開才生效）",
+    askTitle: "重新啟動 SYNOX？",
+    askBecause: "重開之後會生效：",
+    askOk: "重新啟動",
+    cancel: "取消",
+    cantTitle: "沒辦法從網頁重新啟動",
+    gotIt: "知道了",
+    waitTitle: "等一下再重開",
+    waitText: "剛剛才重新啟動過，為了避免一直重開，請 {s} 秒後再試。",
+    working: "重新啟動中…",
+    workingSub: "SYNOX 正在關掉、再自己開起來（大約 10～30 秒）。好了這一頁會自己重新整理，不用動。",
+    waited: "已經等了 {s} 秒…",
+    back: "好了！重新整理中…",
+    slowTitle: "SYNOX 還沒回來",
+    slow: "等了 {s} 秒還沒好。電腦比較忙時會久一點；也可能沒開成功：雙擊桌面的 SYNOX 捷徑就會開起來。還是不行的話，到「遇到問題？」告訴我們。",
+    waitMore: "再等一下",
+    reload: "重新整理",
+    failed: "沒有重新啟動：{e}"
+  };
+  var POLL_MS = 1500;
+  var TIMEOUT_MS = 90000;
+
+  function fmt(s, o) { return String(s).replace(/\{(\w+)\}/g, function (_, k) { return o[k] === undefined ? "" : o[k]; }); }
+
+  /* ── 純函式（tests/js/test_usermenu.js）──────────────────────────── */
+  function uptimeText(seconds) {
+    var s = Math.max(0, Math.floor(Number(seconds) || 0));
+    if (s < 60) { return TEXT.justNow; }
+    if (s < 3600) { return fmt(TEXT.minutes, { n: Math.floor(s / 60) }); }
+    if (s < 86400) { return fmt(TEXT.hours, { n: Math.floor(s / 3600) }); }
+    var d = Math.floor(s / 86400), h = Math.floor((s % 86400) / 3600);
+    return h ? fmt(TEXT.daysHours, { d: d, h: h }) : fmt(TEXT.days, { d: d });
+  }
+  function statusLine(seconds) { return TEXT.running + " · " + uptimeText(seconds); }
+  function whoLines(me) {
+    me = me || {};
+    var name = me.username ? String(me.username) : "id " + me.id;
+    var role = me.owner ? TEXT.owner : (TEXT.roles[me.role] || String(me.role || ""));
+    return { name: name, role: role, id: me.username ? "id " + me.id : "", initial: (me.username || "#").charAt(0).toUpperCase() };
+  }
+  /* 鍵盤：回下一個要停的位置；-1＝這個鍵不歸選單管 */
+  function moveIndex(current, key, count, shift) {
+    if (count <= 0) { return -1; }
+    if (key === "ArrowDown" || (key === "Tab" && !shift)) { return current < 0 ? 0 : (current + 1) % count; }
+    if (key === "ArrowUp" || (key === "Tab" && shift)) { return current < 0 ? count - 1 : (current - 1 + count) % count; }
+    if (key === "Home" || key === "PageUp") { return 0; }
+    if (key === "End" || key === "PageDown") { return count - 1; }
+    return -1;
+  }
+  /* 等 SYNOX 回來：問 /alive，boot 跟原本的不一樣才算（舊的那支在關掉前還會回一下） */
+  function watchRestart(o) {
+    var start = o.now(), stopped = false;
+    function tick() {
+      if (stopped) { return; }
+      var waited = o.now() - start;
+      if (waited >= (o.timeoutMs || TIMEOUT_MS)) { stopped = true; o.onTimeout(Math.round(waited / 1000)); return; }
+      if (o.onTick) { o.onTick(Math.round(waited / 1000)); }
+      o.fetch("/alive", { cache: "no-store", credentials: "same-origin" }).then(function (r) {
+        return r && r.ok ? r.json() : null;
+      }).then(function (d) {
+        if (stopped) { return; }
+        if (d && d.ok && d.boot && d.boot !== o.oldBoot) { stopped = true; o.onBack(); return; }
+        o.schedule(tick, o.interval || POLL_MS);
+      }, function () {
+        if (!stopped) { o.schedule(tick, o.interval || POLL_MS); }   // 關機中連不上是正常的
+      });
+    }
+    o.schedule(tick, o.interval || POLL_MS);
+    return { stop: function () { stopped = true; } };
+  }
+
+  /* ── 選單本身（只用一小撮 DOM：classList、setAttribute、focus、contains、addEventListener）────── */
+  function createMenu(doc, menu, triggers, opts) {
+    opts = opts || {};
+    var openedBy = null;
+    function list() {
+      return Array.prototype.filter.call(menu.querySelectorAll('[role="menuitem"]'), function (n) {
+        return !n.classList.contains("hidden") && !n.disabled;
+      });
+    }
+    function isOpen() { return !menu.classList.contains("hidden"); }
+    function focusAt(i) { var l = list(); if (l[i]) { l[i].focus(); } }
+    function place(trigger) {
+      if (!trigger || !trigger.getBoundingClientRect || !menu.style) { return; }
+      var r = trigger.getBoundingClientRect(), w = root.innerWidth || 0, h = root.innerHeight || 0;
+      var down = r.top < h / 2;                        // 手機的頭像在上面：往下開；側欄的卡片在下面：往上開
+      menu.classList.toggle("um-down", down);
+      menu.style.left = down ? "auto" : Math.max(8, Math.round(r.left)) + "px";
+      menu.style.right = down ? Math.max(8, Math.round(w - r.right)) + "px" : "auto";
+      menu.style.top = down ? Math.round(r.bottom + 8) + "px" : "auto";
+      menu.style.bottom = down ? "auto" : Math.round(h - r.top + 8) + "px";
+    }
+    function open(trigger, where) {
+      openedBy = trigger || triggers[0];
+      if (opts.beforeOpen) { opts.beforeOpen(); }
+      place(openedBy);
+      menu.classList.remove("hidden");
+      triggers.forEach(function (t) { t.setAttribute("aria-expanded", t === openedBy ? "true" : "false"); });
+      focusAt(where === "last" ? list().length - 1 : 0);
+    }
+    function close(refocus) {
+      if (!isOpen()) { return; }
+      menu.classList.add("hidden");
+      triggers.forEach(function (t) { t.setAttribute("aria-expanded", "false"); });
+      if (refocus !== false && openedBy) { openedBy.focus(); }
+    }
+    triggers.forEach(function (t) {
+      t.addEventListener("click", function () { if (isOpen()) { close(); } else { open(t, "first"); } });
+      t.addEventListener("keydown", function (e) {
+        if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); open(t, e.key === "ArrowUp" ? "last" : "first"); }
+      });
+    });
+    menu.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") { e.preventDefault(); close(); return; }
+      var l = list(), i = l.indexOf(doc.activeElement);
+      var next = moveIndex(i, e.key, l.length, e.shiftKey);
+      if (next >= 0) { e.preventDefault(); focusAt(next); return; }
+      if (e.key === " " && doc.activeElement && doc.activeElement.click) { e.preventDefault(); doc.activeElement.click(); }
+    });
+    menu.addEventListener("click", function (e) {      // 按了任何一項：選單收起來（那一項自己的動作照做）
+      var t = e.target;
+      while (t && t !== menu && !(t.getAttribute && t.getAttribute("role") === "menuitem")) { t = t.parentNode; }
+      if (t && t !== menu) { close(); }               // 焦點回卡片：接著跳出的確認框關掉後也回得來
+    });
+    doc.addEventListener("keydown", function (e) { if (e.key === "Escape" && isOpen()) { close(); } });
+    doc.addEventListener("mousedown", function (e) {
+      if (!isOpen()) { return; }
+      if (menu.contains(e.target) || triggers.some(function (t) { return t.contains(e.target); })) { return; }
+      close(false);
+    });
+    return { open: open, close: close, isOpen: isOpen, items: list };
+  }
+
+  /* ── 對話框（自己畫，跟主題一起換色；role=alertdialog、焦點留在裡面）──────────── */
+  function dialog(doc, o) {
+    var scrim = doc.createElement("div");
+    scrim.className = "um-scrim";
+    var box = doc.createElement("div");
+    box.className = "um-dialog" + (o.busy ? " busy" : "");
+    box.setAttribute("role", "alertdialog");
+    box.setAttribute("aria-modal", "true");
+    var icon = doc.createElement("div");
+    icon.className = "um-dialog-icon" + (o.spin ? " spin" : "");
+    icon.setAttribute("aria-hidden", "true");
+    icon.textContent = o.icon || "⟳";
+    var h = doc.createElement("h2");
+    h.id = "um-dialog-title";
+    h.textContent = o.title;
+    box.setAttribute("aria-labelledby", h.id);
+    var p = doc.createElement("p");
+    p.className = "um-dialog-text";
+    p.id = "um-dialog-text";
+    p.textContent = o.text || "";
+    box.setAttribute("aria-describedby", p.id);
+    box.appendChild(icon); box.appendChild(h); box.appendChild(p);
+    if (o.list && o.list.length) {
+      var ul = doc.createElement("ul");
+      ul.className = "um-dialog-list";
+      o.list.forEach(function (t) { var li = doc.createElement("li"); li.textContent = t; ul.appendChild(li); });
+      box.appendChild(ul);
+    }
+    var row = doc.createElement("div");
+    row.className = "um-dialog-actions";
+    var buttons = [];
+    (o.buttons || []).forEach(function (b) {
+      var btn = doc.createElement("button");
+      btn.type = "button";
+      btn.className = b.primary ? "primary" : "";
+      btn.textContent = b.label;
+      btn.addEventListener("click", function () { b.run(ctl); });
+      row.appendChild(btn);
+      buttons.push(btn);
+    });
+    box.appendChild(row);
+    scrim.appendChild(box);
+    var before = doc.activeElement;
+    function onKey(e) {
+      if (e.key === "Escape" && o.onEscape) { e.preventDefault(); o.onEscape(ctl); return; }
+      if (e.key === "Tab" && buttons.length) {        // 焦點不跑出對話框
+        var i = buttons.indexOf(doc.activeElement);
+        var n = moveIndex(i, "Tab", buttons.length, e.shiftKey);
+        e.preventDefault(); buttons[n].focus();
+      }
+    }
+    box.addEventListener("keydown", onKey);
+    doc.body.appendChild(scrim);
+    var ctl = {
+      box: box, text: p, title: h, buttons: buttons,
+      close: function () { if (scrim.parentNode) { scrim.parentNode.removeChild(scrim); } if (before && before.focus) { before.focus(); } },
+      set: function (title, text) { if (title) { h.textContent = title; } if (text !== undefined) { p.textContent = text; } }
+    };
+    var first = buttons[o.focus === undefined ? 0 : o.focus];
+    if (first) { first.focus(); } else { box.setAttribute("tabindex", "-1"); if (box.focus) { box.focus(); } }
+    return ctl;
+  }
+
+  /* ── 接到畫面 ───────────────────────────────────────────────────── */
+  var opts = null, me = null, fetchedAt = 0, menuCtl = null, restarting = false;
+  function $(id) { return document.getElementById(id); }
+  function uptimeNow() { return (me && me.uptime_s || 0) + Math.max(0, (Date.now() - fetchedAt) / 1000); }
+
+  function paintHead() {
+    var w = whoLines(me);
+    $("um-status").textContent = statusLine(uptimeNow());
+    $("um-ver").textContent = me && me.version ? fmt(TEXT.version, { v: me.version }) : "";
+    $("um-name").textContent = w.name;
+    $("um-role").textContent = w.role + (w.id ? " · " + w.id : "");
+    $("um-avatar").textContent = w.initial;
+    var m = $("avatar-m");
+    if (m) { m.textContent = w.initial; }
+  }
+  function setPending(on) {
+    on = !!(on && me && me.owner);
+    if (me) { me.restart = me.restart || {}; me.restart.pending = on; }
+    Array.prototype.forEach.call(document.querySelectorAll("[data-um-dot]"), function (d) { d.classList.toggle("hidden", !on); });
+    var item = $("um-restart");
+    if (item) { item.setAttribute("aria-label", on ? TEXT.restartPending : TEXT.restart); }
+    var btn = $("restart-btn");
+    if (btn) { btn.title = on ? TEXT.restartPending : TEXT.restart; btn.setAttribute("aria-label", btn.title); }
+  }
+  function fail(e) { opts.toast(fmt(TEXT.failed, { e: e && e.message ? e.message : e })); }
+
+  function restart() {
+    if (!me || !me.owner || restarting) { return Promise.resolve(false); }
+    return opts.api("GET", "/api/settings/restart").then(function (st) {
+      if (!st.can) {
+        dialog(document, { icon: "ℹ️", title: TEXT.cantTitle, text: st.how,
+                           buttons: [{ label: TEXT.gotIt, primary: true, run: function (d) { d.close(); } }],
+                           onEscape: function (d) { d.close(); } });
+        return false;
+      }
+      if (st.wait_s > 0) {
+        dialog(document, { icon: "⏳", title: TEXT.waitTitle, text: fmt(TEXT.waitText, { s: st.wait_s }),
+                           buttons: [{ label: TEXT.gotIt, primary: true, run: function (d) { d.close(); } }],
+                           onEscape: function (d) { d.close(); } });
+        return false;
+      }
+      setPending(st.pending);
+      return new Promise(function (resolve) {
+        dialog(document, {
+          icon: "⟳", title: TEXT.askTitle, text: st.how,
+          list: st.reasons && st.reasons.length ? st.reasons.map(function (r) { return TEXT.askBecause + r; }) : null,
+          focus: 0,
+          buttons: [{ label: TEXT.cancel, run: function (d) { d.close(); resolve(false); } },
+                    { label: TEXT.askOk, primary: true, run: function (d) { d.close(); resolve(true); } }],
+          onEscape: function (d) { d.close(); resolve(false); }
+        });
+      }).then(function (yes) { return yes ? go() : false; });
+    }).catch(function (e) { fail(e); return false; });
+  }
+  function working() {                                 // 「重新啟動中…」那一層
+    var box = dialog(document, { icon: "⟳", spin: true, busy: true, title: TEXT.working, text: TEXT.workingSub });
+    box.box.setAttribute("aria-busy", "true");
+    var hint = document.createElement("p");
+    hint.className = "um-dialog-wait";
+    hint.setAttribute("aria-live", "polite");
+    box.box.insertBefore(hint, box.box.lastChild);
+    box.hint = hint;
+    return box;
+  }
+  function watch(oldBoot) {
+    var box = working();
+    watchRestart({
+      oldBoot: oldBoot, now: Date.now, schedule: function (fn, ms) { return root.setTimeout(fn, ms); },
+      fetch: function (u, o) { return root.fetch(u, o); },
+      onTick: function (s) { if (s >= 5) { box.hint.textContent = fmt(TEXT.waited, { s: s }); } },
+      onBack: function () { box.set(TEXT.back, ""); box.hint.textContent = ""; root.location.reload(); },
+      onTimeout: function (s) {
+        box.close();
+        dialog(document, { icon: "🤔", title: TEXT.slowTitle, text: fmt(TEXT.slow, { s: s }), focus: 0,
+                           buttons: [{ label: TEXT.waitMore, primary: true, run: function (d) { d.close(); watch(oldBoot); } },
+                                     { label: TEXT.reload, run: function () { root.location.reload(); } }] });
+      }
+    });
+  }
+  function go() {
+    restarting = true;
+    return opts.api("POST", "/api/settings/restart", { confirm: true }).then(function (r) {
+      watch(r.boot);
+      return true;
+    }).catch(function (e) { restarting = false; fail(e); return false; });
+  }
+
+  function init(o) {
+    opts = o; me = o.me; fetchedAt = Date.now();
+    var menu = $("user-menu");
+    if (!menu) { return; }
+    var triggers = [$("um-card"), $("um-phone")].filter(Boolean);
+    triggers.forEach(function (t) { t.classList.remove("hidden"); });
+    $("um-restart").classList.toggle("hidden", !me.owner);
+    var notifyItem = $("um-notify");
+    notifyItem.classList.toggle("hidden", !root.SynoxNotify);
+    var btn = $("restart-btn");
+    if (btn) { btn.classList.toggle("hidden", !me.owner); }
+    paintHead();
+    setPending(me.restart && me.restart.pending);
+    if (menuCtl) { return; }                           // 再登入一次：事件已經掛過了
+    // 搬到 <body> 底下：側欄有 backdrop-filter，留在裡面的話 position: fixed 會被側欄框住、超出側欄的部分被切掉
+    if (menu.parentNode !== document.body) { document.body.appendChild(menu); }
+    menuCtl = createMenu(document, menu, triggers, {
+      beforeOpen: function () {
+        paintHead();
+        if (me && me.owner) {                          // 打開時順便問一下：剛改了設定的話小點要亮
+          opts.api("GET", "/api/settings/restart").then(function (st) { setPending(st.pending); }, function () { /* 沒關係 */ });
+        }
+      }
+    });
+    $("um-restart").addEventListener("click", function () { restart(); });
+    notifyItem.addEventListener("click", function () { if (root.SynoxNotify) { root.SynoxNotify.open("list"); } });
+    $("um-logout").addEventListener("click", function () { opts.logout(); });
+    if (btn) { btn.addEventListener("click", function () { restart(); }); }
+    Array.prototype.forEach.call(document.querySelectorAll("[data-restart-now]"), function (b) {
+      b.addEventListener("click", function () { restart(); });
+    });
+  }
+  function reset() {                                   // 登出、被登出：收起來、藏起來
+    if (menuCtl) { menuCtl.close(false); }
+    me = null;
+    ["um-card", "um-phone", "restart-btn"].forEach(function (id) { var n = $(id); if (n) { n.classList.add("hidden"); } });
+  }
+
+  var api = { init: init, reset: reset, restart: restart, setPending: setPending,
+              uptimeText: uptimeText, statusLine: statusLine, whoLines: whoLines, moveIndex: moveIndex,
+              watchRestart: watchRestart, createMenu: createMenu, dialog: dialog, TEXT: TEXT, POLL_MS: POLL_MS,
+              TIMEOUT_MS: TIMEOUT_MS };
+  if (typeof module === "object" && module && module.exports) { module.exports = api; }
+  else { root.SynoxUserMenu = api; }
+})(typeof window !== "undefined" ? window : this);
 </script>
 <script nonce="preview">
 /* 網頁「工具」頁（docs/tools.md「網頁工具頁」；後端 src/synox/web/toolpage.py）。
@@ -5697,9 +6364,22 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       if (t.stage_text) { stage.title = t.stage_text; }
       h.appendChild(stage);
     }
+    if (t.warning_badge) {                // 作者標的警告（ADR 0041）：標題旁一個醒目的標記
+      var warnBadge = el("span", "badge bad", t.warning_badge);
+      warnBadge.title = "作者標的警告：看下面的說明";
+      h.appendChild(warnBadge);
+    }
     head.appendChild(h);
     if (t.name) { head.appendChild(el("span", "tp-meta", t.name + " " + (t.version || "") + "・" + (t.kind || ""))); }
     panel.appendChild(head);
+    if ((t.warnings || []).length) {      // 每條警告一行（不折疊；只用 textContent）
+      var warnBox = el("section", "tp-about");
+      warnBox.appendChild(el("div", "section-label", "⚠️ 作者標的警告"));
+      t.warnings.forEach(function (w) {
+        warnBox.appendChild(el("p", "alert", "⚠️ " + w.text + (w.advice ? "——" + w.advice : "")));
+      });
+      panel.appendChild(warnBox);
+    }
 
     var about = el("section", "tp-about");
     about.appendChild(el("div", "section-label", "說明"));
@@ -6958,9 +7638,438 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     return box;
   }
 
-  var api = { render: render, safeHref: safeHref, linkText: linkText };
+  // ── 沒有 blocks 的 bot 訊息：瀏覽器這邊的小 Markdown（config presentation.enabled 關著時，AI 回的就是原樣的 Markdown）──
+  // markdown(text) → 跟伺服器 wire 一樣形狀的區塊（交給上面的 render 畫，一樣只用 createElement＋textContent）；
+  // 看起來不是 Markdown → null，照舊用 linkText（純文字的訊息畫出來跟以前一模一樣）。
+  // 支援：``` / ~~~ 程式碼區塊（沒閉合＝到結尾）、# 標題、- * + 與 1. 清單（兩層）、> 引用、| 表格、段落（換行照留）；
+  // 行內 **粗體**、*斜體*、`程式碼`、[字](http/https 網址)、裸網址。不認 _底線_（指令名字裡常有底線）。
+  // HTML 標籤、[字](javascript:…) 一律是普通字。
+  var FENCE = /^ {0,3}(`{3,}|~{3,})/;
+  var HEAD = /^ {0,3}(#{1,6})[ \t]+(.*?)[ \t#]*$/;
+  var ITEM = /^([ \t]*)([-*+]|\d{1,9}[.)])[ \t]+(.*)$/;
+  var QUOTE = /^ {0,3}> ?(.*)$/;
+  var HR = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
+  var SEP = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+  var INLINE = /`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^\s*][^*\n]*\*|\[[^\]\n]+\]\(https?:[^)\s]+\)/;
+
+  function looksLikeMarkdown(s) {
+    return /^ {0,3}(```|~~~|#{1,6}[ \t]|[-*+][ \t]|\d{1,9}[.)][ \t]|>)/m.test(s) || INLINE.test(s) ||
+      /^\s*\|.*\|\s*$/m.test(s);
+  }
+
+  function urlSpans(text, style, out) {          // 普通字裡的裸網址 → href（跟 linkText 同一套規則）
+    var last = 0, m;
+    var add = function (t, href) {
+      var sp = { text: t };
+      Object.keys(style).forEach(function (k) { sp[k] = style[k]; });
+      if (href) { sp.href = href; }
+      out.push(sp);
+    };
+    URL_RE.lastIndex = 0;
+    while ((m = URL_RE.exec(text)) !== null) {
+      var url = m[0].replace(TRAILING, "");
+      if (!safeHref(url) || /^https?:\/\/$/i.test(url)) { continue; }
+      if (m.index > last) { add(text.slice(last, m.index)); }
+      add(url, url);
+      last = m.index + url.length;
+    }
+    if (last < text.length) { add(text.slice(last)); }
+  }
+
+  var I_CODE = /`([^`\n]+)`/y, I_BOLD = /\*\*([^*\n]+)\*\*/y, I_ITAL = /\*([^\s*](?:[^*\n]*[^\s*])?)\*/y,
+      I_LINK = /\[([^\]\n]+)\]\(([^)\s]+)\)/y;
+
+  function at(re, s, i) { re.lastIndex = i; return re.exec(s); }
+
+  function inline(text) {
+    var out = [], s = String(text), start = 0, i = 0, m;
+    var flush = function () { if (i > start) { urlSpans(s.slice(start, i), {}, out); } };
+    while (i < s.length) {
+      var c = s.charAt(i);
+      if (c === "`" && (m = at(I_CODE, s, i))) {
+        flush(); out.push({ text: m[1], code: true });
+      } else if (c === "*" && (m = at(I_BOLD, s, i)) && m[1].trim()) {
+        flush(); urlSpans(m[1], { bold: true }, out);
+      } else if (c === "*" && (m = at(I_ITAL, s, i))) {
+        flush(); urlSpans(m[1], { italic: true }, out);
+      } else if (c === "[" && (m = at(I_LINK, s, i)) && safeHref(m[2])) {
+        flush(); out.push({ text: m[1], href: m[2] });
+      } else {
+        i += 1; continue;
+      }
+      i += m[0].length; start = i;
+    }
+    flush();
+    return out;
+  }
+
+  function cells(line) {
+    var t = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+    return t.split("|").map(function (c) { return inline(c.trim()); });
+  }
+
+  function newList(marker) {
+    var ordered = /\d/.test(marker);
+    return { type: "list", ordered: ordered, start: ordered ? parseInt(marker, 10) : 1, items: [] };
+  }
+
+  function markdown(text) {
+    var s = text === undefined || text === null ? "" : String(text).replace(/\r\n?/g, "\n");
+    if (!looksLikeMarkdown(s)) { return null; }
+    var lines = s.split("\n"), out = [], para = [], i = 0, m;
+    var endPara = function () {
+      if (para.length) { out.push({ type: "paragraph", spans: inline(para.join("\n")) }); para = []; }
+    };
+    while (i < lines.length) {
+      var line = lines[i];
+      if ((m = FENCE.exec(line))) {
+        endPara();
+        var mark = m[1], code = [];
+        var close = new RegExp("^ {0,3}" + (mark.charAt(0) === "`" ? "`" : "~") + "{" + mark.length + ",}\\s*$");
+        i += 1;
+        while (i < lines.length && !close.test(lines[i])) { code.push(lines[i]); i += 1; }
+        i += 1;                                                      // 收尾那行（沒有＝到結尾都是程式碼）
+        out.push({ type: "code", code: code.join("\n") });
+        continue;
+      }
+      if (!line.trim() || HR.test(line)) { endPara(); i += 1; continue; }
+      if ((m = HEAD.exec(line))) {
+        endPara();
+        out.push({ type: "heading", level: Math.min(3, m[1].length), spans: inline(m[2]) });
+        i += 1; continue;
+      }
+      if (QUOTE.test(line)) {
+        endPara();
+        var qs = [], cur = [];
+        while (i < lines.length && (m = QUOTE.exec(lines[i]))) {
+          if (m[1].trim()) { cur.push(m[1]); } else if (cur.length) { qs.push(inline(cur.join("\n"))); cur = []; }
+          i += 1;
+        }
+        if (cur.length) { qs.push(inline(cur.join("\n"))); }
+        out.push({ type: "quote", paragraphs: qs });
+        continue;
+      }
+      if (line.indexOf("|") >= 0 && i + 1 < lines.length && lines[i + 1].indexOf("|") >= 0 && SEP.test(lines[i + 1])) {
+        endPara();
+        var tb = { type: "table", header: cells(line), rows: [] };
+        i += 2;
+        while (i < lines.length && lines[i].indexOf("|") >= 0 && lines[i].trim()) { tb.rows.push(cells(lines[i])); i += 1; }
+        out.push(tb);
+        continue;
+      }
+      if ((m = ITEM.exec(line))) {
+        endPara();
+        var top = newList(m[2]), base = m[1].replace(/\t/g, "    ").length;
+        while (i < lines.length && (m = ITEM.exec(lines[i])) && !HR.test(lines[i])) {
+          var item = { spans: inline(m[3]) }, prev = top.items[top.items.length - 1];
+          if (m[1].replace(/\t/g, "    ").length >= base + 2 && prev) {     // 第二層（更深的也併到第二層）
+            if (!prev.children) { prev.children = newList(m[2]); }
+            prev.children.items.push(item);
+          } else {
+            top.items.push(item);
+          }
+          i += 1;
+        }
+        out.push(top);
+        continue;
+      }
+      para.push(line);
+      i += 1;
+    }
+    endPara();
+    return out;
+  }
+
+  var api = { render: render, safeHref: safeHref, linkText: linkText, markdown: markdown };
   if (typeof module === "object" && module && module.exports) { module.exports = api; }
   else { root.SynoxBlocks = api; }
+})(typeof window !== "undefined" ? window : this);
+
+/* SYNOX 網頁對話頁：「回覆某一則」（像 Telegram／LINE）。
+ *
+ * 每則訊息泡泡上有一顆「↩ 回覆」（滑鼠移上去或鍵盤 Tab 到才明顯；手機一直看得到）；按了 → 輸入框上方出現引用列
+ * （誰說的＋一行摘要＋✕ 取消）；送出時帶 reply_to（訊息 id，伺服器檢查是同一段對話的）。
+ * 送出的那則上面有一小塊引用，點了捲到原訊息、閃一下（原訊息已經不在畫面上就說一聲）。
+ * 伺服器把這個檔原地塞進 app.html 主程式那個 script 標籤（INCLUDE:reply.js，跟 blocks.js 一樣，同一個 CSP nonce）。
+ * 一律 createElement＋textContent，訊息的字不經 HTML。tests/js/test_reply.js 用 node＋假的 document 測。
+ */
+(function (root) {
+  "use strict";
+
+  var TEXT = {
+    reply: "↩ 回覆",
+    reply_label: "回覆這則訊息",
+    who_me: "你",
+    who_bot: "SYNOX",
+    who_note: "系統",
+    replying: "回覆 {who}",
+    cancel: "取消回覆",
+    jump: "跳到被回覆的訊息：{who}",
+    gone: "原本那則訊息已經不在畫面上了（可能太舊了）。",
+    empty: "（沒有文字）",
+  };
+  var BAR_MAX = 80;
+
+  function make(doc, tag, cls, text) {
+    var e = doc.createElement(tag);
+    if (cls) { e.className = cls; }
+    if (text !== undefined && text !== null) { e.textContent = String(text); }
+    return e;
+  }
+
+  function fill(s, vars) {
+    return String(s).replace(/\{(\w+)\}/g, function (_, k) { return vars[k] === undefined ? "" : String(vars[k]); });
+  }
+
+  function who(from) {
+    return from === "me" ? TEXT.who_me : (from === "note" ? TEXT.who_note : TEXT.who_bot);
+  }
+
+  function excerpt(text, max) {
+    var flat = String(text === undefined || text === null ? "" : text)
+      .replace(/`{3,}[^\n]*/g, " ")             // Markdown 的記號只是排版：摘要裡拿掉（字本身留著）
+      .replace(/\*\*|`/g, "")
+      .replace(/^[ \t]*(?:#{1,6}|>|[-*+])[ \t]+/gm, "")
+      .replace(/\s+/g, " ").trim();
+    var n = max || BAR_MAX;
+    if (!flat) { return TEXT.empty; }
+    return flat.length <= n ? flat : flat.slice(0, n - 1) + "…";
+  }
+
+  // 泡泡上的「↩ 回覆」按鈕
+  function button(doc, onReply) {
+    var b = make(doc, "button", "reply-btn", TEXT.reply);
+    b.type = "button";
+    b.title = TEXT.reply_label;
+    b.setAttribute("aria-label", TEXT.reply_label);
+    b.addEventListener("click", function (ev) { if (ev && ev.stopPropagation) { ev.stopPropagation(); } onReply(); });
+    return b;
+  }
+
+  // 送出的那則上面的引用塊（reply = 訊息的 reply_to：{id, from, excerpt}）；點了 onJump(id)
+  function quote(doc, reply, onJump) {
+    if (!reply || typeof reply !== "object") { return null; }
+    var name = who(reply.from);
+    var q = make(doc, "button", "reply-quote");
+    q.type = "button";
+    q.setAttribute("aria-label", fill(TEXT.jump, { who: name }));
+    q.appendChild(make(doc, "span", "rq-who", name));
+    q.appendChild(make(doc, "span", "rq-text", excerpt(reply.excerpt)));
+    q.addEventListener("click", function () { onJump(reply.id); });
+    return q;
+  }
+
+  // 輸入框上方的引用列：target = 要回覆的那則訊息 {id, from, text}；✕ → onCancel()
+  function bar(doc, box, target, onCancel) {
+    while (box.firstChild) { box.removeChild(box.firstChild); }
+    if (!target) { box.classList.add("hidden"); return; }
+    box.classList.remove("hidden");
+    var body = make(doc, "div", "rb-body");
+    body.appendChild(make(doc, "span", "rb-who", fill(TEXT.replying, { who: who(target.from) })));
+    body.appendChild(make(doc, "span", "rb-text", excerpt(target.text)));
+    var x = make(doc, "button", "rb-x", "✕");
+    x.type = "button";
+    x.title = TEXT.cancel;
+    x.setAttribute("aria-label", TEXT.cancel);
+    x.addEventListener("click", function () { onCancel(); });
+    box.appendChild(body);
+    box.appendChild(x);
+  }
+
+  // 捲到原訊息、閃一下；不在畫面上 → 回 false（呼叫的一方 toast TEXT.gone）
+  function jump(node, setTimer) {
+    if (!node) { return false; }
+    if (node.scrollIntoView) { node.scrollIntoView({ behavior: "smooth", block: "center" }); }
+    node.classList.remove("flash");
+    node.classList.add("flash");
+    (setTimer || setTimeout)(function () { node.classList.remove("flash"); }, 1600);
+    return true;
+  }
+
+  var api = { TEXT: TEXT, who: who, excerpt: excerpt, button: button, quote: quote, bar: bar, jump: jump };
+  if (typeof module === "object" && module && module.exports) { module.exports = api; }
+  else { root.SynoxReply = api; }
+})(typeof window !== "undefined" ? window : this);
+
+/* SYNOX 網頁的版本比較（工具庫、衣櫃的「有新版」）：跟伺服器的 packs/upgrade.semver_key 同一套 SemVer 2.0.0 規則
+ * （docs/versioning.md §1）：
+ *   - X.Y.Z 按數值比（1.0.10 > 1.0.9）；正式版 > 同號的預覽版（0.1.3 > 0.1.3-beta.1）
+ *   - 預覽版逐段比：數字段按數值（alpha.10 > alpha.2）、數字段 < 文字段、文字段照 ASCII（alpha < beta < rc）、
+ *     前面都一樣時段數少的較舊（alpha < alpha.1）
+ *   - `+build` 不看；不是 SemVer（含預覽版數字段前面補 0）＝比不出來，一律回「不是比較新」
+ * 伺服器把這個檔原地塞進 app.html 主程式那個 script 標籤（INCLUDE:semver.js，跟 reply.js 一樣，同一個 CSP nonce）。
+ * tests/js/test_semver.js 用 node 測（tests/test_web_semver.py）。
+ */
+(function (root) {
+  "use strict";
+
+  var ID = "(?:0|[1-9]\\d*|\\d*[A-Za-z-][0-9A-Za-z-]*)";
+  var RE = new RegExp("^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)" +
+    "(?:-(" + ID + "(?:\\." + ID + ")*))?(?:\\+[0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*)?$");
+
+  function parse(v) {                   // → {core: [X, Y, Z], pre: [段…]}；看不懂回 null
+    var m = RE.exec(String(v == null ? "" : v).trim());
+    if (!m) { return null; }
+    return { core: [+m[1], +m[2], +m[3]], pre: m[4] ? m[4].split(".") : [] };
+  }
+
+  function cmpId(a, b) {
+    var an = /^\d+$/.test(a), bn = /^\d+$/.test(b);
+    if (an && bn) { return (+a) - (+b) < 0 ? -1 : (+a) === (+b) ? 0 : 1; }
+    if (an !== bn) { return an ? -1 : 1; }                 // 數字段 < 文字段
+    return a < b ? -1 : a > b ? 1 : 0;                     // ASCII
+  }
+
+  function compare(a, b) {              // -1｜0｜1；任一個看不懂回 null
+    var x = parse(a), y = parse(b);
+    if (!x || !y) { return null; }
+    for (var i = 0; i < 3; i++) { if (x.core[i] !== y.core[i]) { return x.core[i] < y.core[i] ? -1 : 1; } }
+    if (!x.pre.length || !y.pre.length) {                  // 正式版 > 同號的預覽版
+      return x.pre.length === y.pre.length ? 0 : (x.pre.length ? -1 : 1);
+    }
+    for (var j = 0; j < Math.min(x.pre.length, y.pre.length); j++) {
+      var c = cmpId(x.pre[j], y.pre[j]);
+      if (c) { return c; }
+    }
+    return x.pre.length === y.pre.length ? 0 : (x.pre.length < y.pre.length ? -1 : 1);
+  }
+
+  function newer(a, b) {                // a 比 b 新？
+    return compare(a, b) === 1;
+  }
+
+  var api = { parse: parse, compare: compare, newer: newer };
+  if (typeof module === "object" && module && module.exports) { module.exports = api; }
+  else { root.SynoxSemver = api; }
+})(typeof window !== "undefined" ? window : this);
+
+/* SYNOX 網頁對話頁：附件的三個入口（📎 選檔、Ctrl+V 貼上截圖、把檔案拖進對話區）共用的檢查。
+ *
+ *   var files = SynoxAttach.fromClipboard(ev.clipboardData);   // 貼上：只拿檔案（截圖）；剪貼簿有文字就不拿（照常貼字）
+ *   var files = SynoxAttach.fromDrop(ev.dataTransfer);         // 拖進來：只拿檔案
+ *   var p = SynoxAttach.plan(files, attached.length, input.getAttribute("accept"));
+ *   // p.ok：要上傳的 File；p.problems：給人看的一句話（太大、空的、不支援的類型、超過數量）
+ *
+ * - 只收瀏覽器給的 File／Blob 物件（有 arrayBuffer 的），從來不收路徑字串（text/uri-list 的 file:// 一律不理）。
+ * - 類型照 #attach-input 的 accept（同一份清單，📎 也是它）：image/png 這種 MIME、.xlsx 這種副檔名。
+ * - 大小、數量跟伺服器一樣（web/uploads.py 的 MAX_FILE_BYTES、MAX_PENDING）；伺服器還會再看內容檢查一次，這裡只是早點說人話。
+ * - 從 Excel／Word 複製一段字時，剪貼簿裡除了字還有一張「那段字的圖」：有文字就當貼字，不變成附件。
+ * 伺服器把這個檔原地塞進 app.html 主程式那個 script 標籤（INCLUDE:attach.js，跟 blocks.js 一樣，同一個 CSP nonce）。
+ * tests/js/test_attach.js 用 node 跑。
+ */
+(function (root) {
+  "use strict";
+
+  var MAX_BYTES = 10 * 1024 * 1024;          // web/uploads.py MAX_FILE_BYTES
+  var MAX_COUNT = 10;                        // web/uploads.py MAX_PENDING（還沒送出的附件）
+  var TEXT = {
+    pasted: "貼上的圖片",
+    big: "「{name}」太大（每個最多 10 MB）。",
+    empty: "「{name}」是空的檔案。",
+    type: "「{name}」不支援：可以附圖片（png／jpg／webp／gif）、表格（.xlsx／.csv）、文件（.docx）或文字檔。",
+    count: "一次最多先放 {max} 個附件；多的沒有附上（先送出再傳）。",
+    drop: "放開滑鼠，就附到這則訊息（圖片、表格、文字檔，可以一次好幾個）。"
+  };
+  var MIME_EXT = { "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif" };
+
+  function fill(s, vars) {
+    return String(s).replace(/\{(\w+)\}/g, function (_, k) { return vars[k] === undefined ? "" : String(vars[k]); });
+  }
+
+  function isFile(f) {
+    return !!f && typeof f === "object" && typeof f.arrayBuffer === "function" && typeof f.size === "number";
+  }
+
+  function toArray(list) {
+    var out = [];
+    if (!list) { return out; }
+    for (var i = 0; i < list.length; i++) { if (isFile(list[i])) { out.push(list[i]); } }
+    return out;
+  }
+
+  // 貼上：剪貼簿有文字 → []（讓瀏覽器照常貼字）；不然拿 files，沒有再從 items（kind=file）拿
+  function fromClipboard(cd) {
+    if (!cd) { return []; }
+    var text = "";
+    try { text = typeof cd.getData === "function" ? String(cd.getData("text/plain") || "") : ""; } catch (e) { text = ""; }
+    if (text.trim()) { return []; }
+    var files = toArray(cd.files);
+    if (files.length) { return files; }
+    var items = cd.items, out = [];
+    for (var i = 0; items && i < items.length; i++) {
+      var it = items[i];
+      if (it && it.kind === "file" && typeof it.getAsFile === "function") {
+        var f = it.getAsFile();
+        if (isFile(f)) { out.push(f); }
+      }
+    }
+    return out;
+  }
+
+  // 拖進來：只拿檔案（拖一段字、一個網址進來 → []）
+  function fromDrop(dt) {
+    return dt ? toArray(dt.files) : [];
+  }
+
+  function hasFiles(dt) {
+    var types = dt && dt.types;
+    if (!types) { return false; }
+    for (var i = 0; i < types.length; i++) { if (types[i] === "Files") { return true; } }
+    return false;
+  }
+
+  function displayName(f) {
+    var name = String((f && f.name) || "").trim();
+    if (name) { return name; }
+    return TEXT.pasted + (MIME_EXT[String(f && f.type || "").toLowerCase()] || "");
+  }
+
+  // accept 屬性的規則（<input type=file accept=…>）：".ext" 比副檔名、"type/*" 比大類、其他比完整 MIME；空的＝都收
+  function accepts(f, accept) {
+    var rules = String(accept || "").split(",").map(function (s) { return s.trim().toLowerCase(); })
+      .filter(function (s) { return s; });
+    if (!rules.length) { return true; }
+    var name = displayName(f).toLowerCase(), mime = String(f.type || "").toLowerCase();
+    return rules.some(function (r) {
+      if (r.charAt(0) === ".") { return name.length > r.length && name.slice(-r.length) === r; }
+      if (r.slice(-2) === "/*") { return mime.indexOf(r.slice(0, -1)) === 0; }
+      return mime === r;
+    });
+  }
+
+  // files → {ok: [{file, name}], problems: ["…"]}；already＝已經附上（還沒送出）的個數
+  function plan(files, already, accept) {
+    var ok = [], problems = [], room = Math.max(0, MAX_COUNT - (already | 0)), over = false;
+    toArray(files).forEach(function (f) {
+      var name = displayName(f);
+      if (!accepts(f, accept)) { problems.push(fill(TEXT.type, { name: name })); return; }
+      if (!(f.size > 0)) { problems.push(fill(TEXT.empty, { name: name })); return; }
+      if (f.size > MAX_BYTES) { problems.push(fill(TEXT.big, { name: name })); return; }
+      if (ok.length >= room) { over = true; return; }
+      ok.push({ file: f, name: name });
+    });
+    if (over) { problems.push(fill(TEXT.count, { max: MAX_COUNT })); }
+    return { ok: ok, problems: problems };
+  }
+
+  // 貼上的 listener（掛在 document）：只在對話頁；焦點在輸入框，或不在別的可以打字的地方；有檔案才攔下來交給 attach(files)
+  function pasteListener(doc, input, attach) {
+    return function (ev) {
+      if (!doc.body || doc.body.getAttribute("data-view") !== "chat") { return; }
+      var t = ev.target;
+      if (t && t !== input && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(String(t.tagName || "")))) { return; }
+      var files = fromClipboard(ev.clipboardData);
+      if (!files.length) { return; }
+      ev.preventDefault();
+      attach(files);
+    };
+  }
+
+  var api = { MAX_BYTES: MAX_BYTES, MAX_COUNT: MAX_COUNT, TEXT: TEXT, fromClipboard: fromClipboard, fromDrop: fromDrop,
+              hasFiles: hasFiles, displayName: displayName, accepts: accepts, plan: plan,
+              pasteListener: pasteListener };
+  if (typeof module === "object" && module && module.exports) { module.exports = api; }
+  else { root.SynoxAttach = api; }
 })(typeof window !== "undefined" ? window : this);
 
 (function () {
@@ -7056,7 +8165,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   function showLogin() {
     me = null;
     $("nav").classList.add("hidden");
-    $("logout").classList.add("hidden");
+    if (window.SynoxUserMenu) { window.SynoxUserMenu.reset(); }       // 使用者選單、⟳（static/usermenu.js）
     $("side-foot").classList.add("hidden");
     clear($("who"));
     show("login");
@@ -7104,6 +8213,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   function openChat(id, keep) {
     if (current === id && keep && Object.keys(nodes).length) { markActive(); return; }
     pendSet(false);
+    stopReply();
     current = id; rev = 0; nodes = {}; primed = false;
     var s = $("stream");
     clear(s);
@@ -7159,6 +8269,34 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     api("POST", "/api/chats", {}).then(function (d) { current = null; loadChats(d.id); })
       .catch(function (e) { toast(e.message); });
   }
+  // 工具回覆帶的圖（docs/sdk.md「回覆帶圖」）：一律 <img src＝同源網址>，不把 SVG 插進 DOM；點了放大、Esc／點一下關
+  function appendImages(box, m, chat) {
+    var imgs = Array.isArray(m.images) ? m.images : [];
+    var cid = chat || current;
+    if (!imgs.length || !cid) { return; }
+    var wrap = el("div", "msg-images");
+    imgs.forEach(function (im) {
+      if (!im || !/^[A-Za-z0-9_-]{8,40}$/.test(String(im.id || ""))) { return; }
+      var img = document.createElement("img");
+      img.src = "/api/chat/" + encodeURIComponent(cid) + "/image/" + im.id;
+      img.alt = String(im.alt || "圖");
+      img.loading = "lazy";
+      if (im.w > 0 && im.h > 0) { img.width = Math.min(im.w, 640); }
+      img.addEventListener("click", function () {
+        var z = el("div", "img-zoom");
+        var big = document.createElement("img");
+        big.src = img.src; big.alt = img.alt;
+        z.appendChild(big);
+        function close() { if (z.parentNode) { z.parentNode.removeChild(z); } document.removeEventListener("keydown", onKey); }
+        function onKey(e) { if (e.key === "Escape") { close(); } }
+        z.addEventListener("click", close);
+        document.addEventListener("keydown", onKey);
+        document.body.appendChild(z);
+      });
+      wrap.appendChild(img);
+    });
+    if (wrap.childNodes.length) { box.appendChild(wrap); }
+  }
   function renderMessage(m, chat, after) {
     var who = m.from === "me" ? "me" : (m.from === "note" ? "note" : "bot");
     var box = el("div", "msg " + who);
@@ -7169,9 +8307,15 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     // type=examples 的區塊是 /help 卡片的範例（synox/helpui）：畫成小標籤，點了＝填進輸入框、不送出（static/helpdock.js）
     var exBlock = blocks.filter(function (b) { return b && b.type === "examples"; })[0];
     blocks = blocks.filter(function (b) { return !(b && (b.type === "tour" || b.type === "examples")); });
+    // 回覆某一則（static/reply.js）：上面一小塊引用，點了捲到原訊息
+    var rq = !chat && m.reply_to && window.SynoxReply ? window.SynoxReply.quote(document, m.reply_to, jumpTo) : null;
+    if (rq) { box.appendChild(rq); }
+    // AI 回的 Markdown（presentation 關著時沒有 blocks）：瀏覽器這邊畫成粗體、程式碼區塊…（blocks.js 的 markdown；不是 Markdown 就照舊）
+    if (!blocks.length && who === "bot" && !m.deleted) { blocks = window.SynoxBlocks.markdown(m.text) || []; }
     // 沒有 blocks 的純文字：照舊 textContent，只有 http(s):// 網址變成連結（blocks.js 的 linkText，過 safeHref）
     box.appendChild(blocks.length ? window.SynoxBlocks.render(document, blocks)
                                   : window.SynoxBlocks.linkText(document, m.text));
+    appendImages(box, m, chat);
     if (tourBlock && window.SynoxTour && !chat) {
       box.appendChild(window.SynoxTour.chatButton(tourBlock, primed && !nodes[m.id], m.id));
     }
@@ -7200,7 +8344,24 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       });
       box.appendChild(kb);
     }
+    if (!chat && !m.deleted && who !== "note" && window.SynoxReply) {
+      box.appendChild(window.SynoxReply.button(document, function () { startReply(m); }));
+    }
     return box;
+  }
+  // ── 回覆某一則 ──
+  var replying = null;           // 要回覆的那則 {id, from, text}；送出時帶 reply_to
+  function startReply(m) {
+    replying = { id: m.id, from: m.from, text: m.text };
+    window.SynoxReply.bar(document, $("reply-bar"), replying, stopReply);
+    $("input").focus();
+  }
+  function stopReply() {
+    replying = null;
+    if (window.SynoxReply) { window.SynoxReply.bar(document, $("reply-bar"), null, stopReply); }
+  }
+  function jumpTo(id) {
+    if (!window.SynoxReply.jump(nodes[id])) { toast(window.SynoxReply.TEXT.gone); }
   }
   // 外觀的 slot（static/slots.js）：吉祥物、字標…換了外觀就是外觀的，沒換就是原本的 SYNOX
   function slotNode(name, cls) {
@@ -7276,13 +8437,19 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     var sent = attached;
     attached = [];
     drawAttached();
-    return api("POST", "/api/chat/" + encodeURIComponent(current) + "/send", { text: text, attachments: ids })
+    var body = { text: text, attachments: ids };
+    var quoted = replying;
+    if (quoted) { body.reply_to = quoted.id; }
+    stopReply();
+    return api("POST", "/api/chat/" + encodeURIComponent(current) + "/send", body)
       .then(function () { poll(); setTimeout(poll, 700); })
-      .catch(function (e) { pendSet(false); toast(e.message); attached = sent.concat(attached); drawAttached(); });
+      .catch(function (e) {
+        pendSet(false); toast(e.message); attached = sent.concat(attached); drawAttached();
+        if (quoted && !replying) { startReply(quoted); }       // 沒送成功：引用列放回去
+      });
   }
   // ── 對話的附件（POST /api/chat/<id>/upload；web/uploads.py）：先上傳到記憶體拿 id，送出時一起帶 ──────
   var attached = [];            // [{id, name, label, uploading}]
-  var ATTACH_MAX = 10 * 1024 * 1024;
   function drawAttached() {
     var box = $("attach-list");
     clear(box);
@@ -7303,11 +8470,14 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       box.appendChild(chip);
     });
   }
+  // 📎、貼上、拖進來都走這裡：同一套類型（#attach-input 的 accept）、大小、數量檢查（static/attach.js）；只收 File 物件
   function attachFiles(list) {
     if (!current) { toast("先選一段對話，或按「新對話」。"); return; }
-    Array.prototype.forEach.call(list || [], function (f) {
-      if (f.size > ATTACH_MAX) { toast("「" + f.name + "」太大（每個最多 10 MB）。"); return; }
-      var a = { id: "", name: f.name || "貼上的圖片", label: "", uploading: true };
+    var p = window.SynoxAttach.plan(list, attached.length, $("attach-input").getAttribute("accept"));
+    if (p.problems.length) { toast(p.problems.join(" ")); }
+    p.ok.forEach(function (one) {
+      var f = one.file;
+      var a = { id: "", name: one.name, label: "", uploading: true };
       var chat = current;
       attached.push(a);
       drawAttached();
@@ -7333,10 +8503,8 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     attachFiles($("attach-input").files);
     $("attach-input").value = "";
   });
-  $("input").addEventListener("paste", function (ev) {        // 直接貼上截圖
-    var files = ev.clipboardData && ev.clipboardData.files;
-    if (files && files.length) { ev.preventDefault(); attachFiles(files); }
-  });
+  // 直接貼上截圖（Ctrl+V）：在輸入框，或對話區裡沒有在打別的字的地方；剪貼簿有文字就照常貼字（static/attach.js）
+  document.addEventListener("paste", window.SynoxAttach.pasteListener(document, $("input"), attachFiles));
   window.SynoxChatDrop = attachFiles;              // 拖進對話頁的檔案（static/packdrop.js 先看是不是工具檔，不是才交給這裡）
   function press(chat, messageId, data, btn) {
     if (btn) { btn.disabled = true; }
@@ -7356,6 +8524,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     send(text);
   });
   $("input").addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && replying) { ev.preventDefault(); stopReply(); return; }
     if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) {
       ev.preventDefault();
       $("composer").requestSubmit ? $("composer").requestSubmit() : $("composer").dispatchEvent(new Event("submit"));
@@ -7474,6 +8643,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       if (d.owner) { loadUsage(); fillLlm(d); fillPacks(d.packs || []); loadChannels(); loadAwake(); loadStaged(); loadUpdate(); }
       else { $("set-awake").classList.add("hidden"); $("set-update").classList.add("hidden"); }
       if (d.accounts) { loadAccounts(); }
+      if (d.owner) { loadDataVersions(); } else { $("set-data").classList.add("hidden"); }
       loadLook();
     }).catch(function (e) { toast(e.message); });
   }
@@ -7526,6 +8696,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     list.appendChild(lookCard("", "原本的 SYNOX", "預設的樣子", null));
     (look.themes || []).forEach(function (t) {
       var card = lookCard(t.name, t.title, t.name + " · v" + t.version + (t.publisher ? " · " + t.publisher : ""), t.tokens);
+      if (t.check) { card.insertBefore(themeCheckBox(t.check, true), card.lastChild); }
       if (!t.ok) { card.appendChild(el("p", "alert", "⚠️ 這套外觀沒通過安全檢查，不能套用")); card.querySelector("button").disabled = true; }
       list.appendChild(card);
     });
@@ -7726,7 +8897,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     clear(box);
     wdThemes.forEach(function (t) {
       var have = wdInstalled(t.name);
-      if (have) { t.installed = have.version || t.installed || "?"; t.newer = verNewer(t.version, t.installed); }
+      if (have) { t.installed = have.version || t.installed || "?"; t.newer = !t.blocked && verNewer(t.version, t.installed); }
       box.appendChild(wdCard(t));
     });
   }
@@ -7915,8 +9086,14 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     $("llm-local-model").placeholder = h[1];
   }
   $("llm-local-server").addEventListener("change", syncLocalHint);
-  // ── 本地模型清單、載入／卸載（POST /api/settings/llm/local-models、local-load、local-unload）──────
-  var localModels = [];
+  // ── 本地模型清單、載入／卸載（POST /api/settings/llm/local-models、local-load、local-unload、local-reload）──────
+  var localModels = [], localCanLoad = false;
+  function syncReload() {                          // 「用 N 重新載入」：只有 LM Studio（能從這裡載入）才有
+    var n = Number($("llm-local-ctx").value || 0);
+    $("llm-local-reload-n").textContent = n ? String(n) : "—";
+    $("llm-local-reload").classList.toggle("hidden", !(localCanLoad && $("llm-local-server").value === "lmstudio"));
+    $("llm-local-reload").disabled = !n;
+  }
   function localTarget() {
     return { server: $("llm-local-server").value, base_url: $("llm-local-url").value, api_key: $("llm-local-key").value };
   }
@@ -7942,6 +9119,8 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     if (!cur && d.suggested) { $("llm-local-model").value = d.suggested; cur = d.suggested; }
     if (cur && localModels.some(function (m) { return m.id === cur; })) { sel.value = cur; useLoadedContext(cur); }
     $("llm-local-loadrow").classList.toggle("hidden", !d.can_load);
+    localCanLoad = !!d.can_load;
+    syncReload();
     var loaded = localModels.filter(function (m) { return m.loaded; }).length;
     var msg = d.ok === false ? d.message : "找到 " + localModels.length + " 個模型，" + (loaded ? loaded + " 個已載入。" : "目前都沒有載入。");
     if (!quiet || d.ok === false) { $("llm-local-models-msg").textContent = msg + (d.notes && d.notes.length ? "　" + d.notes.join("　") : ""); }
@@ -7977,6 +9156,25 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     }
     sel.value = want;
   }
+  $("llm-local-ctx").addEventListener("change", syncReload);
+  $("llm-local-server").addEventListener("change", syncReload);
+  $("llm-local-reload").addEventListener("click", function () {
+    var model = $("llm-local-model").value, n = Number($("llm-local-ctx").value || 0), btn = $("llm-local-reload");
+    if (!model) { $("llm-local-reload-msg").textContent = "先選一個模型。"; return; }
+    if (!n) { $("llm-local-reload-msg").textContent = "先在左邊選一個 context 長度（0 不能拿來重新載入）。"; return; }
+    if (!confirm("會先把 " + model + " 從 LM Studio 卸載，再用 context " + n + " 重新載入。\n\n" +
+                 "正在用這個模型的其他程式（或正在跑的對話）會被中斷；其他模型不會動。載入前會先估記憶體，撐不住就不動。\n\n要繼續嗎？")) { return; }
+    var body = localTarget();
+    body.model = model;
+    body.context_length = n;
+    btn.disabled = true;
+    $("llm-local-reload-msg").textContent = "重新載入中…大模型可能要幾十秒，請稍等。";
+    api("POST", "/api/settings/llm/local-reload", body).then(function (d) {
+      $("llm-local-reload-msg").textContent = d.message;   // ✅ 只在 LM Studio 讀回來的 context＝選的值時才出現
+      return listLocalModels(true);
+    }).catch(function (e) { $("llm-local-reload-msg").textContent = "❌ " + e.message; })
+      .then(function () { btn.disabled = false; syncReload(); });
+  });
   $("llm-local-load").addEventListener("click", function () {
     var body = localTarget();
     body.model = $("llm-local-model").value;
@@ -7997,13 +9195,15 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     showNotes(["讀取中…（不會載入模型）"]);
     api("POST", "/api/settings/llm/local-advice", { server: $("llm-local-server").value,
         base_url: $("llm-local-url").value, model: $("llm-local-model").value }).then(function (d) {
-      fillContext(d.options || [], d.recommended || $("llm-local-ctx").value);
+      fillContext(d.options || [], d.reload_to || d.recommended || $("llm-local-ctx").value);
+      syncReload();
       showNotes((d.options || []).map(function (r) { return r.ctx + "：" + r.text + (r.recommended ? "　← 推薦" : ""); })
         .concat(d.notes || []));
     }).catch(function (e) { showNotes(["❌ " + e.message]); });
   });
   $("llm-test").addEventListener("click", function () {
-    $("llm-msg").textContent = "測試中…";
+    $("llm-msg").textContent = $("llm-local-fields").classList.contains("hidden") ? "測試中…" :
+      "測試中…（先讀模型資料；模型已經載入的話會送一句很短的話給它，最多等 60 秒）";
     $("llm-install").classList.add("hidden");
     api("POST", "/api/settings/llm/test", llmBody()).then(function (d) {
       $("llm-msg").textContent = d.message;
@@ -8092,6 +9292,30 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   }
   function loadUpdate() {
     api("GET", "/api/settings/update").then(drawUpdate).catch(function () { $("set-update").classList.add("hidden"); });
+  }
+  // 資料版本（ADR 0044）：只看；升級在 SYNOX 啟動、工具載入前自動做
+  var DATA_MARK = { current: "✅", planned: "⬆️", too_new: "⛔", failed: "❌", missing: "·" };
+  function dataLine(r) {
+    var name = r.kind;
+    if (r.action === "missing") { return DATA_MARK.missing + " " + name + "：還沒有這份資料"; }
+    if (r.action === "current") { return DATA_MARK.current + " " + name + "：資料版本 " + r.after + "（最新）"; }
+    if (r.action === "planned") { return DATA_MARK.planned + " " + name + "：資料版本 " + r.before + " → " + r.current + "（下次啟動 SYNOX 時自動升級）"; }
+    return (DATA_MARK[r.action] || "⚠️") + " " + name + "：" + (r.message || "");
+  }
+  function drawDataVersions(d) {
+    var list = $("data-list");
+    clear(list);
+    (d.core || []).concat(d.packs || []).forEach(function (r) {
+      var li = document.createElement("li");
+      li.textContent = dataLine(r);
+      list.appendChild(li);
+    });
+    $("data-note").textContent = d.problems ? "有資料沒辦法用（看上面的 ⛔／❌ 那幾行）：照說明升級 SYNOX／工具，或從備份還原。"
+      : (d.needs_upgrade ? "有資料要升級：重新啟動 SYNOX 時會自動做（先備份）。" : "");
+    $("set-data").classList.remove("hidden");
+  }
+  function loadDataVersions() {
+    api("GET", "/api/settings/data").then(drawDataVersions).catch(function () { $("set-data").classList.add("hidden"); });
   }
   $("upd-check").addEventListener("click", function () {
     $("upd-msg").textContent = "問 GitHub 中…";
@@ -8315,7 +9539,9 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     api("GET", "/api/settings/channels").then(function (d) {
       var t = d.telegram, c = d.discord;
       $("ch-restart").classList.toggle("hidden", !(t.restart || c.restart));
+      if (window.SynoxUserMenu) { window.SynoxUserMenu.setPending(t.restart || c.restart); }   // 選單上的小點
       $("ch-tg-now").textContent = channelLine(t, function (n) { return "@" + n; }) +
+        (t.masked ? "（token " + t.masked + "，存在保管箱）" : (!t.saved && t.problem ? "⚠️ " + t.problem : "")) +
         (t.saved && !t.owner_paired ? (t.pairable ? "還沒配對擁有者：用下面的「配對我的 Telegram 帳號」。" :
           "還沒配對擁有者：雙擊 Setup.bat 重跑安裝精靈配對（token 會自動帶入）。") : "");
       $("ch-dc-form").classList.toggle("hidden", c.multi);
@@ -8347,9 +9573,11 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   $("ch-dc-save").addEventListener("click", function () { saveChannel("dc"); });
 
   var STATUS = { loaded: "可以用", connector: "還沒接好", disabled: "關掉了", invalid: "檔案有問題", missing: "缺東西", incompatible: "跟這版 SYNOX 不合", error: "壞了",
-    tampered: "被改過了，先不開", rejected: "安全檢查沒過，先不開", unapproved: "沒有經過安裝頁，先不開" };
+    tampered: "被改過了，先不開", rejected: "安全檢查沒過，先不開", unapproved: "沒有經過安裝頁，先不開",
+    unaccepted: "有警告還沒確認，先不開" };
   // 狀態的顏色（顏色之外一定有字）：可以用＝綠、還沒接上／關掉＝黃、其他＝紅
-  var TONE = { loaded: "ok", connector: "warn", disabled: "", missing: "warn", incompatible: "warn", unapproved: "warn" };
+  var TONE = { loaded: "ok", connector: "warn", disabled: "", missing: "warn", incompatible: "warn", unapproved: "warn",
+    unaccepted: "warn" };
   var LOCK = { locked: "🔒", unlocked: "", tampered: "⚠️" };
   // 標章（ADR 0028 §3）：只用伺服器給的狀態（安裝時 SYNOX 驗簽章、寫進鎖），不用工具自己寫的字
   var SIG_LABEL = { official: "✅ 官方", author: "✍️ 作者簽章", none: "⚠️ 不是官方", invalid: "⛔ 被改過" };
@@ -8375,6 +9603,14 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       var tr = el("tr");
       var nm = el("td", "name", (LOCK[p.lock] ? LOCK[p.lock] + " " : "") + p.name + " ");
       if (p.lock && p.lock !== "unlocked" && p.status !== "unapproved") { nm.appendChild(sigChip(p.signature)); }
+      (p.warnings || []).forEach(function (w) {   // 作者標的警告（ADR 0041）：每條一行，不折疊
+        nm.appendChild(el("span", "badge bad", "⚠️ " + w.text));
+        if (w.advice) { nm.appendChild(el("span", "detail", w.advice)); }
+      });
+      if (p.isolation && p.isolation.text) {      // 警告下面：SYNOX 自己寫的「這台實況」（ADR 0041 S1；只是顯示）
+        nm.appendChild(el("span", "detail" + (p.isolation.isolated ? "" : " alert"),
+                          "ℹ️ SYNOX 查這台的實況：" + p.isolation.text));
+      }
       tr.appendChild(nm);
       var st = el("td");
       var tone = TONE.hasOwnProperty(p.status) ? TONE[p.status] : "bad";
@@ -8450,6 +9686,8 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
         box.appendChild(el("p", "alert", "🔴 " + l + "（官方的看上面的標章，不看名字）"));
       });
     }
+    // 作者標的警告（ADR 0041）：緊接在標章下面；每一條都要勾「我知道」才能按確認（升級時已確認過的沿用）
+    var warned = showPackWarnings(box, s, s.adopt ? null : s.upgrade, canInstall && s.token);
     box.appendChild(el("h3", "", s.title + "（" + s.name + " " + s.version + "）"));
     box.appendChild(el("p", "", s.summary));
     box.appendChild(el("p", "muted", "進階：種類 " + s.kind + "，誰能用 " + s.access + "，資料 " + s.storage +
@@ -8515,11 +9753,12 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       var busy = false;
       var refresh = function () {             // 該勾的都勾了＝走到「確認」那一步
         var versionOk = !(upg && !upg.version_ok) || !!(down && down.checked);
-        ok.disabled = busy || !versionOk || (pub && !pub.ready());
+        ok.disabled = busy || !versionOk || (pub && !pub.ready()) || (warned && !warned.ready());
         if (!busy) { setStep(ok.disabled ? "review" : "confirm", "active", info); }
       };
       if (down) { down.addEventListener("change", refresh); }
       if (pub) { pub.onchange(refresh); }
+      if (warned) { warned.onchange(refresh); }
       refresh();
       ok.addEventListener("click", function () {
         var body = { token: s.token };
@@ -8528,6 +9767,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
         if (trust) { body.trust = trust.value; }
         if (runtime) { body.runtime = runtime.value; }
         if (pub) { body.trust_publisher = pub.value(); }
+        if (warned) { body.accept_warnings = warned.value(); }
         busy = true; ok.disabled = true; later.disabled = true; no.disabled = true;
         ok.textContent = upg ? "升級中…" : "安裝中…";
         setStep("installing", "active", info);
@@ -8582,6 +9822,59 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     f.src = "/theme/preview?" + query;
     return f;
   }
+  // 套用檢查（synox/theme/check.py，ADR 0042）：每個 token／位置是有給、沿用預設、還是被忽略。只是提示，不擋套用。
+  var CHECK_TEXT = { provided: "外觀包有給", derived: "沒給 → 用外觀包自己的顏色算", "default": "沒給 → 沿用 SYNOX 預設",
+    ignored: "給了但這版 SYNOX 不認得 → 忽略" };
+  var SLOT_CHECK_TEXT = { provided: "外觀包有換", "default": "沒換 → 沿用 SYNOX 原本的", ignored: "給了但這版 SYNOX 沒有這個位置 → 忽略" };
+  var MODE_TEXT = { light: "淺色", dark: "深色" };
+  function countLine(c, texts) {
+    return Object.keys(texts).filter(function (k) { return c && c[k]; }).map(function (k) { return texts[k] + " " + c[k]; }).join("、");
+  }
+  function checkTable(rows, slot) {
+    var table = el("table");
+    var head = el("tr");
+    [slot ? "位置" : "token", "結果", slot ? "" : "值"].forEach(function (h) { if (h || !slot) { head.appendChild(el("th", "", h)); } });
+    table.appendChild(head);
+    (rows || []).forEach(function (r) {
+      var tr = el("tr", r.issue ? "issue" : "");
+      tr.appendChild(el("td", "", (r.issue ? "⚠️ " : "") + (slot ? r.slot : "--" + r.token)));
+      tr.appendChild(el("td", "", (slot ? SLOT_CHECK_TEXT : CHECK_TEXT)[r.status] + (r.from === "light" ? "（跟淺色同一個）" : "")));
+      if (!slot) { tr.appendChild(el("td", "v", r.value || "")); }
+      table.appendChild(tr);
+    });
+    return table;
+  }
+  // compact（設定 → 外觀的卡片）：一行結果＋要注意的，數字收進「展開」；報告上數字直接列出來
+  function themeCheckBox(check, compact) {
+    var box = el("div", "theme-check");
+    if (!check) { return box; }
+    var c = check.counts || {};
+    var more = el("details");
+    more.appendChild(el("summary", "", "展開看每一項"));
+    var counts = compact ? more : box;
+    box.appendChild(el("div", "", "套用檢查（只是提示，不擋套用；沒給的都有值）"));
+    ["light", "dark"].forEach(function (m) { counts.appendChild(el("div", "muted", MODE_TEXT[m] + "：" + countLine(c[m], CHECK_TEXT))); });
+    counts.appendChild(el("div", "muted", "吉祥物與開場的位置：" + countLine(c.slots, SLOT_CHECK_TEXT)));
+    var issues = check.issues || [];
+    if (issues.length) {
+      box.appendChild(el("div", "", "⚠️ 要注意 " + issues.length + " 項："));
+      var ul = el("ul");
+      issues.forEach(function (it) {
+        ul.appendChild(el("li", "", (it.mode ? MODE_TEXT[it.mode] + " " : "") + (it.kind === "token" ? "--" : "") + it.name + "：" + it.why));
+      });
+      box.appendChild(ul);
+    } else {
+      box.appendChild(el("div", "", "✅ 沒有要注意的"));
+    }
+    ["light", "dark"].forEach(function (m) {
+      more.appendChild(el("div", "", MODE_TEXT[m] + "的每一個 token"));
+      more.appendChild(checkTable((check.tokens || {})[m], false));
+    });
+    more.appendChild(el("div", "", "吉祥物與開場的位置（slot）"));
+    more.appendChild(checkTable(check.slots, true));
+    box.appendChild(more);
+    return box;
+  }
   function showThemeReport(box, s) {
     var th = s.theme || {};
     box.appendChild(el("p", "", "🎨 外觀包：只換顏色、字型、吉祥物圖案，沒有程式。換掉的位置：" +
@@ -8589,6 +9882,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     var tk = th.tokens || {};
     box.appendChild(swatchRow(tk.light, "淺色"));
     box.appendChild(swatchRow(tk.dark, "深色"));
+    if (th.check) { box.appendChild(themeCheckBox(th.check)); }
     if (s.token && !((s.scan || {}).problems || []).length) {
       var pv = el("div", "theme-previews");
       pv.appendChild(previewFrame("staged=" + encodeURIComponent(s.token) + "&mode=light", s.title + "（淺色預覽）"));
@@ -8842,6 +10136,41 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     check();
     return sel;
   }
+  // ADR 0041：作者標的警告（pack.json 的 warnings）。每條紅字＋「我知道」勾選；全部勾了才能按確認。
+  // 升級：舊版已經確認過的 code 沿用（upg.pack_warnings.accepted），只勾新的。回 null＝沒有要勾的。
+  function showPackWarnings(box, s, upg, canInstall) {
+    var pw = s.pack_warnings || {};
+    var items = pw.items || [];
+    (pw.problems || []).forEach(function (p) { box.appendChild(el("p", "muted", "⚠️ warnings 寫得不對：" + p)); });
+    if (!items.length) { return null; }
+    var accepted = (upg && upg.pack_warnings && upg.pack_warnings.accepted) || [];
+    box.appendChild(el("p", "alert", "⚠️ 這個工具的作者標了 " + items.length + " 個警告（要你確認才會啟用）："));
+    var boxes = [];
+    items.forEach(function (w) {
+      var text = "⚠️ " + w.text + (w.advice ? "——" + w.advice : "") + "　〔" + w.code + "〕";
+      if (accepted.indexOf(w.code) >= 0) {
+        box.appendChild(el("p", "alert", text + "（之前確認過，沿用）"));
+        return;
+      }
+      if (!canInstall) { box.appendChild(el("p", "alert", text)); return; }
+      var lab = el("label", "alert");
+      var cb = el("input");
+      cb.type = "checkbox";
+      cb.value = w.code;
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(" 我知道：" + text));
+      box.appendChild(lab);
+      boxes.push(cb);
+    });
+    var iso = pw.isolation || {};               // 警告下面：SYNOX 自己寫的「這台實況」（ADR 0041 S1；只是顯示）
+    if (iso.text) { box.appendChild(el("p", iso.isolated ? "muted" : "alert", "ℹ️ SYNOX 查這台的實況：" + iso.text)); }
+    if (!boxes.length) { return null; }
+    return {
+      ready: function () { return boxes.every(function (b) { return b.checked; }); },
+      value: function () { return boxes.filter(function (b) { return b.checked; }).map(function (b) { return b.value; }); },
+      onchange: function (fn) { boxes.forEach(function (b) { b.addEventListener("change", fn); }); }
+    };
+  }
   // SDK P7：信任層級。T2（有掃不到內容的執行檔、外部程式、runtime auto 的套件）：紅字＋勾選＋輸入 publisher
   //（一字不差才能按確認）；升級時只有發行者變了／新增 exec／可執行的東西變多才要重新確認
   function showTier(box, s, upg, canInstall) {
@@ -8959,15 +10288,8 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   var libQueue = null;                  // 全部更新：{ names, i, current }
   var LINK_RE = /^https:\/\/[^\s]+$/;
   function fill(t, o) { return t.replace(/\{(\w+)\}/g, function (_m, k) { return String(o[k]); }); }
-  function verKey(v) {                  // "1.2.3-beta" → [1, 2, 3, 0]；正式版最後一位是 1（比同號的預覽版新）
-    var m = /^(\d+)\.(\d+)\.(\d+)(-.*)?$/.exec(String(v || ""));
-    return m ? [+m[1], +m[2], +m[3], m[4] ? 0 : 1] : null;
-  }
-  function verNewer(a, b) {             // a 比 b 新？
-    var x = verKey(a), y = verKey(b);
-    if (!x || !y) { return false; }
-    for (var i = 0; i < 4; i++) { if (x[i] !== y[i]) { return x[i] > y[i]; } }
-    return false;
+  function verNewer(a, b) {             // a 比 b 新？SemVer（static/semver.js，跟伺服器 packs/upgrade.semver_key 同一套）
+    return SynoxSemver.newer(a, b);
   }
   function libFail(text) {
     $("lib-error-text").textContent = text || "";
@@ -9077,7 +10399,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     libUpdateBar();
     libTools.forEach(function (t) {
       t.installed = Object.prototype.hasOwnProperty.call(have, t.name) ? have[t.name] : "";
-      t.newer = !!t.installed && verNewer(t.version, t.installed);
+      t.newer = !!t.installed && !t.blocked && verNewer(t.version, t.installed);   // blocked：這台的 SYNOX 用不了那一版
     });
     renderLib();
   }
@@ -9191,9 +10513,9 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     }).catch(function (e) { $("backup-msg").textContent = "❌ " + e.message; });
   });
 
-  $("logout").addEventListener("click", function () {
+  function logout() {                         // 使用者選單的「↪ 登出」
     api("POST", "/api/logout", {}).then(showLogin, showLogin);
-  });
+  }
   window.addEventListener("hashchange", route);
 
   // 左下角的「目前登入」：名字一行、角色一行（文字一律 textContent）
@@ -9210,7 +10532,6 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     me = d;
     $("nav").classList.remove("hidden");
     $("nav-control").classList.toggle("hidden", !(control && control.canSee(d)));
-    $("logout").classList.remove("hidden");
     showWho(d);
     if (d.owner) {                             // 有新版的橫幅：只讀上次查的結果，不連網（docs/adr/0023）
       api("GET", "/api/settings/update").then(function (u) { updateBanner(u.notice); }).catch(function () { /* 沒有就算了 */ });
@@ -9221,6 +10542,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       window.SynoxApps.init({ api: api, toast: toast, csrf: function () { return me ? me.csrf : ""; } });
     }
     if (window.SynoxNotify) { window.SynoxNotify.init({ api: api, toast: toast, me: d }); }   // 🔔 通知與 ⏰ 鬧鐘（static/notify.js）
+    if (window.SynoxUserMenu) { window.SynoxUserMenu.init({ api: api, toast: toast, me: d, logout: logout }); }   // 使用者選單（static/usermenu.js）
     route();
     function fillInput(text) {               // 範例、教學的「幫我填好」：只把字放進輸入框，不送出
       if (currentView !== "chat") { location.hash = "#chat"; }
@@ -9259,7 +10581,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   var EXTS = [".synoxpack", ".zip"];
   var TEXT = {
     overlay: "放開滑鼠，我就檢查這個工具檔。會先給你看檢查的結果，你按確認才會裝。",
-    chat: "放開滑鼠，就附到這則訊息（圖片、表格、文字檔）。工具檔（.synoxpack）一樣會先檢查給你看。",
+    chat: "放開滑鼠，就附到這則訊息（圖片、表格、文字檔，可以一次好幾個）。工具檔（.synoxpack）一樣會先檢查給你看。",
     hint: "也可以把工具檔（.synoxpack）直接拖進這個網頁，或在電腦裡對它點兩下。不管哪一種，都會先檢查給你看，你按確認才會裝。",
     one: "一次拖一個工具檔就好。",
     ext: "這不是工具檔（檔名結尾要是 .synoxpack）：",
@@ -9289,6 +10611,13 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
      （例如 AI），報告就出現在看不到的分頁裡。已經在安裝頁就不動網址。 */
   function installHash(current) {
     return current === "#packs" || current === "#settings:packs" ? current : "#packs";
+  }
+
+  /* 純函式：拖進來的檔要去哪裡。"pack"＝一個工具檔（照原本的安裝流程）；"chat"＝在對話頁、不是工具檔 → 當附件
+     （app.html 的 SynoxChatDrop，跟 📎 同一套檢查）；"refuse"＝其他頁、不是工具檔（說原因）。 */
+  function route(files, inChat) {
+    if (check(files).ok) { return "pack"; }
+    return inChat ? "chat" : "refuse";
   }
 
   function hasFiles(e) {
@@ -9329,7 +10658,10 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       say.timer = setTimeout(function () { t.classList.add("hidden"); }, 4500);
     }
     var depth = 0;
-    function showOverlay(on) { overlay.classList.toggle("hidden", !on); }
+    function showOverlay(on) {
+      overlay.classList.toggle("hidden", !on);
+      doc.body.classList.toggle("chat-dragging", !!on && chatView());   // 對話頁：輸入框也亮起來（app.html 的 CSS）
+    }
 
     function chatView() {                                   // 對話頁：拖進來的一般檔案當附件（app.html 的 SynoxChatDrop）
       return doc.body.getAttribute("data-view") === "chat" && typeof root.SynoxChatDrop === "function";
@@ -9357,8 +10689,9 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       depth = 0;
       showOverlay(false);
       var r = check(e.dataTransfer.files);
-      if (!r.ok && chatView()) { root.SynoxChatDrop(e.dataTransfer.files); return; }
-      if (!r.ok) { say(r.message); return; }
+      var where = route(e.dataTransfer.files, chatView());
+      if (where === "chat") { root.SynoxChatDrop(e.dataTransfer.files); return; }
+      if (where === "refuse") { say(r.message); return; }
       if (doc.body.getAttribute("data-view") === "login") { say(TEXT.login); return; }
       root.fetch("/api/me", { credentials: "same-origin" }).then(function (resp) {
         if (!resp.ok) { throw new Error(TEXT.login); }
@@ -9390,7 +10723,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     }
   }
 
-  var api = { check: check, hasFiles: hasFiles, installHash: installHash, MAX_BYTES: MAX_BYTES, TEXT: TEXT };
+  var api = { check: check, route: route, hasFiles: hasFiles, installHash: installHash, MAX_BYTES: MAX_BYTES, TEXT: TEXT };
   if (typeof module === "object" && module && module.exports) { module.exports = api; }
   else {
     root.SynoxPackDrop = api;

@@ -5,7 +5,8 @@
 
 - sentinel.lock：哨兵只能有一個（第二個直接結束）。
 - 每 30 秒試拿 engine.lock（主程式開著時拿不到 → 只等）。拿到 → 每一輪：提醒引擎（reminder.headless_engine）到點檢查、
-  佇列重送、讀視窗的回覆（每 2 秒）。
+  佇列重送、讀視窗的回覆（每 2 秒）。到點檢查最多每 ENGINE_TICK_S 秒一次，**下一件事的時間一到就馬上檢查**
+  （引擎的 next_wake；主迴圈睡到那時候為止），所以哨兵在跑時提醒一樣準時。
 - 看到 yield.request（主程式開起來了）→ 做完這一輪 → 放鎖 → 刪掉 request → 回到只等。
 - 每次拿到鎖都重新組一份（佇列、通知清單的快取都重讀）：主程式剛剛可能改過同一份檔。
 
@@ -27,7 +28,7 @@ from typing import Any, Callable, Optional
 from synox.notify import desk as deskmod
 
 LOCK_TRY_S = 30.0          # 沒拿到 engine.lock 時多久再試
-ENGINE_TICK_S = 15.0       # 拿到時：提醒引擎到點檢查、佇列重送的間隔
+ENGINE_TICK_S = 10.0       # 拿到時：提醒引擎到點檢查、佇列重送最多隔多久（下一件事的時間到了就不等）
 STEP_S = 2.0               # 主迴圈：讀視窗回覆的間隔（≤ POLL_ENGINE_S）
 SENTINEL_EXTRA = "synox_remind_sentinel"   # 哨兵組的 app.extras 裡設 True（W1 的回執看這個）
 STALE_YIELD_S = 90.0      # yield.request 放了這麼久主程式都沒來拿：當作主程式沒開成，刪掉
@@ -52,6 +53,7 @@ class Sentinel:
         self.round: Optional[Round] = None
         self.next_lock_try = 0.0
         self.last_tick: Optional[float] = None
+        self.next_wake: Optional[float] = None    # 引擎下一件事的時間（epoch 秒）；到了就不等 ENGINE_TICK_S
 
     @property
     def is_engine(self) -> bool:
@@ -94,7 +96,8 @@ class Sentinel:
         r = self.round
         if r is None:
             return
-        if self.last_tick is None or now - self.last_tick >= ENGINE_TICK_S:
+        if self.last_tick is None or now - self.last_tick >= ENGINE_TICK_S or \
+                (self.next_wake is not None and now >= self.next_wake):
             self.last_tick = now
             at = datetime.fromtimestamp(now)
             for name, fn in (("engine", lambda: r.engine.tick(at)), ("outbox", lambda: r.outbox.pump(now))):
@@ -102,14 +105,35 @@ class Sentinel:
                     fn()
                 except Exception as e:
                     logging.warning("[SENTINEL] %s round failed: %s", name, type(e).__name__)
+            self.next_wake = self._next_wake(r, at)
         try:
             r.desk.process(r.outbox, r.actions)
         except Exception as e:
             logging.warning("[SENTINEL] window replies failed: %s", type(e).__name__)
 
+    @staticmethod
+    def _next_wake(r: Round, at: datetime) -> Optional[float]:
+        fn = getattr(r.engine, "next_wake", None)
+        if fn is None:
+            return None
+        try:
+            got = fn(at)
+        except Exception as e:
+            logging.warning("[SENTINEL] cannot work out the next reminder time: %s", type(e).__name__)
+            return None
+        return got.timestamp() if got is not None else None
+
+    def sleep_for(self, now: Optional[float] = None, step_s: float = STEP_S) -> float:
+        """主迴圈這一步睡幾秒：平常 step_s；引擎下一件事比那更早＝睡到那時候（最少 0.02 秒）。"""
+        now = self.clock() if now is None else now
+        if self.lock.held and self.next_wake is not None:
+            return max(0.02, min(step_s, self.next_wake - now))
+        return step_s
+
     def release(self) -> None:
         self.lock.release()
         self.round = None
+        self.next_wake = None
 
     def run(self, stop: Optional[threading.Event] = None, step_s: float = STEP_S) -> None:
         stop = stop or threading.Event()
@@ -119,7 +143,7 @@ class Sentinel:
                     self.step()
                 except Exception:
                     logging.exception("[SENTINEL] step failed")
-                stop.wait(step_s)
+                stop.wait(self.sleep_for(step_s=step_s))
         finally:
             self.release()
 

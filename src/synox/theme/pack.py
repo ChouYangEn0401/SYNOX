@@ -38,6 +38,7 @@ CODE_KEYS = ("python", "cli", "commands", "mcp", "runtime", "env", "capabilities
 _FAMILY_RE = re.compile(r"^[A-Za-z0-9 _-]{1,40}$")
 _WEIGHT_RE = re.compile(r"^(normal|bold|\d{3}( \d{3})?)$")
 WOFF2_MAGIC = b"wOF2"
+_SLOT_KEY_RE = re.compile(r"^[a-z][a-z0-9-]{0,30}(\.[a-z][a-z0-9-]{0,30}){0,2}$")
 
 
 def _rel_problem(rel, folder: str, where: str, exts: Tuple[str, ...], limit: int) -> str:
@@ -117,7 +118,7 @@ def check_manifest(raw: dict, folder: str) -> Tuple[dict, List[str]]:
     elif version > contract.CONTRACT_VERSION:
         problems.append(f"這個外觀包照第 {version} 版的外觀合約做的，這版 SYNOX 只認得到第 {contract.CONTRACT_VERSION} 版："
                         "請先更新 SYNOX")
-    toks, why = theme_tokens.parse_tokens(theme.get("tokens"))
+    toks, why, notes = theme_tokens.parse_tokens_full(theme.get("tokens"))
     problems += why
     slots: Dict[str, str] = {}
     raw_slots = theme.get("slots") or {}
@@ -127,7 +128,11 @@ def check_manifest(raw: dict, folder: str) -> Tuple[dict, List[str]]:
     for key, rel in raw_slots.items():
         name = contract.slot_name(key)
         if not name:
-            problems.append(f"theme.slots 不認得 {key!r}（看 docs/themes.md 的 slot 清單：{'、'.join(contract.SLOTS)}）")
+            if isinstance(key, str) and _SLOT_KEY_RE.match(key):     # 比這版 SYNOX 新的位置：忽略、記提示（ADR 0042）
+                notes.append({"code": "unknown-slot", "slot": key,
+                              "why": f"這版 SYNOX 沒有「{key}」這個位置（外觀包可能比 SYNOX 新，或名字寫錯），先忽略"})
+            else:
+                problems.append(f"theme.slots 不認得 {str(key)[:40]!r}（看 docs/themes.md 的 slot 清單：{'、'.join(contract.SLOTS)}）")
             continue
         exts = tuple("." + k for k in contract.SLOTS[name][2])
         err = _rel_problem(rel, folder, f"theme.slots.{name}", exts, MAX_SLOT_FILE)
@@ -145,7 +150,8 @@ def check_manifest(raw: dict, folder: str) -> Tuple[dict, List[str]]:
             css = css.replace("\\", "/")
     fonts, why = parse_fonts(theme.get("fonts"), folder)
     problems += why
-    return {"contract": version, "tokens": toks, "slots": slots, "css": css or "", "fonts": fonts}, problems
+    return {"contract": version, "tokens": toks, "slots": slots, "css": css or "", "fonts": fonts,
+            "notes": notes}, problems
 
 
 def _files(folder: str) -> List[str]:
@@ -258,10 +264,12 @@ def compile_theme(folder: str, name: str, theme: dict) -> Bundle:
 
 
 def report(m, theme: dict) -> dict:
-    """安裝報告的「🎨 外觀」那一段：顏色（給畫面畫色票）、有換哪些位置、字型。只在第 1、2 關都過了才有。"""
+    """安裝報告的「🎨 外觀」那一段：顏色（給畫面畫色票）、有換哪些位置、字型、套用檢查（check，ADR 0042）。
+    只在第 1、2 關都過了才有。"""
+    from synox.theme import check as theme_check
     out = {"tokens": theme.get("tokens") or {}, "slots": sorted(theme.get("slots") or {}),
            "fonts": [f["family"] for f in theme.get("fonts") or []], "css": bool(theme.get("css")),
-           "contract": theme.get("contract", 1)}
+           "contract": theme.get("contract", 1), "check": theme_check.coverage(theme)}
     try:
         out["markup"] = compile_theme(m.folder, m.name, theme).slots
     except (sanitize.Rejected, OSError, UnicodeDecodeError):

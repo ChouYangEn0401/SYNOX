@@ -21,11 +21,19 @@
 
 > 這份同意書是簡版草稿，不是經過律師審閱的法律文件。正式開放外部貢獻之前，請維護者找懂開源授權的人檢查。
 
+## 從哪裡開始
+
+- 全貌與目錄地圖：[docs/HANDOFF.md](docs/HANDOFF.md)；建環境、跑測試、不用金鑰的開發設定、開發工具（pack）、改核心的規則：[docs/development.md](docs/development.md)（兩份都只在 git clone／GitHub 上有，發佈 ZIP 與安裝程式不帶）。
+- 從最新的 `dev` 開分支（`feat/…`、`fix/…`、`docs/…`），pull request 開到 `dev`。`main` 只放正式版。
+- 新的工具（pack）請送到工具庫 SYNOX_Libs，不送到這個 repo；SYNOX 本體出廠不帶工具。
+- 改權限、核准卡、驗證碼、pack 安裝、對外合約（pack.json、SDK）或資料格式之前，先寫一份 ADR（[docs/adr/README.md](docs/adr/README.md)）。
+
 ## 送出前請確認
 
-- 跑過全部測試：`python -m pytest -q`。
+- 跑過全部測試：`python -m pytest -q`（在不同平台已知會略過或失敗的，見 [docs/development.md](docs/development.md)「跑測試」；PR 裡寫出基準線之外有沒有新的失敗）。
 - 新功能要有測試，測試不能連真的網路或開埠。
-- 不要提交密鑰、token、個人資料或本機路徑。
+- 不要提交密鑰、token、個人資料或本機路徑（`python scripts/prepublish_check.py --worktree-only` 會找）。
+- 使用者看得到的改變寫進 `CHANGELOG.md` 最上面的「未發佈」一節；版本號、tag、發佈由維護者決定。
 - 安全相關的修改（權限、沙盒、保管箱、pack 掃描）請在 pull request 說明你考慮過的攻擊情境。
 - 回報安全問題請不要開公開 issue，見 [SECURITY.md](SECURITY.md)。
 

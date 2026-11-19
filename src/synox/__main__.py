@@ -59,7 +59,7 @@ def _utf8_console() -> None:
 def cmd_run(args) -> int:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
     try:
-        config = SynoxConfig.load(args.config or None, require_token=False)
+        config = load_for_run(args.config or None)
         channels = run_channels(config)
     except ConfigError as e:
         print(f"❌ {e}")
@@ -83,6 +83,39 @@ def cmd_run(args) -> int:
             app.on_start.append(lambda _app: _web_only_started(_app, config, failed, open_browser=_wants_browser(args)))
     app.run(channels)
     return 2 if failed else 0
+
+
+def load_for_run(path=None) -> SynoxConfig:
+    """啟動用：config.json 的 Telegram token 還是明文就先搬進保管箱（synox/telegram_token.py；搬不成＝config 不動、
+    log 一句警告），再讀設定（bot_token 是參照就解開；解不開＝當沒填，印原因）。"""
+    from synox import telegram_token
+    from synox.datastore import core as data_core
+    path = path or CONFIG_PATH
+    # 資料版本（ADR 0044）：config.json 先升到目前的格式（讀設定之前），讀完設定再升 data/ 裡登記的檔。
+    # 任何一份升級失敗＝已還原、原資料沒動，SYNOX 不開（不能用半升級的資料跑）；較新版本寫的＝只提醒、那份不寫
+    results = [data_core.upgrade_config(path)] if os.path.exists(path) else []
+    _data_upgrade_stop(results)
+    telegram_token.migrate(path)
+    config = SynoxConfig.load(path, require_token=False)
+    results = data_core.upgrade_data_dir(config.data_dir)
+    _data_upgrade_stop(results)
+    if config.token_problem:
+        print(f"⚠️ Telegram 這次不開：{config.token_problem}")
+    return config
+
+
+def _data_upgrade_stop(results) -> None:
+    """印升級結果；有失敗的丟 ConfigError（cmd_run 印 ❌ 停下）。"""
+    from synox.datastore import core as data_core
+    for r in results:
+        if r.action == "upgraded":
+            print(f"🔁 {r.line()}")
+            logging.info("[DATA] %s upgraded %s -> %s (backup %s)", r.kind, r.before, r.after, r.backup)
+        elif r.action == "too_new":
+            print(f"⚠️ {r.message}")
+    bad = data_core.failed(results)
+    if bad:
+        raise ConfigError("資料升級沒有成功，SYNOX 先不開（資料已經還原、沒有被改）：" + "；".join(r.message for r in bad))
 
 
 def _wants_browser(args) -> bool:
@@ -223,7 +256,8 @@ def cmd_tools(args, *, is_up=None, open_url=None, jobs=None, opener=None) -> int
             worst = 2
             continue
         ns = argparse.Namespace(file=path, yes=args.yes, config=args.config, packs_dir="", trust=None,
-                                trust_publisher=args.trust_publisher, runtime=None, allow_downgrade=False)
+                                trust_publisher=args.trust_publisher, runtime=None, allow_downgrade=False,
+                                accept_warning=getattr(args, "accept_warning", None))
         worst = max(worst, cmd_install(ns, is_up=is_up, open_url=open_url, jobs=jobs))
     return worst
 
@@ -323,7 +357,7 @@ def _tools_online(args, *, is_up, open_url=None, jobs=None, opener=None, packs_d
             continue
         ns = argparse.Namespace(yes=args.yes, config=args.config, packs_dir=packs_dir, trust=None,
                                 trust_publisher=getattr(args, "trust_publisher", None), runtime=None,
-                                allow_downgrade=False)
+                                allow_downgrade=False, accept_warning=getattr(args, "accept_warning", None))
         if opened and not args.yes:
             print("（網頁已經開著了：這一個也在「等你核准」裡，一個一個看完按確認）")
         rc = _review_staged(token, summary, ns, config, data_dir, is_up=is_up, open_url=open_once, jobs=jobs,
@@ -335,6 +369,42 @@ def _tools_online(args, *, is_up, open_url=None, jobs=None, opener=None, packs_d
 def cmd_doctor(args) -> int:
     from synox import doctor
     return doctor.run(offline=args.offline, config_path=args.config or "")
+
+
+def cmd_data(args, *, running=None) -> int:
+    """`data status`：每份資料的版本、要不要升級（只看）；`data upgrade [--dry-run]`：現在就升（SYNOX 開著時不跑：
+    開著的那支手上是舊的資料；平常不用跑，SYNOX 啟動、工具載入時會自己升）。ADR 0044、docs/data-migrations.md。"""
+    import json as _json
+
+    from synox.datastore import report as data_report
+    path = args.config or CONFIG_PATH
+    try:
+        config = SynoxConfig.load(path, require_token=False) if os.path.exists(path) else \
+            SynoxConfig.from_dict(DEMO_CONFIG, require_token=False)
+    except ConfigError as e:
+        print(f"❌ {e}")
+        return 2
+    vault = None
+    if os.path.exists(os.path.join(config.data_dir, ".synox.key")):
+        try:
+            from synox.vault import open_vault
+            vault = open_vault(config)
+        except Exception as e:                  # 打不開就只看得到不用保管箱的資料
+            print(f"⚠️ 保管箱打不開（{e}）：用保管箱的工具資料這次看不到")
+    upgrade = args.data_cmd == "upgrade"
+    really = upgrade and not args.dry_run
+    if really and (running or _synox_running)(config):
+        print("❌ SYNOX 正在跑：先停掉（Stop.bat），或直接重開 SYNOX（啟動時會自己升級）。")
+        return 2
+    collected = data_report.collect(path if os.path.exists(path) else None, config, vault,
+                                    upgrade=upgrade, dry_run=not really)
+    if args.json:
+        print(_json.dumps(data_report.to_dict(collected), ensure_ascii=False, indent=2))
+    else:
+        print("🗂️ 資料版本" + ("（已升級）" if really else "（只看，沒有改任何檔）"))
+        for line in data_report.lines(collected):
+            print(line)
+    return 1 if data_report.problems(collected) else 0
 
 
 def cmd_stop(args) -> int:
@@ -355,16 +425,86 @@ def cmd_stop(args) -> int:
         print("SYNOX 沒有在跑（留下的鎖檔是舊的，已清掉）。")
         os.remove(lock)
         return 0
-    if os.name == "nt":
-        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
-    else:  # pragma: no cover
-        os.kill(int(pid), 15)
+    _kill_tree(int(pid))
     try:
         os.remove(lock)
     except OSError:
         pass
     print(f"🛑 SYNOX 停了（pid {pid}）。")
     return 0
+
+
+def cmd_restart(args, *, alive=None, kill=None, is_up=None, running=None, start=None, sleep=None,
+                clock=None) -> int:
+    """網頁的「🔄 重新啟動 SYNOX」開的小幫手（synox/web/restart.py；不是給人直接打的）：
+    等 --after-pid 那支 SYNOX 自己結束（太久就跟 `synox stop` 一樣 taskkill），等網頁的埠放掉、確認沒有別支 SYNOX
+    拿著 host.lock，才跟 Open-SYNOX.bat 一樣背景開 Start.bat。任何一步不對就停下來、不開：寧可沒開，也不要兩支。"""
+    import time as _time
+    from isdtelekit.core.jsonstore import load_json
+    from isdtelekit.host.lock import _alive
+    from synox.web import restart as restart_mod
+    alive = alive or _alive
+    is_up = is_up or web_is_up
+    running = running or _synox_running
+    start = start or _start_synox_quietly
+    sleep = sleep or _time.sleep
+    clock = clock or _time.monotonic
+    pid = int(args.after_pid)
+    created = args.created
+    try:
+        created = int(created) if created not in (None, "") else None    # 鎖檔記的建立時間（pid 被重用時分得出來）
+    except ValueError:
+        created = None
+    try:
+        config = SynoxConfig.load(args.config or None, require_token=False)
+    except ConfigError as e:
+        print(f"❌ {e}")
+        return 2
+    port = int((config.web or {}).get("port") or 0) if (config.web or {}).get("enabled", True) else 0
+
+    def wait(cond, seconds: float) -> bool:
+        end = clock() + seconds
+        while clock() < end:
+            if cond():
+                return True
+            sleep(0.5)
+        return cond()
+
+    print(f"🔄 等 SYNOX（pid {pid}）結束…")
+    if not wait(lambda: not alive(pid, created), restart_mod.STOP_WAIT):
+        print("   等太久了：直接停掉它（跟 Stop.bat 一樣）。")
+        (kill or _kill_tree)(pid)
+        if not wait(lambda: not alive(pid, created), 10):
+            print("❌ 停不掉舊的那一支，沒有重新開（不要同時開兩支）。請手動：先雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑。")
+            return 1
+        lock = config.path("host.lock")
+        held = load_json(lock, {})
+        if isinstance(held, dict) and held.get("pid") == pid:
+            try:
+                os.remove(lock)
+            except OSError:
+                pass
+    if port and not wait(lambda: not is_up(port), 15):
+        print(f"❌ 網頁的埠 {port} 還被占著，沒有重新開。請手動：先雙擊 Stop.bat，再雙擊桌面的 SYNOX 捷徑。")
+        return 1
+    if running(config):
+        print("SYNOX 已經開著了（別的地方開的），不再開第二支。")
+        return 0
+    root = os.path.abspath(getattr(config, "root", "") or os.path.dirname(os.path.abspath(args.config or CONFIG_PATH)))
+    if not os.path.isfile(os.path.join(root, "Start.bat")):
+        print(f"❌ 找不到 Start.bat（{root}），沒有重新開。請雙擊桌面的 SYNOX 捷徑。")
+        return 1
+    start(root)
+    print("✅ 已經重新開了 SYNOX（Start.bat）。")
+    return 0
+
+
+def _kill_tree(pid: int) -> None:
+    """跟 cmd_stop 一樣的停法（Windows：taskkill /T /F，連它開的子行程一起）。"""
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
+    else:  # pragma: no cover
+        os.kill(int(pid), 15)
 
 
 def _config_quiet(path: str):
@@ -519,7 +659,7 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
     config = _config_quiet(args.config)
     data_dir = _data_dir(config)
     try:
-        token, summary = admin.stage_file(args.file, data_dir)            # 第 1、2 關
+        token, summary = admin.stage_file(args.file, data_dir, config=config)   # 第 1、2 關
     except admin.GateRefused as e:
         if e.summary:
             print(admin.format_summary(e.summary))
@@ -542,7 +682,8 @@ def _review_staged(token: str, summary: dict, args, config, data_dir: str, *, is
     trust = getattr(args, "trust", None) or None                         # PERM-2：core｜third-party（寫進 packs.lock）
     upg = _staged_upgrade(token, data_dir, packs_dir, trust)             # 同名已經裝了＝升級：「改了什麼」
     # 升級時「要不要建環境」看升級報告那一段（跟舊版比過），安裝摘要的那一段就不印，免得兩段說法不一樣
-    print(admin.format_summary(summary if upg is None else {**summary, "env": {}}))
+    print(admin.format_summary(summary if upg is None else {**summary, "env": {}},
+                               details=bool(getattr(args, "details", False))))
     if upg is not None:
         from synox.packs import upgrade as pack_upgrade
         print(pack_upgrade.format_upgrade(upg))
@@ -558,7 +699,8 @@ def _review_staged(token: str, summary: dict, args, config, data_dir: str, *, is
             name = admin.install_staged(token, data_dir, args.packs_dir or PACK_DIRS[0], approved_by=who,
                                         via="console", trust=trust,          # 第 3 關：packs.lock
                                         trust_publisher=getattr(args, "trust_publisher", None) or None,
-                                        runtime=getattr(args, "runtime", None) or None)
+                                        runtime=getattr(args, "runtime", None) or None,
+                                        accept_warnings=getattr(args, "accept_warning", None))   # ADR 0041
         except admin.PackAdminError as e:
             print(f"❌ {e}")
             return 2
@@ -584,6 +726,7 @@ def _review_staged(token: str, summary: dict, args, config, data_dir: str, *, is
     print("ℹ️ 還沒裝。SYNOX 沒開（或網頁介面關著）：")
     tier = summary.get("tier") or {}
     extra = f' --trust-publisher "{tier.get("publisher")}"' if tier.get("needs_publisher") and tier.get("publisher") else ""
+    extra += "".join(f" --accept-warning {c}" for c in (summary.get("pack_warnings") or {}).get("codes") or [])
     print(f'   • 在這裡核准：{retry.format(extra=extra)}')
     print("   • 或開 SYNOX 之後，在網頁「設定 → 功能與安裝」選這個檔（還沒按確認的會列在「等你核准」）")
     return 1
@@ -646,7 +789,8 @@ def _upgrade_now(token: str, data_dir: str, packs_dir: str, config, args, jobs=N
                                       allow_downgrade=getattr(args, "allow_downgrade", False),
                                       trust=getattr(args, "trust", None) or None,
                                       trust_publisher=getattr(args, "trust_publisher", None) or None,
-                                      runtime=getattr(args, "runtime", None) or None)
+                                      runtime=getattr(args, "runtime", None) or None,
+                                      accept_warnings=getattr(args, "accept_warning", None))     # ADR 0041
     except admin.PackAdminError as e:
         print(f"❌ {e}")
         return 2
@@ -681,6 +825,35 @@ def cmd_rollback(args, data_dir: str, config) -> int:
     return 0
 
 
+def cmd_theme_check(args, found: dict) -> int:
+    """`synox packs theme-check <名字或資料夾>`：外觀包套用時每一個 token／slot 是有給、沿用預設、還是被忽略（ADR 0042）。
+    只是提示，不擋套用。--details 列每一項；--json 給 AI／程式看（欄位見 synox/theme/check.py）。
+    結束碼：0＝沒有要注意的、10＝有要注意的（還是可以套用）、2＝不是外觀包或 pack.json 不合。"""
+    import json
+    from synox.packs.manifest import ManifestError, read
+    from synox.theme import check as theme_check
+    target = args.target
+    folder = found.get(target) or (target if os.path.isdir(target) else "")
+    if not folder:
+        print(f"❌ 找不到叫 {target} 的外觀包（裝好的有：{'、'.join(sorted(found)) or '沒有'}；也可以給 pack 資料夾的路徑）")
+        return 2
+    try:
+        m = read(folder)
+    except ManifestError as e:
+        print(f"❌ pack.json 不合：{e}")
+        return 2
+    if m.kind != "theme":
+        print(f"❌ {m.name} 不是外觀包（kind={m.kind}）")
+        return 2
+    check = theme_check.coverage(m.theme)
+    if args.json:
+        print(json.dumps({"name": m.name, "version": m.version, **check}, ensure_ascii=False, indent=1))
+    else:
+        print(f"🎨 {m.title}（{m.name} {m.version}）")
+        print("\n".join(theme_check.format_lines(check, details=args.details)))
+    return 10 if check["issues"] else 0
+
+
 def cmd_packs(args, *, jobs=None) -> int:
     from synox.packs import admin
     from synox.packs import lock as pack_lock
@@ -697,6 +870,8 @@ def cmd_packs(args, *, jobs=None) -> int:
             found[read(folder).name] = folder
         except ManifestError:
             found.setdefault(os.path.basename(folder), folder)
+    if args.packs_cmd == "theme-check":
+        return cmd_theme_check(args, found)
     if args.packs_cmd == "env":
         name = args.name
         if name not in found:
@@ -726,12 +901,19 @@ def cmd_packs(args, *, jobs=None) -> int:
                                                           approved_by=getattr(config, "owner_id", None) or "cli",
                                                           trust=getattr(args, "trust", None) or None,
                                                           trust_publisher=getattr(args, "trust_publisher", None) or None,
-                                                          runtime=getattr(args, "runtime", None) or None)
+                                                          runtime=getattr(args, "runtime", None) or None,
+                                                          accept_warnings=getattr(args, "accept_warning", None))
         except admin.PackAdminError as e:
             print(f"❌ {e}")
             return 2
         print(report.format(m))
+        for warn_line in admin.format_pack_warnings({"pack_warnings": admin.pack_warnings_report(m, config,
+                                                                                              installing=False)}):
+            print(warn_line)                                     # 作者標的警告（ADR 0041）
         if problems:
+            for p in problems:
+                if p not in report.format(m):
+                    print(f"  - {p}")
             print("❌ 沒有鎖定（先修好上面的問題）")
             return 2
         print(f"🔒 {name} 已鎖定（data/packs.lock）。之後檔案被改過就不會載入。")
@@ -766,6 +948,23 @@ def cmd_packs(args, *, jobs=None) -> int:
             too_old = None
         if too_old:
             print(f"    ⛔ 不會載入：{too_old}")
+        try:                                            # 作者標的警告（ADR 0041）：每條一行；沒確認＝不會載入
+            warned_m = read(folder)
+        except ManifestError:
+            warned_m = None
+        if warned_m is not None and warned_m.warnings:
+            from synox.packs import packwarn
+            for warn_line in packwarn.lines(warned_m.warnings):
+                print(f"    ⚠️ {warn_line}")
+            from types import SimpleNamespace
+            from synox import sandbox as warned_box     # 警告下面：SYNOX 自己寫的「這台實況」（只是顯示）
+            iso = warned_box.isolation_line(warned_box.isolation_note(
+                config if config is not None else SimpleNamespace(data_dir=data_dir), warned_m))
+            if iso:
+                print(f"    {iso}")
+            warned = pack_loader.warnings_reason(SimpleNamespace(data_dir=data_dir), warned_m)
+            if warned:
+                print(f"    ⛔ 不會載入：{warned[1]}")
         if config is not None and not changes:          # PERM-8：伺服器版第三方 python pack 只給擁有者
             try:
                 m = read(folder)
@@ -1028,6 +1227,10 @@ def cmd_remind_window(args) -> int:
     return window.run(config.data_dir)
 
 
+ACCEPT_WARNING_HELP = ("pack.json 標了警告（warnings，ADR 0041）：看過報告、決定要用，就明確確認那一個 code 才啟用"
+                       "（可以重複：--accept-warning a --accept-warning b）")
+
+
 def main(argv=None) -> int:
     _utf8_console()
     parser = argparse.ArgumentParser(prog="python -m synox", description="SYNOX：住在你自己電腦裡的 AI 助理")
@@ -1071,9 +1274,17 @@ def main(argv=None) -> int:
     p.add_argument("--library", default="", help="工具庫資料夾（預設 config.json 的 packs.library，或 SYNOX 資料夾旁的 tools）")
     p.add_argument("--yes", action="store_true", help="看完報告直接在終端機核准")
     p.add_argument("--trust-publisher", default=None, metavar="NAME", help="T2 工具：明確輸入 pack.json 的 publisher 才裝")
+    p.add_argument("--accept-warning", action="append", default=None, metavar="CODE", help=ACCEPT_WARNING_HELP)
     p = sub.add_parser("doctor", help="健康檢查")
     p.add_argument("--offline", action="store_true", help="不實際打 AI")
+    p = sub.add_parser("data", help="資料版本：status（每份資料的版本、要不要升級）｜upgrade [--dry-run]（現在就升）")
+    p.add_argument("data_cmd", choices=["status", "upgrade"])
+    p.add_argument("--dry-run", action="store_true", help="只列出會做什麼，不改任何檔")
+    p.add_argument("--json", action="store_true", help="輸出 JSON（給 AI／程式看）")
     sub.add_parser("stop", help="停掉正在跑的 bot")
+    p = sub.add_parser("restart", help="（網頁的「重新啟動 SYNOX」用的）等舊的那支結束，再用 Start.bat 開")
+    p.add_argument("--after-pid", required=True, type=int, help=argparse.SUPPRESS)
+    p.add_argument("--created", default=None, help=argparse.SUPPRESS)
     p = sub.add_parser("install", help="裝一個 .synoxpack（安全檢查 → 核准 → 裝）")
     p.add_argument("file", help=".synoxpack 檔")
     p.add_argument("--yes", action="store_true", help="看完報告直接在終端機核准（同名已裝＝升級）")
@@ -1085,6 +1296,9 @@ def main(argv=None) -> int:
                    help="T2 pack（有掃不到內容的執行檔／外部相依）：明確輸入 pack.json 的 publisher 才裝")
     p.add_argument("--runtime", choices=["container", "host"], default=None,
                    help="用容器（pack 有提供 runtime.container 時的預設）｜host（不用容器；升級沒給＝沿用）")
+    p.add_argument("--accept-warning", action="append", default=None, metavar="CODE", help=ACCEPT_WARNING_HELP)
+    p.add_argument("--details", action="store_true",
+                   help="外觀包：套用檢查每一項都列（每個顏色、位置有沒有給；預設只列摘要與要注意的）")
     p.add_argument("--packs-dir", default="", help=argparse.SUPPRESS)
     p = sub.add_parser("filetype", help=".synoxpack 檔案關聯（圖示＋點兩下安裝；HKCU，不要管理員）")
     p.add_argument("filetype_cmd", choices=["register", "unregister", "status"])
@@ -1097,6 +1311,7 @@ def main(argv=None) -> int:
                    help="信任（沒給＝沿用舊鎖的，沒有舊鎖＝third-party）")
     q.add_argument("--trust-publisher", default=None, metavar="NAME",
                    help="T2 pack：明確輸入 pack.json 的 publisher（舊鎖確認過同一個、沒變多就不用）")
+    q.add_argument("--accept-warning", action="append", default=None, metavar="CODE", help=ACCEPT_WARNING_HELP)
     q.add_argument("--runtime", choices=["container", "host"], default=None,
                    help="用容器｜不用（沒給＝沿用舊鎖的）")
     q = psub.add_parser("runtime", help="改用容器／不用容器跑（只改 packs.lock 的 runtime）")
@@ -1104,6 +1319,10 @@ def main(argv=None) -> int:
     q.add_argument("mode", choices=["container", "host"])
     q = psub.add_parser("rollback", help="把 packs/_removed/ 裡最近一份舊版搬回來、packs.lock 改回當時的")
     q.add_argument("name", help="pack 的名字")
+    q = psub.add_parser("theme-check", help="外觀包的套用檢查：每個顏色、位置是有給、沿用預設、還是被忽略（只是提示）")
+    q.add_argument("target", help="裝好的外觀包名字，或 pack 資料夾的路徑")
+    q.add_argument("--details", action="store_true", help="每一項都列（預設只列摘要與要注意的）")
+    q.add_argument("--json", action="store_true", help="輸出 JSON（給 AI／程式看）")
     p.set_defaults(dirs=None, packs_dir="")
     q = psub.add_parser("env", help="pack 的環境（runtime.python／node = auto）")
     esub = q.add_subparsers(dest="env_cmd", required=True)
@@ -1146,7 +1365,9 @@ def main(argv=None) -> int:
     from synox import brand
     brand.add_quiet_flags(sub, [c for c in brand.BANNER_COMMANDS if c])
     args = parser.parse_args(argv)
-    handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop,
+    handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "data": cmd_data,
+                "stop": cmd_stop,
+                "restart": cmd_restart,
                 "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord, "web-login": cmd_web_login,
                 "stepup": cmd_stepup,
                 "open": cmd_open, "about": cmd_about, "tips": cmd_tips,

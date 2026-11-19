@@ -152,6 +152,7 @@ synox tips      隨機一則使用小提示
 `llm.kind` 可以是 `claude_code`、`local`（本地模型：Ollama、vLLM、LM Studio）、`openai`、`anthropic`、`gemini`、
 `openai_compat`（要 `base_url`）、`fake`、`none`；
 `api_key` 可以直接寫、寫 `env:環境變數名`，或 `vault:llm_api_key`（精靈存進保管箱的）。
+`bot_token`（Telegram）也一樣：精靈、`init`、網頁設定頁都存進保管箱、寫 `vault:telegram_bot_token`；手寫明文也可以，啟動時會自動搬進保管箱。
 用金鑰的四種要先裝 ntu_easy_llm（`.venv\Scripts\python.exe -m pip install -e .[llm]`，見 [docs/AGENT.md](docs/AGENT.md) 的「ntu_easy_llm」）；
 沒裝時 `doctor` 和「測一下」會說怎麼裝。
 
@@ -211,7 +212,7 @@ SYNOX 出廠不帶任何工具；官方的工具都在 **SYNOX 工具庫（SYNOX
 `/help`、網頁工具頁、安裝報告、`doctor` 都看得到；沒標的當 alpha。
 
 更新：同名再裝一次就是升級（會列「改了什麼」，權限變大標紅字），退回用 `… -m synox packs rollback <名字>`；移除在網頁設定頁。
-找、裝、更新、移除的完整說明，以及之後的路線（線上目錄、簽章、一鍵安裝：都還是提案）：[docs/ecosystem.md](docs/ecosystem.md)。
+找、裝、更新（`synox tools check`／`synox tools update`）、移除的完整說明，以及之後的路線（目錄簽章、其他線上目錄、一鍵安裝：都還是提案）：[docs/ecosystem.md](docs/ecosystem.md)。
 
 **想自己寫工具接進來**（任何語言的命令列程式、MCP 伺服器、別人架好的遠端 MCP）：從 [docs/tools.md](docs/tools.md) 開始——
 怎麼選接入方式、十行入門、權限怎麼宣告、怎麼測試與打包；範例在 [examples/](examples/)。全部文件的索引：[docs/README.md](docs/README.md)。
@@ -232,7 +233,7 @@ pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的
 - macOS／Linux 的安裝器（程式本身跨平台，但 `Setup.bat` 只有 Windows）。Windows 安裝程式（Inno Setup＋可攜版 Python）的腳本做好了，
   **還沒真的打包、還沒在空白電腦上試**（[docs/handoff/clean-machine-test.md](docs/handoff/clean-machine-test.md)）。
 - AI 的對話紀錄只放在記憶體（重開 bot 就忘了），每個聊天留最近 6 輪。
-- 工具的線上目錄、簽章驗證、評分、從介紹頁一鍵安裝：都還是提案（[docs/ecosystem.md](docs/ecosystem.md)「之後的路」）。
+- 工具目錄（`index.json`）的簽章與撤銷清單、官方工具庫以外的線上目錄、評分、從介紹頁一鍵安裝：都還是提案（[docs/ecosystem.md](docs/ecosystem.md)「之後的路」）。每個 `.synoxpack` 的簽章與標章、官方工具庫的線上清單已經有了（[docs/adr/0028](docs/adr/0028-pack-signatures-official-badge.md)）。
 
 ## 文件與教學
 
@@ -247,7 +248,9 @@ pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的
 
 ## 給開發的人
 
-用 `git clone`：發佈 ZIP、安裝程式、GitHub 的 Download ZIP 都不帶 `tests/`、`evals/`、`docs/lab/` 這類開發用的檔案
+**先讀 [docs/HANDOFF.md](docs/HANDOFF.md)**（全貌、架構、目錄地圖、雲端 session 注意事項）與 [docs/development.md](docs/development.md)（Linux／Windows 建環境、跑測試、不用金鑰的開發設定、交 PR、開發 pack、改核心的規則）；AI 程式助理的短版規則在 [AGENTS.md](AGENTS.md)。
+
+用 `git clone`：發佈 ZIP、安裝程式、GitHub 的 Download ZIP 都不帶 `tests/`、`evals/`、`docs/lab/`、上面這幾份交接文件這類開發用的檔案
 （清單在 `scripts/make_zip.py` 的 `INTERNAL`）。
 
 ```

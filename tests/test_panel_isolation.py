@@ -213,7 +213,7 @@ def fake_adopt(monkeypatch):
     calls = {"stage": [], "install": []}
     mod = types.ModuleType("synox.packs.adopt")
 
-    def stage_unlocked(name, packs_dir, data_dir):
+    def stage_unlocked(name, packs_dir, data_dir, config=None):
         calls["stage"].append((name, packs_dir, data_dir))
         if name == "bad":
             raise GateRefused("⛔ 被改過", {"name": "bad", "signature": {"status": "invalid"}})
@@ -223,7 +223,7 @@ def fake_adopt(monkeypatch):
                                "signature": {"status": "none", "label": "⚠️ 不是官方"}}
 
     def install(token, data_dir, packs_dir, approved_by=None, via="web", trust=None, trust_publisher=None,
-                runtime=None):
+                runtime=None, accept_warnings=None):
         calls["install"].append({"token": token, "approved_by": approved_by, "via": via})
         return "money"
 

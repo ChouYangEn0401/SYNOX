@@ -1,5 +1,9 @@
 """
-排程器：每 30 秒掃一次 data/schedule.json(.enc)（伺服器版：每個人的 data/users/<id>/schedule.json.enc），到點就做。
+排程器：掃 data/schedule.json(.enc)（伺服器版：每個人的 data/users/<id>/schedule.json.enc），到點就做。
+
+- 什麼時候看：**睡到下一件事的時間**（next_wake：最早的到點、延後到的時間、每天型的下一次、/schedule_* 的下一個時刻），
+  最多 CHECK_INTERVAL 秒一定再看一次（別的程式改了檔、電腦睡醒、時鐘被調）。清單一有寫入（新增、延後、改時間）就馬上重看
+  （ScheduleStore.add_listener → runtime 的 poke）。所以到點的提醒在那一秒附近就送出，平常也不用一直讀檔。
 
 - remind（/remind_*）：交給提醒引擎（engine.py，docs/adr/0029 §3.1）——到點判斷、晚了照響、錯過怎麼說、
   送達確認與「沒送到不刪」都在那裡；送出走送達層（notify/delivery.py；還沒接上時退回通知中心的舊送法）。
@@ -15,7 +19,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Callable, List, Optional, Tuple
 
 from isdtelekit.core.channel import ROUTINE_CHANNEL, Inbound
@@ -23,7 +27,7 @@ from isdtelekit.core.registry import ROUTINE
 
 from synox.schedule.store import ScheduleStore
 
-CHECK_INTERVAL = 30
+CHECK_INTERVAL = 10            # 最多幾秒一定看一次（平常睡到 next_wake；見上面）
 LATE_MAX_MIN = 60
 ENGINE_ALERT_AFTER = 3          # 提醒引擎連續失敗幾次就直接通知
 MAX_BACKOFF = 60.0              # runtime 任務的失敗退避上限（秒）：提醒不能等 30 分鐘
@@ -45,6 +49,7 @@ class ScheduleRunner:
         self.store = store
         self._clock = clock
         self._stop = threading.Event()
+        self._wake = threading.Event()        # 沒有 runtime 的舊組法：清單變了叫醒自己的執行緒
         self._thread: Optional[threading.Thread] = None
         config = getattr(app, "extras", {}).get("synox_config") or getattr(app, "config", None)
         self.engine = ReminderEngine(store, lambda msg: app_deliver(app, msg),
@@ -65,14 +70,80 @@ class ScheduleRunner:
 
     def stop(self) -> None:
         self._stop.set()
+        self._wake.set()
+
+    def poke(self) -> None:
+        """清單變了（沒有 runtime 的舊組法用；有 runtime 時是 loop.poke）。"""
+        self._wake.set()
 
     def _loop(self) -> None:
         while not self._stop.is_set():
+            self._wake.clear()
             try:
                 self.tick()
             except Exception:
                 logging.exception("[SCHEDULE] tick failed")
-            self._stop.wait(CHECK_INTERVAL)
+            self._wake.wait(self.sleep_for())
+
+    def sleep_for(self, now: Optional[float] = None) -> float:
+        """這一輪做完要睡幾秒：到 next_wake，最多 CHECK_INTERVAL、最少 0.02。"""
+        now = time.time() if now is None else now
+        at = self.next_wake_ts()
+        if at is None:
+            return float(CHECK_INTERVAL)
+        return max(0.02, min(float(CHECK_INTERVAL), at - now))
+
+    # ── 下一件事幾點 ──────────────────────────────────────────────────
+
+    def next_wake(self, now: Optional[datetime] = None) -> Optional[datetime]:
+        """提醒引擎的下一件事（engine.next_wake）與 /schedule_* 的下一個時刻，取早的；都沒有＝None。
+        哨兵在跑提醒引擎時（主程式這一輪不跑）不算提醒的，只算指令的。"""
+        now = now or self._clock()
+        best = None
+        try:
+            from synox.notify import delivery
+            if delivery.is_engine(self.app):
+                best = self.engine.next_wake(now)
+        except Exception:
+            logging.exception("[SCHEDULE] cannot work out the next reminder time")
+        for at in self._command_times(now):
+            if best is None or at < best:
+                best = at
+        return best
+
+    def next_wake_ts(self, now: Optional[datetime] = None) -> Optional[float]:
+        at = self.next_wake(now)
+        if at is None:
+            return None
+        from synox.schedule import reminder as R
+        return R.aware(at).timestamp()
+
+    def _command_times(self, now: datetime) -> List[datetime]:
+        """每個 /schedule_* 指令下一次的時刻（> now；同 _late_min 的規則：今天做過的、不是今天的一次性的看明天／那天）。"""
+        from synox.schedule import reminder as R
+        now_aware = R.aware(now)
+        naive = now_aware.astimezone(R.local_tz()).replace(tzinfo=None)
+        out = []
+        try:
+            stores = self.store.all_stores()
+        except Exception:
+            return out
+        for store in stores:
+            try:
+                items = store.items("command")
+            except Exception:
+                continue
+            for it in items:
+                slot = self._slot(it, naive)
+                if slot is None:
+                    continue
+                if not it.get("date") and (slot <= naive or
+                                           it.get("last_run") == slot.strftime("%Y-%m-%d")):
+                    slot = slot + timedelta(days=1)
+                at = R.aware(slot)
+                if at > now_aware:
+                    out.append(at)
+        return out
 
     # ── /schedule_*（指令）的到點判斷：格式不變 ──────────────────────────────
 

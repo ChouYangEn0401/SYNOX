@@ -162,8 +162,9 @@ def fit(messages: Sequence[Message], limit: int, *, reserve: int = 0, start: Opt
 
 
 def note_text(*, limit: int, dropped_turns: int = 0, omitted_results: int = 0, cut_chars: int = 0,
-              soul_dropped: bool = False, over: bool = False, capped: Sequence[str] = ()) -> str:
-    """這一輪結束時給使用者的一則提醒（不進對話記憶）；什麼都沒截＝""。"""
+              soul_dropped: bool = False, over: bool = False, capped: Sequence[str] = (), source: str = "config") -> str:
+    """這一輪結束時給使用者的一則提醒（不進對話記憶）；什麼都沒截＝""。
+    source：config＝預算來自 llm.context_size；server＝來自伺服器實際載入的 context（LM Studio／vLLM）。"""
     parts = []
     if dropped_turns:
         parts.append(f"較舊的 {dropped_turns} 輪對話")
@@ -177,11 +178,13 @@ def note_text(*, limit: int, dropped_turns: int = 0, omitted_results: int = 0, c
         parts.append("太長的工具結果（" + "、".join(dict.fromkeys(capped)) + "）的中間部分")
     if not parts and not over:
         return ""
-    head = f"⚠️ 對話超過 context 預算（llm.context_size={limit}），這一輪交給 AI 時省略了：" if parts else \
-        f"⚠️ 對話超過 context 預算（llm.context_size={limit}）"
+    where = f"模型實際載入的 context {limit}" if source == "server" else f"llm.context_size={limit}"
+    head = f"⚠️ 對話超過 context 預算（{where}），這一輪交給 AI 時省略了：" if parts else \
+        f"⚠️ 對話超過 context 預算（{where}）"
     text = head + "、".join(parts) + "。"
     if over:
-        text += "省略之後仍然太長，模型可能沒看到全部：把 llm.context_size 調大，或少裝幾個工具。"
+        text += ("省略之後仍然太長，模型可能沒看到全部：把模型重新載入成更大的 context（設定頁按「看建議」），或少裝幾個工具。"
+                 if source == "server" else "省略之後仍然太長，模型可能沒看到全部：把 llm.context_size 調大，或少裝幾個工具。")
     return text
 
 

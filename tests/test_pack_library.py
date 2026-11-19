@@ -96,7 +96,7 @@ def _staged(bot):
 
 def test_constants_are_the_fixed_official_source():
     assert catalog.OFFICIAL_INDEX_URL == \
-        "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.2.0/index.json"
+        "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/v0.3.1/index.json"
     assert catalog.DOWNLOAD_PREFIX == "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/download/"
     assert catalog.RELEASES_PAGE == "https://github.com/ChouYangEn0401/SYNOX_Libs/releases"
     assert set(catalog.REDIRECT_HOSTS) == {"github.com", "objects.githubusercontent.com",
@@ -421,3 +421,32 @@ def test_library_ui_never_builds_urls_from_input_and_uses_text_content():
     assert "/api/packs/library/install" in lib_js and "showReview(" in lib_js       # 同一份報告、同一個確認鈕
     assert "/api/packs/install" not in lib_js                                     # 不自己按確認
     assert "https://" not in lib_js                                               # 連結一律用伺服器給的（寫死在 catalog.py）
+
+
+# ── 工具庫：index.json 的 requires 不合這台的 SYNOX／SDK ─────────────────────
+
+def _lib(requires):
+    entry = {"name": "notes", "title": "📒 隨手記", "version": "0.2.0", "file": "notes-0.2.0.synoxpack",
+             "sha256": "a" * 64, "size": 100, "stage": "beta", "requires": requires}
+    return catalog.parse_index(json.dumps({"library_version": "0.3.1", "packs": [entry]}).encode())
+
+
+def test_library_new_version_that_needs_a_newer_synox_is_not_offered_as_an_update():
+    lib = _lib({"synox": ">=99.0", "sdk": ">=0.2,<0.3"})
+    card = catalog.card(lib.tools[0], installed="0.1.0")
+    assert card["newer"] is False                                   # 「更新到 v…」不出現
+    assert "SYNOX" in card["blocked"] and ">=99.0" in card["blocked"]
+    assert any(b["tone"] == "bad" and "SYNOX" in b["hint"] for b in card["badges"])
+    assert catalog.updates(lib, {"notes": "0.1.0"}) == []            # 「有 N 個可以更新」不算它
+
+
+def test_library_compatible_new_version_is_offered():
+    lib = _lib({"synox": ">=0.2", "sdk": ">=0.2,<0.3"})
+    card = catalog.card(lib.tools[0], installed="0.1.0")
+    assert card["newer"] is True and card["blocked"] == ""
+    assert [u["name"] for u in catalog.updates(lib, {"notes": "0.1.0"})] == ["notes"]
+
+
+def test_library_entry_without_requires_still_works():
+    lib = _lib(None)
+    assert catalog.card(lib.tools[0], installed="0.1.0")["newer"] is True

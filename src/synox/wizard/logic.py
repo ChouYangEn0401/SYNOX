@@ -4,7 +4,8 @@
     mode = "personal"                                          第 1 頁：這台給誰用（personal｜server）
     llm, err = llm_settings("keys", provider="openai", api_key="sk-…")     第 4 頁：AI
     cfg = build_config(token, owner_id, llm, mode=mode)
-    save(path, cfg)                   # 金鑰進保管箱（data/secrets.json.enc），config.json 只寫 "vault:llm_api_key"
+    save(path, cfg)                   # 金鑰、Telegram token 進保管箱（data/secrets.json.enc），config.json 只寫
+                                      # "vault:llm_api_key"、"vault:telegram_bot_token"
 
 AI 頁的三種選擇：claude_code（預設：這台電腦登入的 Claude Code）｜keys（其他金鑰來源：OpenAI、Anthropic、
 Gemini、相容端點）｜none（先不用 AI）。舊的 friend／own 仍然收（= keys）。
@@ -82,11 +83,12 @@ def local_defaults(server: str = "ollama") -> dict:
 
 
 def local_advice(server: str = "ollama", base_url: str = "", model: str = "", *, prompt_chars=None,
-                 max_tokens: int = 1024, opener=None, ram=None) -> dict:
+                 max_tokens: int = 1024, opener=None, ram=None, api_key: str = "") -> dict:
     """context-size 建議（唯讀探測＋這台的記憶體；連不上退回靜態表）。精靈、文字版 init、網頁設定頁共用。"""
     from synox.llm.local import SERVERS, LocalAdapter
     server = server if server in SERVERS else "ollama"
-    adapter = LocalAdapter(model, server=server, base_url=base_url, max_tokens=max_tokens, opener=opener)
+    adapter = LocalAdapter(model, server=server, base_url=base_url, max_tokens=max_tokens, opener=opener,
+                           api_key=api_key)
     return adapter.advice(prompt_chars=prompt_chars, ram=ram)
 
 
@@ -237,6 +239,10 @@ def with_weekly_updates(cfg: dict, weekly: bool) -> dict:
 
 
 def write_config(path: str, cfg: dict) -> None:
+    """寫 config.json：一律寫目前的格式、蓋上目前的 schema_version（舊內容先在記憶體裡跑完遷移步驟，synox/datastore/core.py）；
+    手上這份是較新版本寫的 → 丟 TooNewError、不寫（ADR 0044：不拿舊格式蓋掉新資料）。"""
+    from synox.datastore import core as data_core
+    cfg = data_core.CONFIG.upgrade_data(cfg, os.path.basename(path))
     folder = os.path.dirname(os.path.abspath(path))
     os.makedirs(folder, exist_ok=True)
     tmp = path + ".tmp"
@@ -255,22 +261,51 @@ def read_existing(path: str) -> dict:
         return {}
 
 
+def _vault_opener_for(path: str):
+    """照 cfg 的 data_dir、vault.mode 開保管箱（不解 bot_token：它可能就是要存進去的那個）。"""
+    from synox.config import vault_settings
+    from synox.vault import open_vault
+
+    def opener(c):
+        return open_vault(vault_settings(c, os.path.dirname(os.path.abspath(path))))
+    return opener
+
+
 def save(path: str, cfg: dict, vault_opener=None) -> dict:
-    """寫 config.json。llm.api_key 是明文時先存進保管箱，config 裡換成 "vault:llm_api_key"（"env:名字" 照原樣）。回寫進去的那份。"""
+    """寫 config.json。llm.api_key、bot_token（Telegram）是明文時先存進保管箱，config 裡換成
+    "vault:llm_api_key"／"vault:telegram_bot_token"（"env:名字"、已經是 "vault:…" 的照原樣）。回寫進去的那份。"""
+    from synox import telegram_token
     cfg = json.loads(json.dumps(cfg))
     key = (cfg.get("llm") or {}).get("api_key", "")
-    if key and not str(key).startswith((VAULT_PREFIX, "env:")):       # env:名字＝讀環境變數，本身不是金鑰
-        if vault_opener is None:
-            from synox.config import SynoxConfig
-            from synox.vault import open_vault
-
-            def vault_opener(c):
-                return open_vault(SynoxConfig.from_dict(c, require_token=False,
-                                                        root=os.path.dirname(os.path.abspath(path))))
-        vault_opener(cfg).set_secret(SECRET_NAME, key)
-        cfg["llm"]["api_key"] = VAULT_PREFIX + SECRET_NAME
+    plain_key = bool(key) and not str(key).startswith((VAULT_PREFIX, "env:"))   # env:名字＝讀環境變數，本身不是金鑰
+    token = str(cfg.get("bot_token") or "").strip() if telegram_token.is_plaintext(cfg.get("bot_token")) else ""
+    if plain_key or token:
+        vault = (vault_opener or _vault_opener_for(path))(cfg)
+        if plain_key:
+            vault.set_secret(SECRET_NAME, key)
+            cfg["llm"]["api_key"] = VAULT_PREFIX + SECRET_NAME
+        if token:
+            telegram_token.store(cfg, token, vault)
     write_config(path, cfg)
+    if token:
+        telegram_token.scrub_siblings(path, token)          # 以前留下的 config.json.bak 之類也不留明文
     return cfg
+
+
+def existing_telegram_token(existing: dict, vault_opener=None, config_path: str = "") -> str:
+    """重跑精靈／init：舊 config 的 bot_token → 真正的 token（「沿用舊的」、畫面預先填好用）。
+    參照解不開＝空字串（當作沒填，請人再貼一次）；明文照原樣（save 時會搬進保管箱）。"""
+    from synox import telegram_token
+    value = (existing or {}).get("bot_token")
+    if not telegram_token.is_reference(value):
+        return str(value or "").strip()
+    opener = vault_opener or _vault_opener_for(config_path or os.path.join(os.getcwd(), "config.json"))
+    try:
+        return telegram_token.resolve(value, opener=lambda: opener(existing))
+    except telegram_token.TokenUnavailable as e:
+        import logging
+        logging.warning("[WIZARD] %s", e)
+        return ""
 
 
 def local_owner_id() -> int:
@@ -294,13 +329,7 @@ def save_discord_token(config_path: str, cfg: dict, token: str, vault_opener=Non
     if "bots" in old:        # 多 bot 寫法跟 bot_token 不能並存（synox.discord.bots.parse）；不替使用者改
         # 先檢查再動保管箱：bots 的 default bot 也用 discord_bot_token 這個名字，不能被蓋掉
         raise ValueError("config.json 的 channels.discord 已經用 bots 寫法（多個 bot）：請直接改 config.json，精靈不動它。")
-    if vault_opener is None:
-        from synox.config import SynoxConfig
-        from synox.vault import open_vault
-
-        def vault_opener(c):
-            return open_vault(SynoxConfig.from_dict(c, require_token=False,
-                                                    root=os.path.dirname(os.path.abspath(config_path))))
+    vault_opener = vault_opener or _vault_opener_for(config_path)
     vault_opener(cfg).set_secret(VAULT_NAME, token.strip())
     channels["discord"] = {**old, "enabled": True, "bot_token": f"vault:{VAULT_NAME}"}   # 重跑精靈不洗掉其他設定
     cfg["channels"] = channels

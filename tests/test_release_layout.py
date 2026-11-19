@@ -27,6 +27,8 @@ def test_zip_ships_tools_next_to_synox(tmp_path):
     assert "SYNOX/Setup.bat" in names and "SYNOX/src/synox/config.py" in names
     assert not any(n.startswith(("SYNOX/data/", "SYNOX/.venv/")) or n.endswith("/config.json") for n in names)
     assert not any(n.startswith(("SYNOX/tests/", "SYNOX/docs/lab/", "SYNOX/.github/workflows/")) for n in names)
+    assert {"SYNOX/README.md", "SYNOX/docs/README.md", "SYNOX/CONTRIBUTING.md"} <= names
+    assert not {"SYNOX/" + rel for rel in DEV_HANDOFF} & names                  # 開發者的交接文件不在 ZIP 裡
 
 
 def test_zip_refuses_tampered_or_unbuilt_tools(tmp_path, capsys):
@@ -61,6 +63,28 @@ NEEDED = ("Setup.bat", "Update.bat", "setup/update.ps1", "Start.bat", "Stop.bat"
           "src/synox/__init__.py", "src/synox/assets/synox.ico", "docs/tutorials/README.md",
           "docs/tutorials/telegram/index.html", "docs/landing/index.html", "docs/versioning.md", "docs/README.md",
           "docs/legacy/connectors.md", "sdk/synox_sdk.py")
+
+
+# 開發者的交接文件：AI 程式助理每次載入的短版規則、交接入口、開發指南、舊的工作交接、待測清單。git clone 才有。
+DEV_HANDOFF = ("AGENTS.md", "CLAUDE.md", "docs/HANDOFF.md", "docs/development.md",
+               "docs/handoff/2026-11-14-session-handoff.md", "HumanTestList.md", "VerifyList.json")
+
+
+def test_developer_handoff_docs_stay_out_but_user_docs_ship():
+    """交接文件不進 ZIP／安裝程式（make_zip.INTERNAL）、GitHub 的 Download ZIP（export-ignore）、
+    舊版裝過的人更新時刪掉（[InstallDelete]）；README、使用者文件、同資料夾裡給真機測試的文件照發。"""
+    shipped = {rel for _src, rel in make_zip.release_files()}
+    attrs = open(os.path.join(ROOT, ".gitattributes"), encoding="utf-8").read().splitlines()
+    removed = {p.replace("\\", "/") for p in install_delete()}
+    for rel in DEV_HANDOFF:
+        assert make_zip.internal(rel) and rel not in shipped, rel
+        assert f"/{rel} export-ignore" in attrs, rel
+        assert rel in removed, rel
+    for rel in ("README.md", "CONTRIBUTING.md", "CHANGELOG.md", "docs/README.md", "docs/tutorials/README.md",
+                "docs/install-packs.md", "docs/security.md", "docs/versioning.md", "docs/AGENT.md",
+                "docs/adr/README.md", "docs/handoff/README.md", "docs/handoff/real-service-testing.md"):
+        assert rel in shipped, rel
+    assert not make_zip.internal("src/synox/AGENTS.md") and not make_zip.internal("docs/x/development.md")
 
 
 def test_release_has_what_users_need_and_nothing_internal():
@@ -115,7 +139,7 @@ def test_installer_update_over_an_older_install_keeps_user_data(tmp_path):
     app = tmp_path / "SYNOX"
     for rel in ("tests/test_x.py", "docs/lab/x.md", "docs/QuestionToUser.md", "evals/a.json", "Connect-Apple.bat",
                 "TRADEMARK.md", ".github/workflows/ci.yml", "config.json", "data/vault.bin", "packs/notes/pack.json",
-                "docs/tutorials/README.md"):
+                "docs/tutorials/README.md") + DEV_HANDOFF:
         (app / rel).parent.mkdir(parents=True, exist_ok=True)
         (app / rel).write_text("old " + rel, encoding="utf-8")
     for name in install_delete():                                   # Inno：[InstallDelete] 在複製檔案之前
@@ -130,8 +154,9 @@ def test_installer_update_over_an_older_install_keeps_user_data(tmp_path):
     for rel in ("config.json", "data/vault.bin", "packs/notes/pack.json"):
         assert (app / rel).read_text(encoding="utf-8") == "old " + rel
     for rel in ("tests", "docs/lab", "docs/QuestionToUser.md", "evals", "Connect-Apple.bat", "TRADEMARK.md",
-                ".github/workflows"):
+                ".github/workflows") + DEV_HANDOFF:
         assert not (app / rel).exists(), rel
+    assert (app / "README.md").is_file() and (app / "docs" / "handoff" / "README.md").is_file()
     assert (app / ".github" / "TRADEMARK.md").is_file() and (app / "Setup.bat").is_file()
     assert (app / "docs" / "tutorials" / "README.md").read_text(encoding="utf-8") != "old docs/tutorials/README.md"
 
@@ -187,6 +212,7 @@ def test_stage_installer_ships_the_pinned_standalone_python(tmp_path):
     assert digest in manifest.splitlines()[0] and "3.12.16" in manifest.splitlines()[0]
     assert str(tmp_path) not in manifest and "tools/index.json" in manifest      # 沒有發佈機的路徑
     assert not (synox / "data").exists() and not (synox / "config.json").exists()
+    assert (synox / "README.md").is_file() and not any((synox / rel).exists() for rel in DEV_HANDOFF)
 
 
 def test_stage_installer_can_fetch_the_pinned_file(tmp_path):

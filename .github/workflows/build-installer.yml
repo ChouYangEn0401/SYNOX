@@ -31,9 +31,9 @@ env:
   PYTHON_VERSION: "3.12.10"
   # Tool library: SYNOX_Libs release asset (index.json + every .synoxpack, under tools/ inside the zip).
   LIBS_REPO: "ChouYangEn0401/SYNOX_Libs"
-  LIBS_TAG: "v0.2.0"
-  LIBS_TOOLS_ZIP: "tools-0.2.0.zip"
-  LIBS_TOOLS_SHA256: "4dc19891f0645bd3ec947cbbcb8297596bf36d107d77797ee671c2d8edcda4fa"
+  LIBS_TAG: "v0.3.1"
+  LIBS_TOOLS_ZIP: "tools-0.3.1.zip"
+  LIBS_TOOLS_SHA256: "971eed2591dd4504f9015e6681dee85c38fbd4d3b775fb05a4519bd09ce53205"
   # Inno Setup 6 (synox.iss is written for 6.x), official installer from the jrsoftware/issrc GitHub release.
   INNO_VERSION: "6.7.4"
   INNO_TAG: "is-6_7_4"
@@ -99,6 +99,16 @@ jobs:
         run: |
           $PSNativeCommandUseErrorActionPreference = $true
           & $env:PY scripts/prepublish_check.py --worktree-only
+
+      - name: Version consistency (pyproject, __version__, CHANGELOG top, installer, docs; newer than every tag)
+        env:
+          PY: ${{ steps.py.outputs.python-path }}
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $cmd = @('scripts/check_version_consistency.py')
+          if ($env:TAG) { $cmd += @('--tag', $env:TAG) }
+          & $env:PY @cmd
 
       - name: Static check of the installer script (12 languages, pages, tasks, texts)
         env:

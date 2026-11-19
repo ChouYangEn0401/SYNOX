@@ -118,9 +118,11 @@ def _telegram_owner(value) -> Optional[int]:
     return n if 0 < n < 10 ** 15 else None
 
 
-def ask_telegram(p: Prompter, token: Optional[str], owner: Optional[str], existing: dict) -> tuple:
-    """回 (token, owner_id)；不接 Telegram＝("", 本機擁有者)。"""
-    old_token = existing.get("bot_token") or ""
+def ask_telegram(p: Prompter, token: Optional[str], owner: Optional[str], existing: dict,
+                 old_token: Optional[str] = None) -> tuple:
+    """回 (token, owner_id)；不接 Telegram＝("", 本機擁有者)。old_token：舊設定解開後的 token
+    （config.json 只寫 "vault:telegram_bot_token"；沒給＝照 existing 原樣）。"""
+    old_token = (existing.get("bot_token") or "") if old_token is None else old_token
     old_owner = _telegram_owner(existing.get("owner_id"))
     if p.interactive and token is None:
         p.out("② Telegram（可以先跳過，只用這台電腦上的網頁；之後再跑一次 init 或 Setup.bat 補上）")
@@ -321,12 +323,22 @@ def install_tools(p: Prompter, lib: library.Library, chosen: list, have: set, *,
             if not publisher:
                 results.append(f"⏭ {entry.name}：沒裝")
                 continue
-        if p.interactive and not publisher and not p.yes(f"裝 {entry.name}？", True):
+        warned = (summary.get("pack_warnings") or {}).get("items") or []      # 作者標的警告（ADR 0041）：逐條確認
+        if warned and not p.interactive:
+            flags = " ".join(f"--accept-warning {w.get('code')}" for w in warned)
+            results.append(f"⏭ {entry.name}：作者標了警告，要你親手確認；用 python -m synox tools install {entry.name} {flags} 裝")
+            continue
+        accepted = [w.get("code") for w in warned
+                    if p.yes(f"⚠️ {w.get('text')}——{w.get('advice') or ''}　我知道，還是要裝 {entry.name}？", False)]
+        if len(accepted) != len(warned):
+            results.append(f"⏭ {entry.name}：有警告沒確認，沒裝")
+            continue
+        if p.interactive and not publisher and not warned and not p.yes(f"裝 {entry.name}？", True):
             results.append(f"⏭ {entry.name}：沒裝")
             continue
         try:
             name = admin.install_staged(token, data_dir, packs_dir, approved_by=owner or "init", via="init",
-                                        trust_publisher=publisher)
+                                        trust_publisher=publisher, accept_warnings=accepted)
         except admin.PackAdminError as e:
             results.append(f"❌ {entry.name}：{e}")
             continue
@@ -343,13 +355,17 @@ def run(args, *, config_path: str, ask=input, secret=getpass.getpass, out=print,
     config_path = os.path.abspath(config_path)
     root = os.path.dirname(config_path)
     p = Prompter(interactive, ask=ask, secret=secret, out=out)
+    if not dry_run:                                  # 舊 config 的明文 Telegram token 先搬進保管箱（搬不成＝不動）
+        from synox import telegram_token
+        telegram_token.migrate(config_path, vault_opener=vault_opener)
     existing = logic.read_existing(config_path)
+    old_token = logic.existing_telegram_token(existing, vault_opener=vault_opener, config_path=config_path)
     out("SYNOX 安裝引導（文字版）" + ("　--dry-run：只印出來，什麼都不寫" if dry_run else ""))
     out(f"設定檔：{config_path}" + ("（已經有了：沒問到的設定照舊）" if existing else ""))
     try:
         mode = ask_mode(p, getattr(args, "mode", None), existing)
         token, owner_id = ask_telegram(p, getattr(args, "telegram_token", None), getattr(args, "owner_id", None),
-                                       existing)
+                                       existing, old_token)
         llm, notes = ask_ai(p, args, existing)
         library_value = ask_library(p, getattr(args, "library", None), root, existing)
         cfg = logic.build_config(token, owner_id, llm, existing=existing, mode=mode)

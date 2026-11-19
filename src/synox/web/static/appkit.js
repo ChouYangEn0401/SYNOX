@@ -13,6 +13,7 @@
   "use strict";
   var TEXT = {
     fromSynox: "請從 SYNOX 打開這個工具。",
+    ticket: "這次沒有接上（打開的連結只能用一次，而且只有 30 秒）。回 SYNOX 再按一次「打開」就好，資料都還在。",
     again: "請從 SYNOX 再打開一次。",
     closed: "這個畫面已經關了。回 SYNOX 再打開一次就好，資料都還在。",
     back: "回 SYNOX",
@@ -76,7 +77,7 @@
       m.setAttribute("role", "alertdialog");
       m.appendChild(el("p", "", text));
       if (consoleUrl && !remote()) {
-        var a = el("a", "btn primary", TEXT.back);
+        var a = el("a", "synox-btn synox-btn-primary", TEXT.back);
         a.href = consoleUrl;
         a.rel = "noopener noreferrer";
         m.appendChild(a);
@@ -157,11 +158,11 @@
       var m = /(?:^#|&)t=([A-Za-z0-9_-]{16,200})/.exec(hash);
       if (m) {
         env.history.replaceState(null, "", "/");           // 票不留在網址列與歷史（先做，再送請求）
-        return request("POST", "/api/enter", { ticket: m[1] }).then(function (d) {
+        return request("POST", "/api/enter", { ticket: m[1] }, { silent: true }).then(function (d) {
           state.token = d.token;
           storage("set", d.token);
           return entered(d.me);
-        }, function () { forget(); mask(TEXT.fromSynox); });
+        }, function (e) { forget(); mask(e && e.code === "network" ? TEXT.closed : TEXT.ticket); });
       }
       state.token = storage("get");
       if (!state.token) { mask(TEXT.fromSynox); return Promise.resolve(); }
@@ -197,18 +198,19 @@
     function drawBar() {
       var me = state.me;
       var bar = el("div", "synox-bar");
-      bar.appendChild(el("strong", "", (me.app && (me.app.app_title || me.app.title)) || ""));
-      bar.appendChild(el("span", "muted", (me.user && me.user.name) || ""));
+      bar.appendChild(el("strong", "synox-title", (me.app && (me.app.app_title || me.app.title)) || ""));
+      bar.appendChild(el("span", "synox-muted", (me.user && me.user.name) || ""));
       if (remote()) {
-        bar.appendChild(el("span", "badge write", TEXT.remoteNote));
-        if (me.remote_until) { bar.appendChild(el("span", "muted", fill(TEXT.remoteUntil, { t: fmt.time(me.remote_until) }))); }
+        bar.appendChild(el("span", "synox-badge", TEXT.remoteNote));
+        if (me.remote_until) { bar.appendChild(el("span", "synox-muted", fill(TEXT.remoteUntil, { t: fmt.time(me.remote_until) }))); }
       } else if (me.console_url) {
-        var a = el("a", "", TEXT.back);
+        var a = el("a", "synox-link", TEXT.back);
         a.href = me.console_url;
         a.rel = "noopener noreferrer";
         bar.appendChild(a);
       }
-      var leave = el("button", "btn ghost", TEXT.leave);
+      var leave = el("button", "synox-btn synox-btn-ghost", TEXT.leave);
+      leave.type = "button";
       leave.addEventListener("click", function () {
         request("POST", "/api/leave", {}, { silent: true }).catch(function () {});
         forget();
@@ -216,7 +218,8 @@
       });
       bar.appendChild(leave);
       if (me.user && me.user.owner) {
-        var close = el("button", "btn danger", remote() ? TEXT.closeRemote : TEXT.closeService);
+        var close = el("button", "synox-btn synox-btn-danger", remote() ? TEXT.closeRemote : TEXT.closeService);
+        close.type = "button";
         close.addEventListener("click", function () {
           confirmBox(remote() ? TEXT.closeRemoteAsk : TEXT.closeAsk, remote() ? TEXT.closeRemote : TEXT.closeService)
             .then(function (yes) {
@@ -227,7 +230,7 @@
         });
         bar.appendChild(close);
       }
-      bar.appendChild(el("small", "muted", TEXT.note));
+      bar.appendChild(el("small", "synox-muted", TEXT.note));
       doc.body.insertBefore(bar, doc.body.firstChild);
       state.bar = bar;
     }

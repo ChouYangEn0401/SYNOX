@@ -1,0 +1,20 @@
+#!/bin/sh
+# SYNOX pre-push check: before anything leaves this machine, scripts/prepublish_check.py --pre-push looks at the
+# WHOLE tree of every pushed commit and at every commit (message, author, new files) the remote does not have yet:
+# secrets, local paths, personal e-mails, sensitive file names, and the maintainer's private terms.
+#
+# Install (once per clone; every worktree of the clone shares it):
+#   cp scripts/hooks/pre-push .git/hooks/pre-push          (or call this file from your own pre-push hook)
+# The private term list is NOT in the repo: put it in .git/info/synox-private-terms.txt (see docs/AGENT.md,
+# "公開前檢查清單"). Without the list the push is refused. Skipping the check (git push --no-verify) is the
+# maintainer's decision only.
+root=$(git rev-parse --show-toplevel) || exit 1
+for py in "$root/.venv/Scripts/python.exe" "$root/.venv/bin/python" "$(command -v python3)" "$(command -v python)"; do
+  [ -n "$py" ] && [ -x "$py" ] && break
+  py=""
+done
+if [ -z "$py" ]; then
+  echo "pre-push: no Python found, push refused." >&2
+  exit 1
+fi
+exec "$py" -I "$root/scripts/prepublish_check.py" --repo "$root" --pre-push "$1" "$2"
