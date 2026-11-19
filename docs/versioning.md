@@ -13,7 +13,7 @@
 
 | 長相 | 叫什麼 | 給誰 | 你該不該裝 |
 |---|---|---|---|
-| `0.2.2` | **正式版** | 所有人 | ✅ 裝這個。介紹頁的「⬇ 下載 SYNOX」、GitHub 的 `main` 永遠是最新的正式版 |
+| `0.2.2` | **正式版** | 所有人 | ✅ 裝這個。有了正式版之後，介紹頁的「⬇ 下載 SYNOX」、GitHub 的 `main` 就是最新的正式版（還沒有正式版的現在，它們是最新發佈的預覽版，見 §8） |
 | `0.2.2-beta.1` | **測試版（beta）** | 願意幫忙試用、回報問題的人 | 想先試新東西再裝；平常在用、不想遇到問題就等正式版 |
 | `0.2.2-alpha.1` | **內部測試版（alpha）** | SYNOX 團隊自己 | ❌ 一般人不要裝 |
 
@@ -218,8 +218,11 @@ main ── hotfix/0.2.3 ──(bump patch)──► main ── tag v0.2.3 ─�
 - **`dev`**：每天開發。帶著下一版的號碼與 `## X（未發佈）`（§3）；每個分支在 `CHANGELOG.md` 最上面加一節 `## 未發佈（分支或主題）`。
 - **`release/X.Y.Z`**：要發版時從 `dev` 切出來。之後只收修正（修正也要合回 `dev`），不收新功能。alpha／beta 的 tag 打在這條分支上。
   **發版的 commit 一定要合回 `dev`**（不然 `dev` 的 CHANGELOG 會少那一節，像 `0.2.1-beta.2` 那次）。
-- **`main`：只在發正式版時動**。`main` 的最新一個 commit 永遠是某個 `vX.Y.Z` tag——所以介紹頁的「⬇ 下載 SYNOX」（`main` 的 ZIP）
-  一定是最新正式版。不在 `main` 上直接 commit；alpha／beta 不進 `main`。
+- **`main`：只在發佈時動**。`main` 的最新一個 commit 永遠是某個發佈出去的 tag——所以介紹頁的「⬇ 下載 SYNOX」（`main` 的 ZIP）
+  一定是最新的發佈。不在 `main` 上直接 commit。
+  - **alpha 階段（現在，還沒有正式版）**：擁有者 2026-11-19 決定 `main` 跟著最新的發佈走，預覽版也算——每發一版（alpha／beta），
+    發佈之後把 `release/X.Y.Z` 用 `git merge --no-ff` 合進 `main`（同時合回 `dev`）。所以這段時間介紹頁下載到的是最新的預覽版。
+  - **有了正式版之後**：要不要回到「`main` 只在正式版動、alpha／beta 不進 `main`」由維護者決定；決定之前照上一條。
 - **`hotfix/X.Y.Z`**：正式版有急著修的問題（尤其安全）時，從 `main`（最新的 tag）切出來，只修那一件 → `bump patch` → 合進 `main`、打 tag、
   發佈 → **一定要合回 `dev`**（還有開著的 `release/…`），不然下一版會把修正弄丟。合回 `dev` 時 CHANGELOG 可能衝突：兩邊都留，
   hotfix 那一節放在 `dev` 的 `## X（未發佈）` 下面（`dev` 的號碼本來就比 hotfix 新）。
@@ -274,7 +277,7 @@ python scripts/release.py bump alpha --planned # dev → 0.2.3-alpha.1（未發�
 
 | 東西 | 版本寫在哪 | 現在 | 怎麼發 |
 |---|---|---|---|
-| **SYNOX 本體** | `pyproject.toml`＋`src/synox/__init__.py` | `dev`：`0.2.2-alpha.1`（未發佈）；最新 tag `v0.2.1-beta.2` | 這份文件；tag `vX.Y.Z`（SYNOX repo） |
+| **SYNOX 本體** | `pyproject.toml`＋`src/synox/__init__.py` | `0.2.2-alpha.1`（2026-11-19，`release/0.2.2`，tag `v0.2.2-alpha.1`）；上一個 tag `v0.2.1-beta.2` | 這份文件；tag `vX.Y.Z`（SYNOX repo） |
 | **SDK**（給工具的介面合約） | 只寫在 `src/synox/sdk/author.py` 的 `SDK_VERSION`；`sdk/synox_sdk.py`、`sdk/pyproject.toml`（`synox-sdk` 套件）都讀它 | 0.2.5 | **跟著 SYNOX 一起發**（在 `sdk/` 裡），沒有自己的 tag／PyPI。不相容的改動升 MINOR（0.x），只加 API 升 PATCH（[sdk.md](sdk.md)「SDK 版本」） |
 | **工具庫 SYNOX_Libs** | 另一個 repo；`VERSION`、每個工具 pack.json 的 `version`；發佈頁的 `index.json`（名字、版本、`requires`、sha256）與 `tools-<版本>.zip` | `v0.3.1`（安裝程式帶 `tools-0.3.1.zip`；網頁工具庫讀 `v0.3.1` 的 `index.json`；都還是 pre-release） | 自己的 tag 與 release。SYNOX 的網頁工具庫固定讀 `OFFICIAL_INDEX_URL`（釘一個 tag；工具庫標成 Latest 之後改成 `latest/download`，[release-playbook.md](release-playbook.md) 第 2 節），安裝程式的 workflow 釘 `LIBS_TAG`／sha256 |
 
