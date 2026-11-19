@@ -23,6 +23,26 @@
 - 真機清單 [docs/testing/sandbox-real-machine-checklist.md](docs/testing/sandbox-real-machine-checklist.md)（全部勾完才算過關）、
   交接書 [docs/handoff/sandbox-real-machine.md](docs/handoff/sandbox-real-machine.md)、待決定的題目（S3、S5）在 `docs/handoff/open-questions/`。
 
+## 未發佈（branch feat/theme-token-check：外觀的顏色只宣告一次、舊外觀包向前相容、套用檢查，ADR 0042）
+
+#### 新增
+- **套用檢查**：安裝外觀包的報告、「設定 → 外觀」的每一張卡多一份清單——每個顏色 token（淺色、深色分開）是「外觀包有給」
+  「沒給 → 用外觀包自己的顏色算」「沒給 → 沿用 SYNOX 預設」「給了但這版 SYNOX 不認得 → 忽略」，每個吉祥物／開場位置是有換還是沒換。
+  預設只顯示摘要與要注意的，展開看全部。只是提示，不擋套用。
+- 終端機：`synox install <檔> --details` 列每一項；新指令 `synox packs theme-check <名字或資料夾> [--details] [--json]`
+  （`--json` 給 AI；結束碼 0＝沒有要注意的、10＝有、2＝不是外觀包）。
+
+#### 改變
+- **SYNOX 的顏色只在 `synox/theme/contract.py` 宣告一次**：網頁 `app.html` 的 `:root` 改成送出時產生（值跟以前一樣），
+  登入的小頁、預覽頁、電腦提醒視窗也從那裡拿。工具服務的 `kit.css`、手機入口的樣式還是副本，加了「值要對得上」的測試。
+- **舊外觀包遇到新版 SYNOX 不會壞**：一定要給的只有合約第 1 版的核心 12 色；以後加的 token 都選填，沒給的沿用 SYNOX 的預設。
+- **外觀包比 SYNOX 新也能裝**：不認得的 token、位置（slot）名字，和值裡用到不認得的 `var(--x)` 的那一個，以前整包拒裝，
+  現在忽略那一項並在報告上標「要注意」。值本身不合（網址、程式…）照樣拒裝。
+- 外觀的預覽頁先墊 SYNOX 原本的顏色（以前「原本的 SYNOX」的預覽是用算的，跟真的網頁有一點點不同）。
+
+#### 文件
+- ADR 0042；`docs/themes.md` 的 token、安裝與套用、改合約；真機清單 [docs/testing/theme-apply-checklist.md](docs/testing/theme-apply-checklist.md)。
+
 ## 未發佈（branch feat/pack-warnings-v2：pack.json 的標記警告，ADR 0041）
 
 #### 新增

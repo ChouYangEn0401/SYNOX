@@ -11,11 +11,21 @@ SYNOX 預設是原本的樣子（S 寶寶、藍綠色）。**外觀包**（`.syn
 - 只影響網頁。Telegram、Discord 是純文字，不受影響。
 
 程式：`src/synox/theme/`（`contract.py` 名字、`sanitize.py` 消毒、`tokens.py`、`pack.py` 外觀包、`appearance.py` 設定與存檔），
-網頁：`static/slots.js`（把 slot 內容放到畫面上）、`static/app.html` 最上面的 token、設定頁「🎨 外觀」。
+網頁：`static/slots.js`（把 slot 內容放到畫面上）、`static/app.html` 最上面的 token（送出時由 `contract.py` 填）、設定頁「🎨 外觀」。
+
+**SYNOX 的顏色只在 `src/synox/theme/contract.py` 宣告一次**（`DEFAULTS`：外觀包可以換的；`FIXED`：陰影、暗幕這種換不到的；ADR 0042）。
+網頁的 `:root`、登入的小頁、預覽頁、電腦提醒視窗都從那裡拿；app.html 裡不寫顏色。
 
 ## token（合約第 1 版）
 
-外觀包的 `theme.tokens.light` 與 `theme.tokens.dark` **都要給齊核心 12 色**；其他選填。名字可以寫 `bg` 或 `--bg`。
+外觀包的 `theme.tokens.light` 與 `theme.tokens.dark` **都要給齊核心 12 色**（合約第 1 版的那 12 個，`contract.REQUIRED_COLORS`，以後不會變多）；
+其他選填。名字可以寫 `bg` 或 `--bg`。
+
+**向前相容（ADR 0042）**：
+
+- SYNOX 以後加的 token 一律選填。舊外觀包沒給的：能從它的顏色算的就算（`DERIVED`），不能算的**沿用 SYNOX 的預設**，等外觀包更新。
+- 外觀包比 SYNOX 新：不認得的 token、slot 名字，和值裡用到不認得的 `var(--x)` 的那一個 token，**忽略並在報告上記一條**，整個外觀照樣能用。
+  值本身不合（網址、程式…）照樣拒裝。
 
 | token | 用在哪 | 原本（淺色／深色） |
 |---|---|---|
@@ -149,6 +159,11 @@ SVG 裡的 `<style>` 拿出來，每個選擇器自動套上 `[data-slot="<slot>
 2. 報告上有淺色／深色的色票，和兩格預覽（假的對話畫面＋全部吉祥物＋開場）。信任層級固定 **T0（只有宣告）**，但一樣要按確認。
 3. 裝好**不會自己套用**：到「設定 → 🎨 外觀」挑它、看預覽、按「套用」。隨時可以按「換回原本的 SYNOX」。
 4. 同時只會套一個外觀包。
+5. **套用檢查**（ADR 0042，只是提示，不擋套用）：安裝報告與「外觀」的每一張卡都有一份清單——每個 token（淺色、深色分開）是
+   「外觀包有給」「沒給 → 用外觀包自己的顏色算」「沒給 → 沿用 SYNOX 預設」「給了但這版 SYNOX 不認得 → 忽略」，每個 slot 是有換／沒換。
+   預設只顯示摘要與「要注意」的（忽略的、顏色只能用 SYNOX 預設的），按「展開看每一項」看全部。
+   終端機：`synox install <檔> --details`；裝好的用 `synox packs theme-check <名字或資料夾> [--details] [--json]`
+   （`--json` 給 AI／程式看；結束碼 0＝沒有要注意的、10＝有、2＝不是外觀包）。
 
 ## 衣櫃（SYNOX 衣櫃：在 SYNOX 裡面挑、裝）
 
@@ -222,5 +237,6 @@ SVG 裡的 `<style>` 拿出來，每個選擇器自動套上 `[data-slot="<slot>
 
 ## 改合約
 
-加 token 或 slot：改 `src/synox/theme/contract.py`（slot 也要在 `static/slots.js` 的 `NAMES` 與網頁上放 `data-slot`），
+加 token 或 slot：改 `src/synox/theme/contract.py`（token 的名字進表、預設值進 `DEFAULTS`——淺色一定要有，網頁的 `:root` 自己會多一行；
+新 token **不要**加進 `REQUIRED_COLORS`；slot 也要在 `static/slots.js` 的 `NAMES` 與網頁上放 `data-slot`），
 `tests/test_theme.py` 會比對兩邊。改名、刪名照 `contract.py` 開頭的相容規則（舊名字留至少一個 MINOR、`RENAMED_*`）。
