@@ -103,11 +103,13 @@ ADR 0022 的「Gate 1」是擁有者對決定 1–35 的答覆（第 11 節）�
 | pack.json 有 `runtime.container`、擁有者在安裝報告「🧱 執行環境」選了容器、這台 PATH 上有 podman／docker | `container`（任何平台，含 Windows 的 Docker Desktop） | **算**：`--read-only`、`--cap-drop ALL`、`no-new-privileges`、只掛 pack 與它的資料夾；沒宣告 `network` 才 `--network none` | `box_for`、`ContainerSandbox.wrap` |
 | `kind=python` | 在 SYNOX 自己的程序裡跑 | **任何後端都包不到** | `sandbox.required` 的說明、ADR 0022 §6.6 |
 
-另外：`required()`／`restricted_reason()`（伺服器版沒有真隔離時「只給擁有者」）只看 trust 與 T2，**不看 `warnings`**；個人版完全不受這條影響。
+另外：`required()`／`restricted_reason()`（伺服器版沒有真隔離時「只給擁有者」）原本只看 trust 與 T2，不看 `warnings`；
+2026-11-19 的 S2（見 5.4）之後也看 `vendor_no_security_guarantee`。個人版完全不受這條影響。
 
 ### 5.3 結論
 
-1. **現在 SYNOX 不會因為這個警告就把 pack 關進 sandbox。** 警告做的事是「每個地方都顯示＋第一次要人確認」（第 3、4 節）；執行時用哪個後端，跟沒有警告的 pack 一樣。
+1. **現在 SYNOX 不會因為這個警告就把 pack 關進 sandbox。** 警告做的事是「每個地方都顯示＋第一次要人確認」（第 3、4 節）；執行時用哪個後端，跟沒有警告的 pack 一樣
+   （S2 之後的例外：伺服器版沒有真隔離時只給擁有者，見 5.5）。
 2. **在 Windows 個人版（目前主要的使用者），SYNOX 本身沒有任何一條路能照「在 sandbox 執行」做到**：設定頁「沙盒模式」那張卡也照實寫「⏳ 尚未完成」、doctor 寫「真隔離：否」。
 3. **「docker」那半句跟現有機制一致，但有前提**：pack 要自己在 pack.json 宣告 `runtime.container`，擁有者安裝時選「用容器」，這台要有 podman／docker。沒有 `runtime.container` 的 pack，SYNOX 沒辦法替它開容器。
 4. 拿 DesktopAgent 的 `web-ddgs`（`kind=cli`、`capabilities` 有 `network`、**沒有** `runtime.container`）對照：SYNOX 跑的是 pack 自己的 `ddgs_cli.py`，用這台的後端（Windows 個人版＝`none`）；
@@ -116,15 +118,32 @@ ADR 0022 的「Gate 1」是擁有者對決定 1–35 的答覆（第 11 節）�
 5. 所以建議字本身沒有錯（它是作者的字，第 3 節的確認也只代表「我知道了」），風險在使用者可能以為「SYNOX 已經幫我放進 sandbox」。
    `docs/install-packs.md` 這一節已經寫「確認不會讓工具變安全」「安裝報告的『🧱 執行環境』能選容器的就選容器」，跟現況一致。
 
-### 5.4 建議（都還沒做；要擁有者決定）
+### 5.4 建議與進度（2026-11-19：S1、S2、S4 已做，分支 `feat/sandbox-ready`；S3、S5 待擁有者決定）
 
-| # | 建議 | 改的是什麼 | 建議／預設 |
+| # | 建議 | 改的是什麼 | 狀態 |
 |---|---|---|---|
-| S1 | 安裝報告與設定頁在警告下面多一行 **SYNOX 自己畫的實況**：「這台目前沒有沙盒，這個工具會用你的帳號權限跑」／「這個工具有提供容器，可以在『🧱 執行環境』選用容器」／「這個工具在 SYNOX 裡面跑，任何沙盒都包不到」（`sandbox.box_for`＋`container_spec`＋`kind` 算） | 只有顯示文字 | **建議做**（另開分支；字照 ADR 0022 R6、R7：白話，術語放小括號） |
-| S2 | 帶 `vendor_no_security_guarantee` 的 pack 也算 `sandbox.required()` 命中（跟 T2 一樣）：伺服器版沒有真隔離就只給擁有者 | 執行行為（伺服器版） | 建議做；個人版不受影響 |
-| S3 | 隔離做好之後（ADR 0022 決定 17：沒有隔離的電腦上第三方 T2 預設不執行），把這個 code 一起算進去：保護等級「沒有」的電腦上預設不執行，擁有者可以逐個放行 | 執行行為 | 建議，等 MXC／AppContainer 後端做好再做 |
-| S4 | `kind=python`＋`vendor_no_security_guarantee`：暫存時拒，或至少紅字寫「任何沙盒都包不到」 | 安裝行為 | 建議「紅字」（拒裝跟修正 O1「一律可以安裝」衝突） |
-| S5 | 請 pack 作者（例如 `web-ddgs`）在 pack.json 宣告 `runtime.container`，讓 SYNOX 自己的容器路徑能用，而不是只靠 pack 自己的 worker 設定 | 工具庫與作者端 | 建議；SYNOX 這邊不用改 |
+| S1 | 安裝報告與設定頁在警告下面多一行 **SYNOX 自己畫的實況**：「這台目前沒有沙盒，這個工具會用你的帳號權限跑」／「這個工具有提供容器，可以在『🧱 執行環境』選用容器」／「這個工具在 SYNOX 裡面跑，任何沙盒都包不到」（`sandbox.box_for`＋`container_spec`＋`kind` 算） | 只有顯示文字 | **已做**（見 5.5）；真機未驗 |
+| S2 | 帶 `vendor_no_security_guarantee` 的 pack 也算 `sandbox.required()` 命中（跟 T2 一樣）：伺服器版沒有真隔離就只給擁有者 | 執行行為（伺服器版） | **已做**（見 5.5）；個人版不受影響；真機未驗 |
+| S3 | 隔離做好之後（ADR 0022 決定 17：沒有隔離的電腦上第三方 T2 預設不執行），把這個 code 一起算進去：保護等級「沒有」的電腦上預設不執行，擁有者可以逐個放行 | 執行行為 | 待決定：[題目檔](../handoff/open-questions/20261119-121055-s3-warning-default-off-without-isolation.md)（建議等 MXC／AppContainer 後端做好再做） |
+| S4 | `kind=python`＋`vendor_no_security_guarantee`：暫存時拒，或至少紅字寫「任何沙盒都包不到」 | 安裝行為 | **已做：只加紅字**（擁有者定的；拒裝跟修正 O1「一律可以安裝」衝突）；就是 S1 的 python 那一句 |
+| S5 | 請 pack 作者（例如 `web-ddgs`）在 pack.json 宣告 `runtime.container`，讓 SYNOX 自己的容器路徑能用，而不是只靠 pack 自己的 worker 設定 | 工具庫與作者端 | 待決定：[題目檔](../handoff/open-questions/20261119-121056-s5-require-runtime-container.md)；SYNOX 這邊不用改 |
+
+### 5.5 S1、S2、S4 怎麼做的（2026-11-19）
+
+- **S1**：`sandbox.isolation_note(config, m, installing=)` 回 `{state, text, short, isolated}`；沒有警告回 `{}`。
+  `state`：`in_process`（python）、`none`（none／jobobject）、`isolated`（bwrap／systemd）、`container`（選了容器、找得到引擎）、
+  `container_offered`（有提供容器但沒用上：安裝時還沒選、選了「不用容器」、或選了卻找不到引擎）、`no_code`（外觀包）、`not_run`（只登記）、`remote`（遠端 MCP）。
+  引擎只用 `which` 看 PATH，不執行；**任何狀態都不說「已在 sandbox」**，只說這台現在的設定會怎麼跑。
+  顯示的地方：安裝報告（`pack_warnings.isolation`；終端機在警告那幾行正下方，沒有隔離用紅字；網頁在勾選框下面）、設定頁（`/api/settings` 那一列的 `isolation`）、
+  doctor、`packs status`、`packs lock`；給 AI 的能力清單在警告後面接「〔實況：短句〕」（跟警告一樣永遠不縮掉），`data/agent_index.json` 帶 `isolation`，`AGENT_RULE` 多一句「照實況說」。
+  安裝報告要知道這台的設定，所以 `admin.stage`／`stage_file`／`summary_of`、`adopt.stage_unlocked` 多一個選填的 `config`（沒給＝照預設設定說）。
+  **沒有警告的 pack**：報告、API、`agent_index.json`、doctor、能力清單一個鍵、一個字都不多。
+- **S2**：`sandbox.no_guarantee(m)`；`required()` 對 cli／mcp stdio 帶這個 code 的一律 True（不管 trust、`required_for`）；
+  `restricted_reason()` 對 python 帶這個 code 的在伺服器版一律只給擁有者（跟 T2 python 同一句型），cli 沒有真隔離時寫「作者標了『官方不保證安全』…」。
+  沿用 loader 既有的 `owner_only` 機制，**沒有改權限模型**。只看 `vendor_no_security_guarantee`，別的 code（含 `malformed_warning`）不影響可見性。
+  外觀包、只登記的 connector、遠端 MCP 不在這台跑程式，不受影響。
+- **S4**：就是 S1 的 `in_process` 那一句（紅字），不拒裝。
+- 自動測試：`tests/test_sandbox_ready.py`。真機驗證：[docs/testing/sandbox-real-machine-checklist.md](../testing/sandbox-real-machine-checklist.md)，交接：[docs/handoff/sandbox-real-machine.md](../handoff/sandbox-real-machine.md)。
 
 ## 6. 沒做的（留給之後）
 

@@ -113,6 +113,7 @@
 - [ ] **H13 報告上的「建議在 docker 或 sandbox 執行」對得上這台的實際狀況**
   - 步驟：在 Windows 個人版（沒有裝 docker）看 H1 的報告與設定頁「沙盒模式」那張卡；再看 doctor 的「沙盒」那一行。
   - 預期：設定頁與 doctor 照實寫「這台目前沒有沙盒」；報告上作者的建議照樣顯示（它是作者的字），使用者不會因為看到「sandbox」而以為 SYNOX 已經幫他隔離了。
+    （2026-11-19 起警告下面多一行「ℹ️ SYNOX 查這台的實況：…」，各種機器狀態的細項在 [sandbox-real-machine-checklist.md](sandbox-real-machine-checklist.md)。）
     如果畫面讓人誤會，記「失敗」並寫哪一句讓人誤會。
   - 結果：＿＿＿＿　日期：＿＿＿＿　驗證者：＿＿＿＿
 

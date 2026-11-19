@@ -10,6 +10,7 @@
 | [discord-handoff.md](discord-handoff.md) | Discord 從零到上線：建 bot、intent、邀請、id、存 token、配對、config 範例（私訊型、頻道型、多 bot、頻道 AI）、排查、D1–D18 測試清單、已知限制 | 2 |
 | [clean-machine-test.md](clean-machine-test.md) | 空白 Windows（VM 或新的使用者帳號）上裝 SYNOX：git clone 路線、安裝程式的建置（發佈機）與安裝、可勾選的步驟與預期、失敗時回報什麼 | 另一條線（安裝，QL4） |
 | [container-verification.md](container-verification.md) | 容器隔離（podman／Docker）與 Linux 沙盒（bwrap／systemd）的真機驗證：給那台 Claude 的 prompt、探針 pack、C／M／B 檢查清單（每項：做什麼、預期、失敗代表什麼） | 另一條線（Linux 實驗室） |
+| [sandbox-real-machine.md](sandbox-real-machine.md) | 帶警告的 pack（ADR 0041 S1／S2／S4）與沙盒後端的真機驗證：背景、已做／沒做／沒驗證、假 pack 與 config、逐步驗證、驗收標準、一件一檔的回報格式、不要做的事；清單在 [../testing/sandbox-real-machine-checklist.md](../testing/sandbox-real-machine-checklist.md)，待決定的題目在 [open-questions/](open-questions/) | 另一條線（另一台電腦） |
 | [2026-11-14-session-handoff.md](2026-11-14-session-handoff.md) | 2026-11-13～14 合進 `dev` 的東西、線上頁面與本機副本、SYNOX_Libs 的衣櫃分支、怎麼跑測試（Linux 基準線 14 個失敗）／打包／發版、沒在 Windows 上試過的清單、要擁有者決定的事 | 另一條線（工作交接；只在 git clone／GitHub 上有） |
 | [../release-playbook.md](../release-playbook.md) | 發版與更新的手冊：在 Windows 上先測 `Update.bat`（`scripts/make_update_testkit.py` 做測試包、`Update.bat -FromZip`、`-Rollback`）、發 SYNOX／工具庫、改下載連結、出事怎麼退、給新 session 的檢查表 | 另一條線（發版、更新） |
 | [`scripts/smoke_real.py`](../../scripts/smoke_real.py) | 煙霧測試：用各 connector 自己的程式逐一試唯讀操作；`--write` 才做一個建立後立刻刪掉的小寫入（要輸入 yes）；最後印一段可貼進部署測試板的摘要 | 照第 1 份第 3 節跑 |
