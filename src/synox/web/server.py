@@ -76,6 +76,7 @@ from isdtelekit.core.channel import CallbackInfo, Inbound
 from synox import __version__, notify, tutorials
 from synox.guard import origin as guard_origin
 from synox.guard.stepup import sensitive_action as stepup_sensitive
+from synox.packs import packwarn
 from synox.packs.manifest import stage_text
 from synox.theme.appearance import Appearance, AppearanceError
 from synox.web import api_commands, report as reporting, restart as restart_api, toolpage
@@ -658,16 +659,20 @@ class WebUI:
 
     SIGNATURE_STATUSES = ("official", "author", "none")
 
-    def _signature(self, name: str) -> str:
+    def _signature(self, name: str, warnings=()) -> str:
         """工具頁、設定頁的標章：packs.lock 那一筆的 signature.status（安裝時 SYNOX 自己驗的；ADR 0028 §3）。
-        沒有鎖、舊的鎖（簽章功能之前裝的）、看不懂的值 → "none"（⚠️ 不是官方）。pack 自己寫什麼都影響不了它。"""
+        沒有鎖、舊的鎖（簽章功能之前裝的）、看不懂的值 → "none"（⚠️ 不是官方）。pack 自己寫什麼都影響不了它。
+        warnings（這個 pack 的標記警告，ADR 0041）帶 vendor_no_security_guarantee → 永遠不顯示成官方（載入時也會拒）。"""
         from synox.packs import lock as pack_lock
+        from synox.packs import packwarn
         try:
             sig = (pack_lock.entry(self.config.data_dir, name) or {}).get("signature") or {"status": "none"}
         except Exception:
             logging.exception("[WEB] reading packs.lock for %s failed", name)
             return "none"
         status = sig.get("status") if isinstance(sig, dict) else None
+        if status == "official" and any(c in packwarn.NO_OFFICIAL_CODES for c in packwarn.codes(warnings)):
+            return "none"
         return status if status in self.SIGNATURE_STATUSES else "none"
 
     def _pack_visible(self, user, pack) -> bool:
@@ -1249,7 +1254,10 @@ class WebUI:
                 "stage_text": stage_text(pack.manifest.stage),
                 "status": "要先設定" if connector else "已連接",
                 "panel": bool(pack.manifest.web.get("panel")),      # 有面板：工具頁先拿票（POST …/panel-ticket）
-                "signature": self._signature(pack.name),            # 標章：只看鎖裡 SYNOX 驗出來的（ADR 0028 §3）
+                "signature": self._signature(pack.name, pack.manifest.warnings),   # 標章：只看鎖裡 SYNOX 驗出來的（ADR 0028 §3）
+                # 作者標的警告（ADR 0041）：工具卡上一定顯示（badge＋每條一行）
+                "warnings": packwarn.for_agent(pack.manifest.warnings),
+                "warning_badge": packwarn.badge(pack.manifest.warnings),
                 "app": bool(pack.manifest.web.get("app")),          # 工具服務：有完整畫面（卡片在 static/apps.js）
                 "commands": [self._leaf_info(n) for n in leaves]}
             self._health_marks(row, user)
@@ -1458,7 +1466,10 @@ class WebUI:
         report = self.app.extras.get("synox_pack_report")
         user_dir = os.path.realpath(self.pack_dirs[0]) if self.pack_dirs else ""
         out["packs"] = [{"name": i.name, "status": i.status, "detail": i.detail, "kind": i.kind,
-                         "version": i.version, "lock": getattr(i, "lock", ""), "signature": self._signature(i.name),
+                         "version": i.version, "lock": getattr(i, "lock", ""),
+                         "signature": self._signature(i.name, getattr(i, "warnings", [])),
+                         "warnings": list(getattr(i, "warnings", []) or []),            # 標記警告（ADR 0041）
+                         "warning_problems": list(getattr(i, "warning_problems", []) or []),
                          "removable": bool(user_dir) and os.path.realpath(os.path.dirname(i.folder)) == user_dir}
                         for i in (report.items if report else [])]
         from synox.packs import library             # 出廠不帶工具：裝了幾個、工具庫在哪、怎麼裝（packs/library.py）
@@ -2210,7 +2221,8 @@ class WebUI:
             name = installer(str(data.get("token") or ""), self.config.data_dir, self.pack_dirs[0],
                              approved_by=user.tg_id, via="web", trust=data.get("trust") or None,
                              trust_publisher=str(data.get("trust_publisher") or "") or None,
-                             runtime=str(data.get("runtime") or "") or None)       # S2：用容器／不用
+                             runtime=str(data.get("runtime") or "") or None,       # S2：用容器／不用
+                             accept_warnings=self._accepted_warnings(data))        # ADR 0041：勾過的警告
         except GateRefused as e:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:
@@ -2221,6 +2233,15 @@ class WebUI:
         return _json(200, {"ok": True, "name": name, "status": status.status if status else "",
                            "detail": status.detail if status else "", "env": env,
                            "kind": status.kind if status else ""})
+
+    @staticmethod
+    def _accepted_warnings(data: dict) -> list:
+        """POST 的 accept_warnings（擁有者在報告上逐條勾的標記警告 code，ADR 0041）：只收字串清單，其他當作沒勾。"""
+        value = data.get("accept_warnings")
+        if not isinstance(value, list):
+            return []
+        from synox.packs import packwarn
+        return packwarn.normalize_accept([v for v in value if isinstance(v, str)][:20])
 
     def _start_env_build(self, name: str, what: str = "裝好了") -> str:
         """裝好（或升級好）之後建環境（runtime.python／node = auto）：在 JobRunner 上背景跑，好了重新載入、通知擁有者。
@@ -2255,7 +2276,8 @@ class WebUI:
                                   approved_by=user.tg_id, via="web", allow_downgrade=bool(data.get("allow_downgrade")),
                                   trust=data.get("trust") or None,
                                   trust_publisher=str(data.get("trust_publisher") or "") or None,
-                                  runtime=str(data.get("runtime") or "") or None)
+                                  runtime=str(data.get("runtime") or "") or None,
+                                  accept_warnings=self._accepted_warnings(data))
         except GateRefused as e:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:

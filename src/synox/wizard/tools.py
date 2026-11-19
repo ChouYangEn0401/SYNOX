@@ -39,6 +39,7 @@ class Entry:
     bundles: List[str] = field(default_factory=list)
     requires: Dict[str, str] = field(default_factory=dict)
     capabilities: List[str] = field(default_factory=list)
+    warnings: List[dict] = field(default_factory=list)   # 目錄上的標記警告（ADR 0041；安裝報告的那一份才是準的）
 
 
 @dataclass
@@ -115,6 +116,11 @@ def _str(value) -> str:
     return value if isinstance(value, str) else ""
 
 
+def _warnings(item: dict) -> List[dict]:
+    from synox.packs import packwarn
+    return packwarn.parse(item.get("warnings"), present="warnings" in item)[0]
+
+
 def read(folder: str) -> Library:
     """讀 index.json；格式不對丟 LibraryError（不執行、不解壓任何東西）。"""
     problem = why_not_library(folder)
@@ -139,7 +145,8 @@ def read(folder: str) -> Library:
                              bundles=[b for b in item.get("bundles") or [] if isinstance(b, str)],
                              requires={k: v for k, v in (item.get("requires") or {}).items()
                                        if isinstance(k, str) and isinstance(v, str)},
-                             capabilities=[c for c in item.get("capabilities") or [] if isinstance(c, str)]))
+                             capabilities=[c for c in item.get("capabilities") or [] if isinstance(c, str)],
+                             warnings=_warnings(item)))
     bundles = {k: v for k, v in (raw.get("bundles") or {}).items() if isinstance(k, str) and isinstance(v, dict)}
     return Library(folder=folder, entries=entries, bundles=bundles, version=_str(raw.get("library_version")))
 
@@ -214,6 +221,8 @@ def list_lines(lib: Library, installed: Iterable[str] = ()) -> List[str]:
         sdk = e.requires.get("sdk")
         lines.append(f"  {mark} {e.name} {e.version}　{e.title or ''}　{e.summary or ''}".rstrip()
                      + (f"（SDK {sdk}）" if sdk else ""))
+        from synox.packs import packwarn
+        lines += [f"      ⚠️ {w}" for w in packwarn.lines(e.warnings)]      # 作者標的警告（ADR 0041）
     if lib.bundles:
         lines.append("建議組合（打代號就一次選好裡面的工具；只是建議）：")
         for key, b in lib.bundles.items():

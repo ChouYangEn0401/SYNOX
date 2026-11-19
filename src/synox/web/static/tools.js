@@ -357,9 +357,22 @@
       if (t.stage_text) { stage.title = t.stage_text; }
       h.appendChild(stage);
     }
+    if (t.warning_badge) {                // 作者標的警告（ADR 0041）：標題旁一個醒目的標記
+      var warnBadge = el("span", "badge bad", t.warning_badge);
+      warnBadge.title = "作者標的警告：看下面的說明";
+      h.appendChild(warnBadge);
+    }
     head.appendChild(h);
     if (t.name) { head.appendChild(el("span", "tp-meta", t.name + " " + (t.version || "") + "・" + (t.kind || ""))); }
     panel.appendChild(head);
+    if ((t.warnings || []).length) {      // 每條警告一行（不折疊；只用 textContent）
+      var warnBox = el("section", "tp-about");
+      warnBox.appendChild(el("div", "section-label", "⚠️ 作者標的警告"));
+      t.warnings.forEach(function (w) {
+        warnBox.appendChild(el("p", "alert", "⚠️ " + w.text + (w.advice ? "——" + w.advice : "")));
+      });
+      panel.appendChild(warnBox);
+    }
 
     var about = el("section", "tp-about");
     about.appendChild(el("div", "section-label", "說明"));

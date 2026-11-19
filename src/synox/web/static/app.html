@@ -2671,9 +2671,11 @@
   $("ch-dc-save").addEventListener("click", function () { saveChannel("dc"); });
 
   var STATUS = { loaded: "可以用", connector: "還沒接好", disabled: "關掉了", invalid: "檔案有問題", missing: "缺東西", incompatible: "跟這版 SYNOX 不合", error: "壞了",
-    tampered: "被改過了，先不開", rejected: "安全檢查沒過，先不開", unapproved: "沒有經過安裝頁，先不開" };
+    tampered: "被改過了，先不開", rejected: "安全檢查沒過，先不開", unapproved: "沒有經過安裝頁，先不開",
+    unaccepted: "有警告還沒確認，先不開" };
   // 狀態的顏色（顏色之外一定有字）：可以用＝綠、還沒接上／關掉＝黃、其他＝紅
-  var TONE = { loaded: "ok", connector: "warn", disabled: "", missing: "warn", incompatible: "warn", unapproved: "warn" };
+  var TONE = { loaded: "ok", connector: "warn", disabled: "", missing: "warn", incompatible: "warn", unapproved: "warn",
+    unaccepted: "warn" };
   var LOCK = { locked: "🔒", unlocked: "", tampered: "⚠️" };
   // 標章（ADR 0028 §3）：只用伺服器給的狀態（安裝時 SYNOX 驗簽章、寫進鎖），不用工具自己寫的字
   var SIG_LABEL = { official: "✅ 官方", author: "✍️ 作者簽章", none: "⚠️ 不是官方", invalid: "⛔ 被改過" };
@@ -2699,6 +2701,10 @@
       var tr = el("tr");
       var nm = el("td", "name", (LOCK[p.lock] ? LOCK[p.lock] + " " : "") + p.name + " ");
       if (p.lock && p.lock !== "unlocked" && p.status !== "unapproved") { nm.appendChild(sigChip(p.signature)); }
+      (p.warnings || []).forEach(function (w) {   // 作者標的警告（ADR 0041）：每條一行，不折疊
+        nm.appendChild(el("span", "badge bad", "⚠️ " + w.text));
+        if (w.advice) { nm.appendChild(el("span", "detail", w.advice)); }
+      });
       tr.appendChild(nm);
       var st = el("td");
       var tone = TONE.hasOwnProperty(p.status) ? TONE[p.status] : "bad";
@@ -2774,6 +2780,8 @@
         box.appendChild(el("p", "alert", "🔴 " + l + "（官方的看上面的標章，不看名字）"));
       });
     }
+    // 作者標的警告（ADR 0041）：緊接在標章下面；每一條都要勾「我知道」才能按確認（升級時已確認過的沿用）
+    var warned = showPackWarnings(box, s, s.adopt ? null : s.upgrade, canInstall && s.token);
     box.appendChild(el("h3", "", s.title + "（" + s.name + " " + s.version + "）"));
     box.appendChild(el("p", "", s.summary));
     box.appendChild(el("p", "muted", "進階：種類 " + s.kind + "，誰能用 " + s.access + "，資料 " + s.storage +
@@ -2839,11 +2847,12 @@
       var busy = false;
       var refresh = function () {             // 該勾的都勾了＝走到「確認」那一步
         var versionOk = !(upg && !upg.version_ok) || !!(down && down.checked);
-        ok.disabled = busy || !versionOk || (pub && !pub.ready());
+        ok.disabled = busy || !versionOk || (pub && !pub.ready()) || (warned && !warned.ready());
         if (!busy) { setStep(ok.disabled ? "review" : "confirm", "active", info); }
       };
       if (down) { down.addEventListener("change", refresh); }
       if (pub) { pub.onchange(refresh); }
+      if (warned) { warned.onchange(refresh); }
       refresh();
       ok.addEventListener("click", function () {
         var body = { token: s.token };
@@ -2852,6 +2861,7 @@
         if (trust) { body.trust = trust.value; }
         if (runtime) { body.runtime = runtime.value; }
         if (pub) { body.trust_publisher = pub.value(); }
+        if (warned) { body.accept_warnings = warned.value(); }
         busy = true; ok.disabled = true; later.disabled = true; no.disabled = true;
         ok.textContent = upg ? "升級中…" : "安裝中…";
         setStep("installing", "active", info);
@@ -3165,6 +3175,39 @@
     sel.addEventListener("change", check);
     check();
     return sel;
+  }
+  // ADR 0041：作者標的警告（pack.json 的 warnings）。每條紅字＋「我知道」勾選；全部勾了才能按確認。
+  // 升級：舊版已經確認過的 code 沿用（upg.pack_warnings.accepted），只勾新的。回 null＝沒有要勾的。
+  function showPackWarnings(box, s, upg, canInstall) {
+    var pw = s.pack_warnings || {};
+    var items = pw.items || [];
+    (pw.problems || []).forEach(function (p) { box.appendChild(el("p", "muted", "⚠️ warnings 寫得不對：" + p)); });
+    if (!items.length) { return null; }
+    var accepted = (upg && upg.pack_warnings && upg.pack_warnings.accepted) || [];
+    box.appendChild(el("p", "alert", "⚠️ 這個工具的作者標了 " + items.length + " 個警告（要你確認才會啟用）："));
+    var boxes = [];
+    items.forEach(function (w) {
+      var text = "⚠️ " + w.text + (w.advice ? "——" + w.advice : "") + "　〔" + w.code + "〕";
+      if (accepted.indexOf(w.code) >= 0) {
+        box.appendChild(el("p", "alert", text + "（之前確認過，沿用）"));
+        return;
+      }
+      if (!canInstall) { box.appendChild(el("p", "alert", text)); return; }
+      var lab = el("label", "alert");
+      var cb = el("input");
+      cb.type = "checkbox";
+      cb.value = w.code;
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(" 我知道：" + text));
+      box.appendChild(lab);
+      boxes.push(cb);
+    });
+    if (!boxes.length) { return null; }
+    return {
+      ready: function () { return boxes.every(function (b) { return b.checked; }); },
+      value: function () { return boxes.filter(function (b) { return b.checked; }).map(function (b) { return b.value; }); },
+      onchange: function (fn) { boxes.forEach(function (b) { b.addEventListener("change", fn); }); }
+    };
   }
   // SDK P7：信任層級。T2（有掃不到內容的執行檔、外部程式、runtime auto 的套件）：紅字＋勾選＋輸入 publisher
   //（一字不差才能按確認）；升級時只有發行者變了／新增 exec／可執行的東西變多才要重新確認

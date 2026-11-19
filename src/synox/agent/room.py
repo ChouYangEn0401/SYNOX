@@ -193,7 +193,11 @@ class RoomAgent(AgentLoop):
         ] + self.head_lines(nonce)          # 分隔符與時間（尾端模式時在 tail_rules，docs/adr/0017）
         packs = self.visible_packs(user)
         if packs:
-            lines += ["", "## 這個頻道能用的功能"] + [f"- {p.manifest.title}：{p.manifest.summary}" for p in packs]
+            from synox.packs.packwarn import AGENT_RULE, agent_note
+            warned = any(getattr(p.manifest, "warnings", None) for p in packs)
+            lines += ["", "## 這個頻道能用的功能"] + ([AGENT_RULE] if warned else []) + \
+                [f"- {p.manifest.title}{agent_note(getattr(p.manifest, 'warnings', None))}：{p.manifest.summary}"
+                 for p in packs]
         block = skills_mod.prompt_block(skills)
         if block:
             lines += ["", block]

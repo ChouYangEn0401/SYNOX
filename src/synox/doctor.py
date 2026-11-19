@@ -549,7 +549,7 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
     # packs
     from synox.packs import envs
     from synox.packs import lock as pack_lock
-    from synox.packs import loader
+    from synox.packs import loader, packwarn
     from synox.packs.loader import PACK_DIRS, discover
     from synox.packs.manifest import ManifestError, read, synox_problem
     lines: List[str] = []
@@ -595,11 +595,22 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 lines.append(f"  ⚠️ {m.name} {m.version}：{no_env}  {rel}")
                 problems += 1
                 continue
+            warned = loader.warnings_reason(config, m) if config is not None and enabled else None   # ADR 0041
+            if warned:
+                lines.append(f"  ⛔ {m.name} {m.version}：不會載入。{warned[1]}  {rel}")
+                problems += 1
+                continue
             state = "connector（只登記）" if m.registered_only else ("✅" if enabled else "⏸ 停用")
             if enabled and not loader.is_bundled(m):
                 tools.append(m.name)                 # 使用者自己裝的工具（出廠的不算；loader.BUNDLED 現在是空的）
             lock_mark = "🔒" if lock_state == pack_lock.LOCKED else "未鎖定"
-            lines.append(f"  {state} {m.name} {m.version} {m.stage_label}（{m.kind}，/{m.group}，{lock_mark}）  {rel}")
+            badge = packwarn.badge(m.warnings)
+            lines.append(f"  {state} {m.name} {m.version} {m.stage_label}" + (f" {badge}" if badge else "")
+                         + f"（{m.kind}，/{m.group}，{lock_mark}）  {rel}")
+            for warn_line in packwarn.lines(m.warnings):     # 作者標的警告：每條一行（擁有者確認過也照樣列）
+                lines.append(f"     ⚠️ {warn_line}")
+            for warn_problem in m.warning_problems:          # warnings 寫壞的地方（不擋載入，但不靜默）
+                lines.append(f"     ⚠️ warnings 寫得不對：{warn_problem}")
             if enabled:
                 loadable.append(m)
                 note = secret_lookup(m)

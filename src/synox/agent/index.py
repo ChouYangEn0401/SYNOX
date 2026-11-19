@@ -63,14 +63,19 @@ class Entry:
     version: str = ""
     sha256: str = ""                                  # pack.json 的雜湊（系統層＝""）
     listed: bool = True                               # 只登記的 connector／mcp＝False（不進能力清單）
+    # pack.json 的標記警告（ADR 0041）：[{"code", "text", "advice"}]；agent_index.json 也有這一欄（結構化，AI 不能略過）
+    warnings: List[dict] = field(default_factory=list)
 
     def line(self, limit: Optional[int] = None) -> str:
-        """能力清單的一行。limit＝說明最多幾個字（None＝不縮；0＝只剩標題）。說明書主題在 limit ≥ 20 時才附。"""
+        """能力清單的一行。limit＝說明最多幾個字（None＝不縮；0＝只剩標題）。說明書主題在 limit ≥ 20 時才附。
+        標記警告緊接在標題後面、永遠不縮掉（limit 小的時候只剩 code 與 text，不帶 advice）。"""
+        from synox.packs.packwarn import agent_note
         text = self.index
         if limit is not None and len(text) > limit:
             text = text[:max(0, limit - 1)] + "…" if limit > 0 else ""
         suffix = f"〔主題：{'、'.join(self.topics)}〕" if self.topics and (limit is None or limit >= 20) else ""
-        return f"- {self.title}：{text}{suffix}" if text or suffix else f"- {self.title}"
+        title = self.title + agent_note(self.warnings, long=limit is None or limit >= 20)
+        return f"- {title}：{text}{suffix}" if text or suffix else f"- {title}"
 
     @property
     def tools(self) -> List[str]:
@@ -210,7 +215,8 @@ def entry_from_manifest(m) -> Entry:
                  always=agent.get("always") or "", topics=sorted((agent.get("topics") or {}).keys()),
                  commands=[{"name": n, "tool": f"{m.group}{SEP}{n}", "effect": "", "summary": summaries.get(n, "")}
                            for n in names if isinstance(n, str)],
-                 kind=m.kind, version=m.version, listed=not getattr(m, "registered_only", False))
+                 kind=m.kind, version=m.version, listed=not getattr(m, "registered_only", False),
+                 warnings=[dict(w) for w in getattr(m, "warnings", None) or []])
 
 
 def static_index(manifests: Iterable) -> AgentIndex:
@@ -296,13 +302,19 @@ def shrink(entries: Sequence[Entry], limit: int = INDEX_MAX) -> List[str]:
         lines = [e.line(step) for e in shown]
         if sum(len(x) + 1 for x in lines) <= limit:
             return lines
-    lines = [e.line(0) for e in shown]
-    while lines:
-        more = len(shown) - len(lines)
+    # 只剩標題還超過：從後面併成「…另有 N 項」。有標記警告的（ADR 0041）最後才併——警告不能因為清單太長就不見
+    order = sorted(range(len(shown)), key=lambda i: (bool(shown[i].warnings), -i))   # 先丟沒警告、排在後面的
+    kept = list(range(len(shown)))
+    for drop in [None] + order:
+        if drop is not None:
+            kept.remove(drop)
+        if not kept:
+            break
+        lines = [shown[i].line(0) for i in kept]
+        more = len(shown) - len(kept)
         tail = [f"- …另有 {more} 項（用 skill_read 或直接問）"] if more else []
         if sum(len(x) + 1 for x in lines + tail) <= limit:
             return lines + tail
-        lines.pop()
     return []
 
 
@@ -331,8 +343,13 @@ def lines_for(app, user=None, packs: Optional[Iterable] = None, limit: int = IND
 
 def prompt_block(app, user=None, packs: Optional[Iterable] = None, limit: int = INDEX_MAX,
                  heading: str = "## 能力清單（要細節：skill_read 讀說明書，〔主題〕用 topic 讀那一章）") -> str:
-    lines = lines_for(app, user, packs, limit)
-    return "\n".join([heading] + lines) if lines else ""
+    entries = visible_entries(app, user, packs)
+    rule = []
+    if any(e.warnings for e in entries if e.listed):          # 有工具標了警告（ADR 0041）：多一行守則，告訴 AI 怎麼對待
+        from synox.packs.packwarn import AGENT_RULE
+        rule = [AGENT_RULE]
+    lines = shrink(entries, max(0, limit - sum(len(r) + 1 for r in rule)))
+    return "\n".join([heading] + rule + lines) if lines else ""
 
 
 def always_lines(app, user=None, packs: Optional[Iterable] = None) -> List[str]:
