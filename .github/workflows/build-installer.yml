@@ -31,9 +31,9 @@ env:
   PYTHON_VERSION: "3.12.10"
   # Tool library: SYNOX_Libs release asset (index.json + every .synoxpack, under tools/ inside the zip).
   LIBS_REPO: "ChouYangEn0401/SYNOX_Libs"
-  LIBS_TAG: "v0.3.0"
-  LIBS_TOOLS_ZIP: "tools-0.3.0.zip"
-  LIBS_TOOLS_SHA256: "82205b50827397fbd6f144e809364ffe45d55c4898f37cf632509d51380452ad"
+  LIBS_TAG: "v0.3.1"
+  LIBS_TOOLS_ZIP: "tools-0.3.1.zip"
+  LIBS_TOOLS_SHA256: "971eed2591dd4504f9015e6681dee85c38fbd4d3b775fb05a4519bd09ce53205"
   # Inno Setup 6 (synox.iss is written for 6.x), official installer from the jrsoftware/issrc GitHub release.
   INNO_VERSION: "6.7.4"
   INNO_TAG: "is-6_7_4"
