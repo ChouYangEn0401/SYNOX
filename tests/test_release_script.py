@@ -380,3 +380,14 @@ def test_this_repo_changelog_top_is_the_project_version():
         lines = f.read().splitlines(keepends=True)
     first = next(release._released(ln) for ln in lines if release._released(ln))
     assert first[0] == str(release.current_version(ROOT))
+
+
+def test_demote_puts_the_branch_headings_right_below_the_section():
+    """分支寫 `#### 新增` 或 `### 新增` 都一樣變成 `#### 新增`（在 `### 分支標題` 下面一層），不會跳到 `#####`。"""
+    block = ["## 未發佈（branch a）\n", "\n", "#### 新增\n", "- x\n", "##### 細節\n",
+             "## 未發佈（branch b）\n", "### 修正\n", "- y\n",
+             "## 未發佈\n", "### 文件\n", "- z\n",
+             "## 未發佈（branch c）\n", "- 沒有小標題\n"]
+    out = release._demote(block)
+    assert [ln for ln in out if ln.startswith("#")] == [
+        "### branch a\n", "#### 新增\n", "##### 細節\n", "### branch b\n", "#### 修正\n", "### 文件\n", "### branch c\n"]

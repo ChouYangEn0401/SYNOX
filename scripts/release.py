@@ -231,20 +231,47 @@ def pending_span(lines: List[str]) -> Tuple[int, int]:
 
 
 def _demote(block: List[str]) -> List[str]:
-    """`## 未發佈（標題）` → `### 標題`；every other heading one level down. Fenced code is left alone."""
+    """`## 未發佈（標題）` → `### 標題`; the headings inside it move so the top one sits right below it (`#### 新增`,
+    whether the branch wrote `### 新增` or `#### 新增`); a bare 「## 未發佈」 heading disappears (its headings start
+    at `###`); any other `##`–`#####` heading goes one level down. Fenced code is left alone."""
+    heading = re.compile(r"^(#{2,6}) ")
+    # pass 1: for each 未發佈 section, the shallowest heading inside it
+    shift: Dict[int, int] = {}
+    fence, sect, levels = False, None, []          # sect = (index of the 未發佈 heading, target level of its top heading)
+
+    def close():
+        if sect is not None and levels:
+            shift[sect[0]] = sect[1] - min(levels)
+    for i, ln in enumerate(block):
+        if ln.lstrip().startswith("```"):
+            fence = not fence
+        if fence or not ln.startswith("#"):
+            continue
+        m = UNRELEASED_RE.match(ln.rstrip("\r\n"))
+        if m or ln.startswith("## "):
+            close()
+            sect, levels = ((i, 4 if m.group(1) else 3) if m else None), []
+        elif heading.match(ln) and sect is not None:
+            levels.append(len(heading.match(ln).group(1)))
+    close()
     out: List[str] = []
-    fence = False
-    for ln in block:
+    fence, delta = False, 1
+    for i, ln in enumerate(block):
         if ln.lstrip().startswith("```"):
             fence = not fence
         if not fence and ln.startswith("#"):
             m = UNRELEASED_RE.match(ln.rstrip("\r\n"))
             if m:
+                delta = shift.get(i, 1)
                 if m.group(1):
                     out.append(f"### {m.group(1)}\n")
                 continue                      # a bare 「## 未發佈」 heading just disappears into the version section
-            if re.match(r"^#{2,5} ", ln):
+            if ln.startswith("## "):
+                delta = 1
                 ln = "#" + ln
+            elif heading.match(ln):
+                level = min(6, max(3, len(heading.match(ln).group(1)) + delta))
+                ln = "#" * level + ln[len(heading.match(ln).group(1)):]
         out.append(ln)
     while out and not out[-1].strip():
         out.pop()
