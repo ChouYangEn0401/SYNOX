@@ -61,7 +61,7 @@
   信任等級 T0（只有宣告）：安裝報告逐一列 tools_allow 與每個工具的 effect 給安裝者確認（admin.mcp_report）；
   沒寫 effect 的工具第 1 關就拒；url 一定 https（第 1 關）。
 - connector：只能是宣告，不准有任何程式檔（.py 或執行檔）。
-- theme（外觀包，synox/theme/pack.py）：只能有 pack.json、.svg、.html、.css、.woff2 與說明文字；每個 SVG／HTML／CSS
+- theme（外觀包，synox/theme/pack.py）：只能有 pack.json、.svg、.html、.css、.woff2 與說明文字（＋根目錄的簽章檔 pack.sig.json）；每個 SVG／HTML／CSS
   過 synox/theme/sanitize.py（白名單重建：<script>、事件屬性、javascript:、外部網址、@import、<foreignObject>…＝拒）；
   字型檔頭要是 wOF2；掃不到內容的檔（opaque）＝拒。
 - runtime.container 有 dockerfile（cli、mcp stdio；S0，packs/container.py）：只讀 Dockerfile、不 build：
