@@ -29,3 +29,5 @@ vendor/** -text
 /docs/HANDOFF.md export-ignore
 /docs/development.md export-ignore
 /docs/handoff/2026-11-14-session-handoff.md export-ignore
+/HumanTestList.md export-ignore
+/VerifyList.json export-ignore
