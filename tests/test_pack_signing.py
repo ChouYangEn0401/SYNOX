@@ -64,11 +64,11 @@ def _staged_dirs(tmp_path):
 
 # ── 四種狀態 ───────────────────────────────────────────────────────────
 
-def test_unsigned_is_none_and_says_no_official_keys_yet(tmp_path):
+def test_unsigned_is_none_and_official_keys_are_shipped(tmp_path):
     token, summary = _stage(_pack_zip(tmp_path), tmp_path)
     sig = summary["signature"]
     assert token and sig["status"] == "none" and sig["label"] == "⚠️ 不是官方"
-    assert sig["no_official_keys"] and sig["text"].endswith("（這一版 SYNOX 還沒有官方鑰匙，所以暫時沒有工具會顯示官方）")
+    assert not sig["no_official_keys"] and "還沒有官方鑰匙" not in sig["text"]      # 官方鑰匙已經隨這一版發出
     assert summary["safety_notice"] == signing.SAFETY_NOTICE
     text = admin.format_summary(summary).splitlines()
     assert text[0].startswith("⚠️ 不是官方") and text[-1] == signing.SAFETY_NOTICE
@@ -439,9 +439,11 @@ def test_upgrade_refuses_invalid(tmp_path):
 # ── 鑰匙的規矩 ─────────────────────────────────────────────────────────
 
 def test_no_official_key_shipped_and_no_env_backdoor(monkeypatch):
-    assert tuple(signing.OFFICIAL_PACK_PUBLIC_KEYS) == ()           # 擁有者還沒產生鑰匙（ADR 0028 §2）
+    assert tuple(signing.OFFICIAL_PACK_PUBLIC_KEYS) == (             # 擁有者的工具鑰匙：現用＋備用（docs/signing.md §3）
+        "d1wxFvSuyJZmUgrXn59aV55O0hLNvbzPT5dhi1CLmgI=", "NaolxxaDOQz0sGKMJsVBRMZ7IGLfk5WdInAGzgK/hAk=")
+    before = signing.official_raw_keys()
     monkeypatch.setenv("SYNOX_UPDATE_TEST_PUBKEY", _pub(Ed25519PrivateKey.generate()))
-    assert signing.official_raw_keys() == []                         # 沒有任何環境變數能加官方鑰匙
+    assert signing.official_raw_keys() == before                     # 沒有任何環境變數能加官方鑰匙
 
 
 def test_no_private_key_anywhere_in_repo():
