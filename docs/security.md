@@ -38,7 +38,7 @@
 
 | 檔案 | 內容 | 保護 |
 |---|---|---|
-| `config.json` | Telegram bot token、你的 Telegram id、AI 設定 | **明文**（只靠 Windows 帳號的檔案權限）。AI 的金鑰不在這裡：精靈存進保管箱，這裡只寫 `vault:llm_api_key` |
+| `config.json` | 你的 Telegram id、AI 設定 | **明文**（只靠 Windows 帳號的檔案權限）。AI 的金鑰、Telegram／Discord bot token 不在這裡：精靈、`init`、網頁設定頁存進保管箱，這裡只寫 `vault:llm_api_key`、`vault:telegram_bot_token`、`vault:discord_bot_token`。舊版留下的明文 Telegram token 在啟動（或重跑精靈）時自動搬進保管箱、`config.json` 改寫成參照；保管箱打不開就不動 config、log 一句警告 |
 | `data/.synox.key` | 保管箱的主金鑰（32 bytes 隨機） | Windows：用 **DPAPI** 包起來，只有這台電腦的這個 Windows 帳號解得開。其他平台或 `vault.mode: file`：明文（會記警告） |
 | `data/notes.json.enc`、`data/money.json.enc`、`data/schedule.json.enc`、`data/secrets.json.enc` | 筆記、記帳、提醒、AI 金鑰 | **密文**：Fernet（AES-128-CBC＋HMAC-SHA256），每次存檔換新的 salt、檔案金鑰＝scrypt(主金鑰, salt)。被改過一個 byte 就解不開（會報錯，不會默默清空） |
 | `data/users/<Telegram id>/notes.json.enc`、`…/money.json.enc`（只有伺服器版） | 每個人自己的筆記、記帳 | **密文**，每個人一把金鑰：HKDF-SHA256(主金鑰, `user:<id>`) 衍生。A 的金鑰解不開 B 的檔 |
@@ -491,7 +491,8 @@ InaccessiblePaths＋BindPaths 巢狀是否照預期；`--setenv=名字` 在那�
 
 ## 沒有做的保護（誠實清單）
 
-- `config.json` 的 bot token 是明文。
+- `config.json` 寫的 bot token 參照（`vault:…`）擋得住「有人拿到 config.json」，擋不住「拿到整個 data/ 又能用你的 Windows 帳號解 DPAPI」；
+  `vault.mode: file`（Linux、Docker 預設）主金鑰是 `data/.synox.key` 明文，拿到 data/ 就解得開。舊版的 log（`data/` 以外的主控台輸出、舊的 log 檔）可能還留著明文 token，要自己刪。
 - Web UI 沒有 TLS（只在本機 127.0.0.1 用不需要）；對外開放要營運者自己加（見上面「網頁介面」）。
 - Web UI 的 pack 面板已經隔開（2026-11-16），但隔開之後**在真的瀏覽器裡**還沒有人看過（開發機不開瀏覽器）：CSP `connect-src 'self'` 在沒有來源的小頁裡
   怎麼算、`Access-Control-Allow-Origin: null` 讀不讀得到，要擁有者開一次工具頁確認（[adr/0028](adr/0028-pack-signatures-official-badge.md) §10）。

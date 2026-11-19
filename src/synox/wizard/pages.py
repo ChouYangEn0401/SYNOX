@@ -50,6 +50,8 @@ class Wizard:
         self.root = root
         self.config_path = config_path
         self.lang_file = lang_file or i18n.lang_path(os.path.dirname(os.path.abspath(config_path)))
+        from synox import telegram_token
+        telegram_token.migrate(config_path)            # 舊 config 的明文 Telegram token 先搬進保管箱（搬不成＝不動）
         self.existing = logic.read_existing(config_path)
         self.mode = self.existing.get("mode") if self.existing.get("mode") in logic.MODE_CHOICES else "personal"
         self.platform = "telegram"
@@ -241,7 +243,9 @@ class Wizard:
         # 「看圖文教學」：有 docs/tutorials/<平台>/index.html 才出現（synox/tutorials.py），用瀏覽器開本機那份
         tutorial_btn = ttk.Button(self.body, text=t("open_tutorial"),
                                   command=lambda: tutorials.open_local(platform.get()))
-        var = tk.StringVar(value=self.existing.get("bot_token", "") if self.platform == "telegram" else "")
+        old = (logic.existing_telegram_token(self.existing, config_path=self.config_path)
+               if self.platform == "telegram" else "")    # 保管箱裡的那個（config.json 只有參照）
+        var = tk.StringVar(value=old)
         entry = ttk.Entry(self.body, textvariable=var, width=60)
         entry.pack(anchor=self.west, pady=6, fill="x")
         entry.focus_set()

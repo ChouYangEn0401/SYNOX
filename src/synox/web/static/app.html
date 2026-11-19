@@ -2640,6 +2640,7 @@
       $("ch-restart").classList.toggle("hidden", !(t.restart || c.restart));
       if (window.SynoxUserMenu) { window.SynoxUserMenu.setPending(t.restart || c.restart); }   // 選單上的小點
       $("ch-tg-now").textContent = channelLine(t, function (n) { return "@" + n; }) +
+        (t.masked ? "（token " + t.masked + "，存在保管箱）" : (!t.saved && t.problem ? "⚠️ " + t.problem : "")) +
         (t.saved && !t.owner_paired ? (t.pairable ? "還沒配對擁有者：用下面的「配對我的 Telegram 帳號」。" :
           "還沒配對擁有者：雙擊 Setup.bat 重跑安裝精靈配對（token 會自動帶入）。") : "");
       $("ch-dc-form").classList.toggle("hidden", c.multi);

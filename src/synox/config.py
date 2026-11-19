@@ -3,7 +3,9 @@ SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、�
 
     {
       "mode": "personal",                      personal（只有我，預設）｜server（一群人：帳號、角色、每人自己的資料）
-      "bot_token": "123456:AAH…", "owner_id": 123456789,
+      "bot_token": "vault:telegram_bot_token", "owner_id": 123456789,
+                                               Telegram token 在保管箱（精靈、init、網頁設定頁都這樣存）；也可以寫
+                                               "env:<環境變數>"。舊的明文寫法照樣讀，啟動時自動搬進保管箱（synox/telegram_token.py）
       "llm":   {"kind": "openai_compat", "base_url": "https://…/v1", "api_key": "vault:llm_api_key",
                 "model": "…", "tools": true, "max_steps": 6, "max_tokens": 1024},
                本地模型（docs/adr/0007）：{"kind": "local", "server": "ollama", "base_url": "http://127.0.0.1:11434",
@@ -31,6 +33,8 @@ SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、�
 
 - 路徑一律相對於 SYNOX 資料夾（不管從哪裡啟動）：data_dir 沒寫就是 <SYNOX>/data。
 - api_key 可以直接寫，也可以寫 "vault:<名字>"：真正的值放在 data/secrets.json.enc（精靈就是這樣存的）。
+- bot_token 一樣：SynoxConfig.bot_token 是解開後的 token（給 SDK 用）、raw["bot_token"] 留參照；解不開時
+  require_token=False 就當沒填（token_problem 說原因），require_token=True 丟 ConfigError。repr 不印 token。
 - 換 LLM 只改 llm 這一塊（invariant 2）。
 - mode：personal＝一個擁有者，資料是共用的一份；server＝陌生人傳訊息自動登記成訪客（GUEST），只看得到
   pack.json access 允許的；擁有者／管理員用 /user_role 升級；vault 的 pack 資料每人一份（data/users/<id>/）。
@@ -39,8 +43,10 @@ SYNOX 的設定：SDK 的 BotConfig 欄位（bot_token、owner_id、data_dir、�
 from __future__ import annotations
 
 import json
+import logging
 import os
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import Optional
 
 from isdtelekit.host.config import BotConfig, ConfigError
@@ -173,6 +179,11 @@ class SynoxConfig(BotConfig):
     runtime: dict = field(default_factory=runtime_settings.defaults)    # 心跳、常駐助理（synox/runtime/settings.py）
     presentation: dict = field(default_factory=lambda: dict(DEFAULT_PRESENTATION))   # 呈現層（synox/present）
     health: dict = field(default_factory=health_settings.defaults)      # 工具健康：門檻、冷卻（synox/health/settings.py）
+    token_problem: str = ""        # bot_token 是參照但解不開時的原因（白話、不含 token；doctor、啟動訊息用）
+
+    def __repr__(self) -> str:     # dataclass 預設的 repr 會把 bot_token 印出來（例外、log 常順手印 config）
+        return (f"SynoxConfig(mode={self.mode!r}, owner_id={self.owner_id!r}, "
+                f"bot_token={'<set>' if self.bot_token else '<empty>'}, data_dir={self.data_dir!r})")
 
     @property
     def server(self) -> bool:
@@ -184,7 +195,9 @@ class SynoxConfig(BotConfig):
         return enabled(self)
 
     @classmethod
-    def from_dict(cls, raw: dict, *, require_token: bool = True, root: Optional[str] = None) -> "SynoxConfig":
+    def from_dict(cls, raw: dict, *, require_token: bool = True, root: Optional[str] = None,
+                  vault=None) -> "SynoxConfig":
+        """vault：bot_token 是 "vault:…" 時用這個保管箱解（沒給＝照 data_dir、vault.mode 自己開）。"""
         discord = (raw.get("channels") or {}).get("discord") if isinstance(raw.get("channels"), dict) else None
         if discord and raw.get("owner_id", raw.get("machine_owner_id")) in (None, ""):
             # 只用 Discord、沒有 Telegram id：擁有者用保留號段的第一號（BASE，identity.py 不會發給陌生人），
@@ -193,8 +206,9 @@ class SynoxConfig(BotConfig):
             raw = {**raw, "owner_id": BASE}
         from synox.discord.bots import parse as parse_discord_bots
         parse_discord_bots(discord)                   # 設定錯在這裡就講清楚（ConfigError）
-        base = BotConfig.from_dict(raw, require_token=require_token)
         root = os.path.abspath(root or ROOT)
+        token, token_problem = _resolve_token(raw, root, vault, require_token)   # 參數 vault＝保管箱；下面 vault 改指設定
+        base = BotConfig.from_dict({**raw, "bot_token": token}, require_token=require_token)
         data_dir = base.data_dir if os.path.isabs(base.data_dir) else os.path.join(root, base.data_dir)
         llm = {**DEFAULT_LLM, **(raw.get("llm") or {})}
         if llm.get("kind") == "local" and "max_tokens" not in (raw.get("llm") or {}):
@@ -241,11 +255,11 @@ class SynoxConfig(BotConfig):
                    poll_interval_seconds=base.poll_interval_seconds, data_dir=data_dir,
                    stepup_minutes=stepup_minutes, raw=dict(raw), llm=llm, vault=vault, packs=packs, mode=mode,
                    root=root, web=web, ai_member_monthly_usd=max(0.0, member_usd), policy=policy,
-                   runtime=runtime, presentation=presentation, health=health)
+                   runtime=runtime, presentation=presentation, health=health, token_problem=token_problem)
 
     @classmethod
     def load(cls, path: Optional[str] = None, *, require_token: bool = True,
-             root: Optional[str] = None) -> "SynoxConfig":
+             root: Optional[str] = None, vault=None) -> "SynoxConfig":
         path = path or CONFIG_PATH
         if not os.path.exists(path):
             raise ConfigError(f"找不到 {path}：先雙擊 Setup.bat 跑安裝精靈（或複製 config.example.json 成 config.json）。")
@@ -256,7 +270,8 @@ class SynoxConfig(BotConfig):
             raise ConfigError(f"{path} 不是合法的 JSON：{e}")
         if not isinstance(raw, dict):
             raise ConfigError(f"{path} 最外層要是一個 {{…}} 物件。")
-        return cls.from_dict(raw, require_token=require_token, root=root or os.path.dirname(os.path.abspath(path)))
+        return cls.from_dict(raw, require_token=require_token, root=root or os.path.dirname(os.path.abspath(path)),
+                             vault=vault)
 
     def pack_enabled(self, name: str) -> bool:
         enabled = self.packs.get("enabled", "all")
@@ -277,6 +292,38 @@ class SynoxConfig(BotConfig):
             extra.append(os.path.normpath(path))
         from synox.packs.loader import PACK_DIRS      # 延後 import：loader 也 import config
         return tuple(PACK_DIRS) + tuple(extra)
+
+
+def vault_settings(raw: dict, root: str):
+    """只夠 open_vault 用的設定（data_dir、vault.mode），不解 bot_token：解參照本身要先開保管箱。"""
+    data_dir = str(raw.get("data_dir") or "data")
+    if not os.path.isabs(data_dir):
+        data_dir = os.path.join(os.path.abspath(root), data_dir)
+    return SimpleNamespace(data_dir=data_dir, vault={**DEFAULT_VAULT, **(raw.get("vault") or {})})
+
+
+def _resolve_token(raw: dict, root: str, vault, require_token: bool) -> tuple:
+    """raw 的 bot_token → (給 SDK 的 token, 解不開的原因)。明文照原樣；"vault:…"／"env:…" 解開。
+    解出來（或明文）的 token 登記到 log 遮罩。"""
+    from synox import telegram_token as tt
+    value = raw.get("bot_token")
+    if not tt.is_reference(value):
+        token = str(value or "").strip()
+        tt.remember(token)
+        return token, ""
+
+    def opener():
+        from synox.vault import open_vault
+        return open_vault(vault_settings(raw, root))
+    try:
+        token = tt.resolve(value, vault, opener=opener)
+    except tt.TokenUnavailable as e:
+        if require_token:
+            raise ConfigError(str(e))
+        logging.warning("[CONFIG] %s", e)
+        return "", str(e)
+    tt.remember(token)
+    return token, ""
 
 
 def parse_mode(value) -> str:

@@ -183,16 +183,21 @@ def test_save_config_moves_key_to_vault(tmp_path):
         def set_secret(self, name, value):
             stored[name] = value
 
+        def secret(self, name):
+            return stored.get(name)
+
     llm, _ = logic.llm_settings("own", provider="openai", api_key="sk-secret", model="m")
     cfg = logic.build_config(TOKEN, 4242, llm, existing={"packs": {"enabled": "all", "disabled": ["x"]}})
     path = tmp_path / "config.json"
     logic.save(str(path), cfg, vault_opener=lambda c: V())
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["llm"]["api_key"] == "vault:llm_api_key" and stored == {"llm_api_key": "sk-secret"}
-    assert "sk-secret" not in path.read_text(encoding="utf-8")
+    assert data["llm"]["api_key"] == "vault:llm_api_key"          # Telegram token 也一起進保管箱
+    assert stored == {"llm_api_key": "sk-secret", "telegram_bot_token": TOKEN}
+    assert data["bot_token"] == "vault:telegram_bot_token"
+    assert "sk-secret" not in path.read_text(encoding="utf-8") and TOKEN not in path.read_text(encoding="utf-8")
     assert data["owner_id"] == 4242 and data["packs"]["disabled"] == ["x"] and data["llm"]["max_steps"] == 6
     from synox.config import SynoxConfig
-    assert SynoxConfig.load(str(path)).llm["kind"] == "openai" and data["mode"] == "personal"
+    assert SynoxConfig.load(str(path), vault=V()).llm["kind"] == "openai" and data["mode"] == "personal"
 
 
 def test_save_config_real_vault(tmp_path):

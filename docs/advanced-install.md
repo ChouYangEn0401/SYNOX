@@ -63,7 +63,7 @@ Windows 的 `.bat` 都只是包一層 `.venv\Scripts\python.exe -m synox …`，
 2. 原始碼的版面（`<SYNOX>/src/synox/…`，git clone 與 `pip install -e .` 都是這種）→ repo 的根目錄；
 3. 其他（非 editable 的 `pip install`）→ 目前所在的資料夾。
 
-裡面有：`config.json`（設定；**Telegram token 是明文**）、`data/`（加密的資料、保管箱 `data/secrets.json.enc`、主金鑰 `data/.synox.key`、
+裡面有：`config.json`（設定；Telegram、Discord token 與 AI 金鑰只寫 `vault:…` 參照，真的值在保管箱）、`data/`（加密的資料、保管箱 `data/secrets.json.enc`、主金鑰 `data/.synox.key`、
 執行中的鎖 `data/host.lock`）、`packs/`（裝好的工具）、`tools/`（選用的工具庫）。`config.json`、`data/`、`packs/*` 都在 `.gitignore`。
 格式範例：[`config.example.json`](../config.example.json)。
 
@@ -122,7 +122,7 @@ docker compose exec synox synox open       # 一次性登入連結，在宿主�
 
 ### token 怎麼放（不進 git、不進 compose 檔）
 
-- **Telegram**：`docker compose run --rm synox init` 互動時貼上，存在 volume 裡的 `config.json`（明文，跟不用 Docker 時一樣）。
+- **Telegram**：`docker compose run --rm synox init` 互動時貼上，token 存進 volume 裡的保管箱（`data/secrets.json.enc`；容器裡是 `vault.mode: file`，主金鑰也在 volume 裡），`config.json` 只寫 `vault:telegram_bot_token`。
   不要用 `--telegram-token` 參數（會留在 shell 歷史）。
 - **Discord** 🧪：`init` 不問 Discord，要先在 `config.json` 加 `channels.discord`，再把 token 存進保管箱。容器根目錄唯讀、沒有編輯器，
   用映像檔裡的 Python 改 volume 裡的檔：

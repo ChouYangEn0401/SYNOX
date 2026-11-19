@@ -1815,9 +1815,14 @@ class WebUI:
         tg, dc = self._probes()
         cfg = logic.read_existing(self.config_path)
         owner = self._file_owner(cfg)
-        token = str(cfg.get("bot_token") or "").strip()
+        from synox import telegram_token as tt
+        try:                                                  # config.json 只有 "vault:telegram_bot_token"
+            token, tg_problem = tt.resolve(cfg.get("bot_token"), self.vault), ""
+        except tt.TokenUnavailable as e:
+            token, tg_problem = "", str(e)
         telegram = {"saved": tg.valid_token(token), "active": bool(self.config.has_token),
-                    "owner_paired": 0 < owner < BASE, "bot": "", "problem": ""}
+                    "owner_paired": 0 < owner < BASE, "bot": "", "problem": tg_problem,
+                    "masked": tt.mask(token) if tg.valid_token(token) else ""}    # 畫面只給看「…AB12」
         if telegram["saved"]:
             ok, info = tg.get_me(token)
             telegram["bot" if ok else "problem"] = self._scrub(info, token)
@@ -1967,13 +1972,19 @@ class WebUI:
         token = str(data.get("token") or "").strip()
         if not token:
             return _err(400, "要貼上 Telegram bot 的 token（@BotFather 給的那串）。")
+        if self.vault is None:
+            return _err(400, "保管箱沒有打開，token 沒地方放（python -m synox doctor 看原因）。")
         ok, info = tg.get_me(token)
         if not ok:
             return _err(400, self._scrub(info, token))
         cfg = logic.read_existing(self.config_path)
         if not cfg:
             return _err(400, "讀不到 config.json，沒有存（重跑 Setup.bat）。")
-        cfg["bot_token"] = token                                # 跟精靈一樣寫在 config.json
+        from synox import telegram_token
+        try:                                                    # 跟精靈一樣：token 進保管箱，config.json 只寫參照
+            telegram_token.store(cfg, token, self.vault)
+        except Exception as e:
+            return _err(400, "token 存不進保管箱：" + self._scrub(e, token))
         if cfg.get("owner_id", cfg.get("machine_owner_id")) in (None, ""):
             cfg["owner_id"] = int(self.config.owner_id)         # 只用 Discord 的設定沒寫 owner_id：照現在的擁有者寫
         logic.write_config(self.config_path, cfg)
