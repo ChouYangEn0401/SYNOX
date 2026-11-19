@@ -7,38 +7,57 @@
 <meta name="color-scheme" content="light dark">
 <title>SYNOX</title>
 <style nonce="preview">
-  /* ── 設計 token（說明：docs/ui/redesign-notes.md；外觀的合約：docs/themes.md）────────────────
-     淺色取記帳工具（記帳本）的簡約、深色取 另一個個人專案 的層次；跟隨系統，
-     :root[data-theme="light|dark"] 強制（設定 → 外觀的「淺色／深色」）。
-     **整個網頁的顏色只從這裡來**（tests/test_theme.py 檢查）：外觀包（kind=theme）只蓋這些 token、換 data-slot 的內容。
-     合約上的名字：--bg --surface --text --muted --line --accent --accent-ink --accent2 --soft --ok --warn --bad
-     --radius --font-ui --font-brand，吉祥物 --m1 --m2 --mi --mb；其他（--surface-2、--accent-hover…）是進階 token，
-     外觀包沒寫就照 synox/theme/contract.DERIVED 算。舊名字 --accent-2、--accent-soft、--r、--font 是別名。 */
+  /* ── 設計 token（說明：docs/ui/redesign-notes.md；外觀的合約：docs/themes.md；ADR 0042）──────────
+     **整個 SYNOX 的顏色只在 synox/theme/contract.py 宣告一次**（DEFAULTS＝外觀包可以換的、FIXED＝SYNOX 自己的陰影與暗幕）；
+     下面的 TOKENS 記號在送出網頁時換成那兩張表（web/server.render_app），這個檔裡不寫任何顏色（tests/test_theme.py 檢查）。
+     淺色取記帳工具的簡約、深色取另一個專案的層次；跟隨系統，:root[data-theme="light|dark"] 強制（設定 → 外觀的「淺色／深色」）。
+     外觀包（kind=theme）只蓋這些 token、換 data-slot 的內容；沒給的照 contract（DERIVED 或 DEFAULTS），所以舊外觀包遇到新 token 不會缺色。
+     舊名字 --accent-2、--accent-soft、--r、--font 是別名。 */
   :root {
-    --bg: #f3f5f8; --bg-glow: #e3eef0; --surface: #ffffff; --surface-2: #f7f9fb; --sunken: #eef1f5;
-    --line: #e2e7ee; --line-strong: #cdd5df;
-    --text: #131b26; --text-2: #465264; --muted: #6a7687;
-    --accent: #0a7c70; --accent-hover: #086a60; --accent-ink: #ffffff; --soft: #e0f2ef; --accent-line: #9fd6cd;
+    --bg: #f3f5f8;
+    --surface: #ffffff;
+    --text: #131b26;
+    --muted: #6a7687;
+    --line: #e2e7ee;
+    --accent: #0a7c70;
+    --accent-ink: #ffffff;
     --accent2: #2f7fd6;
-    --ok: #12823b; --ok-soft: #e6f4ea; --warn: #9a6400; --warn-soft: #fdf1dc; --bad: #c62f2f; --bad-soft: #fbe8e8;
-    --me: #dff1ee; --me-ink: #0c3a35;
-    --img-bg: #ffffff;   /* 工具回覆的圖（多半是透明底的 SVG／PNG）深色外觀也墊白底才看得清楚 */
-    --img-scrim: rgba(0, 0, 0, .72);   /* 點圖放大時後面的暗幕 */
-    --m1: #4f8df5; --m2: #2f66d0; --mi: #ffffff; --m-hi: #8bb6ff; --mb: color-mix(in srgb, var(--bad) 55%, transparent);
-    --accent-2: var(--accent2); --accent-soft: var(--soft);
+    --soft: #e0f2ef;
+    --ok: #12823b;
+    --warn: #9a6400;
+    --bad: #c62f2f;
+    --radius: 10px;
+    --font-ui: "Segoe UI Variable Text", "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", "PingFang TC", "Noto Sans TC", system-ui, sans-serif;
+    --font-brand: var(--font-ui);
+    --m1: #4f8df5;
+    --m2: #2f66d0;
+    --mi: #ffffff;
+    --mb: color-mix(in srgb, var(--bad) 55%, transparent);
+    --bg-glow: #e3eef0;
+    --surface-2: #f7f9fb;
+    --sunken: #eef1f5;
+    --line-strong: #cdd5df;
+    --text-2: #465264;
+    --accent-hover: #086a60;
+    --accent-line: #9fd6cd;
+    --ok-soft: #e6f4ea;
+    --warn-soft: #fdf1dc;
+    --bad-soft: #fbe8e8;
+    --me: #dff1ee;
+    --me-ink: #0c3a35;
+    --m-hi: #8bb6ff;
+    --scrim: rgba(10, 15, 22, .4);
+    --shadow-up: 0 -8px 24px -16px rgba(0, 0, 0, .4);
+    --img-bg: #ffffff;
+    --img-scrim: rgba(0, 0, 0, .72);
     --shadow-sm: 0 1px 2px rgba(19, 27, 38, .05), 0 1px 3px rgba(19, 27, 38, .06);
     --shadow-md: 0 10px 30px -10px rgba(19, 27, 38, .22);
     --shadow-lg: 0 24px 60px -18px rgba(19, 27, 38, .35);
     --highlight: inset 0 1px 0 rgba(255, 255, 255, .7);
-    --scrim: rgba(10, 15, 22, .4);
-    --shadow-up: 0 -8px 24px -16px rgba(0, 0, 0, .4);
     --tour-scrim: rgba(8, 12, 18, .38);
-    --radius: 10px;
+    --accent-2: var(--accent2); --accent-soft: var(--soft);
     --r-sm: calc(var(--radius) * .8); --r: var(--radius); --r-lg: calc(var(--radius) * 1.4);
     --r-xl: calc(var(--radius) * 1.8); --pill: 999px;
-    --font-ui: "Segoe UI Variable Text", "Segoe UI", "Microsoft JhengHei UI", "Microsoft JhengHei", "PingFang TC",
-            "Noto Sans TC", system-ui, sans-serif;
-    --font-brand: var(--font-ui);
     --font: var(--font-ui);
     --mono: "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, monospace;
     --ease: cubic-bezier(.2, .9, .3, 1);
@@ -47,36 +66,68 @@
   }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) {
-      --bg: #0b0f14; --bg-glow: #13222b; --surface: #121924; --surface-2: #161f2c; --sunken: #0d131b;
-      --line: #1f2b3b; --line-strong: #2d3b4f;
-      --text: #dbe4ef; --text-2: #aab6c6; --muted: #7f90a7;
-      --accent: #35e0c4; --accent-hover: #63ead5; --accent-ink: #04221d; --soft: rgba(53, 224, 196, .12);
-      --accent-line: rgba(53, 224, 196, .42); --accent2: #4aa8ff;
-      --ok: #46d17f; --ok-soft: rgba(70, 209, 127, .12); --warn: #ffb454; --warn-soft: rgba(255, 180, 84, .12);
-      --bad: #ff6b78; --bad-soft: rgba(255, 93, 108, .13);
-      --me: #163836; --me-ink: #dff7f2;
+      --bg: #0b0f14;
+      --surface: #121924;
+      --text: #dbe4ef;
+      --muted: #7f90a7;
+      --line: #1f2b3b;
+      --accent: #35e0c4;
+      --accent-ink: #04221d;
+      --accent2: #4aa8ff;
+      --soft: rgba(53, 224, 196, .12);
+      --ok: #46d17f;
+      --warn: #ffb454;
+      --bad: #ff6b78;
+      --bg-glow: #13222b;
+      --surface-2: #161f2c;
+      --sunken: #0d131b;
+      --line-strong: #2d3b4f;
+      --text-2: #aab6c6;
+      --accent-hover: #63ead5;
+      --accent-line: rgba(53, 224, 196, .42);
+      --ok-soft: rgba(70, 209, 127, .12);
+      --warn-soft: rgba(255, 180, 84, .12);
+      --bad-soft: rgba(255, 93, 108, .13);
+      --me: #163836;
+      --me-ink: #dff7f2;
+      --scrim: rgba(3, 7, 12, .66);
       --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
       --shadow-md: 0 14px 34px -12px rgba(0, 0, 0, .75);
       --shadow-lg: 0 28px 70px -20px rgba(0, 0, 0, .85);
       --highlight: inset 0 1px 0 rgba(255, 255, 255, .045);
-      --scrim: rgba(3, 7, 12, .66);
       color-scheme: dark;
     }
   }
   :root[data-theme="dark"] {
-    --bg: #0b0f14; --bg-glow: #13222b; --surface: #121924; --surface-2: #161f2c; --sunken: #0d131b;
-    --line: #1f2b3b; --line-strong: #2d3b4f;
-    --text: #dbe4ef; --text-2: #aab6c6; --muted: #7f90a7;
-    --accent: #35e0c4; --accent-hover: #63ead5; --accent-ink: #04221d; --soft: rgba(53, 224, 196, .12);
-    --accent-line: rgba(53, 224, 196, .42); --accent2: #4aa8ff;
-    --ok: #46d17f; --ok-soft: rgba(70, 209, 127, .12); --warn: #ffb454; --warn-soft: rgba(255, 180, 84, .12);
-    --bad: #ff6b78; --bad-soft: rgba(255, 93, 108, .13);
-    --me: #163836; --me-ink: #dff7f2;
+    --bg: #0b0f14;
+    --surface: #121924;
+    --text: #dbe4ef;
+    --muted: #7f90a7;
+    --line: #1f2b3b;
+    --accent: #35e0c4;
+    --accent-ink: #04221d;
+    --accent2: #4aa8ff;
+    --soft: rgba(53, 224, 196, .12);
+    --ok: #46d17f;
+    --warn: #ffb454;
+    --bad: #ff6b78;
+    --bg-glow: #13222b;
+    --surface-2: #161f2c;
+    --sunken: #0d131b;
+    --line-strong: #2d3b4f;
+    --text-2: #aab6c6;
+    --accent-hover: #63ead5;
+    --accent-line: rgba(53, 224, 196, .42);
+    --ok-soft: rgba(70, 209, 127, .12);
+    --warn-soft: rgba(255, 180, 84, .12);
+    --bad-soft: rgba(255, 93, 108, .13);
+    --me: #163836;
+    --me-ink: #dff7f2;
+    --scrim: rgba(3, 7, 12, .66);
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, .4);
     --shadow-md: 0 14px 34px -12px rgba(0, 0, 0, .75);
     --shadow-lg: 0 28px 70px -20px rgba(0, 0, 0, .85);
     --highlight: inset 0 1px 0 rgba(255, 255, 255, .045);
-    --scrim: rgba(3, 7, 12, .66);
     color-scheme: dark;
   }
 
@@ -556,6 +607,14 @@
   .look-card .row { margin-top: auto; }
   #custom-text { width: 100%; font-family: var(--mono); font-size: 13px; }
   iframe.theme-preview { width: 100%; height: 250px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+  /* 套用檢查（synox/theme/check.py，ADR 0042）：摘要＋要注意的；展開看每一項 */
+  .theme-check { font-size: 13px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .theme-check ul { margin: 2px 0 0; padding-left: 18px; }
+  .theme-check details summary { cursor: pointer; color: var(--muted); }
+  .theme-check table { border-collapse: collapse; width: 100%; margin: 6px 0; font-size: 12px; }
+  .theme-check th, .theme-check td { text-align: left; padding: 2px 6px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+  .theme-check td.v { font-family: var(--mono); color: var(--muted); }
+  .theme-check tr.issue td { color: var(--warn); }
   .theme-previews { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 10px; }
   .swatches { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
   .swatches .muted { margin-right: 4px; }
@@ -8576,6 +8635,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     list.appendChild(lookCard("", "原本的 SYNOX", "預設的樣子", null));
     (look.themes || []).forEach(function (t) {
       var card = lookCard(t.name, t.title, t.name + " · v" + t.version + (t.publisher ? " · " + t.publisher : ""), t.tokens);
+      if (t.check) { card.insertBefore(themeCheckBox(t.check, true), card.lastChild); }
       if (!t.ok) { card.appendChild(el("p", "alert", "⚠️ 這套外觀沒通過安全檢查，不能套用")); card.querySelector("button").disabled = true; }
       list.appendChild(card);
     });
@@ -9673,6 +9733,59 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     f.src = "/theme/preview?" + query;
     return f;
   }
+  // 套用檢查（synox/theme/check.py，ADR 0042）：每個 token／位置是有給、沿用預設、還是被忽略。只是提示，不擋套用。
+  var CHECK_TEXT = { provided: "外觀包有給", derived: "沒給 → 用外觀包自己的顏色算", "default": "沒給 → 沿用 SYNOX 預設",
+    ignored: "給了但這版 SYNOX 不認得 → 忽略" };
+  var SLOT_CHECK_TEXT = { provided: "外觀包有換", "default": "沒換 → 沿用 SYNOX 原本的", ignored: "給了但這版 SYNOX 沒有這個位置 → 忽略" };
+  var MODE_TEXT = { light: "淺色", dark: "深色" };
+  function countLine(c, texts) {
+    return Object.keys(texts).filter(function (k) { return c && c[k]; }).map(function (k) { return texts[k] + " " + c[k]; }).join("、");
+  }
+  function checkTable(rows, slot) {
+    var table = el("table");
+    var head = el("tr");
+    [slot ? "位置" : "token", "結果", slot ? "" : "值"].forEach(function (h) { if (h || !slot) { head.appendChild(el("th", "", h)); } });
+    table.appendChild(head);
+    (rows || []).forEach(function (r) {
+      var tr = el("tr", r.issue ? "issue" : "");
+      tr.appendChild(el("td", "", (r.issue ? "⚠️ " : "") + (slot ? r.slot : "--" + r.token)));
+      tr.appendChild(el("td", "", (slot ? SLOT_CHECK_TEXT : CHECK_TEXT)[r.status] + (r.from === "light" ? "（跟淺色同一個）" : "")));
+      if (!slot) { tr.appendChild(el("td", "v", r.value || "")); }
+      table.appendChild(tr);
+    });
+    return table;
+  }
+  // compact（設定 → 外觀的卡片）：一行結果＋要注意的，數字收進「展開」；報告上數字直接列出來
+  function themeCheckBox(check, compact) {
+    var box = el("div", "theme-check");
+    if (!check) { return box; }
+    var c = check.counts || {};
+    var more = el("details");
+    more.appendChild(el("summary", "", "展開看每一項"));
+    var counts = compact ? more : box;
+    box.appendChild(el("div", "", "套用檢查（只是提示，不擋套用；沒給的都有值）"));
+    ["light", "dark"].forEach(function (m) { counts.appendChild(el("div", "muted", MODE_TEXT[m] + "：" + countLine(c[m], CHECK_TEXT))); });
+    counts.appendChild(el("div", "muted", "吉祥物與開場的位置：" + countLine(c.slots, SLOT_CHECK_TEXT)));
+    var issues = check.issues || [];
+    if (issues.length) {
+      box.appendChild(el("div", "", "⚠️ 要注意 " + issues.length + " 項："));
+      var ul = el("ul");
+      issues.forEach(function (it) {
+        ul.appendChild(el("li", "", (it.mode ? MODE_TEXT[it.mode] + " " : "") + (it.kind === "token" ? "--" : "") + it.name + "：" + it.why));
+      });
+      box.appendChild(ul);
+    } else {
+      box.appendChild(el("div", "", "✅ 沒有要注意的"));
+    }
+    ["light", "dark"].forEach(function (m) {
+      more.appendChild(el("div", "", MODE_TEXT[m] + "的每一個 token"));
+      more.appendChild(checkTable((check.tokens || {})[m], false));
+    });
+    more.appendChild(el("div", "", "吉祥物與開場的位置（slot）"));
+    more.appendChild(checkTable(check.slots, true));
+    box.appendChild(more);
+    return box;
+  }
   function showThemeReport(box, s) {
     var th = s.theme || {};
     box.appendChild(el("p", "", "🎨 外觀包：只換顏色、字型、吉祥物圖案，沒有程式。換掉的位置：" +
@@ -9680,6 +9793,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     var tk = th.tokens || {};
     box.appendChild(swatchRow(tk.light, "淺色"));
     box.appendChild(swatchRow(tk.dark, "深色"));
+    if (th.check) { box.appendChild(themeCheckBox(th.check)); }
     if (s.token && !((s.scan || {}).problems || []).length) {
       var pv = el("div", "theme-previews");
       pv.appendChild(previewFrame("staged=" + encodeURIComponent(s.token) + "&mode=light", s.title + "（淺色預覽）"));
