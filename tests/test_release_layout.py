@@ -65,9 +65,9 @@ NEEDED = ("Setup.bat", "Update.bat", "setup/update.ps1", "Start.bat", "Stop.bat"
           "docs/legacy/connectors.md", "sdk/synox_sdk.py")
 
 
-# 開發者的交接文件：AI 程式助理每次載入的短版規則、交接入口、開發指南、舊的工作交接。git clone 才有。
+# 開發者的交接文件：AI 程式助理每次載入的短版規則、交接入口、開發指南、舊的工作交接、待測清單。git clone 才有。
 DEV_HANDOFF = ("AGENTS.md", "CLAUDE.md", "docs/HANDOFF.md", "docs/development.md",
-               "docs/handoff/2026-11-14-session-handoff.md")
+               "docs/handoff/2026-11-14-session-handoff.md", "HumanTestList.md", "VerifyList.json")
 
 
 def test_developer_handoff_docs_stay_out_but_user_docs_ship():

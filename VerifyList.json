@@ -1,0 +1,54 @@
+{
+  "schema": "verifylist/1",
+  "note": "Run from the repository root after `pip install -e .`. From a git worktree, set PYTHONPATH to that worktree's src and vendor folders so the tests import the worktree, not another checkout. Human checks live in HumanTestList.md. Neither file ships in releases.",
+  "items": [
+    {
+      "id": "prepublish-worktree",
+      "what": "公開前檢查（整棵工作樹）：沒有密鑰、本機路徑、個人信箱、私人詞、敏感檔名",
+      "run": ["python", "scripts/prepublish_check.py", "--worktree-only"],
+      "cwd": ".", "env": {}, "expect": "exit 0",
+      "needs": [], "since": "2026-11-19",
+      "status": "pending", "last_run": null, "last_result": null
+    },
+    {
+      "id": "release-layout",
+      "what": "發佈 ZIP／安裝程式帶使用者要的、不帶開發用檔（含交接文件與這兩份待測清單）",
+      "run": ["python", "-m", "pytest", "-q", "tests/test_release_layout.py"],
+      "cwd": ".", "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "expect": "exit 0",
+      "needs": [], "since": "2026-11-19",
+      "status": "pending", "last_run": null, "last_result": null
+    },
+    {
+      "id": "prepublish-check-tests",
+      "what": "公開前檢查腳本自己的測試",
+      "run": ["python", "-m", "pytest", "-q", "tests/test_prepublish_check.py"],
+      "cwd": ".", "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "expect": "exit 0",
+      "needs": [], "since": "2026-11-19",
+      "status": "pending", "last_run": null, "last_result": null
+    },
+    {
+      "id": "examples",
+      "what": "examples/ 的範例工具都還能載入、通過檢查",
+      "run": ["python", "-m", "pytest", "-q", "tests/test_examples.py"],
+      "cwd": ".", "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "expect": "exit 0",
+      "needs": [], "since": "2026-11-19",
+      "status": "pending", "last_run": null, "last_result": null
+    },
+    {
+      "id": "sdk-cli-help",
+      "what": "工具作者用的 SDK 命令列能啟動、印出說明",
+      "run": ["python", "-m", "synox.sdk", "--help"],
+      "cwd": ".", "env": {}, "expect": "exit 0",
+      "needs": [], "since": "2026-11-19",
+      "status": "pending", "last_run": null, "last_result": null
+    },
+    {
+      "id": "full-suite",
+      "what": "全套測試（略過唯一會在 127.0.0.1 開埠的那個）；對照 docs/development.md 第 3 節的基準，只看新多出來的失敗",
+      "run": ["python", "-m", "pytest", "-q", "--deselect", "tests/test_web.py::test_port_already_in_use_is_a_bind_failure"],
+      "cwd": ".", "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "expect": "exit 0",
+      "needs": ["heavy"], "since": "2026-11-19",
+      "status": "pending", "last_run": null, "last_result": null
+    }
+  ]
+}
