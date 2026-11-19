@@ -239,6 +239,10 @@ def with_weekly_updates(cfg: dict, weekly: bool) -> dict:
 
 
 def write_config(path: str, cfg: dict) -> None:
+    """寫 config.json：一律寫目前的格式、蓋上目前的 schema_version（舊內容先在記憶體裡跑完遷移步驟，synox/datastore/core.py）；
+    手上這份是較新版本寫的 → 丟 TooNewError、不寫（ADR 0043：不拿舊格式蓋掉新資料）。"""
+    from synox.datastore import core as data_core
+    cfg = data_core.CONFIG.upgrade_data(cfg, os.path.basename(path))
     folder = os.path.dirname(os.path.abspath(path))
     os.makedirs(folder, exist_ok=True)
     tmp = path + ".tmp"

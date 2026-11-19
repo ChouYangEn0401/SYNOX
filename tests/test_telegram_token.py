@@ -153,7 +153,9 @@ def test_migrate_moves_plaintext_and_is_idempotent(tmp_path, caplog):
     (tmp_path / "config.json.tmp").write_text('{"bot_token": "%s"}' % TOKEN, encoding="utf-8")
     assert tt.migrate(str(path)) == tt.MIGRATED
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data == {"bot_token": tt.REF, "owner_id": 4242, "vault": {"mode": "file"}, "llm": {"kind": "none"}}
+    # schema_version：write_config 一律蓋上目前的版本號（ADR 0043）
+    assert data == {"bot_token": tt.REF, "owner_id": 4242, "vault": {"mode": "file"}, "llm": {"kind": "none"},
+                    "schema_version": 1}
     assert TOKEN not in _everything_under(tmp_path)        # config.json、殘檔、log 都沒有明文（保管箱是密文）
     assert TOKEN not in caplog.text
     config = SynoxConfig.load(str(path))

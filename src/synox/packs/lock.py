@@ -107,6 +107,8 @@ def hashes_for(record: Optional[dict], folder: str) -> Dict[str, str]:
 
 
 def load(data_dir: str) -> dict:
+    """讀 packs.lock。沒有版本號的舊檔在記憶體裡當 1 版（0→1 只是補上欄位，synox/datastore/core.py）；
+    比這支程式新的版本照樣讀（盡量），但 _save 會拒絕寫回（ADR 0043：不服務降級，不拿舊格式蓋掉新資料）。"""
     data = jsonstore.load_json(lock_path(data_dir), {}) or {}
     if not isinstance(data, dict):
         data = {}
@@ -114,6 +116,12 @@ def load(data_dir: str) -> dict:
     if not isinstance(data.get("packs"), dict):
         data["packs"] = {}
     return data
+
+
+def _save(data_dir: str, data: dict) -> None:
+    """寫 packs.lock：一律是目前的格式與版本號（synox/datastore/core.py 的 LOCK）；檔案是較新版本寫的 → 丟 TooNewError、不寫。"""
+    from synox.datastore import core as data_core
+    jsonstore.save_json(lock_path(data_dir), data_core.LOCK.upgrade_data(data, LOCK_FILE))
 
 
 def entry(data_dir: str, name: str) -> Optional[dict]:
@@ -164,7 +172,7 @@ def set_runtime(data_dir: str, manifest, mode: str, chosen_by, now: Optional[flo
         if not isinstance(found, dict):
             raise KeyError(manifest.name)
         found["runtime"] = record
-        jsonstore.save_json(lock_path(data_dir), data)
+        _save(data_dir, data)
     return record
 
 
@@ -201,7 +209,7 @@ def approve(data_dir: str, manifest, report, approved_by, *, via: str, hashes: O
     with _LOCK:
         data = load(data_dir)
         data["packs"][manifest.name] = record
-        jsonstore.save_json(lock_path(data_dir), data)
+        _save(data_dir, data)
     return record
 
 
@@ -223,7 +231,7 @@ def restore(data_dir: str, name: str, record: dict) -> None:
     with _LOCK:
         data = load(data_dir)
         data["packs"][name] = dict(record)
-        jsonstore.save_json(lock_path(data_dir), data)
+        _save(data_dir, data)
 
 
 def remove(data_dir: str, name: str) -> bool:
@@ -231,7 +239,7 @@ def remove(data_dir: str, name: str) -> bool:
         data = load(data_dir)
         if data["packs"].pop(name, None) is None:
             return False
-        jsonstore.save_json(lock_path(data_dir), data)
+        _save(data_dir, data)
         return True
 
 
