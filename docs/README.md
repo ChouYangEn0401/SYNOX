@@ -34,6 +34,7 @@
 | [advanced-install.md](advanced-install.md) | 使用者（工程師） | 進階安裝：從原始碼裝（venv）、Docker 指令速查、沒有螢幕的伺服器、背景服務（Windows 自動啟動、systemd 範例）、測試與打包；標出哪些沒驗證過 |
 | [guide/index.html](guide/index.html) | 使用者 | 安裝教學（一步一步，雙擊就能看；線上版 <https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F>） |
 | [handoff/](handoff/README.md) | 使用者、維護者 | 到另一台電腦用真的帳號測 connector 與 Discord：教學、Discord 交接、煙霧測試 `scripts/smoke_real.py`；空白 Windows 的安裝實測、容器與 Linux 沙盒的真機驗證；2026-11-14 那一輪的工作交接（歷史紀錄，現況看 [HANDOFF.md](HANDOFF.md)；只在 git clone／GitHub 上有） |
+| [testing/pack-warnings-checklist.md](testing/pack-warnings-checklist.md) | 維護者、測試的人 | pack 標記警告（ADR 0041）的驗收清單：自動測試涵蓋什麼、必須在真機人工驗證的項目（每項步驟、預期、結果欄）；**全部勾完才算過關** |
 | [tools.md](tools.md) | 作者 | **從這裡開始**：三條接入路怎麼選、權限欄位、secret、確認來回、測試、安全自檢表 |
 | [sdk.md](sdk.md) | 作者 | Python 工具 SDK（`@tool`、`serve()`、`secret()`、`context()`、`synox-sdk` 指令） |
 | [tool-apps.md](tool-apps.md) | 作者 | 給工具附一個完整的網頁畫面（工具服務，`web.app`）：怎麼宣告、只有這台電腦打得開、登入與閒置由 SYNOX 管 |
