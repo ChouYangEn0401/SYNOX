@@ -128,3 +128,19 @@ def test_this_repo():
     """這個 repo 現在：版本一致、CHANGELOG 最上面是這一版、比每個本機 tag 新（git tag 唯讀）。"""
     ok, bad, warn = cvc.check(ROOT)
     assert bad == [], bad
+
+
+def test_released_version_on_a_later_merge_commit_is_fine_when_the_code_did_not_change(tmp_path):
+    """dev/main after a release merge: the tag is an ancestor, only merges and docs came after (no src change)."""
+    root = _repo(tmp_path, version="0.2.1-beta.2", top="## 0.2.1-beta.2（2026-11-18）")
+    (tmp_path / "CHANGELOG.md").write_text("# Changelog\n\n## 0.2.1-beta.2（2026-11-18）\n\n- z\n", encoding="utf-8")
+    ok, bad, warn = cvc.check(root, tags=TAGS, head_tags=[], unchanged_since=["v0.2.1-beta.2"])
+    assert bad == [], bad
+
+
+def test_released_version_with_changed_code_after_the_tag_is_still_refused(tmp_path):
+    """Same version, but src/ changed after the tag: that is reuse of a released number."""
+    root = _repo(tmp_path, version="0.2.1-beta.2", top="## 0.2.1-beta.2（2026-11-18）")
+    (tmp_path / "CHANGELOG.md").write_text("# Changelog\n\n## 0.2.1-beta.2（2026-11-18）\n\n- z\n", encoding="utf-8")
+    ok, bad, warn = cvc.check(root, tags=TAGS, head_tags=[], unchanged_since=[])
+    assert any("已經發過了" in b for b in bad), bad

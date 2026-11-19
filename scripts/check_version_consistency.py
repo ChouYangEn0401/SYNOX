@@ -104,9 +104,21 @@ def git_tags(root: str) -> Tuple[Optional[List[str]], List[str]]:
     return [t.strip() for t in tags.splitlines() if t.strip()], [t.strip() for t in head.splitlines() if t.strip()]
 
 
+def released_code_unchanged(root: str, tag: str) -> bool:
+    """True when `tag` is an ancestor of HEAD and nothing that ships (src/, vendor/, pyproject.toml) changed since it:
+    HEAD only adds merge commits or docs on top of the released version (dev after a release merge, main after a merge)."""
+    def ok(*args: str) -> bool:
+        try:
+            return subprocess.run(["git", *args], cwd=root, capture_output=True, text=True, timeout=30).returncode == 0
+        except (OSError, subprocess.SubprocessError):
+            return False
+    return ok("merge-base", "--is-ancestor", tag, "HEAD") and ok("diff", "--quiet", tag, "HEAD", "--", "src", "vendor", "pyproject.toml")
+
+
 def check(root: str = ROOT, tag: str = "", use_git: bool = True,
-          tags: Optional[Sequence[str]] = None, head_tags: Sequence[str] = ()) -> Tuple[List[str], List[str], List[str]]:
-    """(ok, problems, reminders). `tags`/`head_tags` replace the git calls (tests)."""
+          tags: Optional[Sequence[str]] = None, head_tags: Sequence[str] = (),
+          unchanged_since: Optional[Sequence[str]] = None) -> Tuple[List[str], List[str], List[str]]:
+    """(ok, problems, reminders). `tags`/`head_tags`/`unchanged_since` replace the git calls (tests)."""
     ok: List[str] = []
     bad: List[str] = []
     warn: List[str] = []
@@ -202,6 +214,9 @@ def check(root: str = ROOT, tag: str = "", use_git: bool = True,
             ok.append(f"{version} 比最新的 tag {newest} 新")
         elif mine in tags and mine in head_tags and key == newest_key:
             ok.append(f"這裡就是已發佈的 {mine}（HEAD 上的 tag）")
+        elif mine in tags and mine not in head_tags and key == newest_key and (
+                (mine in unchanged_since) if unchanged_since is not None else (use_git and released_code_unchanged(root, mine))):
+            ok.append(f"{mine} 的 tag 在這個 commit 的祖先上，之後只有合併與文件（src、vendor、pyproject.toml 沒變）")
         elif mine in tags and mine not in head_tags:
             bad.append(f"{mine} 已經發過了（tag 在別的 commit）：版本號不能重用，"
                        "要再發就用下一個號碼（`python scripts/release.py bump …`；docs/versioning.md §5）")
