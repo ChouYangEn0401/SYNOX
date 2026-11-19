@@ -321,6 +321,8 @@ class WebUI:
         self.sessions = Sessions(os.path.join(data, "web_sessions.json"), clock=clock)
         self.panel_tickets = PanelTickets(clock=clock)    # 面板的票（只在記憶體；ADR 0028 §5）
         self.chats = ChatStore(os.path.join(data, "web_chats"), vault, clock=clock)
+        from synox.web.chatmedia import ChatMedia
+        self.chats.media = ChatMedia(os.path.join(data, "web_chats", "media"), vault)   # 工具回覆帶的圖（chatmedia.py）
         from synox.web.uploads import UploadStore
         self.uploads = UploadStore(clock=clock)          # 對話的附件：只在記憶體（web/uploads.py）
         self.prefs = toolpage.UserPrefs(os.path.join(data, "web_prefs"), vault)   # 每個人的工具頁排版、外觀
@@ -884,6 +886,9 @@ class WebUI:
             m = re.match(r"^/api/chat/([a-z0-9]+)/events$", path)
             if m:
                 return self.events(user, m.group(1), (query.get("since") or ["0"])[0])
+            m = re.match(r"^/api/chat/([a-z0-9]+)/image/([A-Za-z0-9_-]{8,40})$", path)
+            if m:
+                return self.chat_image(user, m.group(1), m.group(2))
             if path == "/api/tools":
                 return _json(200, self.tools(user))
             m = re.match(r"^/api/pack-staged/([A-Za-z0-9_-]{8,64})$", path)
@@ -1076,6 +1081,25 @@ class WebUI:
             since_n = 0
         messages, rev = self.chats.events(user.tg_id, chat_id, since_n)
         return _json(200, {"messages": messages, "rev": rev})
+
+    def chat_image(self, user, chat_id: str, image_id: str) -> Resp:
+        """工具回覆帶的圖（chatmedia.py）：只給這個人、這段對話裡真的有這張圖的訊息。網頁用 <img src> 拿，不 inline 進 DOM；
+        CSP 什麼都不准（SVG 直接開也不跑程式、不抓東西）＋sandbox＋nosniff。"""
+        chat = self._chat(user, chat_id)
+        media = self.chats.media
+        if chat is None or media is None:
+            return _err(404, "沒有這張圖。")
+        if not any(i.get("id") == image_id for m in chat.get("messages") or [] for i in (m.get("images") or [])):
+            return _err(404, "沒有這張圖。")
+        got = media.get(user.tg_id, image_id)
+        if got is None:
+            return _err(404, "沒有這張圖。")
+        mime, data = got
+        return 200, [("X-Content-Type-Options", "nosniff"), ("Referrer-Policy", "no-referrer"),
+                     ("Cache-Control", "private, max-age=86400"), ("Content-Type", mime),
+                     ("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox"),
+                     ("Cross-Origin-Resource-Policy", "same-origin"), ("X-Frame-Options", "DENY"),
+                     ("Content-Disposition", "inline")], data
 
     def channel(self, user, chat_id: str) -> WebChannel:
         return WebChannel(self.chats, user.tg_id, chat_id, home=self.app.home)
