@@ -354,6 +354,7 @@
   .msg .blocks ul, .msg .blocks ol { padding-left: 1.4em; }
   .msg .blocks li > ul, .msg .blocks li > ol { margin: 2px 0 0; }
   .msg .blocks pre { overflow-x: auto; padding: 8px 10px; border-radius: 8px; background: var(--sunken); white-space: pre; }
+  .msg .blocks pre, .msg .blocks code { font-variant-ligatures: none; }      /* TAB 譜的 |--- 不要被字型連成線 */
   .msg .blocks blockquote { margin-left: 0; padding-left: 10px; border-left: 3px solid var(--line-strong); color: var(--muted); }
   .msg .blocks .tablewrap { background: var(--surface); }
   .msg .blocks .status { font-weight: 650; }
@@ -361,7 +362,10 @@
   #composer { display: flex; gap: 8px; align-items: flex-end; margin: 0 14px 14px; padding: 8px 8px 8px 14px;
               border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface);
               transition: border-color .15s var(--ease), box-shadow .15s var(--ease); }
-  #composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  /* 輸入框的邊要看得出來（WCAG 1.4.11 ≥3:1）：--muted 是給字用的（≥4.5:1），摻一點 --line-strong 讓它不要太重 */
+  #composer { border-color: color-mix(in srgb, var(--muted) 85%, var(--line-strong)); box-shadow: var(--shadow-sm); }
+  #composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-soft); }
+  body.chat-dragging #composer { border-style: dashed; border-color: var(--accent); }
   #input { flex: 1; resize: none; min-height: 40px; max-height: 160px; border: 0; padding: 9px 0; background: transparent;
            box-shadow: none; }
   #input:focus { box-shadow: none; }
@@ -372,6 +376,36 @@
   .att-chip .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .att-chip .k { color: var(--muted); font-size: 12px; }
   .att-chip button { padding: 0 6px; min-height: 0; border: 0; background: transparent; }
+  /* 回覆某一則（static/reply.js）：泡泡上的「↩ 回覆」、送出那則上面的引用塊、輸入框上方的引用列 */
+  /* 觸控（沒有滑鼠移上去）：泡泡底下一行小字，一直看得到；有滑鼠：浮在泡泡旁邊、移上去或 Tab 到才出現（不佔位置） */
+  .msg { position: relative; }
+  .msg .reply-btn { display: block; margin: 4px -6px -6px auto; padding: 0 6px; min-height: 28px; font-size: 12px;
+                    font-weight: 500; border: 0; background: transparent; box-shadow: none; color: inherit; opacity: .65;
+                    white-space: nowrap; }
+  .msg .reply-btn:hover { background: transparent; opacity: 1; text-decoration: underline; }
+  @media (hover: hover) {
+    .msg .reply-btn { position: absolute; bottom: 2px; margin: 0; color: var(--muted); opacity: 0; }
+    .msg.me .reply-btn { right: 100%; margin-right: 4px; }
+    .msg.bot .reply-btn { left: 100%; margin-left: 4px; }
+    .msg:hover .reply-btn, .msg:focus-within .reply-btn { opacity: 1; }
+  }
+  .msg .reply-quote { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; min-height: 0;
+                      margin: 0 0 6px; padding: 4px 8px; text-align: left; white-space: normal; color: var(--text-2);
+                      border: 0; border-left: 3px solid var(--accent); border-radius: 6px; box-shadow: none;
+                      background: var(--surface-2); font-weight: 400; cursor: pointer; }
+  .msg .reply-quote:hover { background: var(--sunken); }
+  .msg .reply-quote .rq-who { font-size: 12px; font-weight: 650; color: var(--accent); }
+  .msg .reply-quote .rq-text { font-size: 12.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg.flash { animation: reply-flash 1.6s var(--ease); }
+  @keyframes reply-flash { 0%, 60% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+  @media (prefers-reduced-motion: reduce) { .msg.flash { animation: none; outline: 3px solid var(--accent); outline-offset: 2px; } }
+  .reply-bar { display: flex; align-items: center; gap: 8px; margin: 0 14px 6px; padding: 6px 6px 6px 10px;
+               border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--r);
+               background: var(--surface); }
+  .reply-bar .rb-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .reply-bar .rb-who { font-size: 12px; font-weight: 650; color: var(--accent); }
+  .reply-bar .rb-text { font-size: 13px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .reply-bar .rb-x { flex: none; padding: 0 10px; min-height: 32px; border: 0; background: transparent; box-shadow: none; }
   .hint { font-size: 12px; color: var(--muted); text-align: center; margin: -6px 0 10px; }
   .empty { color: var(--muted); text-align: center; margin: auto; display: flex; flex-direction: column;
            align-items: center; gap: 10px; padding: 24px; }
@@ -386,6 +420,7 @@
     #stream { padding: 20px 24px; }
     #composer { margin: 0 24px 14px; }
     #attach-list { margin: 0 24px 6px; }
+    .reply-bar { margin: 0 24px 6px; }
     .hint { margin-bottom: 12px; }
   }
 
@@ -2323,6 +2358,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       <div class="chat-head"><span class="live" aria-hidden="true"></span><span class="t" id="chat-title">對話</span></div>
       <div id="stream"><div class="empty">選一段對話，或按「新對話」。</div></div>
       <div id="helpdock" class="helpdock hidden" aria-label="範例"></div>
+      <div id="reply-bar" class="reply-bar hidden" aria-live="polite"></div>
       <div id="attach-list" aria-live="polite"></div>
       <form id="composer" data-tour="chat.input">
         <button id="examples-btn" class="ghost" type="button" data-tour="chat.examples" title="看範例：點一下就放進輸入框">💡 範例</button>
@@ -7513,9 +7549,386 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     return box;
   }
 
-  var api = { render: render, safeHref: safeHref, linkText: linkText };
+  // ── 沒有 blocks 的 bot 訊息：瀏覽器這邊的小 Markdown（config presentation.enabled 關著時，AI 回的就是原樣的 Markdown）──
+  // markdown(text) → 跟伺服器 wire 一樣形狀的區塊（交給上面的 render 畫，一樣只用 createElement＋textContent）；
+  // 看起來不是 Markdown → null，照舊用 linkText（純文字的訊息畫出來跟以前一模一樣）。
+  // 支援：``` / ~~~ 程式碼區塊（沒閉合＝到結尾）、# 標題、- * + 與 1. 清單（兩層）、> 引用、| 表格、段落（換行照留）；
+  // 行內 **粗體**、*斜體*、`程式碼`、[字](http/https 網址)、裸網址。不認 _底線_（指令名字裡常有底線）。
+  // HTML 標籤、[字](javascript:…) 一律是普通字。
+  var FENCE = /^ {0,3}(`{3,}|~{3,})/;
+  var HEAD = /^ {0,3}(#{1,6})[ \t]+(.*?)[ \t#]*$/;
+  var ITEM = /^([ \t]*)([-*+]|\d{1,9}[.)])[ \t]+(.*)$/;
+  var QUOTE = /^ {0,3}> ?(.*)$/;
+  var HR = /^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$/;
+  var SEP = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+  var INLINE = /`[^`\n]+`|\*\*[^*\n]+\*\*|\*[^\s*][^*\n]*\*|\[[^\]\n]+\]\(https?:[^)\s]+\)/;
+
+  function looksLikeMarkdown(s) {
+    return /^ {0,3}(```|~~~|#{1,6}[ \t]|[-*+][ \t]|\d{1,9}[.)][ \t]|>)/m.test(s) || INLINE.test(s) ||
+      /^\s*\|.*\|\s*$/m.test(s);
+  }
+
+  function urlSpans(text, style, out) {          // 普通字裡的裸網址 → href（跟 linkText 同一套規則）
+    var last = 0, m;
+    var add = function (t, href) {
+      var sp = { text: t };
+      Object.keys(style).forEach(function (k) { sp[k] = style[k]; });
+      if (href) { sp.href = href; }
+      out.push(sp);
+    };
+    URL_RE.lastIndex = 0;
+    while ((m = URL_RE.exec(text)) !== null) {
+      var url = m[0].replace(TRAILING, "");
+      if (!safeHref(url) || /^https?:\/\/$/i.test(url)) { continue; }
+      if (m.index > last) { add(text.slice(last, m.index)); }
+      add(url, url);
+      last = m.index + url.length;
+    }
+    if (last < text.length) { add(text.slice(last)); }
+  }
+
+  var I_CODE = /`([^`\n]+)`/y, I_BOLD = /\*\*([^*\n]+)\*\*/y, I_ITAL = /\*([^\s*](?:[^*\n]*[^\s*])?)\*/y,
+      I_LINK = /\[([^\]\n]+)\]\(([^)\s]+)\)/y;
+
+  function at(re, s, i) { re.lastIndex = i; return re.exec(s); }
+
+  function inline(text) {
+    var out = [], s = String(text), start = 0, i = 0, m;
+    var flush = function () { if (i > start) { urlSpans(s.slice(start, i), {}, out); } };
+    while (i < s.length) {
+      var c = s.charAt(i);
+      if (c === "`" && (m = at(I_CODE, s, i))) {
+        flush(); out.push({ text: m[1], code: true });
+      } else if (c === "*" && (m = at(I_BOLD, s, i)) && m[1].trim()) {
+        flush(); urlSpans(m[1], { bold: true }, out);
+      } else if (c === "*" && (m = at(I_ITAL, s, i))) {
+        flush(); urlSpans(m[1], { italic: true }, out);
+      } else if (c === "[" && (m = at(I_LINK, s, i)) && safeHref(m[2])) {
+        flush(); out.push({ text: m[1], href: m[2] });
+      } else {
+        i += 1; continue;
+      }
+      i += m[0].length; start = i;
+    }
+    flush();
+    return out;
+  }
+
+  function cells(line) {
+    var t = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+    return t.split("|").map(function (c) { return inline(c.trim()); });
+  }
+
+  function newList(marker) {
+    var ordered = /\d/.test(marker);
+    return { type: "list", ordered: ordered, start: ordered ? parseInt(marker, 10) : 1, items: [] };
+  }
+
+  function markdown(text) {
+    var s = text === undefined || text === null ? "" : String(text).replace(/\r\n?/g, "\n");
+    if (!looksLikeMarkdown(s)) { return null; }
+    var lines = s.split("\n"), out = [], para = [], i = 0, m;
+    var endPara = function () {
+      if (para.length) { out.push({ type: "paragraph", spans: inline(para.join("\n")) }); para = []; }
+    };
+    while (i < lines.length) {
+      var line = lines[i];
+      if ((m = FENCE.exec(line))) {
+        endPara();
+        var mark = m[1], code = [];
+        var close = new RegExp("^ {0,3}" + (mark.charAt(0) === "`" ? "`" : "~") + "{" + mark.length + ",}\\s*$");
+        i += 1;
+        while (i < lines.length && !close.test(lines[i])) { code.push(lines[i]); i += 1; }
+        i += 1;                                                      // 收尾那行（沒有＝到結尾都是程式碼）
+        out.push({ type: "code", code: code.join("\n") });
+        continue;
+      }
+      if (!line.trim() || HR.test(line)) { endPara(); i += 1; continue; }
+      if ((m = HEAD.exec(line))) {
+        endPara();
+        out.push({ type: "heading", level: Math.min(3, m[1].length), spans: inline(m[2]) });
+        i += 1; continue;
+      }
+      if (QUOTE.test(line)) {
+        endPara();
+        var qs = [], cur = [];
+        while (i < lines.length && (m = QUOTE.exec(lines[i]))) {
+          if (m[1].trim()) { cur.push(m[1]); } else if (cur.length) { qs.push(inline(cur.join("\n"))); cur = []; }
+          i += 1;
+        }
+        if (cur.length) { qs.push(inline(cur.join("\n"))); }
+        out.push({ type: "quote", paragraphs: qs });
+        continue;
+      }
+      if (line.indexOf("|") >= 0 && i + 1 < lines.length && lines[i + 1].indexOf("|") >= 0 && SEP.test(lines[i + 1])) {
+        endPara();
+        var tb = { type: "table", header: cells(line), rows: [] };
+        i += 2;
+        while (i < lines.length && lines[i].indexOf("|") >= 0 && lines[i].trim()) { tb.rows.push(cells(lines[i])); i += 1; }
+        out.push(tb);
+        continue;
+      }
+      if ((m = ITEM.exec(line))) {
+        endPara();
+        var top = newList(m[2]), base = m[1].replace(/\t/g, "    ").length;
+        while (i < lines.length && (m = ITEM.exec(lines[i])) && !HR.test(lines[i])) {
+          var item = { spans: inline(m[3]) }, prev = top.items[top.items.length - 1];
+          if (m[1].replace(/\t/g, "    ").length >= base + 2 && prev) {     // 第二層（更深的也併到第二層）
+            if (!prev.children) { prev.children = newList(m[2]); }
+            prev.children.items.push(item);
+          } else {
+            top.items.push(item);
+          }
+          i += 1;
+        }
+        out.push(top);
+        continue;
+      }
+      para.push(line);
+      i += 1;
+    }
+    endPara();
+    return out;
+  }
+
+  var api = { render: render, safeHref: safeHref, linkText: linkText, markdown: markdown };
   if (typeof module === "object" && module && module.exports) { module.exports = api; }
   else { root.SynoxBlocks = api; }
+})(typeof window !== "undefined" ? window : this);
+
+/* SYNOX 網頁對話頁：「回覆某一則」（像 Telegram／LINE）。
+ *
+ * 每則訊息泡泡上有一顆「↩ 回覆」（滑鼠移上去或鍵盤 Tab 到才明顯；手機一直看得到）；按了 → 輸入框上方出現引用列
+ * （誰說的＋一行摘要＋✕ 取消）；送出時帶 reply_to（訊息 id，伺服器檢查是同一段對話的）。
+ * 送出的那則上面有一小塊引用，點了捲到原訊息、閃一下（原訊息已經不在畫面上就說一聲）。
+ * 伺服器把這個檔原地塞進 app.html 主程式那個 script 標籤（INCLUDE:reply.js，跟 blocks.js 一樣，同一個 CSP nonce）。
+ * 一律 createElement＋textContent，訊息的字不經 HTML。tests/js/test_reply.js 用 node＋假的 document 測。
+ */
+(function (root) {
+  "use strict";
+
+  var TEXT = {
+    reply: "↩ 回覆",
+    reply_label: "回覆這則訊息",
+    who_me: "你",
+    who_bot: "SYNOX",
+    who_note: "系統",
+    replying: "回覆 {who}",
+    cancel: "取消回覆",
+    jump: "跳到被回覆的訊息：{who}",
+    gone: "原本那則訊息已經不在畫面上了（可能太舊了）。",
+    empty: "（沒有文字）",
+  };
+  var BAR_MAX = 80;
+
+  function make(doc, tag, cls, text) {
+    var e = doc.createElement(tag);
+    if (cls) { e.className = cls; }
+    if (text !== undefined && text !== null) { e.textContent = String(text); }
+    return e;
+  }
+
+  function fill(s, vars) {
+    return String(s).replace(/\{(\w+)\}/g, function (_, k) { return vars[k] === undefined ? "" : String(vars[k]); });
+  }
+
+  function who(from) {
+    return from === "me" ? TEXT.who_me : (from === "note" ? TEXT.who_note : TEXT.who_bot);
+  }
+
+  function excerpt(text, max) {
+    var flat = String(text === undefined || text === null ? "" : text)
+      .replace(/`{3,}[^\n]*/g, " ")             // Markdown 的記號只是排版：摘要裡拿掉（字本身留著）
+      .replace(/\*\*|`/g, "")
+      .replace(/^[ \t]*(?:#{1,6}|>|[-*+])[ \t]+/gm, "")
+      .replace(/\s+/g, " ").trim();
+    var n = max || BAR_MAX;
+    if (!flat) { return TEXT.empty; }
+    return flat.length <= n ? flat : flat.slice(0, n - 1) + "…";
+  }
+
+  // 泡泡上的「↩ 回覆」按鈕
+  function button(doc, onReply) {
+    var b = make(doc, "button", "reply-btn", TEXT.reply);
+    b.type = "button";
+    b.title = TEXT.reply_label;
+    b.setAttribute("aria-label", TEXT.reply_label);
+    b.addEventListener("click", function (ev) { if (ev && ev.stopPropagation) { ev.stopPropagation(); } onReply(); });
+    return b;
+  }
+
+  // 送出的那則上面的引用塊（reply = 訊息的 reply_to：{id, from, excerpt}）；點了 onJump(id)
+  function quote(doc, reply, onJump) {
+    if (!reply || typeof reply !== "object") { return null; }
+    var name = who(reply.from);
+    var q = make(doc, "button", "reply-quote");
+    q.type = "button";
+    q.setAttribute("aria-label", fill(TEXT.jump, { who: name }));
+    q.appendChild(make(doc, "span", "rq-who", name));
+    q.appendChild(make(doc, "span", "rq-text", excerpt(reply.excerpt)));
+    q.addEventListener("click", function () { onJump(reply.id); });
+    return q;
+  }
+
+  // 輸入框上方的引用列：target = 要回覆的那則訊息 {id, from, text}；✕ → onCancel()
+  function bar(doc, box, target, onCancel) {
+    while (box.firstChild) { box.removeChild(box.firstChild); }
+    if (!target) { box.classList.add("hidden"); return; }
+    box.classList.remove("hidden");
+    var body = make(doc, "div", "rb-body");
+    body.appendChild(make(doc, "span", "rb-who", fill(TEXT.replying, { who: who(target.from) })));
+    body.appendChild(make(doc, "span", "rb-text", excerpt(target.text)));
+    var x = make(doc, "button", "rb-x", "✕");
+    x.type = "button";
+    x.title = TEXT.cancel;
+    x.setAttribute("aria-label", TEXT.cancel);
+    x.addEventListener("click", function () { onCancel(); });
+    box.appendChild(body);
+    box.appendChild(x);
+  }
+
+  // 捲到原訊息、閃一下；不在畫面上 → 回 false（呼叫的一方 toast TEXT.gone）
+  function jump(node, setTimer) {
+    if (!node) { return false; }
+    if (node.scrollIntoView) { node.scrollIntoView({ behavior: "smooth", block: "center" }); }
+    node.classList.remove("flash");
+    node.classList.add("flash");
+    (setTimer || setTimeout)(function () { node.classList.remove("flash"); }, 1600);
+    return true;
+  }
+
+  var api = { TEXT: TEXT, who: who, excerpt: excerpt, button: button, quote: quote, bar: bar, jump: jump };
+  if (typeof module === "object" && module && module.exports) { module.exports = api; }
+  else { root.SynoxReply = api; }
+})(typeof window !== "undefined" ? window : this);
+
+/* SYNOX 網頁對話頁：附件的三個入口（📎 選檔、Ctrl+V 貼上截圖、把檔案拖進對話區）共用的檢查。
+ *
+ *   var files = SynoxAttach.fromClipboard(ev.clipboardData);   // 貼上：只拿檔案（截圖）；剪貼簿有文字就不拿（照常貼字）
+ *   var files = SynoxAttach.fromDrop(ev.dataTransfer);         // 拖進來：只拿檔案
+ *   var p = SynoxAttach.plan(files, attached.length, input.getAttribute("accept"));
+ *   // p.ok：要上傳的 File；p.problems：給人看的一句話（太大、空的、不支援的類型、超過數量）
+ *
+ * - 只收瀏覽器給的 File／Blob 物件（有 arrayBuffer 的），從來不收路徑字串（text/uri-list 的 file:// 一律不理）。
+ * - 類型照 #attach-input 的 accept（同一份清單，📎 也是它）：image/png 這種 MIME、.xlsx 這種副檔名。
+ * - 大小、數量跟伺服器一樣（web/uploads.py 的 MAX_FILE_BYTES、MAX_PENDING）；伺服器還會再看內容檢查一次，這裡只是早點說人話。
+ * - 從 Excel／Word 複製一段字時，剪貼簿裡除了字還有一張「那段字的圖」：有文字就當貼字，不變成附件。
+ * 伺服器把這個檔原地塞進 app.html 主程式那個 script 標籤（INCLUDE:attach.js，跟 blocks.js 一樣，同一個 CSP nonce）。
+ * tests/js/test_attach.js 用 node 跑。
+ */
+(function (root) {
+  "use strict";
+
+  var MAX_BYTES = 10 * 1024 * 1024;          // web/uploads.py MAX_FILE_BYTES
+  var MAX_COUNT = 10;                        // web/uploads.py MAX_PENDING（還沒送出的附件）
+  var TEXT = {
+    pasted: "貼上的圖片",
+    big: "「{name}」太大（每個最多 10 MB）。",
+    empty: "「{name}」是空的檔案。",
+    type: "「{name}」不支援：可以附圖片（png／jpg／webp／gif）、表格（.xlsx／.csv）、文件（.docx）或文字檔。",
+    count: "一次最多先放 {max} 個附件；多的沒有附上（先送出再傳）。",
+    drop: "放開滑鼠，就附到這則訊息（圖片、表格、文字檔，可以一次好幾個）。"
+  };
+  var MIME_EXT = { "image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp", "image/gif": ".gif" };
+
+  function fill(s, vars) {
+    return String(s).replace(/\{(\w+)\}/g, function (_, k) { return vars[k] === undefined ? "" : String(vars[k]); });
+  }
+
+  function isFile(f) {
+    return !!f && typeof f === "object" && typeof f.arrayBuffer === "function" && typeof f.size === "number";
+  }
+
+  function toArray(list) {
+    var out = [];
+    if (!list) { return out; }
+    for (var i = 0; i < list.length; i++) { if (isFile(list[i])) { out.push(list[i]); } }
+    return out;
+  }
+
+  // 貼上：剪貼簿有文字 → []（讓瀏覽器照常貼字）；不然拿 files，沒有再從 items（kind=file）拿
+  function fromClipboard(cd) {
+    if (!cd) { return []; }
+    var text = "";
+    try { text = typeof cd.getData === "function" ? String(cd.getData("text/plain") || "") : ""; } catch (e) { text = ""; }
+    if (text.trim()) { return []; }
+    var files = toArray(cd.files);
+    if (files.length) { return files; }
+    var items = cd.items, out = [];
+    for (var i = 0; items && i < items.length; i++) {
+      var it = items[i];
+      if (it && it.kind === "file" && typeof it.getAsFile === "function") {
+        var f = it.getAsFile();
+        if (isFile(f)) { out.push(f); }
+      }
+    }
+    return out;
+  }
+
+  // 拖進來：只拿檔案（拖一段字、一個網址進來 → []）
+  function fromDrop(dt) {
+    return dt ? toArray(dt.files) : [];
+  }
+
+  function hasFiles(dt) {
+    var types = dt && dt.types;
+    if (!types) { return false; }
+    for (var i = 0; i < types.length; i++) { if (types[i] === "Files") { return true; } }
+    return false;
+  }
+
+  function displayName(f) {
+    var name = String((f && f.name) || "").trim();
+    if (name) { return name; }
+    return TEXT.pasted + (MIME_EXT[String(f && f.type || "").toLowerCase()] || "");
+  }
+
+  // accept 屬性的規則（<input type=file accept=…>）：".ext" 比副檔名、"type/*" 比大類、其他比完整 MIME；空的＝都收
+  function accepts(f, accept) {
+    var rules = String(accept || "").split(",").map(function (s) { return s.trim().toLowerCase(); })
+      .filter(function (s) { return s; });
+    if (!rules.length) { return true; }
+    var name = displayName(f).toLowerCase(), mime = String(f.type || "").toLowerCase();
+    return rules.some(function (r) {
+      if (r.charAt(0) === ".") { return name.length > r.length && name.slice(-r.length) === r; }
+      if (r.slice(-2) === "/*") { return mime.indexOf(r.slice(0, -1)) === 0; }
+      return mime === r;
+    });
+  }
+
+  // files → {ok: [{file, name}], problems: ["…"]}；already＝已經附上（還沒送出）的個數
+  function plan(files, already, accept) {
+    var ok = [], problems = [], room = Math.max(0, MAX_COUNT - (already | 0)), over = false;
+    toArray(files).forEach(function (f) {
+      var name = displayName(f);
+      if (!accepts(f, accept)) { problems.push(fill(TEXT.type, { name: name })); return; }
+      if (!(f.size > 0)) { problems.push(fill(TEXT.empty, { name: name })); return; }
+      if (f.size > MAX_BYTES) { problems.push(fill(TEXT.big, { name: name })); return; }
+      if (ok.length >= room) { over = true; return; }
+      ok.push({ file: f, name: name });
+    });
+    if (over) { problems.push(fill(TEXT.count, { max: MAX_COUNT })); }
+    return { ok: ok, problems: problems };
+  }
+
+  // 貼上的 listener（掛在 document）：只在對話頁；焦點在輸入框，或不在別的可以打字的地方；有檔案才攔下來交給 attach(files)
+  function pasteListener(doc, input, attach) {
+    return function (ev) {
+      if (!doc.body || doc.body.getAttribute("data-view") !== "chat") { return; }
+      var t = ev.target;
+      if (t && t !== input && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(String(t.tagName || "")))) { return; }
+      var files = fromClipboard(ev.clipboardData);
+      if (!files.length) { return; }
+      ev.preventDefault();
+      attach(files);
+    };
+  }
+
+  var api = { MAX_BYTES: MAX_BYTES, MAX_COUNT: MAX_COUNT, TEXT: TEXT, fromClipboard: fromClipboard, fromDrop: fromDrop,
+              hasFiles: hasFiles, displayName: displayName, accepts: accepts, plan: plan,
+              pasteListener: pasteListener };
+  if (typeof module === "object" && module && module.exports) { module.exports = api; }
+  else { root.SynoxAttach = api; }
 })(typeof window !== "undefined" ? window : this);
 
 (function () {
@@ -7659,6 +8072,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   function openChat(id, keep) {
     if (current === id && keep && Object.keys(nodes).length) { markActive(); return; }
     pendSet(false);
+    stopReply();
     current = id; rev = 0; nodes = {}; primed = false;
     var s = $("stream");
     clear(s);
@@ -7724,6 +8138,11 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     // type=examples 的區塊是 /help 卡片的範例（synox/helpui）：畫成小標籤，點了＝填進輸入框、不送出（static/helpdock.js）
     var exBlock = blocks.filter(function (b) { return b && b.type === "examples"; })[0];
     blocks = blocks.filter(function (b) { return !(b && (b.type === "tour" || b.type === "examples")); });
+    // 回覆某一則（static/reply.js）：上面一小塊引用，點了捲到原訊息
+    var rq = !chat && m.reply_to && window.SynoxReply ? window.SynoxReply.quote(document, m.reply_to, jumpTo) : null;
+    if (rq) { box.appendChild(rq); }
+    // AI 回的 Markdown（presentation 關著時沒有 blocks）：瀏覽器這邊畫成粗體、程式碼區塊…（blocks.js 的 markdown；不是 Markdown 就照舊）
+    if (!blocks.length && who === "bot" && !m.deleted) { blocks = window.SynoxBlocks.markdown(m.text) || []; }
     // 沒有 blocks 的純文字：照舊 textContent，只有 http(s):// 網址變成連結（blocks.js 的 linkText，過 safeHref）
     box.appendChild(blocks.length ? window.SynoxBlocks.render(document, blocks)
                                   : window.SynoxBlocks.linkText(document, m.text));
@@ -7755,7 +8174,24 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       });
       box.appendChild(kb);
     }
+    if (!chat && !m.deleted && who !== "note" && window.SynoxReply) {
+      box.appendChild(window.SynoxReply.button(document, function () { startReply(m); }));
+    }
     return box;
+  }
+  // ── 回覆某一則 ──
+  var replying = null;           // 要回覆的那則 {id, from, text}；送出時帶 reply_to
+  function startReply(m) {
+    replying = { id: m.id, from: m.from, text: m.text };
+    window.SynoxReply.bar(document, $("reply-bar"), replying, stopReply);
+    $("input").focus();
+  }
+  function stopReply() {
+    replying = null;
+    if (window.SynoxReply) { window.SynoxReply.bar(document, $("reply-bar"), null, stopReply); }
+  }
+  function jumpTo(id) {
+    if (!window.SynoxReply.jump(nodes[id])) { toast(window.SynoxReply.TEXT.gone); }
   }
   // 外觀的 slot（static/slots.js）：吉祥物、字標…換了外觀就是外觀的，沒換就是原本的 SYNOX
   function slotNode(name, cls) {
@@ -7831,13 +8267,19 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     var sent = attached;
     attached = [];
     drawAttached();
-    return api("POST", "/api/chat/" + encodeURIComponent(current) + "/send", { text: text, attachments: ids })
+    var body = { text: text, attachments: ids };
+    var quoted = replying;
+    if (quoted) { body.reply_to = quoted.id; }
+    stopReply();
+    return api("POST", "/api/chat/" + encodeURIComponent(current) + "/send", body)
       .then(function () { poll(); setTimeout(poll, 700); })
-      .catch(function (e) { pendSet(false); toast(e.message); attached = sent.concat(attached); drawAttached(); });
+      .catch(function (e) {
+        pendSet(false); toast(e.message); attached = sent.concat(attached); drawAttached();
+        if (quoted && !replying) { startReply(quoted); }       // 沒送成功：引用列放回去
+      });
   }
   // ── 對話的附件（POST /api/chat/<id>/upload；web/uploads.py）：先上傳到記憶體拿 id，送出時一起帶 ──────
   var attached = [];            // [{id, name, label, uploading}]
-  var ATTACH_MAX = 10 * 1024 * 1024;
   function drawAttached() {
     var box = $("attach-list");
     clear(box);
@@ -7858,11 +8300,14 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       box.appendChild(chip);
     });
   }
+  // 📎、貼上、拖進來都走這裡：同一套類型（#attach-input 的 accept）、大小、數量檢查（static/attach.js）；只收 File 物件
   function attachFiles(list) {
     if (!current) { toast("先選一段對話，或按「新對話」。"); return; }
-    Array.prototype.forEach.call(list || [], function (f) {
-      if (f.size > ATTACH_MAX) { toast("「" + f.name + "」太大（每個最多 10 MB）。"); return; }
-      var a = { id: "", name: f.name || "貼上的圖片", label: "", uploading: true };
+    var p = window.SynoxAttach.plan(list, attached.length, $("attach-input").getAttribute("accept"));
+    if (p.problems.length) { toast(p.problems.join(" ")); }
+    p.ok.forEach(function (one) {
+      var f = one.file;
+      var a = { id: "", name: one.name, label: "", uploading: true };
       var chat = current;
       attached.push(a);
       drawAttached();
@@ -7888,10 +8333,8 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     attachFiles($("attach-input").files);
     $("attach-input").value = "";
   });
-  $("input").addEventListener("paste", function (ev) {        // 直接貼上截圖
-    var files = ev.clipboardData && ev.clipboardData.files;
-    if (files && files.length) { ev.preventDefault(); attachFiles(files); }
-  });
+  // 直接貼上截圖（Ctrl+V）：在輸入框，或對話區裡沒有在打別的字的地方；剪貼簿有文字就照常貼字（static/attach.js）
+  document.addEventListener("paste", window.SynoxAttach.pasteListener(document, $("input"), attachFiles));
   window.SynoxChatDrop = attachFiles;              // 拖進對話頁的檔案（static/packdrop.js 先看是不是工具檔，不是才交給這裡）
   function press(chat, messageId, data, btn) {
     if (btn) { btn.disabled = true; }
@@ -7911,6 +8354,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     send(text);
   });
   $("input").addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && replying) { ev.preventDefault(); stopReply(); return; }
     if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) {
       ev.preventDefault();
       $("composer").requestSubmit ? $("composer").requestSubmit() : $("composer").dispatchEvent(new Event("submit"));
@@ -9845,7 +10289,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
   var EXTS = [".synoxpack", ".zip"];
   var TEXT = {
     overlay: "放開滑鼠，我就檢查這個工具檔。會先給你看檢查的結果，你按確認才會裝。",
-    chat: "放開滑鼠，就附到這則訊息（圖片、表格、文字檔）。工具檔（.synoxpack）一樣會先檢查給你看。",
+    chat: "放開滑鼠，就附到這則訊息（圖片、表格、文字檔，可以一次好幾個）。工具檔（.synoxpack）一樣會先檢查給你看。",
     hint: "也可以把工具檔（.synoxpack）直接拖進這個網頁，或在電腦裡對它點兩下。不管哪一種，都會先檢查給你看，你按確認才會裝。",
     one: "一次拖一個工具檔就好。",
     ext: "這不是工具檔（檔名結尾要是 .synoxpack）：",
@@ -9875,6 +10319,13 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
      （例如 AI），報告就出現在看不到的分頁裡。已經在安裝頁就不動網址。 */
   function installHash(current) {
     return current === "#packs" || current === "#settings:packs" ? current : "#packs";
+  }
+
+  /* 純函式：拖進來的檔要去哪裡。"pack"＝一個工具檔（照原本的安裝流程）；"chat"＝在對話頁、不是工具檔 → 當附件
+     （app.html 的 SynoxChatDrop，跟 📎 同一套檢查）；"refuse"＝其他頁、不是工具檔（說原因）。 */
+  function route(files, inChat) {
+    if (check(files).ok) { return "pack"; }
+    return inChat ? "chat" : "refuse";
   }
 
   function hasFiles(e) {
@@ -9915,7 +10366,10 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       say.timer = setTimeout(function () { t.classList.add("hidden"); }, 4500);
     }
     var depth = 0;
-    function showOverlay(on) { overlay.classList.toggle("hidden", !on); }
+    function showOverlay(on) {
+      overlay.classList.toggle("hidden", !on);
+      doc.body.classList.toggle("chat-dragging", !!on && chatView());   // 對話頁：輸入框也亮起來（app.html 的 CSS）
+    }
 
     function chatView() {                                   // 對話頁：拖進來的一般檔案當附件（app.html 的 SynoxChatDrop）
       return doc.body.getAttribute("data-view") === "chat" && typeof root.SynoxChatDrop === "function";
@@ -9943,8 +10397,9 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
       depth = 0;
       showOverlay(false);
       var r = check(e.dataTransfer.files);
-      if (!r.ok && chatView()) { root.SynoxChatDrop(e.dataTransfer.files); return; }
-      if (!r.ok) { say(r.message); return; }
+      var where = route(e.dataTransfer.files, chatView());
+      if (where === "chat") { root.SynoxChatDrop(e.dataTransfer.files); return; }
+      if (where === "refuse") { say(r.message); return; }
       if (doc.body.getAttribute("data-view") === "login") { say(TEXT.login); return; }
       root.fetch("/api/me", { credentials: "same-origin" }).then(function (resp) {
         if (!resp.ok) { throw new Error(TEXT.login); }
@@ -9976,7 +10431,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     }
   }
 
-  var api = { check: check, hasFiles: hasFiles, installHash: installHash, MAX_BYTES: MAX_BYTES, TEXT: TEXT };
+  var api = { check: check, route: route, hasFiles: hasFiles, installHash: installHash, MAX_BYTES: MAX_BYTES, TEXT: TEXT };
   if (typeof module === "object" && module && module.exports) { module.exports = api; }
   else {
     root.SynoxPackDrop = api;

@@ -42,6 +42,17 @@ test("a drop always lands on the install tab (#packs), not whatever settings tab
   assert.strictEqual(P.installHash("#settings:packs"), "#settings:packs");   // 已經在安裝頁：不動網址
 });
 
+test("in the chat view, anything that is not one tool file becomes chat attachments (several at once)", () => {
+  const pack = [{ name: "notes.synoxpack", size: 10 }];
+  const pics = [{ name: "a.png", size: 10 }, { name: "b.png", size: 10 }];
+  assert.strictEqual(P.route(pack, true), "pack");
+  assert.strictEqual(P.route(pics, true), "chat");
+  assert.strictEqual(P.route([{ name: "shot.png", size: 10 }], true), "chat");
+  assert.strictEqual(P.route(pack.concat(pics), true), "chat");                   // 混在一起：當附件（伺服器不收 zip，會說原因）
+  assert.strictEqual(P.route(pics, false), "refuse");                              // 不在對話頁：照舊說「這不是工具檔」
+  assert.strictEqual(P.route(pack, false), "pack");
+});
+
 let failed = 0;
 for (const [name, fn] of tests) {
   try { fn(); console.log("ok   " + name); }
