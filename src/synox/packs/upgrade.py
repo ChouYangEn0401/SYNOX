@@ -45,8 +45,11 @@ from typing import Dict, List, Optional, Tuple
 from synox.packs import lock as pack_lock
 from synox.packs.manifest import Manifest, ManifestError, read, secret_env_names
 
+# SemVer 2.0.0（docs/versioning.md §1）：預覽版的每一段是「沒有前導 0 的數字」或「含字母／- 的字」（alpha.01 不算）；
+# +build 是非空的段，比較時不看
+_PRE_ID = r"(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)"
 SEMVER_RE = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
-                       r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z.-]+)?$")
+                       rf"(?:-({_PRE_ID}(?:\.{_PRE_ID})*))?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$")
 EFFECT_RANK = {"READ": 0, "WRITE": 1, "DANGER": 2}
 ACCESS_RANK = {"owner": 0, "member": 1, "everyone": 2}
 SIDECAR = ".lock.json"                    # _removed/<資料夾>.lock.json：搬走時那一份的鎖（退回時改回去）
@@ -57,7 +60,8 @@ _TS = r"(?P<ts>\d{8}-\d{6})(?:-(?P<n>\d+))?"
 # ── 版本 ───────────────────────────────────────────────────────────────
 
 def semver_key(version: str) -> Optional[tuple]:
-    """semver 的排序鍵（正式版 > 同號的預覽版；預覽版逐段比，數字段 < 文字段）；不是 semver 回 None。"""
+    """SemVer 2.0.0 的排序鍵：X.Y.Z 按數值比；正式版 > 同號的預覽版；預覽版逐段比（數字段按數值、數字段 < 文字段、
+    文字段照 ASCII，所以 alpha < beta < rc；前面都一樣時段數少的較舊）；`+build` 不看。不是 semver 回 None。"""
     m = SEMVER_RE.match(str(version or "").strip())
     if m is None:
         return None
