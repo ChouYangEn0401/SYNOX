@@ -311,8 +311,13 @@ def test_token_css_covers_all_three_mode_selectors_and_derives_the_rest():
     assert "--surface-2: color-mix(" in css and "--radius: 12px" in css
     _toks, problems = theme_tokens.parse_tokens({"light": {"bg": "#fff"}, "dark": {}})
     assert any("少了" in p for p in problems)
-    _toks, problems = theme_tokens.parse_tokens({"light": {**raw["light"], "nope": "#fff"}, "dark": raw["dark"]})
-    assert any("nope" in p for p in problems)
+    # 不認得的名字（外觀包比 SYNOX 新）：不擋，忽略並記一條提示（ADR 0042）
+    toks2, problems, notes = theme_tokens.parse_tokens_full({"light": {**raw["light"], "nope": "#fff"},
+                                                            "dark": raw["dark"]})
+    assert problems == [] and "nope" not in toks2["light"]
+    assert [(n["code"], n["mode"], n["token"]) for n in notes] == [("unknown-token", "light", "nope")]
+    _toks, problems = theme_tokens.parse_tokens({"light": {**raw["light"], "Bad Key!": "#fff"}, "dark": raw["dark"]})
+    assert any("Bad Key!" in p for p in problems)                 # 根本不像名字的：還是拒
 
 
 # ── slot 合約 ──────────────────────────────────────────────────────────
@@ -388,7 +393,7 @@ def test_theme_pack_cannot_declare_code(tmp_path, key, value, why):
 
 def test_theme_pack_manifest_checks(tmp_path):
     raw = json.load(open(os.path.join(FIXTURE, "pack.json"), encoding="utf-8"))
-    for patch, why in ((lambda r: r["theme"]["slots"].update({"mascot.dance": "slots/idle.svg"}), "不認得"),
+    for patch, why in ((lambda r: r["theme"]["slots"].update({"Mascot Dance!": "slots/idle.svg"}), "不認得"),
                        (lambda r: r["theme"]["slots"].update({"mascot.idle": "../x.svg"}), "不能有 .."),
                        (lambda r: r["theme"]["slots"].update({"appicon": "slots/idle.html"}), "svg"),
                        (lambda r: r["theme"].update({"fonts": ["https://fonts.example/x.woff2"]}), "找不到"),

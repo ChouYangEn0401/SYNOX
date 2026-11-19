@@ -625,7 +625,8 @@ def _review_staged(token: str, summary: dict, args, config, data_dir: str, *, is
     trust = getattr(args, "trust", None) or None                         # PERM-2：core｜third-party（寫進 packs.lock）
     upg = _staged_upgrade(token, data_dir, packs_dir, trust)             # 同名已經裝了＝升級：「改了什麼」
     # 升級時「要不要建環境」看升級報告那一段（跟舊版比過），安裝摘要的那一段就不印，免得兩段說法不一樣
-    print(admin.format_summary(summary if upg is None else {**summary, "env": {}}))
+    print(admin.format_summary(summary if upg is None else {**summary, "env": {}},
+                               details=bool(getattr(args, "details", False))))
     if upg is not None:
         from synox.packs import upgrade as pack_upgrade
         print(pack_upgrade.format_upgrade(upg))
@@ -767,6 +768,35 @@ def cmd_rollback(args, data_dir: str, config) -> int:
     return 0
 
 
+def cmd_theme_check(args, found: dict) -> int:
+    """`synox packs theme-check <名字或資料夾>`：外觀包套用時每一個 token／slot 是有給、沿用預設、還是被忽略（ADR 0042）。
+    只是提示，不擋套用。--details 列每一項；--json 給 AI／程式看（欄位見 synox/theme/check.py）。
+    結束碼：0＝沒有要注意的、10＝有要注意的（還是可以套用）、2＝不是外觀包或 pack.json 不合。"""
+    import json
+    from synox.packs.manifest import ManifestError, read
+    from synox.theme import check as theme_check
+    target = args.target
+    folder = found.get(target) or (target if os.path.isdir(target) else "")
+    if not folder:
+        print(f"❌ 找不到叫 {target} 的外觀包（裝好的有：{'、'.join(sorted(found)) or '沒有'}；也可以給 pack 資料夾的路徑）")
+        return 2
+    try:
+        m = read(folder)
+    except ManifestError as e:
+        print(f"❌ pack.json 不合：{e}")
+        return 2
+    if m.kind != "theme":
+        print(f"❌ {m.name} 不是外觀包（kind={m.kind}）")
+        return 2
+    check = theme_check.coverage(m.theme)
+    if args.json:
+        print(json.dumps({"name": m.name, "version": m.version, **check}, ensure_ascii=False, indent=1))
+    else:
+        print(f"🎨 {m.title}（{m.name} {m.version}）")
+        print("\n".join(theme_check.format_lines(check, details=args.details)))
+    return 10 if check["issues"] else 0
+
+
 def cmd_packs(args, *, jobs=None) -> int:
     from synox.packs import admin
     from synox.packs import lock as pack_lock
@@ -783,6 +813,8 @@ def cmd_packs(args, *, jobs=None) -> int:
             found[read(folder).name] = folder
         except ManifestError:
             found.setdefault(os.path.basename(folder), folder)
+    if args.packs_cmd == "theme-check":
+        return cmd_theme_check(args, found)
     if args.packs_cmd == "env":
         name = args.name
         if name not in found:
@@ -1198,6 +1230,8 @@ def main(argv=None) -> int:
     p.add_argument("--runtime", choices=["container", "host"], default=None,
                    help="用容器（pack 有提供 runtime.container 時的預設）｜host（不用容器；升級沒給＝沿用）")
     p.add_argument("--accept-warning", action="append", default=None, metavar="CODE", help=ACCEPT_WARNING_HELP)
+    p.add_argument("--details", action="store_true",
+                   help="外觀包：套用檢查每一項都列（每個顏色、位置有沒有給；預設只列摘要與要注意的）")
     p.add_argument("--packs-dir", default="", help=argparse.SUPPRESS)
     p = sub.add_parser("filetype", help=".synoxpack 檔案關聯（圖示＋點兩下安裝；HKCU，不要管理員）")
     p.add_argument("filetype_cmd", choices=["register", "unregister", "status"])
@@ -1218,6 +1252,10 @@ def main(argv=None) -> int:
     q.add_argument("mode", choices=["container", "host"])
     q = psub.add_parser("rollback", help="把 packs/_removed/ 裡最近一份舊版搬回來、packs.lock 改回當時的")
     q.add_argument("name", help="pack 的名字")
+    q = psub.add_parser("theme-check", help="外觀包的套用檢查：每個顏色、位置是有給、沿用預設、還是被忽略（只是提示）")
+    q.add_argument("target", help="裝好的外觀包名字，或 pack 資料夾的路徑")
+    q.add_argument("--details", action="store_true", help="每一項都列（預設只列摘要與要注意的）")
+    q.add_argument("--json", action="store_true", help="輸出 JSON（給 AI／程式看）")
     p.set_defaults(dirs=None, packs_dir="")
     q = psub.add_parser("env", help="pack 的環境（runtime.python／node = auto）")
     esub = q.add_subparsers(dest="env_cmd", required=True)

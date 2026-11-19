@@ -25,6 +25,7 @@ import re
 import threading
 from typing import Dict, List, Optional, Tuple
 
+from synox.theme import check as theme_check
 from synox.theme import contract, defaults, sanitize
 from synox.theme import pack as theme_pack
 from synox.theme import tokens as theme_tokens
@@ -301,7 +302,8 @@ class Appearance:
         for m in self.installed():
             themes.append({"name": m.name, "title": m.title, "summary": m.summary, "version": m.version,
                            "publisher": m.publisher, "tokens": m.theme.get("tokens") or {},
-                           "slots": sorted(m.theme.get("slots") or {}), "ok": self.bundle_of(m) is not None})
+                           "slots": sorted(m.theme.get("slots") or {}), "ok": self.bundle_of(m) is not None,
+                           "check": theme_check.coverage(m.theme)})          # 套用檢查（ADR 0042）：提示，不擋
         custom = {}
         for slot, text in (eff.get("custom") or {}).items():
             try:

@@ -633,7 +633,7 @@ def discard_staged(token: str, data_dir: str) -> None:
     shutil.rmtree(root, ignore_errors=True)
 
 
-def format_summary(summary: dict) -> str:
+def format_summary(summary: dict, details: bool = False) -> str:
     """摘要＋掃描報告 → 給終端機看的字（`python -m synox install`）。"""
     labels = {"network": "連網", "subprocess": "開別的程式", "filesystem:own": "讀寫檔案",
               "filesystem:any": "讀寫 pack 以外的檔案", "exec": "動態執行程式碼"}
@@ -666,7 +666,7 @@ def format_summary(summary: dict) -> str:
     else:
         lines.append("✅ 宣告檢查、靜態掃描都過了")
     lines += format_mcp(summary)
-    lines += format_theme(summary)
+    lines += format_theme(summary, details=details)
     lines += format_scope(summary)
     lines += format_tier(summary.get("tier") or {})
     lines += format_agent(summary)                # 給 AI 的登記：每輪佔用、承諾、agent.always（ADR 0030）
@@ -684,8 +684,8 @@ def format_summary(summary: dict) -> str:
     return "\n".join(lines)
 
 
-def format_theme(summary: dict) -> List[str]:
-    """終端機的「🎨 外觀」那一段（kind=theme）。"""
+def format_theme(summary: dict, details: bool = False) -> List[str]:
+    """終端機的「🎨 外觀」那一段（kind=theme）。套用檢查（ADR 0042）預設只印摘要與要注意的；details＝每一項。"""
     th = summary.get("theme") or {}
     if not th:
         return []
@@ -694,6 +694,9 @@ def format_theme(summary: dict) -> List[str]:
              f"換掉的位置：{'、'.join(th.get('slots') or []) or '（沒有，只換顏色）'}"]
     if th.get("fonts"):
         lines.append(f"  附的字型：{'、'.join(th['fonts'])}（不會連到外面抓字型）")
+    if th.get("check"):
+        from synox.theme import check as theme_check
+        lines += theme_check.format_lines(th["check"], details=details)
     lines.append("  裝好後到網頁「設定 → 外觀」挑它按「套用」（看得到預覽）")
     return lines
 
