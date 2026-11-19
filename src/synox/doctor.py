@@ -625,6 +625,10 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                          + f"（{m.kind}，/{m.group}，{lock_mark}）  {rel}")
             for warn_line in packwarn.lines(m.warnings):     # 作者標的警告：每條一行（擁有者確認過也照樣列）
                 lines.append(f"     ⚠️ {warn_line}")
+            if m.warnings:                                   # 警告下面：SYNOX 自己寫的「這台實況」（ADR 0041 S1，只是顯示）
+                iso = sandbox.isolation_line(sandbox.isolation_note(config, m))
+                if iso:
+                    lines.append(f"     {iso}")
             for warn_problem in m.warning_problems:          # warnings 寫壞的地方（不擋載入，但不靜默）
                 lines.append(f"     ⚠️ warnings 寫得不對：{warn_problem}")
             if enabled:

@@ -108,7 +108,7 @@ def _link_error(rel_base: str, name: str) -> str:
             "SYNOX 不會把它送去安裝。請把捷徑換成真正的檔案，或向作者要 .synoxpack 檔從安裝頁上傳")
 
 
-def stage_unlocked(name: str, packs_dir: str, data_dir: str) -> Tuple[str, Dict]:
+def stage_unlocked(name: str, packs_dir: str, data_dir: str, config=None) -> Tuple[str, Dict]:
     """沒有鎖的 packs/<name> → 壓成 zip → admin.stage（zip 檢查、簽章、第 1、2 關）→ (token, 摘要)。
     摘要多一個 "adopt": name（網頁照一般安裝報告畫，確認時改叫 install）。
     PackAdminError／GateRefused 照原樣往外丟（GateRefused 帶報告、沒有確認鈕）。"""
@@ -116,7 +116,7 @@ def stage_unlocked(name: str, packs_dir: str, data_dir: str) -> Tuple[str, Dict]
     if pack_lock.entry(data_dir, name) is not None:
         raise PackAdminError(f"{name} 已經經過安裝頁、有鎖了，不用再送。重新整理設定頁看看它的狀態")
     blob = _zip_folder(folder)
-    token, summary = admin.stage(blob, data_dir)
+    token, summary = admin.stage(blob, data_dir, config=config)
     try:
         meta = admin.staged_meta(token, data_dir)
         staged_name = meta.get("name")

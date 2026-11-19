@@ -1506,6 +1506,8 @@ class WebUI:
                          "signature": self._signature(i.name, getattr(i, "warnings", [])),
                          "warnings": list(getattr(i, "warnings", []) or []),            # 標記警告（ADR 0041）
                          "warning_problems": list(getattr(i, "warning_problems", []) or []),
+                         # 有警告才有：SYNOX 自己寫的「這台實況」（ADR 0041 S1）；沒有警告的列一個字都不多
+                         **({"isolation": i.isolation} if getattr(i, "isolation", None) else {}),
                          "removable": bool(user_dir) and os.path.realpath(os.path.dirname(i.folder)) == user_dir}
                         for i in (report.items if report else [])]
         from synox.packs import library             # 出廠不帶工具：裝了幾個、工具庫在哪、怎麼裝（packs/library.py）
@@ -2097,7 +2099,7 @@ class WebUI:
         if len(body) > MAX_UPLOAD:
             return _err(413, f"檔案太大（最多 {MAX_UPLOAD // (1024 * 1024)} MB）。")
         try:
-            _token, summary = stage(body, self.config.data_dir)        # 安全管線第 1、2 關
+            _token, summary = stage(body, self.config.data_dir, config=self.config)   # 安全管線第 1、2 關
         except GateRefused as e:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:
@@ -2120,7 +2122,7 @@ class WebUI:
             return _err(400, "這一版 SYNOX 還不能把手放的工具送進安裝流程。請改用「上傳並檢查」裝它的 .synoxpack 檔。")
         from synox.packs.admin import GateRefused, PackAdminError
         try:
-            _token, summary = adopt.stage_unlocked(name, self.pack_dirs[0], self.config.data_dir)
+            _token, summary = adopt.stage_unlocked(name, self.pack_dirs[0], self.config.data_dir, config=self.config)
         except GateRefused as e:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:
@@ -2233,7 +2235,7 @@ class WebUI:
         except catalog.CatalogError as e:
             return _json(502 if e.offline else 400, {"error": str(e), "releases": catalog.RELEASES_PAGE})
         try:
-            token, summary = stage(blob, self.config.data_dir)          # 安全管線第 1、2 關（跟上傳一樣）
+            token, summary = stage(blob, self.config.data_dir, config=self.config)   # 安全管線第 1、2 關（跟上傳一樣）
         except GateRefused as e:
             return _json(400, {"error": str(e), "refused": e.summary})
         except PackAdminError as e:

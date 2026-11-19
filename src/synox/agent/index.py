@@ -65,16 +65,21 @@ class Entry:
     listed: bool = True                               # 只登記的 connector／mcp＝False（不進能力清單）
     # pack.json 的標記警告（ADR 0041）：[{"code", "text", "advice"}]；agent_index.json 也有這一欄（結構化，AI 不能略過）
     warnings: List[dict] = field(default_factory=list)
+    # 有警告時：SYNOX 自己寫的「這台實況」短句（sandbox.isolation_note 的 short；ADR 0041 S1）。沒有警告＝""
+    isolation: str = ""
 
     def line(self, limit: Optional[int] = None) -> str:
         """能力清單的一行。limit＝說明最多幾個字（None＝不縮；0＝只剩標題）。說明書主題在 limit ≥ 20 時才附。
-        標記警告緊接在標題後面、永遠不縮掉（limit 小的時候只剩 code 與 text，不帶 advice）。"""
+        標記警告緊接在標題後面、永遠不縮掉（limit 小的時候只剩 code 與 text，不帶 advice）；
+        實況短句（〔實況：…〕）跟著警告，也不縮掉。"""
         from synox.packs.packwarn import agent_note
         text = self.index
         if limit is not None and len(text) > limit:
             text = text[:max(0, limit - 1)] + "…" if limit > 0 else ""
         suffix = f"〔主題：{'、'.join(self.topics)}〕" if self.topics and (limit is None or limit >= 20) else ""
         title = self.title + agent_note(self.warnings, long=limit is None or limit >= 20)
+        if self.warnings and self.isolation:
+            title += f"〔實況：{self.isolation}〕"
         return f"- {title}：{text}{suffix}" if text or suffix else f"- {title}"
 
     @property
@@ -103,7 +108,15 @@ class AgentIndex:
 
     def to_dict(self) -> dict:
         return {"version": 1, "max_chars": INDEX_MAX, "total_chars": self.total_chars(),
-                "entries": [{**asdict(e), "chars": e.chars()} for e in self.entries]}
+                "entries": [_entry_dict(e) for e in self.entries]}
+
+
+def _entry_dict(e: "Entry") -> dict:
+    """agent_index.json 的一項。isolation 只有帶警告的才寫（沒有警告的工具，檔案內容跟以前一字不差）。"""
+    out = {**asdict(e), "chars": e.chars()}
+    if not out.get("isolation"):
+        out.pop("isolation", None)
+    return out
 
 
 # ── 系統層的登記口 ─────────────────────────────────────────────────────
@@ -257,7 +270,13 @@ def build(app, config=None, packs: Optional[Iterable] = None, write: bool = True
         if getattr(pack.manifest, "kind", "") == "theme":
             continue
         try:
-            entries.append(entry_for_pack(app, pack))
+            entry = entry_for_pack(app, pack)
+            if entry.warnings:                    # ADR 0041 S1：警告旁邊帶 SYNOX 自己寫的實況短句
+                from synox import sandbox
+                entry.isolation = (sandbox.isolation_note(config if config is not None else
+                                                          getattr(app, "config", None), pack.manifest)
+                                   .get("short") or "")
+            entries.append(entry)
         except Exception:
             logging.exception("[AGENT] %s: index entry failed (left out)", getattr(pack, "name", "?"))
     built = AgentIndex(entries)
