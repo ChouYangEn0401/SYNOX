@@ -449,6 +449,31 @@ def agent_lines(config, manifests) -> tuple:
     return lines, bad
 
 
+def data_lines(config, config_path: str) -> "tuple[List[str], int]":
+    """• 資料版本：核心的檔＋有 data_schema 的工具，各自的版本、要不要升級（ADR 0043；只看，不拿鎖、不寫）。
+    要升級的不算問題（下次啟動會自己升）；失敗、比這一版新的算。"""
+    from synox.datastore import core as data_core
+    from synox.datastore import report as data_report
+    try:
+        if config is None:
+            collected = {"core": data_core.status(None, os.path.join(ROOT, "data")), "packs": []}
+        else:
+            vault = None
+            if os.path.exists(os.path.join(config.data_dir, ".synox.key")):
+                try:
+                    from synox.vault import open_vault
+                    vault = open_vault(config)
+                except Exception:
+                    vault = None
+            collected = data_report.collect(config_path if os.path.exists(config_path) else None, config, vault)
+    except Exception as e:                              # 看不了不該讓 doctor 整段掛掉
+        return [f"• 資料版本：讀不了（{type(e).__name__}: {e}）"], 1
+    pending = any(r.needs_upgrade for g in collected.values() for r in g)
+    head = "• 資料版本：" + ("有要升級的（下次啟動 SYNOX 會自己升；先看會做什麼：python -m synox data upgrade --dry-run）"
+                          if pending else "都是這一版的格式")
+    return [head] + data_report.lines(collected), data_report.problems(collected)
+
+
 def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] = print) -> int:
     problems = 0
     out(f"🩺 SYNOX {__version__} 健康檢查")
@@ -672,6 +697,10 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
         problems += "⚠️" in line
     health_text, bad = health_lines(config, os.path.join(ROOT, "data"))
     for line in health_text:
+        out(line)
+    problems += bad
+    data_text, bad = data_lines(config, path)          # 資料版本（ADR 0043）：只看，不升級、不改檔
+    for line in data_text:
         out(line)
     problems += bad
 

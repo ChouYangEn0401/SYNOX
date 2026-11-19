@@ -1118,6 +1118,21 @@ def _isolation(config, m: Manifest) -> dict:
         return {}
 
 
+def data_upgrade_problem(config, m: Manifest, vault=None, lock_state: str = "", runner=None) -> str:
+    """工具宣告了 data_schema（ADR 0043）：載入前把它的資料升到這一版（synox/datastore/packdata.py）。
+    ""＝可以載入；否則一句人話（升級失敗已還原、缺步驟、資料比工具新）。python 的 migrations 照 packs.lock 對過才執行。"""
+    if not getattr(m, "data_schema", None):
+        return ""
+    from synox.datastore import packdata
+    locked = None
+    if lock_state == pack_lock.LOCKED:
+        locked = dict((pack_lock.entry(config.data_dir, m.name) or {}).get("files") or {})
+    result = packdata.ensure(m, config, vault, locked=locked, runner=runner)
+    if result.action == "upgraded":
+        logging.info("[PACKS] %s: data upgraded %s -> %s", m.name, result.before, result.after)
+    return "" if result.ok else f"資料沒有升級成功，先不載入：{result.message}"
+
+
 def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
     from synox.agent import index as agent_index
     report = LoadReport()
@@ -1192,6 +1207,11 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
             continue
         if m.kind == "theme":                    # 外觀包：沒有程式、不進指令表；網頁「設定 → 外觀」套用（synox/theme）
             item.detail = "外觀包：到「設定 → 外觀」套用"
+            continue
+        blocked = data_upgrade_problem(config, m, vault if use_vault else None, item.lock)
+        if blocked:                              # 資料升級（ADR 0043）：工具的程式第一次跑之前；失敗／資料比工具新＝不載入
+            item.status, item.detail = "error", blocked
+            logging.error("[PACKS] %s not loaded (data): %s", m.name, blocked)
             continue
         server = getattr(config, "mode", "personal") == "server"
         store = PackStore(m.name, config.data_dir, vault if use_vault else None, per_user=server)

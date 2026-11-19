@@ -335,6 +335,8 @@ class Manifest:
     warnings: List[dict] = field(default_factory=list)
     # warnings 寫壞的地方（不擋載入、不靜默：安裝報告列出來、載入時寫 log、doctor 看得到）
     warning_problems: List[str] = field(default_factory=list)
+    # 資料版本（選填的 data_schema；synox/datastore/packdata.py、ADR 0043）：{"version": N, "files": [...]}；沒寫＝{}
+    data_schema: dict = field(default_factory=dict)
 
     @property
     def warning_codes(self) -> List[str]:
@@ -1637,6 +1639,14 @@ def validate(raw: dict, folder: str, strict: bool = False) -> Manifest:
             problems += agent_bad
         else:
             logging.warning("[PACKS] %s: agent block problems ignored: %s", name, "；".join(agent_bad))
+    # 資料版本（ADR 0043）：寫壞了安裝、載入都不收（照壞的宣告跑，可能用舊格式讀新資料）；
+    # 安裝時（strict）再用 AST 看 migrations 的步驟序列有沒有洞（不執行工具的程式）
+    from synox.datastore import packdata
+    data_schema, schema_bad = packdata.parse(raw, kind)
+    problems += schema_bad
+    if strict and data_schema:
+        problems += packdata.step_problems(data_schema, folder, kind)[0]
+    extra["data_schema"] = data_schema
     if problems:
         raise ManifestError("；".join(problems))
     # 標記警告（ADR 0041）：寫壞了不擋（安裝、載入都一樣），但一定記下來；看不懂的那條換成「警告寫壞了」照樣顯示

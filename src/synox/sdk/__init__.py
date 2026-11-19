@@ -166,6 +166,7 @@ class PackCheck:
             lines += [f"  · {d}" for d in docs]
         else:
             lines.append("📝 說明齊了：SKILL.md 的 name／description、每個 command 的 summary、每個欄位的 ask")
+        lines += self.data_lines()
         blockers = self.blockers
         if blockers:
             lines.append(f"❌ 安裝一定會被擋（{len(blockers)} 個問題）：")
@@ -174,6 +175,22 @@ class PackCheck:
             lines.append(f"✅ 可以裝（T2：安裝時要輸入 publisher「{publisher}」）")
         else:
             lines.append("✅ 可以裝")
+        return lines
+
+    def data_lines(self) -> List[str]:
+        """資料版本（pack.json 的 data_schema；ADR 0043、docs/data-migrations.md）：宣告了幾版、遷移步驟齊不齊。
+        步驟有洞在第 1 關就擋（blockers 裡已經有）；這裡多列提醒（最低的步驟不是 0→1、cli 的步驟看不到）。"""
+        from synox.datastore import packdata
+        m = self.manifest
+        spec = getattr(m, "data_schema", None) or {}
+        if not spec:
+            if getattr(m, "data", "none") == "none":
+                return []
+            return ["🗂️ 資料版本：沒有宣告 data_schema（這個工具會存資料：建議宣告，之後改資料格式時 SYNOX 才幫使用者升舊資料）"]
+        problems, notes = packdata.step_problems(spec, m.folder, m.kind)
+        lines = [f"🗂️ 資料版本：{spec['version']}（{'、'.join(spec['files'])}）"
+                 + ("" if problems else "；遷移步驟沒有洞")]
+        lines += [f"  ❌ {p}" for p in problems] + [f"  ⚠️ {n}" for n in notes]
         return lines
 
     def format(self) -> str:
@@ -356,6 +373,24 @@ SynoxApp.ready(function () {
 });
 """
 
+MIGRATIONS_PY = '''"""資料升級步驟（docs/data-migrations.md、ADR 0043）。
+
+pack.json 的 data_schema.version 是這一版工具寫出的資料版本（現在是 1，還不用任何步驟）。
+要改資料格式時：version 改成 2，在這裡加一個 v → v+1 的步驟，並用舊格式的假資料寫測試。
+
+    def migrate_1_to_2(data):            # data_schema.files 有 "store"：拿到 pack.store 存的內容，回新的內容
+        for item in data.get("items", []):
+            ...
+        return data
+
+    def migrate_1_to_2_dir(path):        # data_schema.files 有 "dir"：就地改工具自己的資料夾
+        ...
+
+規則：一步只升一版；不要跳號（synox-sdk check 會擋有洞的）；重跑同一步結果要一樣（冪等）；
+只用標準函式庫、不要 import 工具自己的模組；不要碰網路。SYNOX 會先備份、失敗就整份還原、工具先停用。
+"""
+'''
+
 TOOL_PY = '''"""範例工具：任何語言都可以，只要最後一行印一個 JSON 物件。這支用 synox.sdk 的信封（沒裝 SYNOX 也能照形狀自己印）。"""
 
 import json
@@ -413,8 +448,11 @@ def init_pack(folder: str, kind: str, name: str, title: str, app: bool = False, 
                 "web": {"panel": "panel.html", "api": ["GET /summary"]} if panel else {"api": ["GET /summary"]}}
     files = {}
     if kind == "python":
-        manifest.update({"python": {"module": "pack"}, "storage": "vault"})
+        # data_schema（ADR 0043）：這一版寫出的資料版本；改資料格式＝version +1、migrations.py 加一個步驟
+        manifest.update({"python": {"module": "pack"}, "storage": "vault",
+                         "data_schema": {"version": 1, "files": ["store"]}})
         files["pack.py"] = PACK_PY.format(title=title)
+        files["migrations.py"] = MIGRATIONS_PY
         if app:
             manifest["web"]["app"] = {"entry": "app/index.html", "root": "app", "title": title[:24], "kit": 1,
                                       "reads": ["items"], "actions": {"add": "WRITE"}}
