@@ -16,6 +16,20 @@
       "note": ""
     },
     {
+      "title": "SYNOX Telegram 設定教學",
+      "url": "https://claude.ai/artifact/SjWBzQkdDpUNymrQEZRKHe",
+      "repo": "SYNOX",
+      "local": "docs/tutorials/telegram/index.html",
+      "note": "安裝教學與介紹頁連過來（原本只登記在舊登記表）"
+    },
+    {
+      "title": "SYNOX 接 Discord",
+      "url": "https://claude.ai/artifact/21KFtvB7EVKsV4bjCE5h1h",
+      "repo": "SYNOX",
+      "local": "docs/tutorials/discord/index.html",
+      "note": "安裝教學與介紹頁連過來（原本只登記在舊登記表）"
+    },
+    {
       "title": "SYNOX 安裝程式規格",
       "url": "https://claude.ai/artifact/3oCmmu4Epmqf2raNAaoavB",
       "repo": "SYNOX",
