@@ -48,6 +48,27 @@ def test_parse_good_shape():
     assert items == [WARN] and problems == []
 
 
+# 工具庫外的作者（DesktopAgent 的 web-ddgs pack）寫的 warnings 區塊，原樣抄過來（JSON 文字，不讀那個 repo、不執行它的程式）
+DDGS_WARNINGS_JSON = """
+  "warnings": [
+    {
+      "code": "vendor_no_security_guarantee",
+      "text": "官方不保證安全",
+      "advice": "建議在 docker 或 sandbox 執行"
+    }
+  ],
+"""
+
+
+def test_desktopagent_web_ddgs_shape(tmp_path):
+    raw = json.loads("{" + DDGS_WARNINGS_JSON.strip().rstrip(",") + "}")
+    items, problems = packwarn.parse(raw["warnings"])
+    assert items == [WARN] and problems == []
+    assert packwarn.agent_note(items) == f"〔⚠️警告 {VENDOR}：官方不保證安全；建議在 docker 或 sandbox 執行〕"
+    m = read(_src(tmp_path, warnings=raw["warnings"]), strict=True)               # 安裝時的嚴格版也收
+    assert m.warnings == [WARN] and m.warning_problems == [] and m.warning_codes == [VENDOR]
+
+
 def test_absent_field_is_old_behaviour(tmp_path):
     m = read(_src(tmp_path), strict=True)
     assert m.warnings == [] and m.warning_problems == [] and m.warning_codes == []
