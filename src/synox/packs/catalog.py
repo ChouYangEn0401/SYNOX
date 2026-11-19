@@ -143,6 +143,8 @@ class Tool:
     kind: str = ""                          # "theme"＝外觀包（衣櫃）；其他＝工具
     series: str = ""                        # 衣櫃：系列字母（卡片的字母方塊）
     swatches: List[str] = field(default_factory=list)   # 衣櫃：小預覽的顏色（#hex，最多 6 個）
+    # 清單上的標記警告（工具庫照 pack.json 的 warnings 抄過來，ADR 0041；同一套檢查）。真正擋人的是安裝報告的那一份
+    warnings: List[dict] = field(default_factory=list)
 
     @property
     def is_theme(self) -> bool:
@@ -275,7 +277,9 @@ def _tool(item, tag: str) -> Optional[Tool]:
     theme = item.get("kind") == "theme"
     swatches = item.get("swatches") if theme and isinstance(item.get("swatches"), list) else []
     series = item.get("series") if theme and isinstance(item.get("series"), str) else ""
-    return Tool(kind="theme" if theme else "",
+    from synox.packs import packwarn
+    warned, _bad = packwarn.parse(item.get("warnings"), present="warnings" in item)
+    return Tool(kind="theme" if theme else "", warnings=warned,
                 series=series.upper() if SERIES_RE.match(series) else "",
                 swatches=[c.lower() for c in swatches if isinstance(c, str) and HEX_RE.match(c)][:6],
                 name=name, title=_text(item.get("title"), 60), summary=_text(item.get("summary"), 300),
@@ -349,7 +353,9 @@ def card(tool: Tool, installed: str = "") -> dict:
     emoji = emoji or (static[0] if static else "🧩")
     title = title or (static[1] if static else tool.name)
     line = tool.line or (static[2] if static else tool.summary)
-    badges = [{"text": stage_label(tool.stage), "tone": "warn", "hint": stage_text(tool.stage)}]
+    # 作者標的警告（ADR 0041）排最前面、紅色；hint 是建議怎麼做
+    badges = [{"text": f"⚠️ {w['text']}", "tone": "bad", "hint": w.get("advice") or ""} for w in tool.warnings]
+    badges.append({"text": stage_label(tool.stage), "tone": "warn", "hint": stage_text(tool.stage)})
     if tool.name in SIMULATED_ONLY:
         badges.append({"text": TEXT["simulated"], "tone": "", "hint": TEXT["simulated_hint"]})
     elif tool.capabilities is not None and "network" not in tool.capabilities:
@@ -361,7 +367,8 @@ def card(tool: Tool, installed: str = "") -> dict:
             "example": static[3] if static else "", "version": tool.version, "badges": badges,
             "group": "online" if online or tool.name in SIMULATED_ONLY else "local",
             "help_url": tool.help_url, "download_url": tool.download_url,
-            "installed": installed or "", "newer": _newer(tool.version, installed)}
+            "installed": installed or "", "newer": _newer(tool.version, installed),
+            "warnings": [dict(w) for w in tool.warnings]}
 
 
 def cards(lib: Library, installed: Dict[str, str]) -> List[dict]:

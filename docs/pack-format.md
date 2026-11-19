@@ -230,6 +230,32 @@ SYNOX 載入完所有工具後，把系統能力（提醒、排程…）和每�
 - 格式寫錯（不是字串清單、名字不合、版本條件看不懂）＝pack.json 不合（安裝拒、已裝的不載入）。
 - 升級時相依改了＝升級報告一般字。
 
+### 標記警告：`warnings`（[ADR 0041](adr/0041-pack-warnings.md)）
+
+作者自己標「這個工具有什麼要先知道的風險」。選填；沒寫＝跟以前完全一樣。
+
+```json
+"warnings": [{"code": "vendor_no_security_guarantee", "text": "官方不保證安全", "advice": "建議在 docker 或 sandbox 執行"}]
+```
+
+| 欄位 | 規則 |
+|---|---|
+| `code` | 小寫英數字與 `_`、字母開頭、48 字內；固定的代號（確認、規則都用它）。SYNOX 認得 `vendor_no_security_guarantee`（沒寫 text／advice 就用內建的字） |
+| `text` | 給人看的一句話，60 字內 |
+| `advice` | 建議怎麼做，選填，120 字內 |
+| 條數 | 最多 5 條；同一個 code 只留第一條 |
+
+- **清理**：換行、控制字元、零寬字元、雙向文字控制字元一律拿掉；太長截斷加「…」。這段字也會給 AI 看：像在對 AI 下指令、要跳過確認、
+  夾分隔符、或有「✅」的字會換成內建的字。
+- **寫壞了不掛掉、也不靜默**：整個工具照樣能裝、能載入；看不懂的那一條換成「⚠️ 這個工具的警告寫壞了」（照樣要確認），
+  不認得的欄位照收；每個問題寫進 log、安裝報告、doctor。
+- **官方＋`vendor_no_security_guarantee` 不能同時成立**：官方鑰匙簽的工具標了這個 code＝拒裝、不載入。
+- **第一次啟用要確認**：有警告的工具，安裝／核准／升級時要逐條確認——終端機 `--accept-warning <code>`（可以重複）、網頁在報告上逐條勾「我知道」。
+  沒確認＝不裝；確認過的記在 `packs.lock` 的 `accepted_warnings`，升級時沿用（新的 code 要再確認）。鎖裡沒確認＝不載入（狀態 `unaccepted`）。
+- **簽章涵蓋**：`pack.sig.json` 簽了 `pack.json` 的每個位元組，拿掉或改掉警告＝⛔ 被改過；裝好之後改＝跟 `packs.lock` 不符，不載入。
+- **哪裡看得到**：安裝報告（標章正下方、紅字）、/help 標題、網頁工具頁、設定頁、doctor、`packs status`、工具庫清單；
+  給 AI 的能力清單、技能索引、`skill_read`、每個指令的工具說明都附「〔⚠️警告 code：text〕」，`data/agent_index.json` 每項有 `warnings` 欄位。
+
 ## pack.json v2（架構 v1 §4）
 
 在上面之上加的欄位；**舊的 pack 照舊能讀**。有任何一個 v2 欄位（`capabilities`、`publisher`、`integrity`、`mcp`、

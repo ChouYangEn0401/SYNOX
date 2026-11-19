@@ -223,7 +223,8 @@ def cmd_tools(args, *, is_up=None, open_url=None, jobs=None, opener=None) -> int
             worst = 2
             continue
         ns = argparse.Namespace(file=path, yes=args.yes, config=args.config, packs_dir="", trust=None,
-                                trust_publisher=args.trust_publisher, runtime=None, allow_downgrade=False)
+                                trust_publisher=args.trust_publisher, runtime=None, allow_downgrade=False,
+                                accept_warning=getattr(args, "accept_warning", None))
         worst = max(worst, cmd_install(ns, is_up=is_up, open_url=open_url, jobs=jobs))
     return worst
 
@@ -323,7 +324,7 @@ def _tools_online(args, *, is_up, open_url=None, jobs=None, opener=None, packs_d
             continue
         ns = argparse.Namespace(yes=args.yes, config=args.config, packs_dir=packs_dir, trust=None,
                                 trust_publisher=getattr(args, "trust_publisher", None), runtime=None,
-                                allow_downgrade=False)
+                                allow_downgrade=False, accept_warning=getattr(args, "accept_warning", None))
         if opened and not args.yes:
             print("（網頁已經開著了：這一個也在「等你核准」裡，一個一個看完按確認）")
         rc = _review_staged(token, summary, ns, config, data_dir, is_up=is_up, open_url=open_once, jobs=jobs,
@@ -628,7 +629,8 @@ def _review_staged(token: str, summary: dict, args, config, data_dir: str, *, is
             name = admin.install_staged(token, data_dir, args.packs_dir or PACK_DIRS[0], approved_by=who,
                                         via="console", trust=trust,          # 第 3 關：packs.lock
                                         trust_publisher=getattr(args, "trust_publisher", None) or None,
-                                        runtime=getattr(args, "runtime", None) or None)
+                                        runtime=getattr(args, "runtime", None) or None,
+                                        accept_warnings=getattr(args, "accept_warning", None))   # ADR 0041
         except admin.PackAdminError as e:
             print(f"❌ {e}")
             return 2
@@ -654,6 +656,7 @@ def _review_staged(token: str, summary: dict, args, config, data_dir: str, *, is
     print("ℹ️ 還沒裝。SYNOX 沒開（或網頁介面關著）：")
     tier = summary.get("tier") or {}
     extra = f' --trust-publisher "{tier.get("publisher")}"' if tier.get("needs_publisher") and tier.get("publisher") else ""
+    extra += "".join(f" --accept-warning {c}" for c in (summary.get("pack_warnings") or {}).get("codes") or [])
     print(f'   • 在這裡核准：{retry.format(extra=extra)}')
     print("   • 或開 SYNOX 之後，在網頁「設定 → 功能與安裝」選這個檔（還沒按確認的會列在「等你核准」）")
     return 1
@@ -716,7 +719,8 @@ def _upgrade_now(token: str, data_dir: str, packs_dir: str, config, args, jobs=N
                                       allow_downgrade=getattr(args, "allow_downgrade", False),
                                       trust=getattr(args, "trust", None) or None,
                                       trust_publisher=getattr(args, "trust_publisher", None) or None,
-                                      runtime=getattr(args, "runtime", None) or None)
+                                      runtime=getattr(args, "runtime", None) or None,
+                                      accept_warnings=getattr(args, "accept_warning", None))     # ADR 0041
     except admin.PackAdminError as e:
         print(f"❌ {e}")
         return 2
@@ -796,12 +800,18 @@ def cmd_packs(args, *, jobs=None) -> int:
                                                           approved_by=getattr(config, "owner_id", None) or "cli",
                                                           trust=getattr(args, "trust", None) or None,
                                                           trust_publisher=getattr(args, "trust_publisher", None) or None,
-                                                          runtime=getattr(args, "runtime", None) or None)
+                                                          runtime=getattr(args, "runtime", None) or None,
+                                                          accept_warnings=getattr(args, "accept_warning", None))
         except admin.PackAdminError as e:
             print(f"❌ {e}")
             return 2
         print(report.format(m))
+        for warn_line in admin.format_pack_warnings({"pack_warnings": admin.pack_warnings_report(m)}):
+            print(warn_line)                                     # 作者標的警告（ADR 0041）
         if problems:
+            for p in problems:
+                if p not in report.format(m):
+                    print(f"  - {p}")
             print("❌ 沒有鎖定（先修好上面的問題）")
             return 2
         print(f"🔒 {name} 已鎖定（data/packs.lock）。之後檔案被改過就不會載入。")
@@ -836,6 +846,18 @@ def cmd_packs(args, *, jobs=None) -> int:
             too_old = None
         if too_old:
             print(f"    ⛔ 不會載入：{too_old}")
+        try:                                            # 作者標的警告（ADR 0041）：每條一行；沒確認＝不會載入
+            warned_m = read(folder)
+        except ManifestError:
+            warned_m = None
+        if warned_m is not None and warned_m.warnings:
+            from synox.packs import packwarn
+            for warn_line in packwarn.lines(warned_m.warnings):
+                print(f"    ⚠️ {warn_line}")
+            from types import SimpleNamespace
+            warned = pack_loader.warnings_reason(SimpleNamespace(data_dir=data_dir), warned_m)
+            if warned:
+                print(f"    ⛔ 不會載入：{warned[1]}")
         if config is not None and not changes:          # PERM-8：伺服器版第三方 python pack 只給擁有者
             try:
                 m = read(folder)
@@ -1098,6 +1120,10 @@ def cmd_remind_window(args) -> int:
     return window.run(config.data_dir)
 
 
+ACCEPT_WARNING_HELP = ("pack.json 標了警告（warnings，ADR 0041）：看過報告、決定要用，就明確確認那一個 code 才啟用"
+                       "（可以重複：--accept-warning a --accept-warning b）")
+
+
 def main(argv=None) -> int:
     _utf8_console()
     parser = argparse.ArgumentParser(prog="python -m synox", description="SYNOX：住在你自己電腦裡的 AI 助理")
@@ -1141,6 +1167,7 @@ def main(argv=None) -> int:
     p.add_argument("--library", default="", help="工具庫資料夾（預設 config.json 的 packs.library，或 SYNOX 資料夾旁的 tools）")
     p.add_argument("--yes", action="store_true", help="看完報告直接在終端機核准")
     p.add_argument("--trust-publisher", default=None, metavar="NAME", help="T2 工具：明確輸入 pack.json 的 publisher 才裝")
+    p.add_argument("--accept-warning", action="append", default=None, metavar="CODE", help=ACCEPT_WARNING_HELP)
     p = sub.add_parser("doctor", help="健康檢查")
     p.add_argument("--offline", action="store_true", help="不實際打 AI")
     sub.add_parser("stop", help="停掉正在跑的 bot")
@@ -1158,6 +1185,7 @@ def main(argv=None) -> int:
                    help="T2 pack（有掃不到內容的執行檔／外部相依）：明確輸入 pack.json 的 publisher 才裝")
     p.add_argument("--runtime", choices=["container", "host"], default=None,
                    help="用容器（pack 有提供 runtime.container 時的預設）｜host（不用容器；升級沒給＝沿用）")
+    p.add_argument("--accept-warning", action="append", default=None, metavar="CODE", help=ACCEPT_WARNING_HELP)
     p.add_argument("--packs-dir", default="", help=argparse.SUPPRESS)
     p = sub.add_parser("filetype", help=".synoxpack 檔案關聯（圖示＋點兩下安裝；HKCU，不要管理員）")
     p.add_argument("filetype_cmd", choices=["register", "unregister", "status"])
@@ -1170,6 +1198,7 @@ def main(argv=None) -> int:
                    help="信任（沒給＝沿用舊鎖的，沒有舊鎖＝third-party）")
     q.add_argument("--trust-publisher", default=None, metavar="NAME",
                    help="T2 pack：明確輸入 pack.json 的 publisher（舊鎖確認過同一個、沒變多就不用）")
+    q.add_argument("--accept-warning", action="append", default=None, metavar="CODE", help=ACCEPT_WARNING_HELP)
     q.add_argument("--runtime", choices=["container", "host"], default=None,
                    help="用容器｜不用（沒給＝沿用舊鎖的）")
     q = psub.add_parser("runtime", help="改用容器／不用容器跑（只改 packs.lock 的 runtime）")

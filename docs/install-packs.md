@@ -51,6 +51,24 @@ SYNOX 網頁的任何一頁都可以把 `.synoxpack` 拖進來：畫面會出現
 
 同名已經裝了＝升級：會先列「改了什麼」；退回用 `python -m synox packs rollback <名字>`。更多（找工具、更新、移除）：[ecosystem.md](ecosystem.md)。
 
+## 工具標了「⚠️ 警告」時
+
+有些工具的作者會在工具上標警告（pack.json 的 `warnings`，[ADR 0041](adr/0041-pack-warnings.md)），例如
+「⚠️ 官方不保證安全——建議在 docker 或 sandbox 執行」。這種工具：
+
+- 報告最上面（SYNOX 的標章正下方）用紅字列出每一條警告；工具頁、設定頁、/help、doctor、給 AI 的工具清單也一直都會顯示。
+- **第一次要用時要你逐條確認**，沒確認就不裝、不啟用：
+  - 網頁：在報告上每一條警告前面勾「我知道」，「確認安裝」才按得下去。
+  - 終端機：照報告印的指令加 `--accept-warning <代號>`（每條一個），例如
+    `python -m synox install search.synoxpack --yes --accept-warning vendor_no_security_guarantee`。
+  - 升級：之前確認過的沿用；新版多了的警告要再確認一次（升級報告會紅字列出）。
+- 已經裝了、但還沒確認的（例如舊版 SYNOX 裝的）：設定頁寫「有警告還沒確認，先不開」。重新從安裝頁裝一次並勾選，或在電腦上跑
+  `python -m synox packs lock --approve <名字> --accept-warning <代號>`。
+- 標了「官方不保證安全」的工具不可能同時是「✅ 官方」：真的遇到兩個都有的，SYNOX 會拒裝（那份檔不對，向給你的人問清楚）。
+- 確認只是「我知道了」，不會讓工具變安全：照建議，把這類工具放在 docker 或 sandbox 裡跑（安裝報告的「🧱 執行環境」能選容器的就選容器）。
+  **SYNOX 不會因為有這個警告就自動把工具隔開**：Windows 個人版目前 SYNOX 自己還沒有沙盒（設定頁「沙盒模式」寫「⏳ 尚未完成」），
+  能用的只有「工具有提供容器、這台裝了 docker 或 podman、安裝時選用容器」這一條。細節：[ADR 0041](adr/0041-pack-warnings.md) 第 5 節。
+
 ## 我自己把資料夾放進 packs/ 可以嗎？
 
 **不行，SYNOX 不會載入它。** 只有經過上面四種方法、看過報告、你按過確認的工具才會跑（ADR 0028 §4）。

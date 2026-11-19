@@ -85,15 +85,29 @@ def description(node: Node, app=None) -> str:
     summary = node.summary or node.title
     danger = node.effect == DANGER or node.wraps is not None
     scenario = scenario_of(app, node)
+    warned = pack_warning_note(app, node)          # 這個指令所屬的工具標了警告（ADR 0041）：說明的最前面
     if scenario:
-        text = summary.rstrip("。.!！ ") + "。情境：" + scenario.rstrip("。.") + "。"
+        text = warned + summary.rstrip("。.!！ ") + "。情境：" + scenario.rstrip("。.") + "。"
         return text + ("需使用者確認（系統會先送確認卡）。" if danger else "")
-    parts = [summary]
+    parts = ([warned] if warned else []) + [summary]
     if node.usage:
         parts.append(f"（人打的用法：{node.command} {node.usage}）")
     if danger:
         parts.append("危險或包著別的指令：系統會先送確認卡給使用者按，按了才執行。")
     return " ".join(parts)
+
+
+def pack_warning_note(app, node: Node) -> str:
+    """這個葉節點所屬的工具（群組＝路徑的第一段）標了警告 →「〔⚠️警告 code：text〕」（短版）；沒有＝""。"""
+    if app is None:
+        return ""
+    group = str(getattr(node, "path", "") or "").split(".", 1)[0]
+    for pack in (getattr(app, "extras", {}) or {}).get("synox_packs", []) or []:
+        m = getattr(pack, "manifest", None)
+        if m is not None and getattr(m, "group", None) == group and getattr(m, "warnings", None):
+            from synox.packs.packwarn import agent_note
+            return agent_note(m.warnings, long=False)
+    return ""
 
 
 def schema_mode(app, node: Node) -> Optional[dict]:

@@ -63,7 +63,7 @@ from isdtelekit.core.registry import DANGER, READ, WRITE, Field
 from synox import health, notify, policy, sandbox
 from synox.config import ROOT
 from synox.helpui import examples as help_examples
-from synox.packs import envs, kit, render
+from synox.packs import envs, kit, packwarn, render
 from synox.packs import confirm as tool_confirm
 from synox.packs import pkgload
 from synox.packs import secrets as pack_secrets
@@ -79,8 +79,11 @@ EFFECTS = {"read": READ, "write": WRITE, "danger": DANGER}
 
 
 def help_title(m: Manifest) -> str:
-    """/help 那一頁（SDK 的群組標題）：pack 的 title＋穩定度標籤，例如「💰 記帳（🧪 alpha）」。"""
-    return f"{m.title}（{m.stage_label}）"
+    """/help 那一頁（SDK 的群組標題）：pack 的 title＋穩定度標籤，例如「💰 記帳（🧪 alpha）」；
+    有標記警告（ADR 0041）再加「⚠️ 官方不保證安全」：「🔎 搜尋（🧪 alpha｜⚠️ 官方不保證安全）」。"""
+    from synox.packs import packwarn
+    warned = packwarn.badge(getattr(m, "warnings", None))
+    return f"{m.title}（{m.stage_label}" + (f"｜{warned}" if warned else "") + "）"
 
 
 class PackStore:
@@ -321,11 +324,15 @@ class PackStatus:
     name: str
     folder: str
     status: str                 # loaded｜connector｜disabled｜invalid｜missing｜incompatible｜error｜tampered｜rejected｜unapproved
+    #                             ｜unaccepted（標記警告還沒確認，ADR 0041）
     detail: str = ""
     kind: str = ""
     version: str = ""
     lock: str = ""              # locked｜unlocked｜tampered（packs.lock，第 3 關）
     scan: str = ""              # 相容用，永遠是 ""（以前伺服器版沒鎖的 pack 載入時補掃；現在沒鎖＝unapproved、不載入）
+    # pack.json 的標記警告（ADR 0041，packwarn.for_agent 的形狀）；不管有沒有載入都帶著（設定頁、doctor 顯示）
+    warnings: List[dict] = field(default_factory=list)
+    warning_problems: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -1074,6 +1081,30 @@ def agent_trust_reason(config, m: Manifest) -> str:
     return agent_trust_problem(m, sandbox.trust_of(data_dir, m), signature)
 
 
+UNACCEPTED = "unaccepted"
+
+
+def warnings_reason(config, m: Manifest) -> "Optional[tuple]":
+    """標記警告（ADR 0041）在載入時的關：(status, detail) 或 None（可以載入）。
+    - 鎖裡記著「✅ 官方」簽章，pack 又標了 vendor_no_security_guarantee → ("rejected", 原因)
+    - pack 有警告、鎖裡的 accepted_warnings 沒有全部確認 → ("unaccepted", 原因＋怎麼確認)
+    沒有警告的 pack 一律 None（舊 pack 行為不變）。出廠的（BUNDLED，空的）沒有鎖：一樣要確認，所以也不載入。"""
+    if not m.warnings:
+        return None
+    data_dir = getattr(config, "data_dir", "") or ""
+    record = pack_lock.entry(data_dir, m.name) if data_dir else None
+    bad = packwarn.official_problem(m, pack_lock.signature_of(record)["status"])
+    if bad:
+        return "rejected", bad
+    missing = packwarn.unaccepted_codes(m, packwarn.accepted_of(record))
+    if missing:
+        listing = "；".join(packwarn.line(w) for w in m.warnings if w["code"] in missing)
+        flags = " ".join(f"--accept-warning {c}" for c in missing)
+        return UNACCEPTED, (f"這個工具標了警告，你還沒確認，所以沒有啟用（{listing}）。看過、決定要用：重新從安裝頁裝一次並勾選，"
+                            f"或在電腦上跑 `python -m synox packs lock --approve {m.name} {flags}`")
+    return None
+
+
 def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
     from synox.agent import index as agent_index
     report = LoadReport()
@@ -1088,7 +1119,8 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
             report.items.append(PackStatus(os.path.basename(folder), folder, "invalid", str(m)))
             logging.error("[PACKS] %s: %s", folder, m)
             continue
-        item = PackStatus(m.name, folder, "loaded", kind=m.kind, version=m.version)
+        item = PackStatus(m.name, folder, "loaded", kind=m.kind, version=m.version,
+                          warnings=packwarn.for_agent(m.warnings), warning_problems=list(m.warning_problems))
         report.items.append(item)
         if not config.pack_enabled(m.name):
             item.status = "disabled"
@@ -1138,6 +1170,11 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
         if untrusted:
             item.status, item.detail = "rejected", untrusted
             logging.error("[PACKS] %s rejected: %s", m.name, untrusted)
+            continue
+        warned = warnings_reason(config, m)             # 標記警告（ADR 0041）：官方＋警告＝rejected；沒確認＝unaccepted
+        if warned:
+            item.status, item.detail = warned
+            logging.warning("[PACKS] %s not loaded (%s): %s", m.name, item.status, item.detail)
             continue
         if m.kind == "theme":                    # 外觀包：沒有程式、不進指令表；網頁「設定 → 外觀」套用（synox/theme）
             item.detail = "外觀包：到「設定 → 外觀」套用"

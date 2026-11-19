@@ -144,7 +144,7 @@ def adopted_name(token: str, data_dir: str) -> Optional[str]:
 
 def install(token: str, data_dir: str, packs_dir: str, approved_by=None, via: str = "web",
             trust: Optional[str] = None, trust_publisher: Optional[str] = None,
-            runtime: Optional[str] = None) -> str:
+            runtime: Optional[str] = None, accept_warnings=None) -> str:
     """按了確認：packs/<name> 仍然沒有鎖 → 搬到 packs/_removed/（不刪）→ admin.install_staged 裝暫存那一份、寫鎖。
     任何一步失敗：搬走的那一份搬回原位、錯誤照原樣往外丟（PackAdminError／GateRefused）。回工具名字。"""
     meta = admin.staged_meta(token, data_dir)
@@ -175,7 +175,8 @@ def install(token: str, data_dir: str, packs_dir: str, approved_by=None, via: st
     backup = upgrade.archive(folder, name, version, packs_dir, data_dir, reason="adopt")
     try:
         return admin.install_staged(token, data_dir, packs_dir, approved_by=approved_by, via=via, trust=trust,
-                                    trust_publisher=trust_publisher, runtime=runtime)
+                                    trust_publisher=trust_publisher, runtime=runtime,
+                                    accept_warnings=accept_warnings)
     except BaseException:
         _put_back(backup, folder, os.path.join(packs_dir, name), data_dir, name)
         raise

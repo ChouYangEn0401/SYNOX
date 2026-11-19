@@ -321,12 +321,22 @@ def install_tools(p: Prompter, lib: library.Library, chosen: list, have: set, *,
             if not publisher:
                 results.append(f"⏭ {entry.name}：沒裝")
                 continue
-        if p.interactive and not publisher and not p.yes(f"裝 {entry.name}？", True):
+        warned = (summary.get("pack_warnings") or {}).get("items") or []      # 作者標的警告（ADR 0041）：逐條確認
+        if warned and not p.interactive:
+            flags = " ".join(f"--accept-warning {w.get('code')}" for w in warned)
+            results.append(f"⏭ {entry.name}：作者標了警告，要你親手確認；用 python -m synox tools install {entry.name} {flags} 裝")
+            continue
+        accepted = [w.get("code") for w in warned
+                    if p.yes(f"⚠️ {w.get('text')}——{w.get('advice') or ''}　我知道，還是要裝 {entry.name}？", False)]
+        if len(accepted) != len(warned):
+            results.append(f"⏭ {entry.name}：有警告沒確認，沒裝")
+            continue
+        if p.interactive and not publisher and not warned and not p.yes(f"裝 {entry.name}？", True):
             results.append(f"⏭ {entry.name}：沒裝")
             continue
         try:
             name = admin.install_staged(token, data_dir, packs_dir, approved_by=owner or "init", via="init",
-                                        trust_publisher=publisher)
+                                        trust_publisher=publisher, accept_warnings=accepted)
         except admin.PackAdminError as e:
             results.append(f"❌ {entry.name}：{e}")
             continue

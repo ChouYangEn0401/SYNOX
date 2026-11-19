@@ -443,7 +443,9 @@ def report_for(old: Manifest, old_folder: str, new: Manifest, new_hashes: Dict[s
     changes += t2["changes"]
     installed_runtime, after_runtime = runtime_choice(data_dir, new, runtime)
     changes += runtime_changes(old, new, installed_runtime, after_runtime)
-    return {"name": new.name, "installed_version": old.version, "new_version": new.version,
+    warned = warnings_change(pack_lock.entry(data_dir, old.name), new)          # 標記警告（ADR 0041）
+    changes += warned["changes"]
+    return {"name": new.name, "pack_warnings": warned, "installed_version": old.version, "new_version": new.version,
             "version_status": status, "version_ok": status == UPGRADE, "version_message": message, "changes": changes,
             "can_force": status != UPGRADE and semver_key(new.version) is not None,   # 可以明確選「降級／重裝」
             "alerts": sum(1 for c in changes if c["alert"]), "files": pack_lock.diff(old_hashes, new_hashes)[:50],
@@ -451,6 +453,23 @@ def report_for(old: Manifest, old_folder: str, new: Manifest, new_hashes: Dict[s
             "installed_trust": installed_trust, "trust": trust or installed_trust or pack_lock.DEFAULT_TRUST,
             "tier": t2, "installed_runtime": installed_runtime, "runtime": after_runtime,
             "installed_signature": installed_signature, "signature": new_signature}
+
+
+def warnings_change(old_lock: Optional[dict], new: Manifest) -> dict:
+    """升級的標記警告那一段（ADR 0041）：{"accepted": 舊鎖確認過、新版還有的, "needs_accept": 還要確認的,
+    "items": 新版全部的警告, "changes": [報告的一行…]}。舊鎖確認過的 code 沿用；新的 code 要再確認（--accept-warning）。"""
+    from synox.packs import packwarn
+    before = packwarn.accepted_of(old_lock)
+    now = packwarn.codes(new.warnings)
+    accepted = [c for c in before if c in now]
+    needs = [c for c in now if c not in accepted]
+    changes = [{"kind": "warnings", "text": f"新的警告要你確認：{c}（{packwarn.line(w)}）", "alert": True}
+               for w in new.warnings for c in [w["code"]] if c in needs]
+    gone = [c for c in before if c not in now]
+    if gone:
+        changes.append({"kind": "warnings", "text": "這一版拿掉了警告：" + "、".join(gone), "alert": False})
+    return {"accepted": accepted, "needs_accept": needs, "items": packwarn.for_agent(new.warnings),
+            "problems": list(new.warning_problems), "changes": changes}
 
 
 def installed_manifest(packs_dir: str, name: str) -> Optional[Tuple[Manifest, str]]:
@@ -614,8 +633,10 @@ def _verified_staged(token: str, data_dir: str):
 
 def upgrade_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, via: str = "web",
                    allow_downgrade: bool = False, now=None, trust: Optional[str] = None,
-                   trust_publisher: Optional[str] = None, runtime: Optional[str] = None) -> dict:
+                   trust_publisher: Optional[str] = None, runtime: Optional[str] = None,
+                   accept_warnings=None) -> dict:
     """按了「確認升級」：再檢查 → 版本要比較新（或 allow_downgrade）→ 舊的搬到 _removed → 新的搬進來 → 鎖換新。
+    標記警告（ADR 0041）：舊鎖確認過的 code 沿用；新版多了的 code 要 accept_warnings，不然不升級。
     trust 沒給＝沿用舊鎖的（舊的沒鎖＝third-party）。
     T2（packs/tier.py）：發行者變了、新增 exec、可執行的東西變多、或舊的沒確認過 → 一定要 trust_publisher（跟新版
     pack.json 的 publisher 一字不差），不然丟錯；都沒有＝沿用舊鎖的 trusted_publisher。
@@ -647,6 +668,10 @@ def upgrade_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
         if refused:
             raise admin.PackAdminError("不升級：" + refused + "（" + "；".join(t2["reconfirm"]) + "）"
                                        if t2["reconfirm"] else "不升級：" + refused)
+    try:                                                 # 標記警告：官方＋警告拒、新的 code 沒確認不升級（ADR 0041）
+        accepted = admin.warnings_gate(m, sig.status, accept_warnings, via, previous=previous)
+    except admin.PackAdminError as e:
+        raise admin.PackAdminError(str(e).replace("拒裝：", "不升級：", 1).replace("沒有啟用：", "不升級：", 1))
     fields = pack_tier.lock_fields(t2, trust_publisher if t2["tier"] == pack_tier.T2 else None, previous=previous)
     backup = archive(target, m.name, old.version, packs_dir, data_dir, now=now, reason="upgrade")
     try:
@@ -662,7 +687,8 @@ def upgrade_staged(token: str, data_dir: str, packs_dir: str, approved_by=None, 
         raise
     shutil.rmtree(root, ignore_errors=True)
     pack_lock.approve(data_dir, m, report, approved_by, via=via, hashes=hashes, folder=target, trust=trust,
-                      tier_fields=fields, runtime=upg["runtime"], signature=sig.lock_block())
+                      tier_fields=fields, runtime=upg["runtime"], signature=sig.lock_block(),
+                      accepted_warnings=accepted)
     logging.info("[PACKS] upgraded %s %s → %s (approved by %s via %s; old one in %s)",
                  m.name, old.version, m.version, approved_by, via, backup)
     return {"name": m.name, "from": old.version, "to": m.version, "backup": backup, "report": upg,

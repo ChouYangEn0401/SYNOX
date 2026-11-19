@@ -90,7 +90,7 @@
 
 ## 4. 重要的 ADR（一行一份）
 
-全部 39 份（0001–0040，0032 是空號）的標題與狀態在 [adr/README.md](adr/README.md)（也寫了什麼時候要寫新的、編號規則）。最常碰到的：
+全部 40 份（0001–0041，0032 是空號）的標題與狀態在 [adr/README.md](adr/README.md)（也寫了什麼時候要寫新的、編號規則）。最常碰到的：
 
 - [0001](adr/0001-runtime-loop-heartbeat-mother-session.md) runtime loop、心跳、常駐助理、soul.md——背景工作的骨架。
 - [0002](adr/0002-soul-md-in-chat-assistant-prompt.md)／[0005](adr/0005-soul-ledger-memory-provenance-review.md)／[0031](adr/0031-soul-habits-and-prefs.md) soul.md 怎麼進提示、帳本、習慣與規則。
@@ -104,6 +104,7 @@
 - [0027](adr/0027-multi-file-python-packs.md) 多檔 python 工具；[0030](adr/0030-tool-registration-index.md) 工具登記與索引（pack.json 的 `agent` 區塊）。
 - [0029](adr/0029-reminder-delivery-on-notify-hub.md) 提醒必達（通知中心、送達與重試、提醒視窗）。
 - 0033–0040：「一次改好幾筆」與核准卡、通知分流的**提案**（還沒有程式；0038 第一段已做）。
+- [0041](adr/0041-pack-warnings.md) pack.json 的標記警告（`warnings`）：每個看得到工具的地方都顯示、第一次啟用要確認；§5 是跟沙盒的關係（目前不會因為警告就被隔離）。
 
 ## 5. 在雲端 session（或任何不是擁有者電腦的地方）工作
 
