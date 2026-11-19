@@ -2,7 +2,7 @@
 
 - 狀態：**已採用**（擁有者 2026-11-14；2026-11-19 補齊排序、升級矩陣、錯版補救、通道與相容欄位：[adr/0043](adr/0043-version-order-and-upgrade-matrix.md)）。
   工具：`scripts/release.py`（升號、檢查、發佈說明、簽章）、`scripts/check_version_consistency.py`（發佈前的版本一致檢查）。
-- 目前版本：`0.2.2-alpha.1`（`dev` 上的號碼＝下一個要發的版本，還沒發；最新的 tag 是 `v0.2.1-beta.2`，見 §13）
+- 目前版本：`0.2.2-alpha.2`（`release/0.2.2-alpha.2` 上的號碼＝下一個要發的版本，還沒發；最新的 tag 是 `v0.2.2-alpha.1`，見 §13）
 - 自己會更新：**有**（[adr/0023](adr/0023-updates-and-hotfixes.md)）：「檢查更新」（按了才查；每週檢查要自己打開）、ZIP 裝的用 `Update.bat`、退回用 `Update.bat -Rollback`。
 
 ---
@@ -294,7 +294,7 @@ python scripts/release.py bump alpha --planned # dev → 0.2.3-alpha.1（未發�
 
 | 東西 | 版本寫在哪 | 現在 | 怎麼發 |
 |---|---|---|---|
-| **SYNOX 本體** | `pyproject.toml`＋`src/synox/__init__.py` | `0.2.2-alpha.1`（2026-11-19，`release/0.2.2`，tag `v0.2.2-alpha.1`）；上一個 tag `v0.2.1-beta.2` | 這份文件；tag `vX.Y.Z`（SYNOX repo） |
+| **SYNOX 本體** | `pyproject.toml`＋`src/synox/__init__.py` | `0.2.2-alpha.2`（2026-11-19，`release/0.2.2-alpha.2`，tag `v0.2.2-alpha.2` 待打）；上一個 tag `v0.2.2-alpha.1` | 這份文件；tag `vX.Y.Z`（SYNOX repo） |
 | **SDK**（給工具的介面合約） | 只寫在 `src/synox/sdk/author.py` 的 `SDK_VERSION`；`sdk/synox_sdk.py`、`sdk/pyproject.toml`（`synox-sdk` 套件）都讀它 | 0.2.5 | **跟著 SYNOX 一起發**（在 `sdk/` 裡），沒有自己的 tag／PyPI。不相容的改動升 MINOR（0.x），只加 API 升 PATCH（[sdk.md](sdk.md)「SDK 版本」） |
 | **工具庫 SYNOX_Libs** | 另一個 repo；`VERSION`、每個工具 pack.json 的 `version`；發佈頁的 `index.json`（名字、版本、`requires`、sha256）與 `tools-<版本>.zip` | `v0.3.1`（安裝程式帶 `tools-0.3.1.zip`；網頁工具庫讀 `v0.3.1` 的 `index.json`；都還是 pre-release） | 自己的 tag 與 release。SYNOX 的網頁工具庫固定讀 `OFFICIAL_INDEX_URL`（釘一個 tag；工具庫標成 Latest 之後改成 `latest/download`，[release-playbook.md](release-playbook.md) 第 2 節），安裝程式的 workflow 釘 `LIBS_TAG`／sha256 |
 
@@ -324,12 +324,11 @@ python scripts/release.py bump alpha --planned # dev → 0.2.3-alpha.1（未發�
 | `v0.2.1-alpha.1` | 2026-11-16 | 第一個照這份規則發的預覽版 |
 | `v0.2.1-beta.1` | 2026-11-18 | tag 打了，安裝檔沒建成，沒有發佈（說明在 CHANGELOG 0.2.1-beta.2 那一節） |
 | `v0.2.1-beta.2` | 2026-11-18 | 內容同 beta.1，只換安裝檔要下載的工具庫指紋；發版 commit 在 `release/0.2.1`，沒有合回 `dev` |
+| `v0.2.2-alpha.1` | 2026-11-19 | 擁有者定的下一版還是 alpha（`0.2.1-beta.2 < 0.2.2-alpha.1`）；在 GitHub 上被標成 Latest（還沒有正式版） |
 
 0.2.0 沒有 tag（不補打）；0.1.0、0.2.0 在 CHANGELOG 有日期。
 
-**下一個要發的版本：`0.2.2-alpha.1`**（擁有者 2026-11-19 定：下一版還是 alpha）。理由：`v0.2.1-beta.2` 已經打了，
-同號的 `0.2.1-alpha.N` 會排在它前面（檢查更新、`-FromZip` 都會當成舊版、不肯裝），所以 alpha 只能是下一號 `0.2.2-alpha.1`
-（`0.2.1-beta.2 < 0.2.2-alpha.1`）。`dev` 已經是這個號碼、CHANGELOG 最上面是 `## 0.2.2-alpha.1（未發佈）`；發版那天 `bump keep`。
+**下一個要發的版本：`0.2.2-alpha.2`**（`bump alpha`：更新卡片同時顯示正式版與測試版、更新通道，[adr/0045](adr/0045-update-channels.md)）。
 之後要給外部試就 `bump beta` → `0.2.2-beta.1`，正式版 `bump final` → `0.2.2`。
 
 從 0.2.0 更新到 0.2.1 以後任何一版：內建工具都搬到工具庫了（`loader.BUNDLED` 清空，2026-11-12），更新的人**要自己把工具裝回來**，發佈說明「怎麼更新」**第一行**要寫清楚（資料還在）。0.2.0 沒有 Update.bat：從 0.2.0 更新只能手動（上面「我要怎麼更新？」的手動做法）。
