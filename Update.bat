@@ -12,8 +12,11 @@ rem                               computer instead of GitHub (scripts/make_updat
 rem                               SHA256SUMS.txt next to the ZIP must match when it is there; unsigned
 rem                               only with -AllowUnsigned; same _previous backup and rollback
 rem                               (docs/release-playbook.md)
-rem Never touches config.json, data\, packs\ (or .venv\, runtime\, lang.txt). No admin. Only the stable release is
-rem offered (never alpha/beta). Installed with git: use "git pull" instead (this script says so and stops).
+rem   Update.bat -IncludePrerelease  this time also take a preview (alpha/beta) when it is newer than the newest stable
+rem                               release; same SHA256SUMS.txt and signature checks
+rem Never touches config.json, data\, packs\ (or .venv\, runtime\, lang.txt). No admin. By default only the stable
+rem release is offered; previews only with -IncludePrerelease or when the settings card "also tell me about previews"
+rem is on (config.json updates.channel = preview). Installed with git: use "git pull" instead (this script says so).
 rem All the work is in setup\update.ps1 (downloading and checking: python -m synox update --prepare).
 rem This file is itself replaced while it runs, and cmd.exe reads a .bat file line by line: so everything after
 rem setlocal is ONE line on purpose (a line cmd.exe has already read keeps working after the file is swapped).

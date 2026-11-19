@@ -5,6 +5,10 @@
 #   Update.bat -Rollback        退回上一版（_previous\ 裡最新的那一份）
 #   Update.bat -AllowUnsigned   這一版沒有簽章也換（只確認 HTTPS＋GitHub 發佈頁的 SHA256SUMS.txt；預設不換，照實說）
 #   Update.bat -Yes             不再問（已經在別的地方確認過）
+#   Update.bat -IncludePrerelease  這一次也收測試版（正式版與測試版取 SemVer 較大的）。設定選了 preview 通道
+#                               （config.json updates.channel，網頁「也提醒我有測試版」）時不用加：Python 自己讀設定。
+#                               版本比較（SemVer：0.2.2-alpha.1 < 0.2.2-beta.1 < 0.2.2）與下載驗證（SHA256SUMS.txt、
+#                               release.json 簽章）全在 Python，跟正式版同一條，這支不自己比版本號
 #   Update.bat -FromZip <ZIP>   先測更新（還沒有真的發佈時）：用這台電腦上的 ZIP，不連網。旁邊有 SHA256SUMS.txt 就要對得上，
 #                               沒有簽章一樣要 -AllowUnsigned；之後換檔、留 _previous\、出事退回都跟正式更新同一條
 #                               （synox update --prepare --from-zip；scripts/make_update_testkit.py 做測試包；
@@ -16,7 +20,7 @@
 # 永遠不動（$Keep，跟 prepare.py 的 KEEP 一樣）：config.json、data\、packs\、.venv\、runtime\、_previous\、lang.txt、
 # installer-choices.json、.git。舊的程式檔整份搬到 _previous\<舊版本>-<時間>\，只留最近 2 份（決定 U8）。
 # git clone 的不換檔：請 git pull；安裝程式（.exe）裝的：下載新的安裝程式。
-param([switch]$Rollback, [switch]$AllowUnsigned, [switch]$Yes, [string]$FromZip = '')
+param([switch]$Rollback, [switch]$AllowUnsigned, [switch]$Yes, [string]$FromZip = '', [switch]$IncludePrerelease)
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $Root
@@ -251,13 +255,16 @@ function Remove-Prepared($ready) {
 
 function Invoke-Update {
     Say (T 'checking')
-    & $VenvPy -m synox -q update --check | Out-Host
-    if ($LASTEXITCODE -ne 10) { Say (T 'no_newer'); return 0 }     # 10＝有比較新的正式版（synox update --check 的結束碼）
+    $check = @('-m', 'synox', '-q', 'update', '--check')
+    if ($IncludePrerelease) { $check += '--include-prerelease' }
+    & $VenvPy @check | Out-Host
+    if ($LASTEXITCODE -ne 10) { Say (T 'no_newer'); return 0 }     # 10＝有比較新的版本（照通道；synox update --check 的結束碼）
     if (-not (Confirm-Step (T 'ask'))) { Say (T 'cancelled'); return 0 }
 
     Say (T 'preparing')
     $prep = @('-m', 'synox', '-q', 'update', '--prepare')
     if ($AllowUnsigned) { $prep += '--allow-unsigned' }
+    if ($IncludePrerelease) { $prep += '--include-prerelease' }    # --check 與 --prepare 一定用同一個通道
     & $VenvPy @prep | Out-Host
     $rc = $LASTEXITCODE
     if ($rc -eq 3) { Say (T 'no_newer'); return 0 }

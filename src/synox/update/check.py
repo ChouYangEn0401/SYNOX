@@ -3,15 +3,21 @@ SYNOX 本體的「有沒有新版」（docs/adr/0023 §1、決定 U2、U3）。
 
 - **只在使用者按了才連網**（`synox update --check`、網頁設定「💻 電腦與備份」→「檢查更新」），或使用者自己打開「每週看一次」
   （config.json `"updates": {"check": "weekly"}`，**預設 manual＝不查**）。查到了只顯示、通知一次，不下載、不安裝。
-- 問哪裡（寫死）：GitHub 的 `GET https://api.github.com/repos/ChouYangEn0401/SYNOX/releases/latest`。GitHub 的 latest
-  **只會是正式版**（不含 pre-release、草稿），所以一般人永遠看不到 beta（決定 U3）；這裡再擋一次（prerelease／draft／版本號有尾巴＝不算）。
-- 送出去的只有那一個 GET（User-Agent `synox-update-check`，不帶版本、不帶任何識別）；GitHub 看得到 IP。
+- 問哪裡（寫死），每次檢查問兩件事（決定 U3，2026-11-19 修訂）：
+  (a) 最新**正式版**：`GET https://api.github.com/repos/ChouYangEn0401/SYNOX/releases/latest`（再擋一次：prerelease／draft／
+      版本號有尾巴＝不算，當作「還沒有正式版」）；
+  (b) 最新**測試版**：`GET …/releases?per_page=20`，草稿不算，只看預覽版（版本號有尾巴或標了 prerelease），**用 SemVer 挑最大的**
+      （不看 GitHub 的時間順序）。
+  兩行都給人看（卡片、`synox update --check`）；「有新版」的提示、橫幅、每週通知、Update.bat 照**更新通道**：
+  config.json `"updates": {"channel": "stable" | "preview"}`，**預設 stable＝只看正式版**；preview＝正式版與測試版取 SemVer 較大的。
+  命令列 `--include-prerelease`＝這一次當作 preview。
+- 送出去的只有那兩個 GET（User-Agent `synox-update-check`，不帶版本、不帶任何識別）；GitHub 看得到 IP。
   代理伺服器：urllib 預設就照 HTTPS_PROXY 等環境變數（Windows 也讀系統的 Proxy 設定）。逾時 15 秒。
 - 轉址只跟 GitHub 自己的主機（api.github.com；附檔才到 github.com 的 SYNOX releases 路徑與 GitHub 的下載主機）。
 - 安全更新：發佈頁的標題或說明有「🔒 安全更新」或「強烈建議更新」（docs/versioning.md、決定 U9）→ security=True。
 - 失敗一律安靜：回 status="error" 和一句人話，記 log，不丟例外、不重試。
-- 預覽版（beta／alpha）：只有命令列明確加 `synox update --check --include-prerelease` 才看（問 `releases?per_page=20`，
-  挑版本最大的、草稿不算）。只看，不存結果、不出橫幅；Update.bat 從來不裝預覽版。
+- 預覽版（beta／alpha）：卡片一定顯示「最新測試版」那一行（只看）；要被提醒、讓 Update.bat 也裝測試版，要自己選 preview 通道
+  （卡片「也提醒我有測試版」、`synox update --channel preview`），或這一次加 `--include-prerelease`（只看，不存結果）。
 - **只給測試用**：環境變數 `SYNOX_UPDATE_API`（docs/release-playbook.md「先測更新」）把「問哪裡」換成這台電腦上的檔案
   （路徑或 file:// 網址）或 http://127.0.0.1／localhost。只從環境變數讀（config.json、網頁都改不到它），而且只收本機的
   目的地（指到別台主機一律拒絕），用的時候每一次輸出、每個通知最上面都印「⚠️⚠️ 測試模式」。測試模式下發佈的附檔也只能是
@@ -40,7 +46,8 @@ from synox.packs.upgrade import semver_key
 
 OWNER_REPO = "ChouYangEn0401/SYNOX"
 API_URL = f"https://api.github.com/repos/{OWNER_REPO}/releases/latest"
-API_LIST_URL = f"https://api.github.com/repos/{OWNER_REPO}/releases?per_page=20"   # --include-prerelease 才用
+API_LIST_URL = f"https://api.github.com/repos/{OWNER_REPO}/releases?per_page=20"   # 最新測試版（預覽版）
+CHANNELS = ("stable", "preview")
 TEST_API_ENV = "SYNOX_UPDATE_API"        # 只給測試：只從環境變數讀、只收本機的檔案／127.0.0.1（見上面）
 LOOPBACK = ("127.0.0.1", "localhost", "::1")
 RELEASES_PAGE = f"https://github.com/{OWNER_REPO}/releases"
@@ -69,14 +76,28 @@ TEXT = {
     "too_big": "GitHub 回的內容太大，沒有讀。可以直接打開發佈頁看。",
     "current": "你是最新版 ✅",
     "ahead": "你裝的版本比最新的正式版還新（測試版或開發中的版本），不用更新。",
+    "ahead_preview": "你裝的版本比 GitHub 上最新的正式版和測試版都新（開發中的版本），不用更新。",
+    "none": "GitHub 上還沒有可以更新的正式版（下面是正式版與測試版的現況）。",
+    "none_preview": "GitHub 上還沒有 SYNOX 的正式版，也沒有測試版。",
     "newer": "有新版：{installed} → {latest}",
+    "stable_line": "最新正式版：{v}（{state}）",
+    "stable_none": "最新正式版：還沒有正式版",
+    "preview_line": "最新測試版：{v}（{state}）",
+    "preview_none": "最新測試版：沒有測試版",
+    "unknown_line": "{label}：無法判斷（{why}）",
+    "state_newer": "比你裝的新",
+    "state_current": "跟你裝的一樣",
+    "state_ahead": "比你裝的舊",
+    "order_note": "（測試版的號碼比同號的正式版小：0.2.2-alpha.1 < 0.2.2-beta.1 < 0.2.2。）",
+    "preview_hint": "有比你裝的新的測試版，但你只收正式版的提醒。想被提醒、讓 Update.bat 也能裝測試版："
+                    "在設定卡片打開「也提醒我有測試版」（或 synox update --channel preview）。測試版可能還有問題。",
     "security": "🔒 強烈建議更新：這版修了安全問題。",
     "tools": "有 {n} 個工具可以更新（設定 → 🧩 功能與安裝 → 工具庫，按「看有哪些工具」→「全部更新」；"
              "或打 synox tools update --all。一樣先給你看檢查的結果，你同意了才換）。",
     "test_mode": "⚠️⚠️ 測試模式：SYNOX_UPDATE_API={src}（只給測試用：查新版、下載都改到這台電腦上的檔案，不是 GitHub）。"
                  "不是你自己設的，請關掉這個視窗、刪掉這個環境變數。",
     "test_bad": "SYNOX_UPDATE_API 只能指到這台電腦上的檔案或 http://127.0.0.1（只給測試用），這個值不收：{src}",
-    "prerelease": "（{v} 是預覽版：你加了 --include-prerelease 才看得到。預覽版可能還有問題；Update.bat 不會裝預覽版。）",
+    "prerelease": "（{v} 是測試版（預覽版）：你選了也提醒測試版，或這次加了 --include-prerelease。測試版可能還有問題。）",
     "how_git": "你的 SYNOX 是用 git 裝的：關掉 SYNOX（Stop.bat）→ 在 SYNOX 資料夾打 `git pull` → 點兩下 Setup.bat。",
     "how_zip": "要更新：點兩下 SYNOX 資料夾裡的 Update.bat（會先給你看這版改了什麼，你按確認才換；你的設定、資料、工具都不動）。",
     "how_exe": "你的 SYNOX 是用安裝程式裝的：到發佈頁下載新的 SYNOX-Setup-<版本>.exe，裝在原本的位置。",
@@ -90,6 +111,13 @@ class UpdateError(Exception):
     def __init__(self, message: str, offline: bool = False):
         super().__init__(message)
         self.offline = offline
+
+
+class NotFound(UpdateError):
+    """GitHub 上沒有這種版本（還沒有正式版／沒有測試版）：不是錯，只是「沒有」。"""
+
+    def __init__(self, message: str = ""):
+        super().__init__(message or TEXT["not_found"], offline=True)
 
 
 @dataclass
@@ -117,7 +145,7 @@ class Release:
 
 @dataclass
 class CheckResult:
-    status: str                            # newer | current | ahead | error
+    status: str                            # newer | current | ahead | none（通道上還沒有任何版本）| error
     installed: str
     latest: str = ""
     date: str = ""
@@ -130,22 +158,38 @@ class CheckResult:
     kind: str = "zip"                      # zip | git | exe | docker（怎麼裝的，決定「怎麼更新」那一句）
     tools_newer: Optional[int] = None      # 工具庫裡有新版的工具有幾個（None＝沒查）
     checked_at: float = 0.0
-    prerelease: bool = False               # 最新的是預覽版（只有 --include-prerelease／測試模式才會）
+    prerelease: bool = False               # 「有新版」指的是預覽版（preview 通道、--include-prerelease、測試模式）
     test_source: str = ""                  # 測試模式（SYNOX_UPDATE_API）用的來源；空＝GitHub
+    channel: str = "stable"                # 這次照哪個通道判斷「有新版」：stable（只看正式版）｜preview（也看測試版）
+    # 卡片的兩行（不管通道都有）：{"version", "date", "url", "state": newer|current|ahead|none|unknown, "why"}
+    stable: dict = field(default_factory=dict)
+    preview: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         out = asdict(self)
         out["lines"] = self.lines()
         return out
 
+    def channel_lines(self) -> List[str]:
+        """「最新正式版：…」「最新測試版：…」兩行＋號碼順序的說明（沒查過＝空）。"""
+        if not self.stable and not self.preview:
+            return []
+        out = [_channel_line(self.stable, "stable"), _channel_line(self.preview, "preview"), TEXT["order_note"]]
+        if self.channel == "stable" and self.preview.get("state") == "newer" and self.status != "newer" \
+                and not self.test_source:
+            out.append(TEXT["preview_hint"])
+        return out
+
     def lines(self) -> List[str]:
-        """給人看的幾行（終端機、通知、網頁都用這份）。"""
+        """給人看的幾行（終端機、通知、網頁都用這份）：第一行是結論，接著兩行正式版／測試版的現況。"""
         out: List[str] = []
         if self.test_source:
             out.append(TEXT["test_mode"].format(src=self.test_source))
         if self.status == "error":
             out.append("❌ " + (self.message or TEXT["offline"]))
             out.append(f"發佈頁：{RELEASES_PAGE}")
+        elif self.status == "none":
+            out.append(TEXT["none_preview" if self.channel == "preview" else "none"])
         elif self.status == "newer":
             when = f"（{self.date}）" if self.date else ""
             out.append(TEXT["newer"].format(installed=self.installed, latest=self.latest) + when)
@@ -158,12 +202,26 @@ class CheckResult:
             out.append(f"完整說明：{self.notes_url}")
             out.append(how_line(self.kind))
         elif self.status == "ahead":
-            out.append(f"你是 {self.installed}，最新的正式版是 {self.latest}。" + TEXT["ahead"])
+            if self.channel == "preview":
+                out.append(f"你是 {self.installed}，GitHub 上最新的是 {self.latest}。" + TEXT["ahead_preview"])
+            else:
+                out.append(f"你是 {self.installed}，最新的正式版是 {self.latest}。" + TEXT["ahead"])
         else:
             out.append(f"{TEXT['current']}（{self.installed}）")
+        out += self.channel_lines()
         if self.tools_newer:
             out.append(TEXT["tools"].format(n=self.tools_newer))
         return out
+
+
+def _channel_line(info: dict, which: str) -> str:
+    label = "最新正式版" if which == "stable" else "最新測試版"
+    state = info.get("state") if isinstance(info, dict) else None
+    if state == "none":
+        return TEXT[which + "_none"]
+    if state in ("newer", "current", "ahead") and info.get("version"):
+        return TEXT[which + "_line"].format(v=info["version"], state=TEXT["state_" + state])
+    return TEXT["unknown_line"].format(label=label, why=(info or {}).get("why") or "沒有查到")
 
 
 def how_line(kind: str) -> str:
@@ -341,7 +399,7 @@ def get(url: str, limit: int, opener: Optional[Opener] = None, sink=None) -> byt
             current = target
             continue
         if status == 404:
-            raise UpdateError(TEXT["not_found"], offline=True)
+            raise NotFound()
         if status != 200:
             raise UpdateError(TEXT["bad_status"], offline=True)
         if len(body) > limit:
@@ -377,7 +435,7 @@ def parse_release(blob: bytes, allow_prerelease: bool = False) -> Release:
             if best is None or semver_key(rel.version) > semver_key(best.version):
                 best = rel
         if best is None:
-            raise UpdateError(TEXT["not_found"])
+            raise NotFound()
         return best
     return _release(raw, allow_prerelease)
 
@@ -386,11 +444,12 @@ def _release(raw, allow_prerelease: bool) -> Release:
     if not isinstance(raw, dict):
         raise UpdateError(TEXT["broken"])
     tag = raw.get("tag_name")
-    pattern = ANY_RE if allow_prerelease else STABLE_RE
-    if not isinstance(tag, str) or not tag.startswith("v") or not pattern.match(tag[1:]):
+    if not isinstance(tag, str) or not tag.startswith("v") or not ANY_RE.match(tag[1:]):
         raise UpdateError(TEXT["broken"])
+    if not allow_prerelease and not STABLE_RE.match(tag[1:]):
+        raise NotFound()                     # latest 指到版本號有尾巴的（被標成 Latest 的 alpha）：不算正式版
     if raw.get("draft") or (raw.get("prerelease") and not allow_prerelease):
-        raise UpdateError(TEXT["not_found"])
+        raise NotFound()
     assets = []
     for item in raw.get("assets") or []:
         if not isinstance(item, dict):
@@ -435,33 +494,144 @@ def summarize(body: str, limit: int = 300) -> str:
     return out if len(out) <= limit else out[:limit - 1] + "…"
 
 
-def fetch_latest(opener: Optional[Opener] = None, include_prerelease: bool = False) -> Release:
-    """最新的正式版（GitHub releases/latest）。include_prerelease：連預覽版一起看（releases 清單）。
-    測試模式（SYNOX_UPDATE_API）：讀那個本機的檔案（預覽版也算）。"""
+def is_preview(rel: Release) -> bool:
+    """預覽版＝版本號有尾巴（-alpha.N、-beta.N…）或 GitHub 標了 pre-release。"""
+    return rel.prerelease or "-" in rel.version
+
+
+def _best(raw_list, want_preview: bool) -> Release:
+    """releases 清單（JSON 陣列）裡 SemVer 最大的正式版／預覽版；草稿、看不懂的跳過；一個都沒有＝NotFound。
+    **不看 GitHub 的時間順序**。"""
+    if not isinstance(raw_list, list):
+        raise UpdateError(TEXT["broken"])
+    best = None
+    for item in raw_list[:100]:
+        try:
+            rel = _release(item, True)
+        except UpdateError:
+            continue
+        if is_preview(rel) != want_preview:
+            continue
+        if best is None or semver_key(rel.version) > semver_key(best.version):
+            best = rel
+    if best is None:
+        raise NotFound()
+    return best
+
+
+def _load(blob: bytes):
+    try:
+        return json.loads(blob.decode("utf-8-sig"))
+    except (ValueError, UnicodeDecodeError):
+        raise UpdateError(TEXT["broken"])
+
+
+def _test_url() -> str:
     src = test_api()
-    if src:
-        url = local_url(src)
-        if not url:
-            raise UpdateError(TEXT["test_bad"].format(src=src))
-        logging.warning("[UPDATE] TEST MODE: %s=%s (not GitHub)", TEST_API_ENV, src)
-        return parse_release(get(url, MAX_API, opener), allow_prerelease=True)
-    url = API_LIST_URL if include_prerelease else API_URL
-    return parse_release(get(url, MAX_API, opener), allow_prerelease=include_prerelease)
+    url = local_url(src)
+    if not url:
+        raise UpdateError(TEXT["test_bad"].format(src=src))
+    logging.warning("[UPDATE] TEST MODE: %s=%s (not GitHub)", TEST_API_ENV, src)
+    return url
+
+
+def fetch_stable(opener: Optional[Opener] = None) -> Release:
+    """最新的正式版（releases/latest）。沒有＝NotFound；連不上、看不懂＝UpdateError。"""
+    return _release(_load(get(API_URL, MAX_API, opener)), False)     # latest 一定是一個物件；清單＝看不懂
+
+
+def fetch_preview(opener: Optional[Opener] = None) -> Release:
+    """最新的測試版（releases 清單裡 SemVer 最大的預覽版）。沒有＝NotFound。"""
+    return _best(_load(get(API_LIST_URL, MAX_API, opener)), want_preview=True)
+
+
+Found = Tuple[Optional[Release], Optional[UpdateError]]     # (找到的版本, 沒找到的原因)；NotFound＝沒有這種版本
+
+
+def _try(fn, *args) -> Found:
+    try:
+        return fn(*args), None
+    except UpdateError as e:
+        return None, e
+
+
+def fetch_channels(opener: Optional[Opener] = None) -> Tuple[Found, Found]:
+    """(最新正式版, 最新測試版)，各自是 (Release 或 None, 錯誤或 None)。兩個 GET；一個失敗不影響另一個。
+    測試模式（SYNOX_UPDATE_API）：只讀那個本機的檔（一個發佈或一份清單），從裡面分出正式版與測試版。"""
+    if test_api():
+        try:
+            raw = _load(get(_test_url(), MAX_API, opener))
+        except UpdateError as e:
+            return (None, e), (None, e)
+        items = raw if isinstance(raw, list) else [raw]
+        return _try(_best, items, False), _try(_best, items, True)
+    return _try(fetch_stable, opener), _try(fetch_preview, opener)
+
+
+def pick(stable: Found, preview: Found, include_prerelease: bool) -> Release:
+    """照通道挑「要不要更新」比的那一版：stable＝最新正式版；preview＝正式版與測試版取 SemVer 較大的。
+    都沒有：有錯（連不上、看不懂）丟那個錯；只是沒有這種版本丟 NotFound。"""
+    sources = [stable] + ([preview] if include_prerelease else [])
+    found = [rel for rel, _err in sources if rel is not None]
+    if found:
+        return max(found, key=lambda r: semver_key(r.version))
+    errors = [err for _rel, err in sources if err is not None and not isinstance(err, NotFound)]
+    if errors:
+        raise errors[0]
+    raise NotFound()
+
+
+def fetch_latest(opener: Optional[Opener] = None, include_prerelease: bool = False) -> Release:
+    """這次要比的那一版（prepare 用）：預設最新的正式版（只問 releases/latest）；include_prerelease＝正式版與測試版取
+    SemVer 較大的（兩個都問）。測試模式（SYNOX_UPDATE_API）：讀那個本機的檔案（預覽版也算）。"""
+    if test_api():
+        stable, preview = fetch_channels(opener)
+        return pick(stable, preview, True)
+    if not include_prerelease:
+        return fetch_stable(opener)
+    stable, preview = fetch_channels(opener)
+    return pick(stable, preview, True)
+
+
+def _why(err: Optional[UpdateError]) -> str:
+    """錯誤的第一句（卡片「無法判斷（…）」用）。"""
+    text = str(err or "") or TEXT["broken"]
+    return text.split("。")[0].split("（")[0].strip() or text
+
+
+def _info(found: Found, installed: str) -> dict:
+    rel, err = found
+    if rel is None:
+        if isinstance(err, NotFound):
+            return {"state": "none"}
+        return {"state": "unknown", "why": _why(err)}
+    state = compare(installed, rel.version)
+    if state == "invalid":
+        return {"state": "unknown", "version": rel.version, "why": "比不出新舊"}
+    return {"state": state, "version": rel.version, "date": rel.date, "url": rel.url}
 
 
 def check(installed: str = __version__, *, root: str = "", opener: Optional[Opener] = None,
           tools: Optional[Callable[[], Optional[int]]] = None, keys=None, clock=time.time,
           include_prerelease: bool = False) -> CheckResult:
-    """問 GitHub 最新的正式版，跟裝著的比。從不丟例外：連不上、看不懂＝status error＋一句人話（記 log）。
-    tools：另外算「有幾個工具可以更新」（失敗回 None，不影響本體的結果）。
-    include_prerelease：預覽版也看（只有命令列明確加 --include-prerelease）。"""
+    """問 GitHub 最新的正式版與最新的測試版，跟裝著的比。從不丟例外：連不上、看不懂＝那一行「無法判斷」，
+    要比的那一版拿不到＝status error＋一句人話（記 log）。
+    include_prerelease（preview 通道、命令列 --include-prerelease）：「有新版」也算測試版；否則只看正式版。
+    tools：另外算「有幾個工具可以更新」（失敗回 None，不影響本體的結果）。"""
     from synox.update import signing
     kind = install_kind(root) if root else "zip"
-    result = CheckResult(status="error", installed=installed, kind=kind, checked_at=clock(), test_source=test_api())
+    result = CheckResult(status="error", installed=installed, kind=kind, checked_at=clock(), test_source=test_api(),
+                         channel="preview" if include_prerelease else "stable")
     if result.test_source:
         keys = list(signing.RELEASE_PUBLIC_KEYS if keys is None else keys) + signing.test_keys()
+        include_prerelease = True                     # 測試包的版本像 0.2.1-test.1
+        result.channel = "preview"
+    stable, preview = fetch_channels(opener)
+    result.stable, result.preview = _info(stable, installed), _info(preview, installed)
     try:
-        rel = fetch_latest(opener, include_prerelease=include_prerelease)
+        rel = pick(stable, preview, include_prerelease)
+    except NotFound:
+        result.status = "none"
     except UpdateError as e:
         logging.info("[UPDATE] check failed: %s", e)
         result.message = str(e)
@@ -473,7 +643,7 @@ def check(installed: str = __version__, *, root: str = "", opener: Optional[Open
             result.status = state
             result.latest, result.date, result.title = rel.version, rel.date, rel.title
             result.summary, result.notes_url, result.security = summarize(rel.body), rel.url, is_security(rel)
-            result.prerelease = rel.prerelease
+            result.prerelease = is_preview(rel)
             result.signed = bool(rel.asset(signing.SIG_ASSET) and rel.asset(signing.MANIFEST_ASSET)
                                  and signing.public_keys(keys))
     if tools is not None:
@@ -531,6 +701,26 @@ def set_mode(cfg: dict, weekly: bool) -> dict:
     out = dict(cfg)
     updates = dict(out.get("updates") or {}) if isinstance(out.get("updates"), dict) else {}
     updates["check"] = "weekly" if weekly else "manual"
+    out["updates"] = updates
+    return out
+
+
+def channel(raw_config: Optional[dict]) -> str:
+    """config.json 的 updates.channel：stable（預設，「有新版」只看正式版）｜preview（也看測試版）。
+    缺鍵、寫錯＝stable（舊的 config.json 不用改、不用遷移：ADR 0044 的「新增選填鍵」）。"""
+    updates = (raw_config or {}).get("updates") if isinstance(raw_config, dict) else None
+    value = updates.get("channel") if isinstance(updates, dict) else None
+    return value if value in CHANNELS else "stable"
+
+
+def wants_preview(raw_config: Optional[dict]) -> bool:
+    return channel(raw_config) == "preview"
+
+
+def set_channel(cfg: dict, preview: bool) -> dict:
+    out = dict(cfg)
+    updates = dict(out.get("updates") or {}) if isinstance(out.get("updates"), dict) else {}
+    updates["channel"] = "preview" if preview else "stable"
     out["updates"] = updates
     return out
 
@@ -600,7 +790,7 @@ def weekly_tick(data_dir: str, raw_config: Optional[dict], notify: Callable[[str
     now = clock()
     if not due(state, now):
         return "這週查過了"
-    result = check(installed, root=root, opener=opener, clock=clock)
+    result = check(installed, root=root, opener=opener, clock=clock, include_prerelease=wants_preview(raw_config))
     ups = None
     if tools is not None:
         try:
