@@ -24,6 +24,7 @@
 
 #### 文件
 - 驗收清單 [docs/testing/pack-warnings-checklist.md](docs/testing/pack-warnings-checklist.md)：自動測試涵蓋什麼、真機要人工驗的 14 項；全部勾完才算過關。
+
 ## 未發佈（branch fix/telegram-token-vault：Telegram bot token 搬進保管箱）
 
 #### 安全
