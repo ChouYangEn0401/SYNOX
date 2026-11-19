@@ -8,7 +8,7 @@
       "run": ["python", "scripts/prepublish_check.py", "--worktree-only"],
       "cwd": ".", "env": {}, "expect": "exit 0",
       "needs": [], "since": "2026-11-19",
-      "status": "pending", "last_run": null, "last_result": null
+      "status": "pass", "last_run": "2026-11-19", "last_result": "no findings (private term list loaded)"
     },
     {
       "id": "release-layout",
@@ -16,7 +16,7 @@
       "run": ["python", "-m", "pytest", "-q", "tests/test_release_layout.py"],
       "cwd": ".", "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "expect": "exit 0",
       "needs": [], "since": "2026-11-19",
-      "status": "pending", "last_run": null, "last_result": null
+      "status": "pass", "last_run": "2026-11-19", "last_result": "14 passed"
     },
     {
       "id": "prepublish-check-tests",
@@ -24,7 +24,7 @@
       "run": ["python", "-m", "pytest", "-q", "tests/test_prepublish_check.py"],
       "cwd": ".", "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "expect": "exit 0",
       "needs": [], "since": "2026-11-19",
-      "status": "pending", "last_run": null, "last_result": null
+      "status": "pass", "last_run": "2026-11-19", "last_result": "30 passed"
     },
     {
       "id": "examples",
@@ -32,7 +32,7 @@
       "run": ["python", "-m", "pytest", "-q", "tests/test_examples.py"],
       "cwd": ".", "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "expect": "exit 0",
       "needs": [], "since": "2026-11-19",
-      "status": "pending", "last_run": null, "last_result": null
+      "status": "pass", "last_run": "2026-11-19", "last_result": "30 passed"
     },
     {
       "id": "sdk-cli-help",
@@ -40,7 +40,7 @@
       "run": ["python", "-m", "synox.sdk", "--help"],
       "cwd": ".", "env": {}, "expect": "exit 0",
       "needs": [], "since": "2026-11-19",
-      "status": "pending", "last_run": null, "last_result": null
+      "status": "pass", "last_run": "2026-11-19", "last_result": "exit 0"
     },
     {
       "id": "full-suite",
@@ -48,7 +48,7 @@
       "run": ["python", "-m", "pytest", "-q", "--deselect", "tests/test_web.py::test_port_already_in_use_is_a_bind_failure"],
       "cwd": ".", "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "expect": "exit 0",
       "needs": ["heavy"], "since": "2026-11-19",
-      "status": "pending", "last_run": null, "last_result": null
+      "status": "pass", "last_run": "2026-11-19", "last_result": "Windows: 3853 passed, 16 skipped, 1 deselected (17 min)"
     }
   ]
 }
