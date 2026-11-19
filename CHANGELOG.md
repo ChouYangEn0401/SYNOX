@@ -1,8 +1,31 @@
 # Changelog
 
+## 未發佈（branch chore/versioning-rules：版本號規則寫清楚、每個比版本的地方照 SemVer、發佈前的版本一致檢查，ADR 0043）
+
+#### 修正
+- **網頁的工具庫、衣櫃比版本只看 `X.Y.Z` 和「有沒有尾巴」**：裝好一個工具之後重算「有新版」時，`0.1.3-alpha.1 → 0.1.3-beta.1`、
+  `alpha.2 → alpha.10` 都不算新版。改成跟伺服器同一套 SemVer（`web/static/semver.js`）。
+- **工具庫上要更新的 SYNOX 才能用的新版，照樣標「有新版」**，按了才在安裝第 1 關被擋。清單本來就帶 `requires`，現在卡片寫
+  「⛔ 這台的 SYNOX 用不了這一版」（說明跟安裝時同一句）、不出「更新到 v…」、不算在「全部更新」、`synox tools update --all` 與每週檢查裡。
+- 版本號的預覽版數字段前面補 0（`alpha.01`）不再被當成 `alpha.1`：SemVer 不收，現在一律「比不出新舊」。
+- `release.py bump` 收「未發佈」時，分支寫的 `#### 新增` 不再變成 `#####`。
+
+#### 新增
+- `release.py bump alpha --next patch`：發過 beta 還要回內部測試＝下一號的 alpha（`0.2.1-beta.2 → 0.2.2-alpha.1`）；單打 `bump alpha` 會拒絕並給這個指令。
+  `bump keep`（號碼不變、把 `## X（未發佈）` 寫上日期）、`--planned`（發完在 `dev` 上開下一版）。
+- `scripts/check_version_consistency.py`：`__version__`／`pyproject`、CHANGELOG 最上面、安裝器、文件的「目前版本」一致，而且比每個本機 tag 新、沒有重用號碼；
+  推 tag 建安裝檔時與每次 push 的 CI 都跑。
+
+#### 文件
+- `docs/versioning.md` 重寫維護者那半：SemVer 排序與每個比版本的地方、版本的唯一來源、升號表（含 beta 之後的 alpha）、CHANGELOG 格式、
+  錯版補救（tag 不動、號碼不重用）、SYNOX 與工具的升級矩陣、通道、相容欄位與不相容時的表現、安裝程式不比版本的限制與最小修法、現況與下一版。
+  ADR 0043；`release-playbook.md` 的發版步驟加跑這支檢查。
+- CHANGELOG 只動標題與位置：版本由新到舊、補上 `0.2.1-beta.2` 那一節、0.2.0 之後才合進來的四節搬到 0.2.1-alpha.1、
+  `## 0.2.2-alpha.1（未發佈）` 收下一版的內容。
+
 ## 0.2.2-alpha.1（未發佈）
 
-**版本號**：擁有者 2026-11-19 決定下一版還是 alpha（內部測試），什麼時候發 beta 由擁有者決定。`0.2.1-beta.1`／`0.2.1-beta.2` 已經發過預覽版，照排序 alpha 不能退回 `0.2.1-alpha.N`，所以下一版是 `0.2.2-alpha.1`（`0.2.1-beta.2 < 0.2.2-alpha.1`，檢查更新會把它當成比較新的）。
+**版本號**：擁有者 2026-11-19 決定下一版還是 alpha（內部測試），什麼時候發 beta 由擁有者決定。`v0.2.1-beta.1`、`v0.2.1-beta.2` 的 tag 已經打了（beta.2 發成預覽版，見下面那一節），照排序 alpha 不能退回 `0.2.1-alpha.N`，所以下一版是 `0.2.2-alpha.1`（`0.2.1-beta.2 < 0.2.2-alpha.1`，檢查更新會把它當成比較新的；規則見 [docs/versioning.md](docs/versioning.md) §1、§3）。
 安裝檔改帶工具庫 `v0.3.0` 的 `tools-0.3.0.zip`（指紋固定在 build-installer.yml）。下面幾節是這一版會帶的改動。
 
 
