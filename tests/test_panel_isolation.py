@@ -223,7 +223,7 @@ def fake_adopt(monkeypatch):
                                "signature": {"status": "none", "label": "⚠️ 不是官方"}}
 
     def install(token, data_dir, packs_dir, approved_by=None, via="web", trust=None, trust_publisher=None,
-                runtime=None):
+                runtime=None, accept_warnings=None):
         calls["install"].append({"token": token, "approved_by": approved_by, "via": via})
         return "money"
 
