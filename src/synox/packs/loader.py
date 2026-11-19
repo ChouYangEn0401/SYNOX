@@ -333,6 +333,8 @@ class PackStatus:
     # pack.json 的標記警告（ADR 0041，packwarn.for_agent 的形狀）；不管有沒有載入都帶著（設定頁、doctor 顯示）
     warnings: List[dict] = field(default_factory=list)
     warning_problems: List[str] = field(default_factory=list)
+    # 有警告時：SYNOX 自己寫的「這台實況」（sandbox.isolation_note；只是顯示）。沒有警告＝{}
+    isolation: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -1105,6 +1107,17 @@ def warnings_reason(config, m: Manifest) -> "Optional[tuple]":
     return None
 
 
+def _isolation(config, m: Manifest) -> dict:
+    """帶警告的 pack 的「這台實況」（ADR 0041 S1）；沒有警告＝{}。算不出來也不擋載入。"""
+    if not m.warnings:
+        return {}
+    try:
+        return sandbox.isolation_note(config, m)
+    except Exception:
+        logging.exception("[PACKS] %s: isolation note failed (ignored)", m.name)
+        return {}
+
+
 def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
     from synox.agent import index as agent_index
     report = LoadReport()
@@ -1120,7 +1133,8 @@ def load_all(app, config, vault=None, dirs=PACK_DIRS) -> LoadReport:
             logging.error("[PACKS] %s: %s", folder, m)
             continue
         item = PackStatus(m.name, folder, "loaded", kind=m.kind, version=m.version,
-                          warnings=packwarn.for_agent(m.warnings), warning_problems=list(m.warning_problems))
+                          warnings=packwarn.for_agent(m.warnings), warning_problems=list(m.warning_problems),
+                          isolation=_isolation(config, m))
         report.items.append(item)
         if not config.pack_enabled(m.name):
             item.status = "disabled"

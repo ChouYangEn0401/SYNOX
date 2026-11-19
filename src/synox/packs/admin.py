@@ -237,8 +237,9 @@ def signature_summary(m: Manifest, sig: "signing.SignatureResult") -> dict:
 
 
 def summary_of(m: Manifest, report: ScanReport, hashes: Dict[str, str], problems: List[str],
-               token: str = "", signature: Optional["signing.SignatureResult"] = None) -> dict:
-    """安裝報告。signature：stage 驗過的結果（沒給＝現在對 m.folder 驗一次）。"""
+               token: str = "", signature: Optional["signing.SignatureResult"] = None, config=None) -> dict:
+    """安裝報告。signature：stage 驗過的結果（沒給＝現在對 m.folder 驗一次）。
+    config：這台的設定（帶警告的 pack 的「這台實況」那一行用；沒給＝照預設設定說）。"""
     sig = signature if signature is not None else signing.verify_folder(m.folder)
     return {"token": token, "signature": signature_summary(m, sig), "safety_notice": signing.SAFETY_NOTICE,
             "name": m.name, "title": m.title, "summary": m.summary, "version": m.version,
@@ -249,19 +250,25 @@ def summary_of(m: Manifest, report: ScanReport, hashes: Dict[str, str], problems
             "scan": {**report.to_dict(m), "problems": problems, "ok": not problems},
             "warnings": warnings_for(m, report), "env": env_plan(m).to_dict(), "mcp": mcp_report(m), **scope_of(m),
             "tier": tier_of(m, report), "runtime": runtime_report(m), "app": app_of(m),
-            "agent": agent_report(m), "pack_warnings": pack_warnings_report(m), **theme_report(m, problems)}
+            "agent": agent_report(m), "pack_warnings": pack_warnings_report(m, config), **theme_report(m, problems)}
 
 
-def pack_warnings_report(m: Manifest) -> dict:
+def pack_warnings_report(m: Manifest, config=None, installing: bool = True) -> dict:
     """安裝報告的「⚠️ 標記警告」那一段（ADR 0041）：items（結構化，給網頁勾選）、lines（給人看）、problems（warnings 寫壞的地方）。
-    沒有警告也回同一個形狀（items 空的），網頁、終端機不用猜。summary 的 warnings 是另一個東西（SYNOX 自己的提醒字串）。"""
-    return {"items": packwarn.for_agent(m.warnings), "lines": packwarn.lines(m.warnings),
-            "codes": list(m.warning_codes), "problems": list(m.warning_problems),
-            "needs_accept": bool(m.warnings)}
+    沒有警告也回同一個形狀（items 空的），網頁、終端機不用猜。summary 的 warnings 是另一個東西（SYNOX 自己的提醒字串）。
+    有警告時多一個 isolation（sandbox.isolation_note：這台實際能不能把它關起來，SYNOX 自己寫的字；只是顯示）。"""
+    out = {"items": packwarn.for_agent(m.warnings), "lines": packwarn.lines(m.warnings),
+           "codes": list(m.warning_codes), "problems": list(m.warning_problems),
+           "needs_accept": bool(m.warnings)}
+    if m.warnings:
+        from synox import sandbox
+        out["isolation"] = sandbox.isolation_note(config, m, installing=installing)
+    return out
 
 
 def format_pack_warnings(summary: dict) -> List[str]:
-    """終端機的「⚠️ 標記警告」那一段：放在標章那一行的正下方（醒目、紅字），每條附怎麼確認。"""
+    """終端機的「⚠️ 標記警告」那一段：放在標章那一行的正下方（醒目、紅字），每條附怎麼確認。
+    警告下面是 SYNOX 自己寫的實況（這台能不能把它關起來）；沒有隔離（含 python 工具）用紅字。"""
     pw = summary.get("pack_warnings") or {}
     items = pw.get("items") or []
     out: List[str] = []
@@ -269,6 +276,11 @@ def format_pack_warnings(summary: dict) -> List[str]:
         out.append(red(f"⚠️ 這個工具的作者標了 {len(items)} 個警告（要你明確確認才會啟用）："))
         for w in items:
             out.append(red(f"  ⚠️ {packwarn.line(w)}　〔{w.get('code')}〕"))
+        from synox import sandbox
+        note = pw.get("isolation") or {}
+        iso = sandbox.isolation_line(note)
+        if iso:
+            out.append(f"  {iso}" if note.get("isolated") else red(f"  {iso}"))
         out.append("  看過、決定要用：終端機加 " + " ".join(f"--accept-warning {w.get('code')}" for w in items)
                    + "；網頁在報告上逐條勾選")
     for p in pw.get("problems") or []:
@@ -479,9 +491,9 @@ def build_env(name: str, data_dir: str, packs_dir: str, jobs, on_done) -> bool:
     return True
 
 
-def stage(blob: bytes, data_dir: str) -> Tuple[str, Dict]:
+def stage(blob: bytes, data_dir: str, config=None) -> Tuple[str, Dict]:
     """上傳的 zip → 解到暫存資料夾、跑第 1、2 關 → (token, 摘要)。zip 或 pack.json 不合丟 PackAdminError；
-    掃描沒過丟 GateRefused（暫存清掉，摘要裡有報告）。"""
+    掃描沒過丟 GateRefused（暫存清掉，摘要裡有報告）。config：這台的設定（只給報告裡「這台實況」那一行用）。"""
     if not blob:
         raise PackAdminError("沒有收到檔案")
     if len(blob) > MAX_UPLOAD:
@@ -505,7 +517,7 @@ def stage(blob: bytes, data_dir: str) -> Tuple[str, Dict]:
             exec_bits = _extract(z, files, folder)
             sig = signing.verify_folder(folder)            # ADR 0028 §1.1：解完、第 1 關之前；對磁碟上的檔算
             if sig.status == signing.INVALID:
-                raise GateRefused(signing.INVALID_MESSAGE, refused_summary(folder, sig, exec_bits))
+                raise GateRefused(signing.INVALID_MESSAGE, refused_summary(folder, sig, exec_bits, config=config))
             m, report, hashes, problems = run_gates(folder, exec_bits)
         except Exception:
             shutil.rmtree(root, ignore_errors=True)
@@ -513,7 +525,7 @@ def stage(blob: bytes, data_dir: str) -> Tuple[str, Dict]:
     official_bad = packwarn.official_problem(m, sig.status)        # 官方簽章＋「官方不保證安全」不能同時成立（ADR 0041）
     if official_bad:
         problems.append(official_bad)
-    summary = summary_of(m, report, hashes, problems, token, signature=sig)
+    summary = summary_of(m, report, hashes, problems, token, signature=sig, config=config)
     if problems:
         shutil.rmtree(root, ignore_errors=True)
         summary["token"] = ""
@@ -525,7 +537,7 @@ def stage(blob: bytes, data_dir: str) -> Tuple[str, Dict]:
     return token, summary
 
 
-def refused_summary(folder: str, sig: "signing.SignatureResult", exec_bits=()) -> dict:
+def refused_summary(folder: str, sig: "signing.SignatureResult", exec_bits=(), config=None) -> dict:
     """簽章對不上（⛔ 被改過）時給人看的報告：照樣跑第 1、2 關（只讀、不執行）把工具的名字、掃描結果放上去，
     problems 第一條是 ⛔ 那句話；pack.json 讀不了就只有最基本的幾欄。沒有 token（沒有確認鈕）。"""
     try:
@@ -535,7 +547,7 @@ def refused_summary(folder: str, sig: "signing.SignatureResult", exec_bits=()) -
                 "files": [], "warnings": [], "scan": {"problems": [signing.INVALID_MESSAGE, str(e)], "ok": False,
                                                        "findings": []},
                 "signature": signing.summary_block(sig), "safety_notice": signing.SAFETY_NOTICE}
-    return summary_of(m, report, hashes, [signing.INVALID_MESSAGE] + problems, "", signature=sig)
+    return summary_of(m, report, hashes, [signing.INVALID_MESSAGE] + problems, "", signature=sig, config=config)
 
 
 def staged_meta(token: str, data_dir: str) -> dict:
@@ -549,7 +561,7 @@ def staged_meta(token: str, data_dir: str) -> dict:
     return data if isinstance(data, dict) else {}
 
 
-def stage_file(path: str, data_dir: str) -> Tuple[str, Dict]:
+def stage_file(path: str, data_dir: str, config=None) -> Tuple[str, Dict]:
     """`python -m synox install <檔>` 用：讀檔再 stage。"""
     try:
         size = os.path.getsize(path)
@@ -558,7 +570,7 @@ def stage_file(path: str, data_dir: str) -> Tuple[str, Dict]:
     if size > MAX_UPLOAD:
         raise PackAdminError("檔案太大（最多 5 MB）")
     with open(path, "rb") as f:
-        return stage(f.read(), data_dir)
+        return stage(f.read(), data_dir, config=config)
 
 
 def _staged_root(token: str, data_dir: str) -> str:

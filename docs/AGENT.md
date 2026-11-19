@@ -172,6 +172,9 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     有警告的 pack 鎖裡的 `accepted_warnings` 沒涵蓋全部 code＝不載入（狀態 `unaccepted`，`loader.warnings_reason`）；
     鎖記「✅ 官方」又帶 `vendor_no_security_guarantee`＝`rejected`。`lock_all` 不會幫你確認警告：要測載入的就 `lock.approve(…, accepted_warnings=[code])`。
     每個列出工具給人或 AI 看的地方都要帶警告（`packwarn.badge／lines／agent_note`、結構化的用 `for_agent`）；新增列出工具的地方也要接上。
+    警告下面的「這台實況」（ADR 0041 §5.5 S1）用 `sandbox.isolation_note(config, m, installing=)`＋`isolation_line`：只是顯示、沒有警告回 `{}`
+    （沒有警告的 pack 不准多任何鍵或字）；字要照實（只說這台的設定會怎麼跑，不說「已在 sandbox」）。
+    伺服器版 S2：`sandbox.no_guarantee(m)` 讓 `required()`／`restricted_reason()` 把 `vendor_no_security_guarantee` 當 T2 處理（只給擁有者，沿用 `owner_only`）。
 
 14. **kind=mcp stdio 的程序一律經 `packs/mcp.py` 的 `McpPool`**（P4a）：每個 `Scope.key(pack, user)` 一個長駐子程序（預設
     `PerUserScope`＝(pack, tg_id)；`SharedScope` 只有介面，擁有者還沒決定伺服器版要共用還是一人一個，**不要偷偷改成共用**）。

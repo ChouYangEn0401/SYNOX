@@ -602,7 +602,7 @@ def cmd_install(args, *, is_up=web_is_up, open_url=None, jobs=None) -> int:
     config = _config_quiet(args.config)
     data_dir = _data_dir(config)
     try:
-        token, summary = admin.stage_file(args.file, data_dir)            # 第 1、2 關
+        token, summary = admin.stage_file(args.file, data_dir, config=config)   # 第 1、2 關
     except admin.GateRefused as e:
         if e.summary:
             print(admin.format_summary(e.summary))
@@ -818,7 +818,8 @@ def cmd_packs(args, *, jobs=None) -> int:
             print(f"❌ {e}")
             return 2
         print(report.format(m))
-        for warn_line in admin.format_pack_warnings({"pack_warnings": admin.pack_warnings_report(m)}):
+        for warn_line in admin.format_pack_warnings({"pack_warnings": admin.pack_warnings_report(m, config,
+                                                                                              installing=False)}):
             print(warn_line)                                     # 作者標的警告（ADR 0041）
         if problems:
             for p in problems:
@@ -867,6 +868,11 @@ def cmd_packs(args, *, jobs=None) -> int:
             for warn_line in packwarn.lines(warned_m.warnings):
                 print(f"    ⚠️ {warn_line}")
             from types import SimpleNamespace
+            from synox import sandbox as warned_box     # 警告下面：SYNOX 自己寫的「這台實況」（只是顯示）
+            iso = warned_box.isolation_line(warned_box.isolation_note(
+                config if config is not None else SimpleNamespace(data_dir=data_dir), warned_m))
+            if iso:
+                print(f"    {iso}")
             warned = pack_loader.warnings_reason(SimpleNamespace(data_dir=data_dir), warned_m)
             if warned:
                 print(f"    ⛔ 不會載入：{warned[1]}")

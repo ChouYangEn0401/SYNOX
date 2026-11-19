@@ -5,6 +5,24 @@
 **版本號**：擁有者 2026-11-19 決定下一版還是 alpha（內部測試），什麼時候發 beta 由擁有者決定。`0.2.1-beta.1`／`0.2.1-beta.2` 已經發過預覽版，照排序 alpha 不能退回 `0.2.1-alpha.N`，所以下一版是 `0.2.2-alpha.1`（`0.2.1-beta.2 < 0.2.2-alpha.1`，檢查更新會把它當成比較新的）。
 安裝檔改帶工具庫 `v0.3.0` 的 `tools-0.3.0.zip`（指紋固定在 build-installer.yml）。下面幾節是這一版會帶的改動。
 
+## 未發佈（branch feat/sandbox-ready：帶警告的工具，SYNOX 說清楚這台實際能不能把它關起來；ADR 0041 §5.4 S1／S2／S4）
+
+#### 新增
+- **警告下面多一行「ℹ️ SYNOX 查這台的實況」**：帶 `warnings` 的工具，SYNOX 依這台的沙盒設定與工具自己的宣告寫一句——
+  「這台沒有可用的隔離，這個工具會以你的權限直接執行」／「這個工具有提供容器（需要 podman 或 docker，已偵測到／沒偵測到）」／
+  「這是 Python 工具…沒有任何後端能把它關起來」（紅字），真的有容器或 bwrap 才說「會用 … 包起來跑」。**只是顯示，不會說成「已在 sandbox」**。
+  安裝報告（終端機、網頁）、設定頁、doctor、`packs status`、`packs lock` 都有；給 AI 的能力清單在警告後面帶「〔實況：…〕」，`data/agent_index.json` 帶 `isolation`。
+  沒有警告的工具一個字都不多。
+- `kind=python` 帶警告：照樣可以裝，只多上面那句紅字。
+
+#### 安全
+- **伺服器版**：標了 `vendor_no_security_guarantee`（官方不保證安全）的工具，跟 T2 一樣一定要沙盒——這台沒有真隔離（none、jobobject）就只給擁有者；
+  有 bwrap／systemd，或工具有提供容器、安裝時選了容器、這台有 podman／docker，才給成員。Python 工具帶這個警告一律只給擁有者。個人版不變。
+
+#### 文件
+- 真機清單 [docs/testing/sandbox-real-machine-checklist.md](docs/testing/sandbox-real-machine-checklist.md)（全部勾完才算過關）、
+  交接書 [docs/handoff/sandbox-real-machine.md](docs/handoff/sandbox-real-machine.md)、待決定的題目（S3、S5）在 `docs/handoff/open-questions/`。
+
 ## 未發佈（branch feat/pack-warnings-v2：pack.json 的標記警告，ADR 0041）
 
 #### 新增

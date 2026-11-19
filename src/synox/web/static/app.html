@@ -2813,6 +2813,10 @@
         nm.appendChild(el("span", "badge bad", "⚠️ " + w.text));
         if (w.advice) { nm.appendChild(el("span", "detail", w.advice)); }
       });
+      if (p.isolation && p.isolation.text) {      // 警告下面：SYNOX 自己寫的「這台實況」（ADR 0041 S1；只是顯示）
+        nm.appendChild(el("span", "detail" + (p.isolation.isolated ? "" : " alert"),
+                          "ℹ️ SYNOX 查這台的實況：" + p.isolation.text));
+      }
       tr.appendChild(nm);
       var st = el("td");
       var tone = TONE.hasOwnProperty(p.status) ? TONE[p.status] : "bad";
@@ -3310,6 +3314,8 @@
       box.appendChild(lab);
       boxes.push(cb);
     });
+    var iso = pw.isolation || {};               // 警告下面：SYNOX 自己寫的「這台實況」（ADR 0041 S1；只是顯示）
+    if (iso.text) { box.appendChild(el("p", iso.isolated ? "muted" : "alert", "ℹ️ SYNOX 查這台的實況：" + iso.text)); }
     if (!boxes.length) { return null; }
     return {
       ready: function () { return boxes.every(function (b) { return b.checked; }); },
