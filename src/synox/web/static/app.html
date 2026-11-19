@@ -920,8 +920,11 @@
 
       <div id="set-update" class="card hidden">
         <div class="card-head"><span class="tile" aria-hidden="true">🆕</span>
-          <div class="txt"><h2>SYNOX 更新</h2><p class="sub" id="upd-now">按「檢查更新」才會連到 GitHub 問最新的正式版（只看，不會自己下載或安裝；GitHub 看得到這台的 IP）。</p></div></div>
+          <div class="txt"><h2>SYNOX 更新</h2><p class="sub" id="upd-now">按「檢查更新」才會連到 GitHub 問最新的正式版和最新的測試版（只看，不會自己下載或安裝；GitHub 看得到這台的 IP）。</p></div></div>
         <label class="f"><input id="upd-weekly" type="checkbox"> 每週幫我看一次有沒有新版（只看，不會自己裝）</label>
+        <label class="f"><input id="upd-preview" type="checkbox"> 也提醒我有測試版</label>
+        <p class="muted">預設關著：「有新版」只算正式版。打開了，比你裝的新的測試版也會提醒你，「更新…」（Update.bat）也會裝測試版；測試版可能還有問題。
+          不管開不開，查完都會列出最新的正式版和測試版（測試版的號碼比同號的正式版小：0.2.2-alpha.1 &lt; 0.2.2-beta.1 &lt; 0.2.2）。</p>
         <p class="muted">預設關著：沒打開的話，有安全更新也要你自己來按「檢查更新」才會知道。打開了，有新版時會在這裡、網頁上方和 Telegram／Discord 通知你一次。</p>
         <div class="row">
           <button id="upd-check" class="primary" type="button">檢查更新</button>
@@ -2477,6 +2480,7 @@
     updState = d;
     $("set-update").classList.remove("hidden");
     $("upd-weekly").checked = !!d.weekly;
+    $("upd-preview").checked = d.channel === "preview";
     $("upd-how").textContent = d.how || "";
     var r = d.result || d.last, box = $("upd-result");
     clear(box);
@@ -2489,7 +2493,8 @@
         box.appendChild(el("p", "muted", "這一版沒有簽章：更新視窗會先說明，要你明確同意（Update.bat -AllowUnsigned）才會換檔。"));
       }
       if (r.checked_at) { box.appendChild(el("p", "muted", "查的時間：" + new Date(r.checked_at * 1000).toLocaleString())); }
-      $("upd-go").classList.toggle("hidden", !(r.status === "newer" && d.can_launch));
+      // 上次查到的是測試版、現在又改回只收正式版：不給「更新…」（Update.bat 照設定只會找正式版）
+      $("upd-go").classList.toggle("hidden", !(r.status === "newer" && d.can_launch && !(r.prerelease && d.channel !== "preview")));
     }
     updateBanner(d.notice);
     if (r && typeof r.tools_newer === "number") { libHint(r.tools_newer); }
@@ -2531,6 +2536,12 @@
     api("POST", "/api/settings/update/weekly", { enabled: on }).then(function (d) {
       drawUpdate(d); $("upd-msg").textContent = on ? "存好了：每週看一次（只看，不會自己裝）。" : "存好了：只有你按「檢查更新」才查。";
     }).catch(function (e) { $("upd-weekly").checked = !on; $("upd-msg").textContent = "❌ " + e.message; });
+  });
+  $("upd-preview").addEventListener("change", function () {
+    var on = $("upd-preview").checked;
+    api("POST", "/api/settings/update/channel", { preview: on }).then(function (d) {
+      drawUpdate(d); $("upd-msg").textContent = on ? "存好了：測試版也會提醒你（下次檢查起）。" : "存好了：只提醒正式版。";
+    }).catch(function (e) { $("upd-preview").checked = !on; $("upd-msg").textContent = "❌ " + e.message; });
   });
   $("upd-go").addEventListener("click", function () { $("upd-confirm").classList.remove("hidden"); $("upd-launch").focus(); });
   $("upd-cancel").addEventListener("click", function () { $("upd-confirm").classList.add("hidden"); });

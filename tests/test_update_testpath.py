@@ -47,7 +47,8 @@ def test_prerelease_only_with_the_explicit_flag():
     gh = FakeGitHub({upd.API_URL: release_json("0.2.0"), upd.API_LIST_URL: _list("0.3.0-beta.2", "0.2.0", "0.3.0-beta.1",
                                                                                    "0.4.0-beta.1", draft=("0.4.0-beta.1",))})
     r = upd.check("0.2.0", opener=gh)
-    assert gh.calls == [upd.API_URL] and r.status == "current"                # 預設：只問 latest（只有正式版）
+    assert gh.calls == [upd.API_URL, upd.API_LIST_URL] and r.status == "current"   # 預設：「有新版」只看正式版
+    assert r.preview["version"] == "0.3.0-beta.2" and r.preview["state"] == "newer"   # 測試版只列出來
     r = upd.check("0.2.0", opener=gh, include_prerelease=True)
     assert gh.calls[-1] == upd.API_LIST_URL and (r.status, r.latest, r.prerelease) == ("newer", "0.3.0-beta.2", True)
     assert any("預覽版" in line and "--include-prerelease" in line for line in r.lines())   # 草稿不算
@@ -66,7 +67,7 @@ def test_cli_include_prerelease_does_not_save_the_result(tmp_path, capsys):
     ns = cli.argparse.Namespace(config=str(cfg), check=True, weekly=None, prepare=False, allow_unsigned=False,
                                 rollback=False, include_prerelease=True, from_zip=None)
     assert cli.cmd_update(ns, opener=gh) == 10
-    assert "連預覽版一起看" in capsys.readouterr().out
+    assert "測試版也提醒" in capsys.readouterr().out
     assert upd.load_state(str(tmp_path / "data")) == {}                        # 不出網頁橫幅、不影響每週通知
     with pytest.raises(SystemExit):
         cli.main(["update", "--help"])

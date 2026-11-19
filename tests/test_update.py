@@ -104,7 +104,7 @@ def test_parse_release_refuses_garbage(blob):
 def test_check_newer_with_security_marker_and_tools_line():
     gh = github("9.0.0", name="🔒 安全更新 SYNOX 9.0.0")
     r = upd.check("0.2.0", opener=gh, tools=lambda: 3)
-    assert gh.calls == [upd.API_URL]
+    assert gh.calls == [upd.API_URL, upd.API_LIST_URL]                         # 正式版＋測試版各問一次
     assert (r.status, r.latest, r.security, r.tools_newer) == ("newer", "9.0.0", True, 3)
     text = "\n".join(r.lines())
     assert "0.2.0 → 9.0.0" in text and "強烈建議更新" in text and "有 3 個工具可以更新" in text
@@ -124,7 +124,6 @@ def test_check_current_ahead_and_signed_flag():
 @pytest.mark.parametrize("gh, words", [
     (FakeGitHub(fail=urllib.error.URLError("down")), "連不到 GitHub"),
     (FakeGitHub(fail=TimeoutError()), "連不到 GitHub"),
-    (FakeGitHub({}), "還沒有 SYNOX 的正式版"),
     (FakeGitHub({upd.API_URL: (302, "https://evil.example.com/x")}), "為了安全沒有跟過去"),
     (FakeGitHub({upd.API_URL: b"<html>"}), "看不懂"),
 ])
@@ -182,9 +181,9 @@ def test_weekly_tick_checks_once_a_week_and_notifies_once_per_version(tmp_path):
     tick = lambda: upd.weekly_tick(str(tmp_path), raw, sent.append, installed="0.2.0", opener=gh, clock=lambda: now[0])
     assert "通知了" in tick() and len(sent) == 1 and "0.2.0 → 9.0.0" in sent[0]
     now[0] += 3600
-    assert tick() == "這週查過了" and len(gh.calls) == 1
+    assert tick() == "這週查過了" and len(gh.calls) == 2                         # 正式版＋測試版
     now[0] += upd.WEEK
-    assert "已經通知過" in tick() and len(sent) == 1 and len(gh.calls) == 2
+    assert "已經通知過" in tick() and len(sent) == 1 and len(gh.calls) == 4
     gh.files[upd.API_URL] = release_json("9.0.1")
     now[0] += upd.WEEK
     assert "通知了" in tick() and len(sent) == 2
@@ -554,7 +553,7 @@ def test_update_ps1_keeps_user_data_and_matches_python():
     assert {"config.json", "data", "packs", ".venv", "runtime", "_previous"} <= set(prepare.KEEP)
     assert re.search(r"^\$KeepCount = 2\r?$", text, re.M)                         # 決定 U8
     assert re.search(r"^param\(\[switch\]\$Rollback, \[switch\]\$AllowUnsigned, \[switch\]\$Yes, "
-                     r"\[string\]\$FromZip = ''\)", text, re.M)
+                     r"\[string\]\$FromZip = '', \[switch\]\$IncludePrerelease\)", text, re.M)
     move = text.split("function Move-ProgramFiles", 1)[1].split("\nfunction ", 1)[0]
     assert "$Keep -contains $item.Name" in move and "continue" in move
     code = "\n".join(ln.split("#", 1)[0] for ln in text.splitlines())

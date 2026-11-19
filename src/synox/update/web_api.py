@@ -4,6 +4,8 @@
     GET  /api/settings/update           現況（不連網）：版本、每週檢查開關、上次的結果、怎麼裝的、能不能按「更新」
     POST /api/settings/update/check     現在查一次（連 GitHub；順便算有幾個工具可以更新）
     POST /api/settings/update/weekly    {"enabled": true|false}：每週檢查開關（寫 config.json 的 updates.check）
+    POST /api/settings/update/channel   {"preview": true|false}：「也提醒我有測試版」（寫 config.json 的 updates.channel；
+                                        預設 stable）。卡片不管這個開關，都顯示「最新正式版」「最新測試版」兩行
     POST /api/settings/update/dismiss   橫幅按「知道了」：這個版本不再顯示橫幅
     POST /api/settings/update/launch    只在 Windows、ZIP 裝法：打開 Update.bat（它自己先給人看說明、再問一次）
 
@@ -54,11 +56,14 @@ def status(web) -> dict:
     kind = upd.install_kind(root)
     state = upd.load_state(_data_dir(web))
     last = state.get("result") if isinstance(state.get("result"), dict) else None
+    raw = logic.read_existing(web.config_path)
+    preview = upd.wants_preview(raw)
     notice = None
     if last and last.get("status") == "newer" and last.get("latest") and state.get("dismissed") != last.get("latest") \
-            and upd.compare(__version__, last["latest"]) == "newer":
+            and upd.compare(__version__, last["latest"]) == "newer" and (preview or "-" not in last["latest"]):
+        # 改回只收正式版之後，上次查到的測試版不再出橫幅
         notice = {"latest": last["latest"], "security": bool(last.get("security")), "notes_url": last.get("notes_url")}
-    return {"installed": __version__, "weekly": upd.weekly_enabled(logic.read_existing(web.config_path)),
+    return {"installed": __version__, "weekly": upd.weekly_enabled(raw), "channel": upd.channel(raw),
             "kind": kind, "how": upd.how_line(kind), "releases": upd.RELEASES_PAGE, "last": last, "notice": notice,
             "can_launch": os.name == "nt" and kind == "zip" and os.path.isfile(os.path.join(root, "Update.bat"))}
 
@@ -86,8 +91,10 @@ def route(web, user, method: str, path: str, body: bytes):
     if not isinstance(data, dict):
         return _err(400, "送來的 JSON 要是物件。")
     if path == "/api/settings/update/check":
+        from synox.wizard import logic
         result = upd.check(__version__, root=_root(web), opener=getattr(web, "update_opener", None),
-                           tools=_tools_counter(web))
+                           tools=_tools_counter(web),
+                           include_prerelease=upd.wants_preview(logic.read_existing(web.config_path)))
         try:
             upd.remember(_data_dir(web), result)
         except OSError:
@@ -101,6 +108,15 @@ def route(web, user, method: str, path: str, body: bytes):
             return _err(400, "讀不到 config.json，沒有存（重跑 Setup.bat）。")
         logic.write_config(web.config_path, upd.set_mode(cfg, bool(data.get("enabled"))))
         logging.info("[WEB] %s set the weekly update check %s", user.tg_id, "on" if data.get("enabled") else "off")
+        return _json(200, status(web))
+    if path == "/api/settings/update/channel":
+        from synox.wizard import logic
+        cfg = logic.read_existing(web.config_path)
+        if not cfg:
+            return _err(400, "讀不到 config.json（先跑一次 Setup.bat）")
+        on = data.get("preview") is True
+        logic.write_config(web.config_path, upd.set_channel(cfg, on))
+        logging.info("[WEB] %s set the update channel to %s", user.tg_id, "preview" if on else "stable")
         return _json(200, status(web))
     if path == "/api/settings/update/dismiss":
         state = upd.load_state(_data_dir(web))

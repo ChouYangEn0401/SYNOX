@@ -2,7 +2,7 @@
 
 - 狀態：**已採用**（擁有者 2026-11-14；2026-11-19 補齊排序、升級矩陣、錯版補救、通道與相容欄位：[adr/0043](adr/0043-version-order-and-upgrade-matrix.md)）。
   工具：`scripts/release.py`（升號、檢查、發佈說明、簽章）、`scripts/check_version_consistency.py`（發佈前的版本一致檢查）。
-- 目前版本：`0.2.2-alpha.1`（`dev` 上的號碼＝下一個要發的版本，還沒發；最新的 tag 是 `v0.2.1-beta.2`，見 §13）
+- 目前版本：`0.2.2-alpha.2`（`release/0.2.2-alpha.2` 上的號碼＝下一個要發的版本，還沒發；最新的 tag 是 `v0.2.2-alpha.1`，見 §13）
 - 自己會更新：**有**（[adr/0023](adr/0023-updates-and-hotfixes.md)）：「檢查更新」（按了才查；每週檢查要自己打開）、ZIP 裝的用 `Update.bat`、退回用 `Update.bat -Rollback`。
 
 ---
@@ -26,11 +26,13 @@
 2. 打開發佈頁 <https://github.com/ChouYangEn0401/SYNOX/releases>，標著 **Latest** 的就是最新正式版。數字一樣＝你是最新的。
 3. 每一版的發佈頁都有三段：**這版改了什麼**、**要不要更新**、**怎麼更新**。寫「強烈建議更新」的是修了安全問題，請盡快更新。
 
-**看有沒有新版最快的方法**：網頁「設定 → 💻 電腦與備份 → 檢查更新」，或在 SYNOX 資料夾打 `.venv\Scripts\synox update --check`。SYNOX **只有你按了才去問 GitHub**；想要它每週自己看一次（只看，不會自己裝），在安裝精靈最後一頁或同一張卡片勾「每週幫我看一次有沒有新版」（預設不勾：沒勾的話，有安全更新也要你自己來按才會知道）。一般人只會看到**正式版**，beta 不會跳出來。更新**一定先問你**，SYNOX 不會自己換掉自己（[adr/0023](adr/0023-updates-and-hotfixes.md)）。
+**看有沒有新版最快的方法**：網頁「設定 → 💻 電腦與備份 → 檢查更新」，或在 SYNOX 資料夾打 `.venv\Scripts\synox update --check`。SYNOX **只有你按了才去問 GitHub**；想要它每週自己看一次（只看，不會自己裝），在安裝精靈最後一頁或同一張卡片勾「每週幫我看一次有沒有新版」（預設不勾：沒勾的話，有安全更新也要你自己來按才會知道）。查完會列兩行：**最新正式版**和**最新測試版**（各自說比你裝的新、一樣、還是比較舊；測試版的號碼比同號的正式版小）。「有新版」的提醒預設只算**正式版**；想連測試版也提醒，在同一張卡片勾「也提醒我有測試版」（§7）。更新**一定先問你**，SYNOX 不會自己換掉自己（[adr/0023](adr/0023-updates-and-hotfixes.md)）。
 
-**我裝的是測試版（alpha／beta）**：「檢查更新」還是只告訴你**正式版**（同號或更新的正式版出來時會說有新版；比你舊的正式版會說「你裝的比較新」，不會叫你降級）。
-下一個 alpha／beta 要自己到發佈頁看（或 `synox update --check --include-prerelease`），下載它的 `SYNOX-<版本>.zip`＋`SHA256SUMS.txt`
-放同一個資料夾，再 `Update.bat -FromZip <那個 ZIP>`（還沒有簽章時加 `-AllowUnsigned`）。alpha → beta → 下一版都這樣升，設定、資料、工具都不動。
+**我裝的是測試版（alpha／beta）**：「檢查更新」一定列出最新的測試版；要它**提醒**你、讓 `Update.bat` 直接下載下一個 alpha／beta，
+在卡片勾「也提醒我有測試版」（或 `synox update --channel preview`；只想這一次就 `Update.bat -IncludePrerelease`）。沒勾的話只提醒**正式版**
+（同號或更新的正式版出來時會說有新版；比你舊的正式版會說「你裝的比較新」，不會叫你降級）。下載的測試版一樣要對 `SHA256SUMS.txt`、有簽章就驗簽章
+（還沒有簽章時加 `-AllowUnsigned`）。也可以照舊手動：下載 `SYNOX-<版本>.zip`＋`SHA256SUMS.txt` 放同一個資料夾，再 `Update.bat -FromZip <那個 ZIP>`。
+alpha → beta → 下一版都這樣升，設定、資料、工具都不動。
 
 ### 我要怎麼更新？
 
@@ -154,17 +156,18 @@ bump 出來的號碼**一定排在現在的後面**（測試擋）。
 
 ### 6. 升級矩陣與相容
 
-**SYNOX 本體**（「檢查更新」與 `Update.bat` 下載只看正式版，§7；`-FromZip`、安裝程式、git 可以裝任何一版）：
+**SYNOX 本體**（「檢查更新」一定列出最新正式版與最新測試版；「有新版」與 `Update.bat` 下載照通道，§7：預設 stable 只算正式版，
+preview＝也算測試版；`-FromZip`、安裝程式、git 可以裝任何一版）：
 
-| 從 → 到 | 例子 | 檢查更新 | `Update.bat`（下載） | `Update.bat -FromZip` | 現況 |
+| 從 → 到 | 例子 | 檢查更新（stable／preview） | `Update.bat`（下載；stable／preview） | `Update.bat -FromZip` | 現況 |
 |---|---|---|---|---|---|
-| alpha → 同號 alpha | `0.2.2-alpha.1 → 0.2.2-alpha.2` | 不提示（預覽版） | 不裝預覽版 | ✅ 升級 | 通過 |
-| alpha → 同號 beta | `0.2.2-alpha.2 → 0.2.2-beta.1` | 不提示 | 不裝預覽版 | ✅ 升級 | 通過 |
-| beta → beta | `0.2.1-beta.1 → 0.2.1-beta.2` | 不提示 | 不裝預覽版 | ✅ 升級 | 通過 |
-| beta → 下一號的 alpha | `0.2.1-beta.2 → 0.2.2-alpha.1` | 不提示 | 不裝預覽版 | ✅ 升級 | 通過 |
+| alpha → 同號 alpha | `0.2.2-alpha.1 → 0.2.2-alpha.2` | 列出、不提示／✅ 有新版 | 不裝／✅ | ✅ 升級 | 通過 |
+| alpha → 同號 beta | `0.2.2-alpha.2 → 0.2.2-beta.1` | 列出、不提示／✅ 有新版 | 不裝／✅ | ✅ 升級 | 通過 |
+| beta → beta | `0.2.1-beta.1 → 0.2.1-beta.2` | 列出、不提示／✅ 有新版 | 不裝／✅ | ✅ 升級 | 通過 |
+| beta → 下一號的 alpha | `0.2.1-beta.2 → 0.2.2-alpha.1` | 列出、不提示／✅ 有新版 | 不裝／✅ | ✅ 升級 | 通過 |
 | alpha／beta → 同號正式版 | `0.2.2-beta.1 → 0.2.2` | ✅ 有新版 | ✅ | ✅ | 通過 |
 | 正式版 → 下一個正式版 | `0.2.2 → 0.2.3`、`0.2.9 → 0.2.10` | ✅ 有新版 | ✅ | ✅ | 通過 |
-| 正式版 → 下一號的 alpha／beta | `0.2.2 → 0.2.3-alpha.1` | 不提示 | 不裝預覽版 | ✅ 升級 | 通過 |
+| 正式版 → 下一號的 alpha／beta | `0.2.2 → 0.2.3-alpha.1` | 列出、不提示／✅ 有新版 | 不裝／✅ | ✅ 升級 | 通過 |
 | 降級：正式版 → 舊的 beta／舊版 | `0.2.2 → 0.2.2-beta.1` | 「你裝的比較新」 | 拒絕（不降級） | 拒絕（不降級） | 通過；要回去用 `Update.bat -Rollback` |
 | 一樣的版本 | `+build` 不同也算一樣 | 「已經是最新」 | 不做 | 不做 | 通過 |
 
@@ -198,13 +201,27 @@ bump 出來的號碼**一定排在現在的後面**（測試擋）。
 
 ### 7. 通道：誰會被通知哪一種版本
 
-| 你裝的 | 「檢查更新」／每週檢查／`Update.bat` 告訴你 | 怎麼拿到預覽版 |
-|---|---|---|
-| 正式版（預設） | 只有比你新的**正式版** | 不會被通知；想試就自己到發佈頁或 `synox update --check --include-prerelease` |
-| alpha／beta | 一樣只有**正式版**：同號或更新的正式版出來就提示；比你舊的正式版說「你裝的比較新」 | 下一個 alpha／beta 自己看發佈頁或 `--include-prerelease`，用 `Update.bat -FromZip` 裝 |
+依據 [adr/0045](adr/0045-update-channels.md)（2026-11-19 修訂 [adr/0023](adr/0023-updates-and-hotfixes.md) 的 U3、決定 [adr/0043](adr/0043-version-order-and-upgrade-matrix.md) 的待決定題：選項 C）。
 
-依據 [adr/0023](adr/0023-updates-and-hotfixes.md) 決定 U3（App 只看正式版）。GitHub 的 `releases/latest` 本來就不含 pre-release，程式再擋一次。
-「裝了預覽版的人要不要自動收到下一個預覽版」是擁有者的決定（[adr/0043](adr/0043-version-order-and-upgrade-matrix.md)「待決定」），決定之前照上表。
+**每次檢查都問兩件事**（只在按「檢查更新」、`synox update --check`、打開的每週檢查時連網；目的地寫死）：
+
+1. 最新**正式版**：`GET api.github.com/repos/ChouYangEn0401/SYNOX/releases/latest`。不是預覽、不是草稿、版本號沒有尾巴才算；
+   GitHub 的 Latest 指到 alpha／beta（還沒有正式版的現在就是這樣）＝「還沒有正式版」。
+2. 最新**測試版**：`GET …/releases?per_page=20`，草稿不算，只看預覽版（版本號有尾巴或標了 pre-release），**照 §1 的 SemVer 挑最大的**，不看 GitHub 的時間順序。
+
+卡片與 `synox update --check` 一定列兩行：「最新正式版：X（比你裝的新／跟你裝的一樣／比你裝的舊）」或「還沒有正式版」；
+「最新測試版：Y（…）」或「沒有測試版」；連不上或看不懂的那一行寫「無法判斷（原因）」，另一行照常。
+
+**更新通道**（`config.json` 的 `"updates": {"channel": "stable" | "preview"}`；選填，**缺鍵＝stable**，舊的設定檔不用改、不用遷移）：
+
+| 通道 | 「有新版」提示、網頁橫幅、每週通知、`synox update --check` 的結束碼 10、`Update.bat` 下載 | 怎麼設 |
+|---|---|---|
+| `stable`（預設） | 只算**正式版**；有比你新的測試版時卡片多一句「想被提醒就打開『也提醒我有測試版』」 | 預設；`synox update --channel stable`；卡片取消勾選 |
+| `preview` | 正式版與測試版取 SemVer **較大的**（`0.2.2-alpha.1 < 0.2.2-beta.1 < 0.2.2`：同號的正式版出來時會選正式版） | 卡片勾「也提醒我有測試版」；`synox update --channel preview` |
+
+只想這一次：`synox update --check --include-prerelease`（結果不存、不出橫幅）、`Update.bat -IncludePrerelease`（`--check` 與 `--prepare` 用同一個通道）。
+下載的測試版跟正式版走同一條驗證：`SHA256SUMS.txt` 必須有、有簽章就一定要驗過、沒有簽章要明確 `-AllowUnsigned`；版本比較只在 Python（`semver_key`），
+`update.ps1` 不自己比版本號（只在換完檔確認「裝著的＝要裝的」）。不降級：裝著的比較新就不做，要回去用 `Update.bat -Rollback`。
 
 ### 8. 分支：dev → release → main
 
@@ -277,7 +294,7 @@ python scripts/release.py bump alpha --planned # dev → 0.2.3-alpha.1（未發�
 
 | 東西 | 版本寫在哪 | 現在 | 怎麼發 |
 |---|---|---|---|
-| **SYNOX 本體** | `pyproject.toml`＋`src/synox/__init__.py` | `0.2.2-alpha.1`（2026-11-19，`release/0.2.2`，tag `v0.2.2-alpha.1`）；上一個 tag `v0.2.1-beta.2` | 這份文件；tag `vX.Y.Z`（SYNOX repo） |
+| **SYNOX 本體** | `pyproject.toml`＋`src/synox/__init__.py` | `0.2.2-alpha.2`（2026-11-19，`release/0.2.2-alpha.2`，tag `v0.2.2-alpha.2` 待打）；上一個 tag `v0.2.2-alpha.1` | 這份文件；tag `vX.Y.Z`（SYNOX repo） |
 | **SDK**（給工具的介面合約） | 只寫在 `src/synox/sdk/author.py` 的 `SDK_VERSION`；`sdk/synox_sdk.py`、`sdk/pyproject.toml`（`synox-sdk` 套件）都讀它 | 0.2.5 | **跟著 SYNOX 一起發**（在 `sdk/` 裡），沒有自己的 tag／PyPI。不相容的改動升 MINOR（0.x），只加 API 升 PATCH（[sdk.md](sdk.md)「SDK 版本」） |
 | **工具庫 SYNOX_Libs** | 另一個 repo；`VERSION`、每個工具 pack.json 的 `version`；發佈頁的 `index.json`（名字、版本、`requires`、sha256）與 `tools-<版本>.zip` | `v0.3.1`（安裝程式帶 `tools-0.3.1.zip`；網頁工具庫讀 `v0.3.1` 的 `index.json`；都還是 pre-release） | 自己的 tag 與 release。SYNOX 的網頁工具庫固定讀 `OFFICIAL_INDEX_URL`（釘一個 tag；工具庫標成 Latest 之後改成 `latest/download`，[release-playbook.md](release-playbook.md) 第 2 節），安裝程式的 workflow 釘 `LIBS_TAG`／sha256 |
 
@@ -307,12 +324,11 @@ python scripts/release.py bump alpha --planned # dev → 0.2.3-alpha.1（未發�
 | `v0.2.1-alpha.1` | 2026-11-16 | 第一個照這份規則發的預覽版 |
 | `v0.2.1-beta.1` | 2026-11-18 | tag 打了，安裝檔沒建成，沒有發佈（說明在 CHANGELOG 0.2.1-beta.2 那一節） |
 | `v0.2.1-beta.2` | 2026-11-18 | 內容同 beta.1，只換安裝檔要下載的工具庫指紋；發版 commit 在 `release/0.2.1`，沒有合回 `dev` |
+| `v0.2.2-alpha.1` | 2026-11-19 | 擁有者定的下一版還是 alpha（`0.2.1-beta.2 < 0.2.2-alpha.1`）；在 GitHub 上被標成 Latest（還沒有正式版） |
 
 0.2.0 沒有 tag（不補打）；0.1.0、0.2.0 在 CHANGELOG 有日期。
 
-**下一個要發的版本：`0.2.2-alpha.1`**（擁有者 2026-11-19 定：下一版還是 alpha）。理由：`v0.2.1-beta.2` 已經打了，
-同號的 `0.2.1-alpha.N` 會排在它前面（檢查更新、`-FromZip` 都會當成舊版、不肯裝），所以 alpha 只能是下一號 `0.2.2-alpha.1`
-（`0.2.1-beta.2 < 0.2.2-alpha.1`）。`dev` 已經是這個號碼、CHANGELOG 最上面是 `## 0.2.2-alpha.1（未發佈）`；發版那天 `bump keep`。
+**下一個要發的版本：`0.2.2-alpha.2`**（`bump alpha`：更新卡片同時顯示正式版與測試版、更新通道，[adr/0045](adr/0045-update-channels.md)）。
 之後要給外部試就 `bump beta` → `0.2.2-beta.1`，正式版 `bump final` → `0.2.2`。
 
 從 0.2.0 更新到 0.2.1 以後任何一版：內建工具都搬到工具庫了（`loader.BUNDLED` 清空，2026-11-12），更新的人**要自己把工具裝回來**，發佈說明「怎麼更新」**第一行**要寫清楚（資料還在）。0.2.0 沒有 Update.bat：從 0.2.0 更新只能手動（上面「我要怎麼更新？」的手動做法）。
