@@ -1,6 +1,15 @@
 # Changelog
 
-## 未發佈（branch chore/versioning-rules：版本號規則寫清楚、每個比版本的地方照 SemVer、發佈前的版本一致檢查，ADR 0043）
+## 0.2.2-alpha.1（2026-11-19）
+
+**預覽版（alpha）：尚未在實機完整驗證。** 這版重點：每份設定與資料都帶版本號、升級時自動一版一版轉換（失敗就還原），工具可以帶「⚠️ 警告」並說清楚這台能不能把它關起來，Telegram bot token 搬進保管箱，提醒準時，網頁對話能回覆某一則、畫出 Markdown、貼上或拖進附件；工具庫換成 `v0.3.1`。
+
+**怎麼更新**：從 0.2.0 或 0.2.1 更新上來的人，更新完到「設定 → 🧩 功能與安裝 → 工具庫」把要用的工具裝回來或更新到工具庫的新版（資料還在；[docs/versioning.md](docs/versioning.md) §13）。用 ZIP 的人：下載 `SYNOX-0.2.2-alpha.1.zip` 和 `SHA256SUMS.txt` 放同一個資料夾，`Update.bat -FromZip <那個 ZIP> -AllowUnsigned`（`Update.bat` 平常不裝預覽版）。第一次啟動會先自動轉換舊的 `config.json`、`data/packs.lock`（先備份到 `data/_migration_backups/`）。
+
+**版本號**：擁有者 2026-11-19 決定下一版還是 alpha（內部測試），什麼時候發 beta 由擁有者決定。`v0.2.1-beta.1`、`v0.2.1-beta.2` 的 tag 已經打了（beta.2 發成預覽版，見下面那一節），照排序 alpha 不能退回 `0.2.1-alpha.N`，所以下一版是 `0.2.2-alpha.1`（`0.2.1-beta.2 < 0.2.2-alpha.1`，檢查更新會把它當成比較新的；規則見 [docs/versioning.md](docs/versioning.md) §1、§3）。
+安裝檔改帶工具庫 `v0.3.1` 的 `tools-0.3.1.zip`（指紋固定在 build-installer.yml），網頁的工具庫也改讀 `v0.3.1` 的清單。下面幾節是這一版帶的改動。
+
+### branch chore/versioning-rules：版本號規則寫清楚、每個比版本的地方照 SemVer、發佈前的版本一致檢查，ADR 0043
 
 #### 修正
 - **網頁的工具庫、衣櫃比版本只看 `X.Y.Z` 和「有沒有尾巴」**：裝好一個工具之後重算「有新版」時，`0.1.3-alpha.1 → 0.1.3-beta.1`、
@@ -23,15 +32,7 @@
 - CHANGELOG 只動標題與位置：版本由新到舊、補上 `0.2.1-beta.2` 那一節、0.2.0 之後才合進來的四節搬到 0.2.1-alpha.1、
   `## 0.2.2-alpha.1（未發佈）` 收下一版的內容。
 
-## 0.2.2-alpha.1（未發佈）
-
-**版本號**：擁有者 2026-11-19 決定下一版還是 alpha（內部測試），什麼時候發 beta 由擁有者決定。`v0.2.1-beta.1`、`v0.2.1-beta.2` 的 tag 已經打了（beta.2 發成預覽版，見下面那一節），照排序 alpha 不能退回 `0.2.1-alpha.N`，所以下一版是 `0.2.2-alpha.1`（`0.2.1-beta.2 < 0.2.2-alpha.1`，檢查更新會把它當成比較新的；規則見 [docs/versioning.md](docs/versioning.md) §1、§3）。
-安裝檔改帶工具庫 `v0.3.0` 的 `tools-0.3.0.zip`（指紋固定在 build-installer.yml）。下面幾節是這一版會帶的改動。
-
-
-### branch feat/sandbox-ready：帶警告的工具，SYNOX 說清楚這台實際能不能把它關起來；ADR 0041 §5.4 S1／S2／S4
-
-## 未發佈（branch feat/data-migrations：每份資料都有版本號，升級時逐版自動轉換；ADR 0043）
+### branch feat/data-migrations：每份資料都有版本號，升級時逐版自動轉換；ADR 0044
 
 #### 新增
 - **資料版本與自動升級**：SYNOX 升級後第一次啟動，舊的 `config.json`、`data/packs.lock` 會自動轉成新格式（先備份到
@@ -43,7 +44,7 @@
   網頁「設定 → 資料版本」卡片（只看）。
 - `synox-sdk init --kind python` 的範本帶 `data_schema` 與 `migrations.py` 說明。
 
-## 未發佈（branch feat/sandbox-ready：帶警告的工具，SYNOX 說清楚這台實際能不能把它關起來；ADR 0041 §5.4 S1／S2／S4）
+### branch feat/sandbox-ready：帶警告的工具，SYNOX 說清楚這台實際能不能把它關起來；ADR 0041 §5.4 S1／S2／S4
 
 #### 新增
 - **警告下面多一行「ℹ️ SYNOX 查這台的實況」**：帶 `warnings` 的工具，SYNOX 依這台的沙盒設定與工具自己的宣告寫一句——
