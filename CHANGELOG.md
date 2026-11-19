@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.2-alpha.1
+
+**版本號**：擁有者 2026-11-19 決定下一版還是 alpha（內部測試），什麼時候發 beta 由擁有者決定。`0.2.1-beta.1`／`0.2.1-beta.2` 已經發過預覽版，照排序 alpha 不能退回 `0.2.1-alpha.N`，所以下一版是 `0.2.2-alpha.1`（`0.2.1-beta.2 < 0.2.2-alpha.1`，檢查更新會把它當成比較新的）。
+安裝檔改帶工具庫 `v0.3.0` 的 `tools-0.3.0.zip`（指紋固定在 build-installer.yml）。下面幾節是這一版會帶的改動。
+
 ## 未發佈（branch feat/pack-warnings-v2：pack.json 的標記警告，ADR 0041）
 
 #### 新增
