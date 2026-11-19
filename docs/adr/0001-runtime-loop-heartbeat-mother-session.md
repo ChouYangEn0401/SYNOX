@@ -29,7 +29,7 @@ SDK 刻意不做排程與 AI。最接近的是 前身專案 的 routines、compa
 
 ### 1. Runtime loop（`src/synox/runtime/loop.py`）
 
-- **一條**排程執行緒（`RuntimeLoop`，每 5 秒看一次），在 `App.run()`（Start.bat）時啟動、停止時停。終端機模式不跑（跟原本的排程一樣，不插在你打字的中間）。
+- **一條**排程執行緒（`RuntimeLoop`，睡到最早到點的任務、最多 5 秒醒一次看逾時；2026-11 起，原本是固定每 5 秒看一次），在 `App.run()`（Start.bat）時啟動、停止時停。終端機模式不跑（跟原本的排程一樣，不插在你打字的中間）。
   不是隱藏的背景程式：跟 SYNOX 同一個看得到的視窗（invariant 5）。
 - **任務**＝`Task`：`id`（`system.*`／`pack.*`）、`name`、`owner`（`system` 或 pack 名）、`schedule`（給人看的一句話）、`interval`（秒；沒有＝只收回報）、
   `state`（`ok`／`running`／`failed`／`idle`）、`last_run_at`、`last_message`、日誌尾巴（記憶體裡最近 200 行）、連續失敗次數、逾時。
@@ -39,7 +39,7 @@ SDK 刻意不做排程與 AI。最接近的是 前身專案 的 routines、compa
 - **重試退避**：失敗後下一次＝`min(間隔, 60 秒 × 2^(n-1))`——長間隔的任務（心跳 45 分鐘）會在 1、2、4…分鐘後重試，不用等 45 分鐘；
   **連續失敗 5 次**通知擁有者一次（同一串失敗不會一直通知），之後退避拉長到 `max(間隔, 30 分鐘)`、**不自動停**（停了提醒就不會響）；
   成功一次就歸零，有通知過的話再通知一次「恢復了」。真的例外、逾時、回傳失敗**全部**算失敗（避開 前身專案 只算被拒的問題）。
-- **原本的排程（`synox/schedule`）整合進來**：`ScheduleRunner.tick` 登記成任務 `system.schedule`（每 30 秒），不再自己開執行緒。
+- **原本的排程（`synox/schedule`）整合進來**：`ScheduleRunner.tick` 登記成任務 `system.schedule`（原本每 30 秒；2026-11 起睡到下一件事的時間、最多每 10 秒，清單一改就 poke），不再自己開執行緒。
   提醒、`/schedule_*` 的行為不變；狀態從此看得到。
 - **存檔**：不含個人資料的部分（每個任務的 state、時間、連續失敗數；心跳上一次的時間與結果類別）存 `data/runtime/state.json`，
   給重開後接續與 `doctor` 讀。`last_message`、日誌**只在記憶體**（可能有個人資料，不落地）。

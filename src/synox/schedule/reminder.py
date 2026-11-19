@@ -39,13 +39,14 @@ REPEATS = (ONCE, DAILY, NONE)
 PENDING = "pending"        # 排著（有 due＝還沒到點；待辦＝還沒做）
 RINGING = "ringing"        # 到點了、送出去了（或正在送／重試），等人按
 SNOOZED = "snoozed"        # 延後中：snooze_until 到了再響
-DONE = "done"              # 完成／知道了
+DONE = "done"              # 完成（「我完成了」）
+DISMISSED = "dismissed"    # 知道了（「我知道了」：這一次不響了，但不算做完）
 MISSED = "missed"          # 錯過：晚太久，只送了「你錯過了」（或併進彙整那一則）
 CANCELLED = "cancelled"    # 使用者刪掉
 EXPIRED = "expired"        # 響了 EXPIRE_AFTER 沒人理，自動收掉（標「沒人回」）
-STATUSES = (PENDING, RINGING, SNOOZED, DONE, MISSED, CANCELLED, EXPIRED)
+STATUSES = (PENDING, RINGING, SNOOZED, DONE, DISMISSED, MISSED, CANCELLED, EXPIRED)
 OPEN = (PENDING, RINGING, SNOOZED)          # 還算「在清單上」的
-CLOSED = (DONE, MISSED, CANCELLED, EXPIRED)
+CLOSED = (DONE, DISMISSED, MISSED, CANCELLED, EXPIRED)
 
 # 來源（誰建的；給 log 與健康檢查，不影響行為）
 SOURCES = ("command", "ai", "web", "snooze", "legacy", "test")
@@ -245,6 +246,10 @@ class HeadlessEngine:
     def tick(self, now: Optional[datetime] = None) -> List[Dict[str, Any]]:
         return self.engine.tick(now)
 
+    def next_wake(self, now: Optional[datetime] = None) -> Optional[datetime]:
+        """下一件要做的事幾點（哨兵睡到那時候；見 engine.wake_at）。"""
+        return self.engine.next_wake(now)
+
     def act(self, uid: int, rid: int, occurrence: str, action: str, *, until: Optional[str] = None,
             typed: str = "", via: str = ""):
         return self.actions.act(uid, rid, occurrence, action, until=until, typed=typed, via=via)
@@ -275,7 +280,7 @@ def headless_engine(data_dir: str, vault, deliver: Callable[[Any], Any], *, per_
     return HeadlessEngine(engine, actions)
 
 
-__all__ = ["CLOSED", "Engine", "HeadlessEngine", "headless_engine", "CANCELLED", "DAILY", "DONE", "EXPIRED", "EXPIRE_AFTER_H", "HISTORY_KEEP", "KIND", "MISSED",
+__all__ = ["CLOSED", "Engine", "HeadlessEngine", "headless_engine", "CANCELLED", "DAILY", "DISMISSED", "DONE", "EXPIRED", "EXPIRE_AFTER_H", "HISTORY_KEEP", "KIND", "MISSED",
            "MISSED_NOTICE_MAX_H", "NONE", "ONCE", "OPEN", "PENDING", "REPEATS", "RING_LATE_MAX_MIN", "RINGING",
            "Reminder", "SNOOZED", "SOURCES", "STATUSES", "VERSION", "aware", "check", "from_iso", "is_v2",
            "new_reminder", "to_iso", "upgrade_item"]
