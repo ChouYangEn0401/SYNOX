@@ -33,6 +33,8 @@
 - signature（ADR 0028 §3）：`"signature": {"status": "official"|"author", "key_id", "public_key"}` 或 `{"status": "none"}`，
   安裝時驗出來的簽章（packs/signing.py）。之後不重驗簽章，靠上面的逐檔雜湊守著（pack.sig.json 本身也在 files 裡）。
   讀的人一律用 signature_of(record)（ADR 0028 以前的鎖沒寫＝none）。
+- accepted_warnings（ADR 0041）：`["vendor_no_security_guarantee", …]`，擁有者安裝／核准／升級時明確確認過的標記警告 code
+  （packs/packwarn.py）。pack.json 有警告、鎖裡沒確認＝不載入（loader 的 unaccepted）。沒有警告的 pack 不寫這一欄。
 """
 
 from __future__ import annotations
@@ -169,13 +171,14 @@ def set_runtime(data_dir: str, manifest, mode: str, chosen_by, now: Optional[flo
 def approve(data_dir: str, manifest, report, approved_by, *, via: str, hashes: Optional[Dict[str, str]] = None,
             folder: Optional[str] = None, now: Optional[float] = None, trust: Optional[str] = None,
             tier_fields: Optional[dict] = None, runtime: Optional[str] = None,
-            signature: Optional[dict] = None) -> dict:
+            signature: Optional[dict] = None, accepted_warnings: Optional[List[str]] = None) -> dict:
     """寫（或換掉）這個 pack 的鎖。hashes 沒給就現算 folder（預設 manifest.folder）；一律是每個檔（hash_scope=all）。
     signature：安裝時驗出來的簽章（ADR 0028 §3：{"status", "key_id", "public_key"}；none 只有 status）；
     沒給＝{"status": "none"}。
     trust：core｜third-party（沒給＝third-party；不認得丟 ValueError）。
     tier_fields：tier.lock_fields 的結果（tier、t2、trusted_publisher、trusted_at）；沒給＝照檔案現算 tier（不寫確認）。
-    runtime：container｜host（S2；擁有者在安裝報告上選的）；沒給＝不寫（舊的寫法；sandbox 當作 host）。"""
+    runtime：container｜host（S2；擁有者在安裝報告上選的）；沒給＝不寫（舊的寫法；sandbox 當作 host）。
+    accepted_warnings：擁有者確認過的標記警告 code（ADR 0041，packs/packwarn.py）；沒給（None）＝不寫（沒有警告的 pack 跟以前一樣）。"""
     trust = check_trust(trust)
     runtime_block = (runtime_record(manifest, runtime, approved_by, now=now, folder=folder)
                      if runtime is not None else None)
@@ -193,6 +196,8 @@ def approve(data_dir: str, manifest, report, approved_by, *, via: str, hashes: O
               "signature": signature_of({"signature": signature})}
     if runtime_block is not None:
         record["runtime"] = runtime_block
+    if accepted_warnings:
+        record["accepted_warnings"] = [str(c) for c in accepted_warnings]
     with _LOCK:
         data = load(data_dir)
         data["packs"][manifest.name] = record
