@@ -657,3 +657,155 @@ def test_owner_look_is_passed_to_the_desk_reminder_window(theme_bot, owner):
     assert c.post("/api/appearance", {"theme": "", "mode": "auto"})[0] == 200    # 換回原本的 SYNOX
     saved = desk_style.read(data_dir)
     assert saved["theme"] == "" and saved["mode"] == "auto" and saved["tokens"] == {"light": {}, "dark": {}}
+
+
+# ── 簽章過的外觀包（pack.sig.json，ADR 0028）：一樣能裝；別的 .json 照樣拒 ─────────
+
+def _signed(blob, tmp_path, key=None, tag="signed"):
+    """外觀包 zip → 用測試裡臨時產生、用完即丟的假金鑰簽章（zip 裡多一個 pack.sig.json）→ 位元組。"""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from synox.packs import signing
+    path = tmp_path / f"{tag}.synoxpack"
+    path.write_bytes(blob)
+    signing.sign_zip(str(path), key or Ed25519PrivateKey.generate())
+    return path.read_bytes()
+
+
+def _names(blob):
+    with zipfile.ZipFile(io.BytesIO(blob)) as z:
+        return sorted(z.namelist())
+
+
+def test_signed_theme_pack_stages_as_author_and_official(tmp_path, monkeypatch):
+    """回歸（v0.3.1 的外觀包全都簽了章 → 第 2 關說「外觀包只能有…」拒裝）：簽章檔是例外，只認這一個檔名。"""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from synox.packs import signing
+    key = Ed25519PrivateKey.generate()
+    blob = _signed(_zip(), tmp_path, key)
+    assert "pack.sig.json" in _names(blob) and set(_names(blob)) - set(_names(_zip())) == {"pack.sig.json"}
+    token, summary = admin.stage(blob, str(tmp_path / "data"))
+    assert token and summary["kind"] == "theme" and summary["scan"]["ok"], summary["scan"]["problems"]
+    assert summary["signature"]["status"] == "author" and summary["tier"]["tier"] == "T0"
+    monkeypatch.setattr(signing, "OFFICIAL_PACK_PUBLIC_KEYS", (signing.public_key_b64(key),))
+    _token, summary = admin.stage(blob, str(tmp_path / "data2"))
+    assert summary["signature"]["status"] == "official" and summary["scan"]["ok"]
+    assert admin.format_summary(summary).splitlines()[0].startswith("✅ 官方")
+
+
+def test_signed_theme_pack_scan_skips_only_the_root_signature_file(tmp_path):
+    folder = _unzip(_signed(_zip(), tmp_path), tmp_path)
+    m = read(folder, strict=True)
+    assert theme_pack.scan_problems(folder, m.theme) == []
+    bundle = theme_pack.compile_theme(folder, m.name, m.theme)                 # 簽章檔不當外觀內容載入
+    assert "signature" not in bundle.stylesheet() and set(bundle.slots) == set(contract.SLOTS)
+
+
+@pytest.mark.parametrize("extra, where", [
+    ({"extra.json": "{}"}, "extra.json"),                                       # 別的 .json：照樣拒
+    ({"slots/pack.sig.json": "{}"}, "slots/pack.sig.json"),                     # 不在根目錄：不算簽章檔
+    ({"pack.sig.json.svg": "<svg/>", "pack.sig.jsonx": "{}"}, "pack.sig.jsonx"),
+])
+def test_signed_theme_pack_still_refuses_other_json(tmp_path, extra, where):
+    blob = _signed(_zip(extra=extra), tmp_path)                                 # 簽章本身是對的，第 2 關照樣擋
+    with pytest.raises(admin.GateRefused) as e:
+        admin.stage(blob, str(tmp_path / "data"))
+    assert "外觀包只能有" in str(e.value) or where in str(e.value), str(e.value)
+    folder = _unzip(blob, tmp_path)
+    m = read(folder, strict=True)
+    assert where in [rel for rel, _why in theme_pack.scan_problems(folder, m.theme)]
+
+
+@pytest.mark.parametrize("content, why", [
+    (b"not json", "JSON"),
+    (b"[1, 2]", "JSON"),
+    (b"\xff\xfe{}", "JSON"),
+    (b"{" + b" " * (1024 * 1024) + b"}", "太大"),
+])
+def test_bad_signature_file_is_refused(tmp_path, content, why):
+    """簽章檔壞了：stage 的簽章驗證先擋（⛔ 被改過）；第 2 關自己也再擋一次（防禦深度）。"""
+    from synox.packs import signing
+    blob = _zip(extra={"pack.sig.json": content})
+    with pytest.raises(admin.GateRefused) as e:
+        admin.stage(blob, str(tmp_path / "data"))
+    assert str(e.value) == signing.INVALID_MESSAGE
+    folder = _unzip(blob, tmp_path)
+    m = read(folder, strict=True)
+    problems = theme_pack.scan_problems(folder, m.theme)
+    assert [rel for rel, _w in problems] == ["pack.sig.json"] and why in problems[0][1], problems
+
+
+def test_signature_file_name_must_match_exactly(tmp_path):
+    folder = _unzip(_zip(), tmp_path)
+    with open(os.path.join(folder, "Pack.Sig.Json"), "w", encoding="utf-8") as f:   # 只認一字不差的檔名
+        f.write("{}")
+    m = read(folder, strict=True)
+    assert [rel for rel, _w in theme_pack.scan_problems(folder, m.theme)] == ["Pack.Sig.Json"]
+
+
+def test_signature_file_symlink_is_refused(tmp_path, monkeypatch):
+    folder = _unzip(_signed(_zip(), tmp_path), tmp_path)
+    sig = os.path.join(folder, "pack.sig.json")
+    os.replace(sig, str(tmp_path / "real.sig.json"))
+    try:
+        os.symlink(str(tmp_path / "real.sig.json"), sig)
+    except (OSError, NotImplementedError):                                     # 這台不能建符號連結（Windows 沒權限）：假裝它是
+        os.replace(str(tmp_path / "real.sig.json"), sig)
+        real_islink = os.path.islink
+        monkeypatch.setattr(os.path, "islink", lambda p: p == sig or real_islink(p))
+    m = read(folder, strict=True)
+    problems = theme_pack.scan_problems(folder, m.theme)
+    assert [rel for rel, _w in problems] == ["pack.sig.json"] and "一般的檔案" in problems[0][1], problems
+
+
+def test_tampered_signed_theme_pack_is_refused(tmp_path):
+    from synox.packs import signing
+    blob = _signed(_zip(), tmp_path)
+    buf = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(blob)) as src, zipfile.ZipFile(buf, "w") as out:
+        for name in src.namelist():
+            data = src.read(name)
+            if name == "theme.css":
+                data += b"\n/* changed */\n"
+            out.writestr(name, data)
+    with pytest.raises(admin.GateRefused) as e:
+        admin.stage(buf.getvalue(), str(tmp_path / "data"))
+    assert str(e.value) == signing.INVALID_MESSAGE
+    assert "被改過" in signing.INVALID_MESSAGE or "被改" in signing.LABELS[signing.INVALID]
+
+
+def test_signed_theme_pack_end_to_end_lock_reload_upgrade_and_revert(theme_bot, owner, tmp_path):
+    """stage → install → 套用 → 重新載入 → 升級（也簽章）→ 換回原本的 SYNOX；packs.lock 記簽章、鎖住 pack.sig.json。"""
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    from synox.packs import lock
+    key = Ed25519PrivateKey.generate()
+    bot = theme_bot()
+    c = Client(ui_of(bot))
+    c.login(owner)
+    status, _h, body = c.raw("POST", "/api/packs/upload", _signed(_zip(), tmp_path, key, "v1"))
+    summary = json.loads(body)
+    assert status == 200 and summary["signature"]["status"] == "author", summary
+    status, data = c.post("/api/packs/install", {"token": summary["token"]})
+    assert status == 200 and data["status"] == "loaded" and data["kind"] == "theme", data
+    entry = lock.entry(bot.app.config.data_dir, "sample-lantern")
+    assert entry["signature"]["status"] == "author" and "pack.sig.json" in entry["files"]
+    assert c.post("/api/appearance", {"theme": "sample-lantern"})[0] == 200
+    html, _n, _csp = _page(c)
+    assert 'id="synox-theme"' in html and "--accent: #a85400" in html
+    c.post("/api/packs/reload")                                                  # 第 3 關（packs.lock）照樣過
+    assert [t["name"] for t in c.get("/api/appearance")[1]["themes"]] == ["sample-lantern"]
+
+    def bump(raw):
+        raw["version"] = "1.1.0"
+    status, _h, body = c.raw("POST", "/api/packs/upload", _signed(_zip(patch=bump), tmp_path, key, "v2"))
+    summary = json.loads(body)
+    assert status == 200 and summary["scan"]["ok"] and summary["upgrade"], summary
+    sig_changes = [x for x in summary["upgrade"]["changes"] if x["kind"] == "signature"]
+    assert sig_changes and not sig_changes[0]["alert"]                           # 同一把鑰匙：不是紅字
+    status, data = c.post("/api/packs/install", {"token": summary["token"], "upgrade": True})
+    assert status == 200 and data["upgraded"] and data["to"] == "1.1.0", data
+    entry = lock.entry(bot.app.config.data_dir, "sample-lantern")
+    assert entry["version"] == "1.1.0" and entry["signature"]["status"] == "author"
+    assert [t["name"] for t in c.get("/api/appearance")[1]["themes"]] == ["sample-lantern"]
+    assert c.post("/api/appearance", {"theme": ""})[0] == 200                   # 換回原本的 SYNOX
+    html, _n, _csp = _page(c)
+    assert 'id="synox-theme"' not in html

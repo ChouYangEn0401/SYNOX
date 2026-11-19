@@ -115,6 +115,26 @@ def _counted(parts: List[str]) -> bool:
     return parts != [SIG_FILE] and "__pycache__" not in parts[:-1]
 
 
+def sig_file_problem(folder: str) -> str:
+    """pack 根目錄的 pack.sig.json 本身像不像簽章檔（不驗簽章，只看形狀）：一般的檔（不是符號連結）、不超過 MAX_SIG_FILE、
+    UTF-8 的 JSON 物件。回理由；空字串＝沒問題（或沒有這個檔）。給有檔案白名單的種類（外觀包）放行這一個檔名前用。"""
+    path = os.path.join(folder, SIG_FILE)
+    if not os.path.lexists(path):
+        return ""
+    if os.path.islink(path) or not os.path.isfile(path):
+        return f"{SIG_FILE} 不是一般的檔案"
+    try:
+        if os.path.getsize(path) > MAX_SIG_FILE:
+            return f"{SIG_FILE} 太大（最多 {MAX_SIG_FILE // 1024} KB）"
+        with open(path, "rb") as f:
+            data = json.loads(f.read().decode("utf-8"))
+    except (OSError, ValueError, UnicodeDecodeError):
+        return f"{SIG_FILE} 看不懂（不是 UTF-8 的 JSON）"
+    if not isinstance(data, dict):
+        return f"{SIG_FILE} 看不懂（不是 UTF-8 的 JSON 物件）"
+    return ""
+
+
 def hash_folder(folder: str) -> Dict[str, str]:
     """解開的 pack 資料夾 → {相對路徑（/ 接）: sha256}：除了 pack.sig.json、__pycache__ 底下以外的每一個檔。"""
     from synox.packs.lock import sha256_file
