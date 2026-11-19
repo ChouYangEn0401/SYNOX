@@ -9,6 +9,8 @@
                "fonts": ["fonts/Fraunces.woff2", {"family": "Noto Serif TC", "file": "fonts/x.woff2", "weight": "700"}]}}
 
 外觀包**沒有程式**：資料夾裡只能有 pack.json、.svg、.html（slot 用的小片段）、.css、.woff2、說明文字（.md、.txt、LICENSE）。
+例外只有一個：pack 根目錄的簽章檔 pack.sig.json（ADR 0028；一字不差的檔名、一般的檔、1 MB 內、JSON 物件）。
+它不是外觀內容：不算進檔數上限、不消毒、不載入；簽章本身在 stage／install 時由 packs/signing.py 驗。
 不能寫 python／cli／mcp／runtime／env／capabilities／web／auth／callers／stepup 這些欄位。字型一定要附在包裡（.woff2），
 網頁不會去 Google Fonts 之類的地方抓（隱私）。信任層級固定 T0（只有宣告），但一樣要看報告、按確認才裝。
 """
@@ -20,6 +22,7 @@ import os
 import re
 from typing import Dict, List, Optional, Tuple
 
+from synox.packs import signing
 from synox.theme import contract, sanitize, tokens as theme_tokens
 
 MAX_SLOT_FILE = sanitize.MAX_MARKUP
@@ -170,9 +173,14 @@ def _read(folder: str, rel: str) -> str:
 
 def scan_problems(folder: str, theme: dict) -> List[Tuple[str, str]]:
     """第 2 關：資料夾裡每個檔。回 [(檔名, 理由)]；空＝過了。
-    只能有 ALLOWED_EXT 的檔；每個 .svg／.html 都消毒一次（不管有沒有被 slots 用到）；theme.css 消毒；字型要真的是 woff2。"""
+    只能有 ALLOWED_EXT 的檔（＋根目錄的 pack.sig.json）；每個 .svg／.html 都消毒一次（不管有沒有被 slots 用到）；theme.css 消毒；字型要真的是 woff2。"""
     out: List[Tuple[str, str]] = []
     files = _files(folder)
+    if signing.SIG_FILE in files:                 # 簽章檔（只認根目錄、一字不差）：看形狀，不當外觀內容
+        files.remove(signing.SIG_FILE)
+        why = signing.sig_file_problem(folder)
+        if why:
+            out.append((signing.SIG_FILE, why))
     if len(files) > MAX_THEME_FILES:
         out.append(("pack.json", f"外觀包的檔案太多（{len(files)} 個，最多 {MAX_THEME_FILES}）"))
     used = {rel: name for name, rel in (theme.get("slots") or {}).items()}

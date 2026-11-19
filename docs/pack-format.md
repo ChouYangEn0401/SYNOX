@@ -70,6 +70,7 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 （開發用的第四條：`config.json` 的 `packs.dirs` 直接指到一個資料夾——**沒有鎖就不載入**（2026-11-16 起），要在電腦上跑
 `python -m synox packs lock --approve <name>`（跑第 1、2 關、印報告再鎖）。直接複製進 `packs/` 的也一樣不載入，設定頁會列「沒有經過安裝頁」＋「送去安裝頁檢查」鈕。）
 **簽章**：`synox-sdk zip` 之後可以 `synox-sdk sign <檔>.synoxpack --key <你的私鑰>.pem`，zip 裡多一個 `pack.sig.json`（其他每個檔的 sha256 清單＋Ed25519 簽章＋公鑰）。
+簽章檔 `pack.sig.json` 在**所有種類**的 pack 都允許（包括檔案有白名單的外觀包）：只認 pack 根目錄、一字不差的這個檔名，它不算 pack 的內容。
 安裝報告第一列是 SYNOX 自己驗出來的標章：✅ 官方（擁有者的鑰匙）／✍️ 作者簽章（你的鑰匙；不是官方）／⚠️ 不是官方（沒簽）／⛔ 被改過（驗不過，拒裝）。
 `name`、`title`、`summary`、`publisher`、SKILL.md 的 description 裡寫「官方」「official」「SYNOX」「✅」而不是官方鑰匙簽的 → 報告紅字（不拒裝）；
 安裝時 `title`／`summary`／`publisher` 不能有看不見的字元（雙向控制、零寬）或換行。細節：[adr/0028](adr/0028-pack-signatures-official-badge.md)、[sdk.md](sdk.md)「簽章」。

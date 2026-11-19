@@ -107,6 +107,7 @@ costume-b-lantern/
 - 外觀包**沒有程式**：不能寫 `python`、`cli`、`commands`、`mcp`、`runtime`、`env`、`capabilities`、`web`、`auth`、`health`、`callers`、`stepup`…（第 1 關就拒）；
   `requires` 只能寫 `synox`。不用 SKILL.md。
 - 資料夾裡只能有 `pack.json`、`.svg`、`.html`、`.css`（只有 `theme.css` 指到的那一份）、`.woff2`（只有 `theme.fonts` 列的）與說明文字。最多 40 個檔。
+  另外可以有簽章檔 `pack.sig.json`（只在 pack 根目錄；`synox-sdk sign` 加的，見 [signing.md](signing.md)），它不算在 40 個裡。
 - 大小：一個 slot 檔 64 KB、`theme.css` 64 KB、字型一個 400 KB、最多 4 個、加起來 1 MB。
 - 字型**一定附在包裡**（woff2）。網頁不會連到 Google Fonts 之類的地方（隱私）；`@import`、外部網址一律拒。
   沒附字型就寫系統字型（例如 `"Noto Sans TC", "Microsoft JhengHei UI", system-ui, sans-serif`）。
