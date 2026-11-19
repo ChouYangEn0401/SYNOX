@@ -47,7 +47,7 @@
 | [legacy/connectors.md](legacy/connectors.md) | 使用者、維護者 | 搬到工具庫的 4 個 connector（Notion、Todoist、Google 日曆、Apple 提醒事項）：為什麼、token／帳號怎麼接回、怎麼救回 |
 | [../examples/](../examples/) | 作者 | 可以照抄的範例：`hello`（SDK）、`any-language-cli`（不用 SDK）、`node-mcp-tool`（MCP stdio）、`mcp-remote-*`（遠端 MCP） |
 | [AGENT.md](AGENT.md) | 維護者 | 程式地圖、不能破壞的規則（invariants）、已知限制 |
-| [adr/](adr/README.md) | 維護者 | 架構決定（一件一檔）。**[adr/README.md](adr/README.md) 是索引**：全部 ADR 的標題與狀態（已採用／提案）、什麼時候要寫 ADR、編號規則（下一號 0041；0032 是空號）。最常碰到的：0001 runtime loop 與常駐助理、0003 發佈與乾淨安裝、0022／0028 生態、沙盒、簽章、0024–0026 工具服務、門禁、手機入口、0029 提醒必達、0030 工具登記；0033–0040 是「一次改好幾筆」、核准卡升級、通知分流的提案（還沒有程式；0038 第一段已做） |
+| [adr/](adr/README.md) | 維護者 | 架構決定（一件一檔）。**[adr/README.md](adr/README.md) 是索引**：全部 ADR 的標題與狀態（已採用／提案）、什麼時候要寫 ADR、編號規則（下一號 0042；0032 是空號）。最常碰到的：0001 runtime loop 與常駐助理、0003 發佈與乾淨安裝、0022／0028 生態、沙盒、簽章、0024–0026 工具服務、門禁、手機入口、0029 提醒必達、0030 工具登記；0033–0040 是「一次改好幾筆」、核准卡升級、通知分流的提案（還沒有程式；0038 第一段已做）；0041 pack.json 的標記警告（`warnings`） |
 | [keep-awake-troubleshooting.md](keep-awake-troubleshooting.md) | 使用者 | 保持清醒開著、Google Drive 還是斷線：現代待命機型的排查步驟（只看、不改設定） |
 | [presentation.md](presentation.md) | 維護者 | 呈現層（預設關）：AI 回覆的 Markdown → Telegram HTML／Discord／網頁區塊、各通道的降級規則、黃金檔案怎麼重產 |
 | [runtime-api.md](runtime-api.md) | 維護者（前端） | 主控面板用的 `/api/runtime/...` 合約（狀態、心跳設定、soul.md、任務日誌、連動規則） |

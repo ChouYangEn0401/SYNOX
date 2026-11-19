@@ -1,5 +1,25 @@
 # Changelog
 
+## 未發佈（branch feat/pack-warnings：pack.json 的標記警告，ADR 0041）
+
+#### 新增
+- **工具可以帶「⚠️ 警告」**：pack.json 新增選填的 `warnings`
+  （`[{"code": "vendor_no_security_guarantee", "text": "官方不保證安全", "advice": "建議在 docker 或 sandbox 執行"}]`）。
+  code 是小寫英數字與 `_`；text 60 字內、advice 120 字內，換行、控制字元、零寬與雙向文字控制字元一律清掉；最多 5 條。
+  寫壞了不讓工具掛掉，但不靜默：看不懂的那條變成「這個工具的警告寫壞了」照樣顯示，問題寫進 log、安裝報告、doctor。
+  沒寫 `warnings` 的工具跟以前一模一樣。
+- **哪裡都看得到**：安裝報告（終端機與網頁，紅字，緊接在 SYNOX 的標章下面）、升級報告、/help 標題、網頁工具頁與設定頁、doctor、
+  `packs status`、工具庫清單（網頁卡片、`tools list`）。給 AI 的能力清單、技能索引、`skill_read`、每個指令的工具說明都附
+  「〔⚠️警告 code：text〕」（清單太長時也不會縮掉），`data/agent_index.json` 每項多一個結構化的 `warnings` 欄位。
+- **第一次啟用要確認**：有警告的工具，安裝、核准（`packs lock --approve`）、升級都要逐條確認——網頁在報告上勾「我知道」、
+  終端機 `--accept-warning <code>`（`install`、`tools install|update`、`packs lock` 都有）、`synox init` 逐條問。
+  確認過的記在 `packs.lock` 的 `accepted_warnings`，升級沿用、新的 code 要再確認；鎖裡沒確認＝不載入（設定頁「有警告還沒確認，先不開」）。
+
+#### 安全
+- 標了 `vendor_no_security_guarantee`（官方不保證安全）的工具不能同時是「✅ 官方」簽章：安裝時拒、載入時拒，工具頁與設定頁也不會畫成官方。
+- 警告的字顯示在標章旁邊、也給 AI 看：含「✅」、像在對 AI 下指令、要跳過確認的字換成內建的字。
+- 拿掉或改掉 `warnings` 會讓簽章（`pack.sig.json`）驗不過、裝好之後改會跟 `packs.lock` 不符——沒有另外的簽章欄位，也沒改簽章格式。
+
 ## 0.2.1-beta.1（2026-11-18）
 
 **預覽版（beta）：給外部測試的人用。** 從 0.2.0 更新上來的人：內建工具都搬進工具庫了，更新完到「設定 → 🧩 功能與安裝 → 工具庫」把要用的工具裝回來（資料還在）。

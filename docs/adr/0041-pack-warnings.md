@@ -1,0 +1,83 @@
+# ADR 0041：pack.json 的標記警告（`warnings`）——作者標的風險，每個看得到工具的地方都顯示
+
+- 日期：2026-11-18
+- 狀態：**已採用**（擁有者要的：「選配、不掛官方標籤的搜尋 pack 要帶警告『官方不保證安全』＋建議『在 docker 或 sandbox 執行』」）。
+  標 **「實作時決定，待擁有者確認」** 的是這一輪自己定的，擁有者不同意可以改。
+- 程式：`src/synox/packs/packwarn.py`（欄位的檢查、清理、規則、顯示用的字），掛在 `manifest.py`、`admin.py`、`upgrade.py`、
+  `loader.py`、`lock.py`、`agent/index.py`、`agent/skills.py`、`agent/tools.py`、`web/server.py`、`doctor.py`。
+- 前提：[ADR 0028](0028-pack-signatures-official-badge.md)（簽章與官方標章、標章只由 SYNOX 畫）、[ADR 0030](0030-tool-registration-index.md)（給 AI 的工具索引）。
+
+> **給使用者的一句話**：有些工具的作者會在工具上標「⚠️ 官方不保證安全——建議在 docker 或 sandbox 執行」這種警告。
+> SYNOX 在工具清單、安裝報告、/help、工具頁、設定頁、doctor、給 AI 的清單裡一律照樣顯示；第一次要用時，你要逐條勾「我知道」（終端機 `--accept-warning <代號>`）才會啟用。
+
+## 1. 欄位
+
+```json
+"warnings": [{"code": "vendor_no_security_guarantee", "text": "官方不保證安全", "advice": "建議在 docker 或 sandbox 執行"}]
+```
+
+| 欄 | 規則 |
+|---|---|
+| `code` | 小寫英數字與 `_`，字母開頭，48 字內。固定的代號：確認、規則都用它 |
+| `text` | 給人看的一句話，**60 字內**；SYNOX 認得的 code 沒寫 text 用內建的字 |
+| `advice` | 建議怎麼做（選填），**120 字內** |
+| 條數 | 最多 **5** 條；同一個 code 只留第一條；超過時 SYNOX 認得的 code 一定留 |
+
+`text`／`advice` 一律先清理：換行與 tab 換成空白、拿掉控制字元（C0、DEL、C1）、零寬字元（U+200B–U+200F、U+2060–U+2064、BOM、軟連字號）、
+雙向文字控制字元（U+202A–U+202E、U+2066–U+2069），連續空白併成一個，太長截斷加「…」。這段字也會給 AI 看，所以像在對 AI 下指令、
+要跳過確認、夾分隔符的字（跟 `agent.index` 同一套 `risk_flags`）、或含「✅」（冒充 SYNOX 的標章）→ 換成內建的字並記一句問題。
+
+SYNOX 認得的 code（`packwarn.KNOWN`）：
+- `vendor_no_security_guarantee`：官方不保證安全／建議在 docker 或 sandbox 執行
+- `malformed_warning`：SYNOX 自己用的（見下一節），作者不用寫
+
+## 2. 壞格式：不掛掉、不靜默（實作時決定，待擁有者確認）
+
+- `warnings` 寫壞（不是清單、`null`、某一條不是物件、code 不合格式）**不讓整個 pack 掛掉**——安裝時、載入時都一樣。
+- 但**不丟掉**：看不懂的那一條換成一條 `malformed_warning`（「這個工具的警告寫壞了，SYNOX 看不懂」），照樣顯示、照樣要確認。
+  理由：作者想警告卻寫錯，比較安全的那一邊是「照樣當作有警告」。
+- 不認得的欄位（例如 `severity`）：那一條照收，記一句問題。
+- 每一個問題都是一句白話：載入時寫 log（`[PACKS] … warnings field problems`）、安裝報告列出來、doctor 列出來、設定頁 API 有 `warning_problems`。
+- 沒有 `warnings` 欄位的舊 pack：行為完全不變（`Manifest.warnings == []`，鎖不多欄位，/help 標題、AI 清單一個字都不變）。
+
+## 3. 規則
+
+1. **官方＋「官方不保證安全」不能同時成立**：帶 `vendor_no_security_guarantee` 的 pack，簽章驗出來是「✅ 官方」→
+   安裝時拒（第 1、2 關之後當作沒過，沒有確認鈕）、載入時拒（`rejected`）。其他 code 的警告可以是官方的。
+   顯示上再加一層：工具頁、設定頁的標章遇到這個 code 一律不畫成官方（`web/server.py _signature`）。
+2. **第一次啟用要明確確認**：pack 有警告，安裝（`install_staged`）、核准（`approve_installed`）、升級（`upgrade_staged`）都要擁有者
+   確認每一個 code——終端機 `--accept-warning <code>`（可以重複）、網頁在報告上逐條勾「我知道」、`synox init` 逐條問（預設「不要」）。
+   少一個就不裝，訊息寫是哪條警告、怎麼確認。確認過的 code 寫進 `packs.lock` 的 `accepted_warnings`。
+   - 升級：舊鎖確認過、新版還有的沿用；新版多的 code 要再確認（升級報告紅字列出）；拿掉的不再記。
+   - 載入：pack 有警告、鎖裡沒全部確認（例如舊版 SYNOX 裝的、鎖是別的路寫的）→ 狀態 `unaccepted`，不載入，detail 說怎麼確認。
+     `unaccepted` 不算錯誤（`LoadReport.ok` 不變）。
+3. **簽章涵蓋**：ADR 0028 的 `pack.sig.json` 本來就列出 `pack.json` 的 sha256，所以拿掉、清空、改掉 `warnings` ＝ 簽章驗不過（⛔ 被改過，拒裝）；
+   裝好之後在 `packs/` 裡改 = `packs.lock` 的逐檔雜湊對不上（`tampered`，不載入）。**沒有另外的簽章欄位**，不改簽章格式。
+
+## 4. 顯示（每個看得到工具的地方）
+
+| 哪裡 | 怎麼顯示 |
+|---|---|
+| 安裝報告（終端機 `format_summary`） | 標章那一行的正下方、工具自己的字之前：紅字「⚠️ 這個工具的作者標了 N 個警告」＋每條一行＋怎麼確認 |
+| 安裝報告（網頁） | 同一個位置；每條一個勾選框，全部勾了「確認安裝／升級」才按得下去 |
+| 安裝報告 JSON | `pack_warnings: {items, lines, codes, problems, needs_accept}`（`warnings` 這個鍵本來就是 SYNOX 自己的提醒字串，所以另取名） |
+| 升級報告 | `pack_warnings: {accepted, needs_accept, items, problems}`；新的 code 是紅字的「改了什麼」 |
+| /help | 群組標題「🔎 搜尋（🧪 alpha｜⚠️ 官方不保證安全）」；/help 卡片的標籤也帶 |
+| 網頁工具頁 | 標題旁紅色標記＋「⚠️ 作者標的警告」一段（每條一行）；`/api/tools` 每列有 `warnings`、`warning_badge` |
+| 網頁設定頁 | 每列紅色標記＋建議；`/api/settings` 每列有 `warnings`、`warning_problems`；狀態「有警告還沒確認，先不開」 |
+| doctor、`packs status` | 每條一行；沒確認＝⛔ 不會載入＋怎麼確認 |
+| 工具庫清單（網頁卡片、`synox tools list`） | 清單（index.json）有 `warnings` 就照同一套檢查顯示（紅色標記排第一）。清單上的只是預告，真正擋人的是安裝報告那一份 |
+| 給 AI：能力清單（agent/index.py） | 標題後面「〔⚠️警告 code：text；advice〕」，縮短時只剩 code 與 text，**永遠不縮掉**；清單太長要併成「…另有 N 項」時，有警告的最後才併；有警告時多一行守則（`packwarn.AGENT_RULE`） |
+| 給 AI：技能索引、`skill_read` | 名字後面同一個標記；`skill_read` 回的正文最前面先附警告與守則 |
+| 給 AI：工具說明（tool spec） | 這個工具的每個指令，說明最前面「〔⚠️警告 code：text〕」 |
+| 給 AI：Discord 頻道的功能清單 | 同一個標記＋守則 |
+| `data/agent_index.json` | 每一項有 `warnings`（結構化的 `[{code, text, advice}]`） |
+
+守則（`AGENT_RULE`）：標〔⚠️警告 …〕的工具，用之前先把警告原文告訴使用者，不要省略、不要說它是官方或安全的。
+
+## 5. 沒做的（留給之後）
+
+- 工具庫的 `index.json` 要不要也帶 `warnings`：SYNOX 這邊已經會讀、會顯示；要 SYNOX_Libs 的打包腳本把 pack.json 的 `warnings` 抄過去才有。
+- 網頁上「已裝、還沒確認」的工具沒有單獨的「確認」按鈕：要嘛重新從安裝頁裝一次（會勾選），要嘛在電腦上跑
+  `python -m synox packs lock --approve <name> --accept-warning <code>`。（實作時決定，待擁有者確認：要不要在設定頁加一顆按鈕）
+- 擁有者事後想「取消確認」：目前沒有指令；移除再裝就會重新問。

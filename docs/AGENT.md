@@ -51,6 +51,7 @@
 | `src/synox/web/remote/` | 手機入口（[adr/0026](adr/0026-remote-tool-apps.md)）：`manager.py`（`RemoteManager`：前提、開、關、時間）、`gate.py`（`RemoteGate.handle_raw`：進門頁、鑰匙＋新碼、白名單轉給工具站）、`tunnel.py`（`Tunnel` 介面、`CloudflaredTunnel`）、`binary.py`（通道程式的雜湊與核准）、`commands.py`（`/app_remote`）、`web_api.py`（`/api/remote…`）、`testing.py`（`FakeTunnel`、`RemoteClient`）；請求檢查在 `guard/http.py`；進門頁 `static/remote_enter.*` |
 | `src/synox/present/` | 呈現層（[presentation.md](presentation.md)，`config.json` `presentation.enabled`，**預設關**）：`blocks.py`（區塊、Span、信任等級 system／assistant／external、`safe_url`、`visible`）、`markdown.py`（Markdown／純文字 → 區塊，不用第三方套件、不丟例外）、`telegram.py`／`discord.py`／`web.py`（輸出；切割在 `split.py`、表格降級在 `tables.py`、寬度在 `width.py`）、`__init__.py`（`render`、`deliver`）。只接 AI 回覆（`AgentLoop.say`、`RoomAgent.say`）；按鈕群／確認卡只有 system 才是真的按鈕；網頁送 JSON 區塊給 `static/blocks.js`（textContent） |
 | `src/synox/packs/signing.py` | 工具簽章與標章（ADR 0028）：`OFFICIAL_PACK_PUBLIC_KEYS`（擁有者貼公鑰的地方，現在空的）、`pack.sig.json` 的 `verify_folder`／`verify_zip`／`sign_zip`、`lookalike_problems`（非官方寫「官方／SYNOX」標紅）、`summary_block`、`SAFETY_NOTICE`；私鑰只有 `synox-sdk keygen／sign` 讀，SYNOX 本身從不碰 |
+| `src/synox/packs/packwarn.py` | pack.json 的標記警告（ADR 0041）：`parse`（形狀、清理、壞格式換成 `malformed_warning`）、`official_problem`（官方＋`vendor_no_security_guarantee` 拒）、`accept_problem`／`unaccepted_codes`／`merge_accepted`（第一次啟用要確認，記在鎖的 `accepted_warnings`）、顯示用的 `badge`／`lines`／`agent_note`／`for_agent`／`AGENT_RULE` |
 | `src/synox/packs/adopt.py` | 「送去安裝頁檢查」：`stage_unlocked(name, packs_dir, data_dir)`（沒鎖的 pack 原地打包 → `admin.stage`，summary 多 `adopt`）、`install(token, …)`（原地那份 `upgrade.archive` 到 `_removed` → `install_staged`，失敗搬回） |
 | `src/synox/web/paneltickets.py` | 面板的票（ADR 0028 §5）：`PanelTickets.issue／get／drop_session／drop_all`，只在記憶體、只存雜湊、綁 pack＋session＋tg_id、8 小時；`server.py` 的 `POST /api/packs/<name>/panel-ticket`、`GET /packs/<name>/panel/<票>/[api/<route>]` 用 |
 | `src/synox/packs/admin.py` | `.synoxpack`：stage（zip 檢查（重複路徑、大小寫相撞、一邊解一邊數位元組）→ 簽章（`signing.verify_folder`，⛔ 被改過＝GateRefused）→ 第 1、2 關；記 zip 的執行位元、不解出 `__pycache__`；summary 第一塊是 `signature`＋`safety_notice`）→ install_staged（再驗一次＋T2 要 `trust_publisher`＋第 3 關寫鎖）／移除到 `packs/_removed/`／`reload()`（Web UI、`synox install` 共用）；`list_staged`（待核准清單，順便清掉過期／半套的暫存）／`discard_staged`；`format_tier`／`red`＝T2 的紅字段 |
@@ -167,6 +168,10 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
     狀態 `unapproved`、通知擁有者一次、設定頁「送去安裝頁檢查」（`packs/adopt.py`：原地打包 → `admin.stage` → 確認 → 原地那份搬到 `_removed` → `install_staged`）；
     `packs.dirs` 的用 `packs lock --approve`。`unlocked_scan` 已拿掉。**測試**：`make_bot` 預設把 `pack_dirs` 裡每個沒鎖的 pack 先鎖起來（`conftest.lock_all`，third-party）；
     要測「沒經過安裝頁」傳 `lock_packs=False`；自己叫 `build`／`load_all` 的測試要先 `lock_all(data_dir, dirs)`；手放的 python pack 要給成員看仍用 `trust_core`。
+    **標記警告（ADR 0041，`packs/packwarn.py`）**：pack.json 的 `warnings` 寫壞了不擋、不靜默（換成 `malformed_warning`、問題寫 log）；
+    有警告的 pack 鎖裡的 `accepted_warnings` 沒涵蓋全部 code＝不載入（狀態 `unaccepted`，`loader.warnings_reason`）；
+    鎖記「✅ 官方」又帶 `vendor_no_security_guarantee`＝`rejected`。`lock_all` 不會幫你確認警告：要測載入的就 `lock.approve(…, accepted_warnings=[code])`。
+    每個列出工具給人或 AI 看的地方都要帶警告（`packwarn.badge／lines／agent_note`、結構化的用 `for_agent`）；新增列出工具的地方也要接上。
 
 14. **kind=mcp stdio 的程序一律經 `packs/mcp.py` 的 `McpPool`**（P4a）：每個 `Scope.key(pack, user)` 一個長駐子程序（預設
     `PerUserScope`＝(pack, tg_id)；`SharedScope` 只有介面，擁有者還沒決定伺服器版要共用還是一人一個，**不要偷偷改成共用**）。
