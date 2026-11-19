@@ -106,9 +106,11 @@ def test_telegram_token_saved_with_placeholder_owner_still_starts(make_bot, tmp_
     data = json.loads(body)
     assert data["bot"] == "my_synox_bot" and "重新啟動" in data["message"] and "配對我的 Telegram 帳號" in data["message"]
     saved = json.loads(path.read_text(encoding="utf-8"))
-    assert saved["bot_token"] == TG_TOKEN and saved["owner_id"] == BASE
-    config = SynoxConfig.load(str(path), require_token=False)
-    assert config.has_token and config.owner_id == BASE
+    assert saved["bot_token"] == "vault:telegram_bot_token" and saved["owner_id"] == BASE   # token 在保管箱
+    assert TG_TOKEN not in path.read_text(encoding="utf-8")
+    assert ui_of(_bot).vault.secret("telegram_bot_token") == TG_TOKEN
+    config = SynoxConfig.load(str(path), require_token=False, vault=ui_of(_bot).vault)
+    assert config.has_token and config.owner_id == BASE and config.bot_token == TG_TOKEN
     assert run_channels(config) == ("telegram",)
 
     status, _h, raw = c.raw("GET", "/api/settings/channels")
@@ -116,6 +118,7 @@ def test_telegram_token_saved_with_placeholder_owner_still_starts(make_bot, tmp_
     assert status == 200
     tg = json.loads(body2)["telegram"]
     assert tg["saved"] and tg["bot"] == "my_synox_bot" and not tg["owner_paired"] and tg["restart"]
+    assert tg["masked"] == "…" + TG_TOKEN[-4:]                   # 畫面只看得到最後 4 個字
     for text in (body, body2, caplog.text):
         assert TG_TOKEN not in text and "S" * 35 not in text
 

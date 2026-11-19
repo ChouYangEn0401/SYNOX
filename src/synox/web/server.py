@@ -81,7 +81,8 @@ from synox.packs.manifest import stage_text
 from synox.theme.appearance import Appearance, AppearanceError
 from synox.web import api_commands, report as reporting, restart as restart_api, toolpage
 from synox.web.channel import WEB, WebChannel
-from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore
+from synox.agent.quote import quote_plain, reply_quote
+from synox.web.chats import MOTHER_CHAT, TOOLS_CHAT, ChatStore, excerpt
 from synox.web.paneltickets import PanelTickets
 from synox.web.tokens import LoginTokens, Session, Sessions, digest
 
@@ -321,6 +322,8 @@ class WebUI:
         self.sessions = Sessions(os.path.join(data, "web_sessions.json"), clock=clock)
         self.panel_tickets = PanelTickets(clock=clock)    # 面板的票（只在記憶體；ADR 0028 §5）
         self.chats = ChatStore(os.path.join(data, "web_chats"), vault, clock=clock)
+        from synox.web.chatmedia import ChatMedia
+        self.chats.media = ChatMedia(os.path.join(data, "web_chats", "media"), vault)   # 工具回覆帶的圖（chatmedia.py）
         from synox.web.uploads import UploadStore
         self.uploads = UploadStore(clock=clock)          # 對話的附件：只在記憶體（web/uploads.py）
         self.prefs = toolpage.UserPrefs(os.path.join(data, "web_prefs"), vault)   # 每個人的工具頁排版、外觀
@@ -888,6 +891,9 @@ class WebUI:
             m = re.match(r"^/api/chat/([a-z0-9]+)/events$", path)
             if m:
                 return self.events(user, m.group(1), (query.get("since") or ["0"])[0])
+            m = re.match(r"^/api/chat/([a-z0-9]+)/image/([A-Za-z0-9_-]{8,40})$", path)
+            if m:
+                return self.chat_image(user, m.group(1), m.group(2))
             if path == "/api/tools":
                 return _json(200, self.tools(user))
             m = re.match(r"^/api/pack-staged/([A-Za-z0-9_-]{8,64})$", path)
@@ -1081,6 +1087,25 @@ class WebUI:
         messages, rev = self.chats.events(user.tg_id, chat_id, since_n)
         return _json(200, {"messages": messages, "rev": rev})
 
+    def chat_image(self, user, chat_id: str, image_id: str) -> Resp:
+        """工具回覆帶的圖（chatmedia.py）：只給這個人、這段對話裡真的有這張圖的訊息。網頁用 <img src> 拿，不 inline 進 DOM；
+        CSP 什麼都不准（SVG 直接開也不跑程式、不抓東西）＋sandbox＋nosniff。"""
+        chat = self._chat(user, chat_id)
+        media = self.chats.media
+        if chat is None or media is None:
+            return _err(404, "沒有這張圖。")
+        if not any(i.get("id") == image_id for m in chat.get("messages") or [] for i in (m.get("images") or [])):
+            return _err(404, "沒有這張圖。")
+        got = media.get(user.tg_id, image_id)
+        if got is None:
+            return _err(404, "沒有這張圖。")
+        mime, data = got
+        return 200, [("X-Content-Type-Options", "nosniff"), ("Referrer-Policy", "no-referrer"),
+                     ("Cache-Control", "private, max-age=86400"), ("Content-Type", mime),
+                     ("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox"),
+                     ("Cross-Origin-Resource-Policy", "same-origin"), ("X-Frame-Options", "DENY"),
+                     ("Content-Disposition", "inline")], data
+
     def channel(self, user, chat_id: str) -> WebChannel:
         return WebChannel(self.chats, user.tg_id, chat_id, home=self.app.home)
 
@@ -1121,23 +1146,33 @@ class WebUI:
             return _err(400, f"太長了（最多 {MAX_TEXT} 字）。")
         if (self._chat(user, chat_id) or {}).get("archived"):
             return _err(409, "這段對話封存了：先還原才能繼續。")
+        target = None
+        if data.get("reply_to") not in (None, ""):          # 回覆某一則：只能是這一段對話裡、還在的訊息（web/chats.py）
+            target = self.chats.reply_target(user.tg_id, chat_id, data.get("reply_to"))
+            if target is None:
+                return _err(400, "要回覆的那則訊息不在這段對話裡（可能刪掉或太舊了）。")
         files = self.uploads.take(user.tg_id, chat_id, ids) if ids else []
         if ids and not files:
             return _err(409, "附件已經過期或送過了：請重新附上。")
         from synox.web.uploads import placeholder
         shown = (mask_code(text) + ("\n" if text and files else "") + placeholder(files)).strip()
-        self.chats.append(user.tg_id, chat_id, "me", shown)      # 驗證碼不進對話紀錄（ADR 0025 §5.3）；附件只留名字
+        reply_to = ({"id": target["id"], "from": target.get("from", ""), "excerpt": excerpt(target.get("text", ""))}
+                    if target else None)
+        self.chats.append(user.tg_id, chat_id, "me", shown, reply_to=reply_to)   # 驗證碼不進對話紀錄（ADR 0025 §5.3）；附件只留名字
+        quote = reply_quote(target) if target else None      # 給 AI 的引用（agent/quote.py）
         if chat_id == MOTHER_CHAT:
-            return self._send_mother(user, text)
+            return self._send_mother(user, text, quote)
         channel = self.channel(user, chat_id)
         if files:
             channel.attachments = files              # agent/__init__.py 的 AgentFallback 會拿去（只有網頁有這個欄位）
+        if quote:
+            channel.reply_quote = quote              # 同上：AgentFallback 交給 loop.run_turn(quote=…)
         said = text or "（使用者只傳了附件）"
         inbound = Inbound(WEB, user.tg_id, user.tg_id, said, username=user.username or "web", sent_at=time.time())
         route = self.app.dispatcher.handle(channel, inbound)
         return _json(200, {"ok": True, "route": getattr(route, "kind", ""), "rev": self.chats.rev(user.tg_id)})
 
-    def _send_mother(self, user, text: str) -> Resp:
+    def _send_mother(self, user, text: str, quote=None) -> Resp:
         """跟常駐助理聊天：不經 dispatcher／對話助理，叫 runtime 的母 session（沒有工具）；背景跑，不卡 request。"""
         from synox import runtime
         rt = runtime.of(self.app)
@@ -1145,7 +1180,8 @@ class WebUI:
 
         def run():
             try:
-                answer = rt.mother.chat(text) if rt is not None else "常駐助理沒有啟用（runtime 沒有裝上）。"
+                said = quote_plain(quote, text) if quote else text      # 回覆某一則：引用放前面（agent/quote.py）
+                answer = rt.mother.chat(said) if rt is not None else "常駐助理沒有啟用（runtime 沒有裝上）。"
             except Exception as e:
                 logging.exception("[WEB] mother chat failed")
                 answer = f"⚠️ 常駐助理沒有回應：{e}"
@@ -1826,9 +1862,14 @@ class WebUI:
         tg, dc = self._probes()
         cfg = logic.read_existing(self.config_path)
         owner = self._file_owner(cfg)
-        token = str(cfg.get("bot_token") or "").strip()
+        from synox import telegram_token as tt
+        try:                                                  # config.json 只有 "vault:telegram_bot_token"
+            token, tg_problem = tt.resolve(cfg.get("bot_token"), self.vault), ""
+        except tt.TokenUnavailable as e:
+            token, tg_problem = "", str(e)
         telegram = {"saved": tg.valid_token(token), "active": bool(self.config.has_token),
-                    "owner_paired": 0 < owner < BASE, "bot": "", "problem": ""}
+                    "owner_paired": 0 < owner < BASE, "bot": "", "problem": tg_problem,
+                    "masked": tt.mask(token) if tg.valid_token(token) else ""}    # 畫面只給看「…AB12」
         if telegram["saved"]:
             ok, info = tg.get_me(token)
             telegram["bot" if ok else "problem"] = self._scrub(info, token)
@@ -1978,13 +2019,19 @@ class WebUI:
         token = str(data.get("token") or "").strip()
         if not token:
             return _err(400, "要貼上 Telegram bot 的 token（@BotFather 給的那串）。")
+        if self.vault is None:
+            return _err(400, "保管箱沒有打開，token 沒地方放（python -m synox doctor 看原因）。")
         ok, info = tg.get_me(token)
         if not ok:
             return _err(400, self._scrub(info, token))
         cfg = logic.read_existing(self.config_path)
         if not cfg:
             return _err(400, "讀不到 config.json，沒有存（重跑 Setup.bat）。")
-        cfg["bot_token"] = token                                # 跟精靈一樣寫在 config.json
+        from synox import telegram_token
+        try:                                                    # 跟精靈一樣：token 進保管箱，config.json 只寫參照
+            telegram_token.store(cfg, token, self.vault)
+        except Exception as e:
+            return _err(400, "token 存不進保管箱：" + self._scrub(e, token))
         if cfg.get("owner_id", cfg.get("machine_owner_id")) in (None, ""):
             cfg["owner_id"] = int(self.config.owner_id)         # 只用 Discord 的設定沒寫 owner_id：照現在的擁有者寫
         logic.write_config(self.config_path, cfg)

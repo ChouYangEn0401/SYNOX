@@ -21,6 +21,8 @@
     --accent2: #2f7fd6;
     --ok: #12823b; --ok-soft: #e6f4ea; --warn: #9a6400; --warn-soft: #fdf1dc; --bad: #c62f2f; --bad-soft: #fbe8e8;
     --me: #dff1ee; --me-ink: #0c3a35;
+    --img-bg: #ffffff;   /* 工具回覆的圖（多半是透明底的 SVG／PNG）深色外觀也墊白底才看得清楚 */
+    --img-scrim: rgba(0, 0, 0, .72);   /* 點圖放大時後面的暗幕 */
     --m1: #4f8df5; --m2: #2f66d0; --mi: #ffffff; --m-hi: #8bb6ff; --mb: color-mix(in srgb, var(--bad) 55%, transparent);
     --accent-2: var(--accent2); --accent-soft: var(--soft);
     --shadow-sm: 0 1px 2px rgba(19, 27, 38, .05), 0 1px 3px rgba(19, 27, 38, .06);
@@ -345,6 +347,13 @@
                border-radius: var(--r); border: 1px solid var(--line-strong); background: var(--surface);
                text-decoration: none; font-size: 14px; }
   /* 呈現層的區塊（config presentation.enabled；synox/present/web.py 的 wire → renderBlocks） */
+  /* 工具回覆帶的圖（m.images；appendImages）：同源 <img>，點了放大 */
+  .msg .msg-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; white-space: normal; }
+  .msg .msg-images img { display: block; max-width: 100%; max-height: 360px; height: auto; border-radius: 8px;
+    background: var(--img-bg); border: 1px solid var(--line); cursor: zoom-in; }
+  .img-zoom { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
+    background: var(--img-scrim); padding: 16px; cursor: zoom-out; }
+  .img-zoom img { max-width: 100%; max-height: 100%; background: var(--img-bg); border-radius: 10px; }
   .msg .blocks { white-space: normal; }
   .msg .blocks > * { margin: 0 0 8px; }
   .msg .blocks > *:last-child { margin-bottom: 0; }
@@ -353,6 +362,7 @@
   .msg .blocks ul, .msg .blocks ol { padding-left: 1.4em; }
   .msg .blocks li > ul, .msg .blocks li > ol { margin: 2px 0 0; }
   .msg .blocks pre { overflow-x: auto; padding: 8px 10px; border-radius: 8px; background: var(--sunken); white-space: pre; }
+  .msg .blocks pre, .msg .blocks code { font-variant-ligatures: none; }      /* TAB 譜的 |--- 不要被字型連成線 */
   .msg .blocks blockquote { margin-left: 0; padding-left: 10px; border-left: 3px solid var(--line-strong); color: var(--muted); }
   .msg .blocks .tablewrap { background: var(--surface); }
   .msg .blocks .status { font-weight: 650; }
@@ -360,7 +370,10 @@
   #composer { display: flex; gap: 8px; align-items: flex-end; margin: 0 14px 14px; padding: 8px 8px 8px 14px;
               border: 1px solid var(--line-strong); border-radius: var(--r-lg); background: var(--surface);
               transition: border-color .15s var(--ease), box-shadow .15s var(--ease); }
-  #composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  /* 輸入框的邊要看得出來（WCAG 1.4.11 ≥3:1）：--muted 是給字用的（≥4.5:1），摻一點 --line-strong 讓它不要太重 */
+  #composer { border-color: color-mix(in srgb, var(--muted) 85%, var(--line-strong)); box-shadow: var(--shadow-sm); }
+  #composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-soft); }
+  body.chat-dragging #composer { border-style: dashed; border-color: var(--accent); }
   #input { flex: 1; resize: none; min-height: 40px; max-height: 160px; border: 0; padding: 9px 0; background: transparent;
            box-shadow: none; }
   #input:focus { box-shadow: none; }
@@ -371,6 +384,36 @@
   .att-chip .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .att-chip .k { color: var(--muted); font-size: 12px; }
   .att-chip button { padding: 0 6px; min-height: 0; border: 0; background: transparent; }
+  /* 回覆某一則（static/reply.js）：泡泡上的「↩ 回覆」、送出那則上面的引用塊、輸入框上方的引用列 */
+  /* 觸控（沒有滑鼠移上去）：泡泡底下一行小字，一直看得到；有滑鼠：浮在泡泡旁邊、移上去或 Tab 到才出現（不佔位置） */
+  .msg { position: relative; }
+  .msg .reply-btn { display: block; margin: 4px -6px -6px auto; padding: 0 6px; min-height: 28px; font-size: 12px;
+                    font-weight: 500; border: 0; background: transparent; box-shadow: none; color: inherit; opacity: .65;
+                    white-space: nowrap; }
+  .msg .reply-btn:hover { background: transparent; opacity: 1; text-decoration: underline; }
+  @media (hover: hover) {
+    .msg .reply-btn { position: absolute; bottom: 2px; margin: 0; color: var(--muted); opacity: 0; }
+    .msg.me .reply-btn { right: 100%; margin-right: 4px; }
+    .msg.bot .reply-btn { left: 100%; margin-left: 4px; }
+    .msg:hover .reply-btn, .msg:focus-within .reply-btn { opacity: 1; }
+  }
+  .msg .reply-quote { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; min-height: 0;
+                      margin: 0 0 6px; padding: 4px 8px; text-align: left; white-space: normal; color: var(--text-2);
+                      border: 0; border-left: 3px solid var(--accent); border-radius: 6px; box-shadow: none;
+                      background: var(--surface-2); font-weight: 400; cursor: pointer; }
+  .msg .reply-quote:hover { background: var(--sunken); }
+  .msg .reply-quote .rq-who { font-size: 12px; font-weight: 650; color: var(--accent); }
+  .msg .reply-quote .rq-text { font-size: 12.5px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .msg.flash { animation: reply-flash 1.6s var(--ease); }
+  @keyframes reply-flash { 0%, 60% { box-shadow: 0 0 0 3px var(--accent); } 100% { box-shadow: 0 0 0 0 transparent; } }
+  @media (prefers-reduced-motion: reduce) { .msg.flash { animation: none; outline: 3px solid var(--accent); outline-offset: 2px; } }
+  .reply-bar { display: flex; align-items: center; gap: 8px; margin: 0 14px 6px; padding: 6px 6px 6px 10px;
+               border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: var(--r);
+               background: var(--surface); }
+  .reply-bar .rb-body { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .reply-bar .rb-who { font-size: 12px; font-weight: 650; color: var(--accent); }
+  .reply-bar .rb-text { font-size: 13px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .reply-bar .rb-x { flex: none; padding: 0 10px; min-height: 32px; border: 0; background: transparent; box-shadow: none; }
   .hint { font-size: 12px; color: var(--muted); text-align: center; margin: -6px 0 10px; }
   .empty { color: var(--muted); text-align: center; margin: auto; display: flex; flex-direction: column;
            align-items: center; gap: 10px; padding: 24px; }
@@ -385,6 +428,7 @@
     #stream { padding: 20px 24px; }
     #composer { margin: 0 24px 14px; }
     #attach-list { margin: 0 24px 6px; }
+    .reply-bar { margin: 0 24px 6px; }
     .hint { margin-bottom: 12px; }
   }
 
@@ -734,6 +778,7 @@
       <div class="chat-head"><span class="live" aria-hidden="true"></span><span class="t" id="chat-title">對話</span></div>
       <div id="stream"><div class="empty">選一段對話，或按「新對話」。</div></div>
       <div id="helpdock" class="helpdock hidden" aria-label="範例"></div>
+      <div id="reply-bar" class="reply-bar hidden" aria-live="polite"></div>
       <div id="attach-list" aria-live="polite"></div>
       <form id="composer" data-tour="chat.input">
         <button id="examples-btn" class="ghost" type="button" data-tour="chat.examples" title="看範例：點一下就放進輸入框">💡 範例</button>
@@ -1257,6 +1302,8 @@
 <!-- include: aliases.js -->
 <script nonce="{{NONCE}}">
 /*{{INCLUDE:blocks.js}}*/
+/*{{INCLUDE:reply.js}}*/
+/*{{INCLUDE:attach.js}}*/
 (function () {
   "use strict";
   var me = null;
@@ -1398,6 +1445,7 @@
   function openChat(id, keep) {
     if (current === id && keep && Object.keys(nodes).length) { markActive(); return; }
     pendSet(false);
+    stopReply();
     current = id; rev = 0; nodes = {}; primed = false;
     var s = $("stream");
     clear(s);
@@ -1453,6 +1501,34 @@
     api("POST", "/api/chats", {}).then(function (d) { current = null; loadChats(d.id); })
       .catch(function (e) { toast(e.message); });
   }
+  // 工具回覆帶的圖（docs/sdk.md「回覆帶圖」）：一律 <img src＝同源網址>，不把 SVG 插進 DOM；點了放大、Esc／點一下關
+  function appendImages(box, m, chat) {
+    var imgs = Array.isArray(m.images) ? m.images : [];
+    var cid = chat || current;
+    if (!imgs.length || !cid) { return; }
+    var wrap = el("div", "msg-images");
+    imgs.forEach(function (im) {
+      if (!im || !/^[A-Za-z0-9_-]{8,40}$/.test(String(im.id || ""))) { return; }
+      var img = document.createElement("img");
+      img.src = "/api/chat/" + encodeURIComponent(cid) + "/image/" + im.id;
+      img.alt = String(im.alt || "圖");
+      img.loading = "lazy";
+      if (im.w > 0 && im.h > 0) { img.width = Math.min(im.w, 640); }
+      img.addEventListener("click", function () {
+        var z = el("div", "img-zoom");
+        var big = document.createElement("img");
+        big.src = img.src; big.alt = img.alt;
+        z.appendChild(big);
+        function close() { if (z.parentNode) { z.parentNode.removeChild(z); } document.removeEventListener("keydown", onKey); }
+        function onKey(e) { if (e.key === "Escape") { close(); } }
+        z.addEventListener("click", close);
+        document.addEventListener("keydown", onKey);
+        document.body.appendChild(z);
+      });
+      wrap.appendChild(img);
+    });
+    if (wrap.childNodes.length) { box.appendChild(wrap); }
+  }
   function renderMessage(m, chat, after) {
     var who = m.from === "me" ? "me" : (m.from === "note" ? "note" : "bot");
     var box = el("div", "msg " + who);
@@ -1463,9 +1539,15 @@
     // type=examples 的區塊是 /help 卡片的範例（synox/helpui）：畫成小標籤，點了＝填進輸入框、不送出（static/helpdock.js）
     var exBlock = blocks.filter(function (b) { return b && b.type === "examples"; })[0];
     blocks = blocks.filter(function (b) { return !(b && (b.type === "tour" || b.type === "examples")); });
+    // 回覆某一則（static/reply.js）：上面一小塊引用，點了捲到原訊息
+    var rq = !chat && m.reply_to && window.SynoxReply ? window.SynoxReply.quote(document, m.reply_to, jumpTo) : null;
+    if (rq) { box.appendChild(rq); }
+    // AI 回的 Markdown（presentation 關著時沒有 blocks）：瀏覽器這邊畫成粗體、程式碼區塊…（blocks.js 的 markdown；不是 Markdown 就照舊）
+    if (!blocks.length && who === "bot" && !m.deleted) { blocks = window.SynoxBlocks.markdown(m.text) || []; }
     // 沒有 blocks 的純文字：照舊 textContent，只有 http(s):// 網址變成連結（blocks.js 的 linkText，過 safeHref）
     box.appendChild(blocks.length ? window.SynoxBlocks.render(document, blocks)
                                   : window.SynoxBlocks.linkText(document, m.text));
+    appendImages(box, m, chat);
     if (tourBlock && window.SynoxTour && !chat) {
       box.appendChild(window.SynoxTour.chatButton(tourBlock, primed && !nodes[m.id], m.id));
     }
@@ -1494,7 +1576,24 @@
       });
       box.appendChild(kb);
     }
+    if (!chat && !m.deleted && who !== "note" && window.SynoxReply) {
+      box.appendChild(window.SynoxReply.button(document, function () { startReply(m); }));
+    }
     return box;
+  }
+  // ── 回覆某一則 ──
+  var replying = null;           // 要回覆的那則 {id, from, text}；送出時帶 reply_to
+  function startReply(m) {
+    replying = { id: m.id, from: m.from, text: m.text };
+    window.SynoxReply.bar(document, $("reply-bar"), replying, stopReply);
+    $("input").focus();
+  }
+  function stopReply() {
+    replying = null;
+    if (window.SynoxReply) { window.SynoxReply.bar(document, $("reply-bar"), null, stopReply); }
+  }
+  function jumpTo(id) {
+    if (!window.SynoxReply.jump(nodes[id])) { toast(window.SynoxReply.TEXT.gone); }
   }
   // 外觀的 slot（static/slots.js）：吉祥物、字標…換了外觀就是外觀的，沒換就是原本的 SYNOX
   function slotNode(name, cls) {
@@ -1570,13 +1669,19 @@
     var sent = attached;
     attached = [];
     drawAttached();
-    return api("POST", "/api/chat/" + encodeURIComponent(current) + "/send", { text: text, attachments: ids })
+    var body = { text: text, attachments: ids };
+    var quoted = replying;
+    if (quoted) { body.reply_to = quoted.id; }
+    stopReply();
+    return api("POST", "/api/chat/" + encodeURIComponent(current) + "/send", body)
       .then(function () { poll(); setTimeout(poll, 700); })
-      .catch(function (e) { pendSet(false); toast(e.message); attached = sent.concat(attached); drawAttached(); });
+      .catch(function (e) {
+        pendSet(false); toast(e.message); attached = sent.concat(attached); drawAttached();
+        if (quoted && !replying) { startReply(quoted); }       // 沒送成功：引用列放回去
+      });
   }
   // ── 對話的附件（POST /api/chat/<id>/upload；web/uploads.py）：先上傳到記憶體拿 id，送出時一起帶 ──────
   var attached = [];            // [{id, name, label, uploading}]
-  var ATTACH_MAX = 10 * 1024 * 1024;
   function drawAttached() {
     var box = $("attach-list");
     clear(box);
@@ -1597,11 +1702,14 @@
       box.appendChild(chip);
     });
   }
+  // 📎、貼上、拖進來都走這裡：同一套類型（#attach-input 的 accept）、大小、數量檢查（static/attach.js）；只收 File 物件
   function attachFiles(list) {
     if (!current) { toast("先選一段對話，或按「新對話」。"); return; }
-    Array.prototype.forEach.call(list || [], function (f) {
-      if (f.size > ATTACH_MAX) { toast("「" + f.name + "」太大（每個最多 10 MB）。"); return; }
-      var a = { id: "", name: f.name || "貼上的圖片", label: "", uploading: true };
+    var p = window.SynoxAttach.plan(list, attached.length, $("attach-input").getAttribute("accept"));
+    if (p.problems.length) { toast(p.problems.join(" ")); }
+    p.ok.forEach(function (one) {
+      var f = one.file;
+      var a = { id: "", name: one.name, label: "", uploading: true };
       var chat = current;
       attached.push(a);
       drawAttached();
@@ -1627,10 +1735,8 @@
     attachFiles($("attach-input").files);
     $("attach-input").value = "";
   });
-  $("input").addEventListener("paste", function (ev) {        // 直接貼上截圖
-    var files = ev.clipboardData && ev.clipboardData.files;
-    if (files && files.length) { ev.preventDefault(); attachFiles(files); }
-  });
+  // 直接貼上截圖（Ctrl+V）：在輸入框，或對話區裡沒有在打別的字的地方；剪貼簿有文字就照常貼字（static/attach.js）
+  document.addEventListener("paste", window.SynoxAttach.pasteListener(document, $("input"), attachFiles));
   window.SynoxChatDrop = attachFiles;              // 拖進對話頁的檔案（static/packdrop.js 先看是不是工具檔，不是才交給這裡）
   function press(chat, messageId, data, btn) {
     if (btn) { btn.disabled = true; }
@@ -1650,6 +1756,7 @@
     send(text);
   });
   $("input").addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && replying) { ev.preventDefault(); stopReply(); return; }
     if (ev.key === "Enter" && !ev.shiftKey && !ev.isComposing) {
       ev.preventDefault();
       $("composer").requestSubmit ? $("composer").requestSubmit() : $("composer").dispatchEvent(new Event("submit"));
@@ -2640,6 +2747,7 @@
       $("ch-restart").classList.toggle("hidden", !(t.restart || c.restart));
       if (window.SynoxUserMenu) { window.SynoxUserMenu.setPending(t.restart || c.restart); }   // 選單上的小點
       $("ch-tg-now").textContent = channelLine(t, function (n) { return "@" + n; }) +
+        (t.masked ? "（token " + t.masked + "，存在保管箱）" : (!t.saved && t.problem ? "⚠️ " + t.problem : "")) +
         (t.saved && !t.owner_paired ? (t.pairable ? "還沒配對擁有者：用下面的「配對我的 Telegram 帳號」。" :
           "還沒配對擁有者：雙擊 Setup.bat 重跑安裝精靈配對（token 會自動帶入）。") : "");
       $("ch-dc-form").classList.toggle("hidden", c.multi);

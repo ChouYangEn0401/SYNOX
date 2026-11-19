@@ -24,6 +24,49 @@
 
 #### 文件
 - 驗收清單 [docs/testing/pack-warnings-checklist.md](docs/testing/pack-warnings-checklist.md)：自動測試涵蓋什麼、真機要人工驗的 14 項；全部勾完才算過關。
+## 未發佈（branch fix/telegram-token-vault：Telegram bot token 搬進保管箱）
+
+#### 安全
+- **Telegram bot token 不再明文寫在 `config.json`**：跟 Discord token、AI 金鑰一樣存進保管箱（`data/secrets.json.enc`），
+  `config.json` 只寫 `"bot_token": "vault:telegram_bot_token"`。安裝精靈、`python -m synox init`、網頁「設定 → 聊天通道」都這樣存；
+  `"env:環境變數名"` 照樣可以用。（`src/synox/telegram_token.py`）
+- **舊的明文自動搬**：`python -m synox run`（Start.bat）一啟動、重跑精靈或 `init` 時，`config.json` 裡的明文 token 存進保管箱、
+  讀回來確認一樣之後才原子地改寫成參照；旁邊的 `config.json.*` 殘檔（`.bak`、`.tmp`…）裡的明文也換掉，不另外留備份。
+  重複跑沒關係；保管箱打不開就不動 `config.json`，只在 log 留一句白話警告（不印 token）。
+- **token 不會出現在**：log（解開的 token 登記到 log 遮罩，SDK 連線錯誤印出的 `…/bot<token>/getUpdates` 網址也遮成 `***`）、
+  `repr(config)`、doctor（只說「在保管箱／環境變數／⚠️ 明文」）、回報摘要、網頁 API（設定頁只顯示最後 4 個字「…AB12」）、錯誤訊息。
+- 參照解不開（保管箱壞了、裡面沒有）：Telegram 這次不開、啟動與 doctor 說原因；網頁、Discord 照常。
+
+## 未發佈（branch feat/remind-ui：提醒準時、提醒視窗的新按鈕與新外觀）
+
+#### 修正
+- **提醒晚響**：原本最多晚 30 幾秒（runtime 每 5 秒看一次、提醒任務每 30 秒、而且從上一次做完才開始算，延遲疊在一起；網頁再多等最多 10 秒）。
+  現在 runtime 睡到最早的那個任務該跑的時間，提醒任務問提醒引擎「下一件事幾點」就在那時候跑（最多 10 秒一定看一次），
+  新增／延後提醒馬上重看；提醒哨兵也一樣睡到下一件事；網頁在響的那一刻多看一次。用假時鐘量：平均晚 0.02 秒、最多約 0.5 秒（原本平均 16 秒、最多 30 秒）。
+  其他背景任務照自己的間隔跑，不會因此多跑。
+
+#### 新增
+- **「我知道了」和「我完成了」分開記**：知道了＝這次不響了（dismissed，不算做完）；完成＝done。網頁、Telegram、Discord、電腦視窗都一樣。
+- 電腦提醒視窗：稍後再叫我 5 分鐘、15 分鐘、1 小時、自選（打幾分鐘或時間）；一次性的提醒可以**安排到別天**（明天同一時間、挑日期時間）。
+- **電腦提醒視窗換新外觀**：圓角卡片、跟著網頁「設定 → 外觀」的外觀包顏色與淺色／深色／跟著系統；字型挑有中文字的（微軟正黑體…）、高 DPI 不糊；
+  「⏰ 提醒」、大字的提醒內容、下面一行時間；按鈕都能用 Tab／Enter／空白鍵操作，跳出來時不搶你正在打字的視窗。
+  主程式把顏色寫在 `data/remind/desk/style.json`（只有顏色、字型名、圓角）。
+
+## 未發佈（branch feat/chat-reply：網頁對話的回覆、Markdown、貼上／拖進附件、輸入框看得清楚）
+
+#### 新增
+- **回覆某一則訊息**（像 Telegram／LINE）：泡泡上的「↩ 回覆」→ 輸入框上方出現引用列（Esc 或 ✕ 取消）；送出的那則上面有一小塊引用，點了捲到原訊息。
+  AI 會拿到被引用的原文（就算早就擠出它的記憶），包在這一輪的分隔符裡當資料、不當指令；記憶只留一行短記號。
+  伺服器檢查被回覆的訊息一定在同一個人的同一段對話裡、還沒刪掉；畫面上的引用最多 120 字、給 AI 的最多 1000 字。常駐助理也收得到引用。
+- **AI 回的 Markdown 畫出來**：粗體、斜體、`程式碼`、程式碼區塊、標題、清單、引用、表格、連結。一律用 textContent 建畫面，
+  不吃 HTML；連結只收 http／https。看起來不是 Markdown 的訊息照舊是純文字。
+- **貼上、拖進附件跟 📎 一樣**：Ctrl+V 貼上截圖（輸入框或對話區都可以）、一次拖好幾個檔進對話區（輸入框會亮起虛線框），
+  類型、大小（每個 10 MB）、數量（最多 10 個）跟 📎 同一套檢查，不合的直接說是哪個檔、為什麼。只收瀏覽器給的檔案，從來不收路徑。
+  從 Excel／Word 複製一段字貼上時照常貼字，不會變成一張圖的附件。
+
+#### 修正
+- 對話輸入框的邊框太淡（淺色外觀上幾乎看不到）：改成跟字一樣來自外觀的顏色、對比至少 3:1，加一點陰影；打字時的焦點框也更明顯。
+- 「回覆」帶的訊息編號只收整數（`true`、`1.5` 不再被當成別則訊息）。
 
 ## 0.2.1-beta.1（2026-11-18）
 
@@ -60,7 +103,6 @@
 - 主控頁的 soul 卡片下面列出每一條習慣：比工具預設寬鬆的整行標紅、沒有工具在用的、被後面一行蓋過的、看不懂的行。
 - `python -m synox import-legacy schedule-rules --from=<檔>`：把另一個助理的排程規則檔轉成習慣（不加 `--apply` 只印會寫哪幾行；重跑＝取代）。
 - `doctor` 列出看不懂的習慣行與寫了兩次的鍵。
-
 
 ## 0.2.1-alpha.1（2026-11-16）
 
@@ -827,7 +869,6 @@
 - 記帳本（記帳工具）0.18.x：SYNOX 的安裝檢查唯讀跑過對方現在的 pack，沒有問題；新指令要對方的 synox-pack 跟上，寫成
   [docs/handoffs/2026-11-12-cashbook-synox-pack-0.18.md](docs/handoffs/2026-11-12-cashbook-synox-pack-0.18.md)。
 
-
 ## 0.2.0（2026-11-09）
 
 版本從 0.1.0 升到 0.2.0：pack 格式多了 surfaces／data／auth.fields／mcp／runtime auto／schema_tools 等欄位，SDK 產生的 pack 寫 `requires.synox: ">=0.2"`，舊版 SYNOX 會明說要先更新、不會載入。
@@ -1454,7 +1495,6 @@
 
 ### 拿掉
 - `src/synox/llm/openai_compat.py`、`anthropic_api.py`（換成 `easy_llm.py`）。
-
 
 ## 0.1.0 — 2026-11-09
 

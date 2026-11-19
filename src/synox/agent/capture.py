@@ -129,6 +129,19 @@ class CaptureApi:
         self._note(chat_id, f"〔已直接傳給使用者一張圖〕{caption[:200]}")
         return self._real.send_photo(chat_id, photo, caption=caption)
 
+    def send_image(self, chat_id, images, caption="", reply_markup=None, **kw):
+        """工具回覆帶的圖（docs/sdk.md「回覆帶圖」）：直接給使用者，AI 拿到一行「已經傳了幾張圖」＋說明。
+        這個 channel 不能畫圖（Telegram、Discord…）＝回 ok False，呼叫的人（kit.send_image）改送 send_photo。"""
+        fn = getattr(self._real, "send_image", None)
+        if not callable(fn):
+            return {"ok": False, "error": "unsupported"}
+        out = fn(chat_id, images, caption=caption, reply_markup=reply_markup, **kw)
+        if (out or {}).get("ok"):
+            n = len(list(images or []))
+            self._note(chat_id, f"〔已直接傳給使用者 {n} 張圖（使用者看得到）〕{plain(caption or '')[:300]}"
+                       + _labels(reply_markup))
+        return out
+
     def send_document(self, chat_id, document, caption=""):
         self._note(chat_id, f"〔已直接傳給使用者一個檔案〕{caption[:200]}")
         return self._real.send_document(chat_id, document, caption=caption)

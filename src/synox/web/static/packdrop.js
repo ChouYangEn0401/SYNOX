@@ -14,7 +14,7 @@
   var EXTS = [".synoxpack", ".zip"];
   var TEXT = {
     overlay: "放開滑鼠，我就檢查這個工具檔。會先給你看檢查的結果，你按確認才會裝。",
-    chat: "放開滑鼠，就附到這則訊息（圖片、表格、文字檔）。工具檔（.synoxpack）一樣會先檢查給你看。",
+    chat: "放開滑鼠，就附到這則訊息（圖片、表格、文字檔，可以一次好幾個）。工具檔（.synoxpack）一樣會先檢查給你看。",
     hint: "也可以把工具檔（.synoxpack）直接拖進這個網頁，或在電腦裡對它點兩下。不管哪一種，都會先檢查給你看，你按確認才會裝。",
     one: "一次拖一個工具檔就好。",
     ext: "這不是工具檔（檔名結尾要是 .synoxpack）：",
@@ -44,6 +44,13 @@
      （例如 AI），報告就出現在看不到的分頁裡。已經在安裝頁就不動網址。 */
   function installHash(current) {
     return current === "#packs" || current === "#settings:packs" ? current : "#packs";
+  }
+
+  /* 純函式：拖進來的檔要去哪裡。"pack"＝一個工具檔（照原本的安裝流程）；"chat"＝在對話頁、不是工具檔 → 當附件
+     （app.html 的 SynoxChatDrop，跟 📎 同一套檢查）；"refuse"＝其他頁、不是工具檔（說原因）。 */
+  function route(files, inChat) {
+    if (check(files).ok) { return "pack"; }
+    return inChat ? "chat" : "refuse";
   }
 
   function hasFiles(e) {
@@ -84,7 +91,10 @@
       say.timer = setTimeout(function () { t.classList.add("hidden"); }, 4500);
     }
     var depth = 0;
-    function showOverlay(on) { overlay.classList.toggle("hidden", !on); }
+    function showOverlay(on) {
+      overlay.classList.toggle("hidden", !on);
+      doc.body.classList.toggle("chat-dragging", !!on && chatView());   // 對話頁：輸入框也亮起來（app.html 的 CSS）
+    }
 
     function chatView() {                                   // 對話頁：拖進來的一般檔案當附件（app.html 的 SynoxChatDrop）
       return doc.body.getAttribute("data-view") === "chat" && typeof root.SynoxChatDrop === "function";
@@ -112,8 +122,9 @@
       depth = 0;
       showOverlay(false);
       var r = check(e.dataTransfer.files);
-      if (!r.ok && chatView()) { root.SynoxChatDrop(e.dataTransfer.files); return; }
-      if (!r.ok) { say(r.message); return; }
+      var where = route(e.dataTransfer.files, chatView());
+      if (where === "chat") { root.SynoxChatDrop(e.dataTransfer.files); return; }
+      if (where === "refuse") { say(r.message); return; }
       if (doc.body.getAttribute("data-view") === "login") { say(TEXT.login); return; }
       root.fetch("/api/me", { credentials: "same-origin" }).then(function (resp) {
         if (!resp.ok) { throw new Error(TEXT.login); }
@@ -145,7 +156,7 @@
     }
   }
 
-  var api = { check: check, hasFiles: hasFiles, installHash: installHash, MAX_BYTES: MAX_BYTES, TEXT: TEXT };
+  var api = { check: check, route: route, hasFiles: hasFiles, installHash: installHash, MAX_BYTES: MAX_BYTES, TEXT: TEXT };
   if (typeof module === "object" && module && module.exports) { module.exports = api; }
   else {
     root.SynoxPackDrop = api;

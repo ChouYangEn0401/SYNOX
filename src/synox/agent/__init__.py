@@ -52,22 +52,24 @@ class AgentFallback:
         route = self.app.dispatcher.log_route(inbound, text, Route(FALLBACK, "agent.ai"))
         bot = policy.current_bot()                   # 收訊的 bot：AI 那一輪在別的執行緒，要帶過去（工具清單照它過濾）
         attached = getattr(api, "attachments", None)   # 網頁對話的附件（web/uploads.py；只有網頁的 channel 有）
+        quote = getattr(api, "reply_quote", None)      # 在回覆哪一則（agent/quote.py；目前只有網頁的 channel 有）
+        qkw = {"quote": quote} if quote else {}
         if attached:
-            return self._attached(api, inbound, user, text, list(attached), bot, route)
+            return self._attached(api, inbound, user, text, list(attached), bot, route, **qkw)
         from synox.agent import media
         file_id = media.telegram_image(inbound, text)
         if file_id is not None:                      # 私訊傳的照片（docs/adr/0021）：file_id 不當文字給 AI
             from synox.llm import vision
             loader = media.telegram_loader(api, [file_id], vision.limits_of(self.loop.llm))
             self.app.tasks.run(lambda: policy.run_as(bot, self.loop.run_turn, api, inbound.chat_id, user, "",
-                                                     images=loader), name="agent-turn")
+                                                     images=loader, **qkw), name="agent-turn")
             return route
-        self.app.tasks.run(lambda: policy.run_as(bot, self.loop.run_turn, api, inbound.chat_id, user, text),
+        self.app.tasks.run(lambda: policy.run_as(bot, self.loop.run_turn, api, inbound.chat_id, user, text, **qkw),
                            name="agent-turn")
         return route
 
 
-    def _attached(self, api, inbound, user, text: str, items, bot, route) -> Route:
+    def _attached(self, api, inbound, user, text: str, items, bot, route, **qkw) -> Route:
         """網頁附件：圖片照 ADR 0021 走看圖（vision.prepare 去中繼資料、擋大小）；表格／文件／文字檔轉成文字給這一輪。"""
         from synox.llm import vision
         from synox.web import uploads
@@ -86,11 +88,11 @@ class AgentFallback:
             loader.count = len(pics)
         if loader is None and not blocks:
             if not text.startswith("（使用者只傳了附件"):
-                self.app.tasks.run(lambda: policy.run_as(bot, self.loop.run_turn, api, inbound.chat_id, user, text),
-                                   name="agent-turn")
+                self.app.tasks.run(lambda: policy.run_as(bot, self.loop.run_turn, api, inbound.chat_id, user, text,
+                                                         **qkw), name="agent-turn")
             return route
         self.app.tasks.run(lambda: policy.run_as(bot, self.loop.run_turn, api, inbound.chat_id, user, text,
-                                                 images=loader, files=blocks), name="agent-turn")
+                                                 images=loader, files=blocks, **qkw), name="agent-turn")
         return route
 
 

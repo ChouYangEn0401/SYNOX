@@ -628,3 +628,20 @@ def test_stored_custom_is_resanitized_every_render(theme_bot, owner):
 def test_appearance_head_never_breaks_out_of_style():
     head = appearance.head_html("n", "a { } </style><script>x</script>", {})
     assert "<script>" not in head and "<style" not in head
+
+
+def test_owner_look_is_passed_to_the_desk_reminder_window(theme_bot, owner):
+    from synox.remindwin import style as desk_style
+    bot = theme_bot()
+    c = Client(ui_of(bot))
+    c.login(owner)
+    _install(c)
+    assert c.post("/api/appearance", {"theme": "sample-lantern", "mode": "dark"})[0] == 200
+    data_dir = bot.app.config.data_dir
+    saved = desk_style.read(data_dir)
+    assert saved["theme"] == "sample-lantern" and saved["mode"] == "dark"
+    assert saved["tokens"]["light"]["accent"] == "#a85400"
+    assert desk_style.load(data_dir).colors["accent"].startswith("#")
+    assert c.post("/api/appearance", {"theme": "", "mode": "auto"})[0] == 200    # 換回原本的 SYNOX
+    saved = desk_style.read(data_dir)
+    assert saved["theme"] == "" and saved["mode"] == "auto" and saved["tokens"] == {"light": {}, "dark": {}}

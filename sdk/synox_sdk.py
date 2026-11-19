@@ -61,7 +61,7 @@ __all__ = ["tool", "serve", "secret", "context", "confirmed", "Context", "Caller
            "Ok", "SpecError", "tool_spec", "commands_for", "run_cli", "run_mcp", "registered", "report_status",
            "peer_status"]
 
-SDK_VERSION = "0.2.4"                  # SYNOX 給工具的介面合約的版本（pack.json 的 requires.sdk 對這個；docs/sdk.md「SDK 版本」）
+SDK_VERSION = "0.2.5"                  # SYNOX 給工具的介面合約的版本（pack.json 的 requires.sdk 對這個；docs/sdk.md「SDK 版本」）
 SYNOX_REQUIRES = ">=0.2"               # 產生的 pack.json 的 requires.synox（SYNOX_* 環境變數、ai／confirm 從這版起）
 
 

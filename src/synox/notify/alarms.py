@@ -60,6 +60,7 @@ def upcoming(app, uid: int, now: Optional[datetime] = None) -> List[dict]:
             continue
         out.append({"id": it.get("id"), "n": n, "text": it.get("text", ""), "daily": not it.get("date"),
                     "at": at.isoformat(timespec="minutes"), "when": friendly(at, now),
+                    "ts": int(at.timestamp()),          # epoch 秒：網頁在響的那一刻多看一次（notify.js schedule）
                     "repeat": "每天" if not it.get("date") else "一次"})
     out.sort(key=lambda r: r["at"])
     return out

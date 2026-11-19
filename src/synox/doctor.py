@@ -141,6 +141,19 @@ def _discord_bot_line(spec, vault) -> tuple:
     return f"{head}：⚠️ token 直接寫在 config.json（建議改用保管箱：python -m synox discord token）", 0
 
 
+def _token_where(value) -> str:
+    """bot_token 放在哪（不印 token 本身）。"""
+    from synox import telegram_token as tt
+    value = str(value or "").strip()
+    if not value:
+        return ""
+    if value.startswith(tt.VAULT_PREFIX):
+        return "（在保管箱）"
+    if value.startswith(tt.ENV_PREFIX):
+        return f"（環境變數 {value[len(tt.ENV_PREFIX):]}）"
+    return "（⚠️ 明文寫在 config.json：下次啟動 SYNOX 會自動搬進保管箱）"
+
+
 def _heartbeat_line(config) -> str:
     """心跳（docs/adr/0001）：開關、間隔、安靜時段＋data/runtime/state.json 記的上一次（沒有個人資料的那份；不改檔）。"""
     from synox.runtime.loop import STATE_FILE, iso
@@ -454,7 +467,10 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
             config = SynoxConfig.load(path, require_token=False)
             r = redacted(config.raw)
             out(f"• 設定：✅ {os.path.basename(path)}　bot_token {'格式正確' if config.has_token else '❌ 不是有效的 token'}"
-                f"　owner_id {'有填' if config.owner_id else '❌ 沒填'}")
+                f"{_token_where(config.raw.get('bot_token'))}　owner_id {'有填' if config.owner_id else '❌ 沒填'}")
+            if config.token_problem:
+                out(f"  ⚠️ {config.token_problem}")
+                problems += 1
             out(f"  模式：{config.mode}（{MODE_LABELS[config.mode]}）"
                 + ("　陌生人是訪客、vault 的資料每人一份 data/users/<id>/" if config.server else ""))
             if config.server:                                  # 架構限制（只說明，不算問題）

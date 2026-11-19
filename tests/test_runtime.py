@@ -204,7 +204,7 @@ def test_report_rejects_bad_state_and_masks_tokens(tmp_path):
 def test_schedule_is_a_runtime_task(rt_bot):
     bot, rt, clock = rt_bot()
     t = rt.loop.task("system.schedule")
-    assert t is not None and t.schedule == "每 30 秒" and t.next_due is not None
+    assert t is not None and t.schedule == "到點就跑（最多每 10 秒看一次）" and t.next_due is not None
     runner = bot.app.extras["synox_schedule_runner"]
     runner._clock = clock.now
     runner.store.add("remind", "14:00", bot.app.owner_id, text="喝水")

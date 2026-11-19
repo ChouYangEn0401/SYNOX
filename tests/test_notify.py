@@ -161,7 +161,7 @@ def test_alarm_fires_everywhere_with_buttons_and_snooze(make_bot, owner, monkeyp
     assert tg.last(owner) == "⏰ 提醒：吃藥" and dc.last(owner) == "⏰ 提醒：吃藥"
     assert any("ntf:s5:" in b for b in tg.buttons(owner))
     item = web_items(bot, owner)[-1]
-    assert item["kind"] == "alarm" and [a["id"] for a in item["actions"]] == ["ok", "snooze"]
+    assert item["kind"] == "alarm" and [a["id"] for a in item["actions"]] == ["ok", "done", "snooze"]
     hhmm = hub.snooze(owner, item["id"])                    # 交給提醒引擎：同一個提醒延後，不另加一筆
     from synox.schedule.commands import store_for
     (it,) = store_for(bot.app).of(owner).items("remind")

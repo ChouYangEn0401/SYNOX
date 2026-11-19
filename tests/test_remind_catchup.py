@@ -77,7 +77,7 @@ def test_missed_minute_rings_on_next_check(tmp_path):
     msg = fake.msgs[0]
     assert msg.key == delivery.message_key(1, reminder.to_iso(D.replace(hour=8)), UID)
     assert msg.ref == delivery.ReminderRef(1, reminder.to_iso(D.replace(hour=8)))
-    assert [a["id"] for a in msg.actions] == ["ok", "snooze"]
+    assert [a["id"] for a in msg.actions] == ["ok", "done", "snooze"]          # 知道了、完成、5 分鐘後
     assert eng.tick(D.replace(hour=8, minute=1, second=40)) == [] and len(fake.msgs) == 1     # 冪等
 
 
@@ -220,7 +220,7 @@ def test_on_delivery_records_and_daily_done_goes_back_to_pending(tmp_path):
     acts.on_delivery(UID, 99, occ, delivery.DeliveryRecord("desktop"))     # 找不到：不丟例外
     assert acts.act(UID, 1, occ, "ack", via="web").ok
     item = raw(tmp_path)[0]
-    assert item["status"] == "pending" and item["history"][-1]["status"] == "done" and item["occurrence"] is None
+    assert item["status"] == "pending" and item["history"][-1]["status"] == "dismissed" and item["occurrence"] is None
 
 
 # ── 舊資料 ───────────────────────────────────────────────────────────

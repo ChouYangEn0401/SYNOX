@@ -1,11 +1,16 @@
 """
-延後與完成（docs/adr/0029 §3.3 ReminderActions）：使用者在任何管道按了「完成／知道了／延後」，送達層回頭叫這裡。
+延後與完成（docs/adr/0029 §3.3 ReminderActions）：使用者在任何管道按了「完成／知道了／延後／改到別天」，送達層回頭叫這裡。
 登記在 app.extras["synox_reminder_actions"]（delivery.ACTIONS_EXTRA）。
 
 - act(uid, rid, occurrence, action, until=, typed=, via=)：
-  done／ack → 這一次結束（一次性：done；每天型：記進 history、等下一天）；snooze → 延後到 until（ISO），
-  或解析 typed（「15:30」「+2h」「半小時後」「明天 9 點」，見 timeparse），都沒給＝5 分鐘後。
-  然後 delivery.resolve 讓其他管道收掉（按鈕拿掉、字改成「✅ 在電腦上做完了」）。
+  done（我完成了）→ 這一次結束、記成 done；ack（我知道了）→ 這一次結束、記成 dismissed（不響了，但不算做完）。
+  一次性的就此收掉；每天型記進 history、等下一天。
+  snooze → 同一次延後到 until（ISO），或解析 typed（「15:30」「+2h」「半小時後」「明天 9 點」，見 timeparse），
+  都沒給＝5 分鐘後（卡片寫「延後第 N 次」）。
+  reschedule（改到別天）→ 一次性的提醒整個改時間：due＝until／typed，都沒給＝明天同一個時刻；回到 pending、
+  不算延後（到時候當新的一次響）。每天型：只能改到下一次之前（＝延後這一次）；改到下一次以後回 bad_time
+  （每天的明天本來就會響）。
+  然後 delivery.resolve 讓其他管道收掉（按鈕拿掉、字改成「✅ 在電腦上做完了」「📅 在電腦上改到 …」）。
   冪等：同一次已經處理過（或不是正在響的那一次）回 ok=False、reason="gone"。
 - on_delivery(uid, rid, occurrence, record)：某個管道的送達紀錄變了 → 寫進提醒的 deliveries[管道]。不丟例外。
 """
@@ -27,6 +32,8 @@ SNOOZE_DEFAULT_MIN = 5
 VIA_TEXT = {"telegram": " Telegram 上", "discord": " Discord 上", "web": "網頁上", "desktop": "電腦上",
             "command": "聊天裡", "chat": "聊天裡"}
 GONE = "這則提醒已經處理過了。"
+ACTIONS = ("done", "ack", "snooze", "reschedule")
+DAILY_LATER = "每天的提醒下一次本來就會響；要改每天的時間，到「⏰ 提醒」清單改。"
 
 
 def via_text(via: str) -> str:
@@ -66,13 +73,17 @@ class Actions:
     def act(self, uid: int, rid: int, occurrence: str, action: str, *, until: Optional[str] = None,
             typed: str = "", via: str = "") -> delivery.ActionOutcome:
         now = R.aware(self._clock())
-        if action not in ("done", "ack", "snooze"):
+        if action not in ACTIONS:
             return delivery.ActionOutcome(False, "bad_action", "看不懂要做什麼。")
         if not occurrence and action in ("done", "ack"):
             return self._todo_done(uid, rid, via)
         target = None
         if action == "snooze":
             target, problem = self._snooze_target(now, until, typed)
+            if target is None:
+                return delivery.ActionOutcome(False, "bad_time", problem)
+        elif action == "reschedule":
+            target, problem = self._reschedule_target(now, occurrence, until, typed)
             if target is None:
                 return delivery.ActionOutcome(False, "bad_time", problem)
         st = self.store.of(int(uid))
@@ -82,13 +93,25 @@ class Actions:
             if rem.status not in (R.RINGING, R.SNOOZED) or rem.occurrence != occurrence:
                 return rem
             box["key"] = ring_key(rem, int(uid))
+            if action == "reschedule" and rem.repeat == R.DAILY:
+                if rem.due_at is not None and target >= rem.due_at:
+                    box["problem"] = DAILY_LATER
+                    return rem
+                box["ok"] = True                         # 每天型：下一次之前＝延後這一次
+                return replace(rem, status=R.SNOOZED, snooze_until=R.to_iso(target), snooze_count=rem.snooze_count + 1)
+            if action == "reschedule":
+                box["ok"] = True
+                return replace(rem, status=R.PENDING, due=R.to_iso(target), occurrence=None, rang_at=None,
+                               snooze_until=None, snooze_count=0, deliveries={}, done_at=None, done_via="")
             if action == "snooze":
                 box["ok"] = True
                 return replace(rem, status=R.SNOOZED, snooze_until=R.to_iso(target), snooze_count=rem.snooze_count + 1)
             box["ok"] = True
-            return close_occurrence(rem, R.DONE, now, via=via)
+            return close_occurrence(rem, R.DONE if action == "done" else R.DISMISSED, now, via=via)
 
         found, _ = st.update_reminder(int(rid), apply)
+        if box.get("problem"):
+            return delivery.ActionOutcome(False, "bad_time", box["problem"])
         if found and not box.get("ok") and action in ("done", "ack"):
             missed = self._missed_ack(st, uid, rid, occurrence, via)
             if missed is not None:
@@ -100,6 +123,11 @@ class Actions:
             note = f"⏰ 在{via_text(via)}延後到 {hhmm}"
             self._resolved(uid, box["key"], note, via)
             return delivery.ActionOutcome(True, "", f"好，{hhmm} 再叫你一次。", note)
+        if action == "reschedule":
+            when = self._when(target, now)
+            note = f"📅 在{via_text(via)}改到 {when}"
+            self._resolved(uid, box["key"], note, via)
+            return delivery.ActionOutcome(True, "", f"好，改到 {when} 再叫你。", note)
         note = f"✅ 在{via_text(via)}" + ("做完了" if action == "done" else "按了知道了")
         self._resolved(uid, box["key"], note, via)
         return delivery.ActionOutcome(True, "", "好，記下來了。" if action == "done" else "知道了", note)
@@ -168,6 +196,26 @@ class Actions:
             return None, "看不懂這個時間。可以打「15:30」「+2h」「半小時後」「明天 9 點」。"
         return now + timedelta(minutes=SNOOZE_DEFAULT_MIN), ""
 
+    def _reschedule_target(self, now: datetime, occurrence: str, until: Optional[str], typed: str):
+        """改到別天的時間：until（ISO）＞ typed（timeparse）＞ 明天同一個時刻（照這一次原本的牆上時間）。"""
+        if until or (typed and typed.strip()):
+            return self._snooze_target(now, until, typed)
+        try:
+            occ = R.from_iso(occurrence)
+        except ValueError:
+            occ = None
+        base = (occ or now).astimezone(R.local_tz()).replace(tzinfo=None)
+        at = R.aware(base + timedelta(days=1))
+        while at <= now:                                  # 響了快一天才按：再往後一天
+            at = R.aware(at.astimezone(R.local_tz()).replace(tzinfo=None) + timedelta(days=1))
+        return at, ""
+
+    @staticmethod
+    def _when(at: datetime, now: datetime) -> str:
+        from synox.notify.alarms import friendly
+        return friendly(at.astimezone(R.local_tz()).replace(tzinfo=None),
+                        now.astimezone(R.local_tz()).replace(tzinfo=None))
+
     def _resolved(self, uid: int, key: str, note: str, via: str) -> None:
         if self._resolve is None:
             return
@@ -179,4 +227,4 @@ class Actions:
             logging.exception("[REMIND] resolve failed")
 
 
-__all__ = ["Actions", "GONE", "SNOOZE_DEFAULT_MIN", "TODO_SHOW", "todo_list", "via_text"]
+__all__ = ["ACTIONS", "Actions", "DAILY_LATER", "GONE", "SNOOZE_DEFAULT_MIN", "TODO_SHOW", "todo_list", "via_text"]

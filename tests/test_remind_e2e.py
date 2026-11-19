@@ -86,7 +86,7 @@ def test_a_said_at_0040_rings_at_0051_on_telegram_and_the_window(make_bot, owner
     fired = runner(bot).tick(datetime(2026, 11, 16, 0, 51, 5))
     assert [f["text"] for f in fired] == ["倒垃圾"]
     assert tg.last(owner) == "⏰ 提醒：倒垃圾"
-    assert {b.split(":")[1] for b in tg.buttons(owner)} == {"ok", "s5"}            # 知道了、5 分鐘後再提醒
+    assert {b.split(":")[1] for b in tg.buttons(owner)} == {"ok", "d", "s5"}       # 知道了、完成、5 分鐘後再提醒
     (card,) = spool(bot).pending_for_win()
     assert (card.text, card.when, card.late_min) == ("倒垃圾", "今天 00:51", 0) and launched == [1]
     (it,) = items(bot)
@@ -151,7 +151,7 @@ def test_c_three_hours_down_then_the_missed_notice(make_bot, owner, monkeypatch,
     assert tg2.last(owner).startswith("⏰ 你錯過了 1 個鬧鐘：今天 01:00 澆花")
     assert [b.split(":")[1] for b in tg2.buttons(owner)] == ["ok"]
     (card,) = spool(again).pending_for_win()
-    assert card.text == "（錯過了）澆花" and card.buttons == [desk.BTN_DONE] and card.late_min == 180
+    assert card.text == "（錯過了）澆花" and card.buttons == [desk.BTN_ACK] and card.late_min == 180
     assert items(again)[0]["status"] == "missed"
     assert runner(again).tick(datetime(2026, 11, 16, 4, 1)) == [] and len(tg2.texts(owner)) == 1   # 只說一次
     ok = next(b for b in tg2.buttons(owner) if b.startswith("ntf:ok:"))

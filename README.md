@@ -152,6 +152,7 @@ synox tips      隨機一則使用小提示
 `llm.kind` 可以是 `claude_code`、`local`（本地模型：Ollama、vLLM、LM Studio）、`openai`、`anthropic`、`gemini`、
 `openai_compat`（要 `base_url`）、`fake`、`none`；
 `api_key` 可以直接寫、寫 `env:環境變數名`，或 `vault:llm_api_key`（精靈存進保管箱的）。
+`bot_token`（Telegram）也一樣：精靈、`init`、網頁設定頁都存進保管箱、寫 `vault:telegram_bot_token`；手寫明文也可以，啟動時會自動搬進保管箱。
 用金鑰的四種要先裝 ntu_easy_llm（`.venv\Scripts\python.exe -m pip install -e .[llm]`，見 [docs/AGENT.md](docs/AGENT.md) 的「ntu_easy_llm」）；
 沒裝時 `doctor` 和「測一下」會說怎麼裝。
 

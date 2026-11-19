@@ -6,6 +6,11 @@
          "messages": [{"id": 7, "rev": 11, "from": "me"|"bot"|"note", "text": "…",
                        "buttons": [[{"text": "✅ 執行", "data": "agent_ok:go:…"}]], "at": …}]}]}
 
+- "reply_to"（選配）：這則是在回覆哪一則（像 Telegram／LINE 的「回覆」）：{"id": 7, "from": "bot", "excerpt": "…"}。
+  excerpt 是送出當下從原訊息截的一小段（最多 EXCERPT_MAX 字），原訊息被擠出 KEEP 則之後畫面照樣顯示得出引用。
+  只能回覆同一段對話裡的訊息（web/server.py 的 send 檢查：reply_target）。
+- "images"（選配）：工具回覆帶的圖（synox/web/chatmedia.py）：[{"id", "type", "w", "h", "alt"}]；圖本身存在
+  data/web_chats/media/<tg_id>/，網頁用 GET /api/chat/<段>/image/<id> 拿。訊息被擠掉、清空、刪掉時圖一起刪（self.media）。
 - "blocks"（選配）：呈現層的區塊（synox/present/web.py 的 wire；config presentation.enabled 開著時 AI 回覆才有），
   網頁用 static/blocks.js 畫；text 仍是原本的文字（預覽、常駐助理讀的都是它）。改字或刪掉時一起拿掉。
 
@@ -21,6 +26,7 @@
 from __future__ import annotations
 
 import os
+import re
 import threading
 import time
 from typing import Callable, Dict, List, Optional, Tuple
@@ -28,6 +34,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 from isdtelekit.core import jsonstore
 
 KEEP = 50
+EXCERPT_MAX = 120                  # reply_to 存的那一小段（畫面上的引用）
 MAX_CHATS = 30
 TOOLS_CHAT = "tools"
 MOTHER_CHAT = "mother"             # 跟常駐助理（母 session）聊天的固定那一段（只有擁有者；不算一般對話、不會被擠掉）
@@ -62,6 +69,15 @@ class ChatStore:
         self.keep = keep
         self._lock = threading.RLock()
         self._cache: Dict[int, dict] = {}
+        self.media = None                  # chatmedia.ChatMedia（伺服器設）：訊息不見了，圖一起刪
+
+    def _forget(self, tg_id: int, messages) -> None:
+        if self.media is None:
+            return
+        from synox.web.chatmedia import image_ids
+        ids = image_ids(messages)
+        if ids:
+            self.media.drop(tg_id, ids)
 
     # ── 檔案 ─────────────────────────────────────────────────────────
 
@@ -144,6 +160,7 @@ class ChatStore:
             if chat is None or not chat.get("archived"):
                 return False
             self._data(tg_id)["chats"].remove(chat)
+            self._forget(tg_id, chat["messages"])
             self._save(tg_id)
             return True
 
@@ -166,6 +183,7 @@ class ChatStore:
                             key=lambda c: c.get("updated", 0))
             for old in normal[:max(0, len(normal) - MAX_CHATS)]:
                 data["chats"].remove(old)
+                self._forget(tg_id, old["messages"])
             self._save(tg_id)
             return chat
 
@@ -180,6 +198,7 @@ class ChatStore:
             if chat is not None and chat["messages"]:
                 data = self._data(tg_id)
                 data["rev"] = int(data.get("rev", 0)) + 1
+                self._forget(tg_id, chat["messages"])
                 chat["messages"] = []
                 self._save(tg_id)
 
@@ -189,7 +208,7 @@ class ChatStore:
 
     # ── 訊息 ─────────────────────────────────────────────────────────
 
-    def append(self, tg_id: int, chat_id: str, who: str, text: str, buttons=None, blocks=None) -> dict:
+    def append(self, tg_id: int, chat_id: str, who: str, text: str, buttons=None, blocks=None, reply_to=None, images=None) -> dict:
         with self._lock:
             data = self._data(tg_id)
             chat = self.get(tg_id, chat_id)
@@ -200,9 +219,15 @@ class ChatStore:
                    "buttons": buttons or [], "at": self._clock()}
             if blocks:
                 msg["blocks"] = list(blocks)
+            if reply_to:
+                msg["reply_to"] = dict(reply_to)
+            if images:
+                msg["images"] = [dict(i) for i in images]
             data["next_id"] = msg["id"] + 1
             chat["messages"].append(msg)
-            del chat["messages"][:max(0, len(chat["messages"]) - self.keep)]
+            gone = chat["messages"][:max(0, len(chat["messages"]) - self.keep)]
+            self._forget(tg_id, gone)
+            del chat["messages"][:len(gone)]
             chat["updated"] = msg["at"]
             if who == "me" and chat.get("title") == "新對話" and text.strip():
                 chat["title"] = text.strip().splitlines()[0][:24]
@@ -217,8 +242,23 @@ class ChatStore:
                         return chat, msg
             return None, None
 
+    def reply_target(self, tg_id: int, chat_id: str, message_id) -> Optional[dict]:
+        """要回覆的那一則：一定要在這個人的「這一段」對話裡、還沒刪掉；不是 → None。回那則訊息的複本。"""
+        if isinstance(message_id, bool) or not isinstance(message_id, (int, str)):
+            return None                  # True、1.5、清單…不收（int(True)＝1、int(1.9)＝1 會默默變成別則）
+        if isinstance(message_id, str):
+            if not message_id.strip().isdigit() or not message_id.strip().isascii():
+                return None
+            message_id = int(message_id.strip())
+        with self._lock:
+            chat, msg = self.find(tg_id, message_id)
+            if chat is None or chat["id"] != chat_id or msg.get("deleted"):
+                return None
+            return dict(msg)
+
     def edit(self, tg_id: int, message_id: int, text: Optional[str] = None, buttons=_KEEP_BUTTONS,
-             deleted: bool = False, blocks=None) -> bool:
+             deleted: bool = False, blocks=None, images=None) -> bool:
+        """images：None＝圖不變；清單（可以是空的）＝換成這幾張（舊的圖刪掉）。"""
         with self._lock:
             data = self._data(tg_id)
             _chat, msg = self.find(tg_id, message_id)
@@ -231,6 +271,11 @@ class ChatStore:
                     msg["blocks"] = list(blocks)
             if buttons is not _KEEP_BUTTONS:
                 msg["buttons"] = buttons or []
+            if images is not None or deleted:
+                self._forget(tg_id, [msg])
+                msg.pop("images", None)
+                if images and not deleted:
+                    msg["images"] = [dict(i) for i in images]
             if deleted:
                 msg["text"], msg["buttons"], msg["deleted"] = "（這則訊息已刪除）", [], True
                 msg.pop("blocks", None)
@@ -258,3 +303,13 @@ class ChatStore:
                     if b.get("data") == data:
                         return dict(msg)
             return None
+
+
+def excerpt(text: str, limit: int = EXCERPT_MAX) -> str:
+    """一則訊息的一小段：Markdown 的排版記號拿掉（字留著）、空白摺成一個空格，超過 limit 字就截掉加「…」。
+    跟 static/reply.js 的 excerpt 同一套規則。"""
+    text = re.sub(r"`{3,}[^\n]*", " ", str(text or ""))
+    text = re.sub(r"\*\*|`", "", text)
+    text = re.sub(r"^[ \t]*(?:#{1,6}|>|[-*+])[ \t]+", "", text, flags=re.MULTILINE)
+    flat = " ".join(text.split())
+    return flat if len(flat) <= limit else flat[:max(1, limit - 1)].rstrip() + "…"

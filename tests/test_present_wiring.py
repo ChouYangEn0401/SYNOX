@@ -174,6 +174,18 @@ def test_plain_text_urls_become_links_with_fake_dom():
     assert proc.returncode == 0, proc.stdout + proc.stderr
 
 
+def test_bot_markdown_without_blocks_renders_with_fake_dom():
+    """presentation 關著（預設）時 AI 回的是原樣 Markdown：網頁用 blocks.js 的 markdown 畫（粗體、程式碼區塊…，
+    含注入測試）；tests/js/test_markdown.js。"""
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("這台沒有 node：tests/js/test_markdown.js 沒跑")
+    env = {k: v for k, v in os.environ.items() if k in ("PATH", "SYSTEMROOT", "TEMP", "TMP")}
+    proc = subprocess.run([node, os.path.join(ROOT, "tests", "js", "test_markdown.js")], cwd=ROOT, env=env,
+                          capture_output=True, text=True, encoding="utf-8", timeout=60)
+    assert proc.returncode == 0, proc.stdout + proc.stderr
+
+
 def test_app_renders_plain_text_messages_through_link_text():
     with open(os.path.join(ROOT, "src", "synox", "web", "static", "app.html"), "r", encoding="utf-8") as f:
         html = f.read()
