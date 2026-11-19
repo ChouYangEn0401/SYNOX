@@ -276,7 +276,7 @@ python scripts/release.py bump alpha --planned # dev → 0.2.3-alpha.1（未發�
 |---|---|---|---|
 | **SYNOX 本體** | `pyproject.toml`＋`src/synox/__init__.py` | `dev`：`0.2.2-alpha.1`（未發佈）；最新 tag `v0.2.1-beta.2` | 這份文件；tag `vX.Y.Z`（SYNOX repo） |
 | **SDK**（給工具的介面合約） | 只寫在 `src/synox/sdk/author.py` 的 `SDK_VERSION`；`sdk/synox_sdk.py`、`sdk/pyproject.toml`（`synox-sdk` 套件）都讀它 | 0.2.5 | **跟著 SYNOX 一起發**（在 `sdk/` 裡），沒有自己的 tag／PyPI。不相容的改動升 MINOR（0.x），只加 API 升 PATCH（[sdk.md](sdk.md)「SDK 版本」） |
-| **工具庫 SYNOX_Libs** | 另一個 repo；`VERSION`、每個工具 pack.json 的 `version`；發佈頁的 `index.json`（名字、版本、`requires`、sha256）與 `tools-<版本>.zip` | `v0.3.0`（安裝程式帶 `tools-0.3.0.zip`）；**網頁工具庫還讀 `v0.2.0` 的 `index.json`** | 自己的 tag 與 release。SYNOX 的網頁工具庫固定讀 `OFFICIAL_INDEX_URL`（釘一個 tag；工具庫標成 Latest 之後改成 `latest/download`，[release-playbook.md](release-playbook.md) 第 2 節），安裝程式的 workflow 釘 `LIBS_TAG`／sha256 |
+| **工具庫 SYNOX_Libs** | 另一個 repo；`VERSION`、每個工具 pack.json 的 `version`；發佈頁的 `index.json`（名字、版本、`requires`、sha256）與 `tools-<版本>.zip` | `v0.3.1`（安裝程式帶 `tools-0.3.1.zip`；網頁工具庫讀 `v0.3.1` 的 `index.json`；都還是 pre-release） | 自己的 tag 與 release。SYNOX 的網頁工具庫固定讀 `OFFICIAL_INDEX_URL`（釘一個 tag；工具庫標成 Latest 之後改成 `latest/download`，[release-playbook.md](release-playbook.md) 第 2 節），安裝程式的 workflow 釘 `LIBS_TAG`／sha256 |
 
 **誰改了什麼、誰要跟著升**：
 

@@ -9,7 +9,7 @@
 | | 版本 | GitHub 發佈 | 會影響什麼 |
 |---|---|---|---|
 | SYNOX | `dev`：`0.2.2-alpha.1`（未發佈，下一個要發的；[versioning.md](versioning.md) §13） | tag `v0.2.1-alpha.1`、`v0.2.1-beta.1`（沒發佈）、`v0.2.1-beta.2`，都是預覽版；**沒有正式版** | `Update.bat`／「檢查更新」問 `releases/latest`：現在一律「還沒有正式版」 |
-| SYNOX_Libs（工具庫＋衣櫃） | `v0.3.0`（安裝程式帶它的 `tools-0.3.0.zip`） | 還沒有標成 Latest 的 | SYNOX 網頁工具庫的 `catalog.OFFICIAL_INDEX_URL` 還釘在 `v0.2.0`（第 2 節）、Libs 的 `LINK_MODE = "tag"` |
+| SYNOX_Libs（工具庫＋衣櫃） | `v0.3.1`（安裝程式帶它的 `tools-0.3.1.zip`） | `v0.2.0`、`v0.3.0`、`v0.3.1` 都是 pre-release，還沒有標成 Latest 的 | SYNOX 網頁工具庫的 `catalog.OFFICIAL_INDEX_URL` 釘在 `v0.3.1`（第 2 節）、Libs 的 `LINK_MODE = "tag"` |
 | 發佈簽章公鑰 | 沒有（`signing.RELEASE_PUBLIC_KEYS` 是空的） | — | 每一版都算「沒有簽章」：使用者要明確 `Update.bat -AllowUnsigned` |
 
 ---
@@ -124,8 +124,8 @@ python scripts/release.py bump alpha --planned     # dev → 下一版（未發�
 |---|---|---|
 | SYNOX「⬇ 下載」（介紹頁） | `docs/landing/page.html` | 指 `main` 的 ZIP：`main` 只在正式版動，所以永遠是最新正式版 |
 | `Update.bat`、「檢查更新」 | `update/check.py` 寫死 `api.github.com/repos/…/SYNOX/releases/latest` | GitHub 的 Latest 標記；**不用改程式**。只有標成 Latest、不是 pre-release、不是草稿的才算 |
-| 工具庫的公開頁、README | SYNOX_Libs `scripts/links.py` 的 `LINK_MODE` | `"tag"`（現在）：`releases/download/v0.2.0/<name>-<版本>.synoxpack`；`"latest"`：`releases/latest/download/<name>.synoxpack`（別名，網址不用再改） |
-| SYNOX 網頁的工具庫、`synox tools check／update`、每週檢查 | SYNOX `src/synox/packs/catalog.py` 的 `OFFICIAL_INDEX_URL` | 現在釘 `…/releases/download/v0.2.0/index.json`（見下） |
+| 工具庫的公開頁、README | SYNOX_Libs `scripts/links.py` 的 `LINK_MODE` | `"tag"`（現在）：`releases/download/v<VERSION>/<name>-<版本>.synoxpack`（現在是 `v0.3.1`）；`"latest"`：`releases/latest/download/<name>.synoxpack`（別名，網址不用再改） |
+| SYNOX 網頁的工具庫、`synox tools check／update`、每週檢查 | SYNOX `src/synox/packs/catalog.py` 的 `OFFICIAL_INDEX_URL` | 現在釘 `…/releases/download/v0.3.1/index.json`（見下） |
 | 安裝程式帶的工具庫 | `.github/workflows/build-installer.yml` 的 `LIBS_TAG`＋sha256 | 每次換工具庫 tag 都要改（[release-build.md](release-build.md)「釘住的版本與 sha256」） |
 
 **SYNOX 的 `OFFICIAL_INDEX_URL` 什麼時候要改**：SYNOX_Libs 有一個**不是 pre-release、標成 Latest** 的發佈之後
@@ -136,7 +136,7 @@ python scripts/release.py bump alpha --planned     # dev → 下一版（未發�
 2. `tests/test_pack_library.py::test_constants_are_the_fixed_official_source` 改成新網址（`_web()` 的假網路本來就是「latest → 轉到該版」）；
 3. [versioning.md](versioning.md) §11 的表格那一句；發 SYNOX 的下一版（已經裝了的人要更新 SYNOX 才會換網址）。
 
-之後工具庫每次發新 tag 都要**標成 Latest**，SYNOX 不用再改。還沒標 Latest 之前，工具庫換 tag（例如 `v0.3.0`）就要同時改
+之後工具庫每次發新 tag 都要**標成 Latest**，SYNOX 不用再改。還沒標 Latest 之前，工具庫換 tag（例如 `v0.3.1`）就要同時改
 `OFFICIAL_INDEX_URL` 到那個 tag 並發 SYNOX 新版——所以建議：工具庫下一次發佈就直接標成 Latest，SYNOX 同時改成 latest 網址。
 
 ---
