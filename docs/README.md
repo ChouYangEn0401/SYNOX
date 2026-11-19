@@ -41,6 +41,7 @@
 | [apps-api.md](apps-api.md) | 維護者 | 工具服務的介面合約（伺服器那一側現在實際的樣子；要改先改這份） |
 | [pack-format.md](pack-format.md) | 作者、維護者 | pack.json 每個欄位的完整規則、kind=cli／mcp／python 的細節、升級與環境建置 |
 | [themes.md](themes.md) | 外觀包作者、維護者 | 外觀（換裝）：顏色 token、可以換的位置（slot）、kind=theme 的格式、消毒規則、怎麼從品牌頁做一個外觀包 |
+| [data-migrations.md](data-migrations.md) | 作者、維護者 | 資料版本與自動升級：每份資料的版本號、逐版遷移步驟、工具的 `data_schema`（python `migrations.py`、cli `migrate` 子命令）、盤點表（ADR 0043） |
 | [tool-health.md](tool-health.md) | 作者、維護者 | 工具健康：失敗信封 v1、類別碼、隔離清單（同一根因連續失敗就暫停給 AI 用）；作者那側是 SDK 的 `fail()` |
 | [notifications.md](notifications.md) | 使用者、維護者 | 通知中心與提醒：通知送到哪些地方、鬧鐘、送達確認與重試、電腦提醒視窗與提醒哨兵、每一類通知的開關（[adr/0029](adr/0029-reminder-delivery-on-notify-hub.md)） |
 | [../packs/README.md](../packs/README.md) | 使用者 | SYNOX 出廠不帶工具：工具在 SYNOX 工具庫（SYNOX_Libs，另一個 repo），怎麼裝 |

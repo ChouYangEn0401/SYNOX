@@ -5,6 +5,18 @@
 **版本號**：擁有者 2026-11-19 決定下一版還是 alpha（內部測試），什麼時候發 beta 由擁有者決定。`0.2.1-beta.1`／`0.2.1-beta.2` 已經發過預覽版，照排序 alpha 不能退回 `0.2.1-alpha.N`，所以下一版是 `0.2.2-alpha.1`（`0.2.1-beta.2 < 0.2.2-alpha.1`，檢查更新會把它當成比較新的）。
 安裝檔改帶工具庫 `v0.3.0` 的 `tools-0.3.0.zip`（指紋固定在 build-installer.yml）。下面幾節是這一版會帶的改動。
 
+## 未發佈（branch feat/data-migrations：每份資料都有版本號，升級時逐版自動轉換；ADR 0043）
+
+#### 新增
+- **資料版本與自動升級**：SYNOX 升級後第一次啟動，舊的 `config.json`、`data/packs.lock` 會自動轉成新格式（先備份到
+  `data/_migration_backups/`，失敗就還原、SYNOX 不開並說原因）。`config.json` 多一個 `schema_version` 欄位。
+- **工具的資料跟著工具升級**：`pack.json` 新的選填欄位 `data_schema`（`version`、`files`）；python 工具放 `migrations.py`、
+  cli 工具實作 `migrate` 子命令。新版工具第一次執行前，SYNOX 把舊資料一版一版升上來；失敗＝全部還原、那個工具先不載入；
+  資料比工具新（退回舊版之後）＝不載入、不動資料。升級報告會寫「資料會從 N 升到 M」。安裝與 `synox-sdk check` 擋缺步驟的工具。
+- **看資料版本**：`python -m synox data status`、`python -m synox data upgrade --dry-run`、doctor 的「資料版本」一段、
+  網頁「設定 → 資料版本」卡片（只看）。
+- `synox-sdk init --kind python` 的範本帶 `data_schema` 與 `migrations.py` 說明。
+
 ## 未發佈（branch feat/sandbox-ready：帶警告的工具，SYNOX 說清楚這台實際能不能把它關起來；ADR 0041 §5.4 S1／S2／S4）
 
 #### 新增
