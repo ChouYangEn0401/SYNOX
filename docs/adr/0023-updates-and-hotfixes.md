@@ -3,6 +3,7 @@
 - 日期：2026-11-13
 - 狀態：**已採用**（擁有者 2026-11-14 核准：U1＝下一版 `0.2.1-beta.1`，U2～U9 照下面「建議」那一欄）。做了什麼、跟提案哪裡不一樣，見最後一節「**做了什麼（2026-11-14）**」；第 1～8 節是當初的提案，留著當紀錄。
 - 版本規則（號碼怎麼升、分支、tag、每版要有什麼）在 [../versioning.md](../versioning.md)，這份不重複。
+- 修訂：2026-11-19 U3 由 [0045](0045-update-channels.md) 修訂（卡片同時顯示正式版與測試版、更新通道設定，預設仍只提醒正式版）。
 - 相關：[0003](0003-distribution-git-clone-and-installer.md)（ZIP／git／安裝程式三種裝法）、[0022](0022-ecosystem-bridge-and-sandbox.md) R8（只在使用者按按鈕時連網、目的地寫死）、
   `src/synox/packs/catalog.py`（工具庫已經這樣做了）、`src/synox/packs/upgrade.py`（工具的升級與退回）。
 
@@ -131,7 +132,7 @@ SYNOX 公開了。在 `dev` 開發，合進 `main` 時升小版本；alpha＝內
 |---|---|---|
 | U1 | 第一次照規則發的版本號（**擁有者定了：`0.2.1-beta.1`**，「怎麼更新」第一行寫要重裝工具） | **0.3.0**（先 `0.3.0-beta.1`）：這批改動把內建工具搬到工具庫，更新的人要自己裝回工具，照規則是 MINOR。想從 0.2.1 開始也可以，但「怎麼更新」第一行要寫要重裝工具。不補打 `v0.2.0` |
 | U2 | 預設要不要每週檢查 | **預設不查**；安裝精靈最後問一次「每週幫我看一次有沒有新版（只看，不會自己裝）」，使用者勾了才開。代價：沒勾的人收不到安全更新的提醒 |
-| U3 | App 裡要不要能選 beta | **先不要**：beta 給願意幫忙的人從發佈頁手動下載；App 只看正式版 |
+| U3 | App 裡要不要能選 beta | **先不要**：beta 給願意幫忙的人從發佈頁手動下載；App 只看正式版。**2026-11-19 修訂（[0045](0045-update-channels.md)）**：卡片同時顯示最新正式版與最新測試版（各問一次 GitHub、SemVer 排序）；新增更新通道設定 `updates.channel`（卡片「也提醒我有測試版」、`synox update --channel`、`Update.bat -IncludePrerelease`）；**預設仍只提醒正式版** |
 | U4 | 誰來換檔 | **`Update.bat`＋`setup/update.ps1`**（跟 `Setup.bat` 同一套 PowerShell；Windows 不能讓正在跑的 Python 換掉自己） |
 | U5 | 簽 `release.json` | **要，且在開放 P3（真的換檔）之前做好**；私鑰由創始維護者保管、離線 |
 | U6 | SDK 上 PyPI | **先不要**；附 `synox_sdk.py` 在每版發佈頁。要上的話先註冊 `synox-sdk` 名字、帳號開 2FA、用 trusted publishing |
@@ -149,7 +150,7 @@ SYNOX 公開了。在 `dev` 開發，合進 `main` 時升小版本；alpha＝內
 
 | 決定 | 做法 | 在哪裡 |
 |---|---|---|
-| 檢查（P2） | `synox update --check`、網頁設定「💻 電腦與備份」→「SYNOX 更新」卡片的「檢查更新」。問 **GitHub API** `GET api.github.com/repos/ChouYangEn0401/SYNOX/releases/latest`（寫死；User-Agent `synox-update-check`，不帶版本）。latest 只會是正式版，程式再擋一次 pre-release／草稿／有尾巴的版本號（U3）。結果：新／一樣／裝的比較新／沒查成，加發佈說明「這版改了什麼」的前三條、`🔒 安全更新`／`強烈建議更新` → 紅字（U9）、「有 N 個工具可以更新」（工具庫清單，跟「載入工具清單」同一份）。失敗只回一句人話、記 log、不重試。代理照 urllib 預設（環境變數；Windows 的系統 Proxy），逾時 15 秒 | `src/synox/update/check.py`、`update/web_api.py`、`__main__.cmd_update` |
+| 檢查（P2） | `synox update --check`、網頁設定「💻 電腦與備份」→「SYNOX 更新」卡片的「檢查更新」。問 **GitHub API** `GET api.github.com/repos/ChouYangEn0401/SYNOX/releases/latest`（寫死；User-Agent `synox-update-check`，不帶版本）。latest 只會是正式版，程式再擋一次 pre-release／草稿／有尾巴的版本號（U3）。**2026-11-19 起**（[0045](0045-update-channels.md)）另外問 `releases?per_page=20` 找最新的測試版，兩行都顯示；「有新版」照通道。結果：新／一樣／裝的比較新／沒查成，加發佈說明「這版改了什麼」的前三條、`🔒 安全更新`／`強烈建議更新` → 紅字（U9）、「有 N 個工具可以更新」（工具庫清單，跟「載入工具清單」同一份）。失敗只回一句人話、記 log、不重試。代理照 urllib 預設（環境變數；Windows 的系統 Proxy），逾時 15 秒 | `src/synox/update/check.py`、`update/web_api.py`、`__main__.cmd_update` |
 | 每週檢查（U2） | `config.json` `"updates": {"check": "manual" \| "weekly"}`，**預設 manual**。安裝精靈完成頁一格「每週幫我看一次有沒有新版（只看，不會自己裝）」（預設不勾，12 種語言）、設定卡片同一個開關、`synox update --weekly on\|off`。用現有的 runtime 迴圈：任務 `system.update_check` 每 6 小時看一次，沒打開＝不連網，打開了、離上次 ≥ 7 天才查（`data/update_check.json`）。同一版只通知擁有者一次（`notify_owner`＝Telegram／Discord）；網頁上方的橫幅讀上次的結果（不連網），「知道了」＝這版不再顯示 | `update/__init__.py`、`check.weekly_tick`、`app.html` |
 | 換檔（U4） | `Update.bat` → `setup/update.ps1`（PowerShell 5.1、不要管理員）。**跟提案不一樣**：下載、SHA256、簽章、安全解壓都在 Python（`synox update --prepare`，`update/prepare.py`）——PS 5.1 沒有 Ed25519，而且這樣在 Linux 測得到；用的是現在裝著、已經信任的程式碼。順序：查 → 給人看 → 問一次 → prepare（ZIP、`SHA256SUMS.txt` 必須有；GitHub 的 asset digest 也要一樣；ZIP 只收 `SYNOX/` 底下、拒絕 `..`／絕對路徑／連結，`config.json`、`data`、`packs`… 就算在 ZIP 裡也不解；解完版本要對）→ 停 SYNOX → 舊的程式檔（KEEP 以外的全部）搬到 `_previous\<舊版>-<時間>\` → 新的搬進來 → 相依（requirements／pyproject 的相依行）變了才 `bootstrap.ps1 -Update` → 檢查 `synox.__version__` → 開 SYNOX；任何一步不過自動退回。`Update.bat` 自己會被換掉，所以 setlocal 之後只有一行 | `Update.bat`、`setup/update.ps1`、`setup/bootstrap.ps1 -Update` |
 | 永遠不動 | `config.json`、`data\`、`packs\`、`.venv\`、`runtime\`、`_previous\`、`lang.txt`、`installer-choices.json`、`.git`（`prepare.KEEP`＝update.ps1 的 `$Keep`，測試對） | |
