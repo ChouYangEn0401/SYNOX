@@ -1,7 +1,7 @@
 """SYNOX release helper: bump the version, check it is consistent, draft the GitHub release notes.
 
     python scripts/release.py show
-    python scripts/release.py bump patch|minor|alpha|beta|final [--next minor] [--date YYYY-MM-DD] [--dry-run]
+    python scripts/release.py bump patch|minor|alpha|beta|final|keep [--next patch|minor] [--planned] [--date YYYY-MM-DD] [--dry-run]
     python scripts/release.py check [--tag vX.Y.Z[-alpha.N|-beta.N]]
     python scripts/release.py notes [--version X.Y.Z[-alpha.N|-beta.N]] [--exe]
     python scripts/release.py sign --dist dist --key <私鑰檔> [--security] [--summary "…"] [--min-from X.Y.Z] [--rebuild-venv]
@@ -70,8 +70,12 @@ SHOWN_FILES: List[Tuple[str, "re.Pattern[str]"]] = [
 ]
 
 CHANGELOG = "CHANGELOG.md"
+# `## 0.2.1（2026-11-20）` = released that day; `## 0.2.2-alpha.1（未發佈）` = the planned next version (dev already
+# carries that number and the section collects what goes in; `bump keep` dates it on release day)
 RELEASED_RE = re.compile(r"^## v?(\d+\.\d+\.\d+(?:-(?:alpha|beta)\.\d+)?)"
-                         r"(?:\s*(?:（(\d{4}-\d{2}-\d{2})）|\((\d{4}-\d{2}-\d{2})\)|[—–-]\s*(\d{4}-\d{2}-\d{2})))?\s*$")
+                         r"(?:\s*(?:（(\d{4}-\d{2}-\d{2})）|\((\d{4}-\d{2}-\d{2})\)|[—–-]\s*(\d{4}-\d{2}-\d{2})"
+                         r"|（(未發佈)）))?\s*$")
+PLANNED = "未發佈"
 UNRELEASED_RE = re.compile(r"^## 未發佈(?:（(.*)）)?\s*$")
 PLACEHOLDER = "（還沒寫：這版改了什麼）"
 
@@ -112,25 +116,34 @@ class Version:
         return f"{core}-{self.label}.{self.n}" if self.label else core
 
 
-def next_version(current: Version, kind: str, next_minor: bool = False) -> Version:
-    """The version after `current` for bump <kind> (docs/versioning.md「怎麼升號」)."""
-    if next_minor and not (kind in ("alpha", "beta") and current.label is None):
-        raise ReleaseError("--next minor 只用在「從正式版開始下一輪 alpha／beta」")
+def next_version(current: Version, kind: str, next_minor: bool = False, next_patch: bool = False) -> Version:
+    """The version after `current` for bump <kind> (docs/versioning.md §3「怎麼升號」). The result always sorts after
+    `current` (SemVer). next_patch / next_minor (`--next patch|minor`) start a new round of previews on the next
+    number, also from a preview: 0.2.1-beta.2 + alpha --next patch = 0.2.2-alpha.1 (alpha cannot follow beta on the
+    same number, it would sort older)."""
+    if next_minor and next_patch:
+        raise ReleaseError("--next 只能選一個：patch 或 minor")
+    if (next_minor or next_patch) and kind not in ("alpha", "beta"):
+        raise ReleaseError("--next patch／minor 只用在「開始下一輪 alpha／beta」")
+    new_round = next_minor or next_patch or current.label is None
     fresh = Version(current.major, current.minor + 1, 0) if next_minor else \
         Version(current.major, current.minor, current.patch + 1)
     if kind in ("patch", "minor"):
         if current.label:
-            raise ReleaseError(f"現在是預覽版 {current}：要發它的正式版用 `bump final`，要下一個預覽版用 `bump alpha`／`bump beta`")
+            raise ReleaseError(f"現在是預覽版 {current}：要發它的正式版用 `bump final`，要下一個預覽版用 `bump alpha`／`bump beta`"
+                               "（換下一個號碼：加 `--next patch` 或 `--next minor`）")
         return fresh if kind == "patch" else Version(current.major, current.minor + 1, 0)
     if kind == "alpha":
-        if current.label is None:
+        if new_round:
             return Version(fresh.major, fresh.minor, fresh.patch, "alpha", 1)
         if current.label == "alpha":
             return Version(current.major, current.minor, current.patch, "alpha", current.n + 1)
-        raise ReleaseError(f"{current} 已經是 beta，不能退回 alpha（要再修就 `bump beta`）")
+        raise ReleaseError(f"{current} 已經是 beta，同一號不能退回 alpha（會排在 beta 前面、更新檢查當成舊版）："
+                           f"要再修就 `bump beta`；真的要回到內部測試就 `bump alpha --next patch`"
+                           f"（→ {current.major}.{current.minor}.{current.patch + 1}-alpha.1）")
+    if kind == "beta" and new_round:
+        return Version(fresh.major, fresh.minor, fresh.patch, "beta", 1)
     if kind == "beta":
-        if current.label is None:
-            return Version(fresh.major, fresh.minor, fresh.patch, "beta", 1)
         if current.label == "alpha":
             return Version(current.major, current.minor, current.patch, "beta", 1)
         return Version(current.major, current.minor, current.patch, "beta", current.n + 1)
@@ -201,6 +214,12 @@ def _released(line: str) -> Optional[Tuple[str, str]]:
     return m.group(1), next((d for d in m.group(2, 3, 4) if d), "")
 
 
+def _planned(line: str) -> bool:
+    """`## X.Y.Z（未發佈）`: the planned next version, not released yet."""
+    m = RELEASED_RE.match(line.rstrip("\r\n"))
+    return bool(m and m.group(5))
+
+
 def pending_span(lines: List[str]) -> Tuple[int, int]:
     """[start, end) of the block at the top that is not released yet: from the first `## ` heading up to the
     first version heading. start == end when there is nothing pending."""
@@ -212,20 +231,47 @@ def pending_span(lines: List[str]) -> Tuple[int, int]:
 
 
 def _demote(block: List[str]) -> List[str]:
-    """`## 未發佈（標題）` → `### 標題`；every other heading one level down. Fenced code is left alone."""
+    """`## 未發佈（標題）` → `### 標題`; the headings inside it move so the top one sits right below it (`#### 新增`,
+    whether the branch wrote `### 新增` or `#### 新增`); a bare 「## 未發佈」 heading disappears (its headings start
+    at `###`); any other `##`–`#####` heading goes one level down. Fenced code is left alone."""
+    heading = re.compile(r"^(#{2,6}) ")
+    # pass 1: for each 未發佈 section, the shallowest heading inside it
+    shift: Dict[int, int] = {}
+    fence, sect, levels = False, None, []          # sect = (index of the 未發佈 heading, target level of its top heading)
+
+    def close():
+        if sect is not None and levels:
+            shift[sect[0]] = sect[1] - min(levels)
+    for i, ln in enumerate(block):
+        if ln.lstrip().startswith("```"):
+            fence = not fence
+        if fence or not ln.startswith("#"):
+            continue
+        m = UNRELEASED_RE.match(ln.rstrip("\r\n"))
+        if m or ln.startswith("## "):
+            close()
+            sect, levels = ((i, 4 if m.group(1) else 3) if m else None), []
+        elif heading.match(ln) and sect is not None:
+            levels.append(len(heading.match(ln).group(1)))
+    close()
     out: List[str] = []
-    fence = False
-    for ln in block:
+    fence, delta = False, 1
+    for i, ln in enumerate(block):
         if ln.lstrip().startswith("```"):
             fence = not fence
         if not fence and ln.startswith("#"):
             m = UNRELEASED_RE.match(ln.rstrip("\r\n"))
             if m:
+                delta = shift.get(i, 1)
                 if m.group(1):
                     out.append(f"### {m.group(1)}\n")
                 continue                      # a bare 「## 未發佈」 heading just disappears into the version section
-            if re.match(r"^#{2,5} ", ln):
+            if ln.startswith("## "):
+                delta = 1
                 ln = "#" + ln
+            elif heading.match(ln):
+                level = min(6, max(3, len(heading.match(ln).group(1)) + delta))
+                ln = "#" * level + ln[len(heading.match(ln).group(1)):]
         out.append(ln)
     while out and not out[-1].strip():
         out.pop()
@@ -244,23 +290,39 @@ def sections(lines: List[str]) -> Dict[str, Tuple[int, int, str]]:
     return found
 
 
-def stub_changelog(text: str, version: Version, date: str) -> str:
-    """CHANGELOG.md with the pending 「未發佈」 sections gathered under `## <version>（<date>）`."""
+def stub_changelog(text: str, version: Version, date: str, replace: str = "", planned: bool = False) -> str:
+    """CHANGELOG.md with the pending 「未發佈」 sections gathered under `## <version>（<date>）`.
+    replace: the version before the bump; when its section is the planned one (`## X（未發佈）`, never released) that
+    section becomes the new one (its text stays; the pending sections go on top of it). planned: the heading is
+    `## <version>（未發佈）` (dev carries the next version) instead of a date."""
     lines = text.splitlines(keepends=True)
-    if str(version) in sections(lines):
+    found = sections(lines)
+    reuse = found.get(replace) if replace in found and _planned(lines[found[replace][0]]) else None
+    if str(version) in found and not (reuse and replace == str(version)):
         raise ReleaseError(f"CHANGELOG.md 已經有 {version} 這一節")
     start, end = pending_span(lines)
     body = _demote(lines[start:end])
     intro: List[str] = []
     if version.label is None:
-        pre = sorted((v for v in sections(lines) if v.startswith(str(version) + "-")), key=_pre_key)
+        pre = sorted((v for v in found if v.startswith(str(version) + "-") and not _planned(lines[found[v][0]])),
+                     key=_pre_key)
         if pre:
             intro = [f"{version} 的正式版，也包含 {'、'.join(pre)} 的改動（見下面那幾節）。\n", "\n"]
-    if not body:
-        body = [f"- {PLACEHOLDER}\n"]
-    block = [f"## {version}（{date}）\n", "\n"] + intro + body + ["\n", "\n"]
+    heading = f"## {version}（{PLANNED if planned else date}）\n"
     if start == len(lines) and lines and not lines[-1].endswith("\n"):
         lines[-1] += "\n"
+    if reuse:
+        i, stop, _date = reuse
+        kept = lines[i + 1:stop]
+        while kept and not kept[0].strip():
+            kept.pop(0)
+        if not body and not kept:
+            body = [f"- {PLACEHOLDER}\n"]
+        block = [heading, "\n"] + intro + (body + ["\n", "\n"] if body else []) + kept
+        return "".join(lines[:min(start, i)] + block + lines[stop:])
+    if not body:
+        body = [f"- {PLACEHOLDER}\n"]
+    block = [heading, "\n"] + intro + body + ["\n", "\n"]
     return "".join(lines[:start] + block + lines[end:])
 
 
@@ -285,10 +347,13 @@ def _diff(rel: str, old: str, new: str) -> str:
                                         fromfile="a/" + rel, tofile="b/" + rel))
 
 
-def bump(root: str, kind: str, date: str = "", next_minor: bool = False, dry_run: bool = False) -> Tuple[Version, str]:
-    """Returns (new version, unified diff). Writes the files unless dry_run; never commits."""
+def bump(root: str, kind: str, date: str = "", next_minor: bool = False, dry_run: bool = False,
+         next_patch: bool = False, planned: bool = False) -> Tuple[Version, str]:
+    """Returns (new version, unified diff). Writes the files unless dry_run; never commits.
+    kind "keep": the number stays (dev already carries it in `## X（未發佈）`); only CHANGELOG.md changes.
+    planned: the new section is `## X（未發佈）` (moving dev to the next planned version right after a release)."""
     old = current_version(root)
-    new = next_version(old, kind, next_minor)
+    new = old if kind == "keep" else next_version(old, kind, next_minor, next_patch)
     date = date or _dt.date.today().isoformat()
     if not re.match(r"^\d{4}-\d{2}-\d{2}$", date):
         raise ReleaseError(f"日期 {date!r} 要寫成 YYYY-MM-DD")
@@ -299,7 +364,7 @@ def bump(root: str, kind: str, date: str = "", next_minor: bool = False, dry_run
     log = _read(root, CHANGELOG)
     if log is None:
         raise ReleaseError("找不到 CHANGELOG.md")
-    changes[CHANGELOG] = (log, stub_changelog(log, new, date))
+    changes[CHANGELOG] = (log, stub_changelog(log, new, date, replace=str(old), planned=planned))
     diff = "".join(_diff(rel, a, b) for rel, (a, b) in changes.items())
     if not dry_run:
         for rel, (_a, b) in changes.items():
@@ -353,7 +418,9 @@ def check(root: str, tag: str = "") -> Tuple[List[str], List[str], List[str]]:
         else:
             i, end, date = found_sections[version]
             body = "".join(lines[i + 1:end])
-            if not date:
+            if not date and _planned(lines[i]):
+                (bad if tag else warn).append(f"CHANGELOG.md 的 {version} 還標著「未發佈」，沒有日期（發版那天 `bump keep` 會寫上）")
+            elif not date:
                 (bad if tag else warn).append(f"CHANGELOG.md 的 {version} 那一節沒有日期（要寫成 `## {version}（YYYY-MM-DD）`）")
             if PLACEHOLDER in body:
                 (bad if tag else warn).append(f"CHANGELOG.md 的 {version} 那一節還沒寫改了什麼")
@@ -600,8 +667,11 @@ def main(argv: Optional[List[str]] = None) -> int:
     sub = parser.add_subparsers(dest="cmd", required=True)
     sub.add_parser("show", help="print the current version")
     b = sub.add_parser("bump", help="next version + CHANGELOG section (prints the diff, never commits)")
-    b.add_argument("kind", choices=["patch", "minor", "alpha", "beta", "final"])
-    b.add_argument("--next", choices=["minor"], default="", help="alpha/beta from a stable version: of the next minor")
+    b.add_argument("kind", choices=["patch", "minor", "alpha", "beta", "final", "keep"])
+    b.add_argument("--next", choices=["patch", "minor"], default="",
+                   help="start a new round of alpha/beta on the next patch/minor number (also from a preview)")
+    b.add_argument("--planned", action="store_true",
+                   help="write the section as `## X（未發佈）` (dev moves to the next planned version)")
     b.add_argument("--date", default="", help="YYYY-MM-DD (default: today)")
     b.add_argument("--dry-run", action="store_true", help="only print the diff")
     c = sub.add_parser("check", help="version consistent, CHANGELOG section, tag format")
@@ -629,7 +699,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 0
         if args.cmd == "bump":
             old = current_version(args.root)
-            new, diff = bump(args.root, args.kind, args.date, args.next == "minor", args.dry_run)
+            new, diff = bump(args.root, args.kind, args.date, args.next == "minor", args.dry_run,
+                             next_patch=args.next == "patch", planned=args.planned)
             print(diff, end="")
             print(f"\n{old} → {new}" + ("（--dry-run：沒有改任何檔）" if args.dry_run else "（檔案已改，還沒 commit）"),
                   file=sys.stderr)

@@ -1266,6 +1266,7 @@
 <script nonce="{{NONCE}}">
 /*{{INCLUDE:blocks.js}}*/
 /*{{INCLUDE:reply.js}}*/
+/*{{INCLUDE:semver.js}}*/
 /*{{INCLUDE:attach.js}}*/
 (function () {
   "use strict";
@@ -2091,7 +2092,7 @@
     clear(box);
     wdThemes.forEach(function (t) {
       var have = wdInstalled(t.name);
-      if (have) { t.installed = have.version || t.installed || "?"; t.newer = verNewer(t.version, t.installed); }
+      if (have) { t.installed = have.version || t.installed || "?"; t.newer = !t.blocked && verNewer(t.version, t.installed); }
       box.appendChild(wdCard(t));
     });
   }
@@ -3458,15 +3459,8 @@
   var libQueue = null;                  // 全部更新：{ names, i, current }
   var LINK_RE = /^https:\/\/[^\s]+$/;
   function fill(t, o) { return t.replace(/\{(\w+)\}/g, function (_m, k) { return String(o[k]); }); }
-  function verKey(v) {                  // "1.2.3-beta" → [1, 2, 3, 0]；正式版最後一位是 1（比同號的預覽版新）
-    var m = /^(\d+)\.(\d+)\.(\d+)(-.*)?$/.exec(String(v || ""));
-    return m ? [+m[1], +m[2], +m[3], m[4] ? 0 : 1] : null;
-  }
-  function verNewer(a, b) {             // a 比 b 新？
-    var x = verKey(a), y = verKey(b);
-    if (!x || !y) { return false; }
-    for (var i = 0; i < 4; i++) { if (x[i] !== y[i]) { return x[i] > y[i]; } }
-    return false;
+  function verNewer(a, b) {             // a 比 b 新？SemVer（static/semver.js，跟伺服器 packs/upgrade.semver_key 同一套）
+    return SynoxSemver.newer(a, b);
   }
   function libFail(text) {
     $("lib-error-text").textContent = text || "";
@@ -3576,7 +3570,7 @@
     libUpdateBar();
     libTools.forEach(function (t) {
       t.installed = Object.prototype.hasOwnProperty.call(have, t.name) ? have[t.name] : "";
-      t.newer = !!t.installed && verNewer(t.version, t.installed);
+      t.newer = !!t.installed && !t.blocked && verNewer(t.version, t.installed);   // blocked：這台的 SYNOX 用不了那一版
     });
     renderLib();
   }

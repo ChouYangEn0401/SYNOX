@@ -4,12 +4,12 @@
 自己更新的設計在 [adr/0023](adr/0023-updates-and-hotfixes.md)；安裝程式的建置與簽章金鑰在 [release-build.md](release-build.md)。
 這一頁只講「實際怎麼發、怎麼先測、出事怎麼退」，指令可以照抄。
 
-現況（2026-11-14）：
+現況（2026-11-19；以 `gh release list` 為準）：
 
 | | 版本 | GitHub 發佈 | 會影響什麼 |
 |---|---|---|---|
-| SYNOX | `0.2.0`（`pyproject.toml`、`src/synox/__init__.py`） | **一個都沒有**；下一版定為 `0.2.1-beta.1`（ADR 0023 U1） | `Update.bat`／「檢查更新」問 `releases/latest`：現在一律「還沒有正式版」 |
-| SYNOX_Libs（工具庫＋衣櫃） | `v0.2.0` | 一個，**標成 pre-release** | `releases/latest/download/…` 會 404，所以 SYNOX 的 `catalog.OFFICIAL_INDEX_URL` 釘在 `v0.2.0`、Libs 的 `LINK_MODE = "tag"` |
+| SYNOX | `dev`：`0.2.2-alpha.1`（未發佈，下一個要發的；[versioning.md](versioning.md) §13） | tag `v0.2.1-alpha.1`、`v0.2.1-beta.1`（沒發佈）、`v0.2.1-beta.2`，都是預覽版；**沒有正式版** | `Update.bat`／「檢查更新」問 `releases/latest`：現在一律「還沒有正式版」 |
+| SYNOX_Libs（工具庫＋衣櫃） | `v0.3.0`（安裝程式帶它的 `tools-0.3.0.zip`） | 還沒有標成 Latest 的 | SYNOX 網頁工具庫的 `catalog.OFFICIAL_INDEX_URL` 還釘在 `v0.2.0`（第 2 節）、Libs 的 `LINK_MODE = "tag"` |
 | 發佈簽章公鑰 | 沒有（`signing.RELEASE_PUBLIC_KEYS` 是空的） | — | 每一版都算「沒有簽章」：使用者要明確 `Update.bat -AllowUnsigned` |
 
 ---
@@ -49,46 +49,47 @@ beta 測試者裝 beta 也用同一招：從 pre-release 頁下載 `SYNOX-<版�
 ```bash
 REPO=ChouYangEn0401/SYNOX
 git switch dev && git pull
-git switch -c release/0.2.1
+git switch -c release/0.2.2
 
-# 1. 升號＋CHANGELOG：bump 印 diff、不 commit。補「這版重點」一句；0.2.1 的「怎麼更新」第一行寫要重裝工具（versioning.md §7）
-python scripts/release.py bump beta                   # 0.2.0 → 0.2.1-beta.1（要直接正式版：bump patch）
-git commit -am "release: 0.2.1-beta.1"
+# 1. 升號＋CHANGELOG：bump 印 diff、不 commit。補「這版重點」一句；「怎麼更新」第一行寫要重裝工具（從 0.2.0 來的人，versioning.md §13）
+python scripts/release.py bump keep                   # dev 已經是 0.2.2-alpha.1（未發佈）：號碼不變、寫日期（換成 beta：bump beta）
+git commit -am "release: 0.2.2-alpha.1"
 
 # 2. 關卡（全部要過，見第 4 節）
-python scripts/release.py check --tag v0.2.1-beta.1
+python scripts/release.py check --tag v0.2.2-alpha.1
+python scripts/check_version_consistency.py --tag v0.2.2-alpha.1   # CHANGELOG 最上面、安裝器、文件、比每個 tag 新
 PYTHONPATH=$PWD/src python -m pytest -q -p no:cacheprovider     # Linux 基準線：14 個已知失敗，不能多
 python scripts/prepublish_check.py --worktree-only
 
 # 3. tag（有註解、不移動、不刪）→ 推 → build-installer.yml 建「草稿」release＋exe（失敗也可以照發，只是沒有 exe）
-git tag -a v0.2.1-beta.1 -m "SYNOX 0.2.1-beta.1"
-git push origin release/0.2.1 v0.2.1-beta.1
+git tag -a v0.2.2-alpha.1 -m "SYNOX 0.2.2-alpha.1"
+git push origin release/0.2.2 v0.2.2-alpha.1
 
 # 4. 附檔：ZIP（帶工具庫）＋ SHA256SUMS.txt ＋ release.json(.sig)
 python scripts/make_zip.py --tools <SYNOX_Libs>/dist
-gh release download v0.2.1-beta.1 -R $REPO -p 'SYNOX-Setup-*.exe' -D dist || true   # 有 exe 就一起簽進去
+gh release download v0.2.2-alpha.1 -R $REPO -p 'SYNOX-Setup-*.exe' -D dist || true   # 有 exe 就一起簽進去
 python scripts/release.py sign --dist dist --key <repo 以外的私鑰檔> [--security] [--summary "一句白話"]
 #   還沒有私鑰（創始維護者還沒 keygen）：照樣要 SHA256SUMS.txt。沒有 sign 時自己做：
-#   (cd dist && sha256sum SYNOX-0.2.1-beta.1.zip > SHA256SUMS.txt)
-#   Windows：certutil -hashfile dist\SYNOX-0.2.1-beta.1.zip SHA256
+#   (cd dist && sha256sum SYNOX-0.2.2-alpha.1.zip > SHA256SUMS.txt)
+#   Windows：certutil -hashfile dist\SYNOX-0.2.2-alpha.1.zip SHA256
 
 # 5. 說明：草稿 → 改成白話（這版改了什麼／要不要更新／怎麼更新）
-python scripts/release.py notes --version 0.2.1-beta.1 [--exe] > dist/notes.md   # 改寫 dist/notes.md
+python scripts/release.py notes --version 0.2.2-alpha.1 [--exe] > dist/notes.md   # 改寫 dist/notes.md
 
 # 6. 發佈成 pre-release（草稿已經在：上傳＋改說明＋公開；沒有草稿：gh release create）
-gh release upload v0.2.1-beta.1 -R $REPO --clobber dist/SYNOX-0.2.1-beta.1.zip dist/SHA256SUMS.txt \
+gh release upload v0.2.2-alpha.1 -R $REPO --clobber dist/SYNOX-0.2.2-alpha.1.zip dist/SHA256SUMS.txt \
     dist/release.json dist/release.json.sig          # 沒有簽章就不傳後兩個
-gh release edit v0.2.1-beta.1 -R $REPO --title "SYNOX 0.2.1-beta.1" --notes-file dist/notes.md \
+gh release edit v0.2.2-alpha.1 -R $REPO --title "SYNOX 0.2.2-alpha.1" --notes-file dist/notes.md \
     --prerelease --draft=false
-#   沒有草稿時：gh release create v0.2.1-beta.1 -R $REPO --verify-tag --prerelease \
-#       --title "SYNOX 0.2.1-beta.1" --notes-file dist/notes.md dist/SYNOX-0.2.1-beta.1.zip dist/SHA256SUMS.txt
+#   沒有草稿時：gh release create v0.2.2-alpha.1 -R $REPO --verify-tag --prerelease \
+#       --title "SYNOX 0.2.2-alpha.1" --notes-file dist/notes.md dist/SYNOX-0.2.2-alpha.1.zip dist/SHA256SUMS.txt
 ```
 
 驗 pre-release（不會影響一般人：`releases/latest` 不含 pre-release）：
 
 ```bash
-gh release view v0.2.1-beta.1 -R $REPO --json isPrerelease,isDraft,assets -q '{pre:.isPrerelease,draft:.isDraft,assets:[.assets[].name]}'
-python -m synox update --check --include-prerelease      # 要看到 0.2.1-beta.1（預覽版）
+gh release view v0.2.2-alpha.1 -R $REPO --json isPrerelease,isDraft,assets -q '{pre:.isPrerelease,draft:.isDraft,assets:[.assets[].name]}'
+python -m synox update --check --include-prerelease      # 要看到 0.2.2-alpha.1（預覽版）
 python -m synox update --check                           # 一般人：還是「還沒有正式版」（或舊的正式版）
 ```
 
@@ -97,17 +98,19 @@ python -m synox update --check                           # 一般人：還是「
 ### 正式版
 
 ```bash
-python scripts/release.py bump final               # 0.2.1-beta.N → 0.2.1；commit
-python scripts/release.py check --tag v0.2.1
-git switch main && git merge --no-ff release/0.2.1
-git tag -a v0.2.1 -m "SYNOX 0.2.1" && git push origin main v0.2.1
+python scripts/release.py bump final               # 0.2.2-beta.N → 0.2.2；commit
+python scripts/release.py check --tag v0.2.2
+python scripts/check_version_consistency.py --tag v0.2.2
+git switch main && git merge --no-ff release/0.2.2
+git tag -a v0.2.2 -m "SYNOX 0.2.2" && git push origin main v0.2.2
 #   → 等 build-installer.yml 的草稿；照上面第 4～6 步做附檔與說明，但先「pre-release」發佈、自己再驗一次附檔：
-gh release edit v0.2.1 -R $REPO --title "SYNOX 0.2.1" --notes-file dist/notes.md --prerelease --draft=false
-gh release download v0.2.1 -R $REPO -p 'SYNOX-*.zip' -p SHA256SUMS.txt -D /tmp/check && (cd /tmp/check && sha256sum -c SHA256SUMS.txt)
+gh release edit v0.2.2 -R $REPO --title "SYNOX 0.2.2" --notes-file dist/notes.md --prerelease --draft=false
+gh release download v0.2.2 -R $REPO -p 'SYNOX-*.zip' -p SHA256SUMS.txt -D /tmp/check && (cd /tmp/check && sha256sum -c SHA256SUMS.txt)
 # 驗過了才標成 Latest（這一刻起，每個人的「檢查更新」與 Update.bat 都會看到它）
-gh release edit v0.2.1 -R $REPO --prerelease=false --latest
-gh api repos/$REPO/releases/latest -q .tag_name       # 要是 v0.2.1
-git switch dev && git merge main && git push origin dev
+gh release edit v0.2.2 -R $REPO --prerelease=false --latest
+gh api repos/$REPO/releases/latest -q .tag_name       # 要是 v0.2.2
+git switch dev && git merge --no-ff release/0.2.2
+python scripts/release.py bump alpha --planned     # dev → 下一版（未發佈），versioning.md §3；commit、push
 ```
 
 標成 Latest 之後：真的在 Windows 上從上一個正式版按一次 `Update.bat`（不是 `-FromZip`）；介紹頁的版本徽章、
@@ -131,7 +134,7 @@ git switch dev && git merge main && git push origin dev
 1. `src/synox/packs/catalog.py`：`OFFICIAL_INDEX_URL = "https://github.com/ChouYangEn0401/SYNOX_Libs/releases/latest/download/index.json"`，
    拿掉上面那段「先釘在這一版」的註解；
 2. `tests/test_pack_library.py::test_constants_are_the_fixed_official_source` 改成新網址（`_web()` 的假網路本來就是「latest → 轉到該版」）；
-3. [versioning.md](versioning.md) §5 的表格那一句；發 SYNOX 的下一版（已經裝了的人要更新 SYNOX 才會換網址）。
+3. [versioning.md](versioning.md) §11 的表格那一句；發 SYNOX 的下一版（已經裝了的人要更新 SYNOX 才會換網址）。
 
 之後工具庫每次發新 tag 都要**標成 Latest**，SYNOX 不用再改。還沒標 Latest 之前，工具庫換 tag（例如 `v0.3.0`）就要同時改
 `OFFICIAL_INDEX_URL` 到那個 tag 並發 SYNOX 新版——所以建議：工具庫下一次發佈就直接標成 Latest，SYNOX 同時改成 latest 網址。
@@ -170,6 +173,7 @@ git switch dev && git merge main && git push origin dev
 | 關卡 | 什麼時候跑 | 擋什麼 |
 |---|---|---|
 | `release.py check --tag vX` | 打 tag 之前 | 版本在每個檔都一樣、SDK 單檔版跟正本一樣、CHANGELOG 有這一節而且有日期、沒剩「未發佈」、tag＝`v`＋版本 |
+| `check_version_consistency.py --tag vX` | 打 tag 之前；`build-installer.yml` 推 tag 時、`prepublish-check.yml` 每次 push 也跑 | `__version__`＝`pyproject`、CHANGELOG 最上面就是這一版、安裝器沒寫死版本、文件的「目前版本」、**比每個本機 tag 新（SemVer）、號碼沒重用** |
 | 全部測試（`pytest`） | 打 tag 之前 | Linux 基準線 14 個已知失敗，不能多；包含 Update.bat／update.ps1 的靜態檢查（Windows 上沒跑過） |
 | `prepublish_check.py --worktree-only` | 打 tag 之前；workflow 也跑 | 密鑰、本機路徑、個人信箱進了 repo |
 | `make_zip.py` | 做附檔 | 只帶 git 追蹤的檔，永遠不帶 `.venv`、`data`、`config.json`、`_previous`、`tests/`…（`test_release_layout.py` 對三份清單） |
@@ -191,7 +195,7 @@ git switch dev && git merge main && git push origin dev
   gh release edit v0.2.1 -R ChouYangEn0401/SYNOX --prerelease          # Update.bat 不再提供它
   gh release edit v0.2.0 -R ChouYangEn0401/SYNOX --latest              # 上一個好的正式版當 Latest（有的話）
   ```
-  然後修好發下一個 patch（`hotfix/0.2.2`，[versioning.md](versioning.md) §2），說明寫清楚；安全問題標題加「🔒 安全更新」、
+  然後修好發下一個 patch（`hotfix/0.2.3`，[versioning.md](versioning.md) §8；版本號不重用、tag 不動，§5），說明寫清楚；安全問題標題加「🔒 安全更新」、
   說明第一句「**強烈建議更新**」、`release.py sign --security`。
 - **工具庫的 `index.json` 換壞了**：把第 3 節備份的 `index-backup-<時間>.json` 改名回 `index.json`，`gh release upload "$TAG" --clobber` 換回去。
 - **附檔傳錯**：`gh release upload --clobber` 換掉；`release.json` 一定要重簽（sha256 變了），`SHA256SUMS.txt` 也一起換。
@@ -208,10 +212,10 @@ git switch dev && git merge main && git push origin dev
 □ git remote -v 是 ChouYangEn0401/SYNOX；gh auth status 有寫入權限；工作樹乾淨
 □ 現況：gh release list -R ChouYangEn0401/SYNOX；gh release list -R ChouYangEn0401/SYNOX_Libs
        gh api repos/ChouYangEn0401/SYNOX/releases/latest -q .tag_name（404＝還沒有正式版）
-□ 擁有者給了版本號（例：0.2.1-beta.1）與要不要帶新的工具庫
+□ 擁有者給了版本號（例：0.2.2-alpha.1；規則見 versioning.md §3）與要不要帶新的工具庫
 □ （有新工具庫）SYNOX_Libs 照它的 RELEASING.md 發好；記下 tag，dist/ 在本機
 □ release/<版本> 分支；release.py bump …；CHANGELOG 補白話重點；commit
-□ release.py check --tag v<版本> 全綠；pytest 只有 14 個已知失敗；prepublish_check.py --worktree-only 綠
+□ release.py check --tag v<版本> 與 check_version_consistency.py --tag v<版本> 全綠；pytest 只有 14 個已知失敗；prepublish_check.py --worktree-only 綠
 □ （先測）make_update_testkit.py 做測試包，請擁有者在 Windows 照 README 走一次，回報 OK 才往下
 □ git tag -a v<版本> -m "SYNOX <版本>"；git push origin <分支> v<版本>
 □ gh run list -R ChouYangEn0401/SYNOX --workflow build-installer.yml -L 1（等它；失敗記下來，照樣可以發）
@@ -220,6 +224,6 @@ git switch dev && git merge main && git push origin dev
 □ gh release upload … --clobber；gh release edit … --prerelease --draft=false（一定先 pre-release）
 □ 驗：gh release view … --json assets；下載回來 sha256sum -c；synox update --check --include-prerelease 看得到
 □ 正式版：擁有者說可以，才 gh release edit v<版本> --prerelease=false --latest；gh api …/releases/latest 確認
-□ 合回 dev；（工具庫標了 Latest 的話）改 OFFICIAL_INDEX_URL（第 2 節）
+□ 合回 dev（--no-ff）並 bump … --planned；（工具庫標了 Latest 的話）改 OFFICIAL_INDEX_URL（第 2 節）
 □ 回報：tag、release 網址、附檔與 sha256、哪些關卡過了、哪些沒在 Windows 上試過
 ```

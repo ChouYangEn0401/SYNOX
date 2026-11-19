@@ -100,6 +100,16 @@ jobs:
           $PSNativeCommandUseErrorActionPreference = $true
           & $env:PY scripts/prepublish_check.py --worktree-only
 
+      - name: Version consistency (pyproject, __version__, CHANGELOG top, installer, docs; newer than every tag)
+        env:
+          PY: ${{ steps.py.outputs.python-path }}
+          TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $cmd = @('scripts/check_version_consistency.py')
+          if ($env:TAG) { $cmd += @('--tag', $env:TAG) }
+          & $env:PY @cmd
+
       - name: Static check of the installer script (12 languages, pages, tasks, texts)
         env:
           PY: ${{ steps.py.outputs.python-path }}

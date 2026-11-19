@@ -272,3 +272,122 @@ def test_rules_doc_names_the_same_labels_and_commands():
     for word in ("alpha", "beta", "scripts/release.py", "bump", "check --tag", "notes", "requires.synox", "requires.sdk"):
         assert word in doc, word
     assert re.search(r"v\d+\.\d+\.\d+-beta\.\d+", doc)
+
+
+# ---- 升級矩陣：bump 出來的號碼一定排在現在的後面（docs/versioning.md §3） ------------------------------
+
+@pytest.mark.parametrize("current,kind,nxt,expected", [
+    ("0.2.1-beta.2", "alpha", "patch", "0.2.2-alpha.1"),   # 發過 beta 還要回內部測試＝下一號的 alpha（0.2.1-beta.2 < 0.2.2-alpha.1）
+    ("0.2.1-beta.2", "alpha", "minor", "0.3.0-alpha.1"),
+    ("0.2.1-beta.2", "beta", "patch", "0.2.2-beta.1"),
+    ("0.2.1-alpha.3", "alpha", "patch", "0.2.2-alpha.1"),
+    ("0.2.1-beta.2", "beta", "", "0.2.1-beta.3"),
+    ("0.2.1-beta.2", "final", "", "0.2.1"),
+    ("0.2.2-alpha.1", "alpha", "", "0.2.2-alpha.2"),
+    ("0.2.2-alpha.2", "beta", "", "0.2.2-beta.1"),
+    ("0.2.2", "alpha", "", "0.2.3-alpha.1"),
+    ("0.2.2", "alpha", "patch", "0.2.3-alpha.1"),
+    ("0.2.2", "beta", "", "0.2.3-beta.1"),
+    ("0.2.2", "patch", "", "0.2.3"),
+    ("0.2.9", "patch", "", "0.2.10"),
+])
+def test_next_version_always_sorts_after(current, kind, nxt, expected):
+    from synox.packs.upgrade import semver_key
+    new = release.next_version(V(current), kind, next_minor=nxt == "minor", next_patch=nxt == "patch")
+    assert str(new) == expected
+    assert semver_key(expected) > semver_key(current)
+
+
+def test_alpha_after_beta_needs_next_patch_and_says_so():
+    with pytest.raises(release.ReleaseError, match=r"--next patch.*0\.2\.2-alpha\.1"):
+        release.next_version(V("0.2.1-beta.2"), "alpha")
+    with pytest.raises(release.ReleaseError):
+        release.next_version(V("0.2.1-beta.2"), "final", next_patch=True)      # --next 只配 alpha／beta
+    with pytest.raises(release.ReleaseError):
+        release.next_version(V("0.2.1"), "alpha", next_minor=True, next_patch=True)
+
+
+PLANNED_LOG = """# Changelog
+
+## 未發佈（branch feat/late：發版前最後合進來的）
+
+### 修正
+- 晚到的修正。
+
+## 0.2.2-alpha.1（未發佈）
+
+**版本號**：下一版是 0.2.2-alpha.1。
+
+### branch feat/early：早就合進來的
+- 早到的功能。
+
+## 0.2.1-beta.2（2026-11-18）
+
+- 舊的。
+"""
+
+
+def test_dev_carries_the_planned_version_and_bump_keep_dates_it(tmp_path):
+    """dev 已經是下一版的號碼（`## X（未發佈）`）：發版那天 `bump keep` 號碼不動、寫上日期、把後來的「未發佈」收進去。"""
+    root = _repo(tmp_path, version="0.2.2-alpha.1", changelog=PLANNED_LOG)
+    ok, bad, warn = release.check(root)
+    assert bad == [] and any("還標著「未發佈」" in w for w in warn)
+    ok, bad, warn = release.check(root, tag="v0.2.2-alpha.1")
+    assert any("還標著「未發佈」" in b for b in bad)
+    new, _diff = release.bump(root, "keep", date="2026-11-25")
+    assert str(new) == "0.2.2-alpha.1" and release.current_version(root) == V("0.2.2-alpha.1")
+    log = (tmp_path / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "未發佈" not in log
+    assert log.count("## 0.2.2-alpha.1") == 1
+    order = ["## 0.2.2-alpha.1（2026-11-25）", "### branch feat/late", "#### 修正", "**版本號**",
+             "### branch feat/early", "## 0.2.1-beta.2（2026-11-18）"]
+    pos = [log.index(x) for x in order]
+    assert pos == sorted(pos)
+    ok, bad, warn = release.check(root, tag="v0.2.2-alpha.1")
+    assert bad == [], bad
+
+
+def test_bump_from_a_planned_version_renames_it(tmp_path):
+    """擁有者改主意（還沒發的 0.2.2-alpha.1 直接發成 beta）：那一節改名，不留一個沒發過的 alpha。"""
+    root = _repo(tmp_path, version="0.2.2-alpha.1", changelog=PLANNED_LOG)
+    new, _diff = release.bump(root, "beta", date="2026-11-25")
+    assert str(new) == "0.2.2-beta.1"
+    log = (tmp_path / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert "## 0.2.2-alpha.1" not in log and "## 0.2.2-beta.1（2026-11-25）" in log
+    assert "早到的功能" in log and "晚到的修正" in log
+
+
+def test_bump_planned_moves_dev_to_the_next_version(tmp_path):
+    """發完正式版後在 dev 上：`bump alpha --planned` 改號碼、開 `## X（未發佈）`（不寫日期）。"""
+    root = _repo(tmp_path, version="0.2.2", changelog="# Changelog\n\n## 0.2.2（2026-11-30）\n\n- 正式版。\n")
+    new, _diff = release.bump(root, "alpha", planned=True)
+    assert str(new) == "0.2.3-alpha.1"
+    log = (tmp_path / "CHANGELOG.md").read_text(encoding="utf-8")
+    assert log.index("## 0.2.3-alpha.1（未發佈）") < log.index("## 0.2.2（2026-11-30）")
+    assert release.main(["--root", root, "bump", "keep", "--date", "2026-12-05"]) == 0
+    assert "## 0.2.3-alpha.1（2026-12-05）" in (tmp_path / "CHANGELOG.md").read_text(encoding="utf-8")
+
+
+def test_keep_refuses_a_version_that_was_already_released(tmp_path):
+    root = _repo(tmp_path, version="0.2.1", changelog="# Changelog\n\n## 0.2.1（2026-11-20）\n\n- x\n")
+    with pytest.raises(release.ReleaseError, match="已經有"):
+        release.bump(root, "keep")
+
+
+def test_this_repo_changelog_top_is_the_project_version():
+    """CHANGELOG 最上面的版本就是 pyproject 的版本（scripts/check_version_consistency.py 也查）。"""
+    with open(os.path.join(ROOT, "CHANGELOG.md"), encoding="utf-8") as f:
+        lines = f.read().splitlines(keepends=True)
+    first = next(release._released(ln) for ln in lines if release._released(ln))
+    assert first[0] == str(release.current_version(ROOT))
+
+
+def test_demote_puts_the_branch_headings_right_below_the_section():
+    """分支寫 `#### 新增` 或 `### 新增` 都一樣變成 `#### 新增`（在 `### 分支標題` 下面一層），不會跳到 `#####`。"""
+    block = ["## 未發佈（branch a）\n", "\n", "#### 新增\n", "- x\n", "##### 細節\n",
+             "## 未發佈（branch b）\n", "### 修正\n", "- y\n",
+             "## 未發佈\n", "### 文件\n", "- z\n",
+             "## 未發佈（branch c）\n", "- 沒有小標題\n"]
+    out = release._demote(block)
+    assert [ln for ln in out if ln.startswith("#")] == [
+        "### branch a\n", "#### 新增\n", "##### 細節\n", "### branch b\n", "#### 修正\n", "### 文件\n", "### branch c\n"]
