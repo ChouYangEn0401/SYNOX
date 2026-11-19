@@ -21,6 +21,8 @@
     --accent2: #2f7fd6;
     --ok: #12823b; --ok-soft: #e6f4ea; --warn: #9a6400; --warn-soft: #fdf1dc; --bad: #c62f2f; --bad-soft: #fbe8e8;
     --me: #dff1ee; --me-ink: #0c3a35;
+    --img-bg: #ffffff;   /* 工具回覆的圖（多半是透明底的 SVG／PNG）深色外觀也墊白底才看得清楚 */
+    --img-scrim: rgba(0, 0, 0, .72);   /* 點圖放大時後面的暗幕 */
     --m1: #4f8df5; --m2: #2f66d0; --mi: #ffffff; --m-hi: #8bb6ff; --mb: color-mix(in srgb, var(--bad) 55%, transparent);
     --accent-2: var(--accent2); --accent-soft: var(--soft);
     --shadow-sm: 0 1px 2px rgba(19, 27, 38, .05), 0 1px 3px rgba(19, 27, 38, .06);
@@ -348,10 +350,10 @@
   /* 工具回覆帶的圖（m.images；appendImages）：同源 <img>，點了放大 */
   .msg .msg-images { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; white-space: normal; }
   .msg .msg-images img { display: block; max-width: 100%; max-height: 360px; height: auto; border-radius: 8px;
-    background: #fff; border: 1px solid var(--line); cursor: zoom-in; }
+    background: var(--img-bg); border: 1px solid var(--line); cursor: zoom-in; }
   .img-zoom { position: fixed; inset: 0; z-index: 1000; display: flex; align-items: center; justify-content: center;
-    background: rgba(0, 0, 0, .72); padding: 16px; cursor: zoom-out; }
-  .img-zoom img { max-width: 100%; max-height: 100%; background: #fff; border-radius: 10px; }
+    background: var(--img-scrim); padding: 16px; cursor: zoom-out; }
+  .img-zoom img { max-width: 100%; max-height: 100%; background: var(--img-bg); border-radius: 10px; }
   .msg .blocks { white-space: normal; }
   .msg .blocks > * { margin: 0 0 8px; }
   .msg .blocks > *:last-child { margin-bottom: 0; }
