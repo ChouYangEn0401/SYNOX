@@ -1,3 +1,5 @@
+> 已由交辦單 [20261119-134608-sandbox-real-machine.md](20261119-134608-sandbox-real-machine.md) 取代整理；內容仍有效。
+
 # 交接：沙盒與「帶警告的 pack」——在另一台電腦上做真機驗證
 
 狀態：**待驗證**（2026-11-19 寫；程式在分支 `feat/sandbox-ready`，合併後在 `dev`）
