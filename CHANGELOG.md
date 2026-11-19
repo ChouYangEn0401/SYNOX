@@ -1,6 +1,6 @@
 # Changelog
 
-## 未發佈（branch feat/pack-warnings：pack.json 的標記警告，ADR 0041）
+## 未發佈（branch feat/pack-warnings-v2：pack.json 的標記警告，ADR 0041）
 
 #### 新增
 - **工具可以帶「⚠️ 警告」**：pack.json 新增選填的 `warnings`
@@ -19,6 +19,11 @@
 - 標了 `vendor_no_security_guarantee`（官方不保證安全）的工具不能同時是「✅ 官方」簽章：安裝時拒、載入時拒，工具頁與設定頁也不會畫成官方。
 - 警告的字顯示在標章旁邊、也給 AI 看：含「✅」、像在對 AI 下指令、要跳過確認的字換成內建的字。
 - 拿掉或改掉 `warnings` 會讓簽章（`pack.sig.json`）驗不過、裝好之後改會跟 `packs.lock` 不符——沒有另外的簽章欄位，也沒改簽章格式。
+- **警告不會讓工具被隔離**：執行時用哪個沙盒跟沒有警告的工具一樣；Windows 個人版目前 SYNOX 自己還沒有沙盒，
+  只有「工具有提供容器、這台有 docker 或 podman、安裝時選容器」這條路照得到「在 docker 執行」的建議（ADR 0041 第 5 節）。
+
+#### 文件
+- 驗收清單 [docs/testing/pack-warnings-checklist.md](docs/testing/pack-warnings-checklist.md)：自動測試涵蓋什麼、真機要人工驗的 14 項；全部勾完才算過關。
 
 ## 0.2.1-beta.1（2026-11-18）
 
