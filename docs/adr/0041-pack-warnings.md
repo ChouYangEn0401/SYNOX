@@ -1,7 +1,8 @@
 # ADR 0041：pack.json 的標記警告（`warnings`）——作者標的風險，每個看得到工具的地方都顯示
 
 - 日期：2026-11-18
-- 狀態：**已採用**（擁有者要的：「選配、不掛官方標籤的搜尋 pack 要帶警告『官方不保證安全』＋建議『在 docker 或 sandbox 執行』」）。
+- 狀態：**已採用**（擁有者的需求：沒有官方標章的選配工具要能帶「官方不保證安全」的警告與執行建議；需求原文不公開）。
+  2026-11-19 移植到改寫後的 `dev`（分支 `feat/pack-warnings-v2`），補上第 5 節「與 sandbox 的關係」。
   標 **「實作時決定，待擁有者確認」** 的是這一輪自己定的，擁有者不同意可以改。
 - 程式：`src/synox/packs/packwarn.py`（欄位的檢查、清理、規則、顯示用的字），掛在 `manifest.py`、`admin.py`、`upgrade.py`、
   `loader.py`、`lock.py`、`agent/index.py`、`agent/skills.py`、`agent/tools.py`、`web/server.py`、`doctor.py`。
@@ -75,9 +76,60 @@ SYNOX 認得的 code（`packwarn.KNOWN`）：
 
 守則（`AGENT_RULE`）：標〔⚠️警告 …〕的工具，用之前先把警告原文告訴使用者，不要省略、不要說它是官方或安全的。
 
-## 5. 沒做的（留給之後）
+## 5. 與 sandbox 的關係（2026-11-19 移植到新 `dev` 時補；只有分析與建議，**這一版沒有改任何 sandbox 行為**）
+
+`vendor_no_security_guarantee` 的建議字是「建議在 docker 或 sandbox 執行」。這一節對照 SYNOX 現在真的有的隔離，回答兩題：
+這類 pack 現在能不能被 SYNOX 關起來跑？建議的字跟現有機制一不一致？
+
+### 5.1 SYNOX 裡有兩種「sandbox」，只有一種跟這個警告有關
+
+| 名字 | 管什麼 | 在哪 | 跟這個警告的關係 |
+|---|---|---|---|
+| **執行期沙盒**（PERM-7） | `kind=cli` 的子程序、`kind=mcp` stdio 的長駐子程序：能讀寫哪些資料夾、能不能連網、記憶體與程序數 | `src/synox/sandbox.py`（`resolve`、`box_for`、`grants_for`、`required`、`restricted_reason`） | **就是建議字說的那個** |
+| 面板隔離（ADR 0028 §5） | 工具的網頁面板：`<iframe sandbox="allow-scripts">`＋CSP `sandbox`＋每個 session 的票 | `src/synox/web/paneltickets.py`、`web/server.py` | 只隔開畫面（碰不到主機台的登入與 API），**不隔離 pack 的程式**。不能拿來回答「有沒有關在 sandbox 裡」 |
+
+ADR 0022 的「Gate 1」是擁有者對決定 1–35 的答覆（第 11 節），不是程式裡的一道關；Windows 的探測（`docs/lab/2026-11-16-windows-sandbox-probe-results.md`）
+是實測紀錄，**還沒有變成後端程式**。
+
+### 5.2 現在這類 pack 會怎麼跑（讀 `dev` 的程式確認）
+
+| 情況 | 實際用的後端 | 算不算隔離 | 依據 |
+|---|---|---|---|
+| Windows 個人版（預設 `backend=auto`） | `none` | **不算**：工具用使用者的 Windows 帳號權限跑，讀得到檔案、連得到網路 | `sandbox.resolve`：個人版或不是 Linux 一律 `NoneSandbox()` |
+| Windows 設 `backend=jobobject` | Job Object | 不算（只限記憶體與程序數，`isolates=False`） | `JobObjectSandbox` |
+| Windows 設 `backend=appcontainer` | 退回 `none` | 不算（只有介面，`APPCONTAINER_TODO`） | `resolve` |
+| Windows 11 的 MXC | —— | 還沒有後端（只有探測結果） | ADR 0022 §6.3、探測紀錄 |
+| Linux 伺服器版 | `bwrap`，沒有就 `systemd-run` | 算（argv 層面；真機驗證見 `docs/security.md`） | `resolve` |
+| pack.json 有 `runtime.container`、擁有者在安裝報告「🧱 執行環境」選了容器、這台 PATH 上有 podman／docker | `container`（任何平台，含 Windows 的 Docker Desktop） | **算**：`--read-only`、`--cap-drop ALL`、`no-new-privileges`、只掛 pack 與它的資料夾；沒宣告 `network` 才 `--network none` | `box_for`、`ContainerSandbox.wrap` |
+| `kind=python` | 在 SYNOX 自己的程序裡跑 | **任何後端都包不到** | `sandbox.required` 的說明、ADR 0022 §6.6 |
+
+另外：`required()`／`restricted_reason()`（伺服器版沒有真隔離時「只給擁有者」）只看 trust 與 T2，**不看 `warnings`**；個人版完全不受這條影響。
+
+### 5.3 結論
+
+1. **現在 SYNOX 不會因為這個警告就把 pack 關進 sandbox。** 警告做的事是「每個地方都顯示＋第一次要人確認」（第 3、4 節）；執行時用哪個後端，跟沒有警告的 pack 一樣。
+2. **在 Windows 個人版（目前主要的使用者），SYNOX 本身沒有任何一條路能照「在 sandbox 執行」做到**：設定頁「沙盒模式」那張卡也照實寫「⏳ 尚未完成」、doctor 寫「真隔離：否」。
+3. **「docker」那半句跟現有機制一致，但有前提**：pack 要自己在 pack.json 宣告 `runtime.container`，擁有者安裝時選「用容器」，這台要有 podman／docker。沒有 `runtime.container` 的 pack，SYNOX 沒辦法替它開容器。
+4. 拿 DesktopAgent 的 `web-ddgs`（`kind=cli`、`capabilities` 有 `network`、**沒有** `runtime.container`）對照：SYNOX 跑的是 pack 自己的 `ddgs_cli.py`，用這台的後端（Windows 個人版＝`none`）；
+   第三方套件 `ddgs` 本身由這個 pack 交給它自己設定的隔離 worker（`worker_command`，它的文件建議用 docker）。那層隔離在 SYNOX 外面，SYNOX 看不到、也驗證不了。
+   所以建議的字**跟這個 pack 自己的設計一致**，但**不是 SYNOX 保證的**。
+5. 所以建議字本身沒有錯（它是作者的字，第 3 節的確認也只代表「我知道了」），風險在使用者可能以為「SYNOX 已經幫我放進 sandbox」。
+   `docs/install-packs.md` 這一節已經寫「確認不會讓工具變安全」「安裝報告的『🧱 執行環境』能選容器的就選容器」，跟現況一致。
+
+### 5.4 建議（都還沒做；要擁有者決定）
+
+| # | 建議 | 改的是什麼 | 建議／預設 |
+|---|---|---|---|
+| S1 | 安裝報告與設定頁在警告下面多一行 **SYNOX 自己畫的實況**：「這台目前沒有沙盒，這個工具會用你的帳號權限跑」／「這個工具有提供容器，可以在『🧱 執行環境』選用容器」／「這個工具在 SYNOX 裡面跑，任何沙盒都包不到」（`sandbox.box_for`＋`container_spec`＋`kind` 算） | 只有顯示文字 | **建議做**（另開分支；字照 ADR 0022 R6、R7：白話，術語放小括號） |
+| S2 | 帶 `vendor_no_security_guarantee` 的 pack 也算 `sandbox.required()` 命中（跟 T2 一樣）：伺服器版沒有真隔離就只給擁有者 | 執行行為（伺服器版） | 建議做；個人版不受影響 |
+| S3 | 隔離做好之後（ADR 0022 決定 17：沒有隔離的電腦上第三方 T2 預設不執行），把這個 code 一起算進去：保護等級「沒有」的電腦上預設不執行，擁有者可以逐個放行 | 執行行為 | 建議，等 MXC／AppContainer 後端做好再做 |
+| S4 | `kind=python`＋`vendor_no_security_guarantee`：暫存時拒，或至少紅字寫「任何沙盒都包不到」 | 安裝行為 | 建議「紅字」（拒裝跟修正 O1「一律可以安裝」衝突） |
+| S5 | 請 pack 作者（例如 `web-ddgs`）在 pack.json 宣告 `runtime.container`，讓 SYNOX 自己的容器路徑能用，而不是只靠 pack 自己的 worker 設定 | 工具庫與作者端 | 建議；SYNOX 這邊不用改 |
+
+## 6. 沒做的（留給之後）
 
 - 工具庫的 `index.json` 要不要也帶 `warnings`：SYNOX 這邊已經會讀、會顯示；要 SYNOX_Libs 的打包腳本把 pack.json 的 `warnings` 抄過去才有。
 - 網頁上「已裝、還沒確認」的工具沒有單獨的「確認」按鈕：要嘛重新從安裝頁裝一次（會勾選），要嘛在電腦上跑
   `python -m synox packs lock --approve <name> --accept-warning <code>`。（實作時決定，待擁有者確認：要不要在設定頁加一顆按鈕）
 - 擁有者事後想「取消確認」：目前沒有指令；移除再裝就會重新問。
+- 真機上的人工驗證：清單在 [docs/testing/pack-warnings-checklist.md](../testing/pack-warnings-checklist.md)（全部勾完才算過關）。
