@@ -31,6 +31,20 @@
 
 ### branch feat/sandbox-ready：帶警告的工具，SYNOX 說清楚這台實際能不能把它關起來；ADR 0041 §5.4 S1／S2／S4
 
+## 未發佈（branch feat/data-migrations：每份資料都有版本號，升級時逐版自動轉換；ADR 0043）
+
+#### 新增
+- **資料版本與自動升級**：SYNOX 升級後第一次啟動，舊的 `config.json`、`data/packs.lock` 會自動轉成新格式（先備份到
+  `data/_migration_backups/`，失敗就還原、SYNOX 不開並說原因）。`config.json` 多一個 `schema_version` 欄位。
+- **工具的資料跟著工具升級**：`pack.json` 新的選填欄位 `data_schema`（`version`、`files`）；python 工具放 `migrations.py`、
+  cli 工具實作 `migrate` 子命令。新版工具第一次執行前，SYNOX 把舊資料一版一版升上來；失敗＝全部還原、那個工具先不載入；
+  資料比工具新（退回舊版之後）＝不載入、不動資料。升級報告會寫「資料會從 N 升到 M」。安裝與 `synox-sdk check` 擋缺步驟的工具。
+- **看資料版本**：`python -m synox data status`、`python -m synox data upgrade --dry-run`、doctor 的「資料版本」一段、
+  網頁「設定 → 資料版本」卡片（只看）。
+- `synox-sdk init --kind python` 的範本帶 `data_schema` 與 `migrations.py` 說明。
+
+## 未發佈（branch feat/sandbox-ready：帶警告的工具，SYNOX 說清楚這台實際能不能把它關起來；ADR 0041 §5.4 S1／S2／S4）
+
 #### 新增
 - **警告下面多一行「ℹ️ SYNOX 查這台的實況」**：帶 `warnings` 的工具，SYNOX 依這台的沙盒設定與工具自己的宣告寫一句——
   「這台沒有可用的隔離，這個工具會以你的權限直接執行」／「這個工具有提供容器（需要 podman 或 docker，已偵測到／沒偵測到）」／

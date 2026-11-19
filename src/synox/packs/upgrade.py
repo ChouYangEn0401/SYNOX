@@ -387,6 +387,15 @@ def runtime_changes(old: Manifest, new: Manifest, installed: Optional[str], afte
     return out
 
 
+def data_changes(old: Manifest, new: Manifest, data_dir: Optional[str]) -> List[dict]:
+    """資料版本（ADR 0044，synox/datastore/packdata.py）：新版要把資料從 N 升到 M（不是紅字：SYNOX 在新版第一次啟動前做，
+    先備份、失敗還原）；新版認得的資料版本比現在的舊（退回舊版、或新版拿掉了 data_schema）＝紅字。只看宣告，不執行工具的程式。"""
+    from synox.datastore import packdata
+    note = packdata.plan_text(getattr(old, "data_schema", None) or {}, getattr(new, "data_schema", None) or {},
+                              data_dir or "", new.name) if data_dir else None
+    return [{"kind": "data", "text": note["text"], "alert": note["alert"]}] if note else []
+
+
 def signature_changes(old_sig: Optional[dict], new_sig: Optional[dict]) -> List[dict]:
     """簽章的變化（ADR 0028 §3.1）：舊鎖的 signature → 這一版驗出來的。紅字＝以前是官方現在不是、作者的鑰匙換了、
     以前有簽章現在沒有。invalid 不會走到這裡（stage／upgrade_staged 先拒了）。"""
@@ -449,6 +458,7 @@ def report_for(old: Manifest, old_folder: str, new: Manifest, new_hashes: Dict[s
     changes += runtime_changes(old, new, installed_runtime, after_runtime)
     warned = warnings_change(pack_lock.entry(data_dir, old.name), new)          # 標記警告（ADR 0041）
     changes += warned["changes"]
+    changes += data_changes(old, new, data_dir)                                 # 資料版本（ADR 0044）
     return {"name": new.name, "pack_warnings": warned, "installed_version": old.version, "new_version": new.version,
             "version_status": status, "version_ok": status == UPGRADE, "version_message": message, "changes": changes,
             "can_force": status != UPGRADE and semver_key(new.version) is not None,   # 可以明確選「降級／重裝」

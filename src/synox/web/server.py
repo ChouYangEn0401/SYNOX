@@ -876,6 +876,9 @@ class WebUI:
         if path == "/api/settings/update" or path.startswith("/api/settings/update/"):   # SYNOX 更新（ADR 0023）
             from synox.update import web_api as update_api
             return update_api.route(self, user, method, path, body)
+        if path == "/api/settings/data":               # 資料版本（只看；ADR 0044，synox/datastore/web_api.py）
+            from synox.datastore import web_api as data_api
+            return data_api.route(self, user, method, path, body)
         if path == "/api/settings/restart":            # 🔄 重新啟動 SYNOX（只有擁有者；web/restart.py）
             return restart_api.route(self, user, method, path, body)
         if path.startswith("/api/runtime/"):          # 主控面板：常駐助理／心跳／任務（docs/runtime-api.md；含 PUT）

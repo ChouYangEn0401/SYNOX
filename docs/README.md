@@ -41,6 +41,7 @@
 | [apps-api.md](apps-api.md) | 維護者 | 工具服務的介面合約（伺服器那一側現在實際的樣子；要改先改這份） |
 | [pack-format.md](pack-format.md) | 作者、維護者 | pack.json 每個欄位的完整規則、kind=cli／mcp／python 的細節、升級與環境建置 |
 | [themes.md](themes.md) | 外觀包作者、維護者 | 外觀（換裝）：顏色 token、可以換的位置（slot）、kind=theme 的格式、消毒規則、怎麼從品牌頁做一個外觀包 |
+| [data-migrations.md](data-migrations.md) | 作者、維護者 | 資料版本與自動升級：每份資料的版本號、逐版遷移步驟、工具的 `data_schema`（python `migrations.py`、cli `migrate` 子命令）、盤點表（ADR 0044） |
 | [tool-health.md](tool-health.md) | 作者、維護者 | 工具健康：失敗信封 v1、類別碼、隔離清單（同一根因連續失敗就暫停給 AI 用）；作者那側是 SDK 的 `fail()` |
 | [notifications.md](notifications.md) | 使用者、維護者 | 通知中心與提醒：通知送到哪些地方、鬧鐘、送達確認與重試、電腦提醒視窗與提醒哨兵、每一類通知的開關（[adr/0029](adr/0029-reminder-delivery-on-notify-hub.md)） |
 | [../packs/README.md](../packs/README.md) | 使用者 | SYNOX 出廠不帶工具：工具在 SYNOX 工具庫（SYNOX_Libs，另一個 repo），怎麼裝 |
@@ -48,7 +49,7 @@
 | [legacy/connectors.md](legacy/connectors.md) | 使用者、維護者 | 搬到工具庫的 4 個 connector（Notion、Todoist、Google 日曆、Apple 提醒事項）：為什麼、token／帳號怎麼接回、怎麼救回 |
 | [../examples/](../examples/) | 作者 | 可以照抄的範例：`hello`（SDK）、`any-language-cli`（不用 SDK）、`node-mcp-tool`（MCP stdio）、`mcp-remote-*`（遠端 MCP） |
 | [AGENT.md](AGENT.md) | 維護者 | 程式地圖、不能破壞的規則（invariants）、已知限制 |
-| [adr/](adr/README.md) | 維護者 | 架構決定（一件一檔）。**[adr/README.md](adr/README.md) 是索引**：全部 ADR 的標題與狀態（已採用／提案）、什麼時候要寫 ADR、編號規則（下一號 0044；0032 是空號）。最常碰到的：0001 runtime loop 與常駐助理、0003 發佈與乾淨安裝、0022／0028 生態、沙盒、簽章、0024–0026 工具服務、門禁、手機入口、0029 提醒必達、0030 工具登記；0033–0040 是「一次改好幾筆」、核准卡升級、通知分流的提案（還沒有程式；0038 第一段已做）；0041 pack.json 的標記警告（`warnings`）；0042 外觀的顏色只宣告一次與向前相容；0043 版本號的排序、升級矩陣與錯版補救 |
+| [adr/](adr/README.md) | 維護者 | 架構決定（一件一檔）。**[adr/README.md](adr/README.md) 是索引**：全部 ADR 的標題與狀態（已採用／提案）、什麼時候要寫 ADR、編號規則（下一號 0045；0032 是空號）。最常碰到的：0001 runtime loop 與常駐助理、0003 發佈與乾淨安裝、0022／0028 生態、沙盒、簽章、0024–0026 工具服務、門禁、手機入口、0029 提醒必達、0030 工具登記；0033–0040 是「一次改好幾筆」、核准卡升級、通知分流的提案（還沒有程式；0038 第一段已做）；0041 pack.json 的標記警告（`warnings`）；0042 外觀的顏色只宣告一次與向前相容；0043 版本號的排序、升級矩陣與錯版補救 |
 | [keep-awake-troubleshooting.md](keep-awake-troubleshooting.md) | 使用者 | 保持清醒開著、Google Drive 還是斷線：現代待命機型的排查步驟（只看、不改設定） |
 | [presentation.md](presentation.md) | 維護者 | 呈現層（預設關）：AI 回覆的 Markdown → Telegram HTML／Discord／網頁區塊、各通道的降級規則、黃金檔案怎麼重產 |
 | [runtime-api.md](runtime-api.md) | 維護者（前端） | 主控面板用的 `/api/runtime/...` 合約（狀態、心跳設定、soul.md、任務日誌、連動規則） |

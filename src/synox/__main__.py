@@ -89,12 +89,33 @@ def load_for_run(path=None) -> SynoxConfig:
     """啟動用：config.json 的 Telegram token 還是明文就先搬進保管箱（synox/telegram_token.py；搬不成＝config 不動、
     log 一句警告），再讀設定（bot_token 是參照就解開；解不開＝當沒填，印原因）。"""
     from synox import telegram_token
+    from synox.datastore import core as data_core
     path = path or CONFIG_PATH
+    # 資料版本（ADR 0044）：config.json 先升到目前的格式（讀設定之前），讀完設定再升 data/ 裡登記的檔。
+    # 任何一份升級失敗＝已還原、原資料沒動，SYNOX 不開（不能用半升級的資料跑）；較新版本寫的＝只提醒、那份不寫
+    results = [data_core.upgrade_config(path)] if os.path.exists(path) else []
+    _data_upgrade_stop(results)
     telegram_token.migrate(path)
     config = SynoxConfig.load(path, require_token=False)
+    results = data_core.upgrade_data_dir(config.data_dir)
+    _data_upgrade_stop(results)
     if config.token_problem:
         print(f"⚠️ Telegram 這次不開：{config.token_problem}")
     return config
+
+
+def _data_upgrade_stop(results) -> None:
+    """印升級結果；有失敗的丟 ConfigError（cmd_run 印 ❌ 停下）。"""
+    from synox.datastore import core as data_core
+    for r in results:
+        if r.action == "upgraded":
+            print(f"🔁 {r.line()}")
+            logging.info("[DATA] %s upgraded %s -> %s (backup %s)", r.kind, r.before, r.after, r.backup)
+        elif r.action == "too_new":
+            print(f"⚠️ {r.message}")
+    bad = data_core.failed(results)
+    if bad:
+        raise ConfigError("資料升級沒有成功，SYNOX 先不開（資料已經還原、沒有被改）：" + "；".join(r.message for r in bad))
 
 
 def _wants_browser(args) -> bool:
@@ -348,6 +369,42 @@ def _tools_online(args, *, is_up, open_url=None, jobs=None, opener=None, packs_d
 def cmd_doctor(args) -> int:
     from synox import doctor
     return doctor.run(offline=args.offline, config_path=args.config or "")
+
+
+def cmd_data(args, *, running=None) -> int:
+    """`data status`：每份資料的版本、要不要升級（只看）；`data upgrade [--dry-run]`：現在就升（SYNOX 開著時不跑：
+    開著的那支手上是舊的資料；平常不用跑，SYNOX 啟動、工具載入時會自己升）。ADR 0044、docs/data-migrations.md。"""
+    import json as _json
+
+    from synox.datastore import report as data_report
+    path = args.config or CONFIG_PATH
+    try:
+        config = SynoxConfig.load(path, require_token=False) if os.path.exists(path) else \
+            SynoxConfig.from_dict(DEMO_CONFIG, require_token=False)
+    except ConfigError as e:
+        print(f"❌ {e}")
+        return 2
+    vault = None
+    if os.path.exists(os.path.join(config.data_dir, ".synox.key")):
+        try:
+            from synox.vault import open_vault
+            vault = open_vault(config)
+        except Exception as e:                  # 打不開就只看得到不用保管箱的資料
+            print(f"⚠️ 保管箱打不開（{e}）：用保管箱的工具資料這次看不到")
+    upgrade = args.data_cmd == "upgrade"
+    really = upgrade and not args.dry_run
+    if really and (running or _synox_running)(config):
+        print("❌ SYNOX 正在跑：先停掉（Stop.bat），或直接重開 SYNOX（啟動時會自己升級）。")
+        return 2
+    collected = data_report.collect(path if os.path.exists(path) else None, config, vault,
+                                    upgrade=upgrade, dry_run=not really)
+    if args.json:
+        print(_json.dumps(data_report.to_dict(collected), ensure_ascii=False, indent=2))
+    else:
+        print("🗂️ 資料版本" + ("（已升級）" if really else "（只看，沒有改任何檔）"))
+        for line in data_report.lines(collected):
+            print(line)
+    return 1 if data_report.problems(collected) else 0
 
 
 def cmd_stop(args) -> int:
@@ -1220,6 +1277,10 @@ def main(argv=None) -> int:
     p.add_argument("--accept-warning", action="append", default=None, metavar="CODE", help=ACCEPT_WARNING_HELP)
     p = sub.add_parser("doctor", help="健康檢查")
     p.add_argument("--offline", action="store_true", help="不實際打 AI")
+    p = sub.add_parser("data", help="資料版本：status（每份資料的版本、要不要升級）｜upgrade [--dry-run]（現在就升）")
+    p.add_argument("data_cmd", choices=["status", "upgrade"])
+    p.add_argument("--dry-run", action="store_true", help="只列出會做什麼，不改任何檔")
+    p.add_argument("--json", action="store_true", help="輸出 JSON（給 AI／程式看）")
     sub.add_parser("stop", help="停掉正在跑的 bot")
     p = sub.add_parser("restart", help="（網頁的「重新啟動 SYNOX」用的）等舊的那支結束，再用 Start.bat 開")
     p.add_argument("--after-pid", required=True, type=int, help=argparse.SUPPRESS)
@@ -1304,7 +1365,8 @@ def main(argv=None) -> int:
     from synox import brand
     brand.add_quiet_flags(sub, [c for c in brand.BANNER_COMMANDS if c])
     args = parser.parse_args(argv)
-    handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "stop": cmd_stop,
+    handlers = {"run": cmd_run, "console": cmd_console, "wizard": cmd_wizard, "doctor": cmd_doctor, "data": cmd_data,
+                "stop": cmd_stop,
                 "restart": cmd_restart,
                 "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord, "web-login": cmd_web_login,
                 "stepup": cmd_stepup,

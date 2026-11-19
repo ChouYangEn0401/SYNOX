@@ -108,8 +108,20 @@ Web UI 設定頁上傳、點兩下 `.synoxpack`（精靈裡勾過的話，`Insta
 舊版要環境、而 `data/envs/<name>/` 跟它對不上（例如升級時已經重建成新版的套件）→ 退回後會提示跑 `packs env rebuild <name>`，**不自動建**。
 
 **資料不在 pack 資料夾裡**（`data/<name>.json.enc`／`data/<name>.json`、伺服器版 `data/users/<id>/`、cli 的 `{user_data_dir}/<name>/`），
-升級、退回都不會動到資料。**資料格式（schema）要不要升級是 pack 自己的事**：建議在資料裡存一個 `schema` 版本號，
-新版程式讀到舊格式就自己轉換；退回到舊版時舊程式要能看得懂（或至少不弄壞）新版寫的資料——做不到就在 SKILL.md／README 寫清楚「不能退回」。
+搬資料夾、退回都不會動到資料。**資料格式要升級就宣告 `data_schema`**（ADR 0044，細節在 [data-migrations.md](data-migrations.md)）：
+
+```json
+"data_schema": {"version": 3, "files": ["store", "store:history", "dir"]}
+```
+
+- `version`：這一版工具寫出的資料版本（整數 ≥ 1）；改資料格式＝`+1`，並補一個遷移步驟。沒有持久化資料的工具不用寫。
+- `files`：哪些資料跟著升級——`store`（`pack.store` 的主檔）、`store:<key>`（`pack.store.save(x, key=…)` 的檔）、`dir`（工具自己的資料夾）。
+- 步驟：kind=python 放 `migrations.py`（或 `migrations/*.py`），頂層函式 `migrate_<n>_to_<n+1>(data)`（store）／`migrate_<n>_to_<n+1>_dir(path)`（dir）；
+  kind=cli 實作子命令 `<cli.argv> migrate --from N --to N+1 --data <資料夾>`（只支援 `dir`）。其他 kind 不支援（安裝時拒）。
+- 欄位名是 `data_schema`，不是 `data`：`data` 是下面的「資料屬於誰」。
+- SYNOX 在**工具載入前**（升級後重新載入、每次啟動）把資料從登記的版本一路升到 `version`：先備份、全部在暫存跑完才寫回；
+  任何一步失敗＝全部還原、工具不載入（狀態寫原因）；資料比工具新（退回舊版之後）＝不載入、不動資料。升級報告會寫「資料會從 N 升到 M」，
+  新版認得的資料版本比現在的舊＝紅字。安裝時（第 1 關）與 `synox-sdk check` 用 AST 看步驟，有洞就擋。
 
 ### 權限宣告：`surfaces`、`data`、安裝時選的 `trust`
 
