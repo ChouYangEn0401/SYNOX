@@ -116,7 +116,7 @@ def test_check_current_ahead_and_signed_flag():
     assert upd.check("9.0.0", opener=github("9.0.0")).lines()[0].startswith("你是最新版")
     assert upd.check("9.1.0-beta.1", opener=github("9.0.0")).status == "ahead"
     assets = [(signing.MANIFEST_ASSET, b"{}", False), (signing.SIG_ASSET, b"x", False)]
-    assert not upd.check("0.1.0", opener=github(assets=assets)).signed            # 沒有公鑰：不算有簽章
+    assert not upd.check("0.1.0", opener=github(assets=assets), keys=[]).signed   # 沒有公鑰：不算有簽章
     key = base64.b64encode(b"k" * 32).decode()
     assert upd.check("0.1.0", opener=github(assets=assets), keys=[key]).signed
 
@@ -225,7 +225,7 @@ def test_signature_good_bad_missing():
 
 
 def test_no_public_key_is_shipped_yet_and_no_private_key_anywhere():
-    assert signing.public_keys() == []                                       # 創始維護者還沒產生金鑰（ADR 0023 U5）
+    assert len(signing.public_keys()) == 2                                   # 發佈鑰匙：現用＋備用（docs/signing.md §3）
     for folder in ("src", "scripts", "setup"):
         for base, _dirs, files in os.walk(os.path.join(ROOT, folder)):
             for f in files:

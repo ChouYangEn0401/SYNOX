@@ -34,7 +34,10 @@ from typing import Dict, Iterable, List, Optional, Sequence
 # 可以同時放兩把（現用＋備用，換鑰匙時並存）；寫壞的那一項不算。這是發「工具」的鑰匙，
 # 跟發 SYNOX 本體的 src/synox/update/signing.py RELEASE_PUBLIC_KEYS 是兩組，不要混用。
 # 例：OFFICIAL_PACK_PUBLIC_KEYS: Sequence[str] = ("AAAA…=",)
-OFFICIAL_PACK_PUBLIC_KEYS: Sequence[str] = ()
+OFFICIAL_PACK_PUBLIC_KEYS: Sequence[str] = (
+    "d1wxFvSuyJZmUgrXn59aV55O0hLNvbzPT5dhi1CLmgI=",   # 現用（key_id 4cde2a5bfcec04ec）
+    "NaolxxaDOQz0sGKMJsVBRMZ7IGLfk5WdInAGzgK/hAk=",   # 備用（key_id 17534bb4dda6f897）
+)
 
 SIG_FILE = "pack.sig.json"
 SIG_VERSION = 1
