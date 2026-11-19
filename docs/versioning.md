@@ -218,7 +218,7 @@ main ── hotfix/0.2.3 ──(bump patch)──► main ── tag v0.2.3 ─�
 - **`dev`**：每天開發。帶著下一版的號碼與 `## X（未發佈）`（§3）；每個分支在 `CHANGELOG.md` 最上面加一節 `## 未發佈（分支或主題）`。
 - **`release/X.Y.Z`**：要發版時從 `dev` 切出來。之後只收修正（修正也要合回 `dev`），不收新功能。alpha／beta 的 tag 打在這條分支上。
   **發版的 commit 一定要合回 `dev`**（不然 `dev` 的 CHANGELOG 會少那一節，像 `0.2.1-beta.2` 那次）。
-- **`main`：只在發佈時動**。`main` 的最新一個 commit 永遠是某個發佈出去的 tag——所以介紹頁的「⬇ 下載 SYNOX」（`main` 的 ZIP）
+- **`main`：只在發佈時動**。`main` 的內容永遠等於某個發佈出去的 tag（合進來的是打了 tag 的那個 commit）——所以介紹頁的「⬇ 下載 SYNOX」（`main` 的 ZIP）
   一定是最新的發佈。不在 `main` 上直接 commit。
   - **alpha 階段（現在，還沒有正式版）**：擁有者 2026-11-19 決定 `main` 跟著最新的發佈走，預覽版也算——每發一版（alpha／beta），
     發佈之後把 `release/X.Y.Z` 用 `git merge --no-ff` 合進 `main`（同時合回 `dev`）。所以這段時間介紹頁下載到的是最新的預覽版。
