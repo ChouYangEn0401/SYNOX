@@ -24,7 +24,7 @@ python -m synox <指令>
             （從工具庫找檔、對 index.json 的雜湊，再走 install 的同一條安全檢查）
             ｜tools check（問官方工具庫：裝著的工具／外觀包有沒有新版；只看，這時才連網）
             ｜tools update <名字…>|--all [--yes]（下載 → 一樣的檢查報告 → 核准才換；舊版留在 packs/_removed/）
-  update    update --check（SYNOX 本體有沒有新版；--include-prerelease 連預覽版一起看）｜--weekly on|off
+  update    update --check（SYNOX 本體有沒有新版；正式版、測試版都列；--include-prerelease 這次也提醒測試版）｜--weekly on|off｜--channel stable|preview
             ｜--prepare [--from-zip <ZIP>]（Update.bat 用；-FromZip 先用本機的 ZIP 測更新）
   sentinel  提醒哨兵（登入 Windows 時自動啟動；SYNOX 沒開時照樣跳提醒視窗、送 Telegram；開著時讓位。docs/notifications.md）
   remind-window  打開電腦提醒視窗（--demo 跳一張試看看的卡；平常由 SYNOX／哨兵自己開）
@@ -1031,6 +1031,20 @@ def cmd_update(args, *, opener=None, keys=None) -> int:
         print("✅ 每週檢查新版：" + ("開（每週查一次，只看，不會自己裝；查的時候會連到 GitHub）" if args.weekly == "on"
                                     else "關（預設；只有你按「檢查更新」或打 synox update --check 才查）"))
         return 0
+    if getattr(args, "channel", None):
+        from synox.wizard import logic
+        cfg = logic.read_existing(path)
+        if not cfg:
+            print(f"❌ 讀不到 {path}：先雙擊 Setup.bat 跑安裝精靈。")
+            return 1
+        logic.write_config(path, upd.set_channel(cfg, args.channel == "preview"))
+        print("✅ 更新通道：" + ("preview（也提醒測試版；Update.bat 也會裝測試版，測試版可能還有問題）"
+                               if args.channel == "preview" else "stable（預設；只提醒正式版）"))
+        return 0
+    flag_pre = bool(getattr(args, "include_prerelease", False))
+    from synox.wizard import logic as _logic
+    config_pre = upd.wants_preview(_logic.read_existing(path))        # 讀不到＝{}＝stable
+    pre = flag_pre or config_pre                       # 設定選了 preview，或這一次加了 --include-prerelease
     from_zip = getattr(args, "from_zip", None)
     if args.prepare or from_zip:
         from synox.update import prepare
@@ -1038,7 +1052,8 @@ def cmd_update(args, *, opener=None, keys=None) -> int:
             if from_zip:
                 ready = prepare.prepare_from_zip(root, from_zip, allow_unsigned=args.allow_unsigned, keys=keys)
             else:
-                ready = prepare.prepare(root, allow_unsigned=args.allow_unsigned, opener=opener, keys=keys)
+                ready = prepare.prepare(root, allow_unsigned=args.allow_unsigned, opener=opener, keys=keys,
+                                        include_prerelease=pre)
         except prepare.AlreadyCurrent as e:
             print(str(e))
             return 3
@@ -1057,10 +1072,11 @@ def cmd_update(args, *, opener=None, keys=None) -> int:
     def tools():
         return upd.tools_newer_count(upd.installed_pack_versions(packs_dir), opener=opener)
 
-    pre = bool(getattr(args, "include_prerelease", False))
-    print(f"SYNOX {__version__}：問 GitHub 有沒有新版" + ("（連預覽版一起看）" if pre else "") + "（只看，不會下載或安裝）…")
+    print(f"SYNOX {__version__}：問 GitHub 最新的正式版與測試版" + ("（測試版也提醒）" if pre else "（只提醒正式版）")
+          + "（只看，不會下載或安裝）…")
     result = upd.check(__version__, root=root, opener=opener, tools=tools, keys=keys, include_prerelease=pre)
-    if not pre and not result.test_source:              # 預覽版、測試模式的結果不存（不出網頁的橫幅、不影響每週通知）
+    if (config_pre or not flag_pre) and not result.test_source:
+        # 只有這一次加 --include-prerelease（設定還是 stable）、測試模式的結果不存（不出網頁的橫幅、不影響每週通知）
         try:
             upd.remember(data_dir, result)
         except OSError:
@@ -1347,13 +1363,16 @@ def main(argv=None) -> int:
     p.add_argument("--from", dest="import_from", required=True, metavar="FILE", help="要轉的 JSON 檔")
     p.add_argument("--apply", action="store_true", help="真的寫進 soul.md（沒加＝乾跑，只印會寫哪幾行）")
     p = sub.add_parser("update", help="SYNOX 有沒有新版：--check（只看）｜--weekly on|off（每週檢查）｜換檔用 Update.bat")
-    p.add_argument("--check", action="store_true", help="問 GitHub 最新的正式版（只看，不下載、不安裝；不加也一樣）")
+    p.add_argument("--check", action="store_true",
+                   help="問 GitHub 最新的正式版與測試版（只看，不下載、不安裝；不加也一樣）")
     p.add_argument("--weekly", choices=["on", "off"], default=None, help="每週自己看一次（預設 off）")
     p.add_argument("--prepare", action="store_true", help=argparse.SUPPRESS)         # Update.bat 用：下載＋驗證＋解到暫存
     p.add_argument("--allow-unsigned", action="store_true", help=argparse.SUPPRESS)  # Update.bat -AllowUnsigned
     p.add_argument("--from-zip", default=None, metavar="ZIP", help=argparse.SUPPRESS)  # Update.bat -FromZip（先測更新）
     p.add_argument("--include-prerelease", action="store_true",
-                   help="--check 時連預覽版（beta／alpha）一起看（只看；Update.bat 不會裝預覽版）")
+                   help="這一次「有新版」也算測試版（beta／alpha）；--prepare（Update.bat -IncludePrerelease）也一樣")
+    p.add_argument("--channel", choices=["stable", "preview"], default=None,
+                   help="更新通道：stable＝只提醒正式版（預設）｜preview＝也提醒測試版（Update.bat 也會裝測試版）")
     p.add_argument("--rollback", action="store_true", help="說明怎麼退回上一版（Update.bat -Rollback）")
     p = sub.add_parser("open", help="在這台電腦上打開網頁介面（沒在跑就先開 SYNOX；跟 web-login 一樣）")
     sub.add_parser("about", help="SYNOX 的版本、授權、裝在哪裡")

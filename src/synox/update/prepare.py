@@ -6,7 +6,8 @@ Update.bat 的前半段（docs/adr/0023 §2、決定 U4、U5）：下載新版�
 
 順序（每一步不過就停，下載的檔刪掉，說一句人話）：
 1. 怎麼裝的：git → 請 `git pull`；安裝程式 → 下載新的 Setup.exe；Docker → compose。只有 ZIP 裝法會自動換檔。
-2. GitHub releases/latest（只有正式版）→ 比版本：不是比較新就不做（不降級；退回走 `Update.bat -Rollback`）。
+2. GitHub releases/latest（只有正式版；preview 通道／`--include-prerelease` 再加 releases 清單裡 SemVer 最大的測試版，
+   兩者取較大的）→ 比版本：不是比較新就不做（不降級；退回走 `Update.bat -Rollback`）。
 3. `SHA256SUMS.txt`（必須有）→ ZIP 的 sha256；GitHub 附檔資訊有 digest 的話也要一樣。
 4. 簽章：有 `release.json`＋`release.json.sig`、而且這個 SYNOX 有公鑰 → 一定要驗得過，release.json 的版本與 ZIP 的 sha256
    也要跟上面一樣（不過＝拒絕，`--allow-unsigned` 也救不了）。沒有簽章或沒有公鑰 → **不自動換檔**，除非使用者明確
@@ -38,8 +39,8 @@ from typing import Optional
 
 from synox import __version__
 from synox.update import signing
-from synox.update.check import (TEXT, Opener, UpdateError, compare, fetch_latest, get, how_line, install_kind,
-                                test_api)
+from synox.update.check import (TEXT, NotFound, Opener, UpdateError, compare, fetch_latest, get, how_line,
+                                install_kind, is_preview, test_api)
 
 MAX_ZIP = 400 * 1024 * 1024
 MAX_SMALL = 1024 * 1024
@@ -67,6 +68,12 @@ PREP_TEXT = {
     "bad_zip": "下載的 ZIP 裡面不對（{why}），已經刪掉、沒有更新。請到 GitHub 回報。",
     "current": "你已經是最新版（{v}），不用更新。",
     "ahead": "你裝的 {installed} 比最新的正式版 {v} 還新，不會「更新」成舊版。要回到上一版請用 Update.bat -Rollback。",
+    "ahead_preview": "你裝的 {installed} 比 GitHub 上最新的 {v}（正式版與測試版都算）還新，不會「更新」成舊版。"
+                     "要回到上一版請用 Update.bat -Rollback。",
+    "none": "GitHub 上還沒有 SYNOX 的正式版，沒有要更新的。（要裝測試版：Update.bat -IncludePrerelease，"
+            "或在設定卡片打開「也提醒我有測試版」。）",
+    "none_preview": "GitHub 上還沒有 SYNOX 的正式版或測試版，沒有要更新的。",
+    "preview": "⚠️ {v} 是測試版（預覽版）：你選了也收測試版。測試版可能還有問題；驗證跟正式版一樣（SHA256SUMS.txt、簽章）。",
     "from_zip": "⚠️ 用這台電腦上的 ZIP 更新（不是從 GitHub 下載）：{path}",
     "zip_missing": "找不到這個 ZIP：{path}（請給完整路徑）。",
     "zip_too_big": "這個 ZIP 太大了，不像 SYNOX 的發佈檔。",
@@ -205,8 +212,10 @@ def _write_ready(root: str, ready: dict) -> dict:
 
 
 def prepare(root: str, *, installed: str = __version__, allow_unsigned: bool = False,
-            opener: Optional[Opener] = None, keys=None, say=print) -> dict:
-    """下載＋驗證＋解開；成功回 ready（也寫進 data/update/ready.json）。不對丟 UpdateError（AlreadyCurrent＝不用更新）。"""
+            opener: Optional[Opener] = None, keys=None, say=print, include_prerelease: bool = False) -> dict:
+    """下載＋驗證＋解開；成功回 ready（也寫進 data/update/ready.json）。不對丟 UpdateError（AlreadyCurrent＝不用更新）。
+    include_prerelease（preview 通道／--include-prerelease）：正式版與測試版取 SemVer 較大的那一版；
+    驗證一模一樣（SHA256SUMS.txt 必須有、有簽章就一定要驗過、沒簽章要明確 allow_unsigned）。"""
     kind = install_kind(root)
     if kind != "zip":
         raise UpdateError(how_line(kind))
@@ -215,12 +224,18 @@ def prepare(root: str, *, installed: str = __version__, allow_unsigned: bool = F
         keys = _test_keys(keys)
         if signing.test_keys_note():
             say(signing.test_keys_note())
-    rel = fetch_latest(opener)
+    try:
+        rel = fetch_latest(opener, include_prerelease=include_prerelease)
+    except NotFound:
+        raise AlreadyCurrent(PREP_TEXT["none_preview" if include_prerelease else "none"])
     state = compare(installed, rel.version)
     if state == "current":
         raise AlreadyCurrent(PREP_TEXT["current"].format(v=rel.version))
     if state != "newer":
-        raise AlreadyCurrent(PREP_TEXT["ahead"].format(installed=installed, v=rel.version))
+        raise AlreadyCurrent(PREP_TEXT["ahead_preview" if include_prerelease else "ahead"]
+                             .format(installed=installed, v=rel.version))
+    if is_preview(rel):
+        say(PREP_TEXT["preview"].format(v=rel.version))
     zip_name = f"SYNOX-{rel.version}.zip"
     zasset, sums_asset = rel.asset(zip_name), rel.asset(signing.SUMS_ASSET)
     if zasset is None:
