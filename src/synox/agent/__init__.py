@@ -4,7 +4,7 @@ AI 助理：
   /ai <人話>     跟 AI 說（私訊裡直接打字也一樣：dispatcher 的 fallback）
   /ai_usage      用了多少（擁有者：data/llm_usage.json 全部；成員：自己這個月與額度）
   /ai_reset      忘掉這個聊天的對話紀錄
-  /ai_approve    確認卡按鈕綁的節點（不用自己打）
+  /ai_approve    確認卡按鈕綁的節點（不用自己打）；備援「先問我」卡（agent/fallback_card.py）的按鈕也綁在這裡
   /ai_budget     伺服器版、管理員：替某個人設每月 AI 額度（美元）
 
 誰能用：個人版只有擁有者（群組 agent 是 owner_only）；伺服器版成員以上（群組 role=成員，訪客看不到）。
@@ -184,6 +184,10 @@ def install(app, adapter: Optional[ChatAdapter], config) -> Optional[AgentLoop]:
         g.leaf("ai_budget", cmd_budget, "設某個人每月的 AI 額度（美元）", usage="<id> <美元|default>",
                effect=WRITE, role=app.users.top_role, ai=False)
     registry.bind_callback(PREFIX, "agent.ai_approve", desk.on_button)
+    from synox.agent.fallback_card import PREFIX as FALLBACK_PREFIX, FallbackDesk
+    fallback = FallbackDesk(app)                     # 備援的「先問我」卡（llm.waterfall.mode=ask，docs/adr/0046）
+    app.extras["synox_fallback_desk"] = fallback
+    registry.bind_callback(FALLBACK_PREFIX, "agent.ai_approve", fallback.on_button)
     return cur()
 
 

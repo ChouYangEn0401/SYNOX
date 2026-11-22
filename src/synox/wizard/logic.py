@@ -138,11 +138,29 @@ def default_choice(claude_found: bool) -> str:
 
 def llm_settings(choice: str, *, base_url: str = "", api_key: str = "", model: str = "",
                  provider: str = "openai", server: str = "ollama", context_size=0, tools: bool = True,
-                 timeout=None, max_total_timeout=None) -> Tuple[dict, str]:
+                 timeout=None, max_total_timeout=None, source: str = "", options=None) -> Tuple[dict, str]:
     """回 (config 的 llm 那一塊（金鑰先放明文，save() 會換成 vault: 參照）, 錯誤或空字串)。
-    choice=local：server／base_url／model／context_size／tools（timeout、max_total_timeout 沒給＝預設 450／1800）。"""
+    choice=local：server／base_url／model／context_size／tools（timeout、max_total_timeout 沒給＝預設 450／1800）。
+    choice=source：來源目錄上的路徑 source＋model＋base_url＋options（細節；呼叫端先照目錄的欄位清好，
+    synox/llm/sources.py 的 clean_options），docs/adr/0046。"""
     if choice == "none":
         return {"kind": "none"}, ""
+    if choice == "source":
+        from synox.llm import sources
+        raw = {"kind": sources.KIND, "source": source, "model": model, "base_url": base_url,
+               "source_options": dict(options or {}), "api_key": api_key.strip()}
+        try:
+            s = sources.validate(raw)
+        except ValueError as e:
+            return {}, str(e)
+        out = {"kind": sources.KIND, "source": s["source"], "model": s["model"]}
+        if s["base_url"]:
+            out["base_url"] = s["base_url"]
+        if s["options"]:
+            out["source_options"] = s["options"]
+        if s["api_key"]:
+            out["api_key"] = s["api_key"]
+        return out, ""
     if choice == "claude_code":
         return {"kind": "claude_code", "model": model.strip()}, ""
     if choice == "local":

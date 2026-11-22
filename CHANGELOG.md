@@ -1,5 +1,19 @@
 # Changelog
 
+## 未發佈
+
+- **AI 來源改成分步選擇**（[ADR 0046](docs/adr/0046-llm-source-tree-and-waterfall.md)）：設定 → AI →「① 來源（本地／遠端服務／先不用 AI）→
+  ② 認證（API 金鑰／訂閱登入）→ ③ 服務 → 連線欄位 → 模型（可以「列出模型」）→ 細節」。服務清單來自 ntu_easy_llm 0.6 的來源目錄，
+  這台不能用的反灰並寫原因（例如要先安裝哪個套件）。SYNOX 內建的本地模型（context 建議、載入／卸載）與 Claude Code 照舊在清單最前面。
+  舊的設定一個字都不用改；OpenAI、Anthropic、Gemini、相容端點照舊存成原本的寫法。其他來源（LLOP、訂閱登入、ntu_easy_llm 的本地 adapter）
+  存成新的 `llm.kind: "source"`（舊版 SYNOX 讀不懂這種設定，會在啟動時說明）。
+- **錯誤講得出種類**：額度用完、金鑰失效、太頻繁、連不到、API 連結已更換、加密或金鑰核對失敗…各有一句中文與下一步。
+  經 ntu_easy_llm 0.6 的來源照它的能力決定要不要送停止詞（以前一律不送）。
+- **可選的備援**（`llm.waterfall`）：主要來源額度用完、金鑰失效、太頻繁（重試後）時換下一個。模式「關（預設）／自動換／先問我」；
+  自動換會另外一則告訴你改用了誰；先問我會出按鈕「改用 X 重送」（只有那一句還沒做任何事時才給重送）。順序由你排，沒設定＝只用主要來源。
+  要 ntu_easy_llm 0.6 以上（有 router）；沒有時只用主要來源，設定頁與 `doctor` 會說明。
+- 網頁 API：`GET /api/settings/llm/catalog`、`POST /api/settings/llm/models`、`POST /api/settings/llm/waterfall`（只給擁有者）。
+
 ## 0.2.2-alpha.2（2026-11-19）
 
 **預覽版（alpha）：尚未在實機完整驗證。** 這版重點：更新卡片同時顯示正式版與測試版；可選擇是否提醒測試版。

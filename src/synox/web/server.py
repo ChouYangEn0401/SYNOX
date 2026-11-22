@@ -125,7 +125,8 @@ CONTAINER_BIND_HOSTS = (HOST, "0.0.0.0")
 # 設定頁換 AI 來源時沿用的 llm 設定（不是來源本身的欄位；docs/adr/0008、0010、0012、0014～0019）
 KEEP_LLM_KEYS = ("completion_guard", "verify_retries", "summarize_on_limit", "think",
                  "max_tools", "tool_result_chars", "prompt_tail", "sampling", "options",   # 0013～0019
-                 "vision", "vision_model", "vision_limits")                               # 0021
+                 "vision", "vision_model", "vision_limits",                               # 0021
+                 "waterfall")                    # 0046：換主要來源不洗掉備援（備援在自己的那一塊改）
 # 「真的在容器裡」的證據（任一個存在就算）：Docker 的 /.dockerenv、podman 的 /run/.containerenv、
 # SYNOX 映像檔自己放的 /etc/synox/container。光有環境變數不夠：怕有人在一般電腦上照抄容器的環境變數
 CONTAINER_MARKERS = ("/.dockerenv", "/run/.containerenv", "/etc/synox/container")
@@ -166,6 +167,22 @@ def _json(status: int, data, extra: Optional[List[Tuple[str, str]]] = None) -> R
 
 def _err(status: int, message: str) -> Resp:
     return _json(status, {"error": message})
+
+
+def _member_label(llm: dict) -> str:
+    """一個 AI 來源（llm 那一塊或備援的一項）給人看的名字；不帶金鑰、不帶網址。"""
+    kind = str((llm or {}).get("kind") or "none")
+    model = str((llm or {}).get("model") or "")
+    tail = f"（{model}）" if model else ""
+    if kind == "local":
+        from synox.wizard import logic
+        return f"本地 {logic.LOCAL_SERVERS.get(str(llm.get('server') or 'ollama'), '伺服器')}{tail}"
+    if kind == "claude_code":
+        return f"Claude Code{tail}"
+    from synox.llm import sources
+    if kind == sources.KIND:
+        return sources.label_of(str(llm.get("source") or "")) + tail
+    return sources.LEGACY_LABELS.get(kind, kind) + tail
 
 
 # app.html 裡的 /*{{INCLUDE:檔名}}*/ 換成 static/ 裡那個檔的內容（主控頁的 control.js／control.css）。
@@ -921,6 +938,8 @@ class WebUI:
                 return self.pack_secrets_get(user, m.group(1))
             if path == "/api/settings":
                 return _json(200, self.settings(user))
+            if path == "/api/settings/llm/catalog":         # AI 來源目錄（來源 → 認證 → 服務，docs/adr/0046）
+                return self.llm_catalog(user)
             if path == "/api/settings/channels":
                 return self.channels(user)
             if path == "/api/settings/channels/discord/pair":
@@ -983,6 +1002,10 @@ class WebUI:
             return self.local_load(user, data, unload=True)
         if path == "/api/settings/llm/local-reload":
             return self.local_reload(user, data)
+        if path == "/api/settings/llm/models":             # 來源目錄上的來源：列模型（會連使用者填的網址，所以是 POST）
+            return self.llm_models(user, data)
+        if path == "/api/settings/llm/waterfall":          # 備援（docs/adr/0046）
+            return self.save_waterfall(user, data)
         if path == "/api/settings/channels/telegram":
             return self.save_telegram(user, data)
         if path == "/api/settings/channels/discord":
@@ -1493,6 +1516,10 @@ class WebUI:
         llm = dict(self.config.llm or {})
         out["llm"] = {"kind": llm.get("kind", "none"), "model": llm.get("model", ""),
                       "base_url": llm.get("base_url", ""), "has_key": bool(llm.get("api_key"))}
+        if llm.get("kind") == "source":                       # 來源目錄上的來源（docs/adr/0046）
+            out["llm"].update({"source": llm.get("source", ""), "options": dict(llm.get("source_options") or {})})
+        from synox.llm import router as llm_router
+        out["llm"]["waterfall"] = llm_router.status_line(llm)
         if llm.get("kind") == "local":
             out["llm"].update({k: llm.get(k) for k in ("server", "context_size", "timeout", "max_total_timeout", "tools")})
             current = self.app.extras.get("synox_agent")
@@ -1510,7 +1537,8 @@ class WebUI:
              for code, v in logic.KEY_PROVIDERS.items()] + \
             [{"choice": "local", "label": logic.LOCAL_TITLE,
               "servers": [{"value": k, "label": lbl, "base_url": DEFAULT_URLS[k]} for k, lbl in logic.LOCAL_SERVERS.items()],
-              "context_options": list(OPTIONS)}] + [{"choice": "none", "label": "先不用 AI"}]
+              "context_options": list(OPTIONS)}] + [{"choice": "none", "label": "先不用 AI"}] + \
+            [{"choice": "source", "label": "來源目錄上的其他來源（經 ntu_easy_llm）"}]    # 分步選擇用（docs/adr/0046）
         report = self.app.extras.get("synox_pack_report")
         user_dir = os.path.realpath(self.pack_dirs[0]) if self.pack_dirs else ""
         out["packs"] = [{"name": i.name, "status": i.status, "detail": i.detail, "kind": i.kind,
@@ -1537,6 +1565,8 @@ class WebUI:
         api_key = str(data.get("api_key") or "")
         current = dict(self.config.llm or {})
         keep = False
+        if choice == "source":
+            return self._source_from(data, current)
         if choice == "keys" and not api_key.strip() and provider in logic.KEY_PROVIDERS and \
                 current.get("kind") == logic.KEY_PROVIDERS[provider][1] and current.get("api_key"):
             api_key, keep = "（沿用）", True               # 留空＝沿用原本的金鑰
@@ -1564,6 +1594,183 @@ class WebUI:
             llm["api_key"] = current["api_key"]
         return llm, ""
 
+    def _source_from(self, data: dict, current: dict, *, need_model: bool = True) -> Tuple[dict, str]:
+        """choice=source（來源目錄上的來源，docs/adr/0046）→ (llm 那一塊, 錯誤)。只收目錄上有、這台能用的來源；
+        選項只留那個來源宣告的欄位（sources.clean_options）。金鑰留空＝同一個來源原本有的就沿用。"""
+        from synox.llm import sources
+        from synox.wizard import logic
+        path = str(data.get("source") or "").strip()
+        service = sources.find_service(path)
+        if service is None or service.get("kind") != sources.KIND:
+            return {}, "來源目錄上沒有這個來源（或它要用別的方式設定）。"
+        if not service.get("available"):
+            return {}, service.get("reason") or "這台還不能用這個來源。"
+        raw_options = data.get("options") or {}
+        if not isinstance(raw_options, dict):
+            return {}, "options 要是 {欄位: 值}。"
+        try:
+            options = sources.clean_options(service, raw_options)
+        except ValueError as e:
+            return {}, str(e)
+        names = {f["name"]: f for f in service.get("fields", [])}
+        model = str(data.get("model") or "").strip() or str((names.get("model") or {}).get("default") or "")
+        base_url = str(data.get("base_url") or "").strip()
+        if "base_url" not in names:
+            base_url = ""
+        elif not base_url:
+            base_url = str(names["base_url"].get("default") or "")
+        api_key = str(data.get("api_key") or "").strip() if "secret" in names else ""
+        if not api_key and "secret" in names and current.get("kind") == sources.KIND and \
+                current.get("source") == path and current.get("api_key"):
+            api_key = str(current["api_key"])               # 留空＝沿用原本的（保管箱引用）
+        for name, f in names.items():
+            if not f.get("required"):
+                continue
+            if name == "model" and need_model and not model:
+                return {}, "要選或填一個模型（可以先按「列出模型」）。"
+            if name == "base_url" and not base_url:
+                return {}, "要填伺服器網址（http:// 或 https:// 開頭）。"
+            if name == "secret" and not api_key:
+                return {}, "要填 API 金鑰（只在這台電腦的網頁填；存進保管箱）。"
+            if name not in ("model", "base_url", "secret") and name not in options:
+                return {}, f"要填「{f.get('label') or name}」。"
+        return logic.llm_settings("source", source=path, model=model, base_url=base_url, api_key=api_key,
+                                  options=options)
+
+    def llm_catalog(self, user) -> Resp:
+        """GET /api/settings/llm/catalog：設定頁分步選擇的目錄（sources.tree）＋現在的選擇＋備援。只給擁有者；不連網。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from synox.llm import router as llm_router
+        from synox.llm import sources
+        llm = dict(self.config.llm or {})
+        current = {"kind": llm.get("kind", "none"), "model": llm.get("model", ""), "source": llm.get("source", ""),
+                   "provider": llm.get("kind") if llm.get("kind") in ("openai", "anthropic", "gemini", "openai_compat")
+                   else "", "options": dict(llm.get("source_options") or {}), "base_url": llm.get("base_url", ""),
+                   "has_key": bool(llm.get("api_key"))}
+        return _json(200, {"tree": sources.tree(), "current": current, "waterfall": self._waterfall_view(llm),
+                           "router": llm_router.router_class() is not None})
+
+    def _waterfall_view(self, llm: dict) -> dict:
+        from synox.llm import router as llm_router
+        wf = llm.get("waterfall") if isinstance(llm.get("waterfall"), dict) else {}
+        return {"mode": str(wf.get("mode") or "off"), "status": llm_router.status_line(llm),
+                "backups": [{"label": _member_label(b)} for b in (wf.get("backups") or [])],
+                "triggers": list(wf.get("triggers") or [])}
+
+    def llm_models(self, user, data: dict) -> Resp:
+        """POST /api/settings/llm/models：來源目錄上的來源有哪些模型（經 ntu_easy_llm 的 list_models，唯讀、不載入模型）。
+        會讓 SYNOX 去連使用者填的網址，所以用 POST（要 CSRF header），跟 local-advice 同一個理由。只給擁有者。
+        本地內建（kind=local）照舊用 local-models；Claude Code 的模型是固定清單。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from synox.llm.base import LLMError
+        from synox.llm.factory import resolve_secret
+        from synox.wizard import logic
+        choice = str(data.get("choice") or "source")
+        if choice == "claude_code":
+            return _json(200, {"ok": True, "models": [{"id": v, "label": lbl} for v, lbl in logic.CLAUDE_MODELS if v]})
+        current = dict(self.config.llm or {})
+        if choice == "source":
+            llm, problem = self._source_from(data, current, need_model=False)
+        elif choice == "keys":
+            llm, problem = self._llm_from({**data, "model": str(data.get("model") or "list")})
+        else:
+            return _err(400, "choice 只能是 source、keys 或 claude_code（本地內建用 local-models）。")
+        if problem:
+            return _err(400, problem)
+        if str(llm.get("api_key", "")).startswith(("vault:", "env:")):
+            try:
+                llm = {**llm, "api_key": resolve_secret(llm["api_key"], self.vault)}
+            except LLMError as e:
+                return _json(200, {"ok": False, "models": [], "message": f"❌ {e}"})
+        from synox.llm import make_adapter
+        try:
+            adapter = make_adapter({"llm": {k: v for k, v in llm.items() if k != "waterfall"}})
+            lister = getattr(adapter, "list_models", None)
+            if lister is None and callable(getattr(adapter, "native", None)):
+                native = adapter.native()
+                lister = getattr(native, "list_models", None)
+            if lister is None:
+                return _json(200, {"ok": False, "models": [],
+                                   "message": "這個來源（這一版）不能列出模型，請自己輸入模型名稱。"})
+            models = lister()
+        except LLMError as e:
+            return _json(200, {"ok": False, "models": [], "message": f"❌ {e}"})
+        loaded = sum(1 for m in models if m.get("loaded"))
+        return _json(200, {"ok": True, "models": models,
+                           "message": f"找到 {len(models)} 個模型" + (f"，{loaded} 個已載入。" if loaded else "。")})
+
+    def save_waterfall(self, user, data: dict) -> Resp:
+        """POST /api/settings/llm/waterfall：備援（docs/adr/0046）。只給擁有者。
+        {"mode": "off|auto|ask", "keep": [保留的備援的舊序號，照新的順序], "add": <跟「存起來」同一種內容>|null}。
+        新加的備援的金鑰放進保管箱（llm_api_key_backup_<n>），config 只寫引用。順序就是使用者排的，不預設任何來源。"""
+        denied = self._owner_only(user)
+        if denied:
+            return denied
+        from synox.config import ConfigError, parse_waterfall
+        from synox.llm.factory import VAULT_PREFIX
+        from synox.wizard import logic
+        mode = str(data.get("mode") or "off").strip().lower()
+        cfg = logic.read_existing(self.config_path)
+        llm_cfg = dict(cfg.get("llm") or {})
+        old = llm_cfg.get("waterfall") if isinstance(llm_cfg.get("waterfall"), dict) else {}
+        old_backups = list(old.get("backups") or [])
+        keep = data.get("keep")
+        if keep is None:
+            keep = list(range(len(old_backups)))
+        if not isinstance(keep, list) or not all(isinstance(i, int) and not isinstance(i, bool) and
+                                                 0 <= i < len(old_backups) for i in keep) or len(set(keep)) != len(keep):
+            return _err(400, "keep 要是現有備援的序號清單（不重複）。")
+        backups = [old_backups[i] for i in keep]
+        add = data.get("add")
+        if add:
+            if not isinstance(add, dict):
+                return _err(400, "add 要是一個 {…}（跟「存起來」同一種內容）。")
+            member, problem = self._llm_from(add)
+            if problem:
+                return _err(400, problem)
+            if member.get("kind") in ("none", "fake"):
+                return _err(400, "備援要是一個真的 AI 來源。")
+            key = member.get("api_key", "")
+            if key == self.config.llm.get("api_key") and str(key).startswith(VAULT_PREFIX):
+                pass                                        # 沿用主要來源的金鑰（同一把）：照抄引用
+            elif key and not str(key).startswith((VAULT_PREFIX, "env:")):
+                if self.vault is None:
+                    return _err(400, "保管箱沒有打開，金鑰沒地方放。")
+                used = {str(b.get("api_key", "")) for b in backups + old_backups}
+                n = 1
+                while f"{VAULT_PREFIX}{logic.SECRET_NAME}_backup_{n}" in used:
+                    n += 1
+                name = f"{logic.SECRET_NAME}_backup_{n}"
+                self.vault.set_secret(name, key)
+                member["api_key"] = VAULT_PREFIX + name
+            backups.append(member)
+        raw = {"mode": mode, "backups": backups}
+        for k in ("triggers", "retry_429", "max_retry_wait_s", "cooldown_s", "ask_ttl_s"):
+            if k in old:
+                raw[k] = old[k]
+        try:
+            parsed = parse_waterfall(raw)
+        except ConfigError as e:
+            return _err(400, str(e))
+        if mode == "off" and not backups:
+            llm_cfg.pop("waterfall", None)                  # 全部拿掉＝回到沒寫（照舊只用主要來源）
+        else:
+            llm_cfg["waterfall"] = raw
+        cfg["llm"] = llm_cfg
+        logic.write_config(self.config_path, cfg)
+        self.config.llm = {**(self.config.llm or {}), "waterfall": parsed if "waterfall" in llm_cfg else None}
+        if "waterfall" not in llm_cfg:
+            self.config.llm.pop("waterfall", None)
+        applied = self._apply_llm({"kind": self.config.llm.get("kind", "none")})
+        view = self._waterfall_view(self.config.llm)
+        logging.info("[WEB] waterfall saved by the owner: mode=%s backups=%d", mode, len(backups))
+        return _json(200, {"ok": True, "waterfall": view,
+                           "message": view["status"] + ("" if applied.get("applied") else "　" + applied["message"])})
+
     def save_llm(self, user, data: dict) -> Resp:
         denied = self._owner_only(user)
         if denied:
@@ -1589,7 +1796,7 @@ class WebUI:
                       **{k: old[k] for k in KEEP_LLM_KEYS if k in old}, **llm}     # 換來源不洗掉完成宣稱檢查等設定
         logic.write_config(self.config_path, cfg)
         stale = ("kind", "api_key", "base_url", "model", "tools", "server", "context_size", "timeout",
-                 "max_total_timeout")                       # 換來源時，舊來源的欄位不要留在記憶體裡
+                 "max_total_timeout", "source", "source_options")   # 換來源時，舊來源的欄位不要留在記憶體裡
         self.config.llm = {**{k: v for k, v in (self.config.llm or {}).items() if k not in stale}, **cfg["llm"]}
         return _json(200, self._apply_llm(llm))
 

@@ -210,6 +210,23 @@ body（兩個都可以省略；省略＝不改）：
   連不上伺服器時 `source` 是 `static`（用常見 7–9B 模型的假設），`notes` 會說明。
 - `POST /api/settings/llm/test` 對 `choice: "local"` 也是唯讀探測，回 `{"ok", "message", "lines": [...]}`。
 
+## AI 來源目錄、列模型、備援（不在 runtime 前綴下，順便記在這裡；[ADR 0046](adr/0046-llm-source-tree-and-waterfall.md)）
+
+都只給擁有者；非 GET 要 CSRF。
+
+- `GET /api/settings/llm/catalog`：不連網。回 `{"tree": {"families": [{"id": "local|remote|none", "label", "auths": [{"id": ""|"api_key"|"subscription",
+  "label", "services": [{"id", "label", "available", "reason", "kind", "source", "provider"?, "fields": [FieldSpec…], "detail_fields": [FieldSpec…],
+  "builtin", "note", "extra"}]}]}], "easy_llm": "<版本或空>", "contract": true|false, "hint"}, "current": {"kind", "model", "source", "provider",
+  "options", "base_url", "has_key"}, "waterfall": {"mode", "status", "backups": [{"label"}], "triggers"}, "router": true|false}`。
+  `kind` 是存進 config 的 `llm.kind`：`local`／`claude_code`（SYNOX 內建）、`openai`／`anthropic`／`gemini`／`openai_compat`（舊的四種）、`source`（其他）。
+- `POST /api/settings/llm/models`：`{"choice": "source", "source": "<路徑>", "base_url", "api_key", "options"}`（或 `choice: "keys"`＋`provider`）。
+  經 ntu_easy_llm 的 `list_models`（唯讀、不載入模型）。會連使用者填的網址，所以用 POST。回 `{"ok", "models": [{"id", "label", "context", "loaded",
+  "vision", "tools"}], "message"}`（已載入的排前面、embedding 不列）。本地內建照舊用 `local-models`。
+- `POST /api/settings/llm`、`/test` 多收 `choice: "source"`：`source`、`model`、`base_url`、`api_key`（留空＝同一個來源原本的沿用）、
+  `options`（只留目錄宣告的欄位，照型別轉）。存成 `{"kind": "source", "source", "model", "base_url"?, "api_key": "vault:…"?, "source_options"?}`。
+- `POST /api/settings/llm/waterfall`：`{"mode": "off|auto|ask", "keep": [保留的備援的舊序號，照新順序], "add": <跟 /api/settings/llm 同一種內容>|null}`。
+  新備援的金鑰放保管箱 `llm_api_key_backup_<n>`。`mode: off` 而且沒有備援＝拿掉整個 `llm.waterfall`。回 `{"ok", "waterfall", "message"}`。
+
 ## `POST /api/runtime/heartbeat/run-now`
 
 馬上巡一次（在背景跑，**不等它做完**）。心跳關著也可以按（手動的那一次不看安靜時段）。body 可以是空的 `{}`。

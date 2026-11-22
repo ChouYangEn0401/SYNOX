@@ -45,6 +45,7 @@ import urllib.parse
 import urllib.request
 from typing import Callable, Dict, List, Optional, Sequence
 
+from synox.llm.kinds import http_kind
 from synox.llm.base import (ASSISTANT, TOOL, USER, ChatAdapter, LLMError, Message, Reply, ToolCall, ToolSpec, has_images,
                             http_error, no_vision)
 
@@ -337,7 +338,8 @@ class LocalAdapter(ChatAdapter):
 
     def _no_progress(self) -> LLMError:
         err = LLMError(f"本地模型超過 {int(self.timeout)} 秒沒有任何進展（無進展逾時：連第一個字都還沒出來，或吐到一半停住）。"
-                       f"CPU 上大模型、長提示可能要更久：調大 llm.timeout，或換小一點的模型、調小 context_size。")
+                       f"CPU 上大模型、長提示可能要更久：調大 llm.timeout，或換小一點的模型、調小 context_size。",
+                       kind="timeout")
         err.no_progress = True
         return err
 
@@ -360,7 +362,8 @@ class LocalAdapter(ChatAdapter):
                 raise self._no_progress()
             raise LLMError(f"連不到本地模型伺服器 {self._where()}："
                            + ("Ollama 有沒有開？（工作列有沒有 Ollama 圖示，或終端機跑 `ollama serve`）"
-                              if self.server == "ollama" else "伺服器有沒有開、網址和連接埠對不對？"))
+                              if self.server == "ollama" else "伺服器有沒有開、網址和連接埠對不對？"),
+                           kind="connection")          # 種類給備援（llm.waterfall，docs/adr/0046）看
         status = int(getattr(resp, "status", 200) or 200)
         if status >= 400:
             body = ""
@@ -480,7 +483,7 @@ class LocalAdapter(ChatAdapter):
             else:
                 reply = self._chat_openai(messages, tools if native else (), warnings, stop, limit)
         except _HTTPProblem as p:
-            raise LLMError(self._http_text(p))
+            raise LLMError(self._http_text(p), kind=http_kind(p.status, p.body))
         from synox.llm.textproto import strip_think
         reply.text = strip_think(reply.text)[0]          # 思考段不給人看（think=false 不一定每個模型都照做）
         self._learn_context()

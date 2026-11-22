@@ -74,7 +74,8 @@ def default_root(environ=None, package_file: Optional[str] = None, cwd: Optional
 ROOT, ROOT_SOURCE = default_root()
 CONFIG_PATH = os.path.join(ROOT, "config.json")
 
-LLM_KINDS = ("openai", "anthropic", "gemini", "openai_compat", "claude_code", "local", "fake", "none")
+# source＝來源目錄上的任何一個（經 ntu_easy_llm 0.6，synox/llm/sources.py，docs/adr/0046）
+LLM_KINDS = ("openai", "anthropic", "gemini", "openai_compat", "claude_code", "local", "fake", "none", "source")
 DEFAULT_LLM = {"kind": "none", "max_steps": 6, "max_tokens": 1024, "completion_guard": "auto", "verify_retries": 2,
                "summarize_on_limit": "auto"}
 LOCAL_MAX_TOKENS = 4096        # kind=local 沒寫 max_tokens 時的預設（llm/local.py、精靈、網頁設定頁共用）
@@ -350,10 +351,18 @@ def parse_llm_extras(llm: dict) -> dict:
     if "think" in llm and not isinstance(llm["think"], bool):
         raise ConfigError("config.json 的 llm.think 只能是 true 或 false。")
     llm = parse_harness_extras(llm)
+    if "waterfall" in llm:
+        llm = {**llm, "waterfall": parse_waterfall(llm["waterfall"])}
     if llm.get("kind") == "local":
         from synox.llm.local import validate
         try:
             return {**llm, **validate(llm)}
+        except ValueError as e:
+            raise ConfigError(f"config.json：{e}")
+    if llm.get("kind") == "source":
+        from synox.llm import sources
+        try:
+            sources.validate(llm)
         except ValueError as e:
             raise ConfigError(f"config.json：{e}")
     if llm.get("timeout") not in (None, ""):
@@ -361,6 +370,32 @@ def parse_llm_extras(llm: dict) -> dict:
         if isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 86400:
             raise ConfigError("config.json 的 llm.timeout 要是 0～86400 的秒數（0＝自動）。")
     return llm
+
+
+def parse_waterfall(raw):
+    """llm.waterfall（備援，synox/llm/router.py，docs/adr/0046）：形狀＋每個備援來源照 llm 同一套規則檢查。
+    沒寫（None）＝照舊只用主要來源。寫錯＝ConfigError。"""
+    from synox.llm import router, sources
+    try:
+        wf = router.parse(raw)
+    except ValueError as e:
+        raise ConfigError(f"config.json：{e}")
+    if wf is None:
+        return None
+    for i, b in enumerate(wf["backups"]):
+        kind = b.get("kind")
+        if kind not in LLM_KINDS or kind == "none":
+            raise ConfigError(f"config.json 的 llm.waterfall.backups[{i}].kind 只能是 "
+                              f"{'、'.join(k for k in LLM_KINDS if k != 'none')}（現在是 {kind!r}）。")
+        try:
+            if kind == "local":
+                from synox.llm.local import validate
+                wf["backups"][i] = {**b, **validate(b)}
+            elif kind == "source":
+                sources.validate(b)
+        except ValueError as e:
+            raise ConfigError(f"config.json 的 llm.waterfall.backups[{i}]：{e}")
+    return wf
 
 
 def parse_harness_extras(llm: dict) -> dict:

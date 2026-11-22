@@ -560,8 +560,8 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
             if adapter is None:
                 out(f"• AI：❌ 不認得的 kind {kind}")
                 problems += 1
-            elif kind == "local":
-                problems += _local_lines(adapter, offline, out)
+            elif kind == "local":                           # 有備援時 adapter 是 RouterAdapter：看主要來源（docs/adr/0046）
+                problems += _local_lines(getattr(adapter, "primary", adapter), offline, out)
             elif offline:
                 out(f"• AI：{adapter.name}（--offline：沒有實際測試）")
             else:
@@ -575,6 +575,8 @@ def run(offline: bool = False,config_path: str = "", out: Callable[[str], None] 
                 out("  " + harness_line(llm, adapter))
                 from synox.llm.vision import summary as vision_line             # docs/adr/0021（不連網、不載入模型）
                 out("  " + vision_line(llm, adapter))
+                from synox.llm.router import status_line as waterfall_line     # docs/adr/0046（不連網）
+                out("  " + waterfall_line(llm))
         except Exception as e:
             out(f"• AI：❌ {e}")
             problems += 1

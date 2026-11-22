@@ -244,6 +244,21 @@ class AgentLoop:
         del h[:max(0, len(h) - 2 * self.history_turns)]
         self._touched[key] = time.time()
 
+    def offer_fallback(self, api, chat_id: int, user, error, text: Optional[str]) -> None:
+        """備援的「先問我」（docs/adr/0046）：出按鈕卡（agent/fallback_card.py）。text＝這一輪還沒做任何事、
+        可以整句重送（None＝做到一半或帶附件：只說明、不給重送）。沒有卡桌（測試、頻道 AI）＝照舊只說沒有回應。"""
+        desk = self.app.extras.get("synox_fallback_desk") if hasattr(self.app, "extras") else None
+        if desk is None or int(chat_id) < 0:                # 頻道／群組（負號 id）不出卡
+            api.send_message(chat_id, f"⚠️ AI 沒有回應：{error}")
+            return
+        resend = None
+        if text is not None:
+            bot = policy.current_bot()
+
+            def resend():
+                policy.run_as(bot, self.run_turn, api, chat_id, user, text)
+        desk.offer(api, chat_id, user, error, resend)
+
     def note(self, chat_id: int, text: str, user=None, thread=None) -> None:
         """核准卡按下之後記一筆（下一輪 AI 知道那件事做了沒）。user：卡的主人（記進他自己的那份記憶）；
         thread：卡是在網頁哪一段對話按的（記進那一段）。"""
@@ -823,6 +838,10 @@ class AgentLoop:
             try:
                 reply = self._chat(messages, tools if native else (), stop_words)
             except LLMError as e:
+                if getattr(e, "choices", None) is not None:      # 備援的「先問我」（llm.waterfall.mode=ask，docs/adr/0046）
+                    fresh = step == 0 and not wake and not files and quote is None and not had_images
+                    self.offer_fallback(api, chat_id, user, e, text if fresh else None)
+                    return
                 api.send_message(chat_id, f"⚠️ AI 沒有回應：{e}")
                 return
             except Exception as e:

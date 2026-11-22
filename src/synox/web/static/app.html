@@ -812,8 +812,33 @@
       <div id="set-llm" class="card hidden" data-tour="settings.ai.source">
         <div class="card-head"><span class="tile" aria-hidden="true">🤖</span>
           <div class="txt"><h2>AI 從哪裡來</h2><p class="sub" id="llm-now"></p></div></div>
-        <label class="f" for="llm-choice">來源</label>
-        <select id="llm-choice"></select>
+        <!-- 分步選擇（docs/adr/0046）：① 來源 → ② 認證 → ③ 服務；選項來自 /api/settings/llm/catalog，不能用的反灰並寫原因 -->
+        <label class="f" for="llm-fam">① 來源</label>
+        <select id="llm-fam"></select>
+        <div id="llm-auth-wrap" class="hidden">
+          <label class="f" for="llm-auth">② 認證</label>
+          <select id="llm-auth"></select>
+        </div>
+        <div id="llm-svc-wrap" class="hidden">
+          <label class="f" for="llm-svc">③ 服務</label>
+          <select id="llm-svc"></select>
+        </div>
+        <p id="llm-svc-why" class="note-line hidden"></p>
+        <p id="llm-svc-note" class="muted hidden"></p>
+        <p id="llm-tree-hint" class="muted hidden"></p>
+        <select id="llm-choice" class="hidden" aria-hidden="true" tabindex="-1"></select>
+        <div id="llm-src-fields" class="hidden">
+          <div id="llm-src-conn"></div>
+          <label class="f" for="llm-src-pick">⑤ 模型（可以按「列出模型」從清單選，也可以自己輸入）</label>
+          <div class="row">
+            <select id="llm-src-pick"><option value="">（按「列出模型」）</option></select>
+            <button id="llm-src-list" type="button">列出模型</button>
+          </div>
+          <input id="llm-src-model" type="text" size="30">
+          <p id="llm-src-msg" class="muted"></p>
+          <details id="llm-src-details" class="hidden"><summary>⑥ 細節（選填，空白＝用預設）</summary>
+            <div id="llm-src-detail-fields"></div></details>
+        </div>
         <div id="llm-cc-fields" class="hidden">
           <label class="f" for="llm-cc-model">模型</label>
           <select id="llm-cc-model"></select>
@@ -878,6 +903,23 @@
             <button type="button" class="copy" data-copy="cmd-nix">複製</button></div>
           <p class="muted"><a id="llm-dl" target="_blank" rel="noopener noreferrer">官方安裝說明</a>
             ．裝好後如果還是找不到，重開 SYNOX（它啟動時看到的 PATH 才是新的）。</p>
+        </div>
+        <!-- 備援（docs/adr/0046）：沒設定＝只用主要來源；順序就是你排的 -->
+        <hr class="rule">
+        <h3>備援（選用）</h3>
+        <p class="muted">主要來源因為額度用完、金鑰失效、太頻繁（重試後）不能用時，換下一個。一般的錯誤不換。沒設定＝只用主要來源。</p>
+        <p id="wf-status" class="muted"></p>
+        <label class="f" for="wf-mode">模式</label>
+        <select id="wf-mode">
+          <option value="off">關（只用主要來源）</option>
+          <option value="auto">自動換（換了會告訴你）</option>
+          <option value="ask">先問我（出按鈕讓你選）</option>
+        </select>
+        <ol id="wf-list"></ol>
+        <div class="row">
+          <button id="wf-add" type="button">把上面選的加成備援</button>
+          <button id="wf-save" type="button">存備援設定</button>
+          <span id="wf-msg" class="muted"></span>
         </div>
       </div>
 
@@ -1764,6 +1806,7 @@
     $("llm-url-wrap").classList.toggle("hidden", !c.needs_url);
     if (c.model && !$("llm-model").value) { $("llm-model").value = c.model; }
     $("llm-local-fields").classList.toggle("hidden", c.choice !== "local");
+    $("llm-src-fields").classList.toggle("hidden", c.choice !== "source");
     if (c.choice === "local") {
       var srv = $("llm-local-server");
       if (srv.options.length === 0) {
@@ -1806,6 +1849,7 @@
                model: $("llm-local-model").value, context_size: Number($("llm-local-ctx").value || 0),
                api_key: $("llm-local-key").value };
     }
+    if (c.choice === "source") { return srcBody(); }
     return { choice: c.choice, provider: c.provider || "", api_key: $("llm-key").value,
              model: c.choice === "claude_code" ? $("llm-cc-model").value : $("llm-model").value,
              base_url: $("llm-url").value };
@@ -2243,8 +2287,8 @@
     $("llm-model").value = d.llm.model || "";
     $("llm-url").value = d.llm.base_url || "";
     $("llm-key").value = "";
-    $("llm-now").textContent = "現在：" + d.llm.kind + (d.llm.model ? "（" + d.llm.model + "）" : "") +
-      (d.llm.has_key ? "，有金鑰" : "");
+    $("llm-now").textContent = "現在：" + (d.llm.source || d.llm.kind) + (d.llm.model ? "（" + d.llm.model + "）" : "") +
+      (d.llm.has_key ? "，有金鑰" : "") + (d.llm.waterfall ? "　" + d.llm.waterfall : "");
     localListed = d.llm.kind === "local";          // 本地模型：等下面填好伺服器與網址再列清單
     syncLlmFields();
     if (d.llm.kind === "claude_code") { $("llm-cc-model").value = d.llm.model || ""; }
@@ -2266,6 +2310,7 @@
     $("llm-vision").classList.toggle("hidden", !d.llm.vision);
     llmSnap = JSON.stringify(llmBody());
     updateLlmDirty();
+    loadLlmTree();
   }
   var llmSnap = "";
   function updateLlmDirty() { $("llm-save").disabled = JSON.stringify(llmBody()) === llmSnap; }
@@ -2439,6 +2484,242 @@
     api("POST", "/api/settings/llm", llmBody()).then(function (d) { $("llm-msg").textContent = d.message; loadSettings(); })
       .catch(function (e) { $("llm-msg").textContent = "❌ " + e.message; });
   });
+
+  // ── AI 來源的分步選擇（docs/adr/0046）：① 來源 → ② 認證 → ③ 服務 → ④ 連線欄位 → ⑤ 模型 → ⑥ 細節 ──────────
+  // 目錄來自 GET /api/settings/llm/catalog（不連網）；選到的服務對到舊的 llm-choice（內建本地、Claude Code、四個金鑰來源照舊），
+  // 其他來源（kind=source）用 llm-src-fields 這一塊（欄位照目錄給的畫）。字一律 textContent。
+  var llmTree = null, llmCur = {}, llmSvc = null, wfState = null, wfKeep = [];
+  function choiceIndex(pred) {
+    for (var i = 0; i < llmChoices.length; i++) { if (pred(llmChoices[i])) { return i; } }
+    return -1;
+  }
+  function famOf(id) { return (llmTree && llmTree.families || []).filter(function (f) { return f.id === id; })[0] || null; }
+  function authsOf(fam) { return fam ? fam.auths || [] : []; }
+  function servicesOf(famId, authId) {
+    var a = authsOf(famOf(famId)).filter(function (x) { return x.id === authId; })[0];
+    return a ? a.services || [] : [];
+  }
+  function whereIs(cur) {                          // 現在的設定在目錄上的哪裡 → [來源, 認證, 服務 id]
+    var k = cur.kind || "none";
+    if (k === "none" || k === "fake") { return ["none", "", ""]; }
+    if (k === "local") { return ["local", "", "synox/local"]; }
+    if (k === "claude_code") { return ["remote", "subscription", "synox/claude_code"]; }
+    var path = k === "source" ? cur.source : "";
+    if (!path) {
+      (llmTree.families || []).forEach(function (f) {
+        authsOf(f).forEach(function (a) {
+          (a.services || []).forEach(function (s) { if (s.provider === k) { path = s.id; } });
+        });
+      });
+    }
+    if (path.indexOf("local/") === 0) { return ["local", "", path]; }
+    return ["remote", path.indexOf("remote/subscription/") === 0 ? "subscription" : "api_key", path];
+  }
+  function fillSelect(sel, rows, pick) {          // rows: [{value, label, disabled}]
+    clear(sel);
+    rows.forEach(function (r) {
+      var o = el("option", "", r.label); o.value = r.value; o.disabled = !!r.disabled; sel.appendChild(o);
+    });
+    if (pick !== undefined && rows.some(function (r) { return r.value === pick; })) { sel.value = pick; }
+  }
+  function loadLlmTree() {
+    return api("GET", "/api/settings/llm/catalog").then(function (d) {
+      llmTree = d.tree; llmCur = d.current || {}; wfState = d.waterfall;
+      $("llm-tree-hint").textContent = llmTree.hint || "";
+      $("llm-tree-hint").classList.toggle("hidden", !llmTree.hint);
+      var at = whereIs(llmCur);
+      fillSelect($("llm-fam"), (llmTree.families || []).map(function (f) { return { value: f.id, label: f.label }; }), at[0]);
+      drawAuth(at[1], at[2]);
+      drawWf();
+      llmSnap = JSON.stringify(llmBody());
+      updateLlmDirty();
+    }).catch(function (e) { $("llm-tree-hint").textContent = "❌ " + e.message; $("llm-tree-hint").classList.remove("hidden"); });
+  }
+  function drawAuth(authPick, svcPick) {
+    var fam = famOf($("llm-fam").value);
+    var auths = authsOf(fam);
+    var named = auths.filter(function (a) { return a.id; });
+    $("llm-auth-wrap").classList.toggle("hidden", named.length === 0);
+    fillSelect($("llm-auth"), named.map(function (a) { return { value: a.id, label: a.label }; }), authPick);
+    drawServices(svcPick);
+  }
+  function drawServices(svcPick) {
+    var famId = $("llm-fam").value;
+    var auths = authsOf(famOf(famId));
+    var authId = auths.some(function (a) { return a.id; }) ? $("llm-auth").value : "";
+    var rows = servicesOf(famId, authId);
+    $("llm-svc-wrap").classList.toggle("hidden", famId === "none");
+    var first = rows.filter(function (s) { return s.available; })[0];
+    fillSelect($("llm-svc"), rows.map(function (s) {
+      return { value: s.id, label: s.label + (s.available ? "" : "（這台還不能用）"), disabled: !s.available };
+    }), svcPick !== undefined && svcPick !== "" ? svcPick : (first ? first.id : undefined));
+    onService();
+  }
+  function onService() {
+    var famId = $("llm-fam").value;
+    var authId = $("llm-auth-wrap").classList.contains("hidden") ? "" : $("llm-auth").value;
+    var s = famId === "none" ? null : servicesOf(famId, authId).filter(function (x) { return x.id === $("llm-svc").value; })[0];
+    llmSvc = s || null;
+    var idx;
+    if (famId === "none") { idx = choiceIndex(function (c) { return c.choice === "none"; }); }
+    else if (!s) { idx = -1; }
+    else if (s.kind === "local" || s.kind === "claude_code") { idx = choiceIndex(function (c) { return c.choice === s.kind; }); }
+    else if (s.provider) { idx = choiceIndex(function (c) { return c.choice === "keys" && c.provider === s.provider; }); }
+    else { idx = choiceIndex(function (c) { return c.choice === "source"; }); }
+    // 原因寫在服務下面：反灰的那幾個（下拉選單上點不到）也列出來，讓人知道怎麼讓它能用
+    var grey = famId === "none" ? [] : servicesOf(famId, authId).filter(function (x) { return !x.available && x.reason; });
+    $("llm-svc-why").textContent = grey.length ? "反灰的：" + grey.map(function (x) { return x.reason; }).join("　") : "";
+    $("llm-svc-why").classList.toggle("hidden", !grey.length);
+    var note = s ? [s.note || "", s.builtin ? "" : (s.extra ? "（要 ntu_easy_llm[" + s.extra + "]）" : "")].join("") : "";
+    $("llm-svc-note").textContent = note;
+    $("llm-svc-note").classList.toggle("hidden", !note);
+    if (idx >= 0 && String(idx) !== $("llm-choice").value) {
+      $("llm-choice").value = String(idx);
+      $("llm-model").value = "";
+    }
+    if (s && s.kind === "source") { drawSrcFields(s); }
+    syncLlmFields();
+    $("llm-save").disabled = !s && famId !== "none";
+    updateLlmDirty();
+    if (!s && famId !== "none") { $("llm-save").disabled = true; }
+  }
+  $("llm-fam").addEventListener("change", function () { drawAuth(); });
+  $("llm-auth").addEventListener("change", function () { drawServices(); });
+  $("llm-svc").addEventListener("change", onService);
+
+  // ④⑤⑥：kind=source 的欄位（照目錄的 FieldSpec 畫；金鑰欄位留空＝沿用原本的）
+  function fieldInput(f, value) {
+    var box = el("div", "");
+    var id = "llm-src-f-" + f.name;
+    var lab = el("label", "f", (f.label || f.name) + (f.required ? "" : "（選填）"));
+    lab.setAttribute("for", id);
+    box.appendChild(lab);
+    var input;
+    if (f.kind === "choice" || f.kind === "llop_profile" || f.kind === "bool") {
+      input = el("select", "");
+      var opts = f.kind === "bool" ? [["", "自動"], ["true", "開"], ["false", "關"]] :
+        [["", f.kind === "llop_profile" ? ((f.choices || []).length ? "（選一個）" : "（這台還沒有註冊好的設定檔）") : "（預設）"]]
+          .concat((f.choices || []).map(function (c) { return [String(c), String(c)]; }));
+      opts.forEach(function (p) { var o = el("option", "", p[1]); o.value = p[0]; input.appendChild(o); });
+      var want = value !== undefined && value !== null ? String(value) : (f.default !== null && f.default !== undefined ? String(f.default) : "");
+      if (want && !opts.some(function (p) { return p[0] === want; })) {
+        var extra = el("option", "", want + "（目前的設定）"); extra.value = want; input.appendChild(extra);
+      }
+      input.value = want;
+    } else {
+      input = el("input", "");
+      input.type = f.kind === "secret" ? "password" : (f.kind === "int" || f.kind === "float" ? "number" : "text");
+      if (f.kind === "secret") { input.autocomplete = "off"; input.placeholder = llmCur.has_key ? "留空＝沿用原本的" : ""; }
+      if (f.kind === "float") { input.step = "any"; }
+      input.size = f.kind === "url" || f.kind === "secret" ? 40 : 20;
+      input.value = value !== undefined && value !== null ? String(value) : "";
+      if (f.kind === "url" && !input.value && f.default) { input.placeholder = String(f.default); }
+    }
+    input.id = id;
+    input.setAttribute("data-field", f.name);
+    input.setAttribute("data-kind", f.kind);
+    input.addEventListener("input", updateLlmDirty);
+    input.addEventListener("change", updateLlmDirty);
+    box.appendChild(input);
+    if (f.help) { box.appendChild(el("p", "muted", f.help)); }
+    if (f.kind === "llop_profile") {
+      var again = el("button", "sm", "重新整理");
+      again.type = "button";
+      again.addEventListener("click", function () { loadLlmTree(); });
+      box.appendChild(again);
+    }
+    return box;
+  }
+  function drawSrcFields(s) {
+    var same = llmCur.kind === "source" && llmCur.source === s.source;
+    var opts = same ? llmCur.options || {} : {};
+    var conn = $("llm-src-conn");
+    clear(conn);
+    (s.fields || []).filter(function (f) { return f.name !== "model"; }).forEach(function (f) {
+      var v = f.name === "base_url" ? (same ? llmCur.base_url : "") : (f.name === "secret" ? "" : opts[f.name]);
+      conn.appendChild(fieldInput(f, v));
+    });
+    var details = $("llm-src-detail-fields");
+    clear(details);
+    (s.detail_fields || []).forEach(function (f) { details.appendChild(fieldInput(f, opts[f.name])); });
+    $("llm-src-details").classList.toggle("hidden", !(s.detail_fields || []).length);
+    var modelField = (s.fields || []).filter(function (f) { return f.name === "model"; })[0];
+    $("llm-src-model").value = same ? (llmCur.model || "") : "";
+    $("llm-src-model").placeholder = modelField && modelField.default ? String(modelField.default) : "模型名稱";
+    clear($("llm-src-pick"));
+    var head = el("option", "", "（按「列出模型」）"); head.value = ""; $("llm-src-pick").appendChild(head);
+    $("llm-src-msg").textContent = "";
+  }
+  function srcBody() {
+    var body = { choice: "source", source: llmSvc ? llmSvc.source : "", model: $("llm-src-model").value, base_url: "",
+                 api_key: "", options: {} };
+    Array.prototype.forEach.call(document.querySelectorAll("#llm-src-fields [data-field]"), function (input) {
+      var name = input.getAttribute("data-field");
+      if (name === "base_url") { body.base_url = input.value; }
+      else if (name === "secret") { body.api_key = input.value; }
+      else if (input.value !== "") { body.options[name] = input.value; }
+    });
+    return body;
+  }
+  $("llm-src-model").addEventListener("input", updateLlmDirty);
+  $("llm-src-list").addEventListener("click", function () {
+    $("llm-src-msg").textContent = "讀取模型清單中…（不會載入模型）";
+    api("POST", "/api/settings/llm/models", srcBody()).then(function (d) {
+      var sel = $("llm-src-pick");
+      clear(sel);
+      var head = el("option", "", (d.models || []).length ? "（選一個模型）" : "（沒有可以聊天的模型）"); head.value = "";
+      sel.appendChild(head);
+      (d.models || []).forEach(function (m) { var o = el("option", "", modelLine(m)); o.value = m.id; sel.appendChild(o); });
+      if ($("llm-src-model").value) { sel.value = $("llm-src-model").value; }
+      $("llm-src-msg").textContent = d.message || "";
+    }).catch(function (e) { $("llm-src-msg").textContent = "❌ " + e.message; });
+  });
+  $("llm-src-pick").addEventListener("change", function () {
+    if ($("llm-src-pick").value) { $("llm-src-model").value = $("llm-src-pick").value; updateLlmDirty(); }
+  });
+
+  // ── 備援（POST /api/settings/llm/waterfall）：順序就是你排的；SYNOX 不預設任何來源的先後 ──────────
+  function drawWf() {
+    if (!wfState) { return; }
+    $("wf-status").textContent = wfState.status || "";
+    $("wf-mode").value = wfState.mode || "off";
+    wfKeep = (wfState.backups || []).map(function (_b, i) { return i; });
+    drawWfList();
+  }
+  function drawWfList() {
+    var ol = $("wf-list");
+    clear(ol);
+    wfKeep.forEach(function (orig, pos) {
+      var b = (wfState.backups || [])[orig] || {};
+      var li = el("li", "");
+      li.appendChild(document.createTextNode(b.label || "?"));
+      [["↑", -1], ["↓", 1]].forEach(function (mv) {
+        var btn = el("button", "ghost sm", mv[0]);
+        btn.type = "button";
+        btn.disabled = pos + mv[1] < 0 || pos + mv[1] >= wfKeep.length;
+        btn.addEventListener("click", function () {
+          var j = pos + mv[1], t = wfKeep[pos]; wfKeep[pos] = wfKeep[j]; wfKeep[j] = t; drawWfList();
+        });
+        li.appendChild(btn);
+      });
+      var rm = el("button", "ghost sm", "拿掉");
+      rm.type = "button";
+      rm.addEventListener("click", function () { wfKeep.splice(pos, 1); drawWfList(); });
+      li.appendChild(rm);
+      ol.appendChild(li);
+    });
+    if (!wfKeep.length) { ol.appendChild(el("li", "muted", "還沒有備援來源。先在上面選好一個來源（金鑰、模型），再按「把上面選的加成備援」。")); }
+  }
+  function saveWf(add) {
+    var body = { mode: $("wf-mode").value, keep: wfKeep.slice() };
+    if (add) { body.add = llmBody(); }
+    $("wf-msg").textContent = "存檔中…";
+    api("POST", "/api/settings/llm/waterfall", body).then(function (d) {
+      wfState = d.waterfall; drawWf(); $("wf-msg").textContent = d.message || "存好了。";
+    }).catch(function (e) { $("wf-msg").textContent = "❌ " + e.message; });
+  }
+  $("wf-add").addEventListener("click", function () { saveWf(true); });
+  $("wf-save").addEventListener("click", function () { saveWf(false); });
 
   // ── 保持清醒（docs/adr/0006；預設關，打開＝覆蓋 Windows 的「睡眠」設定）──────────────
   function fillAwake(ka) {

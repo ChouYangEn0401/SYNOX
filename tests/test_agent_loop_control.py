@@ -78,9 +78,12 @@ def test_local_adapter_sends_stop_and_strips_think():
     assert sent[-1]["stop"] == ["<tool_response>"]
 
 
-def test_easy_llm_does_not_claim_stop_support():
-    from synox.llm.easy_llm import EasyLLMAdapter
-    assert EasyLLMAdapter.supports_stop is False
+def test_easy_llm_old_path_does_not_claim_stop_support(monkeypatch):
+    """舊路（agent.chat）收不了 stop：不聲稱支援。新路照 adapter 的 capabilities（docs/adr/0046，
+    tests/test_llm_sources.py 的 test_legacy_kind_prefers_new_adapter_when_present）。"""
+    from synox.llm import easy_llm
+    monkeypatch.setattr(easy_llm, "contract", lambda: None)          # 這台沒有 0.6 的新 adapter＝舊路
+    assert easy_llm.EasyLLMAdapter("openai", "k", "m").supports_stop is False
 
 
 # ── system__cannot_do ────────────────────────────────────────────────
