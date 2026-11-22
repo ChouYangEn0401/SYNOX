@@ -1,8 +1,8 @@
 # ADR 0046：AI 來源改成分步選擇（經 ntu_easy_llm 0.6 的來源目錄）、可選的備援（waterfall）
 
 - 日期：2026-11-23
-- 狀態：**已採用**（分支 `feat/llm-source-tree`）。ntu_easy_llm 0.6 的 HTTP adapter、router、LLOP 與訂閱 adapter 還在開發；
-  它們合併、發佈之後要照「待實測」重驗一次（`HumanTestList.md`、`VerifyList.json` 有記）。
+- 狀態：**已採用**（分支 `feat/llm-source-tree`）。用本機 ntu_easy_llm 主線（0.6.0.dev0，已有 HTTP adapter、`router.Router`、LLOP 與訂閱 adapter）
+  測過：測試用的是真的 router，成員是假的來源；真的服務（雲端金鑰、LLOP、訂閱 CLI）還沒實測（`HumanTestList.md`、`VerifyList.json` 有記）。
 - 相關：[0007](0007-local-llm-platform.md)（本地模型，**不動**）、[0010](0010-stop-words.md)（停止詞）、[0021](0021-vlm-vision.md)（看圖）、
   [0008](0008-completion-guard.md)／[0014](0014-per-turn-tool-cap.md)（auto 開關看「弱來源」）、[0037](0037-approval-cards-upgrade.md)（核准卡）。
 - 程式：`src/synox/llm/sources.py`（目錄、kind=source 的檢查）、`llm/easy_llm.py`（`SourceAdapter`、新路與舊路）、
@@ -58,8 +58,9 @@ SYNOX 不直接 import LLOP 的套件（LLOP 經 `ntu_easy_llm[llop]`）。
    - 卡上每個候選一顆「改用 X 重送」＋「❌ 不用」。按了「改用 X 重送」＝在 `RouterAdapter.pinned(X)` 裡把剛剛那句重跑一次：
      那一輪每一次呼叫都直接用 X（只在那條執行緒，別的聊天不受影響）。之後的輪照 router 的規則（失敗的那個在冷卻）。
    - **只有這一輪還沒做任何事時才給重送**（第一步就失敗、沒有附件或圖、不是叫醒的那一輪）；做到一半的只說明、不出按鈕，免得重複執行已經做過的工具。
-   - SYNOX **不呼叫 router 的 `resume`**：一輪中斷後 SYNOX 重跑整輪（系統提示的時間等等會更新），不接回 router 存的半輪。
-     這是 SYNOX 這一側的取捨；router 若之後提供「指定這一輪用某個成員」的介面，再改用它。
+   - SYNOX **不呼叫 router 的 `resume`**：一輪中斷後 SYNOX 重跑整輪（系統提示的時間等等會更新），不接回 router 存的半輪；
+     重跑的那一輪工具呼叫可能有好幾次，全部固定用選的那一個比較一致。router 的 `resume(pending, use=, messages=)` 留給之後要「接回半輪」時用。
+   - router 的 ask 規則：主要來源還在冷卻時，下一句它會**再問一次**（不默默換）；這是 router 的行為，SYNOX 照出卡。
    - 頻道 AI（負號 chat id）不出卡，照舊只說沒有回應。
 6. **網頁 API**（只給擁有者；非 GET 要 CSRF，照既有規矩）：
    - `GET /api/settings/llm/catalog`：目錄（`sources.tree()`）＋現在的選擇＋備援狀態。不連網。
@@ -75,5 +76,5 @@ SYNOX 不直接 import LLOP 的套件（LLOP 經 `ntu_easy_llm[llop]`）。
 - 好處：使用者看得到所有來源與「為什麼不能用」；裝了新版 ntu_easy_llm 就自動多出來源，SYNOX 不用改；錯誤講人話而且講得出種類；
   額度用完可以自動或問過再換來源。舊設定一個字都不用改。
 - 代價：kind=source 的設定舊版讀不懂（會清楚報錯）；ask 模式重送整句（不接半輪）；備援成員能力取交集，鏈裡有一個不支援原生工具就整條走文字協定。
-- 待實測（ntu_easy_llm 的 B、C 包合併後）：真的 router 的 `chat`／`FallbackRequired`／冷卻行為是否跟這裡用的測試替身一致；
-  HTTP adapter 走新路之後舊的四種 kind 的請求內容（`tests/test_llm.py` 看的 JSON）；LLOP 與訂閱 adapter 在目錄上變成可用、列模型、測一下。
+- 待實測（真機、真帳號）：雲端金鑰來源走新路的回覆與錯誤字句；LLOP（裝 `ntu_easy_llm[llop]`、在終端機註冊後）在目錄上變成可用、列模型、測一下、
+  連結更換的錯誤；訂閱來源（裝了登入套件、登入過）只回文字、帶工具時整條走文字協定；備援的自動換與先問我在真的額度用完時的樣子。
