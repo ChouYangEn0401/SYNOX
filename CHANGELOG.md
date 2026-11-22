@@ -1,6 +1,9 @@
 # Changelog
 
-## 未發佈
+## 0.2.2-alpha.3（2026-11-23）
+
+這版重點：AI 來源改成「來源 → 認證 → 服務 → 模型 → 細節」分步選擇，可以接 LLOP（別人分享的本地模型）與訂閱登入，另有可選的備援。
+怎麼更新：照舊用 ZIP 更新；要用 ntu_easy_llm 的來源，重裝 `pip install -e ".[llm]"`（要 LLOP 再加 `[llop]`），它們改指 ntu_easy_llm 0.6.0a2。
 
 - **AI 來源改成分步選擇**（[ADR 0046](docs/adr/0046-llm-source-tree-and-waterfall.md)）：設定 → AI →「① 來源（本地／遠端服務／先不用 AI）→
   ② 認證（API 金鑰／訂閱登入）→ ③ 服務 → 連線欄位 → 模型（可以「列出模型」）→ 細節」。服務清單來自 ntu_easy_llm 0.6 的來源目錄，
@@ -13,6 +16,7 @@
   自動換會另外一則告訴你改用了誰；先問我會出按鈕「改用 X 重送」（只有那一句還沒做任何事時才給重送）。順序由你排，沒設定＝只用主要來源。
   要 ntu_easy_llm 0.6 以上（有 router）；沒有時只用主要來源，設定頁與 `doctor` 會說明。
 - 網頁 API：`GET /api/settings/llm/catalog`、`POST /api/settings/llm/models`、`POST /api/settings/llm/waterfall`（只給擁有者）。
+
 
 ## 0.2.2-alpha.2（2026-11-19）
 

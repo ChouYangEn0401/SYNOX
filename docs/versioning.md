@@ -2,7 +2,7 @@
 
 - 狀態：**已採用**（擁有者 2026-11-14；2026-11-19 補齊排序、升級矩陣、錯版補救、通道與相容欄位：[adr/0043](adr/0043-version-order-and-upgrade-matrix.md)）。
   工具：`scripts/release.py`（升號、檢查、發佈說明、簽章）、`scripts/check_version_consistency.py`（發佈前的版本一致檢查）。
-- 目前版本：`0.2.2-alpha.2`（`release/0.2.2-alpha.2` 上的號碼＝下一個要發的版本，還沒發；最新的 tag 是 `v0.2.2-alpha.1`，見 §13）
+- 目前版本：`0.2.2-alpha.3`（最新的 tag 是 `v0.2.2-alpha.3`，見 §13）
 - 自己會更新：**有**（[adr/0023](adr/0023-updates-and-hotfixes.md)）：「檢查更新」（按了才查；每週檢查要自己打開）、ZIP 裝的用 `Update.bat`、退回用 `Update.bat -Rollback`。
 
 ---

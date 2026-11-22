@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "synox"
-version = "0.2.2-alpha.2"
+version = "0.2.2-alpha.3"
 description = "SYNOX: the AI assistant that lives on your own computer (Telegram / Discord / web; pluggable LLM, tool packs, encrypted vault)."
 requires-python = ">=3.11"
 license = {text = "AGPL-3.0-or-later AND Apache-2.0"}   # 核心 AGPL、SDK 與範例 Apache，見 LICENSING.md
@@ -16,7 +16,10 @@ dev = ["pytest>=7"]
 # API-key LLM providers (openai / anthropic / gemini / openai_compat) go through ntu_easy_llm (by the founding maintainer).
 # Not on PyPI: the official GitHub release wheel by direct URL (never a bare name - someone could register it on PyPI).
 # See docs/AGENT.md "ntu_easy_llm". Claude Code, local models (kind=local), the fake AI and "no AI" work without it.
-llm = ["ntu_easy_llm @ https://github.com/ChouYangEn0401/ntu_easy_llm/releases/download/ntu_easy_llm-0.5.0/ntu_easy_llm-0.5.0-py3-none-any.whl"]
+llm = ["ntu_easy_llm @ https://github.com/ChouYangEn0401/ntu_easy_llm/releases/download/ntu_easy_llm-0.6.0a2/ntu_easy_llm-0.6.0a2-py3-none-any.whl"]
+# LLOP (LocalLLMOutsiderProvider) as a model source, through ntu_easy_llm: its [llop] extra pins the LLOP SDK by
+# its release wheel URL. SYNOX itself never imports llmop.
+llop = ["ntu_easy_llm[llop] @ https://github.com/ChouYangEn0401/ntu_easy_llm/releases/download/ntu_easy_llm-0.6.0a2/ntu_easy_llm-0.6.0a2-py3-none-any.whl"]
 
 [project.scripts]
 synox = "synox.__main__:main"
