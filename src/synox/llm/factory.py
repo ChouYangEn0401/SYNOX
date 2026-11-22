@@ -44,10 +44,39 @@ def easy_timeout(llm: dict) -> float:
     return CLOUD_TIMEOUT
 
 
-def make_adapter(config, vault=None, *, session=None, opener=None) -> Optional[ChatAdapter]:
+def make_adapter(config, vault=None, *, session=None, opener=None, router_cls=None) -> Optional[ChatAdapter]:
     """config：SynoxConfig 或只有 llm 那一塊的 dict（精靈「測一下」用）。
-    session：ntu_easy_llm 的假 requests（測試）；opener：本地模型的假 urllib opener（測試）。"""
+    session：ntu_easy_llm 的假 requests（測試）；opener：本地模型的假 urllib opener（測試）；
+    router_cls：備援用的 router 類別（測試；沒給＝ntu_easy_llm.router 的）。
+    llm.waterfall（docs/adr/0046）：沒寫或 off＝只用主要來源（跟以前一樣）；auto／ask 且有 backups＝包成 RouterAdapter。"""
     llm = dict(config.get("llm", config) if isinstance(config, dict) else config.llm)
+    primary = _make_one(config, llm, vault, session=session, opener=opener)
+    if primary is None:
+        return None
+    from synox.llm import router
+    if not router.active(llm):
+        return primary
+    try:
+        wf = router.parse(llm.get("waterfall"))
+    except ValueError as e:
+        raise LLMError(f"備援的設定不對：{e}")
+    backups = []
+    for i, raw in enumerate(wf["backups"]):
+        member = {k: v for k, v in raw.items() if k != "waterfall"}
+        member.setdefault("max_tokens", llm.get("max_tokens", 1024))
+        try:
+            b = _make_one(config, member, vault, session=session, opener=opener)
+        except LLMError as e:
+            raise LLMError(f"第 {i + 1} 個備援來源：{e}")
+        if b is not None:
+            backups.append(b)
+    if not backups:
+        return primary
+    built = router.build(primary, backups, wf, router_cls=router_cls)
+    return built if built is not None else primary
+
+
+def _make_one(config, llm: dict, vault=None, *, session=None, opener=None) -> Optional[ChatAdapter]:
     kind = llm.get("kind", "none")
     max_tokens = int(llm.get("max_tokens") or 1024)
     from synox.llm.vision import mode_of
@@ -76,5 +105,14 @@ def make_adapter(config, vault=None, *, session=None, opener=None) -> Optional[C
         from synox.llm.claude_code import ClaudeCodeAdapter
         workdir = os.path.join(config.data_dir, "claude_workspace") if hasattr(config, "data_dir") else ""
         return ClaudeCodeAdapter(llm.get("model", ""), workdir=workdir)
+    if kind == "source":                                              # 來源目錄上的任何一個（經 ntu_easy_llm 0.6）
+        from synox.llm import sources
+        from synox.llm.easy_llm import build_source
+        try:
+            s = sources.validate(llm)
+        except ValueError as e:
+            raise LLMError(f"AI 來源的設定不對：{e}")
+        return build_source(llm, resolve_secret(s["api_key"], vault) if s["api_key"] else "", http=session,
+                            vision=vision, max_tokens=max_tokens)
     logging.error("[LLM] unknown llm.kind %r", kind)
     return None

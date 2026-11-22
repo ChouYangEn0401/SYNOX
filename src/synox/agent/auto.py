@@ -2,7 +2,8 @@
 「auto」開關的共用判斷：小模型 harness 的新行為（完成宣稱檢查、步數總結、每輪工具數上限、系統提示尾端的本輪規則…）
 預設只對**本地／較弱的來源**開，雲端與 Claude Code 的結果不變（docs/adr/0008、0014）。
 
-    weak_source(adapter)          kind=local，或 kind=openai_compat 指到 loopback／私網＝True
+    weak_source(adapter)          kind=local，或 kind=openai_compat 指到 loopback／私網，或 adapter.weak（kind=source
+                                  的本地來源、備援鏈裡有本地成員，docs/adr/0046）＝True
     parse_switch(value, name)     llm.<name>：auto｜on｜off（true／false 也收）；寫錯丟 ValueError
     resolve(mode, adapter)        on＝開；auto＝weak_source；off＝關
     switch_on(llm, name, adapter) 讀 llm.<name> 再 resolve；寫錯＝關（config.py 會先擋下）
@@ -21,8 +22,8 @@ LOCAL_KINDS = ("local",)
 def weak_source(adapter) -> bool:
     """auto 的判斷：本地／較弱的來源（kind=local；openai_compat 指到 loopback／私網）。claude_code、雲端＝False。"""
     kind = getattr(adapter, "kind", "") or ""
-    if kind in LOCAL_KINDS:
-        return True
+    if kind in LOCAL_KINDS or getattr(adapter, "weak", False) is True:
+        return True                                 # weak：kind=source 的本地來源、鏈裡有本地成員（docs/adr/0046）
     if kind == "openai_compat":
         from synox.llm.local import is_local_url
         return is_local_url(str(getattr(adapter, "base_url", "") or ""))

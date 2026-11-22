@@ -74,7 +74,17 @@ class Reply:
 
 
 class LLMError(Exception):
-    """叫不動 LLM；訊息是給人看的一句話。"""
+    """叫不動 LLM；訊息是給人看的一句話。
+
+    kind：錯誤的種類（ntu_easy_llm 0.6 的 ErrorKind 字串值，例如 "quota_exhausted"；docs/adr/0046）；
+    不知道＝""。備援（llm.waterfall）照它判斷要不要換來源；畫面只看訊息。"""
+
+    kind: str = ""
+
+    def __init__(self, *args, kind: str = ""):
+        super().__init__(*args)
+        if kind:
+            self.kind = str(kind)
 
 
 class ChatAdapter:
