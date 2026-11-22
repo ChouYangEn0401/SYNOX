@@ -139,6 +139,8 @@ def unavailable_text(source: str, reason: str = "") -> str:
     """這台不能用某個來源：一句中文（ntu_easy_llm 給的英文原因翻一下；中文的原樣用）。"""
     label = label_of(source)
     why = str(reason or "").strip()
+    if " / " in why and re.search(r"[一-鿿]", why.split(" / ", 1)[0]):
+        why = why.split(" / ", 1)[0].strip()          # 「中文 / English」只留中文
     low = why.lower()
     if not why:
         why = "這台還不能用"

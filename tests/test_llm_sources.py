@@ -268,8 +268,8 @@ def test_legacy_kind_prefers_new_adapter_when_present():
         unregister_adapter("remote/api_key/openai")
 
 
-def test_legacy_path_errors_use_kind():
-    """舊路（agent.chat）＋0.6 的錯誤帶 kind：照種類說人話；狀態碼留著。"""
+def test_legacy_kind_errors_use_kind():
+    """舊的 kind（新路有 adapter 就走新路，沒有就走 agent.chat）＋0.6 的錯誤帶 kind：照種類說人話；狀態碼留著。"""
     needs_06()
     from synox.llm.easy_llm import EasyLLMAdapter
 
@@ -289,8 +289,12 @@ def test_legacy_path_errors_use_kind():
             return self.resp
     a = EasyLLMAdapter("openai_compat", "k", "m", base_url="https://gw.example.com/v1",
                        session=Session(Resp({"error": {"code": "insufficient_quota"}}, 429)))
-    if a.native() is not None:
-        pytest.skip("這台的 ntu_easy_llm 已經有 openai_compatible 的新 adapter（B 包合併後由 adapter 自己的測試涵蓋）")
     with pytest.raises(LLMError) as e:
         a.chat([Message(USER, "hi")])
     assert e.value.kind == "quota_exhausted" and "額度用完（429）" in str(e.value)
+    assert "gw.example.com" in str(e.value)
+
+
+def test_subscription_reason_is_chinese_only():
+    assert sources.unavailable_text("remote/subscription/x", "要先安裝 x 套件 / install the x package first") \
+        .endswith("要先安裝 x 套件。")

@@ -1,8 +1,7 @@
 """備援（llm.waterfall，docs/adr/0046）：SYNOX 這一側——設定、包成員、結果翻回、ask 的按鈕卡。
 
-換不換、換誰是 ntu_easy_llm router 的事（還在開發中）。這裡用 `StubRouter`（照 0.6 設計稿的介面：
-`LLM(members, waterfall=, locale=)`、`chat(...) -> ChatResult`、`status()`，ask 丟 `FallbackRequired`）測 SYNOX 的接法；
-router 合併進 ntu_easy_llm 之後要拿真的再跑一次（HumanTestList／VerifyList 有記）。成員一律是假的，不連網。"""
+換不換、換誰是 ntu_easy_llm router（`ntu_easy_llm.router.Router`）的事；這裡用**真的 router**，成員是 SYNOX 這一側的
+假來源（照劇本回話或丟帶 kind 的 LLMError），不連網、不睡（觸發條件只用額度用完、金鑰失效，不走 429 的重試等待）。"""
 
 import pytest
 
@@ -13,43 +12,8 @@ from synox.llm.factory import make_adapter
 pytestmark = pytest.mark.usefixtures("no_sockets")
 
 
-def needs_06():
-    pytest.importorskip("ntu_easy_llm.waterfall", reason="要 ntu_easy_llm 0.6（waterfall 的型別）")
-
-
-class StubRouter:
-    """測試用的 router：照順序試成員；policy 的觸發種類 → auto 換下一個、ask 丟 FallbackRequired；其他錯原樣丟。"""
-
-    def __init__(self, members, *, waterfall=None, locale="zh-TW", **_kw):
-        self.members = list(members)
-        self.policy = waterfall
-        self.calls = []
-
-    def chat(self, messages, tools=None, **kw):
-        from ntu_easy_llm.agent import LLMError as EasyError
-        from ntu_easy_llm.waterfall import (ChatResult, FallbackRequired, PendingFallback, Switched,
-                                            WaterfallExhausted)
-        errors, events = [], []
-        for i, m in enumerate(self.members):
-            self.calls.append(m.profile.id)
-            try:
-                reply = m.chat(messages, tools, **kw)
-            except EasyError as e:
-                errors.append((m.profile.id, e))
-                if e.kind not in self.policy.triggers:
-                    raise
-                rest = tuple(x.profile.id for x in self.members[i + 1:])
-                if self.policy.mode == "ask":
-                    raise FallbackRequired(PendingFallback(m.profile.id, e.kind, rest, message=str(e)))
-                if rest:
-                    events.append(Switched(profile_id=m.profile.id, to_id=rest[0], reason=e.kind))
-                continue
-            return ChatResult.from_reply(reply, profile_id=m.profile.id, switched=i > 0, events=events)
-        raise WaterfallExhausted(errors)
-
-    def status(self):
-        from ntu_easy_llm.waterfall import MemberStatus
-        return [MemberStatus(m.profile.id) for m in self.members]
+def needs_router():
+    pytest.importorskip("ntu_easy_llm.router", reason="要 ntu_easy_llm 0.6 的 router")
 
 
 class Member(ChatAdapter):
@@ -70,10 +34,9 @@ class Member(ChatAdapter):
 
 
 def router_of(primary, backups, mode="auto", **policy):
-    needs_06()
-    built = wf.build(primary, backups, {"mode": mode, "backups": [{}] * len(backups), **policy},
-                     router_cls=StubRouter)
-    assert built is not None
+    needs_router()
+    built = wf.build(primary, backups, {"mode": mode, "backups": [{}] * len(backups), **policy})
+    assert built is not None and type(built.router).__module__ == "ntu_easy_llm.router"
     return built
 
 
@@ -133,15 +96,14 @@ def test_no_router_in_this_easy_llm_keeps_primary(monkeypatch):
     assert wf.status_line({"waterfall": {"mode": "auto", "backups": [{"kind": "fake"}]}}) == wf.NO_ROUTER
 
 
-def test_factory_builds_router_with_given_class():
-    needs_06()
-    a = make_adapter({"llm": {"kind": "fake", "waterfall": {"mode": "ask", "backups": [{"kind": "claude_code"}]}}},
-                     router_cls=StubRouter)
+def test_factory_builds_the_real_router():
+    needs_router()
+    a = make_adapter({"llm": {"kind": "fake", "waterfall": {"mode": "ask", "backups": [{"kind": "claude_code"}]}}})
     assert isinstance(a, wf.RouterAdapter) and a.mode == "ask"
     assert [m.profile.id for m in a.members] == ["primary", "backup1"]
     assert a.members[1].profile.source == "remote/subscription/synox_claude_code"
     assert a.supports_tools is False                     # claude_code 沒有原生工具：整條鏈走文字協定
-    assert a.router.policy.mode == "ask"
+    assert wf.status_line({"waterfall": {"mode": "ask", "backups": [{"kind": "fake"}]}}) == "備援：先問我，1 個備援來源"
 
 
 # ── auto ─────────────────────────────────────────────────────────────
@@ -154,19 +116,36 @@ def test_auto_switches_on_quota_and_says_so():
     assert reply.warnings[0] == "已改用 備援甲（原因：額度用完）"
 
 
+def test_auto_with_an_easy_llm_member_and_cooldown():
+    """備援是 kind=source（ntu_easy_llm 自己的 adapter）；主要來源額度用完之後在冷卻，下一句直接跳過它。"""
+    needs_router()
+    primary = Member("主要", [LLMError("額度沒了", kind="quota_exhausted")])
+    a = make_adapter({"llm": {"kind": "fake", "waterfall": {"mode": "auto", "backups": [
+        {"kind": "source", "source": "local/fake", "model": "fake-1", "source_options": {"default": "備援回答"}}]}}})
+    a.members[0].inner = primary                   # 主要來源換成會丟額度用完的假來源
+    first = a.chat([Message(USER, "一")])
+    assert first.text == "備援回答" and first.warnings[0].startswith("已改用 local/fake")
+    second = a.chat([Message(USER, "二")])
+    assert second.text == "備援回答" and len(primary.seen) == 1            # 冷卻中：沒有再叫主要來源
+    rows = {r["id"]: r for r in a.status()}
+    assert rows["primary"]["cooling_until"] and rows["primary"]["last_error"] == "quota_exhausted"
+
+
 def test_auto_does_not_switch_on_ordinary_errors():
-    a = router_of(Member("主要", [LLMError("伺服器壞了", kind="server_error")]), [Member("備援甲", ["好"])])
+    backup = Member("備援甲", ["好"])
+    a = router_of(Member("主要", [LLMError("伺服器壞了", kind="server_error")]), [backup])
     with pytest.raises(LLMError) as e:
         a.chat([Message(USER, "hi")])
     assert str(e.value) == "伺服器壞了" and e.value.kind == "server_error"      # 原本那句中文
-    assert a.router.calls == ["primary"]
+    assert backup.seen == []
 
 
 def test_untagged_synox_errors_are_unknown_and_never_trigger():
-    a = router_of(Member("主要", [LLMError("不明")]), [Member("備援甲", ["好"])])
+    backup = Member("備援甲", ["好"])
+    a = router_of(Member("主要", [LLMError("不明")]), [backup])
     with pytest.raises(LLMError):
         a.chat([Message(USER, "hi")])
-    assert a.router.calls == ["primary"]
+    assert backup.seen == []
 
 
 def test_everyone_failed_lists_each():
@@ -180,7 +159,7 @@ def test_everyone_failed_lists_each():
 def test_members_get_synox_messages_and_tools_round_trip():
     from synox.llm.base import ToolSpec
     backup = Member("備援甲", ["好"])
-    a = router_of(Member("主要", [LLMError("x", kind="rate_limited")]), [backup])
+    a = router_of(Member("主要", [LLMError("x", kind="quota_exhausted")]), [backup])
     spec = ToolSpec("money__add", "記一筆", {"type": "object", "properties": {}})
     a.chat([Message(USER, "記 80")], [spec])
     msgs, tools = backup.seen[0]
@@ -207,20 +186,20 @@ def test_ask_raises_fallback_ask_with_choices_and_pinned_turn():
     assert err.kind == "quota_exhausted" and err.choices == [("backup1", "備援甲")] and err.adapter is a
     assert "主要：額度用完" in str(err)
     with a.pinned("backup1"):
-        assert a.chat([Message(USER, "hi")]).text == "改用之後的回答"
-    assert a.router.calls == ["primary"]                 # 選了之後直接用那一個，不經 router
+        assert a.chat([Message(USER, "hi")]).text == "改用之後的回答"     # 選了之後直接用那一個，不經 router
+    assert len(backup.seen) == 1
     with pytest.raises(LLMError):
         with a.pinned("nobody"):
             pass
 
 
 def test_ask_card_resends_the_turn_with_the_chosen_source(make_bot, owner):
-    needs_06()
+    needs_router()
     from synox.llm.fake import FakeAdapter
     primary = Member("主要", [LLMError("額度沒了", kind="quota_exhausted")])
     backup = FakeAdapter(["換過來了"])
     backup.name = "備援甲"
-    a = wf.build(primary, [backup], {"mode": "ask", "backups": [{}]}, router_cls=StubRouter)
+    a = wf.build(primary, [backup], {"mode": "ask", "backups": [{}]})
     bot = make_bot(adapter=a)
     bot.talk(owner, "今天天氣如何")
     assert "主要：額度用完" in bot.last(owner)
@@ -234,9 +213,9 @@ def test_ask_card_resends_the_turn_with_the_chosen_source(make_bot, owner):
 
 
 def test_ask_card_no_button(make_bot, owner):
-    needs_06()
+    needs_router()
     a = wf.build(Member("主要", [LLMError("x", kind="auth_invalid")]), [Member("備援甲", ["不該用到"])],
-                 {"mode": "ask", "backups": [{}]}, router_cls=StubRouter)
+                 {"mode": "ask", "backups": [{}]})
     bot = make_bot(adapter=a)
     bot.talk(owner, "嗨")
     no = [b for b in bot.buttons(owner) if b.startswith("agent_fb:no:")][0]
