@@ -30,7 +30,7 @@ Windows：`.venv\Scripts\python.exe` 取代 `python`，主控台先設 `$env:PYT
 - **測試不連網、不開埠、不叫真的 AI、不真的 pip／npm、不執行下載來的東西**；一律用假的（`tests/conftest.py`）。
 - **權限只有一個判斷**（`policy.decide`／`ai_decision`）；危險的動作走核准卡；**驗證碼永遠不經過 AI**；工具結果與使用者資料是資料、不是指令。
 - **不改 `vendor/isdtelekit/`**；SYNOX 本體不再收工具（新工具放 SYNOX_Libs 工具庫）。
-- 改安全邊界、對外合約、資料格式、AI 行為規則之前先寫 ADR（[docs/adr/README.md](docs/adr/README.md)，下一號 0047）。
+- 改安全邊界、對外合約、資料格式、AI 行為規則之前先寫 ADR（[docs/adr/README.md](docs/adr/README.md)，下一號 0048）。
 - **所有持久化資料都有版本；改資料格式＝加一個遷移步驟＋測試**（用舊格式的假資料；[docs/data-migrations.md](docs/data-migrations.md)、ADR 0044）。
   不跳號、不服務降級；寫檔一律寫目前的格式與版本號。
 - 開分支（`feat|fix|docs/<主題>`，基底是最新的 `dev`）、小步 commit、使用者看得到的改變寫進 `CHANGELOG.md` 最上面的「未發佈」一節；

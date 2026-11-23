@@ -57,6 +57,14 @@
       "cwd": ".", "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "expect": "exit 0",
       "needs": [], "since": "2026-11-23",
       "status": "pass", "last_run": "2026-11-23", "last_result": "36 passed with ntu_easy_llm 0.6.0.dev0 (router + HTTP adapters); without it 22 skipped, rest pass"
+    },
+    {
+      "id": "web-update-and-deps-sync",
+      "what": "網頁一鍵更新（只收有簽章的、背景 prepare、Update.bat -Apply）、回到上一版、啟動時補齊套件（假的 GitHub、假的 pip，不連網、不換檔）（ADR 0047）",
+      "run": ["python", "-m", "pytest", "-q", "tests/test_update_web.py", "tests/test_update_deps.py", "tests/test_update.py", "tests/test_update_channels.py", "tests/test_update_testpath.py"],
+      "cwd": ".", "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "expect": "exit 0",
+      "needs": [], "since": "2026-11-23",
+      "status": "pending", "last_run": null, "last_result": null
     }
   ]
 }

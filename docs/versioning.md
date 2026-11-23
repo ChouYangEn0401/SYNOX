@@ -3,7 +3,8 @@
 - 狀態：**已採用**（擁有者 2026-11-14；2026-11-19 補齊排序、升級矩陣、錯版補救、通道與相容欄位：[adr/0043](adr/0043-version-order-and-upgrade-matrix.md)）。
   工具：`scripts/release.py`（升號、檢查、發佈說明、簽章）、`scripts/check_version_consistency.py`（發佈前的版本一致檢查）。
 - 目前版本：`0.2.2-alpha.3`（最新的 tag 是 `v0.2.2-alpha.3`，見 §13）
-- 自己會更新：**有**（[adr/0023](adr/0023-updates-and-hotfixes.md)）：「檢查更新」（按了才查；每週檢查要自己打開）、ZIP 裝的用 `Update.bat`、退回用 `Update.bat -Rollback`。
+- 自己會更新：**有**（[adr/0023](adr/0023-updates-and-hotfixes.md)、[adr/0047](adr/0047-web-update-and-deps-sync.md)）：「檢查更新」（按了才查；每週檢查要自己打開）、
+  ZIP 裝的在網頁按「更新到 X」（有簽章的版本）或用 `Update.bat`、退回用網頁「回到上一版」或 `Update.bat -Rollback`；換了版本之後啟動時自動補齊套件。
 
 ---
 
@@ -40,12 +41,14 @@ alpha → beta → 下一版都這樣升，設定、資料、工具都不動。
 
 | 你是 | 怎麼更新 | 備註 |
 |---|---|---|
-| **用 ZIP 的人**（從介紹頁或發佈頁下載、解開、點 `Setup.bat`） | **點兩下 SYNOX 資料夾裡的 `Update.bat`**（或網頁「檢查更新」之後按「更新…」）：它先給你看這版改了什麼、問你一次，再下載、核對檔案、關掉 SYNOX、換好、重新打開。舊版的程式留在 `_previous` 資料夾（最近 2 份），出問題點 `Update.bat -Rollback` 就回到上一版。那一版**沒有簽章**時（現在都還沒有，見 [release-build.md](release-build.md)「發佈簽章金鑰」），Update.bat 會說明，你要明確打 `Update.bat -AllowUnsigned` 才換。<br>舊版（還沒有 Update.bat）或想自己來：① 點兩下 `Stop.bat` 關掉 SYNOX ② 到發佈頁下載新的 `SYNOX-<版本>.zip`（或介紹頁的「⬇ 下載 SYNOX」）③ 解開 ④ 把裡面 `SYNOX`（或 `SYNOX-main`）資料夾的**全部內容**複製到你原本的 SYNOX 資料夾，問要不要取代就選「**取代**」⑤ 點兩下 `Setup.bat` | 新的 ZIP 裡沒有 `config.json`、`data`、`packs`，所以蓋不掉你的東西。`Setup.bat` 重跑是安全的：只更新套件、最後打開精靈——直接關掉精靈就好，設定都還在。舊的 ZIP 帶的開發用檔案（`tests`、`evals`、`docs\lab`、`docs\ui`、`docs\installer`…）和 `Connect-Apple.bat`、根目錄的 `GOVERNANCE.md`／`MAINTAINERS.md`／`TRADEMARK.md`（搬進 `.github`），新的 ZIP 不帶了：留著不會被讀，想清就自己刪（Apple 帳號改用 `.venv\Scripts\python.exe -m synox connect apple-reminders`） |
+| **用 ZIP 的人**（從介紹頁或發佈頁下載、解開、點 `Setup.bat`） | **最簡單：網頁「設定 → 💻 電腦與備份 → SYNOX 更新」按「檢查更新」→「更新到 X」→「開始更新」**（Windows、那一版有簽章時；[adr/0047](adr/0047-web-update-and-deps-sync.md)）：SYNOX 在背景下載、核對檔案與簽章，好了自己關掉、換好、開回來，網頁自己重新整理；出問題按「回到上一版」。<br>或**點兩下 SYNOX 資料夾裡的 `Update.bat`**（沒有簽章的版本只能走這條）：它先給你看這版改了什麼、問你一次，再下載、核對檔案、關掉 SYNOX、換好、重新打開。舊版的程式留在 `_previous` 資料夾（最近 2 份），出問題點 `Update.bat -Rollback` 就回到上一版。那一版**沒有簽章**時（現在都還沒有，見 [release-build.md](release-build.md)「發佈簽章金鑰」），Update.bat 會說明，你要明確打 `Update.bat -AllowUnsigned` 才換。<br>舊版（還沒有 Update.bat）或想自己來：① 點兩下 `Stop.bat` 關掉 SYNOX ② 到發佈頁下載新的 `SYNOX-<版本>.zip`（或介紹頁的「⬇ 下載 SYNOX」）③ 解開 ④ 把裡面 `SYNOX`（或 `SYNOX-main`）資料夾的**全部內容**複製到你原本的 SYNOX 資料夾，問要不要取代就選「**取代**」⑤ 點兩下 `Setup.bat` | 新的 ZIP 裡沒有 `config.json`、`data`、`packs`，所以蓋不掉你的東西。`Setup.bat` 重跑是安全的：只更新套件、最後打開精靈——直接關掉精靈就好，設定都還在。舊的 ZIP 帶的開發用檔案（`tests`、`evals`、`docs\lab`、`docs\ui`、`docs\installer`…）和 `Connect-Apple.bat`、根目錄的 `GOVERNANCE.md`／`MAINTAINERS.md`／`TRADEMARK.md`（搬進 `.github`），新的 ZIP 不帶了：留著不會被讀，想清就自己刪（Apple 帳號改用 `.venv\Scripts\python.exe -m synox connect apple-reminders`） |
 | **用 git 的人** | `Stop.bat` → `git pull`（在 `main` 上）→ `Setup.bat` | 只要某一版：`git fetch --tags` → `git checkout v0.2.2`。用 Docker：`git pull` → `docker compose build` → `docker compose up -d`（[docker.md](docker.md)） |
 | **用安裝程式（.exe）的人** | 下載新的 `SYNOX-Setup-<版本>.exe`，裝在原本的位置（預設就是） | 設計上會保留 `config.json`、`data`、`packs`（[adr/0003](adr/0003-distribution-git-clone-and-installer.md) B），舊版才有的開發用檔案會自動刪掉；**還沒在真機驗證過**。注意：安裝程式**不會**擋「用舊的 exe 蓋掉新版」（§6），只用比你裝的新的安裝檔 |
 | **工具（工具庫的 pack）** | 網頁「設定 → 功能與安裝 → 工具庫（官方）」按「載入工具清單」：有新版的工具會標出來，按「更新到 v…」，或上面的「全部更新」（一個一個給你看報告）。命令列：`synox tools check`（只看）、`synox tools update <名字…>` 或 `--all`。或拿到新的 `.synoxpack` 再裝一次 | 同名再裝＝升級：先給你看「改了什麼」（權限變大是紅字），你按確認才換。不滿意：`synox packs rollback <工具名>` 退回上一版。工具自己的資料不會動。新版要更新的 SYNOX 才能用時，卡片寫「⛔ 這台的 SYNOX 用不了這一版」，不算在「可以更新」裡（§6） |
 | **寫工具的人（SDK）** | 先照上面更新 SYNOX → `pip install -U <SYNOX 資料夾>/sdk`（或重新複製 `sdk/synox_sdk.py` 到你的工具旁邊）→ `synox-sdk check .` | 看 [sdk.md](sdk.md)「SDK 版本」：SDK 第二個數字變了（例如 0.2 → 0.3）才要改 `requires.sdk` 並重新測；只變最後一個數字不用改 |
 
+**套件**：換了版本（不管哪一種方法）之後，下次啟動 SYNOX 時會比對這版要的套件（`pyproject.toml`，含你裝過的選裝組，例如 `llm`、`llop`，記在 `data/deps.json`）
+跟 `.venv` 裡裝的，有缺或太舊就自動補裝；補不成照常啟動，並說哪個沒補到、怎麼補（網頁卡片「再試一次」或 `.venv\Scripts\python.exe -m synox deps sync`）。
 更新完可以跑 `synox doctor` 看一次（版本對了、沒有紅字就好）。出問題想回到上一版：用 Update.bat 更新的點兩下 `Update.bat -Rollback`；手動蓋的人先別刪舊的 ZIP、照同樣方法蓋回去；
 git 的人 `git checkout v<上一版>` 再跑 `Setup.bat`。**從 0.2.0 更新到 0.2.1 以後任何一版的人**：內建工具都搬進工具庫了，更新完到「設定 → 🧩 功能與安裝 → 工具庫」把要用的工具裝回來（資料還在）。
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## 未發佈（網頁一鍵更新、啟動時補齊套件）
+
+[ADR 0047](docs/adr/0047-web-update-and-deps-sync.md)。
+
+#### 新增
+- **在網頁上更新 SYNOX**（Windows、用 ZIP 裝的）：「設定 → 💻 電腦與備份 → SYNOX 更新」按「檢查更新」，有**簽過章**的新版就出現「更新到 X」
+  （測試版會寫「（測試版）」；卡片上寫目前的更新通道）。按了先確認，SYNOX 在背景下載、核對檔案與簽章（這時照常可以用），好了自動交給
+  `Update.bat` 換檔、重新打開，這一頁自己重新整理，卡片寫「✅ 上次更新：A → X」。不用再開視窗打 Y、不用記 `-IncludePrerelease`。
+  沒有簽章的版本網頁不換（照舊「打開更新視窗…」，在視窗裡自己決定）。git、安裝程式、Docker 裝的照舊。
+- **網頁「回到上一版」**：`_previous` 裡有舊版時出現，等於 `Update.bat -Rollback`。
+- **啟動時把套件補齊**：換了版本（Update.bat、手動蓋 ZIP、`git pull` 都算）之後，SYNOX 啟動時比對這版要的套件跟 `.venv` 裝的，
+  有缺或太舊就自動補裝；你裝過的選裝組（例如 `llm`、`llop`）會記住（`data/deps.json`），換版本也會一起補。補不成照常啟動，
+  視窗與網頁卡片說哪個套件沒更新到、怎麼補（卡片「再試一次」、或 `.venv\Scripts\python.exe -m synox deps sync`）。不會把你自己裝的較新版本降級。
+- 命令列 `synox deps`（只看）、`synox deps sync [--add 組] [--remove 組]`。`Update.bat -Apply -FromWeb`／`-Rollback -FromWeb` 是網頁用的。
+
+#### 修正
+- 換版本時判斷「要不要重裝套件」改看整份相依與**每一組**選裝組（以前新加的 `llop` 組變了也不會重裝）。
+
 ## 0.2.2-alpha.3（2026-11-23）
 
 這版重點：AI 來源改成「來源 → 認證 → 服務 → 模型 → 細節」分步選擇，可以接 LLOP（別人分享的本地模型）與訂閱登入，另有可選的備援。

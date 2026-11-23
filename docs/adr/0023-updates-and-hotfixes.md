@@ -4,6 +4,7 @@
 - 狀態：**已採用**（擁有者 2026-11-14 核准：U1＝下一版 `0.2.1-beta.1`，U2～U9 照下面「建議」那一欄）。做了什麼、跟提案哪裡不一樣，見最後一節「**做了什麼（2026-11-14）**」；第 1～8 節是當初的提案，留著當紀錄。
 - 版本規則（號碼怎麼升、分支、tag、每版要有什麼）在 [../versioning.md](../versioning.md)，這份不重複。
 - 修訂：2026-11-19 U3 由 [0045](0045-update-channels.md) 修訂（卡片同時顯示正式版與測試版、更新通道設定，預設仍只提醒正式版）。
+  2026-11-23 [0047](0047-web-update-and-deps-sync.md)：有簽章的版本可以在網頁直接換（背景 prepare＋`Update.bat -Apply -FromWeb`，換檔仍是 `update.ps1`）、網頁「回到上一版」、啟動時補齊套件。
 - 相關：[0003](0003-distribution-git-clone-and-installer.md)（ZIP／git／安裝程式三種裝法）、[0022](0022-ecosystem-bridge-and-sandbox.md) R8（只在使用者按按鈕時連網、目的地寫死）、
   `src/synox/packs/catalog.py`（工具庫已經這樣做了）、`src/synox/packs/upgrade.py`（工具的升級與退回）。
 
