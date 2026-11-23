@@ -64,7 +64,7 @@
       "run": ["python", "-m", "pytest", "-q", "tests/test_update_web.py", "tests/test_update_deps.py", "tests/test_update.py", "tests/test_update_channels.py", "tests/test_update_testpath.py"],
       "cwd": ".", "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "expect": "exit 0",
       "needs": [], "since": "2026-11-23",
-      "status": "pending", "last_run": null, "last_result": null
+      "status": "pass", "last_run": "2026-11-23", "last_result": "Windows: all passed (full suite: only the known tag check in test_check_version_consistency fails, same as before)"
     }
   ]
 }
