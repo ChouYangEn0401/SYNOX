@@ -25,7 +25,8 @@ SYNOX 不直接 import LLOP 的套件（LLOP 經 `ntu_easy_llm[llop]`）。
 1. **設定頁改成分步選擇**：① 來源（本地／遠端服務／先不用 AI）→ ② 認證（遠端才有：API 金鑰／訂閱登入）→ ③ 服務 → ④ 連線欄位 → ⑤ 模型 → ⑥ 細節。
    服務清單來自 ntu_easy_llm 的 `catalog()`；**這台不能用的反灰並寫原因**（例如「LLOP：要先安裝 ntu_easy_llm[llop]」「這個版本還沒有這個來源的 adapter」），
    不藏起來。SYNOX 自己加兩個內建項目：「本地」底下第一個是 **SYNOX 內建的本地模型**（kind=local，ADR 0007 的 context 建議、列出模型、載入／卸載照舊），
-   「訂閱登入」底下第一個是 **SYNOX 內建的 Claude Code**（kind=claude_code）。訂閱來源標「只給本人使用」（能不能拿來服務別人還沒定案：**只標、不擋**）。
+   「訂閱登入」底下第一個是 **SYNOX 內建的 Claude Code**（kind=claude_code）。訂閱來源標「只給本人使用」（**只標、不擋**）。
+   2026-11-23 補：技術上照樣不擋，但文件寫清楚——不推薦拿個人訂閱服務別人、轉售、共用；各服務的條款由使用者自己閱讀並負責；SYNOX 只提供技術介面。全文見 [security.md 的「訂閱登入來源的使用聲明」](../security.md#訂閱登入來源的使用聲明)；設定頁的標記字也改成「使用前請自行閱讀該服務的使用條款」。
 2. **設定的寫法**：
    - 舊的單一 `llm.kind`（none、fake、local、openai、anthropic、gemini、openai_compat、claude_code）**完全照舊能讀**；
      在新畫面選 OpenAI／Anthropic／Gemini／OpenAI 相容時**照舊存成舊的 kind**（舊版 SYNOX 也讀得懂）。
