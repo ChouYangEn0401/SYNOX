@@ -66,6 +66,8 @@ SYNOX 不直接 import LLOP 的套件（LLOP 經 `ntu_easy_llm[llop]`）。
 6. **網頁 API**（只給擁有者；非 GET 要 CSRF，照既有規矩）：
    - `GET /api/settings/llm/catalog`：目錄（`sources.tree()`）＋現在的選擇＋備援狀態。不連網。
    - `POST /api/settings/llm/models`：列某個來源的模型（ntu_easy_llm 的 `list_models`，唯讀、不載入模型）。會連使用者填的網址，所以是 POST（跟 local-advice 同一個理由）。
+     2026-11-23 補：舊的四種 kind 也用（`choice: "keys"`）；這台沒有新 adapter 時，OpenAI 與 OpenAI 相容服務退一步讀 `GET <網址>/models`（`llm/model_list.py`），
+     其他的回一句「更新 SYNOX 或重裝選用套件」。失敗多回 `kind`；`/test` 失敗多回 `kind` 與 `relist`（模型打錯／不能用＝建議按「列出模型」重選）。金鑰不進任何回應。
    - `POST /api/settings/llm`、`/test`：多收 `choice: "source"`（`source`、`model`、`base_url`、`api_key`、`options`）；舊的 choice 照舊。
    - `POST /api/settings/llm/waterfall`：`{"mode", "keep": [保留的備援序號，照新順序], "add": <跟「存起來」同一種內容>}`；新備援的金鑰放保管箱 `llm_api_key_backup_<n>`。
    - 換主要來源（「存起來」）**不洗掉備援**（`waterfall` 加進沿用的欄位）。

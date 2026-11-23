@@ -56,6 +56,8 @@ def message_for(kind, where: str, detail: str = "", status: Optional[int] = None
 
 _QUOTA = ("insufficient_quota", "quota_exceeded", "key_exhausted", "exceeded your current quota", "credit balance")
 _CONTEXT = ("context_length_exceeded", "maximum context length", "context size has been exceeded")
+# 模型名稱打錯／伺服器上沒有：OpenAI 是 404＋model_not_found，相容伺服器常常是 400／404＋「model … not found／does not exist」
+_MODEL = ("model_not_found", "no such model", "model not found", "does not exist", "not found")
 
 
 def http_kind(status: int, body: str = "") -> str:
@@ -74,7 +76,8 @@ def http_kind(status: int, body: str = "") -> str:
         return "timeout"
     if status == 413 or any(m in low for m in _CONTEXT):
         return "context_too_long"
-    if status == 404 and "model" in low:
+    if status == 404 and "model" in low or status in (400, 404, 422) and "model" in low and \
+            any(m in low for m in _MODEL):
         return "model_not_found"
     if status in (503, 529):
         return "overloaded"

@@ -407,6 +407,10 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
   `llm/kinds.py`（`.kind` → 中文）、`llm/router.py`（`llm.waterfall`：成員包成 `AsEasyAdapter`、`RouterAdapter` 包 `ntu_easy_llm.router.Router`；
   ask 丟 `FallbackAsk`，卡在 `agent/fallback_card.py`）。SYNOX **不直接 import llmop**（LLOP 經 `ntu_easy_llm[llop]`）；換不換來源的邏輯
   全在 ntu_easy_llm 的 router，SYNOX 不寫重試／冷卻。pyproject 的 `llm` 組還指向 0.5.0 的 wheel：0.6 發佈後由發佈的人改網址（加 `[llop]`）。
+- **設定頁的「列出模型」**（API 金鑰來源與 kind=source）：`POST /api/settings/llm/models` 先用來源的 `list_models`（新 adapter），沒有時
+  `llm/model_list.py` 只替 OpenAI／OpenAI 相容服務退一步讀 `GET <網址>/models`；錯誤一句白話＋「還是可以自己輸入」，**金鑰一律 `scrub()` 掉**。
+  「測一下」失敗帶 `kind`（`ChatAdapter.probe_kind`、`logic.probe_llm_kind`），`model_not_found`／`permission` 回 `relist: true`（建議重選）。
+  本地內建（kind=local）照舊用 `llm/local_models.py`。
 
 ## Known limitations / next steps
 

@@ -57,6 +57,14 @@
       "cwd": ".", "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "expect": "exit 0",
       "needs": [], "since": "2026-11-23",
       "status": "pass", "last_run": "2026-11-23", "last_result": "36 passed with ntu_easy_llm 0.6.0.dev0 (router + HTTP adapters); without it 22 skipped, rest pass"
+    },
+    {
+      "id": "model-picker",
+      "what": "設定頁列出模型（API 金鑰來源、OpenAI 相容服務的 /models 退路）、測一下分辨模型打錯與連不到、預設值、金鑰不出現在回應（假 opener，不連網）",
+      "run": ["python", "-m", "pytest", "-q", "tests/test_model_picker.py"],
+      "cwd": ".", "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "expect": "exit 0",
+      "needs": [], "since": "2026-11-23",
+      "status": "pass", "last_run": "2026-11-23", "last_result": "18 passed (ntu_easy_llm 0.5.0 on this machine)"
     }
   ]
 }

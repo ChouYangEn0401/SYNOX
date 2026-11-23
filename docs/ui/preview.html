@@ -2519,7 +2519,9 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
             <select id="llm-src-pick"><option value="">（按「列出模型」）</option></select>
             <button id="llm-src-list" type="button">列出模型</button>
           </div>
-          <input id="llm-src-model" type="text" size="30">
+          <input id="llm-src-filter" class="hidden" type="search" size="30" placeholder="清單很長：打字篩選" aria-label="篩選模型清單">
+          <input id="llm-src-model" type="text" size="30" list="llm-src-names" aria-label="模型名稱">
+          <datalist id="llm-src-names"></datalist>
           <p id="llm-src-msg" class="muted"></p>
           <details id="llm-src-details" class="hidden"><summary>⑥ 細節（選填，空白＝用預設）</summary>
             <div id="llm-src-detail-fields"></div></details>
@@ -2531,12 +2533,19 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
         <div id="llm-key-fields">
           <label class="f" for="llm-key">API key（留空＝沿用原本的）</label>
           <input id="llm-key" type="password" autocomplete="off" size="40">
-          <label class="f" for="llm-model">模型</label>
-          <input id="llm-model" type="text" size="30">
           <div id="llm-url-wrap">
-            <label class="f" for="llm-url">網址（例如 http://localhost:11434/v1）</label>
-            <input id="llm-url" type="text" size="40">
+            <label class="f" for="llm-url">伺服器網址（服務提供者給的，通常以 /v1 結尾）</label>
+            <input id="llm-url" type="text" size="40" placeholder="例如 https://api.example.com/v1">
           </div>
+          <label class="f" for="llm-model-pick">模型（可以按「列出模型」從清單選，也可以自己輸入）</label>
+          <div class="row">
+            <select id="llm-model-pick"><option value="">（按「列出模型」）</option></select>
+            <button id="llm-model-list" type="button">列出模型</button>
+          </div>
+          <input id="llm-model-filter" class="hidden" type="search" size="30" placeholder="清單很長：打字篩選" aria-label="篩選模型清單">
+          <input id="llm-model" type="text" size="30" list="llm-model-names" aria-label="模型名稱">
+          <datalist id="llm-model-names"></datalist>
+          <p id="llm-model-msg" class="muted"></p>
         </div>
         <div id="llm-local-fields" class="hidden">
           <label class="f" for="llm-local-server">伺服器</label>
@@ -2569,6 +2578,8 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
           <p class="muted">逾時：模型只要還在回應就不會被中止；完全沒有進展超過 <span id="llm-local-timeout">450</span> 秒才中止，
             總上限 <span id="llm-local-total">1800</span> 秒（config.json 的 llm.timeout／llm.max_total_timeout）。</p>
         </div>
+        <p id="llm-model-note" class="muted hidden">模型名稱打錯不會讓 SYNOX 起不來：設定照樣存得進去、指令照常能用，只是跟 AI 聊天會失敗（說找不到模型）。
+          不確定就按「列出模型」從清單選，或按「測一下」確認。</p>
         <p id="llm-warning" class="note-line hidden"></p>
         <p id="llm-vision" class="muted hidden"></p>
         <hr class="rule">
@@ -8601,8 +8612,10 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     }
     $("llm-url-wrap").classList.toggle("hidden", !c.needs_url);
     if (c.model && !$("llm-model").value) { $("llm-model").value = c.model; }
+    $("llm-model").placeholder = c.needs_url ? "按「列出模型」選一個，或自己輸入" : "模型名稱（可以按「列出模型」）";
     $("llm-local-fields").classList.toggle("hidden", c.choice !== "local");
     $("llm-src-fields").classList.toggle("hidden", c.choice !== "source");
+    $("llm-model-note").classList.toggle("hidden", c.choice !== "keys" && c.choice !== "source");
     if (c.choice === "local") {
       var srv = $("llm-local-server");
       if (srv.options.length === 0) {
@@ -9081,7 +9094,8 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     });
     sel.value = String(pick);
     $("llm-model").value = d.llm.model || "";
-    $("llm-url").value = d.llm.base_url || "";
+    // 網址只沿用「相容服務」自己存的；別的來源（例如本地模型 127.0.0.1:…）的網址不帶過來
+    $("llm-url").value = d.llm.kind === "openai_compat" ? d.llm.base_url || "" : "";
     $("llm-key").value = "";
     $("llm-now").textContent = "現在：" + (d.llm.source || d.llm.kind) + (d.llm.model ? "（" + d.llm.model + "）" : "") +
       (d.llm.has_key ? "，有金鑰" : "") + (d.llm.waterfall ? "　" + d.llm.waterfall : "");
@@ -9256,6 +9270,10 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     api("POST", "/api/settings/llm/test", llmBody()).then(function (d) {
       $("llm-msg").textContent = d.message;
       if (d.lines) { showNotes(d.lines); }
+      if (d.relist) {                              // 模型打錯／這個帳號不能用：把「列出模型」那顆按鈕帶到眼前
+        var btn = selectedChoice().choice === "source" ? $("llm-src-list") : $("llm-model-list");
+        if (btn && btn.offsetParent !== null) { btn.focus(); }
+      }
       if (d.download_url && d.download_url.indexOf("https://") === 0) {     // 沒裝 claude：顯示安裝指令（只給複製，不替使用者執行）
         $("llm-dl").href = d.download_url;
         $("llm-install").classList.remove("hidden");
@@ -9280,6 +9298,71 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     api("POST", "/api/settings/llm", llmBody()).then(function (d) { $("llm-msg").textContent = d.message; loadSettings(); })
       .catch(function (e) { $("llm-msg").textContent = "❌ " + e.message; });
   });
+
+  // ── 模型清單（POST /api/settings/llm/models）：API 金鑰來源與來源目錄上的來源共用；本地內建照舊用上面那一套 ──
+  // 下拉選單＋自己輸入（輸入框掛 datalist，打字就篩選）；清單長（超過 12 個）多一格「打字篩選」給下拉選單。
+  // 列不出來（沒網路、金鑰錯、伺服器沒開）就照伺服器回的一句白話說，手打照樣可以。字一律 textContent。
+  var LIST_LONG = 12;
+  function modelPicker(ids) {                      // ids：pick（select）、input（模型名稱）、filter、names（datalist）、msg
+    var all = [];
+    function draw() {
+      var sel = $(ids.pick), q = ($(ids.filter).value || "").trim().toLowerCase();
+      var rows = !q ? all : all.filter(function (m) { return (m.id + " " + (m.label || "")).toLowerCase().indexOf(q) >= 0; });
+      clear(sel);
+      var head = el("option", "", !all.length ? "（按「列出模型」）" :
+        (rows.length ? "（選一個模型，" + rows.length + " 個）" : "（沒有符合「" + q + "」的模型）"));
+      head.value = "";
+      sel.appendChild(head);
+      rows.forEach(function (m) { var o = el("option", "", modelLine(m)); o.value = m.id; sel.appendChild(o); });
+      var cur = $(ids.input).value;
+      if (cur && rows.some(function (m) { return m.id === cur; })) { sel.value = cur; }
+    }
+    function fill(models) {
+      all = models || [];
+      $(ids.filter).value = "";
+      $(ids.filter).classList.toggle("hidden", all.length <= LIST_LONG);
+      var dl = $(ids.names);
+      clear(dl);
+      all.forEach(function (m) { var o = document.createElement("option"); o.value = m.id; dl.appendChild(o); });
+      draw();
+    }
+    $(ids.filter).addEventListener("input", draw);
+    $(ids.pick).addEventListener("change", function () {
+      if ($(ids.pick).value) { $(ids.input).value = $(ids.pick).value; updateLlmDirty(); }
+    });
+    var seq = 0;
+    return {
+      reset: function () { seq++; fill([]); $(ids.msg).textContent = ""; },
+      list: function (body, auto) {
+        var mine = ++seq;
+        $(ids.msg).textContent = "讀取模型清單中…（只讀清單，不會載入模型）";
+        return api("POST", "/api/settings/llm/models", body).then(function (d) {
+          if (mine !== seq) { return; }                    // 已經換了來源：舊的結果不畫
+          fill(d.models || []);
+          var cur = $(ids.input).value, found = d.models || [];
+          var gone = cur && found.length && !found.some(function (m) { return m.id === cur; });
+          $(ids.msg).textContent = (d.message || "") + (gone ? "　⚠️ 現在填的「" + cur + "」不在清單上，可能打錯了：從清單重選一個。" : "");
+        }).catch(function (e) {
+          if (mine !== seq) { return; }
+          $(ids.msg).textContent = (auto ? "還不能列出模型：" : "❌ ") + e.message + "　還是可以自己輸入模型名稱。";
+        });
+      }
+    };
+  }
+  var keyPicker = modelPicker({ pick: "llm-model-pick", input: "llm-model", filter: "llm-model-filter",
+                                names: "llm-model-names", msg: "llm-model-msg" });
+  var srcPicker = modelPicker({ pick: "llm-src-pick", input: "llm-src-model", filter: "llm-src-filter",
+                                names: "llm-src-names", msg: "llm-src-msg" });
+  $("llm-model-list").addEventListener("click", function () { keyPicker.list(llmBody(), false); });
+  function keyAutoList() {                         // 填好網址（相容服務）或金鑰之後自動列一次
+    var c = selectedChoice();
+    if (c.choice !== "keys") { return; }
+    var url = $("llm-url").value.trim(), key = $("llm-key").value;
+    var savedKey = llmCur.has_key && llmCur.provider === c.provider;
+    if (c.needs_url ? /^https?:\/\/./.test(url) : (key || savedKey)) { keyPicker.list(llmBody(), true); }
+  }
+  $("llm-url").addEventListener("change", keyAutoList);
+  $("llm-key").addEventListener("change", keyAutoList);
 
   // ── AI 來源的分步選擇（docs/adr/0046）：① 來源 → ② 認證 → ③ 服務 → ④ 連線欄位 → ⑤ 模型 → ⑥ 細節 ──────────
   // 目錄來自 GET /api/settings/llm/catalog（不連網）；選到的服務對到舊的 llm-choice（內建本地、Claude Code、四個金鑰來源照舊），
@@ -9371,7 +9454,10 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     $("llm-svc-note").classList.toggle("hidden", !note);
     if (idx >= 0 && String(idx) !== $("llm-choice").value) {
       $("llm-choice").value = String(idx);
-      $("llm-model").value = "";
+      var back = s && s.provider && s.provider === llmCur.provider;      // 換回現在存的那個：網址、模型照存的
+      $("llm-model").value = back ? llmCur.model || "" : "";
+      $("llm-url").value = back && s.provider === "openai_compat" ? llmCur.base_url || "" : "";
+      keyPicker.reset();
     }
     if (s && s.kind === "source") { drawSrcFields(s); }
     syncLlmFields();
@@ -9441,10 +9527,16 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     $("llm-src-details").classList.toggle("hidden", !(s.detail_fields || []).length);
     var modelField = (s.fields || []).filter(function (f) { return f.name === "model"; })[0];
     $("llm-src-model").value = same ? (llmCur.model || "") : "";
-    $("llm-src-model").placeholder = modelField && modelField.default ? String(modelField.default) : "模型名稱";
-    clear($("llm-src-pick"));
-    var head = el("option", "", "（按「列出模型」）"); head.value = ""; $("llm-src-pick").appendChild(head);
-    $("llm-src-msg").textContent = "";
+    $("llm-src-model").placeholder = modelField && modelField.default ? String(modelField.default) :
+      "按「列出模型」選一個，或自己輸入";
+    srcPicker.reset();
+    // 填好網址／金鑰／LLOP 設定檔（離開那一格）就自動列一次模型
+    Array.prototype.forEach.call(conn.querySelectorAll("[data-field]"), function (input) {
+      var kind = input.getAttribute("data-kind");
+      if (kind === "url" || kind === "secret" || kind === "llop_profile") {
+        input.addEventListener("change", function () { if (input.value) { srcPicker.list(srcBody(), true); } });
+      }
+    });
   }
   function srcBody() {
     var body = { choice: "source", source: llmSvc ? llmSvc.source : "", model: $("llm-src-model").value, base_url: "",
@@ -9458,21 +9550,7 @@ button.danger { background: var(--bad); border-color: var(--bad); color: var(--s
     return body;
   }
   $("llm-src-model").addEventListener("input", updateLlmDirty);
-  $("llm-src-list").addEventListener("click", function () {
-    $("llm-src-msg").textContent = "讀取模型清單中…（不會載入模型）";
-    api("POST", "/api/settings/llm/models", srcBody()).then(function (d) {
-      var sel = $("llm-src-pick");
-      clear(sel);
-      var head = el("option", "", (d.models || []).length ? "（選一個模型）" : "（沒有可以聊天的模型）"); head.value = "";
-      sel.appendChild(head);
-      (d.models || []).forEach(function (m) { var o = el("option", "", modelLine(m)); o.value = m.id; sel.appendChild(o); });
-      if ($("llm-src-model").value) { sel.value = $("llm-src-model").value; }
-      $("llm-src-msg").textContent = d.message || "";
-    }).catch(function (e) { $("llm-src-msg").textContent = "❌ " + e.message; });
-  });
-  $("llm-src-pick").addEventListener("change", function () {
-    if ($("llm-src-pick").value) { $("llm-src-model").value = $("llm-src-pick").value; updateLlmDirty(); }
-  });
+  $("llm-src-list").addEventListener("click", function () { srcPicker.list(srcBody(), false); });
 
   // ── 備援（POST /api/settings/llm/waterfall）：順序就是你排的；SYNOX 不預設任何來源的先後 ──────────
   function drawWf() {

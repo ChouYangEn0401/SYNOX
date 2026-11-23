@@ -1533,7 +1533,9 @@ class WebUI:
         from synox.llm.local_advice import OPTIONS
         out["llm_choices"] = [{"choice": "claude_code", "label": logic.CLAUDE_TITLE,
                                "models": [{"value": v, "label": lbl} for v, lbl in logic.CLAUDE_MODELS]}] + \
-            [{"choice": "keys", "provider": code, "label": v[0], "model": v[2], "needs_url": v[3]}
+            [{"choice": "keys", "provider": code, "label": v[0], "needs_url": v[3],
+              # 相容服務的模型名稱各家不同：不預填（以前是 llama3.1，常常不存在），請按「列出模型」選
+              "model": "" if v[3] else v[2]}
              for code, v in logic.KEY_PROVIDERS.items()] + \
             [{"choice": "local", "label": logic.LOCAL_TITLE,
               "servers": [{"value": k, "label": lbl, "base_url": DEFAULT_URLS[k]} for k, lbl in logic.LOCAL_SERVERS.items()],
@@ -1666,6 +1668,7 @@ class WebUI:
         denied = self._owner_only(user)
         if denied:
             return denied
+        from synox.llm import model_list
         from synox.llm.base import LLMError
         from synox.llm.factory import resolve_secret
         from synox.wizard import logic
@@ -1681,11 +1684,13 @@ class WebUI:
             return _err(400, "choice 只能是 source、keys 或 claude_code（本地內建用 local-models）。")
         if problem:
             return _err(400, problem)
+        typed = str(data.get("api_key") or "")
         if str(llm.get("api_key", "")).startswith(("vault:", "env:")):
             try:
                 llm = {**llm, "api_key": resolve_secret(llm["api_key"], self.vault)}
             except LLMError as e:
-                return _json(200, {"ok": False, "models": [], "message": f"❌ {e}"})
+                return _json(200, {"ok": False, "models": [], "message": model_list.failed(e, typed)})
+        key = str(llm.get("api_key") or "")                  # 金鑰不進回應、日誌、錯誤訊息（model_list.scrub）
         from synox.llm import make_adapter
         try:
             adapter = make_adapter({"llm": {k: v for k, v in llm.items() if k != "waterfall"}})
@@ -1693,13 +1698,18 @@ class WebUI:
             if lister is None and callable(getattr(adapter, "native", None)):
                 native = adapter.native()
                 lister = getattr(native, "list_models", None)
+            if lister is None:                                 # 這一版沒有新 adapter：OpenAI 規格的自己問 /models
+                lister = model_list.fallback(llm)
             if lister is None:
-                return _json(200, {"ok": False, "models": [],
-                                   "message": "這個來源（這一版）不能列出模型，請自己輸入模型名稱。"})
+                return _json(200, {"ok": False, "models": [], "message": model_list.cannot_list(llm.get("kind", ""))})
             models = lister()
         except LLMError as e:
-            return _json(200, {"ok": False, "models": [], "message": f"❌ {e}"})
+            return _json(200, {"ok": False, "models": [], "kind": str(getattr(e, "kind", "") or ""),
+                               "message": model_list.failed(e, key, typed)})
         loaded = sum(1 for m in models if m.get("loaded"))
+        if not models:
+            return _json(200, {"ok": True, "models": [], "message": "連上了，但伺服器沒有列出可以聊天的模型。"
+                               + model_list.MANUAL})
         return _json(200, {"ok": True, "models": models,
                            "message": f"找到 {len(models)} 個模型" + (f"，{loaded} 個已載入。" if loaded else "。")})
 
@@ -1855,8 +1865,17 @@ class WebUI:
             return self._test_local(user, llm)
         if str(llm.get("api_key", "")).startswith(("vault:", "env:")):
             llm["api_key"] = resolve_secret(llm["api_key"], self.vault)
-        result = logic.probe_llm(llm)
+        result, kind = logic.probe_llm_kind(llm)
         out = {"ok": result is None, "message": "✅ 接得通" if result is None else f"❌ {result}"}
+        if result is not None:                     # 分辨「模型打錯／不能用」與「連不到」；金鑰不放進回應
+            from synox.llm import model_list
+            out["message"] = model_list.scrub(out["message"], str(llm.get("api_key") or ""),
+                                              str(data.get("api_key") or ""))
+            advice = model_list.test_advice(kind)
+            if advice:
+                out["message"] += "　" + advice
+            out["kind"] = kind
+            out["relist"] = kind in model_list.RELIST_KINDS
         if result is not None and llm.get("kind") == "claude_code":
             from synox.llm.claude_code import NOT_FOUND
             if result == NOT_FOUND:                 # 沒裝：跟精靈一樣給下載點，裝好再按「測一下」
