@@ -206,20 +206,27 @@ def llm_settings(choice: str, *, base_url: str = "", api_key: str = "", model: s
 
 def probe_llm(llm: dict, make=None) -> Optional[str]:
     """「測一下」：照 llm 那一塊做出 adapter，真的打一句。None＝通了，否則一句人話。"""
+    return probe_llm_kind(llm, make)[0]
+
+
+def probe_llm_kind(llm: dict, make=None) -> Tuple[Optional[str], str]:
+    """跟 probe_llm 一樣，多回錯誤的種類（llm/kinds.py：model_not_found、permission、connection…；不知道＝""）。
+    網頁設定頁用它分辨「模型打錯／不能用」與「連不到」。"""
     if (llm or {}).get("kind", "none") == "none":
-        return None
+        return None, ""
     if make is None:
         from synox.llm import make_adapter as make
     try:
         adapter = make({"llm": llm})
     except Exception as e:                         # LLMError（設定不完整、沒裝 ntu_easy_llm）
-        return str(e)
+        return str(e), str(getattr(e, "kind", "") or "")
     if adapter is None:
-        return t("err_unknown_source")
+        return t("err_unknown_source"), ""
     try:
-        return adapter.probe()
+        result = adapter.probe()
     except Exception as e:
-        return t("err_test_failed", e=e)
+        return t("err_test_failed", e=e), str(getattr(e, "kind", "") or "")
+    return result, ("" if result is None else str(getattr(adapter, "probe_kind", "") or ""))
 
 
 def build_config(token: str, owner_id: int, llm: dict, *, existing: Optional[dict] = None,

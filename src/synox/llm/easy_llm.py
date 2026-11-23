@@ -265,17 +265,21 @@ class SourceAdapter(ChatAdapter):
         return from_easy_reply(reply)
 
     def probe(self) -> Optional[str]:
-        """「測一下」：真的送一句（probe(send=True)）。None＝好；否則一句中文。"""
+        """「測一下」：真的送一句（probe(send=True)）。None＝好；否則一句中文（種類放在 probe_kind）。"""
+        self.probe_kind = ""
         if not self.model and not self.source.startswith("remote/subscription/"):
             if self.source != "remote/api_key/llop":
                 return "還沒填模型名稱。"
         try:
             result = self.inner.probe(send=True, timeout=self.timeout or 60.0)
         except Exception as e:                         # probe 照約定不丟例外；丟了也不讓設定頁當掉
-            return str(error_from(e, self.where))
+            err = error_from(e, self.where)
+            self.probe_kind = str(getattr(err, "kind", "") or "")
+            return str(err)
         if result.ok:
             return None
         if result.kind is not None:
+            self.probe_kind = str(result.kind)
             return kinds.message_for(result.kind, self.where, result.reason)
         return result.reason or "接不通（原因不明）。"
 
@@ -388,8 +392,8 @@ class EasyLLMAdapter(ChatAdapter):
                                base_url=self.base_url or None, max_tokens=self.max_tokens, timeout=self.timeout,
                                session=self._session)
         except agent.LLMHTTPError as e:
-            if kinds.kind_of(e) is None:
-                raise LLMError(http_error(e.status, e.body))
+            if kinds.kind_of(e) is None:              # 0.5 沒有種類：訊息照舊，種類照狀態碼補（測一下才分得出模型打錯）
+                raise LLMError(http_error(e.status, e.body), kind=kinds.http_kind(e.status, e.body))
             raise error_from(e, where)
         except agent.LLMConnectionError as e:
             kind = kinds.kind_of(e) or "connection"

@@ -101,11 +101,15 @@ class ChatAdapter:
     def chat(self, messages: Sequence[Message], tools: Sequence[ToolSpec] = (), *, stop: Sequence[str] = ()) -> Reply:
         raise NotImplementedError
 
+    probe_kind: str = ""      # 上一次 probe 失敗的錯誤種類（kinds.py；不知道＝""）：設定頁分辨「模型打錯」與「連不到」
+
     def probe(self) -> Optional[str]:
-        """真的打一句確認接得通。None＝好；否則一句人話。"""
+        """真的打一句確認接得通。None＝好；否則一句人話（種類放在 probe_kind）。"""
+        self.probe_kind = ""
         try:
             reply = self.chat([Message(USER, "請只回一個字：好")])
         except LLMError as e:
+            self.probe_kind = str(getattr(e, "kind", "") or "")
             return str(e)
         except Exception as e:                        # 測一下不該讓精靈當掉
             return f"測試失敗：{e}"
