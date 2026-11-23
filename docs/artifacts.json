@@ -6,14 +6,14 @@
       "url": "https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW",
       "repo": "SYNOX",
       "local": "docs/landing/index.html",
-      "note": "原稿 docs/landing/page.html，用 scripts/make_landing.py 組"
+      "note": "原稿 docs/landing/page.html，用 scripts/make_landing.py 組（版本與下載連結跟著 pyproject.toml）；每次發版重組、重新發佈（docs/release-playbook.md 第 7 節）"
     },
     {
       "title": "SYNOX 安裝教學（一步一步）",
       "url": "https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F",
       "repo": "SYNOX",
       "local": "docs/guide/index.html",
-      "note": ""
+      "note": "用 scripts/build_guide.py 組（教學步驟＋這一版的版本與下載連結）；每次發版重組、重新發佈（docs/release-playbook.md 第 7 節）"
     },
     {
       "title": "SYNOX Telegram 設定教學",

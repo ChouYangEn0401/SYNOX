@@ -15,7 +15,10 @@ Rules: docs/versioning.md (§1 order, §2 where the version lives). Checked:
       it may equal a tag only when that tag points at HEAD (a checkout of a released version). A tag that is not
       SemVer is reported. --tag vX (the release gate) also requires vX == "v" + version.
   reminders (exit 0)
-    - docs/landing/page.html version badge (that page has its own maintainer)
+    - docs/landing/page.html version badge when it is a hand-typed number (now it is the placeholder {{version}})
+    - the built pages docs/landing/index.html and docs/guide/index.html show another version: rebuild them
+      (scripts/make_landing.py, scripts/build_guide.py) and republish (docs/release-playbook.md section 7);
+      `release.py check --tag` is the gate that fails on this
     - the CHANGELOG section is still 「未發佈」 (no date): fine on dev, `release.py bump keep` dates it
 
 Standard library only; no network; runs `git tag` / `git rev-parse` read-only (skipped with --no-git, or when
@@ -44,6 +47,11 @@ ISS_DEFINE_RE = re.compile(r'^\s*#define\s+AppVersion\s+"([^"]*)"', re.M)
 ISS_LITERAL_RE = re.compile(r"^\s*AppVersion\s*=\s*(?!\{#AppVersion\})(\S.*)$", re.M)
 CURRENT_RE = re.compile(r"目前版本[：:]\s*`v?([^`]+)`")
 BADGE_RE = re.compile(r'class="ver"[^>]*>.*?<b>([^<]*)</b>', re.S)
+BUILT_AT_BUILD = "{{version}}"            # page.html 的徽章是這個記號＝組頁面時才帶入（scripts/make_landing.py）
+BUILT_PAGES = (                           # 跟 scripts/release.py 的 BUILT_PAGES 同一組
+    ("docs/landing/index.html", BADGE_RE, "python scripts/make_landing.py"),
+    ("docs/guide/index.html", re.compile(r'id="release-info">\s*\{\s*"version":\s*"([^"]*)"'), "python scripts/build_guide.py"),
+)
 ISS = "setup/installer/synox.iss"
 PLACEHOLDER_VERSION = "0.0.0"
 
@@ -183,8 +191,14 @@ def check(root: str = ROOT, tag: str = "", use_git: bool = True,
 
     page = _read(root, "docs/landing/page.html")
     badge = BADGE_RE.search(page or "")
-    if badge and badge.group(1).strip() != version:
+    if badge and badge.group(1).strip() not in (version, BUILT_AT_BUILD):
         warn.append(f"docs/landing/page.html 的版本徽章是 {badge.group(1).strip()}，不是 {version}（介紹頁的維護者發版時改）")
+    # 組出來的頁面（版本徽章、下載連結是組頁面時從 pyproject.toml 帶入的）：每次發版要重組、重新發佈（docs/release-playbook.md 第 7 節）。
+    # 這裡只提醒（CI 推 tag 時也跑這支）；發版的關卡是 `release.py check --tag`。
+    for rel, rx, how in BUILT_PAGES:
+        shown = rx.search(_read(root, rel) or "")
+        if shown and shown.group(1).strip() != version:
+            warn.append(f"{rel} 寫的版本與下載連結是 {shown.group(1).strip()}，不是 {version}：重組（{how}）再重新發佈線上頁面")
 
     if tag:
         if tag != "v" + version:

@@ -11,25 +11,51 @@
 
   ── 步驟資料的格式（之後 SYNOX 的「教學 pack」可以直接拿 STEPS 這個陣列來用）──────────────────────────
   STEPS 是一個陣列，一個元素＝一個畫面（一步）。欄位：
-    id        字串，唯一。英文小寫加連字號。主線步驟的網址是 #step-<第幾步>（從 1 數）；branch 步驟的網址是 #step-<id>。
+    id        字串，唯一。英文小寫加連字號。主線步驟的網址是 #step-<第幾步>（從 1 數）；岔路、選讀步驟的網址是 #step-<id>
+              （主線步驟寫 #step-<id> 也找得到，會自動換成號碼）。
     chapter   字串，這一步屬於哪一段（顯示在進度條上，例如「安裝精靈」）。
     title     字串，這一步的標題（一句話，說要做什麼）。
-    body      字串陣列，一個字串＝一段（一兩句白話）。可以有 <b>、<code>。
+    body      字串陣列，一個字串＝一段（一兩句白話）。可以有 <b>、<code>；整行的指令用 <code class="cmd">。
     mock      字串，示意畫面的代號，對應 MOCKS 物件裡的函式（例如 "wizard-token"、"tg-pair"）。
-              示意畫面裡可以被標出來的東西都有 data-hl="<名字>"。
+              示意畫面裡可以被標出來的東西都有 data-hl="<名字>"。整個 step 會傳給那個函式，
+              所以同一個示意畫面要畫成幾種樣子時，在 step 上多放一個欄位給它看（例如 stage: "model"）。
     targets   陣列，要標出來（脈動的圈＋小標籤）的東西：{ id: data-hl 的名字, say: 標籤上的字, place: 標籤位置 }
-              place：b＝下面置中（預設）、bs＝下面靠左、be＝下面靠右、a＝上面置中、as／ae＝上面靠左／右。
+              place：b＝下面置中（預設）、bs＝下面靠左、be＝下面靠右、a＝上面置中、as／ae＝上面靠左／右、r＝右邊。
     tips      陣列（可省略）：{ k: 種類, t: 文字 }。k＝"if"（如果出現…）、"note"（小提示）、"warn"（注意）、
               "wip"（⏳ 尚未完成）、"ok"（好消息）。
     links     陣列（可省略）：{ href, text, primary? }，顯示成大按鈕（外部連結開新分頁）。
-    jump      物件（可省略）：{ to: 另一步的 id, text } ，顯示成「改走另一條路」的按鈕（例如改用 Discord）。
-    branch    true＝選讀的岔路，不算在「步驟 N／總數」裡；要配 back（回哪一步的 id）和 next（看完接哪一步的 id）。
-  主線的順序就是陣列裡（去掉 branch 之後）的順序。
+    jump      物件或陣列（可省略）：{ to: 另一步的 id, text } ，顯示成「改走另一條路」的按鈕（例如改用 Discord）；陣列＝好幾顆。
+
+  三種步驟：
+  1. 主線：沒有 branch、也沒有 path。順序就是陣列裡的順序；只有主線算在「步驟 N／總數」裡。
+  2. 岔路（一定要走其中一條）：
+    choices   陣列：這一步是「選一條路」的分岔。一張大卡片一條路：{ path: PATHS 裡的代號, title, sub: 一句話, icon: I 裡的名字 }。
+              mock 寫 "paths"（把卡片畫在示意畫面的位置）。點了卡片就走到那條路的第一步，並記住選了哪一條
+              （下次回到這一步，「下一步」直接走上次那條；還沒選過時「下一步」不能按）。
+    path      字串：這一步在哪一條岔路上（PATHS 裡的代號）。同一條路的步驟照陣列裡的順序走；
+              第一步的「上一步」回到分岔那一步，最後一步的「下一步」接回 PATHS[代號].to。
+              岔路上的步驟也可以有 choices（岔路裡再分岔）；那條子岔路的 from 寫這一步的 id。
+    PATHS 物件：代號 → { label: 這條路的名字（顯示在進度條和目錄上）, from: 分岔那一步的 id, to: 走完接回哪一步的 id }。
+              進度條在岔路上顯示「步驟 N／總數＋這條路的名字＋第幾步／共幾步」，N 是分岔那一步在主線上的號碼。
+  3. 選讀（不看也裝得完）：
+    branch    true＝選讀，不算在「步驟 N／總數」裡；要配 back（「回去」到哪一步的 id）和 next（「接著做」到哪一步的 id）。
+              back／next 可以寫 "@from"＝從哪一步按按鈕進來，就回到哪一步（記在這個分頁裡）；
+              直接開網址、從目錄進來時不知道從哪來，就用 home（一步的 id）。
+
   「選讀：SYNOX 網頁導覽」那幾步不是寫在 STEPS 裡：來自 SYNOX 內建新手教學的步驟檔（src/synox/tour/tours/basics.json），
   由 scripts/build_guide.py 放進下面 id 是 tour-steps 的那個 JSON 區塊（同一份字：網頁裡的 /tutorial 也用它）。
   示意畫面上的位置用同一份名字（src/synox/tour/anchors.py 的 data-tour 名字＝這裡的 data-hl）。改那幾步的字：改 basics.json、跑 build_guide.py。
+
+  版本與下載連結不寫死在步驟裡：id 是 release-info 的那個 JSON 區塊（這一版的號碼、SYNOX-<版本>.zip 與 SYNOX-Setup-<版本>.exe 的
+  檔名和下載網址）也是 scripts/build_guide.py 產生的，版本讀 pyproject.toml。步驟和示意畫面用 REL.zip、REL.zipUrl… 取用。
+  每次發版（alpha、beta 也算）：跑 python scripts/build_guide.py（會順便重蓋頁面版本），再重新發佈同一個線上網址，
+  打開確認版本與下載連結是剛發的那一版（docs/release-playbook.md 第 7 節）。
+  改了步驟或示意畫面之後：node scripts/check_guide.js（不開瀏覽器，檢查每一步的示意畫面、要標的東西、網址、岔路進得去回得來）。
+
   畫面上的字都照 SYNOX 原始碼裡真的字（安裝精靈 src/synox/wizard/lang/zh_TW.py、網頁 src/synox/web/static/app.html、
-  packdrop.js、Setup.bat 的 setup/lang/zh-TW.psd1）。Windows、Telegram 自己的畫面是照常見的樣子畫的示意圖。
+  packdrop.js、Setup.bat 的 setup/lang/zh-TW.psd1；設定頁 AI 來源的選項 src/synox/llm/sources.py 與 ntu_easy_llm 的來源目錄；
+  更新與套件 src/synox/update/；LLOP 的指令與輸出照 LLOP 的 docs/CLI.md、docs/SDK.md）。
+  Windows、Telegram、GitHub 自己的畫面是照常見的樣子畫的示意圖。
 -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -393,6 +419,61 @@ span.hl { display: inline-block; }
 .try div { display: grid; gap: 2px; padding: 10px 12px; border-radius: 10px; background: var(--sunken); }
 .try code { justify-self: start; font-size: 15px; }
 .try small { color: var(--muted); font-size: 14px; line-height: 1.5; }
+
+/* ── 岔路：進度條上的名字、目錄裡的縮排 ─────────────────────── */
+.branch-tag.way { background: var(--accent-soft); color: var(--accent); margin-left: 6px; vertical-align: 2px; }
+.toc-panel li.way { font-size: 13px; font-weight: 700; color: var(--accent); padding: 8px 10px 0 46px; line-height: 1.4; }
+.toc-panel a.sub { padding-left: 34px; min-height: 40px; font-size: 15px; }
+.toc-panel li.way.d2 { padding-left: 70px; }
+.toc-panel a.sub.d2 { padding-left: 58px; }
+
+/* ── 選一條路（分岔）：上面一張小路線圖，下面一條路一張大卡片 ───────── */
+.paths { display: grid; gap: 12px; width: 100%; max-width: 520px; }
+.fork { display: grid; justify-items: center; gap: 2px; font-size: 12.5px; color: var(--faint); }
+.fork svg { display: block; width: 100%; max-width: 380px; height: auto; overflow: visible; }
+.fork path { fill: none; stroke: var(--accent); stroke-width: 2.2; stroke-linecap: round; stroke-dasharray: 5 7; animation: flow 1.4s linear infinite; }
+.fork circle { fill: var(--surface); stroke: var(--accent); stroke-width: 2.2; }
+.fork circle.end { fill: var(--accent); }
+.fork .cap { display: flex; justify-content: space-between; width: 100%; max-width: 380px; }
+@keyframes flow { to { stroke-dashoffset: -12; } }
+.path-card { display: grid; grid-template-columns: 52px minmax(0, 1fr) 22px; gap: 14px; align-items: center; width: 100%; min-height: 92px;
+  padding: 14px 14px 14px 16px; border-radius: 16px; border: 2px solid var(--line-2); background: var(--surface); color: var(--ink);
+  font: inherit; text-align: left; cursor: pointer; box-shadow: var(--shadow);
+  animation: rise .4s ease both; animation-delay: calc(var(--i, 0) * 80ms);
+  transition: border-color .15s ease, background-color .15s ease, transform .15s ease; }
+.path-card:hover, .path-card:focus-visible { border-color: var(--accent); background: var(--accent-soft); transform: translateY(-2px); }
+.path-card:active { transform: none; }
+.path-card .pi { width: 52px; height: 52px; border-radius: 14px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent);
+  transition: background-color .15s ease, color .15s ease; }
+.path-card:hover .pi, .path-card:focus-visible .pi { background: var(--accent); color: var(--accent-ink); }
+.path-card .pi svg { width: 28px; height: 28px; }
+.path-card .pt { display: grid; gap: 2px; min-width: 0; }
+.path-card b { font-size: 19px; line-height: 1.4; overflow-wrap: anywhere; }
+.path-card small { font-size: 15px; line-height: 1.55; color: var(--muted); overflow-wrap: anywhere; }
+.path-card em { justify-self: start; margin-top: 4px; font-style: normal; font-size: 12.5px; font-weight: 700; padding: 1px 9px; border-radius: 999px;
+  background: var(--accent); color: var(--accent-ink); }
+.path-card .go { color: var(--accent); }
+.path-card .go svg { width: 22px; height: 22px; display: block; }
+.path-card.was { border-color: var(--accent); }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } }
+@media (max-width: 420px) { .path-card { grid-template-columns: 44px minmax(0, 1fr) 18px; gap: 10px; padding: 12px; } .path-card .pi { width: 44px; height: 44px; } }
+@media (prefers-reduced-motion: reduce) { .fork path { animation: none; } .path-card { animation: none; transition: none; } .path-card .pi { transition: none; } }
+
+/* ── 整行的指令、長網址：窄螢幕上要能換行 ───────────────────── */
+.body p, .links .btn { overflow-wrap: anywhere; }
+.cmd { display: block; padding: 10px 12px; font-size: .8em; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; -webkit-user-select: all; user-select: all; }
+.field.hl { overflow: visible; white-space: normal; overflow-wrap: anywhere; }   /* 被標出來的輸入格：小標籤要露在格子外面 */
+
+/* ── 示意畫面：設定頁的欄位（AI 從哪裡來、SYNOX 更新）────────────── */
+.kv { display: grid; grid-template-columns: 58px minmax(0, 1fr); gap: 8px; align-items: center; }
+.kv > b { font-weight: 500; color: var(--muted); font-size: 12.5px; }
+.lab { font-size: 12.5px; color: var(--muted); margin-top: 2px; }
+.field.sel { font-family: var(--body); font-size: 13px; background: var(--surface); }
+.opts { display: grid; gap: 1px; padding: 4px; border: 1px solid var(--line-2); border-radius: 8px; background: var(--menu); box-shadow: 0 12px 26px -16px rgba(0,0,0,.5); font-size: 13px; }
+.opts span { padding: 4px 8px; border-radius: 6px; overflow-wrap: anywhere; }
+.opts .on { background: var(--win-sel); font-weight: 700; }
+.opts .dis { color: var(--faint); }
+.rule2 { height: 1px; background: var(--line); margin: 2px 0; }
 </style>
 </head>
 <body>
@@ -407,10 +488,10 @@ span.hl { display: inline-block; }
   </div>
   <div class="progress" aria-live="polite">
     <div class="progress-label">
-      <span class="step-count" id="count">步驟 1<span class="of">／28</span></span>
+      <span class="step-count" id="count">步驟 1<span class="of">／26</span></span>
       <span class="chapter" id="chapter"></span>
     </div>
-    <div class="bar" role="progressbar" id="bar" aria-label="進度" aria-valuemin="1" aria-valuemax="28" aria-valuenow="1"><i id="bar-fill"></i></div>
+    <div class="bar" role="progressbar" id="bar" aria-label="進度" aria-valuemin="1" aria-valuemax="26" aria-valuenow="1"><i id="bar-fill"></i></div>
   </div>
   <div class="resume" id="resume" hidden>
     <span id="resume-text">上次看到這裡</span>
@@ -444,7 +525,7 @@ span.hl { display: inline-block; }
 </nav>
 
 <footer class="wrap">
-  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>c9a988ea66 · 2026-11-19</span></p>
+  <p class="stamp">本機版 docs/guide/index.html · 線上版 https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F · 頁面版本 <span data-stamp>e42dcf6944 · 2026-11-23</span></p>
 </footer>
 
 <script type="application/json" id="tour-steps">
@@ -576,18 +657,52 @@ span.hl { display: inline-block; }
  ]
 }
 </script>
+<script type="application/json" id="release-info">
+{
+ "version": "0.2.2-alpha.3",
+ "tag": "v0.2.2-alpha.3",
+ "prerelease": true,
+ "zip": "SYNOX-0.2.2-alpha.3.zip",
+ "exe": "SYNOX-Setup-0.2.2-alpha.3.exe",
+ "zip_url": "https://github.com/ChouYangEn0401/SYNOX/releases/download/v0.2.2-alpha.3/SYNOX-0.2.2-alpha.3.zip",
+ "exe_url": "https://github.com/ChouYangEn0401/SYNOX/releases/download/v0.2.2-alpha.3/SYNOX-Setup-0.2.2-alpha.3.exe",
+ "page_url": "https://github.com/ChouYangEn0401/SYNOX/releases/tag/v0.2.2-alpha.3",
+ "releases_url": "https://github.com/ChouYangEn0401/SYNOX/releases"
+}
+</script>
 <script>
 (function () {
   "use strict";
 
   /* ── 步驟資料（格式寫在檔案最上面的註解）──────────────────────────────── */
   var RELEASES_URL = "https://github.com/ChouYangEn0401/SYNOX/releases";
-  var REPO_URL = "https://github.com/ChouYangEn0401/SYNOX";
-  var MAIN_ZIP_URL = "https://github.com/ChouYangEn0401/SYNOX/archive/refs/heads/main.zip";
   var ADV_URL = "https://github.com/ChouYangEn0401/SYNOX/blob/main/docs/advanced-install.md";
+  var SECURITY_URL = "https://github.com/ChouYangEn0401/SYNOX/blob/main/docs/security.md";
   var LIBS_URL = "https://github.com/ChouYangEn0401/SYNOX_Libs/releases";
   var TG_GUIDE = "https://claude.ai/artifact/SjWBzQkdDpUNymrQEZRKHe";
   var DC_GUIDE = "https://claude.ai/artifact/21KFtvB7EVKsV4bjCE5h1h";
+
+  /* 這一版的號碼、檔名、下載網址：scripts/build_guide.py 從 pyproject.toml 的版本算出來，放進 #release-info。
+     那一段讀不到（還沒組過）就退回「到發佈頁自己找」，不會出現壞掉的連結。 */
+  var REL = (function () {
+    var d;
+    try { d = JSON.parse(document.getElementById("release-info").textContent || "null"); } catch (e) { d = null; }
+    d = d && d.version ? d : {};
+    var zip = d.zip || "SYNOX-版本號.zip";
+    return { known: !!d.version, version: d.version || "", pre: !!d.prerelease,
+             zip: zip, folder: zip.replace(/\.zip$/, ""), exe: d.exe || "SYNOX-Setup-版本號.exe",
+             zipUrl: d.zip_url || RELEASES_URL, pageUrl: d.page_url || RELEASES_URL };
+  })();
+
+  /* 岔路（格式寫在檔案最上面的註解）：精靈第 4 步「AI 從哪裡來」三選一，「自己的模型或 API」裡再三選一，走完都接回 finish */
+  var PATHS = {
+    "claude":    { label: "我有 Claude 訂閱", from: "ai", to: "finish" },
+    "own":       { label: "我有自己的模型或 API", from: "ai", to: "finish" },
+    "own-key":   { label: "API 金鑰", from: "ai-own", to: "finish" },
+    "own-local": { label: "本地模型", from: "ai-own", to: "finish" },
+    "own-llop":  { label: "LLOP", from: "ai-own", to: "finish" },
+    "none":      { label: "先不用 AI", from: "ai", to: "finish" }
+  };
 
   var STEPS = [
     { id: "welcome", chapter: "準備", title: "開始之前，準備好三樣東西",
@@ -596,27 +711,25 @@ span.hl { display: inline-block; }
       mock: "welcome", targets: [],
       tips: [{ k: "note", t: "畫面裡有<b>綠色圈圈在閃</b>的地方，就是你要按的地方。" }] },
 
-    { id: "download", chapter: "下載與解開", title: "到 GitHub 下載 SYNOX 的 ZIP",
-      body: ["按下面的按鈕，打開 SYNOX 在 GitHub 的頁面。",
-             "按綠色的 <b>&lt;&gt; Code</b> 按鈕，再按選單最下面的「<b>Download ZIP</b>」。",
-             "會下載一個叫 <b>SYNOX-main.zip</b> 的檔案，大約 4 MB。"],
-      mock: "repo-zip", targets: [{ id: "code", say: "1 先按 Code", place: "a" }, { id: "dl", say: "2 再按這裡", place: "b" }],
-      links: [{ href: REPO_URL, text: "打開 SYNOX 的 GitHub 頁面", primary: true, icon: "download" },
-              { href: MAIN_ZIP_URL, text: "或直接下載 SYNOX-main.zip", icon: "download" }],
-      tips: [{ k: "wip", t: "第一個正式版（Release）還沒發佈；發佈之後這一步會改成下載 SYNOX-版本號.zip（在<a href=\"" + RELEASES_URL + "\" target=\"_blank\" rel=\"noopener\">發佈頁</a>）。" },
-             { k: "note", t: "這個 ZIP 裡的檔案跟之後的正式版 ZIP 一樣（給工程師的測試檔不在裡面）。只差在：正式版會多附一份工具庫，這個版本的工具要等一下從網路下載。" },
-             { k: "wip", t: "點一下就裝好的 <code>.exe</code> 安裝程式（SYNOX-Setup-….exe）還沒發佈。現在請用 ZIP。" },
-             { k: "if", t: "瀏覽器問你要不要保留這個檔案，按「保留」。" },
+    { id: "download", chapter: "下載與解開", title: "下載 SYNOX 的 ZIP",
+      body: ["按下面<b>第一顆按鈕</b>，瀏覽器就會開始下載。",
+             "下載的檔案叫 <b>" + REL.zip + "</b>，大約 6 MB，通常幾秒就好。"],
+      mock: "release-assets", targets: [{ id: "zip", say: "下載的是這一個", place: "bs" }],
+      links: [{ href: REL.zipUrl, text: REL.known ? "下載 " + REL.zip : "到發佈頁下載 SYNOX", primary: true, icon: "download" },
+              { href: REL.pageUrl, text: "打開發佈頁（自己找檔案）", icon: "book" }],
+      tips: [{ k: "if", t: "瀏覽器問你要不要保留這個檔案，按「保留」。" },
+             { k: "if", t: "按鈕沒有反應：按「打開發佈頁」，在「Assets」底下點 <b>" + REL.zip + "</b>（示意圖圈起來的那一個）。「Source code」那兩個不是，不要點。" },
+             { k: "note", t: "同一個地方還有安裝程式 <code>" + REL.exe + "</code>：點兩下、照畫面按，不用解壓縮；最後它會自己打開安裝精靈，你從「精靈第 1 步」接著看就好。🧪 安裝程式還沒在空白電腦上完整試過，第一次建議用 ZIP。" },
              { k: "note", t: "會寫程式、想跑測試或幫忙開發？用 <code>git clone</code>，看<a href=\"" + ADV_URL + "\" target=\"_blank\" rel=\"noopener\">進階安裝說明</a>。" }] },
 
     { id: "find", chapter: "下載與解開", title: "打開「下載」資料夾",
       body: ["按螢幕下方工作列上<b>黃色資料夾</b>的圖示（檔案總管）。",
-             "左邊按「<b>下載</b>」，就會看到剛剛下載的 <b>SYNOX-main.zip</b>。"],
+             "左邊按「<b>下載</b>」，就會看到剛剛下載的 <b>" + REL.zip + "</b>。"],
       mock: "explorer-dl", targets: [{ id: "nav-dl", say: "先按這裡", place: "bs" }, { id: "zip", say: "找到它", place: "a" }],
-      tips: [{ k: "note", t: "ZIP 檔的圖示是一個<b>有拉鍊的資料夾</b>。如果看不到 .zip 三個字，找名字是 <b>SYNOX-main</b> 的那一個。下載過兩次的話，名字後面會多一個 (1)，用哪一個都可以。" }] },
+      tips: [{ k: "note", t: "ZIP 檔的圖示是一個<b>有拉鍊的資料夾</b>。如果看不到 .zip 三個字，找名字是 <b>SYNOX-</b> 開頭、後面接著版本號碼的那一個。下載過兩次的話，名字後面會多一個 (1)，用哪一個都可以。" }] },
 
     { id: "unzip", chapter: "下載與解開", title: "按右鍵，選「全部解壓縮」",
-      body: ["把滑鼠移到 SYNOX-main.zip 上，按滑鼠<b>右邊</b>的鍵。",
+      body: ["把滑鼠移到 " + REL.zip + " 上，按滑鼠<b>右邊</b>的鍵。",
              "跳出一個選單，按「<b>全部解壓縮…</b>」。"],
       mock: "explorer-menu", targets: [{ id: "extract", say: "按這裡", place: "r" }],
       tips: [{ k: "if", t: "選單裡找不到，先按選單最下面的「顯示其他選項」，再找「全部解壓縮…」。" },
@@ -628,7 +741,7 @@ span.hl { display: inline-block; }
       mock: "extract", targets: [{ id: "go", say: "按這裡", place: "ae" }] },
 
     { id: "setup", chapter: "下載與解開", title: "找到 Setup.bat，點兩下",
-      body: ["新打開的資料夾裡還有一個 <b>SYNOX-main</b> 資料夾，先點兩下進去，就會看到很多檔案。",
+      body: ["新打開的資料夾裡還有一個 <b>SYNOX</b> 資料夾，先點兩下進去，就會看到很多檔案。",
              "找到 <b>Setup.bat</b>，用滑鼠左鍵很快地按兩下。"],
       mock: "explorer-folder", targets: [{ id: "setup", say: "點兩下", place: "a" }],
       tips: [{ k: "note", t: "看不到 .bat 的話：找名字是 <b>Setup</b>、類型是「Windows 批次檔案」的那一個。" },
@@ -701,26 +814,86 @@ span.hl { display: inline-block; }
       tips: [{ k: "if", t: "出現「⌛ 等太久了」：關掉精靈，再點兩下 Setup.bat 重來，不會壞掉什麼。" },
              { k: "warn", t: "要傳給<b>你自己的 bot</b>，不是傳給 BotFather。" }] },
 
-    { id: "ai", chapter: "安裝精靈", title: "精靈第 4 步：AI 從哪裡來",
-      body: ["SYNOX 預設用這台電腦登入的 <b>Claude Code</b> 當它的腦袋。",
-             "如果寫「<b>✅ 找到了</b>」，什麼都不用改，直接按「<b>下一步 ▶</b>」。"],
-      mock: "wizard-ai-found", targets: [{ id: "found", say: "看到 ✅ 就好", place: "b" }, { id: "next", say: "按這裡", place: "ae" }],
-      tips: [{ k: "if", t: "寫的是「❌ 這台電腦找不到 Claude Code」，看下一步。" }] },
+    /* ── 精靈第 4 步「AI 從哪裡來」：選一條路（三條岔路，走完都接回 finish）── */
+    { id: "ai", chapter: "安裝精靈", title: "精靈第 4 步：AI 從哪裡來。你是哪一種？",
+      body: ["精靈現在停在「<b>AI 從哪裡來</b>」。AI 是 SYNOX 的腦袋：有了它，你可以用平常說話的方式跟 SYNOX 講。",
+             "看這一頁的三張卡片，<b>點你符合的那一張</b>，這份教學就帶你走那條路。三條路走完，都會接回同一個地方。"],
+      mock: "paths", targets: [],
+      choices: [
+        { path: "claude", icon: "spark", title: "我有 Claude 訂閱", sub: "有付費的 Claude 帳號。精靈預設就是這個，最省事。" },
+        { path: "own", icon: "plug", title: "我有自己的模型或 API", sub: "有 API 金鑰、電腦上有跑本地模型，或有人用 LLOP 分享模型給你。" },
+        { path: "none", icon: "later", title: "先不用 AI", sub: "都沒有，或不確定。先用指令和按鈕，之後隨時可以補上。" }],
+      tips: [{ k: "note", t: "不確定自己是哪一種？選「<b>先不用 AI</b>」，一樣裝得完。" },
+             { k: "note", t: "選錯了也沒關係：按「上一步」回到這一頁重選。裝好之後，也能在網頁「設定 → 🤖 AI」換。" }] },
 
-    { id: "ai-install", chapter: "安裝精靈", title: "找不到 Claude Code？按「一鍵安裝」",
+    /* 岔路 A：我有 Claude 訂閱 */
+    { id: "ai-claude", path: "claude", chapter: "安裝精靈", title: "看到「✅ 找到了」，就按下一步",
+      body: ["SYNOX 預設用這台電腦登入的 <b>Claude Code</b> 當它的腦袋，最上面那一個已經幫你選好了。",
+             "它下面如果寫「<b>✅ 找到了</b>」，什麼都不用改，直接按「<b>下一步 ▶</b>」。"],
+      mock: "wizard-ai-found", targets: [{ id: "found", say: "看到 ✅ 就好", place: "b" }, { id: "next", say: "按這裡", place: "ae" }],
+      jump: { to: "finish", text: "我看到 ✅ 了，跳到最後一步" },
+      tips: [{ k: "if", t: "寫的是「❌ 這台電腦找不到 Claude Code」：按這份教學最下面的「下一步」，看怎麼一鍵安裝。" },
+             { k: "note", t: "想確定真的通：按「測一下」，看到「✅ 通了！AI 有回話。」就是好了。" }] },
+
+    { id: "ai-install", path: "claude", chapter: "安裝精靈", title: "找不到 Claude Code？按「一鍵安裝」",
       body: ["① 按「<b>一鍵安裝（PowerShell）</b>」，會打開一個新的視窗，自己把 Claude Code 裝好。",
              "② 裝好之後，<b>還要登入才能用</b>：在那個視窗打 <code>claude</code>，按 Enter，照畫面用你的 Claude 帳號登入一次。",
-             "③ 回到精靈，按「<b>裝好了，重新偵測</b>」。下一步按「<b>測一下</b>」，看到「✅ 通了！AI 有回話。」才算真的好了。"],
+             "③ 回到精靈，按「<b>裝好了，重新偵測</b>」。再按「<b>測一下</b>」，看到「✅ 通了！AI 有回話。」才算真的好了，然後按「下一步 ▶」。"],
       mock: "wizard-ai-missing", targets: [{ id: "install", say: "1 先按這裡", place: "a" }, { id: "redetect", say: "2 裝好再按", place: "be" }],
+      jump: { to: "ai", text: "我沒有 Claude 帳號，回去改選別條路" },
       tips: [{ k: "note", t: "裝的是 Claude 官方的安裝指令，不用系統管理員。也可以按「打開下載網頁」看官方說明。" },
              { k: "warn", t: "「重新偵測」只會看程式有沒有裝好，<b>不會</b>看你有沒有登入。沒登入的話，AI 不會回話，所以一定要按「測一下」確認。" },
-             { k: "warn", t: "登入要有 Claude 的帳號（需要付費方案）。沒有的話，看下一步的其他選擇。" }] },
+             { k: "warn", t: "登入要有 Claude 的帳號（需要付費方案）。" }] },
 
-    { id: "ai-other", chapter: "安裝精靈", title: "也可以用別的 AI，或先不用",
-      body: ["有 OpenAI、Gemini 的 API key：選「<b>用我自己（或公司）的金鑰</b>」，貼上 key，按「測一下」，看到「✅ 通了！AI 有回話。」才能按下一步。",
-             "不確定的話，選「<b>先不用 AI（只用指令和按鈕）</b>」，按「下一步 ▶」。之後再點兩下 Setup.bat 就能補上。"],
-      mock: "wizard-ai-other", targets: [{ id: "none", say: "不確定就選這個", place: "a" }],
-      tips: [{ k: "note", t: "家裡有跑 Ollama 這類本地模型的，選「使用本地模型」。不懂這是什麼就跳過。" }] },
+    /* 岔路 B：我有自己的模型或 API（裡面再分三條） */
+    { id: "ai-own", path: "own", chapter: "安裝精靈", title: "你有的是哪一種？",
+      body: ["自己的模型或 API 有三種，做法不一樣。",
+             "<b>點你有的那一種。</b>"],
+      mock: "paths", targets: [],
+      choices: [
+        { path: "own-key", icon: "key", title: "一把 API 金鑰", sub: "OpenAI、Gemini、Anthropic 給的 key，或公司給你的網址和金鑰。" },
+        { path: "own-local", icon: "chip", title: "電腦上的本地模型", sub: "這台或家裡網路的電腦上，有 Ollama、LM Studio 或 vLLM 在跑。" },
+        { path: "own-llop", icon: "share", title: "別人分享的 LLOP", sub: "有人用 LLOP 把他的模型分享給你，給了你一個 API 連結和一把 key。" }],
+      tips: [{ k: "note", t: "看不懂這三個是什麼？按「上一步」，改選「先不用 AI」就好。" }] },
+
+    { id: "ai-key", path: "own-key", chapter: "安裝精靈", title: "選「用我自己（或公司）的金鑰」，貼上 key，按「測一下」",
+      body: ["① 點「<b>用我自己（或公司）的金鑰</b>」。「哪一家」選你的 key 是哪一家給的。",
+             "② 把 key 貼到「<b>API key</b>」那一格（在格子上按右鍵 → 貼上，或按 Ctrl+V）。",
+             "③ 按「<b>測一下</b>」。看到「<b>✅ 通了！AI 有回話。</b>」之後，「下一步 ▶」才能按。"],
+      mock: "wizard-ai-key", targets: [{ id: "own", say: "1 選這個", place: "a" }, { id: "key", say: "2 貼上 key", place: "be" }, { id: "test", say: "3 按這裡", place: "bs" }],
+      jump: { to: "webai-open", text: "看看之後在網頁怎麼換模型（選讀）" },
+      tips: [{ k: "if", t: "出現「❌ …」：多半是 key 沒有複製完整。回去重新複製整串，再貼一次。" },
+             { k: "note", t: "公司給你的是「一個網址＋一把金鑰」：「哪一家」選「<b>相容端點（公司閘道、Ollama）</b>」，會多一格「網址」，把網址貼進去。" },
+             { k: "note", t: "「模型」那一格已經先填好一個常用的，不確定就不要改。裝好之後，可以在網頁按「列出模型」從清單挑。" },
+             { k: "warn", t: "API key 就像密碼，<b>不要傳給別人</b>、不要貼到群組。" }] },
+
+    { id: "ai-local", path: "own-local", chapter: "安裝精靈", title: "選「使用本地模型」，填模型的名字，按「測一下」",
+      body: ["① 點「<b>使用本地模型（Ollama、vLLM、LM Studio；不需要金鑰）</b>」，下面會多出幾格。",
+             "② 「伺服器」選你用的那一種，「模型」填你的模型的名字。",
+             "③ 按「<b>測一下</b>」。看到「<b>✅ 找到模型，設定看起來合理</b>」之後，「下一步 ▶」才能按。"],
+      mock: "wizard-ai-local", targets: [{ id: "local", say: "1 選這個", place: "a" }, { id: "model", say: "2 模型的名字", place: "be" }, { id: "test", say: "3 按這裡", place: "be" }],
+      jump: { to: "webai-open", text: "看看之後在網頁怎麼換模型（選讀）" },
+      tips: [{ k: "note", t: "模型的名字：用 Ollama 的話，就是 <code>ollama list</code> 看得到的名稱，例如 <code>qwen3.5:9b</code>。" },
+             { k: "note", t: "「Context 長度」不確定，就按「<b>看建議</b>」：它只讀取模型資料與這台電腦的記憶體，不會載入模型。" },
+             { k: "if", t: "出現「❌ …」：先確定 Ollama（或 LM Studio）已經打開、模型已經下載好，再按一次「測一下」。" },
+             { k: "note", t: "「網址」那一格通常不用改。模型在家裡的另一台電腦上，才要改成那一台的網址。" }] },
+
+    { id: "ai-llop", path: "own-llop", chapter: "安裝精靈", title: "LLOP：精靈裡先選「先不用 AI」",
+      body: ["精靈裡沒有 LLOP 這個選項。它要等 SYNOX 裝好之後，在 SYNOX 的網頁裡設定。",
+             "所以這一頁先點最下面的「<b>先不用 AI（只用指令和按鈕）</b>」，按「<b>下一步 ▶</b>」，先把 SYNOX 裝完。",
+             "裝好、看到 SYNOX 的網頁之後，再照「接 LLOP」那幾頁做。這份教學最後一頁「完成！」有按鈕帶你過去。"],
+      mock: "wizard-ai-none", targets: [{ id: "none", say: "先選這個", place: "a" }, { id: "next", say: "再按這裡", place: "ae" }],
+      jump: { to: "llop-ready", text: "先看看之後要做什麼（接 LLOP）" },
+      tips: [{ k: "ok", t: "現在選「先不用 AI」不會少掉什麼：之後在網頁接上 LLOP 就能用，不用重裝。" }] },
+
+    /* 岔路 C：先不用 AI */
+    { id: "ai-none", path: "none", chapter: "安裝精靈", title: "選「先不用 AI」，按下一步",
+      body: ["點最下面的「<b>先不用 AI（只用指令和按鈕）</b>」，再按右下角的「<b>下一步 ▶</b>」。",
+             "沒有 AI 也能用 SYNOX：打指令（例如 <code>/note 買牛奶</code>）、按按鈕都可以。只是還不能用平常說話的方式跟它講。"],
+      mock: "wizard-ai-none", targets: [{ id: "none", say: "選這個", place: "a" }, { id: "next", say: "再按這裡", place: "ae" }],
+      jump: { to: "webai-open", text: "看看之後在網頁怎麼補上 AI（選讀）" },
+      tips: [{ k: "note", t: "之後想補上 AI，有兩個方法。<b>方法一</b>：再點兩下 <b>Setup.bat</b>，精靈會再跑一次，到這一步改選別的。" },
+             { k: "note", t: "<b>方法二</b>：打開 SYNOX 的網頁，到「設定 → 🤖 AI」選。這份教學最後一頁「完成！」有按鈕帶你過去。" }] },
 
     { id: "finish", chapter: "安裝精靈", title: "最後一步：按「完成並開始」",
       body: ["打勾的地方保留原本的樣子就好。這一頁也提醒你：<b>打開 SYNOX 後打 /tutorial</b>，先做一次教學。",
@@ -738,7 +911,7 @@ span.hl { display: inline-block; }
     { id: "tutorial", chapter: "開始使用", title: "做一次教學：打 /tutorial",
       body: ["網頁第一次打開，會問「<b>要不要我帶你走一遍？（約 5 分鐘）</b>」，按「<b>開始</b>」。",
              "SYNOX 會在畫面上把要按的地方圈起來，一步一步帶你認識：怎麼聊天、工具在哪、怎麼裝和移除工具。"],
-      mock: "web-tour", targets: [{ id: "start", say: "按這裡", place: "bs" }],
+      mock: "web-tour-offer", targets: [{ id: "start", say: "按這裡", place: "bs" }],
       tips: [{ k: "note", t: "按了「之後再說」也沒關係：在網頁的對話框或 Telegram 打 <code>/tutorial</code>（或直接打「開始教學」），隨時都能再看一次。" },
              { k: "note", t: "在 Telegram、Discord 打 <code>/tutorial</code>，會用一張一張的步驟卡帶你走。教學只會指給你看，不會替你按確認。" }] },
 
@@ -792,6 +965,9 @@ span.hl { display: inline-block; }
       mock: "done", targets: [],
       links: [{ href: LIBS_URL, text: "去工具庫找更多工具", primary: true, icon: "box" },
               { href: TG_GUIDE, text: "Telegram 圖文教學（常見問題）", icon: "book" }],
+      jump: [{ to: "update-check", text: "之後怎麼更新 SYNOX（選讀）" },
+             { to: "webai-open", text: "補上 AI、換一個 AI（選讀）" },
+             { to: "llop-ready", text: "接 LLOP：用別人分享的模型（選讀）" }],
       tips: [{ k: "note", t: "電腦關機或睡著時，bot 不會回話。要用的時候讓電腦開著。" }] },
 
     { id: "discord", branch: true, back: "botfather", next: "ai", chapter: "選讀：改用 Discord", title: "改用 Discord（選讀）",
@@ -799,7 +975,157 @@ span.hl { display: inline-block; }
              "Discord 要到它的開發者網站建 bot、打開「MESSAGE CONTENT INTENT」，再把 bot 加進你的伺服器、私訊它六個數字。照 Discord 圖文教學做完，再回來看「精靈第 4 步：AI」。"],
       mock: "wizard-discord", targets: [{ id: "discord", say: "選 Discord", place: "b" }],
       links: [{ href: DC_GUIDE, text: "看 Discord 圖文教學", primary: true, icon: "book" }],
-      tips: [{ k: "wip", t: "SYNOX 的 Discord 只用模擬的連線測過，還沒有用真帳號完整跑一遍。第一次用建議選 Telegram。" }] }
+      tips: [{ k: "wip", t: "SYNOX 的 Discord 只用模擬的連線測過，還沒有用真帳號完整跑一遍。第一次用建議選 Telegram。" }] },
+
+    /* ── 選讀：在網頁設定 AI（裝好之後；設定 → 🤖 AI 的分步選擇）──────────── */
+    { id: "webai-open", branch: true, back: "@from", next: "webai-source", home: "done", chapter: "選讀：在網頁設定 AI",
+      title: "到「設定 → 🤖 AI」",
+      body: ["這幾頁要等 SYNOX <b>裝好、網頁打得開之後</b>才做得到。還在跑安裝精靈的話，先看看就好。",
+             "在 SYNOX 的網頁，按左邊的「<b>設定</b>」，再按上面的「<b>🤖 AI</b>」。會看到一張卡片「<b>AI 從哪裡來</b>」。",
+             "卡片上有 ①、②、③ 幾格。從上往下，一格一格選就好。"],
+      mock: "web-ai", stage: "open", targets: [{ id: "tab", say: "1 先按這裡", place: "bs" }, { id: "fam", say: "2 從這一格開始", place: "bs" }],
+      tips: [{ k: "note", t: "這張卡片只有你（擁有者）能改。" },
+             { k: "note", t: "找不到 SYNOX 的網頁？在 Telegram 跟你的 bot 打 <code>/web</code>，它會給你一個登入連結。" }] },
+
+    { id: "webai-source", branch: true, back: "webai-open", next: "webai-auth", chapter: "選讀：在網頁設定 AI",
+      title: "① 來源：AI 在哪裡",
+      body: ["點「<b>① 來源</b>」那一格，會出現三個選項，選一個。",
+             "「<b>本地（這台或家裡網路的電腦）</b>」＝模型在你自己的電腦上跑。「<b>遠端服務</b>」＝用網路上的 AI（OpenAI、Gemini、Claude、LLOP…）。「<b>先不用 AI</b>」＝不用。"],
+      mock: "web-ai", stage: "source", targets: [{ id: "fam", say: "點這一格", place: "a" }],
+      tips: [{ k: "note", t: "選了「先不用 AI」，下面就沒有別的格子：直接按「存起來」，會寫「存好了。現在不用 AI；打指令照常可以用。」" },
+             { k: "note", t: "選了「本地」：沒有「② 認證」那一格，直接看「③ 服務」。" }] },
+
+    { id: "webai-auth", branch: true, back: "webai-source", next: "webai-service", chapter: "選讀：在網頁設定 AI",
+      title: "② 認證：用金鑰，還是用訂閱",
+      body: ["選了「遠端服務」才有這一格。點「<b>② 認證</b>」，選一個。",
+             "「<b>API 金鑰</b>」＝你手上有一把 key（OpenAI、Gemini、Anthropic、LLOP…）。",
+             "「<b>訂閱登入（這台已登入的官方程式）</b>」＝用這台電腦上你自己已經登入的 Claude Code、GitHub Copilot 或 ChatGPT。"],
+      mock: "web-ai", stage: "auth", targets: [{ id: "auth", say: "點這一格", place: "a" }],
+      links: [{ href: SECURITY_URL + "#訂閱登入來源的使用聲明", text: "看「訂閱登入」的使用聲明", icon: "book" }],
+      tips: [{ k: "warn", t: "<b>訂閱登入只給本人使用</b>：用的是你個人的訂閱帳號，不建議拿來服務別人。每個服務都有自己的使用條款，能不能這樣用，請你自己先讀過。" },
+             { k: "note", t: "選了訂閱登入，「③ 服務」下面會寫一行「只給本人使用（…）」提醒你。" }] },
+
+    { id: "webai-service", branch: true, back: "webai-auth", next: "webai-model", chapter: "選讀：在網頁設定 AI",
+      title: "③ 服務：選哪一家",
+      body: ["點「<b>③ 服務</b>」，選你要用的那一家。選了「API 金鑰」的話，清單裡有「OpenAI」「Anthropic（Claude API）」「Google Gemini」「其他 OpenAI 相容服務」「LLOP（本地模型發布服務）」。",
+             "選好之後，下面會多出要填的格子。有 key 的，把它貼到「<b>API key</b>」那一格。"],
+      mock: "web-ai", stage: "service", targets: [{ id: "svc", say: "1 點這一格", place: "a" }, { id: "key", say: "2 key 貼這裡", place: "bs" }],
+      jump: { to: "llop-ready", text: "我要接 LLOP（別人分享的模型）" },
+      tips: [{ k: "if", t: "名字後面寫「（這台還不能用）」、點不下去：看下面「反灰的：…」那一行，它會寫原因，例如要先安裝哪一個套件。" },
+             { k: "note", t: "選「本地」的人：「③ 服務」選第一個「SYNOX 內建（Ollama、vLLM、LM Studio、其他相容伺服器）」就好。" },
+             { k: "note", t: "選「其他 OpenAI 相容服務」會多一格「伺服器網址」：貼上服務提供者給你的網址（通常以 /v1 結尾）。" },
+             { k: "note", t: "以後回來改別的設定，「API key」那一格留空就好：留空＝沿用原本的。" }] },
+
+    { id: "webai-model", branch: true, back: "webai-service", next: "webai-test", chapter: "選讀：在網頁設定 AI",
+      title: "按「列出模型」，從清單選一個",
+      body: ["「模型」不用自己打字。按右邊的「<b>列出模型</b>」。",
+             "過幾秒，下面會寫「<b>找到 … 個模型。</b>」。再點左邊那一格，從清單裡選一個。"],
+      mock: "web-ai", stage: "model", targets: [{ id: "list", say: "1 按這裡", place: "ae" }, { id: "pick", say: "2 從這裡選", place: "bs" }],
+      tips: [{ k: "ok", t: "<b>模型名稱打錯不會讓 SYNOX 起不來</b>：設定照樣存得進去、指令照常能用，只是跟 AI 聊天會失敗（說找不到模型）。不確定就按「列出模型」從清單選，或按「測一下」確認。" },
+             { k: "if", t: "寫「❌ …　還是可以自己輸入模型名稱。」：key 或網址不對，或現在沒有網路。照它寫的原因修好，再按一次；或把模型的名字自己打在下面那一格。" },
+             { k: "note", t: "填好 key 或網址之後點一下別的地方，它也會自己列一次。清單很長的時候，會多一格「清單很長：打字篩選」。" },
+             { k: "note", t: "🧪 「列出模型」寫好了，還沒有用每一家真的服務試過。" }] },
+
+    { id: "webai-test", branch: true, back: "webai-model", next: "@from", home: "done", chapter: "選讀：在網頁設定 AI",
+      title: "按「測一下」，再按「存起來」",
+      body: ["先按「<b>測一下</b>」。旁邊寫「<b>✅ 接得通</b>」就是通了。",
+             "再按「<b>存起來</b>」。看到「<b>存好了，已經換上，現在就能在對話裡用。</b>」就完成了，不用重新打開 SYNOX。"],
+      mock: "web-ai", stage: "test", targets: [{ id: "test", say: "1 先測", place: "a" }, { id: "save", say: "2 再存", place: "bs" }],
+      tips: [{ k: "if", t: "寫「❌ …」：照後面寫的原因修。模型名稱打錯、或這個帳號不能用這個模型，它會請你按「列出模型」重選；「連不到」「金鑰不對」跟模型名稱無關。" },
+             { k: "ok", t: "有些來源（例如 LLOP）要多裝一組「選裝套件」。裝過一次，SYNOX 就會記住：之後換了新版，它啟動時會自己把套件補齊，不用你再裝一次。" },
+             { k: "note", t: "選「本地」的人看到的字會不太一樣（例如「✅ 模型有回話…」）：開頭是 ✅ 就是通了。" },
+             { k: "note", t: "想改成不用 AI：回到「① 來源」選「先不用 AI」，再按「存起來」。" }] },
+
+    /* ── 選讀：接 LLOP（別人用 LLOP 分享給你的模型；指令與輸出照 LLOP 的 docs/CLI.md、docs/SDK.md）──── */
+    { id: "llop-ready", branch: true, back: "@from", next: "llop-terminal", home: "done", chapter: "選讀：接 LLOP",
+      title: "接 LLOP：先準備好三樣東西",
+      body: ["LLOP 是「別人把他電腦上的模型分享給你用」的服務。分享給你的那個人，這裡叫<b>服務提供者</b>。",
+             "先跟他拿兩樣東西：一個 <b>API 連結</b>（很長的網址）和一把 <b>key</b>。另外，SYNOX 要已經裝好、網頁打得開。"],
+      mock: "llop-need", targets: [],
+      tips: [{ k: "warn", t: "API 連結和 key 都像密碼：<b>不要傳給別人</b>、不要貼到群組、不要截圖。" },
+             { k: "note", t: "他給你的如果是「帳號網站的網址＋帳號密碼＋一串 22 個字的指紋」，那是<b>加密版</b>：做法寫在第 4 頁的小提示。" },
+             { k: "note", t: "🧪 接 LLOP 這條路寫好了，還沒有在兩台真的電腦上完整跑過。卡住了請回報（網頁「設定 → 🙋 遇到問題？」）。" }] },
+
+    { id: "llop-terminal", branch: true, back: "llop-ready", next: "llop-extra", chapter: "選讀：接 LLOP",
+      title: "在 SYNOX 的資料夾打開黑色視窗",
+      body: ["用檔案總管打開 <b>SYNOX 的資料夾</b>（裡面有 Setup.bat 的那一個）。",
+             "點一下視窗上面<b>寫著資料夾位置的那一長條</b>，把裡面的字換成 <code>cmd</code>，按 <b>Enter</b>。",
+             "會跳出一個黑色的視窗。接下來兩頁的指令，都打在這個視窗裡。"],
+      mock: "explorer-cmd", targets: [{ id: "addr", say: "點這裡，打 cmd，按 Enter", place: "bs" }],
+      tips: [{ k: "note", t: "黑色視窗裡那一行字的最後面應該是 <b>SYNOX&gt;</b>。不是的話，關掉它，確定你打開的是 SYNOX 的資料夾，再做一次。" },
+             { k: "note", t: "指令可以用複製、貼上的：在黑色視窗裡按滑鼠<b>右鍵</b>就是貼上。" }] },
+
+    { id: "llop-extra", branch: true, back: "llop-terminal", next: "llop-add", chapter: "選讀：接 LLOP",
+      title: "第一次：裝 LLOP 要用的套件",
+      body: ["在黑色視窗打下面這一行，按 <b>Enter</b>：",
+             "<code class=\"cmd\">.venv\\Scripts\\python.exe -m synox deps sync --add llop</code>",
+             "要上網，可能要等幾分鐘。最後一行寫「<b>✅ 補好了。</b>」就是裝好了。"],
+      mock: "console-deps", targets: [{ id: "ok", say: "看到這一行就好了", place: "as" }],
+      tips: [{ k: "note", t: "裝好之後要<b>重新啟動 SYNOX</b> 才會用到新的套件：點兩下 Stop.bat，再點兩下桌面的 SYNOX 捷徑。" },
+             { k: "ok", t: "這一步只要做一次。SYNOX 會記住你裝過這一組套件：之後換了新版，它啟動時會自己補齊。" },
+             { k: "if", t: "最後寫的是「✅ 套件跟這版要的一樣。」：以前就裝過了，直接看下一頁。" },
+             { k: "if", t: "最後沒有 ✅：多半是連不到網路。檢查網路，再打一次同一行。" }] },
+
+    { id: "llop-add", branch: true, back: "llop-extra", next: "llop-pick", chapter: "選讀：接 LLOP",
+      title: "把 API 連結和 key 存進這台電腦",
+      body: ["在同一個黑色視窗打下面這一行。<b>最後面的網址，換成服務提供者給你的 API 連結</b>，再按 Enter：",
+             "<code class=\"cmd\">.venv\\Scripts\\llmop client add-plain --profile home --api-link https://api.example.test/你的連結</code>",
+             "它會問「<b>API key（不會顯示）：</b>」。把 key 貼上，按 Enter。看到「<b>已建立明文設定檔「home」</b>」就好了。"],
+      mock: "console-llop", targets: [{ id: "ask", say: "貼上 key，按 Enter", place: "bs" }],
+      tips: [{ k: "note", t: "貼 key 的時候，畫面上<b>不會出現任何字</b>，這是正常的。貼一次、按 Enter 就好。" },
+             { k: "note", t: "<code>home</code> 是你幫這一組設定取的名字，下一頁在網頁上要選它。" },
+             { k: "note", t: "<b>加密版</b>（他給你帳號網站、帳號密碼和指紋）改打這一行，它會問你密碼：<code class=\"cmd\">.venv\\Scripts\\llmop client enroll --account-url 帳號網站的網址 --user 你的帳號 --fingerprint 那串指紋 --profile home --test</code>看到「伺服器指紋相符，已釘選」才算好。" },
+             { k: "warn", t: "加密版出現「<b>指紋不符，可能被調包，沒有釘選</b>」：停下來，跟服務提供者重新核對指紋，不要繼續。" }] },
+
+    { id: "llop-pick", branch: true, back: "llop-add", next: "llop-model", chapter: "選讀：接 LLOP",
+      title: "回到網頁：選 LLOP，設定檔選 home",
+      body: ["回到 SYNOX 網頁的「<b>設定 → 🤖 AI</b>」。",
+             "「① 來源」選「<b>遠端服務</b>」，「② 認證」選「<b>API 金鑰</b>」，「③ 服務」選「<b>LLOP（本地模型發布服務）</b>」。",
+             "下面會多一格「<b>LLOP 設定檔</b>」：選 <b>home</b>。"],
+      mock: "web-ai", stage: "llop", targets: [{ id: "profile", say: "選 home", place: "a" }, { id: "refresh", say: "沒有 home？按這裡", place: "bs" }],
+      tips: [{ k: "if", t: "選單裡沒有 home（只寫「（這台還沒有註冊好的設定檔）」）：按那一格下面的「<b>重新整理</b>」，再選一次。" },
+             { k: "if", t: "「LLOP（本地模型發布服務）」後面寫「（這台還不能用）」：第 3 頁的套件還沒裝好，或裝好之後還沒重新啟動 SYNOX。" }] },
+
+    { id: "llop-model", branch: true, back: "llop-pick", next: "@from", home: "done", chapter: "選讀：接 LLOP",
+      title: "列出模型、測一下、存起來",
+      body: ["按「<b>列出模型</b>」，從清單選一個。（選好設定檔之後，它也會自己列一次。）",
+             "按「<b>測一下</b>」，看到「<b>✅ 接得通</b>」。",
+             "最後按「<b>存起來</b>」。之後你在對話裡說的話，就是服務提供者分享的那個模型在回答。"],
+      mock: "web-ai", stage: "llop-model", targets: [{ id: "list", say: "1 列出模型", place: "ae" }, { id: "test", say: "2 測一下", place: "a" }, { id: "save", say: "3 存起來", place: "bs" }],
+      tips: [{ k: "ok", t: "模型選錯也不會讓 SYNOX 起不來，只是跟 AI 聊天會失敗。回到這一頁重選就好。" },
+             { k: "if", t: "之後哪一天出現「<b>API 連結已更換</b>」：服務提供者換了連結。跟他拿新的，在黑色視窗打這一行（最後面換成新的連結）：<code class=\"cmd\">.venv\\Scripts\\llmop client set-link --profile home https://api.example.test/新的連結</code>" }] },
+
+    /* ── 選讀：之後怎麼更新（設定 → 💻 電腦與備份 → SYNOX 更新；docs/adr/0047）──────────── */
+    { id: "update-check", branch: true, back: "@from", next: "update-go", home: "done", chapter: "選讀：之後怎麼更新",
+      title: "之後要更新：按「檢查更新」",
+      body: ["SYNOX 出新版的時候，不用重新下載、重裝。在 SYNOX 的網頁按「<b>設定</b>」，再按上面的「<b>💻 電腦與備份</b>」。",
+             "找到「<b>SYNOX 更新</b>」那張卡片，按「<b>檢查更新</b>」。",
+             "寫「<b>你是最新版 ✅</b>」就不用做什麼。寫「<b>有新版：… → …</b>」，就看下一頁。"],
+      mock: "web-update", stage: "check", targets: [{ id: "tab", say: "1 先到這裡", place: "bs" }, { id: "check", say: "2 按這裡", place: "bs" }],
+      tips: [{ k: "note", t: "按了才會連到 GitHub 問有沒有新版。只看，不會自己下載或安裝。" },
+             { k: "note", t: REL.pre ? "你現在裝的 " + REL.version + " 是<b>測試版</b>。想更新到下一個測試版，要先把「<b>也提醒我有測試版</b>」打勾，再按「檢查更新」；沒打勾的話，只會告訴你有沒有正式版。測試版可能還有問題。"
+                                     : "「也提醒我有測試版」不用勾：測試版可能還有問題。" },
+             { k: "note", t: "怕忘記來按：把「每週幫我看一次有沒有新版（只看，不會自己裝）」打勾，有新版時會通知你一次。" }] },
+
+    { id: "update-go", branch: true, back: "update-check", next: "update-back", chapter: "選讀：之後怎麼更新",
+      title: "按「更新到 …」，再按「開始更新」",
+      body: ["有新版的時候，卡片上會多一顆「<b>更新到 X.Y.Z</b>」（X.Y.Z 的地方會是新版的號碼；測試版後面會多寫「（測試版）」）。按它。",
+             "它會先問你一次。按「<b>開始更新</b>」。",
+             "SYNOX 會先在背景下載、核對檔案（這時候照常可以用），好了會暫時關掉、換好再自己打開，這一頁也會自己重新整理。看到「<b>✅ 上次更新：… → …</b>」就完成了。"],
+      mock: "web-update", stage: "go", targets: [{ id: "start", say: "按這裡", place: "bs" }],
+      tips: [{ k: "ok", t: "你的設定、資料、工具都不會動。舊版會留著，出問題可以按「回到上一版」。" },
+             { k: "ok", t: "<b>套件會自己補齊</b>：換了版本之後第一次啟動，SYNOX 會檢查這一版需要的套件，有缺或太舊就自動補裝（要網路，可能多等幾分鐘）。補不成也照常啟動，這張卡片會寫哪一個沒補到，再按「再試一次（補裝套件）」。" },
+             { k: "if", t: "沒有「更新到 …」，只有「打開更新視窗…」：這一版沒有簽章，網頁不會自動換。按它，在跳出來的視窗裡照說明自己決定。" },
+             { k: "if", t: "你是用安裝程式（.exe）裝的：卡片會請你到發佈頁下載新的 SYNOX-Setup-版本號.exe，裝在原本的位置。" },
+             { k: "note", t: "🧪 在網頁上按一下就更新，寫好了，還沒在真的 Windows 上從頭到尾試過。" }] },
+
+    { id: "update-back", branch: true, back: "update-go", next: "@from", home: "done", chapter: "選讀：之後怎麼更新",
+      title: "新版怪怪的？按「回到上一版」",
+      body: ["更新過之後，同一張卡片會多一顆「<b>回到上一版（…）…</b>」。",
+             "按它，再按一次「<b>回到上一版</b>」。SYNOX 會暫時關掉、換回舊版再打開，這一頁會自己重新整理。"],
+      mock: "web-update", stage: "back", targets: [{ id: "back", say: "按這裡", place: "bs" }],
+      tips: [{ k: "note", t: "你的設定、資料、工具都不會動。只有新版才有的設定，舊版可能看不懂。" },
+             { k: "note", t: "換回去之後，卡片會寫「↩️ 上次退回到 …」。" }] }
   ];
 
   /* ── 選讀：SYNOX 網頁導覽（內建新手教學的步驟；scripts/build_guide.py 放進 #tour-steps）────────── */
@@ -830,7 +1156,14 @@ span.hl { display: inline-block; }
     download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>',
     book: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H11v16H5.5A1.5 1.5 0 0 1 4 18.5zM20 5.5A1.5 1.5 0 0 0 18.5 4H13v16h5.5a1.5 1.5 0 0 0 1.5-1.5z"/></svg>',
     box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round" aria-hidden="true"><path d="M3 7l9-4 9 4v10l-9 4-9-4z"/><path d="M3 7l9 4 9-4M12 11v10"/></svg>',
-    branch: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4v8a4 4 0 0 0 4 4h8M14 12l4 4-4 4"/></svg>'
+    branch: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4v8a4 4 0 0 0 4 4h8M14 12l4 4-4 4"/></svg>',
+    chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>',
+    spark: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 16v4M17 18h4"/></svg>',
+    plug: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 3v5M15 3v5M7 8h10v3a5 5 0 0 1-10 0zM12 16v5"/></svg>',
+    later: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    key: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="15" r="4"/><path d="M11 12l8-8M16 7l3 3M13.5 9.5l2 2"/></svg>',
+    chip: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg>',
+    share: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="6" r="2.6"/><circle cx="18" cy="18" r="2.6"/><path d="M8.3 10.8l7.4-3.6M8.3 13.2l7.4 3.6"/></svg>'
   };
 
   /* ── 示意畫面 ───────────────────────────────────────────── */
@@ -877,27 +1210,26 @@ span.hl { display: inline-block; }
         '<div><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linejoin="round" aria-hidden="true"><rect x="14" y="4" width="20" height="40" rx="4"/><path d="M21 38h6"/></svg><span><b>手機上的 Telegram</b><small>已經裝好、登入。之後就在這裡跟 SYNOX 講話。</small></span></div>' +
         '</div>';
     },
-    "repo-zip": function () {
-      var green = 'background:#1f883d;border-color:#1f883d;color:#fff;font-weight:600';
-      return browser("github.com/ChouYangEn0401/SYNOX",
-        '<div class="page"><div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><span class="muted">ChouYangEn0401 /</span><b>SYNOX</b>' +
-        '<span class="faint" style="border:1px solid var(--line-2);border-radius:999px;padding:0 8px;font-size:12px">Public</span></div>' +
-        '<div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><span class="b">main ▾</span><span class="b" style="opacity:.55">Go to file</span>' +
-        '<span class="b" data-hl="code" style="' + green + '">&lt;&gt; Code ▾</span></div>' +
-        '<div class="dlp" style="max-width:340px"><div class="row" style="gap:14px;font-size:13px"><b style="border-bottom:2px solid var(--accent)">Local</b><span class="faint">Codespaces</span></div>' +
-        '<span class="faint m-sm">Clone · HTTPS</span><span class="field" style="font-family:var(--mono);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">https://github.com/ChouYangEn0401/SYNOX.git</span>' +
-        '<div class="it" style="opacity:.55">' + I.doc + '<span><span class="nm">Open with GitHub Desktop</span></span></div>' +
-        '<div class="it" data-hl="dl">' + I.zip + '<span><span class="nm">Download ZIP</span><small>SYNOX-main.zip，約 4 MB</small></span></div></div></div>');
+    "release-assets": function () {
+      var pill = 'border-radius:999px;padding:0 8px;font-size:12px;border:1px solid ';
+      return browser("github.com/ChouYangEn0401/SYNOX/releases",
+        '<div class="page"><div class="row" style="gap:8px;align-items:center"><b style="font-size:17px">SYNOX ' + (REL.version || "版本號") + '</b>' +
+        (REL.pre ? '<span style="' + pill + 'var(--warn);color:var(--warn)">Pre-release</span>' : '') + '</div>' +
+        '<div class="dlp"><div class="h"><span>▾ Assets</span></div>' +
+        '<div class="it" data-hl="zip">' + I.zip + '<span><span class="nm">' + REL.zip + '</span><small>SYNOX 本體（ZIP）</small></span></div>' +
+        '<div class="it">' + I.bat + '<span><span class="nm">' + REL.exe + '</span><small>安裝程式（另一種裝法）</small></span></div>' +
+        '<div class="it" style="opacity:.55">' + I.doc + '<span><span class="nm">SHA256SUMS.txt</span></span></div>' +
+        '<div class="it" style="opacity:.55">' + I.zip + '<span><span class="nm">Source code (zip)</span><small>不是這個</small></span></div></div></div>');
     },
     "explorer-dl": function () {
       return explorer("本機 › 下載", "下載", [
-        { ic: "zip", n: "SYNOX-main.zip", t: "壓縮的 (zipped) 資料夾", hl: "zip" },
+        { ic: "zip", n: REL.zip, t: "壓縮的 (zipped) 資料夾", hl: "zip" },
         { ic: "doc", n: "繳費通知.pdf", t: "PDF 文件", cls: "dim" },
         { ic: "doc", n: "照片.jpg", t: "JPG 檔案", cls: "dim" }]);
     },
     "explorer-menu": function () {
       return explorer("本機 › 下載", "下載", [
-        { ic: "zip", n: "SYNOX-main.zip", t: "壓縮的 (zipped) 資料夾", cls: "sel" },
+        { ic: "zip", n: REL.zip, t: "壓縮的 (zipped) 資料夾", cls: "sel" },
         { ic: "doc", n: "繳費通知.pdf", t: "PDF 文件", cls: "dim" },
         { ic: "doc", n: "照片.jpg", t: "JPG 檔案", cls: "dim" },
         { ic: "doc", n: "旅遊.docx", t: "Word 文件", cls: "dim" },
@@ -906,12 +1238,12 @@ span.hl { display: inline-block; }
     },
     "extract": function () {
       return win("解壓縮壓縮的 (zipped) 資料夾", '<div class="wb"><div class="wz-h" style="font-size:16px;font-weight:500">選取目的地並解壓縮檔案</div>' +
-        '<span class="m-sm">檔案將解壓縮至這個資料夾(F):</span><div class="row"><span class="field" style="flex:1">%USERPROFILE%\\Downloads\\SYNOX-main</span><span class="b">瀏覽(R)…</span></div>' +
+        '<span class="m-sm">檔案將解壓縮至這個資料夾(F):</span><div class="row"><span class="field" style="flex:1">%USERPROFILE%\\Downloads\\' + REL.folder + '</span><span class="b">瀏覽(R)…</span></div>' +
         '<span class="check on m-sm"><i></i>完成時顯示解壓縮的檔案(H)</span>' +
         '<div class="row" style="justify-content:flex-end;margin-top:14px"><span class="b pri" data-hl="go">解壓縮(E)</span><span class="b">取消</span></div></div>');
     },
     "explorer-folder": function () {
-      return explorer("下載 › SYNOX-main › SYNOX-main", "", [
+      return explorer("下載 › " + REL.folder + " › SYNOX", "", [
         { ic: "folder", n: "docs", t: "檔案資料夾", cls: "dim" },
         { ic: "folder", n: "setup", t: "檔案資料夾", cls: "dim" },
         { ic: "folder", n: "src", t: "檔案資料夾", cls: "dim" },
@@ -1006,14 +1338,36 @@ span.hl { display: inline-block; }
         '<span class="b" style="justify-self:start">測一下</span></div>' +
         '<div class="frame-l"><span class="lg">其他金鑰來源</span><span class="radio on m-sm"><i></i>用我自己（或公司）的金鑰</span></div>', null, false);
     },
-    "wizard-ai-other": function () {
+    "wizard-ai-key": function () {
       return wizard("第 4 步，共 4 步", "AI 從哪裡來",
         '<div class="frame-l"><span class="lg">預設</span><span class="radio m-sm"><i></i>預設：Claude（這台電腦登入的 Claude Code）</span></div>' +
-        '<div class="frame-l"><span class="lg">其他金鑰來源</span><span class="radio m-sm"><i></i>用我自己（或公司）的金鑰</span>' +
+        '<div class="frame-l"><span class="lg">其他金鑰來源</span><span class="radio on m-sm" data-hl="own"><i></i>用我自己（或公司）的金鑰</span>' +
         '<div class="row m-sm"><span style="width:62px">哪一家</span><span class="field" style="flex:1">OpenAI ▾</span></div>' +
-        '<div class="row m-sm"><span style="width:62px">API key</span><span class="field" style="flex:1">••••••••••••</span></div>' +
+        '<div class="row m-sm"><span style="width:62px">API key</span><span class="field" style="flex:1" data-hl="key">••••••••••••••••</span></div>' +
         '<div class="row m-sm"><span style="width:62px">模型</span><span class="field" style="flex:1">gpt-4.1-mini</span></div>' +
-        '<span class="b" style="justify-self:start">測一下</span></div>' +
+        '<span class="okc m-sm">✅ 通了！AI 有回話。</span>' +
+        '<span class="b" data-hl="test" style="justify-self:start">測一下</span></div>' +
+        '<div class="frame-l"><span class="lg">本地模型（這台或家裡網路的電腦）</span><span class="radio m-sm"><i></i>使用本地模型（Ollama、vLLM、LM Studio；不需要金鑰）</span></div>' +
+        '<span class="radio m-sm"><i></i>先不用 AI（只用指令和按鈕）</span>');
+    },
+    "wizard-ai-local": function () {
+      return wizard("第 4 步，共 4 步", "AI 從哪裡來",
+        '<div class="frame-l"><span class="lg">預設</span><span class="radio m-sm"><i></i>預設：Claude（這台電腦登入的 Claude Code）</span></div>' +
+        '<div class="frame-l"><span class="lg">其他金鑰來源</span><span class="radio m-sm"><i></i>用我自己（或公司）的金鑰</span></div>' +
+        '<div class="frame-l"><span class="lg">本地模型（這台或家裡網路的電腦）</span><span class="radio on m-sm" data-hl="local"><i></i>使用本地模型（Ollama、vLLM、LM Studio；不需要金鑰）</span>' +
+        '<div class="row m-sm"><span style="width:92px">伺服器</span><span class="field" style="flex:1">Ollama ▾</span></div>' +
+        '<div class="row m-sm"><span style="width:92px">網址</span><span class="field" style="flex:1">http://127.0.0.1:11434</span></div>' +
+        '<div class="row m-sm"><span style="width:92px">模型</span><span class="field" style="flex:1" data-hl="model">qwen3.5:9b</span></div>' +
+        '<div class="row m-sm"><span style="width:92px">Context 長度</span><span class="field">8192 ▾</span></div>' +
+        '<span class="faint m-sm">Context 越大越佔記憶體；不確定時請按「看建議」。</span>' +
+        '<span class="okc m-sm">✅ 找到模型，設定看起來合理（只讀取了模型資料，沒有實際載入模型）。</span>' +
+        '<div class="row"><span class="b">看建議</span><span class="b" data-hl="test">測一下</span></div></div>' +
+        '<span class="radio m-sm"><i></i>先不用 AI（只用指令和按鈕）</span>');
+    },
+    "wizard-ai-none": function () {
+      return wizard("第 4 步，共 4 步", "AI 從哪裡來",
+        '<div class="frame-l"><span class="lg">預設</span><span class="radio m-sm"><i></i>預設：Claude（這台電腦登入的 Claude Code）</span></div>' +
+        '<div class="frame-l"><span class="lg">其他金鑰來源</span><span class="radio m-sm"><i></i>用我自己（或公司）的金鑰</span></div>' +
         '<div class="frame-l"><span class="lg">本地模型（這台或家裡網路的電腦）</span><span class="radio m-sm"><i></i>使用本地模型（Ollama、vLLM、LM Studio；不需要金鑰）</span></div>' +
         '<span class="radio on m-sm" data-hl="none" style="justify-self:start"><i></i>先不用 AI（只用指令和按鈕）</span>');
     },
@@ -1044,7 +1398,7 @@ span.hl { display: inline-block; }
         '<span class="faint m-sm">這不是你的帳號（例如別人傳給你的連結）就<b>不要按</b>，直接關掉這一頁。</span>' +
         '<span class="b pri" data-hl="login">登入</span></div></div>');
     },
-    "web-tour": function () {
+    "web-tour-offer": function () {
       return browser("127.0.0.1:8830/#chat",
         '<div class="app"><div class="side"><span class="br2"><span class="mk">S</span>SYNOX</span><span class="nv on">對話</span><span class="nv">工具</span><span class="nv">設定</span></div>' +
         '<div class="mainp"><h4>對話</h4><div class="card2"><h5>要不要我帶你走一遍？（約 5 分鐘）</h5>' +
@@ -1133,6 +1487,125 @@ span.hl { display: inline-block; }
         msg("in", "📖 你可以直接打字跟我說，例如「幫我記一筆 80 元咖啡」。\n也可以點下面的工具，看它會什麼、怎麼打：\n\n🖥 想一次看全部：打 /help all，或在電腦上打開 SYNOX 網頁的「工具」頁。", "10:43", "", "pre") +
         '<div class="kb"><div class="r two"><span data-hl="tool">📒 隨手記</span><span>⏰ 提醒（系統）</span></div><div class="r one"><span>🎓 新手教學</span></div></div>');
     },
+    /* 選一條路：上面一張小路線圖（現在 → 幾條路 → 接回主線），下面一條路一張大卡片（step.choices） */
+    "paths": function (step) {
+      var list = (step && step.choices) || [], was = routes[step.id];
+      var ys = list.map(function (_c, i) { return list.length === 1 ? 35 : 10 + i * (50 / (list.length - 1)); });
+      var art = '<div class="fork" aria-hidden="true"><svg viewBox="0 0 320 70">' +
+        ys.map(function (y) { return '<path d="M16 35 C 76 35, 76 ' + y + ', 132 ' + y + ' L 188 ' + y + ' C 244 ' + y + ', 244 35, 304 35"/>'; }).join("") +
+        ys.map(function (y) { return '<circle cx="160" cy="' + y + '" r="5"/>'; }).join("") +
+        '<circle cx="16" cy="35" r="6" class="end"/><circle cx="304" cy="35" r="6" class="end"/></svg>' +
+        '<span class="cap"><span>你在這裡</span><span>走完接回同一個地方</span></span></div>';
+      return '<div class="paths">' + art + list.map(function (c, i) {
+        return '<button class="path-card' + (was === c.path ? " was" : "") + '" type="button" data-path="' + c.path + '" style="--i:' + i + '">' +
+          '<span class="pi" aria-hidden="true">' + (I[c.icon] || "") + '</span>' +
+          '<span class="pt"><b>' + c.title + '</b><small>' + c.sub + '</small>' + (was === c.path ? '<em>上次選這條</em>' : '') + '</span>' +
+          '<span class="go" aria-hidden="true">' + I.chev + '</span></button>';
+      }).join("") + '</div>';
+    },
+
+    /* 網頁「設定 → 🤖 AI」的卡片「AI 從哪裡來」：① 來源 → ② 認證 → ③ 服務 → 模型（列出模型）→ 測一下、存起來。
+       step.stage 決定畫到哪一步；字照 app.html、src/synox/llm/sources.py 與 ntu_easy_llm 的來源目錄 */
+    "web-ai": function (step) {
+      var st = (step && step.stage) || "open";
+      var FAM = ["本地（這台或家裡網路的電腦）", "遠端服務", "先不用 AI"];
+      var AUTH = ["API 金鑰", "訂閱登入（這台已登入的官方程式）"];
+      var LLOP = "LLOP（本地模型發布服務）";
+      var SVC = ["OpenAI", "Anthropic（Claude API）", "Google Gemini", "其他 OpenAI 相容服務", LLOP + "（這台還不能用）"];
+      function kv(label, value, hl) { return '<div class="kv"><b>' + label + '</b><span class="field sel"' + (hl ? ' data-hl="' + hl + '"' : '') + '>' + value + ' ▾</span></div>'; }
+      function opts(rows, on, dis) {
+        return '<div class="opts" role="presentation">' + rows.map(function (r, i) {
+          return '<span class="' + (i === on ? "on" : "") + (i === dis ? " dis" : "") + '">' + r + '</span>'; }).join("") + '</div>';
+      }
+      var llop = st === "llop" || st === "llop-model";
+      var body = "";
+      if (st === "open") {
+        body = kv("① 來源", FAM[2], "fam");
+      } else if (st === "source") {
+        body = kv("① 來源", FAM[1], "fam") + opts(FAM, 1);
+      } else if (st === "auth") {
+        body = kv("① 來源", FAM[1]) + kv("② 認證", AUTH[0], "auth") + opts(AUTH, 0);
+      } else {
+        body = kv("① 來源", FAM[1]) + kv("② 認證", AUTH[0]) + kv("③ 服務", llop ? LLOP : SVC[0], "svc");
+      }
+      if (st === "service") {
+        body += opts(SVC, 0, 4) + '<span class="faint m-sm">反灰的：' + LLOP + '：要先安裝 ntu_easy_llm[llop]。</span>' +
+          '<span class="lab">API key（留空＝沿用原本的）</span><span class="field" data-hl="key">••••••••••••••••</span>';
+      }
+      if (st === "model" || st === "test") {
+        body += '<span class="lab">模型（可以按「列出模型」從清單選，也可以自己輸入）</span>' +
+          '<div class="row"><span class="field sel" style="flex:1" data-hl="pick">' + (st === "model" ? "（選一個模型，5 個）" : "gpt-4.1-mini") + ' ▾</span><span class="b" data-hl="list">列出模型</span></div>' +
+          '<span class="faint m-sm">找到 5 個模型。</span>';
+      }
+      if (llop) {
+        body += '<span class="lab">LLOP 設定檔</span><span class="field sel" data-hl="profile">home ▾</span>' +
+          '<span class="faint m-sm">先在這台電腦的終端機用 LLOP 的 SDK 註冊（服務提供者會給你指令）；註冊好按「重新整理」，這裡只選設定檔名稱。</span>' +
+          '<span class="b" data-hl="refresh" style="justify-self:start">重新整理</span>';
+      }
+      if (st === "llop-model") {
+        body += '<span class="lab">⑤ 模型（可以按「列出模型」從清單選，也可以自己輸入）</span>' +
+          '<div class="row"><span class="field sel" style="flex:1">（選一個模型，2 個） ▾</span><span class="b" data-hl="list">列出模型</span></div>' +
+          '<span class="faint m-sm">找到 2 個模型。</span>';
+      }
+      body += '<div class="rule2"></div><div class="row"><span class="b pri" data-hl="save">存起來</span><span class="b" data-hl="test">測一下</span>' +
+        (st === "test" || st === "llop-model" ? '<span class="okc m-sm">✅ 接得通</span>' : '') + '</div>';
+      return browser("127.0.0.1:8830/#settings:ai",
+        '<div class="app">' + SIDE +
+        '<div class="mainp"><h4>設定</h4><div class="tabs"><span class="on" data-hl="tab">🤖 AI</span><span>💬 聊天通道</span><span>🧩 功能與安裝</span><span>💻 電腦與備份</span><span>🎨 外觀</span></div>' +
+        '<div class="card2"><h5>🤖 AI 從哪裡來</h5>' + body + '</div></div></div>');
+    },
+
+    /* 網頁「設定 → 💻 電腦與備份」的卡片「SYNOX 更新」（app.html 的 #set-update；docs/adr/0047）。step.stage：check／go／back */
+    "web-update": function (step) {
+      var st = (step && step.stage) || "check", cur = REL.version || "0.2.2";
+      var body = '<span class="check m-sm"><i></i>每週幫我看一次有沒有新版（只看，不會自己裝）</span>' +
+        '<span class="check m-sm"><i></i>也提醒我有測試版</span>' +
+        '<div class="row"><span class="b pri" data-hl="check">檢查更新</span><span class="b ghost">發佈頁</span></div>';
+      if (st === "check") {
+        body += '<div class="card2 review"><span>你是最新版 ✅</span></div>';
+      } else if (st === "go") {
+        body += '<div class="card2 review"><span>有新版：' + cur + ' → X.Y.Z</span></div>' +
+          '<div class="row"><span class="b pri" data-hl="start">更新到 X.Y.Z</span></div>';
+      } else {
+        body += '<div class="card2 review"><span>✅ 上次更新：' + cur + ' → X.Y.Z</span></div>' +
+          '<div class="row"><span class="b" data-hl="back">回到上一版（' + cur + '-…）…</span></div>';
+      }
+      return browser("127.0.0.1:8830/#settings:system",
+        '<div class="app">' + SIDE +
+        '<div class="mainp"><h4>設定</h4><div class="tabs"><span>🤖 AI</span><span>🧩 功能與安裝</span><span class="on" data-hl="tab">💻 電腦與備份</span><span>🎨 外觀</span></div>' +
+        '<div class="card2"><h5>🆕 SYNOX 更新</h5>' + body + '</div></div></div>');
+    },
+
+    "llop-need": function () {
+      return '<div class="need">' +
+        '<div><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 26a10 10 0 0 0 15.080 1.080l6-6a10 10 0 0 0-14.140-14.140l-3.440 3.420"/><path d="M28 22a10 10 0 0 0-15.080-1.080l-6 6a10 10 0 0 0 14.140 14.140l3.420-3.420"/></svg><span><b>API 連結</b><small>服務提供者給你的一個很長的網址。</small></span></div>' +
+        '<div><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="16" cy="30" r="8"/><path d="M22 24l16-16M32 14l6 6M27 19l4 4"/></svg><span><b>一把 key</b><small>也是服務提供者給的。跟密碼一樣，不要給別人。</small></span></div>' +
+        '<div><svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="8" width="38" height="25" rx="3"/><path d="M17 40h14M24 33v7M17 20l5 5 9-9"/></svg><span><b>裝好的 SYNOX</b><small>已經照前面的步驟裝完，網頁打得開。</small></span></div>' +
+        '</div>';
+    },
+    "explorer-cmd": function () {
+      var files = [["folder", "docs", "檔案資料夾"], ["folder", "setup", "檔案資料夾"], ["folder", "src", "檔案資料夾"],
+                   ["bat", "Setup.bat", "Windows 批次檔案"], ["bat", "Start.bat", "Windows 批次檔案"], ["bat", "Stop.bat", "Windows 批次檔案"]];
+      return win("檔案總管", '<div class="addr" style="overflow:visible"><span aria-hidden="true">←&nbsp;→</span>' +
+        '<span class="box" data-hl="addr" style="overflow:visible;font-family:var(--mono)">cmd<span class="cursor" style="background:var(--ink)"></span></span></div>' +
+        '<div class="pane"><div class="nav"><span>桌面</span><span>⬇ 下載</span><span>文件</span><span>圖片</span></div><div class="list">' +
+        files.map(function (f) { return '<div class="f dim">' + I[f[0]] + '<span class="nm">' + f[1] + '</span><span class="ty">' + f[2] + '</span></div>'; }).join("") +
+        '</div></div>', "exp");
+    },
+    "console-deps": function () {
+      return con("C:\\Windows\\System32\\cmd.exe",
+        '<span class="dm">…\\SYNOX&gt;</span>.venv\\Scripts\\python.exe -m synox deps sync --add llop\n' +
+        '記住的選裝組：llm、llop\n' +
+        '🔧 這版 SYNOX 要的套件跟裝著的不一樣，補裝：…（要網路，可能要幾分鐘）…\n' +
+        '<span data-hl="ok" class="key hi">✅ 補好了。正在跑的 SYNOX 要重新啟動才會用新的套件。</span>\n' +
+        '<span class="dm">…\\SYNOX&gt;</span><span class="cursor"></span>');
+    },
+    "console-llop": function () {
+      return con("C:\\Windows\\System32\\cmd.exe",
+        '<span class="dm">…\\SYNOX&gt;</span>.venv\\Scripts\\llmop client add-plain --profile home --api-link https://api.example.test/…\n' +
+        '<span data-hl="ask" class="key">API key（不會顯示）：</span><span class="cursor"></span>\n' +
+        '<span class="hi">已建立明文設定檔「home」（sk-llop-…9f2c，https://api.example.test/…）</span>');
+    },
     "done": function () {
       return '<div class="done-card"><span class="big"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>' +
         '<h4>裝好了！</h4><div class="try">' +
@@ -1144,39 +1617,110 @@ span.hl { display: inline-block; }
   };
 
   /* ── 換頁 ─────────────────────────────────────────────── */
-  var MAIN = STEPS.filter(function (s) { return !s.branch; });
+  var MAIN = STEPS.filter(function (s) { return !s.branch && !s.path; });
   var TOTAL = MAIN.length;
-  var KEY = "synox-guide:v1";
+  var KEY = "synox-guide:v1";                    // 上次看到哪一步
+  var ROUTES_KEY = "synox-guide:routes:v1";      // 每個分岔上次選了哪一條路
+  var FROM_KEY = "synox-guide:from:v1";          // 選讀是從哪一步按按鈕進來的（只記在這個分頁）
+  var ALIAS = { "ai-other": "ai" };              // 改版前的網址 → 現在的步驟
+  var NO_CAPTION = { "welcome": 1, "done": 1, "paths": 1, "llop-need": 1 };   // 不是「你會看到的畫面」的示意圖
   var $ = function (id) { return document.getElementById(id); };
+  var plain = function (t) { return String(t).replace(/<[^>]+>/g, ""); };
 
   function numberOf(id) { for (var i = 0; i < MAIN.length; i++) { if (MAIN[i].id === id) { return i + 1; } } return 0; }
   function byId(id) { for (var i = 0; i < STEPS.length; i++) { if (STEPS[i].id === id) { return STEPS[i]; } } return null; }
-  function hashFor(step) { return step.branch ? "#step-" + step.id : "#step-" + numberOf(step.id); }
+  function pathSteps(p) { return STEPS.filter(function (s) { return s.path === p; }); }
+  function forkOf(step) { var p = PATHS[step.path]; return p ? byId(p.from) : null; }                    // 這條岔路是從哪一步分出來的
+  function rootOf(step) { var s = step, guard = 0; while (s && s.path && guard++ < 9) { s = forkOf(s); } return s; }   // 往回找到主線上分岔的那一步
+  function placeOf(step) { var list = pathSteps(step.path); return { at: list.indexOf(step) + 1, of: list.length }; }
+
+  function keep(kind, key, value) { try { window[kind].setItem(key, JSON.stringify(value)); } catch (e) { /* 私密視窗：不記也沒關係 */ } }
+  function kept(kind, key) { try { return JSON.parse(window[kind].getItem(key) || "null"); } catch (e) { return null; } }
+  var routes = kept("localStorage", ROUTES_KEY) || {};       // 分岔那一步的 id → 上次選的岔路代號
+  var froms = kept("sessionStorage", FROM_KEY) || {};        // 選讀的 chapter → 從哪一步進來的
+
+  function hashFor(step) { return step.branch || step.path ? "#step-" + step.id : "#step-" + numberOf(step.id); }
   function fromHash() {
     var m = /^#step-(\d+)$/.exec(location.hash);
     if (m) { var n = +m[1]; return n >= 1 && n <= TOTAL ? MAIN[n - 1] : null; }
     var b = /^#step-([a-z0-9-]+)$/.exec(location.hash);
-    if (b) { var s = byId(b[1]); return s && s.branch ? s : null; }
-    return null;
+    return b ? byId(ALIAS[b[1]] || b[1]) : null;
   }
-  function save(step) { try { localStorage.setItem(KEY, JSON.stringify({ step: step.id, at: Date.now() })); } catch (e) { /* 私密視窗：不記也沒關係 */ } }
-  function load() { try { var v = JSON.parse(localStorage.getItem(KEY) || "null"); return v && byId(v.step) ? byId(v.step) : null; } catch (e) { return null; } }
+  function save(step) { keep("localStorage", KEY, { step: step.id, at: Date.now() }); }
+  function load() { var v = kept("localStorage", KEY); return v && byId(v.step) ? byId(v.step) : null; }
+
+  /* 上一步／下一步：主線照順序；岔路照那條路；選讀照 back／next（"@from"＝從哪一步進來就回哪一步） */
+  function refTo(ref, step) {
+    if (ref === "@from") { return byId(froms[step.chapter]) || byId(step.home) || MAIN[0]; }
+    return byId(ref);
+  }
+  function picked(step) {                          // 分岔那一步：上次選的那條路（沒選過、或那條路已經不在＝""）
+    var r = routes[step.id];
+    return r && PATHS[r] && (step.choices || []).some(function (c) { return c.path === r; }) && pathSteps(r).length ? r : "";
+  }
+  function nextOf(step) {
+    if (step.choices) { return picked(step) ? pathSteps(picked(step))[0] : null; }
+    if (step.branch) { return refTo(step.next, step); }
+    if (step.path) {
+      var list = pathSteps(step.path), i = list.indexOf(step);
+      return i + 1 < list.length ? list[i + 1] : byId(PATHS[step.path].to);
+    }
+    var n = numberOf(step.id);
+    return n === TOTAL ? MAIN[0] : MAIN[n];
+  }
+  function prevOf(step) {
+    if (step.branch) { return refTo(step.back, step); }
+    if (step.path) {
+      var list = pathSteps(step.path), i = list.indexOf(step);
+      return i > 0 ? list[i - 1] : forkOf(step);
+    }
+    var n = numberOf(step.id);
+    if (n <= 1) { return null; }
+    var p = MAIN[n - 2], guard = 0;
+    // 上一步是分岔、而且你走過其中一條接回這裡的路：回到那條路的最後一步，不是回到選路的那一頁
+    while (p.choices && picked(p) && PATHS[picked(p)].to === step.id && guard++ < 9) {
+      var tail = pathSteps(picked(p));
+      p = tail[tail.length - 1];
+    }
+    return p;
+  }
+  function anchorNumber(step) {                    // 這一步算在主線的第幾步（岔路＝分岔那一步；選讀＝一路「回去」到的那一步）
+    var s = step, guard = 0;
+    while (s && (s.branch || s.path) && guard++ < 60) { s = s.branch ? refTo(s.back, s) : rootOf(s); }
+    return s ? numberOf(s.id) : 0;
+  }
 
   var current = null;
   function go(step) { if (!step) { return; } if (location.hash === hashFor(step)) { render(step); } else { location.hash = hashFor(step); } }
+  function choose(pathId) {                        // 在分岔那一步點了一張卡片
+    if (!current || !current.choices || !pathSteps(pathId).length) { return; }
+    routes[current.id] = pathId;
+    keep("localStorage", ROUTES_KEY, routes);
+    go(pathSteps(pathId)[0]);
+  }
+  function jumpTo(id) {                            // 按了「改走另一條路」的按鈕
+    var t = byId(id);
+    if (!t) { return; }
+    if (t.branch && current && current.chapter !== t.chapter) { froms[t.chapter] = current.id; keep("sessionStorage", FROM_KEY, froms); }
+    go(t);
+  }
 
   function tipLabel(k) { return { "if": "如果", note: "小提示", warn: "注意", wip: "⏳ 尚未完成", ok: "好消息" }[k] || "小提示"; }
 
   function render(step, quiet) {
     current = step;
-    var n = numberOf(step.id);
+    var n = step.path ? numberOf(rootOf(step).id) : numberOf(step.id);
+    var place = step.path ? placeOf(step) : null;
+    var way = step.path ? PATHS[step.path].label : "";
     $("title").innerHTML = step.title;
-    document.title = (step.branch ? "選讀" : "步驟 " + n) + "：" + step.title.replace(/<[^>]+>/g, "") + " · SYNOX 安裝教學";
+    document.title = (step.branch ? "選讀" : "步驟 " + n + (way ? "（" + way + "）" : "")) + "：" + plain(step.title) + " · SYNOX 安裝教學";
     $("body").innerHTML = step.body.map(function (p) { return "<p>" + p + "</p>"; }).join("");
     var links = (step.links || []).map(function (l) {
       return '<a class="btn ' + (l.primary ? "primary" : "soft") + '" href="' + l.href + '" target="_blank" rel="noopener">' + (I[l.icon] || "") + l.text + '</a>';
     });
-    if (step.jump) { links.push('<button class="btn" type="button" data-jump="' + step.jump.to + '">' + I.branch + step.jump.text + '</button>'); }
+    (step.jump ? [].concat(step.jump) : []).forEach(function (j) {
+      links.push('<button class="btn" type="button" data-jump="' + j.to + '">' + I.branch + j.text + '</button>');
+    });
     $("links").innerHTML = links.join("");
     $("links").hidden = !links.length;
     $("tips").innerHTML = (step.tips || []).map(function (t) {
@@ -1197,67 +1741,72 @@ span.hl { display: inline-block; }
       tap.textContent = t.say;
       el.appendChild(tap);
     });
-    $("caption").textContent = step.mock === "welcome" || step.mock === "done" ? "" : "示意圖：畫的是你會看到的畫面，顏色、字型會跟你的電腦有一點不同。";
+    $("caption").textContent = NO_CAPTION[step.mock] ? "" : "示意圖：畫的是你會看到的畫面，顏色、字型會跟你的電腦有一點不同。";
     $("caption").hidden = !$("caption").textContent;
 
-    // 進度
-    var shown = step.branch ? numberOf(step.back) : n;
-    $("count").innerHTML = step.branch ? '<span class="branch-tag">選讀</span>' : "步驟 " + n + '<span class="of">／' + TOTAL + "</span>";
+    // 進度：岔路上的步驟算在分岔那一步，進度條在那一格裡再往前一點
+    var shown = step.branch ? anchorNumber(step) : step.path ? n + place.at / (place.of + 1) : n;
+    $("count").innerHTML = step.branch ? '<span class="branch-tag">選讀</span>' :
+      "步驟 " + n + '<span class="of">／' + TOTAL + "</span>" +
+      (way ? '<span class="branch-tag way">' + way + (place.of > 1 ? " " + place.at + "／" + place.of : "") + "</span>" : "");
     $("chapter").textContent = step.chapter;
     $("bar-fill").style.width = (shown / TOTAL * 100) + "%";
-    $("bar").setAttribute("aria-valuenow", String(shown));
+    $("bar").setAttribute("aria-valuenow", String(Math.floor(shown)));
     $("bar").setAttribute("aria-valuemax", String(TOTAL));
-    $("bar").setAttribute("aria-valuetext", step.branch ? "選讀" : "步驟 " + n + "，共 " + TOTAL + " 步");
+    $("bar").setAttribute("aria-valuetext", step.branch ? "選讀" :
+      "步驟 " + n + "，共 " + TOTAL + " 步" + (way ? "。岔路「" + way + "」第 " + place.at + " 步，共 " + place.of + " 步" : ""));
 
     // 按鈕
-    var prev = $("prev"), next = $("next");
-    prev.disabled = !step.branch && n === 1;
+    var prev = $("prev"), next = $("next"), nx = nextOf(step);
+    var last = !step.branch && !step.path && n === TOTAL;
+    prev.disabled = !prevOf(step);
     prev.lastChild.textContent = step.branch ? "回去" : "上一步";
-    var arrow = next.querySelector("svg");
-    if (step.branch) { next.firstChild.textContent = "接著做"; }
-    else if (n === TOTAL) { next.firstChild.textContent = "從頭再看一次"; }
-    else { next.firstChild.textContent = "下一步"; }
-    arrow.style.display = n === TOTAL && !step.branch ? "none" : "";
+    next.disabled = !nx;
+    next.firstChild.textContent = !nx ? "先選一條路" : step.branch ? "接著做" : last ? "從頭再看一次" : "下一步";
+    next.querySelector("svg").style.display = last || !nx ? "none" : "";
 
     // 目錄
     Array.prototype.forEach.call(document.querySelectorAll("#toc-panel a"), function (a) {
       if (a.getAttribute("href") === hashFor(step)) { a.setAttribute("aria-current", "step"); } else { a.removeAttribute("aria-current"); }
     });
     $("toc").open = false;
-    if (n !== 1) { $("resume").hidden = true; }
+    if (n !== 1 || step.branch) { $("resume").hidden = true; }
     if (!quiet) { save(step); }
   }
 
-  function nextStep() {
-    if (!current) { return; }
-    if (current.branch) { go(byId(current.next)); return; }
-    var n = numberOf(current.id);
-    go(n === TOTAL ? MAIN[0] : MAIN[n]);
-  }
-  function prevStep() {
-    if (!current) { return; }
-    if (current.branch) { go(byId(current.back)); return; }
-    var n = numberOf(current.id);
-    if (n > 1) { go(MAIN[n - 2]); }
-  }
+  function nextStep() { if (current) { go(nextOf(current)); } }
+  function prevStep() { if (current) { go(prevOf(current)); } }
   function moved() {
     var s = fromHash() || MAIN[0];
+    if (location.hash !== hashFor(s)) {            // #step-<主線步驟的 id>、改版前的網址：換成現在的寫法（不多留一筆上一頁）
+      try { history.replaceState(null, "", hashFor(s)); } catch (e) { /* 沒關係 */ }
+    }
     render(s);
     try { window.scrollTo(0, 0); } catch (e) { /* 沒關係 */ }
     try { $("title").focus({ preventScroll: true }); } catch (e) { $("title").focus(); }
   }
 
-  // 目錄
+  // 目錄：主線照號碼；分岔那一步下面縮排列出每一條路；最後是選讀
   (function () {
     var html = "", last = "";
+    function item(s, n, cls) {
+      return '<li><a' + (cls ? ' class="' + cls + '"' : "") + ' href="' + hashFor(s) + '"><span class="n">' + n + "</span><span>" + plain(s.title) + "</span></a></li>";
+    }
+    function ways(s, depth) {
+      return s.choices.map(function (c) {
+        return '<li class="way d' + depth + '">' + PATHS[c.path].label + "</li>" + pathSteps(c.path).map(function (ps) {
+          return item(ps, "↳", "sub d" + depth) + (ps.choices ? ways(ps, depth + 1) : "");
+        }).join("");
+      }).join("");
+    }
     MAIN.forEach(function (s, i) {
       if (s.chapter !== last) { html += (last ? "</ol>" : "") + '<p class="ch">' + s.chapter + "</p><ol>"; last = s.chapter; }
-      html += '<li><a href="#step-' + (i + 1) + '"><span class="n">' + (i + 1) + "</span><span>" + s.title.replace(/<[^>]+>/g, "") + "</span></a></li>";
+      html += item(s, i + 1) + (s.choices ? ways(s, 1) : "");
     });
     var lastBranch = "";
     STEPS.filter(function (s) { return s.branch; }).forEach(function (s) {
       if (s.chapter !== lastBranch) { html += '</ol><p class="ch">' + s.chapter + '</p><ol>'; lastBranch = s.chapter; }
-      html += '<li><a href="#step-' + s.id + '"><span class="n">＋</span><span>' + s.title + "</span></a></li>";
+      html += item(s, "＋");
     });
     $("toc-panel").innerHTML = html + "</ol>";
   })();
@@ -1266,11 +1815,18 @@ span.hl { display: inline-block; }
   $("prev").addEventListener("click", prevStep);
   $("links").addEventListener("click", function (e) {
     var b = e.target.closest ? e.target.closest("[data-jump]") : null;
-    if (b) { go(byId(b.getAttribute("data-jump"))); }
+    if (b) { jumpTo(b.getAttribute("data-jump")); }
+  });
+  $("mock").addEventListener("click", function (e) {
+    var b = e.target.closest ? e.target.closest("[data-path]") : null;
+    if (b) { choose(b.getAttribute("data-path")); }
   });
   $("toc-panel").addEventListener("click", function (e) {
     var a = e.target.closest ? e.target.closest("a") : null;
-    if (a) { $("toc").open = false; }
+    if (!a) { return; }
+    $("toc").open = false;
+    var t = byId((a.getAttribute("href") || "").replace("#step-", ""));
+    if (t && t.branch && froms[t.chapter]) { delete froms[t.chapter]; keep("sessionStorage", FROM_KEY, froms); }   // 從目錄進選讀：不算「從哪一步來」
   });
   document.addEventListener("keydown", function (e) {
     if (e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) { return; }
@@ -1287,12 +1843,36 @@ span.hl { display: inline-block; }
   var saved = load();
   render(start || MAIN[0], !start);
   if (!start && saved && saved.id !== MAIN[0].id) {
-    $("resume-text").textContent = "上次看到「" + (saved.branch ? "選讀" : "步驟 " + numberOf(saved.id)) + "：" + saved.title.replace(/<[^>]+>/g, "") + "」";
+    $("resume-text").textContent = "上次看到「" + (saved.branch ? "選讀" : "步驟 " + anchorNumber(saved)) + "：" + plain(saved.title) + "」";
     $("resume").hidden = false;
     $("resume-go").addEventListener("click", function () { $("resume").hidden = true; go(saved); });
     $("resume-no").addEventListener("click", function () { $("resume").hidden = true; save(MAIN[0]); });
   }
-  window.SynoxGuide = { STEPS: STEPS, go: function (id) { go(byId(id)); } };
+  /* 給外面看的（除錯、之後的教學 pack、檢查步驟資料用）：check() 回傳找不到的示意畫面、要標的東西、指不到的步驟 */
+  function check() {
+    var bad = [];
+    function need(id, why) { if (!byId(id)) { bad.push(why + " → 沒有步驟 " + id); } }
+    STEPS.forEach(function (s) {
+      if (!MOCKS[s.mock]) { bad.push(s.id + "：沒有示意畫面 " + s.mock); return; }
+      var html = MOCKS[s.mock](s);
+      (s.targets || []).forEach(function (t) { if (html.indexOf('data-hl="' + t.id + '"') < 0) { bad.push(s.id + "：示意畫面 " + s.mock + " 裡沒有 data-hl=\"" + t.id + "\""); } });
+      (s.jump ? [].concat(s.jump) : []).forEach(function (j) { need(j.to, s.id + " 的 jump"); });
+      (s.choices || []).forEach(function (c) {
+        if (!PATHS[c.path] || !pathSteps(c.path).length) { bad.push(s.id + "：岔路 " + c.path + " 沒有步驟"); }
+        else if (PATHS[c.path].from !== s.id) { bad.push(s.id + "：岔路 " + c.path + " 的 from 不是這一步"); }
+      });
+      if (s.path && !PATHS[s.path]) { bad.push(s.id + "：PATHS 裡沒有 " + s.path); }
+      if (s.branch) {
+        ["back", "next"].forEach(function (k) {
+          if (s[k] === "@from") { need(s.home, s.id + " 的 home（" + k + " 是 @from）"); } else { need(s[k], s.id + " 的 " + k); }
+        });
+      }
+    });
+    Object.keys(PATHS).forEach(function (p) { need(PATHS[p].from, "PATHS." + p + ".from"); need(PATHS[p].to, "PATHS." + p + ".to"); });
+    return bad;
+  }
+  window.SynoxGuide = { STEPS: STEPS, PATHS: PATHS, REL: REL, go: function (id) { go(byId(id)); }, nextOf: nextOf, prevOf: prevOf,
+                        hashFor: hashFor, choose: choose, check: check };
 })();
 </script>
 </body>

@@ -3,7 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!-- 原稿：docs/landing/page.html。index.html 是 scripts/make_landing.py 組出來的（截圖嵌成 WebP data URI），不要直接改 index.html。 -->
+<!-- 原稿：docs/landing/page.html。index.html 是 scripts/make_landing.py 組出來的（截圖嵌成 WebP data URI），不要直接改 index.html。
+     版本與下載連結不寫死：版本徽章、下載按鈕、頁尾用兩層大括號包起來的記號（version、version-label、version-dot、zip-name、zip-url、
+     exe-name、exe-url、release-url、releases-url；清單在 make_landing.py 的 release_text），組頁面時從 pyproject.toml 的版本算出來。
+     每次發版（alpha、beta 也算）重組、重新發佈同一個線上網址：docs/release-playbook.md 第 7 節。 -->
 <title>SYNOX 本機助理</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -106,6 +109,8 @@ section { padding-block: 88px; }
 .logo b { font-size: 21px; letter-spacing: .14em; }
 .ver { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 5px 12px 5px 10px; white-space: nowrap; }
 .ver b { font-family: var(--mono); color: var(--ink); font-weight: 600; }
+a.ver { text-decoration: none; }
+a.ver:hover { border-color: var(--accent); }
 .top-r { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .gh { display: inline-flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 500; color: var(--ink); text-decoration: none; background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 5px 14px 5px 10px; }
 .gh .brand { width: 17px; height: 17px; }
@@ -359,6 +364,9 @@ details.stuck code { word-break: break-all; }
 /* install animations: zip drops into the tray then becomes a folder; Setup window pops; chat bubbles appear */
 .install > li { display: flex; flex-direction: column; }
 .install .big-dl { align-self: flex-start; margin-top: 14px; font-size: 17px; padding: 12px 22px; }
+.install .dl-meta { margin-top: 10px; font-size: 13.5px; line-height: 1.7; }
+.install .dl-meta code { font-family: var(--mono); font-size: 12.5px; color: var(--ink); overflow-wrap: anywhere; }
+.install .dl-meta a { color: var(--accent); }
 .anim-dl .zip { animation: lp-drop 4.2s ease-in-out infinite; transform-origin: 38px 30px; }
 .anim-dl .arrow { animation: lp-fade 4.2s ease-in-out infinite; }
 .anim-dl .folder { animation: lp-folder 4.2s ease-in-out infinite; transform-origin: 121px 44px; }
@@ -653,7 +661,7 @@ footer a { color: var(--muted); }
 <header class="top">
   <a class="logo" href="#top" aria-label="SYNOX（點一下再看一次開場）" title="點一下再看一次開場" id="logo"><span class="mark mark-md" aria-hidden="true">S</span><b>SYNOX</b></a>
   <div class="top-r">
-    <span class="ver" title="pyproject.toml 的版本；還沒有正式發佈"><i class="dot" style="background:var(--warn)"></i><b>0.2.2-alpha.2</b>alpha</span>
+    <a class="ver" href="{{release-url}}" target="_blank" rel="noopener" title="目前的版本（組這一頁時從 pyproject.toml 讀的）。點一下看這一版的發佈頁"><i class="dot" style="background:{{version-dot}}"></i><b>{{version}}</b>{{version-label}}</a>
     <a class="gh" href="https://github.com/ChouYangEn0401/SYNOX" target="_blank" rel="noopener"><svg class="brand"><use href="#b-github"/></svg>GitHub</a>
   </div>
 </header>
@@ -861,8 +869,9 @@ footer a { color: var(--muted); }
           <path class="folder accent-fill" d="M100 24h14l4 6h24v34h-42z"/></g></svg>
       </div>
       <b>下載、解開</b>
-      <p>按下面的按鈕下載（約 8 MB）。對下載的檔案按<strong>右鍵</strong> →<strong>「全部解壓縮」</strong>，把解開的資料夾放在好找的地方（例如「文件」），之後都從這裡開。</p>
-      <a class="big-dl" href="https://github.com/ChouYangEn0401/SYNOX/archive/refs/heads/main.zip"><svg class="ico"><use href="#i-download"/></svg>下載 SYNOX</a>
+      <p>按下面的按鈕下載（約 6 MB）。對下載的檔案按<strong>右鍵</strong> →<strong>「全部解壓縮」</strong>，把解開的資料夾放在好找的地方（例如「文件」），之後都從這裡開。</p>
+      <a class="big-dl" href="{{zip-url}}"><svg class="ico"><use href="#i-download"/></svg>下載 SYNOX</a>
+      <p class="dl-meta"><code>{{zip-name}}</code><br>也有<a href="{{exe-url}}">安裝程式（.exe）</a> · <a href="{{releases-url}}" target="_blank" rel="noopener">全部版本</a></p>
     </li>
     <li>
       <div class="art" aria-hidden="true">
@@ -900,7 +909,8 @@ footer a { color: var(--muted); }
       <li><b>跳出「Windows 已保護您的電腦」</b>：按「其他資訊」→「仍要執行」。</li>
       <li><b>點兩下之後好像沒反應</b>：第一次會自己準備 Python 和需要的東西（要上網），視窗出現前可能要等一兩分鐘。</li>
       <li><b>還沒有 Telegram 的 bot</b>：先看上面的 Telegram 圖文教學，5 分鐘就能拿到。</li>
-      <li><i class="wip">⏳ 尚未完成</i> 一鍵安裝的 <code>.exe</code>：腳本寫好了，還沒打包出來。</li>
+      <li><b>想用安裝程式（.exe）</b>：下載 <a href="{{exe-url}}"><code>{{exe-name}}</code></a>，點兩下、照畫面按，不用解壓縮，也不用系統管理員。<i class="sim">🧪 還沒在空白電腦上完整試過</i></li>
+      <li><b>之後要更新</b>：在 SYNOX 網頁「設定 → 💻 電腦與備份 → SYNOX 更新」按「檢查更新」。</li>
       <li><b>會用 git 的人</b>（進階）：<code>git clone https://github.com/ChouYangEn0401/SYNOX.git</code>，再點兩下 <code>Setup.bat</code>。完整說明在 <a href="https://github.com/ChouYangEn0401/SYNOX#readme" target="_blank" rel="noopener">README</a>。</li>
     </ul>
   </details>
@@ -951,7 +961,6 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
   <div class="status">
     <h3 class="st-h"><i class="wip">⏳ 尚未完成</i></h3>
     <ul class="honest">
-      <li><span><b>一鍵安裝的 .exe</b>：打包腳本寫好了，還沒真的打包、也還沒放上 GitHub 下載。</span></li>
       <li><span><b>裝 OpenClaw／Hermes 生態的工具</b>：研究做完了（技能文字的格式可以轉、授權允許），規劃等擁有者核准，還沒開始寫。</span></li>
       <li><span><b>GitHub Copilot</b>：登入用的小工具另外寫好了，還沒接進 SYNOX。</span></li>
       <li><span><b>哨兵模式</b>（多台電腦連線）：在另一個分支上，還沒合進主線。</span></li>
@@ -964,6 +973,7 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
       <li><span><b>Discord</b>、<b>Notion／Todoist／Google 日曆／Apple 提醒事項</b>：只用模擬的連線測過。</span></li>
       <li><span><b>看照片</b>：還沒在真的看圖模型上跑過。</span></li>
       <li><span><b>在全新的 Windows 上安裝</b>：<code>Setup.bat</code> 還沒在空白電腦上從頭跑過。</span></li>
+      <li><span><b>安裝程式（.exe）</b>：已經放在<a href="{{releases-url}}" target="_blank" rel="noopener">發佈頁</a>，還沒在空白電腦上完整試過。</span></li>
       <li><span><b>Linux 沙盒、Docker 容器</b>：只檢查過組出來的指令，沒有在真機跑過。</span></li>
     </ul>
     <h3 class="st-h">測試</h3>
@@ -981,9 +991,9 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
       <summary>接下來要做什麼</summary>
       <div class="road-cols">
         <div><h3><span class="pill ac">做好了，等驗證</span></h3>
-          <ul><li>Setup.bat：在空白電腦實測</li><li>外部服務與 Discord：用真帳號跑一遍</li><li>Linux 沙盒：真機驗證</li></ul></div>
+          <ul><li>Setup.bat 與安裝程式（.exe）：在空白電腦實測</li><li>外部服務與 Discord：用真帳號跑一遍</li><li>Linux 沙盒：真機驗證</li></ul></div>
         <div><h3><span class="pill warn">還沒有</span></h3>
-          <ul><li>一鍵安裝 .exe 與下載頁</li><li>開機自動啟動成 Windows 服務</li><li>macOS／Linux 安裝器</li></ul></div>
+          <ul><li>開機自動啟動成 Windows 服務</li><li>macOS／Linux 安裝器</li></ul></div>
         <div><h3><span class="pill ok">提案中</span></h3>
           <ul><li>線上工具目錄</li><li>工具的簽章驗證</li><li>從這一頁一鍵安裝</li></ul></div>
       </div>
@@ -1004,7 +1014,7 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
 
 <footer>
   <span class="mark mark-xs" aria-hidden="true">S</span>
-  <span>SYNOX 0.2.2-alpha.2（alpha）</span>
+  <span>SYNOX {{version}}（{{version-label}}）</span>
   <span>核心 AGPL-3.0-or-later · 工具 SDK 與範例 Apache-2.0</span>
   <span>Telegram、Discord、Claude、OpenAI、Gemini 等名稱與標誌屬於各自的所有者</span>
   <a href="https://github.com/ChouYangEn0401/SYNOX" target="_blank" rel="noopener">github.com/ChouYangEn0401/SYNOX</a>

@@ -73,6 +73,14 @@
       "cwd": ".", "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "expect": "exit 0",
       "needs": [], "since": "2026-11-23",
       "status": "pass", "last_run": "2026-11-23", "last_result": "Windows: all passed (full suite: only the known tag check in test_check_version_consistency fails, same as before)"
+    },
+    {
+      "id": "guide-and-landing-follow-the-version",
+      "what": "安裝教學與介紹頁：版本、檔名、下載連結從 pyproject.toml 帶入；精靈第 4 步的三條岔路與選讀步驟指得到、示意畫面與要標的東西都在（有 Node 的電腦另外在假的瀏覽器裡把每一步跑一遍）；頁面版本對得上；發版關卡會擋沒重組的頁面",
+      "run": ["python", "-m", "pytest", "-q", "tests/test_build_guide.py", "tests/test_artifact_registry.py", "tests/test_release_script.py", "tests/test_check_version_consistency.py::test_built_pages_with_an_old_version_are_reminders"],
+      "cwd": ".", "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "expect": "exit 0",
+      "needs": [], "since": "2026-11-23",
+      "status": "pass", "last_run": "2026-11-23", "last_result": "Windows: 84 passed (Node present, so scripts/check_guide.js ran too)"
     }
   ]
 }

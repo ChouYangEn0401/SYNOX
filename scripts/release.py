@@ -64,9 +64,19 @@ SDK_FILES: List[Tuple[str, "re.Pattern[str]"]] = [
     ("src/synox/sdk/author.py", re.compile(r'^SDK_VERSION\s*=\s*"([^"]*)"', re.M)),
     ("sdk/synox_sdk.py", re.compile(r'^SDK_VERSION\s*=\s*"([^"]*)"', re.M)),
 ]
-# Places that show the version but are hand-made pages owned by others: only a reminder when they differ.
+# Places that show the version to people. docs/landing/page.html is the hand-written source of the landing page: its
+# badge is the placeholder {{version}} (filled in by scripts/make_landing.py), or a hand-typed number in older copies.
 SHOWN_FILES: List[Tuple[str, "re.Pattern[str]"]] = [
     ("docs/landing/page.html", re.compile(r'class="ver"[^>]*>.*?<b>([^<]*)</b>', re.S)),
+]
+BUILT_AT_BUILD = "{{version}}"
+# Built pages that carry the version and the download links (file names of this release). They are rebuilt and
+# republished on every release, previews included (docs/release-playbook.md §7): a reminder from `check`, a failure
+# from `check --tag` (the release gate). (path, regex whose group 1 is the version, how to rebuild)
+BUILT_PAGES: List[Tuple[str, "re.Pattern[str]", str]] = [
+    ("docs/landing/index.html", re.compile(r'class="ver"[^>]*>.*?<b>([^<]*)</b>', re.S), "python scripts/make_landing.py"),
+    ("docs/guide/index.html", re.compile(r'id="release-info">\s*\{\s*"version":\s*"([^"]*)"'),
+     "python scripts/build_guide.py"),
 ]
 
 CHANGELOG = "CHANGELOG.md"
@@ -152,6 +162,25 @@ def next_version(current: Version, kind: str, next_minor: bool = False, next_pat
             raise ReleaseError(f"{current} 已經是正式版；下一版用 `bump patch` 或 `bump minor`")
         return current.base
     raise ReleaseError(f"不認得 {kind!r}：要 patch、minor、alpha、beta 或 final")
+
+
+def asset_names(version) -> Tuple[str, str]:
+    """(ZIP, installer) file names on the release page. One place for the spelling: scripts/make_zip.py writes
+    dist/SYNOX-<v>.zip, setup/installer/synox.iss OutputBaseFilename is SYNOX-Setup-<v>, `sign` hashes both, and the
+    install guide and the landing page link to them (tests/test_release_script.py keeps them equal)."""
+    v = str(version)
+    return f"SYNOX-{v}.zip", f"SYNOX-Setup-{v}.exe"
+
+
+def download_info(root: str = ROOT) -> Dict[str, object]:
+    """What the built pages (docs/guide, docs/landing) say about the current version: the version, its tag, the two
+    asset names and where to download them. Never `releases/latest`: GitHub's Latest is not always the newest preview."""
+    v = current_version(root)
+    zip_name, exe_name = asset_names(v)
+    base = f"{RELEASES_URL}/download/{v.tag}/"
+    return {"version": str(v), "tag": v.tag, "prerelease": v.label is not None, "label": v.label or "",
+            "zip": zip_name, "exe": exe_name, "zip_url": base + zip_name, "exe_url": base + exe_name,
+            "page_url": f"{RELEASES_URL}/tag/{v.tag}", "releases_url": RELEASES_URL}
 
 
 def check_tag(version: str, tag: str) -> Optional[str]:
@@ -399,8 +428,14 @@ def check(root: str, tag: str = "") -> Tuple[List[str], List[str], List[str]]:
         bad.append("SDK 版本不一致（改了 author.py 要重產 sdk/synox_sdk.py：scripts/build_synox_sdk.py）："
                    + "、".join(f"{rel}={v}" for rel, v in sdk.items()))
     for rel, v in versions_in(root, SHOWN_FILES).items():
-        if v is not None and version and v != version:
+        if v is not None and version and v != version and v != BUILT_AT_BUILD:
             warn.append(f"{rel} 顯示的版本是 {v}，不是 {version}（這頁由別人維護：發版時請他們更新）")
+    for rel, rx, how in BUILT_PAGES:
+        v = versions_in(root, [(rel, rx)])[rel]
+        if v is not None and version and v != version:
+            line = (f"{rel} 寫的版本與下載連結是 {v}，不是 {version}：重組（{how}），commit，"
+                    "發佈後重新發佈線上頁面（docs/release-playbook.md 第 7 節）")
+            (bad if tag else warn).append(line)
     if tag:
         problem = check_tag(version, tag) if version else f"沒有版本可以對 tag {tag}"
         if problem:
@@ -574,7 +609,7 @@ def sign(root: str, dist: str, key_path: str, *, severity: str = "normal", summa
     if min_from:
         Version.parse(min_from)
     key = load_private_key(key_path, root)
-    names = [f"SYNOX-{v}.zip", f"SYNOX-Setup-{v}.exe"]
+    names = list(asset_names(v))
     assets: Dict[str, dict] = {}
     for name in names:
         path = os.path.join(dist, name)

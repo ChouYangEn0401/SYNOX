@@ -35,3 +35,6 @@ Windows：`.venv\Scripts\python.exe` 取代 `python`，主控台先設 `$env:PYT
   不跳號、不服務降級；寫檔一律寫目前的格式與版本號。
 - 開分支（`feat|fix|docs/<主題>`，基底是最新的 `dev`）、小步 commit、使用者看得到的改變寫進 `CHANGELOG.md` 最上面的「未發佈」一節；
   不升版本號、不打 tag、不發 release、不直接推 `dev`／`main`、不碰簽章的公鑰與私鑰。
+- **每次發版（alpha、beta 也算）都要重組安裝教學與介紹頁、重新發佈這兩個線上頁面，再打開確認版本與下載連結是剛發的這一版**：
+  `python scripts/build_guide.py`、`python scripts/make_landing.py`（版本、檔名、下載連結從 `pyproject.toml` 帶入，不手改）；
+  線上網址與逐步清單在 [docs/release-playbook.md](docs/release-playbook.md) 第 7 節。

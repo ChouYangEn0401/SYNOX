@@ -391,3 +391,53 @@ def test_demote_puts_the_branch_headings_right_below_the_section():
     out = release._demote(block)
     assert [ln for ln in out if ln.startswith("#")] == [
         "### branch a\n", "#### 新增\n", "##### 細節\n", "### branch b\n", "#### 修正\n", "### 文件\n", "### branch c\n"]
+
+
+# ---- 發佈頁上的檔名、組出來的頁面（安裝教學、介紹頁）-----------------------------------------------
+
+def test_asset_names_and_download_info(tmp_path):
+    assert release.asset_names("0.2.1-beta.1") == ("SYNOX-0.2.1-beta.1.zip", "SYNOX-Setup-0.2.1-beta.1.exe")
+    info = release.download_info(_repo(tmp_path, version="0.3.0-alpha.2"))
+    assert info["version"] == "0.3.0-alpha.2" and info["tag"] == "v0.3.0-alpha.2"
+    assert info["prerelease"] and info["label"] == "alpha"
+    assert info["zip_url"] == release.RELEASES_URL + "/download/v0.3.0-alpha.2/SYNOX-0.3.0-alpha.2.zip"
+    assert info["exe_url"] == release.RELEASES_URL + "/download/v0.3.0-alpha.2/SYNOX-Setup-0.3.0-alpha.2.exe"
+    assert info["page_url"] == release.RELEASES_URL + "/tag/v0.3.0-alpha.2"
+    assert "latest" not in "".join(map(str, info.values()))          # GitHub 的 Latest 不一定是最新的測試版
+    stable = release.download_info(_repo(tmp_path / "s", version="1.0.0"))
+    assert not stable["prerelease"] and stable["label"] == "" and stable["zip"] == "SYNOX-1.0.0.zip"
+
+
+def test_asset_names_match_the_zip_and_the_installer():
+    """make_zip.py 寫的檔名、synox.iss 的 OutputBaseFilename 跟 asset_names 是同一個長相（教學與介紹頁的連結靠它）。"""
+    with open(os.path.join(ROOT, "scripts", "make_zip.py"), encoding="utf-8") as f:
+        assert 'f"SYNOX-{version()}.zip"' in f.read()
+    with open(os.path.join(ROOT, "setup", "installer", "synox.iss"), encoding="utf-8") as f:
+        assert "OutputBaseFilename=SYNOX-Setup-{#AppVersion}" in f.read()
+    assert release.asset_names("X") == ("SYNOX-X.zip", "SYNOX-Setup-X.exe")
+
+
+def _built_pages(root, landing, guide):
+    pages = {"docs/landing/index.html": f'<a class="ver" href="#"><i class="dot"></i><b>{landing}</b>alpha</a>',
+             "docs/guide/index.html": '<script type="application/json" id="release-info">\n{\n "version": "%s",\n "zip": "x"\n}\n</script>' % guide}
+    for rel, text in pages.items():
+        path = os.path.join(root, *rel.split("/"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(text)
+
+
+def test_built_pages_with_an_old_version_remind_and_block_the_tag(tmp_path):
+    """安裝教學與介紹頁的版本、下載連結是組頁面時帶入的：沒重組＝平常只提醒，發版的關卡（--tag）不過。"""
+    root = _repo(tmp_path, badge="{{version}}")                      # page.html 的徽章是記號：不算版本不一致
+    release.bump(root, "patch", date="2026-11-20")
+    _built_pages(root, "0.2.0", "0.2.0")
+    ok, bad, warn = release.check(root)
+    assert bad == [] and not any("page.html" in w for w in warn)
+    assert any("docs/landing/index.html" in w and "make_landing.py" in w for w in warn)
+    assert any("docs/guide/index.html" in w and "build_guide.py" in w for w in warn)
+    ok, bad, warn = release.check(root, tag="v0.2.1")
+    assert any("docs/landing/index.html" in b for b in bad) and any("docs/guide/index.html" in b for b in bad)
+    _built_pages(root, "0.2.1", "0.2.1")
+    ok, bad, warn = release.check(root, tag="v0.2.1")
+    assert bad == [], bad
