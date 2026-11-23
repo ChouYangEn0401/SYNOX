@@ -177,6 +177,39 @@ SYNOX 判斷「這件事能不能做」的那一層（`src/synox/guard/`），�
 - 公司看得到「你的問句＋AI 工具回傳的那幾行」，看不到你的資料庫、看不到 Telegram 聊天全文。
 - 要再保守：本機模型（Ollama、LM Studio）：精靈的「其他金鑰來源」選「相容端點」填 `http://localhost:11434/v1`，什麼都不出電腦。
 
+## 訂閱登入來源的使用聲明
+
+設定頁「訂閱登入」底下經登入套件的來源（Claude、GitHub Copilot、ChatGPT；要裝 ntu_easy_llm 0.6 與對應的登入套件），
+呼叫的是**你自己在這台電腦上已登入的官方 CLI**，用的是你個人的訂閱帳號。設定頁標「只給本人使用」。
+
+1. **不推薦拿個人訂閱服務別人**：不建議把個人訂閱拿來服務其他人、轉售、共用或分享出去——例如經 LLOP 之類的通道提供給別人、
+   在伺服器版開給成員或訪客用的 AI，或放進給別人用的備援鏈。
+2. **條款由你自己確認**：每個訂閱服務都有自己的使用條款與政策。某種用法是否被允許，請你自己閱讀並理解該服務的條款，並自行負責。
+3. **SYNOX 只提供技術介面**：SYNOX 及其作者、維護者不代表任何服務商，與你如何使用自己的訂閱無關，也不對違反服務條款所造成的後果
+   （例如帳號被限制或停用）負責。SYNOX 技術上不阻擋任何用法（只標、不擋，[adr/0046](adr/0046-llm-source-tree-and-waterfall.md)），
+   但「沒被擋」不代表服務商允許。
+4. 這段是對 SYNOX 授權（AGPL-3.0-or-later、Apache-2.0）中「不附任何擔保」的補充說明，不是額外的授權條件。
+
+<details>
+<summary>English version</summary>
+
+**Usage notice for subscription login sources.** The sources under "subscription login" that go through a login package
+(Claude, GitHub Copilot, ChatGPT) call the official CLI that **you** have signed in to on your own machine, using your personal
+subscription. The settings page labels them "for personal use only".
+
+1. **Not recommended for serving others.** We do not recommend using a personal subscription to serve other people, or to resell,
+   pool or share access — for example through a relay channel such as LLOP, an AI offered to members or guests in server mode,
+   or a fallback chain used by other people.
+2. **You check the terms.** Each subscription service has its own terms of use and policies. Whether a particular use is allowed
+   is for you to read, understand and take responsibility for.
+3. **Technical interface only.** SYNOX and its authors and maintainers do not represent any service provider, are not involved in
+   how you use your subscription, and are not responsible for the consequences of violating a provider's terms (such as account
+   restrictions or suspension). SYNOX does not technically block any use; not being blocked does not mean a use is permitted.
+4. This notice supplements the "no warranty" clauses of the SYNOX licenses (AGPL-3.0-or-later, Apache-2.0); it is not an
+   additional license condition.
+
+</details>
+
 ## 整個 SYNOX 架在別人（例如公司）的電腦上
 
 那就是「那台電腦的管理者看得到一切」：他能登入那個 Windows 帳號，DPAPI 就擋不住。

@@ -14,7 +14,7 @@ AI 來源目錄（docs/adr/0046）：設定頁「來源 → 認證 → 服務 �
 
   `api_key`（要的來源才有）跟舊的一樣：保管箱引用 "vault:…"、"env:…"；網頁收到明文就放進保管箱。
 - 沒裝 ntu_easy_llm（或是 0.5）：目錄只有 SYNOX 內建的兩個＋四個舊來源（反灰、寫怎麼裝）；其他來源要 0.6 才看得到。
-- 訂閱來源標「只給本人使用」（能不能用在服務別人還沒定案：只標，不擋）。
+- 訂閱來源標「只給本人使用」（不推薦拿來服務別人、條款由使用者自己確認：只標，不擋；使用聲明見 docs/security.md）。
 
 這個模組 import 時不 import ntu_easy_llm；`validate` 只檢查形狀（config.py 讀設定時用，沒裝套件也能檢查）。
 """
@@ -36,7 +36,7 @@ SECRET_NAMES = frozenset({"api_key", "apikey", "key", "token", "access_token", "
                           "authorization"})
 _SECRET_LIKE = re.compile(r"\bsk-[A-Za-z0-9_\-]{16,}|\bAIza[0-9A-Za-z_\-]{30,}|\bgh[pousr]_[A-Za-z0-9]{20,}|"
                           r"-----BEGIN [A-Z ]*PRIVATE KEY-----|(?i:\bbearer\s+[A-Za-z0-9._\-]{12,})")
-SUBSCRIPTION_NOTE = "只給本人使用（訂閱帳號；能不能拿來服務別人還沒定案）"
+SUBSCRIPTION_NOTE = "只給本人使用（你個人的訂閱帳號；不建議拿來服務別人。使用前請自行閱讀該服務的使用條款）"
 MORE_HINT = "裝 ntu_easy_llm 0.6 以上，這裡會多出 LLOP、訂閱登入等更多來源。"
 
 # 內建的兩個（SYNOX 自己的 adapter），在目錄上的位置與名字
