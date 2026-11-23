@@ -66,6 +66,9 @@ SENSITIVE = {
     "/api/backup": "備份",
     "/api/accounts/role": "改帳號的角色",
     "/api/settings/update/launch": "更新 SYNOX",
+    "/api/settings/update/start": "更新 SYNOX",                 # docs/adr/0047：網頁一鍵更新
+    "/api/settings/update/rollback": "退回上一版 SYNOX",
+    "/api/settings/update/deps": "補裝 SYNOX 的套件",
     "/api/settings/restart": "重新啟動 SYNOX",
 }
 

@@ -13,6 +13,11 @@
 #                               沒有簽章一樣要 -AllowUnsigned；之後換檔、留 _previous\、出事退回都跟正式更新同一條
 #                               （synox update --prepare --from-zip；scripts/make_update_testkit.py 做測試包；
 #                               docs/release-playbook.md「先測更新」）
+#   Update.bat -Apply -FromWeb  網頁的「更新到 X」（docs/adr/0047）：網頁那支 SYNOX 已經下載、對過 SHA256SUMS.txt、驗過簽章、
+#                               解開（data\update\ready.json），擁有者也在網頁上確認過了：不再查、不再問，直接走同一個 Invoke-Swap。
+#                               ready.json 不在、不對、沒有簽章＝什麼都不動
+#   Update.bat -Rollback -FromWeb  網頁的「回到上一版」
+#   -FromWeb                    網頁已經確認過：不再問、開回來時不另外打開瀏覽器（網頁自己會接回來）、成功時不等按 Enter
 #
 # 分工：下載、SHA256、Ed25519 簽章、安全解壓都在 Python（`synox update --prepare`，src/synox/update/prepare.py；
 # PowerShell 5.1 沒有 Ed25519），用的是**現在裝著、已經信任的**那份程式碼；全部過了才寫 data\update\ready.json。
@@ -20,7 +25,8 @@
 # 永遠不動（$Keep，跟 prepare.py 的 KEEP 一樣）：config.json、data\、packs\、.venv\、runtime\、_previous\、lang.txt、
 # installer-choices.json、.git。舊的程式檔整份搬到 _previous\<舊版本>-<時間>\，只留最近 2 份（決定 U8）。
 # git clone 的不換檔：請 git pull；安裝程式（.exe）裝的：下載新的安裝程式。
-param([switch]$Rollback, [switch]$AllowUnsigned, [switch]$Yes, [string]$FromZip = '', [switch]$IncludePrerelease)
+param([switch]$Rollback, [switch]$AllowUnsigned, [switch]$Yes, [string]$FromZip = '', [switch]$IncludePrerelease,
+      [switch]$Apply, [switch]$FromWeb)
 $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $Root
@@ -67,6 +73,9 @@ $Messages = @{
         fromzip = '⚠️ 用這台電腦上的 ZIP 更新（先測更新用，不是從 GitHub 下載）。'
         fromzip_missing = '找不到這個 ZIP：{0}（請給完整路徑，例如 C:\synox-kit\new\SYNOX-0.2.1-test.1.zip）。'
         fromzip_ask = '要從 {0} 換成 {1} 嗎？你的設定、資料、工具都不會動，舊版會留在 _previous。輸入 Y 再按 Enter（直接按 Enter＝先不要）'
+        apply = '網頁的「更新」：換成已經下載、驗過的 {0} …'
+        apply_missing = '找不到網頁準備好的新版（data\update\ready.json）：什麼都沒有換。請回網頁重新按「檢查更新」。'
+        apply_unsigned = '網頁準備好的這一版沒有簽章：網頁的「更新」只換有簽章的版本，什麼都沒有換。'
     }
     'en' = @{
         title = 'SYNOX update'
@@ -98,6 +107,9 @@ $Messages = @{
         fromzip = 'Updating from a ZIP on this computer (for testing an update; not downloaded from GitHub).'
         fromzip_missing = 'ZIP not found: {0} (give the full path, e.g. C:\synox-kit\new\SYNOX-0.2.1-test.1.zip).'
         fromzip_ask = 'Replace {0} with {1}? Your settings, data and tools stay as they are; the old version is kept in _previous. Type Y and press Enter (just Enter = not now)'
+        apply = 'Update from the web page: switching to {0} (already downloaded and checked)...'
+        apply_missing = 'The version prepared by the web page (data\update\ready.json) is not there: nothing was changed. Press "Check for updates" on the web page again.'
+        apply_unsigned = 'The version prepared by the web page is not signed: the web page only installs signed versions. Nothing was changed.'
     }
 }
 $LangFile = Join-Path $Root 'lang.txt'
@@ -122,7 +134,7 @@ function Test-Interactive {
 }
 
 function Confirm-Step([string]$Question) {
-    if ($Yes) { return $true }
+    if ($Yes -or $FromWeb) { return $true }                   # 網頁已經問過（只有擁有者、要解鎖）
     if (-not (Test-Interactive)) { return $false }          # 沒有人在看就不換
     $answer = "$(Read-Host $Question)".Trim()
     return ($answer -match '^[yY]')
@@ -146,7 +158,14 @@ function Stop-Synox {
 function Start-Synox {
     if (-not (Test-Path -LiteralPath (Join-Path $Root 'config.json'))) { return }
     Say (T 'starting')
-    try { Start-Process -FilePath (Join-Path $Root 'Start.bat') -WorkingDirectory $Root } catch { Say $_.Exception.Message }
+    try {
+        if ($FromWeb) {
+            # 網頁開著、會自己接回來（問 /alive）：不要再多開一個瀏覽器分頁
+            Start-Process -FilePath (Join-Path $Root 'Start.bat') -ArgumentList '--no-browser' -WorkingDirectory $Root
+        } else {
+            Start-Process -FilePath (Join-Path $Root 'Start.bat') -WorkingDirectory $Root
+        }
+    } catch { Say $_.Exception.Message }
 }
 
 function Move-ProgramFiles([string]$From, [string]$To) {
@@ -297,6 +316,17 @@ function Invoke-FromZip {
     return (Invoke-Swap $ready)
 }
 
+function Invoke-Apply {
+    # 網頁的「更新到 X」（docs/adr/0047）：網頁那支 SYNOX 用同一個 prepare（Python）下載、驗過 SHA256SUMS.txt 與簽章、
+    # 解開了，擁有者也在網頁上確認過。這裡不再查、不再問：讀 ready.json（用一次就丟、暫存資料夾一定在 data\update\ 裡），
+    # 沒有簽章就不換（網頁這條只收有簽章的），然後走跟 Update.bat 同一個 Invoke-Swap。
+    $ready = Read-Ready
+    if (-not $ready) { Say (T 'apply_missing'); return 1 }
+    if (-not $ready.signed) { Remove-Prepared $ready; Say (T 'apply_unsigned'); return 1 }
+    Say (T 'apply' $ready.version)
+    return (Invoke-Swap $ready)
+}
+
 function Invoke-Swap($ready) {
     # 驗過的新版（$ready）換上去：停 SYNOX → 舊的程式檔搬到 _previous\ → 新的搬進來 →（相依變了才）重裝套件 → 檢查版本 →
     # 不對就自動退回 → 開 SYNOX。正式更新與 -FromZip 共用這一段。
@@ -365,7 +395,8 @@ try {
     if (-not (Test-Path -LiteralPath $VenvPy)) { Say (T 'no_venv'); exit 1 }
     New-Item -ItemType Directory -Force -Path $LogDir | Out-Null
     try { Start-Transcript -LiteralPath (Join-Path $LogDir 'update.log') -Append | Out-Null; $logging = $true } catch { }
-    if ($Rollback) { $code = Invoke-Rollback } elseif ($FromZip) { $code = Invoke-FromZip } else { $code = Invoke-Update }
+    if ($Rollback) { $code = Invoke-Rollback } elseif ($Apply) { $code = Invoke-Apply }
+    elseif ($FromZip) { $code = Invoke-FromZip } else { $code = Invoke-Update }
 } catch {
     Write-Host "[SYNOX] $(T 'failed' $_.Exception.Message)" -ForegroundColor Red
     $code = 1
@@ -376,5 +407,5 @@ try {
     }
 }
 # 失敗時 Update.bat 自己會 pause；成功時讓人看完再關
-if ($code -eq 0 -and -not $Yes -and (Test-Interactive)) { Read-Host (T 'press_enter') | Out-Null }
+if ($code -eq 0 -and -not $Yes -and -not $FromWeb -and (Test-Interactive)) { Read-Host (T 'press_enter') | Out-Null }
 exit $code

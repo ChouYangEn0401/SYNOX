@@ -553,7 +553,8 @@ def test_update_ps1_keeps_user_data_and_matches_python():
     assert {"config.json", "data", "packs", ".venv", "runtime", "_previous"} <= set(prepare.KEEP)
     assert re.search(r"^\$KeepCount = 2\r?$", text, re.M)                         # 決定 U8
     assert re.search(r"^param\(\[switch\]\$Rollback, \[switch\]\$AllowUnsigned, \[switch\]\$Yes, "
-                     r"\[string\]\$FromZip = '', \[switch\]\$IncludePrerelease\)", text, re.M)
+                     r"\[string\]\$FromZip = '', \[switch\]\$IncludePrerelease,\r?\n\s+\[switch\]\$Apply, "
+                     r"\[switch\]\$FromWeb\)", text, re.M)
     move = text.split("function Move-ProgramFiles", 1)[1].split("\nfunction ", 1)[0]
     assert "$Keep -contains $item.Name" in move and "continue" in move
     code = "\n".join(ln.split("#", 1)[0] for ln in text.splitlines())
