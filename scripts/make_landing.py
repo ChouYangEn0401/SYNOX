@@ -15,6 +15,12 @@
 
 標語不寫死在 page.html：{{slogan-1}}、{{slogan-2}}、{{eyebrow}} 組頁面時換成 src/synox/brand.py 的 SLOGAN、EYEBROW
 （標語只有那一個地方要改）。
+
+版本與下載連結也不寫死：{{version}}（版本徽章、頁尾）、{{version-label}}（alpha／beta／正式版）、{{version-dot}}（徽章小圓點的顏色）、
+{{zip-name}}／{{zip-url}}（SYNOX-<版本>.zip）、{{exe-name}}／{{exe-url}}（SYNOX-Setup-<版本>.exe）、{{release-url}}（這一版的發佈頁）、
+{{releases-url}}（全部版本）組頁面時換成 scripts/release.py 的 download_info()（版本讀 pyproject.toml 與 src/synox/__init__.py）。
+所以每次發版（alpha、beta 也算）重跑這支就是最新的，再重新發佈同一個線上網址（docs/release-playbook.md 第 7 節）。
+不用 GitHub 的 releases/latest：標成 Latest 的不一定是最新的測試版。
 """
 from __future__ import annotations
 
@@ -113,6 +119,19 @@ def brand_text() -> dict[str, str]:
     return {"{{slogan-1}}": first, "{{slogan-2}}": second, "{{eyebrow}}": mod.EYEBROW, "{{slogan-jokes}}": jokes}
 
 
+def release_text() -> dict[str, str]:
+    """這一版的號碼、檔名、下載網址（scripts/release.py 的 download_info：跟發佈頁上的檔名同一個來源）。"""
+    sys.path.insert(0, os.path.join(ROOT, "scripts"))
+    import release
+    info = release.download_info(ROOT)
+    label = info["label"] or "正式版"
+    return {"{{version}}": info["version"], "{{version-label}}": label,
+            "{{version-dot}}": "var(--warn)" if info["prerelease"] else "var(--ok)",
+            "{{zip-name}}": info["zip"], "{{zip-url}}": info["zip_url"],
+            "{{exe-name}}": info["exe"], "{{exe-url}}": info["exe_url"],
+            "{{release-url}}": info["page_url"], "{{releases-url}}": info["releases_url"]}
+
+
 def build() -> None:
     with open(os.path.join(LANDING, "page.html"), encoding="utf-8") as f:
         html = f.read()
@@ -123,7 +142,7 @@ def build() -> None:
             return "data:image/webp;base64," + base64.b64encode(f.read()).decode("ascii")
 
     html, n = re.subn(r"\{\{shot:([a-z0-9-]+)\}\}", shot, html)
-    for mark, text in brand_text().items():
+    for mark, text in {**brand_text(), **release_text()}.items():
         if mark not in html:
             raise SystemExit(f"page.html 少了 {mark}")
         html = html.replace(mark, text)
@@ -141,7 +160,8 @@ def build() -> None:
     out = os.path.join(LANDING, "index.html")
     with open(out, "w", encoding="utf-8", newline="\n") as f:
         f.write(html)
-    print(f"wrote {os.path.relpath(out, ROOT)}: {n} images, {os.path.getsize(out) // 1024} KB, 頁面版本 {digest}")
+    print(f"wrote {os.path.relpath(out, ROOT)}: {n} images, {os.path.getsize(out) // 1024} KB, "
+          f"SYNOX {release_text()['{{version}}']}, 頁面版本 {digest}")
 
 
 def main() -> int:
