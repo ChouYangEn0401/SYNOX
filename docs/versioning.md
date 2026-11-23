@@ -101,7 +101,7 @@ X.Y.Z-alpha.N      內部測試         例 0.2.2-alpha.1
 | 東西 | 唯一來源 | 跟著它的（不要手改） | 誰同步、誰檢查 |
 |---|---|---|---|
 | **SYNOX 本體** | `pyproject.toml` 的 `[project] version` | `src/synox/__init__.py` 的 `__version__`（一定一樣）；CHANGELOG 最上面那一節；tag `v<版本>`；安裝程式 `SYNOX-Setup-<版本>.exe`（建置時 `/DAppVersion=` 從 `installer_ci.py version` 帶入，`.iss` 檔裡只留 `0.0.0` 的預設）；ZIP `SYNOX-<版本>.zip`；`release.json` 的 `version`；這份文件最上面的「目前版本」 | `release.py bump` 一起改 `pyproject.toml`＋`__init__.py`＋CHANGELOG；`release.py check`、`installer_ci.py version`、`check_version_consistency.py` 擋不一樣的 |
-| 介紹頁的版本徽章 | 跟著 SYNOX 本體 | `docs/landing/page.html` | 介紹頁的維護者改；`release.py check` 與 `check_version_consistency.py` 只提醒 |
+| 介紹頁的版本徽章與下載連結、安裝教學的下載連結 | 跟著 SYNOX 本體 | 組出來的 `docs/landing/index.html`、`docs/guide/index.html`（原稿裡是記號，不寫死） | 每次發版重組（`make_landing.py`、`build_guide.py`）、重新發佈（[release-playbook.md](release-playbook.md) 第 7 節）；沒重組：`release.py check --tag` 不過，平常與 `check_version_consistency.py` 只提醒 |
 | **SDK**（給工具的介面合約） | `src/synox/sdk/author.py` 的 `SDK_VERSION` | `sdk/synox_sdk.py`（`scripts/build_synox_sdk.py` 產生）、`sdk/pyproject.toml` | `release.py check` 擋單檔版不一樣的 |
 | **每個工具／外觀包** | 那個工具的 `pack.json` 的 `version`（與 `requires`） | 工具庫 `scripts/build.py` 產生的 `index.json` 那一筆（`version`、`requires.synox`、`requires.sdk`、`file`、`sha256`）、`<name>-<版本>.synoxpack` | 工具庫的 build 與測試 |
 | **工具庫 SYNOX_Libs** | 那個 repo 的 `VERSION` | tag `v<VERSION>`、`index.json` 的 `library_version`、`tools-<VERSION>.zip` | 工具庫的 `docs/RELEASING.md` |

@@ -53,6 +53,7 @@ git switch -c release/0.2.2
 
 # 1. 升號＋CHANGELOG：bump 印 diff、不 commit。補「這版重點」一句；「怎麼更新」第一行寫要重裝工具（從 0.2.0 來的人，versioning.md §13）
 python scripts/release.py bump keep                   # dev 已經是 0.2.2-alpha.1（未發佈）：號碼不變、寫日期（換成 beta：bump beta）
+python scripts/build_guide.py && python scripts/make_landing.py   # 安裝教學與介紹頁：版本、檔名、下載連結跟著這一版（第 7 節）
 git commit -am "release: 0.2.2-alpha.1"
 
 # 2. 關卡（全部要過，見第 4 節）
@@ -95,10 +96,13 @@ python -m synox update --check                           # 一般人：還是「
 
 在 Windows 上：舊版 SYNOX → 下載 beta 的 ZIP＋`SHA256SUMS.txt` → `Update.bat -FromZip <ZIP> -AllowUnsigned` → 跑一陣子。
 
+發佈、驗過之後：**重新發佈安裝教學與介紹頁這兩個線上頁面，打開確認版本與下載連結是剛發的這一版**（第 7 節；alpha、beta 也要做）。
+
 ### `main` 什麼時候動（alpha 階段）
 
 擁有者 2026-11-19 決定：還沒有正式版的這段時間，`main` 跟著**最新的發佈**走，預覽版也算（[versioning.md](versioning.md) §8）。
-介紹頁的「⬇ 下載」指 `main` 的 ZIP，所以 `main` 就是大家下載到的最新版。預覽版發佈（上面第 6 步）、驗過之後：
+`main` 就是 GitHub 上大家看到的最新版。（介紹頁與安裝教學的「⬇ 下載」從 2026-11-23 起指發佈頁上這一版的 `SYNOX-<版本>.zip`，
+不再指 `main` 的 ZIP；見第 2、7 節。）預覽版發佈（上面第 6 步）、驗過之後：
 
 ```bash
 git switch main && git pull
@@ -127,7 +131,7 @@ git switch dev && git merge --no-ff release/0.2.2
 python scripts/release.py bump alpha --planned     # dev → 下一版（未發佈），versioning.md §3；commit、push
 ```
 
-標成 Latest 之後：真的在 Windows 上從上一個正式版按一次 `Update.bat`（不是 `-FromZip`）；介紹頁的版本徽章、
+標成 Latest 之後：真的在 Windows 上從上一個正式版按一次 `Update.bat`（不是 `-FromZip`）；安裝教學與介紹頁照第 7 節重新發佈；
 [ecosystem.md](ecosystem.md)「文件維護清單」的版本號。
 
 ---
@@ -136,7 +140,7 @@ python scripts/release.py bump alpha --planned     # dev → 下一版（未發�
 
 | 連結 | 在哪 | 怎麼跟著新版 |
 |---|---|---|
-| SYNOX「⬇ 下載」（介紹頁） | `docs/landing/page.html` | 指 `main` 的 ZIP：`main` 只在發佈時動，所以永遠是最新的發佈（alpha 階段預覽版也合進 `main`，見第 1 節「`main` 什麼時候動」） |
+| SYNOX「⬇ 下載」（介紹頁、安裝教學） | `docs/landing/page.html`、`docs/guide/index.html` | 指**這一版**發佈頁上的 `SYNOX-<版本>.zip`（`…/releases/download/v<版本>/SYNOX-<版本>.zip`）與 `SYNOX-Setup-<版本>.exe`；版本、檔名、網址是組頁面時從 `pyproject.toml` 算的（`scripts/release.py` 的 `download_info`），不手改。**每次發版重組＋重新發佈**（第 7 節）。不用 `releases/latest`：GitHub 標成 Latest 的不一定是最新的測試版 |
 | `Update.bat`、「檢查更新」 | `update/check.py` 寫死 `api.github.com/repos/…/SYNOX/releases/latest` | GitHub 的 Latest 標記；**不用改程式**。只有標成 Latest、不是 pre-release、不是草稿的才算 |
 | 工具庫的公開頁、README | SYNOX_Libs `scripts/links.py` 的 `LINK_MODE` | `"tag"`（現在）：`releases/download/v<VERSION>/<name>-<版本>.synoxpack`（現在是 `v0.3.1`）；`"latest"`：`releases/latest/download/<name>.synoxpack`（別名，網址不用再改） |
 | SYNOX 網頁的工具庫、`synox tools check／update`、每週檢查 | SYNOX `src/synox/packs/catalog.py` 的 `OFFICIAL_INDEX_URL` | 現在釘 `…/releases/download/v0.3.1/index.json`（見下） |
@@ -186,7 +190,7 @@ python scripts/release.py bump alpha --planned     # dev → 下一版（未發�
 
 | 關卡 | 什麼時候跑 | 擋什麼 |
 |---|---|---|
-| `release.py check --tag vX` | 打 tag 之前 | 版本在每個檔都一樣、SDK 單檔版跟正本一樣、CHANGELOG 有這一節而且有日期、沒剩「未發佈」、tag＝`v`＋版本 |
+| `release.py check --tag vX` | 打 tag 之前 | 版本在每個檔都一樣、SDK 單檔版跟正本一樣、CHANGELOG 有這一節而且有日期、沒剩「未發佈」、tag＝`v`＋版本、**安裝教學與介紹頁（組出來的 `index.html`）寫的版本＝這一版**（沒重組＝不過；不帶 `--tag` 時只提醒） |
 | `check_version_consistency.py --tag vX` | 打 tag 之前；`build-installer.yml` 推 tag 時、`prepublish-check.yml` 每次 push 也跑 | `__version__`＝`pyproject`、CHANGELOG 最上面就是這一版、安裝器沒寫死版本、文件的「目前版本」、**比每個本機 tag 新（SemVer）、號碼沒重用** |
 | 全部測試（`pytest`） | 打 tag 之前 | Linux 基準線 14 個已知失敗，不能多；包含 Update.bat／update.ps1 的靜態檢查（Windows 上沒跑過） |
 | `prepublish_check.py --worktree-only` | 打 tag 之前；workflow 也跑 | 密鑰、本機路徑、個人信箱進了 repo |
@@ -228,7 +232,7 @@ python scripts/release.py bump alpha --planned     # dev → 下一版（未發�
        gh api repos/ChouYangEn0401/SYNOX/releases/latest -q .tag_name（404＝還沒有正式版）
 □ 擁有者給了版本號（例：0.2.2-alpha.1；規則見 versioning.md §3）與要不要帶新的工具庫
 □ （有新工具庫）SYNOX_Libs 照它的 RELEASING.md 發好；記下 tag，dist/ 在本機
-□ release/<版本> 分支；release.py bump …；CHANGELOG 補白話重點；commit
+□ release/<版本> 分支；release.py bump …；CHANGELOG 補白話重點；重組安裝教學與介紹頁（build_guide.py、make_landing.py）；commit
 □ release.py check --tag v<版本> 與 check_version_consistency.py --tag v<版本> 全綠；pytest 只有 14 個已知失敗；prepublish_check.py --worktree-only 綠
 □ （先測）make_update_testkit.py 做測試包，請擁有者在 Windows 照 README 走一次，回報 OK 才往下
 □ git tag -a v<版本> -m "SYNOX <版本>"；git push origin <分支> v<版本>
@@ -237,7 +241,38 @@ python scripts/release.py bump alpha --planned     # dev → 下一版（未發�
 □ release.py notes → 改成白話 → dist/notes.md
 □ gh release upload … --clobber；gh release edit … --prerelease --draft=false（一定先 pre-release）
 □ 驗：gh release view … --json assets；下載回來 sha256sum -c；synox update --check --include-prerelease 看得到
+□ 重新發佈安裝教學與介紹頁兩個線上頁面（第 7 節；alpha、beta 也要），打開確認版本與下載連結是剛發的這一版
 □ 正式版：擁有者說可以，才 gh release edit v<版本> --prerelease=false --latest；gh api …/releases/latest 確認
 □ 合回 dev（--no-ff）並 bump … --planned；（工具庫標了 Latest 的話）改 OFFICIAL_INDEX_URL（第 2 節）
-□ 回報：tag、release 網址、附檔與 sha256、哪些關卡過了、哪些沒在 Windows 上試過
+□ 回報：tag、release 網址、附檔與 sha256、哪些關卡過了、哪些沒在 Windows 上試過、兩個線上頁面重新發佈了沒
 ```
+
+---
+
+## 7. 每次發版：重組並重新發佈安裝教學與介紹頁
+
+**每一版都要做，alpha、beta 也算。** 這兩頁上的版本號、檔名、下載連結是組頁面時從 `pyproject.toml` 的版本帶入的
+（`scripts/release.py` 的 `download_info`；檔名跟 `make_zip.py`、`synox.iss`、`release.py sign` 同一個長相）。沒有重組，
+頁面就會叫人下載上一版，或寫著已經過時的說明。
+
+| 頁面 | 線上版（網址固定，重新發佈到同一個） | 本機檔 | 怎麼重組 |
+|---|---|---|---|
+| 安裝教學（一步一步） | <https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F> | `docs/guide/index.html` | `python scripts/build_guide.py`（教學步驟＋版本與下載連結；有改就重蓋頁面版本） |
+| 介紹頁（首頁） | <https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW> | `docs/landing/index.html`（原稿 `docs/landing/page.html`，不要直接改 index.html） | `python scripts/make_landing.py`（網頁介面的樣子有變才加 `--shoot`） |
+
+順序：
+
+1. **升號之後、打 tag 之前**（第 1 節第 1 步）：跑上面兩支，跟升號一起 commit。有裝 Node 的話再跑 `node scripts/check_guide.js`
+   （不開瀏覽器，把教學的每一步、每條岔路、每個 `#step-…` 網址跑一遍；`tests/test_build_guide.py` 也會跑它）。
+   `python scripts/release.py check --tag v<版本>` 會擋：兩頁寫的版本不是這一版＝不過。
+2. 兩頁的字還對不對：這一版改了安裝精靈、設定頁、更新流程的畫面或字，就先改教學與介紹頁的原稿
+   （畫面上的字要跟原始碼一模一樣；格式寫在 `docs/guide/index.html` 最上面的註解）。已經做完的事不要還掛著「⏳ 尚未完成」。
+3. **發佈（第 1 節第 6 步）、附檔驗過之後**：把這兩個本機檔重新發佈到上表**同一個**線上網址（不要另開新網址）。
+4. **打開兩個線上頁面確認**：
+   - 介紹頁右上角的版本徽章、頁尾的版本是剛發的這一版；「下載 SYNOX」按鈕指 `…/releases/download/v<版本>/SYNOX-<版本>.zip`，按了真的下載得到。
+   - 安裝教學「下載 SYNOX 的 ZIP」那一步的按鈕與示意圖上的檔名是這一版；按了真的下載得到。
+   - 兩頁頁尾的「頁面版本」（`<span data-stamp>`）跟本機檔的一樣（＝線上的就是剛組的那一份）。
+5. 檔頭／頁尾寫的「線上版」網址要是上表那兩個；「頁面版本」由腳本蓋（`build_guide.py`、`make_landing.py`；
+   手改過 `docs/guide/index.html` 別的地方，重跑 `build_guide.py` 也會重蓋）。`tests/test_artifact_registry.py` 會擋「內容改了、頁面版本沒更新」。
+
+新的 Claude session：這一步跟發版一起做（第 6 節的清單有這一格）。沒辦法重新發佈線上頁面時，在回報裡寫清楚「兩個線上頁面還沒重新發佈」，不要當成做完。

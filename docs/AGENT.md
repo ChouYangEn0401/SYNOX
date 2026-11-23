@@ -473,6 +473,7 @@ jsonstore、外部程式經 JobRunner、回覆走 handler 的 api、角色階梯
 - **每一份**發佈到 claude.ai 的 Artifact 都要有 repo 裡的本機 HTML 副本（Artifact 壞了也還能給人用），並登記在 `docs/artifacts.json`
   （更早的規劃與調查頁面是維護者的私有文件，不在公開 repo；工具庫的頁面在 SYNOX_Libs 的 `docs/site/`）。
 - 頁尾最下面一行很小的字（使用者不會注意）：線上網址＋本機路徑＋頁面版本 `<span data-stamp>`。頁面版本＝內容的 sha256 前 10 碼＋日期，
-  線上版和本機版一樣＝同一份。改頁面的順序：改本機檔 → `python scripts/page_stamp.py <檔>`（介紹頁用 `scripts/make_landing.py`）→ 重新發佈同一個網址。
+  線上版和本機版一樣＝同一份。改頁面的順序：改本機檔 → `python scripts/page_stamp.py <檔>`（介紹頁用 `scripts/make_landing.py`、安裝教學用 `scripts/build_guide.py`）→ 重新發佈同一個網址。
+  介紹頁與安裝教學上的版本、下載連結是組頁面時從 `pyproject.toml` 帶入的：**每次發版都要重組、重新發佈**（[release-playbook.md](release-playbook.md) 第 7 節）。
 - `tests/test_artifact_registry.py` 會擋：沒有本機副本、頁尾沒有線上網址、改了內容沒重蓋頁面版本。
 - 頁面都要支援手機（360–390px 不能左右滑）與深淺色。

@@ -1,5 +1,14 @@
 # Changelog
 
+## 未發佈（安裝教學與介紹頁跟著版本走）
+
+- **安裝教學**（`docs/guide/index.html`）：精靈第 4 步「AI 從哪裡來」改成選一條路（我有 Claude 訂閱／我有自己的模型或 API／先不用 AI），
+  走完接回同一步；新增選讀「在網頁設定 AI」（① 來源 → ② 認證 → ③ 服務 → 列出模型 → 測一下）、「接 LLOP」、「之後怎麼更新」。
+  下載那一步改成從發佈頁下載 `SYNOX-<版本>.zip`，拿掉「正式版／.exe 還沒發佈」的舊提示。
+- **介紹頁**（`docs/landing/`）：版本徽章與「下載 SYNOX」指這一版發佈頁上的 ZIP，也列出安裝程式（.exe）。
+- 這兩頁的版本、檔名、下載連結改成組頁面時從 `pyproject.toml` 帶入（`scripts/build_guide.py`、`scripts/make_landing.py`）。
+  **每次發版都要重組、重新發佈**（[docs/release-playbook.md](docs/release-playbook.md) 第 7 節）；`release.py check --tag` 會擋沒重組的。
+
 ## 未發佈（AI 模型可以列出來選）
 
 - **設定 → AI 的模型不用再自己猜**：選「遠端服務 → API 金鑰 → OpenAI／Anthropic／Gemini／其他 OpenAI 相容服務」時，模型那一格旁邊多了

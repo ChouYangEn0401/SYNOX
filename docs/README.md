@@ -32,7 +32,7 @@
 | [discord.md](discord.md) | 使用者 | Discord 通道的現況與設定（含多個 bot） |
 | [docker.md](docker.md) | 使用者、維護者 | 用 Docker 跑 SYNOX（compose、資料 volume、網頁只發佈到 127.0.0.1）與開發容器；已知限制、驗證清單、檢查表（**還沒實際建置過**） |
 | [advanced-install.md](advanced-install.md) | 使用者（工程師） | 進階安裝：從原始碼裝（venv）、Docker 指令速查、沒有螢幕的伺服器、背景服務（Windows 自動啟動、systemd 範例）、測試與打包；標出哪些沒驗證過 |
-| [guide/index.html](guide/index.html) | 使用者 | 安裝教學（一步一步，雙擊就能看；線上版 <https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F>） |
+| [guide/index.html](guide/index.html) | 使用者 | 安裝教學（一步一步，雙擊就能看；線上版 <https://claude.ai/artifact/96iWvykYyUfAC5pkYUrC6F>）。`scripts/build_guide.py` 放進教學步驟與這一版的下載連結；每次發版重組、重新發佈（[release-playbook.md](release-playbook.md) 第 7 節） |
 | [handoff/](handoff/README.md) | 使用者、維護者 | 到另一台電腦用真的帳號測 connector 與 Discord：教學、Discord 交接、煙霧測試 `scripts/smoke_real.py`；空白 Windows 的安裝實測、容器與 Linux 沙盒的真機驗證；2026-11-14 那一輪的工作交接（歷史紀錄，現況看 [HANDOFF.md](HANDOFF.md)；只在 git clone／GitHub 上有） |
 | [testing/pack-warnings-checklist.md](testing/pack-warnings-checklist.md) | 維護者、測試的人 | pack 標記警告（ADR 0041）的驗收清單：自動測試涵蓋什麼、必須在真機人工驗證的項目（每項步驟、預期、結果欄）；**全部勾完才算過關** |
 | [tools.md](tools.md) | 作者 | **從這裡開始**：三條接入路怎麼選、權限欄位、secret、確認來回、測試、安全自檢表 |
