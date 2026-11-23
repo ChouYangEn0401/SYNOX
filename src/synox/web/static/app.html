@@ -2793,7 +2793,8 @@
     if (r) {
       (r.lines || []).forEach(function (line) { box.appendChild(el("p", "", line)); });
       if (r.status === "newer" && !r.signed && r.kind === "zip") {
-        box.appendChild(el("p", "muted", "這一版沒有簽章：更新視窗會先說明，要你明確同意（Update.bat -AllowUnsigned）才會換檔。"));
+        box.appendChild(el("p", "muted", "這一版沒有簽章：網頁不會自動換。要換就按「打開更新視窗…」，視窗會先說明，"
+          + "要你明確同意（Update.bat -AllowUnsigned）才會換檔。"));
       }
       if (r.checked_at) { box.appendChild(el("p", "muted", "查的時間：" + new Date(r.checked_at * 1000).toLocaleString())); }
     }
