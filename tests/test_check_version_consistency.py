@@ -144,3 +144,21 @@ def test_released_version_with_changed_code_after_the_tag_is_still_refused(tmp_p
     (tmp_path / "CHANGELOG.md").write_text("# Changelog\n\n## 0.2.1-beta.2（2026-11-18）\n\n- z\n", encoding="utf-8")
     ok, bad, warn = cvc.check(root, tags=TAGS, head_tags=[], unchanged_since=[])
     assert any("已經發過了" in b for b in bad), bad
+
+
+def test_built_pages_with_an_old_version_are_reminders(tmp_path):
+    """介紹頁原稿的徽章是 {{version}}（組頁面時帶入）＝不提醒；組出來的頁面（介紹頁、安裝教學）版本舊了＝提醒重組。"""
+    root = _repo(tmp_path, badge="{{version}}")
+    old = '<script type="application/json" id="release-info">\n{\n "version": "0.2.1-beta.2"\n}\n</script>'
+    (tmp_path / "docs" / "landing" / "index.html").write_text('<a class="ver"><b>0.2.1-beta.2</b>beta</a>', encoding="utf-8")
+    (tmp_path / "docs" / "guide").mkdir()
+    (tmp_path / "docs" / "guide" / "index.html").write_text(old, encoding="utf-8")
+    ok, bad, warn = cvc.check(root, tags=TAGS)
+    assert bad == [], bad
+    assert not any("page.html" in w for w in warn)
+    assert any("docs/landing/index.html" in w and "make_landing.py" in w for w in warn)
+    assert any("docs/guide/index.html" in w and "build_guide.py" in w for w in warn)
+    (tmp_path / "docs" / "landing" / "index.html").write_text('<a class="ver"><b>0.2.2-alpha.1</b>alpha</a>', encoding="utf-8")
+    (tmp_path / "docs" / "guide" / "index.html").write_text(old.replace("0.2.1-beta.2", "0.2.2-alpha.1"), encoding="utf-8")
+    ok, bad, warn = cvc.check(root, tags=TAGS)
+    assert not any("index.html" in w for w in warn)
