@@ -34,8 +34,9 @@
 - **安裝程式** `SYNOX-Setup-<版本>.exe`：雙擊、照畫面按（不要系統管理員，裝在 `%LOCALAPPDATA%\Programs\SYNOX`）。
   Python、套件、工具庫都附在裡面，**不用上網**；最後一步自動跑下面的第 1 步。
 - **發佈 ZIP** `SYNOX-<版本>.zip`（[發佈頁](https://github.com/ChouYangEn0401/SYNOX/releases)；工具庫 `tools\` 已附在裡面）：解開到任何資料夾，然後照下面做。
-  還沒有發佈版之前，用 GitHub 的「Code → Download ZIP」（解開是 `SYNOX-main`，一樣不含開發用的檔案），工具庫另外下載 `tools` 資料夾放進 SYNOX 資料夾（`SYNOX\tools\index.json`）。
-- **git clone** 到任何資料夾，然後照下面做（工具庫同上）。
+  安裝程式和 ZIP 都在同一個發佈頁，每一版各一份；現在都是預覽版（alpha），下載最新的那一版。
+- **git clone** 到任何資料夾，然後照下面做（工具庫不在 repo 裡：到 [工具庫的發佈頁](https://github.com/ChouYangEn0401/SYNOX_Libs/releases) 下載 `tools-<版本>.zip`，
+  解開成 SYNOX 資料夾裡的 `tools\`（`SYNOX\tools\index.json`），或之後在網頁「設定 → 🧩 功能與安裝 → 工具庫」直接下載）。
 
 1. **雙擊 `Setup.bat`**。第一次會花幾分鐘準備 Python 和套件（會出現一個顯示進度的視窗，不用打任何字；
    電腦沒有 Python 的話，它會自己裝；附了 `wheelhouse\` 的發佈版完全離線）。
@@ -230,8 +231,8 @@ pack 放在別的地方（例如另一個 repo 裡、要用那個 repo 自己的
   但都只用假傳輸測過，還沒對真的服務跑過（所以標 🧪 alpha）。
   到另一台電腦用真的帳號測（含 Discord）：[docs/handoff/](docs/handoff/README.md)（教學＋煙霧測試 `scripts/smoke_real.py`）。
   Apple 提醒事項要注意：iCloud 升級過的提醒事項 Apple 不開放 CalDAV，見工具庫的 `packs/apple-reminders/README.md`。
-- macOS／Linux 的安裝器（程式本身跨平台，但 `Setup.bat` 只有 Windows）。Windows 安裝程式（Inno Setup＋可攜版 Python）的腳本做好了，
-  **還沒真的打包、還沒在空白電腦上試**（[docs/handoff/clean-machine-test.md](docs/handoff/clean-machine-test.md)）。
+- macOS／Linux 的安裝器（程式本身跨平台，但 `Setup.bat` 只有 Windows）。Windows 安裝程式（`SYNOX-Setup-<版本>.exe`）每一版由 GitHub Actions 建好、
+  放在[發佈頁](https://github.com/ChouYangEn0401/SYNOX/releases)，但**還沒在空白電腦上完整試過**（[docs/handoff/clean-machine-test.md](docs/handoff/clean-machine-test.md)）。
 - AI 的對話紀錄只放在記憶體（重開 bot 就忘了），每個聊天留最近 6 輪。
 - 工具目錄（`index.json`）的簽章與撤銷清單、官方工具庫以外的線上目錄、評分、從介紹頁一鍵安裝：都還是提案（[docs/ecosystem.md](docs/ecosystem.md)「之後的路」）。每個 `.synoxpack` 的簽章與標章、官方工具庫的線上清單已經有了（[docs/adr/0028](docs/adr/0028-pack-signatures-official-badge.md)）。
 

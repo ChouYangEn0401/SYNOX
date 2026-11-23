@@ -11,6 +11,14 @@
       "status": "pass", "last_run": "2026-11-19", "last_result": "no findings (private term list loaded)"
     },
     {
+      "id": "release-gate-0.2.2-alpha.4",
+      "what": "發版關卡：版本各處一致、CHANGELOG 有日期的一節、安裝教學與介紹頁寫的是這一版（docs/release-playbook.md 第 4、7 節）；打 tag 之前跑",
+      "run": ["python", "scripts/release.py", "check", "--tag", "v0.2.2-alpha.4"],
+      "cwd": ".", "env": {}, "expect": "exit 0",
+      "needs": [], "since": "2026-11-23",
+      "status": "pass", "last_run": "2026-11-23", "last_result": "all green; check_version_consistency.py --tag v0.2.2-alpha.4 also green"
+    },
+    {
       "id": "release-layout",
       "what": "發佈 ZIP／安裝程式帶使用者要的、不帶開發用檔（含交接文件與這兩份待測清單）",
       "run": ["python", "-m", "pytest", "-q", "tests/test_release_layout.py"],
@@ -48,7 +56,7 @@
       "run": ["python", "-m", "pytest", "-q", "--deselect", "tests/test_web.py::test_port_already_in_use_is_a_bind_failure"],
       "cwd": ".", "env": {"PYTHONDONTWRITEBYTECODE": "1"}, "expect": "exit 0",
       "needs": ["heavy"], "since": "2026-11-19",
-      "status": "pass", "last_run": "2026-11-19", "last_result": "Windows: 3853 passed, 16 skipped, 1 deselected (17 min)"
+      "status": "pass", "last_run": "2026-11-23", "last_result": "Windows, 0.2.2-alpha.4: 4423 passed, 38 skipped, 0 failed (full suite incl. the port test, bound to 127.0.0.1 only)"
     },
     {
       "id": "llm-source-tree",

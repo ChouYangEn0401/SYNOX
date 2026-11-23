@@ -702,7 +702,7 @@ footer a { color: var(--muted); }
       <span class="chip"><svg class="brand c-mono"><use href="#b-openai"/></svg>OpenAI</span>
       <span class="chip"><svg class="brand c-gemini"><use href="#b-gemini"/></svg>Gemini</span>
       <span class="chip"><svg class="ico c-accent"><use href="#i-chip"/></svg>本機模型</span>
-      <span class="chip soon" title="GithubCopilotLogin 寫好了，還沒接進 SYNOX、也還沒在真的 Copilot 上測過"><svg class="brand c-mono"><use href="#b-copilot"/></svg>GitHub Copilot<i class="wip">⏳ 尚未完成</i></span>
+      <span class="chip" title="經「訂閱登入」接上（要裝 ntu_easy_llm 0.6 與 Copilot 的登入套件），用這台電腦上你自己登入的 Copilot，只給本人使用；還沒在真的 Copilot 上測過"><svg class="brand c-mono"><use href="#b-copilot"/></svg>GitHub Copilot<i class="sim">🧪 未實測</i></span>
     </div></div>
   <div class="with-group"><span>裝在哪裡、怎麼用</span>
     <div class="chips">
@@ -894,7 +894,7 @@ footer a { color: var(--muted); }
       </div>
       <b>開始使用</b>
       <p>點兩下桌面的「SYNOX」，到 Telegram 跟它說話。要什麼功能就裝什麼工具（<a href="#what">上面有 ⬇ 下載</a>）。</p>
-      <p class="tut"><span class="tut-h">🎓 新手教學工具</span> <i class="wip">⏳ 尚未完成</i><br>裝了它，SYNOX 會一步一步帶你認識每個畫面、教你怎麼裝工具；不想要了可以刪掉。</p>
+      <p class="tut"><span class="tut-h">🎓 新手教學</span>（內建）<br>打 <code>/tutorial</code>（或說「開始教學」），SYNOX 會在網頁上把要按的地方圈起來，一步一步帶你走；Telegram、Discord 用步驟卡。</p>
     </li>
   </ol>
 
@@ -962,7 +962,6 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
     <h3 class="st-h"><i class="wip">⏳ 尚未完成</i></h3>
     <ul class="honest">
       <li><span><b>裝 OpenClaw／Hermes 生態的工具</b>：研究做完了（技能文字的格式可以轉、授權允許），規劃等擁有者核准，還沒開始寫。</span></li>
-      <li><span><b>GitHub Copilot</b>：登入用的小工具另外寫好了，還沒接進 SYNOX。</span></li>
       <li><span><b>哨兵模式</b>（多台電腦連線）：在另一個分支上，還沒合進主線。</span></li>
       <li><span><b>macOS／Linux 安裝器</b>：沒有。程式能跑，但要自己建環境。</span></li>
       <li><span><b>手機 App</b>：沒有。網頁只給這台電腦用，手機上請用 Telegram 或 Discord。</span></li>
@@ -972,20 +971,21 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
     <ul class="honest sim-list">
       <li><span><b>Discord</b>、<b>Notion／Todoist／Google 日曆／Apple 提醒事項</b>：只用模擬的連線測過。</span></li>
       <li><span><b>看照片</b>：還沒在真的看圖模型上跑過。</span></li>
+      <li><span><b>GitHub Copilot、ChatGPT 訂閱登入</b>：經「訂閱登入」接上了（只給本人使用），還沒在真的訂閱帳號上試過。</span></li>
       <li><span><b>在全新的 Windows 上安裝</b>：<code>Setup.bat</code> 還沒在空白電腦上從頭跑過。</span></li>
       <li><span><b>安裝程式（.exe）</b>：已經放在<a href="{{releases-url}}" target="_blank" rel="noopener">發佈頁</a>，還沒在空白電腦上完整試過。</span></li>
       <li><span><b>Linux 沙盒、Docker 容器</b>：只檢查過組出來的指令，沒有在真機跑過。</span></li>
     </ul>
     <h3 class="st-h">測試</h3>
     <div class="tests">
-      <div><b>2,349</b><span>個自動測試</span></div>
-      <div><b>2,292</b><span>這次在 Linux 雲端通過<br>（14 個沒過、43 個略過）</span></div>
+      <div><b>4,461</b><span>個自動測試</span></div>
+      <div><b>4,423</b><span>這次在 Windows 通過<br>（0 個沒過、38 個略過）</span></div>
       <div><b>0／32</b><span>真機驗證清單打勾的<br>（全部還是「待測」）</span></div>
     </div>
     <p class="note" style="text-align:left">
-      沒過的 14 個大多是 Windows 專用的寫法（路徑、登錄檔）、Linux 沙盒需要 systemd、少裝了 AI 連線用的套件；Windows 上全套的結果這次沒有跑。
+      略過的 38 個大多要這台電腦沒有的環境或選裝套件才跑得到；Linux 上全套的結果這次沒有跑。
       自動測試用的是假的 Telegram、假的 AI、假的外部服務。本機模型（Ollama）在實驗機上用真的模型試過 9 題。
-      測試日期 2026-11-13。
+      測試日期 2026-11-23（0.2.2-alpha.4）。
     </p>
     <details class="road">
       <summary>接下來要做什麼</summary>

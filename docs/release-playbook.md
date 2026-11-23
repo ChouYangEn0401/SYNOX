@@ -4,13 +4,13 @@
 自己更新的設計在 [adr/0023](adr/0023-updates-and-hotfixes.md)；安裝程式的建置與簽章金鑰在 [release-build.md](release-build.md)。
 這一頁只講「實際怎麼發、怎麼先測、出事怎麼退」，指令可以照抄。
 
-現況（2026-11-19；以 `gh release list` 為準）：
+現況（2026-11-23；以 `gh release list` 為準）：
 
 | | 版本 | GitHub 發佈 | 會影響什麼 |
 |---|---|---|---|
-| SYNOX | `release/0.2.2`：`0.2.2-alpha.1`（2026-11-19，要打 tag `v0.2.2-alpha.1`；[versioning.md](versioning.md) §13） | tag `v0.2.1-alpha.1`、`v0.2.1-beta.1`（沒發佈）、`v0.2.1-beta.2`，都是預覽版；**沒有正式版** | `Update.bat`／「檢查更新」問 `releases/latest`：現在一律「還沒有正式版」 |
-| SYNOX_Libs（工具庫＋衣櫃） | `v0.3.1`（安裝程式帶它的 `tools-0.3.1.zip`） | `v0.2.0`、`v0.3.0`、`v0.3.1` 都是 pre-release，還沒有標成 Latest 的 | SYNOX 網頁工具庫的 `catalog.OFFICIAL_INDEX_URL` 釘在 `v0.3.1`（第 2 節）、Libs 的 `LINK_MODE = "tag"` |
-| 發佈簽章公鑰 | 沒有（`signing.RELEASE_PUBLIC_KEYS` 是空的） | — | 每一版都算「沒有簽章」：使用者要明確 `Update.bat -AllowUnsigned` |
+| SYNOX | `0.2.2-alpha.4`（2026-11-23 準備中，tag `v0.2.2-alpha.4` 還沒打；[versioning.md](versioning.md) §13） | 已發：`v0.2.1-alpha.1`、`v0.2.1-beta.2`、`v0.2.2-alpha.1`、`v0.2.2-alpha.2`、`v0.2.2-alpha.3`（`v0.2.1-beta.1` 有 tag 沒發佈）；全是預覽版，**沒有正式版**。GitHub 的 Latest 標在 `v0.2.2-alpha.2` | `Update.bat`／「檢查更新」問 `releases/latest`：版本有尾巴＝「還沒有正式版」；測試版那一行列最新的預覽版（[versioning.md](versioning.md) §7） |
+| SYNOX_Libs（工具庫＋衣櫃） | `v0.3.1`（安裝程式與發佈 ZIP 都帶它的 `tools-0.3.1.zip`） | `v0.2.0`、`v0.3.0`、`v0.3.1` 都是 pre-release，還沒有標成 Latest 的 | SYNOX 網頁工具庫的 `catalog.OFFICIAL_INDEX_URL` 釘在 `v0.3.1`（第 2 節）、Libs 的 `LINK_MODE = "tag"` |
+| 發佈簽章公鑰 | 兩把（現用＋備用，`signing.RELEASE_PUBLIC_KEYS`）；`v0.2.2-alpha.1` 起每一版都附 `release.json`＋`.sig` | — | 有簽章的版本：`Update.bat` 一定驗簽章、網頁可以一鍵更新；沒簽章的版本仍要 `Update.bat -AllowUnsigned` |
 
 ---
 
@@ -68,6 +68,8 @@ git push origin release/0.2.2 v0.2.2-alpha.1
 
 # 4. 附檔：ZIP（帶工具庫）＋ SHA256SUMS.txt ＋ release.json(.sig)
 python scripts/make_zip.py --tools <SYNOX_Libs>/dist
+#   --tools 要跟安裝程式同一版工具庫（build-installer.yml 的 LIBS_TAG）：本機 dist/ 不是那一版時，改用發佈頁的
+#   tools-<版本>.zip（先對 sha256，release-build.md）解開的 tools/ 資料夾（0.2.2-alpha.3 的 ZIP 帶到本機較舊的 dist）
 gh release download v0.2.2-alpha.1 -R $REPO -p 'SYNOX-Setup-*.exe' -D dist || true   # 有 exe 就一起簽進去
 python scripts/release.py sign --dist dist --key <repo 以外的私鑰檔> [--security] [--summary "一句白話"]
 #   還沒有私鑰（創始維護者還沒 keygen）：照樣要 SHA256SUMS.txt。沒有 sign 時自己做：
