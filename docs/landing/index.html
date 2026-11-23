@@ -782,7 +782,7 @@ footer a { color: var(--muted); }
 <header class="top">
   <a class="logo" href="#top" aria-label="SYNOX（點一下再看一次開場）" title="點一下再看一次開場" id="logo"><span class="mark mark-md" aria-hidden="true">S</span><b>SYNOX</b></a>
   <div class="top-r">
-    <a class="ver" href="https://github.com/ChouYangEn0401/SYNOX/releases/tag/v0.2.2-alpha.3" target="_blank" rel="noopener" title="目前的版本（組這一頁時從 pyproject.toml 讀的）。點一下看這一版的發佈頁"><i class="dot" style="background:var(--warn)"></i><b>0.2.2-alpha.3</b>alpha</a>
+    <a class="ver" href="https://github.com/ChouYangEn0401/SYNOX/releases/tag/v0.2.2-alpha.4" target="_blank" rel="noopener" title="目前的版本（組這一頁時從 pyproject.toml 讀的）。點一下看這一版的發佈頁"><i class="dot" style="background:var(--warn)"></i><b>0.2.2-alpha.4</b>alpha</a>
     <a class="gh" href="https://github.com/ChouYangEn0401/SYNOX" target="_blank" rel="noopener"><svg class="brand"><use href="#b-github"/></svg>GitHub</a>
   </div>
 </header>
@@ -823,7 +823,7 @@ footer a { color: var(--muted); }
       <span class="chip"><svg class="brand c-mono"><use href="#b-openai"/></svg>OpenAI</span>
       <span class="chip"><svg class="brand c-gemini"><use href="#b-gemini"/></svg>Gemini</span>
       <span class="chip"><svg class="ico c-accent"><use href="#i-chip"/></svg>本機模型</span>
-      <span class="chip soon" title="GithubCopilotLogin 寫好了，還沒接進 SYNOX、也還沒在真的 Copilot 上測過"><svg class="brand c-mono"><use href="#b-copilot"/></svg>GitHub Copilot<i class="wip">⏳ 尚未完成</i></span>
+      <span class="chip" title="經「訂閱登入」接上（要裝 ntu_easy_llm 0.6 與 Copilot 的登入套件），用這台電腦上你自己登入的 Copilot，只給本人使用；還沒在真的 Copilot 上測過"><svg class="brand c-mono"><use href="#b-copilot"/></svg>GitHub Copilot<i class="sim">🧪 未實測</i></span>
     </div></div>
   <div class="with-group"><span>裝在哪裡、怎麼用</span>
     <div class="chips">
@@ -991,8 +991,8 @@ footer a { color: var(--muted); }
       </div>
       <b>下載、解開</b>
       <p>按下面的按鈕下載（約 6 MB）。對下載的檔案按<strong>右鍵</strong> →<strong>「全部解壓縮」</strong>，把解開的資料夾放在好找的地方（例如「文件」），之後都從這裡開。</p>
-      <a class="big-dl" href="https://github.com/ChouYangEn0401/SYNOX/releases/download/v0.2.2-alpha.3/SYNOX-0.2.2-alpha.3.zip"><svg class="ico"><use href="#i-download"/></svg>下載 SYNOX</a>
-      <p class="dl-meta"><code>SYNOX-0.2.2-alpha.3.zip</code><br>也有<a href="https://github.com/ChouYangEn0401/SYNOX/releases/download/v0.2.2-alpha.3/SYNOX-Setup-0.2.2-alpha.3.exe">安裝程式（.exe）</a> · <a href="https://github.com/ChouYangEn0401/SYNOX/releases" target="_blank" rel="noopener">全部版本</a></p>
+      <a class="big-dl" href="https://github.com/ChouYangEn0401/SYNOX/releases/download/v0.2.2-alpha.4/SYNOX-0.2.2-alpha.4.zip"><svg class="ico"><use href="#i-download"/></svg>下載 SYNOX</a>
+      <p class="dl-meta"><code>SYNOX-0.2.2-alpha.4.zip</code><br>也有<a href="https://github.com/ChouYangEn0401/SYNOX/releases/download/v0.2.2-alpha.4/SYNOX-Setup-0.2.2-alpha.4.exe">安裝程式（.exe）</a> · <a href="https://github.com/ChouYangEn0401/SYNOX/releases" target="_blank" rel="noopener">全部版本</a></p>
     </li>
     <li>
       <div class="art" aria-hidden="true">
@@ -1015,7 +1015,7 @@ footer a { color: var(--muted); }
       </div>
       <b>開始使用</b>
       <p>點兩下桌面的「SYNOX」，到 Telegram 跟它說話。要什麼功能就裝什麼工具（<a href="#what">上面有 ⬇ 下載</a>）。</p>
-      <p class="tut"><span class="tut-h">🎓 新手教學工具</span> <i class="wip">⏳ 尚未完成</i><br>裝了它，SYNOX 會一步一步帶你認識每個畫面、教你怎麼裝工具；不想要了可以刪掉。</p>
+      <p class="tut"><span class="tut-h">🎓 新手教學</span>（內建）<br>打 <code>/tutorial</code>（或說「開始教學」），SYNOX 會在網頁上把要按的地方圈起來，一步一步帶你走；Telegram、Discord 用步驟卡。</p>
     </li>
   </ol>
 
@@ -1030,7 +1030,7 @@ footer a { color: var(--muted); }
       <li><b>跳出「Windows 已保護您的電腦」</b>：按「其他資訊」→「仍要執行」。</li>
       <li><b>點兩下之後好像沒反應</b>：第一次會自己準備 Python 和需要的東西（要上網），視窗出現前可能要等一兩分鐘。</li>
       <li><b>還沒有 Telegram 的 bot</b>：先看上面的 Telegram 圖文教學，5 分鐘就能拿到。</li>
-      <li><b>想用安裝程式（.exe）</b>：下載 <a href="https://github.com/ChouYangEn0401/SYNOX/releases/download/v0.2.2-alpha.3/SYNOX-Setup-0.2.2-alpha.3.exe"><code>SYNOX-Setup-0.2.2-alpha.3.exe</code></a>，點兩下、照畫面按，不用解壓縮，也不用系統管理員。<i class="sim">🧪 還沒在空白電腦上完整試過</i></li>
+      <li><b>想用安裝程式（.exe）</b>：下載 <a href="https://github.com/ChouYangEn0401/SYNOX/releases/download/v0.2.2-alpha.4/SYNOX-Setup-0.2.2-alpha.4.exe"><code>SYNOX-Setup-0.2.2-alpha.4.exe</code></a>，點兩下、照畫面按，不用解壓縮，也不用系統管理員。<i class="sim">🧪 還沒在空白電腦上完整試過</i></li>
       <li><b>之後要更新</b>：在 SYNOX 網頁「設定 → 💻 電腦與備份 → SYNOX 更新」按「檢查更新」。</li>
       <li><b>會用 git 的人</b>（進階）：<code>git clone https://github.com/ChouYangEn0401/SYNOX.git</code>，再點兩下 <code>Setup.bat</code>。完整說明在 <a href="https://github.com/ChouYangEn0401/SYNOX#readme" target="_blank" rel="noopener">README</a>。</li>
     </ul>
@@ -1083,7 +1083,6 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
     <h3 class="st-h"><i class="wip">⏳ 尚未完成</i></h3>
     <ul class="honest">
       <li><span><b>裝 OpenClaw／Hermes 生態的工具</b>：研究做完了（技能文字的格式可以轉、授權允許），規劃等擁有者核准，還沒開始寫。</span></li>
-      <li><span><b>GitHub Copilot</b>：登入用的小工具另外寫好了，還沒接進 SYNOX。</span></li>
       <li><span><b>哨兵模式</b>（多台電腦連線）：在另一個分支上，還沒合進主線。</span></li>
       <li><span><b>macOS／Linux 安裝器</b>：沒有。程式能跑，但要自己建環境。</span></li>
       <li><span><b>手機 App</b>：沒有。網頁只給這台電腦用，手機上請用 Telegram 或 Discord。</span></li>
@@ -1093,20 +1092,21 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
     <ul class="honest sim-list">
       <li><span><b>Discord</b>、<b>Notion／Todoist／Google 日曆／Apple 提醒事項</b>：只用模擬的連線測過。</span></li>
       <li><span><b>看照片</b>：還沒在真的看圖模型上跑過。</span></li>
+      <li><span><b>GitHub Copilot、ChatGPT 訂閱登入</b>：經「訂閱登入」接上了（只給本人使用），還沒在真的訂閱帳號上試過。</span></li>
       <li><span><b>在全新的 Windows 上安裝</b>：<code>Setup.bat</code> 還沒在空白電腦上從頭跑過。</span></li>
       <li><span><b>安裝程式（.exe）</b>：已經放在<a href="https://github.com/ChouYangEn0401/SYNOX/releases" target="_blank" rel="noopener">發佈頁</a>，還沒在空白電腦上完整試過。</span></li>
       <li><span><b>Linux 沙盒、Docker 容器</b>：只檢查過組出來的指令，沒有在真機跑過。</span></li>
     </ul>
     <h3 class="st-h">測試</h3>
     <div class="tests">
-      <div><b>2,349</b><span>個自動測試</span></div>
-      <div><b>2,292</b><span>這次在 Linux 雲端通過<br>（14 個沒過、43 個略過）</span></div>
+      <div><b>4,461</b><span>個自動測試</span></div>
+      <div><b>4,423</b><span>這次在 Windows 通過<br>（0 個沒過、38 個略過）</span></div>
       <div><b>0／32</b><span>真機驗證清單打勾的<br>（全部還是「待測」）</span></div>
     </div>
     <p class="note" style="text-align:left">
-      沒過的 14 個大多是 Windows 專用的寫法（路徑、登錄檔）、Linux 沙盒需要 systemd、少裝了 AI 連線用的套件；Windows 上全套的結果這次沒有跑。
+      略過的 38 個大多要這台電腦沒有的環境或選裝套件才跑得到；Linux 上全套的結果這次沒有跑。
       自動測試用的是假的 Telegram、假的 AI、假的外部服務。本機模型（Ollama）在實驗機上用真的模型試過 9 題。
-      測試日期 2026-11-13。
+      測試日期 2026-11-23（0.2.2-alpha.4）。
     </p>
     <details class="road">
       <summary>接下來要做什麼</summary>
@@ -1135,12 +1135,12 @@ synox-sdk zip .   <span class="c">→ dist/hello-0.1.0.synoxpack</span></code></
 
 <footer>
   <span class="mark mark-xs" aria-hidden="true">S</span>
-  <span>SYNOX 0.2.2-alpha.3（alpha）</span>
+  <span>SYNOX 0.2.2-alpha.4（alpha）</span>
   <span>核心 AGPL-3.0-or-later · 工具 SDK 與範例 Apache-2.0</span>
   <span>Telegram、Discord、Claude、OpenAI、Gemini 等名稱與標誌屬於各自的所有者</span>
   <a href="https://github.com/ChouYangEn0401/SYNOX" target="_blank" rel="noopener">github.com/ChouYangEn0401/SYNOX</a>
 </footer>
-<p class="stamp">線上版 <a href="https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox">claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox</a> · 本機版 docs/landing/index.html · 頁面版本 <span data-stamp>c4b84dd546 · 2026-11-23</span></p>
+<p class="stamp">線上版 <a href="https://claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox">claude.ai/artifact/SNsSkbcVQm7BU22BBZN3gW#synox</a> · 本機版 docs/landing/index.html · 頁面版本 <span data-stamp>84a3c5e861 · 2026-11-23</span></p>
 </div>
 
 <script>

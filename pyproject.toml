@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "synox"
-version = "0.2.2-alpha.3"
+version = "0.2.2-alpha.4"
 description = "SYNOX: the AI assistant that lives on your own computer (Telegram / Discord / web; pluggable LLM, tool packs, encrypted vault)."
 requires-python = ">=3.11"
 license = {text = "AGPL-3.0-or-later AND Apache-2.0"}   # 核心 AGPL、SDK 與範例 Apache，見 LICENSING.md
