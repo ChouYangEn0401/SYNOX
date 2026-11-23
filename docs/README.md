@@ -23,7 +23,7 @@
 | [install-packs.md](install-packs.md) | 使用者 | 怎麼裝一個 `.synoxpack`：點兩下、拖到 Install-Pack.bat、拖進網頁、`synox install`；圖示空白／點兩下沒反應怎麼辦 |
 | [install-third-party-tools.md](install-third-party-tools.md) | 使用者 | 找到別人做的工具、MCP 伺服器或 Claude 技能，怎麼安全地放進 SYNOX：先判斷是哪一種、安裝報告怎麼看、接官方遠端 MCP 的例子、本機 MCP 的風險、Claude 技能現在為什麼不能直接用、危險信號、一定會被拒的 |
 | [ecosystem.md](ecosystem.md) | 使用者、作者、維護者 | 工具生態：找、裝、更新、移除工具；做一個工具給人裝；之後的路（哪些是提案）；每次發版要更新哪些文件 |
-| [versioning.md](versioning.md) | 使用者、作者、維護者 | 版本號怎麼看（正式版／beta／alpha）、我是不是最新版、**我要怎麼更新**（ZIP、git、安裝程式、工具、SDK）；維護者：升號規則、分支、tag、每版要有什麼、`scripts/release.py`；自己更新（檢查更新、`Update.bat`、退回、簽章）在 [adr/0023](adr/0023-updates-and-hotfixes.md)（已採用） |
+| [versioning.md](versioning.md) | 使用者、作者、維護者 | 版本號怎麼看（正式版／beta／alpha）、我是不是最新版、**我要怎麼更新**（ZIP、git、安裝程式、工具、SDK）；維護者：升號規則、分支、tag、每版要有什麼、`scripts/release.py`；自己更新（檢查更新、`Update.bat`、退回、簽章）在 [adr/0023](adr/0023-updates-and-hotfixes.md)（已採用）；網頁一鍵更新與啟動時補齊套件在 [adr/0047](adr/0047-web-update-and-deps-sync.md) |
 | [release-playbook.md](release-playbook.md) | 維護者（人或 Claude session） | **發版就照這一頁**：先測更新（`make_update_testkit.py`、`Update.bat -FromZip`、`SYNOX_UPDATE_API`）、SYNOX 發 pre-release → 標 Latest（`gh` 指令）、SYNOX_Libs 摘要、下載連結怎麼保持最新（`LINK_MODE`、`OFFICIAL_INDEX_URL`）、每道關卡擋什麼、出事怎麼退、給新 session 的檢查表 |
 | [sandbox-roadmap.md](sandbox-roadmap.md) | 使用者、作者、維護者、想參與的人 | 沙盒路線圖（徵求協助）：現在哪裡有隔離、哪裡沒有（Windows 還沒有）；Windows 的候選路線與取捨；志願者怎麼跑探測腳本；help wanted 任務與驗收條件 |
 | [security.md](security.md) | 使用者、作者 | 資料存在哪、誰看得到、裝別人的 pack 時的五關、信任層級、沙盒、沒有做的保護 |

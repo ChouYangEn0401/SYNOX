@@ -976,7 +976,7 @@
           <div class="txt"><h2>SYNOX 更新</h2><p class="sub" id="upd-now">按「檢查更新」才會連到 GitHub 問最新的正式版和最新的測試版（只看，不會自己下載或安裝；GitHub 看得到這台的 IP）。</p></div></div>
         <label class="f"><input id="upd-weekly" type="checkbox"> 每週幫我看一次有沒有新版（只看，不會自己裝）</label>
         <label class="f"><input id="upd-preview" type="checkbox"> 也提醒我有測試版</label>
-        <p class="muted">預設關著：「有新版」只算正式版。打開了，比你裝的新的測試版也會提醒你，「更新…」（Update.bat）也會裝測試版；測試版可能還有問題。
+        <p class="muted">預設關著：「有新版」只算正式版。打開了，比你裝的新的測試版也會提醒你，「更新」（網頁、Update.bat）也會裝測試版；測試版可能還有問題。
           不管開不開，查完都會列出最新的正式版和測試版（測試版的號碼比同號的正式版小：0.2.2-alpha.1 &lt; 0.2.2-beta.1 &lt; 0.2.2）。</p>
         <p class="muted">預設關著：沒打開的話，有安全更新也要你自己來按「檢查更新」才會知道。打開了，有新版時會在這裡、網頁上方和 Telegram／Discord 通知你一次。</p>
         <div class="row">
@@ -985,10 +985,23 @@
           <span id="upd-msg" class="muted" role="status"></span>
         </div>
         <div id="upd-result" class="note-line hidden" role="status"></div>
+        <!-- 網頁一鍵更新（docs/adr/0047）：有簽章的新版 →「更新到 X」→ 確認 → 背景下載、驗簽章 → Update.bat -Apply 換檔 → 自己重新整理 -->
+        <p id="upd-channel" class="muted"></p>
+        <p id="upd-last" class="note-line hidden" role="status"></p>
         <p id="upd-how" class="muted"></p>
         <div class="row">
-          <button id="upd-go" class="hidden" type="button">更新…</button>
+          <button id="upd-start" class="primary hidden" type="button">更新</button>
+          <button id="upd-go" class="hidden" type="button">打開更新視窗…</button>
+          <button id="upd-back" class="hidden" type="button">回到上一版…</button>
         </div>
+        <div id="upd-ask" class="note-line hidden" role="alertdialog" aria-labelledby="upd-ask-text">
+          <p id="upd-ask-text"></p>
+          <div class="row">
+            <button id="upd-ask-ok" class="primary" type="button">開始更新</button>
+            <button id="upd-ask-cancel" type="button">先不要</button>
+          </div>
+        </div>
+        <div id="upd-progress" class="note-line hidden" role="status" aria-live="polite"></div>
         <div id="upd-confirm" class="note-line hidden" role="alertdialog" aria-labelledby="upd-confirm-text">
           <p id="upd-confirm-text">會在這台電腦上打開「SYNOX 更新」視窗（Update.bat）：它先給你看這版改了什麼，再問你一次。
             確定之後才下載、檢查檔案，然後 SYNOX 會<strong>暫時關掉</strong>（網頁會斷線）、換好再自己打開。你的設定、資料、工具都不會動；
@@ -996,6 +1009,15 @@
           <div class="row">
             <button id="upd-launch" class="primary" type="button">打開更新視窗</button>
             <button id="upd-cancel" type="button">先不要</button>
+          </div>
+        </div>
+        <!-- 套件（docs/adr/0047 §2）：啟動時自動補裝；沒補到的在這裡說一句、可以再試一次 -->
+        <div id="upd-deps" class="note-line hidden" role="status">
+          <div id="upd-deps-lines"></div>
+          <div class="row">
+            <button id="upd-deps-retry" class="hidden" type="button">再試一次（補裝套件）</button>
+            <button id="upd-deps-restart" class="hidden" type="button" data-restart-now>重新啟動 SYNOX</button>
+            <span id="upd-deps-msg" class="muted" role="status"></span>
           </div>
         </div>
       </div>
@@ -2849,15 +2871,137 @@
     if (r) {
       (r.lines || []).forEach(function (line) { box.appendChild(el("p", "", line)); });
       if (r.status === "newer" && !r.signed && r.kind === "zip") {
-        box.appendChild(el("p", "muted", "這一版沒有簽章：更新視窗會先說明，要你明確同意（Update.bat -AllowUnsigned）才會換檔。"));
+        box.appendChild(el("p", "muted", "這一版沒有簽章：網頁不會自動換。要換就按「打開更新視窗…」，視窗會先說明，"
+          + "要你明確同意（Update.bat -AllowUnsigned）才會換檔。"));
       }
       if (r.checked_at) { box.appendChild(el("p", "muted", "查的時間：" + new Date(r.checked_at * 1000).toLocaleString())); }
-      // 上次查到的是測試版、現在又改回只收正式版：不給「更新…」（Update.bat 照設定只會找正式版）
-      $("upd-go").classList.toggle("hidden", !(r.status === "newer" && d.can_launch && !(r.prerelease && d.channel !== "preview")));
     }
+    drawUpdateActions(d, r);
     updateBanner(d.notice);
     if (r && typeof r.tools_newer === "number") { libHint(r.tools_newer); }
   }
+  // ── 網頁一鍵更新、回到上一版、補裝套件（docs/adr/0047）──────────────
+  var UPD_LAST = { update_ok: "✅ 上次更新：{from} → {to}", update_back: "⚠️ 上次更新到 {to} 沒成功，已經自動退回 {from}（紀錄在 data\\logs\\update.log）。",
+                   update_fail: "❌ 上次更新到 {to} 沒成功，也沒能自動退回：請看 data\\logs\\update.log，或到 GitHub 回報。",
+                   rollback: "↩️ 上次退回到 {to}" };
+  var updAsk = "", updPoll = null, updWatching = false;
+  function fillText(s, o) { return String(s).replace(/\{(\w+)\}/g, function (_, k) { return o[k] === undefined ? "" : o[k]; }); }
+  function drawUpdateActions(d, r) {
+    $("upd-channel").textContent = d.channel === "preview" ?
+      "更新通道：正式版＋測試版（「更新」會裝兩者之中最新的；測試版可能還有問題）" : "更新通道：只收正式版（要測試版就打開上面「也提醒我有測試版」）";
+    var lu = d.last_update, lastBox = $("upd-last");
+    lastBox.classList.toggle("hidden", !lu);
+    if (lu) {
+      var key = lu.action === "rollback" ? "rollback" : (lu.ok ? "update_ok" : (lu.rolled_back ? "update_back" : "update_fail"));
+      lastBox.textContent = fillText(UPD_LAST[key], { from: lu.from || "?", to: lu.to || "?" }) + (lu.at ? "（" + lu.at.replace("T", " ") + "）" : "");
+    }
+    var newer = !!(r && r.status === "newer" && !(r.prerelease && d.channel !== "preview"));   // 改回只收正式版：上次查到的測試版不給按
+    var job = d.job, running = !!(job && (job.state === "preparing" || job.state === "launching"));
+    var oneClick = newer && d.can_update && r.signed && !running;
+    $("upd-start").classList.toggle("hidden", !oneClick);
+    if (oneClick) { $("upd-start").textContent = "更新到 " + r.latest + (r.prerelease ? "（測試版）" : ""); }
+    // 沒有簽章（或不能一鍵更新、但可以開 Update.bat）：照舊打開更新視窗，在視窗裡自己決定
+    $("upd-go").classList.toggle("hidden", !(newer && d.can_launch && !oneClick && !running));
+    var prev = d.previous || [];
+    $("upd-back").classList.toggle("hidden", !(d.can_update && prev.length && !running));
+    if (prev.length) { $("upd-back").textContent = "回到上一版（" + prev[0] + "）…"; }
+    drawJob(d);
+    drawDeps(d);
+  }
+  function drawJob(d) {
+    var box = $("upd-progress"), job = d.job;
+    clear(box);
+    box.classList.toggle("hidden", !job || updAskOpen());
+    if (!job) { return; }
+    var mark = { preparing: "⏳ ", launching: "⏳ ", launched: "🔁 ", failed: "❌ ", current: "✅ " }[job.state] || "";
+    if (job.message) { box.appendChild(el("p", "", mark + job.message)); }
+    (job.lines || []).slice(-6).forEach(function (line) { box.appendChild(el("p", "muted", line)); });
+    if (job.state === "preparing" || job.state === "launching") { pollUpdate(); }
+    else if (job.state === "launched") { waitForNewSynox(d.boot); }
+  }
+  function updAskOpen() { return !$("upd-ask").classList.contains("hidden"); }
+  function pollUpdate() {
+    if (updPoll) { return; }
+    updPoll = setTimeout(function () {
+      updPoll = null;
+      api("GET", "/api/settings/update").then(drawUpdate).catch(function () { pollUpdate(); });
+    }, 1500);
+  }
+  function waitForNewSynox(oldBoot) {
+    if (updWatching || !window.SynoxUserMenu || !oldBoot) { return; }
+    updWatching = true;
+    var line = el("p", "muted", "");
+    $("upd-progress").appendChild(line);
+    window.SynoxUserMenu.watchRestart({
+      oldBoot: oldBoot, now: Date.now, timeoutMs: 600000,               // 套件有變時要下載，最多等 10 分鐘
+      schedule: function (fn, ms) { return setTimeout(fn, ms); },
+      fetch: function (u, o) { return fetch(u, o); },
+      onTick: function (s) { if (s >= 5) { line.textContent = "SYNOX 換版本中（網頁斷線是正常的），已經等了 " + s + " 秒…"; } },
+      onBack: function () { line.textContent = "好了！重新整理中…"; location.hash = "settings:system"; location.reload(); },
+      onTimeout: function (s) {
+        updWatching = false;
+        line.textContent = "等了 " + s + " 秒 SYNOX 還沒回來：看看電腦上「SYNOX Update」視窗寫什麼；"
+          + "沒開回來的話雙擊桌面的 SYNOX 捷徑。重新整理這一頁可以再看一次結果。";
+      }
+    });
+  }
+  function drawDeps(d) {
+    var dep = d.deps, job = d.deps_job, box = $("upd-deps"), lines = $("upd-deps-lines");
+    clear(lines);
+    var problems = dep && !dep.ok && dep.problems && dep.problems.length;
+    var running = !!(job && job.state === "running");
+    var done = !!(job && job.state === "done");
+    box.classList.toggle("hidden", !problems && !running && !done);
+    if (running) { lines.appendChild(el("p", "", "⏳ 補裝套件中（要網路，可能要幾分鐘）…")); pollUpdate(); }
+    else if (done && job.ok) {
+      lines.appendChild(el("p", "", job.fixed ? "✅ 套件補好了。正在跑的 SYNOX 要重新啟動才會用新的套件。" : "✅ 套件跟這版要的一樣。"));
+    } else if (problems) {
+      lines.appendChild(el("p", "", "⚠️ 有套件沒更新到這版要的版本（SYNOX 照常可以用，只是用到它的功能會不能用）："));
+      dep.problems.forEach(function (p) { lines.appendChild(el("p", "", "・" + p.line)); });
+      if (dep.how) { lines.appendChild(el("p", "muted", dep.how)); }
+    }
+    $("upd-deps-retry").classList.toggle("hidden", running || !problems || (done && job.ok));
+    $("upd-deps-restart").classList.toggle("hidden", !(done && job.ok && job.fixed));
+  }
+  function openUpdAsk(mode, d, r) {
+    updAsk = mode;
+    var text;
+    if (mode === "update") {
+      text = "要更新到 " + r.latest + (r.prerelease ? "（測試版，可能還有問題）" : "") + " 嗎？"
+        + (r.summary ? "這版改了什麼：" + r.summary + "。" : "")
+        + "SYNOX 會先在背景下載、核對檔案和簽章（這時候照常可以用）；好了會暫時關掉（網頁斷線一下，這版的套件有變的話會久一點），"
+        + "換好自己打開，這一頁會自己重新整理。你的設定、資料、工具都不會動；舊版會留著，出問題可以按「回到上一版」。";
+      $("upd-ask-ok").textContent = "開始更新";
+    } else {
+      text = "要回到上一版（" + (d.previous || [])[0] + "）嗎？SYNOX 會暫時關掉、換回去再打開，這一頁會自己重新整理。"
+        + "你的設定、資料、工具都不會動（在新版才有的設定，舊版可能看不懂）。";
+      $("upd-ask-ok").textContent = "回到上一版";
+    }
+    $("upd-ask-text").textContent = text;
+    $("upd-ask").classList.remove("hidden");
+    $("upd-progress").classList.add("hidden");
+    $("upd-ask-ok").focus();
+  }
+  $("upd-start").addEventListener("click", function () {
+    var d = updState || {}, r = d.result || d.last;
+    if (r) { openUpdAsk("update", d, r); }
+  });
+  $("upd-back").addEventListener("click", function () { openUpdAsk("rollback", updState || {}, null); });
+  $("upd-ask-cancel").addEventListener("click", function () { $("upd-ask").classList.add("hidden"); updAsk = ""; });
+  $("upd-ask-ok").addEventListener("click", function () {
+    var d = updState || {}, r = d.result || d.last || {};
+    $("upd-ask").classList.add("hidden");
+    var req = updAsk === "update" ? api("POST", "/api/settings/update/start", { version: r.latest })
+                                  : api("POST", "/api/settings/update/rollback", { confirm: true });
+    updAsk = "";
+    $("upd-msg").textContent = "";
+    req.then(drawUpdate).catch(function (e) { $("upd-msg").textContent = "❌ " + e.message; });
+  });
+  $("upd-deps-retry").addEventListener("click", function () {
+    $("upd-deps-msg").textContent = "";
+    api("POST", "/api/settings/update/deps", {}).then(drawUpdate)
+      .catch(function (e) { $("upd-deps-msg").textContent = "❌ " + e.message; });
+  });
   function loadUpdate() {
     api("GET", "/api/settings/update").then(drawUpdate).catch(function () { $("set-update").classList.add("hidden"); });
   }

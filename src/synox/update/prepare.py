@@ -87,6 +87,7 @@ PREP_TEXT = {
     "zip_unsigned_ok": "⚠️ 沒有簽章：你用了 -AllowUnsigned，只確認了上面說的那些。",
     "zip_current": "這個 ZIP 是 {v}，跟裝著的一樣，不用更新。",
     "zip_ahead": "這個 ZIP 是 {v}，比裝著的 {installed} 舊，不會「更新」成舊版。要回到上一版請用 Update.bat -Rollback。",
+    "changed": "GitHub 上的最新版現在是 {v}，不是你按的 {expect}（剛好又發了一版，或通道改了）。什麼都沒有換：請重新按「檢查更新」再看一次。",
 }
 
 
@@ -103,8 +104,9 @@ def _sha256(path: str) -> str:
 
 
 def deps_fingerprint(folder: str) -> str:
-    """會影響 .venv 的東西：requirements.txt、requirements.lock、pyproject.toml 的相依與 Python 版本那幾行。
-    版本號那一行每版都變，不算。兩邊一樣＝不用重裝套件。"""
+    """會影響 .venv 的東西：requirements.txt、requirements.lock、pyproject.toml 的相依、**全部**選裝組（llm、llop…）
+    與 Python 版本。版本號每版都變，不算。兩邊一樣＝不用重裝套件。pyproject 讀不了（舊版、壞掉）才退回逐行比對
+    （以前只看 dependencies／requires-python／llm／dev 開頭的行，新加的選裝組變了不會觸發重裝：docs/adr/0047）。"""
     h = hashlib.sha256()
     for name in ("requirements.txt", "requirements.lock"):
         try:
@@ -112,6 +114,16 @@ def deps_fingerprint(folder: str) -> str:
                 h.update(name.encode() + b"\0" + f.read().replace(b"\r\n", b"\n") + b"\0")
         except OSError:
             h.update(name.encode() + b"\0-\0")
+    try:
+        import tomllib
+        with open(os.path.join(folder, "pyproject.toml"), "rb") as f:
+            proj = (tomllib.load(f) or {}).get("project") or {}
+        deps = {"dependencies": proj.get("dependencies") or [], "requires-python": proj.get("requires-python") or "",
+                "optional-dependencies": proj.get("optional-dependencies") or {}}
+        h.update(b"pyproject\0" + json.dumps(deps, sort_keys=True, ensure_ascii=True).encode("ascii"))
+        return h.hexdigest()
+    except (OSError, ValueError, ImportError, AttributeError, TypeError):
+        pass
     try:
         with open(os.path.join(folder, "pyproject.toml"), "r", encoding="utf-8") as f:
             for line in f:
@@ -212,10 +224,12 @@ def _write_ready(root: str, ready: dict) -> dict:
 
 
 def prepare(root: str, *, installed: str = __version__, allow_unsigned: bool = False,
-            opener: Optional[Opener] = None, keys=None, say=print, include_prerelease: bool = False) -> dict:
+            opener: Optional[Opener] = None, keys=None, say=print, include_prerelease: bool = False,
+            expect: str = "") -> dict:
     """下載＋驗證＋解開；成功回 ready（也寫進 data/update/ready.json）。不對丟 UpdateError（AlreadyCurrent＝不用更新）。
     include_prerelease（preview 通道／--include-prerelease）：正式版與測試版取 SemVer 較大的那一版；
-    驗證一模一樣（SHA256SUMS.txt 必須有、有簽章就一定要驗過、沒簽章要明確 allow_unsigned）。"""
+    驗證一模一樣（SHA256SUMS.txt 必須有、有簽章就一定要驗過、沒簽章要明確 allow_unsigned）。
+    expect（網頁的「更新到 X」）：查到的最新版一定要正好是 X（中間又發了新版＝停下來，請使用者重新檢查；docs/adr/0047）。"""
     kind = install_kind(root)
     if kind != "zip":
         raise UpdateError(how_line(kind))
@@ -228,6 +242,8 @@ def prepare(root: str, *, installed: str = __version__, allow_unsigned: bool = F
         rel = fetch_latest(opener, include_prerelease=include_prerelease)
     except NotFound:
         raise AlreadyCurrent(PREP_TEXT["none_preview" if include_prerelease else "none"])
+    if expect and rel.version != expect:
+        raise UpdateError(PREP_TEXT["changed"].format(v=rel.version, expect=expect))
     state = compare(installed, rel.version)
     if state == "current":
         raise AlreadyCurrent(PREP_TEXT["current"].format(v=rel.version))

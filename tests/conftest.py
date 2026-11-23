@@ -71,6 +71,13 @@ def _test_pack_dirs(monkeypatch):
     monkeypatch.setattr(loader, "PACK_DIRS", DEFAULT_PACK_DIRS)
 
 
+@pytest.fixture(autouse=True)
+def _no_real_pip(monkeypatch):
+    """`synox run` 開頭的套件補裝（update/deps.py，ADR 0047）在測試裡只看不裝：在開發機的主 checkout 跑測試時，
+    Python 剛好就是 repo 的 .venv，不關掉就會真的叫 pip。要測補裝的測試自己傳 environ／run。"""
+    monkeypatch.setenv("SYNOX_DEPS_SYNC", "off")
+
+
 @pytest.fixture
 def no_sockets(monkeypatch):
     """新的測試檔一律用（pytestmark = pytest.mark.usefixtures("no_sockets")）：測試不准開埠。"""

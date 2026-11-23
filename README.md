@@ -114,7 +114,7 @@ synox tips      隨機一則使用小提示
 
 **工程師**：要自己從原始碼裝、用 Docker、放伺服器或當背景服務跑，看 [docs/advanced-install.md](docs/advanced-install.md)。
 
-**更新**：網頁「設定 → 💻 電腦與備份 → 檢查更新」（或 `synox update --check`）看有沒有新版，ZIP 裝的點兩下 `Update.bat` 更新（先給你看改了什麼、設定與資料不動、出事 `Update.bat -Rollback`）；git 裝的 `git pull`。細節（ZIP、git、工具、SDK）見 [docs/versioning.md](docs/versioning.md)。
+**更新**：網頁「設定 → 💻 電腦與備份 → 檢查更新」（或 `synox update --check`）看有沒有新版；ZIP 裝的（Windows）直接在同一張卡片按「更新到 X」（有簽章的版本；SYNOX 自己下載、核對、換好、開回來，出事按「回到上一版」），或點兩下 `Update.bat`（設定與資料不動、出事 `Update.bat -Rollback`）；git 裝的 `git pull`。換了版本之後啟動時會自動補齊套件（含你裝過的 `llm`、`llop`）。細節（ZIP、git、工具、SDK）見 [docs/versioning.md](docs/versioning.md)。
 
 ## 個人版和伺服器版
 

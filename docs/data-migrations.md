@@ -142,6 +142,7 @@ def migrate_1_to_2_dir(path):      # dir：就地改這個資料夾（SYNOX 先�
 | `D/web_prefs/`、`D/user_prefs/`、`D/tour/<id>.json(.enc)` | 保管箱｜JSON | 巢狀 `version: 1`（版面、別名） | 物件 | web/toolpage.UserPrefs | 設定 | 待接 |
 | `D/llm_usage.json`、`D/ai_budgets.json`、`D/stepup_hints.json`（**清單**）、`D/discord_last_bot.json`、`D/packs_tamper_notified.json` | JSON | 無 | 物件／清單 | agent/loop、budget、guard/commands、discord、lock | 狀態／設定 | 待接 |
 | `D/apps.json`、`D/remote.json`、`D/update_check.json`、`D/remind/settings.json`、`D/runtime/state.json` | JSON | 無 | 物件 | web/apps、web/remote、update/check、notify/deskapp、runtime/loop | 設定／狀態 | 待接 |
+| `D/deps.json`（2026-11-23，[adr/0047](adr/0047-web-update-and-deps-sync.md)） | JSON | `schema_version: 1`（比較新的版本寫的：不讀、不覆蓋） | 物件 | update/deps.sync → deps.sync、web 卡片 | 設定（記住的選裝組）／狀態（上次補裝的結果） | 待接 |
 | `D/remind/engine.json`、`D/remind/desk/style.json`（`v: 1`） | JSON | `v: 1` | 物件 | schedule/engine、remindwin/style | 狀態／快取 | 待接 |
 | `D/users.json`、`D/blocked.json`（**清單**）、`daily_usage.json`、`rate_exemptions.json`、`muted.json`、`penalties.json`、`last_update_id` | JSON／文字 | 無 | 清單／物件 | vendor SDK（`vendor/isdtelekit`，不改） | 使用者／狀態 | 待接（SDK 檔：在 SYNOX 端包一層或旁檔） |
 | `D/.synox.key` | 文字 | 魔術字 `SYNOXKEY1` | – | vault/keyring | 金鑰 | 不接（自己有格式版本） |

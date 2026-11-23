@@ -26,6 +26,8 @@ python -m synox <指令>
             ｜tools update <名字…>|--all [--yes]（下載 → 一樣的檢查報告 → 核准才換；舊版留在 packs/_removed/）
   update    update --check（SYNOX 本體有沒有新版；正式版、測試版都列；--include-prerelease 這次也提醒測試版）｜--weekly on|off｜--channel stable|preview
             ｜--prepare [--from-zip <ZIP>]（Update.bat 用；-FromZip 先用本機的 ZIP 測更新）
+  deps      deps（status：這版要的套件跟 .venv 裡的一不一樣）｜deps sync [--add 組] [--remove 組]（補裝；`synox run` 開頭也會
+            自動補，失敗照常啟動。docs/adr/0047）
   sentinel  提醒哨兵（登入 Windows 時自動啟動；SYNOX 沒開時照樣跳提醒視窗、送 Telegram；開著時讓位。docs/notifications.md）
   remind-window  打開電腦提醒視窗（--demo 跳一張試看看的卡；平常由 SYNOX／哨兵自己開）
 
@@ -64,6 +66,7 @@ def cmd_run(args) -> int:
     except ConfigError as e:
         print(f"❌ {e}")
         return 2
+    _deps_at_start(config)
     from synox.app import build
     app = build(config, config_path=os.path.abspath(args.config or CONFIG_PATH))
     if config.discord_enabled and "discord" not in app.extras:
@@ -83,6 +86,50 @@ def cmd_run(args) -> int:
             app.on_start.append(lambda _app: _web_only_started(_app, config, failed, open_browser=_wants_browser(args)))
     app.run(channels)
     return 2 if failed else 0
+
+
+def _deps_at_start(config, sync=None) -> None:
+    """換了版本之後，這版要的套件（pyproject.toml 的相依＋使用者選過的選裝組，例如 llm、llop）跟 .venv 裡裝著的不一樣
+    → 自動補裝（docs/adr/0047 §2；只有用 SYNOX 自己的 .venv 跑時才裝）。**失敗也照常啟動**：印一句哪個沒補到、怎麼補。
+    在開 bot 之前做：還沒 import 那些套件，補完這一次就用得到。"""
+    try:
+        from synox.update import deps
+        (sync or deps.sync)(getattr(config, "root", "."), config.data_dir)
+    except Exception:                                    # 什麼都不能讓 SYNOX 起不來
+        logging.exception("[DEPS] dependency check at start failed")
+
+
+def cmd_deps(args, *, sync=None, status=None) -> int:
+    """synox deps [status]｜synox deps sync [--add 組] [--remove 組]（docs/adr/0047 §2）。
+    結束碼：status 0＝都對、10＝有要補的；sync 0＝補好了（或本來就對）、1＝還有沒補到的。"""
+    from synox.config import ROOT
+    from synox.update import deps
+    from synox.wizard import logic
+    path = args.config or CONFIG_PATH
+    root = os.path.dirname(os.path.abspath(path)) if args.config else ROOT
+    raw = logic.read_existing(path) or {}
+    data_dir = str(raw.get("data_dir") or "data")
+    data_dir = data_dir if os.path.isabs(data_dir) else os.path.join(root, data_dir)
+    if args.deps_action == "sync":
+        if args.add or args.remove:
+            now = deps.set_extras(data_dir, add=args.add or (), remove=args.remove or ())
+            print("記住的選裝組：" + ("、".join(now) if now else "（沒有）"))
+        result = (sync or deps.sync)(root, data_dir, force=True)
+        if result.get("ok"):
+            print("✅ 套件跟這版要的一樣。" if not result.get("fixed") else
+                  "✅ 補好了。正在跑的 SYNOX 要重新啟動才會用新的套件。")
+            return 0
+        return 1
+    st = (status or deps.status)(root, data_dir)
+    print("選裝組：" + ("、".join(st.get("extras") or []) or "（沒有）")
+          + ("（這版有：" + "、".join(st["available"]) + "）" if st.get("available") else ""))
+    if st.get("ok"):
+        print("✅ 套件跟這版要的一樣。")
+        return 0
+    for item in st.get("todo") or []:
+        print(f"⚠️ {item['name']}：要 {item['need']}，現在是 {item['have'] or '沒有裝'}")
+    print("要補：synox deps sync（或重新啟動 SYNOX，啟動時會自動補）。")
+    return 10
 
 
 def load_for_run(path=None) -> SynoxConfig:
@@ -1374,6 +1421,11 @@ def main(argv=None) -> int:
     p.add_argument("--channel", choices=["stable", "preview"], default=None,
                    help="更新通道：stable＝只提醒正式版（預設）｜preview＝也提醒測試版（Update.bat 也會裝測試版）")
     p.add_argument("--rollback", action="store_true", help="說明怎麼退回上一版（Update.bat -Rollback）")
+    p = sub.add_parser("deps", help="套件跟這版要的一不一樣：status（只看）｜sync（補裝；啟動時也會自動做）")
+    p.add_argument("deps_action", nargs="?", choices=["status", "sync"], default="status")
+    p.add_argument("--add", action="append", default=None, metavar="組",
+                   help="sync：多記一組選裝組（例如 llop），之後換版本也會幫你補")
+    p.add_argument("--remove", action="append", default=None, metavar="組", help="sync：不要再補這一組")
     p = sub.add_parser("open", help="在這台電腦上打開網頁介面（沒在跑就先開 SYNOX；跟 web-login 一樣）")
     sub.add_parser("about", help="SYNOX 的版本、授權、裝在哪裡")
     p = sub.add_parser("tips", help="隨機一則使用小提示")
@@ -1390,7 +1442,7 @@ def main(argv=None) -> int:
                 "install": cmd_install, "packs": cmd_packs, "connect": cmd_connect, "discord": cmd_discord, "web-login": cmd_web_login,
                 "stepup": cmd_stepup,
                 "open": cmd_open, "about": cmd_about, "tips": cmd_tips,
-                "init": cmd_init, "tools": cmd_tools, "filetype": cmd_filetype, "update": cmd_update,
+                "init": cmd_init, "tools": cmd_tools, "filetype": cmd_filetype, "update": cmd_update, "deps": cmd_deps,
                 "sentinel": cmd_sentinel, "remind-window": cmd_remind_window, "import-legacy": cmd_import_legacy}
     if args.cmd in brand.BANNER_COMMANDS:
         brand.show_banner(args.cmd, quiet=args.quiet)
